@@ -32,6 +32,7 @@ import java.lang.annotation.*;
 import java.lang.reflect.*;
 import haven.render.*;
 import nurgling.tools.MaterialFactory;
+import static haven.PType.*;
 
 public class Material implements Pipe.Op {
     public final Pipe.Op states, dynstates;
@@ -92,7 +93,7 @@ public class Material implements Pipe.Op {
 	public Pipe.Op cons(Resource res, Object... args) {
 	    BlendMode.Function cfn, afn;
 	    BlendMode.Factor csrc, cdst, asrc, adst;
-	    String desc = (String)args[0];
+	    String desc = STR.of(args[0]);
 	    if(desc.length() < 3)
 		throw(new Resource.UnknownFormatException(res, "blend description", desc));
 	    cfn = fn(res, desc.charAt(0));
@@ -112,7 +113,7 @@ public class Material implements Pipe.Op {
     @ResName("order")
     public static class $order implements ResCons {
 	public Pipe.Op cons(Resource res, Object... args) {
-	    String nm = (String)args[0];
+	    String nm = STR.of(args[0]);
 	    if(nm.equals("first")) {
 		return(Rendered.first);
 	    } else if(nm.equals("last")) {
@@ -275,10 +276,21 @@ public class Material implements Pipe.Op {
 
     @ResName("mlink")
     public static class $mlink implements ResCons2 {
-	public Res.Resolver cons(Resource res, Object... args) {
-	    KeywordArgs desc = new KeywordArgs(args, res.pool, "?@res", "id");
-	    Indir<Resource> lres = Utils.irv(desc.get("res", res.indir()));
-	    int id = Utils.iv(desc.get("id", -1));
+	public Res.Resolver cons(final Resource res, Object... args) {
+	    // Use Hafen's new PType parsing
+	    Indir<Resource> lres;
+	    int id;
+	    if(IRES.is(args[0])) {
+		lres = IRES.of(args[0]);
+		id = (args.length > 1) ? INT.of(args[1]) : -1;
+	    } else if(STR.is(args[0])) {
+		lres = res.pool.load(STR.of(args[0]), INT.of(args[1]));
+		id = (args.length > 2) ? INT.of(args[2]) : -1;
+	    } else {
+		lres = res.indir();
+		id = INT.of(args[0]);
+	    }
+	    // But keep CustomResolver for MaterialFactory integration
 	    return(new Res.CustomResolver() {
 		    public void resolve(Collection<Pipe.Op> buf, Collection<Pipe.Op> dynbuf) {
 			if(id >= 0) {
