@@ -30,7 +30,6 @@ import java.util.*;
 import haven.render.*;
 import haven.render.sl.*;
 import haven.render.Texture2D.Sampler2D;
-import static haven.PType.*;
 
 public abstract class TexRender implements Tex, Disposable {
     public static final VertexArray.Layout vf_tex2d = new VertexArray.Layout(new VertexArray.Layout.Input(Ortho2D.pos, new VectorFormat(2, NumberFormat.FLOAT32), 0, 0, 16),
@@ -50,7 +49,7 @@ public abstract class TexRender implements Tex, Disposable {
 	img.dispose();
     }
 
-    public static final ShaderMacro mktex = prog -> {
+    private static final ShaderMacro mktex = prog -> {
 	Tex2D.get(prog).tex2d(new Uniform.Data<Object>(p -> {
 		    TexDraw draw = p.get(TexDraw.slot);
 		    TexClip clip = p.get(TexClip.slot);
@@ -136,54 +135,24 @@ public abstract class TexRender implements Tex, Disposable {
 	}
     }
 
-    @Material.ResName("tex")
-    public static class $tex implements Material.ResCons2 {
+    @Material.SpecName("tex")
+    public static class $tex implements Material.Spec {
 	public static final boolean defclip = true;
 
-	public Material.Res.Resolver cons(final Resource res, Object... args) {
-	    // Use Hafen's new PType parsing
-	    Indir<Resource> tres;
-	    int tid, a = 0;
-	    if(IRES.is(args[a])) {
-		tres = IRES.of(args[a++]);
-		tid = (args.length > a) ? INT.of(args[a++]) : -1;
-	    } else if(STR.is(args[a])) {
-		tres = res.pool.load(STR.of(args[a++]), INT.of(args[a++]));
-		tid = (args.length > a) ? INT.of(args[a++]) : -1;
-	    } else {
-		tres = res.indir();
-		tid = INT.of(args[a++]);
-	    }
-	    boolean tclip = defclip;
-	    while(a < args.length) {
-		String f = STR.of(args[a++]);
-		if(f.equals("a"))
-		    tclip = false;
-		else if(f.equals("c"))
-		    tclip = true;
-	    }
-	    boolean clip = tclip;
-	    // But keep CustomResolver for MaterialFactory integration
-	    return(new Material.Res.CustomResolver() {
-		    public void resolve(Collection<Pipe.Op> buf, Collection<Pipe.Op> dynbuf) {
-			TexRender tex;
-			TexR rt = getCustomTex(Math.max(tid, 0));
-			if(rt == null) {
-				if (tid >= 0)
-					rt = tres.get().layer(TexR.class, tid);
-				else
-					rt = tres.get().layer(TexR.class);
-			}
-			if(rt != null) {
-			    tex = rt.tex();
-			} else {
-			    throw(new RuntimeException(String.format("Specified texture %d for %s not found in %s", tid, res, tres)));
-			}
-			buf.add(tex.draw);
-			buf.add(clip ? tex.clip : noclip);
-		    }
-		};
-		return resolver;
+	public void cons(Material.Buffer buf, Object... args) {
+	    KeywordArgs desc = new KeywordArgs(args, buf.res.pool, "?@res", "id", "flags");
+	    Indir<Resource> tres = Utils.irv(desc.get("res", buf.res.indir()));
+	    int tid = Utils.iv(desc.get("id", -1));
+	    String fl = Utils.sv(desc.get("flags", ""));
+	    boolean clip = desc.has("clip") ? Utils.bv(desc.get("clip")) : (fl.indexOf('a') >= 0) ? false : (fl.indexOf('c') >= 0) ? true : defclip;
+	    TexR rt;
+	    if(tid >= 0)
+		rt = tres.get().flayer(TexR.class, tid);
+	    else
+		rt = tres.get().flayer(TexR.class);
+	    TexRender tex = rt.tex();
+	    buf.states.add(tex.draw);
+	    buf.states.add(clip ? tex.clip : noclip);
 	}
     }
 }
