@@ -234,15 +234,11 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
 
     double calcExpectedFep()
     {
-        NGameUI gui = NUtils.getGameUI();
-        haven.UI ui = NUtils.getUI();
-        if (gui == null || ui == null || !(ui instanceof NUI)) return 0;
-        NUI.NSessInfo sessInfo = ((NUI)ui).sessInfo;
-        if (gui.chrwdg != null && sessInfo != null && gui.chrwdg.battr != null)
+        if (NUtils.getGameUI().chrwdg != null && NUtils.getUI().sessInfo != null && NUtils.getGameUI().chrwdg.battr != null)
         {
-            boolean isSubscribed = sessInfo.isSubscribed;
-            boolean isVerified = sessInfo.isVerified;
-            return (((isSubscribed) ? coefSubscribe : (isVerified) ? coefVerif : 1) * fepSum * gui.chrwdg.battr.glut.gmod * gui.getTableMod() + fepSum * gui.chrwdg.battr.glut.gmod * gui.getTableMod() * gui.getRealmMod()) * efficiency / 100;
+            boolean isSubscribed = NUtils.getUI().sessInfo.isSubscribed;
+            boolean isVerified = NUtils.getUI().sessInfo.isVerified;
+            return (((isSubscribed) ? coefSubscribe : (isVerified) ? coefVerif : 1) * fepSum * NUtils.getGameUI().chrwdg.battr.glut.gmod * NUtils.getGameUI().getTableMod() + fepSum * NUtils.getGameUI().chrwdg.battr.glut.gmod * NUtils.getGameUI().getTableMod() * NUtils.getGameUI().getRealmMod()) * efficiency / 100;
         }
         return 0;
     }
