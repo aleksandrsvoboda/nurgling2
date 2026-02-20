@@ -12,6 +12,8 @@ import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPath;
 import nurgling.overlays.map.*;
 import nurgling.tools.*;
+import nurgling.sessions.BotExecutor;
+import nurgling.sessions.ThreadLocalUI;
 import org.json.*;
 
 import javax.swing.*;
@@ -526,24 +528,23 @@ public class NAreasWidget extends Window
                         {
                             if (option.name.equals(get("area.menu.navigate")))
                             {
-                                Thread t = new Thread(() -> {
-                                        ChunkNavManager chunkNav = ((NMapView)NUtils.getGameUI().map).getChunkNavManager();
-                                        if (chunkNav != null && chunkNav.isInitialized())
+                                final NArea navArea = area;
+                                BotExecutor.runTracked("AreaNavigator", (gui) -> {
+                                    ChunkNavManager chunkNav = ((NMapView)gui.map).getChunkNavManager();
+                                    if (chunkNav != null && chunkNav.isInitialized())
+                                    {
+                                        ChunkPath path = chunkNav.planToArea(navArea);
+                                        if (path != null)
                                         {
-                                            ChunkPath path = chunkNav.planToArea(area);
-                                            if (path != null)
+                                            try
                                             {
-                                                try
-                                                {
-                                                    chunkNav.navigateToArea(area, NUtils.getGameUI());
+                                                chunkNav.navigateToArea(navArea, gui);
                                             } catch (InterruptedException ignored)
                                             {
                                             }
                                         }
                                     }
-                                }, "AreaNavigator");
-                                t.start();
-                                NUtils.getGameUI().biw.addObserve(t);
+                                });
                             }
                             else if (option.name.equals(get("area.menu.select_space")))
                             {

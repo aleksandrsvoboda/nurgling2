@@ -35,6 +35,16 @@ import java.util.*;
 import static haven.LoginScreen.authmech;
 
 public class Bootstrap implements UI.Receiver, UI.Runner {
+    private static java.util.function.Supplier<Bootstrap> factory = Bootstrap::new;
+
+    public static void setFactory(java.util.function.Supplier<Bootstrap> f) {
+        factory = f;
+    }
+
+    public static Bootstrap create() {
+        return factory.get();
+    }
+
     public static final Config.Variable<String> authuser = Config.Variable.prop("haven.authuser", null);
     public static final Config.Variable<NamedSocketAddress> authserv = Config.Variable.proph("haven.server", AuthClient.DEFPORT, new NamedSocketAddress("localhost", AuthClient.DEFPORT));
     public static final Config.Variable<NamedSocketAddress> gameserv = Config.Variable.proph("haven.gameserv", 1870, null);
@@ -162,7 +172,27 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	    });
     }
 
+    /**
+     * Hook called before normal bootstrap.
+     * @return non-null Runner to skip bootstrap, null to continue
+     */
+    protected UI.Runner preRun(UI ui) throws InterruptedException {
+        return null;
+    }
+
+    /**
+     * Hook for creating RemoteUI after successful login.
+     * Override to return NRemoteUI for multi-session support.
+     */
+    protected RemoteUI createRemoteUI(Session sess) {
+        return new RemoteUI(sess);
+    }
+
     public UI.Runner run(UI ui) throws InterruptedException {
+	// Hook for subclasses (NBootstrap handles session switching)
+	UI.Runner pre = preRun(ui);
+	if (pre != null) return pre;
+
 	ui.setreceiver(this);
 	switch(authmech.get()) {
 		case "native":
@@ -320,7 +350,7 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	} while(true);
 	ui.destroy(1);
 	haven.error.ErrorHandler.setprop("usr", sess.user.name);
-	return(new RemoteUI(sess));
+	return(createRemoteUI(sess));
     }
 
     public void rcvmsg(int widget, String msg, Object... args) {

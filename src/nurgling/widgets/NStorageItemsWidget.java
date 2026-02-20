@@ -9,6 +9,7 @@ import nurgling.actions.bots.FetchStorageItemBot;
 import nurgling.db.dao.StorageItemDao;
 import nurgling.db.service.StorageItemService;
 import nurgling.i18n.L10n;
+import nurgling.sessions.BotExecutor;
 
 import java.awt.Color;
 import java.sql.SQLException;
@@ -589,22 +590,13 @@ public class NStorageItemsWidget extends Window {
         private void startFetchBot(int count) {
             // Get all raw items for this group
             List<StorageItemDao.StorageItemData> matchingItems = rawItems.stream()
-                .filter(i -> i.getName().equals(item.name) && 
-                            i.getQuality() >= item.minQuality && 
+                .filter(i -> i.getName().equals(item.name) &&
+                            i.getQuality() >= item.minQuality &&
                             i.getQuality() <= item.maxQuality)
                 .collect(Collectors.toList());
-            
+
             FetchStorageItemBot bot = new FetchStorageItemBot(item, count, matchingItems);
-            
-            Thread t = new Thread(() -> {
-                try {
-                    bot.run(NUtils.getGameUI());
-                } catch (InterruptedException e) {
-                    // Bot interrupted
-                }
-            }, "FetchStorageItemBot");
-            t.start();
-            NUtils.getGameUI().biw.addObserve(t);
+            BotExecutor.runAsync("FetchStorageItemBot", bot);
         }
     }
 

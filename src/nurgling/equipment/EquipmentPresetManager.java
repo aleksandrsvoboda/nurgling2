@@ -1,8 +1,11 @@
 package nurgling.equipment;
 
 import nurgling.NConfig;
+import nurgling.NGameUI;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
+import nurgling.sessions.BotExecutor;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -85,16 +88,6 @@ public class EquipmentPresetManager {
     }
 
     public void executePreset(EquipmentPreset preset) {
-        Thread t = new Thread(() -> {
-            try {
-                EquipmentBot bot = new EquipmentBot(preset);
-                bot.run(NUtils.getGameUI());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }, "EquipmentBot-" + preset.getName());
-
-        NUtils.getGameUI().biw.addObserve(t);
-        t.start();
+        BotExecutor.runAsync("EquipmentBot-" + preset.getName(), new EquipmentBot(preset));
     }
 }

@@ -12,6 +12,7 @@ import nurgling.*;
 import nurgling.actions.bots.*;
 import nurgling.areas.*;
 import nurgling.i18n.L10n;
+import nurgling.sessions.BotExecutor;
 import nurgling.tools.*;
 import org.json.*;
 
@@ -748,34 +749,22 @@ public class NMakewindow extends Widget {
             wdgmsg("make", 0);
         else
         {
-            Thread t;
-            (t = new Thread(new Runnable()
+            final NGameUI gui = NUtils.getGameUI();
+            if (gui == null) return;
+
+            int num = 1;
+            try
             {
-                @Override
-                public void run()
-                {
-                    try
-                    {
-                        int num = 1;
-                        try
-                        {
-                            String cand = craft_num.text();
-                            if(!cand.isEmpty())
-                                num = Integer.parseInt(cand);
-                        }
-                        catch (NumberFormatException e)
-                        {
-                            NUtils.getGameUI().error("Incorrect target num");
-                        }
-                        new Craft(NMakewindow.this, num).run(NUtils.getGameUI());
-                    }
-                    catch (InterruptedException e)
-                    {
-                        NUtils.getGameUI().tickmsg(Craft.class.getName() + "stopped");
-                    }
-                }
-            }, "Auto craft(BOT)")).start();
-            NUtils.getGameUI().biw.addObserve(t);
+                String cand = craft_num.text();
+                if(!cand.isEmpty())
+                    num = Integer.parseInt(cand);
+            }
+            catch (NumberFormatException e)
+            {
+                gui.error("Incorrect target num");
+            }
+            final int craftNum = num;
+            BotExecutor.runAsync("Auto craft(BOT)", new Craft(NMakewindow.this, craftNum));
         }
     }
 
@@ -787,23 +776,7 @@ public class NMakewindow extends Widget {
         }
         else
         {
-            Thread t;
-            (t = new Thread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    try
-                    {
-                        new Craft(NMakewindow.this, 9999).run(NUtils.getGameUI());
-                    }
-                    catch (InterruptedException e)
-                    {
-                        NUtils.getGameUI().tickmsg(Craft.class.getName() + "stopped");
-                    }
-                }
-            }, "Auto craft(BOT)")).start();
-            NUtils.getGameUI().biw.addObserve(t);
+            BotExecutor.runAsync("Auto craft(BOT)", new Craft(NMakewindow.this, 9999));
         }
     }
 

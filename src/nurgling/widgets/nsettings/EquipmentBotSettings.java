@@ -1,10 +1,13 @@
 package nurgling.widgets.nsettings;
 
 import haven.*;
+import nurgling.NGameUI;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
 import nurgling.equipment.EquipmentPreset;
 import nurgling.equipment.EquipmentPresetManager;
+import nurgling.sessions.BotExecutor;
 import nurgling.widgets.CustomIcon;
 import nurgling.widgets.CustomIconManager;
 import nurgling.widgets.NEquipmentPresetButton;
@@ -413,8 +416,11 @@ public class EquipmentBotSettings extends Panel implements DTarget {
     }
 
     private void equipNow() {
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null) return;
+
         if (slotConfig.isEmpty()) {
-            NUtils.getGameUI().msg(L10n.get("equipment.no_config"));
+            gui.msg(L10n.get("equipment.no_config"));
             return;
         }
 
@@ -422,16 +428,7 @@ public class EquipmentBotSettings extends Panel implements DTarget {
         EquipmentPreset tempPreset = new EquipmentPreset("Temp");
         tempPreset.setSlotConfig(new HashMap<>(slotConfig));
 
-        Thread t = new Thread(() -> {
-            try {
-                new EquipmentBot(tempPreset).run(NUtils.getGameUI());
-            } catch (InterruptedException e) {
-                NUtils.getGameUI().msg(L10n.get("equipment.stopped"));
-            }
-        }, "EquipmentBot");
-
-        NUtils.getGameUI().biw.addObserve(t);
-        t.start();
+        BotExecutor.runAsync("EquipmentBot", new EquipmentBot(tempPreset));
     }
 
     private class PresetItemWidget extends Widget {

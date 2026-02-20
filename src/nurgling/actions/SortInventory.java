@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.*;
 import haven.res.ui.tt.stackn.Stack;
 import nurgling.*;
+import nurgling.sessions.BotExecutor;
 import nurgling.tasks.*;
 
 import java.util.*;
@@ -312,26 +313,17 @@ public class SortInventory implements Action {
         if (!isValidInventory(inv)) {
             return;
         }
-        
+
         NGameUI gui = NUtils.getGameUI();
         if (gui == null) return;
-        
+
         // Check cursor
         if (gui.vhand != null) {
             gui.error("Need default cursor to sort inventory!");
             return;
         }
-        
-        Thread t = new Thread(() -> {
-            try {
-                new SortInventory(inv).run(gui);
-            } catch (InterruptedException e) {
-                gui.msg("Sort interrupted");
-            }
-        }, "InventorySorter");
-        
-        gui.biw.addObserve(t);
-        t.start();
+
+        BotExecutor.runAsync("InventorySorter", new SortInventory(inv));
     }
     
     /**

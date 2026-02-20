@@ -15,6 +15,7 @@ import nurgling.tools.*;
 import nurgling.widgets.*;
 import nurgling.widgets.options.AutoSelection;
 import nurgling.widgets.options.QuickActions;
+import nurgling.sessions.ThreadLocalUI;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -40,14 +41,14 @@ public class NUtils
             System.err.println("[NUtils] Failed to load NCaveTile: " + e.getMessage());
         }
     }
-    
+
     // Static FPS value updated from render loop
     private static volatile int currentFps = 0;
-    
+
     public static int getFps() {
         return currentFps;
     }
-    
+
     public static void setFps(int fps) {
         currentFps = fps;
     }
@@ -60,10 +61,17 @@ public class NUtils
     }
 
     public static NGameUI getGameUI(){
-        return getUI().gui;
+        NUI ui = getUI();
+        return (ui != null) ? ui.gui : null;
     }
 
     public static NUI getUI(){
+        // First check if this thread has a bound UI (bot threads)
+        NUI threadUI = ThreadLocalUI.get();
+        if (threadUI != null) {
+            return threadUI;
+        }
+        // Fall back to active UI (main thread, render thread)
         return (NUI)UI.getInstance();
     }
 
@@ -806,13 +814,25 @@ public class NUtils
 
         // Area is not reachable by local PF, use chunk navigation
         // Plan to all 4 corners in parallel and choose the shortest path
-        ChunkNavManager chunkNav = ((NMapView) NUtils.getGameUI().map).getChunkNavManager();
+        // IMPORTANT: Capture GUI once and reuse to avoid multi-session issues
+        NGameUI currentGui = NUtils.getGameUI();
+        if (currentGui == null || currentGui.map == null) return false;
+
+        // DEBUG: Log which session we're operating on
+        String sessionInfo = "unknown";
+        if (currentGui.ui != null && currentGui.ui.sess != null && currentGui.ui.sess.user != null) {
+            sessionInfo = currentGui.ui.sess.user.name;
+        }
+        System.out.println("[NUtils.navigateToArea] Using session: " + sessionInfo +
+                           ", gui hashCode: " + System.identityHashCode(currentGui));
+
+        ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
         if (chunkNav != null && chunkNav.isInitialized())
         {
             ChunkPath bestPath = nurgling.navigation.AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
             if (bestPath != null)
             {
-                return chunkNav.navigateWithPath(bestPath, area, NUtils.getGameUI()).IsSuccess();
+                return chunkNav.navigateWithPath(bestPath, area, currentGui).IsSuccess();
             }
         }
         return false;
@@ -831,13 +851,25 @@ public class NUtils
 
         // Area is not reachable by local PF, use chunk navigation
         // Plan to all 4 corners in parallel and choose the shortest path
-        ChunkNavManager chunkNav = ((NMapView) NUtils.getGameUI().map).getChunkNavManager();
+        // IMPORTANT: Capture GUI once and reuse to avoid multi-session issues
+        NGameUI currentGui = NUtils.getGameUI();
+        if (currentGui == null || currentGui.map == null) return false;
+
+        // DEBUG: Log which session we're operating on
+        String sessionInfo = "unknown";
+        if (currentGui.ui != null && currentGui.ui.sess != null && currentGui.ui.sess.user != null) {
+            sessionInfo = currentGui.ui.sess.user.name;
+        }
+        System.out.println("[NUtils.navigateToArea(Specialisation)] Using session: " + sessionInfo +
+                           ", gui hashCode: " + System.identityHashCode(currentGui));
+
+        ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
         if (chunkNav != null && chunkNav.isInitialized())
         {
             ChunkPath bestPath = nurgling.navigation.AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
             if (bestPath != null)
             {
-                return chunkNav.navigateWithPath(bestPath, area, NUtils.getGameUI()).IsSuccess();
+                return chunkNav.navigateWithPath(bestPath, area, currentGui).IsSuccess();
             }
         }
         return false;

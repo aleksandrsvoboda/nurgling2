@@ -247,6 +247,13 @@ public class BotsInterruptWidget extends Widget {
     final ArrayList<Gear> obs = new ArrayList<>();
     final ArrayList<Thread> stackObs = new ArrayList<>();
 
+    /**
+     * Check if there are any bots currently running.
+     */
+    public boolean hasRunningBots() {
+        return !obs.isEmpty();
+    }
+
 //    @Override
 //    public void draw(GOut g) {
 //        Coord pcc = null;

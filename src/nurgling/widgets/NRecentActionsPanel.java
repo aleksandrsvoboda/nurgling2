@@ -5,6 +5,7 @@ import nurgling.*;
 import nurgling.actions.Action;
 import nurgling.actions.ActionWithFinal;
 import nurgling.conf.*;
+import nurgling.sessions.BotExecutor;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.*;
@@ -248,48 +249,13 @@ public class NRecentActionsPanel extends Widget {
                                 pagButton.use(new MenuGrid.Interaction());
                             }
                         } else if (recentAction.botAction != null) {
-                            // Handle bot action - mirror the behavior from NBotsMenu.start()
-                            Thread t = new Thread(() -> {
-                                ArrayList<Thread> supports = new ArrayList<>();
-                                try {
-                                    NGameUI gui = NUtils.getGameUI();
-                                    if (gui != null) {
-                                        // Start support actions first
-                                        for (Action sup : recentAction.botAction.getSupp()) {
-                                            Thread st = new Thread(() -> {
-                                                try {
-                                                    sup.run(gui);
-                                                } catch (InterruptedException e) {
-                                                    // Support action interrupted
-                                                }
-                                            });
-                                            supports.add(st);
-                                            st.start();
-                                        }
-                                        // Run main action
-                                        recentAction.botAction.run(gui);
-                                    }
-                                } catch (InterruptedException e) {
-                                    if (NUtils.getGameUI() != null) {
-                                        NUtils.getGameUI().msg(recentAction.botPath + ": STOPPED");
-                                    }
-                                } finally {
-                                    // Clean up like the original
-                                    if (recentAction.botAction instanceof ActionWithFinal) {
-                                        ((ActionWithFinal) recentAction.botAction).endAction();
-                                    }
-                                    for (Thread st : supports) {
-                                        st.interrupt();
-                                    }
+                            // Handle bot action - use BotExecutor like NBotsMenu
+                            Runnable onComplete = () -> {
+                                if (recentAction.botAction instanceof ActionWithFinal) {
+                                    ((ActionWithFinal) recentAction.botAction).endAction();
                                 }
-                            }, recentAction.botPath + "-RecentAction");
-                            
-                            // Add to bot interrupt widget so the gear appears
-                            NGameUI gui = NUtils.getGameUI();
-                            if (gui != null && gui.biw != null) {
-                                gui.biw.addObserve(t);
-                            }
-                            t.start();
+                            };
+                            BotExecutor.runWithSupports(recentAction.botPath + "-RecentAction", recentAction.botAction, false, onComplete);
                         }
                     } catch (Exception e) {
                         // Silently ignore errors in action execution

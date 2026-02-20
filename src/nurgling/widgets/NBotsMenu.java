@@ -6,6 +6,7 @@ import nurgling.actions.*;
 import nurgling.actions.bots.CatchBugsAround;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
+import nurgling.sessions.BotExecutor;
 
 import java.awt.image.BufferedImage;
 import java.util.*;
@@ -310,61 +311,26 @@ public class NBotsMenu extends Widget
 
         void start(String path, Action action)
         {
-            NGameUI gui = NUtils.getGameUI();
-            if (gui != null && gui.recentActionsPanel != null) {
-                   gui.recentActionsPanel.addBotAction(path, action);
-               }
+            NUI boundUI = NUtils.getUI();
+            NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
-            Thread t;
-            t = new Thread(new Runnable()
-            {
-                ArrayList<Thread> supports = new ArrayList<>();
-                @Override
-                public void run()
+            if (gui != null && gui.recentActionsPanel != null) {
+                gui.recentActionsPanel.addBotAction(path, action);
+            }
+
+            // Callback to run showLayouts and handle ActionWithFinal
+            Runnable onComplete = () -> {
+                if(action instanceof ActionWithFinal)
                 {
-                    try
-                    {
-                        showLayouts();
-                        NGameUI gui = NUtils.getGameUI();
-                        if(gui!=null) {
-                            for (Action sup : action.getSupp()) {
-                                Thread st;
-                                supports.add(st = new Thread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        try {
-                                            sup.run(gui);
-                                        } catch (InterruptedException e) {
-                                        }
-                                    }
-                                }));
-                                st.start();
-                            }
-                            action.run(gui);
-                        }
-                    }
-                    catch (InterruptedException e)
-                    {
-                        NUtils.getGameUI().msg(path + ":" + "STOPPED");
-                    }
-                    finally
-                    {
-                        if(action instanceof ActionWithFinal)
-                        {
-                            ((ActionWithFinal)action).endAction();
-                        }
-                        for(Thread st: supports)
-                        {
-                            st.interrupt();
-                        }
-                        }
+                    ((ActionWithFinal)action).endAction();
                 }
-            }, path);
-            if(disStacks)
-                NUtils.getGameUI().biw.addObserve(t, true);
-            else
-                NUtils.getGameUI().biw.addObserve(t);
-            t.start();
+            };
+
+            // Show layouts before starting
+            showLayouts();
+
+            // Use BotExecutor with support threads
+            BotExecutor.runWithSupports(path, action, disStacks, onComplete);
         }
 
 
@@ -380,32 +346,27 @@ public class NBotsMenu extends Widget
             btn.action(new Runnable() {
                 @Override
                 public void run() {
-                    NGameUI gui = NUtils.getGameUI();
+                    NUI boundUI = NUtils.getUI();
+                    NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+
                     if (!active) {
                         if (gui != null && gui.recentActionsPanel != null) {
                             gui.recentActionsPanel.addBotAction(path, action);
                         }
 
-                        thread = new Thread(() -> {
-                            try {
-                                action.run(gui);
-                            } catch (InterruptedException e) {
-                                gui.msg(path + ": STOPPED");
-                            }
-                        }, path + "-ToggleThread");
-                        if (disStacks)
-                            gui.biw.addObserve(thread, true);
-                        else
-                            gui.biw.addObserve(thread);
-                        thread.start();
-                        gui.msg("Started: " + path);
+                        thread = BotExecutor.runAsync(path + "-ToggleThread", action, disStacks);
+                        if (gui != null) {
+                            gui.msg("Started: " + path);
+                        }
                     } else {
                         if (thread != null && thread.isAlive()) {
                             if (action instanceof ActionWithFinal) {
                                 ((ActionWithFinal)action).endAction();
                             }
                             thread.interrupt();
-                            gui.msg("Stopped: " + path);
+                            if (gui != null) {
+                                gui.msg("Stopped: " + path);
+                            }
                         }
                     }
                     active = !active;

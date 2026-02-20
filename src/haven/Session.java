@@ -64,6 +64,8 @@ public class Session implements Resource.Resolver {
     public final Glob glob;
     public SignKey sesskey;
     private boolean closed = false;
+    /** Injected message for extension points (multi-session, etc.) */
+    private volatile PMessage injectedMessage = null;
 
     final Map<Integer, String> res_id_cache = new TreeMap<Integer, String>();
     public String getResName(Integer id)
@@ -311,6 +313,17 @@ public class Session implements Resource.Resolver {
 	}
     }
 
+    /**
+     * Inject a custom message into the UI message queue.
+     * Used by extensions for session management signals.
+     */
+    public void injectMessage(PMessage msg) {
+        synchronized(uimsgs) {
+            injectedMessage = msg;
+            uimsgs.notifyAll();
+        }
+    }
+
     public PMessage getuimsg() throws InterruptedException {
 	synchronized(uimsgs) {
 	    while(true) {
@@ -318,6 +331,12 @@ public class Session implements Resource.Resolver {
 		    return(uimsgs.remove());
 		if(closed)
 		    return(null);
+		// Check for injected message (generic hook for extensions)
+		if (injectedMessage != null) {
+		    PMessage m = injectedMessage;
+		    injectedMessage = null;
+		    return m;
+		}
 		uimsgs.wait();
 	    }
 	}
