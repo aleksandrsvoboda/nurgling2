@@ -357,7 +357,7 @@ public class NLoginScreen extends LoginScreen
                         for (int i = 0; i < buff.length; i++)
                             if (buff[i] != item.token[i])
                             {
-                                item.token = buff;
+                                item.token = Arrays.copyOf(buff, buff.length);
                                 item.isTokenUsed = true;
                                 item.pass = "";
                                 NConfig.set(NConfig.Key.credentials, logpass);
@@ -366,7 +366,7 @@ public class NLoginScreen extends LoginScreen
                     }
                     else
                     {
-                        item.token = buff;
+                        item.token = Arrays.copyOf(buff, buff.length);
                         item.isTokenUsed = true;
                         item.pass = "";
                         NConfig.set(NConfig.Key.credentials, logpass);
@@ -376,7 +376,7 @@ public class NLoginScreen extends LoginScreen
             }
             if (!isFound)
             {
-                logpass.add(new NLoginData(login, buff));
+                logpass.add(new NLoginData(login, Arrays.copyOf(buff, buff.length)));
                 NConfig.set(NConfig.Key.credentials, logpass);
             }
         }
@@ -490,7 +490,7 @@ public class NLoginScreen extends LoginScreen
                 if (!nd.isTokenUsed)
                     NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.NativeCred(nd.name, nd.pass), false});
                 else
-                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.TokenCred(nd.name, nd.token), false});
+                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.TokenCred(nd.name, Arrays.copyOf(nd.token, nd.token.length)), false});
                 msgMode = false;
             }
             return res;
