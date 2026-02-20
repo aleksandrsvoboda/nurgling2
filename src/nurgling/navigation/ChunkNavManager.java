@@ -192,8 +192,15 @@ public class ChunkNavManager {
 
         // Capture grid data on main thread (quick), then process in background
         try {
-            MCache mcache = NUtils.getGameUI().map.glob.map;
+            NGameUI gui = NUtils.getGameUI();
+            if (gui == null || gui.map == null || gui.map.glob == null) return;
+
+            MCache mcache = gui.map.glob.map;
             if (mcache == null) return;
+
+            // Capture the glob reference for background thread - this ensures
+            // the recorder uses the correct session's gob data
+            final Glob capturedGlob = gui.map.glob;
 
             // Capture list of grids to record (quick operation on main thread)
             List<MCache.Grid> gridsToRecord = new ArrayList<>();
@@ -207,12 +214,12 @@ public class ChunkNavManager {
 
             if (gridsToRecord.isEmpty()) return;
 
-            // Submit recording task to background thread
+            // Submit recording task to background thread with captured glob
             recordingInProgress = true;
             recordingExecutor.submit(() -> {
                 try {
                     for (MCache.Grid grid : gridsToRecord) {
-                        recorder.recordGrid(grid);
+                        recorder.recordGrid(grid, capturedGlob);
                     }
                     saveThrottled();
                 } catch (Exception e) {

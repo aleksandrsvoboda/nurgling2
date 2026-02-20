@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NUI;
+import nurgling.NUtils;
 import nurgling.headless.HeadlessEnvironment;
 import nurgling.headless.HeadlessPanel;
 
@@ -228,43 +229,54 @@ public class SessionContext {
         final double TICK_DURATION = 1.0 / TICK_RATE;
         double lastTick = Utils.rtime();
 
-        while (!Thread.currentThread().isInterrupted() && headless && isConnected()) {
-            double now = Utils.rtime();
+        // Set thread-local UI for this headless thread so that task check() methods
+        // can access the correct session's UI via NUtils.getUI()/getGameUI().
+        // Without this, they would fall back to UI.getInstance() which returns the
+        // active visual session's UI, not this headless session's UI.
+        NUtils.setThreadUI(ui);
 
-            if (ui != null) {
-                synchronized (ui) {
-                    try {
-                        // Tick the session (network, glob, etc.)
-                        if (ui.sess != null) {
-                            ui.sess.glob.ctick();
-                            // Send pending map requests
-                            ui.sess.glob.map.sendreqs();
+        try {
+            while (!Thread.currentThread().isInterrupted() && headless && isConnected()) {
+                double now = Utils.rtime();
+
+                if (ui != null) {
+                    synchronized (ui) {
+                        try {
+                            // Tick the session (network, glob, etc.)
+                            if (ui.sess != null) {
+                                ui.sess.glob.ctick();
+                                // Send pending map requests
+                                ui.sess.glob.map.sendreqs();
+                            }
+
+                            // Tick the UI (processes widget state, bot actions, etc.)
+                            // Wrap in try-catch as some widgets may have render-specific code
+                            // that fails in headless mode
+                            ui.tick();
+                            ui.lastevent = now;
+                        } catch (NullPointerException e) {
+                            // Some widgets may throw NPE in headless mode due to
+                            // render-related code - ignore and continue
+                        } catch (Exception e) {
+                            // Log other exceptions but continue ticking
+                            System.err.println("[Headless] Tick error in session " + sessionId + ": " + e.getMessage());
                         }
-
-                        // Tick the UI (processes widget state, bot actions, etc.)
-                        // Wrap in try-catch as some widgets may have render-specific code
-                        // that fails in headless mode
-                        ui.tick();
-                        ui.lastevent = now;
-                    } catch (NullPointerException e) {
-                        // Some widgets may throw NPE in headless mode due to
-                        // render-related code - ignore and continue
-                    } catch (Exception e) {
-                        // Log other exceptions but continue ticking
-                        System.err.println("[Headless] Tick error in session " + sessionId + ": " + e.getMessage());
                     }
                 }
-            }
 
-            lastActivityTime = System.currentTimeMillis();
+                lastActivityTime = System.currentTimeMillis();
 
-            // Maintain tick rate
-            double targetTime = lastTick + TICK_DURATION;
-            double sleepTime = targetTime - Utils.rtime();
-            if (sleepTime > 0) {
-                Thread.sleep((long)(sleepTime * 1000));
+                // Maintain tick rate
+                double targetTime = lastTick + TICK_DURATION;
+                double sleepTime = targetTime - Utils.rtime();
+                if (sleepTime > 0) {
+                    Thread.sleep((long)(sleepTime * 1000));
+                }
+                lastTick = targetTime;
             }
-            lastTick = targetTime;
+        } finally {
+            // Clean up thread-local UI when the headless loop exits
+            NUtils.clearThreadUI();
         }
     }
 

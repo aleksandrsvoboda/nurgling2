@@ -793,8 +793,15 @@ public class NMapView extends MapView
             if (scenario != null || !(NUtils.getGameUI() == null)) {
                 System.out.println("[NMapView] Starting bot thread, scenario=" + (scenario != null));
                 botsInit = true;
+
+                // Capture UI reference for thread-local binding
+                final NUI boundUI = NUtils.getUI();
+                final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
+                if (boundGui == null) return;
+
                 Thread t;
                 t = new Thread(() -> {
+                    NUtils.setThreadUI(boundUI);
                     try {
                         System.out.println("[NMapView] Bot thread started, waiting " + BOT_DELAY_MS + "ms...");
                         Thread.sleep(BOT_DELAY_MS);
@@ -803,19 +810,19 @@ public class NMapView extends MapView
                         // In headless mode, use grid-only wait (no mesh/fog rendering checks)
                         if (Headless.isHeadless()) {
                             System.out.println("[NMapView] Headless mode - waiting for map grid data only...");
-                            NUtils.getUI().core.addTask(new WaitForMapGridLoad(NUtils.getGameUI()));
+                            boundUI.core.addTask(new WaitForMapGridLoad(boundGui));
                             System.out.println("[NMapView] Map grid data loaded");
                         } else {
                             System.out.println("[NMapView] Adding WaitForMapLoadNoCoord task...");
-                            NUtils.getUI().core.addTask(new WaitForMapLoadNoCoord(NUtils.getGameUI()));
+                            boundUI.core.addTask(new WaitForMapLoadNoCoord(boundGui));
                             System.out.println("[NMapView] WaitForMapLoadNoCoord completed");
                         }
 
                         // Switch to System chat for autorunner
                         System.out.println("[NMapView] Looking for system chat...");
-                        ChatUI.Channel systemChat = NUtils.getGameUI().chat.findSystemChat();
+                        ChatUI.Channel systemChat = boundGui.chat.findSystemChat();
                         if (systemChat != null) {
-                            NUtils.getGameUI().chat.select(systemChat, false);
+                            boundGui.chat.select(systemChat, false);
                             System.out.println("[NMapView] System chat selected");
                         } else {
                             System.out.println("[NMapView] No system chat found");
@@ -827,19 +834,21 @@ public class NMapView extends MapView
                         }
                         System.out.println("[NMapView] Running scenario: " + scenario.getName());
                         ScenarioRunner runner = new ScenarioRunner(scenario);
-                        runner.run(NUtils.getGameUI());
+                        runner.run(boundGui);
                         System.out.println("[NMapView] Scenario completed, logging out...");
 
-                        NUtils.getGameUI().act("lo");
+                        boundGui.act("lo");
                         System.exit(0);
                     } catch (InterruptedException e) {
                         System.out.println("[NMapView] Bot interrupted");
                     } catch (Exception e) {
                         System.err.println("[NMapView] ERROR in bot thread: " + e.getMessage());
                         e.printStackTrace();
+                    } finally {
+                        NUtils.clearThreadUI();
                     }
                 });
-                NUtils.getGameUI().biw.addObserve(t);
+                boundGui.biw.addObserve(t);
                 t.start();
             }
         }
@@ -985,24 +994,33 @@ public class NMapView extends MapView
         
         // Fallback to legacy keybindings
         if(kb_quickaction.key().match(ev) || kb_quickignaction.key().match(ev) || kb_mousequickaction.key().match(ev)) {
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
+            if (boundGui == null) return super.keydown(ev);
+
             Thread t;
             (t = new Thread(new Runnable()
             {
                 @Override
                 public void run()
                 {
+                    NUtils.setThreadUI(boundUI);
                     try
                     {
                         if(kb_quickaction.key().match(ev))
-                            new QuickActionBot(false, false).run(NUtils.getGameUI());
+                            new QuickActionBot(false, false).run(boundGui);
                         else if(kb_quickignaction.key().match(ev))
-                            new QuickActionBot(true, false).run(NUtils.getGameUI());
+                            new QuickActionBot(true, false).run(boundGui);
                         else if(kb_mousequickaction.key().match(ev))
-                            new QuickActionBot(false, true).run(NUtils.getGameUI());
+                            new QuickActionBot(false, true).run(boundGui);
                     }
                     catch (InterruptedException e)
                     {
-                        NUtils.getGameUI().msg("quick action error" + ":" + "STOPPED");
+                        boundGui.msg("quick action error" + ":" + "STOPPED");
+                    }
+                    finally
+                    {
+                        NUtils.clearThreadUI();
                     }
                 }
             }, "quick action")).start();
@@ -1161,11 +1179,18 @@ public class NMapView extends MapView
      * Run quick action with patterns from the specified preset
      */
     private void runQuickActionForPreset(QuickActionPreset preset, boolean ignorePattern, boolean useMouse) {
+        final NUI boundUI = NUtils.getUI();
+        final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
+        if (boundGui == null) return;
+
         Thread t = new Thread(() -> {
+            NUtils.setThreadUI(boundUI);
             try {
-                new QuickActionBot(ignorePattern, useMouse, preset).run(NUtils.getGameUI());
+                new QuickActionBot(ignorePattern, useMouse, preset).run(boundGui);
             } catch (InterruptedException e) {
-                NUtils.getGameUI().msg("quick action error: STOPPED");
+                boundGui.msg("quick action error: STOPPED");
+            } finally {
+                NUtils.clearThreadUI();
             }
         }, "quick action - " + preset.name);
         t.start();

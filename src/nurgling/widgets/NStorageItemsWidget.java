@@ -587,24 +587,31 @@ public class NStorageItemsWidget extends Window {
         }
         
         private void startFetchBot(int count) {
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            if (gui == null) return;
+
             // Get all raw items for this group
             List<StorageItemDao.StorageItemData> matchingItems = rawItems.stream()
-                .filter(i -> i.getName().equals(item.name) && 
-                            i.getQuality() >= item.minQuality && 
+                .filter(i -> i.getName().equals(item.name) &&
+                            i.getQuality() >= item.minQuality &&
                             i.getQuality() <= item.maxQuality)
                 .collect(Collectors.toList());
-            
+
             FetchStorageItemBot bot = new FetchStorageItemBot(item, count, matchingItems);
-            
+
             Thread t = new Thread(() -> {
+                NUtils.setThreadUI(boundUI);
                 try {
-                    bot.run(NUtils.getGameUI());
+                    bot.run(gui);
                 } catch (InterruptedException e) {
                     // Bot interrupted
+                } finally {
+                    NUtils.clearThreadUI();
                 }
             }, "FetchStorageItemBot");
             t.start();
-            NUtils.getGameUI().biw.addObserve(t);
+            gui.biw.addObserve(t);
         }
     }
 

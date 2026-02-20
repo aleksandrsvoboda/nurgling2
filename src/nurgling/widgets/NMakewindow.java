@@ -748,12 +748,17 @@ public class NMakewindow extends Widget {
             wdgmsg("make", 0);
         else
         {
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            if (gui == null) return;
+
             Thread t;
             (t = new Thread(new Runnable()
             {
                 @Override
                 public void run()
                 {
+                    NUtils.setThreadUI(boundUI);
                     try
                     {
                         int num = 1;
@@ -765,17 +770,21 @@ public class NMakewindow extends Widget {
                         }
                         catch (NumberFormatException e)
                         {
-                            NUtils.getGameUI().error("Incorrect target num");
+                            gui.error("Incorrect target num");
                         }
-                        new Craft(NMakewindow.this, num).run(NUtils.getGameUI());
+                        new Craft(NMakewindow.this, num).run(gui);
                     }
                     catch (InterruptedException e)
                     {
-                        NUtils.getGameUI().tickmsg(Craft.class.getName() + "stopped");
+                        gui.tickmsg(Craft.class.getName() + "stopped");
+                    }
+                    finally
+                    {
+                        NUtils.clearThreadUI();
                     }
                 }
             }, "Auto craft(BOT)")).start();
-            NUtils.getGameUI().biw.addObserve(t);
+            gui.biw.addObserve(t);
         }
     }
 
@@ -787,23 +796,32 @@ public class NMakewindow extends Widget {
         }
         else
         {
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            if (gui == null) return;
+
             Thread t;
             (t = new Thread(new Runnable()
             {
                 @Override
                 public void run()
                 {
+                    NUtils.setThreadUI(boundUI);
                     try
                     {
-                        new Craft(NMakewindow.this, 9999).run(NUtils.getGameUI());
+                        new Craft(NMakewindow.this, 9999).run(gui);
                     }
                     catch (InterruptedException e)
                     {
-                        NUtils.getGameUI().tickmsg(Craft.class.getName() + "stopped");
+                        gui.tickmsg(Craft.class.getName() + "stopped");
+                    }
+                    finally
+                    {
+                        NUtils.clearThreadUI();
                     }
                 }
             }, "Auto craft(BOT)")).start();
-            NUtils.getGameUI().biw.addObserve(t);
+            gui.biw.addObserve(t);
         }
     }
 

@@ -526,8 +526,14 @@ public class NAreasWidget extends Window
                         {
                             if (option.name.equals(get("area.menu.navigate")))
                             {
+                                final NUI boundUI = NUtils.getUI();
+                                final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
+                                if (boundGui == null) return;
+
                                 Thread t = new Thread(() -> {
-                                        ChunkNavManager chunkNav = ((NMapView)NUtils.getGameUI().map).getChunkNavManager();
+                                    NUtils.setThreadUI(boundUI);
+                                    try {
+                                        ChunkNavManager chunkNav = ((NMapView)boundGui.map).getChunkNavManager();
                                         if (chunkNav != null && chunkNav.isInitialized())
                                         {
                                             ChunkPath path = chunkNav.planToArea(area);
@@ -535,15 +541,18 @@ public class NAreasWidget extends Window
                                             {
                                                 try
                                                 {
-                                                    chunkNav.navigateToArea(area, NUtils.getGameUI());
-                                            } catch (InterruptedException ignored)
-                                            {
+                                                    chunkNav.navigateToArea(area, boundGui);
+                                                } catch (InterruptedException ignored)
+                                                {
+                                                }
                                             }
                                         }
+                                    } finally {
+                                        NUtils.clearThreadUI();
                                     }
                                 }, "AreaNavigator");
+                                boundGui.biw.addObserve(t);
                                 t.start();
-                                NUtils.getGameUI().biw.addObserve(t);
                             }
                             else if (option.name.equals(get("area.menu.select_space")))
                             {

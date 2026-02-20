@@ -1,7 +1,9 @@
 package nurgling.widgets.nsettings;
 
 import haven.*;
+import nurgling.NGameUI;
 import nurgling.NStyle;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.ActionWithFinal;
@@ -431,19 +433,24 @@ public class ScenarioPanel extends Panel {
 
     void start(String path, Action action)
     {
+        final NUI boundUI = NUtils.getUI();
+        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+        if (gui == null) return;
+
         Thread t;
         t = new Thread(new Runnable()
         {
             @Override
             public void run()
             {
+                NUtils.setThreadUI(boundUI);
                 try
                 {
-                    action.run(NUtils.getGameUI());
+                    action.run(gui);
                 }
                 catch (InterruptedException e)
                 {
-                    NUtils.getGameUI().msg(path + ":" + "STOPPED");
+                    gui.msg(path + ":" + "STOPPED");
                 }
                 finally
                 {
@@ -451,11 +458,12 @@ public class ScenarioPanel extends Panel {
                     {
                         ((ActionWithFinal)action).endAction();
                     }
+                    NUtils.clearThreadUI();
                 }
             }
         }, path);
 
-        NUtils.getGameUI().biw.addObserve(t);
+        gui.biw.addObserve(t);
 
         t.start();
     }
