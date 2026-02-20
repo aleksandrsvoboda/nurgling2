@@ -30,8 +30,10 @@ public class NOverlay extends MapView.MapRaster
 
     public NOverlay(Integer id) {
         super(NUtils.getGameUI().map.glob.map, NUtils.getGameUI().map.view);
-        if(id>=0)
-            bc = NUtils.getArea(id).color;
+        if(id>=0) {
+            NArea area = NUtils.getArea(id);
+            bc = (area != null) ? area.color : java.awt.Color.GRAY;
+        }
         this.id = id;
     }
 

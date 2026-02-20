@@ -1,0 +1,376 @@
+package nurgling.sessions;
+
+import haven.*;
+import haven.render.Environment;
+import nurgling.NUI;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+
+/**
+ * Manages multiple game sessions within a single client.
+ *
+ * One session is the "active" session and is rendered visually.
+ * All other sessions run in headless mode (bots only, no rendering).
+ *
+ * This enables running multiple characters simultaneously with minimal
+ * memory overhead (headless sessions use ~4MB vs ~200MB for visual).
+ */
+public class SessionManager {
+    /** Singleton instance */
+    private static SessionManager instance;
+
+    /** All sessions, keyed by session ID */
+    private final Map<String, SessionContext> sessions = new LinkedHashMap<>();
+
+    /** The currently active (visual) session */
+    private volatile SessionContext activeSession;
+
+    /** Session to switch to (set during session switch, consumed by Bootstrap) */
+    private volatile SessionContext pendingSwitchTo;
+
+    /** Listeners for session changes */
+    private final List<SessionChangeListener> listeners = new ArrayList<>();
+
+    /** Lock for session operations */
+    private final Object sessionsLock = new Object();
+
+    /**
+     * Get the singleton SessionManager instance.
+     */
+    public static synchronized SessionManager getInstance() {
+        if (instance == null) {
+            instance = new SessionManager();
+        }
+        return instance;
+    }
+
+    /**
+     * Interface for session change listeners.
+     */
+    public interface SessionChangeListener {
+        /** Called when the active session changes */
+        void onActiveSessionChanged(SessionContext oldSession, SessionContext newSession);
+
+        /** Called when a session is added */
+        void onSessionAdded(SessionContext session);
+
+        /** Called when a session is removed */
+        void onSessionRemoved(SessionContext session);
+    }
+
+    /**
+     * Add a session change listener.
+     */
+    public void addListener(SessionChangeListener listener) {
+        synchronized (listeners) {
+            listeners.add(listener);
+        }
+    }
+
+    /**
+     * Remove a session change listener.
+     */
+    public void removeListener(SessionChangeListener listener) {
+        synchronized (listeners) {
+            listeners.remove(listener);
+        }
+    }
+
+    /**
+     * Add a new session.
+     * If this is the first session, it becomes the active session.
+     * Otherwise, it starts in headless mode.
+     *
+     * @param session The network session
+     * @param ui The UI instance
+     * @return The created SessionContext
+     */
+    public SessionContext addSession(Session session, NUI ui) {
+        SessionContext ctx = new SessionContext(session, ui);
+
+        synchronized (sessionsLock) {
+            sessions.put(ctx.sessionId, ctx);
+
+            if (activeSession == null) {
+                // First session - make it active
+                activeSession = ctx;
+                System.out.println("[SessionManager] First session " + ctx.sessionId + " is now active");
+            } else {
+                // Additional session - start in headless mode
+                ctx.demoteToHeadless();
+                System.out.println("[SessionManager] Added session " + ctx.sessionId + " in headless mode");
+            }
+        }
+
+        // Add session tab bar to the UI if we have more than one session
+        // or if this is the first session (to show the + button)
+        if (ui != null) {
+            ui.addSessionTabBar();
+        }
+
+        // Notify listeners
+        notifySessionAdded(ctx);
+
+        return ctx;
+    }
+
+    /**
+     * Remove a session.
+     *
+     * @param sessionId The session ID to remove
+     */
+    public void removeSession(String sessionId) {
+        SessionContext ctx;
+        boolean wasActive = false;
+
+        synchronized (sessionsLock) {
+            ctx = sessions.remove(sessionId);
+            if (ctx == null) {
+                return;
+            }
+
+            wasActive = (ctx == activeSession);
+            if (wasActive) {
+                activeSession = null;
+                // Switch to another session if available
+                if (!sessions.isEmpty()) {
+                    SessionContext next = sessions.values().iterator().next();
+                    switchToSessionInternal(next);
+                }
+            }
+        }
+
+        // Close the session
+        ctx.close();
+
+        // Notify listeners
+        notifySessionRemoved(ctx);
+    }
+
+    /**
+     * Switch to a different session (make it active/visual).
+     *
+     * @param sessionId The session ID to switch to
+     */
+    public void switchToSession(String sessionId) {
+        synchronized (sessionsLock) {
+            SessionContext ctx = sessions.get(sessionId);
+            if (ctx == null || ctx == activeSession) {
+                return;
+            }
+            switchToSessionInternal(ctx);
+        }
+    }
+
+    /**
+     * Internal method to switch sessions.
+     * Must be called with sessionsLock held.
+     */
+    private void switchToSessionInternal(SessionContext newActive) {
+        SessionContext oldActive = activeSession;
+
+        // If new session is headless, mark it for Bootstrap to pick up
+        if (newActive.isHeadless()) {
+            pendingSwitchTo = newActive;
+            System.out.println("[SessionManager] Pending switch to session: " + newActive.getDisplayName());
+        }
+
+        // Demote old active to headless (this triggers Bootstrap via requestDetach)
+        if (oldActive != null && oldActive != newActive) {
+            oldActive.demoteToHeadless();
+        }
+
+        // Set new session as active
+        activeSession = newActive;
+
+        System.out.println("[SessionManager] Switched active session to " + newActive.getDisplayName());
+
+        // Notify listeners
+        notifyActiveSessionChanged(oldActive, newActive);
+    }
+
+    /**
+     * Promote the active session to visual mode with the given environment.
+     * Called by GLPanel.Loop when ready to render.
+     */
+    public void promoteActiveToVisual(Environment env) {
+        SessionContext active = activeSession;
+        if (active != null && active.isHeadless()) {
+            active.promoteToVisual(env);
+        }
+    }
+
+    /**
+     * Get the active (visual) session.
+     */
+    public SessionContext getActiveSession() {
+        return activeSession;
+    }
+
+    /**
+     * Clear the active session reference.
+     * Used when demoting a session to headless to allow the next session to become active.
+     */
+    public void clearActiveSession() {
+        synchronized (sessionsLock) {
+            activeSession = null;
+        }
+    }
+
+    /**
+     * Get the pending session to switch to.
+     * This is set during session switching and consumed by Bootstrap.
+     */
+    public SessionContext getPendingSwitchTo() {
+        return pendingSwitchTo;
+    }
+
+    /**
+     * Clear and return the pending session to switch to.
+     * Returns null if no switch is pending.
+     */
+    public SessionContext consumePendingSwitchTo() {
+        SessionContext pending = pendingSwitchTo;
+        pendingSwitchTo = null;
+        return pending;
+    }
+
+    /**
+     * Get all sessions.
+     */
+    public Collection<SessionContext> getAllSessions() {
+        synchronized (sessionsLock) {
+            return new ArrayList<>(sessions.values());
+        }
+    }
+
+    /**
+     * Get a session by ID.
+     */
+    public SessionContext getSession(String sessionId) {
+        synchronized (sessionsLock) {
+            return sessions.get(sessionId);
+        }
+    }
+
+    /**
+     * Get the number of sessions.
+     */
+    public int getSessionCount() {
+        synchronized (sessionsLock) {
+            return sessions.size();
+        }
+    }
+
+    /**
+     * Check if there are any sessions.
+     */
+    public boolean hasSessions() {
+        synchronized (sessionsLock) {
+            return !sessions.isEmpty();
+        }
+    }
+
+    /**
+     * Find a session by its UI instance.
+     */
+    public SessionContext findByUI(UI ui) {
+        synchronized (sessionsLock) {
+            for (SessionContext ctx : sessions.values()) {
+                if (ctx.ui == ui) {
+                    return ctx;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a session by its network Session instance.
+     * Used during session switching to find existing sessions.
+     */
+    public SessionContext findBySession(Session sess) {
+        synchronized (sessionsLock) {
+            for (SessionContext ctx : sessions.values()) {
+                if (ctx.session == sess) {
+                    return ctx;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the currently active UI.
+     * This is the primary method for code that needs "the current UI".
+     */
+    public NUI getActiveUI() {
+        SessionContext active = activeSession;
+        return (active != null) ? active.ui : null;
+    }
+
+    /**
+     * Close all sessions and clean up.
+     */
+    public void closeAll() {
+        List<SessionContext> toClose;
+        synchronized (sessionsLock) {
+            toClose = new ArrayList<>(sessions.values());
+            sessions.clear();
+            activeSession = null;
+        }
+
+        for (SessionContext ctx : toClose) {
+            ctx.close();
+            notifySessionRemoved(ctx);
+        }
+
+        System.out.println("[SessionManager] All sessions closed");
+    }
+
+    // Notification helpers
+
+    private void notifyActiveSessionChanged(SessionContext oldSession, SessionContext newSession) {
+        List<SessionChangeListener> listenersCopy;
+        synchronized (listeners) {
+            listenersCopy = new ArrayList<>(listeners);
+        }
+        for (SessionChangeListener listener : listenersCopy) {
+            try {
+                listener.onActiveSessionChanged(oldSession, newSession);
+            } catch (Exception e) {
+                System.err.println("[SessionManager] Listener error: " + e.getMessage());
+            }
+        }
+    }
+
+    private void notifySessionAdded(SessionContext session) {
+        List<SessionChangeListener> listenersCopy;
+        synchronized (listeners) {
+            listenersCopy = new ArrayList<>(listeners);
+        }
+        for (SessionChangeListener listener : listenersCopy) {
+            try {
+                listener.onSessionAdded(session);
+            } catch (Exception e) {
+                System.err.println("[SessionManager] Listener error: " + e.getMessage());
+            }
+        }
+    }
+
+    private void notifySessionRemoved(SessionContext session) {
+        List<SessionChangeListener> listenersCopy;
+        synchronized (listeners) {
+            listenersCopy = new ArrayList<>(listeners);
+        }
+        for (SessionChangeListener listener : listenersCopy) {
+            try {
+                listener.onSessionRemoved(session);
+            } catch (Exception e) {
+                System.err.println("[SessionManager] Listener error: " + e.getMessage());
+            }
+        }
+    }
+}

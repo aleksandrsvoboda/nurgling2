@@ -27,6 +27,8 @@
 package haven;
 
 import java.util.*;
+import nurgling.sessions.SessionManager;
+import nurgling.sessions.SessionContext;
 
 public class RemoteUI implements UI.Receiver, UI.Runner {
     public final Session sess;
@@ -94,6 +96,16 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 		PMessage msg = sess.getuimsg();
 		if(msg == null) {
 		    return(null);
+		} else if(msg instanceof Session.Detach) {
+		    // Session was demoted to headless - spawn background thread and return Bootstrap
+		    SessionManager sm = SessionManager.getInstance();
+		    SessionContext ctx = sm.findByUI(ui);
+		    if (ctx != null) {
+			System.out.println("[RemoteUI] Session demoted to headless, spawning background message thread");
+			spawnBackgroundMessageLoop(ui, ctx);
+		    }
+		    // Return Bootstrap to let main loop start new login flow
+		    return new Bootstrap();
 		} else if(msg instanceof Return) {
 		    sess.close();
 		    return(new RemoteUI(((Return)msg).ret));
@@ -138,9 +150,111 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 		}
 	    }
 	} finally {
-	    sess.close();
-	    while(sess.getuimsg() != null);
+	    // Only clean up if session wasn't detached to background
+	    SessionManager sm = SessionManager.getInstance();
+	    SessionContext ctx = sm.findByUI(ui);
+	    if (ctx != null && !ctx.isHeadless()) {
+		// Session is ending normally (not demoted) - clean up
+		sm.removeSession(ctx.sessionId);
+		System.out.println("[RemoteUI] Removed session: " + ctx.sessionId);
+		sess.close();
+		while(sess.getuimsg() != null);
+	    }
+	    // If headless, the background thread handles cleanup
 	}
+    }
+
+    /**
+     * Spawn a background thread to continue processing messages for a demoted session.
+     */
+    private void spawnBackgroundMessageLoop(UI ui, SessionContext ctx) {
+	Thread bgThread = new Thread(() -> {
+	    boolean promotedToVisual = false;
+	    try {
+		while(ctx.isConnected() && ctx.isHeadless()) {
+		    PMessage msg = sess.getuimsg();
+		    if(msg == null) {
+			break;
+		    } else if(msg instanceof Return) {
+			// Ignore session returns in background
+			break;
+		    } else if(msg instanceof Session.Promoted) {
+			// Session being promoted back to visual - exit cleanly
+			System.out.println("[RemoteUI] Background loop received Promoted signal for session: " + ctx.sessionId);
+			promotedToVisual = true;
+			break;
+		    } else if(msg.type == RMessage.RMSG_NEWWDG) {
+			int id = msg.int32();
+			String type = msg.string();
+			int parent = msg.int32();
+			Object[] pargs = msg.list(sess.resmapper);
+			Object[] cargs = msg.list(sess.resmapper);
+			synchronized(ui) {
+			    ui.newwidgetp(id, type, parent, pargs, cargs);
+			}
+		    } else if(msg.type == RMessage.RMSG_WDGMSG) {
+			int id = msg.int32();
+			String name = msg.string();
+			synchronized(ui) {
+			    ui.uimsg(id, name, msg.list(sess.resmapper));
+			}
+		    } else if(msg.type == RMessage.RMSG_DSTWDG) {
+			int id = msg.int32();
+			synchronized(ui) {
+			    ui.destroy(id);
+			}
+		    } else if(msg.type == RMessage.RMSG_ADDWDG) {
+			int id = msg.int32();
+			int parent = msg.int32();
+			Object[] pargs = msg.list(sess.resmapper);
+			synchronized(ui) {
+			    ui.addwidget(id, parent, pargs);
+			}
+		    } else if(msg.type == RMessage.RMSG_WDGBAR) {
+			Collection<Integer> deps = new ArrayList<>();
+			while(!msg.eom()) {
+			    int dep = msg.int32();
+			    if(dep == -1)
+				break;
+			    deps.add(dep);
+			}
+			Collection<Integer> bars = deps;
+			if(!msg.eom()) {
+			    bars = new ArrayList<>();
+			    while(!msg.eom()) {
+				int bar = msg.int32();
+				if(bar == -1)
+				    break;
+				bars.add(bar);
+			    }
+			}
+			synchronized(ui) {
+			    ui.wdgbarrier(deps, bars);
+			}
+		    }
+		}
+	    } catch(InterruptedException e) {
+		Thread.currentThread().interrupt();
+	    } finally {
+		// Only clean up if session was NOT promoted to visual
+		// If promoted, the session is being taken over by the foreground RemoteUI
+		if (!promotedToVisual) {
+		    System.out.println("[RemoteUI] Background message loop ended for session: " + ctx.sessionId);
+		    SessionManager sm = SessionManager.getInstance();
+		    sm.removeSession(ctx.sessionId);
+		    sess.close();
+		    try {
+			while(sess.getuimsg() != null);
+		    } catch(InterruptedException e) {
+			Thread.currentThread().interrupt();
+		    }
+		} else {
+		    System.out.println("[RemoteUI] Background loop exiting due to promotion for session: " + ctx.sessionId);
+		}
+	    }
+	}, "RemoteUI-Background-" + ctx.sessionId);
+	bgThread.setDaemon(true);
+	bgThread.start();
     }
 
     public void init(UI ui) {
@@ -149,6 +263,20 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 	// is created before tick() runs, leaving characterInfo null
 	if (ui instanceof nurgling.NUI) {
 	    ((nurgling.NUI) ui).initSessInfo();
+
+	    // Register this session with SessionManager for multi-session support
+	    SessionManager sm = SessionManager.getInstance();
+
+	    // Check if this Session is already registered (happens during session switching)
+	    SessionContext existing = sm.findBySession(sess);
+	    if (existing != null) {
+		// Update the existing context with the new UI
+		existing.ui = (nurgling.NUI) ui;
+		System.out.println("[RemoteUI] Updated existing session context for user: " + sess.user.name);
+	    } else if (sm.findByUI(ui) == null) {
+		SessionContext ctx = sm.addSession(sess, (nurgling.NUI) ui);
+		System.out.println("[RemoteUI] Registered session for user: " + sess.user.name);
+	    }
 	}
     }
 
