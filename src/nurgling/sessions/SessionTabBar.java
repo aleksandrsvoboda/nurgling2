@@ -57,17 +57,10 @@ public class SessionTabBar extends Widget {
         this.sz = new Coord(sz.x, BAR_HEIGHT);
     }
 
-    private static boolean debugDrawLogged = false;
-
     @Override
     public void draw(GOut g) {
         SessionManager sm = SessionManager.getInstance();
         Collection<SessionContext> sessions = sm.getAllSessions();
-
-        if (!debugDrawLogged) {
-            System.out.println("[SessionTabBar] draw() called, sessions.size=" + sessions.size() + ", sz=" + sz + ", visible=" + visible);
-            debugDrawLogged = true;
-        }
 
         if (sessions.isEmpty()) {
             return; // Don't draw if no sessions

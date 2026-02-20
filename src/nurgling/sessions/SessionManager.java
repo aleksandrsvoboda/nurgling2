@@ -96,11 +96,9 @@ public class SessionManager {
             if (activeSession == null) {
                 // First session - make it active
                 activeSession = ctx;
-                System.out.println("[SessionManager] First session " + ctx.sessionId + " is now active");
             } else {
                 // Additional session - start in headless mode
                 ctx.demoteToHeadless();
-                System.out.println("[SessionManager] Added session " + ctx.sessionId + " in headless mode");
             }
         }
 
@@ -168,7 +166,6 @@ public class SessionManager {
         // If new session is headless, mark it for Bootstrap to pick up
         if (newActive.isHeadless()) {
             pendingSwitchTo = newActive;
-            System.out.println("[SessionManager] Pending switch to session: " + newActive.getDisplayName());
         }
 
         // Demote old active to headless (this triggers Bootstrap via requestDetach)
@@ -178,8 +175,6 @@ public class SessionManager {
 
         // Set new session as active
         activeSession = newActive;
-
-        System.out.println("[SessionManager] Switched active session to " + newActive.getDisplayName());
 
         // Notify listeners
         notifyActiveSessionChanged(oldActive, newActive);
@@ -320,8 +315,6 @@ public class SessionManager {
             ctx.close();
             notifySessionRemoved(ctx);
         }
-
-        System.out.println("[SessionManager] All sessions closed");
     }
 
     // Notification helpers

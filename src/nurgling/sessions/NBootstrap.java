@@ -39,8 +39,6 @@ public class NBootstrap extends Bootstrap {
         SessionContext switchTo = sm.consumePendingSwitchTo();
 
         if (switchTo != null && switchTo.session != null) {
-            System.out.println("[NBootstrap] Switching to existing session: " + switchTo.getDisplayName());
-
             // Promote the session from headless to visual mode
             switchTo.promoteToVisual(ui.getenv());
 
