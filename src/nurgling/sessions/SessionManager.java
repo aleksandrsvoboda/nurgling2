@@ -30,6 +30,9 @@ public class SessionManager {
     /** Session to switch to (set during session switch, consumed by Bootstrap) */
     private volatile SessionContext pendingSwitchTo;
 
+    /** Session to close after switch completes (for closing active session) */
+    private volatile SessionContext pendingClose;
+
     /** Listeners for session changes */
     private final List<SessionChangeListener> listeners = new ArrayList<>();
 
@@ -139,6 +142,50 @@ public class SessionManager {
 
         // Notify listeners
         notifySessionRemoved(ctx);
+    }
+
+    /**
+     * Request to close a session. If it's the active session, switches to another
+     * session first and closes after the switch completes.
+     *
+     * @param sessionId The session ID to close
+     */
+    public void requestCloseSession(String sessionId) {
+        synchronized (sessionsLock) {
+            SessionContext ctx = sessions.get(sessionId);
+            if (ctx == null) {
+                return;
+            }
+
+            // If closing the active session and there are other sessions
+            if (ctx == activeSession && sessions.size() > 1) {
+                // Mark for pending close
+                pendingClose = ctx;
+
+                // Switch to another session first
+                for (SessionContext other : sessions.values()) {
+                    if (other != ctx) {
+                        switchToSessionInternal(other);
+                        break;
+                    }
+                }
+                // The actual close will happen in processPendingClose()
+            } else {
+                // Not active or only session - close directly
+                removeSession(sessionId);
+            }
+        }
+    }
+
+    /**
+     * Process any pending session close. Called after a session switch completes.
+     */
+    public void processPendingClose() {
+        SessionContext toClose = pendingClose;
+        pendingClose = null;
+        if (toClose != null) {
+            removeSession(toClose.sessionId);
+        }
     }
 
     /**
