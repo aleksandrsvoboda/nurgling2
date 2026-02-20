@@ -297,10 +297,6 @@ public class NArea
                 end = (end != null) ? new Coord(Math.max(end.x, e.x), Math.max(end.y, e.y)) : e;
             }
         }
-        // If no grids were found, begin/end are null - return null instead of Area with null fields
-        if (begin == null || end == null) {
-            return null;
-        }
         return new Area(begin,end);
     }
 
