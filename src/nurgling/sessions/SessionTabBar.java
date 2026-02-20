@@ -31,7 +31,6 @@ public class SessionTabBar extends Widget {
 
     /** Colors */
     private static final Color ACTIVE_BG = new Color(60, 120, 60, 220);
-    private static final Color HEADLESS_BG = new Color(60, 60, 80, 220);
     private static final Color HOVER_BG = new Color(80, 80, 100, 220);
     private static final Color ADD_BG = new Color(50, 50, 70, 220);
     private static final Color BORDER_COLOR = new Color(100, 100, 120);
@@ -39,6 +38,12 @@ public class SessionTabBar extends Widget {
     private static final Color ACTIVE_TEXT = new Color(180, 255, 180);
     private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
     private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
+    /** Yellow for sessions running bots */
+    private static final Color BOT_RUNNING_BG = new Color(180, 150, 50, 220);
+    private static final Color BOT_RUNNING_TEXT = new Color(255, 230, 150);
+    /** Blue for idle sessions */
+    private static final Color IDLE_BG = new Color(50, 80, 130, 220);
+    private static final Color IDLE_TEXT = new Color(150, 180, 220);
 
     /** Currently hovered tab index (-1 = none, -2 = add button) */
     private int hoveredTab = -1;
@@ -100,14 +105,24 @@ public class SessionTabBar extends Widget {
         int y = TAB_PADDING;
         int h = BAR_HEIGHT - TAB_PADDING * 2;
 
-        // Background
+        // Determine status: running bot or idle
+        boolean runningBot = ctx.isRunningBot();
+
+        // Background color based on status
         Color bgColor;
+        Color textColor;
         if (active) {
             bgColor = ACTIVE_BG;
+            textColor = ACTIVE_TEXT;
         } else if (hovered) {
             bgColor = HOVER_BG;
+            textColor = TEXT_COLOR;
+        } else if (runningBot) {
+            bgColor = BOT_RUNNING_BG;
+            textColor = BOT_RUNNING_TEXT;
         } else {
-            bgColor = HEADLESS_BG;
+            bgColor = IDLE_BG;
+            textColor = IDLE_TEXT;
         }
         g.chcolor(bgColor);
         g.frect(new Coord(x, y), new Coord(TAB_WIDTH, h));
@@ -116,9 +131,16 @@ public class SessionTabBar extends Widget {
         g.chcolor(active ? ACTIVE_TEXT : BORDER_COLOR);
         g.rect(new Coord(x, y), new Coord(TAB_WIDTH, h));
 
-        // Mode indicator
-        String modeIcon = active ? "\u25B6" : "\u2699"; // ▶ for active, ⚙ for headless
-        g.chcolor(active ? ACTIVE_TEXT : TEXT_COLOR);
+        // Mode indicator - show bot icon if running, otherwise play/gear icon
+        String modeIcon;
+        if (runningBot) {
+            modeIcon = "\u2699"; // ⚙ gear for running bot
+        } else if (active) {
+            modeIcon = "\u25B6"; // ▶ for active
+        } else {
+            modeIcon = "\u23F8"; // ⏸ pause for idle headless
+        }
+        g.chcolor(textColor);
         g.atext(modeIcon, new Coord(x + UI.scale(8), y + h/2), 0, 0.5);
 
         // Character name (truncate shorter if close button visible)
@@ -127,7 +149,7 @@ public class SessionTabBar extends Widget {
         if (name.length() > maxNameLen) {
             name = name.substring(0, maxNameLen - 1) + "...";
         }
-        g.chcolor(active ? ACTIVE_TEXT : TEXT_COLOR);
+        g.chcolor(textColor);
         g.atext(name, new Coord(x + UI.scale(22), y + h/2), 0, 0.5);
 
         // Close button (only if more than one session)
