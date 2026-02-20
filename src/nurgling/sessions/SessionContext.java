@@ -109,9 +109,17 @@ public class SessionContext {
      * Get display name for this session.
      */
     public String getDisplayName() {
+        // First try cached character name
         if (characterName != null && !characterName.isEmpty()) {
             return characterName;
         }
+        // Try to get character name from gameUI (dynamic lookup)
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.chrid != null && !gui.chrid.isEmpty()) {
+            this.characterName = gui.chrid; // Cache it
+            return characterName;
+        }
+        // Fall back to username
         if (username != null && !username.isEmpty()) {
             return username;
         }
