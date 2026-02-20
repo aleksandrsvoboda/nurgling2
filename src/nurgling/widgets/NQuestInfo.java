@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import haven.Window;
 import nurgling.NConfig;
+import nurgling.NGameUI;
 import nurgling.NGItem;
 import nurgling.NStyle;
 import nurgling.NUtils;
@@ -708,10 +709,11 @@ public class NQuestInfo extends Widget
 
     public static MarkerInfo getMarkerInfo(Gob gob)
     {
-        if(NUtils.getGameUI()!=null) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui != null && gui.mapfile != null) {
             synchronized (markers) {
                 for (MarkerInfo mi : markers) {
-                    if (NUtils.getGameUI().mapfile.playerSegmentId() == mi.seg) {
+                    if (gui.mapfile.playerSegmentId() == mi.seg) {
                         if (gob.rc.dist(mi.coord) < 1)
                             return (mi);
                     }
