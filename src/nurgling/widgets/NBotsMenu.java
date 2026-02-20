@@ -310,7 +310,10 @@ public class NBotsMenu extends Widget
 
         void start(String path, Action action)
         {
-            NGameUI gui = NUtils.getGameUI();
+            // Capture the UI at bot start time - this binds the bot to this session
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+
             if (gui != null && gui.recentActionsPanel != null) {
                    gui.recentActionsPanel.addBotAction(path, action);
                }
@@ -322,19 +325,24 @@ public class NBotsMenu extends Widget
                 @Override
                 public void run()
                 {
+                    // Bind this thread to the session that started the bot
+                    NUtils.setThreadUI(boundUI);
                     try
                     {
                         showLayouts();
-                        NGameUI gui = NUtils.getGameUI();
                         if(gui!=null) {
                             for (Action sup : action.getSupp()) {
                                 Thread st;
+                                // Support threads also need to be bound to the same session
                                 supports.add(st = new Thread(new Runnable() {
                                     @Override
                                     public void run() {
+                                        NUtils.setThreadUI(boundUI);
                                         try {
                                             sup.run(gui);
                                         } catch (InterruptedException e) {
+                                        } finally {
+                                            NUtils.clearThreadUI();
                                         }
                                     }
                                 }));
@@ -345,7 +353,9 @@ public class NBotsMenu extends Widget
                     }
                     catch (InterruptedException e)
                     {
-                        NUtils.getGameUI().msg(path + ":" + "STOPPED");
+                        if (gui != null) {
+                            gui.msg(path + ":" + "STOPPED");
+                        }
                     }
                     finally
                     {
@@ -357,13 +367,14 @@ public class NBotsMenu extends Widget
                         {
                             st.interrupt();
                         }
-                        }
+                        NUtils.clearThreadUI();
+                    }
                 }
             }, path);
             if(disStacks)
-                NUtils.getGameUI().biw.addObserve(t, true);
+                gui.biw.addObserve(t, true);
             else
-                NUtils.getGameUI().biw.addObserve(t);
+                gui.biw.addObserve(t);
             t.start();
         }
 
@@ -380,17 +391,26 @@ public class NBotsMenu extends Widget
             btn.action(new Runnable() {
                 @Override
                 public void run() {
-                    NGameUI gui = NUtils.getGameUI();
+                    // Capture the UI at bot start time - this binds the bot to this session
+                    final NUI boundUI = NUtils.getUI();
+                    final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+
                     if (!active) {
                         if (gui != null && gui.recentActionsPanel != null) {
                             gui.recentActionsPanel.addBotAction(path, action);
                         }
 
                         thread = new Thread(() -> {
+                            // Bind this thread to the session that started the bot
+                            NUtils.setThreadUI(boundUI);
                             try {
                                 action.run(gui);
                             } catch (InterruptedException e) {
-                                gui.msg(path + ": STOPPED");
+                                if (gui != null) {
+                                    gui.msg(path + ": STOPPED");
+                                }
+                            } finally {
+                                NUtils.clearThreadUI();
                             }
                         }, path + "-ToggleThread");
                         if (disStacks)
@@ -405,7 +425,9 @@ public class NBotsMenu extends Widget
                                 ((ActionWithFinal)action).endAction();
                             }
                             thread.interrupt();
-                            gui.msg("Stopped: " + path);
+                            if (gui != null) {
+                                gui.msg("Stopped: " + path);
+                            }
                         }
                     }
                     active = !active;

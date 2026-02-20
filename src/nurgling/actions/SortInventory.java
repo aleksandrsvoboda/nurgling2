@@ -312,24 +312,28 @@ public class SortInventory implements Action {
         if (!isValidInventory(inv)) {
             return;
         }
-        
-        NGameUI gui = NUtils.getGameUI();
+
+        final NUI boundUI = NUtils.getUI();
+        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
         if (gui == null) return;
-        
+
         // Check cursor
         if (gui.vhand != null) {
             gui.error("Need default cursor to sort inventory!");
             return;
         }
-        
+
         Thread t = new Thread(() -> {
+            NUtils.setThreadUI(boundUI);
             try {
                 new SortInventory(inv).run(gui);
             } catch (InterruptedException e) {
                 gui.msg("Sort interrupted");
+            } finally {
+                NUtils.clearThreadUI();
             }
         }, "InventorySorter");
-        
+
         gui.biw.addObserve(t);
         t.start();
     }

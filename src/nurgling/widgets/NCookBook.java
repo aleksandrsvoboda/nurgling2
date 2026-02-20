@@ -5,7 +5,9 @@ import haven.Label;
 import haven.Window;
 import nurgling.NConfig;
 import nurgling.NFlowerMenu;
+import nurgling.NGameUI;
 import nurgling.NStyle;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.ReadJsonAction;
 import nurgling.cookbook.FavoriteRecipeManager;
@@ -335,16 +337,25 @@ public class NCookBook extends Window {
                         return;
                     if(fc.getSelectedFile()!=null)
                     {
+                        final NUI boundUI = NUtils.getUI();
+                        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+                        if (gui == null) return;
+
                         Thread t;
                         (t = new Thread(new Runnable()
                         {
                             @Override
                             public void run()
                             {
-                                new ReadJsonAction(fc.getSelectedFile().getAbsolutePath()).run(NUtils.getGameUI());
+                                NUtils.setThreadUI(boundUI);
+                                try {
+                                    new ReadJsonAction(fc.getSelectedFile().getAbsolutePath()).run(gui);
+                                } finally {
+                                    NUtils.clearThreadUI();
+                                }
                             }
                         }, "food-info2_download")).start();
-                        NUtils.getGameUI().biw.addObserve(t);
+                        gui.biw.addObserve(t);
                     }
                 });
             }

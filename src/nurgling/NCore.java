@@ -248,15 +248,23 @@ public class NCore extends Widget
 
         if(autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
         {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        (autoDrink = new AutoDrink()).run(NUtils.getGameUI());
-                    } catch (InterruptedException ignored) {
+            // Capture UI reference from tick thread to bind to auto thread
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            if (gui != null) {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        NUtils.setThreadUI(boundUI);
+                        try {
+                            (autoDrink = new AutoDrink()).run(gui);
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            NUtils.clearThreadUI();
+                        }
                     }
-                }
-            }).start();
+                }).start();
+            }
         }
         else
         {
@@ -268,15 +276,23 @@ public class NCore extends Widget
 
         if(autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
         {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        (autoSaveTableware = new AutoSaveTableware()).run(NUtils.getGameUI());
-                    } catch (InterruptedException ignored) {
+            // Capture UI reference from tick thread to bind to auto thread
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            if (gui != null) {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        NUtils.setThreadUI(boundUI);
+                        try {
+                            (autoSaveTableware = new AutoSaveTableware()).run(gui);
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            NUtils.clearThreadUI();
+                        }
                     }
-                }
-            }).start();
+                }).start();
+            }
         }
         else
         {

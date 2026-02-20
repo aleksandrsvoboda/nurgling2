@@ -1,6 +1,8 @@
 package nurgling.widgets;
 
 import haven.*;
+import nurgling.NGameUI;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
 import nurgling.equipment.EquipmentPreset;
@@ -25,16 +27,23 @@ public class NEquipmentPresetButton extends IButton {
 
     private void executePreset() {
         if (preset != null) {
+            final NUI boundUI = NUtils.getUI();
+            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            if (gui == null) return;
+
             Thread t = new Thread(() -> {
+                NUtils.setThreadUI(boundUI);
                 try {
                     EquipmentBot bot = new EquipmentBot(preset);
-                    bot.run(NUtils.getGameUI());
+                    bot.run(gui);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                } finally {
+                    NUtils.clearThreadUI();
                 }
             }, "EquipmentBot-" + preset.getName());
 
-            NUtils.getGameUI().biw.addObserve(t);
+            gui.biw.addObserve(t);
             t.start();
         }
     }

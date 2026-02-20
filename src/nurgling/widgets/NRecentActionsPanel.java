@@ -249,30 +249,33 @@ public class NRecentActionsPanel extends Widget {
                             }
                         } else if (recentAction.botAction != null) {
                             // Handle bot action - mirror the behavior from NBotsMenu.start()
+                            final NUI boundUI = NUtils.getUI();
+                            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+                            if (gui == null) return;
+
                             Thread t = new Thread(() -> {
+                                NUtils.setThreadUI(boundUI);
                                 ArrayList<Thread> supports = new ArrayList<>();
                                 try {
-                                    NGameUI gui = NUtils.getGameUI();
-                                    if (gui != null) {
-                                        // Start support actions first
-                                        for (Action sup : recentAction.botAction.getSupp()) {
-                                            Thread st = new Thread(() -> {
-                                                try {
-                                                    sup.run(gui);
-                                                } catch (InterruptedException e) {
-                                                    // Support action interrupted
-                                                }
-                                            });
-                                            supports.add(st);
-                                            st.start();
-                                        }
-                                        // Run main action
-                                        recentAction.botAction.run(gui);
+                                    // Start support actions first
+                                    for (Action sup : recentAction.botAction.getSupp()) {
+                                        Thread st = new Thread(() -> {
+                                            NUtils.setThreadUI(boundUI);
+                                            try {
+                                                sup.run(gui);
+                                            } catch (InterruptedException e) {
+                                                // Support action interrupted
+                                            } finally {
+                                                NUtils.clearThreadUI();
+                                            }
+                                        });
+                                        supports.add(st);
+                                        st.start();
                                     }
+                                    // Run main action
+                                    recentAction.botAction.run(gui);
                                 } catch (InterruptedException e) {
-                                    if (NUtils.getGameUI() != null) {
-                                        NUtils.getGameUI().msg(recentAction.botPath + ": STOPPED");
-                                    }
+                                    gui.msg(recentAction.botPath + ": STOPPED");
                                 } finally {
                                     // Clean up like the original
                                     if (recentAction.botAction instanceof ActionWithFinal) {
@@ -281,12 +284,12 @@ public class NRecentActionsPanel extends Widget {
                                     for (Thread st : supports) {
                                         st.interrupt();
                                     }
+                                    NUtils.clearThreadUI();
                                 }
                             }, recentAction.botPath + "-RecentAction");
-                            
+
                             // Add to bot interrupt widget so the gear appears
-                            NGameUI gui = NUtils.getGameUI();
-                            if (gui != null && gui.biw != null) {
+                            if (gui.biw != null) {
                                 gui.biw.addObserve(t);
                             }
                             t.start();

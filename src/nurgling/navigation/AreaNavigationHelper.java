@@ -3,6 +3,7 @@ package nurgling.navigation;
 import haven.Coord2d;
 import haven.Pair;
 import nurgling.NMapView;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
@@ -125,15 +126,24 @@ public class AreaNavigationHelper {
         if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) {
             return chunkNav.planToArea(area);
         }
-        
+
+        // Capture current UI for thread-local binding in spawned threads
+        final NUI boundUI = NUtils.getUI();
+
         // Plan paths to all 4 corners in parallel using planToAreaCorner (gridId + local coords)
         final ChunkPath[] paths = new ChunkPath[4];
         Thread[] threads = new Thread[4];
-        
+
         for (int i = 0; i < 4; i++) {
             final int idx = i;
             threads[i] = new Thread(() -> {
-                paths[idx] = chunkNav.planToAreaCorner(area, idx);
+                // Bind thread-local UI so planner uses correct session
+                NUtils.setThreadUI(boundUI);
+                try {
+                    paths[idx] = chunkNav.planToAreaCorner(area, idx);
+                } finally {
+                    NUtils.clearThreadUI();
+                }
             });
             threads[i].start();
         }
@@ -191,19 +201,26 @@ public class AreaNavigationHelper {
             Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
             Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
         };
-        
+
+        // Capture current UI for thread-local binding in spawned threads
+        final NUI boundUI = NUtils.getUI();
+
         // Test all corners in parallel with PathFinder
         final boolean[] reachable = new boolean[4];
         Thread[] threads = new Thread[4];
-        
+
         for (int i = 0; i < 4; i++) {
             final int idx = i;
             final Coord2d corner = corners[i];
             threads[i] = new Thread(() -> {
+                // Bind thread-local UI so PathFinder uses correct session
+                NUtils.setThreadUI(boundUI);
                 try {
                     reachable[idx] = PathFinder.isAvailable(corner);
                 } catch (InterruptedException e) {
                     reachable[idx] = false;
+                } finally {
+                    NUtils.clearThreadUI();
                 }
             });
             threads[i].start();
@@ -248,6 +265,9 @@ public class AreaNavigationHelper {
             Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
         };
 
+        // Capture current UI for thread-local binding in spawned threads
+        final NUI boundUI = NUtils.getUI();
+
         // Test all corners in parallel and get path costs
         final double[] pathCosts = new double[4];
         final boolean[] reachable = new boolean[4];
@@ -260,6 +280,8 @@ public class AreaNavigationHelper {
             reachable[idx] = false;
 
             threads[i] = new Thread(() -> {
+                // Bind thread-local UI so PathFinder uses correct session
+                NUtils.setThreadUI(boundUI);
                 try {
                     int cost = PathFinder.getPathCost(corner);
                     if (cost >= 0) {
@@ -268,6 +290,8 @@ public class AreaNavigationHelper {
                     }
                 } catch (InterruptedException e) {
                     // Leave as unreachable
+                } finally {
+                    NUtils.clearThreadUI();
                 }
             });
             threads[i].start();
