@@ -134,6 +134,18 @@ public class SessionContext {
     }
 
     /**
+     * Check if this session has any bots running.
+     * Checks the BotsInterruptWidget's observed threads list.
+     */
+    public boolean isRunningBot() {
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.biw != null) {
+            return gui.biw.hasRunningBots();
+        }
+        return false;
+    }
+
+    /**
      * Demote this session from visual to headless mode.
      * This stops the session from being rendered and starts a headless tick loop.
      * Note: We don't change ui.env because widgets still hold render tree slot
