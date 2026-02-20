@@ -46,7 +46,6 @@ public class NUILifecycleListener implements UILifecycleListener {
                     ctrl.attachToUI(existingUI);
                 }
 
-                System.out.println("[NUILifecycleListener] Reusing existing UI for session: " + ctx.getDisplayName());
                 return existingUI;
             }
         }
@@ -77,7 +76,6 @@ public class NUILifecycleListener implements UILifecycleListener {
             if (!oldCtx.isHeadless()) {
                 oldCtx.demoteToHeadless();
             }
-            System.out.println("[NUILifecycleListener] Kept old UI for session: " + oldCtx.getDisplayName());
             return false; // Don't destroy the old UI
         }
 
@@ -98,7 +96,6 @@ public class NUILifecycleListener implements UILifecycleListener {
         if (currentUI != null) {
             SessionContext ctx = sm.findByUI(currentUI);
             if (ctx != null && !ctx.isHeadless()) {
-                System.out.println("[NUILifecycleListener] New session requested, demoting current: " + ctx.getDisplayName());
                 ctx.demoteToHeadless();
             }
         }

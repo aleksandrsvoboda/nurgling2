@@ -27,8 +27,6 @@ public class NRemoteUI extends RemoteUI {
      */
     @Override
     protected void onInit(UI ui) {
-        System.out.println("[NRemoteUI] onInit called, ui=" + ui + ", ui class=" + (ui != null ? ui.getClass().getName() : "null"));
-
         if (ui instanceof NUI) {
             NUI nui = (NUI) ui;
             SessionManager sm = SessionManager.getInstance();
@@ -39,43 +37,31 @@ public class NRemoteUI extends RemoteUI {
             if (existing != null) {
                 // Update the UI reference for existing session
                 existing.ui = nui;
-                System.out.println("[NRemoteUI] Reconnected to existing session: " + existing.getDisplayName());
             } else if (sm.findByUI(ui) == null) {
                 // New session - register it
                 sm.addSession(sess, nui);
-                System.out.println("[NRemoteUI] Registered new session");
             }
 
             // Register lifecycle listener with GLPanel if not already done
-            System.out.println("[NRemoteUI] ui.getContext()=" + ui.getContext() + ", is GLPanel=" + (ui.getContext() instanceof GLPanel));
             if (ui.getContext() instanceof GLPanel) {
                 GLPanel panel = (GLPanel) ui.getContext();
                 GLPanel.Loop loop = panel.getLoop();
                 if (loop.getUILifecycleListener() == null) {
                     loop.setUILifecycleListener(new NUILifecycleListener());
-                    System.out.println("[NRemoteUI] Registered NUILifecycleListener");
                 }
 
                 // Initialize SessionUIController if needed
                 SessionUIController ctrl = SessionUIController.getInstance();
-                System.out.println("[NRemoteUI] SessionUIController.getInstance()=" + ctrl);
                 if (ctrl == null) {
                     SessionUIController.initialize(panel);
                     ctrl = SessionUIController.getInstance();
-                    System.out.println("[NRemoteUI] Initialized SessionUIController, now=" + ctrl);
                 }
 
                 // Attach the UI controller to this UI
                 if (ctrl != null) {
-                    System.out.println("[NRemoteUI] Calling ctrl.attachToUI(nui)");
                     ctrl.attachToUI(nui);
-                    System.out.println("[NRemoteUI] attachToUI completed");
                 }
-            } else {
-                System.out.println("[NRemoteUI] Context is NOT GLPanel, skipping tab bar setup");
             }
-        } else {
-            System.out.println("[NRemoteUI] UI is NOT NUI, skipping session setup");
         }
     }
 
@@ -97,7 +83,6 @@ public class NRemoteUI extends RemoteUI {
             if (ctx != null) {
                 // Spawn background thread to continue processing messages
                 spawnBackgroundMessageLoop(ui, ctx);
-                System.out.println("[NRemoteUI] Detaching session, spawning background loop: " + ctx.getDisplayName());
             }
 
             // Return a new Bootstrap to show login screen
@@ -127,7 +112,6 @@ public class NRemoteUI extends RemoteUI {
         // Normal cleanup - remove from SessionManager
         if (ctx != null) {
             sm.removeSession(ctx.sessionId);
-            System.out.println("[NRemoteUI] Session removed: " + ctx.getDisplayName());
         }
 
         return true;
@@ -153,7 +137,6 @@ public class NRemoteUI extends RemoteUI {
                     if (msg instanceof PromotedMessage) {
                         // Session is being promoted back to visual mode
                         promotedToVisual = true;
-                        System.out.println("[NRemoteUI-BG] Session promoted, exiting background loop: " + ctx.getDisplayName());
                         break;
                     }
 
@@ -167,7 +150,6 @@ public class NRemoteUI extends RemoteUI {
                     // Session ended without promotion - clean up
                     SessionManager.getInstance().removeSession(ctx.sessionId);
                     sess.close();
-                    System.out.println("[NRemoteUI-BG] Session ended, cleaned up: " + ctx.getDisplayName());
                 }
             }
         }, "RemoteUI-Background-" + ctx.sessionId);
@@ -235,8 +217,7 @@ public class NRemoteUI extends RemoteUI {
             // Other message types (RMSG_MAPIV, RMSG_GLOBLOB, RMSG_RESID) are handled
             // by Session.handlerel() before reaching the UI message queue
         } catch (Exception e) {
-            // Log but don't crash the background loop
-            System.err.println("[NRemoteUI-BG] Error processing message: " + e.getMessage());
+            // Ignore errors - don't crash the background loop
         }
     }
 }

@@ -168,8 +168,6 @@ public class SessionContext {
         }, "Headless-" + sessionId);
         headlessThread.setDaemon(true);
         headlessThread.start();
-
-        System.out.println("[SessionContext] Session " + getDisplayName() + " demoted to headless mode");
     }
 
     /**
@@ -205,8 +203,6 @@ public class SessionContext {
         if (ui != null && env != null) {
             ui.env = env;
         }
-
-        System.out.println("[SessionContext] Session " + getDisplayName() + " promoted to visual mode");
     }
 
     /**
@@ -283,8 +279,6 @@ public class SessionContext {
                 ui.destroy();
             }
         }
-
-        System.out.println("[SessionManager] Session " + getDisplayName() + " closed");
     }
 
     /**

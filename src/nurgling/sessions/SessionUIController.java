@@ -44,21 +44,17 @@ public class SessionUIController implements SessionManager.SessionChangeListener
      * Called when a new UI is created or when switching sessions.
      */
     public void attachToUI(NUI ui) {
-        System.out.println("[SessionUIController] attachToUI called, ui=" + ui);
         this.currentUI = ui;
 
         // Add tab bar if we have sessions or want to show "+" button
         if (ui != null && ui.root != null) {
-            System.out.println("[SessionUIController] ui.root=" + ui.root + ", root.sz=" + ui.root.sz);
             if (tabBar == null) {
                 tabBar = new SessionTabBar();
                 tabBar.setOnAddAccount(this::onAddAccountClicked);
-                System.out.println("[SessionUIController] Created new SessionTabBar");
             }
 
             // Remove from old parent if any
             if (tabBar.parent != null) {
-                System.out.println("[SessionUIController] Removing tabBar from old parent");
                 tabBar.reqdestroy();
             }
 
@@ -66,9 +62,6 @@ public class SessionUIController implements SessionManager.SessionChangeListener
             tabBar.z(10000);
             ui.root.add(tabBar, new Coord(0, 0));
             tabBar.resize(ui.root.sz);
-            System.out.println("[SessionUIController] Added tabBar to ui.root at (0,0), tabBar.sz=" + tabBar.sz);
-        } else {
-            System.out.println("[SessionUIController] ui or ui.root is null, not adding tabBar");
         }
     }
 
