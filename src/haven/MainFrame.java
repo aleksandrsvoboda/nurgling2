@@ -30,6 +30,8 @@ import nurgling.NConfig;
 import nurgling.headless.Headless;
 import nurgling.headless.HeadlessConfig;
 import nurgling.headless.HeadlessMain;
+import nurgling.sessions.NBootstrap;
+import nurgling.sessions.NRemoteUI;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -349,7 +351,7 @@ public class MainFrame extends java.awt.Frame implements Console.Directory {
 	UI.Runner fun = null;
 	while(true) {
 	    if(fun == null)
-		fun = new Bootstrap();
+		fun = Bootstrap.create();
 	    String t = fun.title();
 	    if(t == null)
 		setTitle("Haven & Hearth (Nurgling II)");
@@ -481,6 +483,10 @@ public class MainFrame extends java.awt.Frame implements Console.Directory {
 
 //	Config.cmdline(args);
 	status("start");
+
+	// Set up NBootstrap factory for multi-session support
+	Bootstrap.setFactory(NBootstrap::new);
+
 	try {
 	    javabughack();
 	} catch(InterruptedException e) {
@@ -490,7 +496,7 @@ public class MainFrame extends java.awt.Frame implements Console.Directory {
 	UI.Runner fun = null;
 	if(Bootstrap.servargs.get() != null) {
 	    try {
-		fun = new RemoteUI(connect(Bootstrap.servargs.get()));
+		fun = new NRemoteUI(connect(Bootstrap.servargs.get()));
 	    } catch(ConnectionError e) {
 		System.err.println("hafen: " + e.getMessage());
 		System.exit(1);

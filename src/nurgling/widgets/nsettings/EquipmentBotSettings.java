@@ -7,6 +7,7 @@ import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
 import nurgling.equipment.EquipmentPreset;
 import nurgling.equipment.EquipmentPresetManager;
+import nurgling.sessions.BotExecutor;
 import nurgling.widgets.CustomIcon;
 import nurgling.widgets.CustomIconManager;
 import nurgling.widgets.NEquipmentPresetButton;
@@ -415,8 +416,7 @@ public class EquipmentBotSettings extends Panel implements DTarget {
     }
 
     private void equipNow() {
-        final NUI boundUI = NUtils.getUI();
-        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+        NGameUI gui = NUtils.getGameUI();
         if (gui == null) return;
 
         if (slotConfig.isEmpty()) {
@@ -428,19 +428,7 @@ public class EquipmentBotSettings extends Panel implements DTarget {
         EquipmentPreset tempPreset = new EquipmentPreset("Temp");
         tempPreset.setSlotConfig(new HashMap<>(slotConfig));
 
-        Thread t = new Thread(() -> {
-            NUtils.setThreadUI(boundUI);
-            try {
-                new EquipmentBot(tempPreset).run(gui);
-            } catch (InterruptedException e) {
-                gui.msg(L10n.get("equipment.stopped"));
-            } finally {
-                NUtils.clearThreadUI();
-            }
-        }, "EquipmentBot");
-
-        gui.biw.addObserve(t);
-        t.start();
+        BotExecutor.runAsync("EquipmentBot", new EquipmentBot(tempPreset));
     }
 
     private class PresetItemWidget extends Widget {

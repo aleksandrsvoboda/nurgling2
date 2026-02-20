@@ -6,6 +6,7 @@ import nurgling.actions.*;
 import nurgling.actions.bots.CatchBugsAround;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
+import nurgling.sessions.BotExecutor;
 
 import java.awt.image.BufferedImage;
 import java.util.*;
@@ -310,72 +311,26 @@ public class NBotsMenu extends Widget
 
         void start(String path, Action action)
         {
-            // Capture the UI at bot start time - this binds the bot to this session
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            NUI boundUI = NUtils.getUI();
+            NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
             if (gui != null && gui.recentActionsPanel != null) {
-                   gui.recentActionsPanel.addBotAction(path, action);
-               }
+                gui.recentActionsPanel.addBotAction(path, action);
+            }
 
-            Thread t;
-            t = new Thread(new Runnable()
-            {
-                ArrayList<Thread> supports = new ArrayList<>();
-                @Override
-                public void run()
+            // Callback to run showLayouts and handle ActionWithFinal
+            Runnable onComplete = () -> {
+                if(action instanceof ActionWithFinal)
                 {
-                    // Bind this thread to the session that started the bot
-                    NUtils.setThreadUI(boundUI);
-                    try
-                    {
-                        showLayouts();
-                        if(gui!=null) {
-                            for (Action sup : action.getSupp()) {
-                                Thread st;
-                                // Support threads also need to be bound to the same session
-                                supports.add(st = new Thread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        NUtils.setThreadUI(boundUI);
-                                        try {
-                                            sup.run(gui);
-                                        } catch (InterruptedException e) {
-                                        } finally {
-                                            NUtils.clearThreadUI();
-                                        }
-                                    }
-                                }));
-                                st.start();
-                            }
-                            action.run(gui);
-                        }
-                    }
-                    catch (InterruptedException e)
-                    {
-                        if (gui != null) {
-                            gui.msg(path + ":" + "STOPPED");
-                        }
-                    }
-                    finally
-                    {
-                        if(action instanceof ActionWithFinal)
-                        {
-                            ((ActionWithFinal)action).endAction();
-                        }
-                        for(Thread st: supports)
-                        {
-                            st.interrupt();
-                        }
-                        NUtils.clearThreadUI();
-                    }
+                    ((ActionWithFinal)action).endAction();
                 }
-            }, path);
-            if(disStacks)
-                gui.biw.addObserve(t, true);
-            else
-                gui.biw.addObserve(t);
-            t.start();
+            };
+
+            // Show layouts before starting
+            showLayouts();
+
+            // Use BotExecutor with support threads
+            BotExecutor.runWithSupports(path, action, disStacks, onComplete);
         }
 
 
@@ -391,34 +346,18 @@ public class NBotsMenu extends Widget
             btn.action(new Runnable() {
                 @Override
                 public void run() {
-                    // Capture the UI at bot start time - this binds the bot to this session
-                    final NUI boundUI = NUtils.getUI();
-                    final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+                    NUI boundUI = NUtils.getUI();
+                    NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
                     if (!active) {
                         if (gui != null && gui.recentActionsPanel != null) {
                             gui.recentActionsPanel.addBotAction(path, action);
                         }
 
-                        thread = new Thread(() -> {
-                            // Bind this thread to the session that started the bot
-                            NUtils.setThreadUI(boundUI);
-                            try {
-                                action.run(gui);
-                            } catch (InterruptedException e) {
-                                if (gui != null) {
-                                    gui.msg(path + ": STOPPED");
-                                }
-                            } finally {
-                                NUtils.clearThreadUI();
-                            }
-                        }, path + "-ToggleThread");
-                        if (disStacks)
-                            gui.biw.addObserve(thread, true);
-                        else
-                            gui.biw.addObserve(thread);
-                        thread.start();
-                        gui.msg("Started: " + path);
+                        thread = BotExecutor.runAsync(path + "-ToggleThread", action, disStacks);
+                        if (gui != null) {
+                            gui.msg("Started: " + path);
+                        }
                     } else {
                         if (thread != null && thread.isAlive()) {
                             if (action instanceof ActionWithFinal) {

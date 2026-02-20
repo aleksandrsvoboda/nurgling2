@@ -104,13 +104,7 @@ public class SessionManager {
             }
         }
 
-        // Add session tab bar to the UI if we have more than one session
-        // or if this is the first session (to show the + button)
-        if (ui != null) {
-            ui.addSessionTabBar();
-        }
-
-        // Notify listeners
+        // Notify listeners (SessionUIController will add tab bar)
         notifySessionAdded(ctx);
 
         return ctx;

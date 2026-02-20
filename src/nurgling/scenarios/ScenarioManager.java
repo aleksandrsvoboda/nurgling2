@@ -4,6 +4,7 @@ import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NUI;
 import nurgling.NUtils;
+import nurgling.sessions.BotExecutor;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -78,7 +79,7 @@ public class ScenarioManager {
     }
 
     public void executeScenarioByName(String scenarioName, NGameUI gui) {
-        final NUI boundUI = NUtils.getUI();
+        NUI boundUI = NUtils.getUI();
         if (gui == null) {
             gui = (boundUI != null) ? boundUI.gui : null;
         }
@@ -87,29 +88,11 @@ public class ScenarioManager {
 
         for(Scenario scenario : this.getScenarios().values()) {
             if(scenario.getName().equals(scenarioName)) {
-                Thread t = new Thread(() -> {
-                    NUtils.setThreadUI(boundUI);
-                    try {
-                        nurgling.actions.bots.ScenarioRunner runner = new nurgling.actions.bots.ScenarioRunner(scenario);
-                        runner.run(finalGui);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } catch (Exception e) {
-                        if (finalGui != null) {
-                            finalGui.error("Scenario execution failed: " + e.getMessage());
-                        }
-                    } finally {
-                        NUtils.clearThreadUI();
-                    }
-                }, "ScenarioRunner-" + scenarioName);
-
-                finalGui.biw.addObserve(t);
-                t.start();
+                BotExecutor.runAsync("ScenarioRunner-" + scenarioName,
+                    new nurgling.actions.bots.ScenarioRunner(scenario));
                 return;
             }
         }
-        if (finalGui != null) {
-            finalGui.error("Scenario not found: " + scenarioName);
-        }
+        finalGui.error("Scenario not found: " + scenarioName);
     }
 }

@@ -95,6 +95,7 @@ public class UI {
     public Console cons = new WidgetConsole();
     private Collection<AfterDraw> afterdraws = new LinkedList<AfterDraw>();
     private final Context uictx;
+    public Context getContext() { return uictx; }
     public GSettings gprefs = GSettings.load(true);
     private boolean gprefsdirty = false;
     public final ActAudio.Root audio = new ActAudio.Root();

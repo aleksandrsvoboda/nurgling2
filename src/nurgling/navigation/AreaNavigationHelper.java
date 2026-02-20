@@ -7,6 +7,7 @@ import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
+import nurgling.sessions.ThreadLocalUI;
 
 /**
  * Helper utilities for area navigation.
@@ -138,11 +139,11 @@ public class AreaNavigationHelper {
             final int idx = i;
             threads[i] = new Thread(() -> {
                 // Bind thread-local UI so planner uses correct session
-                NUtils.setThreadUI(boundUI);
+                ThreadLocalUI.set(boundUI);
                 try {
                     paths[idx] = chunkNav.planToAreaCorner(area, idx);
                 } finally {
-                    NUtils.clearThreadUI();
+                    ThreadLocalUI.clear();
                 }
             });
             threads[i].start();
@@ -214,13 +215,13 @@ public class AreaNavigationHelper {
             final Coord2d corner = corners[i];
             threads[i] = new Thread(() -> {
                 // Bind thread-local UI so PathFinder uses correct session
-                NUtils.setThreadUI(boundUI);
+                ThreadLocalUI.set(boundUI);
                 try {
                     reachable[idx] = PathFinder.isAvailable(corner);
                 } catch (InterruptedException e) {
                     reachable[idx] = false;
                 } finally {
-                    NUtils.clearThreadUI();
+                    ThreadLocalUI.clear();
                 }
             });
             threads[i].start();
@@ -281,7 +282,7 @@ public class AreaNavigationHelper {
 
             threads[i] = new Thread(() -> {
                 // Bind thread-local UI so PathFinder uses correct session
-                NUtils.setThreadUI(boundUI);
+                ThreadLocalUI.set(boundUI);
                 try {
                     int cost = PathFinder.getPathCost(corner);
                     if (cost >= 0) {
@@ -291,7 +292,7 @@ public class AreaNavigationHelper {
                 } catch (InterruptedException e) {
                     // Leave as unreachable
                 } finally {
-                    NUtils.clearThreadUI();
+                    ThreadLocalUI.clear();
                 }
             });
             threads[i].start();

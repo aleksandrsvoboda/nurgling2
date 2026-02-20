@@ -12,6 +12,8 @@ import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPath;
 import nurgling.overlays.map.*;
 import nurgling.tools.*;
+import nurgling.sessions.BotExecutor;
+import nurgling.sessions.ThreadLocalUI;
 import org.json.*;
 
 import javax.swing.*;
@@ -526,33 +528,23 @@ public class NAreasWidget extends Window
                         {
                             if (option.name.equals(get("area.menu.navigate")))
                             {
-                                final NUI boundUI = NUtils.getUI();
-                                final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
-                                if (boundGui == null) return;
-
-                                Thread t = new Thread(() -> {
-                                    NUtils.setThreadUI(boundUI);
-                                    try {
-                                        ChunkNavManager chunkNav = ((NMapView)boundGui.map).getChunkNavManager();
-                                        if (chunkNav != null && chunkNav.isInitialized())
+                                final NArea navArea = area;
+                                BotExecutor.runTracked("AreaNavigator", (gui) -> {
+                                    ChunkNavManager chunkNav = ((NMapView)gui.map).getChunkNavManager();
+                                    if (chunkNav != null && chunkNav.isInitialized())
+                                    {
+                                        ChunkPath path = chunkNav.planToArea(navArea);
+                                        if (path != null)
                                         {
-                                            ChunkPath path = chunkNav.planToArea(area);
-                                            if (path != null)
+                                            try
                                             {
-                                                try
-                                                {
-                                                    chunkNav.navigateToArea(area, boundGui);
-                                                } catch (InterruptedException ignored)
-                                                {
-                                                }
+                                                chunkNav.navigateToArea(navArea, gui);
+                                            } catch (InterruptedException ignored)
+                                            {
                                             }
                                         }
-                                    } finally {
-                                        NUtils.clearThreadUI();
                                     }
-                                }, "AreaNavigator");
-                                boundGui.biw.addObserve(t);
-                                t.start();
+                                });
                             }
                             else if (option.name.equals(get("area.menu.select_space")))
                             {

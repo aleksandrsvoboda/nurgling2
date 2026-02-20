@@ -27,8 +27,6 @@
 package haven;
 
 import nurgling.widgets.*;
-import nurgling.sessions.SessionContext;
-import nurgling.sessions.SessionManager;
 
 import java.io.*;
 import java.net.*;
@@ -37,6 +35,18 @@ import java.util.*;
 import static haven.LoginScreen.authmech;
 
 public class Bootstrap implements UI.Receiver, UI.Runner {
+    // === FACTORY PATTERN for extensibility ===
+    private static java.util.function.Supplier<Bootstrap> factory = Bootstrap::new;
+
+    public static void setFactory(java.util.function.Supplier<Bootstrap> f) {
+        factory = f;
+    }
+
+    public static Bootstrap create() {
+        return factory.get();
+    }
+    // === END FACTORY ===
+
     public static final Config.Variable<String> authuser = Config.Variable.prop("haven.authuser", null);
     public static final Config.Variable<NamedSocketAddress> authserv = Config.Variable.proph("haven.server", AuthClient.DEFPORT, new NamedSocketAddress("localhost", AuthClient.DEFPORT));
     public static final Config.Variable<NamedSocketAddress> gameserv = Config.Variable.proph("haven.gameserv", 1870, null);
@@ -164,20 +174,28 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	    });
     }
 
+    // === HOOK METHOD for subclassing ===
+    /**
+     * Hook called before normal bootstrap.
+     * @return non-null Runner to skip bootstrap, null to continue
+     */
+    protected UI.Runner preRun(UI ui) throws InterruptedException {
+        return null;
+    }
+
+    /**
+     * Hook for creating RemoteUI after successful login.
+     * Override to return NRemoteUI for multi-session support.
+     */
+    protected RemoteUI createRemoteUI(Session sess) {
+        return new RemoteUI(sess);
+    }
+    // === END HOOK ===
+
     public UI.Runner run(UI ui) throws InterruptedException {
-	// Check if we're switching to an existing session (not logging in fresh)
-	SessionManager sm = SessionManager.getInstance();
-	SessionContext switchTo = sm.consumePendingSwitchTo();
-	if (switchTo != null && switchTo.session != null) {
-	    System.out.println("[Bootstrap] Switching to existing session: " + switchTo.getDisplayName());
-	    // Promote the session to visual (stops headless tick thread)
-	    switchTo.promoteToVisual(ui.getenv());
-	    // The session's background message thread should stop when headless becomes false
-	    // Give it a moment to exit
-	    Thread.sleep(100);
-	    // Create RemoteUI to process this session's messages
-	    return new RemoteUI(switchTo.session);
-	}
+	// Hook for subclasses (NBootstrap handles session switching)
+	UI.Runner pre = preRun(ui);
+	if (pre != null) return pre;
 
 	ui.setreceiver(this);
 	switch(authmech.get()) {
@@ -336,7 +354,7 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	} while(true);
 	ui.destroy(1);
 	haven.error.ErrorHandler.setprop("usr", sess.user.name);
-	return(new RemoteUI(sess));
+	return(createRemoteUI(sess));
     }
 
     public void rcvmsg(int widget, String msg, Object... args) {

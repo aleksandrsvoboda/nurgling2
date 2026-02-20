@@ -13,6 +13,7 @@ import nurgling.actions.QuickActionBot;
 import nurgling.actions.bots.ScenarioRunner;
 import nurgling.areas.*;
 import nurgling.conf.QuickActionPreset;
+import nurgling.sessions.ThreadLocalUI;
 import nurgling.widgets.options.QuickActions;
 import nurgling.overlays.*;
 import nurgling.overlays.map.*;
@@ -801,7 +802,7 @@ public class NMapView extends MapView
 
                 Thread t;
                 t = new Thread(() -> {
-                    NUtils.setThreadUI(boundUI);
+                    ThreadLocalUI.set(boundUI);
                     try {
                         System.out.println("[NMapView] Bot thread started, waiting " + BOT_DELAY_MS + "ms...");
                         Thread.sleep(BOT_DELAY_MS);
@@ -845,7 +846,7 @@ public class NMapView extends MapView
                         System.err.println("[NMapView] ERROR in bot thread: " + e.getMessage());
                         e.printStackTrace();
                     } finally {
-                        NUtils.clearThreadUI();
+                        ThreadLocalUI.clear();
                     }
                 });
                 boundGui.biw.addObserve(t);
@@ -1004,7 +1005,7 @@ public class NMapView extends MapView
                 @Override
                 public void run()
                 {
-                    NUtils.setThreadUI(boundUI);
+                    ThreadLocalUI.set(boundUI);
                     try
                     {
                         if(kb_quickaction.key().match(ev))
@@ -1020,7 +1021,7 @@ public class NMapView extends MapView
                     }
                     finally
                     {
-                        NUtils.clearThreadUI();
+                        ThreadLocalUI.clear();
                     }
                 }
             }, "quick action")).start();
@@ -1184,13 +1185,13 @@ public class NMapView extends MapView
         if (boundGui == null) return;
 
         Thread t = new Thread(() -> {
-            NUtils.setThreadUI(boundUI);
+            ThreadLocalUI.set(boundUI);
             try {
                 new QuickActionBot(ignorePattern, useMouse, preset).run(boundGui);
             } catch (InterruptedException e) {
                 boundGui.msg("quick action error: STOPPED");
             } finally {
-                NUtils.clearThreadUI();
+                ThreadLocalUI.clear();
             }
         }, "quick action - " + preset.name);
         t.start();

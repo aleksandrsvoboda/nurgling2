@@ -34,14 +34,13 @@ import java.awt.Toolkit;
 import haven.JOGLPanel.SyncMode;
 import nurgling.*;
 import nurgling.styles.TooltipStyle;
-import nurgling.sessions.SessionManager;
-import nurgling.sessions.SessionContext;
 
 public interface GLPanel extends UIPanel, UI.Context {
     public GLEnvironment env();
     public Area shape();
     public Pipe basestate();
     public void glswap(GL gl);
+    public Loop getLoop();
 
     public static class Loop implements Console.Directory {
 	public static boolean gldebug = false;
@@ -56,8 +55,16 @@ public interface GLPanel extends UIPanel, UI.Context {
 	protected UI lockedui, ui;
 	private final Dispatcher ed;
 	private final Object uilock = new Object();
-	/** Flag for pending new session request (for multi-session support) */
-	private volatile boolean pendingNewSession = false;
+	/** Lifecycle listener for UI creation/destruction events */
+	private UILifecycleListener lifecycleListener;
+
+	public void setUILifecycleListener(UILifecycleListener l) {
+	    this.lifecycleListener = l;
+	}
+
+	public UILifecycleListener getUILifecycleListener() {
+	    return lifecycleListener;
+	}
 
 	public Loop(GLPanel p) {
 	    this.p = p;
@@ -325,18 +332,6 @@ public interface GLPanel extends UIPanel, UI.Context {
 		ProfileCycle rprofc = null;
 		int framep = 0;
 		while(true) {
-		    // Check for pending new session request (multi-session support)
-		    if (pendingNewSession) {
-			pendingNewSession = false;
-			// Clear lockedui to prevent deadlock - newui() waits for lockedui != prevui
-			// but we're on the render thread so it would never be updated
-			synchronized(uilock) {
-			    this.lockedui = null;
-			    uilock.notifyAll();
-			}
-			newui(new Bootstrap());
-		    }
-
 		    double fwaited = 0;
 		    GLEnvironment env = p.env();
 		    buf = env.render();
@@ -467,22 +462,14 @@ public interface GLPanel extends UIPanel, UI.Context {
 	}
 
 	public UI newui(UI.Runner fun) {
-	    UI prevui;
-	    SessionManager sm = SessionManager.getInstance();
-
-	    // Check if this is a RemoteUI for an existing session
-	    // If so, reuse that session's existing UI instead of creating a new one
-	    if (fun instanceof RemoteUI) {
-		RemoteUI rui = (RemoteUI) fun;
-		SessionContext existingCtx = sm.findBySession(rui.sess);
-		if (existingCtx != null && existingCtx.ui != null) {
-		    // Reuse the existing session's UI
-		    NUI existingUI = existingCtx.ui;
-		    existingUI.env = p.env();  // Update environment for rendering
-		    UI.ui = existingUI;
+	    // === NEW: Lifecycle hook for UI reuse ===
+	    if (lifecycleListener != null) {
+		UI reuse = lifecycleListener.beforeNewUI(fun, this.ui, p);
+		if (reuse != null) {
+		    // Reuse existing UI instead of creating new
 		    synchronized(uilock) {
-			prevui = this.ui;
-			ui = existingUI;
+			UI prevui = this.ui;
+			ui = reuse;
 			ui.root.guprof = uprof;
 			ui.root.grprof = rprof;
 			ui.root.ggprof = gprof;
@@ -495,25 +482,16 @@ public interface GLPanel extends UIPanel, UI.Context {
 			    }
 			}
 		    }
-		    // Destroy or demote the previous UI
-		    SessionContext prevCtx = (prevui != null) ? sm.findByUI(prevui) : null;
-		    if(prevCtx != null) {
-			prevCtx.demoteToHeadless();
-		    } else if(prevui != null) {
-			synchronized(prevui) {
-			    prevui.destroy();
-			}
-		    }
-		    System.out.println("[GLPanel] Reusing existing UI for session: " + existingCtx.getDisplayName());
-		    return existingUI;
+		    return reuse;
 		}
 	    }
+	    // === END LIFECYCLE HOOK ===
 
-	    // Create new UI as before
+	    // Create new UI
+	    UI prevui;
 	    NUI newui = new NUI(p, new Coord(p.getSize()), fun);
 	    newui.env = p.env();
-	    newui.setPanel(p);  // Set UIPanel reference for multi-session support
-		UI.ui = newui;
+	    UI.ui = newui;
 	    if(p.getParent() instanceof Console.Directory)
 		newui.cons.add((Console.Directory)p.getParent());
 	    if(p instanceof Console.Directory)
@@ -535,48 +513,27 @@ public interface GLPanel extends UIPanel, UI.Context {
 		}
 	    }
 
-	    // Check if prevui is registered with SessionManager - if so, demote instead of destroy
-	    SessionContext prevCtx = (prevui != null) ? sm.findByUI(prevui) : null;
-	    if(prevCtx != null) {
-		// Previous UI has an active session - demote to headless instead of destroying
-		prevCtx.demoteToHeadless();
-	    } else if(prevui != null) {
-		// No session context - destroy as before
-		synchronized(prevui) {
-		    prevui.destroy();
+	    // Lifecycle hook for destruction decision
+	    if(prevui != null) {
+		boolean shouldDestroy = (lifecycleListener == null) ||
+					lifecycleListener.afterNewUI(newui, prevui);
+		if (shouldDestroy) {
+		    synchronized(prevui) {
+			prevui.destroy();
+		    }
 		}
 	    }
 	    return(newui);
 	}
 
 	/**
-	 * Create a new UI for an additional session in headless mode.
-	 * The current active session continues running.
-	 * @param fun The runner for the new session (typically Bootstrap)
-	 * @return The new UI instance
-	 */
-	public UI newHeadlessUI(UI.Runner fun) {
-	    NUI newui = new NUI(p, new Coord(p.getSize()), fun);
-	    // Use headless environment for background session
-	    newui.env = new nurgling.headless.HeadlessEnvironment();
-	    newui.setPanel(p);  // Set UIPanel reference for multi-session support
-
-	    if(p.getParent() instanceof Console.Directory)
-		newui.cons.add((Console.Directory)p.getParent());
-	    if(p instanceof Console.Directory)
-		newui.cons.add((Console.Directory)p);
-	    newui.cons.add(this);
-
-	    return newui;
-	}
-
-	/**
 	 * Request a new session to be started.
-	 * This sets a flag that the main loop will check and process.
-	 * Used for multi-session support when adding accounts from within event handlers.
+	 * Used for multi-session support when adding accounts.
 	 */
 	public void requestNewSession() {
-	    pendingNewSession = true;
+	    if (lifecycleListener != null) {
+		lifecycleListener.onNewSessionRequested(p);
+	    }
 	}
 
 	private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();

@@ -13,6 +13,7 @@ import nurgling.actions.AutoSaveTableware;
 import nurgling.iteminfo.NFoodInfo;
 import nurgling.equipment.EquipmentPresetManager;
 import nurgling.scenarios.ScenarioManager;
+import nurgling.sessions.BotExecutor;
 import nurgling.tasks.*;
 import nurgling.tools.NSearchItem;
 import org.json.JSONArray;
@@ -248,23 +249,16 @@ public class NCore extends Widget
 
         if(autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
         {
-            // Capture UI reference from tick thread to bind to auto thread
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-            if (gui != null) {
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        NUtils.setThreadUI(boundUI);
-                        try {
-                            (autoDrink = new AutoDrink()).run(gui);
-                        } catch (InterruptedException ignored) {
-                        } finally {
-                            NUtils.clearThreadUI();
-                        }
+            autoDrink = new AutoDrink();
+            BotExecutor.runTask("AutoDrink", () -> {
+                NGameUI gui = NUtils.getGameUI();
+                if (gui != null) {
+                    try {
+                        autoDrink.run(gui);
+                    } catch (InterruptedException ignored) {
                     }
-                }).start();
-            }
+                }
+            });
         }
         else
         {
@@ -276,23 +270,16 @@ public class NCore extends Widget
 
         if(autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
         {
-            // Capture UI reference from tick thread to bind to auto thread
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-            if (gui != null) {
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        NUtils.setThreadUI(boundUI);
-                        try {
-                            (autoSaveTableware = new AutoSaveTableware()).run(gui);
-                        } catch (InterruptedException ignored) {
-                        } finally {
-                            NUtils.clearThreadUI();
-                        }
+            autoSaveTableware = new AutoSaveTableware();
+            BotExecutor.runTask("AutoSaveTableware", () -> {
+                NGameUI gui = NUtils.getGameUI();
+                if (gui != null) {
+                    try {
+                        autoSaveTableware.run(gui);
+                    } catch (InterruptedException ignored) {
                     }
-                }).start();
-            }
+                }
+            });
         }
         else
         {
