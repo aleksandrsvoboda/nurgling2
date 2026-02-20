@@ -260,6 +260,10 @@ public class JOGLPanel extends GLCanvas implements GLPanel, Console.Directory {
 	main.bgmode = bg;
     }
 
+    public void requestNewSession() {
+	main.requestNewSession();
+    }
+
     private Robot awtrobot;
     public void setmousepos(Coord c) {
 	java.awt.EventQueue.invokeLater(() -> {

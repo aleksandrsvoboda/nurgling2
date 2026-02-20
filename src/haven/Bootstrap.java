@@ -27,6 +27,8 @@
 package haven;
 
 import nurgling.widgets.*;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
 
 import java.io.*;
 import java.net.*;
@@ -163,6 +165,20 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     }
 
     public UI.Runner run(UI ui) throws InterruptedException {
+	// Check if we're switching to an existing session (not logging in fresh)
+	SessionManager sm = SessionManager.getInstance();
+	SessionContext switchTo = sm.consumePendingSwitchTo();
+	if (switchTo != null && switchTo.session != null) {
+	    System.out.println("[Bootstrap] Switching to existing session: " + switchTo.getDisplayName());
+	    // Promote the session to visual (stops headless tick thread)
+	    switchTo.promoteToVisual(ui.getenv());
+	    // The session's background message thread should stop when headless becomes false
+	    // Give it a moment to exit
+	    Thread.sleep(100);
+	    // Create RemoteUI to process this session's messages
+	    return new RemoteUI(switchTo.session);
+	}
+
 	ui.setreceiver(this);
 	switch(authmech.get()) {
 		case "native":

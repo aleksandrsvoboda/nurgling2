@@ -702,9 +702,13 @@ public class MCache implements MapSource {
 	}
 
 	public RenderTree.Node getnolcut(Integer id, Coord cc) {
-		if(NUtils.getGameUI() == null || NUtils.getGameUI().map==null)
+		// Cache getGameUI() result to avoid race conditions during session switching
+		nurgling.NGameUI gui = NUtils.getGameUI();
+		if(gui == null || gui.map == null || !(gui.map instanceof nurgling.NMapView))
 			return null;
-		boolean requpd = (NUtils.getGameUI().map.nols.get(id)!= null && NUtils.getGameUI().map.nols.get(id).requpdate2);
+		nurgling.NMapView mapView = (nurgling.NMapView) gui.map;
+		NOverlay nol = mapView.nols.get(id);
+		boolean requpd = (nol != null && nol.requpdate2);
 		if((areas.get(id)!= null && areas.get(id).grids_id.contains(this.id)) || NMapView.isCustom(id))
 		{
 			int nseq = MCache.this.olseq;
@@ -730,7 +734,8 @@ public class MCache implements MapSource {
 			Cut cut = geticut(cc);
 			if (!cut.nols.containsKey(id) || requpd)
 			{
-				NOverlay nol = NUtils.getGameUI().map.nols.get(id);
+				if (nol == null)
+					return null;
 				cut.nols.put(id, nol.makenol(getcut(cc), this.id, ul));
 				cut.nedgs.put(id, nol.makenolol(getcut(cc),this.id, ul));
 				nol.cuts.add(cut);

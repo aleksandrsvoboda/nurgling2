@@ -64,6 +64,10 @@ public class Session implements Resource.Resolver {
     public final Glob glob;
     public SignKey sesskey;
     private boolean closed = false;
+    /** Flag to wake up getuimsg() for multi-session detach */
+    private volatile boolean detachRequested = false;
+    /** Flag to wake up getuimsg() when session is promoted back to visual */
+    private volatile boolean promoted = false;
 
     final Map<Integer, String> res_id_cache = new TreeMap<Integer, String>();
     public String getResName(Integer id)
@@ -318,8 +322,52 @@ public class Session implements Resource.Resolver {
 		    return(uimsgs.remove());
 		if(closed)
 		    return(null);
+		if(detachRequested) {
+		    detachRequested = false; // Clear flag so background loop can continue
+		    return(new Detach());
+		}
+		if(promoted) {
+		    promoted = false;
+		    return(new Promoted());
+		}
 		uimsgs.wait();
 	    }
+	}
+    }
+
+    /**
+     * Request detach - wakes up getuimsg() and signals that the session
+     * should be detached to run in background (for multi-session support).
+     */
+    public void requestDetach() {
+	synchronized(uimsgs) {
+	    detachRequested = true;
+	    uimsgs.notifyAll();
+	}
+    }
+
+    /** Marker message indicating detach was requested */
+    public static class Detach extends PMessage {
+	public Detach() {
+	    super(-2);
+	}
+    }
+
+    /** Marker message indicating session was promoted back to visual */
+    public static class Promoted extends PMessage {
+	public Promoted() {
+	    super(-3);
+	}
+    }
+
+    /**
+     * Signal that this session is being promoted to visual mode.
+     * Wakes up any thread blocked in getuimsg() so it can exit.
+     */
+    public void wakeupMessageQueue() {
+	synchronized(uimsgs) {
+	    promoted = true;
+	    uimsgs.notifyAll();
 	}
     }
 
