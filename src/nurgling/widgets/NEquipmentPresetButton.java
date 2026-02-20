@@ -7,6 +7,7 @@ import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
 import nurgling.equipment.EquipmentPreset;
 import nurgling.equipment.EquipmentPresetIcons;
+import nurgling.sessions.BotExecutor;
 
 public class NEquipmentPresetButton extends IButton {
     private final EquipmentPreset preset;
@@ -27,24 +28,7 @@ public class NEquipmentPresetButton extends IButton {
 
     private void executePreset() {
         if (preset != null) {
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-            if (gui == null) return;
-
-            Thread t = new Thread(() -> {
-                NUtils.setThreadUI(boundUI);
-                try {
-                    EquipmentBot bot = new EquipmentBot(preset);
-                    bot.run(gui);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    NUtils.clearThreadUI();
-                }
-            }, "EquipmentBot-" + preset.getName());
-
-            gui.biw.addObserve(t);
-            t.start();
+            BotExecutor.runAsync("EquipmentBot-" + preset.getName(), new EquipmentBot(preset));
         }
     }
 

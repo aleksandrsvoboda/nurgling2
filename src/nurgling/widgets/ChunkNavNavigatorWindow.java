@@ -5,6 +5,7 @@ import nurgling.*;
 import nurgling.areas.NArea;
 import nurgling.i18n.L10n;
 import nurgling.navigation.*;
+import nurgling.sessions.ThreadLocalUI;
 
 import java.awt.Color;
 import java.util.*;
@@ -133,7 +134,7 @@ public class ChunkNavNavigatorWindow extends Window {
 
         // Start navigation in a new thread with gear/stop button support
         Thread navThread = new Thread(() -> {
-            NUtils.setThreadUI(boundUI);
+            ThreadLocalUI.set(boundUI);
             try {
                 // First try ChunkNav
                 ChunkPath path = manager.planToArea(selectedArea);
@@ -162,7 +163,7 @@ public class ChunkNavNavigatorWindow extends Window {
                 updateStatusFromThread("Error: " + e.getMessage());
                 e.printStackTrace();
             } finally {
-                NUtils.clearThreadUI();
+                ThreadLocalUI.clear();
             }
         }, "ChunkNav-Navigator");
 

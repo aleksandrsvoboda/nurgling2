@@ -10,6 +10,7 @@ import nurgling.actions.ActionWithFinal;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
 import nurgling.scenarios.*;
+import nurgling.sessions.BotExecutor;
 import nurgling.widgets.CustomIcon;
 import nurgling.widgets.CustomIconManager;
 import nurgling.widgets.NScenarioButton;
@@ -433,39 +434,7 @@ public class ScenarioPanel extends Panel {
 
     void start(String path, Action action)
     {
-        final NUI boundUI = NUtils.getUI();
-        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-        if (gui == null) return;
-
-        Thread t;
-        t = new Thread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                NUtils.setThreadUI(boundUI);
-                try
-                {
-                    action.run(gui);
-                }
-                catch (InterruptedException e)
-                {
-                    gui.msg(path + ":" + "STOPPED");
-                }
-                finally
-                {
-                    if(action instanceof ActionWithFinal)
-                    {
-                        ((ActionWithFinal)action).endAction();
-                    }
-                    NUtils.clearThreadUI();
-                }
-            }
-        }, path);
-
-        gui.biw.addObserve(t);
-
-        t.start();
+        BotExecutor.runAsync(path, action);
     }
     
     private class ScenarioItemWidget extends Widget {

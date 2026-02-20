@@ -10,6 +10,7 @@ import nurgling.NStyle;
 import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.ReadJsonAction;
+import nurgling.sessions.BotExecutor;
 import nurgling.cookbook.FavoriteRecipeManager;
 import nurgling.cookbook.Recipe;
 import nurgling.cookbook.connection.RecipeHashFetcher;
@@ -337,25 +338,8 @@ public class NCookBook extends Window {
                         return;
                     if(fc.getSelectedFile()!=null)
                     {
-                        final NUI boundUI = NUtils.getUI();
-                        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-                        if (gui == null) return;
-
-                        Thread t;
-                        (t = new Thread(new Runnable()
-                        {
-                            @Override
-                            public void run()
-                            {
-                                NUtils.setThreadUI(boundUI);
-                                try {
-                                    new ReadJsonAction(fc.getSelectedFile().getAbsolutePath()).run(gui);
-                                } finally {
-                                    NUtils.clearThreadUI();
-                                }
-                            }
-                        }, "food-info2_download")).start();
-                        gui.biw.addObserve(t);
+                        BotExecutor.runAsync("food-info2_download",
+                            new ReadJsonAction(fc.getSelectedFile().getAbsolutePath()));
                     }
                 });
             }

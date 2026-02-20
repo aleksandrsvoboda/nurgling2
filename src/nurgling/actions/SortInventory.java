@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.*;
 import haven.res.ui.tt.stackn.Stack;
 import nurgling.*;
+import nurgling.sessions.BotExecutor;
 import nurgling.tasks.*;
 
 import java.util.*;
@@ -313,8 +314,7 @@ public class SortInventory implements Action {
             return;
         }
 
-        final NUI boundUI = NUtils.getUI();
-        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+        NGameUI gui = NUtils.getGameUI();
         if (gui == null) return;
 
         // Check cursor
@@ -323,19 +323,7 @@ public class SortInventory implements Action {
             return;
         }
 
-        Thread t = new Thread(() -> {
-            NUtils.setThreadUI(boundUI);
-            try {
-                new SortInventory(inv).run(gui);
-            } catch (InterruptedException e) {
-                gui.msg("Sort interrupted");
-            } finally {
-                NUtils.clearThreadUI();
-            }
-        }, "InventorySorter");
-
-        gui.biw.addObserve(t);
-        t.start();
+        BotExecutor.runAsync("InventorySorter", new SortInventory(inv));
     }
     
     /**

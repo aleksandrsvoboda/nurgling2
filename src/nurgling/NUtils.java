@@ -15,6 +15,7 @@ import nurgling.tools.*;
 import nurgling.widgets.*;
 import nurgling.widgets.options.AutoSelection;
 import nurgling.widgets.options.QuickActions;
+import nurgling.sessions.ThreadLocalUI;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -39,37 +40,6 @@ public class NUtils
         } catch (ClassNotFoundException e) {
             System.err.println("[NUtils] Failed to load NCaveTile: " + e.getMessage());
         }
-    }
-
-    /**
-     * Thread-local UI reference for bot threads.
-     * When a bot starts, its thread gets the UI stored here so that
-     * even when the user switches sessions, the bot continues to
-     * operate on its original session.
-     */
-    private static final ThreadLocal<NUI> threadLocalUI = new ThreadLocal<>();
-
-    /**
-     * Set the UI for the current thread (used when starting bot threads).
-     * This binds the bot to a specific session regardless of which session
-     * is currently active/visible.
-     */
-    public static void setThreadUI(NUI ui) {
-        threadLocalUI.set(ui);
-    }
-
-    /**
-     * Clear the UI for the current thread (used when bot thread ends).
-     */
-    public static void clearThreadUI() {
-        threadLocalUI.remove();
-    }
-
-    /**
-     * Check if the current thread has a bound UI.
-     */
-    public static boolean hasThreadUI() {
-        return threadLocalUI.get() != null;
     }
 
     // Static FPS value updated from render loop
@@ -97,7 +67,7 @@ public class NUtils
 
     public static NUI getUI(){
         // First check if this thread has a bound UI (bot threads)
-        NUI threadUI = threadLocalUI.get();
+        NUI threadUI = ThreadLocalUI.get();
         if (threadUI != null) {
             return threadUI;
         }

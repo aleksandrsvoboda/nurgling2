@@ -4,9 +4,6 @@ import haven.*;
 import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NUI;
-import nurgling.NUtils;
-import nurgling.headless.HeadlessEnvironment;
-import nurgling.headless.HeadlessPanel;
 
 /**
  * Holds all state for a single game session.
@@ -39,9 +36,6 @@ public class SessionContext {
 
     /** Whether this session is running in headless mode */
     private volatile boolean headless = false;
-
-    /** The headless panel for background processing (when headless) */
-    private HeadlessPanel headlessPanel;
 
     /** The headless tick thread (when headless) */
     private Thread headlessThread;
@@ -158,18 +152,13 @@ public class SessionContext {
             sm.clearActiveSession();
         }
 
-        // Create headless panel for background processing
-        headlessPanel = new HeadlessPanel();
-
-        // DON'T change ui.env - widgets hold render tree slot references
-        // that would become invalid. The headless loop only ticks game logic.
-
-        // Wake up the RemoteUI message loop so it can detach to background
+        // Signal the RemoteUI message loop to detach to background
+        // This wakes up getuimsg() and causes NRemoteUI to spawn background thread
         if (session != null) {
-            session.requestDetach();
+            session.injectMessage(new DetachMessage());
         }
 
-        // Start headless tick thread
+        // Start headless tick thread for game logic (glob ticks, UI ticks)
         headlessThread = new Thread(() -> {
             try {
                 runHeadlessLoop();
@@ -180,7 +169,7 @@ public class SessionContext {
         headlessThread.setDaemon(true);
         headlessThread.start();
 
-        System.out.println("[SessionManager] Session " + getDisplayName() + " demoted to headless mode");
+        System.out.println("[SessionContext] Session " + getDisplayName() + " demoted to headless mode");
     }
 
     /**
@@ -205,12 +194,11 @@ public class SessionContext {
             headlessThread = null;
         }
 
-        headlessPanel = null;
         headless = false;
 
-        // Wake up any blocked message readers (background thread checking isHeadless)
+        // Signal background message loop to exit
         if (session != null) {
-            session.wakeupMessageQueue();
+            session.injectMessage(new PromotedMessage());
         }
 
         // Set the GL environment for rendering
@@ -218,7 +206,7 @@ public class SessionContext {
             ui.env = env;
         }
 
-        System.out.println("[SessionManager] Session " + getDisplayName() + " promoted to visual mode");
+        System.out.println("[SessionContext] Session " + getDisplayName() + " promoted to visual mode");
     }
 
     /**
@@ -229,11 +217,9 @@ public class SessionContext {
         final double TICK_DURATION = 1.0 / TICK_RATE;
         double lastTick = Utils.rtime();
 
-        // Set thread-local UI for this headless thread so that task check() methods
+        // Set thread-local UI for this headless thread so that bot actions
         // can access the correct session's UI via NUtils.getUI()/getGameUI().
-        // Without this, they would fall back to UI.getInstance() which returns the
-        // active visual session's UI, not this headless session's UI.
-        NUtils.setThreadUI(ui);
+        ThreadLocalUI.set(ui);
 
         try {
             while (!Thread.currentThread().isInterrupted() && headless && isConnected()) {
@@ -250,16 +236,10 @@ public class SessionContext {
                             }
 
                             // Tick the UI (processes widget state, bot actions, etc.)
-                            // Wrap in try-catch as some widgets may have render-specific code
-                            // that fails in headless mode
                             ui.tick();
                             ui.lastevent = now;
                         } catch (NullPointerException e) {
-                            // Some widgets may throw NPE in headless mode due to
-                            // render-related code - ignore and continue
-                        } catch (Exception e) {
-                            // Log other exceptions but continue ticking
-                            System.err.println("[Headless] Tick error in session " + sessionId + ": " + e.getMessage());
+                            // Some widgets may throw NPE in headless mode - ignore and continue
                         }
                     }
                 }
@@ -276,7 +256,7 @@ public class SessionContext {
             }
         } finally {
             // Clean up thread-local UI when the headless loop exits
-            NUtils.clearThreadUI();
+            ThreadLocalUI.clear();
         }
     }
 

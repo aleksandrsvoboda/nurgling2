@@ -1,9 +1,6 @@
 package nurgling;
 
 import haven.*;
-import nurgling.sessions.SessionContext;
-import nurgling.sessions.SessionManager;
-import nurgling.sessions.SessionTabBar;
 import nurgling.widgets.*;
 
 import java.awt.event.*;
@@ -37,9 +34,6 @@ public class NUI extends UI
     private boolean useSolidBackground = false;
     /** Window background color for solid mode */
     private java.awt.Color windowBackgroundColor = new java.awt.Color(32, 32, 32);
-
-    /** UIPanel reference for spawning new sessions */
-    private UIPanel panel;
 
     /** Static verification flags - persist across NUI instances */
     private static boolean staticIsVerified = false;
@@ -114,9 +108,6 @@ public class NUI extends UI
         }
     }
 
-    /** The session tab bar widget */
-    private SessionTabBar sessionTabBar;
-
     /**
      * Initializes session info immediately when session is available.
      * This must be called before GameUI is created to avoid race conditions
@@ -128,61 +119,6 @@ public class NUI extends UI
         {
             sessInfo = new NSessInfo(sess.user.name);
         }
-    }
-
-    /**
-     * Add the session tab bar to this UI.
-     * Called when this UI is registered with SessionManager.
-     */
-    public void addSessionTabBar() {
-        if (sessionTabBar == null && root != null) {
-            sessionTabBar = new SessionTabBar();
-            sessionTabBar.z(10000); // High z-order to stay on top
-            root.add(sessionTabBar, new Coord(0, 0));
-            sessionTabBar.resize(root.sz);
-
-            // Set up the add account callback
-            sessionTabBar.setOnAddAccount(this::onAddAccountClicked);
-        }
-    }
-
-    /**
-     * Remove the session tab bar from this UI.
-     */
-    public void removeSessionTabBar() {
-        if (sessionTabBar != null) {
-            sessionTabBar.reqdestroy();
-            sessionTabBar = null;
-        }
-    }
-
-    /**
-     * Set the UIPanel reference for spawning new sessions.
-     * @param panel The UIPanel (typically GLPanel)
-     */
-    public void setPanel(UIPanel panel) {
-        this.panel = panel;
-    }
-
-    /**
-     * Called when "Add Account" button is clicked in the session tab bar.
-     * Demotes the current session to headless, causing RemoteUI to return Bootstrap
-     * which triggers the uiloop to create a new UI for login.
-     */
-    private void onAddAccountClicked() {
-        System.out.println("[NUI] Add Account clicked - demoting current session");
-
-        // Demote the current session to headless mode
-        // This calls requestDetach() on the session, which wakes up RemoteUI
-        // RemoteUI then returns Bootstrap, and the uiloop creates a new UI for login
-        SessionManager sm = SessionManager.getInstance();
-        SessionContext currentCtx = sm.findByUI(this);
-        if (currentCtx != null && !currentCtx.isHeadless()) {
-            System.out.println("[NUI] Demoting current session to headless: " + currentCtx.getDisplayName());
-            currentCtx.demoteToHeadless();
-        }
-        // No need to call requestNewSession() - the uiloop handles creating the new UI
-        // when RemoteUI returns Bootstrap after receiving the Detach message
     }
 
     @Override

@@ -12,6 +12,7 @@ import nurgling.*;
 import nurgling.actions.bots.*;
 import nurgling.areas.*;
 import nurgling.i18n.L10n;
+import nurgling.sessions.BotExecutor;
 import nurgling.tools.*;
 import org.json.*;
 
@@ -748,43 +749,22 @@ public class NMakewindow extends Widget {
             wdgmsg("make", 0);
         else
         {
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+            final NGameUI gui = NUtils.getGameUI();
             if (gui == null) return;
 
-            Thread t;
-            (t = new Thread(new Runnable()
+            int num = 1;
+            try
             {
-                @Override
-                public void run()
-                {
-                    NUtils.setThreadUI(boundUI);
-                    try
-                    {
-                        int num = 1;
-                        try
-                        {
-                            String cand = craft_num.text();
-                            if(!cand.isEmpty())
-                                num = Integer.parseInt(cand);
-                        }
-                        catch (NumberFormatException e)
-                        {
-                            gui.error("Incorrect target num");
-                        }
-                        new Craft(NMakewindow.this, num).run(gui);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        gui.tickmsg(Craft.class.getName() + "stopped");
-                    }
-                    finally
-                    {
-                        NUtils.clearThreadUI();
-                    }
-                }
-            }, "Auto craft(BOT)")).start();
-            gui.biw.addObserve(t);
+                String cand = craft_num.text();
+                if(!cand.isEmpty())
+                    num = Integer.parseInt(cand);
+            }
+            catch (NumberFormatException e)
+            {
+                gui.error("Incorrect target num");
+            }
+            final int craftNum = num;
+            BotExecutor.runAsync("Auto craft(BOT)", new Craft(NMakewindow.this, craftNum));
         }
     }
 
@@ -796,32 +776,7 @@ public class NMakewindow extends Widget {
         }
         else
         {
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-            if (gui == null) return;
-
-            Thread t;
-            (t = new Thread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    NUtils.setThreadUI(boundUI);
-                    try
-                    {
-                        new Craft(NMakewindow.this, 9999).run(gui);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        gui.tickmsg(Craft.class.getName() + "stopped");
-                    }
-                    finally
-                    {
-                        NUtils.clearThreadUI();
-                    }
-                }
-            }, "Auto craft(BOT)")).start();
-            gui.biw.addObserve(t);
+            BotExecutor.runAsync("Auto craft(BOT)", new Craft(NMakewindow.this, 9999));
         }
     }
 

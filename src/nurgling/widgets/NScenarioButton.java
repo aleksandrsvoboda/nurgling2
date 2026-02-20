@@ -7,6 +7,7 @@ import nurgling.NUtils;
 import nurgling.actions.bots.ScenarioRunner;
 import nurgling.scenarios.Scenario;
 import nurgling.scenarios.ScenarioIcons;
+import nurgling.sessions.BotExecutor;
 
 public class NScenarioButton extends IButton {
     private final Scenario scenario;
@@ -20,36 +21,15 @@ public class NScenarioButton extends IButton {
         this.scenario = scenario;
         setupButton();
     }
-    
+
     private void setupButton() {
         // Set up the click action for direct scenario execution
         this.action(() -> executeScenario());
     }
-    
+
     private void executeScenario() {
         if (scenario != null) {
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-            if (gui == null) return;
-
-            // Run scenario in background thread like other bots do
-            Thread t = new Thread(() -> {
-                NUtils.setThreadUI(boundUI);
-                try {
-                    ScenarioRunner runner = new ScenarioRunner(scenario);
-                    runner.run(gui);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (Exception e) {
-                    gui.error("Scenario execution failed: " + e.getMessage());
-                } finally {
-                    NUtils.clearThreadUI();
-                }
-            }, "ScenarioRunner-" + scenario.getName());
-
-            // Add to bot observer system like other actions
-            gui.biw.addObserve(t);
-            t.start();
+            BotExecutor.runAsync("ScenarioRunner-" + scenario.getName(), new ScenarioRunner(scenario));
         }
     }
     

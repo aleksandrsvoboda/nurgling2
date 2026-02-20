@@ -9,6 +9,7 @@ import nurgling.actions.bots.FetchStorageItemBot;
 import nurgling.db.dao.StorageItemDao;
 import nurgling.db.service.StorageItemService;
 import nurgling.i18n.L10n;
+import nurgling.sessions.BotExecutor;
 
 import java.awt.Color;
 import java.sql.SQLException;
@@ -587,10 +588,6 @@ public class NStorageItemsWidget extends Window {
         }
         
         private void startFetchBot(int count) {
-            final NUI boundUI = NUtils.getUI();
-            final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
-            if (gui == null) return;
-
             // Get all raw items for this group
             List<StorageItemDao.StorageItemData> matchingItems = rawItems.stream()
                 .filter(i -> i.getName().equals(item.name) &&
@@ -599,19 +596,7 @@ public class NStorageItemsWidget extends Window {
                 .collect(Collectors.toList());
 
             FetchStorageItemBot bot = new FetchStorageItemBot(item, count, matchingItems);
-
-            Thread t = new Thread(() -> {
-                NUtils.setThreadUI(boundUI);
-                try {
-                    bot.run(gui);
-                } catch (InterruptedException e) {
-                    // Bot interrupted
-                } finally {
-                    NUtils.clearThreadUI();
-                }
-            }, "FetchStorageItemBot");
-            t.start();
-            gui.biw.addObserve(t);
+            BotExecutor.runAsync("FetchStorageItemBot", bot);
         }
     }
 
