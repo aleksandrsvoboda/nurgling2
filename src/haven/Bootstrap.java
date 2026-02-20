@@ -35,7 +35,6 @@ import java.util.*;
 import static haven.LoginScreen.authmech;
 
 public class Bootstrap implements UI.Receiver, UI.Runner {
-    // === FACTORY PATTERN for extensibility ===
     private static java.util.function.Supplier<Bootstrap> factory = Bootstrap::new;
 
     public static void setFactory(java.util.function.Supplier<Bootstrap> f) {
@@ -45,7 +44,6 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     public static Bootstrap create() {
         return factory.get();
     }
-    // === END FACTORY ===
 
     public static final Config.Variable<String> authuser = Config.Variable.prop("haven.authuser", null);
     public static final Config.Variable<NamedSocketAddress> authserv = Config.Variable.proph("haven.server", AuthClient.DEFPORT, new NamedSocketAddress("localhost", AuthClient.DEFPORT));
@@ -174,7 +172,6 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	    });
     }
 
-    // === HOOK METHOD for subclassing ===
     /**
      * Hook called before normal bootstrap.
      * @return non-null Runner to skip bootstrap, null to continue
@@ -190,7 +187,6 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     protected RemoteUI createRemoteUI(Session sess) {
         return new RemoteUI(sess);
     }
-    // === END HOOK ===
 
     public UI.Runner run(UI ui) throws InterruptedException {
 	// Hook for subclasses (NBootstrap handles session switching)

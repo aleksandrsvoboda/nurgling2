@@ -86,8 +86,6 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 	this.sess.postuimsg(new Return(sess));
     }
 
-    // === HOOK METHODS FOR SUBCLASSES ===
-
     /**
      * Hook for subclasses to handle custom/injected messages.
      * @return non-null Runner to exit message loop, null to continue
@@ -109,8 +107,6 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
      */
     protected void onInit(UI ui) {
     }
-
-    // === END HOOK METHODS ===
 
     public UI.Runner run(UI ui) throws InterruptedException {
 	try {
