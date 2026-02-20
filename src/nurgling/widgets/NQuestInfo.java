@@ -367,11 +367,14 @@ public class NQuestInfo extends Widget
             forRemove.clear();
             needUpdate.set(true);
         }
-        for(NQuest q : quests.values())
-        {
-            if(!q.request && q.conditions.isEmpty()) {
-                q.request = true;
-                NUtils.getGameUI().chrwdg.wdgmsg("qsel", q.id);
+        NGameUI gui = NUtils.getGameUI();
+        if (gui != null && gui.chrwdg != null) {
+            for(NQuest q : quests.values())
+            {
+                if(!q.request && q.conditions.isEmpty()) {
+                    q.request = true;
+                    gui.chrwdg.wdgmsg("qsel", q.id);
+                }
             }
         }
         if(needUpdate.get())

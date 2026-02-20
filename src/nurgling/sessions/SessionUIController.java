@@ -84,7 +84,9 @@ public class SessionUIController implements SessionManager.SessionChangeListener
         SessionManager sm = SessionManager.getInstance();
         SessionContext ctx = sm.findByUI(currentUI);
 
-        if (ctx != null && !ctx.isHeadless()) {
+        // Only allow adding new session if current session is fully loaded (has GameUI)
+        // This prevents issues when clicking "+" during character selection
+        if (ctx != null && !ctx.isHeadless() && currentUI.gui != null) {
             // Demote current session - this triggers the login flow
             ctx.demoteToHeadless();
         }

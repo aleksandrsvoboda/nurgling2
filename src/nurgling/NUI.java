@@ -1,6 +1,7 @@
 package nurgling;
 
 import haven.*;
+import nurgling.sessions.ThreadLocalUI;
 import nurgling.widgets.*;
 
 import java.awt.event.*;
@@ -126,7 +127,7 @@ public class NUI extends UI
     {
         tickId += 1;
         periodicCheckTick++;
-        
+
         // Initialize session info once
         if (sessInfo == null && sess != null)
         {
@@ -138,7 +139,19 @@ public class NUI extends UI
             checkHorseMountState();
         }
 
-        super.tick();
+        // Set ThreadLocalUI so all widgets ticking have correct session context
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.tick();
+        } finally {
+            // Restore previous (usually null for visual thread)
+            if (previousUI != null) {
+                ThreadLocalUI.set(previousUI);
+            } else {
+                ThreadLocalUI.clear();
+            }
+        }
     }
 
     @Override

@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static haven.ItemInfo.catimgs;
 
 public class NSearchWidget extends Widget {
-    public final NPopupWidget history;
+    public NPopupWidget history;
     public CmdList cmdList;
     TextEntry searchF = null;
     public static final Text.Foundry nfnd = new Text.Foundry(Text.dfont, 10);
@@ -76,7 +76,10 @@ public class NSearchWidget extends Widget {
                     write();
                     super.click();
                 }else {
-                    NUtils.getGameUI().error("Input field is empty");
+                    NGameUI gui = NUtils.getGameUI();
+                    if (gui != null) {
+                        gui.error("Input field is empty");
+                    }
                 }
             }
         };
@@ -118,15 +121,19 @@ public class NSearchWidget extends Widget {
             }
 
         };
-        NUtils.getGameUI().add(helpwnd);
-
-        initHelp();
-        helpwnd.hide();
-        history = NUtils.getGameUI().add(new NPopupWidget(new Coord(UI.scale(200), UI.scale(150)), NPopupWidget.Type.TOP));
-
-        history.pack();
-        cmdList = history.add(new CmdList(UI.scale(250, 200)),history.atl);
-        read();
+        NGameUI gui = NUtils.getGameUI();
+        if (gui != null) {
+            gui.add(helpwnd);
+            initHelp();
+            helpwnd.hide();
+            history = gui.add(new NPopupWidget(new Coord(UI.scale(200), UI.scale(150)), NPopupWidget.Type.TOP));
+            history.pack();
+            cmdList = history.add(new CmdList(UI.scale(250, 200)),history.atl);
+            read();
+        } else {
+            // Defer initialization - will be done later when GameUI is available
+            initHelp();
+        }
     }
 
     @Override

@@ -817,9 +817,10 @@ public class NGob
     {
         if (isDynamic)
         {
-            if (NUtils.getGameUI().map != null)
+            NGameUI gui = NUtils.getGameUI();
+            if (gui != null && gui.map != null)
             {
-                if (NUtils.getGameUI().map.player() != null && parent.id == NUtils.getGameUI().map.player().id)
+                if (gui.map.player() != null && parent.id == gui.map.player().id)
                     return null;
                 else if (hitBox != null)
                 {
@@ -875,19 +876,22 @@ public class NGob
 
             if (hash == null)
             {
-                Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
-                synchronized (NUtils.getGameUI().ui.sess.glob.map.grids)
-                {
-                    if (NUtils.getGameUI().ui.sess.glob.map.grids.containsKey(pltc.div(cmaps)))
+                NGameUI gui = NUtils.getGameUI();
+                if (gui != null && gui.ui != null && gui.ui.sess != null) {
+                    Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
+                    synchronized (gui.ui.sess.glob.map.grids)
                     {
-                        MCache.Grid g = NUtils.getGameUI().ui.sess.glob.map.getgridt(pltc);
-                        StringBuilder hashInput = new StringBuilder();
-                        Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
-                        hashInput.append(name).append(g.id).append(coord.toString());
-                        hash = NUtils.calculateSHA256(hashInput.toString());
-                        grid_id = g.id;
-                        gcoord = coord;
-                        parent.setattr(new NGlobalSearch(parent));
+                        if (gui.ui.sess.glob.map.grids.containsKey(pltc.div(cmaps)))
+                        {
+                            MCache.Grid g = gui.ui.sess.glob.map.getgridt(pltc);
+                            StringBuilder hashInput = new StringBuilder();
+                            Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
+                            hashInput.append(name).append(g.id).append(coord.toString());
+                            hash = NUtils.calculateSHA256(hashInput.toString());
+                            grid_id = g.id;
+                            gcoord = coord;
+                            parent.setattr(new NGlobalSearch(parent));
+                        }
                     }
                 }
             }
