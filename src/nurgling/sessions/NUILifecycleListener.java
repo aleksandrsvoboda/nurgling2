@@ -63,11 +63,23 @@ public class NUILifecycleListener implements UILifecycleListener {
      */
     @Override
     public boolean afterNewUI(UI newUI, UI oldUI) {
+        // Always attach tab bar to the new UI (even login screen)
+        if (newUI instanceof NUI) {
+            SessionUIController ctrl = SessionUIController.getInstance();
+            if (ctrl != null) {
+                ctrl.attachToUI((NUI) newUI);
+            }
+        }
+
+        SessionManager sm = SessionManager.getInstance();
+
+        // Process any pending session close (from closing active session)
+        sm.processPendingClose();
+
         if (oldUI == null) {
             return true; // Nothing to handle
         }
 
-        SessionManager sm = SessionManager.getInstance();
         SessionContext oldCtx = sm.findByUI(oldUI);
 
         if (oldCtx != null) {

@@ -24,6 +24,10 @@ public class SessionTabBar extends Widget {
     public static final int TAB_PADDING = UI.scale(4);
     /** Tab corner radius */
     public static final int CORNER_RADIUS = UI.scale(4);
+    /** Close button size */
+    public static final int CLOSE_BTN_SIZE = UI.scale(14);
+    /** Close button margin from tab edge */
+    public static final int CLOSE_BTN_MARGIN = UI.scale(4);
 
     /** Colors */
     private static final Color ACTIVE_BG = new Color(60, 120, 60, 220);
@@ -33,9 +37,13 @@ public class SessionTabBar extends Widget {
     private static final Color BORDER_COLOR = new Color(100, 100, 120);
     private static final Color TEXT_COLOR = new Color(220, 220, 220);
     private static final Color ACTIVE_TEXT = new Color(180, 255, 180);
+    private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
+    private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
 
     /** Currently hovered tab index (-1 = none, -2 = add button) */
     private int hoveredTab = -1;
+    /** Currently hovered close button tab index (-1 = none) */
+    private int hoveredCloseTab = -1;
 
     /** Callback for when add account is clicked */
     private Runnable onAddAccount;
@@ -74,8 +82,11 @@ public class SessionTabBar extends Widget {
         // Draw tabs
         int x = TAB_PADDING;
         int tabIndex = 0;
+        boolean canClose = sessions.size() > 1; // Can close any session if more than one exists
         for (SessionContext ctx : sessions) {
-            drawTab(g, x, ctx, tabIndex == hoveredTab, ctx == sm.getActiveSession());
+            boolean isActive = ctx == sm.getActiveSession();
+            boolean closeHovered = (tabIndex == hoveredCloseTab);
+            drawTab(g, x, ctx, tabIndex == hoveredTab, isActive, canClose, closeHovered);
             x += TAB_WIDTH + TAB_PADDING;
             tabIndex++;
         }
@@ -84,7 +95,8 @@ public class SessionTabBar extends Widget {
         drawAddButton(g, x, hoveredTab == -2);
     }
 
-    private void drawTab(GOut g, int x, SessionContext ctx, boolean hovered, boolean active) {
+    private void drawTab(GOut g, int x, SessionContext ctx, boolean hovered, boolean active,
+                         boolean canClose, boolean closeHovered) {
         int y = TAB_PADDING;
         int h = BAR_HEIGHT - TAB_PADDING * 2;
 
@@ -109,20 +121,27 @@ public class SessionTabBar extends Widget {
         g.chcolor(active ? ACTIVE_TEXT : TEXT_COLOR);
         g.atext(modeIcon, new Coord(x + UI.scale(8), y + h/2), 0, 0.5);
 
-        // Character name
+        // Character name (truncate shorter if close button visible)
         String name = ctx.getDisplayName();
-        if (name.length() > 12) {
-            name = name.substring(0, 11) + "...";
+        int maxNameLen = canClose ? 9 : 12;
+        if (name.length() > maxNameLen) {
+            name = name.substring(0, maxNameLen - 1) + "...";
         }
         g.chcolor(active ? ACTIVE_TEXT : TEXT_COLOR);
         g.atext(name, new Coord(x + UI.scale(22), y + h/2), 0, 0.5);
 
-        // Bot status (if running)
-        String botName = ctx.getCurrentBotName();
-        if (botName != null && !active) {
-            g.chcolor(new Color(150, 150, 200));
-            String shortBot = botName.length() > 10 ? botName.substring(0, 9) + "..." : botName;
-            g.atext(shortBot, new Coord(x + TAB_WIDTH - UI.scale(5), y + h/2), 1, 0.5);
+        // Close button (only if more than one session)
+        if (canClose) {
+            int closeX = x + TAB_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
+            int closeY = y + (h - CLOSE_BTN_SIZE) / 2;
+
+            // Close button background
+            g.chcolor(closeHovered ? CLOSE_BTN_HOVER : CLOSE_BTN_COLOR);
+            g.frect(new Coord(closeX, closeY), new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE));
+
+            // X symbol
+            g.chcolor(TEXT_COLOR);
+            g.atext("×", new Coord(closeX + CLOSE_BTN_SIZE/2, closeY + CLOSE_BTN_SIZE/2), 0.5, 0.5);
         }
 
         g.chcolor();
@@ -151,14 +170,23 @@ public class SessionTabBar extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
         if (ev.b != 1) return false;
 
+        SessionManager sm = SessionManager.getInstance();
+        List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
+
         int tabIndex = getTabAt(ev.c);
         if (tabIndex >= 0) {
-            // Clicked on a session tab - switch to it
-            SessionManager sm = SessionManager.getInstance();
-            List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
             if (tabIndex < sessions.size()) {
                 SessionContext ctx = sessions.get(tabIndex);
-                if (ctx != sm.getActiveSession()) {
+                boolean isActive = ctx == sm.getActiveSession();
+
+                // Check if click is on close button (only if >1 session exists)
+                if (sessions.size() > 1 && isOverCloseButton(ev.c, tabIndex)) {
+                    sm.requestCloseSession(ctx.sessionId);
+                    return true;
+                }
+
+                // Clicked on tab body - switch to it
+                if (!isActive) {
                     sm.switchToSession(ctx.sessionId);
                     return true;
                 }
@@ -176,14 +204,40 @@ public class SessionTabBar extends Widget {
     @Override
     public void mousemove(MouseMoveEvent ev) {
         hoveredTab = getTabAt(ev.c);
+        // Check if hovering over a close button
+        if (hoveredTab >= 0) {
+            SessionManager sm = SessionManager.getInstance();
+            if (sm.getSessionCount() > 1 && isOverCloseButton(ev.c, hoveredTab)) {
+                hoveredCloseTab = hoveredTab;
+            } else {
+                hoveredCloseTab = -1;
+            }
+        } else {
+            hoveredCloseTab = -1;
+        }
     }
 
     @Override
     public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
         if (!hovering) {
             hoveredTab = -1;
+            hoveredCloseTab = -1;
         }
         return false;
+    }
+
+    /**
+     * Check if the coordinate is over the close button of the given tab.
+     */
+    private boolean isOverCloseButton(Coord c, int tabIndex) {
+        int tabX = TAB_PADDING + tabIndex * (TAB_WIDTH + TAB_PADDING);
+        int closeX = tabX + TAB_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
+        int y = TAB_PADDING;
+        int h = BAR_HEIGHT - TAB_PADDING * 2;
+        int closeY = y + (h - CLOSE_BTN_SIZE) / 2;
+
+        return c.x >= closeX && c.x < closeX + CLOSE_BTN_SIZE &&
+               c.y >= closeY && c.y < closeY + CLOSE_BTN_SIZE;
     }
 
     /**
@@ -246,17 +300,26 @@ public class SessionTabBar extends Widget {
             List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
             if (tabIndex < sessions.size()) {
                 SessionContext ctx = sessions.get(tabIndex);
+                boolean isActive = ctx == sm.getActiveSession();
+
+                // Check if hovering over close button
+                if (sessions.size() > 1 && isOverCloseButton(c, tabIndex)) {
+                    return "Close this session";
+                }
+
                 StringBuilder sb = new StringBuilder();
                 sb.append(ctx.getDisplayName());
                 if (ctx.username != null) {
                     sb.append("\nAccount: ").append(ctx.username);
                 }
-                sb.append("\nMode: ").append(ctx.isHeadless() ? "Headless (Bot)" : "Visual (Active)");
+                sb.append("\nMode: ").append(isActive ? "Visual (Active)" : "Headless (Bot)");
                 String botName = ctx.getCurrentBotName();
                 if (botName != null) {
                     sb.append("\nBot: ").append(botName);
                 }
-                sb.append("\n\nClick to switch");
+                if (!isActive) {
+                    sb.append("\n\nClick to switch");
+                }
                 return sb.toString();
             }
         } else if (tabIndex == -2) {
