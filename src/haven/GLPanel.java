@@ -461,7 +461,6 @@ public interface GLPanel extends UIPanel, UI.Context {
 	}
 
 	public UI newui(UI.Runner fun) {
-	    // === NEW: Lifecycle hook for UI reuse ===
 	    if (lifecycleListener != null) {
 		UI reuse = lifecycleListener.beforeNewUI(fun, this.ui, p);
 		if (reuse != null) {
@@ -484,7 +483,6 @@ public interface GLPanel extends UIPanel, UI.Context {
 		    return reuse;
 		}
 	    }
-	    // === END LIFECYCLE HOOK ===
 
 	    // Create new UI
 	    UI prevui;
