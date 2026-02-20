@@ -35,9 +35,6 @@ public class ChunkNavExecutor implements Action {
     // Track chunks where portal traversal failed - avoid them when replanning
     private final Set<Long> failedPortalChunks = new HashSet<>();
 
-    // Track chunks that failed due to unreachable grids (stale worldTileOrigin, different layer, etc.)
-    private final Set<Long> unreachableChunks = new HashSet<>();
-
     /**
      * Configuration for incremental walking toward a target.
      */
@@ -145,15 +142,6 @@ public class ChunkNavExecutor implements Action {
                 // Cross-layer segment that leads to a portal - skip the walk, we'll traverse portal next
             } else {
                 // Cross-layer WALK segment - we likely just traversed a portal and are already in target layer
-                // BUT if the grid isn't loaded in MCache and we haven't just traversed a portal,
-                // this is an unreachable segment - fail immediately without replanning
-                boolean gridLoaded = isGridLoadedInMCache(segment.gridId, gui);
-                if (!gridLoaded) {
-                    System.out.println("[ChunkNavExecutor] Cross-layer WALK segment to unloaded grid " + segment.gridId + " - failing");
-                    unreachableChunks.add(segment.gridId);
-                    // Don't replan - this segment is unreachable in current state
-                    return Results.FAIL();
-                }
                 SegmentWalkResult segResult = followSegmentTiles(segment, gui, -1);
                 if (!segResult.result.IsSuccess()) {
                     if (replanAttempts < MAX_REPLAN_ATTEMPTS) {
@@ -210,26 +198,6 @@ public class ChunkNavExecutor implements Action {
             // Ignore
         }
         return Layer.OUTSIDE;
-    }
-
-    /**
-     * Check if a grid is currently loaded in MCache.
-     * Grids are only loaded for areas the player can currently see.
-     */
-    private boolean isGridLoadedInMCache(long gridId, NGameUI gui) {
-        try {
-            MCache mcache = gui.map.glob.map;
-            synchronized (mcache.grids) {
-                for (MCache.Grid grid : mcache.grids.values()) {
-                    if (grid.id == gridId) {
-                        return true;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Ignore
-        }
-        return false;
     }
 
     /**
@@ -695,31 +663,6 @@ public class ChunkNavExecutor implements Action {
         // Get LIVE worldTileOrigin from MCache
         Coord liveWorldTileOrigin = null;
         try {
-            // DEBUG: Trace object identities to diagnose multi-session issues
-            String sessionInfo = "unknown";
-            if (gui.ui != null && gui.ui.sess != null && gui.ui.sess.user != null) {
-                sessionInfo = gui.ui.sess.user.name;
-            }
-
-            // Also check what NUtils.getGameUI() returns for comparison
-            NGameUI nutilsGui = NUtils.getGameUI();
-            String nutilsSession = "null";
-            if (nutilsGui != null && nutilsGui.ui != null && nutilsGui.ui.sess != null && nutilsGui.ui.sess.user != null) {
-                nutilsSession = nutilsGui.ui.sess.user.name;
-            }
-
-            System.out.println("[ChunkNavExecutor] ========== SESSION DEBUG ==========");
-            System.out.println("[ChunkNavExecutor] Thread: " + Thread.currentThread().getName());
-            System.out.println("[ChunkNavExecutor] Parameter gui session: " + sessionInfo);
-            System.out.println("[ChunkNavExecutor] NUtils.getGameUI() session: " + nutilsSession);
-            System.out.println("[ChunkNavExecutor] gui == NUtils.getGameUI(): " + (gui == nutilsGui));
-            System.out.println("[ChunkNavExecutor] gui hashCode: " + System.identityHashCode(gui));
-            System.out.println("[ChunkNavExecutor] NUtils.getGameUI() hashCode: " + System.identityHashCode(nutilsGui));
-            System.out.println("[ChunkNavExecutor] gui.map hashCode: " + System.identityHashCode(gui.map));
-            System.out.println("[ChunkNavExecutor] gui.map.glob hashCode: " + System.identityHashCode(gui.map.glob));
-            System.out.println("[ChunkNavExecutor] gui.map.glob.map (MCache) hashCode: " + System.identityHashCode(gui.map.glob.map));
-            System.out.println("[ChunkNavExecutor] gui.map.plgob: " + gui.map.plgob);
-
             MCache mcache = gui.map.glob.map;
             synchronized (mcache.grids) {
                 System.out.println("[ChunkNavExecutor] Searching MCache for gridId " + segment.gridId + " (loaded grids: " + mcache.grids.size() + ")");
@@ -760,27 +703,6 @@ public class ChunkNavExecutor implements Action {
         if (currentWorldTileOrigin == null) {
             System.out.println("[ChunkNavExecutor] ERROR: No worldTileOrigin available!");
             return SegmentWalkResult.fail();
-        }
-
-        // Sanity check: if grid isn't loaded in MCache and we're using stored coordinates,
-        // verify the waypoints are within reasonable distance. Stale worldTileOrigin can
-        // produce waypoints thousands of units away.
-        if (liveWorldTileOrigin == null && !segment.steps.isEmpty() && player != null) {
-            ChunkPath.TileStep firstStep = segment.steps.get(0);
-            Coord worldTile = currentWorldTileOrigin.add(firstStep.localCoord);
-            Coord2d waypoint = worldTile.mul(MCache.tilesz).add(MCache.tilehsz);
-            double distToFirst = player.rc.dist(waypoint);
-
-            // If first waypoint is more than ~50 chunks away (~5500 units), the stored
-            // worldTileOrigin is likely stale/invalid for this session
-            double maxReasonableDistance = MCache.tilesz.x * 100 * 5; // ~5500 units
-            if (distToFirst > maxReasonableDistance) {
-                System.out.println("[ChunkNavExecutor] ERROR: Stored worldTileOrigin produces unreachable waypoint!");
-                System.out.println("[ChunkNavExecutor] Distance " + distToFirst + " exceeds max " + maxReasonableDistance);
-                System.out.println("[ChunkNavExecutor] Grid " + segment.gridId + " not loaded - cannot navigate to this segment");
-                unreachableChunks.add(segment.gridId);
-                return SegmentWalkResult.fail();
-            }
         }
 
         // Show first waypoint calculation
@@ -1428,12 +1350,8 @@ public class ChunkNavExecutor implements Action {
             return Results.FAIL();
         }
 
-        // If we have unreachable chunks, combine them with failed portal chunks for exclusion
-        Set<Long> allExcluded = new HashSet<>(failedPortalChunks);
-        allExcluded.addAll(unreachableChunks);
-
         ChunkNavPlanner planner = new ChunkNavPlanner(graph);
-        planner.setExcludedPortalChunks(allExcluded);
+        planner.setExcludedPortalChunks(failedPortalChunks);
         ChunkPath newPath = planner.planToArea(targetArea);
 
         if (newPath == null || newPath.isEmpty()) {
@@ -1443,7 +1361,6 @@ public class ChunkNavExecutor implements Action {
         ChunkNavExecutor newExecutor = new ChunkNavExecutor(newPath, targetArea, manager);
         newExecutor.replanAttempts = this.replanAttempts;
         newExecutor.failedPortalChunks.addAll(this.failedPortalChunks);
-        newExecutor.unreachableChunks.addAll(this.unreachableChunks);
         return newExecutor.run(gui);
     }
 
