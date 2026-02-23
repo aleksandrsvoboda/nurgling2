@@ -58,10 +58,9 @@ public class SessionUIController implements SessionManager.SessionChangeListener
                 tabBar.reqdestroy();
             }
 
-            // Add to new UI
+            // Add to new UI at saved position (widget manages its own position)
             tabBar.z(10000);
-            ui.root.add(tabBar, new Coord(0, 0));
-            tabBar.resize(ui.root.sz);
+            ui.root.add(tabBar);
         }
     }
 

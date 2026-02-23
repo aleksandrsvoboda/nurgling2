@@ -1103,7 +1103,7 @@ public class NGameUI extends GameUI
     @Override
     public boolean keydown(KeyDownEvent ev) {
         nurgling.tasks.WaitKeyPress.setLastKeyPressed(ev.code);
-        
+
         // F11 - Toggle DB stats overlay
         if (ev.code == KeyEvent.VK_F11 && (Boolean) NConfig.get(NConfig.Key.ndbenable)) {
             if (dbStatsOverlay != null) {
@@ -1116,8 +1116,42 @@ public class NGameUI extends GameUI
             }
             return true;
         }
-        
+
         return super.keydown(ev);
+    }
+
+    @Override
+    public boolean globtype(GlobKeyEvent ev) {
+        // Check for Alt modifier (value 4)
+        int mods = ui.modflags();
+        if (mods == 4) { // Alt key
+            nurgling.sessions.SessionManager sm = nurgling.sessions.SessionManager.getInstance();
+
+            // Alt+[ - Previous session
+            if (ev.code == KeyEvent.VK_OPEN_BRACKET) {
+                sm.switchToPreviousSession();
+                return true;
+            }
+
+            // Alt+] - Next session
+            if (ev.code == KeyEvent.VK_CLOSE_BRACKET) {
+                sm.switchToNextSession();
+                return true;
+            }
+
+            // Alt+1-0 - Direct session access
+            if (ev.code >= KeyEvent.VK_1 && ev.code <= KeyEvent.VK_9) {
+                int index = ev.code - KeyEvent.VK_1; // 0-8 for keys 1-9
+                sm.switchToSessionByIndex(index);
+                return true;
+            }
+            if (ev.code == KeyEvent.VK_0) {
+                sm.switchToSessionByIndex(9); // 0 key = 10th session (index 9)
+                return true;
+            }
+        }
+
+        return super.globtype(ev);
     }
 
     public void toggleResourceTimerWindow() {

@@ -204,6 +204,54 @@ public class SessionManager {
     }
 
     /**
+     * Switch to the next session in the list (wraps around).
+     */
+    public void switchToNextSession() {
+        synchronized (sessionsLock) {
+            if (sessions.size() <= 1) {
+                return; // Only one or no sessions
+            }
+
+            List<SessionContext> sessionList = new ArrayList<>(sessions.values());
+            int currentIndex = sessionList.indexOf(activeSession);
+            int nextIndex = (currentIndex + 1) % sessionList.size();
+            switchToSessionInternal(sessionList.get(nextIndex));
+        }
+    }
+
+    /**
+     * Switch to the previous session in the list (wraps around).
+     */
+    public void switchToPreviousSession() {
+        synchronized (sessionsLock) {
+            if (sessions.size() <= 1) {
+                return; // Only one or no sessions
+            }
+
+            List<SessionContext> sessionList = new ArrayList<>(sessions.values());
+            int currentIndex = sessionList.indexOf(activeSession);
+            int prevIndex = (currentIndex - 1 + sessionList.size()) % sessionList.size();
+            switchToSessionInternal(sessionList.get(prevIndex));
+        }
+    }
+
+    /**
+     * Switch to a session by its index in the list (0-based).
+     *
+     * @param index The index of the session (0-9 for Alt+1-0)
+     */
+    public void switchToSessionByIndex(int index) {
+        synchronized (sessionsLock) {
+            if (index < 0 || index >= sessions.size()) {
+                return; // Index out of range
+            }
+
+            List<SessionContext> sessionList = new ArrayList<>(sessions.values());
+            switchToSessionInternal(sessionList.get(index));
+        }
+    }
+
+    /**
      * Internal method to switch sessions.
      * Must be called with sessionsLock held.
      */

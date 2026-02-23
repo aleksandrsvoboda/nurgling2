@@ -2,60 +2,215 @@ package nurgling.sessions;
 
 import haven.*;
 import haven.Widget.*;
+import nurgling.NConfig;
+import nurgling.NCore;
 import nurgling.NGameUI;
+import nurgling.NStyle;
 import nurgling.NUI;
+import nurgling.conf.FontSettings;
+import nurgling.conf.NDragProp;
 
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.event.KeyEvent;
 import java.util.*;
 
 /**
- * A widget that displays tabs for all active sessions.
- * Allows switching between sessions and adding new accounts.
+ * A draggable widget that displays buttons for all active sessions.
+ * Allows switching between sessions, closing sessions, and adding new accounts.
  */
 public class SessionTabBar extends Widget {
-    /** Height of the tab bar */
-    public static final int BAR_HEIGHT = UI.scale(28);
-    /** Width of each tab */
-    public static final int TAB_WIDTH = UI.scale(120);
-    /** Width of the add button */
-    public static final int ADD_BTN_WIDTH = UI.scale(30);
-    /** Padding between tabs */
-    public static final int TAB_PADDING = UI.scale(4);
-    /** Tab corner radius */
-    public static final int CORNER_RADIUS = UI.scale(4);
+    /** Button dimensions */
+    public static final int BUTTON_HEIGHT = UI.scale(18);
+    public static final int BUTTON_WIDTH = UI.scale(120);
     /** Close button size */
-    public static final int CLOSE_BTN_SIZE = UI.scale(14);
-    /** Close button margin from tab edge */
-    public static final int CLOSE_BTN_MARGIN = UI.scale(4);
+    public static final int CLOSE_BTN_SIZE = UI.scale(10);
+    public static final int CLOSE_BTN_MARGIN = UI.scale(3);
+    /** Plus button dimensions */
+    public static final int PLUS_BTN_SIZE = UI.scale(18);
+    public static final int PLUS_BTN_MARGIN = UI.scale(5);
+    /** Padding between buttons */
+    public static final int BUTTON_PADDING = UI.scale(3);
+    /** Icon size and margin */
+    public static final int ICON_SIZE = UI.scale(12);
+    public static final int ICON_MARGIN = UI.scale(3);
 
-    /** Colors */
-    private static final Color ACTIVE_BG = new Color(60, 120, 60, 220);
-    private static final Color HOVER_BG = new Color(80, 80, 100, 220);
-    private static final Color ADD_BG = new Color(50, 50, 70, 220);
-    private static final Color BORDER_COLOR = new Color(100, 100, 120);
-    private static final Color TEXT_COLOR = new Color(220, 220, 220);
-    private static final Color ACTIVE_TEXT = new Color(180, 255, 180);
+    /** Colors for different states */
+    private static final Color BUTTON_BG = new Color(0x25, 0x2B, 0x29, 0xE5);  // #252B29E5
+    private static final Color BUTTON_BG_HOVER = new Color(0x35, 0x3B, 0x39, 0xE5);  // Lighter for hover
+    private static final Color ACTIVE_BORDER = new Color(0x99, 0xFF, 0x84);    // #99FF84
+    private static final Color ACTIVE_TEXT = new Color(255, 255, 255);         // White
+    private static final Color BOT_BORDER = new Color(0xE9, 0x9C, 0x54);       // #E99C54
+    private static final Color BOT_TEXT = new Color(0xE9, 0x9C, 0x54);         // #E99C54
+    private static final Color IDLE_BORDER = new Color(0x91, 0x60, 0x2E);      // #91602E
+    private static final Color IDLE_TEXT = new Color(150, 150, 150);           // Gray
+    private static final Color COMBAT_BORDER = new Color(0xFF, 0x64, 0x64);    // #FF6464
+    private static final Color COMBAT_TEXT = new Color(0xFF, 0x64, 0x64);      // #FF6464
     private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
     private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
-    /** Yellow for sessions running bots */
-    private static final Color BOT_RUNNING_BG = new Color(180, 150, 50, 220);
-    private static final Color BOT_RUNNING_TEXT = new Color(255, 230, 150);
-    /** Blue for idle sessions */
-    private static final Color IDLE_BG = new Color(50, 80, 130, 220);
-    private static final Color IDLE_TEXT = new Color(150, 180, 220);
+    private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
+    private static final Color PLUS_BTN_HOVER = new Color(0x35, 0x3B, 0x39, 0xE5);
+    private static final Color PLUS_BTN_BORDER = new Color(0x91, 0x60, 0x2E);  // #91602E
 
-    /** Currently hovered tab index (-1 = none, -2 = add button) */
-    private int hoveredTab = -1;
-    /** Currently hovered close button tab index (-1 = none) */
-    private int hoveredCloseTab = -1;
+    /** Font for character names */
+    private Text.Foundry nameFont;
+
+    /** Currently hovered button index (-1 = none, -2 = plus button) */
+    private int hoveredButton = -1;
+    /** Currently hovered close button index (-1 = none) */
+    private int hoveredCloseButton = -1;
+
+    /** Drag state */
+    private UI.Grab dm = null;
+    private Coord doff;
+    private Coord dragStartPos;
+    private int dragStartButton = -1;
+    private static final int DRAG_THRESHOLD = 3; // pixels to move before starting drag
+
+    /** Keybindings */
+    private static final int MAX_SESSION_HOTKEYS = 10;
+    private KeyBinding[] sessionBindings;
+    private KeyBinding nextSessionBinding;
+    private KeyBinding prevSessionBinding;
 
     /** Callback for when add account is clicked */
     private Runnable onAddAccount;
 
+    /** Drag mode controls */
+    private ICheckBox btnLock;
+    private ICheckBox btnVis;
+    private TexI label;
+
+    /** Drag mode resources */
+    public static final IBox box = Window.wbox;
+    private static final Tex ctl = Resource.loadtex("nurgling/hud/box/tl");
+    private static final Coord controlOffset = UI.scale(10, 10);
+    public static Text.Furnace labelFont = new PUtils.BlurFurn(
+        new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 14, Color.YELLOW).aa(true),
+        UI.scale(1), UI.scale(2), Color.BLACK
+    );
+
     public SessionTabBar() {
         super(Coord.z);
-        // Size will be updated based on parent
+
+        // Load Open Sans Semibold font (11px)
+        try {
+            FontSettings fontSettings = (FontSettings) NConfig.get(NConfig.Key.fonts);
+            Font openSansSemibold = fontSettings.getFont("Open Sans Semibold");
+            nameFont = new Text.Foundry(openSansSemibold, UI.scale(11));
+        } catch (Exception e) {
+            // Fallback to default if Open Sans Semibold not available
+            nameFont = Text.std;
+        }
+
+        // Initialize keybindings
+        sessionBindings = new KeyBinding[MAX_SESSION_HOTKEYS];
+        for (int i = 0; i < MAX_SESSION_HOTKEYS; i++) {
+            int keyCode = KeyEvent.VK_1 + i;
+            if (i == 9) keyCode = KeyEvent.VK_0; // Alt+0 for session 10
+            sessionBindings[i] = KeyBinding.get(
+                "session-" + (i + 1),
+                KeyMatch.forcode(keyCode, KeyMatch.M)
+            );
+        }
+        nextSessionBinding = KeyBinding.get(
+            "session-next",
+            KeyMatch.forcode(KeyEvent.VK_CLOSE_BRACKET, KeyMatch.M) // Alt+]
+        );
+        prevSessionBinding = KeyBinding.get(
+            "session-prev",
+            KeyMatch.forcode(KeyEvent.VK_OPEN_BRACKET, KeyMatch.M)  // Alt+[
+        );
+
+        // Create drag mode label
+        label = new TexI(labelFont.render("Sessions").img);
+
+        // Create lock button
+        add(btnLock = new ICheckBox(NStyle.locki[0], NStyle.locki[1], NStyle.locki[2], NStyle.locki[3]) {
+            @Override
+            public void changed(boolean val) {
+                super.changed(val);
+                saveDragState();
+            }
+        }, new Coord(0, 0)); // Position will be updated in updateSize()
+
+        // Create visibility button
+        add(btnVis = new ICheckBox(NStyle.visi[0], NStyle.visi[1], NStyle.visi[2], NStyle.visi[3]) {
+            @Override
+            public void changed(boolean val) {
+                super.changed(val);
+                // Don't set this.visible - just save the state
+                // The draw method will check btnVis.a to decide what to show
+                saveDragState();
+            }
+        }, new Coord(0, 0)); // Position will be updated in updateSize()
+
+        // Hide buttons initially (shown in drag mode)
+        btnLock.hide();
+        btnVis.hide();
+
+        // Load saved position and state
+        loadPosition();
+        loadDragState();
+
+        // Calculate initial size
+        updateSize();
+    }
+
+    /**
+     * Load widget position from preferences.
+     */
+    private void loadPosition() {
+        String posStr = Utils.getpref("sessionbar-pos", "100,100");
+        try {
+            String[] parts = posStr.split(",");
+            if (parts.length == 2) {
+                int x = Integer.parseInt(parts[0].trim());
+                int y = Integer.parseInt(parts[1].trim());
+                this.c = new Coord(x, y);
+            }
+        } catch (Exception e) {
+            this.c = new Coord(100, 100);
+        }
+    }
+
+    /**
+     * Save widget position to preferences.
+     */
+    private void savePosition() {
+        Utils.setpref("sessionbar-pos", c.x + "," + c.y);
+    }
+
+    /**
+     * Update widget size based on number of sessions.
+     * In drag mode, use fixed size. Otherwise, size to fit content.
+     */
+    private void updateSize() {
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+
+        if (dragMode) {
+            // Fixed size in drag mode - wider than buttons, tall as 10 buttons
+            int dragWidth = BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN + UI.scale(40);
+            int dragHeight = 10 * (BUTTON_HEIGHT + BUTTON_PADDING);
+            this.sz = new Coord(dragWidth, dragHeight);
+        } else {
+            // Size to fit content in normal mode
+            SessionManager sm = SessionManager.getInstance();
+            int sessionCount = sm.getSessionCount();
+            if (sessionCount == 0) {
+                this.sz = new Coord(BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN, BUTTON_HEIGHT);
+            } else {
+                int height = sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) - BUTTON_PADDING;
+                this.sz = new Coord(BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN, height);
+            }
+        }
+
+        // Update button positions (top-right corner)
+        if (btnLock != null && btnVis != null) {
+            int iconSize = NStyle.locki[0].sz().x;
+            btnLock.move(new Coord(sz.x - iconSize - iconSize / 2, iconSize / 2));
+            btnVis.move(new Coord(sz.x - iconSize - iconSize / 2, iconSize + controlOffset.y));
+        }
     }
 
     /**
@@ -66,287 +221,488 @@ public class SessionTabBar extends Widget {
     }
 
     @Override
-    public void resize(Coord sz) {
-        this.sz = new Coord(sz.x, BAR_HEIGHT);
-    }
-
-    @Override
     public void draw(GOut g) {
         SessionManager sm = SessionManager.getInstance();
         Collection<SessionContext> sessions = sm.getAllSessions();
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+
+        updateSize();
+
+        // Draw overall background and border in drag mode
+        if (dragMode) {
+            drawDragBackground(g, sz);
+            box.draw(g, Coord.z, sz);
+            // Draw label centered
+            g.aimage(label, sz.div(2), 0.5, 0.5);
+        }
+
+        // Draw lock/eye buttons on top
+        super.draw(g);
+
+        // Only draw session buttons if visible or in drag mode
+        if (!btnVis.a && !dragMode) {
+            return;
+        }
+
+        // Calculate offset for buttons (inside the drag mode frame)
+        Coord buttonOffset = dragMode ? new Coord(UI.scale(15), UI.scale(35)) : Coord.z;
 
         if (sessions.isEmpty()) {
-            return; // Don't draw if no sessions
+            // Just draw plus button
+            drawPlusButton(g, buttonOffset.y, hoveredButton == -2);
+            return;
         }
 
-        // Draw background
-        g.chcolor(new Color(30, 30, 40, 200));
-        g.frect(Coord.z, sz);
-        g.chcolor();
-
-        // Draw tabs
-        int x = TAB_PADDING;
-        int tabIndex = 0;
-        boolean canClose = sessions.size() > 1; // Can close any session if more than one exists
+        // Draw session buttons
+        int y = buttonOffset.y;
+        int buttonIndex = 0;
         for (SessionContext ctx : sessions) {
             boolean isActive = ctx == sm.getActiveSession();
-            boolean closeHovered = (tabIndex == hoveredCloseTab);
-            drawTab(g, x, ctx, tabIndex == hoveredTab, isActive, canClose, closeHovered);
-            x += TAB_WIDTH + TAB_PADDING;
-            tabIndex++;
-        }
+            boolean hovered = (buttonIndex == hoveredButton);
+            boolean closeHovered = (buttonIndex == hoveredCloseButton);
+            drawSessionButton(g, buttonOffset.x, y, ctx, hovered, isActive, closeHovered);
 
-        // Draw "+" button
-        drawAddButton(g, x, hoveredTab == -2);
-    }
+            // Draw plus button next to first session
+            if (buttonIndex == 0) {
+                drawPlusButton(g, y, hoveredButton == -2);
+            }
 
-    private void drawTab(GOut g, int x, SessionContext ctx, boolean hovered, boolean active,
-                         boolean canClose, boolean closeHovered) {
-        int y = TAB_PADDING;
-        int h = BAR_HEIGHT - TAB_PADDING * 2;
-
-        // Determine status: running bot or idle
-        boolean runningBot = ctx.isRunningBot();
-
-        // Background color based on status
-        Color bgColor;
-        Color textColor;
-        if (active) {
-            bgColor = ACTIVE_BG;
-            textColor = ACTIVE_TEXT;
-        } else if (hovered) {
-            bgColor = HOVER_BG;
-            textColor = TEXT_COLOR;
-        } else if (runningBot) {
-            bgColor = BOT_RUNNING_BG;
-            textColor = BOT_RUNNING_TEXT;
-        } else {
-            bgColor = IDLE_BG;
-            textColor = IDLE_TEXT;
-        }
-        g.chcolor(bgColor);
-        g.frect(new Coord(x, y), new Coord(TAB_WIDTH, h));
-
-        // Border
-        g.chcolor(active ? ACTIVE_TEXT : BORDER_COLOR);
-        g.rect(new Coord(x, y), new Coord(TAB_WIDTH, h));
-
-        // Mode indicator - show bot icon if running, otherwise play/gear icon
-        String modeIcon;
-        if (runningBot) {
-            modeIcon = "\u2699"; // ⚙ gear for running bot
-        } else if (active) {
-            modeIcon = "\u25B6"; // ▶ for active
-        } else {
-            modeIcon = "\u23F8"; // ⏸ pause for idle headless
-        }
-        g.chcolor(textColor);
-        g.atext(modeIcon, new Coord(x + UI.scale(8), y + h/2), 0, 0.5);
-
-        // Character name (truncate shorter if close button visible)
-        String name = ctx.getDisplayName();
-        int maxNameLen = canClose ? 9 : 12;
-        if (name.length() > maxNameLen) {
-            name = name.substring(0, maxNameLen - 1) + "...";
-        }
-        g.chcolor(textColor);
-        g.atext(name, new Coord(x + UI.scale(22), y + h/2), 0, 0.5);
-
-        // Close button (only if more than one session)
-        if (canClose) {
-            int closeX = x + TAB_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
-            int closeY = y + (h - CLOSE_BTN_SIZE) / 2;
-
-            // Close button background
-            g.chcolor(closeHovered ? CLOSE_BTN_HOVER : CLOSE_BTN_COLOR);
-            g.frect(new Coord(closeX, closeY), new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE));
-
-            // X symbol
-            g.chcolor(TEXT_COLOR);
-            g.atext("×", new Coord(closeX + CLOSE_BTN_SIZE/2, closeY + CLOSE_BTN_SIZE/2), 0.5, 0.5);
+            y += BUTTON_HEIGHT + BUTTON_PADDING;
+            buttonIndex++;
         }
 
         g.chcolor();
     }
 
-    private void drawAddButton(GOut g, int x, boolean hovered) {
-        int y = TAB_PADDING;
-        int h = BAR_HEIGHT - TAB_PADDING * 2;
+    private void drawDragBackground(GOut g, Coord sz) {
+        Coord bgUl = new Coord(ctl.sz().x / 2, ctl.sz().y / 2);
+        Coord bgSz = new Coord(sz.x - ctl.sz().x, sz.y - ctl.sz().y);
 
-        // Background
-        g.chcolor(hovered ? HOVER_BG : ADD_BG);
-        g.frect(new Coord(x, y), new Coord(ADD_BTN_WIDTH, h));
+        if (ui instanceof NUI) {
+            NUI nui = (NUI)ui;
+            float opacity = nui.getUIOpacity();
+            int alpha = (int)(255 * opacity);
 
-        // Border
-        g.chcolor(BORDER_COLOR);
-        g.rect(new Coord(x, y), new Coord(ADD_BTN_WIDTH, h));
+            if (nui.getUseSolidBackground()) {
+                Color bgColor = nui.getWindowBackgroundColor();
+                g.chcolor(bgColor.getRed(), bgColor.getGreen(), bgColor.getBlue(), alpha);
+                g.frect(bgUl, bgSz);
+                g.chcolor();
+            } else {
+                g.chcolor(255, 255, 255, alpha);
+                Coord bgc = new Coord();
+                Coord ca_ul = bgUl;
+                Coord ca_br = bgUl.add(bgSz);
+                for(bgc.y = ca_ul.y; bgc.y < ca_br.y; bgc.y += Window.bg.sz().y) {
+                    for(bgc.x = ca_ul.x; bgc.x < ca_br.x; bgc.x += Window.bg.sz().x)
+                        g.image(Window.bg, bgc, ca_ul, ca_br);
+                }
+                g.chcolor();
+            }
+        }
+    }
 
-        // Plus sign
-        g.chcolor(TEXT_COLOR);
-        g.atext("+", new Coord(x + ADD_BTN_WIDTH/2, y + h/2), 0.5, 0.5);
+    private void drawSessionButton(GOut g, int x, int y, SessionContext ctx, boolean hovered,
+                                    boolean isActive, boolean closeHovered) {
+        // Determine state
+        boolean inCombat = ctx.isInCombat();
+        boolean runningBot = ctx.isRunningBot();
+
+        // Choose colors and icons based on state priority:
+        // Combat > Bot > Active > Idle
+        Color borderColor;
+        Color textColor;
+        String iconLeft = null;
+        String iconRight = null;
+
+        if (inCombat) {
+            borderColor = COMBAT_BORDER;
+            textColor = COMBAT_TEXT;
+            iconLeft = iconRight = "\u26A0"; // ⚠ warning triangle
+        } else if (runningBot) {
+            borderColor = BOT_BORDER;
+            textColor = BOT_TEXT;
+            iconLeft = iconRight = "\u2699"; // ⚙ gear/cog
+        } else if (isActive) {
+            borderColor = ACTIVE_BORDER;
+            textColor = ACTIVE_TEXT;
+        } else {
+            borderColor = IDLE_BORDER;
+            textColor = IDLE_TEXT;
+        }
+
+        // Draw button background
+        g.chcolor(hovered ? BUTTON_BG_HOVER : BUTTON_BG);
+        g.frect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+
+        // Draw button border (2px) - draw two rectangles for 2px border
+        g.chcolor(borderColor);
+        g.rect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+        g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
+
+        // Draw close button (X) on the left
+        int closeX = x + CLOSE_BTN_MARGIN;
+        int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
+        g.chcolor(closeHovered ? CLOSE_BTN_HOVER : CLOSE_BTN_COLOR);
+        g.frect(new Coord(closeX, closeY), new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE));
+        g.chcolor(new Color(255, 255, 255));
+        g.atext("×", new Coord(closeX + CLOSE_BTN_SIZE / 2, closeY + CLOSE_BTN_SIZE / 2), 0.5, 0.5);
+
+        // Calculate text area (between icons or after close button)
+        int textStartX = closeX + CLOSE_BTN_SIZE + ICON_MARGIN * 2;
+        int textEndX = x + BUTTON_WIDTH - ICON_MARGIN;
+
+        // Draw left icon if present
+        if (iconLeft != null) {
+            g.chcolor(textColor);
+            g.atext(iconLeft, new Coord(textStartX, y + BUTTON_HEIGHT / 2), 0, 0.5);
+            textStartX += ICON_SIZE;
+        }
+
+        // Draw right icon if present
+        if (iconRight != null) {
+            g.chcolor(textColor);
+            g.atext(iconRight, new Coord(textEndX, y + BUTTON_HEIGHT / 2), 1.0, 0.5);
+            textEndX -= ICON_SIZE;
+        }
+
+        // Draw character name (truncated if needed)
+        String name = ctx.getDisplayName();
+        int availableWidth = textEndX - textStartX - ICON_MARGIN * 2;
+
+        // Truncate name if too long
+        Text nameText = nameFont.render(name);
+        if (nameText.sz().x > availableWidth) {
+            // Binary search for maximum length that fits
+            int maxLen = name.length();
+            while (maxLen > 0) {
+                String truncated = name.substring(0, maxLen) + "..";
+                nameText = nameFont.render(truncated);
+                if (nameText.sz().x <= availableWidth) {
+                    break;
+                }
+                maxLen--;
+            }
+        }
+
+        g.chcolor(textColor);
+        int textX = textStartX + (textEndX - textStartX) / 2;
+        g.aimage(nameText.tex(), new Coord(textX, y + BUTTON_HEIGHT / 2), 0.5, 0.5);
+
+        g.chcolor();
+    }
+
+    private void drawPlusButton(GOut g, int y, boolean hovered) {
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+        int xOffset = dragMode ? UI.scale(15) : 0;
+        int x = xOffset + BUTTON_WIDTH + PLUS_BTN_MARGIN;
+        int btnY = y + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
+
+        // Draw background
+        g.chcolor(hovered ? PLUS_BTN_HOVER : PLUS_BTN_BG);
+        g.frect(new Coord(x, btnY), new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE));
+
+        // Draw border
+        g.chcolor(PLUS_BTN_BORDER);
+        g.rect(new Coord(x, btnY), new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE));
+        g.rect(new Coord(x + 1, btnY + 1), new Coord(PLUS_BTN_SIZE - 2, PLUS_BTN_SIZE - 2));
+
+        // Draw "+" text
+        Text plusText = nameFont.render("+");
+        g.chcolor(IDLE_TEXT);
+        g.aimage(plusText.tex(), new Coord(x + PLUS_BTN_SIZE / 2, btnY + PLUS_BTN_SIZE / 2), 0.5, 0.5);
 
         g.chcolor();
     }
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
-        if (ev.b != 1) return false;
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+
+        if (dragMode) {
+            // In drag mode, check if buttons handled the event
+            if (!btnLock.mousedown(ev) && !btnVis.mousedown(ev)) {
+                // Buttons didn't handle it, allow dragging if not locked
+                if (ev.c.isect(Coord.z, sz)) {
+                    if (ui.grabs.isEmpty()) {
+                        if (!btnLock.a) {
+                            if (ev.b == 1) {
+                                dm = ui.grabmouse(this);
+                                doff = ev.c;
+                            }
+                        }
+                    } else {
+                        if (ev.b == 1) {
+                            dm = ui.grabmouse(this);
+                            doff = ev.c;
+                        }
+                        parent.setfocus(this);
+                    }
+                }
+            }
+            return super.mousedown(ev);
+        }
+
+        // Normal mode - handle session button clicks
+        if (ev.b != 1) return super.mousedown(ev);
 
         SessionManager sm = SessionManager.getInstance();
         List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
 
-        int tabIndex = getTabAt(ev.c);
-        if (tabIndex >= 0) {
-            if (tabIndex < sessions.size()) {
-                SessionContext ctx = sessions.get(tabIndex);
-                boolean isActive = ctx == sm.getActiveSession();
-
-                // Check if click is on close button (only if >1 session exists)
-                if (sessions.size() > 1 && isOverCloseButton(ev.c, tabIndex)) {
-                    sm.requestCloseSession(ctx.sessionId);
-                    return true;
-                }
-
-                // Clicked on tab body - switch to it
-                if (!isActive) {
-                    sm.switchToSession(ctx.sessionId);
-                    return true;
-                }
-            }
-        } else if (tabIndex == -2) {
-            // Clicked on add button
+        // Check if clicking on plus button
+        if (isPlusButtonHit(ev.c)) {
             if (onAddAccount != null) {
                 onAddAccount.run();
             }
             return true;
         }
-        return false;
+
+        // Check which button was clicked
+        int buttonIndex = getButtonAt(ev.c);
+        if (buttonIndex >= 0 && buttonIndex < sessions.size()) {
+            // Check if clicking close button - handle immediately
+            if (isCloseButtonHit(ev.c, buttonIndex)) {
+                sm.requestCloseSession(sessions.get(buttonIndex).sessionId);
+                return true;
+            }
+
+            // Otherwise, prepare for potential drag or click
+            dragStartPos = ev.c;
+            dragStartButton = buttonIndex;
+            return true;
+        }
+
+        return super.mousedown(ev);
+    }
+
+    @Override
+    public boolean mouseup(MouseUpEvent ev) {
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+
+        if (dm != null && dragMode) {
+            // Save drag mode position
+            saveDragState();
+            dm.remove();
+            dm = null;
+            return true;
+        } else if (dm != null) {
+            // Normal mode drag ended
+            dm.remove();
+            dm = null;
+            savePosition();
+            dragStartPos = null;
+            dragStartButton = -1;
+            return true;
+        }
+
+        // If we had a mousedown on a button but didn't drag, treat as click
+        if (ev.b == 1 && dragStartButton >= 0 && dragStartPos != null) {
+            SessionManager sm = SessionManager.getInstance();
+            List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
+            if (dragStartButton < sessions.size()) {
+                SessionContext ctx = sessions.get(dragStartButton);
+                if (ctx != sm.getActiveSession()) {
+                    sm.switchToSession(ctx.sessionId);
+                }
+            }
+            dragStartPos = null;
+            dragStartButton = -1;
+            return true;
+        }
+
+        return super.mouseup(ev);
     }
 
     @Override
     public void mousemove(MouseMoveEvent ev) {
-        hoveredTab = getTabAt(ev.c);
-        // Check if hovering over a close button
-        if (hoveredTab >= 0) {
-            SessionManager sm = SessionManager.getInstance();
-            if (sm.getSessionCount() > 1 && isOverCloseButton(ev.c, hoveredTab)) {
-                hoveredCloseTab = hoveredTab;
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+
+        if (dragMode) {
+            // Handle active dragging in drag mode
+            if (dm != null) {
+                this.c = this.c.add(ev.c.sub(doff));
             } else {
-                hoveredCloseTab = -1;
+                // Not dragging, handle button hover
+                if (ev.c.isect(Coord.z, sz)) {
+                    btnLock.mousemove(ev);
+                    btnVis.mousemove(ev);
+                }
             }
         } else {
-            hoveredCloseTab = -1;
+            // Normal mode
+            if (dm != null) {
+                // Handle dragging
+                this.c = this.c.add(ev.c.sub(doff));
+                return;
+            }
+
+            // Check if we should start dragging (mouse moved enough from start position)
+            if (dragStartPos != null && dragStartButton >= 0) {
+                int dx = Math.abs(ev.c.x - dragStartPos.x);
+                int dy = Math.abs(ev.c.y - dragStartPos.y);
+                if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+                    // Start dragging
+                    dm = ui.grabmouse(this);
+                    doff = dragStartPos;
+                    dragStartButton = -1;
+                    return;
+                }
+            }
+
+            // Update hover state
+            if (isPlusButtonHit(ev.c)) {
+                hoveredButton = -2;
+                hoveredCloseButton = -1;
+            } else {
+                int buttonIndex = getButtonAt(ev.c);
+                hoveredButton = buttonIndex;
+
+                if (buttonIndex >= 0 && isCloseButtonHit(ev.c, buttonIndex)) {
+                    hoveredCloseButton = buttonIndex;
+                } else {
+                    hoveredCloseButton = -1;
+                }
+            }
+
+            super.mousemove(ev);
+        }
+    }
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+
+        // Show/hide drag mode controls
+        if (dragMode) {
+            if (!btnLock.visible()) {
+                btnLock.show();
+                btnVis.show();
+            }
+        } else {
+            if (btnLock.visible()) {
+                btnLock.hide();
+                btnVis.hide();
+            }
         }
     }
 
     @Override
     public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
         if (!hovering) {
-            hoveredTab = -1;
-            hoveredCloseTab = -1;
+            hoveredButton = -1;
+            hoveredCloseButton = -1;
         }
         return false;
     }
 
     /**
-     * Check if the coordinate is over the close button of the given tab.
+     * Start dragging the widget.
      */
-    private boolean isOverCloseButton(Coord c, int tabIndex) {
-        int tabX = TAB_PADDING + tabIndex * (TAB_WIDTH + TAB_PADDING);
-        int closeX = tabX + TAB_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
-        int y = TAB_PADDING;
-        int h = BAR_HEIGHT - TAB_PADDING * 2;
-        int closeY = y + (h - CLOSE_BTN_SIZE) / 2;
-
-        return c.x >= closeX && c.x < closeX + CLOSE_BTN_SIZE &&
-               c.y >= closeY && c.y < closeY + CLOSE_BTN_SIZE;
+    private void drag(Coord off) {
+        dm = ui.grabmouse(this);
+        doff = off;
     }
 
     /**
-     * Get the tab index at the given coordinate.
-     * @return Tab index (0+), -2 for add button, -1 for none
+     * Get the button index at the given coordinate.
      */
-    private int getTabAt(Coord c) {
-        if (c.y < TAB_PADDING || c.y > BAR_HEIGHT - TAB_PADDING) {
+    private int getButtonAt(Coord c) {
+        if (c.x < 0 || c.x > BUTTON_WIDTH) {
             return -1;
         }
 
         SessionManager sm = SessionManager.getInstance();
         int sessionCount = sm.getSessionCount();
 
-        int x = TAB_PADDING;
         for (int i = 0; i < sessionCount; i++) {
-            if (c.x >= x && c.x < x + TAB_WIDTH) {
+            int y = i * (BUTTON_HEIGHT + BUTTON_PADDING);
+            if (c.y >= y && c.y < y + BUTTON_HEIGHT) {
                 return i;
             }
-            x += TAB_WIDTH + TAB_PADDING;
-        }
-
-        // Check add button
-        if (c.x >= x && c.x < x + ADD_BTN_WIDTH) {
-            return -2;
         }
 
         return -1;
     }
 
-    @Override
-    public boolean keydown(KeyDownEvent ev) {
-        // Ctrl+Tab to switch sessions
-        if (ev.awt.isControlDown() && ev.awt.getKeyCode() == KeyEvent.VK_TAB) {
-            SessionManager sm = SessionManager.getInstance();
-            List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
-            if (sessions.size() > 1) {
-                SessionContext active = sm.getActiveSession();
-                int idx = sessions.indexOf(active);
-                int nextIdx;
-                if (ev.awt.isShiftDown()) {
-                    // Ctrl+Shift+Tab - previous
-                    nextIdx = (idx - 1 + sessions.size()) % sessions.size();
-                } else {
-                    // Ctrl+Tab - next
-                    nextIdx = (idx + 1) % sessions.size();
-                }
-                sm.switchToSession(sessions.get(nextIdx).sessionId);
-                return true;
-            }
-        }
-        return super.keydown(ev);
+    /**
+     * Check if coordinate is over close button of given button.
+     */
+    private boolean isCloseButtonHit(Coord c, int buttonIndex) {
+        int y = buttonIndex * (BUTTON_HEIGHT + BUTTON_PADDING);
+        int closeX = CLOSE_BTN_MARGIN;
+        int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
+
+        return c.x >= closeX && c.x < closeX + CLOSE_BTN_SIZE &&
+               c.y >= closeY && c.y < closeY + CLOSE_BTN_SIZE;
+    }
+
+    /**
+     * Check if coordinate is over plus button.
+     */
+    private boolean isPlusButtonHit(Coord c) {
+        int x = BUTTON_WIDTH + PLUS_BTN_MARGIN;
+        int y = (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
+
+        return c.x >= x && c.x < x + PLUS_BTN_SIZE &&
+               c.y >= y && c.y < y + PLUS_BTN_SIZE;
+    }
+
+    /**
+     * Load drag state from preferences.
+     */
+    private void loadDragState() {
+        String lockedStr = Utils.getpref("sessionbar-locked", "false");
+        String visibleStr = Utils.getpref("sessionbar-visible", "true");
+        btnLock.a = Boolean.parseBoolean(lockedStr);
+        btnVis.a = Boolean.parseBoolean(visibleStr);
+        // Don't set this.visible - the draw method checks btnVis.a instead
+    }
+
+    /**
+     * Save drag state to preferences.
+     */
+    private void saveDragState() {
+        Utils.setpref("sessionbar-locked", String.valueOf(btnLock.a));
+        Utils.setpref("sessionbar-visible", String.valueOf(btnVis.a));
+        savePosition();
     }
 
     @Override
-    public Object tooltip(Coord c, Widget prev) {
-        int tabIndex = getTabAt(c);
-        if (tabIndex >= 0) {
-            SessionManager sm = SessionManager.getInstance();
-            List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
-            if (tabIndex < sessions.size()) {
-                SessionContext ctx = sessions.get(tabIndex);
-                boolean isActive = ctx == sm.getActiveSession();
+    public boolean keydown(KeyDownEvent ev) {
+        SessionManager sm = SessionManager.getInstance();
+        List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
 
-                // Check if hovering over close button
-                if (sessions.size() > 1 && isOverCloseButton(c, tabIndex)) {
-                    return "Close this session";
-                }
-
-                StringBuilder sb = new StringBuilder();
-                sb.append(ctx.getDisplayName());
-                if (ctx.username != null) {
-                    sb.append("\nAccount: ").append(ctx.username);
-                }
-                sb.append("\nMode: ").append(isActive ? "Visual (Active)" : "Headless (Bot)");
-                String botName = ctx.getCurrentBotName();
-                if (botName != null) {
-                    sb.append("\nBot: ").append(botName);
-                }
-                if (!isActive) {
-                    sb.append("\n\nClick to switch");
-                }
-                return sb.toString();
-            }
-        } else if (tabIndex == -2) {
-            return "Add another account";
+        if (sessions.isEmpty()) {
+            return super.keydown(ev);
         }
-        return null;
+
+        // Check per-session hotkeys
+        for (int i = 0; i < Math.min(sessionBindings.length, sessions.size()); i++) {
+            if (sessionBindings[i].key().match(ev.awt)) {
+                sm.switchToSession(sessions.get(i).sessionId);
+                return true;
+            }
+        }
+
+        // Check next session hotkey
+        if (nextSessionBinding.key().match(ev.awt)) {
+            SessionContext active = sm.getActiveSession();
+            int currentIdx = sessions.indexOf(active);
+            int nextIdx = (currentIdx + 1) % sessions.size();
+            sm.switchToSession(sessions.get(nextIdx).sessionId);
+            return true;
+        }
+
+        // Check previous session hotkey
+        if (prevSessionBinding.key().match(ev.awt)) {
+            SessionContext active = sm.getActiveSession();
+            int currentIdx = sessions.indexOf(active);
+            int prevIdx = (currentIdx - 1 + sessions.size()) % sessions.size();
+            sm.switchToSession(sessions.get(prevIdx).sessionId);
+            return true;
+        }
+
+        return super.keydown(ev);
     }
 }

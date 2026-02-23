@@ -154,6 +154,20 @@ public class SessionContext {
     }
 
     /**
+     * Check if this session is in combat.
+     * Detects combat by checking if Fightview exists, is visible, and has active opponents.
+     */
+    public boolean isInCombat() {
+        NGameUI gui = getGameUI();
+        if (gui == null || gui.fv == null) {
+            return false;
+        }
+        // Check if fightview is visible AND has actual opponents
+        // lsrel (list of relations) contains the opponents - if empty, not in combat
+        return gui.fv.tvisible() && gui.fv.lsrel != null && !gui.fv.lsrel.isEmpty();
+    }
+
+    /**
      * Demote this session from visual to headless mode.
      * This stops the session from being rendered and starts a headless tick loop.
      * Note: We don't change ui.env because widgets still hold render tree slot
