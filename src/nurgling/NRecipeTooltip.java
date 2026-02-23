@@ -632,7 +632,7 @@ public class NRecipeTooltip {
             int lineSpacing = UI.scale(7);  // 7px between food types
 
             // First pass: render all food type lines and calculate total height
-            List<LineResult> lines = new ArrayList<>();
+            List<NTooltip.LineResult> lines = new ArrayList<>();
             int maxWidth = 0;
             int totalHeight = 0;
             int prevTextBottomOffset = 0;
@@ -669,7 +669,7 @@ public class NRecipeTooltip {
                 elements.add(LineElement.text(nameImg));
 
                 // Compose elements with proper icon/text alignment
-                LineResult lineResult = composeIconTextLine(elements);
+                NTooltip.LineResult lineResult = composeIconTextLine(elements);
                 lines.add(lineResult);
 
                 // Calculate spacing (7px from previous baseline to current text top)
@@ -697,7 +697,7 @@ public class NRecipeTooltip {
             int y = 0;
             prevTextBottomOffset = 0;
             firstFoodType = true;
-            for (LineResult line : lines) {
+            for (NTooltip.LineResult line : lines) {
                 int spacing = firstFoodType ? 0 :
                     (lineSpacing - line.textTopOffset - prevTextBottomOffset - bodyDescent);
                 y += spacing;
@@ -711,21 +711,6 @@ public class NRecipeTooltip {
             return result;
         } catch (Exception e) {
             return null;
-        }
-    }
-
-    /**
-     * Helper class for line composition with text offset tracking (similar to NFoodInfo).
-     */
-    private static class LineResult {
-        final BufferedImage image;
-        final int textTopOffset;
-        final int textBottomOffset;
-
-        LineResult(BufferedImage image, int textTopOffset, int textBottomOffset) {
-            this.image = image;
-            this.textTopOffset = textTopOffset;
-            this.textBottomOffset = textBottomOffset;
         }
     }
 
@@ -753,9 +738,9 @@ public class NRecipeTooltip {
     /**
      * Compose icon and text elements with proper alignment.
      */
-    private static LineResult composeIconTextLine(List<LineElement> elements) {
+    private static NTooltip.LineResult composeIconTextLine(List<LineElement> elements) {
         if (elements.isEmpty()) {
-            return new LineResult(TexI.mkbuf(new Coord(1, 1)), 0, 0);
+            return new NTooltip.LineResult(TexI.mkbuf(new Coord(1, 1)), 0, 0);
         }
 
         int gap = UI.scale(2);
@@ -806,7 +791,7 @@ public class NRecipeTooltip {
         }
 
         g.dispose();
-        return new LineResult(result, textTopOffset, textBottomOffset);
+        return new NTooltip.LineResult(result, textTopOffset, textBottomOffset);
     }
 
     /**

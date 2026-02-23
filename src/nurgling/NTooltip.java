@@ -502,29 +502,6 @@ public class NTooltip {
 
         ItemInfo.Owner owner = info.get(0).owner;
 
-        // DEBUG: Log all classes and all Tip fields
-        StringBuilder classLog = new StringBuilder("Tooltip classes: ");
-        for (ItemInfo ii : info) {
-            classLog.append(ii.getClass().getName()).append(", ");
-
-            // Log all Tip subclass fields to find Presence
-            if (ii instanceof ItemInfo.Tip && !(ii instanceof ItemInfo.Name) && !(ii instanceof ItemInfo.Pagina) && !(ii instanceof ItemInfo.AdHoc)) {
-                System.out.println("=== Tip found: " + ii.getClass().getName() + " ===");
-                try {
-                    java.lang.reflect.Field[] fields = ii.getClass().getDeclaredFields();
-                    for (java.lang.reflect.Field field : fields) {
-                        field.setAccessible(true);
-                        Object value = field.get(ii);
-                        System.out.println("  Field: " + field.getName() + " = " + value + " (type: " + field.getType().getName() + ")");
-                    }
-                } catch (Exception e) {
-                    System.out.println("  Error: " + e.getMessage());
-                }
-                System.out.println("======================");
-            }
-        }
-        System.out.println(classLog.toString());
-
         // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, and weapon stats
         String nameText = null;
         QBuff qbuff = null;
