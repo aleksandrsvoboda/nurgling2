@@ -6,6 +6,7 @@ import haven.res.ui.tt.q.starred.Starred;
 import haven.res.ui.tt.wear.Wear;
 import haven.res.ui.tt.gast.Gast;
 import haven.res.ui.tt.slots.ISlots;
+import haven.res.ui.tt.slot.Slotted;
 import nurgling.iteminfo.NCuriosity;
 import nurgling.styles.TooltipStyle;
 
@@ -501,13 +502,6 @@ public class NTooltip {
 
         ItemInfo.Owner owner = info.get(0).owner;
 
-        // DEBUG: Log all ItemInfo classes for gilding recipes
-        StringBuilder classLog = new StringBuilder("Tooltip classes: ");
-        for (ItemInfo ii : info) {
-            classLog.append(ii.getClass().getName()).append(", ");
-        }
-        System.out.println(classLog.toString());
-
         // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, and weapon stats
         String nameText = null;
         QBuff qbuff = null;
@@ -516,6 +510,7 @@ public class NTooltip {
         Wear wear = null;
         Gast gast = null;
         ISlots islots = null;
+        Slotted slotted = null;
         boolean starred = false;
 
         // Weapon stats
@@ -576,6 +571,10 @@ public class NTooltip {
                 // Handle dynamically loaded slots_alt.ISlots
                 islotsObj = ii;
             }
+            // Check for Slotted (gilding recipes)
+            if (ii instanceof Slotted) {
+                slotted = (Slotted) ii;
+            }
             if (ii instanceof Starred) {
                 starred = true;
             }
@@ -615,15 +614,22 @@ public class NTooltip {
             } catch (Exception ignored) {}
         }
 
-        // Extract gilding data (works for both ISlots and alternative ISlots via reflection)
+        // Extract gilding data (works for ISlots, alternative ISlots, and Slotted)
         Integer gildingLeft = null;
         Integer gildingTotal = null;
         double gildingPmin = 0;
         double gildingPmax = 0;
         Resource[] gildingAttrs = null;
         java.util.Collection<?> gildingItems = null;
+        List<ItemInfo> gildingSubInfo = null;  // For Slotted recipes
 
-        if (islots != null) {
+        if (slotted != null) {
+            // Slotted (gilding recipes) - no slots, just chance and stats
+            gildingPmin = slotted.pmin;
+            gildingPmax = slotted.pmax;
+            gildingAttrs = slotted.attrs;
+            gildingSubInfo = slotted.sub;  // Contains AttrMod entries with the stats
+        } else if (islots != null) {
             // Standard ISlots path
             gildingLeft = islots.left;
             int used = islots.s.size();
@@ -755,13 +761,20 @@ public class NTooltip {
 
         // Render gilding chance line (single line: "Gilding chance X% to Y%")
         LineResult gildingChanceLineResult = null;
-        if (gildingLeft != null && gildingTotal != null) {
+        // Render for both ISlots (gilded items) and Slotted (gilding recipes)
+        if ((gildingLeft != null && gildingTotal != null) || gildingSubInfo != null) {
             gildingChanceLineResult = renderGildingChanceLine(gildingPmin, gildingPmax, gildingAttrs);
         }
 
         // Render gilding sections (hierarchical: header + indented stats)
         LineResult gildingSectionsResult = null;
-        if (gildingItems != null && !gildingItems.isEmpty()) {
+        if (gildingSubInfo != null && !gildingSubInfo.isEmpty()) {
+            // Slotted (gilding recipes) - extract stats from sub info list
+            java.util.List<GildingStatData> slottedStats = extractAttrModStats(gildingSubInfo);
+            if (!slottedStats.isEmpty()) {
+                gildingSectionsResult = renderBaseStatsSection(slottedStats);
+            }
+        } else if (gildingItems != null && !gildingItems.isEmpty()) {
             // For ISlots.SItem, extract fields directly
             // For reflection-based access, use reflection extractors
             if (islots != null) {
@@ -1941,6 +1954,10 @@ public class NTooltip {
                 }
                 // Skip ISlots - we render gilding ourselves (both slots.ISlots and slots_alt.ISlots)
                 if (tip instanceof ISlots) {
+                    continue;
+                }
+                // Skip Slotted - we render gilding recipes ourselves
+                if (tip instanceof Slotted) {
                     continue;
                 }
                 // Skip slots_alt.ISlots (different class, detected by name)
