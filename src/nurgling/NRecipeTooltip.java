@@ -99,12 +99,12 @@ public class NRecipeTooltip {
             }
 
             // Render Gilding chance line and stats
-            BufferedImage gildingChanceLine = null;
-            BufferedImage gildingStatsImg = null;
+            NTooltip.LineResult gildingChanceResult = null;
+            NTooltip.LineResult gildingStatsResult = null;
             if (slotted != null) {
-                gildingChanceLine = renderGildingChanceLine(slotted.pmin, slotted.pmax, slotted.attrs);
+                gildingChanceResult = renderGildingChanceLine(slotted.pmin, slotted.pmax, slotted.attrs);
                 if (slotted.sub != null && !slotted.sub.isEmpty()) {
-                    gildingStatsImg = renderGildingStats(slotted.sub);
+                    gildingStatsResult = renderGildingStats(slotted.sub);
                 }
             }
 
@@ -135,27 +135,35 @@ public class NRecipeTooltip {
             int nameDescent = TooltipStyle.getFontDescent(12);
             int bodyDescent = TooltipStyle.getFontDescent(11);
 
-            // Track if we've added any content after name (for proper spacing)
+            // Track text offsets for proper baseline-relative spacing
+            int prevTextBottomOffset = 0;
             boolean hasBodyContent = false;
 
             if (inputsLine != null) {
                 int spacing = UI.scale(7) - nameDescent;
                 ret = ItemInfo.catimgs(spacing, ret, inputsLine);
+                prevTextBottomOffset = 0;  // Inputs have icons, reset offset
                 hasBodyContent = true;
             }
-            if (gildingChanceLine != null) {
-                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
-                ret = ItemInfo.catimgs(spacing, ret, gildingChanceLine);
+            if (gildingChanceResult != null) {
+                // 10px from ingredients baseline to gilding chance text top
+                int spacing = UI.scale(10) - bodyDescent - prevTextBottomOffset - gildingChanceResult.textTopOffset;
+                ret = ItemInfo.catimgs(spacing, ret, gildingChanceResult.image);
+                prevTextBottomOffset = gildingChanceResult.textBottomOffset;
                 hasBodyContent = true;
             }
-            if (gildingStatsImg != null) {
-                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
-                ret = ItemInfo.catimgs(spacing, ret, gildingStatsImg);
+            if (gildingStatsResult != null) {
+                // 10px from gilding chance baseline to first stat text top
+                int spacing = UI.scale(10) - bodyDescent - prevTextBottomOffset - gildingStatsResult.textTopOffset;
+                ret = ItemInfo.catimgs(spacing, ret, gildingStatsResult.image);
+                prevTextBottomOffset = gildingStatsResult.textBottomOffset;
                 hasBodyContent = true;
             }
             if (skillsLine != null) {
-                int spacing = hasBodyContent ? (UI.scale(12) - bodyDescent) : (UI.scale(7) - nameDescent);
+                // 10px from last stat baseline to skills text top
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent - prevTextBottomOffset) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, skillsLine);
+                prevTextBottomOffset = 0;  // Skills have icons, reset offset
                 hasBodyContent = true;
             }
             if (costLine != null) {
@@ -467,7 +475,7 @@ public class NRecipeTooltip {
      * Render gilding chance line: "Gilding chance: X% to Y%" with attribute icons.
      * Reuses rendering logic from NTooltip.
      */
-    private static BufferedImage renderGildingChanceLine(double pmin, double pmax, Resource[] attrs) {
+    private static NTooltip.LineResult renderGildingChanceLine(double pmin, double pmax, Resource[] attrs) {
         // Delegate to NTooltip's rendering method
         return NTooltip.renderGildingChanceLinePublic(pmin, pmax, attrs);
     }
@@ -476,7 +484,7 @@ public class NRecipeTooltip {
      * Render gilding stats from the sub info list.
      * Extracts stats using NTooltip's extraction method and renders them.
      */
-    private static BufferedImage renderGildingStats(List<ItemInfo> subInfo) {
+    private static NTooltip.LineResult renderGildingStats(List<ItemInfo> subInfo) {
         // Delegate to NTooltip's rendering method
         return NTooltip.renderGildingStatsPublic(subInfo);
     }

@@ -444,7 +444,7 @@ public class NTooltip {
      * Result of rendering a line with mixed text and icons.
      * Tracks text position for proper baseline-relative spacing.
      */
-    private static class LineResult {
+    static class LineResult {
         final BufferedImage image;
         final int textTopOffset;     // Pixels from image top to text top
         final int textBottomOffset;  // Pixels from text bottom to image bottom
@@ -2028,23 +2028,21 @@ public class NTooltip {
 
     /**
      * Public wrapper for renderGildingChanceLine - used by NRecipeTooltip.
-     * Returns just the image without LineResult metadata.
+     * Returns LineResult with image and text offset info.
      */
-    public static BufferedImage renderGildingChanceLinePublic(double pmin, double pmax, Resource[] attrs) {
-        LineResult result = renderGildingChanceLine(pmin, pmax, attrs);
-        return result != null ? result.image : null;
+    public static LineResult renderGildingChanceLinePublic(double pmin, double pmax, Resource[] attrs) {
+        return renderGildingChanceLine(pmin, pmax, attrs);
     }
 
     /**
      * Public wrapper for rendering gilding stats from sub info list - used by NRecipeTooltip.
      * Extracts stats from the sub info and renders them as a section.
      */
-    public static BufferedImage renderGildingStatsPublic(List<ItemInfo> subInfo) {
+    public static LineResult renderGildingStatsPublic(List<ItemInfo> subInfo) {
         java.util.List<GildingStatData> stats = extractAttrModStats(subInfo);
         if (stats == null || stats.isEmpty()) {
             return null;
         }
-        LineResult result = renderBaseStatsSection(stats);
-        return result != null ? result.image : null;
+        return renderBaseStatsSection(stats);
     }
 }
