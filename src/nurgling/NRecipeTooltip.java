@@ -71,7 +71,7 @@ public class NRecipeTooltip {
 
         if (info != null && !info.isEmpty()) {
 
-            // Extract Inputs, Skills, Cost, Slotted (gilding), Pagina, and equipment stats
+            // Extract Inputs, Skills, Cost, Slotted (gilding), Pagina, equipment stats, and food stats
             Object inputsInfo = null;
             Object skillsInfo = null;
             Object costInfo = null;
@@ -81,6 +81,8 @@ public class NRecipeTooltip {
             Object armorInfo = null;
             Object attrModInfo = null;
             Object equedInfo = null;
+            ItemInfo.Tip foodInfo = null;  // NFoodInfo (has layout method)
+            ItemInfo.Tip foodTypesInfo = null;  // FoodTypes
 
             for (ItemInfo ii : info) {
                 String className = ii.getClass().getSimpleName();
@@ -104,6 +106,10 @@ public class NRecipeTooltip {
                     attrModInfo = ii;
                 } else if (className.equals("Equed")) {
                     equedInfo = ii;
+                } else if (className.equals("NFoodInfo") || fullName.contains("NFoodInfo")) {
+                    foodInfo = (ItemInfo.Tip) ii;
+                } else if (className.equals("FoodTypes") || fullName.contains("FoodTypes")) {
+                    foodTypesInfo = (ItemInfo.Tip) ii;
                 }
             }
 
@@ -111,6 +117,18 @@ public class NRecipeTooltip {
             BufferedImage inputsLine = null;
             if (inputsInfo != null) {
                 inputsLine = TooltipStyle.cropTopOnly(renderInputsLine(inputsInfo));
+            }
+
+            // Render food stats (NFoodInfo uses custom layout)
+            BufferedImage foodStatsImg = null;
+            if (foodInfo != null) {
+                foodStatsImg = TooltipStyle.cropTopOnly(renderFoodStats(foodInfo));
+            }
+
+            // Render food types separately (NFoodInfo.layout can't access it for recipes)
+            BufferedImage foodTypesImg = null;
+            if (foodTypesInfo != null) {
+                foodTypesImg = TooltipStyle.cropTopOnly(renderFoodTypes(foodTypesInfo));
             }
 
             // Render Equed first (goes right after ingredients)
@@ -195,15 +213,29 @@ public class NRecipeTooltip {
                 prevTextBottomOffset = 0;  // Inputs have icons, reset offset
                 hasBodyContent = true;
             }
+            if (foodStatsImg != null) {
+                // 10px from inputs to food stats
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, foodStatsImg);
+                prevTextBottomOffset = 0;  // Food stats have icons, reset offset
+                hasBodyContent = true;
+            }
+            if (foodTypesImg != null) {
+                // 10px from food stats to food types
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, foodTypesImg);
+                prevTextBottomOffset = 0;  // Food types have icons, reset offset
+                hasBodyContent = true;
+            }
             if (equedLine != null) {
-                // 10px from inputs to Equed
+                // 10px from food stats/inputs to Equed
                 int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, equedLine);
                 prevTextBottomOffset = 0;  // Text line, reset offset
                 hasBodyContent = true;
             }
             if (otherEquipmentStats != null) {
-                // 10px from Equed (or inputs if no Equed) to other equipment stats
+                // 10px from Equed (or food stats/inputs if no Equed) to other equipment stats
                 int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, otherEquipmentStats);
                 prevTextBottomOffset = 0;  // Equipment stats may have icons, reset offset
@@ -556,6 +588,225 @@ public class NRecipeTooltip {
         }
 
         return result;
+    }
+
+    /**
+     * Render food stats (NFoodInfo).
+     * Uses the layout() method from NFoodInfo to render with custom fonts.
+     */
+    private static BufferedImage renderFoodStats(ItemInfo.Tip foodInfo) {
+        try {
+            if (foodInfo == null) {
+                return null;
+            }
+
+            // Create a layout to render the food info (needs owner from foodInfo)
+            ItemInfo.Layout layout = new ItemInfo.Layout(foodInfo.owner);
+
+            // Render NFoodInfo (energy, hunger, FEPs)
+            foodInfo.layout(layout);
+
+            // Return the rendered layout image
+            return layout.render();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render food types with icons.
+     * Replicates the rendering from NFoodInfo.layout() for food types with baseline-relative spacing.
+     * Manually composes images like NFoodInfo does with l.cmp.add() instead of using catimgs.
+     */
+    private static BufferedImage renderFoodTypes(ItemInfo.Tip foodTypesInfo) {
+        try {
+            // Extract types field from FoodTypes using reflection
+            Field typesField = foodTypesInfo.getClass().getDeclaredField("types");
+            typesField.setAccessible(true);
+            Resource[] types = (Resource[]) typesField.get(foodTypesInfo);
+
+            if (types == null || types.length == 0) {
+                return null;
+            }
+
+            int lineSpacing = UI.scale(7);  // 7px between food types
+
+            // First pass: render all food type lines and calculate total height
+            List<LineResult> lines = new ArrayList<>();
+            int maxWidth = 0;
+            int totalHeight = 0;
+            int prevTextBottomOffset = 0;
+            boolean firstFoodType = true;
+
+            for (Resource typeRes : types) {
+                if (typeRes == null) continue;
+
+                // Get food type name from resource tooltip
+                String foodTypeName = null;
+                Resource.Tooltip tt = typeRes.layer(Resource.Tooltip.class);
+                if (tt != null) {
+                    foodTypeName = tt.t;
+                }
+                if (foodTypeName == null) continue;
+
+                // Get food type icon (scaled to 80% like in NFoodInfo)
+                BufferedImage typeIcon = null;
+                Resource.Image img = typeRes.layer(Resource.imgc);
+                if (img != null) {
+                    BufferedImage originalIcon = img.img;
+                    int iconSize = UI.scale(TooltipStyle.ICON_SIZE);  // 13px (80% of 16px)
+                    typeIcon = PUtils.convolvedown(originalIcon, new Coord(iconSize, iconSize), CharWnd.iconfilter);
+                }
+
+                // Render food type name with custom font (11px semibold, green color)
+                BufferedImage nameImg = TooltipStyle.cropTopOnly(getQuantityFoundry().render(foodTypeName, TooltipStyle.COLOR_FOOD_TYPE).img);
+
+                // Use LineElement composition like NFoodInfo does
+                List<LineElement> elements = new ArrayList<>();
+                if (typeIcon != null) {
+                    elements.add(LineElement.icon(typeIcon));
+                }
+                elements.add(LineElement.text(nameImg));
+
+                // Compose elements with proper icon/text alignment
+                LineResult lineResult = composeIconTextLine(elements);
+                lines.add(lineResult);
+
+                // Calculate spacing (7px from previous baseline to current text top)
+                // Baseline is descent pixels above the text bottom
+                int bodyDescent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+                int spacing = firstFoodType ? 0 :
+                    (lineSpacing - lineResult.textTopOffset - prevTextBottomOffset - bodyDescent);
+
+                totalHeight += spacing + lineResult.image.getHeight();
+                maxWidth = Math.max(maxWidth, lineResult.image.getWidth());
+
+                prevTextBottomOffset = lineResult.textBottomOffset;
+                firstFoodType = false;
+            }
+
+            if (lines.isEmpty()) {
+                return null;
+            }
+
+            // Second pass: compose all lines into a single image at calculated positions
+            BufferedImage result = TexI.mkbuf(new Coord(maxWidth, totalHeight));
+            Graphics g = result.getGraphics();
+
+            int bodyDescent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+            int y = 0;
+            prevTextBottomOffset = 0;
+            firstFoodType = true;
+            for (LineResult line : lines) {
+                int spacing = firstFoodType ? 0 :
+                    (lineSpacing - line.textTopOffset - prevTextBottomOffset - bodyDescent);
+                y += spacing;
+                g.drawImage(line.image, 0, y, null);
+                y += line.image.getHeight();
+                prevTextBottomOffset = line.textBottomOffset;
+                firstFoodType = false;
+            }
+
+            g.dispose();
+            return result;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Helper class for line composition with text offset tracking (similar to NFoodInfo).
+     */
+    private static class LineResult {
+        final BufferedImage image;
+        final int textTopOffset;
+        final int textBottomOffset;
+
+        LineResult(BufferedImage image, int textTopOffset, int textBottomOffset) {
+            this.image = image;
+            this.textTopOffset = textTopOffset;
+            this.textBottomOffset = textBottomOffset;
+        }
+    }
+
+    /**
+     * Helper class for icon/text elements (similar to NFoodInfo).
+     */
+    private static class LineElement {
+        final BufferedImage image;
+        final boolean isIcon;
+
+        LineElement(BufferedImage image, boolean isIcon) {
+            this.image = image;
+            this.isIcon = isIcon;
+        }
+
+        static LineElement icon(BufferedImage img) {
+            return new LineElement(img, true);
+        }
+
+        static LineElement text(BufferedImage img) {
+            return new LineElement(img, false);
+        }
+    }
+
+    /**
+     * Compose icon and text elements with proper alignment.
+     */
+    private static LineResult composeIconTextLine(List<LineElement> elements) {
+        if (elements.isEmpty()) {
+            return new LineResult(TexI.mkbuf(new Coord(1, 1)), 0, 0);
+        }
+
+        int gap = UI.scale(2);
+        int descent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+
+        // Find max text and icon heights
+        int maxTextHeight = 0;
+        int maxIconHeight = 0;
+        for (LineElement elem : elements) {
+            if (elem.isIcon) {
+                maxIconHeight = Math.max(maxIconHeight, elem.image.getHeight());
+            } else {
+                maxTextHeight = Math.max(maxTextHeight, elem.image.getHeight());
+            }
+        }
+
+        if (maxTextHeight == 0) maxTextHeight = maxIconHeight;
+
+        // Total height must accommodate BOTH icon and text+descent shift
+        // Text shifted down by descent/2, so we need textHeight + descent for text bounds
+        int totalHeight = Math.max(maxIconHeight, maxTextHeight + descent);
+
+        // Calculate text position (descent shifts text down for visual alignment)
+        int textTopOffset = (totalHeight - maxTextHeight) / 2 + descent / 2;
+        int textBottomOffset = totalHeight - textTopOffset - maxTextHeight;
+
+        // Calculate total width
+        int totalWidth = 0;
+        for (int i = 0; i < elements.size(); i++) {
+            totalWidth += elements.get(i).image.getWidth();
+            if (i > 0) totalWidth += gap;
+        }
+
+        // Compose image
+        BufferedImage result = TexI.mkbuf(new Coord(totalWidth, totalHeight));
+        Graphics g = result.getGraphics();
+
+        int x = 0;
+        for (int i = 0; i < elements.size(); i++) {
+            LineElement elem = elements.get(i);
+            int y = elem.isIcon ?
+                (totalHeight - elem.image.getHeight()) / 2 :
+                (totalHeight - elem.image.getHeight()) / 2 + descent / 2;
+
+            g.drawImage(elem.image, x, y, null);
+            x += elem.image.getWidth();
+            if (i < elements.size() - 1) x += gap;
+        }
+
+        g.dispose();
+        return new LineResult(result, textTopOffset, textBottomOffset);
     }
 
     /**
