@@ -28,7 +28,9 @@ import nurgling.widgets.NAreasWidget;
 import nurgling.widgets.NMiniMap;
 import nurgling.widgets.NZoneMeasureTool;
 import nurgling.NConfig;
+import nurgling.styles.TooltipStyle;
 
+import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.image.*;
 import java.util.*;
@@ -98,6 +100,10 @@ public class NMapView extends MapView
     long lastTooltipUpdate = 0;
     final long tooltipThrottleTime = 100; // milliseconds for throttling
     TexI oldttip = null;
+
+    // Cached foundries for inspect tooltip
+    private static Text.Foundry inspectLabelFoundry = null;
+    private static Text.Foundry inspectValueFoundry = null;
     public AtomicBoolean isAreaSelectionMode = new AtomicBoolean(false);
     public AtomicBoolean isGobSelectionMode = new AtomicBoolean(false);
     public AtomicBoolean isChatAreaSharingMode = new AtomicBoolean(false); // For Alt+Ctrl+LMB chat sharing
@@ -394,6 +400,32 @@ public class NMapView extends MapView
         return false;
     }
 
+    private static Text.Foundry getInspectLabelFoundry() {
+        if (inspectLabelFoundry == null) {
+            inspectLabelFoundry = TooltipStyle.createFoundry(true, 11, Color.WHITE);  // Semibold 11px
+        }
+        return inspectLabelFoundry;
+    }
+
+    private static Text.Foundry getInspectValueFoundry() {
+        if (inspectValueFoundry == null) {
+            inspectValueFoundry = TooltipStyle.createFoundry(false, 11, Color.WHITE);  // Regular 11px
+        }
+        return inspectValueFoundry;
+    }
+
+    /**
+     * Render a label:value pair for inspect tooltip with custom fonts.
+     * Label uses colored text, value uses white text.
+     */
+    private static BufferedImage[] renderInspectField(String label, String value, Color labelColor) {
+        // Render label with color
+        BufferedImage labelImg = getInspectLabelFoundry().render(label + ":", labelColor).img;
+        // Render value in white
+        BufferedImage valueImg = getInspectValueFoundry().render(value, Color.WHITE).img;
+        return new BufferedImage[]{labelImg, valueImg};
+    }
+
     public Object tooltip(Coord c, Widget prev) {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastTooltipUpdate < tooltipThrottleTime) {
@@ -417,123 +449,117 @@ public class NMapView extends MapView
             if (simpleInspect && !debugMode) {
                 String gobValue = ttip.get("gob");
                 if (gobValue != null && !gobValue.isEmpty()) {
-                    BufferedImage gob = RichText.render(String.format("$col[128,128,255]{%s}:", "Gob"), 0).img;
-                    imgs.add(gob);
-                    imgs.add(RichText.render(gobValue, 0).img);
+                    BufferedImage[] parts = renderInspectField("Gob", gobValue, new Color(128, 128, 255));
+                    imgs.add(parts[0]);
+                    imgs.add(parts[1]);
                 }
                 String tileValue = ttip.get("tile");
                 if (tileValue != null && !tileValue.isEmpty()) {
-                    BufferedImage tile = RichText.render(String.format("$col[128,128,255]{%s}:", "Tile"), 0).img;
-                    imgs.add(tile);
-                    imgs.add(RichText.render(tileValue, 0).img);
+                    BufferedImage[] parts = renderInspectField("Tile", tileValue, new Color(128, 128, 255));
+                    imgs.add(parts[0]);
+                    imgs.add(parts[1]);
                 }
             } else {
                 // Debug mode - show all info
                 for (String key : ttip.keySet()) {
                     String value = ttip.get(key);
                     if (value == null) continue;
-                    
-                    String text = String.format("$col[128,128,255]{%s}:", key);
-                    BufferedImage img = cachedImages.get(text);
-                    if (img == null) {
-                        img = RichText.render(text, 0).img;
-                        cachedImages.put(text, img);
-                    }
 
-                    imgs.add(img);
-                    imgs.add(RichText.render(value, 0).img);
+                    BufferedImage[] parts = renderInspectField(key, value, new Color(128, 128, 255));
+                    imgs.add(parts[0]);
+                    imgs.add(parts[1]);
                 }
-                    BufferedImage mc = RichText.render(String.format("$col[128,128,255]{%s}:", "MouseCoord"), 0).img;
-                    imgs.add(mc);
-                    imgs.add(RichText.render(getLCoord().toString(), 0).img);
+                BufferedImage[] mcParts = renderInspectField("MouseCoord", getLCoord().toString(), new Color(128, 128, 255));
+                imgs.add(mcParts[0]);
+                imgs.add(mcParts[1]);
                 String rcValue = ttip.get("rc");
                 if (rcValue != null && !rcValue.isEmpty()) {
-                    BufferedImage gob = RichText.render(String.format("$col[128,128,128]{%s}:", "Coord"), 0).img;
-                    imgs.add(gob);
-                    imgs.add(RichText.render(rcValue, 0).img);
+                    BufferedImage[] parts = renderInspectField("Coord", rcValue, new Color(128, 128, 128));
+                    imgs.add(parts[0]);
+                    imgs.add(parts[1]);
                 }
                 String idValue = ttip.get("id");
                 if (idValue != null && !idValue.isEmpty()) {
-                    BufferedImage gob = RichText.render(String.format("$col[255,128,255]{%s}:", "id"), 0).img;
-                    imgs.add(gob);
-                    imgs.add(RichText.render(idValue, 0).img);
+                    BufferedImage[] parts = renderInspectField("id", idValue, new Color(255, 128, 255));
+                    imgs.add(parts[0]);
+                    imgs.add(parts[1]);
                 }
             }
             String tagsValue = ttip.get("tags");
             if (tagsValue != null && !tagsValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,128,128]{%s}:", "Tags"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(tagsValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Tags", tagsValue, new Color(255, 128, 128));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String statusValue = ttip.get("status");
             if (statusValue != null && !statusValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,128,128]{%s}:", "Status"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(statusValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Status", statusValue, new Color(255, 128, 128));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String hitBoxValue = ttip.get("HitBox");
             if (hitBoxValue != null && !hitBoxValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,128,255]{%s}:", "HitBox"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(hitBoxValue, 0).img);
+                BufferedImage[] parts = renderInspectField("HitBox", hitBoxValue, new Color(255, 128, 255));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String distValue = ttip.get("dist");
             if (distValue != null && !distValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,128,105]{%s}:", "dist"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(distValue, 0).img);
+                BufferedImage[] parts = renderInspectField("dist", distValue, new Color(255, 128, 105));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String isDynamicValue = ttip.get("isDynamic");
             if (isDynamicValue != null && !isDynamicValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,83,83]{%s}:", "isDynamic"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(isDynamicValue, 0).img);
+                BufferedImage[] parts = renderInspectField("isDynamic", isDynamicValue, new Color(255, 83, 83));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String markerValue = ttip.get("marker");
             if (markerValue != null && !markerValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,83,83]{%s}:", "Marker"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(markerValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Marker", markerValue, new Color(255, 83, 83));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String contValue = ttip.get("cont");
             if (contValue != null && !contValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[83,255,83]{%s}:", "Container"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(contValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Container", contValue, new Color(83, 255, 83));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String olsValue = ttip.get("ols");
             if (olsValue != null && !olsValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[83,255,155]{%s}:", "Overlays"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(olsValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Overlays", olsValue, new Color(83, 255, 155));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String poseValue = ttip.get("pose");
             if (poseValue != null && !poseValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,145,200]{%s}:", "Pose"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(poseValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Pose", poseValue, new Color(255, 145, 200));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             String attrValue = ttip.get("attr");
             if (attrValue != null && !attrValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[155,255,83]{%s}:", "Attr"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(attrValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Attr", attrValue, new Color(155, 255, 83));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             if (!tlays.isEmpty() && false) {
-                BufferedImage gob = RichText.render(String.format("$col[155,32,176]{%s}:", "Layers"), 0).img;
-                imgs.add(gob);
+                BufferedImage layerLabel = getInspectLabelFoundry().render("Layers:", new Color(155, 32, 176)).img;
+                imgs.add(layerLabel);
                 for(String s: tlays)
                 {
                     if (s != null && !s.isEmpty()) {
-                        imgs.add(RichText.render(s, 0).img);
+                        imgs.add(getInspectValueFoundry().render(s, Color.WHITE).img);
                     }
                 }
             }
             String posesValue = ttip.get("poses");
             if (posesValue != null && !posesValue.isEmpty()) {
-                BufferedImage gob = RichText.render(String.format("$col[255,128,128]{%s}:", "Poses"), 0).img;
-                imgs.add(gob);
-                imgs.add(RichText.render(posesValue, 0).img);
+                BufferedImage[] parts = renderInspectField("Poses", posesValue, new Color(255, 128, 128));
+                imgs.add(parts[0]);
+                imgs.add(parts[1]);
             }
             return (oldttip = new TexI((ItemInfo.catimgs(0, imgs.toArray(new BufferedImage[0])))));
         }

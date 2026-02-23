@@ -594,26 +594,29 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
         }
 
         // ===== GROUP 3: Expected FEP + Expected total (10px gap before, 7px between) =====
-        double error = expeted_fep * 0.005;
-        String deltaStr = (delta >= 0 ? "+" : "") + String.format("%.2f", delta) + " \u00B1 " + String.format("%.2f", error);
-        BufferedImage expectedLine = TooltipStyle.cropTopOnly(catimgsh(0,
-            label("Expected FEP: "), value(String.format("%.2f", expeted_fep), TooltipStyle.COLOR_FOOD_FEP_HUNGER),
-            label(" "), labelColored("(" + deltaStr + ")", TooltipStyle.COLOR_PERCENTAGE)));
-        // Adjust for previous icon line's text bottom offset
-        int expectedSpacing = groupSpacing - prevTextBottomOffset;
-        l.cmp.add(expectedLine, Coord.of(0, l.cmp.sz.y + expectedSpacing));
-        prevTextBottomOffset = 0;  // Reset for text-only line
+        // Skip expected FEP for recipes (owner is GItem for real items, not for recipes)
+        if (owner instanceof GItem) {
+            double error = expeted_fep * 0.005;
+            String deltaStr = (delta >= 0 ? "+" : "") + String.format("%.2f", delta) + " \u00B1 " + String.format("%.2f", error);
+            BufferedImage expectedLine = TooltipStyle.cropTopOnly(catimgsh(0,
+                label("Expected FEP: "), value(String.format("%.2f", expeted_fep), TooltipStyle.COLOR_FOOD_FEP_HUNGER),
+                label(" "), labelColored("(" + deltaStr + ")", TooltipStyle.COLOR_PERCENTAGE)));
+            // Adjust for previous icon line's text bottom offset
+            int expectedSpacing = groupSpacing - prevTextBottomOffset;
+            l.cmp.add(expectedLine, Coord.of(0, l.cmp.sz.y + expectedSpacing));
+            prevTextBottomOffset = 0;  // Reset for text-only line
 
-        // Expected total (7px after expected FEP)
-        if (NUtils.getGameUI() != null && NUtils.getGameUI().chrwdg != null && NUtils.getGameUI().chrwdg.battr != null) {
-            double cur_fep = 0;
-            for (BAttrWnd.FoodMeter.El el : NUtils.getGameUI().chrwdg.battr.feps.els) {
-                cur_fep += el.a;
+            // Expected total (7px after expected FEP)
+            if (NUtils.getGameUI() != null && NUtils.getGameUI().chrwdg != null && NUtils.getGameUI().chrwdg.battr != null) {
+                double cur_fep = 0;
+                for (BAttrWnd.FoodMeter.El el : NUtils.getGameUI().chrwdg.battr.feps.els) {
+                    cur_fep += el.a;
+                }
+                BufferedImage totalLine = TooltipStyle.cropTopOnly(catimgsh(0,
+                    label("Expected total: "), value(String.format("%.2f", expeted_fep + cur_fep), TooltipStyle.COLOR_FOOD_FEP_SUM)));
+                l.cmp.add(totalLine, Coord.of(0, l.cmp.sz.y + lineSpacing));
+                // prevTextBottomOffset stays 0 for text-only line
             }
-            BufferedImage totalLine = TooltipStyle.cropTopOnly(catimgsh(0,
-                label("Expected total: "), value(String.format("%.2f", expeted_fep + cur_fep), TooltipStyle.COLOR_FOOD_FEP_SUM)));
-            l.cmp.add(totalLine, Coord.of(0, l.cmp.sz.y + lineSpacing));
-            // prevTextBottomOffset stays 0 for text-only line
         }
 
         // ===== GROUP 4: Food types with icons (10px gap before, 7px between each type) =====

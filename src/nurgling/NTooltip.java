@@ -6,6 +6,7 @@ import haven.res.ui.tt.q.starred.Starred;
 import haven.res.ui.tt.wear.Wear;
 import haven.res.ui.tt.gast.Gast;
 import haven.res.ui.tt.slots.ISlots;
+import haven.res.ui.tt.slot.Slotted;
 import nurgling.iteminfo.NCuriosity;
 import nurgling.styles.TooltipStyle;
 
@@ -443,7 +444,7 @@ public class NTooltip {
      * Result of rendering a line with mixed text and icons.
      * Tracks text position for proper baseline-relative spacing.
      */
-    private static class LineResult {
+    static class LineResult {
         final BufferedImage image;
         final int textTopOffset;     // Pixels from image top to text top
         final int textBottomOffset;  // Pixels from text bottom to image bottom
@@ -509,6 +510,7 @@ public class NTooltip {
         Wear wear = null;
         Gast gast = null;
         ISlots islots = null;
+        Slotted slotted = null;
         boolean starred = false;
 
         // Weapon stats
@@ -529,14 +531,42 @@ public class NTooltip {
         Object islotsObj = null;  // Can be ISlots or slots_alt.ISlots
         Object baseAttrMod = null;  // Base item stats (non-gildable)
         String adHocText = null;  // AdHoc text (e.g., "Memories of pain")
+        String paginaText = null;  // Pagina description text
+        Integer presenceCurrent = null;  // Presence current value (x in "Presence: x/y")
+        Integer presenceMax = null;      // Presence max value (y in "Presence: x/y")
         for (ItemInfo ii : info) {
             String className = ii.getClass().getSimpleName();
             String fullName = ii.getClass().getName();
 
-            // Capture AdHoc text (e.g., "Memories of pain")
+            // Capture AdHoc text (e.g., "Memories of pain" or "Presence: 22511/75528")
             if (ii instanceof ItemInfo.AdHoc) {
                 ItemInfo.AdHoc adHoc = (ItemInfo.AdHoc) ii;
-                adHocText = adHoc.str.text;
+                String adhocStr = adHoc.str.text;
+
+                // Check if this is a Presence field
+                if (adhocStr != null && adhocStr.startsWith("Presence: ")) {
+                    try {
+                        // Parse "Presence: x/y" format
+                        String presenceValues = adhocStr.substring("Presence: ".length());
+                        String[] parts = presenceValues.split("/");
+                        if (parts.length == 2) {
+                            presenceCurrent = Integer.parseInt(parts[0].trim());
+                            presenceMax = Integer.parseInt(parts[1].trim());
+                        }
+                    } catch (NumberFormatException e) {
+                        // If parsing fails, treat as regular AdHoc text
+                        adHocText = adhocStr;
+                    }
+                } else {
+                    // Regular AdHoc text (not Presence)
+                    adHocText = adhocStr;
+                }
+            }
+
+            // Capture Pagina description text
+            if (ii instanceof ItemInfo.Pagina) {
+                ItemInfo.Pagina pagina = (ItemInfo.Pagina) ii;
+                paginaText = pagina.str;
             }
 
             // Capture base AttrMod (non-gilding stats)
@@ -568,6 +598,10 @@ public class NTooltip {
             } else if (className.equals("ISlots") && fullName.contains("slots")) {
                 // Handle dynamically loaded slots_alt.ISlots
                 islotsObj = ii;
+            }
+            // Check for Slotted (gilding recipes)
+            if (ii instanceof Slotted) {
+                slotted = (Slotted) ii;
             }
             if (ii instanceof Starred) {
                 starred = true;
@@ -608,15 +642,22 @@ public class NTooltip {
             } catch (Exception ignored) {}
         }
 
-        // Extract gilding data (works for both ISlots and alternative ISlots via reflection)
+        // Extract gilding data (works for ISlots, alternative ISlots, and Slotted)
         Integer gildingLeft = null;
         Integer gildingTotal = null;
         double gildingPmin = 0;
         double gildingPmax = 0;
         Resource[] gildingAttrs = null;
         java.util.Collection<?> gildingItems = null;
+        List<ItemInfo> gildingSubInfo = null;  // For Slotted recipes
 
-        if (islots != null) {
+        if (slotted != null) {
+            // Slotted (gilding recipes) - no slots, just chance and stats
+            gildingPmin = slotted.pmin;
+            gildingPmax = slotted.pmax;
+            gildingAttrs = slotted.attrs;
+            gildingSubInfo = slotted.sub;  // Contains AttrMod entries with the stats
+        } else if (islots != null) {
             // Standard ISlots path
             gildingLeft = islots.left;
             int used = islots.s.size();
@@ -678,6 +719,16 @@ public class NTooltip {
             nameLineResult = renderNameLine(nameText, qbuff, wearPercent, remainingTime, starred, gildingLeft, gildingTotal);
             nameLine = nameLineResult.image;  // Don't crop - we need accurate text position
             nameTextBottomOffset = nameLineResult.textBottomOffset;
+        }
+
+        // Render Presence line (e.g., "Presence: 22511/75528")
+        LineResult presenceLineResult = null;
+        BufferedImage presenceLine = null;
+        int presenceTextBottomOffset = 0;
+        if (presenceCurrent != null && presenceMax != null) {
+            presenceLineResult = renderPresenceLine(presenceCurrent, presenceMax);
+            presenceLine = presenceLineResult.image;
+            presenceTextBottomOffset = presenceLineResult.textBottomOffset;
         }
 
         // Render content line if there's content
@@ -748,13 +799,20 @@ public class NTooltip {
 
         // Render gilding chance line (single line: "Gilding chance X% to Y%")
         LineResult gildingChanceLineResult = null;
-        if (gildingLeft != null && gildingTotal != null) {
+        // Render for both ISlots (gilded items) and Slotted (gilding recipes)
+        if ((gildingLeft != null && gildingTotal != null) || gildingSubInfo != null) {
             gildingChanceLineResult = renderGildingChanceLine(gildingPmin, gildingPmax, gildingAttrs);
         }
 
         // Render gilding sections (hierarchical: header + indented stats)
         LineResult gildingSectionsResult = null;
-        if (gildingItems != null && !gildingItems.isEmpty()) {
+        if (gildingSubInfo != null && !gildingSubInfo.isEmpty()) {
+            // Slotted (gilding recipes) - extract stats from sub info list
+            java.util.List<GildingStatData> slottedStats = extractAttrModStats(gildingSubInfo);
+            if (!slottedStats.isEmpty()) {
+                gildingSectionsResult = renderBaseStatsSection(slottedStats);
+            }
+        } else if (gildingItems != null && !gildingItems.isEmpty()) {
             // For ISlots.SItem, extract fields directly
             // For reflection-based access, use reflection extractors
             if (islots != null) {
@@ -786,6 +844,12 @@ public class NTooltip {
 
         // Render other tips (excluding Name, QBuff, Contents, Wear, Gast which we've handled)
         BufferedImage otherTips = TooltipStyle.cropTopOnly(renderOtherTips(info, contents != null));
+
+        // Render Pagina description with word wrapping at 200px
+        BufferedImage paginaImg = null;
+        if (paginaText != null && !paginaText.isEmpty()) {
+            paginaImg = renderPaginaText(paginaText, UI.scale(200));
+        }
 
         // Render AdHoc line (e.g., "Memories of pain") - same style as resource
         BufferedImage adHocLine = null;
@@ -825,13 +889,25 @@ public class NTooltip {
             adHocAndRes = resLine;
         }
 
-        BufferedImage statsAndRes = null;
-        if (otherTips != null && adHocAndRes != null) {
-            // 10px from otherTips (body text) baseline to adHocLine/resLine top
-            int statsToAdHocSpacing = scaledSectionSpacing - bodyDescentVal;
-            statsAndRes = ItemInfo.catimgs(statsToAdHocSpacing, otherTips, adHocAndRes);
+        // Combine otherTips with Pagina (10px spacing)
+        BufferedImage tipsAndPagina = null;
+        if (otherTips != null && paginaImg != null) {
+            int tipsToPaginaSpacing = scaledSectionSpacing - bodyDescentVal;
+            tipsAndPagina = ItemInfo.catimgs(tipsToPaginaSpacing, otherTips, paginaImg);
         } else if (otherTips != null) {
-            statsAndRes = otherTips;
+            tipsAndPagina = otherTips;
+        } else if (paginaImg != null) {
+            tipsAndPagina = paginaImg;
+        }
+
+        // Combine tipsAndPagina with adHocAndRes (10px spacing)
+        BufferedImage statsAndRes = null;
+        if (tipsAndPagina != null && adHocAndRes != null) {
+            // 10px from tipsAndPagina (body text) baseline to adHocLine/resLine top
+            int statsToAdHocSpacing = scaledSectionSpacing - bodyDescentVal;
+            statsAndRes = ItemInfo.catimgs(statsToAdHocSpacing, tipsAndPagina, adHocAndRes);
+        } else if (tipsAndPagina != null) {
+            statsAndRes = tipsAndPagina;
         } else if (adHocAndRes != null) {
             statsAndRes = adHocAndRes;
         }
@@ -1018,22 +1094,36 @@ public class NTooltip {
             contentAndBelowTopOffset = 0;  // statsAndRes is cropped
         }
 
-        // Then combine nameLine with contentAndBelow using 10px section spacing
-        // Note: Outer padding is handled by NWItem.PaddedTip
-        if (nameLine != null && contentAndBelow != null) {
-            // Account for text position within content canvas to achieve baseline-relative spacing
-            // Use contentTextTopOffset for vessels with content line, otherwise use tracked top offset
+        // Insert Presence line between name and contentAndBelow if present
+        BufferedImage presenceAndBelow = null;
+        int presenceAndBelowTopOffset = 0;
+        if (presenceLine != null && contentAndBelow != null) {
+            // Combine presence with contentAndBelow (10px section spacing)
             int topOffset = (contentLine != null) ? contentTextTopOffset : contentAndBelowTopOffset;
-            int nameToContentSpacing = scaledSectionSpacing - nameDescentVal - nameTextBottomOffset - topOffset;
+            int presenceToContentSpacing = scaledSectionSpacing - nameDescentVal - presenceTextBottomOffset - topOffset;
             if (contentLine != null) {
-                // Content line text images have internal padding not captured by textTopOffset
-                nameToContentSpacing -= UI.scale(4);
+                presenceToContentSpacing -= UI.scale(4);
             }
-            return ItemInfo.catimgs(nameToContentSpacing, nameLine, contentAndBelow);
+            presenceAndBelow = ItemInfo.catimgs(presenceToContentSpacing, presenceLine, contentAndBelow);
+            presenceAndBelowTopOffset = presenceLineResult.textTopOffset;
+        } else if (presenceLine != null) {
+            presenceAndBelow = presenceLine;
+            presenceAndBelowTopOffset = presenceLineResult.textTopOffset;
+        } else {
+            presenceAndBelow = contentAndBelow;
+            presenceAndBelowTopOffset = contentAndBelowTopOffset;
+        }
+
+        // Then combine nameLine with presenceAndBelow (or contentAndBelow if no presence) using 10px section spacing
+        // Note: Outer padding is handled by NWItem.PaddedTip
+        if (nameLine != null && presenceAndBelow != null) {
+            // Account for text position within presence/content canvas to achieve baseline-relative spacing
+            int nameToPresenceSpacing = scaledSectionSpacing - nameDescentVal - nameTextBottomOffset - presenceAndBelowTopOffset;
+            return ItemInfo.catimgs(nameToPresenceSpacing, nameLine, presenceAndBelow);
         } else if (nameLine != null) {
             return nameLine;
-        } else if (contentAndBelow != null) {
-            return contentAndBelow;
+        } else if (presenceAndBelow != null) {
+            return presenceAndBelow;
         }
 
         return null;
@@ -1173,6 +1263,46 @@ public class NTooltip {
             x += hSpacing;
             g.drawImage(timeImg, x, textY, null);
         }
+
+        // Track text position for spacing calculations
+        int textBottomOffset = canvasHeight - textY - textHeight;
+
+        g.dispose();
+        return new LineResult(result, textY, textBottomOffset);
+    }
+
+    /**
+     * Render the Presence line: "Presence: x/y"
+     * Color is based on percentage like wear (red <= 20%, yellow <= 60%, green > 60%).
+     * Returns LineResult with text position info for proper spacing.
+     */
+    private static LineResult renderPresenceLine(int current, int max) {
+        // Calculate percentage for color coding
+        int percentage = (int) ((current * 100.0) / max);
+
+        // Apply wear-like color logic
+        Color presenceColor;
+        if (percentage <= 20) {
+            presenceColor = new Color(255, 80, 80);  // Red
+        } else if (percentage <= 60) {
+            presenceColor = new Color(255, 255, 80);  // Yellow
+        } else {
+            presenceColor = new Color(80, 255, 80);  // Green
+        }
+
+        // Render with name foundry (12px semibold)
+        String presenceText = "Presence: " + current + "/" + max;
+        BufferedImage presenceImg = getNameFoundry().render(presenceText, presenceColor).img;
+
+        int textHeight = presenceImg.getHeight();
+        int canvasHeight = textHeight;
+
+        BufferedImage result = TexI.mkbuf(new Coord(presenceImg.getWidth(), canvasHeight));
+        Graphics g = result.getGraphics();
+
+        // Text is vertically centered (textY = 0 since there are no icons to center against)
+        int textY = 0;
+        g.drawImage(presenceImg, 0, textY, null);
 
         // Track text position for spacing calculations
         int textBottomOffset = canvasHeight - textY - textHeight;
@@ -1799,6 +1929,7 @@ public class NTooltip {
         }
 
         int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);
+        int bodyDescentVal = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
 
         // First pass: calculate max widths for tabular alignment
         int maxStatNameWidth = 0;
@@ -1862,7 +1993,7 @@ public class NTooltip {
                 totalHeight += line.image.getHeight();
             } else {
                 // Add spacing, adjusted for text offsets
-                int adjustedSpacing = scaledInternalSpacing - line.textTopOffset - prevTextBottomOffset;
+                int adjustedSpacing = scaledInternalSpacing - bodyDescentVal - line.textTopOffset - prevTextBottomOffset;
                 totalHeight += adjustedSpacing + line.image.getHeight();
             }
             prevTextBottomOffset = line.textBottomOffset;
@@ -1877,7 +2008,7 @@ public class NTooltip {
         for (int i = 0; i < statLines.size(); i++) {
             LineResult line = statLines.get(i);
             if (i > 0) {
-                int adjustedSpacing = scaledInternalSpacing - line.textTopOffset - prevTextBottomOffset;
+                int adjustedSpacing = scaledInternalSpacing - bodyDescentVal - line.textTopOffset - prevTextBottomOffset;
                 y += adjustedSpacing;
             }
             cg.drawImage(line.image, 0, y, null);
@@ -1935,6 +2066,10 @@ public class NTooltip {
                 if (tip instanceof ISlots) {
                     continue;
                 }
+                // Skip Slotted - we render gilding recipes ourselves
+                if (tip instanceof Slotted) {
+                    continue;
+                }
                 // Skip slots_alt.ISlots (different class, detected by name)
                 String tipClassName = tip.getClass().getSimpleName();
                 String tipFullName = tip.getClass().getName();
@@ -1979,6 +2114,10 @@ public class NTooltip {
                 if (tip instanceof ItemInfo.AdHoc) {
                     continue;
                 }
+                // Skip Pagina - we render it ourselves with custom fonts
+                if (tip instanceof ItemInfo.Pagina) {
+                    continue;
+                }
                 l.add(tip);
                 hasTips = true;
             }
@@ -1999,5 +2138,83 @@ public class NTooltip {
             // Layout had no visible content
             return null;
         }
+    }
+
+    /**
+     * Public wrapper for renderGildingChanceLine - used by NRecipeTooltip.
+     * Returns LineResult with image and text offset info.
+     */
+    public static LineResult renderGildingChanceLinePublic(double pmin, double pmax, Resource[] attrs) {
+        return renderGildingChanceLine(pmin, pmax, attrs);
+    }
+
+    /**
+     * Public wrapper for rendering gilding stats from sub info list - used by NRecipeTooltip.
+     * Extracts stats from the sub info and renders them as a section.
+     */
+    public static LineResult renderGildingStatsPublic(List<ItemInfo> subInfo) {
+        java.util.List<GildingStatData> stats = extractAttrModStats(subInfo);
+        if (stats == null || stats.isEmpty()) {
+            return null;
+        }
+        return renderBaseStatsSection(stats);
+    }
+
+    /**
+     * Render Pagina description text with word wrapping and custom fonts.
+     * Uses 9px regular font in white color.
+     */
+    private static BufferedImage renderPaginaText(String text, int maxWidth) {
+        if (text == null || text.isEmpty()) return null;
+
+        Text.Foundry fnd = getResourceFoundry();  // 9px regular
+        Color textColor = Color.WHITE;
+
+        // Create temporary image to get font metrics
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g2d = tmp.createGraphics();
+        java.awt.FontMetrics fm = g2d.getFontMetrics(fnd.font);
+        g2d.dispose();
+
+        // Split text into words and wrap
+        String[] words = text.split("\\s+");
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        StringBuilder currentLine = new StringBuilder();
+
+        for (String word : words) {
+            if (currentLine.length() == 0) {
+                currentLine.append(word);
+            } else {
+                String testLine = currentLine + " " + word;
+                int testWidth = fm.stringWidth(testLine);
+                if (testWidth <= maxWidth) {
+                    currentLine.append(" ").append(word);
+                } else {
+                    // Line is full, start new line
+                    lines.add(currentLine.toString());
+                    currentLine = new StringBuilder(word);
+                }
+            }
+        }
+        // Add last line
+        if (currentLine.length() > 0) {
+            lines.add(currentLine.toString());
+        }
+
+        if (lines.isEmpty()) return null;
+
+        // Render each line and crop top
+        java.util.List<BufferedImage> lineImages = new java.util.ArrayList<>();
+        for (String line : lines) {
+            BufferedImage lineImg = fnd.render(line, textColor).img;
+            lineImages.add(TooltipStyle.cropTopOnly(lineImg));
+        }
+
+        // Use baseline-to-top spacing within Pagina text
+        int descent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_RESOURCE);  // 9px font
+        int lineSpacing = UI.scale(2) - descent;
+        if (lineSpacing < 0) lineSpacing = 0;
+
+        return ItemInfo.catimgs(lineSpacing, lineImages.toArray(new BufferedImage[0]));
     }
 }
