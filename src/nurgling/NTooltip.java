@@ -13,7 +13,9 @@ import nurgling.styles.TooltipStyle;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -2163,58 +2165,24 @@ public class NTooltip {
     /**
      * Render Pagina description text with word wrapping and custom fonts.
      * Uses 9px regular font in white color.
+     * Handles RichText formatting codes like $col[r,g,b]{text}.
      */
     private static BufferedImage renderPaginaText(String text, int maxWidth) {
         if (text == null || text.isEmpty()) return null;
 
-        Text.Foundry fnd = getResourceFoundry();  // 9px regular
-        Color textColor = Color.WHITE;
+        // Create RichText.Foundry with 9px regular font and white color
+        Map<java.text.AttributedCharacterIterator.Attribute, Object> attrs = new HashMap<>();
+        attrs.put(java.awt.font.TextAttribute.FAMILY, "SansSerif");
+        attrs.put(java.awt.font.TextAttribute.SIZE, UI.scale(9.0f));
+        attrs.put(java.awt.font.TextAttribute.FOREGROUND, Color.WHITE);
 
-        // Create temporary image to get font metrics
-        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        java.awt.Graphics2D g2d = tmp.createGraphics();
-        java.awt.FontMetrics fm = g2d.getFontMetrics(fnd.font);
-        g2d.dispose();
+        RichText.Foundry fnd = new RichText.Foundry(attrs);
+        fnd.aa(true);  // Enable antialiasing
 
-        // Split text into words and wrap
-        String[] words = text.split("\\s+");
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        StringBuilder currentLine = new StringBuilder();
+        // Render with RichText to handle formatting codes
+        RichText richText = fnd.render(text, maxWidth);
 
-        for (String word : words) {
-            if (currentLine.length() == 0) {
-                currentLine.append(word);
-            } else {
-                String testLine = currentLine + " " + word;
-                int testWidth = fm.stringWidth(testLine);
-                if (testWidth <= maxWidth) {
-                    currentLine.append(" ").append(word);
-                } else {
-                    // Line is full, start new line
-                    lines.add(currentLine.toString());
-                    currentLine = new StringBuilder(word);
-                }
-            }
-        }
-        // Add last line
-        if (currentLine.length() > 0) {
-            lines.add(currentLine.toString());
-        }
-
-        if (lines.isEmpty()) return null;
-
-        // Render each line and crop top
-        java.util.List<BufferedImage> lineImages = new java.util.ArrayList<>();
-        for (String line : lines) {
-            BufferedImage lineImg = fnd.render(line, textColor).img;
-            lineImages.add(TooltipStyle.cropTopOnly(lineImg));
-        }
-
-        // Use baseline-to-top spacing within Pagina text
-        int descent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_RESOURCE);  // 9px font
-        int lineSpacing = UI.scale(2) - descent;
-        if (lineSpacing < 0) lineSpacing = 0;
-
-        return ItemInfo.catimgs(lineSpacing, lineImages.toArray(new BufferedImage[0]));
+        // Return the cropped image
+        return TooltipStyle.cropTopOnly(richText.img);
     }
 }
