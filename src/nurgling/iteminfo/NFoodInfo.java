@@ -198,10 +198,14 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
      * Convenience wrapper for composeElements with just icon + text.
      */
     private static IconLineResult composeIconLine(BufferedImage icon, BufferedImage textLine) {
+        return composeIconLine(icon, textLine, UI.scale(2));
+    }
+
+    private static IconLineResult composeIconLine(BufferedImage icon, BufferedImage textLine, int gap) {
         List<LineElement> elements = new ArrayList<>();
         elements.add(LineElement.icon(icon));
         elements.add(LineElement.text(textLine));
-        return composeElements(UI.scale(2), elements);
+        return composeElements(gap, elements);
     }
 
 
@@ -509,9 +513,90 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
             label("  FEP/Hunger: "), value(Utils.odformat2(fepSum / (100 * glut), 2), TooltipStyle.COLOR_FOOD_FEP_HUNGER)));
         l.cmp.add(fepLine, Coord.of(0, l.cmp.sz.y + lineSpacing));
 
+        // ===== Food Effects (10px after FEP Sum, 10px before stats) =====
+        // Extract FoodBuff effects from Effect.info arrays and render with custom font
+        // Track text offsets for proper baseline-relative spacing
+        int prevTextBottomOffset = 0;  // FEP Sum is text-only, so offset is 0
+
+        for (int i = 0; i < efs.length; i++) {
+            if (efs[i].info == null) continue;
+
+            // Find FoodBuff tip in the effect's info list
+            ItemInfo.Tip foodBuffTip = null;
+            for (ItemInfo ii : efs[i].info) {
+                String className = ii.getClass().getName();
+                if (className.contains("FoodBuff") || className.contains("ft_buff")) {
+                    if (ii instanceof ItemInfo.Tip) {
+                        foodBuffTip = (ItemInfo.Tip) ii;
+                        break;
+                    }
+                }
+            }
+
+            if (foodBuffTip != null) {
+                // Render the full effect line (icon + text)
+                Layout effectLayout = new Layout(foodBuffTip.owner);
+                foodBuffTip.layout(effectLayout);
+                BufferedImage rawImg = effectLayout.render();
+
+                if (rawImg != null) {
+                    // Extract icon from left side (16 pixels at scale 1)
+                    int rawIconSize = UI.scale(16);
+                    BufferedImage rawIcon = rawImg.getSubimage(0, 0,
+                        Math.min(rawIconSize, rawImg.getWidth()),
+                        rawImg.getHeight());
+                    BufferedImage scaledIcon = scaleIcon(rawIcon);
+
+                    // Extract the text string from the Resource
+                    String effectText = null;
+                    try {
+                        // Get the val$res field which contains the buff resource
+                        java.lang.reflect.Field resField = foodBuffTip.getClass().getDeclaredField("val$res");
+                        resField.setAccessible(true);
+                        Object resIndir = resField.get(foodBuffTip);
+
+                        // Indir has a get() method to get the actual Resource
+                        if (resIndir instanceof Indir) {
+                            Resource res = ((Indir<Resource>) resIndir).get();
+                            // Get the tooltip text from the resource
+                            effectText = res.flayer(Resource.tooltip).text();
+                        }
+                    } catch (Exception e) {
+                        // Couldn't extract text, will fall back to image extraction
+                    }
+
+                    BufferedImage textImg;
+                    if (effectText != null && !effectText.isEmpty()) {
+                        // Render with Open Sans regular 11px
+                        textImg = TooltipStyle.cropTopOnly(
+                            TooltipStyle.createFoundry(false, 11, Color.WHITE).render(effectText).img
+                        );
+                    } else {
+                        // Fallback: extract text from original rendered image
+                        int textStartX = rawIconSize;
+                        textImg = rawImg.getSubimage(
+                            Math.min(textStartX, rawImg.getWidth() - 1), 0,
+                            Math.max(1, rawImg.getWidth() - textStartX),
+                            rawImg.getHeight()
+                        );
+                        textImg = TooltipStyle.cropTopOnly(textImg);
+                    }
+
+                    // Compose icon and text with 3px gap
+                    IconLineResult result = composeIconLine(scaledIcon, textImg, UI.scale(3));
+
+                    // Apply baseline-relative spacing: 10px from FEP Sum line
+                    int adjustedSpacing = groupSpacing - result.textTopOffset - prevTextBottomOffset;
+                    l.cmp.add(result.image, Coord.of(0, l.cmp.sz.y + adjustedSpacing));
+
+                    // Track for next section (stats)
+                    prevTextBottomOffset = result.textBottomOffset;
+                }
+            }
+        }
+
         // ===== GROUP 2: Stats (10px gap before, 7px between each stat) =====
-        // Track previous line's text bottom offset for proper spacing
-        int prevTextBottomOffset = 0;  // For text-only lines, this is 0
+        // prevTextBottomOffset is already tracked from effect line above
 
         // First pass: calculate column widths for tabular alignment
         int maxNameWidth = 0;
@@ -574,22 +659,6 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
 
             // Use text bottom offset for next iteration (not same as top due to descent shift)
             prevTextBottomOffset = result.textBottomOffset;
-            firstStat = false;
-        }
-
-        // Effects (continue in stats group) - these are text-only lines
-        for (int i = 0; i < efs.length; i++) {
-            BufferedImage efi = ItemInfo.longtip(efs[i].info);
-            if (efi == null) continue;
-            if (efs[i].p != 1) {
-                efi = catimgsh(0, efi, label(" "), labelColored("(" + (int) Math.round(efs[i].p * 100) + "% chance)", TooltipStyle.COLOR_PERCENTAGE));
-            }
-            efi = TooltipStyle.cropTopOnly(efi);
-            int baseSpacing = firstStat ? groupSpacing : lineSpacing;
-            // Adjust for previous icon line's text bottom offset
-            int adjustedSpacing = baseSpacing - prevTextBottomOffset;
-            l.cmp.add(efi, Coord.of(0, l.cmp.sz.y + adjustedSpacing));
-            prevTextBottomOffset = 0;  // Text-only line has no offset
             firstStat = false;
         }
 
