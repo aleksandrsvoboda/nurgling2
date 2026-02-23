@@ -502,6 +502,29 @@ public class NTooltip {
 
         ItemInfo.Owner owner = info.get(0).owner;
 
+        // DEBUG: Log all classes and all Tip fields
+        StringBuilder classLog = new StringBuilder("Tooltip classes: ");
+        for (ItemInfo ii : info) {
+            classLog.append(ii.getClass().getName()).append(", ");
+
+            // Log all Tip subclass fields to find Presence
+            if (ii instanceof ItemInfo.Tip && !(ii instanceof ItemInfo.Name) && !(ii instanceof ItemInfo.Pagina) && !(ii instanceof ItemInfo.AdHoc)) {
+                System.out.println("=== Tip found: " + ii.getClass().getName() + " ===");
+                try {
+                    java.lang.reflect.Field[] fields = ii.getClass().getDeclaredFields();
+                    for (java.lang.reflect.Field field : fields) {
+                        field.setAccessible(true);
+                        Object value = field.get(ii);
+                        System.out.println("  Field: " + field.getName() + " = " + value + " (type: " + field.getType().getName() + ")");
+                    }
+                } catch (Exception e) {
+                    System.out.println("  Error: " + e.getMessage());
+                }
+                System.out.println("======================");
+            }
+        }
+        System.out.println(classLog.toString());
+
         // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, and weapon stats
         String nameText = null;
         QBuff qbuff = null;
@@ -532,14 +555,35 @@ public class NTooltip {
         Object baseAttrMod = null;  // Base item stats (non-gildable)
         String adHocText = null;  // AdHoc text (e.g., "Memories of pain")
         String paginaText = null;  // Pagina description text
+        Integer presenceCurrent = null;  // Presence current value (x in "Presence: x/y")
+        Integer presenceMax = null;      // Presence max value (y in "Presence: x/y")
         for (ItemInfo ii : info) {
             String className = ii.getClass().getSimpleName();
             String fullName = ii.getClass().getName();
 
-            // Capture AdHoc text (e.g., "Memories of pain")
+            // Capture AdHoc text (e.g., "Memories of pain" or "Presence: 22511/75528")
             if (ii instanceof ItemInfo.AdHoc) {
                 ItemInfo.AdHoc adHoc = (ItemInfo.AdHoc) ii;
-                adHocText = adHoc.str.text;
+                String adhocStr = adHoc.str.text;
+
+                // Check if this is a Presence field
+                if (adhocStr != null && adhocStr.startsWith("Presence: ")) {
+                    try {
+                        // Parse "Presence: x/y" format
+                        String presenceValues = adhocStr.substring("Presence: ".length());
+                        String[] parts = presenceValues.split("/");
+                        if (parts.length == 2) {
+                            presenceCurrent = Integer.parseInt(parts[0].trim());
+                            presenceMax = Integer.parseInt(parts[1].trim());
+                        }
+                    } catch (NumberFormatException e) {
+                        // If parsing fails, treat as regular AdHoc text
+                        adHocText = adhocStr;
+                    }
+                } else {
+                    // Regular AdHoc text (not Presence)
+                    adHocText = adhocStr;
+                }
             }
 
             // Capture Pagina description text
@@ -698,6 +742,16 @@ public class NTooltip {
             nameLineResult = renderNameLine(nameText, qbuff, wearPercent, remainingTime, starred, gildingLeft, gildingTotal);
             nameLine = nameLineResult.image;  // Don't crop - we need accurate text position
             nameTextBottomOffset = nameLineResult.textBottomOffset;
+        }
+
+        // Render Presence line (e.g., "Presence: 22511/75528")
+        LineResult presenceLineResult = null;
+        BufferedImage presenceLine = null;
+        int presenceTextBottomOffset = 0;
+        if (presenceCurrent != null && presenceMax != null) {
+            presenceLineResult = renderPresenceLine(presenceCurrent, presenceMax);
+            presenceLine = presenceLineResult.image;
+            presenceTextBottomOffset = presenceLineResult.textBottomOffset;
         }
 
         // Render content line if there's content
@@ -1063,22 +1117,36 @@ public class NTooltip {
             contentAndBelowTopOffset = 0;  // statsAndRes is cropped
         }
 
-        // Then combine nameLine with contentAndBelow using 10px section spacing
-        // Note: Outer padding is handled by NWItem.PaddedTip
-        if (nameLine != null && contentAndBelow != null) {
-            // Account for text position within content canvas to achieve baseline-relative spacing
-            // Use contentTextTopOffset for vessels with content line, otherwise use tracked top offset
+        // Insert Presence line between name and contentAndBelow if present
+        BufferedImage presenceAndBelow = null;
+        int presenceAndBelowTopOffset = 0;
+        if (presenceLine != null && contentAndBelow != null) {
+            // Combine presence with contentAndBelow (10px section spacing)
             int topOffset = (contentLine != null) ? contentTextTopOffset : contentAndBelowTopOffset;
-            int nameToContentSpacing = scaledSectionSpacing - nameDescentVal - nameTextBottomOffset - topOffset;
+            int presenceToContentSpacing = scaledSectionSpacing - nameDescentVal - presenceTextBottomOffset - topOffset;
             if (contentLine != null) {
-                // Content line text images have internal padding not captured by textTopOffset
-                nameToContentSpacing -= UI.scale(4);
+                presenceToContentSpacing -= UI.scale(4);
             }
-            return ItemInfo.catimgs(nameToContentSpacing, nameLine, contentAndBelow);
+            presenceAndBelow = ItemInfo.catimgs(presenceToContentSpacing, presenceLine, contentAndBelow);
+            presenceAndBelowTopOffset = presenceLineResult.textTopOffset;
+        } else if (presenceLine != null) {
+            presenceAndBelow = presenceLine;
+            presenceAndBelowTopOffset = presenceLineResult.textTopOffset;
+        } else {
+            presenceAndBelow = contentAndBelow;
+            presenceAndBelowTopOffset = contentAndBelowTopOffset;
+        }
+
+        // Then combine nameLine with presenceAndBelow (or contentAndBelow if no presence) using 10px section spacing
+        // Note: Outer padding is handled by NWItem.PaddedTip
+        if (nameLine != null && presenceAndBelow != null) {
+            // Account for text position within presence/content canvas to achieve baseline-relative spacing
+            int nameToPresenceSpacing = scaledSectionSpacing - nameDescentVal - nameTextBottomOffset - presenceAndBelowTopOffset;
+            return ItemInfo.catimgs(nameToPresenceSpacing, nameLine, presenceAndBelow);
         } else if (nameLine != null) {
             return nameLine;
-        } else if (contentAndBelow != null) {
-            return contentAndBelow;
+        } else if (presenceAndBelow != null) {
+            return presenceAndBelow;
         }
 
         return null;
@@ -1218,6 +1286,46 @@ public class NTooltip {
             x += hSpacing;
             g.drawImage(timeImg, x, textY, null);
         }
+
+        // Track text position for spacing calculations
+        int textBottomOffset = canvasHeight - textY - textHeight;
+
+        g.dispose();
+        return new LineResult(result, textY, textBottomOffset);
+    }
+
+    /**
+     * Render the Presence line: "Presence: x/y"
+     * Color is based on percentage like wear (red <= 20%, yellow <= 60%, green > 60%).
+     * Returns LineResult with text position info for proper spacing.
+     */
+    private static LineResult renderPresenceLine(int current, int max) {
+        // Calculate percentage for color coding
+        int percentage = (int) ((current * 100.0) / max);
+
+        // Apply wear-like color logic
+        Color presenceColor;
+        if (percentage <= 20) {
+            presenceColor = new Color(255, 80, 80);  // Red
+        } else if (percentage <= 60) {
+            presenceColor = new Color(255, 255, 80);  // Yellow
+        } else {
+            presenceColor = new Color(80, 255, 80);  // Green
+        }
+
+        // Render with name foundry (12px semibold)
+        String presenceText = "Presence: " + current + "/" + max;
+        BufferedImage presenceImg = getNameFoundry().render(presenceText, presenceColor).img;
+
+        int textHeight = presenceImg.getHeight();
+        int canvasHeight = textHeight;
+
+        BufferedImage result = TexI.mkbuf(new Coord(presenceImg.getWidth(), canvasHeight));
+        Graphics g = result.getGraphics();
+
+        // Text is vertically centered (textY = 0 since there are no icons to center against)
+        int textY = 0;
+        g.drawImage(presenceImg, 0, textY, null);
 
         // Track text position for spacing calculations
         int textBottomOffset = canvasHeight - textY - textHeight;

@@ -70,6 +70,13 @@ public class NRecipeTooltip {
         BufferedImage ret = TooltipStyle.cropTopOnly(renderName(name));
 
         if (info != null && !info.isEmpty()) {
+            // DEBUG: Log all recipe classes
+            StringBuilder classLog = new StringBuilder("Recipe classes: ");
+            for (ItemInfo ii : info) {
+                classLog.append(ii.getClass().getName()).append(", ");
+            }
+            System.out.println(classLog.toString());
+
             // Extract Inputs, Skills, Cost, Slotted (gilding), and Pagina
             Object inputsInfo = null;
             Object skillsInfo = null;
