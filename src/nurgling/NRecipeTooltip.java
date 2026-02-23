@@ -1,6 +1,7 @@
 package nurgling;
 
 import haven.*;
+import haven.res.ui.tt.slot.Slotted;
 import nurgling.styles.TooltipStyle;
 
 import java.awt.*;
@@ -69,10 +70,11 @@ public class NRecipeTooltip {
         BufferedImage ret = TooltipStyle.cropTopOnly(renderName(name));
 
         if (info != null && !info.isEmpty()) {
-            // Extract Inputs, Skills, Cost, and Pagina
+            // Extract Inputs, Skills, Cost, Slotted (gilding), and Pagina
             Object inputsInfo = null;
             Object skillsInfo = null;
             Object costInfo = null;
+            Slotted slotted = null;
             String paginaStr = null;
 
             for (ItemInfo ii : info) {
@@ -83,6 +85,8 @@ public class NRecipeTooltip {
                     skillsInfo = ii;
                 } else if (className.equals("Cost")) {
                     costInfo = ii;
+                } else if (ii instanceof Slotted) {
+                    slotted = (Slotted) ii;
                 } else if (ii instanceof ItemInfo.Pagina) {
                     paginaStr = ((ItemInfo.Pagina) ii).str;
                 }
@@ -92,6 +96,16 @@ public class NRecipeTooltip {
             BufferedImage inputsLine = null;
             if (inputsInfo != null) {
                 inputsLine = TooltipStyle.cropTopOnly(renderInputsLine(inputsInfo));
+            }
+
+            // Render Gilding chance line and stats
+            BufferedImage gildingChanceLine = null;
+            BufferedImage gildingStatsImg = null;
+            if (slotted != null) {
+                gildingChanceLine = renderGildingChanceLine(slotted.pmin, slotted.pmax, slotted.attrs);
+                if (slotted.sub != null && !slotted.sub.isEmpty()) {
+                    gildingStatsImg = renderGildingStats(slotted.sub);
+                }
             }
 
             // Render Skills line
@@ -127,6 +141,16 @@ public class NRecipeTooltip {
             if (inputsLine != null) {
                 int spacing = UI.scale(7) - nameDescent;
                 ret = ItemInfo.catimgs(spacing, ret, inputsLine);
+                hasBodyContent = true;
+            }
+            if (gildingChanceLine != null) {
+                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, gildingChanceLine);
+                hasBodyContent = true;
+            }
+            if (gildingStatsImg != null) {
+                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, gildingStatsImg);
                 hasBodyContent = true;
             }
             if (skillsLine != null) {
@@ -437,5 +461,23 @@ public class NRecipeTooltip {
         // Combine paragraphs with 10px spacing between them
         int paragraphSpacing = UI.scale(10);
         return ItemInfo.catimgs(paragraphSpacing, paragraphImages.toArray(new BufferedImage[0]));
+    }
+
+    /**
+     * Render gilding chance line: "Gilding chance: X% to Y%" with attribute icons.
+     * Reuses rendering logic from NTooltip.
+     */
+    private static BufferedImage renderGildingChanceLine(double pmin, double pmax, Resource[] attrs) {
+        // Delegate to NTooltip's rendering method
+        return NTooltip.renderGildingChanceLinePublic(pmin, pmax, attrs);
+    }
+
+    /**
+     * Render gilding stats from the sub info list.
+     * Extracts stats using NTooltip's extraction method and renders them.
+     */
+    private static BufferedImage renderGildingStats(List<ItemInfo> subInfo) {
+        // Delegate to NTooltip's rendering method
+        return NTooltip.renderGildingStatsPublic(subInfo);
     }
 }

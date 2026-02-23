@@ -2025,4 +2025,26 @@ public class NTooltip {
             return null;
         }
     }
+
+    /**
+     * Public wrapper for renderGildingChanceLine - used by NRecipeTooltip.
+     * Returns just the image without LineResult metadata.
+     */
+    public static BufferedImage renderGildingChanceLinePublic(double pmin, double pmax, Resource[] attrs) {
+        LineResult result = renderGildingChanceLine(pmin, pmax, attrs);
+        return result != null ? result.image : null;
+    }
+
+    /**
+     * Public wrapper for rendering gilding stats from sub info list - used by NRecipeTooltip.
+     * Extracts stats from the sub info and renders them as a section.
+     */
+    public static BufferedImage renderGildingStatsPublic(List<ItemInfo> subInfo) {
+        java.util.List<GildingStatData> stats = extractAttrModStats(subInfo);
+        if (stats == null || stats.isEmpty()) {
+            return null;
+        }
+        LineResult result = renderBaseStatsSection(stats);
+        return result != null ? result.image : null;
+    }
 }
