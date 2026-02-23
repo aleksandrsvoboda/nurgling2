@@ -531,6 +531,7 @@ public class NTooltip {
         Object islotsObj = null;  // Can be ISlots or slots_alt.ISlots
         Object baseAttrMod = null;  // Base item stats (non-gildable)
         String adHocText = null;  // AdHoc text (e.g., "Memories of pain")
+        String paginaText = null;  // Pagina description text
         for (ItemInfo ii : info) {
             String className = ii.getClass().getSimpleName();
             String fullName = ii.getClass().getName();
@@ -539,6 +540,12 @@ public class NTooltip {
             if (ii instanceof ItemInfo.AdHoc) {
                 ItemInfo.AdHoc adHoc = (ItemInfo.AdHoc) ii;
                 adHocText = adHoc.str.text;
+            }
+
+            // Capture Pagina description text
+            if (ii instanceof ItemInfo.Pagina) {
+                ItemInfo.Pagina pagina = (ItemInfo.Pagina) ii;
+                paginaText = pagina.str;
             }
 
             // Capture base AttrMod (non-gilding stats)
@@ -807,6 +814,12 @@ public class NTooltip {
         // Render other tips (excluding Name, QBuff, Contents, Wear, Gast which we've handled)
         BufferedImage otherTips = TooltipStyle.cropTopOnly(renderOtherTips(info, contents != null));
 
+        // Render Pagina description with word wrapping at 200px
+        BufferedImage paginaImg = null;
+        if (paginaText != null && !paginaText.isEmpty()) {
+            paginaImg = renderPaginaText(paginaText, UI.scale(200));
+        }
+
         // Render AdHoc line (e.g., "Memories of pain") - same style as resource
         BufferedImage adHocLine = null;
         if (adHocText != null && !adHocText.isEmpty()) {
@@ -845,13 +858,25 @@ public class NTooltip {
             adHocAndRes = resLine;
         }
 
-        BufferedImage statsAndRes = null;
-        if (otherTips != null && adHocAndRes != null) {
-            // 10px from otherTips (body text) baseline to adHocLine/resLine top
-            int statsToAdHocSpacing = scaledSectionSpacing - bodyDescentVal;
-            statsAndRes = ItemInfo.catimgs(statsToAdHocSpacing, otherTips, adHocAndRes);
+        // Combine otherTips with Pagina (10px spacing)
+        BufferedImage tipsAndPagina = null;
+        if (otherTips != null && paginaImg != null) {
+            int tipsToPaginaSpacing = scaledSectionSpacing - bodyDescentVal;
+            tipsAndPagina = ItemInfo.catimgs(tipsToPaginaSpacing, otherTips, paginaImg);
         } else if (otherTips != null) {
-            statsAndRes = otherTips;
+            tipsAndPagina = otherTips;
+        } else if (paginaImg != null) {
+            tipsAndPagina = paginaImg;
+        }
+
+        // Combine tipsAndPagina with adHocAndRes (10px spacing)
+        BufferedImage statsAndRes = null;
+        if (tipsAndPagina != null && adHocAndRes != null) {
+            // 10px from tipsAndPagina (body text) baseline to adHocLine/resLine top
+            int statsToAdHocSpacing = scaledSectionSpacing - bodyDescentVal;
+            statsAndRes = ItemInfo.catimgs(statsToAdHocSpacing, tipsAndPagina, adHocAndRes);
+        } else if (tipsAndPagina != null) {
+            statsAndRes = tipsAndPagina;
         } else if (adHocAndRes != null) {
             statsAndRes = adHocAndRes;
         }
@@ -2004,6 +2029,10 @@ public class NTooltip {
                 if (tip instanceof ItemInfo.AdHoc) {
                     continue;
                 }
+                // Skip Pagina - we render it ourselves with custom fonts
+                if (tip instanceof ItemInfo.Pagina) {
+                    continue;
+                }
                 l.add(tip);
                 hasTips = true;
             }
@@ -2044,5 +2073,63 @@ public class NTooltip {
             return null;
         }
         return renderBaseStatsSection(stats);
+    }
+
+    /**
+     * Render Pagina description text with word wrapping and custom fonts.
+     * Uses 9px regular font in white color.
+     */
+    private static BufferedImage renderPaginaText(String text, int maxWidth) {
+        if (text == null || text.isEmpty()) return null;
+
+        Text.Foundry fnd = getResourceFoundry();  // 9px regular
+        Color textColor = Color.WHITE;
+
+        // Create temporary image to get font metrics
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g2d = tmp.createGraphics();
+        java.awt.FontMetrics fm = g2d.getFontMetrics(fnd.font);
+        g2d.dispose();
+
+        // Split text into words and wrap
+        String[] words = text.split("\\s+");
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        StringBuilder currentLine = new StringBuilder();
+
+        for (String word : words) {
+            if (currentLine.length() == 0) {
+                currentLine.append(word);
+            } else {
+                String testLine = currentLine + " " + word;
+                int testWidth = fm.stringWidth(testLine);
+                if (testWidth <= maxWidth) {
+                    currentLine.append(" ").append(word);
+                } else {
+                    // Line is full, start new line
+                    lines.add(currentLine.toString());
+                    currentLine = new StringBuilder(word);
+                }
+            }
+        }
+        // Add last line
+        if (currentLine.length() > 0) {
+            lines.add(currentLine.toString());
+        }
+
+        if (lines.isEmpty()) return null;
+
+        // Render each line and crop top
+        java.util.List<BufferedImage> lineImages = new java.util.ArrayList<>();
+        for (String line : lines) {
+            BufferedImage lineImg = fnd.render(line, textColor).img;
+            lineImages.add(TooltipStyle.cropTopOnly(lineImg));
+        }
+
+        // Use baseline-to-top spacing within Pagina text
+        int descent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_RESOURCE);  // 9px font
+        int lineSpacing = UI.scale(2) - descent;
+        if (lineSpacing < 0) lineSpacing = 0;
+
+        return ItemInfo.catimgs(lineSpacing, lineImages.toArray(new BufferedImage[0]));
     }
 }
