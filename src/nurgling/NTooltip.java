@@ -501,6 +501,13 @@ public class NTooltip {
 
         ItemInfo.Owner owner = info.get(0).owner;
 
+        // DEBUG: Log all ItemInfo classes for gilding recipes
+        StringBuilder classLog = new StringBuilder("Tooltip classes: ");
+        for (ItemInfo ii : info) {
+            classLog.append(ii.getClass().getName()).append(", ");
+        }
+        System.out.println(classLog.toString());
+
         // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, and weapon stats
         String nameText = null;
         QBuff qbuff = null;
@@ -1799,6 +1806,7 @@ public class NTooltip {
         }
 
         int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);
+        int bodyDescentVal = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
 
         // First pass: calculate max widths for tabular alignment
         int maxStatNameWidth = 0;
@@ -1862,7 +1870,7 @@ public class NTooltip {
                 totalHeight += line.image.getHeight();
             } else {
                 // Add spacing, adjusted for text offsets
-                int adjustedSpacing = scaledInternalSpacing - line.textTopOffset - prevTextBottomOffset;
+                int adjustedSpacing = scaledInternalSpacing - bodyDescentVal - line.textTopOffset - prevTextBottomOffset;
                 totalHeight += adjustedSpacing + line.image.getHeight();
             }
             prevTextBottomOffset = line.textBottomOffset;
@@ -1877,7 +1885,7 @@ public class NTooltip {
         for (int i = 0; i < statLines.size(); i++) {
             LineResult line = statLines.get(i);
             if (i > 0) {
-                int adjustedSpacing = scaledInternalSpacing - line.textTopOffset - prevTextBottomOffset;
+                int adjustedSpacing = scaledInternalSpacing - bodyDescentVal - line.textTopOffset - prevTextBottomOffset;
                 y += adjustedSpacing;
             }
             cg.drawImage(line.image, 0, y, null);
