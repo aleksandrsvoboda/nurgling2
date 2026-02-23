@@ -70,22 +70,22 @@ public class NRecipeTooltip {
         BufferedImage ret = TooltipStyle.cropTopOnly(renderName(name));
 
         if (info != null && !info.isEmpty()) {
-            // DEBUG: Log all recipe classes
-            StringBuilder classLog = new StringBuilder("Recipe classes: ");
-            for (ItemInfo ii : info) {
-                classLog.append(ii.getClass().getName()).append(", ");
-            }
-            System.out.println(classLog.toString());
 
-            // Extract Inputs, Skills, Cost, Slotted (gilding), and Pagina
+            // Extract Inputs, Skills, Cost, Slotted (gilding), Pagina, and equipment stats
             Object inputsInfo = null;
             Object skillsInfo = null;
             Object costInfo = null;
             Slotted slotted = null;
             String paginaStr = null;
+            Object durabilityInfo = null;
+            Object armorInfo = null;
+            Object attrModInfo = null;
+            Object equedInfo = null;
 
             for (ItemInfo ii : info) {
                 String className = ii.getClass().getSimpleName();
+                String fullName = ii.getClass().getName();
+
                 if (className.equals("Inputs")) {
                     inputsInfo = ii;
                 } else if (className.equals("Skills")) {
@@ -96,6 +96,14 @@ public class NRecipeTooltip {
                     slotted = (Slotted) ii;
                 } else if (ii instanceof ItemInfo.Pagina) {
                     paginaStr = ((ItemInfo.Pagina) ii).str;
+                } else if (className.equals("Durability")) {
+                    durabilityInfo = ii;
+                } else if (className.equals("Armor")) {
+                    armorInfo = ii;
+                } else if (className.equals("AttrMod")) {
+                    attrModInfo = ii;
+                } else if (className.equals("Equed")) {
+                    equedInfo = ii;
                 }
             }
 
@@ -103,6 +111,41 @@ public class NRecipeTooltip {
             BufferedImage inputsLine = null;
             if (inputsInfo != null) {
                 inputsLine = TooltipStyle.cropTopOnly(renderInputsLine(inputsInfo));
+            }
+
+            // Render Equed first (goes right after ingredients)
+            BufferedImage equedLine = null;
+            if (equedInfo != null) {
+                equedLine = TooltipStyle.cropTopOnly(renderEqued(equedInfo));
+            }
+
+            // Render other equipment stats (Durability, Armor, AttrMod)
+            List<BufferedImage> otherEquipmentImages = new ArrayList<>();
+
+            if (durabilityInfo != null) {
+                BufferedImage durImg = renderDurability(durabilityInfo);
+                if (durImg != null) otherEquipmentImages.add(durImg);
+            }
+
+            if (armorInfo != null) {
+                BufferedImage armorImg = renderArmor(armorInfo);
+                if (armorImg != null) otherEquipmentImages.add(armorImg);
+            }
+
+            if (attrModInfo != null) {
+                // AttrMod stats - render using NTooltip's extraction method
+                List<ItemInfo> attrModList = new ArrayList<>();
+                attrModList.add((ItemInfo) attrModInfo);
+                NTooltip.LineResult attrModResult = NTooltip.renderGildingStatsPublic(attrModList);
+                if (attrModResult != null) {
+                    otherEquipmentImages.add(attrModResult.image);
+                }
+            }
+
+            // Combine other equipment stats (Durability, Armor, AttrMod)
+            BufferedImage otherEquipmentStats = null;
+            if (!otherEquipmentImages.isEmpty()) {
+                otherEquipmentStats = TooltipStyle.cropTopOnly(combineEquipmentImages(otherEquipmentImages));
             }
 
             // Render Gilding chance line and stats
@@ -152,8 +195,22 @@ public class NRecipeTooltip {
                 prevTextBottomOffset = 0;  // Inputs have icons, reset offset
                 hasBodyContent = true;
             }
+            if (equedLine != null) {
+                // 10px from inputs to Equed
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, equedLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
+                hasBodyContent = true;
+            }
+            if (otherEquipmentStats != null) {
+                // 10px from Equed (or inputs if no Equed) to other equipment stats
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, otherEquipmentStats);
+                prevTextBottomOffset = 0;  // Equipment stats may have icons, reset offset
+                hasBodyContent = true;
+            }
             if (gildingChanceResult != null) {
-                // 10px from ingredients baseline to gilding chance text top
+                // 10px from equipment stats/ingredients baseline to gilding chance text top
                 int spacing = UI.scale(10) - bodyDescent - prevTextBottomOffset - gildingChanceResult.textTopOffset;
                 ret = ItemInfo.catimgs(spacing, ret, gildingChanceResult.image);
                 prevTextBottomOffset = gildingChanceResult.textBottomOffset;
@@ -401,6 +458,105 @@ public class NRecipeTooltip {
         return result;
     }
 
+    /**
+     * Render Durability tip with custom fonts.
+     * Format: "Durability: X/Y" where X is current, Y is max.
+     */
+    private static BufferedImage renderDurability(Object durInfo) {
+        try {
+            Field aField = durInfo.getClass().getDeclaredField("a");
+            Field dField = durInfo.getClass().getDeclaredField("d");
+            aField.setAccessible(true);
+            dField.setAccessible(true);
+            int current = aField.getInt(durInfo);
+            int max = dField.getInt(durInfo);
+
+            String text = "Durability: " + current + "/" + max;
+            return getQuantityFoundry().render(text, Color.WHITE).img;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render Armor tip with custom fonts.
+     * Format: "Armor: X/Y" where X is hard, Y is soft.
+     */
+    private static BufferedImage renderArmor(Object armorInfo) {
+        try {
+            Field hardField = armorInfo.getClass().getDeclaredField("hard");
+            Field softField = armorInfo.getClass().getDeclaredField("soft");
+            hardField.setAccessible(true);
+            softField.setAccessible(true);
+            int hard = hardField.getInt(armorInfo);
+            int soft = softField.getInt(armorInfo);
+
+            String text = "Armor: " + hard + "/" + soft;
+            return getQuantityFoundry().render(text, Color.WHITE).img;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render Equed tip with custom fonts.
+     * Format: "Equipable in: SlotName1, SlotName2, ..."
+     */
+    private static BufferedImage renderEqued(Object equedInfo) {
+        try {
+            // Get the slots field (int[][] - 2D array of slot indices)
+            Field slotsField = equedInfo.getClass().getDeclaredField("slots");
+            slotsField.setAccessible(true);
+            int[][] slots = (int[][]) slotsField.get(equedInfo);
+
+            if (slots == null || slots.length == 0) {
+                return null;
+            }
+
+            // Extract slot names from resources
+            List<String> slotNames = new ArrayList<>();
+            for (int[] slotData : slots) {
+                if (slotData.length > 0) {
+                    int slotIndex = slotData[0];
+                    try {
+                        // Load the resource for this slot (e.g., "gfx/hud/equip/ep0")
+                        Resource slotRes = Resource.local().loadwait("gfx/hud/equip/ep" + slotIndex);
+                        Resource.Tooltip tt = slotRes.flayer(Resource.Tooltip.class);
+                        if (tt != null) {
+                            slotNames.add(tt.text());
+                        }
+                    } catch (Exception e) {
+                        // Skip slots that fail to load
+                    }
+                }
+            }
+
+            if (slotNames.isEmpty()) {
+                return null;
+            }
+
+            String text = "Equipable in: " + String.join(", ", slotNames);
+            return getQuantityFoundry().render(text, Color.WHITE).img;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Combine equipment stat images vertically with no spacing.
+     */
+    private static BufferedImage combineEquipmentImages(List<BufferedImage> images) {
+        if (images == null || images.isEmpty()) {
+            return null;
+        }
+
+        BufferedImage result = images.get(0);
+        for (int i = 1; i < images.size(); i++) {
+            result = ItemInfo.catimgs(0, result, images.get(i));
+        }
+
+        return result;
+    }
 
     /**
      * Render text with word wrapping at specified max width.
