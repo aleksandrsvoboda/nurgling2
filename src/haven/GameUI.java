@@ -1282,8 +1282,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public static final KeyBinding kb_chr = KeyBinding.get("chr", KeyMatch.forchar('T', KeyMatch.C));
     public static final KeyBinding kb_bud = KeyBinding.get("bud", KeyMatch.forchar('B', KeyMatch.C));
     public static final KeyBinding kb_areas = KeyBinding.get("areas", KeyMatch.forchar('L', KeyMatch.C));
-    public static final KeyBinding kb_cookbook = KeyBinding.get("areas", KeyMatch.forchar('L', KeyMatch.C));
-	public static final KeyBinding kb_routes = KeyBinding.get("routes", KeyMatch.forchar('R', KeyMatch.C));
+    public static final KeyBinding kb_cookbook = KeyBinding.get("cookbook", KeyMatch.forchar('K', KeyMatch.C));
 	public static final KeyBinding kb_searchWidget = KeyBinding.get("searchWidget", KeyMatch.forchar('F', KeyMatch.C));
 	public static final KeyBinding kb_blueprints = KeyBinding.get("treegarden", KeyMatch.forchar('P', KeyMatch.C));
 	public static final KeyBinding kb_storage = KeyBinding.get("storage", KeyMatch.forchar('I', KeyMatch.C));
