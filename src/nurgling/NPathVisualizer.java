@@ -315,6 +315,42 @@ public class NPathVisualizer implements RenderTree.Node
     }
 
     /**
+     * Detach from all render tree slots.
+     * Used when demoting session to headless to prevent cross-session rendering.
+     * The path visualizer will no longer be rendered until re-attached.
+     */
+    public void detachFromRenderTree()
+    {
+        synchronized (slots)
+        {
+            // Copy to avoid concurrent modification during iteration
+            List<RenderTree.Slot> slotsToRemove = new ArrayList<>(slots);
+            for (RenderTree.Slot slot : slotsToRemove)
+            {
+                try
+                {
+                    slot.remove();
+                } catch (Exception e)
+                {
+                    System.err.println("[NPathVisualizer] Error detaching slot: " + e.getMessage());
+                }
+            }
+            // slots collection is automatically cleared via removed() callbacks
+        }
+    }
+
+    /**
+     * Check if currently attached to render tree.
+     */
+    public boolean isAttachedToRenderTree()
+    {
+        synchronized (slots)
+        {
+            return !slots.isEmpty();
+        }
+    }
+
+    /**
      * Internal class representing a single visualized path.
      */
     private static class MovingPath implements RenderTree.Node, Rendered

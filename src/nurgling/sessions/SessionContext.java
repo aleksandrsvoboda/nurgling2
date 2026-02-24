@@ -185,9 +185,10 @@ public class SessionContext {
         NGameUI gui = getGameUI();
         if (gui != null && gui.map instanceof NMapView) {
             ((NMapView)gui.map).clickDestination = null;
-            // Clear the path visualizer (moving object paths)
+            // Clear path data and detach from render tree to prevent cross-session rendering
             if (gui.map.glob != null && gui.map.glob.oc != null) {
                 gui.map.glob.oc.paths.clear();
+                gui.map.glob.oc.paths.detachFromRenderTree();
             }
         }
 
@@ -247,6 +248,17 @@ public class SessionContext {
         // Set the GL environment for rendering
         if (ui != null && env != null) {
             ui.env = env;
+        }
+
+        // Re-attach path visualizer to render tree
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.map instanceof NMapView) {
+            NMapView mapView = (NMapView)gui.map;
+            // Only re-attach if not already attached
+            if (mapView.glob != null && mapView.glob.oc != null &&
+                !mapView.glob.oc.paths.isAttachedToRenderTree()) {
+                mapView.basic.add(mapView.glob.oc.paths);
+            }
         }
     }
 

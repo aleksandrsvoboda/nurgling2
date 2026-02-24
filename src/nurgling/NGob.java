@@ -180,15 +180,17 @@ public class NGob
 
     protected void updateMovingInfo(GAttrib a, GAttrib prev)
     {
-        if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null)
+        // Use the gob's own glob instead of active session's glob
+        // This ensures paths are added to the correct session's visualizer
+        if (parent.glob != null && parent.glob.oc != null)
         {
             if (prev instanceof Moving)
             {
-                NUtils.getGameUI().map.glob.oc.paths.removePath((Moving) prev);
+                parent.glob.oc.paths.removePath((Moving) prev);
             }
             if (a instanceof LinMove || a instanceof Homing)
             {
-                NUtils.getGameUI().map.glob.oc.paths.addPath((Moving) a);
+                parent.glob.oc.paths.addPath((Moving) a);
             }
 //            if (NUtils.getGameUI() != null && (me))
 //                NUtils.getGameUI().pathQueue().ifPresent(pathQueue -> pathQueue.movementChange((Gob) this, prev, a));
