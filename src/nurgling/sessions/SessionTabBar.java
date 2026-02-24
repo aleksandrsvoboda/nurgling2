@@ -67,11 +67,25 @@ public class SessionTabBar extends Widget {
     private int dragStartButton = -1;
     private static final int DRAG_THRESHOLD = 3; // pixels to move before starting drag
 
-    /** Keybindings */
-    private static final int MAX_SESSION_HOTKEYS = 10;
-    private KeyBinding[] sessionBindings;
-    private KeyBinding nextSessionBinding;
-    private KeyBinding prevSessionBinding;
+    /** Keybindings - static so they can be accessed from NGameUI.globtype() */
+    public static final KeyBinding kb_session1 = KeyBinding.get("session-1", KeyMatch.forcode(KeyEvent.VK_1, KeyMatch.M));
+    public static final KeyBinding kb_session2 = KeyBinding.get("session-2", KeyMatch.forcode(KeyEvent.VK_2, KeyMatch.M));
+    public static final KeyBinding kb_session3 = KeyBinding.get("session-3", KeyMatch.forcode(KeyEvent.VK_3, KeyMatch.M));
+    public static final KeyBinding kb_session4 = KeyBinding.get("session-4", KeyMatch.forcode(KeyEvent.VK_4, KeyMatch.M));
+    public static final KeyBinding kb_session5 = KeyBinding.get("session-5", KeyMatch.forcode(KeyEvent.VK_5, KeyMatch.M));
+    public static final KeyBinding kb_session6 = KeyBinding.get("session-6", KeyMatch.forcode(KeyEvent.VK_6, KeyMatch.M));
+    public static final KeyBinding kb_session7 = KeyBinding.get("session-7", KeyMatch.forcode(KeyEvent.VK_7, KeyMatch.M));
+    public static final KeyBinding kb_session8 = KeyBinding.get("session-8", KeyMatch.forcode(KeyEvent.VK_8, KeyMatch.M));
+    public static final KeyBinding kb_session9 = KeyBinding.get("session-9", KeyMatch.forcode(KeyEvent.VK_9, KeyMatch.M));
+    public static final KeyBinding kb_session10 = KeyBinding.get("session-10", KeyMatch.forcode(KeyEvent.VK_0, KeyMatch.M));
+    public static final KeyBinding kb_session_next = KeyBinding.get("session-next", KeyMatch.forcode(KeyEvent.VK_CLOSE_BRACKET, KeyMatch.M));
+    public static final KeyBinding kb_session_prev = KeyBinding.get("session-prev", KeyMatch.forcode(KeyEvent.VK_OPEN_BRACKET, KeyMatch.M));
+
+    /** Array of session keybindings for easy iteration */
+    public static final KeyBinding[] SESSION_BINDINGS = {
+        kb_session1, kb_session2, kb_session3, kb_session4, kb_session5,
+        kb_session6, kb_session7, kb_session8, kb_session9, kb_session10
+    };
 
     /** Callback for when add account is clicked */
     private Runnable onAddAccount;
@@ -102,25 +116,6 @@ public class SessionTabBar extends Widget {
             // Fallback to default if Open Sans Semibold not available
             nameFont = Text.std;
         }
-
-        // Initialize keybindings
-        sessionBindings = new KeyBinding[MAX_SESSION_HOTKEYS];
-        for (int i = 0; i < MAX_SESSION_HOTKEYS; i++) {
-            int keyCode = KeyEvent.VK_1 + i;
-            if (i == 9) keyCode = KeyEvent.VK_0; // Alt+0 for session 10
-            sessionBindings[i] = KeyBinding.get(
-                "session-" + (i + 1),
-                KeyMatch.forcode(keyCode, KeyMatch.M)
-            );
-        }
-        nextSessionBinding = KeyBinding.get(
-            "session-next",
-            KeyMatch.forcode(KeyEvent.VK_CLOSE_BRACKET, KeyMatch.M) // Alt+]
-        );
-        prevSessionBinding = KeyBinding.get(
-            "session-prev",
-            KeyMatch.forcode(KeyEvent.VK_OPEN_BRACKET, KeyMatch.M)  // Alt+[
-        );
 
         // Create drag mode label
         label = new TexI(labelFont.render("Sessions").img);
@@ -668,41 +663,4 @@ public class SessionTabBar extends Widget {
         savePosition();
     }
 
-    @Override
-    public boolean keydown(KeyDownEvent ev) {
-        SessionManager sm = SessionManager.getInstance();
-        List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
-
-        if (sessions.isEmpty()) {
-            return super.keydown(ev);
-        }
-
-        // Check per-session hotkeys
-        for (int i = 0; i < Math.min(sessionBindings.length, sessions.size()); i++) {
-            if (sessionBindings[i].key().match(ev.awt)) {
-                sm.switchToSession(sessions.get(i).sessionId);
-                return true;
-            }
-        }
-
-        // Check next session hotkey
-        if (nextSessionBinding.key().match(ev.awt)) {
-            SessionContext active = sm.getActiveSession();
-            int currentIdx = sessions.indexOf(active);
-            int nextIdx = (currentIdx + 1) % sessions.size();
-            sm.switchToSession(sessions.get(nextIdx).sessionId);
-            return true;
-        }
-
-        // Check previous session hotkey
-        if (prevSessionBinding.key().match(ev.awt)) {
-            SessionContext active = sm.getActiveSession();
-            int currentIdx = sessions.indexOf(active);
-            int prevIdx = (currentIdx - 1 + sessions.size()) % sessions.size();
-            sm.switchToSession(sessions.get(prevIdx).sessionId);
-            return true;
-        }
-
-        return super.keydown(ev);
-    }
 }
