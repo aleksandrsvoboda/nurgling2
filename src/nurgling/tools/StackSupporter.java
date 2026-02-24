@@ -112,6 +112,7 @@ public class StackSupporter {
         catExceptions.add("Opened Oyster");
         catExceptions.add("Boiled River Pearl Mussel");
         catExceptions.add("Mammoth Tusk");
+        catExceptions.add("Troll Mushrooms");
     }
 
     private static final NAlias unstackableContainers = new NAlias(
