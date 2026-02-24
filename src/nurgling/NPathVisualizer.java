@@ -321,6 +321,27 @@ public class NPathVisualizer implements RenderTree.Node
      */
     public void detachFromRenderTree()
     {
+        // First, detach all MovingPath children to clear their slots
+        for (MovingPath mp : paths.values())
+        {
+            synchronized (mp.slots)
+            {
+                List<RenderTree.Slot> childSlots = new ArrayList<>(mp.slots);
+                for (RenderTree.Slot slot : childSlots)
+                {
+                    try
+                    {
+                        slot.remove();
+                    } catch (Exception e)
+                    {
+                        // Ignore errors - slot may already be removed
+                    }
+                }
+                mp.slots.clear();
+            }
+        }
+
+        // Then detach the NPathVisualizer itself
         synchronized (slots)
         {
             // Copy to avoid concurrent modification during iteration
@@ -335,7 +356,7 @@ public class NPathVisualizer implements RenderTree.Node
                     System.err.println("[NPathVisualizer] Error detaching slot: " + e.getMessage());
                 }
             }
-            // slots collection is automatically cleared via removed() callbacks
+            slots.clear();
         }
     }
 
@@ -431,6 +452,9 @@ public class NPathVisualizer implements RenderTree.Node
             Collection<RenderTree.Slot> tslots;
             synchronized (slots)
             {
+                // Skip update if detached from render tree
+                if (slots.isEmpty())
+                    return;
                 tslots = new ArrayList<>(slots);
             }
             try
@@ -438,6 +462,7 @@ public class NPathVisualizer implements RenderTree.Node
                 tslots.forEach(RenderTree.Slot::update);
             } catch (Exception ignored)
             {
+                // Ignore SlotRemoved and other render tree exceptions
             }
         }
     }
