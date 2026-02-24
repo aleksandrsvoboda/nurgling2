@@ -296,6 +296,25 @@ public class NPathVisualizer implements RenderTree.Node
     }
 
     /**
+     * Clears all path visualization state.
+     * Used when switching sessions to prevent frozen path lines.
+     */
+    public void clear()
+    {
+        synchronized (moves)
+        {
+            moves.clear();
+        }
+        path = null;
+
+        // Clear all path models to remove any rendered lines
+        for (MovingPath mp : paths.values())
+        {
+            mp.update(null);
+        }
+    }
+
+    /**
      * Internal class representing a single visualized path.
      */
     private static class MovingPath implements RenderTree.Node, Rendered

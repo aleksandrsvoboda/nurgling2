@@ -3,6 +3,7 @@ package nurgling.sessions;
 import haven.*;
 import nurgling.NConfig;
 import nurgling.NGameUI;
+import nurgling.NMapView;
 import nurgling.NUI;
 
 /**
@@ -179,6 +180,16 @@ public class SessionContext {
         }
 
         headless = true;
+
+        // Clear path line visualization - prevents frozen lines when switching back
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.map instanceof NMapView) {
+            ((NMapView)gui.map).clickDestination = null;
+            // Clear the path visualizer (moving object paths)
+            if (gui.map.glob != null && gui.map.glob.oc != null) {
+                gui.map.glob.oc.paths.clear();
+            }
+        }
 
         // If this was the active session, clear it so the next session becomes active
         SessionManager sm = SessionManager.getInstance();
