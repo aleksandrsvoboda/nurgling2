@@ -23,17 +23,17 @@ public class SessionTabBar extends Widget {
     /** Button dimensions */
     public static final int BUTTON_HEIGHT = UI.scale(18);
     public static final int BUTTON_WIDTH = UI.scale(120);
-    /** Close button size */
+    /** Close button size (inside session button, on right) */
     public static final int CLOSE_BTN_SIZE = UI.scale(10);
-    public static final int CLOSE_BTN_MARGIN = UI.scale(3);
+    public static final int CLOSE_BTN_MARGIN = UI.scale(2);
     /** Plus button dimensions */
     public static final int PLUS_BTN_SIZE = UI.scale(18);
     public static final int PLUS_BTN_MARGIN = UI.scale(5);
     /** Padding between buttons */
     public static final int BUTTON_PADDING = UI.scale(3);
-    /** Icon size and margin */
-    public static final int ICON_SIZE = UI.scale(12);
-    public static final int ICON_MARGIN = UI.scale(3);
+    /** Status icon size (outside session button, on right) */
+    public static final int STATUS_ICON_SIZE = UI.scale(18);
+    public static final int STATUS_ICON_MARGIN = UI.scale(3);
 
     /** Colors for different states */
     private static final Color BUTTON_BG = new Color(0x25, 0x2B, 0x29, 0xE5);  // #252B29E5
@@ -51,6 +51,28 @@ public class SessionTabBar extends Widget {
     private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
     private static final Color PLUS_BTN_HOVER = new Color(0x35, 0x3B, 0x39, 0xE5);
     private static final Color PLUS_BTN_BORDER = new Color(0x91, 0x60, 0x2E);  // #91602E
+
+    /** Icon resources */
+    private static Tex gearIcon;
+    private static Tex warningIcon;
+    private static Tex closeNormal, closeHover, closePush;
+    private static Tex addNormal, addHover, addPush;
+
+    static {
+        try {
+            gearIcon = Resource.loadtex("nurgling/hud/sessions/icons/gear");
+            warningIcon = Resource.loadtex("nurgling/hud/sessions/icons/warning");
+            closeNormal = Resource.loadtex("nurgling/hud/sessions/close/10x10");
+            closeHover = Resource.loadtex("nurgling/hud/sessions/close/10x10_hover");
+            closePush = Resource.loadtex("nurgling/hud/sessions/close/10x10_push");
+            addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
+            addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
+            addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
+        } catch (Exception e) {
+            System.err.println("Failed to load session tab icons: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
     /** Font for character names */
     private Text.Foundry nameFont;
@@ -184,22 +206,25 @@ public class SessionTabBar extends Widget {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
 
         if (dragMode) {
-            // Fixed size in drag mode - wider than buttons, tall as 10 buttons
-            // Width includes: close button + spacing + session button + plus button
-            int dragWidth = CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN + UI.scale(40);
-            int dragHeight = 10 * (BUTTON_HEIGHT + BUTTON_PADDING);
+            // Fixed size in drag mode - wider than buttons, tall as 10 buttons + plus button
+            // Width includes: session button + status icon
+            int dragWidth = BUTTON_WIDTH + STATUS_ICON_MARGIN + STATUS_ICON_SIZE + UI.scale(40);
+            int dragHeight = 10 * (BUTTON_HEIGHT + BUTTON_PADDING) + BUTTON_HEIGHT; // +1 for plus button
             this.sz = new Coord(dragWidth, dragHeight);
         } else {
             // Size to fit content in normal mode
             SessionManager sm = SessionManager.getInstance();
             int sessionCount = sm.getSessionCount();
+
+            // Width includes: session button + status icon space
+            int width = BUTTON_WIDTH + STATUS_ICON_MARGIN + STATUS_ICON_SIZE;
+
             if (sessionCount == 0) {
-                // Width includes: close button + spacing + session button + plus button
-                int width = CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN;
+                // Just plus button height
                 this.sz = new Coord(width, BUTTON_HEIGHT);
             } else {
-                int height = sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) - BUTTON_PADDING;
-                int width = CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN;
+                // Sessions + plus button below
+                int height = sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) + BUTTON_HEIGHT;
                 this.sz = new Coord(width, height);
             }
         }
@@ -261,21 +286,19 @@ public class SessionTabBar extends Widget {
             boolean hovered = (buttonIndex == hoveredButton);
             boolean closeHovered = canClose && (buttonIndex == hoveredCloseButton);
 
-            // Draw close button to the left (disabled if only one session)
-            drawCloseButton(g, buttonOffset.x, y, closeHovered, !canClose);
+            // Draw session button with close button inside
+            drawSessionButton(g, buttonOffset.x, y, ctx, hovered, isActive, closeHovered, canClose);
 
-            // Draw session button after close button
-            int sessionButtonX = buttonOffset.x + CLOSE_BTN_SIZE + UI.scale(3);
-            drawSessionButton(g, sessionButtonX, y, ctx, hovered, isActive);
-
-            // Draw plus button next to first session
-            if (buttonIndex == 0) {
-                drawPlusButton(g, y, hoveredButton == -2);
-            }
+            // Draw status icon to the right of session button (outside)
+            int statusIconX = buttonOffset.x + BUTTON_WIDTH + STATUS_ICON_MARGIN;
+            drawStatusIcon(g, statusIconX, y, ctx);
 
             y += BUTTON_HEIGHT + BUTTON_PADDING;
             buttonIndex++;
         }
+
+        // Draw plus button below all sessions
+        drawPlusButton(g, y, hoveredButton == -2);
 
         g.chcolor();
     }
@@ -309,48 +332,38 @@ public class SessionTabBar extends Widget {
     }
 
     private void drawCloseButton(GOut g, int x, int y, boolean hovered, boolean disabled) {
-        int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
-
-        // Draw close button background (grayed out if disabled)
-        if (disabled) {
-            g.chcolor(new Color(80, 80, 80)); // Dark gray for disabled
-        } else {
-            g.chcolor(hovered ? CLOSE_BTN_HOVER : CLOSE_BTN_COLOR);
+        // Choose icon based on state
+        Tex icon = closeNormal;
+        if (!disabled && hovered) {
+            icon = closeHover;
         }
-        g.frect(new Coord(x, closeY), new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE));
 
-        // Draw X (dimmed if disabled)
-        if (disabled) {
-            g.chcolor(new Color(120, 120, 120)); // Gray X for disabled
-        } else {
-            g.chcolor(new Color(255, 255, 255));
+        if (icon != null) {
+            if (disabled) {
+                // Draw dimmed for disabled
+                g.chcolor(120, 120, 120, 180);
+            }
+            g.image(icon, new Coord(x, y));
+            g.chcolor();
         }
-        g.atext("×", new Coord(x + CLOSE_BTN_SIZE / 2, closeY + CLOSE_BTN_SIZE / 2), 0.5, 0.5);
-
-        g.chcolor();
     }
 
     private void drawSessionButton(GOut g, int x, int y, SessionContext ctx, boolean hovered,
-                                    boolean isActive) {
-        // Determine state
+                                    boolean isActive, boolean closeHovered, boolean canClose) {
+        // Determine state colors
         boolean inCombat = ctx.isInCombat();
         boolean runningBot = ctx.isRunningBot();
 
-        // Choose colors and icons based on state priority:
-        // Combat > Bot > Active > Idle
+        // Choose colors based on state priority: Combat > Bot > Active > Idle
         Color borderColor;
         Color textColor;
-        String iconLeft = null;
-        String iconRight = null;
 
         if (inCombat) {
             borderColor = COMBAT_BORDER;
             textColor = COMBAT_TEXT;
-            iconLeft = iconRight = "\u26A0"; // ⚠ warning triangle
         } else if (runningBot) {
             borderColor = BOT_BORDER;
             textColor = BOT_TEXT;
-            iconLeft = iconRight = "\u2699"; // ⚙ gear/cog
         } else if (isActive) {
             borderColor = ACTIVE_BORDER;
             textColor = ACTIVE_TEXT;
@@ -363,37 +376,25 @@ public class SessionTabBar extends Widget {
         g.chcolor(hovered ? BUTTON_BG_HOVER : BUTTON_BG);
         g.frect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
 
-        // Draw button border (2px) - draw two rectangles for 2px border
+        // Draw button border (2px)
         g.chcolor(borderColor);
         g.rect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
         g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
 
-        // Calculate text area (between icons)
-        int textStartX = x + ICON_MARGIN;
-        int textEndX = x + BUTTON_WIDTH - ICON_MARGIN;
+        // Draw close button inside on right
+        int closeX = x + BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
+        int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
+        drawCloseButton(g, closeX, closeY, closeHovered, !canClose);
 
-        // Draw left icon if present
-        if (iconLeft != null) {
-            g.chcolor(textColor);
-            g.atext(iconLeft, new Coord(textStartX, y + BUTTON_HEIGHT / 2), 0, 0.5);
-            textStartX += ICON_SIZE;
-        }
-
-        // Draw right icon if present
-        if (iconRight != null) {
-            g.chcolor(textColor);
-            g.atext(iconRight, new Coord(textEndX, y + BUTTON_HEIGHT / 2), 1.0, 0.5);
-            textEndX -= ICON_SIZE;
-        }
-
-        // Draw character name (max 67px width, truncated with "..." if needed)
-        String name = ctx.getDisplayName();
+        // Character name max width is 67px
         final int MAX_NAME_WIDTH = UI.scale(67);
 
-        // Truncate name if too long
+        // Draw character name centered in button
+        String name = ctx.getDisplayName();
         Text nameText = nameFont.render(name);
+
+        // Truncate name if too long (max 67px width)
         if (nameText.sz().x > MAX_NAME_WIDTH) {
-            // Binary search for maximum length that fits
             int maxLen = name.length();
             while (maxLen > 0) {
                 String truncated = name.substring(0, maxLen) + "...";
@@ -406,34 +407,40 @@ public class SessionTabBar extends Widget {
         }
 
         g.chcolor(textColor);
-        int textX = textStartX + (textEndX - textStartX) / 2;
+        int textX = x + BUTTON_WIDTH / 2;
         g.aimage(nameText.tex(), new Coord(textX, y + BUTTON_HEIGHT / 2), 0.5, 0.5);
 
         g.chcolor();
     }
 
+    private void drawStatusIcon(GOut g, int x, int y, SessionContext ctx) {
+        // Determine which icon to show (priority: combat > bot > none)
+        Tex icon = null;
+        if (ctx.isInCombat()) {
+            icon = warningIcon;
+        } else if (ctx.isRunningBot()) {
+            icon = gearIcon;
+        }
+
+        // Draw icon if present
+        if (icon != null) {
+            int iconY = y + (BUTTON_HEIGHT - STATUS_ICON_SIZE) / 2;
+            g.image(icon, new Coord(x, iconY));
+        }
+    }
+
     private void drawPlusButton(GOut g, int y, boolean hovered) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
         int xOffset = dragMode ? UI.scale(15) : 0;
-        // Plus button is after: close button + spacing + session button
-        int x = xOffset + CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_MARGIN;
+        // Plus button is left-aligned below all sessions
+        int x = xOffset;
         int btnY = y + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
 
-        // Draw background
-        g.chcolor(hovered ? PLUS_BTN_HOVER : PLUS_BTN_BG);
-        g.frect(new Coord(x, btnY), new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE));
-
-        // Draw border
-        g.chcolor(PLUS_BTN_BORDER);
-        g.rect(new Coord(x, btnY), new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE));
-        g.rect(new Coord(x + 1, btnY + 1), new Coord(PLUS_BTN_SIZE - 2, PLUS_BTN_SIZE - 2));
-
-        // Draw "+" text
-        Text plusText = nameFont.render("+");
-        g.chcolor(IDLE_TEXT);
-        g.aimage(plusText.tex(), new Coord(x + PLUS_BTN_SIZE / 2, btnY + PLUS_BTN_SIZE / 2), 0.5, 0.5);
-
-        g.chcolor();
+        // Draw icon
+        Tex icon = hovered ? addHover : addNormal;
+        if (icon != null) {
+            g.image(icon, new Coord(x, btnY));
+        }
     }
 
     @Override
@@ -633,14 +640,14 @@ public class SessionTabBar extends Widget {
 
     /**
      * Get the button index at the given coordinate.
-     * Session buttons now start after the close button.
+     * Session buttons start at the left edge.
      */
     private int getButtonAt(Coord c) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
         int xOffset = dragMode ? UI.scale(15) : 0;
 
-        // Session button starts after close button
-        int sessionButtonX = xOffset + CLOSE_BTN_SIZE + UI.scale(3);
+        // Session button starts at left edge
+        int sessionButtonX = xOffset;
 
         if (c.x < sessionButtonX || c.x > sessionButtonX + BUTTON_WIDTH) {
             return -1;
@@ -661,14 +668,15 @@ public class SessionTabBar extends Widget {
 
     /**
      * Check if coordinate is over close button of given button.
-     * Close button is now to the left of the session button.
+     * Close button is inside the session button on the right side.
      */
     private boolean isCloseButtonHit(Coord c, int buttonIndex) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
         int xOffset = dragMode ? UI.scale(15) : 0;
 
         int y = buttonIndex * (BUTTON_HEIGHT + BUTTON_PADDING);
-        int closeX = xOffset;  // Close button starts at left edge
+        int sessionButtonX = xOffset;
+        int closeX = sessionButtonX + BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
         int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
 
         return c.x >= closeX && c.x < closeX + CLOSE_BTN_SIZE &&
@@ -677,15 +685,18 @@ public class SessionTabBar extends Widget {
 
     /**
      * Check if coordinate is over plus button.
-     * Plus button is now after: close button + spacing + session button.
+     * Plus button is left-aligned below all sessions.
      */
     private boolean isPlusButtonHit(Coord c) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
         int xOffset = dragMode ? UI.scale(15) : 0;
 
-        // Plus button starts after close button, spacing, and session button
-        int x = xOffset + CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_MARGIN;
-        int y = (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
+        SessionManager sm = SessionManager.getInstance();
+        int sessionCount = sm.getSessionCount();
+
+        // Plus button position: below all sessions, left-aligned
+        int x = xOffset;
+        int y = sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
 
         return c.x >= x && c.x < x + PLUS_BTN_SIZE &&
                c.y >= y && c.y < y + PLUS_BTN_SIZE;
