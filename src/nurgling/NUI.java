@@ -144,6 +144,9 @@ public class NUI extends UI
         ThreadLocalUI.set(this);
         try {
             super.tick();
+        } catch (haven.render.RenderTree.SlotRemoved e) {
+            // Widget tried to update render state during session switch - ignore
+            // This can happen when demoting to headless while widgets are still ticking
         } finally {
             // Restore previous (usually null for visual thread)
             if (previousUI != null) {

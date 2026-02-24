@@ -2,6 +2,9 @@ package nurgling.sessions;
 
 import haven.*;
 import haven.render.Environment;
+import nurgling.NConfig;
+import nurgling.NGameUI;
+import nurgling.NMapView;
 import nurgling.NUI;
 
 import java.util.*;
@@ -32,6 +35,9 @@ public class SessionManager {
 
     /** Session to close after switch completes (for closing active session) */
     private volatile SessionContext pendingClose;
+
+    /** Pending camera state to apply after session switch */
+    private volatile CameraState pendingCameraState;
 
     /** Listeners for session changes */
     private final List<SessionChangeListener> listeners = new ArrayList<>();
@@ -258,6 +264,24 @@ public class SessionManager {
     private void switchToSessionInternal(SessionContext newActive) {
         SessionContext oldActive = activeSession;
 
+        // Capture camera state from old session if sync is enabled
+        pendingCameraState = null;
+        if (oldActive != null && oldActive != newActive) {
+            try {
+                Object syncCamera = NConfig.get(NConfig.Key.sync_camera);
+                if (syncCamera != null && (Boolean) syncCamera) {
+                    NGameUI gui = oldActive.getGameUI();
+                    if (gui != null && gui.map != null && gui.map.camera != null) {
+                        pendingCameraState = gui.map.camera.captureState();
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore errors in camera state capture
+                System.err.println("[SessionManager] Error capturing camera state: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
         // If new session is headless, mark it for Bootstrap to pick up
         if (newActive.isHeadless()) {
             pendingSwitchTo = newActive;
@@ -276,13 +300,23 @@ public class SessionManager {
     }
 
     /**
-     * Promote the active session to visual mode with the given environment.
-     * Called by GLPanel.Loop when ready to render.
+     * Apply pending camera state to the given session.
+     * Called after promoting a session to visual mode.
      */
-    public void promoteActiveToVisual(Environment env) {
-        SessionContext active = activeSession;
-        if (active != null && active.isHeadless()) {
-            active.promoteToVisual(env);
+    public void applyPendingCameraState(SessionContext session) {
+        if (session != null && pendingCameraState != null) {
+            try {
+                NGameUI gui = session.getGameUI();
+                if (gui != null && gui.map != null && gui.map.camera != null) {
+                    gui.map.camera.applyState(pendingCameraState);
+                }
+            } catch (Exception e) {
+                // Ignore errors in camera state apply
+                System.err.println("[SessionManager] Error applying camera state: " + e.getMessage());
+                e.printStackTrace();
+            } finally {
+                pendingCameraState = null;
+            }
         }
     }
 
@@ -301,14 +335,6 @@ public class SessionManager {
         synchronized (sessionsLock) {
             activeSession = null;
         }
-    }
-
-    /**
-     * Get the pending session to switch to.
-     * This is set during session switching and consumed by Bootstrap.
-     */
-    public SessionContext getPendingSwitchTo() {
-        return pendingSwitchTo;
     }
 
     /**

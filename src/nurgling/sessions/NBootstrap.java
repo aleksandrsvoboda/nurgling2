@@ -42,6 +42,9 @@ public class NBootstrap extends Bootstrap {
             // Promote the session from headless to visual mode
             switchTo.promoteToVisual(ui.getenv());
 
+            // Apply pending camera state if camera sync is enabled
+            sm.applyPendingCameraState(switchTo);
+
             // Give the background message loop a moment to exit cleanly
             // The PromotedMessage will cause it to exit, but we need to wait
             Thread.sleep(100);

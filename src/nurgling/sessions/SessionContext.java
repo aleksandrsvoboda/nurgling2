@@ -293,6 +293,8 @@ public class SessionContext {
                             ui.lastevent = now;
                         } catch (NullPointerException e) {
                             // Some widgets may throw NPE in headless mode - ignore and continue
+                        } catch (haven.render.RenderTree.SlotRemoved e) {
+                            // Widgets trying to update render state in headless mode - ignore
                         }
                     }
                 }
