@@ -818,14 +818,6 @@ public class NUtils
         NGameUI currentGui = NUtils.getGameUI();
         if (currentGui == null || currentGui.map == null) return false;
 
-        // DEBUG: Log which session we're operating on
-        String sessionInfo = "unknown";
-        if (currentGui.ui != null && currentGui.ui.sess != null && currentGui.ui.sess.user != null) {
-            sessionInfo = currentGui.ui.sess.user.name;
-        }
-        System.out.println("[NUtils.navigateToArea] Using session: " + sessionInfo +
-                           ", gui hashCode: " + System.identityHashCode(currentGui));
-
         ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
         if (chunkNav != null && chunkNav.isInitialized())
         {
@@ -854,14 +846,6 @@ public class NUtils
         // IMPORTANT: Capture GUI once and reuse to avoid multi-session issues
         NGameUI currentGui = NUtils.getGameUI();
         if (currentGui == null || currentGui.map == null) return false;
-
-        // DEBUG: Log which session we're operating on
-        String sessionInfo = "unknown";
-        if (currentGui.ui != null && currentGui.ui.sess != null && currentGui.ui.sess.user != null) {
-            sessionInfo = currentGui.ui.sess.user.name;
-        }
-        System.out.println("[NUtils.navigateToArea(Specialisation)] Using session: " + sessionInfo +
-                           ", gui hashCode: " + System.identityHashCode(currentGui));
 
         ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
         if (chunkNav != null && chunkNav.isInitialized())

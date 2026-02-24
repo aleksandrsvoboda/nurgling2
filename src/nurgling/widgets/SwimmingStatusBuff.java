@@ -65,12 +65,12 @@ public class SwimmingStatusBuff extends Buff {
                             }
                         }
                     } catch (Exception e) {
-                        System.out.println("DEBUG: Error processing pagina: " + e.getMessage());
+                        // Ignore - will fall back to default icon
                     }
                 }
             }
         } catch (Exception e) {
-            System.out.println("DEBUG: Error getting swimming icon: " + e.getMessage());
+            // Ignore - will fall back to default icon
         }
         
         // Fallback: create a simple blue circle with "S"
