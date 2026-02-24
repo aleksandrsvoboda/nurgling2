@@ -185,7 +185,8 @@ public class SessionTabBar extends Widget {
 
         if (dragMode) {
             // Fixed size in drag mode - wider than buttons, tall as 10 buttons
-            int dragWidth = BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN + UI.scale(40);
+            // Width includes: close button + spacing + session button + plus button
+            int dragWidth = CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN + UI.scale(40);
             int dragHeight = 10 * (BUTTON_HEIGHT + BUTTON_PADDING);
             this.sz = new Coord(dragWidth, dragHeight);
         } else {
@@ -193,10 +194,13 @@ public class SessionTabBar extends Widget {
             SessionManager sm = SessionManager.getInstance();
             int sessionCount = sm.getSessionCount();
             if (sessionCount == 0) {
-                this.sz = new Coord(BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN, BUTTON_HEIGHT);
+                // Width includes: close button + spacing + session button + plus button
+                int width = CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN;
+                this.sz = new Coord(width, BUTTON_HEIGHT);
             } else {
                 int height = sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) - BUTTON_PADDING;
-                this.sz = new Coord(BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN, height);
+                int width = CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_SIZE + PLUS_BTN_MARGIN;
+                this.sz = new Coord(width, height);
             }
         }
 
@@ -251,11 +255,18 @@ public class SessionTabBar extends Widget {
         // Draw session buttons
         int y = buttonOffset.y;
         int buttonIndex = 0;
+        boolean canClose = sessions.size() > 1; // Can only close if more than one session
         for (SessionContext ctx : sessions) {
             boolean isActive = ctx == sm.getActiveSession();
             boolean hovered = (buttonIndex == hoveredButton);
-            boolean closeHovered = (buttonIndex == hoveredCloseButton);
-            drawSessionButton(g, buttonOffset.x, y, ctx, hovered, isActive, closeHovered);
+            boolean closeHovered = canClose && (buttonIndex == hoveredCloseButton);
+
+            // Draw close button to the left (disabled if only one session)
+            drawCloseButton(g, buttonOffset.x, y, closeHovered, !canClose);
+
+            // Draw session button after close button
+            int sessionButtonX = buttonOffset.x + CLOSE_BTN_SIZE + UI.scale(3);
+            drawSessionButton(g, sessionButtonX, y, ctx, hovered, isActive);
 
             // Draw plus button next to first session
             if (buttonIndex == 0) {
@@ -297,8 +308,30 @@ public class SessionTabBar extends Widget {
         }
     }
 
+    private void drawCloseButton(GOut g, int x, int y, boolean hovered, boolean disabled) {
+        int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
+
+        // Draw close button background (grayed out if disabled)
+        if (disabled) {
+            g.chcolor(new Color(80, 80, 80)); // Dark gray for disabled
+        } else {
+            g.chcolor(hovered ? CLOSE_BTN_HOVER : CLOSE_BTN_COLOR);
+        }
+        g.frect(new Coord(x, closeY), new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE));
+
+        // Draw X (dimmed if disabled)
+        if (disabled) {
+            g.chcolor(new Color(120, 120, 120)); // Gray X for disabled
+        } else {
+            g.chcolor(new Color(255, 255, 255));
+        }
+        g.atext("×", new Coord(x + CLOSE_BTN_SIZE / 2, closeY + CLOSE_BTN_SIZE / 2), 0.5, 0.5);
+
+        g.chcolor();
+    }
+
     private void drawSessionButton(GOut g, int x, int y, SessionContext ctx, boolean hovered,
-                                    boolean isActive, boolean closeHovered) {
+                                    boolean isActive) {
         // Determine state
         boolean inCombat = ctx.isInCombat();
         boolean runningBot = ctx.isRunningBot();
@@ -335,16 +368,8 @@ public class SessionTabBar extends Widget {
         g.rect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
         g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
 
-        // Draw close button (X) on the left
-        int closeX = x + CLOSE_BTN_MARGIN;
-        int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
-        g.chcolor(closeHovered ? CLOSE_BTN_HOVER : CLOSE_BTN_COLOR);
-        g.frect(new Coord(closeX, closeY), new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE));
-        g.chcolor(new Color(255, 255, 255));
-        g.atext("×", new Coord(closeX + CLOSE_BTN_SIZE / 2, closeY + CLOSE_BTN_SIZE / 2), 0.5, 0.5);
-
-        // Calculate text area (between icons or after close button)
-        int textStartX = closeX + CLOSE_BTN_SIZE + ICON_MARGIN * 2;
+        // Calculate text area (between icons)
+        int textStartX = x + ICON_MARGIN;
         int textEndX = x + BUTTON_WIDTH - ICON_MARGIN;
 
         // Draw left icon if present
@@ -361,19 +386,19 @@ public class SessionTabBar extends Widget {
             textEndX -= ICON_SIZE;
         }
 
-        // Draw character name (truncated if needed)
+        // Draw character name (max 67px width, truncated with "..." if needed)
         String name = ctx.getDisplayName();
-        int availableWidth = textEndX - textStartX - ICON_MARGIN * 2;
+        final int MAX_NAME_WIDTH = UI.scale(67);
 
         // Truncate name if too long
         Text nameText = nameFont.render(name);
-        if (nameText.sz().x > availableWidth) {
+        if (nameText.sz().x > MAX_NAME_WIDTH) {
             // Binary search for maximum length that fits
             int maxLen = name.length();
             while (maxLen > 0) {
-                String truncated = name.substring(0, maxLen) + "..";
+                String truncated = name.substring(0, maxLen) + "...";
                 nameText = nameFont.render(truncated);
-                if (nameText.sz().x <= availableWidth) {
+                if (nameText.sz().x <= MAX_NAME_WIDTH) {
                     break;
                 }
                 maxLen--;
@@ -390,7 +415,8 @@ public class SessionTabBar extends Widget {
     private void drawPlusButton(GOut g, int y, boolean hovered) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
         int xOffset = dragMode ? UI.scale(15) : 0;
-        int x = xOffset + BUTTON_WIDTH + PLUS_BTN_MARGIN;
+        // Plus button is after: close button + spacing + session button
+        int x = xOffset + CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_MARGIN;
         int btnY = y + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
 
         // Draw background
@@ -452,14 +478,20 @@ public class SessionTabBar extends Widget {
             return true;
         }
 
-        // Check which button was clicked
+        // Check if clicking any close button first (they're separate from session buttons)
+        // Only allow closing if there's more than one session
+        if (sessions.size() > 1) {
+            for (int i = 0; i < sessions.size(); i++) {
+                if (isCloseButtonHit(ev.c, i)) {
+                    sm.requestCloseSession(sessions.get(i).sessionId);
+                    return true;
+                }
+            }
+        }
+
+        // Check which session button was clicked
         int buttonIndex = getButtonAt(ev.c);
         if (buttonIndex >= 0 && buttonIndex < sessions.size()) {
-            // Check if clicking close button - handle immediately
-            if (isCloseButtonHit(ev.c, buttonIndex)) {
-                sm.requestCloseSession(sessions.get(buttonIndex).sessionId);
-                return true;
-            }
 
             // Otherwise, prepare for potential drag or click
             dragStartPos = ev.c;
@@ -601,9 +633,16 @@ public class SessionTabBar extends Widget {
 
     /**
      * Get the button index at the given coordinate.
+     * Session buttons now start after the close button.
      */
     private int getButtonAt(Coord c) {
-        if (c.x < 0 || c.x > BUTTON_WIDTH) {
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+        int xOffset = dragMode ? UI.scale(15) : 0;
+
+        // Session button starts after close button
+        int sessionButtonX = xOffset + CLOSE_BTN_SIZE + UI.scale(3);
+
+        if (c.x < sessionButtonX || c.x > sessionButtonX + BUTTON_WIDTH) {
             return -1;
         }
 
@@ -622,10 +661,14 @@ public class SessionTabBar extends Widget {
 
     /**
      * Check if coordinate is over close button of given button.
+     * Close button is now to the left of the session button.
      */
     private boolean isCloseButtonHit(Coord c, int buttonIndex) {
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+        int xOffset = dragMode ? UI.scale(15) : 0;
+
         int y = buttonIndex * (BUTTON_HEIGHT + BUTTON_PADDING);
-        int closeX = CLOSE_BTN_MARGIN;
+        int closeX = xOffset;  // Close button starts at left edge
         int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
 
         return c.x >= closeX && c.x < closeX + CLOSE_BTN_SIZE &&
@@ -634,9 +677,14 @@ public class SessionTabBar extends Widget {
 
     /**
      * Check if coordinate is over plus button.
+     * Plus button is now after: close button + spacing + session button.
      */
     private boolean isPlusButtonHit(Coord c) {
-        int x = BUTTON_WIDTH + PLUS_BTN_MARGIN;
+        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+        int xOffset = dragMode ? UI.scale(15) : 0;
+
+        // Plus button starts after close button, spacing, and session button
+        int x = xOffset + CLOSE_BTN_SIZE + UI.scale(3) + BUTTON_WIDTH + PLUS_BTN_MARGIN;
         int y = (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
 
         return c.x >= x && c.x < x + PLUS_BTN_SIZE &&
