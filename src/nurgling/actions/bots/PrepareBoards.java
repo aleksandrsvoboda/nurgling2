@@ -18,7 +18,7 @@ import nurgling.tools.NAlias;
 import java.util.ArrayList;
 
 public class PrepareBoards implements Action {
-		private static final NAlias BOARD = new NAlias("Board");
+	private static final NAlias BOARD = new NAlias("Board");
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         nurgling.widgets.bots.PrepareBoards w = null;
@@ -67,10 +67,10 @@ public class PrepareBoards implements Action {
                             return Results.ERROR("Drink is not found");
                         break;
                     }
-										case DROP: {
-											dropAllBoards(gui);
-											break;
-										}
+						case DROP: {
+							dropAllBoards(gui);
+							break;
+						}
                     case NOFREESPACE: {
                         if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
                             return Results.FAIL();
@@ -82,21 +82,21 @@ public class PrepareBoards implements Action {
                 }
             }
         }
-				if(prop.drop)
-					dropAllBoards(gui);
-				else if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
+		if(prop.drop)
+			dropAllBoards(gui);
+		else if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
             return Results.FAIL();
         return Results.SUCCESS();
     }
-	private void dropAllBoards(NGameUI gui) throws InterruptedException {
-		ArrayList<WItem> boardItems = gui.getInventory().getItems(BOARD);
-		for (WItem item : boardItems) {
-			NUtils.drop(item);
-			//small sleep to not get kicked by loftar for ddosing
-			Thread.sleep(20);
+		private void dropAllBoards(NGameUI gui) throws InterruptedException {
+			ArrayList<WItem> boardItems = gui.getInventory().getItems(BOARD);
+			for (WItem item : boardItems) {
+				NUtils.drop(item);
+				//small sleep to not get kicked by loftar for ddosing
+				Thread.sleep(20);
+			}
+			if (!boardItems.isEmpty()) {
+				NUtils.addTask(new WaitItems(gui.getInventory(), BOARD, 0));
+			}
 		}
-		if (!boardItems.isEmpty()) {
-			NUtils.addTask(new WaitItems(gui.getInventory(), BOARD, 0));
-		}
-	}
 }

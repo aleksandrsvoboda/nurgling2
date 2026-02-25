@@ -26,7 +26,7 @@ public class WaitPrepBoardsState extends NTask
         TIMEFORDRINK,
         DANGER,
         NOFREESPACE,
-				DROP
+		DROP
     }
 
     State state = State.WORKING;
@@ -41,8 +41,8 @@ public class WaitPrepBoardsState extends NTask
             state = State.TIMEFORDRINK;
 				} else if (space <= 1 && space>=0) {
             if((NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0) && prop.drop)
-            		state = State.DROP;
-						else if (NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0)
+				state = State.DROP;
+			else if (NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0)
                 state = State.NOFREESPACE;
         }
         return state != State.WORKING;

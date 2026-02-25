@@ -16,15 +16,15 @@ public class PrepareBoards extends Window implements Checkable {
         super(new Coord(200,200), L10n.get("pboards.wnd_title"));
         NPrepBoardsProp startprop = NPrepBoardsProp.get(NUtils.getUI().sessInfo);
         prev = add(new Label(L10n.get("pboards.settings")));
-				prev = add(drop = new CheckBox(L10n.get("pboards.drop")){
-					{
-						a = startprop.drop;
-					}
-					@Override
-					public void set(boolean a) {
-						super.set(a);
-					}
-				}, prev.pos("bl").add(UI.scale(0,5)));
+			prev = add(drop = new CheckBox(L10n.get("pboards.drop")){
+				{
+					a = startprop.drop;
+				}
+				@Override
+				public void set(boolean a) {
+					super.set(a);
+				}
+			}, prev.pos("bl").add(UI.scale(0,5)));
         prev = add(usingTools = new UsingTools(UsingTools.Tools.saw), prev.pos("bl").add(UI.scale(0,5)));
         if(startprop != null && startprop.tool!=null)
         {

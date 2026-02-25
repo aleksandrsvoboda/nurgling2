@@ -15,7 +15,7 @@ public class NPrepBoardsProp implements JConf
     final private String username;
     final private String chrid;
     public String tool = null;
-		public boolean drop = false;
+	public boolean drop = false;
 
     public NPrepBoardsProp(String username, String chrid) {
         this.username = username;
