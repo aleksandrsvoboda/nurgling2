@@ -10,12 +10,21 @@ public class PrepareBoards extends Window implements Checkable {
     public String tool = null;
 
     UsingTools usingTools = null;
+		CheckBox drop = null;
 
     public PrepareBoards() {
         super(new Coord(200,200), L10n.get("pboards.wnd_title"));
         NPrepBoardsProp startprop = NPrepBoardsProp.get(NUtils.getUI().sessInfo);
         prev = add(new Label(L10n.get("pboards.settings")));
-
+				prev = add(drop = new CheckBox(L10n.get("pboards.drop")){
+					{
+						a = startprop.drop;
+					}
+					@Override
+					public void set(boolean a) {
+						super.set(a);
+					}
+				}, prev.pos("bl").add(UI.scale(0,5)));
         prev = add(usingTools = new UsingTools(UsingTools.Tools.saw), prev.pos("bl").add(UI.scale(0,5)));
         if(startprop != null && startprop.tool!=null)
         {
@@ -26,16 +35,14 @@ public class PrepareBoards extends Window implements Checkable {
                     break;
                 }
             }
-
         }
-
-
         prev = add(new Button(UI.scale(150), L10n.get("botwnd.start")){
             @Override
             public void click() {
                 super.click();
                 prop = NPrepBoardsProp.get(NUtils.getUI().sessInfo);
                 if (prop != null) {
+										prop.drop = drop.a;
                     if(usingTools.s!=null)
                         prop.tool = usingTools.s.name;
                     NPrepBoardsProp.set(prop);

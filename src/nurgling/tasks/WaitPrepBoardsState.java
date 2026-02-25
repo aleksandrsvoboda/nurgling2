@@ -3,7 +3,6 @@ package nurgling.tasks;
 import haven.Coord;
 import haven.Gob;
 import nurgling.NUtils;
-import nurgling.conf.NPrepBlocksProp;
 import nurgling.conf.NPrepBoardsProp;
 import nurgling.tools.Finder;
 
@@ -26,7 +25,8 @@ public class WaitPrepBoardsState extends NTask
         LOGNOTFOUND,
         TIMEFORDRINK,
         DANGER,
-        NOFREESPACE
+        NOFREESPACE,
+				DROP
     }
 
     State state = State.WORKING;
@@ -39,8 +39,10 @@ public class WaitPrepBoardsState extends NTask
             state = State.DANGER;
         } else if (NUtils.getStamina() <= 0.45) {
             state = State.TIMEFORDRINK;
-        } else if (space <= 1 && space>=0) {
-            if(NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0)
+				} else if (space <= 1 && space>=0) {
+            if((NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0) && prop.drop)
+            		state = State.DROP;
+						else if (NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0)
                 state = State.NOFREESPACE;
         }
         return state != State.WORKING;
