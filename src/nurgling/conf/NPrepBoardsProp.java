@@ -28,8 +28,8 @@ public class NPrepBoardsProp implements JConf
         username = (String) values.get("username");
         if (values.get("tool") != null)
             tool = (String) values.get("tool");
-				if (values.get("drop") != null)
-					drop = (Boolean) values.get("drop");
+		if (values.get("drop") != null)
+			drop = (Boolean) values.get("drop");
     }
 
     public static void set(NPrepBoardsProp prop)

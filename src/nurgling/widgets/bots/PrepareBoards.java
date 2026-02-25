@@ -10,7 +10,7 @@ public class PrepareBoards extends Window implements Checkable {
     public String tool = null;
 
     UsingTools usingTools = null;
-		CheckBox drop = null;
+	CheckBox drop = null;
 
     public PrepareBoards() {
         super(new Coord(200,200), L10n.get("pboards.wnd_title"));
@@ -42,7 +42,7 @@ public class PrepareBoards extends Window implements Checkable {
                 super.click();
                 prop = NPrepBoardsProp.get(NUtils.getUI().sessInfo);
                 if (prop != null) {
-										prop.drop = drop.a;
+					prop.drop = drop.a;
                     if(usingTools.s!=null)
                         prop.tool = usingTools.s.name;
                     NPrepBoardsProp.set(prop);

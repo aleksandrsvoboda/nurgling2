@@ -88,15 +88,15 @@ public class PrepareBoards implements Action {
             return Results.FAIL();
         return Results.SUCCESS();
     }
-		private void dropAllBoards(NGameUI gui) throws InterruptedException {
-			ArrayList<WItem> boardItems = gui.getInventory().getItems(BOARD);
-			for (WItem item : boardItems) {
-				NUtils.drop(item);
-				//small sleep to not get kicked by loftar for ddosing
-				Thread.sleep(20);
-			}
-			if (!boardItems.isEmpty()) {
-				NUtils.addTask(new WaitItems(gui.getInventory(), BOARD, 0));
-			}
+	private void dropAllBoards(NGameUI gui) throws InterruptedException {
+		ArrayList<WItem> boardItems = gui.getInventory().getItems(BOARD);
+		for (WItem item : boardItems) {
+			NUtils.drop(item);
+			//small sleep to not get kicked by loftar for ddosing
+			Thread.sleep(20);
 		}
+		if (!boardItems.isEmpty()) {
+			NUtils.addTask(new WaitItems(gui.getInventory(), BOARD, 0));
+		}
+	}
 }
