@@ -54,13 +54,10 @@ public class NRemoteUI extends RemoteUI {
                 SessionUIController ctrl = SessionUIController.getInstance();
                 if (ctrl == null) {
                     SessionUIController.initialize(panel);
-                    ctrl = SessionUIController.getInstance();
                 }
 
-                // Attach the UI controller to this UI
-                if (ctrl != null) {
-                    ctrl.attachToUI(nui);
-                }
+                // Note: attachToUI() is called by NUILifecycleListener.afterNewUI()
+                // to avoid blocking during character selection initialization
             }
         }
     }

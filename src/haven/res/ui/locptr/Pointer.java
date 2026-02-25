@@ -3,6 +3,7 @@ package haven.res.ui.locptr;
 
 import haven.*;
 import haven.render.*;
+import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.widgets.NMapWnd;
 
@@ -215,8 +216,10 @@ public class Pointer extends Widget {
 		mc = null;
 		tc();
 		if(!triangulating) {return;}
-		long curseg = NUtils.getGameUI().mapfile.playerSegmentId();
-		Gob player = NUtils.getGameUI().map.player();
+		NGameUI gui = NUtils.getGameUI();
+		if(gui == null || gui.mapfile == null) {return;}
+		long curseg = gui.mapfile.playerSegmentId();
+		Gob player = gui.map.player();
 		if(player != null) {
 			Pair<Coord2d, Coord2d> line = new Pair<>(player.rc, b);
 			if(firstLine == null) {
@@ -231,12 +234,18 @@ public class Pointer extends Widget {
 		}
 	}
 
-	public Coord2d tc() {return tc(NUtils.getGameUI().mapfile.playerSegmentId());}
+	public Coord2d tc() {
+		NGameUI gui = NUtils.getGameUI();
+		if(gui == null || gui.mapfile == null) {return null;}
+		return tc(gui.mapfile.playerSegmentId());
+	}
 
 	public Coord2d tc(long id) {
 		if(marker != null) {
 			triangulating = false;
-			MiniMap.Location loc = NUtils.getGameUI().mapfile.view.sessloc;
+			NGameUI gui = NUtils.getGameUI();
+			if(gui == null || gui.mapfile == null) {return null;}
+			MiniMap.Location loc = gui.mapfile.view.sessloc;
 			if(id == marker.seg) {
 				Coord2d tmp = mc = marker.tc.sub(loc.tc).mul(tilesz).add(6, 6);
 				tc = tmp;

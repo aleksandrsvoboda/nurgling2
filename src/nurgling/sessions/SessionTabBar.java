@@ -58,22 +58,6 @@ public class SessionTabBar extends Widget {
     private static Tex closeNormal, closeHover, closePush;
     private static Tex addNormal, addHover, addPush;
 
-    static {
-        try {
-            gearIcon = Resource.loadtex("nurgling/hud/sessions/icons/gear");
-            warningIcon = Resource.loadtex("nurgling/hud/sessions/icons/warning");
-            closeNormal = Resource.loadtex("nurgling/hud/sessions/close/10x10");
-            closeHover = Resource.loadtex("nurgling/hud/sessions/close/10x10_hover");
-            closePush = Resource.loadtex("nurgling/hud/sessions/close/10x10_push");
-            addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
-            addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
-            addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
-        } catch (Exception e) {
-            System.err.println("Failed to load session tab icons: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
     /** Font for character names */
     private Text.Foundry nameFont;
 
@@ -119,7 +103,7 @@ public class SessionTabBar extends Widget {
 
     /** Drag mode resources */
     public static final IBox box = Window.wbox;
-    private static final Tex ctl = Resource.loadtex("nurgling/hud/box/tl");
+    private static Tex ctl;
     private static final Coord controlOffset = UI.scale(10, 10);
     public static Text.Furnace labelFont = new PUtils.BlurFurn(
         new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 14, Color.YELLOW).aa(true),
@@ -128,6 +112,24 @@ public class SessionTabBar extends Widget {
 
     public SessionTabBar() {
         super(Coord.z);
+
+        // Load resources (only once, since they're static)
+        if (gearIcon == null) {
+            try {
+                gearIcon = Resource.loadtex("nurgling/hud/sessions/icons/gear");
+                warningIcon = Resource.loadtex("nurgling/hud/sessions/icons/warning");
+                closeNormal = Resource.loadtex("nurgling/hud/sessions/close/10x10");
+                closeHover = Resource.loadtex("nurgling/hud/sessions/close/10x10_hover");
+                closePush = Resource.loadtex("nurgling/hud/sessions/close/10x10_push");
+                addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
+                addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
+                addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
+                ctl = Resource.loadtex("nurgling/hud/box/tl");
+            } catch (Exception e) {
+                System.err.println("Failed to load session tab icons: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
 
         // Load Open Sans Semibold font (11px)
         try {
