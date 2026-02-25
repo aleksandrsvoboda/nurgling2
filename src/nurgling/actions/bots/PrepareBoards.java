@@ -67,10 +67,10 @@ public class PrepareBoards implements Action {
                             return Results.ERROR("Drink is not found");
                         break;
                     }
-						case DROP: {
-							dropAllBoards(gui);
-							break;
-						}
+					case DROP: {
+						dropAllBoards(gui);
+						break;
+					}
                     case NOFREESPACE: {
                         if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
                             return Results.FAIL();

@@ -39,7 +39,7 @@ public class WaitPrepBoardsState extends NTask
             state = State.DANGER;
         } else if (NUtils.getStamina() <= 0.45) {
             state = State.TIMEFORDRINK;
-				} else if (space <= 1 && space>=0) {
+		} else if (space <= 1 && space>=0) {
             if((NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0) && prop.drop)
 				state = State.DROP;
 			else if (NUtils.getGameUI().getInventory().calcFreeSpace()<=4 || space==0)
