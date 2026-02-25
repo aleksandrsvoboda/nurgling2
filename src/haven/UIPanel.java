@@ -43,6 +43,8 @@ public interface UIPanel extends Runnable {
 
     public UI newui(UI.Runner fun);
     public void background(boolean bg);
+    /** Request a new session to be started (for multi-session support) */
+    public void requestNewSession();
 
     /* Stuff that is inherited from AWT components, but that have to
      * be declared since Java is stupid. */

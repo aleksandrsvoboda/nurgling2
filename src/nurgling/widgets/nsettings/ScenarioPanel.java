@@ -1,13 +1,16 @@
 package nurgling.widgets.nsettings;
 
 import haven.*;
+import nurgling.NGameUI;
 import nurgling.NStyle;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.ActionWithFinal;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
 import nurgling.scenarios.*;
+import nurgling.sessions.BotExecutor;
 import nurgling.widgets.CustomIcon;
 import nurgling.widgets.CustomIconManager;
 import nurgling.widgets.NScenarioButton;
@@ -431,33 +434,7 @@ public class ScenarioPanel extends Panel {
 
     void start(String path, Action action)
     {
-        Thread t;
-        t = new Thread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                try
-                {
-                    action.run(NUtils.getGameUI());
-                }
-                catch (InterruptedException e)
-                {
-                    NUtils.getGameUI().msg(path + ":" + "STOPPED");
-                }
-                finally
-                {
-                    if(action instanceof ActionWithFinal)
-                    {
-                        ((ActionWithFinal)action).endAction();
-                    }
-                }
-            }
-        }, path);
-
-        NUtils.getGameUI().biw.addObserve(t);
-
-        t.start();
+        BotExecutor.runAsync(path, action);
     }
     
     private class ScenarioItemWidget extends Widget {

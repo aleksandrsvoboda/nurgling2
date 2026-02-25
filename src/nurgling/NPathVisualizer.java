@@ -296,6 +296,82 @@ public class NPathVisualizer implements RenderTree.Node
     }
 
     /**
+     * Clears all path visualization state.
+     * Used when switching sessions to prevent frozen path lines.
+     */
+    public void clear()
+    {
+        synchronized (moves)
+        {
+            moves.clear();
+        }
+        path = null;
+
+        // Clear all path models to remove any rendered lines
+        for (MovingPath mp : paths.values())
+        {
+            mp.update(null);
+        }
+    }
+
+    /**
+     * Detach from all render tree slots.
+     * Used when demoting session to headless to prevent cross-session rendering.
+     * The path visualizer will no longer be rendered until re-attached.
+     */
+    public void detachFromRenderTree()
+    {
+        // First, detach all MovingPath children to clear their slots
+        for (MovingPath mp : paths.values())
+        {
+            synchronized (mp.slots)
+            {
+                List<RenderTree.Slot> childSlots = new ArrayList<>(mp.slots);
+                for (RenderTree.Slot slot : childSlots)
+                {
+                    try
+                    {
+                        slot.remove();
+                    } catch (Exception e)
+                    {
+                        // Ignore errors - slot may already be removed
+                    }
+                }
+                mp.slots.clear();
+            }
+        }
+
+        // Then detach the NPathVisualizer itself
+        synchronized (slots)
+        {
+            // Copy to avoid concurrent modification during iteration
+            List<RenderTree.Slot> slotsToRemove = new ArrayList<>(slots);
+            for (RenderTree.Slot slot : slotsToRemove)
+            {
+                try
+                {
+                    slot.remove();
+                } catch (Exception e)
+                {
+                    System.err.println("[NPathVisualizer] Error detaching slot: " + e.getMessage());
+                }
+            }
+            slots.clear();
+        }
+    }
+
+    /**
+     * Check if currently attached to render tree.
+     */
+    public boolean isAttachedToRenderTree()
+    {
+        synchronized (slots)
+        {
+            return !slots.isEmpty();
+        }
+    }
+
+    /**
      * Internal class representing a single visualized path.
      */
     private static class MovingPath implements RenderTree.Node, Rendered
@@ -376,6 +452,9 @@ public class NPathVisualizer implements RenderTree.Node
             Collection<RenderTree.Slot> tslots;
             synchronized (slots)
             {
+                // Skip update if detached from render tree
+                if (slots.isEmpty())
+                    return;
                 tslots = new ArrayList<>(slots);
             }
             try
@@ -383,6 +462,7 @@ public class NPathVisualizer implements RenderTree.Node
                 tslots.forEach(RenderTree.Slot::update);
             } catch (Exception ignored)
             {
+                // Ignore SlotRemoved and other render tree exceptions
             }
         }
     }

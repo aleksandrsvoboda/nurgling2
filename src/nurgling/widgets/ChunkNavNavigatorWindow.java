@@ -5,6 +5,7 @@ import nurgling.*;
 import nurgling.areas.NArea;
 import nurgling.i18n.L10n;
 import nurgling.navigation.*;
+import nurgling.sessions.ThreadLocalUI;
 
 import java.awt.Color;
 import java.util.*;
@@ -123,15 +124,18 @@ public class ChunkNavNavigatorWindow extends Window {
 
         statusLabel.settext("Navigating to: " + selectedArea.name + "...");
 
+        // Capture UI reference for thread-local binding
+        final NUI boundUI = NUtils.getUI();
+        final NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+        if (gui == null) {
+            statusLabel.settext("Error: No GUI available");
+            return;
+        }
+
         // Start navigation in a new thread with gear/stop button support
         Thread navThread = new Thread(() -> {
+            ThreadLocalUI.set(boundUI);
             try {
-                NGameUI gui = NUtils.getGameUI();
-                if (gui == null) {
-                    updateStatusFromThread("Error: No GUI available");
-                    return;
-                }
-
                 // First try ChunkNav
                 ChunkPath path = manager.planToArea(selectedArea);
                 // Note: path with 0 waypoints is valid when already in target chunk
@@ -158,12 +162,13 @@ public class ChunkNavNavigatorWindow extends Window {
             } catch (Exception e) {
                 updateStatusFromThread("Error: " + e.getMessage());
                 e.printStackTrace();
+            } finally {
+                ThreadLocalUI.clear();
             }
         }, "ChunkNav-Navigator");
 
         // Register thread with the bot interrupt widget (shows gear with stop button)
-        NGameUI gui = NUtils.getGameUI();
-        if (gui != null && gui.biw != null) {
+        if (gui.biw != null) {
             gui.biw.addObserve(navThread);
         }
         navThread.start();

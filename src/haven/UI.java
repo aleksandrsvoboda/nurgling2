@@ -44,13 +44,38 @@ import static haven.Utils.el;
 import haven.render.Environment;
 import haven.render.Render;
 import nurgling.*;
+import nurgling.sessions.SessionManager;
 
 public class UI {
 
+	/**
+	 * @deprecated Use SessionManager.getInstance().getActiveUI() for multi-session support.
+	 * This field is kept for backward compatibility but routes through SessionManager.
+	 */
+	@Deprecated
 	static NUI ui = null;
+
+	/**
+	 * Get the current active UI instance.
+	 * In multi-session mode, this returns the UI of the active (visual) session.
+	 * For background sessions, use SessionManager directly.
+	 */
 	public static NUI getInstance(){
+		// First try SessionManager for multi-session support
+		SessionManager sm = SessionManager.getInstance();
+		NUI activeUI = sm.getActiveUI();
+		if (activeUI != null) {
+			return activeUI;
+		}
+		// Fall back to static field for bootstrap/initialization phase
 		return ui;
 	}
+
+	/**
+	 * Set the current UI instance.
+	 * @deprecated Sessions should be managed through SessionManager.
+	 */
+	@Deprecated
 	public static void setInstance(NUI instance) {
 		ui = instance;
 	}
@@ -70,6 +95,7 @@ public class UI {
     public Console cons = new WidgetConsole();
     private Collection<AfterDraw> afterdraws = new LinkedList<AfterDraw>();
     private final Context uictx;
+    public Context getContext() { return uictx; }
     public GSettings gprefs = GSettings.load(true);
     private boolean gprefsdirty = false;
     public final ActAudio.Root audio = new ActAudio.Root();

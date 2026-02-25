@@ -19,6 +19,11 @@ public class ChunkNavRecorder {
     private final ChunkNavGraph graph;
     private ChunkNavManager manager; // Set after construction to avoid circular dependency
 
+    // Thread-local glob reference for background recording threads.
+    // This allows recording threads to use the correct session's gob data
+    // without depending on NUtils.getGameUI() which may return wrong session.
+    private static final ThreadLocal<Glob> recordingGlob = new ThreadLocal<>();
+
     // Blocked tile patterns
     // NOTE: "nil" = void/nothing, must be blocked (areas outside playable space)
     private static final Set<String> BLOCKED_TILES = new HashSet<>(Arrays.asList(
@@ -77,6 +82,28 @@ public class ChunkNavRecorder {
      * Re-samples every time to accumulate walkability as player moves around.
      */
     public void recordGrid(MCache.Grid grid) {
+        recordGridInternal(grid);
+    }
+
+    /**
+     * Record navigation data for a grid using a specific Glob reference.
+     * Used by background recording threads to ensure correct session's gob data is used.
+     * @param grid The grid to record
+     * @param glob The glob to use for gob lookups (from the correct session)
+     */
+    public void recordGrid(MCache.Grid grid, Glob glob) {
+        try {
+            recordingGlob.set(glob);
+            recordGridInternal(grid);
+        } finally {
+            recordingGlob.remove();
+        }
+    }
+
+    /**
+     * Internal implementation of recordGrid.
+     */
+    private void recordGridInternal(MCache.Grid grid) {
         if (grid == null || grid.ul == null) return;
 
         try {
@@ -352,7 +379,16 @@ public class ChunkNavRecorder {
         Set<Long> blockedCells = new HashSet<>();
 
         try {
-            Glob glob = NUtils.getGameUI().ui.sess.glob;
+            // Use thread-local glob if available (for background recording threads),
+            // otherwise fall back to NUtils.getGameUI() for main/tick threads
+            Glob glob = recordingGlob.get();
+            if (glob == null) {
+                NGameUI gui = NUtils.getGameUI();
+                if (gui == null || gui.ui == null || gui.ui.sess == null) {
+                    return blockedCells;
+                }
+                glob = gui.ui.sess.glob;
+            }
             long playerId = NUtils.player() != null ? NUtils.player().id : -1;
 
             // Grid bounds in world coordinates
@@ -630,11 +666,19 @@ public class ChunkNavRecorder {
 
     /**
      * Get the MCache safely.
+     * Uses thread-local glob if available (for background recording threads).
      */
     private MCache getMCache() {
         try {
-            if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null) return null;
-            return NUtils.getGameUI().map.glob.map;
+            // Use thread-local glob if available (for background recording threads)
+            Glob glob = recordingGlob.get();
+            if (glob != null) {
+                return glob.map;
+            }
+            // Fall back to NUtils.getGameUI() for main/tick threads
+            NGameUI gui = NUtils.getGameUI();
+            if (gui == null || gui.map == null || gui.map.glob == null) return null;
+            return gui.map.glob.map;
         } catch (Exception e) {
             return null;
         }

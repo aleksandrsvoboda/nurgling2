@@ -121,6 +121,7 @@ public class NConfig
         useSolidBackground,
         windowBackgroundColor,
         picklingBeetroots,
+        sync_camera,
         picklingCarrots,
         picklingEggs,
         picklingHerring,

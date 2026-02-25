@@ -262,6 +262,14 @@ public class LWJGLPanel extends AWTGLCanvas implements GLPanel, Console.Director
 	main.bgmode = bg;
     }
 
+    public void requestNewSession() {
+	main.requestNewSession();
+    }
+
+    public Loop getLoop() {
+	return main;
+    }
+
     private Robot awtrobot;
     public void setmousepos(Coord c) {
 	java.awt.EventQueue.invokeLater(() -> {

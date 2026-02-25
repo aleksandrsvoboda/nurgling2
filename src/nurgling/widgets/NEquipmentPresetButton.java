@@ -1,10 +1,13 @@
 package nurgling.widgets;
 
 import haven.*;
+import nurgling.NGameUI;
+import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
 import nurgling.equipment.EquipmentPreset;
 import nurgling.equipment.EquipmentPresetIcons;
+import nurgling.sessions.BotExecutor;
 
 public class NEquipmentPresetButton extends IButton {
     private final EquipmentPreset preset;
@@ -25,17 +28,7 @@ public class NEquipmentPresetButton extends IButton {
 
     private void executePreset() {
         if (preset != null) {
-            Thread t = new Thread(() -> {
-                try {
-                    EquipmentBot bot = new EquipmentBot(preset);
-                    bot.run(NUtils.getGameUI());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }, "EquipmentBot-" + preset.getName());
-
-            NUtils.getGameUI().biw.addObserve(t);
-            t.start();
+            BotExecutor.runAsync("EquipmentBot-" + preset.getName(), new EquipmentBot(preset));
         }
     }
 

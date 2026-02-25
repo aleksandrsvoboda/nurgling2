@@ -93,6 +93,11 @@ public class HeadlessPanel implements UIPanel, UI.Context {
         }
     }
 
+    @Override
+    public void requestNewSession() {
+        // Headless panels don't start new sessions - they're for background processing
+    }
+
     /**
      * Stop the headless panel.
      */

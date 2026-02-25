@@ -221,7 +221,10 @@ public class Connector implements Action {
             } else if (e instanceof IOException) {
                 errorMsg += ": connection failed";
             }
-            NUtils.getGameUI().error(errorMsg);
+            NGameUI gui = NUtils.getGameUI();
+            if (gui != null) {
+                gui.error(errorMsg);
+            }
         }
     }
 }

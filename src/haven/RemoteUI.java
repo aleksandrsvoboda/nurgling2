@@ -86,12 +86,38 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 	this.sess.postuimsg(new Return(sess));
     }
 
+    /**
+     * Hook for subclasses to handle custom/injected messages.
+     * @return non-null Runner to exit message loop, null to continue
+     */
+    protected UI.Runner handleCustomMessage(PMessage msg, UI ui) {
+        return null;
+    }
+
+    /**
+     * Hook for cleanup behavior.
+     * @return true to close session normally, false to skip
+     */
+    protected boolean shouldCleanupSession(UI ui) {
+        return true;
+    }
+
+    /**
+     * Hook called during init().
+     */
+    protected void onInit(UI ui) {
+    }
+
     public UI.Runner run(UI ui) throws InterruptedException {
 	try {
 	    ui.setreceiver(this);
 	    sendua(ui);
 	    while(true) {
 		PMessage msg = sess.getuimsg();
+		// NEW: Call hook for custom message handling (allows NRemoteUI to intercept)
+		UI.Runner customResult = handleCustomMessage(msg, ui);
+		if (customResult != null)
+		    return customResult;
 		if(msg == null) {
 		    return(null);
 		} else if(msg instanceof Return) {
@@ -138,8 +164,11 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 		}
 	    }
 	} finally {
-	    sess.close();
-	    while(sess.getuimsg() != null);
+	    // Hook for cleanup decision (allows NRemoteUI to handle session-specific cleanup)
+	    if (shouldCleanupSession(ui)) {
+		sess.close();
+		while(sess.getuimsg() != null);
+	    }
 	}
     }
 
@@ -150,6 +179,8 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 	if (ui instanceof nurgling.NUI) {
 	    ((nurgling.NUI) ui).initSessInfo();
 	}
+	// Hook for subclasses (NRemoteUI handles session registration)
+	onInit(ui);
     }
 
     public String title() {

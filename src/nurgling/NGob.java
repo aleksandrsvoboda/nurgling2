@@ -19,6 +19,8 @@ import nurgling.gattrr.NCustomScale;
 import nurgling.overlays.*;
 import nurgling.overlays.NSpeedometerOverlay;
 import nurgling.pf.*;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
 import nurgling.tools.*;
 import nurgling.widgets.NAlarmWdg;
 import nurgling.widgets.NMiniMap;
@@ -178,30 +180,49 @@ public class NGob
         return null;
     }
 
+    /**
+     * Get the GameUI for this gob's own session (not the active session).
+     * This ensures cross-session operations (like temp marks) go to the correct session.
+     *
+     * @return The GameUI for this gob's session, or null if not available
+     */
+    private NGameUI getSessionGameUI() {
+        if (parent == null || parent.glob == null || parent.glob.sess == null) {
+            return null;
+        }
+        SessionContext ctx = SessionManager.getInstance().findBySession(parent.glob.sess);
+        if (ctx == null) {
+            return null;
+        }
+        return ctx.getGameUI();
+    }
+
     protected void updateMovingInfo(GAttrib a, GAttrib prev)
     {
-        if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null)
+        // Use the gob's own glob instead of active session's glob
+        // This ensures paths are added to the correct session's visualizer
+        if (parent.glob != null && parent.glob.oc != null)
         {
             if (prev instanceof Moving)
             {
-                NUtils.getGameUI().map.glob.oc.paths.removePath((Moving) prev);
+                parent.glob.oc.paths.removePath((Moving) prev);
             }
             if (a instanceof LinMove || a instanceof Homing)
             {
-                NUtils.getGameUI().map.glob.oc.paths.addPath((Moving) a);
+                parent.glob.oc.paths.addPath((Moving) a);
             }
 //            if (NUtils.getGameUI() != null && (me))
 //                NUtils.getGameUI().pathQueue().ifPresent(pathQueue -> pathQueue.movementChange((Gob) this, prev, a));
         }
     }
 
-    static BufferedImage setTex(GobIcon icon)
+    static BufferedImage setTex(GobIcon icon, NGameUI gui)
     {
-        if (icon != null && NUtils.getGameUI() != null && NUtils.getGameUI().mmap.iconconf != null && icon.res.isReady() && icon.icon() != null)
+        if (icon != null && gui != null && gui.mmap != null && gui.mmap.iconconf != null && icon.res.isReady() && icon.icon() != null)
         {
             if (icon.icon().image() != null)
             {
-                GobIcon.Setting conf = NUtils.getGameUI().mmap.iconconf.get(icon.icon());
+                GobIcon.Setting conf = gui.mmap.iconconf.get(icon.icon());
                 if (conf != null && conf.show)
                 {
                     return icon.icon().image();
@@ -219,43 +240,45 @@ public class NGob
     private void tryCreateTempMark(GobIcon icon, Gob gob)
     {
         try {
-            if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null || NUtils.getGameUI().mmap == null) {
+            // Use this gob's own session's GameUI, not the active session's
+            NGameUI gui = getSessionGameUI();
+            if (gui == null || gui.map == null || gui.mmap == null) {
                 return;
             }
-            if (NUtils.getGameUI().mmap.sessloc == null || NUtils.getGameUI().mmap.iconconf == null) {
+            if (gui.mmap.sessloc == null || gui.mmap.iconconf == null) {
                 return;
             }
             if (!icon.res.isReady() || icon.icon() == null) {
                 return;
             }
-            
+
             // Skip player icons that don't have buddy info yet
             if (icon.icon() instanceof haven.res.gfx.hud.mmap.plo.Player) {
                 if (gob.getattr(Buddy.class) != null && gob.getattr(Buddy.class).buddy() == null) {
                     return;
                 }
             }
-            
-            BufferedImage iconres = setTex(icon);
+
+            BufferedImage iconres = setTex(icon, gui);
             if (iconres == null) {
                 return;
             }
-            
+
             // Get buddy color if available
             Color buddyColor = null;
             haven.res.ui.obj.buddy.Buddy buddy = gob.getattr(haven.res.ui.obj.buddy.Buddy.class);
             if (buddy != null && buddy.buddy() != null && buddy.buddy().group >= 0 && buddy.buddy().group < BuddyWnd.gc.length) {
                 buddyColor = BuddyWnd.gc[buddy.buddy().group];
             }
-            
-            synchronized (((NMapView) NUtils.getGameUI().map).tempMarkList)
+
+            synchronized (((NMapView) gui.map).tempMarkList)
             {
                 // Check if mark already exists
-                if (((NMapView) NUtils.getGameUI().map).tempMarkList.stream().noneMatch(m -> m.id == gob.id))
+                if (((NMapView) gui.map).tempMarkList.stream().noneMatch(m -> m.id == gob.id))
                 {
-                    ((NMapView) NUtils.getGameUI().map).tempMarkList.add(
-                        new NMiniMap.TempMark(name, NUtils.getGameUI().mmap.sessloc, gob.id, 
-                            gob.rc, gob.rc.floor(tilesz).add(NUtils.getGameUI().mmap.sessloc.tc), 
+                    ((NMapView) gui.map).tempMarkList.add(
+                        new NMiniMap.TempMark(name, gui.mmap.sessloc, gob.id,
+                            gob.rc, gob.rc.floor(tilesz).add(gui.mmap.sessloc.tc),
                             iconres, buddyColor));
                 }
             }
@@ -272,44 +295,46 @@ public class NGob
     private void tryCreateTempMarkOnRemoval()
     {
         try {
-            if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null || NUtils.getGameUI().mmap == null) {
+            // Use this gob's own session's GameUI, not the active session's
+            NGameUI gui = getSessionGameUI();
+            if (gui == null || gui.map == null || gui.mmap == null) {
                 return;
             }
-            if (NUtils.getGameUI().mmap.sessloc == null || NUtils.getGameUI().mmap.iconconf == null) {
+            if (gui.mmap.sessloc == null || gui.mmap.iconconf == null) {
                 return;
             }
-            
+
             // Check if mark already exists
-            synchronized (((NMapView) NUtils.getGameUI().map).tempMarkList) {
-                if (((NMapView) NUtils.getGameUI().map).tempMarkList.stream().anyMatch(m -> m.id == parent.id)) {
+            synchronized (((NMapView) gui.map).tempMarkList) {
+                if (((NMapView) gui.map).tempMarkList.stream().anyMatch(m -> m.id == parent.id)) {
                     return; // Mark already exists
                 }
             }
-            
+
             // Get GobIcon
             GobIcon icon = parent.getattr(GobIcon.class);
             if (icon == null || !icon.res.isReady() || icon.icon() == null) {
                 return;
             }
-            
+
             // Skip player icons
             if (icon.icon() instanceof haven.res.gfx.hud.mmap.plo.Player) {
                 return;
             }
-            
-            BufferedImage iconres = setTex(icon);
+
+            BufferedImage iconres = setTex(icon, gui);
             if (iconres == null) {
                 return; // Icon not enabled in settings
             }
-            
+
             // Calculate object position in global tile coords
-            Coord gc = parent.rc.floor(tilesz).add(NUtils.getGameUI().mmap.sessloc.tc);
-            
+            Coord gc = parent.rc.floor(tilesz).add(gui.mmap.sessloc.tc);
+
             // Check if object is in inner zone (71 tiles) - if yes, it was collected, no mark needed
-            if (((NMiniMap) NUtils.getGameUI().mmap).isInInnerZone(gc)) {
+            if (((NMiniMap) gui.mmap).isInInnerZone(gc)) {
                 return; // Object is close to player - was collected/killed
             }
-            
+
             // Object is outside inner zone - player moved away, create mark
             // Get buddy color if available
             Color buddyColor = null;
@@ -317,11 +342,11 @@ public class NGob
             if (buddy != null && buddy.buddy() != null && buddy.buddy().group >= 0 && buddy.buddy().group < BuddyWnd.gc.length) {
                 buddyColor = BuddyWnd.gc[buddy.buddy().group];
             }
-            
-            synchronized (((NMapView) NUtils.getGameUI().map).tempMarkList) {
+
+            synchronized (((NMapView) gui.map).tempMarkList) {
                 // Double-check mark doesn't exist
-                if (((NMapView) NUtils.getGameUI().map).tempMarkList.stream().noneMatch(m -> m.id == parent.id)) {
-                    NMiniMap.TempMark mark = new NMiniMap.TempMark(name, NUtils.getGameUI().mmap.sessloc, parent.id,
+                if (((NMapView) gui.map).tempMarkList.stream().noneMatch(m -> m.id == parent.id)) {
+                    NMiniMap.TempMark mark = new NMiniMap.TempMark(name, gui.mmap.sessloc, parent.id,
                             parent.rc, gc, iconres, buddyColor);
                     mark.objectExists = false; // Object is already gone
                     mark.disappearedAt = System.currentTimeMillis();
@@ -329,8 +354,8 @@ public class NGob
                     Gob player = NUtils.player();
                     if(player!=null)
                     {
-                        mark.wasInsideVisibleArea = ((NMiniMap) NUtils.getGameUI().mmap).checktemp(mark, player.rc);
-                        ((NMapView) NUtils.getGameUI().map).tempMarkList.add(mark);
+                        mark.wasInsideVisibleArea = ((NMiniMap) gui.mmap).checktemp(mark, player.rc);
+                        ((NMapView) gui.map).tempMarkList.add(mark);
                     }
                 }
             }
@@ -817,9 +842,10 @@ public class NGob
     {
         if (isDynamic)
         {
-            if (NUtils.getGameUI().map != null)
+            NGameUI gui = NUtils.getGameUI();
+            if (gui != null && gui.map != null)
             {
-                if (NUtils.getGameUI().map.player() != null && parent.id == NUtils.getGameUI().map.player().id)
+                if (gui.map.player() != null && parent.id == gui.map.player().id)
                     return null;
                 else if (hitBox != null)
                 {
@@ -875,19 +901,22 @@ public class NGob
 
             if (hash == null)
             {
-                Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
-                synchronized (NUtils.getGameUI().ui.sess.glob.map.grids)
-                {
-                    if (NUtils.getGameUI().ui.sess.glob.map.grids.containsKey(pltc.div(cmaps)))
+                NGameUI gui = NUtils.getGameUI();
+                if (gui != null && gui.ui != null && gui.ui.sess != null) {
+                    Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
+                    synchronized (gui.ui.sess.glob.map.grids)
                     {
-                        MCache.Grid g = NUtils.getGameUI().ui.sess.glob.map.getgridt(pltc);
-                        StringBuilder hashInput = new StringBuilder();
-                        Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
-                        hashInput.append(name).append(g.id).append(coord.toString());
-                        hash = NUtils.calculateSHA256(hashInput.toString());
-                        grid_id = g.id;
-                        gcoord = coord;
-                        parent.setattr(new NGlobalSearch(parent));
+                        if (gui.ui.sess.glob.map.grids.containsKey(pltc.div(cmaps)))
+                        {
+                            MCache.Grid g = gui.ui.sess.glob.map.getgridt(pltc);
+                            StringBuilder hashInput = new StringBuilder();
+                            Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
+                            hashInput.append(name).append(g.id).append(coord.toString());
+                            hash = NUtils.calculateSHA256(hashInput.toString());
+                            grid_id = g.id;
+                            gcoord = coord;
+                            parent.setattr(new NGlobalSearch(parent));
+                        }
                     }
                 }
             }

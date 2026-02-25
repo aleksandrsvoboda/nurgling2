@@ -40,6 +40,7 @@ public interface GLPanel extends UIPanel, UI.Context {
     public Area shape();
     public Pipe basestate();
     public void glswap(GL gl);
+    public Loop getLoop();
 
     public static class Loop implements Console.Directory {
 	public static boolean gldebug = false;
@@ -54,6 +55,16 @@ public interface GLPanel extends UIPanel, UI.Context {
 	protected UI lockedui, ui;
 	private final Dispatcher ed;
 	private final Object uilock = new Object();
+	/** Lifecycle listener for UI creation/destruction events */
+	private UILifecycleListener lifecycleListener;
+
+	public void setUILifecycleListener(UILifecycleListener l) {
+	    this.lifecycleListener = l;
+	}
+
+	public UILifecycleListener getUILifecycleListener() {
+	    return lifecycleListener;
+	}
 
 	public Loop(GLPanel p) {
 	    this.p = p;
@@ -451,9 +462,34 @@ public interface GLPanel extends UIPanel, UI.Context {
 	}
 
 	public UI newui(UI.Runner fun) {
-	    UI prevui, newui = new NUI(p, new Coord(p.getSize()), fun);
+	    if (lifecycleListener != null) {
+		UI reuse = lifecycleListener.beforeNewUI(fun, this.ui, p);
+		if (reuse != null) {
+		    // Reuse existing UI instead of creating new
+		    synchronized(uilock) {
+			UI prevui = this.ui;
+			ui = reuse;
+			ui.root.guprof = uprof;
+			ui.root.grprof = rprof;
+			ui.root.ggprof = gprof;
+			while((this.lockedui != null) && (this.lockedui == prevui)) {
+			    try {
+				uilock.wait();
+			    } catch(InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			    }
+			}
+		    }
+		    return reuse;
+		}
+	    }
+
+	    // Create new UI
+	    UI prevui;
+	    NUI newui = new NUI(p, new Coord(p.getSize()), fun);
 	    newui.env = p.env();
-		UI.ui = (NUI) newui;
+	    UI.ui = newui;
 	    if(p.getParent() instanceof Console.Directory)
 		newui.cons.add((Console.Directory)p.getParent());
 	    if(p instanceof Console.Directory)
@@ -474,12 +510,28 @@ public interface GLPanel extends UIPanel, UI.Context {
 		    }
 		}
 	    }
+
+	    // Lifecycle hook for destruction decision
 	    if(prevui != null) {
-		synchronized(prevui) {
-		    prevui.destroy();
+		boolean shouldDestroy = (lifecycleListener == null) ||
+					lifecycleListener.afterNewUI(newui, prevui);
+		if (shouldDestroy) {
+		    synchronized(prevui) {
+			prevui.destroy();
+		    }
 		}
 	    }
 	    return(newui);
+	}
+
+	/**
+	 * Request a new session to be started.
+	 * Used for multi-session support when adding accounts.
+	 */
+	public void requestNewSession() {
+	    if (lifecycleListener != null) {
+		lifecycleListener.onNewSessionRequested(p);
+	    }
 	}
 
 	private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();

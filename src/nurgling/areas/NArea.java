@@ -345,9 +345,15 @@ public class NArea
 
     public void tick(double dt)
     {
-        if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null && NUtils.getGameUI().map.nols.get(id)==null && !inWork)
+        NGameUI gui = NUtils.getGameUI();
+        if(gui != null && gui.map != null && gui.map instanceof NMapView && !inWork)
         {
-            NUtils.getGameUI().map.addCustomOverlay(id);
+            NMapView mapView = (NMapView) gui.map;
+            // Only add overlay if it doesn't exist and this area is registered in the current session's map
+            if(mapView.nols.get(id) == null && NUtils.getArea(id) != null)
+            {
+                mapView.addCustomOverlay(id);
+            }
         }
     }
 
