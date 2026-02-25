@@ -697,18 +697,141 @@ public class NTooltip {
             wearPercent = (int) Math.round(((double)(wear.m - wear.d) / wear.m) * 100);
         }
 
-        // Extract content info (for vessels like waterskins)
+        // Extract content info (for vessels like waterskins, elixirs, etc.)
         String contentName = null;
         QBuff contentQBuff = null;
+        // Elixir data - will be extracted from Contents.sub if present
+        java.util.List<WoundEffect> elixirWoundEffects = new java.util.ArrayList<>();  // HealWound/AddWound effects
+        java.util.List<GildingStatData> elixirStatEffects = new java.util.ArrayList<>();  // For AttrMod effects like "Strength +21"
+        Integer elixirDurationSeconds = null;
+        // Recipe data - will be extracted from Contents.sub if present
+        java.util.List<RecipeIngredient> recipeIngredients = new java.util.ArrayList<>();
 
         // Extract content info from Contents
         if (contents != null && contents.sub != null && !contents.sub.isEmpty()) {
             for (ItemInfo subInfo : contents.sub) {
+                String className = subInfo.getClass().getSimpleName();
+
                 if (subInfo instanceof ItemInfo.Name) {
                     contentName = ((ItemInfo.Name) subInfo).str.text;
                 }
                 if (subInfo instanceof QBuff) {
                     contentQBuff = (QBuff) subInfo;
+                }
+
+                // Extract Elixir data
+                if (className.equals("Elixir")) {
+                    try {
+                        // Get effects
+                        java.lang.reflect.Field effsField = subInfo.getClass().getDeclaredField("effs");
+                        effsField.setAccessible(true);
+                        Object effsObj = effsField.get(subInfo);
+                        java.util.List<?> effsList = null;
+                        if (effsObj instanceof java.util.List) {
+                            effsList = (java.util.List<?>) effsObj;
+                        } else if (effsObj != null && effsObj.getClass().isArray()) {
+                            effsList = java.util.Arrays.asList((Object[]) effsObj);
+                        }
+                        if (effsList != null) {
+                            for (Object eff : effsList) {
+                                if (eff != null) {
+                                    String effClassName = eff.getClass().getSimpleName();
+                                    // Check if it's an AttrMod effect (like "Strength +21")
+                                    if (effClassName.equals("AttrMod")) {
+                                        java.util.List<GildingStatData> stats = extractStatsFromAttrMod(eff);
+                                        elixirStatEffects.addAll(stats);
+                                    } else if (effClassName.equals("HealWound") || effClassName.equals("AddWound")) {
+                                        // Extract wound effect data
+                                        try {
+                                            boolean isHeal = effClassName.equals("HealWound");
+                                            // Get amount (a field)
+                                            java.lang.reflect.Field aField = eff.getClass().getDeclaredField("a");
+                                            aField.setAccessible(true);
+                                            int amount = aField.getInt(eff);
+                                            // Get wound resource (res field - Indir<Resource>)
+                                            java.lang.reflect.Field resField = eff.getClass().getDeclaredField("res");
+                                            resField.setAccessible(true);
+                                            Object resRef = resField.get(eff);
+                                            Resource woundRes = null;
+                                            if (resRef instanceof Resource) {
+                                                woundRes = (Resource) resRef;
+                                            } else if (resRef instanceof Indir) {
+                                                woundRes = (Resource) ((Indir<?>) resRef).get();
+                                            } else if (resRef != null) {
+                                                // Try calling get() via reflection
+                                                try {
+                                                    java.lang.reflect.Method getMethod = resRef.getClass().getMethod("get");
+                                                    woundRes = (Resource) getMethod.invoke(resRef);
+                                                } catch (Exception e) {
+                                                    // Could not get resource
+                                                }
+                                            }
+                                            if (woundRes != null) {
+                                                // Get wound name from tooltip
+                                                String woundName = null;
+                                                try {
+                                                    Resource.Tooltip tt = woundRes.layer(Resource.tooltip);
+                                                    if (tt != null) {
+                                                        woundName = tt.t;
+                                                    }
+                                                } catch (Exception e) {
+                                                    // No tooltip
+                                                }
+                                                if (woundName == null) {
+                                                    // Extract from path
+                                                    String resName = woundRes.name;
+                                                    int lastSlash = resName.lastIndexOf('/');
+                                                    woundName = lastSlash >= 0 ? resName.substring(lastSlash + 1) : resName;
+                                                    if (!woundName.isEmpty()) {
+                                                        woundName = Character.toUpperCase(woundName.charAt(0)) + woundName.substring(1);
+                                                    }
+                                                }
+                                                // Get wound icon
+                                                BufferedImage woundIcon = null;
+                                                try {
+                                                    Resource.Image imgLayer = woundRes.layer(Resource.imgc);
+                                                    if (imgLayer != null) {
+                                                        woundIcon = imgLayer.img;
+                                                    }
+                                                } catch (Exception e) {
+                                                    // No image
+                                                }
+                                                elixirWoundEffects.add(new WoundEffect(isHeal, amount, woundName, woundIcon));
+                                            }
+                                        } catch (Exception e) {
+                                            // Error extracting wound effect
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Get duration
+                        java.lang.reflect.Field timeField = subInfo.getClass().getDeclaredField("time");
+                        timeField.setAccessible(true);
+                        elixirDurationSeconds = timeField.getInt(subInfo);
+                    } catch (Exception e) {
+                        // Elixir extraction error, skip silently
+                    }
+                }
+
+                // Extract Recipe data
+                if (className.equals("Recipe")) {
+                    try {
+                        java.lang.reflect.Field inputsField = subInfo.getClass().getDeclaredField("inputs");
+                        inputsField.setAccessible(true);
+                        Object inputsObj = inputsField.get(subInfo);
+                        java.util.List<?> inputsList = null;
+                        if (inputsObj instanceof java.util.List) {
+                            inputsList = (java.util.List<?>) inputsObj;
+                        } else if (inputsObj != null && inputsObj.getClass().isArray()) {
+                            inputsList = java.util.Arrays.asList((Object[]) inputsObj);
+                        }
+                        if (inputsList != null) {
+                            extractRecipeIngredients(inputsList, recipeIngredients, 0);
+                        }
+                    } catch (Exception e) {
+                        // Recipe extraction error, skip silently
+                    }
                 }
             }
         }
@@ -782,6 +905,30 @@ public class NTooltip {
         BufferedImage coolmodLine = null;
         if (coolmodValue != null) {
             coolmodLine = TooltipStyle.cropTopOnly(renderCoolmodLine(coolmodValue));
+        }
+
+        // Render elixir wound effects (from Contents.sub Elixir) - HealWound/AddWound effects
+        LineResult elixirEffectsResult = null;
+        if (!elixirWoundEffects.isEmpty()) {
+            elixirEffectsResult = renderElixirWoundEffects(elixirWoundEffects);
+        }
+
+        // Render elixir stat effects (from AttrMod like "Strength +21") - after wound effects
+        LineResult elixirStatEffectsResult = null;
+        if (!elixirStatEffects.isEmpty()) {
+            elixirStatEffectsResult = renderElixirStatEffects(elixirStatEffects);
+        }
+
+        // Render elixir duration
+        LineResult elixirDurationResult = null;
+        if (elixirDurationSeconds != null && elixirDurationSeconds > 0) {
+            elixirDurationResult = renderElixirDuration(elixirDurationSeconds);
+        }
+
+        // Render recipe ingredients (from Contents.sub Recipe)
+        LineResult recipeResult = null;
+        if (!recipeIngredients.isEmpty()) {
+            recipeResult = renderRecipeIngredients(recipeIngredients);
         }
 
         // Render Attack weight - returns LineResult with text offsets for proper spacing
@@ -922,6 +1069,61 @@ public class NTooltip {
         java.util.List<LineResult> itemInfoResults = new java.util.ArrayList<>();
         if (contentLine != null) {
             itemInfoResults.add(new LineResult(contentLine, 0, 0));
+        }
+        // Combine elixir elements with proper spacing:
+        // - Effects (wound + stat) use 7px internal spacing between them
+        // - Duration uses 10px section spacing after effects
+        // - Ingredients use 10px section spacing after duration
+        LineResult combinedElixirResult = null;
+        {
+            // First combine wound effects and stat effects with 7px internal spacing
+            LineResult effectsResult = null;
+            int effectsBottomOffset = 0;
+            if (elixirEffectsResult != null) {
+                effectsResult = elixirEffectsResult;
+                effectsBottomOffset = elixirEffectsResult.textBottomOffset;
+            }
+            if (elixirStatEffectsResult != null) {
+                if (effectsResult != null) {
+                    int spacing = scaledInternalSpacing - bodyDescentVal - effectsBottomOffset - elixirStatEffectsResult.textTopOffset;
+                    BufferedImage combined = ItemInfo.catimgs(spacing, effectsResult.image, elixirStatEffectsResult.image);
+                    effectsResult = new LineResult(combined, effectsResult.textTopOffset, elixirStatEffectsResult.textBottomOffset);
+                } else {
+                    effectsResult = elixirStatEffectsResult;
+                }
+                effectsBottomOffset = elixirStatEffectsResult.textBottomOffset;
+            }
+
+            // Add duration with 10px section spacing after effects
+            LineResult effectsAndDuration = effectsResult;
+            int effectsAndDurationBottomOffset = effectsBottomOffset;
+            if (elixirDurationResult != null) {
+                if (effectsAndDuration != null) {
+                    int spacing = scaledSectionSpacing - bodyDescentVal - effectsAndDurationBottomOffset - elixirDurationResult.textTopOffset;
+                    BufferedImage combined = ItemInfo.catimgs(spacing, effectsAndDuration.image, elixirDurationResult.image);
+                    effectsAndDuration = new LineResult(combined, effectsAndDuration.textTopOffset, elixirDurationResult.textBottomOffset);
+                } else {
+                    effectsAndDuration = elixirDurationResult;
+                }
+                effectsAndDurationBottomOffset = elixirDurationResult.textBottomOffset;
+            }
+
+            // Add ingredients with 10px section spacing after duration
+            if (recipeResult != null) {
+                if (effectsAndDuration != null) {
+                    int spacing = scaledSectionSpacing - bodyDescentVal - effectsAndDurationBottomOffset - recipeResult.textTopOffset;
+                    BufferedImage combined = ItemInfo.catimgs(spacing, effectsAndDuration.image, recipeResult.image);
+                    combinedElixirResult = new LineResult(combined, effectsAndDuration.textTopOffset, recipeResult.textBottomOffset);
+                } else {
+                    combinedElixirResult = recipeResult;
+                }
+            } else {
+                combinedElixirResult = effectsAndDuration;
+            }
+        }
+        // Add combined elixir result to item info
+        if (combinedElixirResult != null) {
+            itemInfoResults.add(combinedElixirResult);
         }
         if (damageRangeLine != null) {
             itemInfoResults.add(new LineResult(damageRangeLine, 0, 0));
@@ -1528,6 +1730,327 @@ public class NTooltip {
     }
 
     /**
+     * Render elixir wound effects section.
+     * "Heal X points of [icon] Wound Name" in green, "Cause X points of [icon] Wound Name" in red
+     * Returns LineResult with proper text offsets for baseline-relative spacing.
+     * Uses 7px internal spacing between effects.
+     */
+    private static LineResult renderElixirWoundEffects(java.util.List<WoundEffect> effects) {
+        if (effects == null || effects.isEmpty()) {
+            return null;
+        }
+        int iconSize = UI.scale(TooltipStyle.ICON_SIZE);
+        int iconToTextSpacing = UI.scale(TooltipStyle.ICON_TO_TEXT_SPACING);
+        int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);  // 7px
+        int bodyDescentVal = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+
+        java.util.List<LineResult> lineResults = new java.util.ArrayList<>();
+
+        for (WoundEffect effect : effects) {
+            // Determine color based on heal/cause
+            Color actionColor = effect.isHeal ? TooltipStyle.COLOR_STUDY_TIME : TooltipStyle.COLOR_NEGATIVE_STAT;
+            String actionText = effect.isHeal ? "Heal " + effect.amount : "Cause " + effect.amount;
+
+            // Render text parts (cropped)
+            BufferedImage actionImg = TooltipStyle.cropTopOnly(getContentFoundry().render(actionText, actionColor).img);
+            BufferedImage pointsOfImg = TooltipStyle.cropTopOnly(getBodyRegularFoundry().render(" points of ", Color.WHITE).img);
+            BufferedImage woundNameImg = TooltipStyle.cropTopOnly(getBodyRegularFoundry().render(effect.woundName, Color.WHITE).img);
+
+            // Get text height and calculate visual center (excluding descent)
+            int textHeight = Math.max(actionImg.getHeight(), Math.max(pointsOfImg.getHeight(), woundNameImg.getHeight()));
+            int visualTextHeight = textHeight - bodyDescentVal;
+            int visualTextCenter = visualTextHeight / 2;
+
+            // Scale wound icon
+            BufferedImage scaledIcon = null;
+            if (effect.woundIcon != null) {
+                scaledIcon = PUtils.convolvedown(effect.woundIcon, new Coord(iconSize, iconSize), CharWnd.iconfilter);
+            }
+
+            // Calculate icon Y position (centered on visual text center)
+            int iconYRelative = (scaledIcon != null) ? visualTextCenter - scaledIcon.getHeight() / 2 : 0;
+
+            // Calculate canvas dimensions
+            int iconWidth = (scaledIcon != null) ? scaledIcon.getWidth() + iconToTextSpacing : 0;
+            int lineWidth = actionImg.getWidth() + pointsOfImg.getWidth() + iconWidth + woundNameImg.getWidth();
+            int canvasHeight = textHeight;
+            int textY = 0;
+            int iconY = iconYRelative;
+
+            // Expand canvas if icon extends beyond text
+            if (scaledIcon != null && iconYRelative < 0) {
+                canvasHeight = textHeight - iconYRelative;
+                textY = -iconYRelative;
+                iconY = 0;
+            }
+            if (scaledIcon != null) {
+                int iconBottom = iconY + scaledIcon.getHeight();
+                if (iconBottom > canvasHeight) {
+                    canvasHeight = iconBottom;
+                }
+            }
+
+            // Create line: "Heal X" + " points of " + [icon] + "Wound Name"
+            BufferedImage lineImg = TexI.mkbuf(new Coord(lineWidth, canvasHeight));
+            Graphics g = lineImg.getGraphics();
+            int xPos = 0;
+
+            g.drawImage(actionImg, xPos, textY, null);
+            xPos += actionImg.getWidth();
+            g.drawImage(pointsOfImg, xPos, textY, null);
+            xPos += pointsOfImg.getWidth();
+            if (scaledIcon != null) {
+                g.drawImage(scaledIcon, xPos, iconY, null);
+                xPos += scaledIcon.getWidth() + iconToTextSpacing;
+            }
+            g.drawImage(woundNameImg, xPos, textY, null);
+            g.dispose();
+
+            // Track text offsets for baseline-relative spacing
+            int textTopOffset = textY;
+            int textBottomOffset = canvasHeight - textY - textHeight;
+            lineResults.add(new LineResult(lineImg, textTopOffset, textBottomOffset));
+        }
+
+        // Combine lines with 7px internal spacing (baseline to text top)
+        if (lineResults.isEmpty()) return null;
+
+        LineResult first = lineResults.get(0);
+        BufferedImage result = first.image;
+        int firstTextTopOffset = first.textTopOffset;
+        int prevTextBottomOffset = first.textBottomOffset;
+
+        for (int i = 1; i < lineResults.size(); i++) {
+            LineResult current = lineResults.get(i);
+            int spacing = scaledInternalSpacing - bodyDescentVal - prevTextBottomOffset - current.textTopOffset;
+            result = ItemInfo.catimgs(spacing, result, current.image);
+            prevTextBottomOffset = current.textBottomOffset;
+        }
+
+        return new LineResult(result, firstTextTopOffset, prevTextBottomOffset);
+    }
+
+    /**
+     * Render elixir stat effects (from AttrMod like "Strength +21").
+     * Each stat is rendered as: icon + name + value
+     * Positive values are green (#99FF84), negative values are red (#FF6464)
+     * Returns LineResult with proper text offsets for baseline-relative spacing.
+     * Uses 7px internal spacing between stats.
+     */
+    private static LineResult renderElixirStatEffects(java.util.List<GildingStatData> stats) {
+        if (stats == null || stats.isEmpty()) {
+            return null;
+        }
+        int iconSize = UI.scale(TooltipStyle.ICON_SIZE);
+        int iconToTextSpacing = UI.scale(TooltipStyle.ICON_TO_TEXT_SPACING);
+        int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);  // 7px
+        int bodyDescentVal = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+
+        java.util.List<LineResult> lineResults = new java.util.ArrayList<>();
+
+        for (GildingStatData stat : stats) {
+            // Determine color based on value sign
+            boolean isNegative = stat.formattedValue.startsWith("-");
+            Color valueColor = isNegative ? TooltipStyle.COLOR_NEGATIVE_STAT : TooltipStyle.COLOR_STUDY_TIME;
+
+            // Render text parts (cropped)
+            BufferedImage nameImg = TooltipStyle.cropTopOnly(getBodyRegularFoundry().render(stat.name + " ", Color.WHITE).img);
+            BufferedImage valueImg = TooltipStyle.cropTopOnly(getContentFoundry().render(stat.formattedValue, valueColor).img);
+
+            // Get text height and calculate visual center (excluding descent)
+            int textHeight = Math.max(nameImg.getHeight(), valueImg.getHeight());
+            int visualTextHeight = textHeight - bodyDescentVal;
+            int visualTextCenter = visualTextHeight / 2;
+
+            // Scale icon
+            BufferedImage scaledIcon = null;
+            if (stat.icon != null) {
+                scaledIcon = PUtils.convolvedown(stat.icon, new Coord(iconSize, iconSize), CharWnd.iconfilter);
+            }
+
+            // Calculate icon Y position (centered on visual text center)
+            int iconYRelative = (scaledIcon != null) ? visualTextCenter - scaledIcon.getHeight() / 2 : 0;
+
+            // Calculate canvas dimensions
+            int iconWidth = (scaledIcon != null) ? scaledIcon.getWidth() + iconToTextSpacing : 0;
+            int lineWidth = iconWidth + nameImg.getWidth() + valueImg.getWidth();
+            int canvasHeight = textHeight;
+            int textY = 0;
+            int iconY = iconYRelative;
+
+            // Expand canvas if icon extends beyond text
+            if (scaledIcon != null && iconYRelative < 0) {
+                canvasHeight = textHeight - iconYRelative;
+                textY = -iconYRelative;
+                iconY = 0;
+            }
+            if (scaledIcon != null) {
+                int iconBottom = iconY + scaledIcon.getHeight();
+                if (iconBottom > canvasHeight) {
+                    canvasHeight = iconBottom;
+                }
+            }
+
+            // Create line with icon, name, and value
+            BufferedImage lineImg = TexI.mkbuf(new Coord(lineWidth, canvasHeight));
+            Graphics g = lineImg.getGraphics();
+            int xPos = 0;
+            if (scaledIcon != null) {
+                g.drawImage(scaledIcon, xPos, iconY, null);
+                xPos += scaledIcon.getWidth() + iconToTextSpacing;
+            }
+            g.drawImage(nameImg, xPos, textY, null);
+            xPos += nameImg.getWidth();
+            g.drawImage(valueImg, xPos, textY, null);
+            g.dispose();
+
+            // Track text offsets for baseline-relative spacing
+            int textTopOffset = textY;
+            int textBottomOffset = canvasHeight - textY - textHeight;
+            lineResults.add(new LineResult(lineImg, textTopOffset, textBottomOffset));
+        }
+
+        // Combine lines with 7px internal spacing (baseline to text top)
+        if (lineResults.isEmpty()) return null;
+
+        LineResult first = lineResults.get(0);
+        BufferedImage result = first.image;
+        int firstTextTopOffset = first.textTopOffset;
+        int prevTextBottomOffset = first.textBottomOffset;
+
+        for (int i = 1; i < lineResults.size(); i++) {
+            LineResult current = lineResults.get(i);
+            int spacing = scaledInternalSpacing - bodyDescentVal - prevTextBottomOffset - current.textTopOffset;
+            result = ItemInfo.catimgs(spacing, result, current.image);
+            prevTextBottomOffset = current.textBottomOffset;
+        }
+
+        return new LineResult(result, firstTextTopOffset, prevTextBottomOffset);
+    }
+
+    /**
+     * Render elixir duration line: "Duration: " (regular white) + "Xm Ys" (semibold cyan)
+     * Returns LineResult with proper text offsets for baseline-relative spacing.
+     */
+    private static LineResult renderElixirDuration(int durationSeconds) {
+        int minutes = durationSeconds / 60;
+        int seconds = durationSeconds % 60;
+        String timeStr;
+        if (minutes > 0 && seconds > 0) {
+            timeStr = minutes + "m " + seconds + "s";
+        } else if (minutes > 0) {
+            timeStr = minutes + "m";
+        } else {
+            timeStr = seconds + "s";
+        }
+        BufferedImage labelImg = TooltipStyle.cropTopOnly(getBodyRegularFoundry().render("Duration: ", Color.WHITE).img);
+        BufferedImage valueImg = TooltipStyle.cropTopOnly(getContentFoundry().render(timeStr, TooltipStyle.COLOR_FOOD_ENERGY).img);  // Cyan #00EEFF
+        BufferedImage result = TooltipStyle.composePair(labelImg, valueImg);
+        // Text is at y=0 after cropping, textBottomOffset accounts for any padding below baseline
+        return new LineResult(result, 0, 0);
+    }
+
+    /**
+     * Render recipe ingredients section with hierarchical indentation and icons.
+     * No header - ingredients rendered directly with icons.
+     * Returns LineResult with proper text offsets for baseline-relative spacing.
+     */
+    private static LineResult renderRecipeIngredients(java.util.List<RecipeIngredient> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) {
+            return null;
+        }
+        int baseIndent = UI.scale(10);  // Base indent per level
+        int iconToTextSpacing = UI.scale(TooltipStyle.ICON_TO_TEXT_SPACING);
+        int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);  // 7px spacing between all ingredients
+        int fontSize = TooltipStyle.FONT_SIZE_BODY;
+        int iconSize = UI.scale(fontSize);
+        int fontDescent = TooltipStyle.getFontDescent(fontSize);
+
+        java.util.List<LineResult> lineResults = new java.util.ArrayList<>();
+
+        // Render each ingredient with icon and indentation
+        for (RecipeIngredient ingredient : ingredients) {
+            int indent = baseIndent * ingredient.indentLevel;
+
+            // Get icon from resource
+            BufferedImage icon = null;
+            try {
+                Resource.Image imgLayer = ingredient.res.layer(Resource.imgc);
+                if (imgLayer != null) {
+                    icon = PUtils.convolvedown(imgLayer.img, new Coord(iconSize, iconSize), CharWnd.iconfilter);
+                }
+            } catch (Exception e) {
+                // No image layer, skip icon
+            }
+
+            // Render name
+            BufferedImage nameImg = TooltipStyle.cropTopOnly(getBodyRegularFoundry().render(ingredient.name, Color.WHITE).img);
+            int textHeight = nameImg.getHeight();
+
+            // Calculate visual text center (excluding descent)
+            int visualTextHeight = textHeight - fontDescent;
+            int visualTextCenter = visualTextHeight / 2;
+
+            // Calculate icon Y position relative to visual text center
+            int iconYRelative = icon != null ? visualTextCenter - icon.getHeight() / 2 : 0;
+
+            // Calculate canvas dimensions
+            int iconWidth = (icon != null) ? icon.getWidth() + iconToTextSpacing : 0;
+            int lineWidth = indent + iconWidth + nameImg.getWidth();
+            int canvasHeight = textHeight;
+            int textY = 0;
+            int iconY = iconYRelative;
+
+            // If icon extends above text, expand canvas
+            if (icon != null && iconYRelative < 0) {
+                canvasHeight = textHeight - iconYRelative;
+                textY = -iconYRelative;
+                iconY = 0;
+            }
+            // If icon extends below text, expand canvas
+            if (icon != null) {
+                int iconBottom = iconY + icon.getHeight();
+                if (iconBottom > canvasHeight) {
+                    canvasHeight = iconBottom;
+                }
+            }
+
+            // Create indented line with icon and name
+            BufferedImage lineImg = TexI.mkbuf(new Coord(lineWidth, canvasHeight));
+            Graphics g = lineImg.getGraphics();
+            int xPos = indent;
+            if (icon != null) {
+                g.drawImage(icon, xPos, iconY, null);
+                xPos += icon.getWidth() + iconToTextSpacing;
+            }
+            g.drawImage(nameImg, xPos, textY, null);
+            g.dispose();
+
+            // Track text offsets for baseline-relative spacing
+            int textTopOffset = textY;
+            int textBottomOffset = canvasHeight - textY - textHeight;
+            lineResults.add(new LineResult(lineImg, textTopOffset, textBottomOffset));
+        }
+
+        // Combine lines with 7px internal spacing
+        if (lineResults.isEmpty()) return null;
+
+        LineResult first = lineResults.get(0);
+        BufferedImage result = first.image;
+        int firstTextTopOffset = first.textTopOffset;
+        int prevTextBottomOffset = first.textBottomOffset;
+
+        for (int i = 1; i < lineResults.size(); i++) {
+            LineResult current = lineResults.get(i);
+            int spacing = scaledInternalSpacing - fontDescent - prevTextBottomOffset - current.textTopOffset;
+            result = ItemInfo.catimgs(spacing, result, current.image);
+            prevTextBottomOffset = current.textBottomOffset;
+        }
+
+        return new LineResult(result, firstTextTopOffset, prevTextBottomOffset);
+    }
+
+    /**
      * Render all tool stats as a section with right-aligned values.
      * Returns a LineResult with proper text offsets for baseline-relative spacing.
      */
@@ -1762,6 +2285,122 @@ public class NTooltip {
             this.icon = icon;
             this.name = name;
             this.formattedValue = formattedValue;
+        }
+    }
+
+    /**
+     * Data for a wound effect (HealWound or AddWound from elixir).
+     */
+    private static class WoundEffect {
+        final boolean isHeal;  // true for HealWound, false for AddWound
+        final int amount;
+        final String woundName;
+        final BufferedImage woundIcon;
+
+        WoundEffect(boolean isHeal, int amount, String woundName, BufferedImage woundIcon) {
+            this.isHeal = isHeal;
+            this.amount = amount;
+            this.woundName = woundName;
+            this.woundIcon = woundIcon;
+        }
+    }
+
+    /**
+     * Data for a recipe ingredient (used for elixir recipe section).
+     */
+    private static class RecipeIngredient {
+        final String name;
+        final int indentLevel;
+        final Resource res;  // Resource for loading icon
+
+        RecipeIngredient(String name, int indentLevel, Resource res) {
+            this.name = name;
+            this.indentLevel = indentLevel;
+            this.res = res;
+        }
+    }
+
+    /**
+     * Recursively extract recipe ingredients from Recipe$Spec objects.
+     */
+    private static void extractRecipeIngredients(java.util.List<?> specs, java.util.List<RecipeIngredient> result, int indentLevel) {
+        for (Object spec : specs) {
+            if (spec == null) continue;
+            try {
+                // Get res field (ResData containing the resource)
+                java.lang.reflect.Field resField = spec.getClass().getDeclaredField("res");
+                resField.setAccessible(true);
+                Object resData = resField.get(spec);
+                String ingredientName = null;
+                Resource res = null;
+                if (resData != null) {
+                    // ResData has a res field that is an Indir<Resource> (CachedRes$Ref)
+                    // We need to call get() on it to get the actual Resource
+                    try {
+                        java.lang.reflect.Field innerResField = resData.getClass().getDeclaredField("res");
+                        innerResField.setAccessible(true);
+                        Object resRef = innerResField.get(resData);
+
+                        if (resRef instanceof Resource) {
+                            res = (Resource) resRef;
+                        } else if (resRef instanceof Indir) {
+                            // It's an Indir<Resource>, call get()
+                            res = (Resource) ((Indir<?>) resRef).get();
+                        } else if (resRef != null) {
+                            // Try calling get() method via reflection
+                            try {
+                                java.lang.reflect.Method getMethod = resRef.getClass().getMethod("get");
+                                res = (Resource) getMethod.invoke(resRef);
+                            } catch (Exception e) {
+                                // Could not call get() on resRef
+                            }
+                        }
+
+                        if (res != null) {
+                            // Get the display name from resource tooltip
+                            try {
+                                Resource.Tooltip tt = res.layer(Resource.tooltip);
+                                if (tt != null) {
+                                    ingredientName = tt.t;
+                                }
+                            } catch (Exception e) {
+                                // No tooltip layer
+                            }
+                            if (ingredientName == null) {
+                                // Extract name from resource path
+                                String resName = res.name;
+                                int lastSlash = resName.lastIndexOf('/');
+                                ingredientName = lastSlash >= 0 ? resName.substring(lastSlash + 1) : resName;
+                                // Capitalize first letter
+                                if (!ingredientName.isEmpty()) {
+                                    ingredientName = Character.toUpperCase(ingredientName.charAt(0)) + ingredientName.substring(1);
+                                }
+                            }
+                        }
+                    } catch (NoSuchFieldException nsfe) {
+                        // ResData has no 'res' field
+                    }
+                }
+                if (ingredientName != null && res != null) {
+                    result.add(new RecipeIngredient(ingredientName, indentLevel, res));
+                }
+
+                // Get child inputs recursively
+                java.lang.reflect.Field inputsField = spec.getClass().getDeclaredField("inputs");
+                inputsField.setAccessible(true);
+                Object inputsObj = inputsField.get(spec);
+                java.util.List<?> childInputs = null;
+                if (inputsObj instanceof java.util.List) {
+                    childInputs = (java.util.List<?>) inputsObj;
+                } else if (inputsObj != null && inputsObj.getClass().isArray()) {
+                    childInputs = java.util.Arrays.asList((Object[]) inputsObj);
+                }
+                if (childInputs != null && !childInputs.isEmpty()) {
+                    extractRecipeIngredients(childInputs, result, indentLevel + 1);
+                }
+            } catch (Exception e) {
+                // Skip this ingredient on error
+            }
         }
     }
 
@@ -2106,6 +2745,14 @@ public class NTooltip {
                 }
                 // Skip Armor - we render armor class ourselves
                 if (tipClassName.equals("Armor")) {
+                    continue;
+                }
+                // Skip Elixir - we render elixir effects ourselves
+                if (tipClassName.equals("Elixir")) {
+                    continue;
+                }
+                // Skip Recipe - we render recipe ingredients ourselves
+                if (tipClassName.equals("Recipe")) {
                     continue;
                 }
                 // Skip AttrMod at item level - we render base stats ourselves
