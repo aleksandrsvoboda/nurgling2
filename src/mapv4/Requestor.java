@@ -122,9 +122,10 @@ public class Requestor implements Action {
                     case "prepGrid": {
                         String gridID = (String)task.args[0];
                         MCache.Grid g = (MCache.Grid)task.args[1];
-                        if(g != null && NUtils.getGameUI().map.glob != null) {
+                        NGameUI gameUI = NUtils.getGameUI();
+                        if(g != null && gameUI != null && gameUI.map != null && gameUI.map.glob != null) {
                             try {
-                                BufferedImage image = MinimapImageGenerator.drawmap(NUtils.getGameUI().map.glob.map, g);
+                                BufferedImage image = MinimapImageGenerator.drawmap(gameUI.map.glob.map, g);
                                 if(image == null) {
                                     int retries = prepGridRetries.getOrDefault(gridID, 0);
                                     if (retries < PREPGRID_RETRY_LIMIT) {

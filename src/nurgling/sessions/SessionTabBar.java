@@ -57,6 +57,7 @@ public class SessionTabBar extends Widget {
     private static Tex warningIcon;
     private static Tex closeNormal, closeHover, closePush;
     private static Tex addNormal, addHover, addPush;
+    private static boolean resourcesLoaded = false;
 
     /** Font for character names */
     private Text.Foundry nameFont;
@@ -113,36 +114,8 @@ public class SessionTabBar extends Widget {
     public SessionTabBar() {
         super(Coord.z);
 
-        // Load resources (only once, since they're static)
-        if (gearIcon == null) {
-            try {
-                gearIcon = Resource.loadtex("nurgling/hud/sessions/icons/gear");
-                warningIcon = Resource.loadtex("nurgling/hud/sessions/icons/warning");
-                closeNormal = Resource.loadtex("nurgling/hud/sessions/close/10x10");
-                closeHover = Resource.loadtex("nurgling/hud/sessions/close/10x10_hover");
-                closePush = Resource.loadtex("nurgling/hud/sessions/close/10x10_push");
-                addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
-                addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
-                addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
-                ctl = Resource.loadtex("nurgling/hud/box/tl");
-            } catch (Exception e) {
-                System.err.println("Failed to load session tab icons: " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-
-        // Load Open Sans Semibold font (11px)
-        try {
-            FontSettings fontSettings = (FontSettings) NConfig.get(NConfig.Key.fonts);
-            Font openSansSemibold = fontSettings.getFont("Open Sans Semibold");
-            nameFont = new Text.Foundry(openSansSemibold, UI.scale(11));
-        } catch (Exception e) {
-            // Fallback to default if Open Sans Semibold not available
-            nameFont = Text.std;
-        }
-
-        // Create drag mode label
-        label = new TexI(labelFont.render("Sessions").img);
+        // Note: Resource loading is deferred to ensureResourcesLoaded()
+        // which is called on first draw() to avoid blocking during initialization
 
         // Create lock button
         add(btnLock = new ICheckBox(NStyle.locki[0], NStyle.locki[1], NStyle.locki[2], NStyle.locki[3]) {
@@ -174,6 +147,44 @@ public class SessionTabBar extends Widget {
 
         // Calculate initial size
         updateSize();
+    }
+
+    /**
+     * Lazy-load resources on first draw to avoid blocking during initialization.
+     * This prevents RenderTree$SlotRemoved errors during character selection.
+     */
+    private void ensureResourcesLoaded() {
+        if (resourcesLoaded) return;
+
+        try {
+            // Load icon textures
+            gearIcon = Resource.loadtex("nurgling/hud/sessions/icons/gear");
+            warningIcon = Resource.loadtex("nurgling/hud/sessions/icons/warning");
+            closeNormal = Resource.loadtex("nurgling/hud/sessions/close/10x10");
+            closeHover = Resource.loadtex("nurgling/hud/sessions/close/10x10_hover");
+            closePush = Resource.loadtex("nurgling/hud/sessions/close/10x10_push");
+            addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
+            addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
+            addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
+            ctl = Resource.loadtex("nurgling/hud/box/tl");
+
+            // Load font
+            try {
+                FontSettings fontSettings = (FontSettings) NConfig.get(NConfig.Key.fonts);
+                Font openSansSemibold = fontSettings.getFont("Open Sans Semibold");
+                nameFont = new Text.Foundry(openSansSemibold, UI.scale(11));
+            } catch (Exception e) {
+                nameFont = Text.std;
+            }
+
+            // Create label
+            label = new TexI(labelFont.render("Sessions").img);
+
+            resourcesLoaded = true;
+        } catch (Exception e) {
+            System.err.println("Failed to load session tab resources: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -248,6 +259,10 @@ public class SessionTabBar extends Widget {
 
     @Override
     public void draw(GOut g) {
+        // Lazy-load resources on first draw
+        ensureResourcesLoaded();
+        if (!resourcesLoaded) return; // Skip drawing if resources failed to load
+
         SessionManager sm = SessionManager.getInstance();
         Collection<SessionContext> sessions = sm.getAllSessions();
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
