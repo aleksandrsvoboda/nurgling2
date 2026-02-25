@@ -1953,7 +1953,6 @@ public class NTooltip {
     /**
      * Render recipe ingredients section with hierarchical indentation and icons.
      * No header - ingredients rendered directly with icons.
-     * Sub-ingredients (indentLevel > 0) use 9px font.
      * Returns LineResult with proper text offsets for baseline-relative spacing.
      */
     private static LineResult renderRecipeIngredients(java.util.List<RecipeIngredient> ingredients) {
@@ -1962,20 +1961,16 @@ public class NTooltip {
         }
         int baseIndent = UI.scale(10);  // Base indent per level
         int iconToTextSpacing = UI.scale(TooltipStyle.ICON_TO_TEXT_SPACING);
-        int scaledSectionSpacing = UI.scale(TooltipStyle.SECTION_SPACING);  // 10px between main ingredients
-        int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);  // 7px for sub-ingredients
+        int scaledInternalSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING);  // 7px spacing between all ingredients
+        int fontSize = TooltipStyle.FONT_SIZE_BODY;
+        int iconSize = UI.scale(fontSize);
+        int fontDescent = TooltipStyle.getFontDescent(fontSize);
 
         java.util.List<LineResult> lineResults = new java.util.ArrayList<>();
 
         // Render each ingredient with icon and indentation
         for (RecipeIngredient ingredient : ingredients) {
             int indent = baseIndent * ingredient.indentLevel;
-            boolean isSubIngredient = ingredient.indentLevel > 0;
-
-            // Use 9px font for sub-ingredients, 12px for main ingredients
-            int fontSize = isSubIngredient ? TooltipStyle.FONT_SIZE_RESOURCE : TooltipStyle.FONT_SIZE_BODY;
-            int iconSize = UI.scale(fontSize);  // Icon size matches font
-            int fontDescent = TooltipStyle.getFontDescent(fontSize);
 
             // Get icon from resource
             BufferedImage icon = null;
@@ -1988,9 +1983,8 @@ public class NTooltip {
                 // No image layer, skip icon
             }
 
-            // Render name with appropriate font size
-            Text.Foundry foundry = isSubIngredient ? getResourceFoundry() : getBodyRegularFoundry();
-            BufferedImage nameImg = TooltipStyle.cropTopOnly(foundry.render(ingredient.name, Color.WHITE).img);
+            // Render name
+            BufferedImage nameImg = TooltipStyle.cropTopOnly(getBodyRegularFoundry().render(ingredient.name, Color.WHITE).img);
             int textHeight = nameImg.getHeight();
 
             // Calculate visual text center (excluding descent)
@@ -2038,29 +2032,19 @@ public class NTooltip {
             lineResults.add(new LineResult(lineImg, textTopOffset, textBottomOffset));
         }
 
-        // Combine lines with proper spacing
+        // Combine lines with 7px internal spacing
         if (lineResults.isEmpty()) return null;
 
         LineResult first = lineResults.get(0);
         BufferedImage result = first.image;
         int firstTextTopOffset = first.textTopOffset;
         int prevTextBottomOffset = first.textBottomOffset;
-        boolean prevWasMainIngredient = ingredients.get(0).indentLevel == 0;
 
         for (int i = 1; i < lineResults.size(); i++) {
             LineResult current = lineResults.get(i);
-            RecipeIngredient currentIngredient = ingredients.get(i);
-            boolean currentIsMainIngredient = currentIngredient.indentLevel == 0;
-
-            // Use 10px spacing between main ingredients, 7px for sub-ingredients
-            int targetSpacing = (prevWasMainIngredient && currentIsMainIngredient) ? scaledSectionSpacing : scaledInternalSpacing;
-            int prevFontSize = prevWasMainIngredient ? TooltipStyle.FONT_SIZE_BODY : TooltipStyle.FONT_SIZE_RESOURCE;
-            int prevDescent = TooltipStyle.getFontDescent(prevFontSize);
-
-            int spacing = targetSpacing - prevDescent - prevTextBottomOffset - current.textTopOffset;
+            int spacing = scaledInternalSpacing - fontDescent - prevTextBottomOffset - current.textTopOffset;
             result = ItemInfo.catimgs(spacing, result, current.image);
             prevTextBottomOffset = current.textBottomOffset;
-            prevWasMainIngredient = currentIsMainIngredient;
         }
 
         return new LineResult(result, firstTextTopOffset, prevTextBottomOffset);
