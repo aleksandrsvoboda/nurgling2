@@ -31,7 +31,6 @@ import java.util.*;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
 import haven.render.*;
-import nurgling.tools.MaterialFactory;
 import static haven.PType.*;
 
 public class Material implements Pipe.Op {
@@ -256,28 +255,11 @@ public class Material implements Pipe.Op {
     public static class Res extends Resource.Layer implements Resource.IDLayer<Integer> {
 	public final int id;
 	private transient Material m;
-	private transient HashMap<MaterialFactory.Status, Material> hm = new HashMap<>();
 	private transient Buffer cons;
-	// Legacy Resolver system for backward compatibility with Nurgling
-	private transient List<Pipe.Op> states = new LinkedList<>(), dynstates = new LinkedList<>();
-	private transient List<Resolver> left = new LinkedList<>();
 
+	// Legacy Resolver interface for backward compatibility with Nurgling
 	public interface Resolver {
 	    public void resolve(Collection<Pipe.Op> buf, Collection<Pipe.Op> dynbuf);
-	}
-
-	public abstract static class CustomResolver implements Resolver {
-	    private Map<Integer,TexR> tex;
-
-	    public TexR getCustomTex(int id) {
-		if(tex!=null)
-		    return tex.get(id);
-		return null;
-	    }
-
-	    public void setCustomTex(Map<Integer,TexR> tex) {
-		this.tex = tex;
-	    }
 	}
 
 	public Res(Resource res, Message buf) {
@@ -292,12 +274,6 @@ public class Material implements Pipe.Op {
 	    this.cons = new Buffer(res, specs);
 	}
 
-	// Legacy constructor for Resolver-based system
-	public Res(Resource res, int id) {
-	    res.super();
-	    this.id = id;
-	}
-
 	public Spec findspec(String nm) {
 	    int p = nm.indexOf(':');
 	    if(p < 0) {
@@ -310,70 +286,32 @@ public class Material implements Pipe.Op {
 	    }
 	}
 
+	// Nurgling's custom material selection method (stub for now)
 	public Material get(int mask) {
-	    synchronized(this) {
-		MaterialFactory.Status status = MaterialFactory.getStatus(getres().name, mask);
-		if(status!= MaterialFactory.Status.NOTDEFINED) {
-		    if (!hm.containsKey(status)) {
-			// Clear states lists before resolving to avoid accumulation
-			List<Pipe.Op> newStates = new LinkedList<>();
-			List<Pipe.Op> newDynStates = new LinkedList<>();
-
-			for (Iterator<Resolver> i = left.iterator(); i.hasNext(); ) {
-			    Resolver r = i.next();
-			    if (r instanceof CustomResolver) {
-				((CustomResolver) r).setCustomTex(MaterialFactory.getMaterial(getres().name, status, r));
-			    }
-			    r.resolve(newStates, newDynStates);
-			}
-			Material m = new Material(newStates.toArray(new Pipe.Op[0]), newDynStates.toArray(new Pipe.Op[0])) {
-			    public String toString() {
-				return (super.toString() + "@" + getres().name);
-			    }
-			};
-			hm.put(status, m);
-		    }
-		    return (hm.get(status));
-		}
-		else
-		    return get();
-	    }
+	    // TODO: Reimplement MaterialFactory integration with new Buffer/Spec system
+	    return get();
 	}
 
 	public Material get() {
 	    if(m == null) {
 		synchronized(this) {
 		    if(m == null) {
-			// Use new Buffer-based construction if cons is available
-			if(cons != null) {
-			    for(Iterator<Object[]> i = cons.left.iterator(); i.hasNext();) {
-				Object[] spec = i.next();
-				String nm = Utils.sv(spec[0]);
-				Spec part = findspec(nm);
-				if(part == null)
-				    Warning.warn("unknown material part name in %s: %s", cons.res.name, nm);
-				else
-				    part.cons(cons, Utils.splice(spec, 1));
-				i.remove();
-			    }
-			    m = new Material(cons.states.toArray(new Pipe.Op[0]), cons.dynstates.toArray(new Pipe.Op[0])) {
-				public String toString() {
-				    return(super.toString() + "@" + getres().name);
-				}
-			    };
-			    cons = null;
-			} else {
-			    // Fallback to old Resolver-based construction
-			    for(Iterator<Resolver> i = left.iterator(); i.hasNext();) {
-				Resolver r = i.next();
-				r.resolve(states, dynstates);
-			    }
-			    m = new Material(states.toArray(new Pipe.Op[0]), dynstates.toArray(new Pipe.Op[0])) {
-				public String toString() {
-				    return(super.toString() + "@" + getres().name);
-				}
-			    };
+			for(Iterator<Object[]> i = cons.left.iterator(); i.hasNext();) {
+			    Object[] spec = i.next();
+			    String nm = Utils.sv(spec[0]);
+			    Spec part = findspec(nm);
+			    if(part == null)
+				Warning.warn("unknown material part name in %s: %s", cons.res.name, nm);
+			    else
+				part.cons(cons, Utils.splice(spec, 1));
+			    i.remove();
 			}
+			m = new Material(cons.states.toArray(new Pipe.Op[0]), cons.dynstates.toArray(new Pipe.Op[0])) {
+				public String toString() {
+				    return(super.toString() + "@" + getres().name);
+				}
+			    };
+			cons = null;
 		    }
 		}
 	    }
@@ -384,125 +322,6 @@ public class Material implements Pipe.Op {
 
 	public Integer layerid() {
 	    return(id);
-	}
-    }
-
-    // Legacy Resolver-based material construction system (for backward compatibility)
-    @ResName("mlink")
-    public static class $mlink implements ResCons2 {
-	public Res.Resolver cons(Resource res, Object... args) {
-	    KeywordArgs desc = new KeywordArgs(args, res.pool, "?@res", "id");
-	    Indir<Resource> lres = Utils.irv(desc.get("res", res.indir()));
-	    int id = Utils.iv(desc.get("id", -1));
-	    return(new Res.CustomResolver() {
-		public void resolve(Collection<Pipe.Op> buf, Collection<Pipe.Op> dynbuf) {
-		    if(id >= 0) {
-			Res mat = lres.get().layer(Res.class, id);
-			if(mat == null)
-			    throw(new Resource.LoadException("No such material in " + lres.get() + ": " + id, res));
-			TexR texR;
-			if((texR = getCustomTex(id))==null) {
-			    Material m = mat.get();
-			    if (m.states != Pipe.Op.nil)
-				buf.add(m.states);
-			    if(m.dynstates != Pipe.Op.nil)
-				dynbuf.add(m.dynstates);
-			}
-			else
-			{
-			    Material customMat = MaterialFactory.constructMaterial(texR, mat.get());
-			    if (customMat.states != Pipe.Op.nil)
-				buf.add(customMat.states);
-			    if (customMat.dynstates != Pipe.Op.nil)
-				dynbuf.add(customMat.dynstates);
-			}
-		    } else {
-			Material mat = fromres((Owner)null, lres.get(), Message.nil);
-			if(mat == null)
-			    throw(new Resource.LoadException("No material in " + lres.get(), res));
-			if(mat.states != Pipe.Op.nil)
-			    buf.add(mat.states);
-			if(mat.dynstates != Pipe.Op.nil)
-			    dynbuf.add(mat.dynstates);
-		    }
-		}
-	    });
-	}
-    }
-
-    @dolda.jglob.Discoverable
-    @Target(ElementType.TYPE)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface ResName {
-	public String value();
-    }
-
-    public interface ResCons {
-	public Pipe.Op cons(Resource res, Object... args);
-    }
-
-    public interface ResCons2 {
-	public Res.Resolver cons(Resource res, Object... args);
-    }
-
-    private static final Map<String, ResCons2> rnames_legacy = new TreeMap<String, ResCons2>();
-
-    static {
-	for(Class<?> cl : dolda.jglob.Loader.get(ResName.class).classes()) {
-	    String nm = cl.getAnnotation(ResName.class).value();
-	    if(ResCons.class.isAssignableFrom(cl)) {
-		final ResCons scons;
-		scons = Utils.construct(cl.asSubclass(ResCons.class));
-		rnames_legacy.put(nm, new ResCons2() {
-		    public Res.Resolver cons(Resource res, Object... args) {
-			final Pipe.Op ret = scons.cons(res, args);
-			return(new Res.Resolver() {
-			    public void resolve(Collection<Pipe.Op> buf, Collection<Pipe.Op> dynbuf) {
-				if(ret != null)
-				    buf.add(ret);
-			    }
-			});
-		    }
-		});
-	    } else if(ResCons2.class.isAssignableFrom(cl)) {
-		rnames_legacy.put(nm, Utils.construct(cl.asSubclass(ResCons2.class)));
-	    } else if(Pipe.Op.class.isAssignableFrom(cl)) {
-		Constructor<? extends Pipe.Op> cons;
-		try {
-		    cons = cl.asSubclass(Pipe.Op.class).getConstructor(Resource.class, Object[].class);
-		} catch(NoSuchMethodException e) {
-		    throw(new Error("No proper constructor for res-consable GL state " + cl.getName(), e));
-		}
-		rnames_legacy.put(nm, new ResCons2() {
-		    public Res.Resolver cons(Resource res, Object... args) {
-			return(new Res.Resolver() {
-			    public void resolve(Collection<Pipe.Op> buf, Collection<Pipe.Op> dynbuf) {
-				buf.add(Utils.construct(cons, res, args));
-			    }
-			});
-		    }
-		});
-	    } else {
-		throw(new Error("Illegal material constructor class: " + cl));
-	    }
-	}
-    }
-
-    @Resource.LayerName("mat2")
-    public static class NewMat implements Resource.LayerFactory<Res> {
-	public Res cons(Resource res, Message buf) {
-	    int id = buf.uint16();
-	    Res ret = new Res(res, id);
-	    while(!buf.eom()) {
-		String nm = buf.string();
-		Object[] args = buf.list(new Resource.PoolMapper(res.pool));
-		ResCons2 cons = rnames_legacy.get(nm);
-		if(cons != null)
-		    ret.left.add(cons.cons(res, args));
-		else
-		    new Resource.LoadWarning(res, "unknown material part name in %s: %s", res.name, nm).issue();
-	    }
-	    return(ret);
 	}
     }
 }
