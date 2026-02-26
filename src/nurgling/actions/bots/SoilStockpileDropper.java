@@ -34,7 +34,7 @@ public class SoilStockpileDropper implements Action {
         while (true) {
             int count = pile.calcCount();
             if (count <= MIN_KEEP) {
-                continue;
+                return Results.SUCCESS();
             }
 
             int toTake = count - MIN_KEEP;
@@ -42,7 +42,7 @@ public class SoilStockpileDropper implements Action {
             toTake = Math.min(toTake, freeSpace);
 
             if (toTake <= 0) {
-                continue;
+                return Results.FAIL();
             }
 
             // Take from stockpile
@@ -62,6 +62,7 @@ public class SoilStockpileDropper implements Action {
         ArrayList<WItem> soilItems = gui.getInventory().getItems(SOIL);
         for (WItem item : soilItems) {
             NUtils.drop(item);
+						Thread.sleep(5);
         }
         if (!soilItems.isEmpty()) {
             NUtils.addTask(new WaitItems(gui.getInventory(), SOIL, 0));
