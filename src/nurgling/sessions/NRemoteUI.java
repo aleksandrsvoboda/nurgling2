@@ -27,19 +27,43 @@ public class NRemoteUI extends RemoteUI {
      */
     @Override
     protected void onInit(UI ui) {
+        System.out.println("[NRemoteUI] onInit called, ui=" + ui + ", sess=" + sess);
         if (ui instanceof NUI) {
             NUI nui = (NUI) ui;
             SessionManager sm = SessionManager.getInstance();
 
             // Check if this session already exists (e.g., reconnecting after switch)
             SessionContext existing = sm.findBySession(sess);
+            System.out.println("[NRemoteUI] findBySession result: " + (existing != null ? existing.sessionId : "null"));
 
             if (existing != null) {
-                // Update the UI reference for existing session
+                // Session already exists (e.g., promoting from headless) - update UI reference
+                System.out.println("[NRemoteUI] Updating existing session UI reference");
                 existing.ui = nui;
-            } else if (sm.findByUI(ui) == null) {
-                // New session - register it
-                sm.addSession(sess, nui);
+
+                // Make sure this session is active since we're now rendering it
+                if (sm.getActiveSession() != existing) {
+                    System.out.println("[NRemoteUI] Setting existing session as active");
+                    sm.setActiveSession(existing);
+                }
+            } else {
+                // New session (fresh login)
+                // Check for duplicate login (same username already logged in)
+                String username = (sess != null && sess.user != null) ? sess.user.name : null;
+                System.out.println("[NRemoteUI] New session, username=" + username);
+                if (username != null) {
+                    SessionContext duplicate = sm.findByUsername(username);
+                    if (duplicate != null) {
+                        // Same account logged in again - the server will/has kicked the old session
+                        // Just remove it from our tracking (don't close - server already did)
+                        System.out.println("[NRemoteUI] Found duplicate session: " + duplicate.sessionId + ", removing silently");
+                        sm.removeSessionSilently(duplicate.sessionId);
+                    }
+                }
+
+                // Register the new session and make it active
+                System.out.println("[NRemoteUI] Adding new session as active");
+                sm.addSessionAsActive(sess, nui);
             }
 
             // Register lifecycle listener with GLPanel if not already done
@@ -74,8 +98,10 @@ public class NRemoteUI extends RemoteUI {
     @Override
     protected UI.Runner handleCustomMessage(PMessage msg, UI ui) {
         if (msg instanceof DetachMessage) {
+            System.out.println("[NRemoteUI] handleCustomMessage: DetachMessage for ui=" + ui);
             SessionManager sm = SessionManager.getInstance();
             SessionContext ctx = sm.findByUI(ui);
+            System.out.println("[NRemoteUI] handleCustomMessage: ctx=" + (ctx != null ? ctx.sessionId : "null"));
 
             if (ctx != null) {
                 // Spawn background thread to continue processing messages
@@ -98,16 +124,20 @@ public class NRemoteUI extends RemoteUI {
      */
     @Override
     protected boolean shouldCleanupSession(UI ui) {
+        System.out.println("[NRemoteUI] shouldCleanupSession called, ui=" + ui);
         SessionManager sm = SessionManager.getInstance();
         SessionContext ctx = sm.findByUI(ui);
+        System.out.println("[NRemoteUI] shouldCleanupSession: ctx=" + (ctx != null ? ctx.sessionId : "null") + ", isHeadless=" + (ctx != null ? ctx.isHeadless() : "N/A"));
 
         if (ctx != null && ctx.isHeadless()) {
             // Headless sessions are cleaned up by the background thread
+            System.out.println("[NRemoteUI] shouldCleanupSession: headless, returning false (background handles cleanup)");
             return false;
         }
 
         // Normal cleanup - remove from SessionManager
         if (ctx != null) {
+            System.out.println("[NRemoteUI] shouldCleanupSession: calling removeSession for " + ctx.sessionId);
             sm.removeSession(ctx.sessionId);
         }
 
@@ -120,19 +150,23 @@ public class NRemoteUI extends RemoteUI {
      * another session is rendered.
      */
     private void spawnBackgroundMessageLoop(UI ui, SessionContext ctx) {
+        System.out.println("[NRemoteUI] spawnBackgroundMessageLoop for " + ctx.sessionId);
         Thread bgThread = new Thread(() -> {
             boolean promotedToVisual = false;
 
             try {
+                System.out.println("[NRemoteUI-BG] Background loop starting for " + ctx.sessionId);
                 while (ctx.isConnected() && ctx.isHeadless()) {
                     PMessage msg = sess.getuimsg();
                     if (msg == null) {
                         // Session closed
+                        System.out.println("[NRemoteUI-BG] Session " + ctx.sessionId + " received null message (closed)");
                         break;
                     }
 
                     if (msg instanceof PromotedMessage) {
                         // Session is being promoted back to visual mode
+                        System.out.println("[NRemoteUI-BG] Session " + ctx.sessionId + " received PromotedMessage");
                         promotedToVisual = true;
                         break;
                     }
@@ -140,11 +174,15 @@ public class NRemoteUI extends RemoteUI {
                     // Process the message in the background
                     processBackgroundMessage(msg, ui);
                 }
+                System.out.println("[NRemoteUI-BG] Loop exited for " + ctx.sessionId + ", isConnected=" + ctx.isConnected() + ", isHeadless=" + ctx.isHeadless());
             } catch (InterruptedException e) {
+                System.out.println("[NRemoteUI-BG] Interrupted for " + ctx.sessionId);
                 Thread.currentThread().interrupt();
             } finally {
+                System.out.println("[NRemoteUI-BG] Finally block for " + ctx.sessionId + ", promotedToVisual=" + promotedToVisual);
                 if (!promotedToVisual) {
                     // Session ended without promotion - clean up
+                    System.out.println("[NRemoteUI-BG] Calling removeSession for " + ctx.sessionId);
                     SessionManager.getInstance().removeSession(ctx.sessionId);
                     sess.close();
                 }
@@ -153,6 +191,16 @@ public class NRemoteUI extends RemoteUI {
 
         bgThread.setDaemon(true);
         bgThread.start();
+    }
+
+    /**
+     * Override to create NRemoteUI when handling Return message (server-initiated session transfer).
+     * This ensures multi-session support is maintained even after server session transfers.
+     */
+    @Override
+    protected RemoteUI createReturnedRemoteUI(Session sess) {
+        System.out.println("[NRemoteUI] createReturnedRemoteUI for session transfer");
+        return new NRemoteUI(sess);
     }
 
     /**

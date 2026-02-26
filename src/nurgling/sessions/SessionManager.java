@@ -118,29 +118,69 @@ public class SessionManager {
     }
 
     /**
+     * Add a new session and make it the active session.
+     * Used for fresh logins where the new session should take priority.
+     * Any existing active session will be demoted to headless.
+     *
+     * @param session The network session
+     * @param ui The UI instance
+     * @return The created SessionContext
+     */
+    public SessionContext addSessionAsActive(Session session, NUI ui) {
+        SessionContext ctx = new SessionContext(session, ui);
+        System.out.println("[SessionManager] addSessionAsActive: " + ctx.sessionId + ", ui=" + ui);
+
+        synchronized (sessionsLock) {
+            // Demote any existing active session to headless
+            SessionContext oldActive = activeSession;
+            if (oldActive != null && !oldActive.isHeadless()) {
+                System.out.println("[SessionManager] Demoting old active session: " + oldActive.sessionId);
+                oldActive.demoteToHeadless();
+            }
+
+            sessions.put(ctx.sessionId, ctx);
+            activeSession = ctx;
+            System.out.println("[SessionManager] Sessions now: " + sessions.keySet());
+        }
+
+        // Notify listeners (SessionUIController will add tab bar)
+        notifySessionAdded(ctx);
+
+        return ctx;
+    }
+
+    /**
      * Remove a session.
      *
      * @param sessionId The session ID to remove
      */
     public void removeSession(String sessionId) {
+        System.out.println("[SessionManager] removeSession: " + sessionId);
+        System.out.println("[SessionManager] removeSession called from: " + Thread.currentThread().getName());
+        new Exception("removeSession stacktrace").printStackTrace(System.out);
+
         SessionContext ctx;
         boolean wasActive = false;
 
         synchronized (sessionsLock) {
             ctx = sessions.remove(sessionId);
             if (ctx == null) {
+                System.out.println("[SessionManager] removeSession: session not found, returning early");
                 return;
             }
 
             wasActive = (ctx == activeSession);
+            System.out.println("[SessionManager] removeSession: wasActive=" + wasActive + ", activeSession=" + (activeSession != null ? activeSession.sessionId : "null"));
             if (wasActive) {
                 activeSession = null;
                 // Switch to another session if available
                 if (!sessions.isEmpty()) {
                     SessionContext next = sessions.values().iterator().next();
+                    System.out.println("[SessionManager] removeSession: switching to next session: " + next.sessionId);
                     switchToSessionInternal(next);
                 }
             }
+            System.out.println("[SessionManager] removeSession: sessions now: " + sessions.keySet());
         }
 
         // Close the session
@@ -200,9 +240,12 @@ public class SessionManager {
      * @param sessionId The session ID to switch to
      */
     public void switchToSession(String sessionId) {
+        System.out.println("[SessionManager] switchToSession: " + sessionId);
         synchronized (sessionsLock) {
             SessionContext ctx = sessions.get(sessionId);
+            System.out.println("[SessionManager] Found session: " + (ctx != null ? ctx.sessionId : "null") + ", activeSession: " + (activeSession != null ? activeSession.sessionId : "null"));
             if (ctx == null || ctx == activeSession) {
+                System.out.println("[SessionManager] Not switching (ctx null or already active)");
                 return;
             }
             switchToSessionInternal(ctx);
@@ -262,6 +305,7 @@ public class SessionManager {
      * Must be called with sessionsLock held.
      */
     private void switchToSessionInternal(SessionContext newActive) {
+        System.out.println("[SessionManager] switchToSessionInternal: " + newActive.sessionId);
         SessionContext oldActive = activeSession;
 
         // Capture camera state from old session if sync is enabled
@@ -338,6 +382,52 @@ public class SessionManager {
     }
 
     /**
+     * Set a session as the active session.
+     * Used when a session is promoted or when ensuring the rendering session is active.
+     */
+    public void setActiveSession(SessionContext session) {
+        SessionContext oldActive = null;
+        boolean changed = false;
+        synchronized (sessionsLock) {
+            if (session == null || !sessions.containsValue(session)) {
+                return;
+            }
+            if (activeSession != session) {
+                oldActive = activeSession;
+                activeSession = session;
+                changed = true;
+            }
+        }
+        if (changed) {
+            notifyActiveSessionChanged(oldActive, session);
+        }
+    }
+
+    /**
+     * Remove a session from tracking without calling close() on it.
+     * Used when the server has already disconnected the session (e.g., duplicate login).
+     */
+    public void removeSessionSilently(String sessionId) {
+        System.out.println("[SessionManager] removeSessionSilently: " + sessionId);
+        SessionContext ctx;
+        synchronized (sessionsLock) {
+            ctx = sessions.remove(sessionId);
+            if (ctx == null) {
+                System.out.println("[SessionManager] Session not found: " + sessionId);
+                return;
+            }
+            if (ctx == activeSession) {
+                System.out.println("[SessionManager] Clearing activeSession (was removed session)");
+                activeSession = null;
+            }
+            System.out.println("[SessionManager] Sessions now: " + sessions.keySet());
+        }
+        // Don't call ctx.close() - server already closed it
+        // Just notify listeners
+        notifySessionRemoved(ctx);
+    }
+
+    /**
      * Clear and return the pending session to switch to.
      * Returns null if no switch is pending.
      */
@@ -405,6 +495,24 @@ public class SessionManager {
         synchronized (sessionsLock) {
             for (SessionContext ctx : sessions.values()) {
                 if (ctx.session == sess) {
+                    return ctx;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a session by username.
+     * Used to detect duplicate logins (same account logged in twice).
+     */
+    public SessionContext findByUsername(String username) {
+        if (username == null || username.isEmpty()) {
+            return null;
+        }
+        synchronized (sessionsLock) {
+            for (SessionContext ctx : sessions.values()) {
+                if (username.equals(ctx.username)) {
                     return ctx;
                 }
             }

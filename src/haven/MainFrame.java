@@ -351,7 +351,7 @@ public class MainFrame extends java.awt.Frame implements Console.Directory {
 	UI.Runner fun = null;
 	while(true) {
 	    if(fun == null)
-		fun = Bootstrap.create();
+		fun = nurgling.sessions.NBootstrap.create();
 	    String t = fun.title();
 	    if(t == null)
 		setTitle("Haven & Hearth (Nurgling II)");

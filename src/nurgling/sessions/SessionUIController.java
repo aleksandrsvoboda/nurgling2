@@ -44,23 +44,25 @@ public class SessionUIController implements SessionManager.SessionChangeListener
      * Called when a new UI is created or when switching sessions.
      */
     public void attachToUI(NUI ui) {
+        System.out.println("[SessionUIController] attachToUI called with ui=" + ui + ", ui.root=" + (ui != null ? ui.root : "null"));
+        System.out.println("[SessionUIController] Current tabBar=" + tabBar + ", tabBar.parent=" + (tabBar != null ? tabBar.parent : "null"));
+
         this.currentUI = ui;
 
         // Add tab bar if we have sessions or want to show "+" button
         if (ui != null && ui.root != null) {
-            if (tabBar == null) {
-                tabBar = new SessionTabBar();
-                tabBar.setOnAddAccount(this::onAddAccountClicked);
+            // Always create a fresh tab bar for each UI to avoid state issues
+            if (tabBar != null && tabBar.parent != null) {
+                System.out.println("[SessionUIController] Unlinking old tabBar from parent " + tabBar.parent);
+                tabBar.unlink();
             }
-
-            // Remove from old parent if any
-            if (tabBar.parent != null) {
-                tabBar.reqdestroy();
-            }
+            tabBar = new SessionTabBar();
+            tabBar.setOnAddAccount(this::onAddAccountClicked);
 
             // Add to new UI at saved position (widget manages its own position)
             tabBar.z(10000);
             ui.root.add(tabBar);
+            System.out.println("[SessionUIController] Added new tabBar to ui.root=" + ui.root);
         }
     }
 
@@ -69,8 +71,9 @@ public class SessionUIController implements SessionManager.SessionChangeListener
      */
     public void detachFromUI() {
         if (tabBar != null && tabBar.parent != null) {
-            tabBar.reqdestroy();
+            tabBar.unlink();
         }
+        tabBar = null;
         currentUI = null;
     }
 
@@ -81,13 +84,16 @@ public class SessionUIController implements SessionManager.SessionChangeListener
      */
     private void onAddAccountClicked() {
         SessionManager sm = SessionManager.getInstance();
-        SessionContext ctx = sm.findByUI(currentUI);
+        SessionContext ctx = sm.getActiveSession();
 
         // Only allow adding new session if current session is fully loaded (has GameUI)
         // This prevents issues when clicking "+" during character selection
-        if (ctx != null && !ctx.isHeadless() && currentUI.gui != null) {
-            // Demote current session - this triggers the login flow
-            ctx.demoteToHeadless();
+        if (ctx != null && !ctx.isHeadless()) {
+            NUI ui = ctx.ui;
+            if (ui != null && ui.gui != null) {
+                // Demote current session - this triggers the login flow
+                ctx.demoteToHeadless();
+            }
         }
     }
 
@@ -109,8 +115,17 @@ public class SessionUIController implements SessionManager.SessionChangeListener
 
     @Override
     public void onActiveSessionChanged(SessionContext oldSession, SessionContext newSession) {
-        // Tab bar updates automatically via SessionManager queries when it redraws
-        // Nothing special needed here
+        System.out.println("[SessionUIController] onActiveSessionChanged: old=" + (oldSession != null ? oldSession.sessionId : "null")
+            + ", new=" + (newSession != null ? newSession.sessionId : "null"));
+        System.out.println("[SessionUIController] newSession.ui=" + (newSession != null ? newSession.ui : "null"));
+
+        // When active session changes, we need to move the tab bar to the new session's UI
+        // so it can receive click events (widgets only receive events from rendered UI)
+        if (newSession != null && newSession.ui != null) {
+            attachToUI(newSession.ui);
+        } else {
+            System.out.println("[SessionUIController] WARNING: newSession or newSession.ui is null, not attaching tab bar");
+        }
     }
 
     @Override
