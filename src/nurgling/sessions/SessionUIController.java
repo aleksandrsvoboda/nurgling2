@@ -44,16 +44,12 @@ public class SessionUIController implements SessionManager.SessionChangeListener
      * Called when a new UI is created or when switching sessions.
      */
     public void attachToUI(NUI ui) {
-        System.out.println("[SessionUIController] attachToUI called with ui=" + ui + ", ui.root=" + (ui != null ? ui.root : "null"));
-        System.out.println("[SessionUIController] Current tabBar=" + tabBar + ", tabBar.parent=" + (tabBar != null ? tabBar.parent : "null"));
-
         this.currentUI = ui;
 
         // Add tab bar if we have sessions or want to show "+" button
         if (ui != null && ui.root != null) {
             // Always create a fresh tab bar for each UI to avoid state issues
             if (tabBar != null && tabBar.parent != null) {
-                System.out.println("[SessionUIController] Unlinking old tabBar from parent " + tabBar.parent);
                 tabBar.unlink();
             }
             tabBar = new SessionTabBar();
@@ -62,7 +58,6 @@ public class SessionUIController implements SessionManager.SessionChangeListener
             // Add to new UI at saved position (widget manages its own position)
             tabBar.z(10000);
             ui.root.add(tabBar);
-            System.out.println("[SessionUIController] Added new tabBar to ui.root=" + ui.root);
         }
     }
 
@@ -115,16 +110,10 @@ public class SessionUIController implements SessionManager.SessionChangeListener
 
     @Override
     public void onActiveSessionChanged(SessionContext oldSession, SessionContext newSession) {
-        System.out.println("[SessionUIController] onActiveSessionChanged: old=" + (oldSession != null ? oldSession.sessionId : "null")
-            + ", new=" + (newSession != null ? newSession.sessionId : "null"));
-        System.out.println("[SessionUIController] newSession.ui=" + (newSession != null ? newSession.ui : "null"));
-
         // When active session changes, we need to move the tab bar to the new session's UI
         // so it can receive click events (widgets only receive events from rendered UI)
         if (newSession != null && newSession.ui != null) {
             attachToUI(newSession.ui);
-        } else {
-            System.out.println("[SessionUIController] WARNING: newSession or newSession.ui is null, not attaching tab bar");
         }
     }
 

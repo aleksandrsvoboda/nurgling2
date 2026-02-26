@@ -257,8 +257,6 @@ public class SessionTabBar extends Widget {
         this.onAddAccount = callback;
     }
 
-    private static long lastLogTime = 0;
-
     @Override
     public void draw(GOut g) {
         // Lazy-load resources on first draw
@@ -268,17 +266,6 @@ public class SessionTabBar extends Widget {
         SessionManager sm = SessionManager.getInstance();
         Collection<SessionContext> sessions = sm.getAllSessions();
 
-        // Log session state periodically (every 5 seconds)
-        long now = System.currentTimeMillis();
-        if (now - lastLogTime > 5000) {
-            lastLogTime = now;
-            System.out.println("[SessionTabBar] draw: sessions=" + sessions.size() + ", parent=" + parent + ", ui=" + ui);
-            for (SessionContext ctx : sessions) {
-                System.out.println("[SessionTabBar]   - " + ctx.sessionId + " (" + ctx.getDisplayName() + ") headless=" + ctx.isHeadless() + " ui=" + ctx.ui);
-            }
-            SessionContext active = sm.getActiveSession();
-            System.out.println("[SessionTabBar] activeSession=" + (active != null ? active.sessionId : "null"));
-        }
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
 
         updateSize();
@@ -564,16 +551,11 @@ public class SessionTabBar extends Widget {
         if (ev.b == 1 && dragStartButton >= 0 && dragStartPos != null) {
             SessionManager sm = SessionManager.getInstance();
             List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
-            System.out.println("[SessionTabBar] mouseup: dragStartButton=" + dragStartButton + ", sessions.size()=" + sessions.size());
             if (dragStartButton < sessions.size()) {
                 SessionContext ctx = sessions.get(dragStartButton);
                 SessionContext active = sm.getActiveSession();
-                System.out.println("[SessionTabBar] Clicked session: " + ctx.sessionId + ", activeSession: " + (active != null ? active.sessionId : "null"));
                 if (ctx != active) {
-                    System.out.println("[SessionTabBar] Calling switchToSession: " + ctx.sessionId);
                     sm.switchToSession(ctx.sessionId);
-                } else {
-                    System.out.println("[SessionTabBar] Session already active, not switching");
                 }
             }
             dragStartPos = null;

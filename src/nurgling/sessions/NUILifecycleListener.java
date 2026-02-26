@@ -23,18 +23,14 @@ public class NUILifecycleListener implements UILifecycleListener {
      */
     @Override
     public UI beforeNewUI(UI.Runner runner, UI currentUI, UIPanel panel) {
-        System.out.println("[NUILifecycleListener] beforeNewUI: runner=" + runner + ", currentUI=" + currentUI);
-
         if (runner instanceof NRemoteUI) {
             NRemoteUI nrui = (NRemoteUI) runner;
             SessionManager sm = SessionManager.getInstance();
             SessionContext ctx = sm.findBySession(nrui.sess);
-            System.out.println("[NUILifecycleListener] findBySession for runner's sess: " + (ctx != null ? ctx.sessionId : "null"));
 
             if (ctx != null && ctx.ui != null) {
                 // Reuse existing session's UI instead of creating new
                 NUI existingUI = ctx.ui;
-                System.out.println("[NUILifecycleListener] Reusing existing UI: " + existingUI);
 
                 // Update the GL environment for rendering
                 if (panel instanceof GLPanel) {
@@ -53,7 +49,6 @@ public class NUILifecycleListener implements UILifecycleListener {
                 return existingUI;
             }
         }
-        System.out.println("[NUILifecycleListener] beforeNewUI returning null (create new UI)");
         return null; // Proceed with normal UI creation
     }
 
@@ -68,12 +63,9 @@ public class NUILifecycleListener implements UILifecycleListener {
      */
     @Override
     public boolean afterNewUI(UI newUI, UI oldUI) {
-        System.out.println("[NUILifecycleListener] afterNewUI: newUI=" + newUI + ", oldUI=" + oldUI);
-
         // Always attach tab bar to the new UI (even login screen)
         if (newUI instanceof NUI) {
             SessionUIController ctrl = SessionUIController.getInstance();
-            System.out.println("[NUILifecycleListener] SessionUIController instance: " + ctrl);
             if (ctrl != null) {
                 ctrl.attachToUI((NUI) newUI);
             }

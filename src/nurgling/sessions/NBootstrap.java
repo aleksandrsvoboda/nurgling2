@@ -44,13 +44,10 @@ public class NBootstrap extends Bootstrap {
      */
     @Override
     protected UI.Runner preRun(UI ui) throws InterruptedException {
-        System.out.println("[NBootstrap] preRun called, ui=" + ui);
         SessionManager sm = SessionManager.getInstance();
         SessionContext switchTo = sm.consumePendingSwitchTo();
-        System.out.println("[NBootstrap] consumePendingSwitchTo: " + (switchTo != null ? switchTo.sessionId : "null"));
 
         if (switchTo != null && switchTo.session != null) {
-            System.out.println("[NBootstrap] Promoting session to visual: " + switchTo.sessionId);
             // Promote the session from headless to visual mode
             switchTo.promoteToVisual(ui.getenv());
 
@@ -63,12 +60,10 @@ public class NBootstrap extends Bootstrap {
 
             // Return a NRemoteUI connected to the existing session
             // This skips the login screen and goes straight to the game
-            System.out.println("[NBootstrap] Returning NRemoteUI for session: " + switchTo.sessionId);
             return new NRemoteUI(switchTo.session);
         }
 
         // No pending switch - proceed with normal bootstrap (login screen)
-        System.out.println("[NBootstrap] No pending switch, showing login screen");
         return null;
     }
 }
