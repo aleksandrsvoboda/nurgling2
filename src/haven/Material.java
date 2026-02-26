@@ -31,6 +31,7 @@ import java.util.*;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
 import haven.render.*;
+import nurgling.tools.MaterialFactory;
 
 public class Material implements Pipe.Op {
     public final Pipe.Op states, dynstates;
@@ -255,6 +256,7 @@ public class Material implements Pipe.Op {
 	public final int id;
 	private transient Material m;
 	private transient Buffer cons;
+	private transient HashMap<MaterialFactory.Status, Material> hm = new HashMap<>();
 
 	public Res(Resource res, Message buf) {
 	    res.super();
@@ -278,6 +280,18 @@ public class Material implements Pipe.Op {
 		Indir<Resource> res = getres().pool.load(rnm, ver);
 		return(res.get().getcode(Spec.class, true));
 	    }
+	}
+
+	// Custom material getter for Nurgling's MaterialFactory system
+	// TODO Phase 3/4: Implement proper MaterialFactory.customizeBuffer() integration
+	public Material get(int mask) {
+	    MaterialFactory.Status status = MaterialFactory.getStatus(getres().name, mask);
+	    if(status != MaterialFactory.Status.NOTDEFINED) {
+		// Temporary implementation: just use default material
+		// Will be replaced with proper custom material construction in Phase 3/4
+		return get();
+	    }
+	    return get();
 	}
 
 	public Material get() {
