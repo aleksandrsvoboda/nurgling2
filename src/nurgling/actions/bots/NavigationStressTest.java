@@ -99,8 +99,10 @@ public class NavigationStressTest implements Action {
                     gui.msg("Results saved. Pass rate: " + getPassRateString());
                 }
 
-                // Delay between tests
-                Thread.sleep(DELAY_BETWEEN_TESTS_MS);
+                // Delay only after failures (success and skipped tests continue immediately)
+                if (!result.success && !result.skipped) {
+                    Thread.sleep(DELAY_BETWEEN_TESTS_MS);
+                }
             }
         } finally {
             // Always save on exit
@@ -168,6 +170,10 @@ public class NavigationStressTest implements Action {
         Coord2d targetCenter = targetArea.getCenter2d();
         result.targetPosition = targetCenter;
 
+        // Log before starting navigation
+        gui.msg(String.format("Test #%d: %s -> %s (starting...)",
+                result.id, result.fromAreaName, result.toAreaName));
+
         try {
             // First check if a path exists - if not, skip (not a failure)
             ChunkPath path = navManager.planToArea(targetArea);
@@ -214,10 +220,11 @@ public class NavigationStressTest implements Action {
                 } else {
                     result.success = false;
                     result.failureReason = "WRONG_LOCATION";
-                    double dist = result.endPosition != null && targetCenter != null
-                            ? result.endPosition.dist(targetCenter) : -1;
-                    result.failureDetails = "Player not in target area. Distance to center: " +
-                            String.format("%.1f", dist);
+                    // Calculate detailed distance info
+                    String distInfo = getDistanceInfo(result.endPosition, targetArea);
+                    result.failureDetails = "Player not in target area. " + distInfo;
+                    // Also log to chat for immediate visibility
+                    gui.msg("WRONG_LOCATION: " + distInfo);
                     failed++;
                 }
             }
@@ -269,6 +276,44 @@ public class NavigationStressTest implements Action {
         }
 
         return false;
+    }
+
+    /**
+     * Get detailed distance information for WRONG_LOCATION failures.
+     * Shows distance to area bounds and center in both units and tiles.
+     */
+    private String getDistanceInfo(Coord2d pos, NArea area) {
+        if (pos == null) return "Player position unknown";
+        if (area == null) return "Area unknown";
+
+        StringBuilder sb = new StringBuilder();
+        double tileSize = 11.0; // MCache.tilesz.x
+
+        Pair<Coord2d, Coord2d> bounds = area.getRCArea();
+        if (bounds != null) {
+            // Calculate distance to nearest edge of bounds
+            double dx = 0, dy = 0;
+            if (pos.x < bounds.a.x) dx = bounds.a.x - pos.x;
+            else if (pos.x > bounds.b.x) dx = pos.x - bounds.b.x;
+            if (pos.y < bounds.a.y) dy = bounds.a.y - pos.y;
+            else if (pos.y > bounds.b.y) dy = pos.y - bounds.b.y;
+            double distToBounds = Math.sqrt(dx * dx + dy * dy);
+
+            sb.append(String.format("Dist to bounds: %.1f units (%.1f tiles)", distToBounds, distToBounds / tileSize));
+        }
+
+        Coord2d center = area.getCenter2d();
+        if (center != null) {
+            double distToCenter = pos.dist(center);
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(String.format("Dist to center: %.1f units (%.1f tiles)", distToCenter, distToCenter / tileSize));
+        }
+
+        if (sb.length() == 0) {
+            return "No area bounds or center available";
+        }
+
+        return sb.toString();
     }
 
     private String generateOutputFilePath() {
