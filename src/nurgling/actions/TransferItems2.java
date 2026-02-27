@@ -167,6 +167,10 @@ public class TransferItems2 implements Action
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),
                         itemTransfer.itemName).run(gui);
                 }
+								if (output instanceof NContext.Barter) {
+									new TransferToBarter(((NContext.Barter) output), itemTransfer.itemName,
+											(int)itemTransfer.quality).run(gui);
+								}
             }
         }
     }
