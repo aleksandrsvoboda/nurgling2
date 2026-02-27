@@ -187,7 +187,7 @@ public class Resource implements Serializable {
 		@SuppressWarnings("unchecked") Indir<Resource> ret = (Indir<Resource>)desc;
 		return(ret);
 	    }
-	    throw(new Utils.ArgumentFormatException("res-desc", desc));
+	    throw(new RuntimeException(String.format("Invalid resource descriptor: %s", desc)));
 	}
 
 	public class ResourceMap implements Resource.Resolver {
