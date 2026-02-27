@@ -7,7 +7,6 @@ import java.util.*;
 import haven.*;
 import haven.render.*;
 import haven.res.lib.obst.*;
-import nurgling.NConfig;
 import static haven.MCache.tilesz;
 
 /* >spr: Consobj */
@@ -22,7 +21,7 @@ public class Consobj extends Sprite implements Sprite.CUpd {
     public float done;
     final Coord3f cc;
     final Sprite sign, pole;
-    public final Location[] poles;
+    final Location[] poles;
     final MCache map;
     final RenderTree.Node bound;
     private final Collection<RenderTree.Slot> slots = new ArrayList<>(1);
@@ -32,10 +31,7 @@ public class Consobj extends Sprite implements Sprite.CUpd {
 	double a = -gob.a;
 	float s = (float)Math.sin(a), c = (float)Math.cos(a);
 	float gx = rx * c + ry * s, gy = ry * c - rx * s;
-	if(!(Boolean) NConfig.get(NConfig.Key.flatsurface))
-		return(new Coord3f(rx, -ry, map.getcz(gx + cc.x, gy + cc.y) - cc.z));
-	else
-		return(new Coord3f(rx, -ry, 0));
+	return(new Coord3f(rx, -ry, map.getcz(gx + cc.x, gy + cc.y) - cc.z));
     }
 
     public Consobj(Owner owner, Resource res, Message sdt) {

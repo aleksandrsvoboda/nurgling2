@@ -4,10 +4,6 @@ package haven.res.ui.surv;
 import haven.*;
 import haven.render.*;
 import haven.render.sl.*;
-import nurgling.NStyle;
-import nurgling.conf.NDragProp;
-import nurgling.widgets.NDraggableWidget;
-
 import java.util.*;
 import java.nio.*;
 import java.awt.Color;
@@ -20,42 +16,31 @@ public class LandSurvey extends Window {
     public final Area area;
     public final Data data;
     public final Label zdlbl, wlbl, dlbl;
+    public final CheckBox lock;
     public Area selection;
     private boolean inited = false;
     private MapView mv;
     private Display dsp;
     private RenderTree.Slot s_dsp;
 
-	private ICheckBox btnLock;
-
     public LandSurvey(Area area, Data data) {
 	super(Coord.z, "Land survey", true);
 	this.area = area;
 	this.data = data;
 	Widget prev = add(new Label(String.format("Area: %d m\u00b2", area.area())), 0, 0);
-	add(btnLock = new ICheckBox(NStyle.locki[0], NStyle.locki[1], NStyle.locki[2], NStyle.locki[3])
-	{
-		@Override
-		public void changed(boolean val)
-		{
-			super.changed(val);
-			lock(val);
-		}
-	}, prev.pos("ur").add(UI.scale(200) - NStyle.locki[0].sz().x - NStyle.locki[0].sz().x / 2, 0));
-	btnLock.a = true;
 	zdlbl = add(new Label("..."), prev.pos("bl").adds(0, 1));
 	wlbl = add(new Label("..."), zdlbl.pos("bl").adds(0, 1));
 	dlbl = add(new Label("..."), wlbl.pos("bl").adds(0, 1));
+	lock = add(new CheckBox("Enable editing"), dlbl.pos("bl").adds(0, 20));
+	lock.set(true); lock.changed(this::lock);
 	prev = add(new Button(UI.scale(125), "Ground level", false).action(this::initsurf),
-		   dlbl.pos("bl").adds(0, 20));
+		   lock.pos("bl").adds(0, 10));
 	add(new Button(UI.scale(125), "Ground plane", false).action(this::initplane),
 	    prev.pos("ur").adds(10, 0));
 	prev = add(new Button(UI.scale(125), "Dig", false).action(() -> wdgmsg("lvl")),
 		   prev.pos("bl").adds(0, 10));
 	add(new Button(UI.scale(125), "Remove", false).action(()-> wdgmsg("rm")),
 	    prev.pos("ur").adds(10, 0));
-
-
 	pack();
     }
 
@@ -142,15 +127,13 @@ public class LandSurvey extends Window {
 
     public class Idle implements EventHandler<Widget.MouseEvent> {
 	public boolean handle(MouseEvent ev) {
-		if(btnLock.a)
-			return false;
 	    if(ev instanceof MouseMoveEvent) {
-		Coord sel = dsp.mousetest(ev.c, false);
+		Coord sel = lock.a ? dsp.mousetest(ev.c, false) : null;
 		if(!Utils.eq(sel, dsp.selected)) {
 		    dsp.selected = sel;
 		    dsp.update = true;
 		}
-	    } else if(ev instanceof MouseDownEvent) {
+	    } else if((ev instanceof MouseDownEvent) && lock.a) {
 		if(((MouseDownEvent)ev).b == 1) {
 		    Coord sel = dsp.mousetest(ev.c, false);
 		    if(sel != null) {
@@ -338,7 +321,7 @@ public class LandSurvey extends Window {
 	    data.decode(Utils.iv(args[0]), (byte[])args[1]);
 	    upd = true;
 	} else if(name == "lock") {
-	    btnLock.a = !Utils.bv(args[0]);
+	    lock.set(!Utils.bv(args[0]));
 	} else {
 	    super.uimsg(name, args);
 	}

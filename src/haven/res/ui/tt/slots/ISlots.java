@@ -2,11 +2,6 @@
 package haven.res.ui.tt.slots;
 
 import haven.*;
-import haven.res.ui.tt.attrmod.AttrMod;
-import haven.res.ui.tt.attrmod.Entry;
-import haven.res.ui.tt.attrmod.Mod;
-import nurgling.NGItem;
-
 import static haven.PUtils.*;
 import java.awt.image.*;
 import java.awt.Graphics;
@@ -24,7 +19,6 @@ public class ISlots extends ItemInfo.Tip implements GItem.NumberInfo {
     public final double pmin, pmax;
     public final Resource[] attrs;
     public final boolean ignol;
-	public boolean isShifted = false;
 
     public ISlots(Owner owner, int left, double pmin, double pmax, Resource[] attrs) {
 	super(owner);
@@ -54,33 +48,8 @@ public class ISlots extends ItemInfo.Tip implements GItem.NumberInfo {
 	    BufferedImage head = RichText.render(String.format("Chance: $col[%s]{%d%%}", chc, (int)Math.round(100 * pmin)), 0).img;
 	    l.cmp.add(head, new Coord(10, l.cmp.sz.y));
 	}
-	if(!(owner instanceof NGItem) || ((NGItem)owner).ui.modshift) {
-		for (SItem si : s)
-			si.layout(l);
-	}
-	else {
-		HashMap<String, Mod> mods = new HashMap<>();
-		for(SItem si: s){
-			for(ItemInfo info : si.info) {
-				if (info instanceof AttrMod)
-					for (Entry mod : ((AttrMod) info).tab) {
-						if(mod instanceof Mod) {
-							if (mods.get(mod.attr.name()) == null) {
-								mods.put(mod.attr.name(), (Mod)mod);
-							} else {
-								Mod val = mods.get(mod.attr.name());
-								mods.put(mod.attr.name(), new Mod(mod.attr, ((Mod)mod).mod + val.mod));
-							}
-						}
-					}
-			}
-		}
-		if(!mods.isEmpty())
-		{
-		l.cmp.add(AttrMod.modimg(mods.values()), new Coord(10, l.cmp.sz.y));
-		l.cmp.add(RichText.render("$col[168,168,168]{[Press SHIFT for details]}", 0).img, new Coord(10, l.cmp.sz.y));
-		}
-	}
+	for(SItem si : s)
+	    si.layout(l);
 	if(left > 0)
 	    l.cmp.add(progf.render((left > 1)?String.format("Gildable \u00d7%d", left):"Gildable").img, new Coord(10, l.cmp.sz.y));
     }

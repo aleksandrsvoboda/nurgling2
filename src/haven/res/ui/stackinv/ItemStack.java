@@ -2,7 +2,6 @@
 package haven.res.ui.stackinv;
 
 import haven.*;
-import nurgling.NWItem;
 import java.util.*;
 import static haven.Inventory.*;
 
@@ -36,7 +35,7 @@ public class ItemStack extends Widget implements DTarget {
 	add(child);
 	if(child instanceof GItem) {
 	    GItem i = (GItem)child;
-	    wmap.put(i, add(new NWItem(i)));
+	    wmap.put(i, add(new WItem(i)));
 	    order.add(i);
 	    dirty = true;
 	}

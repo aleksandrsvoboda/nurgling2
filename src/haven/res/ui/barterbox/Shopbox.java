@@ -24,10 +24,9 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
     public ResData res;
     public ItemSpec price;
     public Text num;
-    public int leftNum;
     public int pnum, pq;
     private Text pnumt, pqt;
-    public GSprite spr;
+    private GSprite spr;
     private Object[] info = {};
     private Button spipe, bpipe, bbtn, cbtn;
     private TextEntry pnume, pqe;
@@ -265,7 +264,6 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	} else if(name == "n") {
 	    int num = Utils.iv(args[0]);
 	    this.num = Text.render(String.format("%d left", num));
-	    this.leftNum = num;
 	} else if(name == "price") {
 	    int a = 0;
 	    if(args[a] == null) {
@@ -298,31 +296,5 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	} else {
 	    super.uimsg(name, args);
 	}
-    }
-
-    public static class ShopItem {
-	public GSprite spr;
-	public String name;
-
-	public ShopItem(GSprite res, String name) {
-	    this.spr = res;
-	    this.name = name;
-	}
-    }
-
-    public ShopItem getPrice() {
-	if(price == null)
-	    return null;
-	return new ShopItem(price.spr(), price.name());
-    }
-
-    public ShopItem getOffer() {
-	if(price == null)
-	    return null;
-	ItemInfo.Name nm = ItemInfo.find(ItemInfo.Name.class, info());
-	if(nm == null)
-	    return(null);
-	String name = nm.str.text;
-	return new ShopItem(spr, name);
     }
 }
