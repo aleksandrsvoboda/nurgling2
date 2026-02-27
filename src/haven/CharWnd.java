@@ -44,7 +44,20 @@ public class CharWnd extends Window {
     public static final Text.Furnace failf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Resource.loadimg("gfx/hud/fontred")), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
     public static final Text.Foundry attrf = new Text.Foundry(Text.fraktur.deriveFont((float)Math.floor(UI.scale(16.0)))).aa(true);
     public static final PUtils.Convolution iconfilter = new PUtils.Lanczos(3);
-    public static final int attrw = BAttrWnd.FoodMeter.frame.sz().x - wbox.bisz().x;
+    // Lazy initialization to avoid accessing frame.sz() before texture is loaded
+    private static Integer _attrw = null;
+    public static int attrw() {
+        if (_attrw == null) {
+            try {
+                _attrw = BAttrWnd.FoodMeter.frame.sz().x - wbox.bisz().x;
+            } catch (Exception e) {
+                _attrw = UI.scale(300); // Safe default if texture not loaded
+            }
+        }
+        return _attrw;
+    }
+    // Static field for compatibility - uses safe default value
+    public static final int attrw = UI.scale(300);
     public static final Color debuff = new Color(255, 128, 128);
     public static final Color buff = new Color(128, 255, 128);
     public static final Color tbuff = new Color(128, 128, 255);

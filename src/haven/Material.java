@@ -284,28 +284,31 @@ public class Material implements Pipe.Op {
 
 	// Custom material getter for Nurgling's MaterialFactory system
 	public Material get(int mask) {
-	    MaterialFactory.Status status = MaterialFactory.getStatus(getres().name, mask);
-	    if(status != MaterialFactory.Status.NOTDEFINED) {
-		synchronized(this) {
-		    if(!hm.containsKey(status)) {
-			// Get base material to extract properties
-			Material baseMat = get();
+	    synchronized(this) {
+		MaterialFactory.Status status = MaterialFactory.getStatus(getres().name, mask);
+		if(status != MaterialFactory.Status.NOTDEFINED) {
+		    if (!hm.containsKey(status)) {
+			// Get the base material first (ensure it's built)
+			Material baseMaterial = get();
 
 			// Get custom materials from MaterialFactory
-			Map<Integer, Material> customMats = MaterialFactory.getMaterials(getres().name, status, baseMat);
+			Map<Integer, Material> customMaterials = MaterialFactory.getMaterials(getres().name, status, baseMaterial);
 
-			// Store the custom material for this specific material ID
-			if(customMats != null && customMats.containsKey(id)) {
-			    hm.put(status, customMats.get(id));
+			// Return the material for this specific material ID
+			Material customMat = customMaterials != null ? customMaterials.get(id) : null;
+			if (customMat != null) {
+			    hm.put(status, customMat);
 			} else {
-			    // No custom material for this ID, use base material
-			    hm.put(status, baseMat);
+			    // Fallback to base material if no custom material for this ID
+			    hm.put(status, baseMaterial);
 			}
 		    }
-		    return hm.get(status);
+		    return (hm.get(status));
+		}
+		else {
+		    return get();
 		}
 	    }
-	    return get();
 	}
 
 	public Material get() {

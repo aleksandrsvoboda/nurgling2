@@ -57,19 +57,43 @@ public class StaticSprite extends Sprite {
     
     public StaticSprite(Owner owner, Resource res, Message sdt) {
 	super(owner, res);
+	System.out.println("[StaticSprite.<init>] Created StaticSprite for resource: " + res.name);
 	this.parts = lsparts(new RecOwner(), res, sdt);
     }
     
     public static RenderTree.Node[] lsparts(Owner owner, Resource res, Message sdt) {
 	int fl = sdt.eom() ? 0xffff0000 : decnum(sdt);
 	Collection<RenderTree.Node> rl = new LinkedList<>();
+
 	for(FastMesh.MeshRes mr : res.layers(FastMesh.MeshRes.class)) {
-	    if((mr.mat != null) && ((mr.id < 0) || (((1 << mr.id) & fl) != 0)))
-		rl.add(mr.mat.get((owner instanceof RecOwner
+	    boolean shouldRender = (mr.mat != null) && ((mr.id < 0) || (((1 << mr.id) & fl) != 0));
+
+	    if(shouldRender) {
+		// Check if this is barrel/dframe - these need custom materials
+		// NOTE: ttubs use message flags, not overlays, so they don't need customMask
+		boolean needsCustomMat = (res.name.contains("gfx/terobjs/barrel") ||
+		                         res.name.contains("gfx/terobjs/dframe"));
+
+		boolean hasCustomMask = (owner instanceof RecOwner
 				&& ((RecOwner)(owner)).owner() instanceof ResDrawable && ((ResDrawable)((RecOwner)(owner)).owner()).gob!=null
 				&& ((ResDrawable)((RecOwner)(owner)).owner()).gob.ngob!=null
-				&& ((ResDrawable)((RecOwner)(owner)).owner()).gob.ngob.customMask)?
-				((ResDrawable)((RecOwner)(owner)).owner()).gob.ngob.mask():fl).apply(mr.m));
+				&& ((ResDrawable)((RecOwner)(owner)).owner()).gob.ngob.customMask);
+
+		int maskValue = fl;
+		if (needsCustomMat && owner instanceof RecOwner && ((RecOwner)(owner)).owner() instanceof ResDrawable) {
+		    ResDrawable rd = (ResDrawable)((RecOwner)(owner)).owner();
+		    if (rd.gob != null && rd.gob.ngob != null) {
+			// Force customMask for barrel/dframe/ttub
+			rd.gob.ngob.customMask = true;
+			maskValue = rd.gob.ngob.mask();
+			hasCustomMask = true;
+		    }
+		} else if (hasCustomMask) {
+		    maskValue = ((ResDrawable)((RecOwner)(owner)).owner()).gob.ngob.mask();
+		}
+
+		rl.add(mr.mat.get(maskValue).apply(mr.m));
+	    }
 	}
 	for(RenderLink.Res lr : res.layers(RenderLink.Res.class)) {
 	    if((lr.id < 0) || (((1 << lr.id) & fl) != 0))

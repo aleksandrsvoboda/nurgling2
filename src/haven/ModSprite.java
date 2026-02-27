@@ -450,12 +450,29 @@ public class ModSprite extends Sprite implements Sprite.CUpd, EquipTarget {
 	    // Check for customMask (nurgling: barrel/dframe material override)
 	    Gob gob = cons.spr().gob;
 	    int matFlags = flags;
-	    if (gob != null && gob.ngob != null && gob.ngob.customMask) {
+	    boolean hasCustomMask = (gob != null && gob.ngob != null && gob.ngob.customMask);
+	    String resName = cons.spr().res != null ? cons.spr().res.name : "unknown";
+
+	    // Force customMask for dframes/barrels even if name is null
+	    // NOTE: ttubs use message flags, not overlays, so they don't need customMask
+	    if (gob != null && gob.ngob != null && !hasCustomMask) {
+		if (resName.contains("gfx/terobjs/dframe") || resName.contains("gfx/terobjs/barrel")) {
+		    gob.ngob.customMask = true;
+		    if (gob.ngob.name == null) {
+			gob.ngob.name = resName;
+		    }
+		    hasCustomMask = true;
+		}
+	    }
+
+	    if (hasCustomMask) {
 		matFlags = gob.ngob.mask();
 	    }
+
 	    for(FastMesh.MeshRes mr : meshes) {
-		if((mr.id < 0) || (((1 << mr.id) & flags) != 0))
+		if((mr.id < 0) || (((1 << mr.id) & flags) != 0)) {
 		    cons.add(new Part(mr.m, mr.mat.get(matFlags)));
+		}
 	    }
 	}
 

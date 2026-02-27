@@ -13,3 +13,35 @@ CLAUDE.md
 .agent-os
 __pycache__/
 *.pyc
+
+# Build artifacts
+build_temp.bat
+build.num
+tmp_ver
+
+# Binaries and JARs
+/release/
+lib/*.jar
+*.class
+*.exe
+
+# Logs
+logs
+logs_food
+
+# Generated docs and design docs (not source code)
+/*.md
+!README.md
+/docs/
+/doc/
+/cheese-bot-problem/
+
+# Icons and images at root
+icons/
+img.png
+
+# Misc
+tree_garden_blueprints.json
+announce.md
+ver
+msdf-atlas-gen/
