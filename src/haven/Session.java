@@ -64,6 +64,17 @@ public class Session implements Resource.Resolver {
     public final Glob glob;
     public SignKey sesskey;
     private boolean closed = false;
+    /** Injected message for extension points (multi-session, etc.) */
+    private volatile PMessage injectedMessage = null;
+
+    final Map<Integer, String> res_id_cache = new TreeMap<Integer, String>();
+    public String getResName(Integer id)
+    {
+        synchronized (res_id_cache)
+        {
+            return res_id_cache.get(id);
+        }
+    }
 
     public static class User {
 	public final String name;
@@ -131,10 +142,10 @@ public class Session implements Resource.Resolver {
 	return(Resource.remote());
     }
 
-    private static class CachedRes {
+    public static class CachedRes {
 	private final Waitable.Queue wq = new Waitable.Queue();
 	private final int resid;
-	private String resnm = null;
+	public String resnm = null;
 	private int resver;
 	private Reference<Ref> ind;
 	private int prio = -6;
@@ -143,8 +154,13 @@ public class Session implements Resource.Resolver {
 	    resid = id;
 	}
 
-	private class Ref implements Indir<Resource> {
-	    private Resource res;
+	public class Ref implements Indir<Resource> {
+	    public Resource res;
+
+		public boolean isReady()
+		{
+			return resnm!=null && res!=null;
+		}
 
 	    public Resource get() {
 		if(res == null) {
@@ -158,6 +174,12 @@ public class Session implements Resource.Resolver {
 		}
 		return(res);
 	    }
+
+		public String resnm()
+		{
+			return CachedRes.this.resnm;
+		}
+
 
 	    public String toString() {
 		if(res != null) {
@@ -238,6 +260,9 @@ public class Session implements Resource.Resolver {
 	    int resid = msg.uint16();
 	    String resname = msg.string();
 	    int resver = msg.uint16();
+		synchronized (res_id_cache) {
+			res_id_cache.put(resid, resname);
+		}
 	    cachedres(resid).set(resname, resver);
 	} else if(msg.type == RMessage.RMSG_SESSKEY) {
 	    sesskey = new SignKey.HMAC(Digest.SHA256, msg.bytes());
@@ -292,6 +317,17 @@ public class Session implements Resource.Resolver {
 	}
     }
 
+    /**
+     * Inject a custom message into the UI message queue.
+     * Used by extensions for session management signals.
+     */
+    public void injectMessage(PMessage msg) {
+        synchronized(uimsgs) {
+            injectedMessage = msg;
+            uimsgs.notifyAll();
+        }
+    }
+
     public PMessage getuimsg() throws InterruptedException {
 	synchronized(uimsgs) {
 	    while(true) {
@@ -299,6 +335,12 @@ public class Session implements Resource.Resolver {
 		    return(uimsgs.remove());
 		if(closed)
 		    return(null);
+		// Check for injected message (generic hook for extensions)
+		if (injectedMessage != null) {
+		    PMessage m = injectedMessage;
+		    injectedMessage = null;
+		    return m;
+		}
 		uimsgs.wait();
 	    }
 	}
