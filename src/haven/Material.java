@@ -283,13 +283,27 @@ public class Material implements Pipe.Op {
 	}
 
 	// Custom material getter for Nurgling's MaterialFactory system
-	// TODO Phase 3/4: Implement proper MaterialFactory.customizeBuffer() integration
 	public Material get(int mask) {
 	    MaterialFactory.Status status = MaterialFactory.getStatus(getres().name, mask);
 	    if(status != MaterialFactory.Status.NOTDEFINED) {
-		// Temporary implementation: just use default material
-		// Will be replaced with proper custom material construction in Phase 3/4
-		return get();
+		synchronized(this) {
+		    if(!hm.containsKey(status)) {
+			// Get base material to extract properties
+			Material baseMat = get();
+
+			// Get custom materials from MaterialFactory
+			Map<Integer, Material> customMats = MaterialFactory.getMaterials(getres().name, status, baseMat);
+
+			// Store the custom material for this specific material ID
+			if(customMats != null && customMats.containsKey(id)) {
+			    hm.put(status, customMats.get(id));
+			} else {
+			    // No custom material for this ID, use base material
+			    hm.put(status, baseMat);
+			}
+		    }
+		    return hm.get(status);
+		}
 	    }
 	    return get();
 	}
