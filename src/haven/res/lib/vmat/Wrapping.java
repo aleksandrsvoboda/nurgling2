@@ -7,7 +7,7 @@ import haven.ModSprite.*;
 import java.util.*;
 import java.util.function.Consumer;
 
-@haven.FromResource(name = "lib/vmat", version = 38)
+@haven.FromResource(name = "lib/vmat", version = 39)
 public class Wrapping extends Pipe.Op.Wrapping {
     public final int mid;
 
