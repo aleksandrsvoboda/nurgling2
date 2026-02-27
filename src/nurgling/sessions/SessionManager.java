@@ -118,6 +118,35 @@ public class SessionManager {
     }
 
     /**
+     * Add a new session and make it the active session.
+     * Used for fresh logins where the new session should take priority.
+     * Any existing active session will be demoted to headless.
+     *
+     * @param session The network session
+     * @param ui The UI instance
+     * @return The created SessionContext
+     */
+    public SessionContext addSessionAsActive(Session session, NUI ui) {
+        SessionContext ctx = new SessionContext(session, ui);
+
+        synchronized (sessionsLock) {
+            // Demote any existing active session to headless
+            SessionContext oldActive = activeSession;
+            if (oldActive != null && !oldActive.isHeadless()) {
+                oldActive.demoteToHeadless();
+            }
+
+            sessions.put(ctx.sessionId, ctx);
+            activeSession = ctx;
+        }
+
+        // Notify listeners (SessionUIController will add tab bar)
+        notifySessionAdded(ctx);
+
+        return ctx;
+    }
+
+    /**
      * Remove a session.
      *
      * @param sessionId The session ID to remove
@@ -338,6 +367,48 @@ public class SessionManager {
     }
 
     /**
+     * Set a session as the active session.
+     * Used when a session is promoted or when ensuring the rendering session is active.
+     */
+    public void setActiveSession(SessionContext session) {
+        SessionContext oldActive = null;
+        boolean changed = false;
+        synchronized (sessionsLock) {
+            if (session == null || !sessions.containsValue(session)) {
+                return;
+            }
+            if (activeSession != session) {
+                oldActive = activeSession;
+                activeSession = session;
+                changed = true;
+            }
+        }
+        if (changed) {
+            notifyActiveSessionChanged(oldActive, session);
+        }
+    }
+
+    /**
+     * Remove a session from tracking without calling close() on it.
+     * Used when the server has already disconnected the session (e.g., duplicate login).
+     */
+    public void removeSessionSilently(String sessionId) {
+        SessionContext ctx;
+        synchronized (sessionsLock) {
+            ctx = sessions.remove(sessionId);
+            if (ctx == null) {
+                return;
+            }
+            if (ctx == activeSession) {
+                activeSession = null;
+            }
+        }
+        // Don't call ctx.close() - server already closed it
+        // Just notify listeners
+        notifySessionRemoved(ctx);
+    }
+
+    /**
      * Clear and return the pending session to switch to.
      * Returns null if no switch is pending.
      */
@@ -405,6 +476,24 @@ public class SessionManager {
         synchronized (sessionsLock) {
             for (SessionContext ctx : sessions.values()) {
                 if (ctx.session == sess) {
+                    return ctx;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a session by username.
+     * Used to detect duplicate logins (same account logged in twice).
+     */
+    public SessionContext findByUsername(String username) {
+        if (username == null || username.isEmpty()) {
+            return null;
+        }
+        synchronized (sessionsLock) {
+            for (SessionContext ctx : sessions.values()) {
+                if (username.equals(ctx.username)) {
                     return ctx;
                 }
             }

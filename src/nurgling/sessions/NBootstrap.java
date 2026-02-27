@@ -15,6 +15,15 @@ import haven.*;
 public class NBootstrap extends Bootstrap {
 
     /**
+     * Create a new NBootstrap with the default server.
+     * This should be used instead of Bootstrap.create() to ensure
+     * multi-session support works correctly.
+     */
+    public static NBootstrap create() {
+        return new NBootstrap();
+    }
+
+    /**
      * Override to create NRemoteUI instead of RemoteUI.
      * This enables multi-session support by using NRemoteUI which:
      * - Registers sessions with SessionManager

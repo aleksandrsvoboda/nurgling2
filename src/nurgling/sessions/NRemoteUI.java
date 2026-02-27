@@ -35,11 +35,28 @@ public class NRemoteUI extends RemoteUI {
             SessionContext existing = sm.findBySession(sess);
 
             if (existing != null) {
-                // Update the UI reference for existing session
+                // Session already exists (e.g., promoting from headless) - update UI reference
                 existing.ui = nui;
-            } else if (sm.findByUI(ui) == null) {
-                // New session - register it
-                sm.addSession(sess, nui);
+
+                // Make sure this session is active since we're now rendering it
+                if (sm.getActiveSession() != existing) {
+                    sm.setActiveSession(existing);
+                }
+            } else {
+                // New session (fresh login)
+                // Check for duplicate login (same username already logged in)
+                String username = (sess != null && sess.user != null) ? sess.user.name : null;
+                if (username != null) {
+                    SessionContext duplicate = sm.findByUsername(username);
+                    if (duplicate != null) {
+                        // Same account logged in again - the server will/has kicked the old session
+                        // Just remove it from our tracking (don't close - server already did)
+                        sm.removeSessionSilently(duplicate.sessionId);
+                    }
+                }
+
+                // Register the new session and make it active
+                sm.addSessionAsActive(sess, nui);
             }
 
             // Register lifecycle listener with GLPanel if not already done
@@ -153,6 +170,15 @@ public class NRemoteUI extends RemoteUI {
 
         bgThread.setDaemon(true);
         bgThread.start();
+    }
+
+    /**
+     * Override to create NRemoteUI when handling Return message (server-initiated session transfer).
+     * This ensures multi-session support is maintained even after server session transfers.
+     */
+    @Override
+    protected RemoteUI createReturnedRemoteUI(Session sess) {
+        return new NRemoteUI(sess);
     }
 
     /**

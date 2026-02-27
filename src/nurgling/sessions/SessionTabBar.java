@@ -59,8 +59,8 @@ public class SessionTabBar extends Widget {
     private static Tex addNormal, addHover, addPush;
     private static boolean resourcesLoaded = false;
 
-    /** Font for character names */
-    private Text.Foundry nameFont;
+    /** Font for character names (static so shared across instances) */
+    private static Text.Foundry nameFont;
 
     /** Currently hovered button index (-1 = none, -2 = plus button) */
     private int hoveredButton = -1;
@@ -100,7 +100,7 @@ public class SessionTabBar extends Widget {
     /** Drag mode controls */
     private ICheckBox btnLock;
     private ICheckBox btnVis;
-    private TexI label;
+    private static TexI label;
 
     /** Drag mode resources */
     public static final IBox box = Window.wbox;
@@ -265,6 +265,7 @@ public class SessionTabBar extends Widget {
 
         SessionManager sm = SessionManager.getInstance();
         Collection<SessionContext> sessions = sm.getAllSessions();
+
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
 
         updateSize();
@@ -552,7 +553,8 @@ public class SessionTabBar extends Widget {
             List<SessionContext> sessions = new ArrayList<>(sm.getAllSessions());
             if (dragStartButton < sessions.size()) {
                 SessionContext ctx = sessions.get(dragStartButton);
-                if (ctx != sm.getActiveSession()) {
+                SessionContext active = sm.getActiveSession();
+                if (ctx != active) {
                     sm.switchToSession(ctx.sessionId);
                 }
             }

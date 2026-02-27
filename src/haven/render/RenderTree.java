@@ -764,6 +764,11 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 		} else {
 		    Inheritance pi = parent.istate();
 		    DepInfo ds = dstate();
+		    if(ds == null) {
+			// Defensive: dstate not initialized yet, return empty inheritance
+			istate = new Inheritance(new Pipe[0], new int[0]);
+			return istate;
+		    }
 		    Pipe[] istates = new Pipe[Math.max(pi.gstates.length, ds.def.length)];
 		    boolean f = false;
 		    for(int i = 0; i < istates.length; i++) {

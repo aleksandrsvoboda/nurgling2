@@ -103,6 +103,14 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
     }
 
     /**
+     * Hook for creating RemoteUI when handling Return message (server-initiated session transfer).
+     * Override in NRemoteUI to return NRemoteUI for multi-session support.
+     */
+    protected RemoteUI createReturnedRemoteUI(Session sess) {
+        return new RemoteUI(sess);
+    }
+
+    /**
      * Hook called during init().
      */
     protected void onInit(UI ui) {
@@ -122,7 +130,7 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 		    return(null);
 		} else if(msg instanceof Return) {
 		    sess.close();
-		    return(new RemoteUI(((Return)msg).ret));
+		    return(createReturnedRemoteUI(((Return)msg).ret));
 		} else if(msg.type == RMessage.RMSG_NEWWDG) {
 		    int id = msg.int32();
 		    String type = msg.string();

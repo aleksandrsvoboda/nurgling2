@@ -48,6 +48,7 @@ public abstract class PView extends Widget {
     private final TickList ticklist = new TickList();
     private Sampler fragsamp;
     private PostProcessor tonemap = null;
+    private volatile boolean disposed = false;
 
     public PView(Coord sz) {
 	super(sz);
@@ -119,8 +120,14 @@ public abstract class PView extends Widget {
     }
 
     protected void reconf() {
+	if(disposed)
+	    return;
 	curconf = null;
-	conf.ostate(frame());
+	try {
+	    conf.ostate(frame());
+	} catch(RenderTree.SlotRemoved e) {
+	    disposed = true;
+	}
     }
 
     public void resize(Coord sz) {
@@ -135,6 +142,8 @@ public abstract class PView extends Widget {
     }
 
     public void basic(Object id, Pipe.Op state) {
+	if(disposed)
+	    return;
 	try(Locked lk = tree.lock()) {
 	    Pipe.Op prev;
 	    Collection<Pipe.Op> comb = null;
@@ -150,6 +159,8 @@ public abstract class PView extends Widget {
 			    for(Pipe.Op op : dcomb)
 				op.apply(p);
 			});
+		} catch(RenderTree.SlotRemoved e) {
+		    disposed = true;
 		} catch(RuntimeException e) {
 		    if(prev == null)
 			basicstates.remove(id);
@@ -174,13 +185,20 @@ public abstract class PView extends Widget {
     }
 
     public void tick(double dt) {
+	if(disposed)
+	    return;
 	super.tick(dt);
 	GSettings gprefs = gprefs();
 	if(gprefs != this.curprefs) {
 	    this.curprefs = gprefs;
 	    reconf();
 	}
-	conf.ostate(frame());
+	try {
+	    conf.ostate(frame());
+	} catch(RenderTree.SlotRemoved e) {
+	    disposed = true;
+	    return;
+	}
 	ticklist.tick(dt);
 	if(audio != null)
 	    audio.cycle();
@@ -318,6 +336,8 @@ public abstract class PView extends Widget {
     }
 
     public void draw(GOut g) {
+	if(disposed)
+	    return;
 	if((back == null) || !g.out.env().compatible(back)) {
 	    if(env != null) {
 		envdispose();
@@ -326,11 +346,16 @@ public abstract class PView extends Widget {
 	    env = g.out.env();
 	    envsetup();
 	}
-	lights();
-	FColor cc = clearcolor();
-	if(cc != null)
-	    g.out.clear(basic.state(), FragColor.fragcol, cc);
-	g.out.clear(basic.state(), 1.0);
+	try {
+	    lights();
+	    FColor cc = clearcolor();
+	    if(cc != null)
+		g.out.clear(basic.state(), FragColor.fragcol, cc);
+	    g.out.clear(basic.state(), 1.0);
+	} catch(RenderTree.SlotRemoved e) {
+	    disposed = true;
+	    return;
+	}
 	ctx.prerender(g.out);
 	try(Locked lk = tree.lock()) {
 	    instancer.commit(g.out);
@@ -342,6 +367,7 @@ public abstract class PView extends Widget {
     }
 
     public void dispose() {
+	disposed = true;
 	if(audio != null) {
 	    audio.clear();
 	}
