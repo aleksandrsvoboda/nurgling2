@@ -26,7 +26,6 @@
 
 package haven;
 
-import nurgling.NGameUI;
 import nurgling.NUtils;
 
 import java.util.*;
@@ -34,7 +33,7 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import static haven.CharWnd.*;
 import static haven.PUtils.*;
-import nurgling.i18n.L10n;
+import static haven.PType.*;
 
 public class QuestWnd extends Widget {
     public final Widget questbox;
@@ -71,7 +70,7 @@ public class QuestWnd extends Widget {
 	public String title() {
 	    if(title != null)
 		return(title);
-	    return(res.get().flayer(Resource.tooltip).text());
+	    return(res.get().flayer(Resource.tooltip).t);
 	}
 
 	public static class Condition {
@@ -87,8 +86,8 @@ public class QuestWnd extends Widget {
 	    }
 	}
 
-	private static final Tex qcmp = catf.render(L10n.get("char.quest.completed")).tex();
-	private static final Tex qfail = failf.render(L10n.get("char.quest.failed")).tex();
+	private static final Tex qcmp = catf.render("Quest completed").tex();
+	private static final Tex qfail = failf.render("Quest failed").tex();
 	public void done(GameUI parent) {
 	    parent.add(new Widget() {
 		    double a = 0.0;
@@ -199,7 +198,7 @@ public class QuestWnd extends Widget {
 	    public String title() {
 		if(title != null)
 		    return(title);
-		return(res.get().flayer(Resource.tooltip).text());
+		return(res.get().flayer(Resource.tooltip).t);
 	    }
 
 	    public Condition[] conds() {
@@ -251,12 +250,12 @@ public class QuestWnd extends Widget {
 		    int a = 0;
 		    List<Condition> ncond = new ArrayList<Condition>(args.length);
 		    while(a < args.length) {
-			String desc = (String)args[a++];
-			int st = Utils.iv(args[a++]);
-			String status = (String)args[a++];
+			String desc = STR.of(args[a++]);
+			int st = INT.of(args[a++]);
+			String status = STR.of(args[a++]);
 			Object[] wdata = null;
-			if((a < args.length) && (args[a] instanceof Object[]))
-			    wdata = (Object[])args[a++];
+			if((a < args.length) && OBJS.is(args[a]))
+			    wdata = OBJS.of(args[a++]);
 			Condition cond = findcond(desc);
 			if(cond != null) {
 			    boolean ch = false;
@@ -503,7 +502,7 @@ public class QuestWnd extends Widget {
 		if(msg == "opts") {
 		    List<Pair<String, String>> opts = new ArrayList<>();
 		    for(int i = 0; i < args.length; i += 2)
-			opts.add(new Pair<>((String)args[i], (String)args[i + 1]));
+			opts.add(new Pair<>(STR.of(args[i]), STR.of(args[i + 1])));
 		    this.options = opts;
 		    refresh();
 		} else {
@@ -515,9 +514,9 @@ public class QuestWnd extends Widget {
 	@RName("quest")
 	public static class $quest implements Factory {
 	    public Widget create(UI ui, Object[] args) {
-		int id = Utils.iv(args[0]);
+		int id = INT.of(args[0]);
 		Indir<Resource> res = ui.sess.getresv(args[1]);
-		String title = (args.length > 2) ? (String)args[2] : null;
+		String title = (args.length > 2) ? STR.of(args[2]) : null;
 		return(new DefaultBox(id, res, title));
 	    }
 	}
@@ -639,7 +638,7 @@ public class QuestWnd extends Widget {
     public QuestWnd() {
 	Widget prev;
 
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.quest.title")).tex()), "gfx/hud/chr/tips/quests"), new Coord(0, 0));
+	prev = add(CharWnd.settip(new Img(catf.render("Quest Log").tex()), "gfx/hud/chr/tips/quests"), new Coord(0, 0));
 	questbox = add(new Widget(new Coord(attrw, height)) {
 		public void draw(GOut g) {
 		    g.chcolor(0, 0, 0, 128);
@@ -667,13 +666,13 @@ public class QuestWnd extends Widget {
 	}
 	lists.pack();
 	addhlp(lists.c.add(0, lists.sz.y + UI.scale(5)), UI.scale(5), lists.sz.x,
-		     lists.new TabButton(0, L10n.get("char.quest.tab_current"),   cqst),
-		     lists.new TabButton(0, L10n.get("char.quest.tab_completed"), dqst));
+		     lists.new TabButton(0, "Current",   cqst),
+		     lists.new TabButton(0, "Completed", dqst));
 	pack();
     }
 
     public void addchild(Widget child, Object... args) {
-	String place = (args[0] instanceof String) ? (((String)args[0]).intern()) : null;
+	String place = STR.opt(args[0]).map(String::intern).or(null);
 	if(place == "quest") {
 	    this.quest = (Quest.Info)child;
 	    questbox.add(child, Coord.z);
@@ -686,14 +685,14 @@ public class QuestWnd extends Widget {
     public void uimsg(String nm, Object... args) {
 	if(nm == "quests") {
 	    for(int i = 0; i < args.length;) {
-		int id = Utils.iv(args[i++]);
+		int id = INT.of(args[i++]);
 		Indir<Resource> res = ui.sess.getresv(args[i++]);
 		if(res != null) {
-		    int st = Utils.iv(args[i++]);
-		    int mtime = Utils.iv(args[i++]);
+		    int st = INT.of(args[i++]);
+		    int mtime = INT.of(args[i++]);
 		    String title = null;
-		    if((i < args.length) && (args[i] instanceof String))
-			title = (String)args[i++];
+		    if((i < args.length) && STR.is(args[i]))
+			title = STR.of(args[i++]);
 		    QuestList cl = cqst;
 		    Quest q = cqst.get(id);
 		    if(q == null)
@@ -708,8 +707,8 @@ public class QuestWnd extends Widget {
 			q.mtime = mtime;
 			if(((fst == Quest.QST_PEND) || (fst == Quest.QST_DISABLED)) &&
 			   !((st == Quest.QST_PEND) || (st == Quest.QST_DISABLED))) {
-				q.done(getparent(GameUI.class));
-				NUtils.removeQuest(id);
+			    q.done(getparent(GameUI.class));
+			    NUtils.removeQuest(id);
 			}
 		    }
 		    QuestList nl = ((q.done == Quest.QST_PEND) || (q.done == Quest.QST_DISABLED)) ? cqst : dqst;
@@ -719,14 +718,14 @@ public class QuestWnd extends Widget {
 			nl.add(q);
 			if(nl!=dqst)
 			{
-				NUtils.addQuest(id);
+			    NUtils.addQuest(id);
 			}
 		    }
 		    nl.loading = true;
 		} else {
 		    cqst.remove(id);
 		    dqst.remove(id);
-			NUtils.removeQuest(id);
+		    NUtils.removeQuest(id);
 		}
 	    }
 	} else {

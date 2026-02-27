@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import haven.Window;
 import nurgling.NConfig;
+import static haven.PType.*;
 import nurgling.NGameUI;
 import nurgling.NGItem;
 import nurgling.NStyle;
@@ -402,21 +403,14 @@ public class NQuestInfo extends Widget
             quest.conditions.clear();
             int a = 0;
             while (a < args.length) {
-                try {
-                    if(args[a] instanceof String) {
-                        String desc = (String) args[a++];
-                        int st = Utils.iv(args[a++]);
-                        String status = (String) args[a++];
-                        Condition cond = new Condition(st != 0, desc, id, status);
-                        quest.conditions.add(cond);
-                    }
-                    else
-                        a++;
-                }
-                catch(ClassCastException e) {
-                    int b = 1;
-                }
-
+                String desc = STR.of(args[a++]);
+                int st = INT.of(args[a++]);
+                String status = STR.of(args[a++]);
+                Object[] wdata = null;
+                if((a < args.length) && OBJS.is(args[a]))
+                    wdata = OBJS.of(args[a++]);
+                Condition cond = new Condition(st != 0, desc, id, status);
+                quest.conditions.add(cond);
             }
         }
         else
