@@ -187,28 +187,6 @@ public class MaterialFactory {
         }
     }
 
-    public static Map<Integer,TexR> getMaterial(String name, Status status, Material.Res.Resolver resolver) {
-        if (resolver_check(name, resolver)) {
-            if (materialCashe.get(name) == null || materialCashe.get(name).get(status) == null) {
-                return tryConstruct(name, status);
-            } else
-                return materialCashe.get(name).get(status);
-        }
-        return null;
-    }
-
-    private static boolean resolver_check(String name, Material.Res.Resolver resolver) {
-        if(name.equals("gfx/terobjs/ttub"))
-        {
-            return resolver.toString().contains("mlink");
-        }
-        else if(name.equals("gfx/terobjs/map/jotunclam"))
-        {
-            return !resolver.toString().contains("mlink");
-        }
-        return true;
-    }
-
     public static Status getStatus(String name, int mask) {
         switch (name)
         {
