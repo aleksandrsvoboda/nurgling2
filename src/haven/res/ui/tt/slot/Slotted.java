@@ -2,33 +2,19 @@
 package haven.res.ui.tt.slot;
 
 import haven.*;
-import haven.res.ui.tt.attrmod.AttrMod;
-
-import haven.res.ui.tt.attrmod.Entry;
-import haven.res.ui.tt.attrmod.Mod;
-import java.util.concurrent.ConcurrentHashMap;
-import nurgling.NGItem;
-import nurgling.NUtils;
-import nurgling.iteminfo.NSearchable;
-import nurgling.tools.NSearchItem;
-
-import java.awt.image.BufferedImage;
+import static haven.PUtils.*;
+import java.awt.image.*;
+import java.awt.Graphics;
 import java.util.*;
 
-import static haven.PUtils.convolvedown;
-
 /* >tt: Slotted */
-@haven.FromResource(name = "ui/tt/slot", version = 19)
-public class Slotted extends ItemInfo.Tip implements GItem.OverlayInfo<Tex>, NSearchable{
-	public static boolean show = false;
-
-	public static final Coord size = UI.scale(new Coord(33,33));
+@haven.FromResource(name = "ui/tt/slot", version = 20)
+public class Slotted extends ItemInfo.Tip {
     public static final Text.Line ch = Text.render("As gilding:");
-	private static final HashMap<String, String> stat_map = new HashMap<>();
-	public final double pmin, pmax;
+    public final double pmin, pmax;
     public final Resource[] attrs;
     public final List<ItemInfo> sub;
-	HashMap<String, Integer> searchImage = new HashMap<>();
+
     public Slotted(Owner owner, double pmin, double pmax, Resource[] attrs, List<ItemInfo> sub) {
 	super(owner);
 	this.pmin = pmin;
@@ -56,128 +42,25 @@ public class Slotted extends ItemInfo.Tip implements GItem.OverlayInfo<Tex>, NSe
 	if(attrs.length > 0) {
 	    BufferedImage head = RichText.render(String.format("Chance: $col[%s]{%d%%} to $col[%s]{%d%%}", chc, Math.round(100 * pmin), chc, Math.round(100 * pmax)), 0).img;
 	    int h = head.getHeight();
-	    int x = 10, y = l.cmp.sz.y;
+	    int x = UI.scale(10), y = l.cmp.sz.y;
 	    l.cmp.add(head, new Coord(x, y));
-	    x += head.getWidth() + 10;
+	    x += head.getWidth() + UI.scale(10);
 	    for(int i = 0; i < attrs.length; i++) {
 		BufferedImage icon = convolvedown(attrs[i].layer(Resource.imgc).img, new Coord(h, h), CharWnd.iconfilter);
 		l.cmp.add(icon, new Coord(x, y));
-		x += icon.getWidth() + 2;
+		x += icon.getWidth() + UI.scale(2);
 	    }
 	} else {
 	    BufferedImage head = RichText.render(String.format("Chance: $col[%s]{%d%%}", chc, (int)Math.round(100 * pmin)), 0).img;
-	    l.cmp.add(head, new Coord(10, l.cmp.sz.y));
+	    l.cmp.add(head, new Coord(UI.scale(10), l.cmp.sz.y));
 	}
 
 	BufferedImage stip = longtip(sub);
 	if(stip != null)
-	    l.cmp.add(stip, new Coord(10, l.cmp.sz.y));
+	    l.cmp.add(stip, new Coord(UI.scale(10), l.cmp.sz.y));
     }
 
     public int order() {
 	return(200);
     }
-
-	static final ConcurrentHashMap<String, BufferedImage> modCache = new ConcurrentHashMap<>();
-	@Override
-	public Tex overlay() {
-		Collection<BufferedImage> imgs = new LinkedList<BufferedImage>();
-		for(ItemInfo info: sub)
-		{
-			if (info instanceof AttrMod)
-			{
-				AttrMod mod = (AttrMod) info;
-				for ( Entry m: mod.tab) {
-					Coord scale = size.div(2 * (1 + (mod.tab.size() - 1) / 4.));
-					String name = m.attr.name()+scale.toString();
-					if (modCache.get(name) == null) {
-						modCache.put(name, convolvedown(m.attr.icon(), scale, CharWnd.iconfilter));
-					}
-					imgs.add(modCache.get(name));
-				}
-			}
-		}
-
-		if(!imgs.isEmpty()) {
-			if (imgs.size() > 3) {
-				ArrayList<BufferedImage> for_connect = new ArrayList<>(imgs);
-				imgs.clear();
-				for (int i = 0; i < for_connect.size(); i += 2) {
-					if (i + 1 < for_connect.size()) {
-						imgs.add(catimgsh(0, for_connect.get(i), for_connect.get(i + 1)));
-					} else
-						imgs.add(for_connect.get(i));
-				}
-			}
-			return (new TexI(catimgs(0, imgs.toArray(new BufferedImage[0]))));
-		}
-		return null;
-	}
-
-	@Override
-	public void drawoverlay(GOut g, Tex data) {
-		if(show && data!=null)
-			g.aimage(data, new Coord(data.sz().x, g.sz().y - data.sz().y), 1, 0);
-	}
-
-	static
-	{
-		stat_map.put("gfx/hud/chr/explore", "exp");
-		stat_map.put("gfx/hud/chr/lore", "lor");
-		stat_map.put("gfx/hud/chr/agi", "agi");
-		stat_map.put("gfx/hud/chr/str", "str");
-		stat_map.put("gfx/hud/chr/masonry", "mas");
-		stat_map.put("gfx/hud/chr/prc", "per");
-		stat_map.put("gfx/hud/chr/cooking", "cook");
-		stat_map.put("gfx/hud/chr/carpentry", "car");
-		stat_map.put("gfx/hud/chr/stealth", "ste");
-		stat_map.put("gfx/hud/chr/survive", "sur");
-		stat_map.put("gfx/hud/chr/unarmed", "ua");
-		stat_map.put("gfx/hud/chr/int", "int");
-		stat_map.put("gfx/hud/chr/wil", "wil");
-		stat_map.put("gfx/hud/chr/dex", "dex");
-		stat_map.put("gfx/hud/chr/farming", "far");
-		stat_map.put("gfx/hud/chr/melee", "mel");
-		stat_map.put("gfx/hud/chr/psy", "psy");
-		stat_map.put("gfx/hud/chr/sewing", "sew");
-		stat_map.put("gfx/hud/chr/ranged", "mar");
-		stat_map.put("gfx/hud/chr/invmore", "inv");
-		stat_map.put("gfx/hud/chr/csm", "csm");
-	}
-
-
-	@Override
-	public boolean search() {
-		NSearchItem si = NUtils.getGameUI().itemsForSearch;
-		if (!si.gilding.isEmpty()) {
-			for (NSearchItem.Stat gild : NUtils.getGameUI().itemsForSearch.gilding) {
-				if (searchImage.get(gild.v) == null || (gild.a!=0 && !(gild.isMore == (searchImage.get(gild.v) > gild.a))))
-					return false;
-			}
-			if (!NUtils.getGameUI().itemsForSearch.name.isEmpty() && ((NGItem) owner).name() != null) {
-				return ((NGItem) owner).name().toLowerCase().contains(NUtils.getGameUI().itemsForSearch.name.toLowerCase());
-			}
-			return true;
-		}
-		return false;
-	}
-
-	@Override
-	public boolean tick(double dt)
-	{
-		if(searchImage.isEmpty())
-		{
-			for(ItemInfo info: sub) {
-				if (info instanceof AttrMod) {
-					AttrMod mod = (AttrMod) info;
-					for (Entry m : mod.tab) {
-						if(m instanceof Mod) {
-							searchImage.put(stat_map.get(m.attr.name()), (int) ((Mod)m).mod);
-						}
-					}
-				}
-			}
-		}
-		return GItem.OverlayInfo.super.tick(dt);
-	}
 }
