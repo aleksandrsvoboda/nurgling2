@@ -7,7 +7,7 @@ import haven.ModSprite.*;
 import java.util.*;
 import java.util.function.Consumer;
 
-@haven.FromResource(name = "lib/vmat", version = 38)
+@haven.FromResource(name = "lib/vmat", version = 39)
 public class Materials extends Mapping {
     public static final Map<Integer, Material> empty = Collections.<Integer, Material>emptyMap();
     public final Map<Integer, Material> mats;
