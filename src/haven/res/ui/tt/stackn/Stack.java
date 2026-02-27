@@ -10,7 +10,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 
 /* >tt: Stack */
-@FromResource(name = "ui/tt/stackn", version = 4)
+@FromResource(name = "ui/tt/stackn", version = 3)
 public class Stack extends ItemInfo.Name implements GItem.OverlayInfo<Tex> {
 	public static boolean show = true;
 	

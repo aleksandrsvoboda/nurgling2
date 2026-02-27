@@ -4,7 +4,7 @@ package haven.res.ui.tt.stackn;
 import haven.*;
 
 /* >tt: StackName */
-@haven.FromResource(name = "ui/tt/stackn", version = 4)
+@haven.FromResource(name = "ui/tt/stackn", version = 3)
 public class StackName implements ItemInfo.InfoFactory {
     /* XXX: Remove me. Waiting on custom clients merging get in ItemInfo.Name.Default. */
     public static String getname(ItemInfo.Owner owner) {
