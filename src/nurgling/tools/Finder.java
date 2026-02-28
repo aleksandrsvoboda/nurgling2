@@ -543,13 +543,18 @@ public class Finder
         Coord2d rotatedUL = tempBox.getCircumscribedUL();
         Coord2d rotatedBR = tempBox.getCircumscribedBR();
         Coord margin = rotatedBR.sub(rotatedUL).floor(2, 2);
-        
+        // For hitboxes with odd dimensions (e.g. 11x11 = one full tile), the center must land
+        // on a half-integer tile center (5.5, 16.5, ...). Add 0.5 offset so the integer loop
+        // hits those positions instead of being snapped by the server.
+        double xOffset = ((rotatedBR.x - rotatedUL.x) % 2.0 > 0.5) ? 0.5 : 0.0;
+        double yOffset = ((rotatedBR.y - rotatedUL.y) % 2.0 > 0.5) ? 0.5 : 0.0;
+
         for (int i = margin.x; i <= inchMax.x - margin.x; i++)
         {
             for (int j = margin.y; j <= inchMax.y - margin.y; j++)
             {
                 boolean passed = true;
-                NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, area.a.add(i,j), angle);
+                NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, area.a.add(i + xOffset, j + yOffset), angle);
                 for ( NHitBoxD significantHitbox : significantGobs )
                     if(significantHitbox.intersects(testGobBox,false))
                         passed = false;
