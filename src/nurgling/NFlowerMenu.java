@@ -25,6 +25,10 @@ public class NFlowerMenu extends FlowerMenu
     
     public NPetal[] nopts;
 
+    private static final int MAX_VISIBLE_ITEMS = 10;
+    private Scrollbar sb;
+    private int itemHeight;
+
     int len = 0;
     public boolean shiftMode = false;
 
@@ -40,18 +44,25 @@ public class NFlowerMenu extends FlowerMenu
         super();
         shiftMode = ((NMapView)NUtils.getGameUI().map).shiftPressed;
         nopts = new NPetal[opts.length];
+        itemHeight = bl.sz().y + UI.scale(2);
         int y = 0;
 
         for(int i = 0; i < opts.length; i++)
         {
             add(nopts[i] = new NPetal(opts[i], i + 1), new Coord(0,y));
             nopts[i].num = i;
-            y+=bl.sz().y + UI.scale(2);
+            y += itemHeight;
             len = Math.max(nopts[i].sz.x,len);
         }
         for(int i = 0; i < opts.length; i++)
         {
             nopts[i].resize(len, bl.sz().y);
+        }
+        if(opts.length > MAX_VISIBLE_ITEMS)
+        {
+            int visibleHeight = MAX_VISIBLE_ITEMS * itemHeight;
+            sb = add(new Scrollbar(visibleHeight, 0, opts.length - MAX_VISIBLE_ITEMS), new Coord(len, 0));
+            resize(len + sb.sz.x, visibleHeight);
         }
     }
 
@@ -225,6 +236,40 @@ public class NFlowerMenu extends FlowerMenu
             c = parent.ui.lcc;
         mg = ui.grabmouse(this);
         kg = ui.grabkeys(this);
+    }
+
+    @Override
+    public void draw(GOut g) {
+        if(sb != null) {
+            sb.max = nopts.length - MAX_VISIBLE_ITEMS;
+            for(int i = 0; i < nopts.length; i++) {
+                nopts[i].c = new Coord(0, (i - sb.val) * itemHeight);
+            }
+            super.draw(g, true);
+        } else {
+            super.draw(g, false);
+        }
+    }
+
+    @Override
+    public boolean mousedown(MouseDownEvent ev) {
+        if(sb != null && sb.vis()) {
+            Coord sc = ev.c.sub(sb.c);
+            if(sc.isect(Coord.z, sb.sz)) {
+                sb.mousedown(ev.derive(sc));
+                return false;
+            }
+        }
+        return super.mousedown(ev);
+    }
+
+    @Override
+    public boolean mousewheel(MouseWheelEvent ev) {
+        if(sb != null) {
+            sb.ch(ev.a);
+            return true;
+        }
+        return super.mousewheel(ev);
     }
 
     public void uimsg(String msg, Object... args)
