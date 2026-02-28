@@ -70,8 +70,7 @@ public class NRecipeTooltip {
         BufferedImage ret = TooltipStyle.cropTopOnly(renderName(name));
 
         if (info != null && !info.isEmpty()) {
-
-            // Extract Inputs, Skills, Cost, Slotted (gilding), Pagina, equipment stats, and food stats
+            // Extract Inputs, Skills, Cost, Slotted (gilding), Pagina, equipment stats, food stats, and crafting-specific info
             Object inputsInfo = null;
             Object skillsInfo = null;
             Object costInfo = null;
@@ -83,6 +82,9 @@ public class NRecipeTooltip {
             Object equedInfo = null;
             ItemInfo.Tip foodInfo = null;  // NFoodInfo (has layout method)
             ItemInfo.Tip foodTypesInfo = null;  // FoodTypes
+            Object gastInfo = null;  // Gast (hunger reduction + food event bonus)
+            Object capacityInfo = null;  // Capacity
+            Object seenInfo = null;  // Seen (must have seen items)
 
             for (ItemInfo ii : info) {
                 String className = ii.getClass().getSimpleName();
@@ -110,6 +112,12 @@ public class NRecipeTooltip {
                     foodInfo = (ItemInfo.Tip) ii;
                 } else if (className.equals("FoodTypes") || fullName.contains("FoodTypes")) {
                     foodTypesInfo = (ItemInfo.Tip) ii;
+                } else if (className.equals("Gast") || fullName.contains("Gast")) {
+                    gastInfo = ii;
+                } else if (className.equals("Capacity")) {
+                    capacityInfo = ii;
+                } else if (className.equals("Seen") || fullName.contains("Seen")) {
+                    seenInfo = ii;
                 }
             }
 
@@ -182,6 +190,47 @@ public class NRecipeTooltip {
                 skillsLine = TooltipStyle.cropTopOnly(renderSkillsLine(skillsInfo));
             }
 
+            // Render Seen line (must have seen items)
+            BufferedImage seenLine = null;
+            if (seenInfo != null) {
+                seenLine = TooltipStyle.cropTopOnly(renderSeenLine(seenInfo));
+            }
+
+            // Render Durability line (for crafting tooltips)
+            BufferedImage durabilityLine = null;
+            if (durabilityInfo != null) {
+                durabilityLine = TooltipStyle.cropTopOnly(renderDurabilityLine(durabilityInfo));
+            }
+
+            // Render Gast lines (hunger reduction + food event bonus)
+            BufferedImage hungerLine = null;
+            BufferedImage foodBonusLine = null;
+            if (gastInfo != null) {
+                try {
+                    Field glutField = gastInfo.getClass().getDeclaredField("glut");
+                    Field fevField = gastInfo.getClass().getDeclaredField("fev");
+                    glutField.setAccessible(true);
+                    fevField.setAccessible(true);
+                    double glut = glutField.getDouble(gastInfo);
+                    double fev = fevField.getDouble(gastInfo);
+
+                    if (glut != 0.0) {
+                        hungerLine = TooltipStyle.cropTopOnly(NTooltip.renderHungerLine(glut));
+                    }
+                    if (fev != 0.0) {
+                        foodBonusLine = TooltipStyle.cropTopOnly(NTooltip.renderFoodBonusLine(fev));
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+
+            // Render Capacity line
+            BufferedImage capacityLine = null;
+            if (capacityInfo != null) {
+                capacityLine = TooltipStyle.cropTopOnly(renderCapacityLine(capacityInfo));
+            }
+
             // Render Cost line (for skills)
             BufferedImage costLine = null;
             if (costInfo != null) {
@@ -213,6 +262,13 @@ public class NRecipeTooltip {
                 prevTextBottomOffset = 0;  // Inputs have icons, reset offset
                 hasBodyContent = true;
             }
+            if (seenLine != null) {
+                // 10px from inputs to "must have seen"
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, seenLine);
+                prevTextBottomOffset = 0;  // Seen has icons, reset offset
+                hasBodyContent = true;
+            }
             if (foodStatsImg != null) {
                 // 10px from inputs to food stats
                 int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
@@ -239,6 +295,34 @@ public class NRecipeTooltip {
                 int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, otherEquipmentStats);
                 prevTextBottomOffset = 0;  // Equipment stats may have icons, reset offset
+                hasBodyContent = true;
+            }
+            if (durabilityLine != null) {
+                // 7px from previous line to durability (or 10px from equipment stats)
+                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, durabilityLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
+                hasBodyContent = true;
+            }
+            if (hungerLine != null) {
+                // 7px from previous line to hunger reduction
+                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, hungerLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
+                hasBodyContent = true;
+            }
+            if (foodBonusLine != null) {
+                // 7px from hunger to food event bonus
+                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, foodBonusLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
+                hasBodyContent = true;
+            }
+            if (capacityLine != null) {
+                // 7px from food bonus (or previous line) to capacity
+                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, capacityLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
                 hasBodyContent = true;
             }
             if (gildingChanceResult != null) {
@@ -886,5 +970,128 @@ public class NRecipeTooltip {
     private static NTooltip.LineResult renderGildingStats(List<ItemInfo> subInfo) {
         // Delegate to NTooltip's rendering method
         return NTooltip.renderGildingStatsPublic(subInfo);
+    }
+
+    /**
+     * Render seen line: "Must have seen: " + icons with item names.
+     */
+    private static BufferedImage renderSeenLine(Object seenInfo) {
+        try {
+            // Extract inputs field (ItemSpec array)
+            Field inputsField = seenInfo.getClass().getDeclaredField("inputs");
+            inputsField.setAccessible(true);
+            Object[] inputs = (Object[]) inputsField.get(seenInfo);
+
+            if (inputs == null || inputs.length == 0) return null;
+
+            // Render "Must have seen: " label
+            BufferedImage labelImg = getQuantityFoundry().render("Must have seen: ", Color.WHITE).img;
+
+            // Build list of item icons and names
+            List<BufferedImage> parts = new ArrayList<>();
+            parts.add(labelImg);
+
+            int gap = UI.scale(2);
+
+            for (int i = 0; i < inputs.length; i++) {
+                Object itemSpec = inputs[i];
+
+                // Get resource from ItemSpec
+                Field resField = itemSpec.getClass().getDeclaredField("res");
+                resField.setAccessible(true);
+                Indir<Resource> resIndir = (Indir<Resource>) resField.get(itemSpec);
+                Resource res = resIndir.get();
+
+                // Get item icon
+                BufferedImage icon = null;
+                Resource.Image imgLayer = res.layer(Resource.imgc);
+                if (imgLayer != null) {
+                    icon = imgLayer.img;
+                    int iconSize = UI.scale(13);  // 80% of 16px
+                    icon = PUtils.convolvedown(icon, new Coord(iconSize, iconSize), CharWnd.iconfilter);
+                }
+
+                // Get item name
+                String itemName = null;
+                Resource.Tooltip tt = res.layer(Resource.tooltip);
+                if (tt != null) {
+                    itemName = tt.t;
+                }
+
+                // Add comma before item if not first
+                if (i > 0) {
+                    BufferedImage comma = getSkillNameFoundry().render(", ", Color.WHITE).img;
+                    parts.add(comma);
+                }
+
+                // Add icon if available
+                if (icon != null) {
+                    parts.add(icon);
+                }
+
+                // Add item name if available
+                if (itemName != null) {
+                    BufferedImage nameImg = getSkillNameFoundry().render(itemName, Color.WHITE).img;
+                    parts.add(nameImg);
+                }
+            }
+
+            // Compose with 2px gaps
+            return TooltipStyle.composeHorizontalWithGap(parts, gap);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render capacity line: "Capacity: " (regular white) + "XL" (semibold white).
+     * Capacity is stored in centiliters, divide by 100 to get liters.
+     */
+    private static BufferedImage renderCapacityLine(Object capacityInfo) {
+        try {
+            Field capField = capacityInfo.getClass().getDeclaredField("cap");
+            capField.setAccessible(true);
+            int capacity = capField.getInt(capacityInfo);
+
+            if (capacity <= 0) return null;
+
+            // Capacity is in centiliters, convert to liters
+            double liters = capacity / 100.0;
+            // Format with up to 1 decimal place, removing trailing zeros
+            String capacityStr;
+            if (liters == (int) liters) {
+                capacityStr = String.format("%d", (int) liters);
+            } else {
+                capacityStr = Utils.odformat2(liters, 1);
+            }
+
+            // Label in regular white, value in semibold white
+            BufferedImage labelImg = NTooltip.getBodyRegularFoundry().render("Capacity: ", Color.WHITE).img;
+            BufferedImage valueImg = NTooltip.getContentFoundry().render(capacityStr + "L", Color.WHITE).img;
+            return TooltipStyle.composePair(labelImg, valueImg);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render durability line: "Durability: " (regular white) + "X" (semibold white).
+     * For crafting tooltips - shows max durability only.
+     */
+    private static BufferedImage renderDurabilityLine(Object durInfo) {
+        try {
+            Field dField = durInfo.getClass().getDeclaredField("d");
+            dField.setAccessible(true);
+            int durability = dField.getInt(durInfo);
+
+            if (durability <= 0) return null;
+
+            // Label in regular white, value in semibold white
+            BufferedImage labelImg = NTooltip.getBodyRegularFoundry().render("Durability: ", Color.WHITE).img;
+            BufferedImage valueImg = NTooltip.getContentFoundry().render(String.valueOf(durability), Color.WHITE).img;
+            return TooltipStyle.composePair(labelImg, valueImg);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

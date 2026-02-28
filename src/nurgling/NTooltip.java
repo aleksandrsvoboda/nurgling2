@@ -472,14 +472,14 @@ public class NTooltip {
         return resourceFoundry;
     }
 
-    private static Text.Foundry getContentFoundry() {
+    public static Text.Foundry getContentFoundry() {
         if (contentFoundry == null) {
             contentFoundry = TooltipStyle.createFoundry(true, TooltipStyle.FONT_SIZE_BODY, Color.WHITE);
         }
         return contentFoundry;
     }
 
-    private static Text.Foundry getBodyRegularFoundry() {
+    public static Text.Foundry getBodyRegularFoundry() {
         if (bodyRegularFoundry == null) {
             bodyRegularFoundry = TooltipStyle.createFoundry(false, TooltipStyle.FONT_SIZE_BODY, Color.WHITE);
         }
@@ -1638,7 +1638,7 @@ public class NTooltip {
     /**
      * Render the hunger reduction line: "Hunger reduction: " (regular white) + "XX.X%" (semibold yellow)
      */
-    private static BufferedImage renderHungerLine(double glut) {
+    public static BufferedImage renderHungerLine(double glut) {
         BufferedImage labelImg = getBodyRegularFoundry().render("Hunger reduction: ", Color.WHITE).img;
         String valueText = Utils.odformat2(100 * glut, 1) + "%";
         BufferedImage valueImg = getContentFoundry().render(valueText, TooltipStyle.COLOR_FOOD_HUNGER).img;
@@ -1648,7 +1648,7 @@ public class NTooltip {
     /**
      * Render the food event bonus line: "Food event bonus: " (regular white) + "X.X%" (semibold purple)
      */
-    private static BufferedImage renderFoodBonusLine(double fev) {
+    public static BufferedImage renderFoodBonusLine(double fev) {
         BufferedImage labelImg = getBodyRegularFoundry().render("Food event bonus: ", Color.WHITE).img;
         String valueText = Utils.odformat2(100 * fev, 1) + "%";
         BufferedImage valueImg = getContentFoundry().render(valueText, TooltipStyle.COLOR_LP).img;
