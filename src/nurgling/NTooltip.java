@@ -1669,7 +1669,8 @@ public class NTooltip {
     }
 
     /**
-     * Render the treats line: "Treats: " (white) + "Wound1, Wound2, ..." (red #FF6464).
+     * Render the treats line: "Treats: " (white) + wound names (red #FF6464).
+     * Max 2 items per line, lines separated by 7px.
      * For medical items - shows what wounds/injuries this item treats.
      */
     private static BufferedImage renderTreatsLine(Object treatsInfo) {
@@ -1683,15 +1684,53 @@ public class NTooltip {
             // Color for wound names (red)
             Color woundColor = new Color(0xFF, 0x64, 0x64);  // #FF6464
 
-            // Render "Treats: " label in white
-            BufferedImage labelImg = getBodyRegularFoundry().render("Treats: ", Color.WHITE).img;
+            // Group names into lines of max 2 items
+            java.util.List<BufferedImage> lineImages = new java.util.ArrayList<>();
 
-            // Render wound names in red, separated by ", "
-            String namesList = String.join(", ", names);
-            BufferedImage namesImg = getBodyRegularFoundry().render(namesList, woundColor).img;
+            for (int i = 0; i < names.length; i += 2) {
+                // Get up to 2 names for this line
+                String line;
+                if (i + 1 < names.length) {
+                    line = names[i] + ", " + names[i + 1];
+                } else {
+                    line = names[i];
+                }
 
-            // Combine label and names
-            return TooltipStyle.composePair(labelImg, namesImg);
+                // First line has "Treats: " label
+                if (i == 0) {
+                    BufferedImage labelImg = getBodyRegularFoundry().render("Treats: ", Color.WHITE).img;
+                    BufferedImage namesImg = getBodyRegularFoundry().render(line, woundColor).img;
+                    lineImages.add(TooltipStyle.composePair(labelImg, namesImg));
+                } else {
+                    // Subsequent lines are just the wound names (indented by label width)
+                    BufferedImage labelImg = getBodyRegularFoundry().render("Treats: ", Color.WHITE).img;
+                    int labelWidth = labelImg.getWidth();
+                    BufferedImage namesImg = getBodyRegularFoundry().render(line, woundColor).img;
+
+                    // Create indented line with spacing
+                    BufferedImage indentedLine = TexI.mkbuf(new Coord(labelWidth + namesImg.getWidth(), namesImg.getHeight()));
+                    Graphics g = indentedLine.getGraphics();
+                    g.drawImage(namesImg, labelWidth, 0, null);
+                    g.dispose();
+                    lineImages.add(indentedLine);
+                }
+            }
+
+            // If only one line, return it
+            if (lineImages.size() == 1) {
+                return lineImages.get(0);
+            }
+
+            // Combine lines with 7px spacing
+            int bodyDescent = TooltipStyle.getFontDescent(11);
+            int spacing = UI.scale(7) - bodyDescent;
+
+            BufferedImage result = lineImages.get(0);
+            for (int i = 1; i < lineImages.size(); i++) {
+                result = ItemInfo.catimgs(spacing, result, lineImages.get(i));
+            }
+
+            return result;
         } catch (Exception e) {
             return null;
         }
