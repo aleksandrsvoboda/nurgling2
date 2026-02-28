@@ -472,14 +472,14 @@ public class NTooltip {
         return resourceFoundry;
     }
 
-    private static Text.Foundry getContentFoundry() {
+    public static Text.Foundry getContentFoundry() {
         if (contentFoundry == null) {
             contentFoundry = TooltipStyle.createFoundry(true, TooltipStyle.FONT_SIZE_BODY, Color.WHITE);
         }
         return contentFoundry;
     }
 
-    private static Text.Foundry getBodyRegularFoundry() {
+    public static Text.Foundry getBodyRegularFoundry() {
         if (bodyRegularFoundry == null) {
             bodyRegularFoundry = TooltipStyle.createFoundry(false, TooltipStyle.FONT_SIZE_BODY, Color.WHITE);
         }
@@ -504,7 +504,7 @@ public class NTooltip {
 
         ItemInfo.Owner owner = info.get(0).owner;
 
-        // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, and weapon stats
+        // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, Treats, and weapon stats
         String nameText = null;
         QBuff qbuff = null;
         NCuriosity curiosity = null;
@@ -514,6 +514,7 @@ public class NTooltip {
         ISlots islots = null;
         Slotted slotted = null;
         boolean starred = false;
+        Object treatsInfo = null;  // Treats (medical items - what wounds they treat)
 
         // Weapon stats
         String damageValue = null;
@@ -593,6 +594,10 @@ public class NTooltip {
             }
             if (ii instanceof Gast) {
                 gast = (Gast) ii;
+            }
+            // Check for Treats (medical items)
+            if (className.equals("Treats") || fullName.contains("Treats")) {
+                treatsInfo = ii;
             }
             // Check for both ISlots classes (slots and slots_alt)
             if (ii instanceof ISlots) {
@@ -886,6 +891,11 @@ public class NTooltip {
             foodBonusLine = TooltipStyle.cropTopOnly(renderFoodBonusLine(gast.fev));
         }
 
+        BufferedImage treatsLine = null;
+        if (treatsInfo != null) {
+            treatsLine = TooltipStyle.cropTopOnly(renderTreatsLine(treatsInfo));
+        }
+
         // Render weapon stats
         BufferedImage damageRangeLine = null;
         if (damageValue != null || rangeValue != null) {
@@ -1150,6 +1160,9 @@ public class NTooltip {
         }
         if (foodBonusLine != null) {
             itemInfoResults.add(new LineResult(foodBonusLine, 0, 0));
+        }
+        if (treatsLine != null) {
+            itemInfoResults.add(new LineResult(treatsLine, 0, 0));
         }
         // Base stats (non-gilding stats from item's AttrMod) - above gilding chance
         // Note: baseStatsResult and gildingChanceLineResult are handled separately below
@@ -1638,7 +1651,7 @@ public class NTooltip {
     /**
      * Render the hunger reduction line: "Hunger reduction: " (regular white) + "XX.X%" (semibold yellow)
      */
-    private static BufferedImage renderHungerLine(double glut) {
+    public static BufferedImage renderHungerLine(double glut) {
         BufferedImage labelImg = getBodyRegularFoundry().render("Hunger reduction: ", Color.WHITE).img;
         String valueText = Utils.odformat2(100 * glut, 1) + "%";
         BufferedImage valueImg = getContentFoundry().render(valueText, TooltipStyle.COLOR_FOOD_HUNGER).img;
@@ -1648,11 +1661,79 @@ public class NTooltip {
     /**
      * Render the food event bonus line: "Food event bonus: " (regular white) + "X.X%" (semibold purple)
      */
-    private static BufferedImage renderFoodBonusLine(double fev) {
+    public static BufferedImage renderFoodBonusLine(double fev) {
         BufferedImage labelImg = getBodyRegularFoundry().render("Food event bonus: ", Color.WHITE).img;
         String valueText = Utils.odformat2(100 * fev, 1) + "%";
         BufferedImage valueImg = getContentFoundry().render(valueText, TooltipStyle.COLOR_LP).img;
         return TooltipStyle.composePair(labelImg, valueImg);
+    }
+
+    /**
+     * Render the treats line: "Treats: " (white) + wound names (red #FF6464).
+     * Max 2 items per line, lines separated by 7px.
+     * For medical items - shows what wounds/injuries this item treats.
+     */
+    private static BufferedImage renderTreatsLine(Object treatsInfo) {
+        try {
+            Field namesField = treatsInfo.getClass().getDeclaredField("names");
+            namesField.setAccessible(true);
+            String[] names = (String[]) namesField.get(treatsInfo);
+
+            if (names == null || names.length == 0) return null;
+
+            // Color for wound names (red)
+            Color woundColor = new Color(0xFF, 0x64, 0x64);  // #FF6464
+
+            // Group names into lines of max 2 items
+            java.util.List<BufferedImage> lineImages = new java.util.ArrayList<>();
+
+            for (int i = 0; i < names.length; i += 2) {
+                // Get up to 2 names for this line
+                String line;
+                if (i + 1 < names.length) {
+                    line = names[i] + ", " + names[i + 1];
+                } else {
+                    line = names[i];
+                }
+
+                // First line has "Treats: " label
+                if (i == 0) {
+                    BufferedImage labelImg = getBodyRegularFoundry().render("Treats: ", Color.WHITE).img;
+                    BufferedImage namesImg = getBodyRegularFoundry().render(line, woundColor).img;
+                    lineImages.add(TooltipStyle.composePair(labelImg, namesImg));
+                } else {
+                    // Subsequent lines are just the wound names (indented by label width)
+                    BufferedImage labelImg = getBodyRegularFoundry().render("Treats: ", Color.WHITE).img;
+                    int labelWidth = labelImg.getWidth();
+                    BufferedImage namesImg = getBodyRegularFoundry().render(line, woundColor).img;
+
+                    // Create indented line with spacing
+                    BufferedImage indentedLine = TexI.mkbuf(new Coord(labelWidth + namesImg.getWidth(), namesImg.getHeight()));
+                    Graphics g = indentedLine.getGraphics();
+                    g.drawImage(namesImg, labelWidth, 0, null);
+                    g.dispose();
+                    lineImages.add(indentedLine);
+                }
+            }
+
+            // If only one line, return it
+            if (lineImages.size() == 1) {
+                return lineImages.get(0);
+            }
+
+            // Combine lines with 7px spacing
+            int bodyDescent = TooltipStyle.getFontDescent(11);
+            int spacing = UI.scale(7) - bodyDescent;
+
+            BufferedImage result = lineImages.get(0);
+            for (int i = 1; i < lineImages.size(); i++) {
+                result = ItemInfo.catimgs(spacing, result, lineImages.get(i));
+            }
+
+            return result;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -2745,6 +2826,10 @@ public class NTooltip {
                 }
                 // Skip Armor - we render armor class ourselves
                 if (tipClassName.equals("Armor")) {
+                    continue;
+                }
+                // Skip Treats - we render treats line ourselves
+                if (tipClassName.equals("Treats") || tipFullName.contains("Treats")) {
                     continue;
                 }
                 // Skip Elixir - we render elixir effects ourselves
