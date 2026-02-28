@@ -504,7 +504,7 @@ public class NTooltip {
 
         ItemInfo.Owner owner = info.get(0).owner;
 
-        // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, and weapon stats
+        // Find Name, QBuff, NCuriosity, Contents, Wear, Gast, ISlots, Starred, Treats, and weapon stats
         String nameText = null;
         QBuff qbuff = null;
         NCuriosity curiosity = null;
@@ -514,6 +514,7 @@ public class NTooltip {
         ISlots islots = null;
         Slotted slotted = null;
         boolean starred = false;
+        Object treatsInfo = null;  // Treats (medical items - what wounds they treat)
 
         // Weapon stats
         String damageValue = null;
@@ -593,6 +594,10 @@ public class NTooltip {
             }
             if (ii instanceof Gast) {
                 gast = (Gast) ii;
+            }
+            // Check for Treats (medical items)
+            if (className.equals("Treats") || fullName.contains("Treats")) {
+                treatsInfo = ii;
             }
             // Check for both ISlots classes (slots and slots_alt)
             if (ii instanceof ISlots) {
@@ -886,6 +891,11 @@ public class NTooltip {
             foodBonusLine = TooltipStyle.cropTopOnly(renderFoodBonusLine(gast.fev));
         }
 
+        BufferedImage treatsLine = null;
+        if (treatsInfo != null) {
+            treatsLine = TooltipStyle.cropTopOnly(renderTreatsLine(treatsInfo));
+        }
+
         // Render weapon stats
         BufferedImage damageRangeLine = null;
         if (damageValue != null || rangeValue != null) {
@@ -1150,6 +1160,9 @@ public class NTooltip {
         }
         if (foodBonusLine != null) {
             itemInfoResults.add(new LineResult(foodBonusLine, 0, 0));
+        }
+        if (treatsLine != null) {
+            itemInfoResults.add(new LineResult(treatsLine, 0, 0));
         }
         // Base stats (non-gilding stats from item's AttrMod) - above gilding chance
         // Note: baseStatsResult and gildingChanceLineResult are handled separately below
@@ -1653,6 +1666,29 @@ public class NTooltip {
         String valueText = Utils.odformat2(100 * fev, 1) + "%";
         BufferedImage valueImg = getContentFoundry().render(valueText, TooltipStyle.COLOR_LP).img;
         return TooltipStyle.composePair(labelImg, valueImg);
+    }
+
+    /**
+     * Render the treats line: "Treats: Wound1, Wound2, ..." using Open Sans 11px regular.
+     * For medical items - shows what wounds/injuries this item treats.
+     */
+    private static BufferedImage renderTreatsLine(Object treatsInfo) {
+        try {
+            Field namesField = treatsInfo.getClass().getDeclaredField("names");
+            namesField.setAccessible(true);
+            String[] names = (String[]) namesField.get(treatsInfo);
+
+            if (names == null || names.length == 0) return null;
+
+            // Join all wound names with ", "
+            String namesList = String.join(", ", names);
+            String text = "Treats: " + namesList;
+
+            // Render with 11px regular Open Sans (white)
+            return getBodyRegularFoundry().render(text, Color.WHITE).img;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -2745,6 +2781,10 @@ public class NTooltip {
                 }
                 // Skip Armor - we render armor class ourselves
                 if (tipClassName.equals("Armor")) {
+                    continue;
+                }
+                // Skip Treats - we render treats line ourselves
+                if (tipClassName.equals("Treats") || tipFullName.contains("Treats")) {
                     continue;
                 }
                 // Skip Elixir - we render elixir effects ourselves

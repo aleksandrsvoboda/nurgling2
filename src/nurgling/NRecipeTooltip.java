@@ -85,6 +85,7 @@ public class NRecipeTooltip {
             Object gastInfo = null;  // Gast (hunger reduction + food event bonus)
             Object capacityInfo = null;  // Capacity
             Object seenInfo = null;  // Seen (must have seen items)
+            Object treatsInfo = null;  // Treats (medical items - what wounds they treat)
 
             for (ItemInfo ii : info) {
                 String className = ii.getClass().getSimpleName();
@@ -118,6 +119,8 @@ public class NRecipeTooltip {
                     capacityInfo = ii;
                 } else if (className.equals("Seen") || fullName.contains("Seen")) {
                     seenInfo = ii;
+                } else if (className.equals("Treats") || fullName.contains("Treats")) {
+                    treatsInfo = ii;
                 }
             }
 
@@ -231,6 +234,12 @@ public class NRecipeTooltip {
                 capacityLine = TooltipStyle.cropTopOnly(renderCapacityLine(capacityInfo));
             }
 
+            // Render Treats line (for medical items)
+            BufferedImage treatsLine = null;
+            if (treatsInfo != null) {
+                treatsLine = TooltipStyle.cropTopOnly(renderTreatsLine(treatsInfo));
+            }
+
             // Render Cost line (for skills)
             BufferedImage costLine = null;
             if (costInfo != null) {
@@ -298,8 +307,8 @@ public class NRecipeTooltip {
                 hasBodyContent = true;
             }
             if (durabilityLine != null) {
-                // 7px from previous line to durability (or 10px from equipment stats)
-                int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
+                // 10px from ingredients to durability for tableware
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, durabilityLine);
                 prevTextBottomOffset = 0;  // Text line, reset offset
                 hasBodyContent = true;
@@ -322,6 +331,13 @@ public class NRecipeTooltip {
                 // 7px from food bonus (or previous line) to capacity
                 int spacing = hasBodyContent ? (UI.scale(7) - bodyDescent) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, capacityLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
+                hasBodyContent = true;
+            }
+            if (treatsLine != null) {
+                // 10px from ingredients to treats
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, treatsLine);
                 prevTextBottomOffset = 0;  // Text line, reset offset
                 hasBodyContent = true;
             }
@@ -1090,6 +1106,29 @@ public class NRecipeTooltip {
             BufferedImage labelImg = NTooltip.getBodyRegularFoundry().render("Durability: ", Color.WHITE).img;
             BufferedImage valueImg = NTooltip.getContentFoundry().render(String.valueOf(durability), Color.WHITE).img;
             return TooltipStyle.composePair(labelImg, valueImg);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render treats line: "Treats: Wound1, Wound2, ..." using Open Sans 11px regular.
+     * For medical items - shows what wounds/injuries this item treats.
+     */
+    private static BufferedImage renderTreatsLine(Object treatsInfo) {
+        try {
+            Field namesField = treatsInfo.getClass().getDeclaredField("names");
+            namesField.setAccessible(true);
+            String[] names = (String[]) namesField.get(treatsInfo);
+
+            if (names == null || names.length == 0) return null;
+
+            // Join all wound names with ", "
+            String namesList = String.join(", ", names);
+            String text = "Treats: " + namesList;
+
+            // Render with 11px regular Open Sans (white)
+            return getQuantityFoundry().render(text, Color.WHITE).img;
         } catch (Exception e) {
             return null;
         }
