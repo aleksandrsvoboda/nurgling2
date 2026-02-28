@@ -1669,7 +1669,7 @@ public class NTooltip {
     }
 
     /**
-     * Render the treats line: "Treats: Wound1, Wound2, ..." using Open Sans 11px regular.
+     * Render the treats line: "Treats: " (white) + "Wound1, Wound2, ..." (red #FF6464).
      * For medical items - shows what wounds/injuries this item treats.
      */
     private static BufferedImage renderTreatsLine(Object treatsInfo) {
@@ -1680,12 +1680,18 @@ public class NTooltip {
 
             if (names == null || names.length == 0) return null;
 
-            // Join all wound names with ", "
-            String namesList = String.join(", ", names);
-            String text = "Treats: " + namesList;
+            // Color for wound names (red)
+            Color woundColor = new Color(0xFF, 0x64, 0x64);  // #FF6464
 
-            // Render with 11px regular Open Sans (white)
-            return getBodyRegularFoundry().render(text, Color.WHITE).img;
+            // Render "Treats: " label in white
+            BufferedImage labelImg = getBodyRegularFoundry().render("Treats: ", Color.WHITE).img;
+
+            // Render wound names in red, separated by ", "
+            String namesList = String.join(", ", names);
+            BufferedImage namesImg = getBodyRegularFoundry().render(namesList, woundColor).img;
+
+            // Combine label and names
+            return TooltipStyle.composePair(labelImg, namesImg);
         } catch (Exception e) {
             return null;
         }
