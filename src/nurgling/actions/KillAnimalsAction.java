@@ -7,6 +7,7 @@ import haven.res.ui.croster.RosterWindow;
 import nurgling.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
+import nurgling.overlays.NCattleMarkRing;
 import nurgling.tasks.AnimalIsDead;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -87,6 +88,9 @@ public class KillAnimalsAction<C extends Entry> implements Action {
             forkill.addAll(targets);
         }
 
+        new Equip(new NAlias("Butcher's cleaver"), new NAlias("Traveller's Sack", "Wanderer's Bindle")).run(gui);
+        new Equip(new NAlias("Traveller's Sack", "Wanderer's Bindle"), new NAlias("Butcher's cleaver")).run(gui);
+
         // Mark animals for kill in roster (red highlight)
         for(Gob gob : forkill) {
             CattleId cattleId = gob.getattr(CattleId.class);
@@ -112,22 +116,29 @@ public class KillAnimalsAction<C extends Entry> implements Action {
             return;
         forkill.sort(NUtils.d_comp);
         Gob target = forkill.get(0);
+        target.addcustomol(new NCattleMarkRing(target));
         boolean res = false;
-        while (!res) {
-            new DynamicPf(target).run(gui);
-            new SelectFlowerAction("Slaughter", target).run(gui);
-            AnimalIsDead aid = new AnimalIsDead(target);
-            NUtils.getUI().core.addTask(aid);
-            res = aid.getRes();
+        try {
+            while (!res) {
+                new DynamicPf(target).run(gui);
+                new SelectFlowerAction("Slaughter", target).run(gui);
+                AnimalIsDead aid = new AnimalIsDead(target.id);
+                NUtils.getUI().core.addTask(aid);
+                res = aid.getRes();
+            }
+            new LiftObject(target).run(gui);
+        } finally {
+            target.delol(NCattleMarkRing.class);
         }
-        new LiftObject(target).run(gui);
         new FindPlaceAndAction(target, NContext.findSpec("deadkritter"), true).run(gui);
         CattleId cattleId = (CattleId) target.getattr(CattleId.class);
-        Collection<Object> args = new ArrayList<>();
-        args.add(cattleId.entry().id);
-        // Remove from kill list highlight
-        Entry.killList.remove(cattleId.entry().id);
-        NUtils.getRosterWindow(cattleRoster).roster(cattleRoster).wdgmsg("rm", args.toArray(new Object[0]));
-        forkill.remove(target);
+        if (cattleId != null && cattleId.entry() != null) {
+            Collection<Object> args = new ArrayList<>();
+            args.add(cattleId.entry().id);
+            // Remove from kill list highlight
+            Entry.killList.remove(cattleId.entry().id);
+            NUtils.getRosterWindow(cattleRoster).roster(cattleRoster).wdgmsg("rm", args.toArray(new Object[0]));
+            forkill.remove(target);
+        }
     }
 }
