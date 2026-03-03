@@ -390,11 +390,8 @@ public class ChunkNavExecutor implements Action {
     }
 
     private Results tryTraversePortal(NGameUI gui, Gob player, ChunkPortal recordedPortal, long targetGridId) throws InterruptedException {
-        // Use larger search radius for building exteriors (they can be on adjacent chunks)
-        double searchRadius = isBuildingExteriorGob(recordedPortal.gobName)
-            ? MCache.tilesz.x * 80   // ~880 units - covers buildings on adjacent chunks
-            : MCache.tilesz.x * 30;  // ~330 units - standard for doors/portals
-        Gob portalGob = findGobByName(gui, recordedPortal.gobName, player.rc, searchRadius);
+        // Find portal by its unique hash to avoid ambiguity with multiple identical buildings
+        Gob portalGob = findGobByHash(gui, recordedPortal.gobHash);
         if (portalGob == null) {
             return null;
         }
@@ -452,6 +449,26 @@ public class ChunkNavExecutor implements Action {
             }
         }
         return closest;
+    }
+
+    /**
+     * Find a gob by its unique gobHash identifier.
+     * This ensures we find the exact portal we're looking for, even when multiple
+     * identical buildings (e.g., two stonesteads) are close together.
+     */
+    private Gob findGobByHash(NGameUI gui, String gobHash) {
+        if (gobHash == null) return null;
+
+        synchronized (gui.map.glob.oc) {
+            for (Gob gob : gui.map.glob.oc) {
+                if (gob.ngob == null || gob.ngob.hash == null) continue;
+
+                if (gob.ngob.hash.equals(gobHash)) {
+                    return gob;
+                }
+            }
+        }
+        return null;
     }
 
     private Results traversePortalGob(NGameUI gui, Gob portalGob, long targetGridId) throws InterruptedException {
@@ -641,51 +658,28 @@ public class ChunkNavExecutor implements Action {
     }
 
     private SegmentWalkResult followSegmentTiles(ChunkPath.PathSegment segment, NGameUI gui, long targetGridId) throws InterruptedException {
-        System.out.println("[ChunkNavExecutor] followSegmentTiles called:");
-        System.out.println("  - Segment gridId: " + segment.gridId);
-        System.out.println("  - Segment type: " + segment.type);
-        System.out.println("  - Segment steps count: " + (segment.steps != null ? segment.steps.size() : 0));
-        System.out.println("  - Segment worldTileOrigin: " + segment.worldTileOrigin);
-        System.out.println("  - Target gridId: " + targetGridId);
-
         if (segment.isEmpty()) {
-            System.out.println("[ChunkNavExecutor] Segment is empty, returning success");
             return SegmentWalkResult.success();
         }
 
         ChunkNavData segmentChunk = graph.getChunk(segment.gridId);
-        System.out.println("[ChunkNavExecutor] SegmentChunk from graph: " + (segmentChunk != null ? "found" : "NOT FOUND"));
-        if (segmentChunk != null) {
-            System.out.println("  - Layer: " + segmentChunk.layer);
-            System.out.println("  - Stored worldTileOrigin: " + segmentChunk.worldTileOrigin);
-        }
 
         // Get LIVE worldTileOrigin from MCache
         Coord liveWorldTileOrigin = null;
-        try {
-            MCache mcache = gui.map.glob.map;
-            synchronized (mcache.grids) {
-                System.out.println("[ChunkNavExecutor] Searching MCache for gridId " + segment.gridId + " (loaded grids: " + mcache.grids.size() + ")");
-                for (MCache.Grid grid : mcache.grids.values()) {
-                    if (grid.id == segment.gridId) {
-                        liveWorldTileOrigin = grid.ul;
-                        System.out.println("[ChunkNavExecutor] FOUND in MCache! liveWorldTileOrigin = " + liveWorldTileOrigin);
-                        break;
-                    }
-                }
-                if (liveWorldTileOrigin == null) {
-                    System.out.println("[ChunkNavExecutor] NOT FOUND in MCache - grid not loaded");
+        MCache mcache = gui.map.glob.map;
+        synchronized (mcache.grids) {
+            for (MCache.Grid grid : mcache.grids.values()) {
+                if (grid.id == segment.gridId) {
+                    liveWorldTileOrigin = grid.ul;
+                    break;
                 }
             }
-        } catch (Exception e) {
-            System.out.println("[ChunkNavExecutor] Exception accessing MCache: " + e.getMessage());
+            if (liveWorldTileOrigin == null) {
+            }
         }
 
         // Get player position for reference
         Gob player = gui.map.player();
-        if (player != null) {
-            System.out.println("[ChunkNavExecutor] Player position: " + player.rc);
-        }
 
         // Determine which worldTileOrigin to use
         Coord currentWorldTileOrigin = liveWorldTileOrigin;
@@ -698,24 +692,8 @@ public class ChunkNavExecutor implements Action {
             originSource = "SEGMENT";
         }
 
-        System.out.println("[ChunkNavExecutor] Using worldTileOrigin: " + currentWorldTileOrigin + " (source: " + originSource + ")");
-
         if (currentWorldTileOrigin == null) {
-            System.out.println("[ChunkNavExecutor] ERROR: No worldTileOrigin available!");
             return SegmentWalkResult.fail();
-        }
-
-        // Show first waypoint calculation
-        if (!segment.steps.isEmpty()) {
-            ChunkPath.TileStep firstStep = segment.steps.get(0);
-            Coord worldTile = currentWorldTileOrigin.add(firstStep.localCoord);
-            Coord2d waypoint = worldTile.mul(MCache.tilesz).add(MCache.tilehsz);
-            System.out.println("[ChunkNavExecutor] First step localCoord: " + firstStep.localCoord);
-            System.out.println("[ChunkNavExecutor] First step worldTile: " + worldTile);
-            System.out.println("[ChunkNavExecutor] First step waypoint: " + waypoint);
-            if (player != null) {
-                System.out.println("[ChunkNavExecutor] Distance to first waypoint: " + player.rc.dist(waypoint));
-            }
         }
 
         // For PORTAL segments, check if we should look for portal gob during walking
