@@ -26,6 +26,7 @@
 
 package haven;
 
+import nurgling.NConfig;
 import java.util.*;
 
 public class RemoteUI implements UI.Receiver, UI.Runner {
@@ -37,6 +38,16 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
     }
 
     public void rcvmsg(int id, String name, Object... args) {
+	if ((Boolean) NConfig.get(NConfig.Key.debug)) {
+		System.out.printf("id: '%d' ; name: '%s' ; args:%n", id, name);
+		for (Object obj : args) {
+			if (obj != null) {
+				System.out.printf("Class: '%s' ; Value: '%s'\n", obj.getClass().getSimpleName(), obj);
+			}
+		}
+		System.out.println();
+	}
+
 	PMessage msg = new PMessage(RMessage.RMSG_WDGMSG);
 	msg.addint32(id);
 	msg.addstring(name);
