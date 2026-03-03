@@ -1,7 +1,9 @@
 package nurgling.actions.bots;
 
 import haven.Coord;
+import haven.Drawable;
 import haven.Gob;
+import haven.Resource;
 import haven.UI;
 import haven.WItem;
 import nurgling.*;
@@ -58,11 +60,12 @@ public class StudyDeskFiller implements Action {
         // Step 4: Navigate to the study desk
         new PathFinder(studyDesk).run(gui);
 
-        // Step 5: Open the study desk
-        new OpenTargetContainer("Study Desk", studyDesk).run(gui);
+        // Step 5: Determine container cap name and open the study desk
+        String deskCap = getStudyDeskCap(studyDesk);
+        new OpenTargetContainer(deskCap, studyDesk).run(gui);
 
         // Step 6: Get the study desk inventory
-        NInventory studyDeskInv = gui.getInventory("Study Desk");
+        NInventory studyDeskInv = gui.getInventory(deskCap);
         if (studyDeskInv == null) {
             gui.msg("ERROR: Could not access study desk inventory!", Color.RED);
             return Results.ERROR("ERROR: Could not access study desk inventory!");
@@ -81,7 +84,7 @@ public class StudyDeskFiller implements Action {
 
         // Step 10: Fetch and place missing items
         if (!missingItems.isEmpty()) {
-            fetchAndPlaceAllItems(gui, missingItems, studyDesk, studyDeskInv);
+            fetchAndPlaceAllItems(gui, missingItems, studyDesk, studyDeskInv, deskCap);
         }
 
         // Step 11: Final status message
@@ -158,6 +161,22 @@ public class StudyDeskFiller implements Action {
     }
 
     /**
+     * Get the container cap name for a study desk gob
+     */
+    private String getStudyDeskCap(Gob studyDesk) {
+        Drawable drawable = studyDesk.getattr(Drawable.class);
+        if (drawable != null && drawable.getres() != null) {
+            String resName = drawable.getres().name;
+            if ("gfx/terobjs/studydesk-big".equals(resName)) {
+                return "Fine Study Desk";
+            } else if ("gfx/terobjs/grandstudydesk".equals(resName)) {
+                return "Grand Study Desk";
+            }
+        }
+        return "Study Desk";
+    }
+
+    /**
      * Build a map of current item positions in the study desk
      */
     private Map<Coord, WItem> buildCurrentItemsMap(NInventory inventory) throws InterruptedException {
@@ -207,27 +226,32 @@ public class StudyDeskFiller implements Action {
     }
 
     /**
-     * Check if the current item matches the planned item (same name and size)
+     * Check if the current item matches the planned item (same resource/name and size)
      */
-    private boolean isMatchingItem(WItem currentItem, String plannedName, Coord plannedSize) throws InterruptedException {
+    private boolean isMatchingItem(WItem currentItem, String plannedName, String plannedResourceName, Coord plannedSize) throws InterruptedException {
         if (currentItem == null || currentItem.item == null) {
             return false;
         }
 
-        // Get current item name
-        String currentName = null;
-        if (currentItem.item instanceof NGItem) {
-            currentName = ((NGItem) currentItem.item).name();
+        // If resource name is available, match by resource name (handles same-name variants)
+        if (plannedResourceName != null && currentItem.item.getres() != null) {
+            String currentResName = currentItem.item.getres().name;
+            if (!plannedResourceName.equals(currentResName)) {
+                return false;
+            }
+        } else {
+            // Fall back to display name matching
+            String currentName = null;
+            if (currentItem.item instanceof NGItem) {
+                currentName = ((NGItem) currentItem.item).name();
+            }
+            if (currentName == null || !currentName.equals(plannedName)) {
+                return false;
+            }
         }
-
-        if (currentName == null || !currentName.equals(plannedName)) {
-            return false;
-        }
-
-        // Get current item size
-        Coord currentSize = getItemSize(currentItem);
 
         // Check if sizes match
+        Coord currentSize = getItemSize(currentItem);
         return currentSize.equals(plannedSize);
     }
 
@@ -263,6 +287,7 @@ public class StudyDeskFiller implements Action {
 
             Map<String, Object> itemData = (Map<String, Object>) plannedEntry.getValue();
             String itemName = (String) itemData.get("name");
+            String resourceName = (String) itemData.get("resourceName");
 
             // Extract item size from the layout data
             Coord itemSize = new Coord(1, 1); // Default size
@@ -283,7 +308,7 @@ public class StudyDeskFiller implements Action {
 
             // First check: Is the exact item already at this position?
             WItem currentItem = currentItems.get(plannedPos);
-            if (currentItem != null && isMatchingItem(currentItem, itemName, itemSize)) {
+            if (currentItem != null && isMatchingItem(currentItem, itemName, resourceName, itemSize)) {
                 // Item is already correctly placed, skip
                 continue;
             }
@@ -299,7 +324,7 @@ public class StudyDeskFiller implements Action {
             }
 
             // Item is missing and can be placed
-            missingItems.add(new MissingItem(itemName, plannedPos, itemSize));
+            missingItems.add(new MissingItem(itemName, resourceName, plannedPos, itemSize));
         }
 
         return missingItems;
@@ -351,7 +376,7 @@ public class StudyDeskFiller implements Action {
     /**
      * Fetch and place all missing items into the study desk
      */
-    private void fetchAndPlaceAllItems(NGameUI gui, List<MissingItem> missingItems, Gob studyDesk, NInventory studyDeskInv) throws InterruptedException {
+    private void fetchAndPlaceAllItems(NGameUI gui, List<MissingItem> missingItems, Gob studyDesk, NInventory studyDeskInv, String deskCap) throws InterruptedException {
         // Create a working list of items still needed
         List<MissingItem> remainingItems = new ArrayList<>(missingItems);
 
@@ -378,10 +403,10 @@ public class StudyDeskFiller implements Action {
             // Navigate back to study desk and place everything
             getStudyDeskArea(gui);
             new PathFinder(studyDesk).run(gui);
-            new OpenTargetContainer("Study Desk", studyDesk).run(gui);
+            new OpenTargetContainer(deskCap, studyDesk).run(gui);
 
             // Refresh study desk inventory reference
-            studyDeskInv = gui.getInventory("Study Desk");
+            studyDeskInv = gui.getInventory(deskCap);
             if (studyDeskInv == null) {
                 gui.msg("ERROR: Lost study desk inventory reference!", Color.RED);
                 break;
@@ -403,16 +428,19 @@ public class StudyDeskFiller implements Action {
         List<FetchedItem> fetchedItems = new ArrayList<>();
         List<MissingItem> itemsToRemove = new ArrayList<>();
 
-        // Group remaining items by type
-        Map<String, List<MissingItem>> itemGroups = new HashMap<>();
+        // Group remaining items by resource name when available, otherwise by display name.
+        // This ensures variants with the same display name (e.g. Easter Egg 0-3) are handled separately.
+        Map<String, List<MissingItem>> itemGroups = new LinkedHashMap<>();
         for (MissingItem missing : remainingItems) {
-            itemGroups.computeIfAbsent(missing.itemName, k -> new ArrayList<>()).add(missing);
+            String groupKey = missing.resourceName != null ? missing.resourceName : missing.itemName;
+            itemGroups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(missing);
         }
 
         // Try to fetch each item type until inventory is full
         for (Map.Entry<String, List<MissingItem>> entry : itemGroups.entrySet()) {
-            String itemName = entry.getKey();
             List<MissingItem> itemsNeeded = entry.getValue();
+            String itemName = itemsNeeded.get(0).itemName;
+            String resourceName = itemsNeeded.get(0).resourceName;
             Coord itemSize = itemsNeeded.get(0).itemSize;
 
             // Check how many of this item can fit
@@ -421,27 +449,25 @@ public class StudyDeskFiller implements Action {
                 continue; // Inventory full, try next item type
             }
 
-            // Get storage for this item
+            // Get storage for this item (uses display name for area lookup)
             ArrayList<NContext.ObjectStorage> storages = context.getInStorages(itemName);
             if (storages == null || storages.isEmpty()) {
                 gui.msg("No storage found for " + itemName + ", removing from list", Color.ORANGE);
-                // Mark all items of this type for removal since there's no storage
                 itemsToRemove.addAll(itemsNeeded);
                 continue;
             }
 
             // Fetch what we can
             int toFetch = Math.min(itemsNeeded.size(), canFit);
-            NAlias itemAlias = new NAlias(itemName);
 
-            int beforeCount = gui.getInventory().getItems(itemAlias).size();
-            fetchItemsFromStorage(gui, storages, itemName, toFetch);
-            int afterCount = gui.getInventory().getItems(itemAlias).size();
+            int beforeCount = getItemCount(gui, itemName, resourceName);
+            fetchItemsFromStorage(gui, storages, itemName, resourceName, toFetch);
+            int afterCount = getItemCount(gui, itemName, resourceName);
             int actuallyFetched = afterCount - beforeCount;
 
             // Record which items we fetched with their target positions
             if (actuallyFetched > 0) {
-                ArrayList<WItem> fetchedWItems = gui.getInventory().getItems(itemAlias);
+                ArrayList<WItem> fetchedWItems = getItemsFiltered(gui, itemName, resourceName);
                 // Take the last N items (most recently added)
                 int startIdx = Math.max(0, fetchedWItems.size() - actuallyFetched);
                 for (int i = 0; i < actuallyFetched && i < itemsNeeded.size(); i++) {
@@ -452,10 +478,8 @@ public class StudyDeskFiller implements Action {
             }
 
             // If we got fewer items than requested, storage is depleted
-            // Remove the unfetched items from remainingItems so we don't try again
             if (actuallyFetched < toFetch) {
                 gui.msg("Storage depleted for " + itemName + " (got " + actuallyFetched + "/" + toFetch + ")", Color.ORANGE);
-                // Mark unfetched items for removal
                 for (int i = actuallyFetched; i < itemsNeeded.size(); i++) {
                     itemsToRemove.add(itemsNeeded.get(i));
                 }
@@ -469,9 +493,30 @@ public class StudyDeskFiller implements Action {
     }
 
     /**
+     * Get items from player inventory filtered by resource name when available
+     */
+    private ArrayList<WItem> getItemsFiltered(NGameUI gui, String itemName, String resourceName) throws InterruptedException {
+        ArrayList<WItem> items = gui.getInventory().getItems(new NAlias(itemName));
+        if (resourceName != null) {
+            items.removeIf(witem -> {
+                Resource res = witem.item.getres();
+                return res == null || !resourceName.equals(res.name);
+            });
+        }
+        return items;
+    }
+
+    /**
+     * Count items in player inventory filtered by resource name when available
+     */
+    private int getItemCount(NGameUI gui, String itemName, String resourceName) throws InterruptedException {
+        return getItemsFiltered(gui, itemName, resourceName).size();
+    }
+
+    /**
      * Fetch items from storage containers
      */
-    private int fetchItemsFromStorage(NGameUI gui, ArrayList<NContext.ObjectStorage> storages, String itemName, int count) throws InterruptedException {
+    private int fetchItemsFromStorage(NGameUI gui, ArrayList<NContext.ObjectStorage> storages, String itemName, String resourceName, int count) throws InterruptedException {
         int totalFetched = 0;
         NAlias itemAlias = new NAlias(itemName);
 
@@ -481,7 +526,7 @@ public class StudyDeskFiller implements Action {
             }
             if (storage instanceof Container) {
                 Container container = (Container) storage;
-                int fetched = fetchFromContainer(gui, container, itemAlias, count - totalFetched);
+                int fetched = fetchFromContainer(gui, container, itemAlias, resourceName, count - totalFetched);
                 totalFetched += fetched;
             }
             else if (storage instanceof NContext.Pile) {
@@ -497,7 +542,7 @@ public class StudyDeskFiller implements Action {
     /**
      * Fetch items from a Container storage
      */
-    private int fetchFromContainer(NGameUI gui, Container container, NAlias itemAlias, int count) throws InterruptedException {
+    private int fetchFromContainer(NGameUI gui, Container container, NAlias itemAlias, String resourceName, int count) throws InterruptedException {
         // Navigate to container
         Gob containerGob = Finder.findGob(container.gobid);
         if (containerGob == null) {
@@ -512,8 +557,17 @@ public class StudyDeskFiller implements Action {
 
         int fetched = 0;
         if (containerInv != null) {
-            // Get available items
+            // Get candidate items by display name
             ArrayList<WItem> availableItems = containerInv.getItems(itemAlias);
+
+            // Filter by resource name to distinguish same-name variants (e.g. Easter Egg 0-3)
+            if (resourceName != null) {
+                availableItems.removeIf(witem -> {
+                    Resource res = witem.item.getres();
+                    return res == null || !resourceName.equals(res.name);
+                });
+            }
+
             int toTake = Math.min(availableItems.size(), count);
 
             // Take items to player inventory
@@ -629,11 +683,13 @@ public class StudyDeskFiller implements Action {
      */
     private static class MissingItem {
         String itemName;
+        String resourceName;
         Coord position;
         Coord itemSize;
 
-        MissingItem(String itemName, Coord position, Coord itemSize) {
+        MissingItem(String itemName, String resourceName, Coord position, Coord itemSize) {
             this.itemName = itemName;
+            this.resourceName = resourceName;
             this.position = position;
             this.itemSize = itemSize;
         }

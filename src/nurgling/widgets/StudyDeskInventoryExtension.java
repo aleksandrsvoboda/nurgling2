@@ -97,6 +97,19 @@ public class StudyDeskInventoryExtension {
     }
 
     /**
+     * Returns the correct planner grid size for the given inventory's study desk type
+     */
+    private static Coord getDeskSize(NInventory inventory) {
+        String resName = getInventoryParentGobResName(inventory);
+        if (isStudyDeskFine(resName)) {
+            return StudyDeskPlannerWidget.DESK_SIZE_FINE;
+        } else if (isStudyDeskGrand(resName)) {
+            return StudyDeskPlannerWidget.DESK_SIZE_GRAND;
+        }
+        return StudyDeskPlannerWidget.DESK_SIZE;
+    }
+
+    /**
      * Opens the Study Desk Planner widget positioned next to the study desk inventory
      */
     private static void openStudyDeskPlanner(NInventory inventory) {
@@ -109,22 +122,23 @@ public class StudyDeskInventoryExtension {
             String gobHash = null;
             if (inventory.parentGob != null && inventory.parentGob.ngob != null) {
                 gobHash = inventory.parentGob.ngob.hash;
-                // check which version of study desk is being used
+            }
+
+            Coord requiredSize = getDeskSize(inventory);
+
+            // Recreate planner if desk type changed
+            if (gameUI.studyDeskPlanner != null && !gameUI.studyDeskPlanner.getStudyDeskSize().equals(requiredSize)) {
+                gameUI.studyDeskPlanner.reqdestroy();
+                gameUI.studyDeskPlanner = null;
             }
 
             if (gameUI.studyDeskPlanner == null) {
-                if (isStudyDeskFine(getInventoryParentGobResName(inventory))) {
-                    gameUI.studyDeskPlanner = new StudyDeskPlannerWidget(StudyDeskPlannerWidget.DESK_SIZE_FINE);
-                } else if (isStudyDeskGrand(getInventoryParentGobResName(inventory))) {
-                    gameUI.studyDeskPlanner = new StudyDeskPlannerWidget(StudyDeskPlannerWidget.DESK_SIZE_GRAND);
-                } else {
-                    gameUI.studyDeskPlanner = new StudyDeskPlannerWidget(StudyDeskPlannerWidget.DESK_SIZE);
-                }
+                gameUI.studyDeskPlanner = new StudyDeskPlannerWidget(requiredSize);
                 gameUI.add(gameUI.studyDeskPlanner, plannerPos);
                 if (gobHash != null) {
                     gameUI.studyDeskPlanner.setStudyDeskHash(gobHash);
                 }
-                gameUI.studyDeskPlanner.show(); // Explicitly show on first creation
+                gameUI.studyDeskPlanner.show();
             } else {
                 // Toggle visibility for subsequent clicks
                 if (gameUI.studyDeskPlanner.visible()) {
@@ -165,8 +179,8 @@ public class StudyDeskInventoryExtension {
         // Position the panel to the right of the inventory
         Coord panelPos = new Coord(inventory.sz.x + UI.scale(10), 0);
 
-        // Reserve space for Mental Weight and Total LP at the bottom
-        int scrollHeight = inventory.sz.y - UI.scale(40);
+        // Reserve space for Exp Cost, Mental Weight and Total LP at the bottom
+        int scrollHeight = inventory.sz.y - UI.scale(55);
         Coord scrollSize = new Coord(UI.scale(160), scrollHeight);
 
         // Create the content panel with scrolling support
@@ -177,15 +191,21 @@ public class StudyDeskInventoryExtension {
         scrollport.cont.add(detailsPanel, Coord.z);
         inventory.parent.add(scrollport, panelPos);
 
-        // Add Mental Weight label below the scrollport
+        // Add Exp Cost label below the scrollport
+        Label expCostLabel = new Label("Exp cost: 0");
+        expCostLabel.setcolor(new Color(255, 255, 192));
+        inventory.parent.add(expCostLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(5)));
+
+        // Add Mental Weight label below exp cost
         Label mentalWeightLabel = new Label("Mental Weight: 0");
-        inventory.parent.add(mentalWeightLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(5)));
+        inventory.parent.add(mentalWeightLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(18)));
 
         // Add Total LP label below mental weight
         Label totalLPLabel = new Label("Total LP: 0");
-        inventory.parent.add(totalLPLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(18)));
+        inventory.parent.add(totalLPLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(31)));
 
         // Store reference for updates
+        detailsPanel.expCostLabel = expCostLabel;
         detailsPanel.mentalWeightLabel = mentalWeightLabel;
         detailsPanel.totalLPLabel = totalLPLabel;
         detailsPanel.scrollport = scrollport;
@@ -200,6 +220,7 @@ public class StudyDeskInventoryExtension {
         private static final int LINE_HEIGHT = UI.scale(30);
         private Map<String, CurioInfo> cachedInfo = new HashMap<>();
         private int lastItemCount = -1;
+        Label expCostLabel;
         Label mentalWeightLabel;
         Label totalLPLabel;
         Scrollport scrollport;
@@ -233,13 +254,16 @@ public class StudyDeskInventoryExtension {
             List<CurioInfo> sortedCurios = new ArrayList<>(cachedInfo.values());
             sortedCurios.sort(Comparator.comparing(a -> a.name, String.CASE_INSENSITIVE_ORDER));
 
-            // Calculate total LP and total mental weight (mental weight is per unique item type)
+            // Calculate totals
             int totalLP = 0;
             int totalMentalWeight = 0;
+            int totalExpCost = 0;
             for (CurioInfo info : cachedInfo.values()) {
                 totalLP += info.totalLP;
-                totalMentalWeight += info.mentalWeight; // Each unique item type contributes its mental weight once
+                totalMentalWeight += info.mentalWeight;
+                totalExpCost += info.totalExpCost;
             }
+            updateExpCost(totalExpCost);
             updateMentalWeight(totalMentalWeight);
             updateTotalLP(totalLP);
 
@@ -289,6 +313,13 @@ public class StudyDeskInventoryExtension {
                 if (scrollport != null && scrollport.cont != null) {
                     scrollport.cont.update();
                 }
+            }
+        }
+
+        private void updateExpCost(int expCost) {
+            if (expCostLabel != null) {
+                String text = String.format("Exp cost: %,d", expCost);
+                expCostLabel.settext(text);
             }
         }
 
@@ -348,12 +379,13 @@ public class StudyDeskInventoryExtension {
                     // Add or update curio info
                     CurioInfo info = curioInfo.get(key);
                     if (info == null) {
-                        info = new CurioInfo(displayName, resource, curiosity.time, curiosity.exp, curiosity.mw);
+                        info = new CurioInfo(displayName, resource, curiosity.time, curiosity.exp, curiosity.mw, curiosity.enc);
                         curioInfo.put(key, info);
                     } else {
                         info.count++;
                         info.totalTime += curiosity.time;
                         info.totalLP += curiosity.exp;
+                        info.totalExpCost += curiosity.enc;
                     }
                 }
             } catch (Exception e) {
@@ -399,18 +431,22 @@ public class StudyDeskInventoryExtension {
             int studyTime;
             int learningPoints;
             int mentalWeight;
+            int expCost;
             int count = 1;
             int totalTime;
             int totalLP;
+            int totalExpCost;
 
-            CurioInfo(String name, Resource resource, int studyTime, int learningPoints, int mentalWeight) {
+            CurioInfo(String name, Resource resource, int studyTime, int learningPoints, int mentalWeight, int expCost) {
                 this.name = name;
                 this.resource = resource;
                 this.studyTime = studyTime;
                 this.learningPoints = learningPoints;
                 this.mentalWeight = mentalWeight;
+                this.expCost = expCost;
                 this.totalTime = studyTime;
                 this.totalLP = learningPoints;
+                this.totalExpCost = expCost;
             }
         }
     }

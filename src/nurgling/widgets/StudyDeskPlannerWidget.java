@@ -279,6 +279,8 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
                     String resourceName = getItemResourceName(handItem);
                     Resource itemResource = getItemResource(handItem);
                     int mentalWeight = getMentalWeight(handItem);
+                    int expCost = getExpCost(handItem);
+                    int learningPoints = getLearningPoints(handItem);
 
                     // Check if item fits
                     if(canPlaceItem(gridPos, itemSize)) {
@@ -286,7 +288,7 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
                         removeOverlappingItems(gridPos, itemSize);
 
                         // Create and place the item
-                        PlannedCuriosity curiosity = new PlannedCuriosity(itemName, itemSize, resourceName, itemResource, studyTime, mentalWeight);
+                        PlannedCuriosity curiosity = new PlannedCuriosity(itemName, itemSize, resourceName, itemResource, studyTime, mentalWeight, expCost, learningPoints);
                         plannedItems.put(new Coord(gridPos.x, gridPos.y), curiosity);
 
                         return true;
@@ -383,6 +385,32 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
         return 0;
     }
 
+    private int getExpCost(WItem item) {
+        if(item.item != null) {
+            List<ItemInfo> info = item.item.info();
+            if(info != null) {
+                Curiosity curiosity = ItemInfo.find(Curiosity.class, info);
+                if(curiosity != null) {
+                    return curiosity.enc;
+                }
+            }
+        }
+        return 0;
+    }
+
+    private int getLearningPoints(WItem item) {
+        if(item.item != null) {
+            List<ItemInfo> info = item.item.info();
+            if(info != null) {
+                Curiosity curiosity = ItemInfo.find(Curiosity.class, info);
+                if(curiosity != null) {
+                    return curiosity.exp;
+                }
+            }
+        }
+        return 0;
+    }
+
     private boolean canPlaceItem(Coord pos, Coord size) {
         // Check if item goes outside grid
         if(pos.x + size.x > studyDeskSize.x || pos.y + size.y > studyDeskSize.y) {
@@ -446,6 +474,8 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
             itemData.put("sizeY", item.size.y);
             itemData.put("studyTime", item.studyTime);
             itemData.put("mentalWeight", item.mentalWeight);
+            itemData.put("expCost", item.expCost);
+            itemData.put("learningPoints", item.learningPoints);
             if(item.resourceName != null) {
                 itemData.put("resourceName", item.resourceName);
             }
@@ -527,6 +557,8 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
                         String resourceName = (String) itemData.get("resourceName");
                         int studyTime = itemData.containsKey("studyTime") ? ((Number) itemData.get("studyTime")).intValue() : 0;
                         int mentalWeight = itemData.containsKey("mentalWeight") ? ((Number) itemData.get("mentalWeight")).intValue() : 0;
+                        int expCost = itemData.containsKey("expCost") ? ((Number) itemData.get("expCost")).intValue() : 0;
+                        int learningPoints = itemData.containsKey("learningPoints") ? ((Number) itemData.get("learningPoints")).intValue() : 0;
 
                         // Load the actual Resource object from the resource name
                         Resource itemResource = null;
@@ -534,7 +566,7 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
                             itemResource = Resource.remote().loadwait(resourceName);
                         }
 
-                        PlannedCuriosity curiosity = new PlannedCuriosity(name, size, resourceName, itemResource, studyTime, mentalWeight);
+                        PlannedCuriosity curiosity = new PlannedCuriosity(name, size, resourceName, itemResource, studyTime, mentalWeight, expCost, learningPoints);
                         plannedItems.put(new Coord(x, y), curiosity);
                         originalLayout.put(new Coord(x, y), curiosity);
                     }
@@ -561,15 +593,20 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
         return new HashMap<>(plannedItems);
     }
 
+    public Coord getStudyDeskSize() {
+        return studyDeskSize;
+    }
+
     private Label mentalWeightLabel;
+    private Label expCostLabel;
 
     private void addTimePanel() {
         // Position the time panel to the right of the grid with a gap
         Coord gridEnd = sqsz.mul(studyDeskSize);
         Coord panelPos = new Coord(gridEnd.x + UI.scale(10), 0);
 
-        // Reserve space for mental weight label at the bottom
-        int scrollHeight = gridEnd.y - UI.scale(20);
+        // Reserve space for mental weight and exp cost labels at the bottom
+        int scrollHeight = gridEnd.y - UI.scale(35);
         Coord scrollSize = new Coord(UI.scale(200), scrollHeight);
 
         // Create the content panel with scrolling support
@@ -581,10 +618,15 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
         timeScrollport.cont.add(timePanel, Coord.z);
         add(timeScrollport, panelPos);
 
-        // Add Mental Weight label below the scrollport
+        // Add Exp Cost label below the scrollport
+        expCostLabel = new Label("Exp cost: 0");
+        expCostLabel.setcolor(new Color(255, 255, 192)); // Yellow color matching game's exp cost color
+        add(expCostLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(5)));
+
+        // Add Mental Weight label below exp cost
         mentalWeightLabel = new Label(L10n.get("study.mental_weight") + ": 0");
         mentalWeightLabel.setcolor(new Color(255, 192, 255)); // Light purple color
-        add(mentalWeightLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(5)));
+        add(mentalWeightLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(18)));
     }
 
     private void addButtons() {
@@ -629,7 +671,7 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
     public static class StudyTimePanel extends Widget {
         private final StudyDeskPlannerWidget parent;
         private static final Text.Foundry fnd = new Text.Foundry(Text.sans, 10);
-        private static final int LINE_HEIGHT = UI.scale(20); // Single line per item
+        private static final int LINE_HEIGHT = UI.scale(30); // Two lines per item
 
         public StudyTimePanel(Coord sz, StudyDeskPlannerWidget parent) {
             super(sz);
@@ -655,12 +697,15 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
             List<ItemTimeInfo> sortedItems = new ArrayList<>(itemTimes.values());
             sortedItems.sort(Comparator.comparing(a -> a.name, String.CASE_INSENSITIVE_ORDER));
 
-            // Calculate total mental weight (each unique item type contributes its weight once)
+            // Calculate totals
             int totalMentalWeight = 0;
+            int totalExpCost = 0;
             for(ItemTimeInfo info : itemTimes.values()) {
                 totalMentalWeight += info.mentalWeight;
+                totalExpCost += info.totalExpCost;
             }
             updateMentalWeight(totalMentalWeight);
+            updateExpCost(totalExpCost);
 
             int y = 0;
             for(ItemTimeInfo info : sortedItems) {
@@ -680,6 +725,13 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
                 Text t = fnd.render(timeText, Color.WHITE);
                 g.image(t.tex(), new Coord(UI.scale(20), y + 2));
 
+                // Draw exp cost on second line
+                if(info.totalExpCost > 0) {
+                    String expText = String.format("Exp: %,d", info.totalExpCost);
+                    Text expTex = fnd.render(expText, new Color(255, 255, 192));
+                    g.image(expTex.tex(), new Coord(UI.scale(20), y + UI.scale(14)));
+                }
+
                 y += LINE_HEIGHT;
             }
         }
@@ -688,6 +740,13 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
             if(parent.mentalWeightLabel != null) {
                 String text = L10n.get("study.mental_weight") + ": " + mentalWeight;
                 parent.mentalWeightLabel.settext(text);
+            }
+        }
+
+        private void updateExpCost(int expCost) {
+            if(parent.expCostLabel != null) {
+                String text = String.format("Exp cost: %,d", expCost);
+                parent.expCostLabel.settext(text);
             }
         }
 
@@ -719,11 +778,13 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
 
                     ItemTimeInfo info = itemTimes.get(key);
                     if(info == null) {
-                        info = new ItemTimeInfo(item.name, item.resource, item.studyTime, item.mentalWeight);
+                        info = new ItemTimeInfo(item.name, item.resource, item.studyTime, item.mentalWeight, item.expCost, item.learningPoints);
                         itemTimes.put(key, info);
                     } else {
                         info.count++;
                         info.totalTime += item.studyTime;
+                        info.totalExpCost += item.expCost;
+                        info.totalLP += item.learningPoints;
                     }
                 }
             }
@@ -766,15 +827,23 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
             Resource resource;
             int studyTime;
             int mentalWeight;
+            int expCost;
+            int learningPoints;
             int count = 1;
             int totalTime;
+            int totalExpCost;
+            int totalLP;
 
-            ItemTimeInfo(String name, Resource resource, int studyTime, int mentalWeight) {
+            ItemTimeInfo(String name, Resource resource, int studyTime, int mentalWeight, int expCost, int learningPoints) {
                 this.name = name;
                 this.resource = resource;
                 this.studyTime = studyTime;
                 this.mentalWeight = mentalWeight;
+                this.expCost = expCost;
+                this.learningPoints = learningPoints;
                 this.totalTime = studyTime;
+                this.totalExpCost = expCost;
+                this.totalLP = learningPoints;
             }
         }
     }
@@ -786,22 +855,22 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
         public final Resource resource;
         public final int studyTime; // Study time in seconds
         public final int mentalWeight; // Mental weight of the item
+        public final int expCost; // Experience cost to study
+        public final int learningPoints; // Learning points gained
 
-        public PlannedCuriosity(String name, Coord size, String resourceName, Resource resource, int studyTime, int mentalWeight) {
+        public PlannedCuriosity(String name, Coord size, String resourceName, Resource resource, int studyTime, int mentalWeight, int expCost, int learningPoints) {
             this.name = name;
             this.size = size != null ? size : new Coord(1, 1);
             this.resourceName = resourceName;
             this.resource = resource;
             this.studyTime = studyTime;
             this.mentalWeight = mentalWeight;
+            this.expCost = expCost;
+            this.learningPoints = learningPoints;
         }
 
-        public PlannedCuriosity(String name, Coord size, String resourceName, Resource resource, int studyTime) {
-            this(name, size, resourceName, resource, studyTime, 0);
-        }
-
-        public PlannedCuriosity(String name, Coord size, String resourceName) {
-            this(name, size, resourceName, null, 0, 0);
+        public PlannedCuriosity(String name, Coord size, String resourceName, Resource resource, int studyTime, int mentalWeight) {
+            this(name, size, resourceName, resource, studyTime, mentalWeight, 0, 0);
         }
     }
 }
