@@ -1,6 +1,7 @@
 package nurgling.actions.bots;
 
 import haven.Coord;
+import haven.Drawable;
 import haven.Gob;
 import haven.UI;
 import haven.WItem;
@@ -58,11 +59,12 @@ public class StudyDeskFiller implements Action {
         // Step 4: Navigate to the study desk
         new PathFinder(studyDesk).run(gui);
 
-        // Step 5: Open the study desk
-        new OpenTargetContainer("Study Desk", studyDesk).run(gui);
+        // Step 5: Determine container cap name and open the study desk
+        String deskCap = getStudyDeskCap(studyDesk);
+        new OpenTargetContainer(deskCap, studyDesk).run(gui);
 
         // Step 6: Get the study desk inventory
-        NInventory studyDeskInv = gui.getInventory("Study Desk");
+        NInventory studyDeskInv = gui.getInventory(deskCap);
         if (studyDeskInv == null) {
             gui.msg("ERROR: Could not access study desk inventory!", Color.RED);
             return Results.ERROR("ERROR: Could not access study desk inventory!");
@@ -81,7 +83,7 @@ public class StudyDeskFiller implements Action {
 
         // Step 10: Fetch and place missing items
         if (!missingItems.isEmpty()) {
-            fetchAndPlaceAllItems(gui, missingItems, studyDesk, studyDeskInv);
+            fetchAndPlaceAllItems(gui, missingItems, studyDesk, studyDeskInv, deskCap);
         }
 
         // Step 11: Final status message
@@ -155,6 +157,22 @@ public class StudyDeskFiller implements Action {
     private NArea getStudyDeskArea(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
         return context.getSpecArea(Specialisation.SpecName.studyDesks);
+    }
+
+    /**
+     * Get the container cap name for a study desk gob
+     */
+    private String getStudyDeskCap(Gob studyDesk) {
+        Drawable drawable = studyDesk.getattr(Drawable.class);
+        if (drawable != null && drawable.getres() != null) {
+            String resName = drawable.getres().name;
+            if ("gfx/terobjs/studydesk-big".equals(resName)) {
+                return "Fine Study Desk";
+            } else if ("gfx/terobjs/grandstudydesk".equals(resName)) {
+                return "Grand Study Desk";
+            }
+        }
+        return "Study Desk";
     }
 
     /**
@@ -351,7 +369,7 @@ public class StudyDeskFiller implements Action {
     /**
      * Fetch and place all missing items into the study desk
      */
-    private void fetchAndPlaceAllItems(NGameUI gui, List<MissingItem> missingItems, Gob studyDesk, NInventory studyDeskInv) throws InterruptedException {
+    private void fetchAndPlaceAllItems(NGameUI gui, List<MissingItem> missingItems, Gob studyDesk, NInventory studyDeskInv, String deskCap) throws InterruptedException {
         // Create a working list of items still needed
         List<MissingItem> remainingItems = new ArrayList<>(missingItems);
 
@@ -378,10 +396,10 @@ public class StudyDeskFiller implements Action {
             // Navigate back to study desk and place everything
             getStudyDeskArea(gui);
             new PathFinder(studyDesk).run(gui);
-            new OpenTargetContainer("Study Desk", studyDesk).run(gui);
+            new OpenTargetContainer(deskCap, studyDesk).run(gui);
 
             // Refresh study desk inventory reference
-            studyDeskInv = gui.getInventory("Study Desk");
+            studyDeskInv = gui.getInventory(deskCap);
             if (studyDeskInv == null) {
                 gui.msg("ERROR: Lost study desk inventory reference!", Color.RED);
                 break;
