@@ -508,7 +508,7 @@ public class NTooltip {
         String nameText = null;
         QBuff qbuff = null;
         NCuriosity curiosity = null;
-        ItemInfo.Contents contents = null;
+        java.util.List<ItemInfo.Contents> contentsList = new java.util.ArrayList<>();
         Wear wear = null;
         Gast gast = null;
         ISlots islots = null;
@@ -587,7 +587,7 @@ public class NTooltip {
                 curiosity = (NCuriosity) ii;
             }
             if (ii instanceof ItemInfo.Contents) {
-                contents = (ItemInfo.Contents) ii;
+                contentsList.add((ItemInfo.Contents) ii);
             }
             if (ii instanceof Wear) {
                 wear = (Wear) ii;
@@ -702,9 +702,10 @@ public class NTooltip {
             wearPercent = (int) Math.round(((double)(wear.m - wear.d) / wear.m) * 100);
         }
 
-        // Extract content info (for vessels like waterskins, elixirs, etc.)
-        String contentName = null;
-        QBuff contentQBuff = null;
+        // Extract content info (for vessels like waterskins, fishing rods with multiple contents, elixirs, etc.)
+        // Each Contents object produces a content line (name + quality)
+        java.util.List<String> contentNames = new java.util.ArrayList<>();
+        java.util.List<QBuff> contentQBuffs = new java.util.ArrayList<>();
         // Elixir data - will be extracted from Contents.sub if present
         java.util.List<WoundEffect> elixirWoundEffects = new java.util.ArrayList<>();  // HealWound/AddWound effects
         java.util.List<GildingStatData> elixirStatEffects = new java.util.ArrayList<>();  // For AttrMod effects like "Strength +21"
@@ -712,16 +713,19 @@ public class NTooltip {
         // Recipe data - will be extracted from Contents.sub if present
         java.util.List<RecipeIngredient> recipeIngredients = new java.util.ArrayList<>();
 
-        // Extract content info from Contents
-        if (contents != null && contents.sub != null && !contents.sub.isEmpty()) {
+        // Extract content info from all Contents objects
+        for (ItemInfo.Contents contents : contentsList) {
+            if (contents.sub == null || contents.sub.isEmpty()) continue;
+            String thisContentName = null;
+            QBuff thisContentQBuff = null;
             for (ItemInfo subInfo : contents.sub) {
                 String className = subInfo.getClass().getSimpleName();
 
                 if (subInfo instanceof ItemInfo.Name) {
-                    contentName = ((ItemInfo.Name) subInfo).str.text;
+                    thisContentName = ((ItemInfo.Name) subInfo).str.text;
                 }
                 if (subInfo instanceof QBuff) {
-                    contentQBuff = (QBuff) subInfo;
+                    thisContentQBuff = (QBuff) subInfo;
                 }
 
                 // Extract Elixir data
@@ -839,6 +843,10 @@ public class NTooltip {
                     }
                 }
             }
+            if (thisContentName != null) {
+                contentNames.add(thisContentName);
+                contentQBuffs.add(thisContentQBuff);  // may be null, that's fine
+            }
         }
 
         // Render name line with star icon (if starred), quality, optional wear percentage, optional remaining time, and gilding count
@@ -861,13 +869,23 @@ public class NTooltip {
             presenceTextBottomOffset = presenceLineResult.textBottomOffset;
         }
 
-        // Render content line if there's content
-        BufferedImage contentLine = null;
-        int contentTextTopOffset = 0;
-        if (contentName != null) {
-            LineResult contentLineResult = renderContentLine(contentName, contentQBuff);
-            contentLine = contentLineResult.image;  // Don't crop - need accurate text position
-            contentTextTopOffset = contentLineResult.textTopOffset;
+        // Render content lines (supports multiple contents, e.g. fishing rod with hook/line/bait)
+        // Crop each line (like other body lines) and combine with 10px section spacing
+        // Spacing is baseline-to-text-top, ignoring icons (cropTopOnly removes top whitespace)
+        BufferedImage combinedContentImg = null;
+        {
+            int contentSectionSpacing = UI.scale(TooltipStyle.SECTION_SPACING);
+            int contentDescentVal = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+            for (int ci = 0; ci < contentNames.size(); ci++) {
+                LineResult clr = renderContentLine(contentNames.get(ci), contentQBuffs.get(ci));
+                BufferedImage cropped = TooltipStyle.cropTopOnly(clr.image);
+                if (combinedContentImg == null) {
+                    combinedContentImg = cropped;
+                } else {
+                    int spacing = contentSectionSpacing - contentDescentVal;
+                    combinedContentImg = ItemInfo.catimgs(spacing, combinedContentImg, cropped);
+                }
+            }
         }
 
         // Render custom lines for Wear, Armor class, Hunger reduction, Food event bonus
@@ -1002,7 +1020,7 @@ public class NTooltip {
         }
 
         // Render other tips (excluding Name, QBuff, Contents, Wear, Gast which we've handled)
-        BufferedImage otherTips = TooltipStyle.cropTopOnly(renderOtherTips(info, contents != null));
+        BufferedImage otherTips = TooltipStyle.cropTopOnly(renderOtherTips(info, !contentsList.isEmpty()));
 
         // Render Pagina description with word wrapping at 200px
         BufferedImage paginaImg = null;
@@ -1077,8 +1095,8 @@ public class NTooltip {
         // Each entry is either a plain BufferedImage (textTopOffset=0, textBottomOffset=0)
         // or a LineResult with actual offsets for lines containing icons
         java.util.List<LineResult> itemInfoResults = new java.util.ArrayList<>();
-        if (contentLine != null) {
-            itemInfoResults.add(new LineResult(contentLine, 0, 0));
+        if (combinedContentImg != null) {
+            itemInfoResults.add(new LineResult(combinedContentImg, 0, 0));
         }
         // Combine elixir elements with proper spacing:
         // - Effects (wound + stat) use 7px internal spacing between them
@@ -1316,9 +1334,9 @@ public class NTooltip {
         int presenceAndBelowTopOffset = 0;
         if (presenceLine != null && contentAndBelow != null) {
             // Combine presence with contentAndBelow (10px section spacing)
-            int topOffset = (contentLine != null) ? contentTextTopOffset : contentAndBelowTopOffset;
+            int topOffset = (combinedContentImg != null) ? 0 : contentAndBelowTopOffset;
             int presenceToContentSpacing = scaledSectionSpacing - nameDescentVal - presenceTextBottomOffset - topOffset;
-            if (contentLine != null) {
+            if (combinedContentImg != null) {
                 presenceToContentSpacing -= UI.scale(4);
             }
             presenceAndBelow = ItemInfo.catimgs(presenceToContentSpacing, presenceLine, contentAndBelow);
