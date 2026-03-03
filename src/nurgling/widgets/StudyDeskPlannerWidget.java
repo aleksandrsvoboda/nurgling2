@@ -618,15 +618,15 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
         timeScrollport.cont.add(timePanel, Coord.z);
         add(timeScrollport, panelPos);
 
-        // Add Mental Weight label below the scrollport
-        mentalWeightLabel = new Label(L10n.get("study.mental_weight") + ": 0");
-        mentalWeightLabel.setcolor(new Color(255, 192, 255)); // Light purple color
-        add(mentalWeightLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(5)));
-
-        // Add Exp Cost label below mental weight
+        // Add Exp Cost label below the scrollport
         expCostLabel = new Label("Exp cost: 0");
         expCostLabel.setcolor(new Color(255, 255, 192)); // Yellow color matching game's exp cost color
-        add(expCostLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(18)));
+        add(expCostLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(5)));
+
+        // Add Mental Weight label below exp cost
+        mentalWeightLabel = new Label(L10n.get("study.mental_weight") + ": 0");
+        mentalWeightLabel.setcolor(new Color(255, 192, 255)); // Light purple color
+        add(mentalWeightLabel, new Coord(panelPos.x, panelPos.y + scrollHeight + UI.scale(18)));
     }
 
     private void addButtons() {
