@@ -434,18 +434,36 @@ public class ChunkNavRecorder {
                 Coord2d hitUL = worldHitBox.getCircumscribedUL();
                 Coord2d hitBR = worldHitBox.getCircumscribedBR();
 
-                // Convert to cell coordinates using NPFMap's conversion
-                Coord cellUL = nurgling.pf.Utils.toPfGrid(hitUL);
-                Coord cellBR = nurgling.pf.Utils.toPfGrid(hitBR);
+                // Convert to cell coordinates - use floor for UL and ceil for BR
+                // to ensure we include ALL cells that the hitbox touches, even partially
+                // (Utils.toPfGrid uses round() which can miss edge cells)
+                Coord cellUL = new Coord(
+                    (int) Math.floor(hitUL.x / MCache.tilehsz.x),
+                    (int) Math.floor(hitUL.y / MCache.tilehsz.y)
+                );
+                Coord cellBR = new Coord(
+                    (int) Math.ceil(hitBR.x / MCache.tilehsz.x),
+                    (int) Math.ceil(hitBR.y / MCache.tilehsz.y)
+                );
 
-                // For each cell in the bounding box, do intersection test
+                // For each cell in the bounding box, do AABB intersection test
+                // We use direct AABB overlap on circumscribed bounds because the standard
+                // intersects() method uses point-containment which can miss thin edge overlaps
                 for (int px = cellUL.x; px <= cellBR.x; px++) {
                     for (int py = cellUL.y; py <= cellBR.y; py++) {
-                        // Create a unit square hitbox for this cell
-                        nurgling.pf.NHitBoxD cellBox = new nurgling.pf.NHitBoxD(new Coord(px, py));
+                        // Cell bounds in world coordinates
+                        // Cell at (px, py) covers world coords (px * 5.5, py * 5.5) to ((px+1) * 5.5, (py+1) * 5.5)
+                        double cellWorldMinX = px * MCache.tilehsz.x;
+                        double cellWorldMinY = py * MCache.tilehsz.y;
+                        double cellWorldMaxX = (px + 1) * MCache.tilehsz.x;
+                        double cellWorldMaxY = (py + 1) * MCache.tilehsz.y;
 
-                        // Test intersection with the gob's actual rotated hitbox
-                        if (cellBox.intersects(worldHitBox, false)) {
+                        // Direct AABB overlap test with the rotated hitbox's circumscribed bounds
+                        // This is conservative: it may mark extra cells but won't miss any
+                        boolean overlaps = (cellWorldMaxX >= hitUL.x) && (cellWorldMinX <= hitBR.x) &&
+                                          (cellWorldMaxY >= hitUL.y) && (cellWorldMinY <= hitBR.y);
+
+                        if (overlaps) {
                             int localX = px - gridCellOrigin.x;
                             int localY = py - gridCellOrigin.y;
 
