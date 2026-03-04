@@ -1,4 +1,4 @@
-package nurgling.actions.contextmenu;
+package nurgling.contextmenu;
 
 import haven.Gob;
 import nurgling.actions.Action;

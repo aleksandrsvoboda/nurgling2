@@ -1,9 +1,8 @@
-package nurgling.widgets;
+package nurgling.contextmenu;
 
 import haven.*;
 import nurgling.NStyle;
 import nurgling.actions.Action;
-import nurgling.actions.contextmenu.GobContextAction;
 import nurgling.sessions.BotExecutor;
 
 import java.util.List;

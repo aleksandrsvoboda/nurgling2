@@ -1,9 +1,8 @@
-package nurgling.actions.contextmenu;
+package nurgling.contextmenu;
 
 import haven.Gob;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
-import nurgling.NGameUI;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
 
