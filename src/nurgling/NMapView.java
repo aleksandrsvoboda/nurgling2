@@ -11,9 +11,12 @@ import haven.res.ui.gobcp.Gobcopy;
 import haven.BuddyWnd;
 import nurgling.actions.QuickActionBot;
 import nurgling.actions.bots.ScenarioRunner;
+import nurgling.actions.contextmenu.GobContextAction;
+import nurgling.actions.contextmenu.GobContextRegistry;
 import nurgling.areas.*;
 import nurgling.conf.QuickActionPreset;
 import nurgling.sessions.ThreadLocalUI;
+import nurgling.widgets.NGobContextMenu;
 import nurgling.widgets.options.QuickActions;
 import nurgling.overlays.*;
 import nurgling.overlays.map.*;
@@ -965,7 +968,31 @@ public class NMapView extends MapView
             }.run();
             return true;
         }
-        
+
+        // Ctrl+RMB opens custom gob context menu
+        if (ev.b == 3 && ui.modctrl) {
+            new Click(ev.c, ev.b) {
+                @Override
+                protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+                    Gob target = null;
+                    if (inf != null) {
+                        if (inf.ci instanceof Gob.GobClick)
+                            target = ((Gob.GobClick) inf.ci).gob;
+                        else if (inf.ci instanceof Composited.CompositeClick)
+                            target = ((Composited.CompositeClick) inf.ci).gi.gob;
+                    }
+                    if (target != null) {
+                        java.util.List<GobContextAction> actions = GobContextRegistry.getActionsFor(target);
+                        if (!actions.isEmpty()) {
+                            Gob finalTarget = target;
+                            NUtils.getGameUI().add(new NGobContextMenu(finalTarget, actions), new Coord(-1, -1));
+                        }
+                    }
+                }
+            }.run();
+            return true;
+        }
+
         return super.mousedown(ev);
     }
 
