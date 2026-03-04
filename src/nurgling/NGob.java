@@ -480,7 +480,64 @@ public class NGob
             parent.addcustomol(new NTreeScaleOl(parent));
         }
     }
-    
+
+    private void updateTreeHarvestOverlay(Drawable drawable)
+    {
+        try
+        {
+            Gob.Overlay ol = parent.findol(nurgling.overlays.NTreeHarvestOl.class);
+
+            if (name == null || !nurgling.overlays.NTreeHarvestOl.isTreeOrBushRes(name))
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            boolean showNature = Boolean.TRUE.equals(NConfig.get(NConfig.Key.hideNature));
+            if (!showNature)
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            boolean enabled = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestOverlay));
+            if (!enabled)
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            if (!(drawable instanceof ResDrawable))
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            TexI label = nurgling.overlays.NTreeHarvestOl.computeLabel(parent);
+            if (label == null)
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            if (ol == null)
+            {
+                parent.addcustomol(new nurgling.overlays.NTreeHarvestOl(parent));
+            }
+            else if (ol.spr instanceof nurgling.overlays.NTreeHarvestOl)
+            {
+                ((nurgling.overlays.NTreeHarvestOl) ol.spr).refresh();
+            }
+        }
+        catch (Loading l)
+        {
+            // Resources still loading, ignore
+        }
+        catch (Exception ignored)
+        {
+        }
+    }
+
     /**
      * Checks if temporary ring should be added (for objects without GobIcon)
      */
@@ -548,6 +605,7 @@ public class NGob
                 
                 // Check for temporary rings (session-only, for objects without GobIcon)
                 checkTempRing();
+                updateTreeHarvestOverlay(drawable);
             }
 
             if (drawable.getres().getLayers() != null)

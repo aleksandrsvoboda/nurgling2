@@ -46,6 +46,7 @@ public class QoL extends Panel {
     private CheckBox alwaysObfuscate;
     private CheckBox randomAreaColor;
     private CheckBox treeScaleDisableZoomHide;
+    private CheckBox treeHarvestOverlay;
     private CheckBox syncCamera;
     private TextEntry treeScaleMinThresholdEntry;
 
@@ -131,6 +132,7 @@ public class QoL extends Panel {
         leftPrev = treeScaleDisableZoomHide = leftColumn.add(new CheckBox(L10n.get("qol.tree_always_show")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_min_threshold")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = treeScaleMinThresholdEntry = leftColumn.add(new TextEntry.NumberValue(50, "0"), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = treeHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_overlay")), leftPrev.pos("bl").adds(0, 5));
 
         leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.network")), leftPrev.pos("bl").adds(0, 15));
         leftPrev = alwaysObfuscate = leftColumn.add(new CheckBox(L10n.get("qol.always_obfuscate")), leftPrev.pos("bl").adds(0, 5));
@@ -337,8 +339,9 @@ public class QoL extends Panel {
         alwaysObfuscate.a = getBool(NConfig.Key.alwaysObfuscate);
         randomAreaColor.a = getBool(NConfig.Key.randomAreaColor);
         treeScaleDisableZoomHide.a = getBool(NConfig.Key.treeScaleDisableZoomHide);
+        treeHarvestOverlay.a = getBool(NConfig.Key.treeHarvestOverlay);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
-        
+
         Object minThreshold = NConfig.get(NConfig.Key.treeScaleMinThreshold);
         treeScaleMinThresholdEntry.settext(minThreshold == null ? "0" : minThreshold.toString());
 
@@ -518,8 +521,9 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.alwaysObfuscate, alwaysObfuscate.a);
         NConfig.set(NConfig.Key.randomAreaColor, randomAreaColor.a);
         NConfig.set(NConfig.Key.treeScaleDisableZoomHide, treeScaleDisableZoomHide.a);
+        NConfig.set(NConfig.Key.treeHarvestOverlay, treeHarvestOverlay.a);
         NConfig.set(NConfig.Key.sync_camera, syncCamera.a);
-        
+
         int minThreshold = parseIntOrDefault(treeScaleMinThresholdEntry.text(), 0);
         NConfig.set(NConfig.Key.treeScaleMinThreshold, minThreshold);
 
