@@ -53,6 +53,8 @@ public class QoL extends Panel {
     private CheckBox treeHarvestBark;
     private CheckBox syncCamera;
     private TextEntry treeScaleMinThresholdEntry;
+    private HSlider treeDisplayScaleSlider;
+    private Label treeDisplayScaleLabel;
 
     private Dropbox<String> preferredSpeedDropbox;
     private Dropbox<String> preferredHorseSpeedDropbox;
@@ -141,8 +143,19 @@ public class QoL extends Panel {
         leftPrev = treeHarvestLeaves = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_leaves")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = treeHarvestBoughs = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_boughs")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = treeHarvestBark = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_bark")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_display_scale")), leftPrev.pos("bl").adds(-10, 8));
+        {
+            treeDisplayScaleLabel = new Label("100%");
+            treeDisplayScaleSlider = new HSlider(UI.scale(150), 25, 100, 100) {
+                public void changed() {
+                    treeDisplayScaleLabel.settext(String.format("%d%%", this.val));
+                }
+            };
+            leftColumn.addhlp(leftPrev.pos("bl").adds(0, 2), UI.scale(5), treeDisplayScaleSlider, treeDisplayScaleLabel);
+            leftPrev = treeDisplayScaleSlider;
+        }
 
-        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.network")), leftPrev.pos("bl").adds(-10, 15));
+        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.network")), leftPrev.pos("bl").adds(0, 15));
         leftPrev = alwaysObfuscate = leftColumn.add(new CheckBox(L10n.get("qol.always_obfuscate")), leftPrev.pos("bl").adds(0, 5));
 
         leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.login")), leftPrev.pos("bl").adds(0, 15));
@@ -354,6 +367,14 @@ public class QoL extends Panel {
         treeHarvestBark.a = getBool(NConfig.Key.treeHarvestBark);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
 
+        Object treeScalePref = NConfig.get(NConfig.Key.treeDisplayScale);
+        int treeScaleValue = 100;
+        if (treeScalePref instanceof Number) {
+            treeScaleValue = ((Number) treeScalePref).intValue();
+        }
+        treeDisplayScaleSlider.val = treeScaleValue;
+        treeDisplayScaleLabel.settext(String.format("%d%%", treeScaleValue));
+
         Object minThreshold = NConfig.get(NConfig.Key.treeScaleMinThreshold);
         treeScaleMinThresholdEntry.settext(minThreshold == null ? "0" : minThreshold.toString());
 
@@ -540,6 +561,16 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.treeHarvestBark, treeHarvestBark.a);
         NConfig.set(NConfig.Key.sync_camera, syncCamera.a);
 
+        int oldTreeDisplayScale = 100;
+        Object oldTreeDisplayScaleObj = NConfig.get(NConfig.Key.treeDisplayScale);
+        if (oldTreeDisplayScaleObj instanceof Number) {
+            oldTreeDisplayScale = ((Number) oldTreeDisplayScaleObj).intValue();
+        }
+        NConfig.set(NConfig.Key.treeDisplayScale, treeDisplayScaleSlider.val);
+        if (oldTreeDisplayScale != treeDisplayScaleSlider.val) {
+            rebuildTreeScale();
+        }
+
         int minThreshold = parseIntOrDefault(treeScaleMinThresholdEntry.text(), 0);
         NConfig.set(NConfig.Key.treeScaleMinThreshold, minThreshold);
 
@@ -598,6 +629,28 @@ public class QoL extends Panel {
         try { return Integer.parseInt(s.trim()); } catch(Exception e) { return def; }
     }
     
+    private void rebuildTreeScale() {
+        if(NUtils.getGameUI() == null || NUtils.getGameUI().ui == null || NUtils.getGameUI().ui.sess == null) {
+            return;
+        }
+        int scale = treeDisplayScaleSlider.val;
+        OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
+        synchronized(oc) {
+            for(Gob gob : oc) {
+                if(gob != null && gob.ngob != null && gob.ngob.name != null
+                    && gob.ngob.name.startsWith("gfx/terobjs/trees")
+                    && !gob.ngob.name.endsWith("log") && !gob.ngob.name.endsWith("stump") && !gob.ngob.name.endsWith("oldtrunk")) {
+                    gob.ngob.updateConfigCache(true);
+                    if(scale < 100) {
+                        gob.setattr(new nurgling.gattrr.NTreeDisplayScale(gob, scale / 100.0f));
+                    } else {
+                        gob.delattr(nurgling.gattrr.NTreeDisplayScale.class);
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Rebuilds all cupboard gobs to apply changed settings (shortCupboards, decalsOnTop).
      * Updates NCustomScale attribute and recreates decal overlays.

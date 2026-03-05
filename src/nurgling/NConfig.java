@@ -167,6 +167,7 @@ public class NConfig
         treeHarvestLeaves,
         treeHarvestBoughs,
         treeHarvestBark,
+        treeDisplayScale,
         thinOutlines,
         itemQualityOverlay,
         stackQualityOverlay,
@@ -464,6 +465,7 @@ public class NConfig
         conf.put(Key.treeHarvestLeaves, true);    // Sub-filter: show leaf icons
         conf.put(Key.treeHarvestBoughs, true);    // Sub-filter: show bough icons
         conf.put(Key.treeHarvestBark, true);      // Sub-filter: show bark icons
+        conf.put(Key.treeDisplayScale, 100);       // Tree display size percentage (25-100)
 
         // Outline rendering settings
         conf.put(Key.thinOutlines, false);  // If true, use thinner object outlines
