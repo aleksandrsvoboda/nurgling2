@@ -257,7 +257,12 @@ public class SessionContext {
             // Only re-attach if not already attached
             if (mapView.glob != null && mapView.glob.oc != null &&
                 !mapView.glob.oc.paths.isAttachedToRenderTree()) {
-                mapView.basic.add(mapView.glob.oc.paths);
+                try {
+                    mapView.basic.add(mapView.glob.oc.paths);
+                } catch (haven.render.RenderTree.SlotRemoved e) {
+                    // Slot was removed during session transition - ignore
+                    // The visualizer will be re-attached when map is fully initialized
+                }
             }
         }
     }
