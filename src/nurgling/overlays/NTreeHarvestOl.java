@@ -92,6 +92,15 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         Map<String, String> barks = new HashMap<>();
         barks.put("birch", "gfx/invobjs/bark-birch");
         barks.put("willow", "gfx/invobjs/bark-willow");
+        barks.put("beech", "gfx/invobjs/toughbark");
+        barks.put("cedar", "gfx/invobjs/toughbark");
+        barks.put("elm", "gfx/invobjs/toughbark");
+        barks.put("juniper", "gfx/invobjs/toughbark");
+        barks.put("linden", "gfx/invobjs/toughbark");
+        barks.put("mulberry", "gfx/invobjs/toughbark");
+        barks.put("orangetree", "gfx/invobjs/toughbark");
+        barks.put("sallow", "gfx/invobjs/toughbark");
+        barks.put("wychelm", "gfx/invobjs/toughbark");
         BARKS_MAP = Collections.unmodifiableMap(barks);
     }
 
