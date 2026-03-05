@@ -16,6 +16,7 @@ import haven.res.ui.obj.buddy.Buddy;
 import haven.BuddyWnd;
 import monitoring.NGlobalSearchItems;
 import nurgling.gattrr.NCustomScale;
+import nurgling.gattrr.NTreeDisplayScale;
 import nurgling.overlays.*;
 import nurgling.overlays.NSpeedometerOverlay;
 import nurgling.pf.*;
@@ -83,6 +84,7 @@ public class NGob
     private boolean cachedShortCupboards = false;
     private boolean cachedQuestNotified = false;
     private boolean cachedLpassistent = false;
+    private int cachedTreeDisplayScale = 100;
     private int configCacheCounter = 0;
     private static final int CONFIG_CACHE_INTERVAL = 30;
     
@@ -163,6 +165,7 @@ public class NGob
             cachedShortCupboards = (Boolean) NConfig.get(NConfig.Key.shortCupboards);
             cachedQuestNotified = (Boolean) NConfig.get(NConfig.Key.questNotified);
             cachedLpassistent = (Boolean) NConfig.get(NConfig.Key.lpassistent);
+            cachedTreeDisplayScale = ((Number) NConfig.get(NConfig.Key.treeDisplayScale)).intValue();
             configCacheCounter = 1;
         }
     }
@@ -480,7 +483,80 @@ public class NGob
             parent.addcustomol(new NTreeScaleOl(parent));
         }
     }
-    
+
+    private void updateTreeHarvestOverlay(Drawable drawable)
+    {
+        try
+        {
+            Gob.Overlay ol = parent.findol(nurgling.overlays.NTreeHarvestOl.class);
+
+            if (name == null || !nurgling.overlays.NTreeHarvestOl.isTreeOrBushRes(name))
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            boolean showNature = Boolean.TRUE.equals(NConfig.get(NConfig.Key.hideNature));
+            if (!showNature)
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            boolean enabled = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestOverlay));
+            if (!enabled)
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            if (!(drawable instanceof ResDrawable))
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            TexI label = nurgling.overlays.NTreeHarvestOl.computeLabel(parent);
+            if (label == null)
+            {
+                if (ol != null) ol.remove(true);
+                return;
+            }
+
+            if (ol == null)
+            {
+                parent.addcustomol(new nurgling.overlays.NTreeHarvestOl(parent));
+            }
+            else if (ol.spr instanceof nurgling.overlays.NTreeHarvestOl)
+            {
+                ((nurgling.overlays.NTreeHarvestOl) ol.spr).refresh();
+            }
+        }
+        catch (Loading l)
+        {
+            // Resources still loading, ignore
+        }
+        catch (Exception ignored)
+        {
+        }
+    }
+
+    private void updateTreeDisplayScale() {
+        if (name == null || !name.startsWith("gfx/terobjs/trees"))
+            return;
+        if (name.endsWith("log") || name.endsWith("stump") || name.endsWith("oldtrunk"))
+            return;
+        if (cachedTreeDisplayScale < 100) {
+            float s = cachedTreeDisplayScale / 100.0f;
+            NTreeDisplayScale existing = parent.getattr(NTreeDisplayScale.class);
+            if (existing == null || existing.scale != s)
+                parent.setattr(new NTreeDisplayScale(parent, s));
+        } else {
+            if (parent.getattr(NTreeDisplayScale.class) != null)
+                parent.delattr(NTreeDisplayScale.class);
+        }
+    }
+
     /**
      * Checks if temporary ring should be added (for objects without GobIcon)
      */
@@ -548,6 +624,8 @@ public class NGob
                 
                 // Check for temporary rings (session-only, for objects without GobIcon)
                 checkTempRing();
+                updateTreeHarvestOverlay(drawable);
+                updateTreeDisplayScale();
             }
 
             if (drawable.getres().getLayers() != null)

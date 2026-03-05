@@ -162,6 +162,12 @@ public class NConfig
         randomAreaColor,
         treeScaleDisableZoomHide,
         treeScaleMinThreshold,
+        treeHarvestOverlay,
+        treeHarvestSeeds,
+        treeHarvestLeaves,
+        treeHarvestBoughs,
+        treeHarvestBark,
+        treeDisplayScale,
         thinOutlines,
         itemQualityOverlay,
         stackQualityOverlay,
@@ -454,6 +460,12 @@ public class NConfig
         // Tree scale overlay settings
         conf.put(Key.treeScaleDisableZoomHide, false);  // If true, always show full label (don't hide on zoom out)
         conf.put(Key.treeScaleMinThreshold, 0);  // Minimum growth % to display tree scale (0 = show all)
+        conf.put(Key.treeHarvestOverlay, false);  // Show harvest icons on mature trees (master toggle)
+        conf.put(Key.treeHarvestSeeds, true);     // Sub-filter: show seed/fruit icons
+        conf.put(Key.treeHarvestLeaves, true);    // Sub-filter: show leaf icons
+        conf.put(Key.treeHarvestBoughs, true);    // Sub-filter: show bough icons
+        conf.put(Key.treeHarvestBark, true);      // Sub-filter: show bark icons
+        conf.put(Key.treeDisplayScale, 100);       // Tree display size percentage (25-100)
 
         // Outline rendering settings
         conf.put(Key.thinOutlines, false);  // If true, use thinner object outlines
