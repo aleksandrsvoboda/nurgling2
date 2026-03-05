@@ -86,6 +86,7 @@ public class NRecipeTooltip {
             Object capacityInfo = null;  // Capacity
             Object seenInfo = null;  // Seen (must have seen items)
             Object treatsInfo = null;  // Treats (medical items - what wounds they treat)
+            Object curiosityInfo = null;  // Curiosity (study item stats)
 
             for (ItemInfo ii : info) {
                 String className = ii.getClass().getSimpleName();
@@ -121,6 +122,8 @@ public class NRecipeTooltip {
                     seenInfo = ii;
                 } else if (className.equals("Treats") || fullName.contains("Treats")) {
                     treatsInfo = ii;
+                } else if (className.equals("Curiosity") || fullName.contains("Curiosity")) {
+                    curiosityInfo = ii;
                 }
             }
 
@@ -128,6 +131,12 @@ public class NRecipeTooltip {
             BufferedImage inputsLine = null;
             if (inputsInfo != null) {
                 inputsLine = TooltipStyle.cropTopOnly(renderInputsLine(inputsInfo));
+            }
+
+            // Render Curiosity Stats
+            BufferedImage curiosityStatsImg = null;
+            if (curiosityInfo != null) {
+                curiosityStatsImg = renderCuriosityStats(curiosityInfo);
             }
 
             // Render food stats (NFoodInfo uses custom layout)
@@ -269,6 +278,13 @@ public class NRecipeTooltip {
                 int spacing = UI.scale(7) - nameDescent;
                 ret = ItemInfo.catimgs(spacing, ret, inputsLine);
                 prevTextBottomOffset = 0;  // Inputs have icons, reset offset
+                hasBodyContent = true;
+            }
+            if (curiosityStatsImg != null) {
+                // 10px from inputs to curiosity stats
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, curiosityStatsImg);
+                prevTextBottomOffset = 0;  // Curiosity stats have mixed content, reset offset
                 hasBodyContent = true;
             }
             if (seenLine != null) {
@@ -1095,6 +1111,183 @@ public class NRecipeTooltip {
             return TooltipStyle.composePair(labelAndNumber, unitImg);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    /**
+     * Render curiosity stats for recipe tooltips.
+     * Shows LP, LP/H, LP/H/W, study time, mental weight, and EXP cost.
+     * Follows the same format as NCuriosity.renderCompactTooltip().
+     *
+     * @param curiosityInfo The NCuriosity or Curiosity ItemInfo object
+     * @return Rendered curiosity stats section, or null if extraction fails
+     */
+    private static BufferedImage renderCuriosityStats(Object curiosityInfo) {
+        if (curiosityInfo == null) return null;
+
+        try {
+            // Extract fields from curiosity info (handles NCuriosity extending Curiosity)
+            Class<?> searchClass = curiosityInfo.getClass();
+            java.lang.reflect.Field expField = null;
+            java.lang.reflect.Field mwField = null;
+            java.lang.reflect.Field encField = null;
+            java.lang.reflect.Field timeField = null;
+
+            // Search in class hierarchy for fields
+            while (searchClass != null && expField == null) {
+                try {
+                    expField = searchClass.getDeclaredField("exp");
+                    mwField = searchClass.getDeclaredField("mw");
+                    encField = searchClass.getDeclaredField("enc");
+                    timeField = searchClass.getDeclaredField("time");
+                } catch (NoSuchFieldException e) {
+                    searchClass = searchClass.getSuperclass();
+                }
+            }
+
+            if (expField == null) {
+                return null;
+            }
+
+            // Extract values
+            expField.setAccessible(true);
+            mwField.setAccessible(true);
+            encField.setAccessible(true);
+            timeField.setAccessible(true);
+            int exp = expField.getInt(curiosityInfo);
+            int mw = mwField.getInt(curiosityInfo);
+            int enc = encField.getInt(curiosityInfo);
+            int time = timeField.getInt(curiosityInfo);
+
+            // Calculate LP/H
+            int lph = 0;
+            try {
+                java.lang.reflect.Field lphField = curiosityInfo.getClass().getDeclaredField("lph");
+                lphField.setAccessible(true);
+                lph = lphField.getInt(curiosityInfo);
+            } catch (Exception e) {
+                // Calculate LP/H if not present
+                if (exp > 0 && time > 0) {
+                    lph = (3600 * exp) / time;
+                }
+            }
+
+            // Use same foundries as NCuriosity
+            Text.Foundry keyFoundry = TooltipStyle.createFoundry(false, TooltipStyle.FONT_SIZE_BODY, Color.WHITE);
+            Text.Foundry valueFoundry = TooltipStyle.createFoundry(true, TooltipStyle.FONT_SIZE_BODY, Color.WHITE);
+
+            java.util.List<BufferedImage> lines = new java.util.ArrayList<>();
+
+            // Line 1: LP + LP/H + optionally LP/H/W
+            if (exp > 0) {
+                java.util.List<BufferedImage> pairs = new java.util.ArrayList<>();
+                pairs.add(renderCurioPair(keyFoundry, valueFoundry, "LP:", haven.Utils.thformat(exp), TooltipStyle.COLOR_LP));
+                pairs.add(renderCurioPair(keyFoundry, valueFoundry, "LP/H:", String.valueOf(nurgling.iteminfo.NCuriosity.lph(lph)), TooltipStyle.COLOR_LPH));
+                if (mw > 0 && lph > 0) {
+                    pairs.add(renderCurioPair(keyFoundry, valueFoundry, "LP/H/W:", String.valueOf(nurgling.iteminfo.NCuriosity.lph(lph / mw)), TooltipStyle.COLOR_LPH));
+                }
+                lines.add(composeCurioPairs(pairs));
+            }
+
+            // Line 2: Study time (real time)
+            if (time > 0) {
+                int realTime = (int)(time / nurgling.iteminfo.NCuriosity.server_ratio);
+                lines.add(renderCurioPair(keyFoundry, valueFoundry, "Study time:", formatCurioStudyTime(realTime), TooltipStyle.COLOR_STUDY_TIME));
+            }
+
+            // Line 3: Mental weight + EXP cost
+            if (mw > 0 || enc > 0) {
+                java.util.List<BufferedImage> pairs = new java.util.ArrayList<>();
+                if (mw > 0) {
+                    pairs.add(renderCurioPair(keyFoundry, valueFoundry, "Mental weight:", String.valueOf(mw), TooltipStyle.COLOR_MENTAL_WEIGHT));
+                }
+                if (enc > 0) {
+                    pairs.add(renderCurioPair(keyFoundry, valueFoundry, "EXP cost:", String.valueOf(enc), TooltipStyle.COLOR_EXP_COST));
+                }
+                lines.add(composeCurioPairs(pairs));
+            }
+
+            // Crop top only (keeps baseline-relative bottom position)
+            java.util.List<BufferedImage> croppedLines = new java.util.ArrayList<>();
+            for (BufferedImage line : lines) {
+                croppedLines.add(TooltipStyle.cropTopOnly(line));
+            }
+
+            // Get font descent for baseline-relative spacing
+            int descent = TooltipStyle.getFontDescent(TooltipStyle.FONT_SIZE_BODY);
+            int baselineSpacing = UI.scale(TooltipStyle.INTERNAL_SPACING) - descent;
+
+            // Combine all lines with baseline-relative spacing
+            return ItemInfo.catimgs(baselineSpacing, croppedLines.toArray(new BufferedImage[0]));
+
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render a key+value pair for curiosity stats (like NCuriosity).
+     */
+    private static BufferedImage renderCurioPair(Text.Foundry keyFoundry, Text.Foundry valueFoundry,
+                                                  String key, String value, Color valueColor) {
+        BufferedImage keyImg = keyFoundry.render(key + " ", Color.WHITE).img;
+        BufferedImage valueImg = valueFoundry.render(value, valueColor).img;
+        int totalWidth = keyImg.getWidth() + valueImg.getWidth();
+        int maxHeight = Math.max(keyImg.getHeight(), valueImg.getHeight());
+
+        BufferedImage result = TexI.mkbuf(new Coord(totalWidth, maxHeight));
+        Graphics g = result.getGraphics();
+        g.drawImage(keyImg, 0, (maxHeight - keyImg.getHeight()) / 2, null);
+        g.drawImage(valueImg, keyImg.getWidth(), (maxHeight - valueImg.getHeight()) / 2, null);
+        g.dispose();
+        return result;
+    }
+
+    /**
+     * Compose key/value pairs horizontally with 7px gap (like NCuriosity).
+     */
+    private static BufferedImage composeCurioPairs(java.util.List<BufferedImage> pairs) {
+        if (pairs.isEmpty()) {
+            return TexI.mkbuf(new Coord(1, 1));
+        }
+        if (pairs.size() == 1) {
+            return pairs.get(0);
+        }
+
+        int totalWidth = 0;
+        int maxHeight = 0;
+        int gap = UI.scale(TooltipStyle.HORIZONTAL_SPACING);
+        for (BufferedImage img : pairs) {
+            totalWidth += img.getWidth();
+            maxHeight = Math.max(maxHeight, img.getHeight());
+        }
+        totalWidth += gap * (pairs.size() - 1);
+
+        BufferedImage result = TexI.mkbuf(new Coord(totalWidth, maxHeight));
+        Graphics g = result.getGraphics();
+        int x = 0;
+        for (int i = 0; i < pairs.size(); i++) {
+            BufferedImage img = pairs.get(i);
+            g.drawImage(img, x, (maxHeight - img.getHeight()) / 2, null);
+            x += img.getWidth();
+            if (i < pairs.size() - 1) {
+                x += gap;
+            }
+        }
+        g.dispose();
+        return result;
+    }
+
+    /**
+     * Format study time for curiosity stats (like NCuriosity).
+     */
+    private static String formatCurioStudyTime(int seconds) {
+        int hours = seconds / 3600;
+        int mins = (seconds % 3600) / 60;
+        if (hours > 0) {
+            return String.format("%dh %dm", hours, mins);
+        } else {
+            return String.format("%dm", mins);
         }
     }
 
