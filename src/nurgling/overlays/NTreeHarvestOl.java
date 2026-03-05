@@ -170,8 +170,8 @@ public class NTreeHarvestOl extends NObjectTexLabel {
 
         boolean seed = showSeeds && (sdt & 1) != 1;
         boolean leaf = showLeaves && (sdt & 2) != 2;
-        boolean bough = showBoughs && isTree && BOUGHS_MAP.containsKey(base) && ((sdt & 4) != 4);
-        boolean bark = showBark && isTree && ((sdt & 8) != 8);
+        boolean bough = showBoughs && isTree && BOUGHS_MAP.containsKey(base);
+        boolean bark = showBark && isTree;
 
         StringBuilder key = new StringBuilder();
         key.append(res.name.startsWith("gfx/terobjs/bushes") ? "bush_" : "tree_");
@@ -209,23 +209,23 @@ public class NTreeHarvestOl extends NObjectTexLabel {
     }
 
     private static BufferedImage catimgshCentered(int margin, BufferedImage... imgs) {
-        int w = -margin, h = 0;
+        int w = 0, h = -margin;
         int n = 0;
         for (BufferedImage img : imgs) {
             if (img == null) continue;
             n++;
-            if (img.getHeight() > h) h = img.getHeight();
-            w += img.getWidth() + margin;
+            if (img.getWidth() > w) w = img.getWidth();
+            h += img.getHeight() + margin;
         }
         if (n == 0) return null;
         BufferedImage ret = TexI.mkbuf(new Coord(w, h));
         Graphics g = ret.getGraphics();
-        int x = 0;
+        int y = 0;
         for (BufferedImage img : imgs) {
             if (img == null) continue;
-            int y = (h - img.getHeight()) / 2;
+            int x = (w - img.getWidth()) / 2;
             g.drawImage(img, x, y, null);
-            x += img.getWidth() + margin;
+            y += img.getHeight() + margin;
         }
         g.dispose();
         return ret;
