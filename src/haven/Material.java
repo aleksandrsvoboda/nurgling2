@@ -32,6 +32,7 @@ import java.lang.annotation.*;
 import java.lang.reflect.*;
 import haven.render.*;
 import nurgling.tools.MaterialFactory;
+import static haven.PType.*;
 
 public class Material implements Pipe.Op {
     public final Pipe.Op states, dynstates;
@@ -92,7 +93,7 @@ public class Material implements Pipe.Op {
 	public void cons(Buffer buf, Object... args) {
 	    BlendMode.Function cfn, afn;
 	    BlendMode.Factor csrc, cdst, asrc, adst;
-	    String desc = Utils.sv(args[0]);
+	    String desc = STR.of(args[0]);
 	    if(desc.length() < 3)
 		throw(new Resource.UnknownFormatException(buf.res, "blend description", desc));
 	    cfn = fn(buf.res, desc.charAt(0));
@@ -112,7 +113,7 @@ public class Material implements Pipe.Op {
     @SpecName("order")
     public static class $order implements Spec {
 	public void cons(Buffer buf, Object... args) {
-	    String nm = Utils.sv(args[0]);
+	    String nm = STR.of(args[0]);
 	    if(nm.equals("first")) {
 		buf.states.add(Rendered.first);
 	    } else if(nm.equals("last")) {

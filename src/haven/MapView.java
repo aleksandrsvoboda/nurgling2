@@ -1987,6 +1987,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    Plob ob = placing.get();
 		    synchronized(ob) {
 			ob.slot.remove();
+			ob.removed();
 		    }
 		}
 		this.placing = null;
@@ -2027,6 +2028,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    Plob ob = placing.get();
 		    synchronized(ob) {
 			ob.slot.remove();
+			ob.removed();
 		    }
 		}
 		this.placing = null;
@@ -2404,11 +2406,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    public Material mat() {return(mat);}
 	};
     public class Selector implements Grabber {
-    public final Coord max;
-    public Coord sc;
-	protected MCache.Overlay ol;
+	public final Coord max;
+	public Coord sc;
+	public int modflags;
+	protected MCache.RectOverlay ol;
 	protected UI.Grab mgrab;
-    public int modflags;
 	protected Text tt;
 	protected final GrabXL xl = new GrabXL(this) {
 		public boolean mmousedown(Coord cc, int button) {
@@ -2434,14 +2436,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(selection != this)
 		    return(false);
 		if(sc != null) {
-		    ol.destroy();
+		    glob.map.remove(ol);
 		    mgrab.remove();
 		}
 		sc = mc.div(MCache.tilesz2);
 		modflags = ui.modflags();
 		xl.mv = true;
 		mgrab = ui.grabmouse(MapView.this);
-		ol = glob.map.new Overlay(Area.sized(sc, new Coord(1, 1)), selol);
+		ol = glob.map.new RectOverlay(selol, Area.sized(sc, new Coord(1, 1)));
+		glob.map.add(ol);
 		return(true);
 	    }
 	}
@@ -2462,7 +2465,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    Coord ec = getec(mc);
 		    xl.mv = false;
 		    tt = null;
-		    ol.destroy();
+		    glob.map.remove(ol);
 		    mgrab.remove();
 		    wdgmsg("sel", sc, ec, modflags);
 		    sc = null;
@@ -2490,7 +2493,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void destroy() {
 	    synchronized(MapView.this) {
 		if(sc != null) {
-		    ol.destroy();
+		    glob.map.remove(ol);
 		    mgrab.remove();
 		}
 		release(xl);

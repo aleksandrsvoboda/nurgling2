@@ -569,7 +569,7 @@ public class NTooltip {
             // Capture Pagina description text
             if (ii instanceof ItemInfo.Pagina) {
                 ItemInfo.Pagina pagina = (ItemInfo.Pagina) ii;
-                paginaText = pagina.str;
+                paginaText = pagina.doc.text;
             }
 
             // Capture base AttrMod (non-gilding stats)
