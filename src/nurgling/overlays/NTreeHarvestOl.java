@@ -4,6 +4,8 @@ import haven.*;
 
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
+import nurgling.NConfig;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Overlay for trees/bushes showing what can be harvested (leaf/seed/fruit/bough),
  * inspired by HerSRC's GobReadyForHarvestInfo.
  *
- * Renders small combined icons (leaf + fruit/seed + bough) only when the object is mature/ready.
+ * Renders small combined icons (leaf + fruit/seed + bough + bark) only when the object is mature/ready.
  */
 public class NTreeHarvestOl extends NObjectTexLabel {
     private static final int TREE_START = 10;
@@ -27,6 +29,7 @@ public class NTreeHarvestOl extends NObjectTexLabel {
     private static final Map<String, String> SEEDS_MAP;
     private static final Map<String, String> LEAVES_MAP;
     private static final Map<String, String> BOUGHS_MAP;
+    private static final Map<String, String> BARKS_MAP;
 
     private static final Map<String, TexI> LABEL_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, Optional<BufferedImage>> ICON_CACHE = new ConcurrentHashMap<>();
@@ -84,6 +87,11 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         boughs.put("yew", "gfx/invobjs/bough-yew");
         boughs.put("beech", "gfx/invobjs/bough-beech");
         BOUGHS_MAP = Collections.unmodifiableMap(boughs);
+
+        Map<String, String> barks = new HashMap<>();
+        barks.put("birch", "gfx/invobjs/bark-birch");
+        barks.put("willow", "gfx/invobjs/bark-willow");
+        BARKS_MAP = Collections.unmodifiableMap(barks);
     }
 
     private final Gob gob;
@@ -153,11 +161,17 @@ public class NTreeHarvestOl extends NObjectTexLabel {
 
         int sdt = Sprite.decnum(d.sdt.clone());
         String base = res.basename();
-
-        boolean seed = (sdt & 1) != 1;
-        boolean leaf = (sdt & 2) != 2;
         boolean isTree = res.name.startsWith("gfx/terobjs/trees");
-        boolean bough = isTree && BOUGHS_MAP.containsKey(base) && ((sdt & 4) != 4);
+
+        boolean showSeeds = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestSeeds));
+        boolean showLeaves = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestLeaves));
+        boolean showBoughs = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestBoughs));
+        boolean showBark = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestBark));
+
+        boolean seed = showSeeds && (sdt & 1) != 1;
+        boolean leaf = showLeaves && (sdt & 2) != 2;
+        boolean bough = showBoughs && isTree && BOUGHS_MAP.containsKey(base) && ((sdt & 4) != 4);
+        boolean bark = showBark && isTree && ((sdt & 8) != 8);
 
         StringBuilder key = new StringBuilder();
         key.append(res.name.startsWith("gfx/terobjs/bushes") ? "bush_" : "tree_");
@@ -165,6 +179,7 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         if (seed) key.append("withSeed_");
         if (leaf) key.append("withLeaf_");
         if (bough) key.append("withBough_");
+        if (bark) key.append("withBark_");
 
         TexI cached = LABEL_CACHE.get(key.toString());
         if (cached != null)
@@ -174,6 +189,7 @@ public class NTreeHarvestOl extends NObjectTexLabel {
                 leaf ? getIcon(base, "leaf") : null,
                 seed ? getIcon(base, "seed") : null,
                 bough ? getIcon(base, "bough") : null,
+                bark ? getIcon(base, "bark") : null,
         };
 
         boolean hasPart = false;
@@ -229,6 +245,12 @@ public class NTreeHarvestOl extends NObjectTexLabel {
             resourceName = LEAVES_MAP.get(basename);
         } else if ("bough".equals(type)) {
             resourceName = BOUGHS_MAP.get(basename);
+        } else if ("bark".equals(type)) {
+            if (BARKS_MAP.containsKey(basename)) {
+                resourceName = BARKS_MAP.get(basename);
+            } else {
+                resourceName = "gfx/invobjs/bark";
+            }
         }
 
         if (resourceName == null) return null;

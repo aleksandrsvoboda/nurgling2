@@ -47,6 +47,10 @@ public class QoL extends Panel {
     private CheckBox randomAreaColor;
     private CheckBox treeScaleDisableZoomHide;
     private CheckBox treeHarvestOverlay;
+    private CheckBox treeHarvestSeeds;
+    private CheckBox treeHarvestLeaves;
+    private CheckBox treeHarvestBoughs;
+    private CheckBox treeHarvestBark;
     private CheckBox syncCamera;
     private TextEntry treeScaleMinThresholdEntry;
 
@@ -133,8 +137,12 @@ public class QoL extends Panel {
         leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_min_threshold")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = treeScaleMinThresholdEntry = leftColumn.add(new TextEntry.NumberValue(50, "0"), leftPrev.pos("bl").adds(0, 5));
         leftPrev = treeHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_overlay")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = treeHarvestSeeds = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_seeds")), leftPrev.pos("bl").adds(10, 3));
+        leftPrev = treeHarvestLeaves = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_leaves")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = treeHarvestBoughs = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_boughs")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = treeHarvestBark = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_bark")), leftPrev.pos("bl").adds(0, 3));
 
-        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.network")), leftPrev.pos("bl").adds(0, 15));
+        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.network")), leftPrev.pos("bl").adds(-10, 15));
         leftPrev = alwaysObfuscate = leftColumn.add(new CheckBox(L10n.get("qol.always_obfuscate")), leftPrev.pos("bl").adds(0, 5));
 
         leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.login")), leftPrev.pos("bl").adds(0, 15));
@@ -340,6 +348,10 @@ public class QoL extends Panel {
         randomAreaColor.a = getBool(NConfig.Key.randomAreaColor);
         treeScaleDisableZoomHide.a = getBool(NConfig.Key.treeScaleDisableZoomHide);
         treeHarvestOverlay.a = getBool(NConfig.Key.treeHarvestOverlay);
+        treeHarvestSeeds.a = getBool(NConfig.Key.treeHarvestSeeds);
+        treeHarvestLeaves.a = getBool(NConfig.Key.treeHarvestLeaves);
+        treeHarvestBoughs.a = getBool(NConfig.Key.treeHarvestBoughs);
+        treeHarvestBark.a = getBool(NConfig.Key.treeHarvestBark);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
 
         Object minThreshold = NConfig.get(NConfig.Key.treeScaleMinThreshold);
@@ -522,6 +534,10 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.randomAreaColor, randomAreaColor.a);
         NConfig.set(NConfig.Key.treeScaleDisableZoomHide, treeScaleDisableZoomHide.a);
         NConfig.set(NConfig.Key.treeHarvestOverlay, treeHarvestOverlay.a);
+        NConfig.set(NConfig.Key.treeHarvestSeeds, treeHarvestSeeds.a);
+        NConfig.set(NConfig.Key.treeHarvestLeaves, treeHarvestLeaves.a);
+        NConfig.set(NConfig.Key.treeHarvestBoughs, treeHarvestBoughs.a);
+        NConfig.set(NConfig.Key.treeHarvestBark, treeHarvestBark.a);
         NConfig.set(NConfig.Key.sync_camera, syncCamera.a);
 
         int minThreshold = parseIntOrDefault(treeScaleMinThresholdEntry.text(), 0);
