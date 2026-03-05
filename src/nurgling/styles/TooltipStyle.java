@@ -169,6 +169,9 @@ public final class TooltipStyle {
     /** Tooltip background color - dark green-gray at 90% opacity */
     public static final Color COLOR_TOOLTIP_BG = new Color(37, 43, 41, 230);  // #252B29 @ 90%
 
+    /** Overlay background color - dark green-gray at 50% opacity */
+    public static final Color COLOR_OVERLAY_BG = new Color(37, 43, 41, 128);  // #252B29 @ 50%
+
     /** Tooltip border color - yellow */
     public static final Color COLOR_TOOLTIP_BORDER = new Color(244, 247, 21, 192);
 

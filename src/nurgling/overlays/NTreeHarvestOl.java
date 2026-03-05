@@ -5,6 +5,7 @@ import haven.*;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import nurgling.NConfig;
+import nurgling.styles.TooltipStyle;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -218,12 +219,15 @@ public class NTreeHarvestOl extends NObjectTexLabel {
             h += img.getHeight() + margin;
         }
         if (n == 0) return null;
-        BufferedImage ret = TexI.mkbuf(new Coord(w, h));
+        int pad = UI.scale(3);
+        BufferedImage ret = TexI.mkbuf(new Coord(w + pad * 2, h + pad * 2));
         Graphics g = ret.getGraphics();
-        int y = 0;
+        g.setColor(TooltipStyle.COLOR_OVERLAY_BG);
+        g.fillRect(0, 0, w + pad * 2, h + pad * 2);
+        int y = pad;
         for (BufferedImage img : imgs) {
             if (img == null) continue;
-            int x = (w - img.getWidth()) / 2;
+            int x = pad + (w - img.getWidth()) / 2;
             g.drawImage(img, x, y, null);
             y += img.getHeight() + margin;
         }
