@@ -64,25 +64,21 @@ public class MaterialFactory {
 
         return statusMap.computeIfAbsent(status, s -> {
             Map<Integer, Material> result = new HashMap<>();
-            TexR rt1 = Resource.remote().loadwait("gfx/terobjs/subst/wroughtiron").layer(TexR.class, 0);
 
             switch (status) {
                 case FREE: {
                     TexR rt0 = getTexR("nurgling/tex/pinefree-tex", 0);
-                    result.put(0, constructMaterial(rt0, null));
-                    result.put(1, constructMaterial(rt1, null));
+                    result.put(1, constructMaterial(rt0, null));
                     break;
                 }
                 case FULL: {
                     TexR rt0 = getTexR("nurgling/tex/pinefull-tex", 0);
-                    result.put(0, constructMaterial(rt0, null));
-                    result.put(1, constructMaterial(rt1, null));
+                    result.put(1, constructMaterial(rt0, null));
                     break;
                 }
                 case NOTFREE: {
                     TexR rt0 = getTexR("nurgling/tex/pinenf-tex", 0);
-                    result.put(0, constructMaterial(rt0, null));
-                    result.put(1, constructMaterial(rt1, null));
+                    result.put(1, constructMaterial(rt0, null));
                     break;
                 }
             }
@@ -90,30 +86,52 @@ public class MaterialFactory {
         });
     }
 
-    /**
-     * Helper method to create standard material mapping for containers
-     */
-    private static Map<Integer, Material> createContainerMaterials(String tex0Path, int layer0, String tex1Path, int layer1, Material baseMat) {
-        TexR rt0 = getTexR(tex0Path, layer0);
-        TexR rt1 = getTexR(tex1Path, layer1);
-        Map<Integer, Material> result = new HashMap<>();
-        result.put(0, constructMaterial(rt0, baseMat));
-        result.put(1, constructMaterial(rt1, baseMat));
-        return result;
-    }
-
     public static Map<Integer, Material> getMaterials(String name, Status status, Material mat) {
         switch (name){
             case "gfx/terobjs/cupboard":
+                switch (status)
+                {
+                    case FREE: {
+                        Map<Integer, Material> result = new HashMap<>();
+                        result.put(0, constructMaterial(getTexR(TEX_PINEFREE, 0), mat));
+                        result.put(1, constructMaterial(getTexR(TEX_PINEFREE, 2), mat));
+                        return result;
+                    }
+                    case FULL: {
+                        Map<Integer, Material> result = new HashMap<>();
+                        result.put(0, constructMaterial(getTexR(TEX_PINEFULL, 0), mat));
+                        result.put(1, constructMaterial(getTexR(TEX_PINEFREE, 2), mat));
+                        return result;
+                    }
+                    case NOTFREE: {
+                        Map<Integer, Material> result = new HashMap<>();
+                        result.put(0, constructMaterial(getTexR(TEX_PINENF, 0), mat));
+                        result.put(1, constructMaterial(getTexR(TEX_PINEFREE, 2), mat));
+                        return result;
+                    }
+                }
+                break;
             case "gfx/terobjs/cheeserack":
                 switch (status)
                 {
-                    case FREE:
-                        return createContainerMaterials(TEX_PINEFREE, 0, TEX_PINEFREE, 2, mat);
-                    case FULL:
-                        return createContainerMaterials(TEX_PINEFULL, 0, TEX_PINEFREE, 2, mat);
-                    case NOTFREE:
-                        return createContainerMaterials(TEX_PINENF, 0, TEX_PINEFREE, 2, mat);
+                    case FREE: {
+                        Map<Integer, Material> result = new HashMap<>();
+                        result.put(1, constructMaterial(getTexR(TEX_PINEFREE, 0), mat));
+                        result.put(2, constructMaterial(getTexR(TEX_PINEFREE, 2), mat));
+                        return result;
+                    }
+                    case FULL: {
+                        Map<Integer, Material> result = new HashMap<>();
+                        result.put(1, constructMaterial(getTexR(TEX_PINEFULL, 0), mat));
+                        result.put(2, constructMaterial(getTexR(TEX_PINEFREE, 2), mat));
+                        return result;
+                    }
+                    case NOTFREE: {
+                        Map<Integer, Material> result = new HashMap<>();
+                        result.put(1, constructMaterial(getTexR(TEX_PINENF, 0), mat));
+                        result.put(2, constructMaterial(getTexR(TEX_PINEFREE, 2), mat));
+                        return result;
+                    }
                 }
                 break;
             case "gfx/terobjs/chest":
