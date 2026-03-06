@@ -484,6 +484,11 @@ public class NGob
         }
     }
 
+    public void refreshTreeHarvestOverlay() {
+        Drawable dr = parent.getattr(Drawable.class);
+        if (dr != null) updateTreeHarvestOverlay(dr);
+    }
+
     private void updateTreeHarvestOverlay(Drawable drawable)
     {
         try
