@@ -1025,8 +1025,8 @@ NMiniMap extends MiniMap {
         }
         
         // Update zoomlevel for compatibility with base class
-        zoomlevel = (int)(Math.log(1.0f / targetScale) / Math.log(2) * 10);
-        if(targetScale > 1.0f) zoomlevel = 0;
+        // Must be small (0-5) since base class uses it in bit shifts: 1 << zoomlevel
+        zoomlevel = Utils.clip((int)(Math.log(1.0 / targetScale) / Math.log(2)), 0, 5);
         
         return(true);
     }

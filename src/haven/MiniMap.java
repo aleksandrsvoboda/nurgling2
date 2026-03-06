@@ -744,7 +744,10 @@ public class MiniMap extends Widget
 	if((dloc == null) || (dgext == null))
 	    return(null);
 	Coord hsz = sz.div(2);
-	Coord gc = dloc.tc.add(scalec(sc.sub(hsz))).div(cmaps.mul(1 << dlvl));
+	Coord divisor = cmaps.mul(1 << dlvl);
+	if((divisor.x == 0) || (divisor.y == 0))
+	    return(null);
+	Coord gc = dloc.tc.add(scalec(sc.sub(hsz))).div(divisor);
 	if(!dgext.contains(gc))
 	    return(null);
 	return(display[dgext.ri(gc)]);
