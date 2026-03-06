@@ -134,7 +134,7 @@ public class FillEmptyContainersAction implements GobContextAction {
             if (!ngItem.content().isEmpty())
                 continue;
 
-            Coord originalPos = item.c;
+            Coord originalPos = item.c.div(haven.Inventory.sqsz);
             NUtils.takeItemToHand(item);
             NUtils.activateItem(target);
             NUtils.getUI().core.addTask(new WaitItemContent(NUtils.getGameUI().vhand));
