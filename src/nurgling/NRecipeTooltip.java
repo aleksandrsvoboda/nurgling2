@@ -101,7 +101,7 @@ public class NRecipeTooltip {
                 } else if (ii instanceof Slotted) {
                     slotted = (Slotted) ii;
                 } else if (ii instanceof ItemInfo.Pagina) {
-                    paginaStr = ((ItemInfo.Pagina) ii).str;
+                    paginaStr = ((ItemInfo.Pagina) ii).doc.text;
                 } else if (className.equals("Durability")) {
                     durabilityInfo = ii;
                 } else if (className.equals("Armor")) {

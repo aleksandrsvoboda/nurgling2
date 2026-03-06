@@ -1286,7 +1286,7 @@ public class NMapView extends MapView
                     }
                     
                     currentSelectionCoords = null;
-                    ol.destroy();
+                    glob.map.remove(ol);
                     mgrab.remove();
                     sc = null;
                     destroy();
@@ -1327,7 +1327,7 @@ public class NMapView extends MapView
                     // Cleanup
                     xl.mv = false;
                     tt = null;
-                    ol.destroy();
+                    glob.map.remove(ol);
                     mgrab.remove();
                     sc = null;
                     destroy();

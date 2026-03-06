@@ -203,7 +203,7 @@ public class HeadlessMain {
                 config.gamePort
             );
 
-            Session session = new Session(serverAddr, user, Connection.encrypt.get(), auth.getCookie());
+            Session session = Session.connect(serverAddr, user, Connection.encrypt.get(), auth.getCookie());
             log("Session created");
 
             // Skip Bootstrap entirely - go directly to RemoteUI

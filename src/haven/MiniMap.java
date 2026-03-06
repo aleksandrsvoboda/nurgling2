@@ -45,7 +45,7 @@ import nurgling.overlays.NQuestTarget;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
-
+import haven.MapFile.TileInfo;
 import static haven.MCache.cmaps;
 import static haven.MCache.tilesz;
 import static haven.OCache.posres;
@@ -62,11 +62,11 @@ public class MiniMap extends Widget
     public List<DisplayIcon> icons = Collections.emptyList();
     protected Locator setloc;
     protected boolean follow;
-    protected int zoomlevel = 0;
+    protected int zoomlevel = 0, maglevel = Utils.clip((int)Math.round(Math.log(UI.scale(1.0)) / Math.log(2)), 0, 3);
     protected DisplayGrid[] display;
     protected Area dgext, dtext;
     protected Segment dseg;
-    protected int dlvl;
+    protected int dlvl, dmag;
     public Location dloc;
 
 	public boolean needUpdate = false;
@@ -406,6 +406,7 @@ public class MiniMap extends Widget
 	public final Coord sc;
 	public final Area mapext;
 	public final Indir<? extends DataGrid> gref;
+	public Coord dc;
 	private DataGrid cgrid = null;
 	private Tex img = null;
 	private Defer.Future<Tex> nextimg = null;
@@ -507,11 +508,19 @@ public class MiniMap extends Widget
     }
 
     public float scalef() {
-	return(UI.unscale((float)(1 << dlvl)));
+	return(Math.scalb(1f, dlvl - dmag));
+    }
+
+    public Coord scalec(Coord c) {
+	int f = dlvl - dmag;
+	if(f < 0)
+	    return(c.div(1 << -f));
+	else
+	    return(c.mul(1 << f));
     }
 
     public Coord st2c(Coord tc) {
-	return(UI.scale(tc.add(sessloc.tc).sub(dloc.tc).div(1 << dlvl)).add(sz.div(2)));
+	return(tc.add(sessloc.tc).sub(dloc.tc).div(scalef()).add(sz.div(2)));
     }
 
     public Coord p2c(Coord2d pc) {
@@ -529,8 +538,8 @@ public class MiniMap extends Widget
     protected void redisplay(Location loc) {
 	Coord hsz = sz.div(2);
 	Coord zmaps = cmaps.mul(1 << zoomlevel);
-	Area next = Area.sized(loc.tc.sub(hsz.mul(UI.unscale((float)(1 << zoomlevel)))).div(zmaps),
-	    UI.unscale(sz).div(cmaps).add(2, 2));
+	Area next = Area.sized(loc.tc.sub(hsz.mul(1 << zoomlevel).div(1 << maglevel)).div(zmaps),
+			       sz.div(1 << maglevel).div(cmaps).add(2, 2));
 	if((display == null) || (loc.seg != dseg) || (zoomlevel != dlvl) || !next.equals(dgext) || needUpdate) {
 	    DisplayGrid[] nd = new DisplayGrid[next.rsz()];
 	    if((display != null) && (loc.seg == dseg) && (zoomlevel == dlvl) && !needUpdate) {
@@ -543,6 +552,7 @@ public class MiniMap extends Widget
 	    display = nd;
 	    dseg = loc.seg;
 	    dlvl = zoomlevel;
+	    dmag = maglevel;
 	    dgext = next;
 	    dtext = Area.sized(next.ul.mul(zmaps), next.sz().mul(zmaps));
 	}
@@ -563,9 +573,10 @@ public class MiniMap extends Widget
 
     public void drawgrid(GOut g, Coord ul, DisplayGrid disp) {
 	try {
+	    disp.dc = ul;
 	    Tex img = disp.img();
 	    if(img != null)
-		g.image(img, ul, UI.scale(img.sz()));
+		g.image(img, ul, img.sz().mul(1 << dmag));
 	} catch(Loading l) {
 	}
     }
@@ -573,7 +584,7 @@ public class MiniMap extends Widget
     public void drawmap(GOut g) {
 	Coord hsz = sz.div(2);
 	for(Coord c : dgext) {
-	    Coord ul = UI.scale(c.mul(cmaps)).sub(dloc.tc.div(scalef())).add(hsz);
+	    Coord ul = c.mul(cmaps).mul(1 << dmag).sub(dloc.tc.div(scalef())).add(hsz);
 	    DisplayGrid disp = display[dgext.ri(c)];
 	    if(disp == null)
 		continue;
@@ -727,6 +738,16 @@ public class MiniMap extends Widget
 		return(disp);
 	}
 	return(null);
+    }
+
+    public DisplayGrid gridat(Coord sc) {
+	if((dloc == null) || (dgext == null))
+	    return(null);
+	Coord hsz = sz.div(2);
+	Coord gc = dloc.tc.add(scalec(sc.sub(hsz))).div(cmaps.mul(1 << dlvl));
+	if(!dgext.contains(gc))
+	    return(null);
+	return(display[dgext.ri(gc)]);
     }
 
     public DisplayMarker findmarker(Marker rm) {
@@ -904,22 +925,72 @@ public class MiniMap extends Widget
 
     public boolean mousewheel(MouseWheelEvent ev) {
 	if(ev.a > 0) {
-	    if(allowzoomout())
-		zoomlevel = Math.min(zoomlevel + 1, dlvl + 1);
+	    if(maglevel > 0) {
+		maglevel--;
+	    } else {
+		if(allowzoomout())
+		    zoomlevel = Math.min(zoomlevel + 1, dlvl + 1);
+	    }
 	} else {
-	    zoomlevel = Math.max(zoomlevel - 1, 0);
+	    if(zoomlevel > 0) {
+		zoomlevel--;
+	    } else {
+		maglevel = Math.min(maglevel + 1, 3);
+	    }
 	}
 	return(true);
     }
 
+    private Text lasttip = null;
     public Object tooltip(Coord c, Widget prev) {
-	if(dloc != null) {
-	    Coord tc = c.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
-	    DisplayMarker mark = markerat(tc);
-	    if(mark != null) {
-		return(mark.tip);
+	DisplayGrid grid = gridat(c);
+	String tname = null, oname = null;
+	try {
+	    if((grid != null) && (grid.dc != null)) {
+		DataGrid dgrid = grid.gref.get();
+		if(dgrid != null) {
+		    Coord gc = c.sub(grid.dc).div(1 << dmag);
+		    gc = Area.sized(cmaps).closest(gc); /* XXX: This should not be necessary. */
+		    TileInfo tile = dgrid.tilesets[dgrid.gettile(gc)];
+		    if(tile != null) {
+			Resource tres = tile.res.get();
+			Resource.Tooltip tt = tres.layer(Resource.tooltip);
+			if(tt != null)
+			    tname = tt.t;
+		    }
+		}
+	    }
+	} catch(Loading l) {
+	    tname = "...";
+	}
+	Location mloc = xlate(c);
+	if(mloc != null) {
+	    DisplayIcon icon = iconat(c);
+	    DisplayMarker mark = markerat(mloc.tc);
+	    if(icon != null) {
+		if(icon.icon != null)
+		    oname = icon.icon.name();
+	    } else if(mark != null) {
+		oname = mark.tip.text;
 	    }
 	}
+	if((tname != null) || (oname != null)) {
+	    StringBuilder buf = new StringBuilder();
+	    if(oname != null)
+		buf.append(RichText.Parser.quote(oname));
+	    if(tname != null) {
+		if(buf.length() > 0)
+		    buf.append("\n");
+		buf.append("Terrain: $col[255,255,128]{" + RichText.Parser.quote(tname) + "}");
+	    }
+	    String tip = buf.toString();
+	    if((lasttip == null) || !lasttip.text.equals(tip))
+		lasttip = RichText.render(tip, 0);
+	} else {
+	    lasttip = null;
+	}
+	if(lasttip != null)
+	    return(lasttip);
 	return(super.tooltip(c, prev));
     }
 
