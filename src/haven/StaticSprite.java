@@ -57,7 +57,6 @@ public class StaticSprite extends Sprite {
     
     public StaticSprite(Owner owner, Resource res, Message sdt) {
 	super(owner, res);
-	System.out.println("[StaticSprite.<init>] Created StaticSprite for resource: " + res.name);
 	this.parts = lsparts(new RecOwner(), res, sdt);
     }
     

@@ -80,7 +80,6 @@ public class VarSprite extends ModSprite {
 		if (part.obj instanceof FastMesh) {
 		    FastMesh mesh = (FastMesh) part.obj;
 		    Integer slotId = meshSlots.get(mesh);
-
 		    if (slotId != null && customMats.mats.containsKey(slotId)) {
 			Material customMat = customMats.mats.get(slotId);
 			if (customMat != null) {

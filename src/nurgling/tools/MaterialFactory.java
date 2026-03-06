@@ -194,25 +194,19 @@ public class MaterialFactory {
                     case WARNING: {
                         TexR rt0 = getTexR("nurgling/tex/pinefull-tex", 0);
                         Map<Integer, Material> result = new HashMap<>();
-                        // ID 1 = wooden planks (show status color: yellow/warning)
                         result.put(1, constructMaterial(rt0, mat));
-                        // ID 2 = metal bands - leave unmapped for natural metal color
                         return result;
                     }
                     case INWORK: {
                         TexR rt0 = getTexR("nurgling/tex/pinenf-tex", 0);
                         Map<Integer, Material> result = new HashMap<>();
-                        // ID 1 = wooden planks (show status color: red/not free)
                         result.put(1, constructMaterial(rt0, mat));
-                        // ID 2 = metal bands - leave unmapped for natural metal color
                         return result;
                     }
                     case READY: {
                         TexR rt0 = getTexR("nurgling/tex/pinefree-tex", 0);
                         Map<Integer, Material> result = new HashMap<>();
-                        // ID 1 = wooden planks (show status color: green/ready)
                         result.put(1, constructMaterial(rt0, mat));
-                        // ID 2 = metal bands - leave unmapped for natural metal color
                         return result;
                     }
                 }
