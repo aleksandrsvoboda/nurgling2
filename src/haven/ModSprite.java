@@ -32,6 +32,7 @@ import java.lang.annotation.*;
 import haven.render.*;
 import haven.Skeleton.Pose;
 import haven.Skeleton.PoseMod;
+import nurgling.tools.NurglingVarMatOverride;
 
 @Resource.PublishedCode.Builtin(type = Sprite.Factory.class, name = "mod")
 public class ModSprite extends Sprite implements Sprite.CUpd, EquipTarget {
@@ -456,7 +457,7 @@ public class ModSprite extends Sprite implements Sprite.CUpd, EquipTarget {
 	    // Force customMask for dframes/barrels even if name is null
 	    // NOTE: ttubs use message flags, not overlays, so they don't need customMask
 	    if (gob != null && gob.ngob != null && !hasCustomMask) {
-		if (resName.contains("gfx/terobjs/dframe") || resName.contains("gfx/terobjs/barrel")) {
+		if (resName.contains("gfx/terobjs/dframe") || resName.contains("gfx/terobjs/barrel") || resName.contains("gfx/terobjs/cheeserack")) {
 		    gob.ngob.customMask = true;
 		    if (gob.ngob.name == null) {
 			gob.ngob.name = resName;
@@ -484,8 +485,11 @@ public class ModSprite extends Sprite implements Sprite.CUpd, EquipTarget {
 		    if(mr.mat != null)
 			buf.add(mr);
 		}
-		if(!buf.isEmpty())
-		    dat.mods.add(new Meshes(buf.toArray(new FastMesh.MeshRes[0])));
+		if(!buf.isEmpty()) {
+		    FastMesh.MeshRes[] meshArray = buf.toArray(new FastMesh.MeshRes[0]);
+		    dat.mods.add(new Meshes(meshArray));
+		    dat.mods.add(new NurglingVarMatOverride(meshArray));
+		}
 	    }
 	}
     }
