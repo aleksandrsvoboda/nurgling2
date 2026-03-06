@@ -6,6 +6,7 @@ import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.i18n.L10n;
 import nurgling.overlays.NLPassistant;
+import nurgling.overlays.NTreeHarvestOl;
 import nurgling.widgets.nsettings.Panel;
 
 public class QoL extends Panel {
@@ -554,11 +555,29 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.alwaysObfuscate, alwaysObfuscate.a);
         NConfig.set(NConfig.Key.randomAreaColor, randomAreaColor.a);
         NConfig.set(NConfig.Key.treeScaleDisableZoomHide, treeScaleDisableZoomHide.a);
+
+        // Capture old tree harvest settings before saving
+        boolean oldTreeHarvestOverlay = getBool(NConfig.Key.treeHarvestOverlay);
+        boolean oldTreeHarvestSeeds = getBool(NConfig.Key.treeHarvestSeeds);
+        boolean oldTreeHarvestLeaves = getBool(NConfig.Key.treeHarvestLeaves);
+        boolean oldTreeHarvestBoughs = getBool(NConfig.Key.treeHarvestBoughs);
+        boolean oldTreeHarvestBark = getBool(NConfig.Key.treeHarvestBark);
+
         NConfig.set(NConfig.Key.treeHarvestOverlay, treeHarvestOverlay.a);
         NConfig.set(NConfig.Key.treeHarvestSeeds, treeHarvestSeeds.a);
         NConfig.set(NConfig.Key.treeHarvestLeaves, treeHarvestLeaves.a);
         NConfig.set(NConfig.Key.treeHarvestBoughs, treeHarvestBoughs.a);
         NConfig.set(NConfig.Key.treeHarvestBark, treeHarvestBark.a);
+
+        // Rebuild tree harvest overlays if any setting changed
+        if (oldTreeHarvestOverlay != treeHarvestOverlay.a
+                || oldTreeHarvestSeeds != treeHarvestSeeds.a
+                || oldTreeHarvestLeaves != treeHarvestLeaves.a
+                || oldTreeHarvestBoughs != treeHarvestBoughs.a
+                || oldTreeHarvestBark != treeHarvestBark.a) {
+            rebuildTreeHarvestOverlays();
+        }
+
         NConfig.set(NConfig.Key.sync_camera, syncCamera.a);
 
         int oldTreeDisplayScale = 100;
@@ -646,6 +665,22 @@ public class QoL extends Panel {
                     } else {
                         gob.delattr(nurgling.gattrr.NTreeDisplayScale.class);
                     }
+                }
+            }
+        }
+    }
+
+    private void rebuildTreeHarvestOverlays() {
+        if(NUtils.getGameUI() == null || NUtils.getGameUI().ui == null || NUtils.getGameUI().ui.sess == null) {
+            return;
+        }
+        NTreeHarvestOl.clearLabelCache();
+        OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
+        synchronized(oc) {
+            for(Gob gob : oc) {
+                if(gob != null && gob.ngob != null && gob.ngob.name != null
+                    && NTreeHarvestOl.isTreeOrBushRes(gob.ngob.name)) {
+                    gob.ngob.refreshTreeHarvestOverlay();
                 }
             }
         }

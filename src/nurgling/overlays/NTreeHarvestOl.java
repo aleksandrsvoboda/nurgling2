@@ -122,7 +122,15 @@ public class NTreeHarvestOl extends NObjectTexLabel {
 
     @Override
     public boolean tick(double dt) {
-        return gob.getattr(Drawable.class) == null;
+        if (gob.getattr(Drawable.class) == null)
+            return true;
+        if (!refresh())
+            return true;  // label is null → remove overlay
+        return false;
+    }
+
+    public static void clearLabelCache() {
+        LABEL_CACHE.clear();
     }
 
     public static boolean isTreeOrBushRes(String resname) {
