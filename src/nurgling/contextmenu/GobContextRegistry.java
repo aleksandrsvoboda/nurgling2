@@ -25,5 +25,6 @@ public class GobContextRegistry {
 
     static {
         register(new TestTreeAction());
+        register(new FillEmptyContainersAction());
     }
 }
