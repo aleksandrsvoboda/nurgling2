@@ -74,6 +74,9 @@ public class AutocraftBot implements Action {
         }
 
         if (needToOpenRecipe) {
+            // Capture old makeWidget so we can wait for the NEW one to appear
+            final NMakewindow oldMwnd = (gui.craftwnd != null) ? gui.craftwnd.makeWidget : null;
+
             // Load the resource and find the pagina
             Indir<Resource> res = Resource.remote().load(recipeResource);
             MenuGrid.Pagina pag = gui.menu.paginafor(res);
@@ -85,11 +88,12 @@ public class AutocraftBot implements Action {
             // Activate the recipe via menu
             gui.menu.use(pag.button(), new MenuGrid.Interaction(), false);
 
-            // Wait for the crafting window to appear with makeWidget initialized
+            // Wait for a NEW crafting window to appear (different from the old one)
             NUtils.addTask(new NTask() {
                 @Override
                 public boolean check() {
-                    return gui.craftwnd != null && gui.craftwnd.makeWidget != null;
+                    return gui.craftwnd != null && gui.craftwnd.makeWidget != null
+                            && gui.craftwnd.makeWidget != oldMwnd;
                 }
             });
         }
