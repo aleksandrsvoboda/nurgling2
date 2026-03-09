@@ -13,6 +13,9 @@ import nurgling.actions.QuickActionBot;
 import nurgling.actions.bots.ScenarioRunner;
 import nurgling.contextmenu.GobContextAction;
 import nurgling.contextmenu.GobContextRegistry;
+import nurgling.contextmenu.NTileContextMenu;
+import nurgling.contextmenu.TileContextAction;
+import nurgling.contextmenu.TileContextRegistry;
 import nurgling.areas.*;
 import nurgling.conf.QuickActionPreset;
 import nurgling.sessions.ThreadLocalUI;
@@ -981,11 +984,19 @@ public class NMapView extends MapView
                         else if (inf.ci instanceof Composited.CompositeClick)
                             target = ((Composited.CompositeClick) inf.ci).gi.gob;
                     }
+                    boolean handled = false;
                     if (target != null) {
                         java.util.List<GobContextAction> actions = GobContextRegistry.getActionsFor(target);
                         if (!actions.isEmpty()) {
                             Gob finalTarget = target;
                             NUtils.getGameUI().add(new NGobContextMenu(finalTarget, actions), new Coord(-1, -1));
+                            handled = true;
+                        }
+                    }
+                    if (!handled) {
+                        java.util.List<TileContextAction> tileActions = TileContextRegistry.getActionsFor(mc);
+                        if (!tileActions.isEmpty()) {
+                            NUtils.getGameUI().add(new NTileContextMenu(mc, tileActions), new Coord(-1, -1));
                         }
                     }
                 }
