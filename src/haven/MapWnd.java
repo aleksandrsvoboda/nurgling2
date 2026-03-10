@@ -747,7 +747,7 @@ public class MapWnd extends Window implements Console.Directory {
     }
 
     protected Deco makedeco() {
-	return(new DefaultDeco(true).dragsize(true));
+	return(new nurgling.NWindowDeco(true).dragsize(true));
     }
 
     public void markobj(long gobid, long oid, Indir<Resource> resid, String nm) {

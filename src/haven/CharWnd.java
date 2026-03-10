@@ -342,7 +342,7 @@ public class CharWnd extends Window {
     public CharWnd(Glob glob) {
 	super(UI.scale(new Coord(300, 290)), "Character Sheet");
 
-	Tabs tabs = new Tabs(new Coord(25, 19), UI.scale(506, 315), this);
+	Tabs tabs = new Tabs(new Coord(14, 14), UI.scale(506, 315), this);
 	battrtab = tabs.add();
 	sattrtab = tabs.add();
 	skilltab = tabs.add();

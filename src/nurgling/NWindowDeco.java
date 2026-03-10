@@ -3,27 +3,20 @@ package nurgling;
 import haven.*;
 import java.awt.Color;
 
-/**
- * Clean, minimal window decoration.
- * Extends DragDeco (drag-to-move only) — zero inherited drawing code.
- * Every pixel drawn here is intentional.
- */
 public class NWindowDeco extends Window.DragDeco {
-    private static final Color BG     = new Color(40, 52, 54, 245);  // #283436
-    private static final Color TITLE  = new Color(40, 52, 54, 255);  // #283436
+    private static final Color BG     = new Color(40, 52, 54, 245);
+    private static final Color TITLE  = new Color(40, 52, 54, 255);
     private static final Color BORDER = new Color(55, 75, 78, 255);
     private static final Color SEP    = new Color(60, 88, 92, 255);
-
-    // Fixed window size: 599×471 total
-    private static final int WIN_W  = 599;
-    private static final int WIN_H  = 492;
     private static final int TITLE_H = 21;
 
     public final boolean lg;
-    private final IButton cbtn;
+    public final IButton cbtn;
+    public boolean dragsize;
     public Area aa, ca;
     private Text cap;
-    private Text.Foundry titlef;
+    private boolean cfocus;
+    private static Text.Foundry ftitlef, nftitlef;
 
     public NWindowDeco(boolean lg) {
         this.lg = lg;
@@ -32,25 +25,32 @@ public class NWindowDeco extends Window.DragDeco {
     }
     public NWindowDeco() { this(false); }
 
-    private Text.Foundry titlef() {
-        if(titlef == null)
-            titlef = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 11, Color.WHITE).aa(true);
-        return titlef;
+    public NWindowDeco dragsize(boolean v) {
+        this.dragsize = v;
+        return this;
+    }
+
+    private static Text.Foundry titlef() {
+        if(ftitlef == null)
+            ftitlef = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 11, Color.WHITE).aa(true);
+        return ftitlef;
+    }
+
+    private static Text.Foundry ntitlef() {
+        if(nftitlef == null)
+            nftitlef = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 11, new Color(160, 160, 160)).aa(true);
+        return nftitlef;
     }
 
     @Override
     public void iresize(Coord isz) {
-        Coord wsz   = UI.scale(WIN_W, WIN_H);
-        int   titleH = UI.scale(TITLE_H);
-        Coord mrgn  = lg ? Window.dlmrgn : Window.dsmrgn;
-
+        int titleH = UI.scale(TITLE_H);
+        Coord mrgn = lg ? Window.dlmrgn : Window.dsmrgn;
+        Coord csz = isz.add(mrgn.mul(2));
+        Coord wsz = new Coord(csz.x, csz.y + titleH);
         resize(wsz);
-
-        // ca/aa: start at x=0 so children placed at x=N render at exactly N px from outer left
-        ca = Area.sized(new Coord(0, titleH), new Coord(wsz.x, wsz.y - titleH));
-        aa = ca;
-
-        // Close button: right-aligned, vertically centered in title bar
+        ca = Area.sized(new Coord(0, titleH), csz);
+        aa = Area.sized(ca.ul.add(mrgn), isz);
         cbtn.c = Coord.of(wsz.x - cbtn.sz.x - UI.scale(10),
                           (titleH - cbtn.sz.y) / 2);
     }
@@ -58,10 +58,32 @@ public class NWindowDeco extends Window.DragDeco {
     @Override
     public Area contarea() { return aa; }
 
+    protected void cdraw(GOut g) {
+        ((Window)parent).cdraw(g);
+    }
+
     @Override
     public boolean checkhit(Coord c) {
         if(ca == null) return false;
-        return c.y >= 0 && c.y < ca.ul.y && c.x >= 0 && c.x < sz.x;
+        return c.x >= 0 && c.x < sz.x && c.y >= 0 && c.y < sz.y;
+    }
+
+    protected void drawbg(GOut g) {
+        if(ui instanceof NUI) {
+            NUI nui = (NUI)ui;
+            float opacity = nui.getUIOpacity();
+            if(nui.getUseSolidBackground()) {
+                Color bgColor = nui.getWindowBackgroundColor();
+                int alpha = (int)(255 * opacity);
+                g.chcolor(bgColor.getRed(), bgColor.getGreen(), bgColor.getBlue(), alpha);
+                g.frect(new Coord(0, ca.ul.y), ca.sz());
+                g.chcolor();
+                return;
+            }
+        }
+        g.chcolor(BG);
+        g.frect(new Coord(0, ca.ul.y), ca.sz());
+        g.chcolor();
     }
 
     @Override
@@ -69,35 +91,33 @@ public class NWindowDeco extends Window.DragDeco {
         if(ca == null || aa == null) { super.draw(g, strict); return; }
         Window wnd = (Window)parent;
 
-        // Refresh title text when caption changes
-        if(cap == null || cap.text != wnd.cap)
-            cap = (wnd.cap != null) ? titlef().render(wnd.cap) : null;
+        if(cap == null || cap.text != wnd.cap || cfocus != wnd.hasfocus) {
+            cfocus = wnd.hasfocus;
+            cap = (wnd.cap != null) ? (cfocus ? titlef() : ntitlef()).render(wnd.cap) : null;
+        }
 
-        int bw      = Math.max(1, UI.scale(1));
-        int titleH  = ca.ul.y;
+        int bw     = Math.max(1, UI.scale(1));
+        int titleH = ca.ul.y;
 
-        // 1. Dark background — entire window
-        g.chcolor(BG);
-        g.frect(Coord.z, sz);
+        // 1. Content background
+        drawbg(g);
 
-        // 2. Title bar (same colour as bg, kept separate for future use)
+        // 2. Title bar
         g.chcolor(TITLE);
         g.frect(Coord.z, new Coord(sz.x, titleH));
         g.chcolor();
 
-        // 3. Title text — centered horizontally and vertically in the title bar
+        // 3. Title text
         if(cap != null) {
-            Coord textSz  = cap.sz();
-            Coord textPos = new Coord(UI.scale(10),
-                                      (titleH - textSz.y) / 2);
+            Coord textPos = new Coord(UI.scale(10), (titleH - cap.sz().y) / 2);
             g.image(cap.tex(), textPos);
         }
 
-        // 4. Separator between title bar and content
+        // 4. Separator
         g.chcolor(SEP);
         g.frect(new Coord(0, titleH - bw), new Coord(sz.x, bw));
 
-        // 5. 1px outer border
+        // 5. Outer border
         g.chcolor(BORDER);
         g.frect(Coord.z,                  new Coord(sz.x, bw));
         g.frect(new Coord(0, sz.y - bw),  new Coord(sz.x, bw));
@@ -105,7 +125,45 @@ public class NWindowDeco extends Window.DragDeco {
         g.frect(new Coord(sz.x - bw, 0),  new Coord(bw, sz.y));
         g.chcolor();
 
-        // 6. Children (close button)
+        // 6. Sizer handle
+        if(dragsize)
+            g.image(Window.sizer, ca.br.sub(Window.sizer.sz()));
+
+        // 7. Content drawing
+        cdraw(g.reclip(aa.ul, aa.sz()));
+
+        // 8. Children (close button, sort button, etc.)
         super.draw(g, strict);
+    }
+
+    // Drag-to-resize support
+    private UI.Grab szdrag;
+    private Coord szdragc;
+
+    public boolean mousedown(MouseDownEvent ev) {
+        if(dragsize) {
+            Coord c = ev.c;
+            if((ev.b == 1) && (c.x < ca.br.x) && (c.y < ca.br.y) && (c.y >= ca.br.y - UI.scale(25) + (ca.br.x - c.x))) {
+                szdrag = ui.grabmouse(this);
+                szdragc = aa.sz().sub(c);
+                return(true);
+            }
+        }
+        return(super.mousedown(ev));
+    }
+
+    public void mousemove(MouseMoveEvent ev) {
+        if(szdrag != null)
+            ((Window)parent).resize(ev.c.add(szdragc));
+        super.mousemove(ev);
+    }
+
+    public boolean mouseup(MouseUpEvent ev) {
+        if((ev.b == 1) && (szdrag != null)) {
+            szdrag.remove();
+            szdrag = null;
+            return(true);
+        }
+        return(super.mouseup(ev));
     }
 }
