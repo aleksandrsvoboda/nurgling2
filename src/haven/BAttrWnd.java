@@ -57,7 +57,7 @@ public class BAttrWnd extends Widget {
 	private int cbv = -1, ccv = -1;
 
 	private Attr(Glob glob, String attr, Color bg) {
-	    super(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr);
+	    super(Coord.of(attrw, UI.scale(26)), glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.rnm = attrf.render(res.flayer(Resource.tooltip).text());
 	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
@@ -121,7 +121,7 @@ public class BAttrWnd extends Widget {
 	}
 
 	public Constipations(Coord sz) {
-	    super(sz, attrf.height() + UI.scale(2));
+	    super(sz, UI.scale(26));
 	}
 
 	public static class Reordered<T> extends AbstractList<T> {
@@ -302,7 +302,7 @@ public class BAttrWnd extends Widget {
 	};
 
 	public FoodMeter() {
-	    super(frame.sz());
+	    super(UI.scale(267, 40));
 	}
 
 	private BufferedImage mktrol(List<El> els, Indir<Resource> trev) {
@@ -425,7 +425,7 @@ public class BAttrWnd extends Widget {
 	public String lbl;
 
 	public GlutMeter() {
-	    super(frame.sz());
+	    super(UI.scale(267, 40));
 	}
 
 	public void draw(GOut g) {
@@ -479,9 +479,8 @@ public class BAttrWnd extends Widget {
 	attrs.add(aw = add(new Attr(glob, "wil", other), aw.pos("bl")));
 	attrs.add(aw = add(new Attr(glob, "psy", every), aw.pos("bl")));
 	prev = nurgling.NFrame.around(this, attrs);
-	// Issue 5: 25px from table bottom to FEP/Hunger header top.
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.fep")).tex()), "gfx/hud/chr/tips/fep"),
-	           prev.pos("bl").x(leftColX).add(0, UI.scale(25)));
+	           prev.pos("bl").x(leftColX).add(0, UI.scale(20)));
 	feps = add(new FoodMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
 
 	int ah = attrs.get(attrs.size() - 1).pos("bl").y - attrs.get(0).pos("ul").y;
@@ -490,7 +489,7 @@ public class BAttrWnd extends Widget {
 	cons = add(new Constipations(Coord.of(attrw, ah)), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(wbox.btloff()));
 	prev = nurgling.NFrame.around(this, Collections.singletonList(cons));
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.hunger")).tex()), "gfx/hud/chr/tips/hunger"),
-	           prev.pos("bl").x(rightColX).add(0, UI.scale(25)));
+	           prev.pos("bl").x(rightColX).add(0, UI.scale(20)));
 	glut = add(new GlutMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
 	pack();
 	// Issue 7: bar-to-button gap = resize_amt + btn_h/2. With btn_h≈36: 20 + 18 = 38px.

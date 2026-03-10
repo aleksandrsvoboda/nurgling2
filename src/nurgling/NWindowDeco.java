@@ -16,7 +16,7 @@ public class NWindowDeco extends Window.DragDeco {
 
     // Fixed window size: 599×471 total
     private static final int WIN_W  = 599;
-    private static final int WIN_H  = 471;
+    private static final int WIN_H  = 492;
     private static final int TITLE_H = 21;
 
     public final boolean lg;
