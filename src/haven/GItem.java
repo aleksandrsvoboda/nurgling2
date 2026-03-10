@@ -625,7 +625,7 @@ public abstract class GItem extends AWidget implements ItemInfo.SpriteOwner, GSp
 		if(parent != null)
 		    raise();
 	    } else if(nst == "wnd") {
-		chdeco(new DefaultDeco());
+		chdeco(new nurgling.NWindowDeco());
 		show();
 		z(0);
 		if(parent != null)
