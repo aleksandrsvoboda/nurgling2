@@ -42,11 +42,11 @@ public class CharWnd extends Window {
     public static final RichText.Foundry ifnd = new RichText.Foundry(RichText.IMAGESRC, RichText.ImageSource.legacy,
 								     java.awt.font.TextAttribute.FAMILY, "SansSerif",
 								     java.awt.font.TextAttribute.SIZE, UI.scale(9)).aa(true);
-    public static final Text.Furnace catf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+    public static final Text.Furnace catf = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 16, java.awt.Color.WHITE).aa(true);
     public static final Text.Furnace failf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Resource.loadimg("gfx/hud/fontred")), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
-    public static final Text.Foundry attrf = new Text.Foundry(Text.fraktur.deriveFont((float)Math.floor(UI.scale(16.0)))).aa(true);
+    public static final Text.Foundry attrf = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont((float)Math.floor(UI.scale(14.0)))).aa(true);
     public static final PUtils.Convolution iconfilter = new PUtils.Lanczos(3);
-    public static final int attrw = BAttrWnd.FoodMeter.frame.sz().x - wbox.bisz().x;
+    public static final int attrw = UI.scale(267) - wbox.bisz().x;
     public static final Color debuff = new Color(255, 128, 128);
     public static final Color buff = new Color(128, 255, 128);
     public static final Color tbuff = new Color(128, 128, 255);
@@ -330,7 +330,7 @@ public class CharWnd extends Window {
     @RName("chr")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new CharWnd(ui.sess.glob));
+	    return(new nurgling.NCharWnd(ui.sess.glob));
 	}
     }
 
@@ -342,7 +342,7 @@ public class CharWnd extends Window {
     public CharWnd(Glob glob) {
 	super(UI.scale(new Coord(300, 290)), "Character Sheet");
 
-	Tabs tabs = new Tabs(new Coord(15, 10), UI.scale(506, 315), this);
+	Tabs tabs = new Tabs(new Coord(25, 25), UI.scale(506, 315), this);
 	battrtab = tabs.add();
 	sattrtab = tabs.add();
 	skilltab = tabs.add();
@@ -351,8 +351,6 @@ public class CharWnd extends Window {
 	questtab = tabs.add();
 
 	{
-	    Widget prev;
-
 	    class TB extends IButton {
 		final Tabs.Tab tab;
 		TB(String nm, Tabs.Tab tab, String tip) {
@@ -381,14 +379,14 @@ public class CharWnd extends Window {
 		}
 	    }
 
-	    this.addhl(new Coord(tabs.c.x, tabs.c.y + tabs.sz.y + UI.scale(10)), tabs.sz.x,
-		tbbattrtab = new TB("battr", battrtab, L10n.get("char.tab.battr")),
-		tbsattrtab = new TB("sattr", sattrtab, L10n.get("char.tab.sattr")),
-		tbskilltab =new TB("skill", skilltab, L10n.get("char.tab.skill")),
-		tbfighttab = new TB("fgt",   fighttab, L10n.get("char.tab.fight")),
-		tbwoundtab = new TB("wound", woundtab, L10n.get("char.tab.wound")),
-		tbquesttab = new TB("quest", questtab, L10n.get("char.tab.quest"))
-	    );
+	    tbbattrtab = new TB("battr", battrtab, L10n.get("char.tab.battr"));
+	    tbsattrtab = new TB("sattr", sattrtab, L10n.get("char.tab.sattr"));
+	    tbskilltab = new TB("skill", skilltab, L10n.get("char.tab.skill"));
+	    tbfighttab = new TB("fgt",   fighttab, L10n.get("char.tab.fight"));
+	    tbwoundtab = new TB("wound", woundtab, L10n.get("char.tab.wound"));
+	    tbquesttab = new TB("quest", questtab, L10n.get("char.tab.quest"));
+	    this.addhlp(new Coord(tabs.c.x, tabs.c.y + tabs.sz.y + UI.scale(10)), UI.scale(15),
+		tbbattrtab, tbsattrtab, tbskilltab, tbfighttab, tbwoundtab, tbquesttab);
 	}
 
 	resize(contentsz().add(UI.scale(15, 10)));
