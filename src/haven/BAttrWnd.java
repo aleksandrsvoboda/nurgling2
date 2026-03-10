@@ -90,7 +90,7 @@ public class BAttrWnd extends Widget {
 	    g.aimage(img, cn.add(5, 0), 0, 0.5);
 	    g.aimage(rnm.tex(), cn.add(img.sz().x + UI.scale(10), 1), 0, 0.5);
 	    if(ct != null)
-		g.aimage(ct.tex(), cn.add(sz.x - UI.scale(7), 1), 1, 0.5);
+		nurgling.NAttr.drawValue(g, cn, sz, ct, attr.base, attr.comp);
 	}
 
 	public void lvlup() {
@@ -361,13 +361,13 @@ public class BAttrWnd extends Widget {
 
 	public void draw(GOut g) {
 	    double d = (trtm > 0)?(Utils.rtime() - trtm):Double.POSITIVE_INFINITY;
-	    g.chcolor(0, 0, 0, 255);
-	    g.frect(marg, sz.sub(marg.mul(2)));
+	    g.chcolor(22, 39, 51, 255);  // #162733
+	    g.frect(Coord.z, sz);
 	    drawels(g, els, 255);
 	    if(d < 1.0)
 		drawels(g, etr, (int)(255 - (d * 255)));
 	    g.chcolor();
-	    g.image(frame, Coord.z);
+	    nurgling.NAttr.drawBorder(g, sz);
 	    if(d < 2.5) {
 		GOut g2 = g.reclipl(trmg.inv(), sz.add(trmg.mul(2)));
 		g2.chcolor(255, 255, 255, (int)(255 - ((d * 255) * (1.0 / 2.5))));
@@ -430,12 +430,12 @@ public class BAttrWnd extends Widget {
 
 	public void draw(GOut g) {
 	    Coord isz = sz.sub(marg.mul(2));
-	    g.chcolor(bg);
-	    g.frect(marg, isz);
+	    g.chcolor(22, 39, 51, 255);  // #162733
+	    g.frect(Coord.z, sz);
 	    g.chcolor(fg);
 	    g.frect(marg, new Coord((int)Math.round(isz.x * (glut - Math.floor(glut))), isz.y));
 	    g.chcolor();
-	    g.image(frame, Coord.z);
+	    nurgling.NAttr.drawBorder(g, sz);
 	}
 
 	public void update(Object... args) {
@@ -460,10 +460,16 @@ public class BAttrWnd extends Widget {
 
     public BAttrWnd(Glob glob) {
 	Widget prev;
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.title")).tex()), "gfx/hud/chr/tips/base"), Coord.z);
+	int catfDescent = ((Text.Foundry) catf).m.getDescent();
+	int leftColX  = 0;
+	int rightColX = (attrw + wbox.bisz().x) + UI.scale(15);
+
+	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.title")).tex()), "gfx/hud/chr/tips/base"),
+	           new Coord(leftColX, 0));
 	attrs = new ArrayList<>();
 	Attr aw;
-	attrs.add(aw = add(new Attr(glob, "str", every), prev.pos("bl").adds(5, 0).add(wbox.btloff())));
+	// 10px from header baseline to box top.
+	attrs.add(aw = add(new Attr(glob, "str", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(wbox.btloff())));
 	attrs.add(aw = add(new Attr(glob, "agi", other), aw.pos("bl")));
 	attrs.add(aw = add(new Attr(glob, "int", every), aw.pos("bl")));
 	attrs.add(aw = add(new Attr(glob, "con", other), aw.pos("bl")));
@@ -472,17 +478,23 @@ public class BAttrWnd extends Widget {
 	attrs.add(aw = add(new Attr(glob, "dex", every), aw.pos("bl")));
 	attrs.add(aw = add(new Attr(glob, "wil", other), aw.pos("bl")));
 	attrs.add(aw = add(new Attr(glob, "psy", every), aw.pos("bl")));
-	prev = Frame.around(this, attrs);
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.fep")).tex()), "gfx/hud/chr/tips/fep"), prev.pos("bl").x(0).adds(0, 10));
-	feps = add(new FoodMeter(), prev.pos("bl").adds(5, 2));
+	prev = nurgling.NFrame.around(this, attrs);
+	// Issue 5: 25px from table bottom to FEP/Hunger header top.
+	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.fep")).tex()), "gfx/hud/chr/tips/fep"),
+	           prev.pos("bl").x(leftColX).add(0, UI.scale(25)));
+	feps = add(new FoodMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
 
 	int ah = attrs.get(attrs.size() - 1).pos("bl").y - attrs.get(0).pos("ul").y;
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.satiation")).tex()), "gfx/hud/chr/tips/constip"), width, 0);
-	cons = add(new Constipations(Coord.of(attrw, ah)), prev.pos("bl").adds(5, 0).add(wbox.btloff()));
-	prev = Frame.around(this, Collections.singletonList(cons));
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.hunger")).tex()), "gfx/hud/chr/tips/hunger"), prev.pos("bl").x(width).adds(0, 10));
-	glut = add(new GlutMeter(), prev.pos("bl").adds(5, 2));
+	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.satiation")).tex()), "gfx/hud/chr/tips/constip"),
+	           new Coord(rightColX, 0));
+	cons = add(new Constipations(Coord.of(attrw, ah)), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(wbox.btloff()));
+	prev = nurgling.NFrame.around(this, Collections.singletonList(cons));
+	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.hunger")).tex()), "gfx/hud/chr/tips/hunger"),
+	           prev.pos("bl").x(rightColX).add(0, UI.scale(25)));
+	glut = add(new GlutMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
 	pack();
+	// Issue 7: bar-to-button gap = resize_amt + btn_h/2. With btn_h≈36: 20 + 18 = 38px.
+	resize(sz.add(0, UI.scale(20)));
     }
 
     public void uimsg(String nm, Object... args) {
