@@ -3,7 +3,7 @@ package nurgling;
 import haven.*;
 import java.util.HashMap;
 
-public class NAttr {
+public class NAttrUtil {
     private static final HashMap<Integer, Text> baseCache = new HashMap<>();
     private static int numColW = -1;
 
@@ -27,14 +27,11 @@ public class NAttr {
         int colW = numColW();
         int rightEdge = sz.x - UI.scale(7);
         if(base != comp) {
-            // Bonus: comp (colored) right-aligned in right column
             g.aimage(ct.tex(), cn.add(rightEdge, 1), 1, 0.5);
-            // Base (white) right-aligned in left column
             Text bt = baseCache.computeIfAbsent(base,
                 v -> CharWnd.attrf.render(Integer.toString(v)));
             g.aimage(bt.tex(), cn.add(rightEdge - colW - UI.scale(5), 1), 1, 0.5);
         } else {
-            // No bonus: white value right-aligned in left column
             g.aimage(ct.tex(), cn.add(rightEdge - colW - UI.scale(5), 1), 1, 0.5);
         }
     }
