@@ -342,7 +342,7 @@ public class CharWnd extends Window {
     public CharWnd(Glob glob) {
 	super(UI.scale(new Coord(300, 290)), "Character Sheet");
 
-	Tabs tabs = new Tabs(new Coord(14, 14), UI.scale(506, 315), this);
+	Tabs tabs = new Tabs(new Coord(15, 10), UI.scale(506, 315), this);
 	battrtab = tabs.add();
 	sattrtab = tabs.add();
 	skilltab = tabs.add();
@@ -351,6 +351,8 @@ public class CharWnd extends Window {
 	questtab = tabs.add();
 
 	{
+	    Widget prev;
+
 	    class TB extends IButton {
 		final Tabs.Tab tab;
 		TB(String nm, Tabs.Tab tab, String tip) {
@@ -379,14 +381,14 @@ public class CharWnd extends Window {
 		}
 	    }
 
-	    tbbattrtab = new TB("battr", battrtab, L10n.get("char.tab.battr"));
-	    tbsattrtab = new TB("sattr", sattrtab, L10n.get("char.tab.sattr"));
-	    tbskilltab = new TB("skill", skilltab, L10n.get("char.tab.skill"));
-	    tbfighttab = new TB("fgt",   fighttab, L10n.get("char.tab.fight"));
-	    tbwoundtab = new TB("wound", woundtab, L10n.get("char.tab.wound"));
-	    tbquesttab = new TB("quest", questtab, L10n.get("char.tab.quest"));
-	    this.addhlp(new Coord(tabs.c.x, tabs.c.y + tabs.sz.y + UI.scale(10)), UI.rscale(12.5),
-		tbbattrtab, tbsattrtab, tbskilltab, tbfighttab, tbwoundtab, tbquesttab);
+	    this.addhl(new Coord(tabs.c.x, tabs.c.y + tabs.sz.y + UI.scale(10)), tabs.sz.x,
+		tbbattrtab = new TB("battr", battrtab, L10n.get("char.tab.battr")),
+		tbsattrtab = new TB("sattr", sattrtab, L10n.get("char.tab.sattr")),
+		tbskilltab =new TB("skill", skilltab, L10n.get("char.tab.skill")),
+		tbfighttab = new TB("fgt",   fighttab, L10n.get("char.tab.fight")),
+		tbwoundtab = new TB("wound", woundtab, L10n.get("char.tab.wound")),
+		tbquesttab = new TB("quest", questtab, L10n.get("char.tab.quest"))
+	    );
 	}
 
 	resize(contentsz().add(UI.scale(15, 10)));

@@ -146,7 +146,7 @@ public class SAttrWnd extends Widget {
 	public final Widget study;
 	public int texp, tw, tenc, tlph;
 
-	protected StudyInfo(Coord sz, Widget study) {
+	private StudyInfo(Coord sz, Widget study) {
 	    super(sz);
 	    this.study = study;
 	    Widget plbl, pval;
