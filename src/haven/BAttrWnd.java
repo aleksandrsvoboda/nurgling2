@@ -432,7 +432,7 @@ public class BAttrWnd extends Widget {
 	    Coord isz = sz.sub(marg.mul(2));
 	    g.chcolor(22, 39, 51, 255);  // #162733
 	    g.frect(Coord.z, sz);
-	    g.chcolor(fg);
+	    g.chcolor(127, 236, 58, 255);  // #7FEC3A
 	    g.frect(marg, new Coord((int)Math.round(isz.x * (glut - Math.floor(glut))), isz.y));
 	    g.chcolor();
 	    nurgling.NAttr.drawBorder(g, sz);
