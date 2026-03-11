@@ -7,7 +7,7 @@ public class NWindowDeco extends Window.DragDeco {
     private static final Color BG     = new Color(51, 62, 64, 245);
     private static final Color TITLE  = new Color(40, 52, 54, 255);
     private static final Color BORDER = new Color(233, 156, 84, 255);  // #E99C54 orange
-    private static final Color SEP    = new Color(60, 88, 92, 255);
+    private static final Color SEP    = new Color(40, 52, 54, 255);  // #283436
     private static final int TITLE_H = 21;
 
     public final boolean lg;
