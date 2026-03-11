@@ -9,6 +9,8 @@ import nurgling.i18n.L10n;
 
 public class NSAttrWnd extends SAttrWnd {
     private static final int nsattrw = UI.scale(263);
+    private static final Color ROW_EVEN = new Color(51, 62, 64);    // #333E40
+    private static final Color ROW_ODD  = new Color(40, 52, 54);    // #283436
     private static final Text.Foundry overviewf = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont((float)Math.floor(UI.scale(12.0)))
     ).aa(true);
@@ -169,19 +171,19 @@ public class NSAttrWnd extends SAttrWnd {
 		   new Coord(leftColX, 0));
 	attrs = new ArrayList<>();
 	SAttr aw;
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "unarmed", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "melee", other), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "ranged", every), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "explore", other), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "stealth", every), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "sewing", other), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "smithing", every), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "masonry", other), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "carpentry", every), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "cooking", other), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "farming", every), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "survive", other), aw.pos("bl")));
-	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "lore", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "unarmed", ROW_EVEN), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "melee", ROW_ODD), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "ranged", ROW_EVEN), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "explore", ROW_ODD), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "stealth", ROW_EVEN), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "sewing", ROW_ODD), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "smithing", ROW_EVEN), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "masonry", ROW_ODD), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "carpentry", ROW_EVEN), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "cooking", ROW_ODD), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "farming", ROW_EVEN), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "survive", ROW_ODD), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "lore", ROW_EVEN), aw.pos("bl")));
 	Widget lframe = NFrame.around(this, attrs);
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.study_report")).tex()), "gfx/hud/chr/tips/study"),
