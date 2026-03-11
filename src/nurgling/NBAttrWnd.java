@@ -111,6 +111,9 @@ public class NBAttrWnd extends BAttrWnd {
 	public NConstipations(Coord sz) {
 	    super(sz, UI.scale(26));
 	}
+
+	@Override
+	protected int pctInset() { return UI.scale(8); }
     }
 
     public NBAttrWnd(Glob glob) {
