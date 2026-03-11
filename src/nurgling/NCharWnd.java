@@ -3,6 +3,10 @@ package nurgling;
 import haven.*;
 
 public class NCharWnd extends CharWnd {
+    private Coord maxSz = null;
+    private int navBtnY = -1;
+    private boolean initialized = false;
+
     public NCharWnd(Glob glob) {
         super(glob);
     }
@@ -13,13 +17,30 @@ public class NCharWnd extends CharWnd {
     }
 
     @Override
+    public void resize(Coord sz) {
+        if(maxSz == null) {
+            maxSz = sz;
+        } else {
+            maxSz = Coord.of(Math.max(sz.x, maxSz.x), Math.max(sz.y, maxSz.y));
+        }
+        super.resize(maxSz);
+        if(initialized)
+            alignNavButtons();
+    }
+
+    @Override
     public void show() {
         super.show();
+        initialized = true;
         alignNavButtons();
     }
 
     private void alignNavButtons() {
         if(battr == null || battr.feps == null || battr.glut == null) return;
+        if(tbbattrtab == null) return;
+
+        if(tbbattrtab.c.y > navBtnY)
+            navBtnY = tbbattrtab.c.y;
 
         int tabX = battrtab.c.x;
         int leftEdge = tabX + battr.feps.c.x;
@@ -35,7 +56,7 @@ public class NCharWnd extends CharWnd {
         int x = leftEdge;
         int perror = 0;
         for(int i = 0; i < buttons.length; i++) {
-            buttons[i].c = Coord.of(x, buttons[i].c.y);
+            buttons[i].c = Coord.of(x, navBtnY);
             x += buttons[i].sz.x;
             if(i < gapCount) {
                 perror += totalSpace;
