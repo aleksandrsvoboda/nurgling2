@@ -8,6 +8,11 @@ public class NCharWnd extends CharWnd {
     }
 
     @Override
+    protected Deco makedeco() {
+        return new NWindowDeco(this.large, new Coord(UI.scale(11), Window.dsmrgn.y));
+    }
+
+    @Override
     public void show() {
         super.show();
         alignNavButtons();

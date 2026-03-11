@@ -9,7 +9,6 @@ public class NWindowDeco extends Window.DragDeco {
     private static final Color BORDER = new Color(233, 156, 84, 255);  // #E99C54 orange
     private static final Color SEP    = new Color(60, 88, 92, 255);
     private static final int TITLE_H = 21;
-    private static final Coord SM_MRGN = UI.scale(15, 15);
 
     public final boolean lg;
     public final IButton cbtn;
@@ -17,10 +16,16 @@ public class NWindowDeco extends Window.DragDeco {
     public Area aa, ca;
     private Text cap;
     private boolean cfocus;
+    private final Coord customMrgn;
     private static Text.Foundry ftitlef, nftitlef;
 
     public NWindowDeco(boolean lg) {
+        this(lg, null);
+    }
+
+    public NWindowDeco(boolean lg, Coord customMrgn) {
         this.lg = lg;
+        this.customMrgn = customMrgn;
         cbtn = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]))
                    .action(() -> ((Window)parent).reqclose());
     }
@@ -46,7 +51,7 @@ public class NWindowDeco extends Window.DragDeco {
     @Override
     public void iresize(Coord isz) {
         int titleH = UI.scale(TITLE_H);
-        Coord mrgn = lg ? Window.dlmrgn : SM_MRGN;
+        Coord mrgn = customMrgn != null ? customMrgn : (lg ? Window.dlmrgn : Window.dsmrgn);
         Coord csz = isz.add(mrgn.mul(2));
         Coord wsz = new Coord(csz.x, csz.y + titleH);
         resize(wsz);

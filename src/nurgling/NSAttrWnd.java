@@ -86,7 +86,7 @@ public class NSAttrWnd extends SAttrWnd {
 	Coord nbtl = NFrame.nbox.btloff();
 	int nsattrw = UI.scale(263);
 	int leftColX = 0;
-	int rightColX = (nsattrw + NFrame.nbox.bisz().x) + UI.scale(25);
+	int rightColX = (nsattrw + NFrame.nbox.bisz().x) + UI.scale(15);
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.title")).tex()), "gfx/hud/chr/tips/sattr"),
 		   new Coord(leftColX, 0));

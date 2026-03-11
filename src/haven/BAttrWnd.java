@@ -128,6 +128,10 @@ public class BAttrWnd extends Widget {
 	    super(sz, attrf.height() + UI.scale(2));
 	}
 
+	protected Constipations(Coord sz, int itemh) {
+	    super(sz, itemh);
+	}
+
 	public static class Reordered<T> extends AbstractList<T> {
 	    private final List<T> back;
 	    private final Comparator<? super T> cmp;
