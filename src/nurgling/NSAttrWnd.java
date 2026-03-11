@@ -83,26 +83,28 @@ public class NSAttrWnd extends SAttrWnd {
     protected void buildLayout(Glob glob) {
 	Widget prev;
 	int catfDescent = ((Text.Foundry) catf).m.getDescent();
+	Coord nbtl = NFrame.nbox.btloff();
+	int nsattrw = UI.scale(263);
 	int leftColX = 0;
-	int rightColX = (attrw + wbox.bisz().x) + UI.scale(15);
+	int rightColX = (nsattrw + NFrame.nbox.bisz().x) + UI.scale(25);
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.title")).tex()), "gfx/hud/chr/tips/sattr"),
 		   new Coord(leftColX, 0));
 	attrs = new ArrayList<>();
 	SAttr aw;
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "unarmed", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(wbox.btloff())));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "melee", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "ranged", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "explore", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "stealth", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "sewing", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "smithing", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "masonry", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "carpentry", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "cooking", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "farming", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "survive", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(attrw, UI.scale(26)), glob, "lore", every), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "unarmed", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "melee", other), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "ranged", every), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "explore", other), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "stealth", every), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "sewing", other), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "smithing", every), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "masonry", other), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "carpentry", every), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "cooking", other), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "farming", every), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "survive", other), aw.pos("bl")));
+	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "lore", every), aw.pos("bl")));
 	Widget lframe = NFrame.around(this, attrs);
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.study_report")).tex()), "gfx/hud/chr/tips/study"),
@@ -110,7 +112,7 @@ public class NSAttrWnd extends SAttrWnd {
 	studyc = prev.pos("bl").add(0, UI.scale(10) - catfDescent);
 
 	int rcBottom = lframe.pos("br").y;
-	int rx = rightColX + attrw - UI.scale(5);
+	int rx = rightColX + nsattrw - UI.scale(5);
 	Label expLbl = new Label(L10n.get("char.sattr.exp_points"));
 	expLbl.setcolor(new Color(255, 255, 130));
 	prev = add(expLbl, new Coord(rightColX, rcBottom - UI.scale(100)));
@@ -132,11 +134,13 @@ public class NSAttrWnd extends SAttrWnd {
     public void addchild(Widget child, Object... args) {
 	String place = (args[0] instanceof String) ? (((String)args[0]).intern()) : null;
 	if(place == "study") {
-	    add(child, studyc.add(wbox.btloff()));
+	    Coord nbtl = NFrame.nbox.btloff();
+	    int nsattrw = UI.scale(263);
+	    add(child, studyc.add(nbtl));
 	    NFrame.around(this, Collections.singletonList(child));
 	    Widget inf = add(new NStudyInfo(
-		new Coord(attrw - child.sz.x - wbox.bisz().x - UI.scale(5), child.sz.y), child),
-		child.pos("ur").add(wbox.bisz().x + UI.scale(5), 0));
+		new Coord(nsattrw - child.sz.x - NFrame.nbox.bisz().x - UI.scale(5), child.sz.y), child),
+		child.pos("ur").add(NFrame.nbox.bisz().x + UI.scale(5), 0));
 	    pack();
 
 	    if(ui.gui instanceof nurgling.NGameUI) {
