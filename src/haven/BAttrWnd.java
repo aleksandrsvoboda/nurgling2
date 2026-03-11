@@ -60,7 +60,7 @@ public class BAttrWnd extends Widget {
 	    super(sz, glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.rnm = attrf.render(res.flayer(Resource.tooltip).text());
-	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(sz.y, sz.y), iconfilter));
+	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
 	    this.bg = bg;
 	}
 
