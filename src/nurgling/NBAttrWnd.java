@@ -9,6 +9,7 @@ import nurgling.i18n.L10n;
 
 public class NBAttrWnd extends BAttrWnd {
     private static final int nattrw = UI.scale(263);
+    private static final Color HEADER_VAL = new Color(255, 255, 255, 128);
 
     public static class NAttr extends BAttrWnd.Attr {
 	private Text nct;
@@ -146,6 +147,18 @@ public class NBAttrWnd extends BAttrWnd {
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.fep")).tex()), "gfx/hud/chr/tips/fep"),
 		   lframe.pos("bl").x(leftColX).add(0, UI.scale(19)));
 	feps = add(new NFoodMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
+	Label fepLbl = add(new Label("") {
+	    private String last = "";
+	    public void tick(double dt) {
+		if(feps == null) return;
+		double sum = 0;
+		for(BAttrWnd.FoodMeter.El el : feps.els) sum += el.a;
+		String s = String.format("%.0f/%.0f", sum, feps.cap);
+		if(!s.equals(last)) { settext(s); last = s; }
+	    }
+	}, prev.pos("ur").add(UI.scale(5), 0));
+	fepLbl.f = (Text.Foundry) catf;
+	fepLbl.setcolor(HEADER_VAL);
 
 	int ah = attrs.get(attrs.size() - 1).pos("bl").y - attrs.get(0).pos("ul").y;
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.satiation")).tex()), "gfx/hud/chr/tips/constip"),
@@ -156,6 +169,16 @@ public class NBAttrWnd extends BAttrWnd {
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.hunger")).tex()), "gfx/hud/chr/tips/hunger"),
 		   rframe.pos("bl").x(rightColX).add(0, UI.scale(19)));
 	glut = add(new NGlutMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
+	Label glutLbl = add(new Label("") {
+	    private String last = "";
+	    public void tick(double dt) {
+		if(glut == null) return;
+		String s = String.format("%d%%", Math.round(glut.gmod * 100));
+		if(!s.equals(last)) { settext(s); last = s; }
+	    }
+	}, prev.pos("ur").add(UI.scale(5), 0));
+	glutLbl.f = (Text.Foundry) catf;
+	glutLbl.setcolor(HEADER_VAL);
 
 	pack();
 	resize(sz.add(0, UI.scale(21)));
