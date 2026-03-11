@@ -85,7 +85,7 @@ public class NSAttrWnd extends SAttrWnd {
 	    g.aimage(img, cn.add(5, 0), 0, 0.5);
 	    g.aimage(rnm.tex(), cn.add(img.sz().x + UI.scale(10), 1), 0, 0.5);
 	    if(nct != null)
-		g.aimage(nct.tex(), cn.add(nsub.c.x - UI.scale(5), 1), 1, 0.5);
+		g.aimage(nct.tex(), cn.add(nsub.c.x - UI.scale(8), 1), 1, 0.5);
 	}
     }
 
