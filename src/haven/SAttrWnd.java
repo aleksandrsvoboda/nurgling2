@@ -34,15 +34,15 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class SAttrWnd extends Widget {
-    public final Collection<SAttr> attrs;
-    private final Coord studyc;
-    private CharWnd chr;
-    private int scost;
+    public Collection<SAttr> attrs;
+    protected Coord studyc;
+    protected CharWnd chr;
+    protected int scost;
 
     @RName("sattr")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new SAttrWnd(ui.sess.glob));
+	    return(new nurgling.NSAttrWnd(ui.sess.glob));
 	}
     }
 
@@ -55,8 +55,8 @@ public class SAttrWnd extends Widget {
 	private Text ct;
 	private int cbv, ccv;
 
-	private SAttr(Glob glob, String attr, Color bg) {
-	    super(Coord.of(attrw, UI.scale(26)), glob, attr);
+	public SAttr(Coord sz, Glob glob, String attr, Color bg) {
+	    super(sz, glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
 	    this.rnm = attrf.render(res.flayer(Resource.tooltip).text());
@@ -65,6 +65,10 @@ public class SAttrWnd extends Widget {
 		       sz.x - UI.scale(5), sz.y / 2, 1, 0.5);
 	    sub = adda(new IButton("gfx/hud/buttons/sub", "u", "d", "h").action(() -> adj(-1)),
 		       add.c.x - UI.scale(5), sz.y / 2, 1, 0.5);
+	}
+
+	private SAttr(Glob glob, String attr, Color bg) {
+	    this(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr, bg);
 	}
 
 	public void tick(double dt) {
@@ -126,11 +130,11 @@ public class SAttrWnd extends Widget {
     }
 
     public RLabel<?> explabel() {
-	return(new RLabel<Integer>(() -> chr.exp, Utils::thformat, new Color(210, 178, 255)));
+	return(new RLabel<Integer>(() -> chr.exp, Utils::thformat, new Color(192, 192, 255)));
     }
 
     public RLabel<?> enclabel() {
-	return(new RLabel<Integer>(() -> chr.enc, Utils::thformat, new Color(255, 255, 130)));
+	return(new RLabel<Integer>(() -> chr.enc, Utils::thformat, new Color(255, 255, 192)));
     }
 
     protected void attached() {
@@ -141,31 +145,25 @@ public class SAttrWnd extends Widget {
     public static class StudyInfo extends Widget {
 	public final Widget study;
 	public int texp, tw, tenc, tlph;
-	private static final Text.Foundry sif = new Text.Foundry(nurgling.conf.FontSettings.getOpenSans().deriveFont((float)Math.floor(UI.scale(11.0)))).aa(true);
 
-	private StudyInfo(Coord sz, Widget study) {
+	protected StudyInfo(Coord sz, Widget study) {
 	    super(sz);
 	    this.study = study;
-	    Widget plbl;
-	    RLabel<?> pval;
-	    plbl = add(new Label(L10n.get("char.sattr.attention"), sif), UI.scale(2, 2));
-	    pval = new RLabel<Pair<Integer, Integer>>(() -> new Pair<>(tw, (ui == null) ? 0 : ui.sess.glob.getcattr("int").comp),
-						     n -> String.format("%,d/%,d", n.a, n.b),
-						     new Color(255, 148, 232, 255));
-	    pval.f = sif;
-	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
-	    plbl = add(new Label(L10n.get("char.sattr.exp_cost"), sif), plbl.pos("bl").adds(0, 2).xs(2));
-	    pval = new RLabel<Integer>(() -> tenc, Utils::thformat, new Color(255, 255, 130, 255));
-	    pval.f = sif;
-	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
-	    plbl = add(new Label(L10n.get("char.sattr.recieve_lp"), sif), plbl.pos("bl").adds(0, 2).xs(2));
-	    pval = new RLabel<Integer>(() -> texp, Utils::thformat, new Color(210, 178, 255, 255));
-	    pval.f = sif;
-	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
-	    plbl = add(new Label(L10n.get("char.sattr.lph"), sif), plbl.pos("bl").adds(0, 2).xs(2));
-	    pval = new RLabel<Integer>(() -> tlph, Utils::thformat, new Color(0, 238, 255, 255));
-	    pval.f = sif;
-	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
+	    Widget plbl, pval;
+	    plbl = add(new Label(L10n.get("char.sattr.attention")), UI.scale(2, 2));
+	    pval = adda(new RLabel<Pair<Integer, Integer>>(() -> new Pair<>(tw, (ui == null) ? 0 : ui.sess.glob.getcattr("int").comp),
+							   n -> String.format("%,d/%,d", n.a, n.b),
+							   new Color(255, 192, 255, 255)),
+			plbl.pos("br").adds(0, 2).x(sz.x - UI.scale(2)), 1.0, 0.0);
+	    plbl = add(new Label(L10n.get("char.sattr.exp_cost")), pval.pos("bl").adds(0, 2).xs(2));
+	    pval = adda(new RLabel<Integer>(() -> tenc, Utils::thformat, new Color(255, 255, 192, 255)),
+			plbl.pos("br").adds(0, 2).x(sz.x - UI.scale(2)), 1.0, 0.0);
+	    plbl = add(new Label(L10n.get("char.sattr.lp")), pval.pos("bl").adds(0, 2).xs(2));
+	    pval = adda(new RLabel<Integer>(() -> texp, Utils::thformat, new Color(192, 192, 255, 255)),
+			plbl.pos("br").adds(0, 2).x(sz.x - UI.scale(2)), 1.0, 0.0);
+	    plbl = add(new Label(L10n.get("char.sattr.lph")), pval.pos("bl").adds(0, 2).xs(2));
+	    pval = adda(new RLabel<Integer>(() -> tlph, Utils::thformat, new Color(192, 255, 192, 255)),
+			plbl.pos("br").adds(0, 2).x(sz.x - UI.scale(2)), 1.0, 0.0);
 	}
 
 	private void upd() {
@@ -191,7 +189,7 @@ public class SAttrWnd extends Widget {
 	}
     }
 
-    private void buy() {
+    protected void buy() {
 	ArrayList<Object> args = new ArrayList<>();
 	for (SAttr attr : attrs) {
 	    if (attr.tbv > 0) {
@@ -202,22 +200,21 @@ public class SAttrWnd extends Widget {
 	wdgmsg("sattr", args.toArray(new Object[0]));
     }
 
-    private void reset() {
+    protected void reset() {
 	for (SAttr attr : attrs)
 	    attr.reset();
     }
 
     public SAttrWnd(Glob glob) {
-	Widget prev;
-	int catfDescent = ((Text.Foundry) catf).m.getDescent();
-	int leftColX = 0;
-	int rightColX = (attrw + wbox.bisz().x) + UI.scale(15);
+	buildLayout(glob);
+    }
 
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.title")).tex()), "gfx/hud/chr/tips/sattr"),
-		   new Coord(leftColX, 0));
+    protected void buildLayout(Glob glob) {
+	Widget prev;
+	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.title")).tex()), "gfx/hud/chr/tips/sattr"), Coord.z);
 	attrs = new ArrayList<>();
 	SAttr aw;
-	attrs.add(aw = add(new SAttr(glob, "unarmed", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(wbox.btloff())));
+	attrs.add(aw = add(new SAttr(glob, "unarmed", every), prev.pos("bl").adds(5, 0).add(wbox.btloff())));
 	attrs.add(aw = add(new SAttr(glob, "melee", other), aw.pos("bl")));
 	attrs.add(aw = add(new SAttr(glob, "ranged", every), aw.pos("bl")));
 	attrs.add(aw = add(new SAttr(glob, "explore", other), aw.pos("bl")));
@@ -230,39 +227,32 @@ public class SAttrWnd extends Widget {
 	attrs.add(aw = add(new SAttr(glob, "farming", every), aw.pos("bl")));
 	attrs.add(aw = add(new SAttr(glob, "survive", other), aw.pos("bl")));
 	attrs.add(aw = add(new SAttr(glob, "lore", every), aw.pos("bl")));
-	Widget lframe = nurgling.NFrame.around(this, attrs);
+	Widget lframe = Frame.around(this, attrs);
 
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.study_report")).tex()), "gfx/hud/chr/tips/study"),
-		   new Coord(rightColX, 0));
-	studyc = prev.pos("bl").add(0, UI.scale(10) - catfDescent);
-
-	int rcBottom = lframe.pos("br").y;
-	int rx = rightColX + attrw - UI.scale(5);
-	Label expLbl = new Label(L10n.get("char.sattr.exp_points"));
-	expLbl.setcolor(new Color(255, 255, 130));  // #FFFF82
-	prev = add(expLbl, new Coord(rightColX, rcBottom - UI.scale(100)));
+	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.study_report")).tex()), "gfx/hud/chr/tips/study"), width, 0);
+	studyc = prev.pos("bl").adds(5, 0);
+	Widget bframe = adda(new Frame(new Coord(attrw, UI.scale(105)), true), prev.pos("bl").adds(5, 0).x, lframe.pos("br").y, 0.0, 1.0);
+	int rx = bframe.pos("iur").subs(10, 0).x;
+	prev = add(new Label(L10n.get("char.sattr.exp_points")), bframe.pos("iul").adds(10, 5));
 	adda(enclabel(), new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
-	Label lpLbl = new Label(L10n.get("char.sattr.lp"));
-	lpLbl.setcolor(new Color(210, 178, 255));  // #D2B2FF
-	prev = add(lpLbl, prev.pos("bl").adds(0, 2));
+	prev = add(new Label(L10n.get("char.sattr.lp")), prev.pos("bl").adds(0, 2));
 	adda(explabel(), new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
 	prev = add(new Label(L10n.get("char.sattr.learn_cost")), prev.pos("bl").adds(0, 2));
 	adda(new RLabel<Integer>(() -> scost, Utils::thformat, n -> (n > chr.exp) ? debuff : Color.WHITE), new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
-	prev = adda(new Button(UI.scale(75), L10n.get("char.sattr.buy")).action(this::buy),
-		    new Coord(rx, rcBottom - UI.scale(5)), 1.0, 1.0);
+	prev = adda(new Button(UI.scale(75), L10n.get("char.sattr.buy")).action(this::buy), bframe.pos("ibr").subs(5, 5), 1.0, 1.0);
 	adda(new Button(UI.scale(75), L10n.get("char.sattr.reset")).action(this::reset), prev.pos("bl").subs(5, 0), 1.0, 1.0);
 	pack();
-	resize(sz.add(0, UI.scale(20)));
     }
 
     public void addchild(Widget child, Object... args) {
 	String place = (args[0] instanceof String) ? (((String)args[0]).intern()) : null;
 	if(place == "study") {
 	    add(child, studyc.add(wbox.btloff()));
-	    Widget f = nurgling.NFrame.around(this, Collections.singletonList(child));
+	    Widget f = Frame.around(this, Collections.singletonList(child));
 	    Widget inf = add(new StudyInfo(new Coord(attrw - child.sz.x - wbox.bisz().x - UI.scale(5), child.sz.y), child), child.pos("ur").add(wbox.bisz().x + UI.scale(5), 0));
+	    Frame.around(this, Collections.singletonList(inf));
 	    pack();
-	    
+
 	    // Create separate floating Study Report widget
 	    if(ui.gui instanceof nurgling.NGameUI) {
 		nurgling.NGameUI ngui = (nurgling.NGameUI)ui.gui;
@@ -270,14 +260,14 @@ public class SAttrWnd extends Widget {
 		    nurgling.widgets.NStudyReport report = new nurgling.widgets.NStudyReport(child);
 		    Coord widgetSize = report.sz.add(nurgling.widgets.NDraggableWidget.delta);
 		    ngui.studyReportWidget = ngui.add(new nurgling.widgets.NDraggableWidget(report, "StudyReport", widgetSize));
-		    
+
 		    nurgling.conf.NDragProp prop = nurgling.conf.NDragProp.get("StudyReport");
 		    if(prop.c == Coord.z) {
 			Coord defaultPos = new Coord(UI.scale(200), UI.scale(200));
 			ngui.studyReportWidget.c = defaultPos;
 			ngui.studyReportWidget.target_c = defaultPos;
 		    }
-		    
+
 		    ngui.studyReportWidget.show();
 		} else {
 		    if(ngui.studyReportWidget.content instanceof nurgling.widgets.NStudyReport) {
