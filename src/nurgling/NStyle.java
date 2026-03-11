@@ -32,6 +32,16 @@ public class NStyle {
             Resource.loadsimg("nurgling/hud/icons/close/cross_push"),
             Resource.loadsimg("nurgling/hud/icons/close/cross_hover")};
 
+    public static final BufferedImage[] plusbtni = new BufferedImage[]{
+            Resource.loadsimg("nurgling/hud/icons/ability/plus"),
+            Resource.loadsimg("nurgling/hud/icons/ability/plus_push"),
+            Resource.loadsimg("nurgling/hud/icons/ability/plus_hover")};
+
+    public static final BufferedImage[] minusbtni = new BufferedImage[]{
+            Resource.loadsimg("nurgling/hud/icons/ability/minus"),
+            Resource.loadsimg("nurgling/hud/icons/ability/minus_push"),
+            Resource.loadsimg("nurgling/hud/icons/ability/minus_hover")};
+
     public static final TexI[] settingsi = new TexI[]{
             new TexI(Resource.loadsimg("nurgling/hud/buttons/settings/u")),
             new TexI(Resource.loadsimg("nurgling/hud/buttons/settings/d")),
