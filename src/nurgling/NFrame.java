@@ -3,6 +3,17 @@ package nurgling;
 import haven.*;
 
 public class NFrame extends Frame {
+    public static final IBox nbox = new IBox() {
+        private Coord boff() { return Coord.of(Math.max(2, UI.scale(2)), Math.max(2, UI.scale(2))); }
+        public Coord btloff() { return boff(); }
+        public Coord ctloff() { return boff(); }
+        public Coord bbroff() { return boff(); }
+        public Coord cbroff() { return boff(); }
+        public Coord bisz() { Coord b = boff(); return Coord.of(b.x * 2, b.y * 2); }
+        public Coord cisz() { return bisz(); }
+        public void draw(GOut g, Coord tl, Coord sz) {}
+    };
+
     public NFrame(Coord sz, boolean inner, IBox box) {
         super(sz, inner, box);
     }
@@ -18,7 +29,7 @@ public class NFrame extends Frame {
     }
 
     public static NFrame around(Widget parent, Area area) {
-        return around(parent, area, Window.wbox);
+        return around(parent, area, nbox);
     }
 
     public static NFrame around(Widget parent, Iterable<? extends Widget> wl) {
@@ -36,7 +47,7 @@ public class NFrame extends Frame {
 
     @Override
     public void drawframe(GOut g) {
-        int bw = Math.max(1, UI.scale(1));
+        int bw = Math.max(2, UI.scale(2));
         g.chcolor(233, 156, 84, 255);  // #E99C54
         g.frect(Coord.z, new Coord(sz.x, bw));
         g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));

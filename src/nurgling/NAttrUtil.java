@@ -14,7 +14,7 @@ public class NAttrUtil {
     }
 
     public static void drawBorder(GOut g, Coord sz) {
-        int bw = Math.max(1, UI.scale(1));
+        int bw = Math.max(2, UI.scale(2));
         g.chcolor(233, 156, 84, 255);  // #E99C54
         g.frect(Coord.z, new Coord(sz.x, bw));
         g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
