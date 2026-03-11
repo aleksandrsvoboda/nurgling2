@@ -8,6 +8,84 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class NSAttrWnd extends SAttrWnd {
+    private static final int nsattrw = UI.scale(263);
+    private static final Text.Foundry overviewf = new Text.Foundry(
+	nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont((float)Math.floor(UI.scale(12.0)))
+    ).aa(true);
+
+    public class NSAttr extends SAttr {
+	private Text nct;
+	private int ncbv = -1, nccv = -1;
+	private final IButton nadd, nsub;
+
+	public NSAttr(Coord sz, Glob glob, String attr, Color bg) {
+	    super(sz, glob, attr, bg);
+	    List<Widget> old = new ArrayList<>();
+	    for(Widget w = child; w != null; w = w.next) {
+		if(w instanceof IButton)
+		    old.add(w);
+	    }
+	    for(Widget w : old)
+		w.destroy();
+	    nadd = adda(new NCloseButton(NStyle.plusbtni[0], NStyle.plusbtni[1], NStyle.plusbtni[2]).action(() -> adj(1)),
+			sz.x - UI.scale(5), sz.y / 2, 1, 0.5);
+	    nsub = adda(new NCloseButton(NStyle.minusbtni[0], NStyle.minusbtni[1], NStyle.minusbtni[2]).action(() -> adj(-1)),
+			nadd.c.x - UI.scale(5), sz.y / 2, 1, 0.5);
+	}
+
+	@Override
+	public void adj(int a) {
+	    if(tbv + a < 0) a = -tbv;
+	    tbv += a;
+	    nccv = 0;
+	    nupdcost();
+	}
+
+	@Override
+	public void reset() {
+	    tbv = 0;
+	    nccv = 0;
+	    nupdcost();
+	}
+
+	private void nupdcost() {
+	    int cv = attr.base, nv = cv + tbv;
+	    int cost = 100 * ((nv + (nv * nv)) - (cv + (cv * cv))) / 2;
+	    scost += cost - this.cost;
+	    this.cost = cost;
+	}
+
+	@Override
+	public void tick(double dt) {
+	    if(attr.base != ncbv) {
+		tbv = 0;
+		nccv = 0;
+		ncbv = attr.base;
+	    }
+	    if(attr.comp != nccv) {
+		nccv = attr.comp;
+		Color c = Color.WHITE;
+		if(nccv > ncbv) c = buff;
+		else if(nccv < ncbv) c = debuff;
+		if(tbv > 0) c = tbuff;
+		nct = attrf.render(Integer.toString(nccv + tbv), c);
+		nupdcost();
+	    }
+	}
+
+	@Override
+	public void draw(GOut g) {
+	    g.chcolor(bg);
+	    g.frect(Coord.z, sz);
+	    g.chcolor();
+	    draw(g, true);
+	    Coord cn = new Coord(0, sz.y / 2);
+	    g.aimage(img, cn.add(5, 0), 0, 0.5);
+	    g.aimage(rnm.tex(), cn.add(img.sz().x + UI.scale(10), 1), 0, 0.5);
+	    if(nct != null)
+		g.aimage(nct.tex(), cn.add(nsub.c.x - UI.scale(5), 1), 1, 0.5);
+	}
+    }
 
     public static class NStudyInfo extends Widget {
 	public final Widget study;
@@ -21,7 +99,7 @@ public class NSAttrWnd extends SAttrWnd {
 	    this.study = study;
 	    Widget plbl;
 	    RLabel<?> pval;
-	    plbl = add(new Label(L10n.get("char.sattr.attention"), sif), UI.scale(2, 2));
+	    plbl = add(new Label(L10n.get("char.sattr.attention"), sif), UI.scale(2, 0));
 	    pval = new RLabel<Pair<Integer, Integer>>(
 		() -> new Pair<>(tw, (ui == null) ? 0 : ui.sess.glob.getcattr("int").comp),
 		n -> String.format("%,d/%,d", n.a, n.b),
@@ -32,12 +110,12 @@ public class NSAttrWnd extends SAttrWnd {
 	    pval = new RLabel<Integer>(() -> tenc, Utils::thformat, new Color(255, 255, 130, 255));
 	    pval.f = sif;
 	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
-	    plbl = add(new Label(L10n.get("char.sattr.recieve_lp"), sif), plbl.pos("bl").adds(0, 2).xs(2));
-	    pval = new RLabel<Integer>(() -> texp, Utils::thformat, new Color(210, 178, 255, 255));
-	    pval.f = sif;
-	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
 	    plbl = add(new Label(L10n.get("char.sattr.lph"), sif), plbl.pos("bl").adds(0, 2).xs(2));
 	    pval = new RLabel<Integer>(() -> tlph, Utils::thformat, new Color(0, 238, 255, 255));
+	    pval.f = sif;
+	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
+	    plbl = add(new Label(L10n.get("char.sattr.recieve_lp"), sif), plbl.pos("bl").adds(0, 2).xs(2));
+	    pval = new RLabel<Integer>(() -> texp, Utils::thformat, new Color(210, 178, 255, 255));
 	    pval.f = sif;
 	    adda(pval, new Coord(sz.x - UI.scale(2), plbl.c.y), 1.0, 0.0);
 	}
@@ -84,7 +162,6 @@ public class NSAttrWnd extends SAttrWnd {
 	Widget prev;
 	int catfDescent = ((Text.Foundry) catf).m.getDescent();
 	Coord nbtl = NFrame.nbox.btloff();
-	int nsattrw = UI.scale(263);
 	int leftColX = 0;
 	int rightColX = (nsattrw + NFrame.nbox.bisz().x) + UI.scale(15);
 
@@ -92,19 +169,19 @@ public class NSAttrWnd extends SAttrWnd {
 		   new Coord(leftColX, 0));
 	attrs = new ArrayList<>();
 	SAttr aw;
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "unarmed", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "melee", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "ranged", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "explore", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "stealth", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "sewing", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "smithing", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "masonry", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "carpentry", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "cooking", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "farming", every), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "survive", other), aw.pos("bl")));
-	attrs.add(aw = add(new SAttr(Coord.of(nsattrw, UI.scale(26)), glob, "lore", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "unarmed", every), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "melee", other), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "ranged", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "explore", other), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "stealth", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "sewing", other), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "smithing", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "masonry", other), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "carpentry", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "cooking", other), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "farming", every), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "survive", other), aw.pos("bl")));
+	attrs.add(aw = add(new NSAttr(Coord.of(nsattrw, UI.scale(26)), glob, "lore", every), aw.pos("bl")));
 	Widget lframe = NFrame.around(this, attrs);
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.study_report")).tex()), "gfx/hud/chr/tips/study"),
@@ -112,19 +189,25 @@ public class NSAttrWnd extends SAttrWnd {
 	studyc = prev.pos("bl").add(0, UI.scale(10) - catfDescent);
 
 	int rcBottom = lframe.pos("br").y;
-	int rx = rightColX + nsattrw - UI.scale(5);
-	Label expLbl = new Label(L10n.get("char.sattr.exp_points"));
+	int rx = rightColX + nsattrw + NFrame.nbox.bisz().x;
+	Label expLbl = new Label(L10n.get("char.sattr.exp_points"), overviewf);
 	expLbl.setcolor(new Color(255, 255, 130));
 	prev = add(expLbl, new Coord(rightColX, rcBottom - UI.scale(100)));
-	adda(enclabel(), new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
-	Label lpLbl = new Label(L10n.get("char.sattr.lp"));
+	RLabel<?> encVal = enclabel();
+	encVal.f = overviewf;
+	adda(encVal, new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
+	Label lpLbl = new Label(L10n.get("char.sattr.lp"), overviewf);
 	lpLbl.setcolor(new Color(210, 178, 255));
 	prev = add(lpLbl, prev.pos("bl").adds(0, 2));
-	adda(explabel(), new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
-	prev = add(new Label(L10n.get("char.sattr.learn_cost")), prev.pos("bl").adds(0, 2));
-	adda(new RLabel<Integer>(() -> scost, Utils::thformat, n -> (n > chr.exp) ? debuff : Color.WHITE), new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
+	RLabel<?> expVal = explabel();
+	expVal.f = overviewf;
+	adda(expVal, new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
+	prev = add(new Label(L10n.get("char.sattr.learn_cost"), overviewf), prev.pos("bl").adds(0, 2));
+	RLabel<?> costVal = new RLabel<Integer>(() -> scost, Utils::thformat, n -> (n > chr.exp) ? debuff : Color.WHITE);
+	costVal.f = overviewf;
+	adda(costVal, new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
 	prev = adda(new Button(UI.scale(75), L10n.get("char.sattr.buy")).action(this::buy),
-		    new Coord(rx, rcBottom - UI.scale(5)), 1.0, 1.0);
+		    new Coord(rx, rcBottom), 1.0, 1.0);
 	adda(new Button(UI.scale(75), L10n.get("char.sattr.reset")).action(this::reset), prev.pos("bl").subs(5, 0), 1.0, 1.0);
 	pack();
 	resize(sz.add(0, UI.scale(20)));
@@ -135,12 +218,11 @@ public class NSAttrWnd extends SAttrWnd {
 	String place = (args[0] instanceof String) ? (((String)args[0]).intern()) : null;
 	if(place == "study") {
 	    Coord nbtl = NFrame.nbox.btloff();
-	    int nsattrw = UI.scale(263);
 	    add(child, studyc.add(nbtl));
 	    NFrame.around(this, Collections.singletonList(child));
 	    Widget inf = add(new NStudyInfo(
 		new Coord(nsattrw - child.sz.x - NFrame.nbox.bisz().x - UI.scale(5), child.sz.y), child),
-		child.pos("ur").add(NFrame.nbox.bisz().x + UI.scale(5), 0));
+		child.pos("ur").add(NFrame.nbox.bisz().x + UI.scale(5), -UI.scale(6)));
 	    pack();
 
 	    if(ui.gui instanceof nurgling.NGameUI) {
