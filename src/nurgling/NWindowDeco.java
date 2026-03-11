@@ -4,7 +4,7 @@ import haven.*;
 import java.awt.Color;
 
 public class NWindowDeco extends Window.DragDeco {
-    private static final Color BG     = new Color(40, 52, 54, 245);
+    private static final Color BG     = new Color(51, 62, 64, 245);
     private static final Color TITLE  = new Color(40, 52, 54, 255);
     private static final Color BORDER = new Color(55, 75, 78, 255);
     private static final Color SEP    = new Color(60, 88, 92, 255);

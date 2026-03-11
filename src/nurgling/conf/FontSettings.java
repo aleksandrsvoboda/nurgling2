@@ -16,6 +16,7 @@ public class FontSettings implements JConf {
     private static final Font helvetica = Resource.local().loadwait("nurgling/font/helvetica").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
     private static final Font opensans = Resource.local().loadwait("nurgling/font/opensans").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
     private static final Font opensansSemibold = Resource.local().loadwait("nurgling/font/opensans-semibold").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
+    public static Font getOpenSans() { return opensans; }
     public static Font getOpenSansSemibold() { return opensansSemibold; }
 
     public Font getFont(String name)
