@@ -6,9 +6,10 @@ import java.awt.Color;
 public class NWindowDeco extends Window.DragDeco {
     private static final Color BG     = new Color(51, 62, 64, 245);
     private static final Color TITLE  = new Color(40, 52, 54, 255);
-    private static final Color BORDER = new Color(55, 75, 78, 255);
+    private static final Color BORDER = new Color(233, 156, 84, 255);  // #E99C54 orange
     private static final Color SEP    = new Color(60, 88, 92, 255);
     private static final int TITLE_H = 21;
+    private static final Coord SM_MRGN = UI.scale(15, 15);
 
     public final boolean lg;
     public final IButton cbtn;
@@ -45,7 +46,7 @@ public class NWindowDeco extends Window.DragDeco {
     @Override
     public void iresize(Coord isz) {
         int titleH = UI.scale(TITLE_H);
-        Coord mrgn = lg ? Window.dlmrgn : Window.dsmrgn;
+        Coord mrgn = lg ? Window.dlmrgn : SM_MRGN;
         Coord csz = isz.add(mrgn.mul(2));
         Coord wsz = new Coord(csz.x, csz.y + titleH);
         resize(wsz);
