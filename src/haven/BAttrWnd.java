@@ -132,6 +132,8 @@ public class BAttrWnd extends Widget {
 	    super(sz, itemh);
 	}
 
+	protected int pctInset() { return UI.scale(1); }
+
 	public static class Reordered<T> extends AbstractList<T> {
 	    private final List<T> back;
 	    private final Comparator<? super T> cmp;
@@ -194,7 +196,7 @@ public class BAttrWnd extends Widget {
 		    if(nm != null) {nm.reqdestroy(); nm = null;}
 		    if( a != null) { a.reqdestroy();  a = null;}
 		    Label a = adda(new Label(String.format("%d%%", Math.max((int)Math.round((1.0 - el.a) * 100), 1)), attrf),
-				   sz.x - UI.scale(1), sz.y / 2, 1.0, 0.5);
+				   sz.x - Constipations.this.pctInset(), sz.y / 2, 1.0, 0.5);
 		    a.setcolor((el.a > 1.0) ? buffed : Utils.blendcol(none, full, el.a));
 		    nm = adda(new ItemIcon(Coord.of(a.c.x - UI.scale(5), sz.y), new ItemSpec(OwnerContext.uictx.curry(Constipations.this.ui), el.t, null)),
 			      0, sz.y / 2, 0.0, 0.5);

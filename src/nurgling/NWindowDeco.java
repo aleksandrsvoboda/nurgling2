@@ -57,7 +57,7 @@ public class NWindowDeco extends Window.DragDeco {
         resize(wsz);
         ca = Area.sized(new Coord(0, titleH), csz);
         aa = Area.sized(ca.ul.add(mrgn), isz);
-        cbtn.c = Coord.of(wsz.x - cbtn.sz.x - UI.scale(10),
+        cbtn.c = Coord.of(wsz.x - cbtn.sz.x - UI.scale(5),
                           (titleH - cbtn.sz.y) / 2);
     }
 
