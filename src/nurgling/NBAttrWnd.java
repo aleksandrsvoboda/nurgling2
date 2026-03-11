@@ -14,12 +14,16 @@ public class NBAttrWnd extends BAttrWnd {
     private static final Color ROW_ODD  = new Color(40, 52, 54);    // #283436
 
     public static class NAttr extends BAttrWnd.Attr {
+	private static final int ICON_SZ = UI.scale(20);
+	private final Tex nimg;
 	private Text nct;
 	private double nlvlt = 0.0;
 	private int ncbv = -1, nccv = -1;
 
 	public NAttr(Glob glob, String attr, Color bg) {
 	    super(Coord.of(nattrw, UI.scale(26)), glob, attr, bg);
+	    Resource res = Loading.waitfor(this.attr.res());
+	    this.nimg = new TexI(convolve(res.flayer(Resource.imgc).img, Coord.of(ICON_SZ, ICON_SZ), iconfilter));
 	}
 
 	@Override
@@ -51,8 +55,9 @@ public class NBAttrWnd extends BAttrWnd {
 	    g.frect(Coord.z, sz);
 	    g.chcolor();
 	    Coord cn = new Coord(0, sz.y / 2);
-	    g.aimage(img, cn.add(5, 0), 0, 0.5);
-	    g.aimage(rnm.tex(), cn.add(img.sz().x + UI.scale(10), 1), 0, 0.5);
+	    int iconX = (sz.y - ICON_SZ) / 2;
+	    g.aimage(nimg, cn.add(iconX, 0), 0, 0.5);
+	    g.aimage(rnm.tex(), cn.add(sz.y + UI.scale(5), 1), 0, 0.5);
 	    if(nct != null)
 		NAttrUtil.drawValue(g, cn, sz, nct, attr.base, attr.comp);
 	}
@@ -111,6 +116,8 @@ public class NBAttrWnd extends BAttrWnd {
     }
 
     public static class NConstipations extends BAttrWnd.Constipations {
+	private static final int ICON_SZ = UI.scale(20);
+
 	public NConstipations(Coord sz) {
 	    super(sz, UI.scale(26));
 	}
@@ -123,6 +130,52 @@ public class NBAttrWnd extends BAttrWnd {
 	    g.chcolor(((idx % 2) == 0) ? ROW_EVEN : ROW_ODD);
 	    g.frect2(area.ul, area.br);
 	    g.chcolor();
+	}
+
+	@Override
+	protected Widget makeitem(El el, int idx, Coord sz) {
+	    return new NItem(sz, el);
+	}
+
+	private static class NItemIcon extends ItemIcon {
+	    public NItemIcon(Coord sz, ItemSpec spec) {
+		super(sz, spec);
+	    }
+	    @Override
+	    protected int margin() {
+		return (sz.y - ICON_SZ) / 2;
+	    }
+	}
+
+	public class NItem extends Widget {
+	    public final El el;
+	    private Widget nm, a;
+	    private double da = Double.NaN;
+
+	    public NItem(Coord sz, El el) {
+		super(sz);
+		this.el = el;
+		update();
+	    }
+
+	    private void update() {
+		if(el.a != da) {
+		    if(nm != null) {nm.reqdestroy(); nm = null;}
+		    if( a != null) { a.reqdestroy();  a = null;}
+		    Label a = adda(new Label(String.format("%d%%", Math.max((int)Math.round((1.0 - el.a) * 100), 1)), attrf),
+				   sz.x - NConstipations.this.pctInset(), sz.y / 2, 1.0, 0.5);
+		    a.setcolor((el.a > 1.0) ? buffed : Utils.blendcol(none, full, el.a));
+		    nm = adda(new NItemIcon(Coord.of(a.c.x - UI.scale(5), sz.y), new ItemSpec(OwnerContext.uictx.curry(NConstipations.this.ui), el.t, null)),
+			      0, sz.y / 2, 0.0, 0.5);
+		    this.a = a;
+		    da = el.a;
+		}
+	    }
+
+	    public void draw(GOut g) {
+		update();
+		super.draw(g);
+	    }
 	}
     }
 

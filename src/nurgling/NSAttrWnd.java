@@ -15,13 +15,18 @@ public class NSAttrWnd extends SAttrWnd {
 	nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont((float)Math.floor(UI.scale(12.0)))
     ).aa(true);
 
+    private static final int ICON_SZ = UI.scale(20);
+
     public class NSAttr extends SAttr {
+	private final Tex nimg;
 	private Text nct;
 	private int ncbv = -1, nccv = -1;
 	private final IButton nadd, nsub;
 
 	public NSAttr(Coord sz, Glob glob, String attr, Color bg) {
 	    super(sz, glob, attr, bg);
+	    Resource res = Loading.waitfor(this.attr.res());
+	    this.nimg = new TexI(convolve(res.flayer(Resource.imgc).img, Coord.of(ICON_SZ, ICON_SZ), iconfilter));
 	    List<Widget> old = new ArrayList<>();
 	    for(Widget w = child; w != null; w = w.next) {
 		if(w instanceof IButton)
@@ -82,8 +87,9 @@ public class NSAttrWnd extends SAttrWnd {
 	    g.chcolor();
 	    draw(g, true);
 	    Coord cn = new Coord(0, sz.y / 2);
-	    g.aimage(img, cn.add(5, 0), 0, 0.5);
-	    g.aimage(rnm.tex(), cn.add(img.sz().x + UI.scale(10), 1), 0, 0.5);
+	    int iconX = (sz.y - ICON_SZ) / 2;
+	    g.aimage(nimg, cn.add(iconX, 0), 0, 0.5);
+	    g.aimage(rnm.tex(), cn.add(sz.y + UI.scale(5), 1), 0, 0.5);
 	    if(nct != null)
 		g.aimage(nct.tex(), cn.add(nsub.c.x - UI.scale(8), 1), 1, 0.5);
 	}
