@@ -36,14 +36,14 @@ import static haven.PUtils.*;
 import static haven.PType.*;
 
 public class QuestWnd extends Widget {
-    public final Widget questbox;
-    public final QuestList cqst, dqst;
+    public Widget questbox;
+    public QuestList cqst, dqst;
     public Quest.Info quest;
 
     @RName("quests")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new QuestWnd());
+	    return(new nurgling.NQuestWnd());
 	}
     }
 
@@ -636,6 +636,10 @@ public class QuestWnd extends Widget {
     }
 
     public QuestWnd() {
+	buildLayout();
+    }
+
+    protected void buildLayout() {
 	Widget prev;
 
 	prev = add(CharWnd.settip(new Img(catf.render("Quest Log").tex()), "gfx/hud/chr/tips/quests"), new Coord(0, 0));
