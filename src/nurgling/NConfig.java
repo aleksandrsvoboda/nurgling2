@@ -185,6 +185,11 @@ public class NConfig
         starvationVignetteCriticalThreshold,
         starvationSoundThreshold,
         starvationSoundInterval,
+        // Auto-logout settings
+        autoLogoutEnabled,
+        autoLogoutThreshold,
+        autoLogoutCountdown,
+        autoLogoutDelay,
         // Localization
         language
     }
@@ -517,6 +522,12 @@ public class NConfig
         conf.put(Key.starvationVignetteCriticalThreshold, 2000);  // Vignette intensifies (0 to disable)
         conf.put(Key.starvationSoundThreshold, 2000);  // Sound alarm threshold (0 to disable)
         conf.put(Key.starvationSoundInterval, 10000);  // Sound interval in milliseconds
+
+        // Auto-logout settings
+        conf.put(Key.autoLogoutEnabled, false);
+        conf.put(Key.autoLogoutThreshold, 0);    // Energy threshold (0 = disabled)
+        conf.put(Key.autoLogoutCountdown, 30);   // Countdown seconds before logout
+        conf.put(Key.autoLogoutDelay, 60);       // Delay seconds when user clicks delay
     }
 
 

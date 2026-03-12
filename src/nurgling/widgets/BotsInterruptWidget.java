@@ -254,6 +254,28 @@ public class BotsInterruptWidget extends Widget {
         return !obs.isEmpty();
     }
 
+    /**
+     * Interrupt and remove all running bots.
+     */
+    public void interruptAll() {
+        synchronized (obs) {
+            for (Gear g : new ArrayList<>(obs)) {
+                g.t.interrupt();
+                Entry.killList.clear();
+                if (stackObs.contains(g.t)) {
+                    stackObs.remove(g.t);
+                }
+                g.remove();
+            }
+            obs.clear();
+            if (oldStackState && stackObs.isEmpty()) {
+                NUtils.stackSwitch(true);
+            }
+        }
+        NContext.waitBot.set(false);
+        repack();
+    }
+
 //    @Override
 //    public void draw(GOut g) {
 //        Coord pcc = null;
