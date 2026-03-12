@@ -33,28 +33,28 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class SkillWnd extends Widget {
-    public final SkillGrid skg;
-    public final CredoGrid credos;
-    public final ExpGrid exps;
-    private CharWnd chr;
-    private Widget skill, credo, expls;
+    public SkillGrid skg;
+    public CredoGrid credos;
+    public ExpGrid exps;
+    protected CharWnd chr;
+    protected Widget skill, credo, expls;
 
     @RName("skill")
     public static class $skill implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new TabProxy(SkillWnd.class, "skill"));
+	    return(new TabProxy(nurgling.NSkillWnd.class, "skill"));
 	}
     }
     @RName("credo")
     public static class $credo implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new TabProxy(SkillWnd.class, "credo"));
+	    return(new TabProxy(nurgling.NSkillWnd.class, "credo"));
 	}
     }
     @RName("expls")
     public static class $expls implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new TabProxy(SkillWnd.class, "expls"));
+	    return(new TabProxy(nurgling.NSkillWnd.class, "expls"));
 	}
     }
 
@@ -403,6 +403,10 @@ public class SkillWnd extends Widget {
     }
 
     public SkillWnd() {
+	buildLayout();
+    }
+
+    protected void buildLayout() {
 	Widget prev;
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.skill.title")).tex()), "gfx/hud/chr/tips/skills"), Coord.z);
