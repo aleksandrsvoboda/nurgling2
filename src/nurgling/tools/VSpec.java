@@ -2154,6 +2154,7 @@ public class VSpec {
         ArrayList<JSONObject> soil = new ArrayList<>();
         soil.add(new JSONObject("{\"static\":\"gfx/invobjs/soil\",\"name\":\"Soil\"}"));
         soil.add(new JSONObject("{\"static\":\"gfx/invobjs/earthworm\",\"name\":\"Earthworm\"}"));
+        soil.add(new JSONObject("{\"static\":\"gfx/invobjs/mulch\",\"name\":\"Mulch\"}"));
         categories.put("Soil", soil);
 
         ArrayList<JSONObject> silkcocoon = new ArrayList<>();
