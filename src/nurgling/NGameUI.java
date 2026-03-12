@@ -28,6 +28,7 @@ public class NGameUI extends GameUI
     NBotsMenu botsMenu;
     public NAlarmWdg alarmWdg;
     public StarvationAlertWidget starvationAlertWidget;
+    public AutoLogoutWidget autoLogoutWidget;
     public NQuestInfo questinfo;
     public NGUIInfo guiinfo;
     public NSearchItem itemsForSearch = null;
@@ -165,6 +166,8 @@ public class NGameUI extends GameUI
         add(new NDraggableWidget(alarmWdg = new NAlarmWdg(),"alarm",NStyle.alarm[0].sz().add(NDraggableWidget.delta)));
         // Starvation alert widget - monitors energy and shows warnings
         add(starvationAlertWidget = new StarvationAlertWidget());
+        // Auto-logout widget - logs out when energy is critically low
+        add(autoLogoutWidget = new AutoLogoutWidget());
         nep = new NEquipProxy(getEquipProxySlotsFromConfig());
         add(new NDraggableWidget(nep, "EquipProxy", nep.sz.add(NDraggableWidget.delta)));
         add(new NDraggableWidget(nbp = new NBeltProxy(), "BeltProxy", UI.scale(825, 55)));
