@@ -55,8 +55,7 @@ public class BakerAction implements Action {
                 for(Container oven : containers) {
                     oven.update();
                     Container.Space space = oven.getattr(Container.Space.class);
-                    Integer freeSpace = (Integer)space.getRes().get(Container.Space.FREESPACE);
-                    if(freeSpace != null && freeSpace != 8) {
+                    if(!space.isEmpty()) {
                         return Results.ERROR("Cannot unload pies from ovens");
                     }
                 }
