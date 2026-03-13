@@ -189,7 +189,11 @@ public class Requestor implements Action {
                             prop.put("coords", c);
                             data.put(String.valueOf(player.id), prop);
 
-                            for(Long id: NAlarmWdg.borkas)
+                            List<Long> borkas;
+                            synchronized (NAlarmWdg.borkas) {
+								borkas = new ArrayList<>(NAlarmWdg.borkas);
+                            }
+                            for(Long id: borkas)
                             {
                                 Gob borka = Finder.findGob(id);
                                 if(borka!=null)
