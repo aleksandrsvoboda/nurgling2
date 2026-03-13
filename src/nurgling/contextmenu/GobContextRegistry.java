@@ -24,6 +24,7 @@ public class GobContextRegistry {
     }
 
     static {
-        register(new TestTreeAction());
+        register(new FillEmptyContainersAction());
+        register(new ChopAndRemoveStumpAction());
     }
 }
