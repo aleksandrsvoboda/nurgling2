@@ -34,14 +34,14 @@ import nurgling.i18n.L10n;
 
 public class WoundWnd extends Widget {
     public static final Text.Foundry namef = new Text.Foundry(Text.serif.deriveFont(java.awt.Font.BOLD), 16).aa(true);
-    public final Widget woundbox;
-    public final WoundList wounds;
+    public Widget woundbox;
+    public WoundList wounds;
     public Wound.Info wound;
 
     @RName("wounds")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new WoundWnd());
+	    return(new nurgling.NWoundWnd());
 	}
     }
 
@@ -192,7 +192,7 @@ public class WoundWnd extends Widget {
 	    }
 	};
 
-	private WoundList(Coord sz) {
+	protected WoundList(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
 	}
 
@@ -346,6 +346,10 @@ public class WoundWnd extends Widget {
     }
 
     public WoundWnd() {
+	buildLayout();
+    }
+
+    protected void buildLayout() {
 	Widget prev;
 
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.wound.title")).tex()), "gfx/hud/chr/tips/wounds"), 0, 0);

@@ -28,9 +28,19 @@ public class NStyle {
             new TexI(Resource.loadsimg("nurgling/hud/buttons/removeItem/h"))};
 
     public static final BufferedImage[] cbtni = new BufferedImage[]{
-            Resource.loadsimg("nurgling/hud/wnd/cbtnu"),
-            Resource.loadsimg("nurgling/hud/wnd/cbtnd"),
-            Resource.loadsimg("nurgling/hud/wnd/cbtnh")};
+            Resource.loadsimg("nurgling/hud/icons/close/cross"),
+            Resource.loadsimg("nurgling/hud/icons/close/cross_push"),
+            Resource.loadsimg("nurgling/hud/icons/close/cross_hover")};
+
+    public static final BufferedImage[] plusbtni = new BufferedImage[]{
+            Resource.loadsimg("nurgling/hud/icons/ability/plus"),
+            Resource.loadsimg("nurgling/hud/icons/ability/plus_push"),
+            Resource.loadsimg("nurgling/hud/icons/ability/plus_hover")};
+
+    public static final BufferedImage[] minusbtni = new BufferedImage[]{
+            Resource.loadsimg("nurgling/hud/icons/ability/minus"),
+            Resource.loadsimg("nurgling/hud/icons/ability/minus_push"),
+            Resource.loadsimg("nurgling/hud/icons/ability/minus_hover")};
 
     public static final TexI[] settingsi = new TexI[]{
             new TexI(Resource.loadsimg("nurgling/hud/buttons/settings/u")),
