@@ -27,15 +27,14 @@ public class Reagro implements Action {
         while (isEnabled) {
             NUtils.addTask(new WaitBattleWindow());
             ArrayList<Long> ids = new ArrayList<>();
-            synchronized (NUtils.getGameUI().fv.lsrel) {
-                for (Fightview.Relation rel : NUtils.getGameUI().fv.lsrel) {
-                    if (rel.gobid >= 0) {
-                        ids.add(rel.gobid);
-                    }
-                    if (rel.gst != 1) {
-                        NUtils.getGameUI().fv.wdgmsg("give", (int) rel.gobid, 1);
-                        NUtils.addTask(new WaitRelationState(rel.gobid, 1));
-                    }
+            ArrayList<Fightview.Relation> rels = new ArrayList<>(NUtils.getGameUI().fv.lsrel);
+            for (Fightview.Relation rel : rels) {
+                if (rel.gobid >= 0) {
+                    ids.add(rel.gobid);
+                }
+                if (rel.gst != 1) {
+                    NUtils.getGameUI().fv.wdgmsg("give", (int) rel.gobid, 1);
+                    NUtils.addTask(new WaitRelationState(rel.gobid, 1));
                 }
             }
             WaitAnyEscaper wae = new WaitAnyEscaper(ids);
