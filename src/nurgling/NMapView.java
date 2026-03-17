@@ -972,8 +972,8 @@ public class NMapView extends MapView
             return true;
         }
 
-        // Ctrl+RMB opens custom gob context menu
-        if (ev.b == 3 && ui.modctrl) {
+        // Ctrl+RMB (without Shift) opens custom gob context menu
+        if (ev.b == 3 && ui.modctrl && !ui.modshift) {
             new Click(ev.c, ev.b) {
                 @Override
                 protected void hit(Coord pc, Coord2d mc, ClickData inf) {
