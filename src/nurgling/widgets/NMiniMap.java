@@ -828,6 +828,7 @@ NMiniMap extends MiniMap {
             display = nd;
             dseg = loc.seg;
             dlvl = zoomlevel;
+            dmag = maglevel;
             dgext = next;
             dtext = Area.sized(next.ul.mul(gridTileSize), next.sz().mul(gridTileSize));
         }

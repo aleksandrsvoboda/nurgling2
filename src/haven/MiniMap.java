@@ -66,7 +66,7 @@ public class MiniMap extends Widget
     protected DisplayGrid[] display;
     protected Area dgext, dtext;
     protected Segment dseg;
-    protected int dlvl, dmag;
+    protected int dlvl, dmag = 1 << Utils.clip((int)Math.round(Math.log(UI.scale(1.0)) / Math.log(2)), 0, 3);
     public Location dloc;
 
 	public boolean needUpdate = false;
