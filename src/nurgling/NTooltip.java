@@ -7,6 +7,7 @@ import haven.res.ui.tt.wear.Wear;
 import haven.res.ui.tt.gast.Gast;
 import haven.res.ui.tt.slots.ISlots;
 import haven.res.ui.tt.slot.Slotted;
+import haven.res.ui.tt.ingred.Ingredient;
 import nurgling.iteminfo.NCuriosity;
 import nurgling.styles.TooltipStyle;
 
@@ -535,6 +536,8 @@ public class NTooltip {
         Object baseAttrMod = null;  // Base item stats (non-gildable)
         String adHocText = null;  // AdHoc text (e.g., "Memories of pain")
         String paginaText = null;  // Pagina description text
+        java.util.List<Ingredient> ingredientItems = new java.util.ArrayList<>();  // "Made with..." ingredients
+        java.util.List<Object> smokeItems = new java.util.ArrayList<>();  // "Smoked with..." items (dynamically loaded)
         Integer presenceCurrent = null;  // Presence current value (x in "Presence: x/y")
         Integer presenceMax = null;      // Presence max value (y in "Presence: x/y")
         for (ItemInfo ii : info) {
@@ -639,6 +642,14 @@ public class NTooltip {
                 String softStr = getIntField(ii, "soft");
                 if (hardStr != null) armorHard = Integer.parseInt(hardStr);
                 if (softStr != null) armorSoft = Integer.parseInt(softStr);
+            }
+            // Capture Ingredient items ("Made with...")
+            if (ii instanceof Ingredient) {
+                ingredientItems.add((Ingredient) ii);
+            }
+            // Capture Smoke items ("Smoked with..." - dynamically loaded)
+            if (className.equals("Smoke") && fullName.contains("smoked")) {
+                smokeItems.add(ii);
             }
         }
 
@@ -909,6 +920,16 @@ public class NTooltip {
             foodBonusLine = TooltipStyle.cropTopOnly(renderFoodBonusLine(gast.fev));
         }
 
+        // Render "Smoked with..." and "Made with..." lines with Open Sans Regular 11px
+        BufferedImage smokedWithLine = null;
+        if (!smokeItems.isEmpty()) {
+            smokedWithLine = renderSmokeLine(smokeItems);
+        }
+        BufferedImage madeWithLine = null;
+        if (!ingredientItems.isEmpty()) {
+            madeWithLine = renderIngredientLine(ingredientItems);
+        }
+
         BufferedImage treatsLine = null;
         if (treatsInfo != null) {
             treatsLine = TooltipStyle.cropTopOnly(renderTreatsLine(treatsInfo));
@@ -1019,7 +1040,7 @@ public class NTooltip {
             }
         }
 
-        // Render other tips (excluding Name, QBuff, Contents, Wear, Gast which we've handled)
+        // Render other tips (excluding Name, QBuff, Contents, Wear, Gast, Smoke which we've handled)
         BufferedImage otherTips = TooltipStyle.cropTopOnly(renderOtherTips(info, !contentsList.isEmpty()));
 
         // Render Pagina description with word wrapping at 200px
@@ -1178,6 +1199,12 @@ public class NTooltip {
         }
         if (foodBonusLine != null) {
             itemInfoResults.add(new LineResult(foodBonusLine, 0, 0));
+        }
+        if (smokedWithLine != null) {
+            itemInfoResults.add(new LineResult(smokedWithLine, 0, 0));
+        }
+        if (madeWithLine != null) {
+            itemInfoResults.add(new LineResult(madeWithLine, 0, 0));
         }
         if (treatsLine != null) {
             itemInfoResults.add(new LineResult(treatsLine, 0, 0));
@@ -2870,6 +2897,14 @@ public class NTooltip {
                 if (tip instanceof ItemInfo.Pagina) {
                     continue;
                 }
+                // Skip Smoke - we render "Smoked with..." ourselves with custom fonts
+                if (tipClassName.equals("Smoke") && tipFullName.contains("smoked")) {
+                    continue;
+                }
+                // Skip Ingredient - we render "Made with..." ourselves with custom fonts
+                if (tip instanceof Ingredient) {
+                    continue;
+                }
                 l.add(tip);
                 hasTips = true;
             }
@@ -2881,7 +2916,6 @@ public class NTooltip {
 
         try {
             BufferedImage rendered = l.render();
-            // Check if the rendered image has valid dimensions
             if (rendered == null || rendered.getWidth() <= 0 || rendered.getHeight() <= 0) {
                 return null;
             }
@@ -2917,6 +2951,64 @@ public class NTooltip {
      * Uses 9px regular font in white color.
      * Handles RichText formatting codes like $col[r,g,b]{text}.
      */
+    private static BufferedImage renderSmokeLine(java.util.List<Object> smokeItems) {
+        if (smokeItems.isEmpty()) return null;
+        // Extract name and val from each Smoke item via reflection (same structure as Ingredient)
+        java.util.List<String[]> entries = new java.util.ArrayList<>();  // [name, descr]
+        for (Object smoke : smokeItems) {
+            try {
+                java.lang.reflect.Field nameField = smoke.getClass().getDeclaredField("name");
+                nameField.setAccessible(true);
+                String name = (String) nameField.get(smoke);
+                java.lang.reflect.Field valField = smoke.getClass().getDeclaredField("val");
+                valField.setAccessible(true);
+                Double val = (Double) valField.get(smoke);
+                String descr = (val == null) ? name : String.format("%s (%d%%)", name, (int) Math.floor(val * 100.0));
+                entries.add(new String[]{name, descr});
+            } catch (Exception e) {
+                // Skip on reflection failure
+            }
+        }
+        if (entries.isEmpty()) return null;
+        entries.sort((a, b) -> a[0].compareTo(b[0]));
+        StringBuilder buf = new StringBuilder();
+        buf.append("Smoked with ");
+        buf.append(entries.get(0)[1]);
+        if (entries.size() > 2) {
+            for (int i = 1; i < entries.size() - 1; i++) {
+                buf.append(", ");
+                buf.append(entries.get(i)[1]);
+            }
+        }
+        if (entries.size() > 1) {
+            buf.append(" and ");
+            buf.append(entries.get(entries.size() - 1)[1]);
+        }
+        Text.Foundry fnd = TooltipStyle.createFoundry(false, TooltipStyle.FONT_SIZE_BODY, java.awt.Color.WHITE);
+        return TooltipStyle.cropTopOnly(fnd.render(buf.toString(), java.awt.Color.WHITE).img);
+    }
+
+    private static BufferedImage renderIngredientLine(java.util.List<Ingredient> ingredients) {
+        if (ingredients.isEmpty()) return null;
+        java.util.List<Ingredient> sorted = new java.util.ArrayList<>(ingredients);
+        sorted.sort((a, b) -> a.name.compareTo(b.name));
+        StringBuilder buf = new StringBuilder();
+        buf.append("Made with ");
+        buf.append(sorted.get(0).descr());
+        if (sorted.size() > 2) {
+            for (int i = 1; i < sorted.size() - 1; i++) {
+                buf.append(", ");
+                buf.append(sorted.get(i).descr());
+            }
+        }
+        if (sorted.size() > 1) {
+            buf.append(" and ");
+            buf.append(sorted.get(sorted.size() - 1).descr());
+        }
+        Text.Foundry fnd = TooltipStyle.createFoundry(false, TooltipStyle.FONT_SIZE_BODY, java.awt.Color.WHITE);
+        return TooltipStyle.cropTopOnly(fnd.render(buf.toString(), java.awt.Color.WHITE).img);
+    }
+
     private static BufferedImage renderPaginaText(String text, int maxWidth) {
         if (text == null || text.isEmpty()) return null;
 
