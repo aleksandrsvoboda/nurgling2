@@ -27,6 +27,7 @@
 package haven;
 
 import java.util.*;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
@@ -62,6 +63,7 @@ public class OCache implements Iterable<Gob> {
     private Collection<Collection<Gob>> local = new LinkedList<Collection<Gob>>();
     private MultiMap<Long, Gob> objs = new HashMultiMap<Long, Gob>();
     private Glob glob;
+    private final ForkJoinPool ctickPool = new ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
     private final Collection<ChangeCallback> cbs = new WeakList<ChangeCallback>();
 	public final NPathVisualizer paths = new NPathVisualizer();
     public interface ChangeCallback {
@@ -125,7 +127,7 @@ public class OCache implements Iterable<Gob> {
 	if(!Config.par.get())
 	    copy.forEach(task);
 	else
-	    copy.parallelStream().forEach(task);
+	    ctickPool.submit(() -> copy.parallelStream().forEach(task)).join();
 	paths.tick(dt);
     }
 
@@ -144,7 +146,7 @@ public class OCache implements Iterable<Gob> {
 	} else {
 	    Collection<Render> subs = new ArrayList<>();
 	    ThreadLocal<Render> subv = new ThreadLocal<>();
-	    copy.parallelStream().forEach(ob -> {
+	    ctickPool.submit(() -> copy.parallelStream().forEach(ob -> {
 		    Render sub = subv.get();
 		    if(sub == null) {
 			sub = g.env().render();
@@ -156,7 +158,7 @@ public class OCache implements Iterable<Gob> {
 		    synchronized(ob) {
 			ob.gtick(sub);
 		    }
-		});
+		})).join();
 	    for(Render sub : subs)
 		g.submit(sub);
 	}
