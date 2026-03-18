@@ -292,6 +292,17 @@ public class UI {
 
 	private CommandQueue() {}
 
+	/**
+	 * Returns true when no widget commands are pending or in-flight.
+	 * Every command registers in score on submit() and is removed on finish(),
+	 * so an empty score means all dependency chains have fully completed.
+	 */
+	public boolean isIdle() {
+	    synchronized(this) {
+		return score.isEmpty();
+	    }
+	}
+
 	private void run(Command cmd) {
 	    if(cmdjitter) {
 		try {

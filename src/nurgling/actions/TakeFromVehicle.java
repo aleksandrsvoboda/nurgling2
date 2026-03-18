@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.*;
 import haven.res.ui.invsq.InvSquare;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitLifted;
@@ -45,6 +46,8 @@ public class TakeFromVehicle implements Action {
             new SelectFlowerAction("Cargo", vehicle).run(gui);
             NUtils.addTask(new WaitWindow("Snekkja"));
             for (Widget widget : NUtils.getGameUI().getWindow("Snekkja").children()) {
+                if (widget instanceof NInventory)
+                    continue;
                 if (widget.children().size() >= 16) {
                     for (Widget child : widget.children()) {
                         if (!(child instanceof InvSquare)) {
@@ -58,6 +61,7 @@ public class TakeFromVehicle implements Action {
                             return Results.SUCCESS();
                         }
                     }
+                    return Results.SUCCESS();
                 }
             }
         }
@@ -66,6 +70,8 @@ public class TakeFromVehicle implements Action {
             new SelectFlowerAction("Open", vehicle).run(gui);
             NUtils.addTask(new WaitWindow("Wagon"));
             for (Widget widget : NUtils.getGameUI().getWindow("Wagon").children()) {
+                if (widget instanceof NInventory)
+                    continue;
                 if (widget.children().size() >= 20) {
                     for (Widget child : widget.children()) {
                         if (!(child instanceof InvSquare)) {
@@ -79,6 +85,7 @@ public class TakeFromVehicle implements Action {
                             return Results.SUCCESS();
                         }
                     }
+                    return Results.SUCCESS();
                 }
             }
         }
