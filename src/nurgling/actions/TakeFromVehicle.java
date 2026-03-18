@@ -61,7 +61,7 @@ public class TakeFromVehicle implements Action {
                             return Results.SUCCESS();
                         }
                     }
-                    return Results.SUCCESS();
+                    return Results.FAIL();
                 }
             }
         }
@@ -85,7 +85,7 @@ public class TakeFromVehicle implements Action {
                             return Results.SUCCESS();
                         }
                     }
-                    return Results.SUCCESS();
+                    return Results.FAIL();
                 }
             }
         }
