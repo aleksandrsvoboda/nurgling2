@@ -6,6 +6,8 @@ import nurgling.NGameUI;
 import nurgling.NMapView;
 import nurgling.NUI;
 
+import java.util.concurrent.ForkJoinPool;
+
 /**
  * Holds all state for a single game session.
  * A session can be in either visual mode (rendered on screen) or headless mode (bot only).
@@ -49,6 +51,11 @@ public class SessionContext {
 
     /** Current bot name if running (for status display) */
     private volatile String currentBotName = null;
+
+    /** Dedicated ForkJoinPool for headless tick processing.
+     *  Prevents parallel streams in OCache.ctick() from using the common pool,
+     *  which would cause cross-session task interference with the UI thread. */
+    private final ForkJoinPool headlessTickPool = new ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
 
     private static int sessionCounter = 0;
 
@@ -287,8 +294,13 @@ public class SessionContext {
                     synchronized (ui) {
                         try {
                             // Tick the session (network, glob, etc.)
+                            // Run inside dedicated ForkJoinPool so that OCache's
+                            // parallelStream() uses this pool instead of the common
+                            // pool, preventing cross-session task interference.
                             if (ui.sess != null) {
-                                ui.sess.glob.ctick();
+                                headlessTickPool.submit(() -> {
+                                    ui.sess.glob.ctick();
+                                }).join();
                                 // Send pending map requests
                                 ui.sess.glob.map.sendreqs();
                             }
