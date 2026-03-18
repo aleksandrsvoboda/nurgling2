@@ -58,11 +58,22 @@ public class NCore extends Widget
     {
         synchronized (tasks)
         {
+            for (final PendingTask pt : pending_notify)
+            {
+                synchronized (pt.task)
+                {
+                    pt.task.notify();
+                }
+            }
+            pending_notify.clear();
             if(tasks.size()>0)
             {
                 for (final NTask task : tasks)
                 {
-                    task.notify();
+                    synchronized (task)
+                    {
+                        task.notify();
+                    }
                 }
                 tasks.clear();
             }
@@ -150,6 +161,21 @@ public class NCore extends Widget
 
     private final LinkedList<NTask> for_remove = new LinkedList<>();
     private final ConcurrentLinkedQueue<NTask> tasks = new ConcurrentLinkedQueue<>();
+
+    // Deferred notification: tasks wait here after their condition becomes true
+    // until all widget commands have been processed (UI CommandQueue idle).
+    // This ensures container contents, inventory items, etc. are fully loaded
+    // before the bot acts on them.
+    private static final long PENDING_SAFETY_TIMEOUT_MS = 2000;
+    private static class PendingTask {
+        final NTask task;
+        final long completedAt;
+        PendingTask(NTask task) {
+            this.task = task;
+            this.completedAt = System.currentTimeMillis();
+        }
+    }
+    private final LinkedList<PendingTask> pending_notify = new LinkedList<>();
     
     /**
      * Get list of active task names for debug display
@@ -315,16 +341,39 @@ public class NCore extends Widget
         }
         synchronized (tasks)
         {
+            // Phase 1: Notify pending tasks when all widget commands have
+            // been processed (CommandQueue score is empty). This means every
+            // NewWidget, AddWidget, and UiMessage in the dependency chain
+            // has finished — windows, inventories, and items are fully created.
+            if(!pending_notify.isEmpty())
+            {
+                boolean queueIdle = ui.queue.isIdle();
+                long now = System.currentTimeMillis();
+                Iterator<PendingTask> pit = pending_notify.iterator();
+                while(pit.hasNext())
+                {
+                    PendingTask pt = pit.next();
+                    if(queueIdle || (now - pt.completedAt >= PENDING_SAFETY_TIMEOUT_MS))
+                    {
+                        synchronized (pt.task)
+                        {
+                            pt.task.notify();
+                        }
+                        pit.remove();
+                    }
+                }
+            }
+
+            // Phase 2: Check active tasks. Completed ones are moved to
+            // pending_notify. baseCheck() is called exactly once per task
+            // (no counter double-counting).
             for(final NTask task: tasks)
             {
                 try
                 {
                     if(task.baseCheck())
                     {
-                        synchronized (task)
-                        {
-                            task.notify();
-                        }
+                        pending_notify.add(new PendingTask(task));
                         for_remove.add(task);
                     }
                 }
@@ -363,6 +412,7 @@ public class NCore extends Widget
                     synchronized (tasks)
                     {
                         tasks.remove(task);
+                        pending_notify.removeIf(pt -> pt.task == task);
                         throw e;
                     }
                 }
