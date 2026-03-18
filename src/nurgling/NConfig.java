@@ -6,6 +6,7 @@ import nurgling.conf.*;
 import nurgling.conf.QuickActionPreset;
 import nurgling.profiles.ProfileManager;
 import nurgling.scenarios.Scenario;
+import nurgling.sessions.ThreadLocalUI;
 import nurgling.widgets.NCornerMiniMap;
 import org.json.*;
 
@@ -577,20 +578,43 @@ public class NConfig
         return false;
     }
 
+    /**
+     * Resolves the correct NConfig instance for the current thread's session.
+     * Uses ThreadLocalUI to find the session context, falls back to global current.
+     */
+    private static NConfig resolveConfig() {
+        NUI boundUI = ThreadLocalUI.get();
+        if (boundUI != null) {
+            // Fast path: use cached config on NUI (no locks needed)
+            if (boundUI.sessionConfig != null) {
+                return boundUI.sessionConfig;
+            }
+            // Lazy-init: create session config on first access
+            NGameUI gui = boundUI.gui instanceof NGameUI ? (NGameUI) boundUI.gui : null;
+            if (gui != null && gui.getGenus() != null) {
+                boundUI.sessionConfig = createForSession(gui.getGenus());
+                return boundUI.sessionConfig;
+            }
+        }
+        return current;
+    }
+
     public static Object get(Key key)
     {
-        if (current == null)
+        NConfig cfg = resolveConfig();
+        if (cfg == null)
             return null;
         else
-            return current.conf.get(key);
+            return cfg.conf.get(key);
     }
 
     public static void set(Key key, Object val)
     {
-        if (current != null)
+        NConfig cfg = resolveConfig();
+        if (cfg != null)
         {
-            current.isUpd = true;
-            current.conf.put(key, val);
+            cfg.isUpd = true;
+            cfg.conf.put(key, val);
         }
     }
 
@@ -696,6 +720,22 @@ public class NConfig
     private static final Map<String, NConfig> profileInstances = new HashMap<>();
     private ProfileManager profileManager;
     private String genus;
+
+    /**
+     * Creates an independent NConfig instance for a session.
+     * Unlike getProfileInstance(), this does NOT share the instance
+     * between sessions on the same world, and does NOT set the global current.
+     */
+    public static NConfig createForSession(String genus) {
+        if (genus == null || genus.isEmpty()) {
+            return new NConfig();
+        }
+        NConfig cfg = new NConfig(genus);
+        NConfig prev = current;
+        cfg.read();
+        current = prev;
+        return cfg;
+    }
 
     /**
      * Gets a profile-specific NConfig instance for the given genus

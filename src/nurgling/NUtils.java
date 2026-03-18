@@ -97,24 +97,21 @@ public class NUtils
     }
 
     public static void showHideNature() {
+        boolean shouldHide = !(Boolean) NConfig.get(NConfig.Key.hideNature);
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
-            if((Boolean) NConfig.get(NConfig.Key.hideNature))
-                for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                    if (gob.ngob.name!=null && isNatureObject(gob.ngob.name))
-                    {
-                        gob.show();
-                    }
-                }
-            else
-                for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                    if (gob.ngob.name!=null && isNatureObject(gob.ngob.name))
-                    {
+            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
+                if (gob.ngob.name != null && isNatureObject(gob.ngob.name)) {
+                    if (shouldHide && !gob.ngob.natureHidden) {
                         gob.hide();
+                        gob.ngob.natureHidden = true;
+                    } else if (!shouldHide && gob.ngob.natureHidden) {
+                        gob.show();
+                        gob.ngob.natureHidden = false;
                     }
                 }
+            }
         }
     }
-    
 
     public static boolean isNatureObject(String name)
     {
@@ -127,21 +124,19 @@ public class NUtils
     }
 
     public static void showHideEarthworm() {
+        boolean shouldHide = !(Boolean) NConfig.get(NConfig.Key.hideEarthworm);
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
-            if((Boolean) NConfig.get(NConfig.Key.hideEarthworm))
-                for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                    if (gob.ngob.name!=null && isEarthworm(gob.ngob.name))
-                    {
-                        gob.show();
-                    }
-                }
-            else
-                for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                    if (gob.ngob.name!=null && isEarthworm(gob.ngob.name))
-                    {
+            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
+                if (gob.ngob.name != null && isEarthworm(gob.ngob.name)) {
+                    if (shouldHide && !gob.ngob.natureHidden) {
                         gob.hide();
+                        gob.ngob.natureHidden = true;
+                    } else if (!shouldHide && gob.ngob.natureHidden) {
+                        gob.show();
+                        gob.ngob.natureHidden = false;
                     }
                 }
+            }
         }
     }
 
