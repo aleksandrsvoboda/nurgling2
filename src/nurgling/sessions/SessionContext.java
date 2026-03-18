@@ -54,8 +54,9 @@ public class SessionContext {
 
     /** Dedicated ForkJoinPool for headless tick processing.
      *  Prevents parallel streams in OCache.ctick() from using the common pool,
-     *  which would cause cross-session task interference with the UI thread. */
-    private final ForkJoinPool headlessTickPool = new ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+     *  which would cause cross-session task interference with the UI thread.
+     *  Uses 2 threads — headless sessions don't render and need minimal parallelism. */
+    private final ForkJoinPool headlessTickPool = new ForkJoinPool(2);
 
     private static int sessionCounter = 0;
 
