@@ -368,10 +368,10 @@ public class SessionContext {
             if (gui.chrid != null) {
                 this.characterName = gui.chrid;
             }
-            // Get genus for config
-            if (gui.getGenus() != null) {
+            // Get genus for config — each session gets its own independent copy
+            if (gui.getGenus() != null && this.config == null) {
                 this.genus = gui.getGenus();
-                this.config = NConfig.getProfileInstance(this.genus);
+                this.config = NConfig.createForSession(this.genus);
             }
         }
     }

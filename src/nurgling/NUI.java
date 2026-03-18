@@ -12,6 +12,8 @@ import java.util.Map;
 /** NUI class extends the main UI to provide customized functionality and integrate with Nurgling's advanced features */
 public class NUI extends UI
 {
+    /** Session-specific NConfig, set during session initialization. Lock-free access for resolveConfig(). */
+    public volatile NConfig sessionConfig;
     /** Current tick identifier to track time-based operations within the UI */
     public long tickId = 0;
     /** Data tables for various functionalities */
@@ -169,7 +171,16 @@ public class NUI extends UI
                 return;
             }
         }
-        super.keydown(ev);
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.keydown(ev);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
+        }
     }
 
     @Override

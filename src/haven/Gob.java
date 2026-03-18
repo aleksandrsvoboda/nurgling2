@@ -1065,12 +1065,13 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     public void show() {
+        if (slots == null || slots.isEmpty())
+            return;
         for (GAttrib a : attr.values()) {
-
             if (a instanceof RenderTree.Node) {
-                synchronized (this) {
-                    Loading.waitfor(() -> RUtils.multiadd(slots, (RenderTree.Node) a));
-                }
+                if (a.slots != null && !a.slots.isEmpty())
+                    continue;
+                RUtils.multiadd(slots, (RenderTree.Node) a);
             }
         }
     }
@@ -1078,9 +1079,9 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     public void hide() {
         for (GAttrib a : attr.values()) {
             if (a instanceof RenderTree.Node) {
-                synchronized (slots) {
-                    RUtils.multirem(new ArrayList<>(a.slots));
-                }
+                if (a.slots == null || a.slots.isEmpty())
+                    continue;
+                RUtils.multirem(new ArrayList<>(a.slots));
             }
         }
     }

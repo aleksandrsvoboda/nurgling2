@@ -264,7 +264,7 @@ public class NModelBox extends Sprite implements RenderTree.Node {
     @Override
     public boolean tick(double dt) {
         boolean newShowState = ((Boolean) NConfig.get(NConfig.Key.showBB) ||
-                (!(Boolean) NConfig.get(NConfig.Key.hideNature) && NUtils.isNatureObject(gob.ngob.name)));
+                gob.ngob.natureHidden);
 
         String mode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
         if (mode == null) mode = "FILLED";

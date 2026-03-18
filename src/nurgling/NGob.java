@@ -43,6 +43,7 @@ import static haven.OCache.posres;
 public class NGob
 {
     public boolean effector = false;
+    public volatile boolean natureHidden = false;
     public NHitBox hitBox = null;
     public String name = null;
     public boolean isQuested = true;
