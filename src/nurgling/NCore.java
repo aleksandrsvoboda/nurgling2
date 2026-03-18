@@ -343,14 +343,14 @@ public class NCore extends Widget
 
     public void addTask(final NTask task) throws InterruptedException
     {
-        if(!task.check())
+        synchronized (task)
         {
-            synchronized (tasks)
+            if(!task.check())
             {
-                tasks.add(task);
-            }
-            synchronized (task)
-            {
+                synchronized (tasks)
+                {
+                    tasks.add(task);
+                }
                 try {
                     task.wait();
                     if(task.criticalExit)
@@ -366,12 +366,11 @@ public class NCore extends Widget
                         throw e;
                     }
                 }
-
             }
         }
         if(task.criticalExit)
         {
-            new InterruptedException();
+            throw new InterruptedException();
         }
     }
 
