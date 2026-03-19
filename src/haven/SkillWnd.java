@@ -281,6 +281,7 @@ public class SkillWnd extends Widget {
 
 	protected int topPad() { return 0; }
 	protected int labelGap() { return m; }
+	protected int textYAdj() { return 0; }
 
 	private void update() {
 	    sort(ccr); sort(ncr);
@@ -291,8 +292,9 @@ public class SkillWnd extends Widget {
 		cont.add(pcrc, m, y);
 		y += pcrc.sz.y + labelGap();
 		Widget pcrim = cont.add(new CredoImg(pcr), m, y);
-		cont.add(new Label(String.format(L10n.get("char.skill.level"), pcl, pclt), prsf), pcrim.c.x + pcrim.sz.x + m, y);
-		cont.add(new Label(String.format(L10n.get("char.skill.quest_progress"), pcql, pcqlt), prsf), pcrim.c.x + pcrim.sz.x + m, y + UI.scale(20));
+		int tya = textYAdj();
+		cont.add(new Label(String.format(L10n.get("char.skill.level"), pcl, pclt), prsf), pcrim.c.x + pcrim.sz.x + m, y - tya);
+		cont.add(new Label(String.format(L10n.get("char.skill.quest_progress"), pcql, pcqlt), prsf), pcrim.c.x + pcrim.sz.x + m, y + UI.scale(20) - tya);
 		cont.adda(qbtn, pcrim.c.x + pcrim.sz.x + m, y + pcrim.sz.y, 0, 1);
 		y += pcrim.sz.y;
 		y += UI.scale(10);

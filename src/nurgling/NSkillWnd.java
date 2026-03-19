@@ -137,8 +137,19 @@ public class NSkillWnd extends SkillWnd {
 	g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 	    java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
+	// Find first visible row in title to align text top with image top
+	int titleAdj = 0;
+	findTitle:
+	for(int row = 0; row < titleLine.img.getHeight(); row++) {
+	    for(int col = 0; col < titleLine.img.getWidth(); col++) {
+		if((titleLine.img.getRGB(col, row) & 0xFF000000) != 0) {
+		    titleAdj = row;
+		    break findTitle;
+		}
+	    }
+	}
 	g.drawImage(scaledImg, 0, 0, null);
-	g.drawImage(titleLine.img, titleX, 0, null);
+	g.drawImage(titleLine.img, titleX, -titleAdj, null);
 
 	if(bonusRt != null)
 	    g.drawImage(bonusRt.img, 0, bonusY, null);
@@ -239,6 +250,7 @@ public class NSkillWnd extends SkillWnd {
 		    }
 		    protected int topPad() { return UI.scale(5); }
 		    protected int labelGap() { return UI.scale(5); }
+		    protected int textYAdj() { return UI.scale(5); }
 		    public void change(Credo cr) {
 			Credo p = sel;
 			super.change(cr);
