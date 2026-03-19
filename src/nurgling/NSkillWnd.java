@@ -286,11 +286,12 @@ public class NSkillWnd extends SkillWnd {
 			Text.Line t1 = titleFnd.render("Cost: ");
 			Color lpCol = new Color(0xD2, 0xB2, 0xFF);
 			Text.Line t2 = titleFnd.render(String.format("%,d LP", cost), lpCol);
-			Widget w1 = cont.adda(new Img(t1.tex()), mx, midY, 0, 0.5);
-			cont.adda(new Img(t2.tex()), w1.c.x + w1.sz.x, midY, 0, 0.5);
 			// Pursue button right-aligned with rightmost credo image
 			int imgRight = 2 * (crsz.x + m) + m + crsz.x + 1;
 			cont.add(pbtn, imgRight - pbtn.sz.x, y);
+			// "Cost:" left-aligned, "X LP" right-aligned near button
+			cont.adda(new Img(t1.tex()), mx, midY, 0, 0.5);
+			cont.adda(new Img(t2.tex()), pbtn.c.x - UI.scale(10), midY, 1.0, 0.5);
 			return pbtn.sz.y;
 		    }
 		    public void change(Credo cr) {
