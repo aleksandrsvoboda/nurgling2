@@ -71,14 +71,19 @@ public abstract class GridList<T> extends Widget {
 	this.sb = adda(new Scrollbar(sz.y, 0, 0), sz.x, 0, 1, 0);
     }
 
+    protected int xpad() { return 0; }
+    protected int ypad() { return 0; }
+
     protected void update() {
-	int y = 0;
-	int w = sz.x - sb.sz.x;
+	int y = ypad();
+	int w = sz.x - sb.sz.x - xpad() * 2;
+	boolean first = true;
 	for(Group grp : groups) {
 	    if(grp.items.size() == 0)
 		continue;
-	    if(y > 0)
+	    if(!first)
 		y += gmarg;
+	    first = false;
 	    grp.sy = y;
 	    if(grp.name != null)
 		y += grp.rname().sz().y;
@@ -89,7 +94,7 @@ public abstract class GridList<T> extends Widget {
 		y += (nr - 1) * grp.marg.y;
 	    grp.ey = y;
 	}
-	sb.max = y - sz.y;
+	sb.max = y + ypad() - sz.y;
     }
 
     public void resize(Coord sz) {
@@ -116,7 +121,8 @@ public abstract class GridList<T> extends Widget {
     public void draw(GOut g) {
 	drawbg(g);
 	int yo = sb.val;
-	int W = sz.x - sb.sz.x, w = sz.x - (sb.vis() ? sb.sz.x : 0);
+	int xp = xpad();
+	int W = sz.x - sb.sz.x - xp * 2, w = sz.x - (sb.vis() ? sb.sz.x : 0) - xp * 2;
 	for(Group grp : groups) {
 	    if(grp.items.size() == 0)
 		continue;
@@ -124,17 +130,17 @@ public abstract class GridList<T> extends Widget {
 		continue;
 	    int iy = grp.sy - yo;
 	    if(grp.name != null) {
-		g.image(grp.rname().tex(), new Coord(0, grp.sy - yo));
+		g.image(grp.rname().tex(), new Coord(xp, grp.sy - yo));
 		iy += grp.rname().sz().y;
 	    }
 	    int rw = Math.max((W - grp.itemsz.x) / (grp.itemsz.x + Math.max(grp.marg.x, 0)), 0) + 1;
 	    int sr = Math.max(-iy, 0) / (grp.itemsz.y + grp.marg.y);
 	    for(int i = sr * rw; i < grp.items.size(); i++) {
-		Coord c = new Coord(0, iy + ((i / rw) * (grp.itemsz.y + grp.marg.y)));
+		Coord c = new Coord(xp, iy + ((i / rw) * (grp.itemsz.y + grp.marg.y)));
 		if(grp.marg.x >= 0)
-		    c.x = (i % rw) * (grp.itemsz.x + grp.marg.x);
+		    c.x = xp + (i % rw) * (grp.itemsz.x + grp.marg.x);
 		else
-		    c.x = adjx(i % rw, grp.itemsz.x, rw, w);
+		    c.x = xp + adjx(i % rw, grp.itemsz.x, rw, w);
 		GOut ig = g.reclip(c, grp.itemsz);
 		T item = grp.items.get(i);
 		if(item == sel)
@@ -155,8 +161,10 @@ public abstract class GridList<T> extends Widget {
     }
 
     public T itemat(Coord c) {
+	int xp = xpad();
 	int ay = c.y + sb.val;
-	int W = sz.x - sb.sz.x, w = sz.x - (sb.vis() ? sb.sz.x : 0);
+	int ax = c.x - xp;
+	int W = sz.x - sb.sz.x - xp * 2, w = sz.x - (sb.vis() ? sb.sz.x : 0) - xp * 2;
 	for(Group grp : groups) {
 	    if((ay >= grp.sy) && (ay < grp.ey)) {
 		int gy = ay - grp.sy;
@@ -170,13 +178,13 @@ public abstract class GridList<T> extends Widget {
 		    return(null);
 		int col;
 		if(grp.marg.x >= 0) {
-		    col = c.x / (grp.itemsz.x + grp.marg.x);
-		    if(c.x >= (col * (grp.itemsz.x + grp.marg.x)) + grp.itemsz.x)
+		    col = ax / (grp.itemsz.x + grp.marg.x);
+		    if(ax >= (col * (grp.itemsz.x + grp.marg.x)) + grp.itemsz.x)
 			return(null);
 		} else {
 		    for(col = 0; col < rw; col++) {
 			int cx = adjx(col, grp.itemsz.x, rw, w);
-			if((c.x >= cx) && (c.x < cx + grp.itemsz.x))
+			if((ax >= cx) && (ax < cx + grp.itemsz.x))
 			    break;
 		    }
 		    if(col == rw)
