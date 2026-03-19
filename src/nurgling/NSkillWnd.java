@@ -244,6 +244,8 @@ public class NSkillWnd extends SkillWnd {
 	skillTab = sktab;
 	{
 	    skg = sktab.add(new SkillGrid(new Coord(ENTRIES_W, ENTRIES_H_SKILLS)) {
+		    protected int xpad() { return UI.scale(10); }
+		    protected int ypad() { return UI.scale(5); }
 		    public void change(Skill sk) {
 			Skill p = sel;
 			super.change(sk);
