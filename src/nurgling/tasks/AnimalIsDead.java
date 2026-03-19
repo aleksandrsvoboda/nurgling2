@@ -18,11 +18,22 @@ public class AnimalIsDead extends NTask {
     @Override
     public boolean check() {
         Gob animal = Finder.findGob(gobid);
-        if (animal != null && animal.pose() != null && NParser.checkName(animal.pose(), "knock")) {
+        if (animal == null) {
+            return false;
+        }
+        String pose = animal.pose();
+        boolean progDone = NUtils.getGameUI().prog == null || NUtils.getGameUI().prog.prog < 0;
+
+        // Don't timeout while slaughter is still in progress
+        if (!progDone) {
+            counter = 0;
+        }
+
+        if (pose != null && NParser.checkName(pose, "knock")) {
             res = true;
             return true;
         }
-        return animal != null && (NUtils.getGameUI().prog == null || NUtils.getGameUI().prog.prog < 0) && animal.rc.dist(NUtils.player().rc) > MCache.tilesz.len() * 2;
+        return progDone && animal.rc.dist(NUtils.player().rc) > MCache.tilesz.len() * 2;
     }
 
     boolean res = false;
