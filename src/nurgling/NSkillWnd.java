@@ -3,8 +3,11 @@ package nurgling;
 import haven.*;
 import java.util.*;
 import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.font.TextAttribute;
+import java.awt.image.BufferedImage;
 import static haven.CharWnd.*;
+import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class NSkillWnd extends SkillWnd {
@@ -15,6 +18,13 @@ public class NSkillWnd extends SkillWnd {
     private static final int ENTRIES_H = UI.scale(297);
     private static final int SECTION_GAP = UI.scale(15);
     private static final int TITLE_GAP = UI.scale(10);
+    private static final int IMG_GAP = UI.scale(10);
+
+    private static final Coord CREDO_IMG_SZ = UI.scale(new Coord(80, 100));
+    private static final Coord SKILL_IMG_SZ = UI.scale(new Coord(40, 40));
+
+    private static final Text.Foundry titleFnd = new Text.Foundry(
+	nurgling.conf.FontSettings.getOpenSansSemibold(), 12, Color.WHITE).aa(true);
 
     private static final RichText.Foundry descFnd = new RichText.Foundry(
 	RichText.IMAGESRC, RichText.ImageSource.legacy,
@@ -24,6 +34,70 @@ public class NSkillWnd extends SkillWnd {
 
     public NSkillWnd() {
 	super();
+    }
+
+    private static String reorderBonusesFirst(String pagText) {
+	int colIdx = pagText.indexOf("$col[");
+	if(colIdx <= 0)
+	    return pagText;
+	String description = pagText.substring(0, colIdx).trim();
+	String bonuses = pagText.substring(colIdx).trim();
+	if(description.isEmpty())
+	    return pagText;
+	return bonuses + "\n\n" + description;
+    }
+
+    private BufferedImage renderInfo(Resource res, Coord imgSz, String extra, boolean reorderBonuses) {
+	BufferedImage resImg = res.flayer(Resource.imgc).img;
+	BufferedImage scaledImg = convolvedown(resImg, imgSz, iconfilter);
+	String title = res.flayer(Resource.tooltip).t;
+	Text.Line titleLine = titleFnd.render(title);
+
+	Resource.Pagina pag = res.layer(Resource.pagina);
+	String pagText = (pag != null) ? pag.text : "";
+
+	if(reorderBonuses && !pagText.isEmpty())
+	    pagText = reorderBonusesFirst(pagText);
+
+	int marg = UI.scale(10);
+	int contentW = INFO_W - NFrame.nbox.bisz().x - (marg * 2);
+
+	// Render body below header
+	StringBuilder descBuf = new StringBuilder();
+	if(extra != null && !extra.isEmpty()) {
+	    descBuf.append(extra);
+	    descBuf.append("\n\n");
+	}
+	if(!pagText.isEmpty())
+	    descBuf.append(pagText);
+
+	RichText descRt = null;
+	if(descBuf.length() > 0) {
+	    RichText.Document doc = resdoc(res, descBuf.toString());
+	    descRt = descFnd.render(doc, contentW);
+	}
+
+	// Compute layout — title top-aligned with image
+	int headerH = imgSz.y;
+	int titleX = imgSz.x + IMG_GAP;
+	int titleY = 0;
+	int descY = headerH + IMG_GAP;
+	int descH = (descRt != null) ? descRt.sz().y : 0;
+	int totalH = descY + descH;
+
+	BufferedImage result = TexI.mkbuf(new Coord(contentW, totalH));
+	Graphics2D g = result.createGraphics();
+	g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+	    java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+	g.drawImage(scaledImg, 0, 0, null);
+	g.drawImage(titleLine.img, titleX, titleY, null);
+
+	if(descRt != null)
+	    g.drawImage(descRt.img, 0, descY, null);
+
+	g.dispose();
+	return result;
     }
 
     @Override
@@ -37,9 +111,14 @@ public class NSkillWnd extends SkillWnd {
 
 	// Section 1: "Lore & Skills" info box with NFrame border
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.skill.title")).tex()), "gfx/hud/chr/tips/skills"), Coord.z);
-	RichTextBox info = add(new RichTextBox(new Coord(innerW, innerH), descFnd, null),
-	    prev.pos("bl").add(nbtl.x, TITLE_GAP + nbtl.y));
-	info.bg = INFO_BG;
+	ImageInfoBox info = add(new ImageInfoBox(new Coord(innerW, innerH)) {
+	    @Override
+	    public void drawbg(GOut g) {
+		g.chcolor(INFO_BG);
+		g.frect(Coord.z, sz);
+		g.chcolor();
+	    }
+	}, prev.pos("bl").add(nbtl.x, TITLE_GAP + nbtl.y));
 	NFrame.around(this, Collections.singletonList(info));
 
 	// Section 2: "Entries" — no border
@@ -60,10 +139,15 @@ public class NSkillWnd extends SkillWnd {
 			super.change(sk);
 			NSkillWnd.this.exps.sel = null;
 			NSkillWnd.this.credos.sel = null;
-			if(sk != null)
-			    info.set(sk::rendertext);
-			else if(p != null)
-			    info.set(() -> null);
+			if(sk != null) {
+			    info.set(() -> {
+				Resource res = sk.res.get();
+				String extra = (sk.cost > 0) ? "Cost: " + sk.cost : null;
+				return new TexI(renderInfo(res, SKILL_IMG_SZ, extra, false));
+			    });
+			} else if(p != null) {
+			    info.set((Tex)null);
+			}
 		    }
 		}, 0, 0);
 	    skg.catf = attrf;
@@ -94,10 +178,14 @@ public class NSkillWnd extends SkillWnd {
 			super.change(cr);
 			NSkillWnd.this.skg.sel = null;
 			NSkillWnd.this.exps.sel = null;
-			if(cr != null)
-			    info.set(cr::rendertext);
-			else if(p != null)
-			    info.set(() -> null);
+			if(cr != null) {
+			    info.set(() -> {
+				Resource res = cr.res.get();
+				return new TexI(renderInfo(res, CREDO_IMG_SZ, null, true));
+			    });
+			} else if(p != null) {
+			    info.set((Tex)null);
+			}
 		    }
 		}, 0, 0);
 	}
@@ -111,10 +199,16 @@ public class NSkillWnd extends SkillWnd {
 			super.change(exp);
 			NSkillWnd.this.skg.sel = null;
 			NSkillWnd.this.credos.sel = null;
-			if(exp != null)
-			    info.set(exp::rendertext);
-			else if(p != null)
-			    info.set(() -> null);
+			if(exp != null) {
+			    info.set(() -> {
+				Resource res = exp.res.get();
+				String extra = (exp.score > 0) ?
+				    String.format(L10n.get("char.skill.exp_points"), Utils.thformat(exp.score)) : null;
+				return new TexI(renderInfo(res, SKILL_IMG_SZ, extra, false));
+			    });
+			} else if(p != null) {
+			    info.set((Tex)null);
+			}
 		    }
 		}, 0, 0);
 	}
