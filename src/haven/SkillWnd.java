@@ -204,13 +204,13 @@ public class SkillWnd extends Widget {
 	public final int btnw = UI.scale(100);
 	public final Tex credoufr = new TexI(convolvedown(Resource.loadimg("gfx/hud/chr/yrkirframe"), crsz, iconfilter));
 	public final Tex credosfr = new TexI(convolvedown(Resource.loadimg("gfx/hud/chr/yrkirsframe"), crsz, iconfilter));
-	public final Text.Foundry prsf = new Text.Foundry(Text.fraktur, 15).aa(true);
+	public Text.Foundry prsf = new Text.Foundry(Text.fraktur, 15).aa(true);
 	public final int m = UI.scale(5);
 	public List<Credo> ncr = Collections.emptyList(), ccr = Collections.emptyList();
 	public Credo pcr = null;
 	public int pcl, pclt, pcql, pcqlt, pqid, cost;
 	public Credo sel = null;
-	private final Img pcrc, ncrc, ccrc;
+	protected Img pcrc, ncrc, ccrc;
 	private final Button pbtn, qbtn;
 	private boolean loading = false;
 
