@@ -283,16 +283,14 @@ public class NSkillWnd extends SkillWnd {
 		    protected int layoutPursue(Widget cont, int mx, int y) {
 			int midY = y + pbtn.sz.y / 2;
 			// Cost label on the left: "Cost: " white + "X LP" purple
-			if(cost > 0) {
-			    Text.Line t1 = attrf.render("Cost: ");
-			    Color lpCol = new Color(0xD2, 0xB2, 0xFF);
-			    Text.Line t2 = attrf.render(String.format("%,d LP", cost), lpCol);
-			    Widget w1 = cont.adda(new Img(t1.tex()), mx, midY, 0, 0.5);
-			    cont.adda(new Img(t2.tex()), w1.c.x + w1.sz.x, midY, 0, 0.5);
-			}
-			// Pursue button on the right
-			int bx = (int)sz.x - mx - pbtn.sz.x;
-			cont.add(pbtn, bx, y);
+			Text.Line t1 = attrf.render("Cost: ");
+			Color lpCol = new Color(0xD2, 0xB2, 0xFF);
+			Text.Line t2 = attrf.render(String.format("%,d LP", cost), lpCol);
+			Widget w1 = cont.adda(new Img(t1.tex()), mx, midY, 0, 0.5);
+			cont.adda(new Img(t2.tex()), w1.c.x + w1.sz.x, midY, 0, 0.5);
+			// Pursue button right-aligned with rightmost credo image
+			int imgRight = 2 * (crsz.x + m) + m + crsz.x;
+			cont.add(pbtn, imgRight - pbtn.sz.x, y);
 			return pbtn.sz.y;
 		    }
 		    public void change(Credo cr) {
