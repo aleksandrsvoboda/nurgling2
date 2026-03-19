@@ -36,15 +36,15 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class BAttrWnd extends Widget {
-    public final List<Attr> attrs;
-    public final FoodMeter feps;
-    public final Constipations cons;
-    public final GlutMeter glut;
+    public List<Attr> attrs;
+    public FoodMeter feps;
+    public Constipations cons;
+    public GlutMeter glut;
 
     @RName("battr")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new BAttrWnd(ui.sess.glob));
+	    return(new nurgling.NBAttrWnd(ui.sess.glob));
 	}
     }
 
@@ -56,12 +56,16 @@ public class BAttrWnd extends Widget {
 	private Text ct;
 	private int cbv = -1, ccv = -1;
 
-	private Attr(Glob glob, String attr, Color bg) {
-	    super(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr);
+	protected Attr(Coord sz, Glob glob, String attr, Color bg) {
+	    super(sz, glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.rnm = attrf.render(res.flayer(Resource.tooltip).text());
 	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
 	    this.bg = bg;
+	}
+
+	private Attr(Glob glob, String attr, Color bg) {
+	    this(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr, bg);
 	}
 
 	public void tick(double dt) {
@@ -123,6 +127,12 @@ public class BAttrWnd extends Widget {
 	public Constipations(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
 	}
+
+	protected Constipations(Coord sz, int itemh) {
+	    super(sz, itemh);
+	}
+
+	protected int pctInset() { return UI.scale(1); }
 
 	public static class Reordered<T> extends AbstractList<T> {
 	    private final List<T> back;
@@ -186,7 +196,7 @@ public class BAttrWnd extends Widget {
 		    if(nm != null) {nm.reqdestroy(); nm = null;}
 		    if( a != null) { a.reqdestroy();  a = null;}
 		    Label a = adda(new Label(String.format("%d%%", Math.max((int)Math.round((1.0 - el.a) * 100), 1)), attrf),
-				   sz.x - UI.scale(1), sz.y / 2, 1.0, 0.5);
+				   sz.x - Constipations.this.pctInset(), sz.y / 2, 1.0, 0.5);
 		    a.setcolor((el.a > 1.0) ? buffed : Utils.blendcol(none, full, el.a));
 		    nm = adda(new ItemIcon(Coord.of(a.c.x - UI.scale(5), sz.y), new ItemSpec(OwnerContext.uictx.curry(Constipations.this.ui), el.t, null)),
 			      0, sz.y / 2, 0.0, 0.5);
@@ -303,6 +313,10 @@ public class BAttrWnd extends Widget {
 
 	public FoodMeter() {
 	    super(frame.sz());
+	}
+
+	protected FoodMeter(Coord sz) {
+	    super(sz);
 	}
 
 	private BufferedImage mktrol(List<El> els, Indir<Resource> trev) {
@@ -428,6 +442,10 @@ public class BAttrWnd extends Widget {
 	    super(frame.sz());
 	}
 
+	protected GlutMeter(Coord sz) {
+	    super(sz);
+	}
+
 	public void draw(GOut g) {
 	    Coord isz = sz.sub(marg.mul(2));
 	    g.chcolor(bg);
@@ -459,6 +477,10 @@ public class BAttrWnd extends Widget {
     }
 
     public BAttrWnd(Glob glob) {
+	buildLayout(glob);
+    }
+
+    protected void buildLayout(Glob glob) {
 	Widget prev;
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.title")).tex()), "gfx/hud/chr/tips/base"), Coord.z);
 	attrs = new ArrayList<>();

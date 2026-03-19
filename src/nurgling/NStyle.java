@@ -8,6 +8,25 @@ import java.awt.image.*;
 import java.util.*;
 
 public class NStyle {
+    static {
+	haven.Scrollbar.customDraw = (sb, g) -> {
+	    if(!sb.vis()) return;
+	    int w = haven.UI.scale(8);
+	    int x = sb.sz.x - w;
+	    // Track
+	    g.chcolor(0x33, 0x3E, 0x40, 0xFF);
+	    g.frect(haven.Coord.of(x, 0), new haven.Coord(w, sb.sz.y));
+	    g.chcolor();
+	    // Handle
+	    int handleH = haven.UI.scale(10);
+	    double a = (sb.max > sb.min) ? (double)sb.val / (double)(sb.max - sb.min) : 0;
+	    int fy = (int)((sb.sz.y - handleH) * a);
+	    g.chcolor(0xE9, 0x9C, 0x54, 0xFF);
+	    g.frect(haven.Coord.of(x, fy), new haven.Coord(w, handleH));
+	    g.chcolor();
+	};
+    }
+
     public static Text.Foundry fcomboitems = new Text.Foundry(Text.sans, 16).aa(true);
     public static Text.Furnace meter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, Color.WHITE).aa(true), 2, 1, new Color(60, 30, 30));
     public static Text.Furnace gmeter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, new Color(102, 178, 12)).aa(true), 2, 1, new Color(60, 30, 30));
@@ -28,9 +47,19 @@ public class NStyle {
             new TexI(Resource.loadsimg("nurgling/hud/buttons/removeItem/h"))};
 
     public static final BufferedImage[] cbtni = new BufferedImage[]{
-            Resource.loadsimg("nurgling/hud/wnd/cbtnu"),
-            Resource.loadsimg("nurgling/hud/wnd/cbtnd"),
-            Resource.loadsimg("nurgling/hud/wnd/cbtnh")};
+            Resource.loadsimg("nurgling/hud/icons/close/cross"),
+            Resource.loadsimg("nurgling/hud/icons/close/cross_push"),
+            Resource.loadsimg("nurgling/hud/icons/close/cross_hover")};
+
+    public static final BufferedImage[] plusbtni = new BufferedImage[]{
+            Resource.loadsimg("nurgling/hud/icons/ability/plus"),
+            Resource.loadsimg("nurgling/hud/icons/ability/plus_push"),
+            Resource.loadsimg("nurgling/hud/icons/ability/plus_hover")};
+
+    public static final BufferedImage[] minusbtni = new BufferedImage[]{
+            Resource.loadsimg("nurgling/hud/icons/ability/minus"),
+            Resource.loadsimg("nurgling/hud/icons/ability/minus_push"),
+            Resource.loadsimg("nurgling/hud/icons/ability/minus_hover")};
 
     public static final TexI[] settingsi = new TexI[]{
             new TexI(Resource.loadsimg("nurgling/hud/buttons/settings/u")),

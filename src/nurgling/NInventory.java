@@ -158,12 +158,12 @@ public class NInventory extends Inventory
             }
         }
         
-        // Check if deco is DefaultDeco with cbtn
-        if (!(wnd.deco instanceof Window.DefaultDeco)) {
+        // Check if deco is NWindowDeco with cbtn
+        if (!(wnd.deco instanceof NWindowDeco)) {
             return;
         }
-        
-        Window.DefaultDeco deco = (Window.DefaultDeco) wnd.deco;
+
+        NWindowDeco deco = (NWindowDeco) wnd.deco;
         
         // Add sort button to deco, left of close button
         // The button updates its position in tick() to stay left of cbtn
