@@ -16,7 +16,7 @@ public class NSkillWnd extends SkillWnd {
     private static final int INFO_H = UI.scale(348);
     private static final int ENTRIES_W = UI.scale(265);
     private static final int ENTRIES_H = UI.scale(297);
-    private static final int SECTION_GAP = UI.scale(15);
+    private static final int SECTION_GAP = UI.scale(17);
     private static final int TITLE_GAP = UI.scale(5);
     private static final int IMG_TEXT_GAP = 11;
     private static final int TEXT_TEXT_GAP = 9;
@@ -167,6 +167,8 @@ public class NSkillWnd extends SkillWnd {
 		g.frect(Coord.z, sz);
 		g.chcolor();
 	    }
+	    @Override
+	    public Coord marg() { return UI.scale(15, 15); }
 	}, prev.pos("bl").add(nbtl.x, TITLE_GAP + nbtl.y));
 	NFrame.around(this, Collections.singletonList(info));
 
@@ -182,16 +184,19 @@ public class NSkillWnd extends SkillWnd {
 		super.draw(g);
 	    }
 	}, entriesPos);
+	int ep = UI.scale(10);
 	Tabs lists = new Tabs(entriesPos, new Coord(ENTRIES_W, 0), this);
 
+	int paddedW = ENTRIES_W - ep * 2;
+	int paddedH = ENTRIES_H - ep * 2;
 	int buyH = UI.scale(44);
 	int gridGap = UI.scale(5);
-	int skGridH = ENTRIES_H - buyH - gridGap;
+	int skGridH = paddedH - buyH - gridGap;
 
 	// Skills tab
 	Tabs.Tab sktab = lists.add();
 	{
-	    skg = sktab.add(new SkillGrid(new Coord(ENTRIES_W, skGridH)) {
+	    skg = sktab.add(new SkillGrid(new Coord(paddedW, skGridH)) {
 		    public void change(Skill sk) {
 			Skill p = sel;
 			super.change(sk);
@@ -207,9 +212,9 @@ public class NSkillWnd extends SkillWnd {
 			    info.set((Tex)null);
 			}
 		    }
-		}, 0, 0);
+		}, ep, ep);
 	    skg.catf = attrf;
-	    Widget bf = sktab.adda(new Widget(new Coord(ENTRIES_W, buyH)), 0, ENTRIES_H, 0.0, 1.0);
+	    Widget bf = sktab.adda(new Widget(new Coord(paddedW, buyH)), ep, ENTRIES_H - ep, 0.0, 1.0);
 	    Button bbtn = sktab.adda(new Button(UI.scale(50), L10n.get("char.skill.buy")).action(() -> {
 			if(skg.sel != null)
 			    skill.wdgmsg("buy", skg.sel.nm);
@@ -230,6 +235,7 @@ public class NSkillWnd extends SkillWnd {
 			ncrc = new Img(attrf.render(L10n.get("char.skill.credos_available")).tex());
 			ccrc = new Img(attrf.render(L10n.get("char.skill.credos_acquired")).tex());
 			prsf = attrf;
+			m = UI.scale(10);
 		    }
 		    public void change(Credo cr) {
 			Credo p = sel;
@@ -251,7 +257,7 @@ public class NSkillWnd extends SkillWnd {
 	// Lore tab
 	Tabs.Tab exps = lists.add();
 	{
-	    this.exps = exps.add(new ExpGrid(new Coord(ENTRIES_W, ENTRIES_H)) {
+	    this.exps = exps.add(new ExpGrid(new Coord(paddedW, paddedH)) {
 		    public void change(Experience exp) {
 			Experience p = sel;
 			super.change(exp);
@@ -268,7 +274,7 @@ public class NSkillWnd extends SkillWnd {
 			    info.set((Tex)null);
 			}
 		    }
-		}, 0, 0);
+		}, ep, ep);
 	}
 	lists.pack();
 	int boxBottom = info.c.y + info.sz.y + NFrame.nbox.bbroff().y;

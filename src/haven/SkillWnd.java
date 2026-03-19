@@ -205,7 +205,7 @@ public class SkillWnd extends Widget {
 	public final Tex credoufr = new TexI(convolvedown(Resource.loadimg("gfx/hud/chr/yrkirframe"), crsz, iconfilter));
 	public final Tex credosfr = new TexI(convolvedown(Resource.loadimg("gfx/hud/chr/yrkirsframe"), crsz, iconfilter));
 	public Text.Foundry prsf = new Text.Foundry(Text.fraktur, 15).aa(true);
-	public final int m = UI.scale(5);
+	public int m = UI.scale(5);
 	public List<Credo> ncr = Collections.emptyList(), ccr = Collections.emptyList();
 	public Credo pcr = null;
 	public int pcl, pclt, pcql, pcqlt, pqid, cost;
