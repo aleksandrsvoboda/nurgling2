@@ -3,11 +3,24 @@ package nurgling;
 import haven.*;
 import java.util.*;
 import java.awt.Color;
+import java.awt.font.TextAttribute;
 import static haven.CharWnd.*;
 import nurgling.i18n.L10n;
 
 public class NSkillWnd extends SkillWnd {
     private static final Color INFO_BG = new Color(22, 39, 51);
+    private static final int INFO_W = UI.scale(267);
+    private static final int INFO_H = UI.scale(348);
+    private static final int ENTRIES_W = UI.scale(265);
+    private static final int ENTRIES_H = UI.scale(297);
+    private static final int SECTION_GAP = UI.scale(15);
+    private static final int TITLE_GAP = UI.scale(10);
+
+    private static final RichText.Foundry descFnd = new RichText.Foundry(
+	RichText.IMAGESRC, RichText.ImageSource.legacy,
+	TextAttribute.FONT,
+	nurgling.conf.FontSettings.getOpenSans().deriveFont(
+	    (float)Math.floor(UI.scale(11.0)))).aa(true);
 
     public NSkillWnd() {
 	super();
@@ -16,21 +29,32 @@ public class NSkillWnd extends SkillWnd {
     @Override
     protected void buildLayout() {
 	Widget prev;
+	Coord nbisz = NFrame.nbox.bisz();
 	Coord nbtl = NFrame.nbox.btloff();
 
+	int innerW = INFO_W - nbisz.x;
+	int innerH = INFO_H - nbisz.y;
+
+	// Section 1: "Lore & Skills" info box with NFrame border
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.skill.title")).tex()), "gfx/hud/chr/tips/skills"), Coord.z);
-	RichTextBox info = add(new RichTextBox(new Coord(attrw, height), ifnd, null), prev.pos("bl").adds(5, 0).add(nbtl));
+	RichTextBox info = add(new RichTextBox(new Coord(innerW, innerH), descFnd, null),
+	    prev.pos("bl").add(nbtl.x, TITLE_GAP + nbtl.y));
 	info.bg = INFO_BG;
 	NFrame.around(this, Collections.singletonList(info));
 
-	prev = add(new Img(catf.render(L10n.get("char.skill.entries")).tex()), width, 0);
-	Tabs lists = new Tabs(prev.pos("bl").adds(5, 0), new Coord(attrw + NFrame.nbox.bisz().x, 0), this);
-	int gh = UI.scale(241);
+	// Section 2: "Entries" — no border
+	int entriesX = INFO_W + SECTION_GAP;
+	prev = add(new Img(catf.render(L10n.get("char.skill.entries")).tex()), entriesX, 0);
+	Tabs lists = new Tabs(prev.pos("bl").add(0, TITLE_GAP), new Coord(ENTRIES_W, 0), this);
+
+	int buyH = UI.scale(44);
+	int gridGap = UI.scale(5);
+	int skGridH = ENTRIES_H - buyH - gridGap;
+
+	// Skills tab
 	Tabs.Tab sktab = lists.add();
 	{
-	    NFrame f = sktab.add(new NFrame(new Coord(lists.sz.x, UI.scale(192)), false, NFrame.nbox), 0, 0);
-	    int y = f.sz.y + UI.scale(5);
-	    skg = f.addin(new SkillGrid(Coord.z) {
+	    skg = sktab.add(new SkillGrid(new Coord(ENTRIES_W, skGridH)) {
 		    public void change(Skill sk) {
 			Skill p = sel;
 			super.change(sk);
@@ -41,23 +65,30 @@ public class NSkillWnd extends SkillWnd {
 			else if(p != null)
 			    info.set(() -> null);
 		    }
-		});
-	    Widget bf = sktab.adda(new NFrame(new Coord(f.sz.x, UI.scale(44)), false, NFrame.nbox), f.c.x, gh, 0.0, 1.0);
+		}, 0, 0);
+	    skg.catf = attrf;
+	    Widget bf = sktab.adda(new Widget(new Coord(ENTRIES_W, buyH)), 0, ENTRIES_H, 0.0, 1.0);
 	    Button bbtn = sktab.adda(new Button(UI.scale(50), L10n.get("char.skill.buy")).action(() -> {
 			if(skg.sel != null)
 			    skill.wdgmsg("buy", skg.sel.nm);
-	    }), bf.pos("ibr").subs(10, 0).y(bf.pos("mid").y), 1.0, 0.5);
-	    Label clbl = sktab.adda(new Label(L10n.get("char.skill.cost")), bf.pos("iul").adds(10, 0).y(bf.pos("mid").y), 0, 0.5);
+	    }), bf.pos("br").subs(10, 0).y(bf.pos("mid").y), 1.0, 0.5);
+	    Label clbl = sktab.adda(new Label(L10n.get("char.skill.cost")), bf.pos("ul").adds(10, 0).y(bf.pos("mid").y), 0, 0.5);
 	    sktab.adda(new RLabel<Pair<Integer, Integer>>(() -> new Pair<>(((skg.sel == null) || skg.sel.has) ? null : skg.sel.cost, this.chr.exp),
 							  n -> (n.a == null) ? "N/A" : String.format("%,d / %,d LP", n.a, n.b),
 							  n -> ((n.a != null) && (n.a > n.b)) ? debuff : Color.WHITE),
 		       bbtn.pos("ul").subs(10, 0).y(bf.pos("mid").y), 1.0, 0.5);
 	}
 
+	// Credos tab
 	Tabs.Tab credos = lists.add();
 	{
-	    NFrame f = credos.add(new NFrame(new Coord(lists.sz.x, gh), false, NFrame.nbox), 0, 0);
-	    this.credos = f.addin(new CredoGrid(Coord.z) {
+	    this.credos = credos.add(new CredoGrid(new Coord(ENTRIES_W, ENTRIES_H)) {
+		    {
+			pcrc = new Img(attrf.render(L10n.get("char.skill.pursuing")).tex());
+			ncrc = new Img(attrf.render(L10n.get("char.skill.credos_available")).tex());
+			ccrc = new Img(attrf.render(L10n.get("char.skill.credos_acquired")).tex());
+			prsf = attrf;
+		    }
 		    public void change(Credo cr) {
 			Credo p = sel;
 			super.change(cr);
@@ -68,13 +99,13 @@ public class NSkillWnd extends SkillWnd {
 			else if(p != null)
 			    info.set(() -> null);
 		    }
-		});
+		}, 0, 0);
 	}
 
+	// Lore tab
 	Tabs.Tab exps = lists.add();
 	{
-	    NFrame f = exps.add(new NFrame(new Coord(lists.sz.x, gh), false, NFrame.nbox), 0, 0);
-	    this.exps = f.addin(new ExpGrid(Coord.z) {
+	    this.exps = exps.add(new ExpGrid(new Coord(ENTRIES_W, ENTRIES_H)) {
 		    public void change(Experience exp) {
 			Experience p = sel;
 			super.change(exp);
@@ -85,7 +116,7 @@ public class NSkillWnd extends SkillWnd {
 			else if(p != null)
 			    info.set(() -> null);
 		    }
-		});
+		}, 0, 0);
 	}
 	lists.pack();
 	addhlp(lists.c.add(0, lists.sz.y + UI.scale(5)), UI.scale(5), lists.sz.x,

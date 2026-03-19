@@ -32,7 +32,7 @@ import static haven.PUtils.*;
 
 public abstract class GridList<T> extends Widget {
     public static final Text.Furnace dcatf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 18).aa(true), Window.ctex), 2, 1, new Color(96, 48, 0));
-    public final Text.Furnace catf;
+    public Text.Furnace catf;
     public final Scrollbar sb;
     public T sel = null;
     public int gmarg = 10;
