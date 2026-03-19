@@ -17,8 +17,10 @@ public class NSkillWnd extends SkillWnd {
     private static final int ENTRIES_W = UI.scale(265);
     private static final int ENTRIES_H = UI.scale(297);
     private static final int SECTION_GAP = UI.scale(15);
-    private static final int TITLE_GAP = UI.scale(10);
-    private static final int IMG_GAP = UI.scale(10);
+    private static final int TITLE_GAP = UI.scale(5);
+    private static final int IMG_TEXT_GAP = 11;
+    private static final int TEXT_TEXT_GAP = 9;
+    private static final int TEXT_W = 227;
 
     private static final Coord CREDO_IMG_SZ = UI.scale(new Coord(80, 100));
     private static final Coord SKILL_IMG_SZ = UI.scale(new Coord(40, 40));
@@ -26,11 +28,13 @@ public class NSkillWnd extends SkillWnd {
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 12, Color.WHITE).aa(true);
 
+    private static final java.awt.Font descFont =
+	nurgling.conf.FontSettings.getOpenSans().deriveFont(
+	    (float)Math.floor(UI.scale(11.0)));
+
     private static final RichText.Foundry descFnd = new RichText.Foundry(
 	RichText.IMAGESRC, RichText.ImageSource.legacy,
-	TextAttribute.FONT,
-	nurgling.conf.FontSettings.getOpenSans().deriveFont(
-	    (float)Math.floor(UI.scale(11.0)))).aa(true);
+	TextAttribute.FONT, descFont).aa(true);
 
     public NSkillWnd() {
 	super();
@@ -56,43 +60,87 @@ public class NSkillWnd extends SkillWnd {
 	Resource.Pagina pag = res.layer(Resource.pagina);
 	String pagText = (pag != null) ? pag.text : "";
 
-	if(reorderBonuses && !pagText.isEmpty())
-	    pagText = reorderBonusesFirst(pagText);
-
-	int marg = UI.scale(10);
-	int contentW = INFO_W - NFrame.nbox.bisz().x - (marg * 2);
-
-	// Render body below header
-	StringBuilder descBuf = new StringBuilder();
-	if(extra != null && !extra.isEmpty()) {
-	    descBuf.append(extra);
-	    descBuf.append("\n\n");
+	// Find actual visible bottom of the image (skip transparent padding)
+	int visibleBottom = scaledImg.getHeight();
+	outer:
+	for(int row = scaledImg.getHeight() - 1; row >= 0; row--) {
+	    for(int col = 0; col < scaledImg.getWidth(); col++) {
+		if((scaledImg.getRGB(col, row) & 0xFF000000) != 0) {
+		    visibleBottom = row + 1;
+		    break outer;
+		}
+	    }
 	}
-	if(!pagText.isEmpty())
-	    descBuf.append(pagText);
+	int titleX = imgSz.x + UI.scale(10);
 
+	int y = visibleBottom + IMG_TEXT_GAP;
+
+	RichText bonusRt = null;
 	RichText descRt = null;
-	if(descBuf.length() > 0) {
-	    RichText.Document doc = resdoc(res, descBuf.toString());
-	    descRt = descFnd.render(doc, contentW);
+	int bonusY = 0, descY = 0;
+
+	if(reorderBonuses && !pagText.isEmpty()) {
+	    // Split pagina into bonuses (colored) and description (plain)
+	    int colIdx = pagText.indexOf("$col[");
+	    String bonuses = null, description = null;
+	    if(colIdx > 0) {
+		description = pagText.substring(0, colIdx).trim();
+		bonuses = pagText.substring(colIdx).trim();
+	    } else if(colIdx == 0) {
+		bonuses = pagText.trim();
+	    } else {
+		description = pagText.trim();
+	    }
+
+	    // Strip leading/trailing newlines inside $col[]{...} blocks
+	    if(bonuses != null) {
+		bonuses = bonuses.replace("{\n", "{").replace("\n}", "}");
+	    }
+
+	    // Render bonuses block
+	    if(bonuses != null && !bonuses.isEmpty()) {
+		bonusRt = descFnd.render(resdoc(res, bonuses), TEXT_W);
+		bonusY = y;
+		y += bonusRt.sz().y;
+	    }
+
+	    // 15px baseline-to-top: 9px gap + ~6px descent = 15px visual
+	    if(bonusRt != null && description != null && !description.isEmpty())
+		y += TEXT_TEXT_GAP;
+
+	    // Render description block
+	    if(description != null && !description.isEmpty()) {
+		descRt = descFnd.render(resdoc(res, description), TEXT_W);
+		descY = y;
+		y += descRt.sz().y;
+	    }
+	} else {
+	    // Single block: extra + pagina
+	    StringBuilder buf = new StringBuilder();
+	    if(extra != null && !extra.isEmpty()) {
+		buf.append(extra);
+		buf.append("\n\n");
+	    }
+	    if(!pagText.isEmpty())
+		buf.append(pagText);
+
+	    if(buf.length() > 0) {
+		descRt = descFnd.render(resdoc(res, buf.toString()), TEXT_W);
+		descY = y;
+		y += descRt.sz().y;
+	    }
 	}
 
-	// Compute layout — title top-aligned with image
-	int headerH = imgSz.y;
-	int titleX = imgSz.x + IMG_GAP;
-	int titleY = 0;
-	int descY = headerH + IMG_GAP;
-	int descH = (descRt != null) ? descRt.sz().y : 0;
-	int totalH = descY + descH;
-
-	BufferedImage result = TexI.mkbuf(new Coord(contentW, totalH));
+	BufferedImage result = TexI.mkbuf(new Coord(TEXT_W, y));
 	Graphics2D g = result.createGraphics();
 	g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 	    java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
 	g.drawImage(scaledImg, 0, 0, null);
-	g.drawImage(titleLine.img, titleX, titleY, null);
+	g.drawImage(titleLine.img, titleX, 0, null);
 
+	if(bonusRt != null)
+	    g.drawImage(bonusRt.img, 0, bonusY, null);
 	if(descRt != null)
 	    g.drawImage(descRt.img, 0, descY, null);
 
@@ -121,10 +169,19 @@ public class NSkillWnd extends SkillWnd {
 	}, prev.pos("bl").add(nbtl.x, TITLE_GAP + nbtl.y));
 	NFrame.around(this, Collections.singletonList(info));
 
-	// Section 2: "Entries" — no border
+	// Section 2: "Entries" — dark background, no orange border
 	int entriesX = INFO_W + SECTION_GAP;
 	prev = add(new Img(catf.render(L10n.get("char.skill.entries")).tex()), entriesX, 0);
-	Tabs lists = new Tabs(prev.pos("bl").add(0, TITLE_GAP), new Coord(ENTRIES_W, 0), this);
+	Coord entriesPos = prev.pos("bl").add(0, TITLE_GAP);
+	add(new Widget(new Coord(ENTRIES_W, ENTRIES_H)) {
+	    public void draw(GOut g) {
+		g.chcolor(INFO_BG);
+		g.frect(Coord.z, sz);
+		g.chcolor();
+		super.draw(g);
+	    }
+	}, entriesPos);
+	Tabs lists = new Tabs(entriesPos, new Coord(ENTRIES_W, 0), this);
 
 	int buyH = UI.scale(44);
 	int gridGap = UI.scale(5);
