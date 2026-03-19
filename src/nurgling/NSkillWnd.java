@@ -225,7 +225,7 @@ public class NSkillWnd extends SkillWnd {
 	int entriesX = INFO_W + SECTION_GAP;
 	prev = add(new Img(catf.render(L10n.get("char.skill.entries")).tex()), entriesX, 0);
 	Coord entriesPos = prev.pos("bl").add(0, TITLE_GAP);
-	entriesBg = add(new Widget(new Coord(ENTRIES_W, ENTRIES_H)) {
+	entriesBg = add(new Widget(new Coord(ENTRIES_W, ENTRIES_H_SKILLS)) {
 	    public void draw(GOut g) {
 		g.chcolor(INFO_BG);
 		g.frect(Coord.z, sz);
@@ -240,11 +240,10 @@ public class NSkillWnd extends SkillWnd {
 	int paddedH = ENTRIES_H - ep * 2;
 
 	// Skills tab
-	int skillPaddedH = ENTRIES_H_SKILLS - ep * 2;
 	Tabs.Tab sktab = ntabs.add();
 	skillTab = sktab;
 	{
-	    skg = sktab.add(new SkillGrid(new Coord(paddedW, skillPaddedH)) {
+	    skg = sktab.add(new SkillGrid(new Coord(ENTRIES_W, ENTRIES_H_SKILLS)) {
 		    public void change(Skill sk) {
 			Skill p = sel;
 			super.change(sk);
@@ -259,7 +258,7 @@ public class NSkillWnd extends SkillWnd {
 			    info.set((Tex)null);
 			}
 		    }
-		}, ep, ep);
+		}, 0, 0);
 	    skg.catf = attrf;
 	}
 
@@ -323,7 +322,7 @@ public class NSkillWnd extends SkillWnd {
 	int buyH = UI.scale(30);
 	buyBar = add(new Widget(new Coord(ENTRIES_W, buyH)), entriesPos.x, buyY);
 	int bmid = buyH / 2;
-	Button bbtn = buyBar.adda(new Button(UI.scale(50), L10n.get("char.skill.buy")).action(() -> {
+	Button bbtn = buyBar.adda(new Button(UI.scale(69), L10n.get("char.skill.buy")).action(() -> {
 		    if(skg.sel != null)
 			skill.wdgmsg("buy", skg.sel.nm);
 	}), ENTRIES_W - UI.scale(10), bmid, 1.0, 0.5);
