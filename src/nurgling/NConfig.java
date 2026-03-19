@@ -408,7 +408,7 @@ public class NConfig
         // UI Opacity settings
         conf.put(Key.uiOpacity, 1.0f);  // Default to fully opaque
         conf.put(Key.useSolidBackground, false);  // Default to texture mode
-        conf.put(Key.windowBackgroundColor, new java.awt.Color(32, 32, 32));  // Default dark gray
+        conf.put(Key.windowBackgroundColor, new java.awt.Color(0x1C, 0x25, 0x26));  // #1C2526
         conf.put(Key.buttonStyle, "tbtn");  // Default button style
 
         // Pickling settings

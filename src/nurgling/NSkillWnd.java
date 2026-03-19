@@ -11,7 +11,7 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class NSkillWnd extends SkillWnd {
-    private static final Color INFO_BG = new Color(22, 39, 51);
+    private static final Color INFO_BG = new Color(0x1C, 0x25, 0x26);
     private static final int INFO_W = UI.scale(267);
     private static final int INFO_H = UI.scale(348);
     private static final int ENTRIES_W = UI.scale(265);
