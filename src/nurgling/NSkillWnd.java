@@ -40,6 +40,7 @@ public class NSkillWnd extends SkillWnd {
 	super();
     }
 
+
     private static String reorderBonusesFirst(String pagText) {
 	int colIdx = pagText.indexOf("$col[");
 	if(colIdx <= 0)
@@ -270,7 +271,9 @@ public class NSkillWnd extends SkillWnd {
 		}, 0, 0);
 	}
 	lists.pack();
-	addhlp(lists.c.add(0, lists.sz.y + UI.scale(5)), UI.scale(5), lists.sz.x,
+	int boxBottom = info.c.y + info.sz.y + NFrame.nbox.bbroff().y;
+	int btnY = boxBottom - Button.hs;
+	addhlp(new Coord(entriesPos.x, btnY), UI.scale(5), ENTRIES_W,
 	      lists.new TabButton(0, L10n.get("char.skill.tab_skills"), sktab),
 	      lists.new TabButton(0, L10n.get("char.skill.tab_credos"), credos),
 	      lists.new TabButton(0, L10n.get("char.skill.tab_lore"),   exps));
