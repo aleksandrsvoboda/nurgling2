@@ -73,6 +73,7 @@ public abstract class GridList<T> extends Widget {
 
     protected int xpad() { return 0; }
     protected int ypad() { return 0; }
+    protected int labelItemGap() { return 0; }
 
     protected void update() {
 	int y = ypad();
@@ -86,7 +87,7 @@ public abstract class GridList<T> extends Widget {
 	    first = false;
 	    grp.sy = y;
 	    if(grp.name != null)
-		y += grp.rname().sz().y;
+		y += grp.rname().sz().y + labelItemGap();
 	    int rw = Math.max((w - grp.itemsz.x) / (grp.itemsz.x + Math.max(grp.marg.x, 0)), 0) + 1;
 	    int nr = (grp.items.size() + (rw - 1)) / rw;
 	    y += nr * grp.itemsz.y;
@@ -131,7 +132,7 @@ public abstract class GridList<T> extends Widget {
 	    int iy = grp.sy - yo;
 	    if(grp.name != null) {
 		g.image(grp.rname().tex(), new Coord(xp, grp.sy - yo));
-		iy += grp.rname().sz().y;
+		iy += grp.rname().sz().y + labelItemGap();
 	    }
 	    int rw = Math.max((W - grp.itemsz.x) / (grp.itemsz.x + Math.max(grp.marg.x, 0)), 0) + 1;
 	    int sr = Math.max(-iy, 0) / (grp.itemsz.y + grp.marg.y);
@@ -169,7 +170,7 @@ public abstract class GridList<T> extends Widget {
 	    if((ay >= grp.sy) && (ay < grp.ey)) {
 		int gy = ay - grp.sy;
 		if(grp.name != null)
-		    gy -= grp.rname().sz().y;
+		    gy -= grp.rname().sz().y + labelItemGap();
 		if(gy < 0)
 		    return(null);
 		int rw = Math.max((W - grp.itemsz.x) / (grp.itemsz.x + Math.max(grp.marg.x, 0)), 0) + 1;
