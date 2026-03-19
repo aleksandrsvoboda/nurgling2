@@ -73,12 +73,12 @@ public class NSkillWnd extends SkillWnd {
 
     private static final Color COST_COLOR = new Color(0xFF, 0xFF, 0x82);
 
-    private BufferedImage renderInfo(Resource res, Coord imgSz, String extra, boolean reorderBonuses, int headerCost) {
+    private BufferedImage renderInfo(Resource res, Coord imgSz, String extra, boolean reorderBonuses, String headerSub) {
 	BufferedImage resImg = res.flayer(Resource.imgc).img;
 	BufferedImage scaledImg = convolvedown(resImg, imgSz, iconfilter);
 	String title = res.flayer(Resource.tooltip).t;
 	Text.Line titleLine = titleFnd.render(title);
-	Text.Line costLine = (headerCost > 0) ? titleFnd.render(String.format("Cost: %,d", headerCost), COST_COLOR) : null;
+	Text.Line costLine = (headerSub != null) ? titleFnd.render(headerSub, COST_COLOR) : null;
 
 	Resource.Pagina pag = res.layer(Resource.pagina);
 	String pagText = (pag != null) ? pag.text : "";
@@ -255,7 +255,8 @@ public class NSkillWnd extends SkillWnd {
 			if(sk != null) {
 			    info.set(() -> {
 				Resource res = sk.res.get();
-				return new TexI(renderInfo(res, SKILL_IMG_SZ, null, false, sk.cost));
+				String sub = (sk.cost > 0) ? String.format("Cost: %,d", sk.cost) : null;
+				return new TexI(renderInfo(res, SKILL_IMG_SZ, null, false, sub));
 			    });
 			} else if(p != null) {
 			    info.set((Tex)null);
@@ -287,7 +288,7 @@ public class NSkillWnd extends SkillWnd {
 			if(cr != null) {
 			    info.set(() -> {
 				Resource res = cr.res.get();
-				return new TexI(renderInfo(res, CREDO_IMG_SZ, null, true, 0));
+				return new TexI(renderInfo(res, CREDO_IMG_SZ, null, true, null));
 			    });
 			} else if(p != null) {
 			    info.set((Tex)null);
@@ -308,9 +309,9 @@ public class NSkillWnd extends SkillWnd {
 			if(exp != null) {
 			    info.set(() -> {
 				Resource res = exp.res.get();
-				String extra = (exp.score > 0) ?
+				String sub = (exp.score > 0) ?
 				    String.format(L10n.get("char.skill.exp_points"), Utils.thformat(exp.score)) : null;
-				return new TexI(renderInfo(res, SKILL_IMG_SZ, extra, false, 0));
+				return new TexI(renderInfo(res, SKILL_IMG_SZ, null, false, sub));
 			    });
 			} else if(p != null) {
 			    info.set((Tex)null);
