@@ -31,6 +31,7 @@ public class Scrollbar extends Widget {
     public static final Tex sflarp = Resource.loadtex("gfx/hud/sflarp");
     public static final int chcut = UI.scale(7);
     public static final int width = sflarp.sz().x;
+    public static java.util.function.BiConsumer<Scrollbar, GOut> customDraw = null;
     public Scrollable ctl;
     public int val, min, max;
     private UI.Grab drag = null;
@@ -60,6 +61,10 @@ public class Scrollbar extends Widget {
 	    min = ctl.scrollmin();
 	    max = ctl.scrollmax();
 	    val = ctl.scrollval();
+	}
+	if(customDraw != null) {
+	    customDraw.accept(this, g);
+	    return;
 	}
 	if(vis()) {
 	    int cx = (sflarp.sz().x / 2) - (schain.sz().x / 2);
