@@ -237,6 +237,8 @@ public class NSkillWnd extends SkillWnd {
 			prsf = attrf;
 			m = UI.scale(10);
 		    }
+		    protected int topPad() { return UI.scale(5); }
+		    protected int labelGap() { return UI.scale(5); }
 		    public void change(Credo cr) {
 			Credo p = sel;
 			super.change(cr);
