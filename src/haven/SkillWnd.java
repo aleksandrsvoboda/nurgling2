@@ -211,7 +211,7 @@ public class SkillWnd extends Widget {
 	public int pcl, pclt, pcql, pcqlt, pqid, cost;
 	public Credo sel = null;
 	protected Img pcrc, ncrc, ccrc;
-	private final Button pbtn, qbtn;
+	protected final Button pbtn, qbtn;
 	private boolean loading = false;
 
 	public CredoGrid(Coord sz) {
@@ -283,6 +283,13 @@ public class SkillWnd extends Widget {
 	protected int labelGap() { return m; }
 	protected int textYAdj() { return 0; }
 
+	protected int layoutPursue(Widget cont, int mx, int y) {
+	    cont.add(pbtn, mx, y);
+	    if(cost > 0)
+		cont.adda(new Label(String.format(L10n.get("char.skill.credo_cost"), cost)), pbtn.c.x + pbtn.sz.x + UI.scale(10), pbtn.c.y + (pbtn.sz.y / 2), 0, 0.5);
+	    return pbtn.sz.y;
+	}
+
 	private void update() {
 	    sort(ccr); sort(ncr);
 	    for(Widget ch = cont.child; ch != null; ch = cont.child)
@@ -305,10 +312,7 @@ public class SkillWnd extends Widget {
 		y += ncrc.sz.y + 5;
 		y = crgrid(y, ncr);
 		if(pcr == null) {
-		    cont.add(pbtn, m, y);
-		    if(cost > 0)
-			cont.adda(new Label(String.format(L10n.get("char.skill.credo_cost"), cost)), pbtn.c.x + pbtn.sz.x + UI.scale(10), pbtn.c.y + (pbtn.sz.y / 2), 0, 0.5);
-		    y += pbtn.sz.y;
+		    y += layoutPursue(cont, m, y);
 		}
 		y += UI.scale(10);
 	    }
