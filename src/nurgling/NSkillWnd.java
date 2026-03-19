@@ -11,11 +11,15 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class NSkillWnd extends SkillWnd {
+    private Widget buyBar, entriesBg;
+    private Tabs.Tab skillTab;
+    private Tabs ntabs;
     private static final Color INFO_BG = new Color(0x1C, 0x25, 0x26);
     private static final int INFO_W = UI.scale(267);
     private static final int INFO_H = UI.scale(348);
     private static final int ENTRIES_W = UI.scale(265);
     private static final int ENTRIES_H = UI.scale(297);
+    private static final int ENTRIES_H_SKILLS = UI.scale(261);
     private static final int SECTION_GAP = UI.scale(17);
     private static final int TITLE_GAP = UI.scale(5);
     private static final int IMG_TEXT_GAP = 11;
@@ -23,7 +27,7 @@ public class NSkillWnd extends SkillWnd {
     private static final int TEXT_W = 227;
 
     private static final Coord CREDO_IMG_SZ = UI.scale(new Coord(80, 100));
-    private static final Coord SKILL_IMG_SZ = UI.scale(new Coord(40, 40));
+    private static final Coord SKILL_IMG_SZ = UI.scale(new Coord(76, 76));
 
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 12, Color.WHITE).aa(true);
@@ -40,6 +44,21 @@ public class NSkillWnd extends SkillWnd {
 	super();
     }
 
+    @Override
+    public void tick(double dt) {
+	super.tick(dt);
+	if(ntabs != null && buyBar != null && entriesBg != null) {
+	    boolean isSkills = (ntabs.curtab == skillTab);
+	    if(isSkills && !buyBar.visible())
+		buyBar.show();
+	    else if(!isSkills && buyBar.visible())
+		buyBar.hide();
+	    int targetH = isSkills ? ENTRIES_H_SKILLS : ENTRIES_H;
+	    if(entriesBg.sz.y != targetH)
+		entriesBg.resize(new Coord(ENTRIES_W, targetH));
+	}
+    }
+
 
     private static String reorderBonusesFirst(String pagText) {
 	int colIdx = pagText.indexOf("$col[");
@@ -52,11 +71,14 @@ public class NSkillWnd extends SkillWnd {
 	return bonuses + "\n\n" + description;
     }
 
-    private BufferedImage renderInfo(Resource res, Coord imgSz, String extra, boolean reorderBonuses) {
+    private static final Color COST_COLOR = new Color(0xFF, 0xFF, 0x82);
+
+    private BufferedImage renderInfo(Resource res, Coord imgSz, String extra, boolean reorderBonuses, int headerCost) {
 	BufferedImage resImg = res.flayer(Resource.imgc).img;
 	BufferedImage scaledImg = convolvedown(resImg, imgSz, iconfilter);
 	String title = res.flayer(Resource.tooltip).t;
 	Text.Line titleLine = titleFnd.render(title);
+	Text.Line costLine = (headerCost > 0) ? titleFnd.render(String.format("Cost: %,d", headerCost), COST_COLOR) : null;
 
 	Resource.Pagina pag = res.layer(Resource.pagina);
 	String pagText = (pag != null) ? pag.text : "";
@@ -151,6 +173,22 @@ public class NSkillWnd extends SkillWnd {
 	g.drawImage(scaledImg, 0, 0, null);
 	g.drawImage(titleLine.img, titleX, -titleAdj, null);
 
+	if(costLine != null) {
+	    // Find first visible row in cost text to tighten spacing
+	    int costAdj = 0;
+	    findCost:
+	    for(int row = 0; row < costLine.img.getHeight(); row++) {
+		for(int col = 0; col < costLine.img.getWidth(); col++) {
+		    if((costLine.img.getRGB(col, row) & 0xFF000000) != 0) {
+			costAdj = row;
+			break findCost;
+		    }
+		}
+	    }
+	    int costGap = 6;
+	    g.drawImage(costLine.img, titleX, titleLine.sz().y - titleAdj - costAdj + costGap, null);
+	}
+
 	if(bonusRt != null)
 	    g.drawImage(bonusRt.img, 0, bonusY, null);
 	if(descRt != null)
@@ -187,7 +225,7 @@ public class NSkillWnd extends SkillWnd {
 	int entriesX = INFO_W + SECTION_GAP;
 	prev = add(new Img(catf.render(L10n.get("char.skill.entries")).tex()), entriesX, 0);
 	Coord entriesPos = prev.pos("bl").add(0, TITLE_GAP);
-	add(new Widget(new Coord(ENTRIES_W, ENTRIES_H)) {
+	entriesBg = add(new Widget(new Coord(ENTRIES_W, ENTRIES_H)) {
 	    public void draw(GOut g) {
 		g.chcolor(INFO_BG);
 		g.frect(Coord.z, sz);
@@ -196,18 +234,17 @@ public class NSkillWnd extends SkillWnd {
 	    }
 	}, entriesPos);
 	int ep = UI.scale(10);
-	Tabs lists = new Tabs(entriesPos, new Coord(ENTRIES_W, 0), this);
+	ntabs = new Tabs(entriesPos, new Coord(ENTRIES_W, 0), this);
 
 	int paddedW = ENTRIES_W - ep * 2;
 	int paddedH = ENTRIES_H - ep * 2;
-	int buyH = UI.scale(44);
-	int gridGap = UI.scale(5);
-	int skGridH = paddedH - buyH - gridGap;
 
 	// Skills tab
-	Tabs.Tab sktab = lists.add();
+	int skillPaddedH = ENTRIES_H_SKILLS - ep * 2;
+	Tabs.Tab sktab = ntabs.add();
+	skillTab = sktab;
 	{
-	    skg = sktab.add(new SkillGrid(new Coord(paddedW, skGridH)) {
+	    skg = sktab.add(new SkillGrid(new Coord(paddedW, skillPaddedH)) {
 		    public void change(Skill sk) {
 			Skill p = sel;
 			super.change(sk);
@@ -216,8 +253,7 @@ public class NSkillWnd extends SkillWnd {
 			if(sk != null) {
 			    info.set(() -> {
 				Resource res = sk.res.get();
-				String extra = (sk.cost > 0) ? "Cost: " + sk.cost : null;
-				return new TexI(renderInfo(res, SKILL_IMG_SZ, extra, false));
+				return new TexI(renderInfo(res, SKILL_IMG_SZ, null, false, sk.cost));
 			    });
 			} else if(p != null) {
 			    info.set((Tex)null);
@@ -225,20 +261,10 @@ public class NSkillWnd extends SkillWnd {
 		    }
 		}, ep, ep);
 	    skg.catf = attrf;
-	    Widget bf = sktab.adda(new Widget(new Coord(paddedW, buyH)), ep, ENTRIES_H - ep, 0.0, 1.0);
-	    Button bbtn = sktab.adda(new Button(UI.scale(50), L10n.get("char.skill.buy")).action(() -> {
-			if(skg.sel != null)
-			    skill.wdgmsg("buy", skg.sel.nm);
-	    }), bf.pos("br").subs(10, 0).y(bf.pos("mid").y), 1.0, 0.5);
-	    Label clbl = sktab.adda(new Label(L10n.get("char.skill.cost")), bf.pos("ul").adds(10, 0).y(bf.pos("mid").y), 0, 0.5);
-	    sktab.adda(new RLabel<Pair<Integer, Integer>>(() -> new Pair<>(((skg.sel == null) || skg.sel.has) ? null : skg.sel.cost, this.chr.exp),
-							  n -> (n.a == null) ? "N/A" : String.format("%,d / %,d LP", n.a, n.b),
-							  n -> ((n.a != null) && (n.a > n.b)) ? debuff : Color.WHITE),
-		       bbtn.pos("ul").subs(10, 0).y(bf.pos("mid").y), 1.0, 0.5);
 	}
 
 	// Credos tab
-	Tabs.Tab credos = lists.add();
+	Tabs.Tab credos = ntabs.add();
 	{
 	    this.credos = credos.add(new CredoGrid(new Coord(ENTRIES_W, ENTRIES_H)) {
 		    {
@@ -259,7 +285,7 @@ public class NSkillWnd extends SkillWnd {
 			if(cr != null) {
 			    info.set(() -> {
 				Resource res = cr.res.get();
-				return new TexI(renderInfo(res, CREDO_IMG_SZ, null, true));
+				return new TexI(renderInfo(res, CREDO_IMG_SZ, null, true, 0));
 			    });
 			} else if(p != null) {
 			    info.set((Tex)null);
@@ -269,7 +295,7 @@ public class NSkillWnd extends SkillWnd {
 	}
 
 	// Lore tab
-	Tabs.Tab exps = lists.add();
+	Tabs.Tab exps = ntabs.add();
 	{
 	    this.exps = exps.add(new ExpGrid(new Coord(paddedW, paddedH)) {
 		    public void change(Experience exp) {
@@ -282,7 +308,7 @@ public class NSkillWnd extends SkillWnd {
 				Resource res = exp.res.get();
 				String extra = (exp.score > 0) ?
 				    String.format(L10n.get("char.skill.exp_points"), Utils.thformat(exp.score)) : null;
-				return new TexI(renderInfo(res, SKILL_IMG_SZ, extra, false));
+				return new TexI(renderInfo(res, SKILL_IMG_SZ, extra, false, 0));
 			    });
 			} else if(p != null) {
 			    info.set((Tex)null);
@@ -290,13 +316,31 @@ public class NSkillWnd extends SkillWnd {
 		    }
 		}, ep, ep);
 	}
-	lists.pack();
+	ntabs.pack();
+
+	// Buy bar below entries box — only visible on skills tab
+	int buyY = entriesPos.y + ENTRIES_H_SKILLS + UI.scale(5);
+	int buyH = UI.scale(30);
+	buyBar = add(new Widget(new Coord(ENTRIES_W, buyH)), entriesPos.x, buyY);
+	int bmid = buyH / 2;
+	Button bbtn = buyBar.adda(new Button(UI.scale(50), L10n.get("char.skill.buy")).action(() -> {
+		    if(skg.sel != null)
+			skill.wdgmsg("buy", skg.sel.nm);
+	}), ENTRIES_W - UI.scale(10), bmid, 1.0, 0.5);
+	Label clbl = buyBar.adda(new Label(L10n.get("char.skill.cost")), UI.scale(10), bmid, 0, 0.5);
+	Color lpColor = new Color(0xD2, 0xB2, 0xFF);
+	buyBar.adda(new RLabel<Pair<Integer, Integer>>(() -> new Pair<>(((skg.sel == null) || skg.sel.has) ? null : skg.sel.cost, this.chr.exp),
+						  n -> (n.a == null) ? "N/A" : String.format("%,d / %,d LP", n.a, n.b),
+						  n -> ((n.a != null) && (n.a > n.b)) ? debuff : lpColor),
+	       bbtn.c.x - UI.scale(10), bmid, 1.0, 0.5);
+
+	// Tab buttons aligned with info box bottom
 	int boxBottom = info.c.y + info.sz.y + NFrame.nbox.bbroff().y;
 	int btnY = boxBottom - Button.hs;
 	addhlp(new Coord(entriesPos.x, btnY), UI.scale(5), ENTRIES_W,
-	      lists.new TabButton(0, L10n.get("char.skill.tab_skills"), sktab),
-	      lists.new TabButton(0, L10n.get("char.skill.tab_credos"), credos),
-	      lists.new TabButton(0, L10n.get("char.skill.tab_lore"),   exps));
+	      ntabs.new TabButton(0, L10n.get("char.skill.tab_skills"), sktab),
+	      ntabs.new TabButton(0, L10n.get("char.skill.tab_credos"), credos),
+	      ntabs.new TabButton(0, L10n.get("char.skill.tab_lore"),   exps));
 	pack();
     }
 }
