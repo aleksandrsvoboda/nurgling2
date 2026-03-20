@@ -1305,7 +1305,7 @@ public class ChunkNavExecutor implements Action {
         if (lower.contains("timberhouse")) return 2;
         if (lower.contains("stonestead")) return 2;
         if (lower.contains("greathall")) return 3;
-        if (lower.contains("stonetower")) return 2;
+        if (lower.contains("stonetower")) return 3;
         if (lower.contains("windmill")) return 2;
         if (lower.contains("primitivetent")) return 2;
 
