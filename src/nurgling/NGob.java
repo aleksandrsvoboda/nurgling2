@@ -502,13 +502,6 @@ public class NGob
                 return;
             }
 
-            boolean showNature = Boolean.TRUE.equals(NConfig.get(NConfig.Key.hideNature));
-            if (!showNature)
-            {
-                if (ol != null) ol.remove(true);
-                return;
-            }
-
             boolean enabled = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestOverlay));
             if (!enabled)
             {
@@ -598,6 +591,13 @@ public class NGob
 
             if (name != null)
             {
+                // Mark as nature-hidden for newly appearing gobs when hide is active
+                if (NUtils.isNatureObject(name) && !(Boolean) NConfig.get(NConfig.Key.hideNature)) {
+                    natureHidden = true;
+                } else if (NUtils.isEarthworm(name) && !(Boolean) NConfig.get(NConfig.Key.hideEarthworm)) {
+                    natureHidden = true;
+                }
+
                 // Set customMask for objects that need custom materials
                 // NOTE: ttubs use message flags, not overlays
                 if (name.contains("gfx/terobjs/barrel") || name.contains("gfx/terobjs/dframe")) {

@@ -6,6 +6,8 @@ import nurgling.conf.*;
 import nurgling.conf.QuickActionPreset;
 import nurgling.profiles.ProfileManager;
 import nurgling.scenarios.Scenario;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
 import nurgling.sessions.ThreadLocalUI;
 import nurgling.widgets.NCornerMiniMap;
 import org.json.*;
@@ -615,6 +617,27 @@ public class NConfig
         {
             cfg.isUpd = true;
             cfg.conf.put(key, val);
+        }
+    }
+
+    /**
+     * Sets a config value on ALL session configs and the global config.
+     * Use for settings that must be unified across all sessions (e.g., hideNature, hideEarthworm).
+     */
+    public static void setGlobal(Key key, Object val) {
+        // Set on global config
+        if (current != null) {
+            current.conf.put(key, val);
+            current.isUpd = true;
+        }
+        // Propagate to all session configs
+        for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
+            if (ctx.config != null) {
+                ctx.config.conf.put(key, val);
+            }
+            if (ctx.ui != null && ctx.ui.sessionConfig != null) {
+                ctx.ui.sessionConfig.conf.put(key, val);
+            }
         }
     }
 
