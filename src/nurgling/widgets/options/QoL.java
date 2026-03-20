@@ -18,6 +18,7 @@ public class QoL extends Panel {
     private CheckBox autoDrink;
     private CheckBox autoSaveTableware;
     private CheckBox showBB;
+    private CheckBox showCritterCircles;
     private CheckBox showCSprite;
     private CheckBox hideNature;
     private CheckBox miningOL;
@@ -125,6 +126,7 @@ public class QoL extends Panel {
             leftPrev = nightVisionBrightnessSlider;
         }
         leftPrev = showBB = leftColumn.add(new CheckBox(L10n.get("qol.bounding_boxes")), leftPrev.pos("bl").adds(-10, 5));
+        leftPrev = showCritterCircles = leftColumn.add(new CheckBox(L10n.get("qol.critter_circles")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = showCSprite = leftColumn.add(new CheckBox(L10n.get("qol.show_decorative")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = hideNature = leftColumn.add(new CheckBox(L10n.get("qol.hide_nature")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = uniformBiomeColors = leftColumn.add(new CheckBox(L10n.get("qol.uniform_biome")), leftPrev.pos("bl").adds(0, 5));
@@ -331,6 +333,7 @@ public class QoL extends Panel {
         autoDrink.a = getBool(NConfig.Key.autoDrink);
         autoSaveTableware.a = getBool(NConfig.Key.autoSaveTableware);
         showBB.a = getBool(NConfig.Key.showBB);
+        showCritterCircles.a = getBool(NConfig.Key.showCritterCircles);
         showCSprite.a = getBool(NConfig.Key.nextshowCSprite);
 
         hideNature.a = !getBool(NConfig.Key.hideNature);
@@ -451,6 +454,7 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.autoDrink, autoDrink.a);
         NConfig.set(NConfig.Key.autoSaveTableware, autoSaveTableware.a);
         NConfig.set(NConfig.Key.showBB, showBB.a);
+        NConfig.set(NConfig.Key.showCritterCircles, showCritterCircles.a);
         NConfig.set(NConfig.Key.nextshowCSprite, showCSprite.a);
         NConfig.set(NConfig.Key.hideNature, newHideNature);
         

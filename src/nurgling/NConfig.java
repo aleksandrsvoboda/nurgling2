@@ -134,6 +134,7 @@ public class NConfig
         picklingYellowOnion,
         openInventoryOnLogin,
         bbDisplayMode,
+        showCritterCircles,
         showBeehiveRadius,
         showTroughRadius,
         showMoundBedRadius,
@@ -425,6 +426,9 @@ public class NConfig
 
         // Login settings
         conf.put(Key.openInventoryOnLogin, false);  // Default to closed (current behavior)
+
+        // Critter circles - colored discs under small critters for easier clicking
+        conf.put(Key.showCritterCircles, true);
 
         // Object radius overlays - simple boolean flags
         conf.put(Key.showBeehiveRadius, false);
