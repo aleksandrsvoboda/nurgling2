@@ -15,6 +15,8 @@ import nurgling.tools.*;
 import nurgling.widgets.*;
 import nurgling.widgets.options.AutoSelection;
 import nurgling.widgets.options.QuickActions;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
 import nurgling.sessions.ThreadLocalUI;
 
 import java.awt.*;
@@ -97,16 +99,24 @@ public class NUtils
     }
 
     public static void showHideNature() {
-        boolean shouldHide = !(Boolean) NConfig.get(NConfig.Key.hideNature);
-        synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
-            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                if (gob.ngob.name != null && isNatureObject(gob.ngob.name)) {
-                    if (shouldHide && !gob.ngob.natureHidden) {
-                        gob.hide();
-                        gob.ngob.natureHidden = true;
-                    } else if (!shouldHide && gob.ngob.natureHidden) {
-                        gob.show();
-                        gob.ngob.natureHidden = false;
+        boolean hideNatureValue = (Boolean) NConfig.get(NConfig.Key.hideNature);
+        boolean shouldHide = !hideNatureValue;
+        // Sync to all session configs so Gob.setattr/added inline checks see the correct value
+        NConfig.setGlobal(NConfig.Key.hideNature, hideNatureValue);
+        // Iterate all sessions' gobs
+        for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
+            NGameUI gui = ctx.getGameUI();
+            if (gui == null || gui.ui == null || gui.ui.sess == null) continue;
+            synchronized (gui.ui.sess.glob.oc) {
+                for (Gob gob : gui.ui.sess.glob.oc) {
+                    if (gob.ngob.name != null && isNatureObject(gob.ngob.name)) {
+                        if (shouldHide && !gob.ngob.natureHidden) {
+                            gob.hide();
+                            gob.ngob.natureHidden = true;
+                        } else if (!shouldHide && gob.ngob.natureHidden) {
+                            gob.show();
+                            gob.ngob.natureHidden = false;
+                        }
                     }
                 }
             }
@@ -124,16 +134,22 @@ public class NUtils
     }
 
     public static void showHideEarthworm() {
-        boolean shouldHide = !(Boolean) NConfig.get(NConfig.Key.hideEarthworm);
-        synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
-            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                if (gob.ngob.name != null && isEarthworm(gob.ngob.name)) {
-                    if (shouldHide && !gob.ngob.natureHidden) {
-                        gob.hide();
-                        gob.ngob.natureHidden = true;
-                    } else if (!shouldHide && gob.ngob.natureHidden) {
-                        gob.show();
-                        gob.ngob.natureHidden = false;
+        boolean hideEarthwormValue = (Boolean) NConfig.get(NConfig.Key.hideEarthworm);
+        boolean shouldHide = !hideEarthwormValue;
+        NConfig.setGlobal(NConfig.Key.hideEarthworm, hideEarthwormValue);
+        for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
+            NGameUI gui = ctx.getGameUI();
+            if (gui == null || gui.ui == null || gui.ui.sess == null) continue;
+            synchronized (gui.ui.sess.glob.oc) {
+                for (Gob gob : gui.ui.sess.glob.oc) {
+                    if (gob.ngob.name != null && isEarthworm(gob.ngob.name)) {
+                        if (shouldHide && !gob.ngob.natureHidden) {
+                            gob.hide();
+                            gob.ngob.natureHidden = true;
+                        } else if (!shouldHide && gob.ngob.natureHidden) {
+                            gob.show();
+                            gob.ngob.natureHidden = false;
+                        }
                     }
                 }
             }

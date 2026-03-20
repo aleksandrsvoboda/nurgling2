@@ -1071,7 +1071,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
             if (a instanceof RenderTree.Node) {
                 if (a.slots != null && !a.slots.isEmpty())
                     continue;
-                RUtils.multiadd(slots, (RenderTree.Node) a);
+                Loading.waitfor(() -> RUtils.multiadd(slots, (RenderTree.Node) a));
             }
         }
     }
