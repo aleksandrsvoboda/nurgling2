@@ -116,6 +116,7 @@ public class NUtils
                         } else if (!shouldHide && gob.ngob.natureHidden) {
                             gob.show();
                             gob.ngob.natureHidden = false;
+                            gob.ngob.refreshTreeHarvestOverlay();
                         }
                     }
                 }

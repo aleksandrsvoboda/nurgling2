@@ -502,13 +502,6 @@ public class NGob
                 return;
             }
 
-            boolean showNature = Boolean.TRUE.equals(NConfig.get(NConfig.Key.hideNature));
-            if (!showNature)
-            {
-                if (ol != null) ol.remove(true);
-                return;
-            }
-
             boolean enabled = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestOverlay));
             if (!enabled)
             {
