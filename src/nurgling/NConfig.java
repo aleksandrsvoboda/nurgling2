@@ -307,7 +307,7 @@ public class NConfig
         conf.put(Key.ropeAfterFeeding, false);
         conf.put(Key.ropeAfterTaiming, true);
         conf.put(Key.shortCupboards, false);
-        conf.put(Key.shortPalisades, false);
+        conf.put(Key.shortPalisades, true);
         conf.put(Key.shortWalls, false);
         conf.put(Key.decalsOnTop, false);
         conf.put(Key.fillCompostWithSwill, false);
