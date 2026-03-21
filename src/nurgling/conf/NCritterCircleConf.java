@@ -60,9 +60,15 @@ public class NCritterCircleConf implements JConf {
     /**
      * Find config for a specific critter path.
      */
+    /**
+     * Find config for a specific critter path.
+     * Always reads from the global config (NConfig.current) to avoid session config mismatch.
+     * The settings panel also reads/writes to global config (constructed during mouse click
+     * without ThreadLocalUI), so both sides are consistent.
+     */
     @SuppressWarnings("unchecked")
     public static NCritterCircleConf get(String critterPath) {
-        Object obj = nurgling.NConfig.get(nurgling.NConfig.Key.critterCircleSettings);
+        Object obj = nurgling.NConfig.getGlobal(nurgling.NConfig.Key.critterCircleSettings);
         if (obj instanceof ArrayList) {
             for (Object item : (ArrayList<?>) obj) {
                 if (item instanceof NCritterCircleConf) {

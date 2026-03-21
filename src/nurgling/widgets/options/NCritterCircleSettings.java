@@ -18,6 +18,17 @@ public class NCritterCircleSettings extends Panel {
 
     private final List<CritterRow> rows = new ArrayList<>();
 
+    /**
+     * Mark the critter circle config as dirty so it gets saved.
+     * Critter circle settings live in the global config (NConfig.current) because
+     * the settings panel is constructed during mouse click (no ThreadLocalUI),
+     * so all conf objects reference the global config's instances.
+     * NConfig.needUpdate() marks the global config dirty, and NCore.tick() writes it.
+     */
+    private static void markDirty() {
+        NConfig.needUpdate();
+    }
+
     public NCritterCircleSettings() {
         super();
         int margin = UI.scale(10);
@@ -39,7 +50,7 @@ public class NCritterCircleSettings extends Panel {
                     row.visBox.a = true;
                     row.conf.visible = true;
                 }
-                NConfig.needUpdate();
+                markDirty();
             }
         }, prev.pos("bl").adds(0, 5));
 
@@ -50,7 +61,7 @@ public class NCritterCircleSettings extends Panel {
                     row.visBox.a = false;
                     row.conf.visible = false;
                 }
-                NConfig.needUpdate();
+                markDirty();
             }
         }, selectAll.pos("ur").adds(10, 0));
 
@@ -66,9 +77,9 @@ public class NCritterCircleSettings extends Panel {
         content.add(new Label(L10n.get("critter_circles.col_color")), new Coord(colColor, prev.c.y));
         content.add(new Label(L10n.get("critter_circles.col_radius")), new Coord(colRadius, prev.c.y));
 
-        // Build config map for lookup
+        // Build config map for lookup — always from global config for consistency
         Map<String, NCritterCircleConf> confMap = new LinkedHashMap<>();
-        Object obj = NConfig.get(NConfig.Key.critterCircleSettings);
+        Object obj = NConfig.getGlobal(NConfig.Key.critterCircleSettings);
         if (obj instanceof ArrayList) {
             for (Object item : (ArrayList<?>) obj) {
                 if (item instanceof NCritterCircleConf) {
@@ -96,6 +107,27 @@ public class NCritterCircleSettings extends Panel {
         content.pack();
     }
 
+    @Override
+    public void save() {
+        for (CritterRow row : rows) {
+            // Commit pending radius from TextEntry (user may not have pressed Enter)
+            try {
+                float val = Float.parseFloat(row.radiusEntry.text());
+                if (val < 1) val = 1;
+                if (val > 50) val = 50;
+                row.conf.radius = val;
+            } catch (NumberFormatException ignored) {}
+
+            // Commit pending color from picker
+            if (row.colorWidget.color != null) {
+                Color c = row.colorWidget.color;
+                Color withAlpha = new Color(c.getRed(), c.getGreen(), c.getBlue(), row.conf.alpha);
+                row.conf.setColor(withAlpha);
+            }
+        }
+        markDirty();
+    }
+
     /**
      * One row: [checkbox] [name] [color button] [radius entry]
      */
@@ -121,7 +153,7 @@ public class NCritterCircleSettings extends Panel {
                 public void changed(boolean val) {
                     super.changed(val);
                     conf.visible = val;
-                    NConfig.needUpdate();
+                    markDirty();
                 }
             }, new Coord(colCheck, cy));
 
@@ -148,7 +180,7 @@ public class NCritterCircleSettings extends Panel {
                         if (val < 1) val = 1;
                         if (val > 50) val = 50;
                         conf.radius = val;
-                        NConfig.needUpdate();
+                        markDirty();
                     } catch (NumberFormatException ignored) {}
                 }
             }, new Coord(colRadius, cy));
@@ -165,7 +197,7 @@ public class NCritterCircleSettings extends Panel {
                 Color withAlpha = new Color(current.getRed(), current.getGreen(), current.getBlue(), conf.alpha);
                 if (withAlpha.getRGB() != conf.getColor().getRGB()) {
                     conf.setColor(withAlpha);
-                    NConfig.needUpdate();
+                    markDirty();
                 }
             }
         }

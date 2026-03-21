@@ -616,6 +616,16 @@ public class NConfig
             return cfg.conf.get(key);
     }
 
+    /**
+     * Get a value directly from the global config, bypassing session resolution.
+     * Use for settings where reads and writes must always target the same instance
+     * regardless of which thread (tick vs mouse event) is calling.
+     */
+    public static Object getGlobal(Key key) {
+        if (current == null) return null;
+        return current.conf.get(key);
+    }
+
     public static void set(Key key, Object val)
     {
         NConfig cfg = resolveConfig();
