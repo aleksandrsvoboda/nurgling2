@@ -83,6 +83,7 @@ public class NGob
     // Config cache to reduce NConfig.get calls
     private boolean cachedShowCropStage = false;
     private boolean cachedShortCupboards = false;
+    private boolean cachedShortPalisades = false;
     private boolean cachedQuestNotified = false;
     private boolean cachedLpassistent = false;
     private int cachedTreeDisplayScale = 100;
@@ -164,6 +165,7 @@ public class NGob
         if (force || configCacheCounter <= 0 || ++configCacheCounter >= CONFIG_CACHE_INTERVAL) {
             cachedShowCropStage = (Boolean) NConfig.get(NConfig.Key.showCropStage);
             cachedShortCupboards = (Boolean) NConfig.get(NConfig.Key.shortCupboards);
+            cachedShortPalisades = (Boolean) NConfig.get(NConfig.Key.shortPalisades);
             cachedQuestNotified = (Boolean) NConfig.get(NConfig.Key.questNotified);
             cachedLpassistent = (Boolean) NConfig.get(NConfig.Key.lpassistent);
             cachedTreeDisplayScale = ((Number) NConfig.get(NConfig.Key.treeDisplayScale)).intValue();
@@ -613,7 +615,7 @@ public class NGob
                     name = name.replaceAll("\\d+$", "");
                 }
 
-                if (name.contains("palisade"))
+                if (name.contains("palisade") && cachedShortPalisades)
                 {
                     if (parent.getattr(NCustomScale.class) == null)
                         parent.setattr(new NCustomScale(parent));
