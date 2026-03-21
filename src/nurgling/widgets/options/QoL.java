@@ -33,6 +33,7 @@ public class QoL extends Panel {
     private CheckBox tempmark;
     private CheckBox tempmarkIgnoreDist;
     private CheckBox shortCupboards;
+    private CheckBox shortPalisades;
     private CheckBox shortWalls;
     private CheckBox decalsOnTop;
     private CheckBox thinOutlines;
@@ -133,6 +134,7 @@ public class QoL extends Panel {
         leftPrev = showTerrainName = leftColumn.add(new CheckBox(L10n.get("qol.show_terrain_name")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = simpleInspect = leftColumn.add(new CheckBox(L10n.get("qol.simple_inspect")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = shortCupboards = leftColumn.add(new CheckBox(L10n.get("qol.short_cupboards")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = shortPalisades = leftColumn.add(new CheckBox(L10n.get("qol.short_palisades")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = shortWalls = leftColumn.add(new CheckBox(L10n.get("qol.short_walls")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = decalsOnTop = leftColumn.add(new CheckBox(L10n.get("qol.decals_on_top")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = thinOutlines = leftColumn.add(new CheckBox(L10n.get("qol.thin_outlines")), leftPrev.pos("bl").adds(0, 5));
@@ -350,6 +352,7 @@ public class QoL extends Panel {
         tempmark.a = getBool(NConfig.Key.tempmark);
         tempmarkIgnoreDist.a = getBool(NConfig.Key.tempmarkIgnoreDist);
         shortCupboards.a = getBool(NConfig.Key.shortCupboards);
+        shortPalisades.a = getBool(NConfig.Key.shortPalisades);
         shortWalls.a = getBool(NConfig.Key.shortWalls);
         decalsOnTop.a = getBool(NConfig.Key.decalsOnTop);
         thinOutlines.a = getBool(NConfig.Key.thinOutlines);
@@ -519,6 +522,13 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.decalsOnTop, decalsOnTop.a);
         if(oldShortCupboards != shortCupboards.a || oldDecalsOnTop != decalsOnTop.a) {
             rebuildCupboards();
+        }
+
+        // Save palisade settings and rebuild palisades if changed
+        boolean oldShortPalisades = getBool(NConfig.Key.shortPalisades);
+        NConfig.set(NConfig.Key.shortPalisades, shortPalisades.a);
+        if(oldShortPalisades != shortPalisades.a) {
+            rebuildPalisades();
         }
 
         NConfig.set(NConfig.Key.thinOutlines, thinOutlines.a);
@@ -733,6 +743,35 @@ public class QoL extends Panel {
                         // Create new overlay with same data - bone offset will be re-evaluated
                         Gob.Overlay newOl = new Gob.Overlay(gob, olid, new OCache.OlSprite(os.res, os.sdt));
                         gob.addol(newOl, false);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Rebuilds all palisade gobs to apply changed settings (shortPalisades).
+     * Updates NCustomScale attribute.
+     */
+    private void rebuildPalisades() {
+        if(NUtils.getGameUI() == null || NUtils.getGameUI().ui == null || NUtils.getGameUI().ui.sess == null) {
+            return;
+        }
+        OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
+        synchronized(oc) {
+            for(Gob gob : oc) {
+                if(gob != null && gob.ngob != null && gob.ngob.name != null
+                    && gob.ngob.name.contains("palisade")) {
+                    // Update config cache to reflect new settings
+                    gob.ngob.updateConfigCache(true);
+
+                    // Update NCustomScale for short palisades
+                    if(shortPalisades.a) {
+                        if(gob.getattr(nurgling.gattrr.NCustomScale.class) == null) {
+                            gob.setattr(new nurgling.gattrr.NCustomScale(gob));
+                        }
+                    } else {
+                        gob.delattr(nurgling.gattrr.NCustomScale.class);
                     }
                 }
             }

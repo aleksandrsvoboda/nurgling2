@@ -104,6 +104,7 @@ public class NConfig
         temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
+        shortPalisades,
         shortWalls,
         decalsOnTop,
         fillCompostWithSwill,
@@ -306,6 +307,7 @@ public class NConfig
         conf.put(Key.ropeAfterFeeding, false);
         conf.put(Key.ropeAfterTaiming, true);
         conf.put(Key.shortCupboards, false);
+        conf.put(Key.shortPalisades, true);
         conf.put(Key.shortWalls, false);
         conf.put(Key.decalsOnTop, false);
         conf.put(Key.fillCompostWithSwill, false);
