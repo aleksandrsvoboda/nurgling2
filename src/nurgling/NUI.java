@@ -1,6 +1,7 @@
 package nurgling;
 
 import haven.*;
+import haven.render.Render;
 import nurgling.sessions.ThreadLocalUI;
 import nurgling.widgets.*;
 
@@ -184,60 +185,139 @@ public class NUI extends UI
     }
 
     @Override
+    public void draw(GOut g) {
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.draw(g);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
+        }
+    }
+
+    @Override
+    public void gtick(Render out) {
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.gtick(out);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
+        }
+    }
+
+    @Override
+    public void mousedown(MouseEvent ev, Coord c, int button) {
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.mousedown(ev, c, button);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
+        }
+    }
+
+    @Override
+    public void mouseup(MouseEvent ev, Coord c, int button) {
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.mouseup(ev, c, button);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
+        }
+    }
+
+    @Override
+    public void mousewheel(MouseEvent ev, Coord c, int amount) {
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            super.mousewheel(ev, c, amount);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
+        }
+    }
+
+    @Override
     public void mousemove(MouseEvent ev, Coord c)
     {
-        if (gui != null && gui.map != null)
-        {
-            if (core != null && core.isinspect)
+        NUI previousUI = ThreadLocalUI.get();
+        ThreadLocalUI.set(this);
+        try {
+            if (gui != null && gui.map != null)
             {
-                NMapView mapView = (NMapView) gui.map;
-                if (modshift)
+                if (core != null && core.isinspect)
                 {
-                    // Apply throttling for inspect calls
-                    long currentTime = System.currentTimeMillis();
-                    boolean shouldInspect = false;
-                    
-                    // Check time since last inspect
-                    if (currentTime - lastInspectTime >= INSPECT_THROTTLE_MS) {
-                        shouldInspect = true;
-                    }
-                    
-                    // Check distance from last inspect position
-                    if (lastInspectCoord != null && c.dist(lastInspectCoord) >= INSPECT_MIN_DISTANCE) {
-                        shouldInspect = true;
-                    }
-                    
-                    // If first inspect or conditions met
-                    if (lastInspectCoord == null || shouldInspect) {
-                        // Check which inspect mode to use
-                        boolean debugMode = core.debug;
-                        
-                        if (debugMode) {
-                            // Debug mode takes priority - show full info
-                            mapView.inspect(c);
-                        } else {
-                            // Check simpleInspect only if debug is off
-                            boolean simpleInspect = (Boolean) NConfig.get(NConfig.Key.simpleInspect);
-                            if (simpleInspect) {
-                                // Simple inspect mode - show only gob and tile
-                                mapView.inspectSimple(c);
-                            }
+                    NMapView mapView = (NMapView) gui.map;
+                    if (modshift)
+                    {
+                        // Apply throttling for inspect calls
+                        long currentTime = System.currentTimeMillis();
+                        boolean shouldInspect = false;
+
+                        // Check time since last inspect
+                        if (currentTime - lastInspectTime >= INSPECT_THROTTLE_MS) {
+                            shouldInspect = true;
                         }
-                        
-                        lastInspectTime = currentTime;
-                        lastInspectCoord = c;
+
+                        // Check distance from last inspect position
+                        if (lastInspectCoord != null && c.dist(lastInspectCoord) >= INSPECT_MIN_DISTANCE) {
+                            shouldInspect = true;
+                        }
+
+                        // If first inspect or conditions met
+                        if (lastInspectCoord == null || shouldInspect) {
+                            // Check which inspect mode to use
+                            boolean debugMode = core.debug;
+
+                            if (debugMode) {
+                                // Debug mode takes priority - show full info
+                                mapView.inspect(c);
+                            } else {
+                                // Check simpleInspect only if debug is off
+                                boolean simpleInspect = (Boolean) NConfig.get(NConfig.Key.simpleInspect);
+                                if (simpleInspect) {
+                                    // Simple inspect mode - show only gob and tile
+                                    mapView.inspectSimple(c);
+                                }
+                            }
+
+                            lastInspectTime = currentTime;
+                            lastInspectCoord = c;
+                        }
+                    } else
+                    {
+                        core.isinspect = false;
+                        mapView.ttip.clear();
+                        // Reset throttling when Shift is released
+                        lastInspectCoord = null;
+                        lastInspectTime = 0;
                     }
-                } else
-                {
-                    core.isinspect = false;
-                    mapView.ttip.clear();
-                    // Reset throttling when Shift is released
-                    lastInspectCoord = null;
-                    lastInspectTime = 0;
                 }
             }
+            super.mousemove(ev, c);
+        } finally {
+            if (previousUI != null)
+                ThreadLocalUI.set(previousUI);
+            else
+                ThreadLocalUI.clear();
         }
-        super.mousemove(ev, c);
     }
 
     /**
