@@ -135,6 +135,7 @@ public class NConfig
         openInventoryOnLogin,
         bbDisplayMode,
         showCritterCircles,
+        critterCircleSettings,
         showBeehiveRadius,
         showTroughRadius,
         showMoundBedRadius,
@@ -429,6 +430,7 @@ public class NConfig
 
         // Critter circles - colored discs under small critters for easier clicking
         conf.put(Key.showCritterCircles, true);
+        conf.put(Key.critterCircleSettings, nurgling.overlays.NCritterCircle.buildDefaultConfigs());
 
         // Object radius overlays - simple boolean flags
         conf.put(Key.showBeehiveRadius, false);
@@ -978,6 +980,9 @@ public class NConfig
                                 break;
                             case "NAreaRad":
                                 res.add(new NAreaRad(obj));
+                                break;
+                            case "NCritterCircleConf":
+                                res.add(new nurgling.conf.NCritterCircleConf(obj));
                                 break;
                             case "NSmokeProp":
                                 res.add(new NSmokProp(obj));

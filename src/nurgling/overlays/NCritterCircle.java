@@ -4,15 +4,16 @@ import haven.*;
 import haven.render.*;
 import haven.render.Model.Indices;
 import nurgling.NConfig;
+import nurgling.conf.NCritterCircleConf;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
 
 import java.awt.*;
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
-
-import static haven.MCache.tilesz;
 
 /**
  * Draws a flat colored circle on the ground under small critters
@@ -20,11 +21,11 @@ import static haven.MCache.tilesz;
  */
 public class NCritterCircle extends Sprite {
 
-    private static final float OUTER_RADIUS = 10f;
+    private static final float DEFAULT_RADIUS = 10f;
     private static final float HEIGHT = 0.45f;
     private static final int VERTEX_COUNT = 256; // 4 * 64
 
-    private static final Color CRITTER_COLOR = new Color(193, 0, 255, 140);
+    private static final Color DEFAULT_COLOR = new Color(193, 0, 255, 140);
     private static final Color RABBIT_COLOR = new Color(88, 255, 0, 140);
 
     private static final Pipe.Op EDGE_MAT = Pipe.Op.compose(
@@ -38,10 +39,11 @@ public class NCritterCircle extends Sprite {
      * Small critters that are hard to click and benefit from a ground circle.
      * Does NOT include large animals (cattle, boar, etc.) which use NAreaRange.
      */
-    private static final Set<String> CRITTER_PATHS = Set.of(
+    public static final List<String> CRITTER_PATHS = List.of(
             "gfx/kritter/bayshrimp/bayshrimp",
             "gfx/kritter/bogturtle/bogturtle",
             "gfx/kritter/brimstonebutterfly/brimstonebutterfly",
+            "gfx/kritter/bullfinch/bullfinch",
             "gfx/kritter/cavecentipede/cavecentipede",
             "gfx/kritter/cavemoth/cavemoth",
             "gfx/kritter/chicken/chick",
@@ -85,27 +87,30 @@ public class NCritterCircle extends Sprite {
             "gfx/kritter/tick/tick-bloated",
             "gfx/kritter/toad/toad",
             "gfx/kritter/waterstrider/waterstrider",
+            "gfx/kritter/whirlingsnowflake/whirlingsnowflake",
             "gfx/kritter/woodgrouse/woodgrouse-f",
             "gfx/kritter/woodworm/woodworm",
-            "gfx/kritter/whirlingsnowflake/whirlingsnowflake",
-            "gfx/kritter/bullfinch/bullfinch",
             "gfx/terobjs/items/grub",
             "gfx/terobjs/items/hoppedcow",
-            "gfx/terobjs/items/mandrakespirited",
-            "gfx/terobjs/items/itsybitsyspider"
+            "gfx/terobjs/items/itsybitsyspider",
+            "gfx/terobjs/items/mandrakespirited"
     );
+
+    private static final Set<String> CRITTER_SET = Set.copyOf(CRITTER_PATHS);
 
     private final VertexBuf.VertexData posa;
     private final VertexBuf vbuf;
     private final Model smod, emod;
     private final Pipe.Op fillMat;
+    private final String critterPath;
     private Coord2d lc;
     private boolean visible;
 
-    public NCritterCircle(Owner owner, Color color) {
+    public NCritterCircle(Owner owner, Color color, float radius, String critterPath) {
         super(owner, null);
         this.fillMat = new BaseColor(color);
-        this.visible = isEnabled();
+        this.critterPath = critterPath;
+        this.visible = isEnabled(critterPath);
 
         FloatBuffer posb = Utils.wfbuf(VERTEX_COUNT * 3 * 2);
         FloatBuffer nrmb = Utils.wfbuf(VERTEX_COUNT * 3 * 2);
@@ -114,8 +119,8 @@ public class NCritterCircle extends Sprite {
         for (int i = 0; i < VERTEX_COUNT; i++) {
             float angx = (float) Math.cos(rad);
             float angy = (float) Math.sin(rad);
-            float ox = angx * OUTER_RADIUS;
-            float oy = angy * OUTER_RADIUS;
+            float ox = angx * radius;
+            float oy = angy * radius;
             // Outer ring
             posb.put(i * 3, ox).put(i * 3 + 1, oy).put(i * 3 + 2, HEIGHT);
             // Inner ring (center point for filled disc)
@@ -175,7 +180,7 @@ public class NCritterCircle extends Sprite {
 
     @Override
     public void gtick(Render g) {
-        boolean enabled = isEnabled();
+        boolean enabled = isEnabled(critterPath);
         if (visible != enabled) {
             visible = enabled;
         }
@@ -201,7 +206,7 @@ public class NCritterCircle extends Sprite {
 
     @Override
     public boolean tick(double dt) {
-        if (!isEnabled())
+        if (!isEnabled(critterPath))
             return false;
         String pose = ((Gob) owner).pose();
         if (pose != null && NParser.checkName(pose, DEAD_KNOCKED))
@@ -211,8 +216,7 @@ public class NCritterCircle extends Sprite {
 
     public static boolean isCritter(String resName) {
         if (resName == null) return false;
-        if (CRITTER_PATHS.contains(resName)) return true;
-        // Also match rabbits/bunnies by pattern
+        if (CRITTER_SET.contains(resName)) return true;
         return resName.matches(".*/(rabbit|bunny)$");
     }
 
@@ -221,12 +225,48 @@ public class NCritterCircle extends Sprite {
         return resName.matches(".*/(rabbit|bunny)$");
     }
 
+    /**
+     * Get color for a critter from per-critter config, falling back to defaults.
+     */
     public static Color getColorForCritter(String resName) {
-        return isRabbit(resName) ? RABBIT_COLOR : CRITTER_COLOR;
+        NCritterCircleConf conf = NCritterCircleConf.get(resName);
+        if (conf != null) return conf.getColor();
+        return isRabbit(resName) ? RABBIT_COLOR : DEFAULT_COLOR;
     }
 
-    private static boolean isEnabled() {
+    /**
+     * Get radius for a critter from per-critter config, falling back to default.
+     */
+    public static float getRadiusForCritter(String resName) {
+        NCritterCircleConf conf = NCritterCircleConf.get(resName);
+        if (conf != null) return conf.radius;
+        return DEFAULT_RADIUS;
+    }
+
+    /**
+     * Check if master toggle is on AND per-critter visibility is on.
+     */
+    private static boolean isEnabled(String critterPath) {
         Object val = NConfig.get(NConfig.Key.showCritterCircles);
-        return val instanceof Boolean ? (Boolean) val : true;
+        if (!(val instanceof Boolean) || !(Boolean) val)
+            return false;
+        if (critterPath != null) {
+            NCritterCircleConf conf = NCritterCircleConf.get(critterPath);
+            if (conf != null && !conf.visible)
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * Build default config list for all known critters.
+     */
+    public static ArrayList<NCritterCircleConf> buildDefaultConfigs() {
+        ArrayList<NCritterCircleConf> list = new ArrayList<>();
+        for (String path : CRITTER_PATHS) {
+            Color color = isRabbit(path) ? RABBIT_COLOR : DEFAULT_COLOR;
+            list.add(new NCritterCircleConf(path, true, color, DEFAULT_RADIUS));
+        }
+        return list;
     }
 }

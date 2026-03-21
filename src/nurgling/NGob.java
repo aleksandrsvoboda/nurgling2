@@ -882,7 +882,7 @@ public class NGob
                             // For non-composite (insects), pose is null — show immediately
                             return pose == null || !NParser.checkName(pose, "dead", "knock");
                         },
-                        gob -> gob.addcustomol(new NCritterCircle(gob, NCritterCircle.getColorForCritter(name)))
+                        gob -> gob.addcustomol(new NCritterCircle(gob, NCritterCircle.getColorForCritter(name), NCritterCircle.getRadiusForCritter(name), name))
                 ));
             }
             
