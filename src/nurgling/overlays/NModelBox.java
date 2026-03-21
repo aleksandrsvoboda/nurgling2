@@ -89,51 +89,45 @@ public class NModelBox extends Sprite implements RenderTree.Node {
         }
 
         public void updateMaterials() {
-            updateMaterials((String) NConfig.get(NConfig.Key.bbDisplayMode));
+            updateMaterials((String) NConfig.get(NConfig.Key.bbDisplayMode), false);
         }
-        
-        public void updateMaterials(String mode) {
+
+        public void updateMaterials(String mode, boolean clickable) {
             if (mode == null) mode = "FILLED";
-            
+
             Color fillColor = NConfig.getColor(NConfig.Key.boxFillColor, new Color(227, 28, 1, 195));
             Color edgeColor = NConfig.getColor(NConfig.Key.boxEdgeColor, new Color(224, 193, 79, 255));
-            
-            // Determine depth test for outline and fill separately
             boolean outlineDepthTest = !mode.equals("OUTLINE_ALWAYS") && !mode.equals("FILLED_ALWAYS");
-            boolean fillDepthTest = true; // Fill always has depth test
 
-            // Outline material
-            if (outlineDepthTest) {
-                // Outline with depth test
-                this.lmat = Pipe.Op.compose(
-                    new Rendered.Order.Default(6000),
-                    FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                            BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                    new States.Facecull(),
-                    new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)),
-                    Clickable.No,
-                    new BaseColor(edgeColor));
-            } else {
-                // Outline without depth test (always visible)
-                this.lmat = Pipe.Op.compose(
-                    new Rendered.Order.Default(6000),
-                    States.Depthtest.none,
-                    States.maskdepth,
-                    FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                            BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                    new States.Facecull(),
-                    new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)),
-                    Clickable.No,
-                    new BaseColor(edgeColor));
+            // Build outline material
+            ArrayList<Pipe.Op> lineOps = new ArrayList<>();
+            lineOps.add(new Rendered.Order.Default(6000));
+            if (!outlineDepthTest) {
+                lineOps.add(States.Depthtest.none);
+                lineOps.add(States.maskdepth);
             }
-            
-            // Fill material (always with depth test)
-            this.emat = Pipe.Op.compose(
-                new Rendered.Order.Default(6000),
-                FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                        BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                Clickable.No,
-                new BaseColor(fillColor));
+            lineOps.add(FragColor.blend(new BlendMode(BlendMode.Function.ADD,
+                    BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
+                    BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)));
+            lineOps.add(new States.Facecull());
+            lineOps.add(new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)));
+            if (!clickable) {
+                lineOps.add(Clickable.No);
+            }
+            lineOps.add(new BaseColor(edgeColor));
+            this.lmat = Pipe.Op.compose(lineOps.toArray(new Pipe.Op[0]));
+
+            // Build fill material
+            ArrayList<Pipe.Op> fillOps = new ArrayList<>();
+            fillOps.add(new Rendered.Order.Default(6000));
+            fillOps.add(FragColor.blend(new BlendMode(BlendMode.Function.ADD,
+                    BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
+                    BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)));
+            if (!clickable) {
+                fillOps.add(Clickable.No);
+            }
+            fillOps.add(new BaseColor(fillColor));
+            this.emat = Pipe.Op.compose(fillOps.toArray(new Pipe.Op[0]));
         }
 
         private FillBuffer fill(VertexArray.Buffer dst, Environment env) {
@@ -159,7 +153,7 @@ public class NModelBox extends Sprite implements RenderTree.Node {
                 if (mode == null) mode = "FILLED";
                 
                 // Update materials for current mode
-                updateMaterials(mode);
+                updateMaterials(mode, false);
                 
                 if (mode.equals("FILLED") || mode.equals("FILLED_ALWAYS")) {
                     slot.add(emod, emat);
@@ -210,42 +204,28 @@ public class NModelBox extends Sprite implements RenderTree.Node {
      */
     public void updateMaterials() {
         if (isVisible && slot != null) {
-            // Clear current slots and re-add with updated materials
-            slot.clear();
-            for (RenderTree.Node n : nodes) {
-                try {
-                    if (n instanceof HidePol) {
-                        ((HidePol) n).updateMaterials();
-                    }
-                    slot.add(n);
-                } catch (RenderTree.SlotRemoved e) {
-                    // Ignore removed slots
-                } catch (haven.Defer.NotDoneException e) {
-                    // Texture not ready yet, will retry on next tick
-                }
-            }
+            refreshDisplay();
         }
-        // If not visible, materials will be initialized when box becomes visible
     }
 
     String currentDisplayMode = null;
+    boolean currentClickable = false;
 
     private void refreshDisplay() {
         if (!isVisible || slot == null) return;
-        
+
         slot.clear();
-        
+
         String mode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
         if (mode == null) mode = "FILLED";
-        
+        boolean clickable = gob.ngob.natureHidden;
+
         for (RenderTree.Node n : nodes) {
             try {
                 if (n instanceof HidePol) {
                     HidePol hidePol = (HidePol) n;
-                    // Update materials for current mode
-                    hidePol.updateMaterials(mode);
-                    
-                    // Add appropriate models based on mode
+                    hidePol.updateMaterials(mode, clickable);
+
                     if (mode.equals("FILLED") || mode.equals("FILLED_ALWAYS")) {
                         slot.add(hidePol.emod, hidePol.emat);
                         slot.add(hidePol.lmod, hidePol.lmat);
@@ -268,15 +248,22 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
         String mode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
         if (mode == null) mode = "FILLED";
-        
-        // Check if display mode changed
+        boolean clickable = gob.ngob.natureHidden;
+
+        // Check if display mode or clickable state changed
+        boolean needsRefresh = false;
         if (currentDisplayMode != null && !currentDisplayMode.equals(mode)) {
             currentDisplayMode = mode;
-            if (isVisible) {
-                refreshDisplay();
-            }
+            needsRefresh = true;
         } else if (currentDisplayMode == null) {
             currentDisplayMode = mode;
+        }
+        if (clickable != currentClickable) {
+            currentClickable = clickable;
+            needsRefresh = true;
+        }
+        if (needsRefresh && isVisible) {
+            refreshDisplay();
         }
 
         if (newShowState != isShow) {
