@@ -134,6 +134,8 @@ public class NConfig
         picklingYellowOnion,
         openInventoryOnLogin,
         bbDisplayMode,
+        showCritterCircles,
+        critterCircleSettings,
         showBeehiveRadius,
         showTroughRadius,
         showMoundBedRadius,
@@ -426,6 +428,10 @@ public class NConfig
         // Login settings
         conf.put(Key.openInventoryOnLogin, false);  // Default to closed (current behavior)
 
+        // Critter circles - colored discs under small critters for easier clicking
+        conf.put(Key.showCritterCircles, true);
+        conf.put(Key.critterCircleSettings, nurgling.overlays.NCritterCircle.buildDefaultConfigs());
+
         // Object radius overlays - simple boolean flags
         conf.put(Key.showBeehiveRadius, false);
         conf.put(Key.showTroughRadius, false);
@@ -608,6 +614,16 @@ public class NConfig
             return null;
         else
             return cfg.conf.get(key);
+    }
+
+    /**
+     * Get a value directly from the global config, bypassing session resolution.
+     * Use for settings where reads and writes must always target the same instance
+     * regardless of which thread (tick vs mouse event) is calling.
+     */
+    public static Object getGlobal(Key key) {
+        if (current == null) return null;
+        return current.conf.get(key);
     }
 
     public static void set(Key key, Object val)
@@ -974,6 +990,9 @@ public class NConfig
                                 break;
                             case "NAreaRad":
                                 res.add(new NAreaRad(obj));
+                                break;
+                            case "NCritterCircleConf":
+                                res.add(new nurgling.conf.NCritterCircleConf(obj));
                                 break;
                             case "NSmokeProp":
                                 res.add(new NSmokProp(obj));
