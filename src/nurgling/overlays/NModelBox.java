@@ -97,72 +97,37 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
             Color fillColor = NConfig.getColor(NConfig.Key.boxFillColor, new Color(227, 28, 1, 195));
             Color edgeColor = NConfig.getColor(NConfig.Key.boxEdgeColor, new Color(224, 193, 79, 255));
-
-            // Determine depth test for outline and fill separately
             boolean outlineDepthTest = !mode.equals("OUTLINE_ALWAYS") && !mode.equals("FILLED_ALWAYS");
 
-            // Outline material
-            if (outlineDepthTest) {
-                // Outline with depth test
-                if (clickable) {
-                    this.lmat = Pipe.Op.compose(
-                        new Rendered.Order.Default(6000),
-                        FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                                BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                        new States.Facecull(),
-                        new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)),
-                        new BaseColor(edgeColor));
-                } else {
-                    this.lmat = Pipe.Op.compose(
-                        new Rendered.Order.Default(6000),
-                        FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                                BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                        new States.Facecull(),
-                        new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)),
-                        Clickable.No,
-                        new BaseColor(edgeColor));
-                }
-            } else {
-                // Outline without depth test (always visible)
-                if (clickable) {
-                    this.lmat = Pipe.Op.compose(
-                        new Rendered.Order.Default(6000),
-                        States.Depthtest.none,
-                        States.maskdepth,
-                        FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                                BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                        new States.Facecull(),
-                        new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)),
-                        new BaseColor(edgeColor));
-                } else {
-                    this.lmat = Pipe.Op.compose(
-                        new Rendered.Order.Default(6000),
-                        States.Depthtest.none,
-                        States.maskdepth,
-                        FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                                BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                        new States.Facecull(),
-                        new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)),
-                        Clickable.No,
-                        new BaseColor(edgeColor));
-                }
+            // Build outline material
+            ArrayList<Pipe.Op> lineOps = new ArrayList<>();
+            lineOps.add(new Rendered.Order.Default(6000));
+            if (!outlineDepthTest) {
+                lineOps.add(States.Depthtest.none);
+                lineOps.add(States.maskdepth);
             }
+            lineOps.add(FragColor.blend(new BlendMode(BlendMode.Function.ADD,
+                    BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
+                    BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)));
+            lineOps.add(new States.Facecull());
+            lineOps.add(new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)));
+            if (!clickable) {
+                lineOps.add(Clickable.No);
+            }
+            lineOps.add(new BaseColor(edgeColor));
+            this.lmat = Pipe.Op.compose(lineOps.toArray(new Pipe.Op[0]));
 
-            // Fill material (always with depth test)
-            if (clickable) {
-                this.emat = Pipe.Op.compose(
-                    new Rendered.Order.Default(6000),
-                    FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                            BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                    new BaseColor(fillColor));
-            } else {
-                this.emat = Pipe.Op.compose(
-                    new Rendered.Order.Default(6000),
-                    FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                            BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                    Clickable.No,
-                    new BaseColor(fillColor));
+            // Build fill material
+            ArrayList<Pipe.Op> fillOps = new ArrayList<>();
+            fillOps.add(new Rendered.Order.Default(6000));
+            fillOps.add(FragColor.blend(new BlendMode(BlendMode.Function.ADD,
+                    BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
+                    BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)));
+            if (!clickable) {
+                fillOps.add(Clickable.No);
             }
+            fillOps.add(new BaseColor(fillColor));
+            this.emat = Pipe.Op.compose(fillOps.toArray(new Pipe.Op[0]));
         }
 
         private FillBuffer fill(VertexArray.Buffer dst, Environment env) {
