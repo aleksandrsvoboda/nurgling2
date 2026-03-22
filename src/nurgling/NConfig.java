@@ -636,6 +636,13 @@ public class NConfig
             cfg.isUpd = true;
             cfg.conf.put(key, val);
         }
+        // Also update global config so changes persist to disk
+        // (NCore.tick only saves NConfig.current, not session configs)
+        if (current != null && current != cfg)
+        {
+            current.isUpd = true;
+            current.conf.put(key, val);
+        }
     }
 
     /**

@@ -268,14 +268,14 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
         if (newShowState != isShow) {
             isShow = newShowState;
-            if (isShow && slot.parent() != null) {
+            if (isShow && slot != null && slot.parent() != null) {
                 if (!isVisible) {
                     isVisible = true;
                     refreshDisplay();
                 }
             } else {
                 isVisible = false;
-                slot.clear();
+                if (slot != null) slot.clear();
             }
         }
         return super.tick(dt);
