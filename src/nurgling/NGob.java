@@ -594,9 +594,9 @@ public class NGob
             if (name != null)
             {
                 // Mark as nature-hidden for newly appearing gobs when hide is active
-                if (NUtils.isNatureObject(name) && (Boolean) NConfig.get(NConfig.Key.hideNature)) {
+                if (NUtils.isNatureObject(name) && !(Boolean) NConfig.get(NConfig.Key.hideNature)) {
                     natureHidden = true;
-                } else if (NUtils.isEarthworm(name) && (Boolean) NConfig.get(NConfig.Key.hideEarthworm)) {
+                } else if (NUtils.isEarthworm(name) && !(Boolean) NConfig.get(NConfig.Key.hideEarthworm)) {
                     natureHidden = true;
                 }
 
