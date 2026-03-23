@@ -1,0 +1,48 @@
+name: Promote Latest to Stable
+
+on:
+  workflow_dispatch:
+
+env:
+  RELEASE_REPO: aleksandrsvoboda/nurgling-release
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Promote latest to stable
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+          echo "Cloning release repository..."
+          git clone "https://x-access-token:$RELEASE_TOKEN@github.com/${{ env.RELEASE_REPO }}.git" release-repo
+          cd release-repo
+
+          echo "Fetching all branches..."
+          git fetch origin latest:latest
+          git fetch origin stable:stable || git checkout -b stable latest
+
+          echo "Checking out stable branch..."
+          git checkout stable
+
+          echo "Current stable version:"
+          head -1 ver || echo "(no ver file)"
+
+          echo ""
+          echo "Merging latest into stable..."
+          git merge latest -m "Promote latest to stable"
+
+          echo ""
+          echo "New stable version:"
+          head -1 ver
+
+          echo ""
+          echo "Pushing to stable branch..."
+          git push origin stable
+
+          echo ""
+          echo "Successfully promoted latest to stable!"
