@@ -160,8 +160,11 @@ public class TransferItems2 implements Action
                         (int)itemTransfer.quality).run(gui);
                 }
                 if (output instanceof Container) {
-                    new TransferToContainer((Container) output, itemTransfer.itemName,
-                        (int)itemTransfer.quality).run(gui);
+                    TreeMap<Double,String> areas = cnt.getOutAreas(itemTransfer.itemName);
+                    TransferToContainer ttc = new TransferToContainer((Container) output, itemTransfer.itemName,
+                        (int)itemTransfer.quality);
+                    ttc.needsSorting = areas != null && areas.size() > 1;
+                    ttc.run(gui);
                 }
                 if (output instanceof NContext.Barrel) {
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),
