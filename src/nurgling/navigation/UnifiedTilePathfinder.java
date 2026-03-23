@@ -306,10 +306,6 @@ public class UnifiedTilePathfinder {
                 if (dist <= portalProximity) {
                     if (chunkExcluded) continue;
 
-                    // Skip "phantom" building exterior portals at chunk edges
-                    if (ChunkPortal.isBuildingExterior(portal.gobName) && isAtChunkEdge(portal.localCoord, 5)) {
-                        continue;
-                    }
                     ChunkNavData destChunk = graph.getChunk(portal.connectsToGridId);
                     if (destChunk != null) {
                         // Validate portal type vs target layer

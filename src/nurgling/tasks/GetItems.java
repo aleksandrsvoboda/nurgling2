@@ -90,33 +90,33 @@ public class GetItems extends NTask
     }
 
     private boolean checkContainer(Widget first) {
-        for (Widget widget = first; widget != null; widget = widget.next)
-        {
-            if (widget instanceof WItem)
-            {
-                WItem item = (WItem) widget;
-                if (!NGItem.validateItem(item)) {
-                    return true;
-                } else {
-                    if (name == null || NParser.checkName(((NGItem)item.item).name(), name)) {
-                        if (item.item.contents != null) {
-                            // Special case: pickling jars should be added to results even though they have contents
-                            String resourceName = ((NGItem) item.item).res != null ? ((NGItem) item.item).res.get().name : null;
-                            if (resourceName != null && resourceName.contains("gfx/invobjs/picklingjar")) {
+        if (first == null) return false;
+        synchronized (inventory.ui) {
+            for (Widget widget = first; widget != null; widget = widget.next) {
+                if (widget instanceof WItem) {
+                    WItem item = (WItem) widget;
+                    if (!NGItem.validateItem(item)) {
+                        return true;
+                    } else {
+                        if (name == null || NParser.checkName(((NGItem) item.item).name(), name)) {
+                            if (item.item.contents != null) {
+                                // Special case: pickling jars should be added to results even though they have contents
+                                String resourceName = ((NGItem) item.item).res != null ? ((NGItem) item.item).res.get().name : null;
+                                if (resourceName != null && resourceName.contains("gfx/invobjs/picklingjar")) {
+                                    if (th == 1)
+                                        result.add(item);
+                                    else if ((((NGItem) item.item).quality) != null && ((quality == QualityType.High || quality == null) && ((NGItem) item.item).quality >= th) || (quality == QualityType.Low && ((NGItem) item.item).quality <= th))
+                                        result.add(item);
+                                }
+
+                                if (checkContainer(item.item.contents.child))
+                                    return true;
+                            } else {
                                 if (th == 1)
                                     result.add(item);
                                 else if ((((NGItem) item.item).quality) != null && ((quality == QualityType.High || quality == null) && ((NGItem) item.item).quality >= th) || (quality == QualityType.Low && ((NGItem) item.item).quality <= th))
                                     result.add(item);
                             }
-
-                            if(checkContainer(item.item.contents.child))
-                                return true;
-                        }
-                        else {
-                            if (th == 1)
-                                result.add(item);
-                            else if ((((NGItem) item.item).quality) != null && ((quality == QualityType.High || quality == null) && ((NGItem) item.item).quality >= th) || (quality == QualityType.Low && ((NGItem) item.item).quality <= th))
-                                result.add(item);
                         }
                     }
                 }
