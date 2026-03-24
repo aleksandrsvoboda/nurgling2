@@ -32,6 +32,10 @@ public class CollectLeaf implements Action {
         (outsa = new SelectArea(Resource.loadsimg("baubles/liefPiles"))).run(gui);
 
         ArrayList<Gob> trees = Finder.findGobs(insa.getRCArea(),ntrees);
+        trees.removeIf(tree -> {
+            long attr = tree.ngob.getModelAttribute();
+            return attr != -1 && (attr & 2) != 0;
+        });
         trees.sort(NUtils.d_comp);
         for(Gob tree : trees)
         {
