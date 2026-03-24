@@ -309,10 +309,13 @@ public class SessionContext {
                             // Tick the UI (processes widget state, bot actions, etc.)
                             ui.tick();
                             ui.lastevent = now;
-                        } catch (NullPointerException e) {
-                            // Some widgets may throw NPE in headless mode - ignore and continue
-                        } catch (haven.render.RenderTree.SlotRemoved e) {
-                            // Widgets trying to update render state in headless mode - ignore
+                        } catch (Exception e) {
+                            // Headless ticks can fail from rendering-related state (NPE from null env,
+                            // SlotRemoved from stale render tree, ConcurrentModification from parallel
+                            // gob iteration, etc.). Catching broadly is critical — an unhandled exception
+                            // here kills the tick thread, which stops NCore task processing and causes
+                            // all bot threads to hang indefinitely until the session is promoted back
+                            // to visual mode.
                         }
                     }
                 }

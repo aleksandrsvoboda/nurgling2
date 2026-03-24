@@ -4,8 +4,6 @@ import haven.*;
 import nurgling.NInventory;
 import nurgling.NStyle;
 import nurgling.NUtils;
-import nurgling.actions.AutoDrink;
-import nurgling.areas.NContext;
 import nurgling.NConfig;
 import nurgling.NCore;
 import haven.res.ui.croster.Entry;
@@ -21,6 +19,10 @@ import java.util.ArrayList;
 
 public class BotsInterruptWidget extends Widget {
     boolean oldStackState = false;
+
+    /** Per-session flag: true when this session has bots running.
+     *  Used to suppress auto-petal selection (NFlowerMenu) and gate AutoDrink. */
+    public final java.util.concurrent.atomic.AtomicBoolean waitBot = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     // Stack trace writing for autorunner debugging
     private static String autorunnerStackTraceFile = null;
@@ -89,7 +91,7 @@ public class BotsInterruptWidget extends Widget {
     {
         if(obs.isEmpty())
         {
-            NContext.waitBot.set(true);
+            waitBot.set(true);
         }
 
         if(obs.size()>=6)
@@ -157,7 +159,7 @@ public class BotsInterruptWidget extends Widget {
         }
         repack();
         if(obs.isEmpty())
-            NContext.waitBot.set(false);
+            waitBot.set(false);
     }
 
     @Override
@@ -190,7 +192,7 @@ public class BotsInterruptWidget extends Widget {
                     g.remove();
                     obs.remove(g);
                     if(obs.isEmpty())
-                        NContext.waitBot.set(false);
+                        waitBot.set(false);
                     break;
                 }
             }
@@ -272,7 +274,7 @@ public class BotsInterruptWidget extends Widget {
                 NUtils.stackSwitch(true);
             }
         }
-        NContext.waitBot.set(false);
+        waitBot.set(false);
         repack();
     }
 

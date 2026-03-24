@@ -213,7 +213,7 @@ public class MineAction implements Action {
     }
 
     void runToSafe(NGameUI gui) throws InterruptedException {
-        NContext.waitBot.set(false);
+        if (gui.biw != null) gui.biw.waitBot.set(false);
         new RunToSafe().run(gui);
     }
 

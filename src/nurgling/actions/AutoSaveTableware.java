@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AutoSaveTableware implements Action
 {
-    public final static AtomicBoolean stop = new AtomicBoolean(false);
+    public final AtomicBoolean stop = new AtomicBoolean(false);
     NInventory tableInv = null;
     NInventory scInv = null;
     public AutoSaveTableware()
