@@ -11,7 +11,7 @@ public class SwillItemRegistry {
 
     // High value items (>0.3L swill value)
     public static final Set<String> HIGH_VALUE_SWILL = Set.of(
-        "Giant Pumpkin",     // 1.6L
+        "Pumpkin",     // 1.6L
         "Head of Lettuce",   // 0.33L
         "Clover",           // 0.5L
         "Rabbit Food"       // 0.5L
