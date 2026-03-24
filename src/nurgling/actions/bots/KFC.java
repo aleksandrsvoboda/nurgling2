@@ -7,6 +7,7 @@ import haven.WItem;
 import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
+import nurgling.NConfig;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
@@ -631,18 +632,21 @@ public class KFC implements Action {
 
         WItem cleaned = gui.getInventory().getItem(new NAlias("Cleaned Chicken"));
         if (cleaned == null) return;
-        
-        new SelectFlowerAction("Butcher", cleaned).run(gui);
-        NUtils.addTask(new NTask() {
-            @Override
-            public boolean check() {
-                try {
-                    return gui.getInventory().getItems(new NAlias("Cleaned Chicken")).isEmpty();
-                } catch (InterruptedException e) {
-                    return false;
+
+        Boolean skipButcher = (Boolean) NConfig.get(NConfig.Key.skipButcherInKFC);
+        if (skipButcher == null || !skipButcher) {
+            new SelectFlowerAction("Butcher", cleaned).run(gui);
+            NUtils.addTask(new NTask() {
+                @Override
+                public boolean check() {
+                    try {
+                        return gui.getInventory().getItems(new NAlias("Cleaned Chicken")).isEmpty();
+                    } catch (InterruptedException e) {
+                        return false;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // Drop off if insufficient space for another chicken
         if (shouldDropOffItems(gui)) {

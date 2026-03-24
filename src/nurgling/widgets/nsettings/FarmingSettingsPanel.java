@@ -12,6 +12,7 @@ public class FarmingSettingsPanel extends Panel {
     private CheckBox ignoreStrawInFarmers;
     private CheckBox autoEquipTravellersSacksCheck;
     private CheckBox validateAllCropsBeforeHarvestCheck;
+    private CheckBox skipButcherInKFCCheck;
 
     public FarmingSettingsPanel() {
         super(L10n.get("farming.title"));
@@ -74,6 +75,15 @@ public class FarmingSettingsPanel extends Panel {
         add(validateAllCropsBeforeHarvestCheck, new Coord(margin, y));
         y += UI.scale(28);
 
+        skipButcherInKFCCheck = new CheckBox(L10n.get("farming.skip_butcher_kfc")) {
+            public void set(boolean val) {
+                a = val;
+            }
+        };
+
+        add(skipButcherInKFCCheck, new Coord(margin, y));
+        y += UI.scale(28);
+
         add(new Label(L10n.get("farming.pattern_x")), new Coord(margin, y));
         y += UI.scale(24);
 
@@ -118,6 +128,9 @@ public class FarmingSettingsPanel extends Panel {
         Boolean validateAllCrops = (Boolean) NConfig.get(NConfig.Key.validateAllCropsBeforeHarvest);
         validateAllCropsBeforeHarvestCheck.a = validateAllCrops != null && validateAllCrops;
 
+        Boolean skipButcher = (Boolean) NConfig.get(NConfig.Key.skipButcherInKFC);
+        skipButcherInKFCCheck.a = skipButcher != null && skipButcher;
+
         String pat = (String) NConfig.get(NConfig.Key.qualityGrindSeedingPatter);
         if (pat == null || !pat.matches("\\d+x\\d+")) pat = "3x3";
         String[] parts = pat.split("x");
@@ -133,6 +146,7 @@ public class FarmingSettingsPanel extends Panel {
         NConfig.set(NConfig.Key.fillCompostWithSwill, fillCompostWithSwill.a);
         NConfig.set(NConfig.Key.autoEquipTravellersSacks, autoEquipTravellersSacksCheck.a);
         NConfig.set(NConfig.Key.validateAllCropsBeforeHarvest, validateAllCropsBeforeHarvestCheck.a);
+        NConfig.set(NConfig.Key.skipButcherInKFC, skipButcherInKFCCheck.a);
         String xVal = xEntry.text();
         String yVal = yEntry.text();
         if (!xVal.matches("\\d+")) xVal = "3";
