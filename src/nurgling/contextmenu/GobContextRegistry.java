@@ -27,5 +27,6 @@ public class GobContextRegistry {
         register(new FillEmptyContainersAction());
         register(new ChopAndRemoveStumpAction());
         register(new RemoveStumpAction());
+        register(new FillTroughWithSwillAction());
     }
 }
