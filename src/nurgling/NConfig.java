@@ -115,6 +115,7 @@ public class NConfig
         inventoryRightPanelMode,
         showTerrainName,
         validateAllCropsBeforeHarvest,
+        skipButcherInKFC,
         studyDeskLayout,
         waypointRetryOnStuck,
         verboseCal,
@@ -312,6 +313,7 @@ public class NConfig
         conf.put(Key.decalsOnTop, false);
         conf.put(Key.fillCompostWithSwill, false);
         conf.put(Key.ignoreStrawInFarmers, false);
+        conf.put(Key.skipButcherInKFC, false);
         conf.put(Key.printpfmap, false);
         conf.put(Key.boxLineWidth, 4);
         conf.put(Key.persistentBarrelLabels, false);
