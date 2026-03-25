@@ -116,6 +116,7 @@ public class NConfig
         showTerrainName,
         validateAllCropsBeforeHarvest,
         skipButcherInKFC,
+        skipPluckingCocksInKFC,
         studyDeskLayout,
         waypointRetryOnStuck,
         verboseCal,
@@ -314,6 +315,7 @@ public class NConfig
         conf.put(Key.fillCompostWithSwill, false);
         conf.put(Key.ignoreStrawInFarmers, false);
         conf.put(Key.skipButcherInKFC, false);
+        conf.put(Key.skipPluckingCocksInKFC, false);
         conf.put(Key.printpfmap, false);
         conf.put(Key.boxLineWidth, 4);
         conf.put(Key.persistentBarrelLabels, false);
