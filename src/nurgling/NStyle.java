@@ -336,13 +336,13 @@ public class NStyle {
         iconMap.put("gfx/terobjs/map/cavepuddle",new Resource.Saved(Resource.remote(),"mm/clay-cave",-1));
         iconMap.put("gfx/terobjs/minehole",new Resource.Saved(Resource.remote(),"mm/down",-1));
         iconMap.put("gfx/terobjs/ladder",new Resource.Saved(Resource.remote(),"mm/up",-1));
-        iconMap.put("gfx/terobjs/plants/stringgrass",new Resource.Saved(Resource.remote(),"gfx/invobjs/wildfibre",-1)); // Tested
-        iconMap.put("gfx/terobjs/plants/wildonion",new Resource.Saved(Resource.remote(),"gfx/invobjs/preonion",-1)); // Tested
-        iconMap.put("gfx/terobjs/plants/tuber",new Resource.Saved(Resource.remote(),"gfx/invobjs/pretuber",-1)); // Tested
-        iconMap.put("gfx/terobjs/plants/wildgourd",new Resource.Saved(Resource.remote(),"gfx/invobjs/pregourd",-1)); // Tested
-        iconMap.put("gfx/terobjs/plants/wildflower",new Resource.Saved(Resource.remote(),"gfx/invobjs/flower-wild",-1)); // Tested
-        iconMap.put("gfx/terobjs/plants/wildbrassica",new Resource.Saved(Resource.remote(),"gfx/invobjs/seed-brassica",-1)); // Tested
-        iconMap.put("gfx/terobjs/plants/cereal",new Resource.Saved(Resource.remote(),"gfx/invobjs/seed-cereal",-1)); // Tested
+        iconMap.put("gfx/terobjs/plants/stringgrass",new Resource.Saved(Resource.remote(),"gfx/invobjs/wildfibre",-1));
+        iconMap.put("gfx/terobjs/plants/wildonion",new Resource.Saved(Resource.remote(),"gfx/invobjs/preonion",-1));
+        iconMap.put("gfx/terobjs/plants/tuber",new Resource.Saved(Resource.remote(),"gfx/invobjs/pretuber",-1));
+        iconMap.put("gfx/terobjs/plants/wildgourd",new Resource.Saved(Resource.remote(),"gfx/invobjs/pregourd",-1));
+        iconMap.put("gfx/terobjs/plants/wildflower",new Resource.Saved(Resource.remote(),"gfx/invobjs/flower-wild",-1));
+        iconMap.put("gfx/terobjs/plants/wildbrassica",new Resource.Saved(Resource.remote(),"gfx/invobjs/seed-brassica",-1));
+        iconMap.put("gfx/terobjs/plants/cereal",new Resource.Saved(Resource.remote(),"gfx/invobjs/seed-cereal",-1));
     }
 
     public static HashMap<String, String> iconName = new HashMap<>();
@@ -370,11 +370,12 @@ public class NStyle {
         iconName.put("mm/coracle", "Coracle");
         iconName.put("mm/plow", "Plow");
         iconName.put("mm/clay-cave", "Cave clay");
-        iconName.put("gfx/invobjs/wildfibre", "String Grass");
-        iconName.put("gfx/invobjs/leaf-brassica", "Wild Kale");
+        iconName.put("gfx/invobjs/wildfibre", "Wild Fibre");
+        iconName.put("gfx/invobjs/seed-brassica", "Wild Kale");
         iconName.put("gfx/invobjs/preonion", "Wild Onion");
         iconName.put("gfx/invobjs/pretuber", "Wild Tuber");
         iconName.put("gfx/invobjs/pregourd", "Wild Gourd");
         iconName.put("gfx/invobjs/flower-wild", "Wild Flower");
+        iconName.put("gfx/invobjs/seed-cereal", "Wild Corn Grass");
     }
 }
