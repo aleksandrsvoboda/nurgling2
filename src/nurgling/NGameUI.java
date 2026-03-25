@@ -25,7 +25,7 @@ import static haven.Inventory.invsq;
 public class NGameUI extends GameUI
 {
     public boolean nomadMod = false;
-    NBotsMenu botsMenu;
+    public NBotsMenu botsMenu;
     public NAlarmWdg alarmWdg;
     public StarvationAlertWidget starvationAlertWidget;
     public AutoLogoutWidget autoLogoutWidget;

@@ -6,6 +6,11 @@ import haven.MenuGrid.Pagina;
 import haven.UI.Grab;
 import haven.MenuGrid.Interaction;
 import haven.MenuGrid.PagButton;
+import nurgling.NUtils;
+import nurgling.actions.bots.registry.BotDescriptor;
+import nurgling.actions.bots.registry.BotRegistry;
+import nurgling.sessions.BotExecutor;
+import nurgling.widgets.NBotsMenu;
 
 public class MenuSearch extends Window {
     public final MenuGrid menu;
@@ -18,12 +23,38 @@ public class MenuSearch extends Window {
     private Coord drag_start = null;
     private boolean drag_mode = false;
     private Grab grab = null;
+    private final Set<Pagina> allPaginae = new HashSet<>();
 
     public class Result {
 	public final PagButton btn;
+	public final BotDescriptor bot;
 
 	private Result(PagButton btn) {
 	    this.btn = btn;
+	    this.bot = null;
+	}
+
+	private Result(BotDescriptor bot) {
+	    this.btn = null;
+	    this.bot = bot;
+	}
+
+	public String name() {
+	    return btn != null ? btn.name() : bot.getDisplayName();
+	}
+
+	public BufferedImage img() {
+	    if(btn != null)
+		return btn.img();
+	    try {
+		return Resource.loadsimg(bot.getUpIconPath());
+	    } catch(Exception e) {
+		return null;
+	    }
+	}
+
+	public boolean isBot() {
+	    return bot != null;
 	}
     }
 
@@ -40,8 +71,8 @@ public class MenuSearch extends Window {
 	    return(new ItemWidget<Result>(this, sz, el) {
 		    {
 			add(new IconText(sz) {
-				protected BufferedImage img() {return(item.btn.img());}
-				protected String text() {return(el.btn.name());}
+				protected BufferedImage img() {return(item.img());}
+				protected String text() {return(el.name());}
 				protected int margin() {return(0);}
 				protected Text.Foundry foundry() {return(elf);}
 			    }, Coord.z);
@@ -49,7 +80,7 @@ public class MenuSearch extends Window {
 
 		    @Override public boolean mousedown(MouseDownEvent ev) {
 			super.mousedown(ev);
-			
+
 			if(ev.b == 1){
 			    drag_start = ui.mc;
 			    drag_mode = false;
@@ -69,14 +100,20 @@ public class MenuSearch extends Window {
 		    @Override public boolean mouseup(MouseUpEvent ev) {
 			if((ev.b == 1) && (grab != null)) {
 			    if(drag_mode) {
-				DropTarget.dropthing(ui.root, ui.mc, rls.sel.btn.pag);
+				if(rls.sel.isBot()) {
+				    NBotsMenu.NButton nbtn = NUtils.getGameUI().botsMenu.find(rls.sel.bot.iconPath);
+				    if(nbtn != null)
+					DropTarget.dropthing(ui.root, ui.mc, nbtn);
+				} else {
+				    DropTarget.dropthing(ui.root, ui.mc, rls.sel.btn.pag);
+				}
 			    } else {
-				menu.use(rls.sel.btn, new Interaction(), false);
+				activateResult(rls.sel);
 			    }
-			    
+
 			    drag_start = null;
 			    drag_mode = false;
-			    
+
 			    grab.remove();
 			    grab = null;
 
@@ -96,12 +133,27 @@ public class MenuSearch extends Window {
 		int slot = slotat(c);
 		final Result item = items().get(slot);
 		if (item != null) {
-		    return new TexI(item.btn.rendertt(true));
+		    if(item.isBot()) {
+			return new TexI(Text.render(item.bot.getDescription()).img);
+		    } else {
+			return new TexI(item.btn.rendertt(true));
+		    }
 		} else {
 		    return super.tooltip(c, prev);
 		}
 	    } catch (Exception ignored){}
 	    return null;
+	}
+    }
+
+    private void activateResult(Result sel) {
+	if(sel == null)
+	    return;
+	if(sel.isBot()) {
+	    nurgling.actions.Action action = sel.bot.instantiate(Map.of());
+	    BotExecutor.runWithSupports(sel.bot.getDisplayName(), action, sel.bot.disStacks, null);
+	} else {
+	    menu.use(sel.btn, new Interaction(), false);
 	}
     }
 
@@ -116,7 +168,7 @@ public class MenuSearch extends Window {
 
 		public void activate(String text) {
 		    if(rls.sel != null)
-			menu.use(rls.sel.btn, new MenuGrid.Interaction(1, ui.modflags()), false);
+			activateResult(rls.sel);
 		    if(!ui.modctrl)
 			MenuSearch.this.wdgmsg("close");
 		}
@@ -141,42 +193,48 @@ public class MenuSearch extends Window {
 
     private void updlist() {
 	recons = false;
-	Pagina root = this.root;
+	// Accumulate all paginae ever seen for global search
+	synchronized(menu.paginae) {
+	    allPaginae.addAll(menu.paginae);
+	}
 	List<PagButton> found = new ArrayList<>();
-	{
-	    Collection<Pagina> leaves = new ArrayList<>();
-	    synchronized(menu.paginae) {
-		leaves.addAll(menu.paginae);
-	    }
-	    for(Pagina pag : leaves) {
-		try {
-		    if(root == null) {
-			found.add(pag.button());
-		    } else {
-			for(Pagina parent = pag; parent != null; parent = parent.parent()) {
-			    if(parent == root) {
-				found.add(pag.button());
-				break;
-			    }
-			}
-		    }
-		} catch(Loading l) {
-		    recons = true;
-		}
+	for(Pagina pag : allPaginae) {
+	    try {
+		found.add(pag.button());
+	    } catch(Loading l) {
+		recons = true;
 	    }
 	}
 	Collections.sort(found, Comparator.comparing(PagButton::name));
-	Map<PagButton, Result> prev = new HashMap<>();
-	for(Result pr : this.cur)
-	    prev.put(pr.btn, pr);
+
+	// Build results, reusing existing Result objects where possible
+	Map<PagButton, Result> prevBtns = new HashMap<>();
+	Map<String, Result> prevBots = new HashMap<>();
+	for(Result pr : this.cur) {
+	    if(pr.btn != null)
+		prevBtns.put(pr.btn, pr);
+	    else if(pr.bot != null)
+		prevBots.put(pr.bot.id, pr);
+	}
+
 	List<Result> results = new ArrayList<>();
 	for(PagButton btn : found) {
-	    Result pr = prev.get(btn);
+	    Result pr = prevBtns.get(btn);
 	    if(pr != null)
 		results.add(pr);
 	    else
 		results.add(new Result(btn));
 	}
+
+	// Add bots from BotRegistry
+	for(BotDescriptor bd : BotRegistry.allowedInBotMenu()) {
+	    Result pr = prevBots.get(bd.id);
+	    if(pr != null)
+		results.add(pr);
+	    else
+		results.add(new Result(bd));
+	}
+
 	this.cur = results;
 	refilter();
     }
@@ -188,10 +246,13 @@ public class MenuSearch extends Window {
     }
 
     public void tick(double dt) {
-	// Search checks for EVERYTHING, not just the current sub-menu in the menu-grid
-	// if(menu.cur != root)
-	//     setroot(menu.cur);
-	if(recons)
+	boolean needsUpdate = recons;
+	if(!needsUpdate) {
+	    synchronized(menu.paginae) {
+		needsUpdate = !allPaginae.containsAll(menu.paginae);
+	    }
+	}
+	if(needsUpdate)
 	    updlist();
 	super.tick(dt);
     }
@@ -222,12 +283,24 @@ public class MenuSearch extends Window {
 	super.draw(g);
 	// Drawing the drag icon
 	if(drag_mode && rls.sel != null) {
-	    GSprite ds = rls.sel.btn.spr();
-	    ui.drawafter(new UI.AfterDraw() {
-		public void draw(GOut g) {
-		    ds.draw(g.reclip(ui.mc.sub(ds.sz().div(2)), ds.sz()));
+	    if(rls.sel.isBot()) {
+		BufferedImage ds = rls.sel.img();
+		if(ds != null) {
+		    Coord dssz = new Coord(ds.getWidth(), ds.getHeight());
+		    ui.drawafter(new UI.AfterDraw() {
+			public void draw(GOut g) {
+			    g.image(new TexI(ds), ui.mc.sub(dssz.div(2)));
+			}
+		    });
 		}
-	    });
+	    } else {
+		GSprite ds = rls.sel.btn.spr();
+		ui.drawafter(new UI.AfterDraw() {
+		    public void draw(GOut g) {
+			ds.draw(g.reclip(ui.mc.sub(ds.sz().div(2)), ds.sz()));
+		    }
+		});
+	    }
 	}
     }
 }
