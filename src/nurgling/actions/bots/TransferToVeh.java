@@ -35,8 +35,6 @@ public class TransferToVeh implements Action {
             return Results.ERROR("No config");
         }
 
-
-
         SelectArea insa;
         NUtils.getGameUI().msg("Please, select input area");
         (insa = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
