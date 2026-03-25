@@ -1,6 +1,8 @@
 package nurgling.actions.bots;
 
 import haven.*;
+import haven.VMeter;
+import haven.LayerMeter;
 import nurgling.*;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
@@ -370,48 +372,21 @@ public class GrapeJuicer implements Action {
     }
 
     /**
-     * Read juice level from the "Pressed: X.XX/10.00 l" label in the press window.
-     * @return current juice level, or 0 if can't read
+     * Read juice level from the VMeter in the press window.
+     * VMeter value is 0.0-1.0, multiply by JUICE_MAX to get liters.
+     * Same pattern as NUtils.getFuelLvl() used for tanning tubs / smelters.
+     * @return current juice level in liters, or 0 if can't read
      */
     private double readJuiceLevel(NGameUI gui) {
         Window wnd = gui.getWindow(PRESS_CAP);
         if (wnd == null) return 0;
 
-        for (Widget child = wnd.child; child != null; child = child.next) {
-            if (child instanceof Label) {
-                String text = ((Label) child).text();
-                if (text != null && text.contains("Pressed:")) {
-                    return parseJuiceLevel(text);
+        // Find the first VMeter in the window (juice level meter)
+        for (Widget w = wnd.lchild; w != null; w = w.prev) {
+            if (w instanceof VMeter) {
+                for (LayerMeter.Meter meter : ((VMeter) w).meters) {
+                    return meter.a * JUICE_MAX;
                 }
-            }
-            // Check inside RelCont
-            if (child instanceof RelCont) {
-                for (Widget child2 = child.child; child2 != null; child2 = child2.next) {
-                    if (child2 instanceof Label) {
-                        String text = ((Label) child2).text();
-                        if (text != null && text.contains("Pressed:")) {
-                            return parseJuiceLevel(text);
-                        }
-                    }
-                }
-            }
-        }
-        return 0;
-    }
-
-    /**
-     * Parse "Pressed: 5.00/10.00 l" to extract the current value.
-     */
-    private double parseJuiceLevel(String text) {
-        // Format: "Pressed: 5.00/10.00 l"
-        int colonIdx = text.indexOf(':');
-        int slashIdx = text.indexOf('/');
-        if (colonIdx >= 0 && slashIdx > colonIdx) {
-            String currentStr = text.substring(colonIdx + 1, slashIdx).trim();
-            try {
-                return Double.parseDouble(currentStr);
-            } catch (NumberFormatException e) {
-                return 0;
             }
         }
         return 0;
