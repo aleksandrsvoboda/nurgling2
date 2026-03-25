@@ -70,14 +70,14 @@ public class Fuzzy {
         String lowerNeedle = needle.toLowerCase();
 
         for (Result res : results) {
-            String haystack = res.btn.name().toLowerCase();
+            String haystack = res.name().toLowerCase();
             if (fuzzyContains(haystack, lowerNeedle)) {
                 found.add(res);
             }
         }
 
         // Sort using Jaccard similarity (common letters regardless of relative positions)
-        found.sort(Comparator.comparingDouble(res -> -jaccardSimilarity(lowerNeedle, res.btn.name().toLowerCase())));
+        found.sort(Comparator.comparingDouble(res -> -jaccardSimilarity(lowerNeedle, res.name().toLowerCase())));
         return found;
     }
 }
