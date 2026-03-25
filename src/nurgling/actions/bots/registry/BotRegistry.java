@@ -238,6 +238,9 @@ public class BotRegistry {
         bots.add(new BotDescriptor("measure_length", BotDescriptor.BotType.UTILS, "Zone Measure Tool", "Measure and mark zones on the ground. Select areas, view dimensions, and manage multiple selections.", false, true, ZoneMeasureTool.class, "measuring_length", false));
         bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true));
 
+        // GRAPE JUICE
+        bots.add(new BotDescriptor("grapejuicer", BotDescriptor.BotType.PRODUCTIONS, "Grape Juicer", "Presses grapes in extraction press and fills barrels with grape juice.", true, true, GrapeJuicer.class, "test45", false));
+
         // BUILD
         bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));
         bots.add(new BotDescriptor("cellar", BotDescriptor.BotType.BUILD, "Build Cellar", "Builds cellar.", false, true, BuildCellar.class, "cellar", false));

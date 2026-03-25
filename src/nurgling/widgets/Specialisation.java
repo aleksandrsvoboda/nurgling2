@@ -95,7 +95,8 @@ public class Specialisation extends Window
         gardenPotSeeds,
         rawfish,
         candelabrum,
-        buildMaterials;
+        buildMaterials,
+        extractionPress;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -188,6 +189,9 @@ public class Specialisation extends Window
 
         // Construction materials (with subtypes: Block, Board, Stone, String, Nugget, etc.)
         specialisation.add(new SpecialisationItem(SpecName.buildMaterials.toString(),"Construction Materials",Resource.loadsimg("nurgling/categories/consmaterials")));
+
+        // Extraction press
+        specialisation.add(new SpecialisationItem(SpecName.extractionPress.toString(),"Extraction Press",Resource.loadsimg("nurgling/categories/consmaterials")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override

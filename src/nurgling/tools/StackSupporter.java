@@ -117,7 +117,8 @@ public class StackSupporter {
 
     private static final NAlias unstackableContainers = new NAlias(
             "Smith's Smelter", "Ore Smelter", "Herbalist Table", "Tub",
-            "Oven", "Steelbox", "Frame", "Kiln", "Smoke Shed", "Stack furnace"
+            "Oven", "Steelbox", "Frame", "Kiln", "Smoke Shed", "Stack furnace",
+            "Extraction Press"
     );
 
     public static boolean isStackable(NInventory inv, String name) {
