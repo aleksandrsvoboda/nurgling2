@@ -58,11 +58,20 @@ public class GrapeJuicer implements Action {
             return Results.ERROR("Extraction Press not found in area!");
         }
 
+        // Initialize press: empty leftover juice, remove seeds, count existing grapes
+        int existingGrapes = initializePress(gui, context);
+        if (existingGrapes < 0) {
+            return Results.ERROR("Failed to initialize press!");
+        }
+
         // Main loop
+        boolean firstIteration = true;
         while (true) {
             // Phase 1: Fill the press with grapes
-            int grapesLoaded = fillPress(gui, context);
-            if (grapesLoaded == 0) {
+            int slotsToFill = firstIteration ? PRESS_SLOTS - existingGrapes : PRESS_SLOTS;
+            firstIteration = false;
+            int grapesLoaded = fillPress(gui, context, slotsToFill);
+            if (grapesLoaded == 0 && slotsToFill > 0) {
                 NUtils.getGameUI().msg("No more grapes available. Stopping.");
                 return Results.SUCCESS();
             }
@@ -94,13 +103,113 @@ public class GrapeJuicer implements Action {
     }
 
     /**
+     * Check the press for leftover state and clean it up:
+     * 1. If any juice exists, empty it into a barrel
+     * 2. Remove any seeds (non-grape items)
+     * 3. Count existing grapes
+     * @return number of grapes already in the press, or -1 on error
+     */
+    private int initializePress(NGameUI gui, NContext context) throws InterruptedException {
+        Gob press = navigateToPress(context);
+        if (press == null) return -1;
+
+        new PathFinder(press).run(gui);
+        openPressWindow(gui, press);
+
+        // 1. If any juice, empty into barrel first
+        double juiceLevel = readJuiceLevel(gui);
+        if (juiceLevel > 0) {
+            NUtils.getGameUI().msg("Press has " + juiceLevel + "L of juice. Emptying into barrel...");
+            closePressWindow(gui);
+            if (!emptyJuiceIntoBarrel(gui, context)) {
+                NUtils.getGameUI().msg("No empty barrels to drain leftover juice. Stopping.");
+                return -1;
+            }
+            // Re-navigate and reopen after barrel trip
+            press = navigateToPress(context);
+            if (press == null) return -1;
+            new PathFinder(press).run(gui);
+            openPressWindow(gui, press);
+        }
+
+        // 2. Remove seeds (non-grape items) from press
+        removeSeedsFromPress(gui, context);
+
+        // Re-navigate and reopen in case removeSeedsFromPress closed the window
+        if (gui.getWindow(PRESS_CAP) == null) {
+            press = navigateToPress(context);
+            if (press == null) return -1;
+            new PathFinder(press).run(gui);
+            openPressWindow(gui, press);
+        }
+
+        // 3. Count existing grapes
+        int existingGrapes = 0;
+        NInventory pressInv = gui.getInventory(PRESS_CAP);
+        if (pressInv != null) {
+            existingGrapes = pressInv.getItems(new NAlias(GRAPE_ITEM)).size();
+        }
+        if (existingGrapes > 0) {
+            NUtils.getGameUI().msg("Press already has " + existingGrapes + " grapes.");
+        }
+
+        closePressWindow(gui);
+        return existingGrapes;
+    }
+
+    /**
+     * Remove all non-grape items (seeds) from the press inventory and drop them.
+     * Handles multiple batches if player inventory is too small.
+     */
+    private void removeSeedsFromPress(NGameUI gui, NContext context) throws InterruptedException {
+        while (true) {
+            NInventory pressInv = gui.getInventory(PRESS_CAP);
+            if (pressInv == null) break;
+
+            // Find non-grape items (seeds)
+            ArrayList<WItem> allItems = pressInv.getItems();
+            ArrayList<WItem> seeds = new ArrayList<>();
+            for (WItem item : allItems) {
+                String name = ((NGItem) item.item).name();
+                if (name != null && !NParser.checkName(name, new NAlias(GRAPE_ITEM))) {
+                    seeds.add(item);
+                }
+            }
+            if (seeds.isEmpty()) break;
+
+            // Check inventory space
+            int freeSpace = gui.getInventory().getNumberFreeCoord(GRAPE_SIZE);
+            if (freeSpace <= 0) {
+                closePressWindow(gui);
+                dropAllInventoryItems(gui);
+                // Reopen press
+                Gob press = navigateToPress(context);
+                if (press == null) break;
+                openPressWindow(gui, press);
+                continue;
+            }
+
+            // Transfer seeds to player inventory
+            int toTransfer = Math.min(seeds.size(), freeSpace);
+            for (int i = 0; i < toTransfer; i++) {
+                seeds.get(i).item.wdgmsg("transfer", Coord.z);
+                NUtils.addTask(new ISRemoved(seeds.get(i).item.wdgid()));
+            }
+        }
+
+        // Drop any seeds we picked up
+        closePressWindow(gui);
+        dropAllInventoryItems(gui);
+    }
+
+    /**
      * Fill the extraction press with grapes. Handles multiple trips if player
      * inventory is smaller than 25.
      * @return total number of grapes loaded into the press, 0 if no grapes available
      */
-    private int fillPress(NGameUI gui, NContext context) throws InterruptedException {
+    private int fillPress(NGameUI gui, NContext context, int slotsToFill) throws InterruptedException {
         int totalLoaded = 0;
-        int remaining = PRESS_SLOTS;
+        int remaining = slotsToFill;
 
         while (remaining > 0) {
             // Check how much inventory space we have
@@ -250,8 +359,9 @@ public class GrapeJuicer implements Action {
     }
 
     /**
-     * Lift an empty barrel, bring it to the press, transfer juice, return barrel.
-     * @return true if successful, false if no empty barrels available
+     * Find a suitable barrel (prefer partially-filled grape juice barrels, then empty),
+     * lift it, bring to press, transfer juice, return barrel.
+     * @return true if successful, false if no suitable barrels available
      */
     private boolean emptyJuiceIntoBarrel(NGameUI gui, NContext context) throws InterruptedException {
         // Make sure press window is closed before barrel operations
@@ -263,23 +373,17 @@ public class GrapeJuicer implements Action {
             return false;
         }
 
-        ArrayList<Gob> barrels = Finder.findGobs(barrelArea, new NAlias("barrel"));
-        Gob emptyBarrel = null;
-        for (Gob barrel : barrels) {
-            if (!NUtils.barrelHasContent(barrel)) {
-                emptyBarrel = barrel;
-                break;
-            }
-        }
-        if (emptyBarrel == null) {
-            return false; // All barrels are full
+        // Find a suitable barrel
+        Gob targetBarrel = findSuitableBarrel(gui, barrelArea);
+        if (targetBarrel == null) {
+            return false;
         }
 
         // Save barrel original position
-        Coord2d originalPos = emptyBarrel.rc;
+        Coord2d originalPos = targetBarrel.rc;
 
         // Lift the barrel
-        new LiftObject(emptyBarrel).run(gui);
+        new LiftObject(targetBarrel).run(gui);
 
         // Navigate to press area (may be far from barrel area)
         Gob press = navigateToPress(context);
@@ -297,15 +401,20 @@ public class GrapeJuicer implements Action {
         new PathFinder(press).run(gui);
 
         // Right-click the press while carrying barrel to transfer juice
+        long pressId = press.id;
         NUtils.activateGob(press);
 
-        // Wait for barrel to have content (juice transferred)
+        // Wait for press to be drained (marker becomes 0 or 4 = no juice)
         NUtils.addTask(new NTask() {
+            {
+                this.infinite = true;
+            }
             @Override
             public boolean check() {
-                Gob lifted = Finder.findLiftedbyPlayer();
-                if (lifted == null) return true;
-                return NUtils.barrelHasContent(lifted);
+                Gob p = Finder.findGob(pressId);
+                if (p == null) return true;
+                long marker = p.ngob.getModelAttribute();
+                return marker == 0 || marker == 4;
             }
         });
 
@@ -317,6 +426,54 @@ public class GrapeJuicer implements Action {
         }
 
         return true;
+    }
+
+    /**
+     * Find a suitable barrel for grape juice. Priority:
+     * 1. Barrels that already contain grape juice and have room (<= 90L, so a full 10L press cycle fits)
+     * 2. Empty barrels
+     * Opens each candidate barrel to check content level.
+     * @return suitable barrel gob, or null if none available
+     */
+    private Gob findSuitableBarrel(NGameUI gui, NArea barrelArea) throws InterruptedException {
+        ArrayList<Gob> barrels = Finder.findGobs(barrelArea, new NAlias("barrel"));
+
+        // First pass: check barrels that already have content (grape juice)
+        for (Gob barrel : barrels) {
+            if (NUtils.barrelHasContent(barrel)) {
+                // Open barrel to check content level
+                new PathFinder(barrel).run(gui);
+                new OpenTargetContainer("Barrel", barrel).run(gui);
+
+                // Wait for TipLabel info to load (FindBarrel only waits for RelCont)
+                NUtils.addTask(new NTask() {
+                    @Override
+                    public boolean check() {
+                        return gui.getBarrelContent() >= 0;
+                    }
+                });
+                double content = gui.getBarrelContent();
+
+                Window bwnd = gui.getWindow("Barrel");
+                if (bwnd != null) {
+                    new CloseTargetWindow(bwnd).run(gui);
+                }
+
+                if (content <= 90) {
+                    return barrel; // Has room for a full 10L press cycle
+                }
+                // Too full (> 90L), try next barrel
+            }
+        }
+
+        // Second pass: find empty barrel
+        for (Gob barrel : barrels) {
+            if (!NUtils.barrelHasContent(barrel)) {
+                return barrel;
+            }
+        }
+
+        return null; // No suitable barrel found
     }
 
     /**
