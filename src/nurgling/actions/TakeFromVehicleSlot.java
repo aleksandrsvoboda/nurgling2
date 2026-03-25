@@ -68,12 +68,17 @@ public class TakeFromVehicleSlot implements Action {
                     if (!(child instanceof InvSquare)) {
                         if (itemIndex == slotIndex) {
                             child.wdgmsg("click", UI.scale(15, 15), 1, 0);
-                            NUtils.addTask(new NTask() {
+                            NTask waitLift = new NTask() {
+                                { infinite = false; }
                                 @Override
                                 public boolean check() {
                                     return Finder.findLiftedbyPlayer() != null;
                                 }
-                            });
+                            };
+                            NUtils.addTask(waitLift);
+                            if (waitLift.criticalExit) {
+                                return Results.FAIL();
+                            }
                             return Results.SUCCESS();
                         }
                         itemIndex++;
