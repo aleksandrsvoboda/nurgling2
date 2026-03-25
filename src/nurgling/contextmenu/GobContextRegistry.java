@@ -29,5 +29,6 @@ public class GobContextRegistry {
         register(new RemoveStumpAction());
         register(new FillTroughWithSwillAction());
         register(new FillBarrelsFromVehicleAction());
+        register(new EmptyBarrelsIntoCisternAction());
     }
 }
