@@ -4,7 +4,6 @@ import haven.*;
 import nurgling.actions.AutoDrink;
 import nurgling.actions.bots.*;
 import nurgling.areas.NContext;
-import nurgling.i18n.L10n;
 import nurgling.widgets.NProspecting;
 
 import java.util.*;
@@ -19,10 +18,6 @@ public class NFlowerMenu extends FlowerMenu
     public static final Tex bhm = Resource.loadtex("nurgling/hud/flower/hmid");
     public static final Tex bhr = Resource.loadtex("nurgling/hud/flower/hright");
 
-    // Localization keys for custom options
-    public static final String KEY_SAVE_TREE = "flower.save_tree";
-    public static final String KEY_SAVE_BUSH = "flower.save_bush";
-    
     public NPetal[] nopts;
 
     private static final int MAX_VISIBLE_ITEMS = 10;
@@ -32,10 +27,9 @@ public class NFlowerMenu extends FlowerMenu
     int len = 0;
     public boolean shiftMode = false;
 
-    // Constructor called by FlowerMenu Factory - includes tree/bush detection
     public NFlowerMenu(String[] opts, UI ui)
     {
-        this(processOptions(opts, ui));
+        this(opts);
     }
 
     // Constructor for custom menus - no tree/bush detection
@@ -64,37 +58,6 @@ public class NFlowerMenu extends FlowerMenu
             sb = add(new Scrollbar(visibleHeight, 0, opts.length - MAX_VISIBLE_ITEMS), new Coord(len, 0));
             resize(len + sb.sz.x, visibleHeight);
         }
-    }
-
-    /**
-     * Process options to add tree/bush save option if right-clicked on a tree or bush
-     */
-    private static String[] processOptions(String[] opts, UI ui) {
-        try {
-            NCore.LastActions lastActions = ui.core.getLastActions();
-            if(lastActions != null && lastActions.gob != null) {
-                Gob gob = lastActions.gob;
-                if(gob.ngob != null && gob.ngob.name != null) {
-                    String saveOptionKey = null;
-                    if(gob.ngob.name.startsWith("gfx/terobjs/trees/") && !gob.ngob.name.contains("log") && !gob.ngob.name.contains("trunk")) {
-                        saveOptionKey = KEY_SAVE_TREE;
-                    } else if(gob.ngob.name.startsWith("gfx/terobjs/bushes/")) {
-                        saveOptionKey = KEY_SAVE_BUSH;
-                    }
-
-                    if(saveOptionKey != null) {
-                        String[] newOpts = new String[opts.length + 1];
-                        System.arraycopy(opts, 0, newOpts, 0, opts.length);
-                        // Store localized text for display, but use key marker for identification
-                        newOpts[opts.length] = L10n.get(saveOptionKey);
-                        return newOpts;
-                    }
-                }
-            }
-        } catch(Exception e) {
-            // Ignore errors - just don't add the option
-        }
-        return opts;
     }
 
     @Override
@@ -129,23 +92,6 @@ public class NFlowerMenu extends FlowerMenu
         }
         else
         {
-            // Handle custom "Save Tree Location" or "Save Bush Location" options
-            // Compare against localized strings
-            String saveTreeText = L10n.get(KEY_SAVE_TREE);
-            String saveBushText = L10n.get(KEY_SAVE_BUSH);
-            if(option.name.equals(saveTreeText) || option.name.equals(saveBushText)) {
-                NCore.LastActions actions = NUtils.getUI().core.getLastActions();
-                if(actions != null && actions.gob != null) {
-                    NGameUI gui = (NGameUI) NUtils.getGameUI();
-                    if(gui != null && gui.treeLocationService != null) {
-                        gui.treeLocationService.saveTreeLocation(actions.gob);
-                    }
-                }
-                wdgmsg("cl", -1); // Close menu without sending to server
-                NUtils.getUI().core.setLastAction();
-                return;
-            }
-
             wdgmsg("cl", option.num, ui.modflags());
             NCore.LastActions actions = NUtils.getUI().core.getLastActions();
             if(actions!=null) {

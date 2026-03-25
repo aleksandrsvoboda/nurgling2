@@ -21,7 +21,7 @@ public class EmptyBarrelsIntoCisternAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Fill water from vehicle";
+        return nurgling.i18n.L10n.get("context.empty_barrels_into_cistern");
     }
 
     @Override

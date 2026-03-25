@@ -30,7 +30,7 @@ public class FillTroughWithSwillAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Fill with swill";
+        return nurgling.i18n.L10n.get("context.fill_trough_swill");
     }
 
     @Override

@@ -22,7 +22,7 @@ public class LoadVehicleAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Load";
+        return nurgling.i18n.L10n.get("context.load_vehicle");
     }
 
     @Override

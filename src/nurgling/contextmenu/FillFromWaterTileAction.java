@@ -27,7 +27,7 @@ public class FillFromWaterTileAction implements TileContextAction {
 
     @Override
     public String label() {
-        return "Fill up all empty containers";
+        return nurgling.i18n.L10n.get("context.fill_from_water_tile");
     }
 
     @Override

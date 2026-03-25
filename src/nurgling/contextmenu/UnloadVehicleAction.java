@@ -18,7 +18,7 @@ public class UnloadVehicleAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Unload";
+        return nurgling.i18n.L10n.get("context.unload_vehicle");
     }
 
     @Override

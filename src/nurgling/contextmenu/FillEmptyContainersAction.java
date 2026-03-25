@@ -25,7 +25,7 @@ public class FillEmptyContainersAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Fill up all empty containers";
+        return nurgling.i18n.L10n.get("context.fill_empty_containers");
     }
 
     @Override

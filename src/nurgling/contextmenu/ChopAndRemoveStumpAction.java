@@ -41,7 +41,7 @@ public class ChopAndRemoveStumpAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Chop + Remove Stump";
+        return nurgling.i18n.L10n.get("context.chop_remove_stump");
     }
 
     @Override
