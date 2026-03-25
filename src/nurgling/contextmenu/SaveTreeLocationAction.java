@@ -16,7 +16,7 @@ public class SaveTreeLocationAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Save Tree Location";
+        return nurgling.i18n.L10n.get("context.save_tree_location");
     }
 
     @Override

@@ -21,7 +21,7 @@ public class FillBarrelsFromVehicleAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Fill up barrels in vehicle";
+        return nurgling.i18n.L10n.get("context.fill_barrels_from_well");
     }
 
     @Override

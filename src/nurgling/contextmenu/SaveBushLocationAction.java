@@ -13,7 +13,7 @@ public class SaveBushLocationAction implements GobContextAction {
 
     @Override
     public String label() {
-        return "Save Bush Location";
+        return nurgling.i18n.L10n.get("context.save_bush_location");
     }
 
     @Override
