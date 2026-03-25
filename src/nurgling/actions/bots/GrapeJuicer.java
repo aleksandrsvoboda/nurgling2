@@ -400,14 +400,19 @@ public class GrapeJuicer implements Action {
         // Walk to the press
         new PathFinder(press).run(gui);
 
-        // Right-click the press while carrying barrel to transfer juice
+        // Right-click the press while carrying barrel to transfer juice.
+        // Game mechanic: if press is NOT full and barrel has grape juice,
+        // the first right-click fills the press FROM the barrel (wrong direction).
+        // If press IS full, right-click drains press INTO barrel.
+        // So we may need two right-clicks: first fills press, second drains it.
         long pressId = press.id;
         NUtils.activateGob(press);
 
-        // Wait for press to be drained (marker becomes 0 or 4 = no juice)
-        NUtils.addTask(new NTask() {
+        // Wait for press marker to reach 0 or 4 (drained) - NOT infinite
+        // If juice went wrong way (barrel→press), this will timeout
+        NTask drainWait = new NTask() {
             {
-                this.infinite = true;
+                this.infinite = false;
             }
             @Override
             public boolean check() {
@@ -416,7 +421,28 @@ public class GrapeJuicer implements Action {
                 long marker = p.ngob.getModelAttribute();
                 return marker == 0 || marker == 4;
             }
-        });
+        };
+        NUtils.addTask(drainWait);
+
+        // Check if press actually drained
+        Gob pressAfter = Finder.findGob(pressId);
+        if (pressAfter != null) {
+            long marker = pressAfter.ngob.getModelAttribute();
+            if (marker != 0 && marker != 4) {
+                // Juice went wrong way (barrel filled press instead of draining).
+                // Now press should be full, so right-clicking again will drain it.
+                NUtils.activateGob(pressAfter);
+                NUtils.addTask(new NTask() {
+                    @Override
+                    public boolean check() {
+                        Gob p = Finder.findGob(pressId);
+                        if (p == null) return true;
+                        long m = p.ngob.getModelAttribute();
+                        return m == 0 || m == 4;
+                    }
+                });
+            }
+        }
 
         // Navigate back to barrel area (may be far from press) and place barrel
         NUtils.navigateToArea(barrelArea);
