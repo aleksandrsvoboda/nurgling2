@@ -620,32 +620,38 @@ public class KFC implements Action {
 
         WItem deadChicken = gui.getInventory().getItem(new NAlias(deadType));
         if (deadChicken == null) return;
-        
-        new SelectFlowerAction("Pluck", deadChicken).run(gui);
-        NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("Plucked Chicken"), 1));
 
-        WItem plucked = gui.getInventory().getItem(new NAlias("Plucked Chicken"));
-        if (plucked == null) return;
-        
-        new SelectFlowerAction("Clean", plucked).run(gui);
-        NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("Cleaned Chicken"), 1));
+        Boolean skipPluckCocks = (Boolean) NConfig.get(NConfig.Key.skipPluckingCocksInKFC);
+        boolean isCock = "Dead Cock".equals(deadType);
+        if (skipPluckCocks != null && skipPluckCocks && isCock) {
+            // Leave as Dead Cock for creamy cock recipe
+        } else {
+            new SelectFlowerAction("Pluck", deadChicken).run(gui);
+            NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("Plucked Chicken"), 1));
 
-        WItem cleaned = gui.getInventory().getItem(new NAlias("Cleaned Chicken"));
-        if (cleaned == null) return;
+            WItem plucked = gui.getInventory().getItem(new NAlias("Plucked Chicken"));
+            if (plucked == null) return;
 
-        Boolean skipButcher = (Boolean) NConfig.get(NConfig.Key.skipButcherInKFC);
-        if (skipButcher == null || !skipButcher) {
-            new SelectFlowerAction("Butcher", cleaned).run(gui);
-            NUtils.addTask(new NTask() {
-                @Override
-                public boolean check() {
-                    try {
-                        return gui.getInventory().getItems(new NAlias("Cleaned Chicken")).isEmpty();
-                    } catch (InterruptedException e) {
-                        return false;
+            new SelectFlowerAction("Clean", plucked).run(gui);
+            NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("Cleaned Chicken"), 1));
+
+            WItem cleaned = gui.getInventory().getItem(new NAlias("Cleaned Chicken"));
+            if (cleaned == null) return;
+
+            Boolean skipButcher = (Boolean) NConfig.get(NConfig.Key.skipButcherInKFC);
+            if (skipButcher == null || !skipButcher) {
+                new SelectFlowerAction("Butcher", cleaned).run(gui);
+                NUtils.addTask(new NTask() {
+                    @Override
+                    public boolean check() {
+                        try {
+                            return gui.getInventory().getItems(new NAlias("Cleaned Chicken")).isEmpty();
+                        } catch (InterruptedException e) {
+                            return false;
+                        }
                     }
-                }
-            });
+                });
+            }
         }
 
         // Drop off if insufficient space for another chicken
