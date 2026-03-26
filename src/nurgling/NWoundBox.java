@@ -134,8 +134,11 @@ public class NWoundBox extends WoundWnd.WoundBox {
 	int eValX  = titleX + eIconW + iconGap + maxNameW + valGap;
 	int ey = nameBottom + nameEffectGap;
 	for(int i = 0; i < mods.size(); i++) {
-	    if(eIcons[i] != null)
-		g.drawImage(eIcons[i], titleX, ey, null);
+	    int textH = eNames[i].getHeight();
+	    if(eIcons[i] != null) {
+		int iconY = ey + (textH - EFFECT_ICON_SZ.y) / 2;
+		g.drawImage(eIcons[i], titleX, iconY, null);
+	    }
 	    g.drawImage(eNames[i], eNameX, ey, null);
 	    g.drawImage(eVals[i], eValX, ey, null);
 	    ey += eLineH;
