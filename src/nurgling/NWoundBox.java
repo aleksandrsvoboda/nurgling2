@@ -21,9 +21,13 @@ public class NWoundBox extends WoundWnd.WoundBox {
 	nurgling.conf.FontSettings.getOpenSans().deriveFont(
 	    (float)Math.floor(UI.scale(11.0)));
 
+    private static final Text.Foundry effectFnd = new Text.Foundry(descFont).aa(true);
+
     private static final RichText.Foundry descFnd = new RichText.Foundry(
 	RichText.IMAGESRC, RichText.ImageSource.legacy,
 	TextAttribute.FONT, descFont).aa(true);
+
+    private static final Coord EFFECT_ICON_SZ = UI.scale(new Coord(11, 11));
 
     public NWoundBox(int id) {
 	super(id);
@@ -80,17 +84,15 @@ public class NWoundBox extends WoundWnd.WoundBox {
 
 	for(int i = 0; i < mods.size(); i++) {
 	    Mod mod = mods.get(i);
-	    eNames[i] = Text.render(mod.attr.name()).img;
-	    String col = (mod.mod < 0) ? AttrMod.debuff : AttrMod.buff;
+	    eNames[i] = effectFnd.render(mod.attr.name()).img;
+	    Color valCol = (mod.mod < 0) ? new Color(255, 128, 128) : new Color(128, 255, 128);
 	    String sign = (mod.mod < 0) ? "-" : "+";
-	    eVals[i] = RichText.render(String.format("$col[%s]{%s%d}", col, sign,
-		Math.round(Math.abs(mod.mod))), 0).img;
+	    eVals[i] = effectFnd.render(String.format("%s%d", sign, Math.round(Math.abs(mod.mod))), valCol).img;
 	    eIcons[i] = mod.attr.icon();
 	    if(eIcons[i] != null)
-		eIcons[i] = convolvedown(eIcons[i],
-		    Coord.of(eNames[i].getHeight(), eNames[i].getHeight()), iconfilter);
+		eIcons[i] = convolvedown(eIcons[i], EFFECT_ICON_SZ, iconfilter);
 	    maxNameW = Math.max(maxNameW, eNames[i].getWidth());
-	    eLineH = Math.max(eLineH, eNames[i].getHeight());
+	    eLineH = Math.max(eLineH, Math.max(eNames[i].getHeight(), EFFECT_ICON_SZ.y));
 	}
 
 	// Render description text (pagina)

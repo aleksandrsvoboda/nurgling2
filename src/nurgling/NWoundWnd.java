@@ -13,7 +13,7 @@ public class NWoundWnd extends WoundWnd {
 
     private static final int INFO_W = UI.scale(267);
     private static final int INFO_H = UI.scale(348);
-    private static final int LIST_W = UI.scale(257);
+    private static final int LIST_W = UI.scale(265);
     private static final int LIST_H = UI.scale(348);
     private static final int SECTION_GAP = UI.scale(17);
     private static final int TITLE_GAP = UI.scale(5);

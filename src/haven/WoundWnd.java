@@ -271,7 +271,7 @@ public class WoundWnd extends Widget {
 		QuickInfo qdata = getqdat(info);
 		int nw = sz.x;
 		if(qdata != null) {
-		    qd = adda(qdata.qwdg(sz.y), sz.x - UI.scale(1), sz.y / 2, 1.0, 0.5);
+		    qd = adda(qdata.qwdg(sz.y), sz.x - UI.scale(6), sz.y / 2, 1.0, 0.5);
 		    nw = qd.c.x - UI.scale(5);
 		}
 		int x = w.level * itemh;
