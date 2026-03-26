@@ -61,29 +61,36 @@ public class NWoundBox extends WoundWnd.WoundBox {
 	int titleX = iconSz.x + UI.scale(10);
 	int titleAreaW = width - titleX;
 
-	// Collect AttrMod effects: icon + "Stat Name" (white) + "+/-N" (colored)
-	List<BufferedImage> effectImgs = new ArrayList<>();
+	// Collect AttrMod effects — two-pass for tabular alignment
+	List<Mod> mods = new ArrayList<>();
 	for(ItemInfo inf : info) {
-	    if(inf instanceof AttrMod) {
-		AttrMod am = (AttrMod)inf;
-		for(Entry e : am.tab) {
-		    if(e instanceof Mod) {
-			Mod mod = (Mod)e;
-			String col = (mod.mod < 0) ? AttrMod.debuff : AttrMod.buff;
-			String sign = (mod.mod < 0) ? "-" : "+";
-			BufferedImage txt = RichText.render(String.format("%s $col[%s]{%s%d}",
-			    mod.attr.name(), col, sign, Math.round(Math.abs(mod.mod))), 0).img;
-			BufferedImage attrIcon = mod.attr.icon();
-			if(attrIcon != null)
-			    attrIcon = convolvedown(attrIcon,
-				Coord.of(txt.getHeight(), txt.getHeight()), iconfilter);
-			if(attrIcon != null)
-			    effectImgs.add(ItemInfo.catimgsh(0, attrIcon, txt));
-			else
-			    effectImgs.add(txt);
-		    }
-		}
-	    }
+	    if(inf instanceof AttrMod)
+		for(Entry e : ((AttrMod)inf).tab)
+		    if(e instanceof Mod)
+			mods.add((Mod)e);
+	}
+
+	int iconGap = UI.scale(5);
+	int valGap = UI.scale(5);
+	BufferedImage[] eIcons = new BufferedImage[mods.size()];
+	BufferedImage[] eNames = new BufferedImage[mods.size()];
+	BufferedImage[] eVals  = new BufferedImage[mods.size()];
+	int maxNameW = 0;
+	int eLineH = 0;
+
+	for(int i = 0; i < mods.size(); i++) {
+	    Mod mod = mods.get(i);
+	    eNames[i] = Text.render(mod.attr.name()).img;
+	    String col = (mod.mod < 0) ? AttrMod.debuff : AttrMod.buff;
+	    String sign = (mod.mod < 0) ? "-" : "+";
+	    eVals[i] = RichText.render(String.format("$col[%s]{%s%d}", col, sign,
+		Math.round(Math.abs(mod.mod))), 0).img;
+	    eIcons[i] = mod.attr.icon();
+	    if(eIcons[i] != null)
+		eIcons[i] = convolvedown(eIcons[i],
+		    Coord.of(eNames[i].getHeight(), eNames[i].getHeight()), iconfilter);
+	    maxNameW = Math.max(maxNameW, eNames[i].getWidth());
+	    eLineH = Math.max(eLineH, eNames[i].getHeight());
 	}
 
 	// Render description text (pagina)
@@ -94,17 +101,15 @@ public class NWoundBox extends WoundWnd.WoundBox {
 	    descRt = descFnd.render(resdoc(wnd.res.get(), pagText), width);
 
 	// Compute layout
-	// Header: icon left, name + effects to the right
-	int rightY = -nameAdj;
-	int nameBottom = rightY + nameLine.sz().y;
+	int nameBottom = -nameAdj + nameLine.sz().y;
+	int nameEffectGap = 6; // ~10px visual from name baseline to effect top
 
-	// Effects below name, still right of icon
-	int effectsY = nameBottom;
-	for(BufferedImage ei : effectImgs)
-	    effectsY += ei.getHeight();
+	// Effects below name, right of icon
+	int effectsBottom = nameBottom + nameEffectGap;
+	effectsBottom += mods.size() * eLineH;
 
 	// Body starts below whichever is taller: icon or name+effects area
-	int headerH = Math.max(iconSz.y, effectsY + nameAdj);
+	int headerH = Math.max(iconSz.y, effectsBottom + nameAdj);
 	int y = headerH + 11;
 
 	if(descRt != null)
@@ -121,11 +126,17 @@ public class NWoundBox extends WoundWnd.WoundBox {
 	// Draw name to the right, top-aligned with icon
 	g.drawImage(nameLine.img, titleX, -nameAdj, null);
 
-	// Draw effects below name, right of icon
-	int ey = nameBottom;
-	for(BufferedImage ei : effectImgs) {
-	    g.drawImage(ei, titleX, ey, null);
-	    ey += ei.getHeight();
+	// Draw effects with tabular alignment
+	int eIconW = (eIcons.length > 0 && eIcons[0] != null) ? eIcons[0].getWidth() : 0;
+	int eNameX = titleX + eIconW + iconGap;
+	int eValX  = titleX + eIconW + iconGap + maxNameW + valGap;
+	int ey = nameBottom + nameEffectGap;
+	for(int i = 0; i < mods.size(); i++) {
+	    if(eIcons[i] != null)
+		g.drawImage(eIcons[i], titleX, ey, null);
+	    g.drawImage(eNames[i], eNameX, ey, null);
+	    g.drawImage(eVals[i], eValX, ey, null);
+	    ey += eLineH;
 	}
 
 	// Draw description below header
