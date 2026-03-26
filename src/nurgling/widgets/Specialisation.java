@@ -96,7 +96,8 @@ public class Specialisation extends Window
         rawfish,
         candelabrum,
         buildMaterials,
-        extractionPress;
+        extractionPress,
+        trufflePig;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -192,6 +193,9 @@ public class Specialisation extends Window
 
         // Extraction press
         specialisation.add(new SpecialisationItem(SpecName.extractionPress.toString(),"Extraction Press",Resource.loadsimg("nurgling/categories/consmaterials")));
+
+        // Truffle pig hunting area
+        specialisation.add(new SpecialisationItem(SpecName.trufflePig.toString(),"Truffle Pig",Resource.loadsimg("nurgling/categories/pigs")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
