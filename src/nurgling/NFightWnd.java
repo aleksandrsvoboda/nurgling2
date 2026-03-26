@@ -51,6 +51,10 @@ public class NFightWnd extends FightWnd {
 	super(nsave, nact, max);
     }
 
+    private static abstract class DropWidget extends Widget implements DropTarget {
+	DropWidget(Coord sz) { super(sz); }
+    }
+
     private BufferedImage renderMoveInfo(Action act, int width) {
 	Resource res = act.res.get();
 	BufferedImage scaledImg = act.rendericon();
@@ -214,7 +218,7 @@ public class NFightWnd extends FightWnd {
 	Coord isz = invsq.sz();
 	int nslots = order.length;
 
-	Widget skillBar = add(new Widget(new Coord(saveRowW, isz.y)) {
+	Widget skillBar = add(new DropWidget(new Coord(saveRowW, isz.y)) {
 	    private UI.Grab grab;
 	    private Action drag;
 	    private Coord dp;
@@ -302,6 +306,29 @@ public class NFightWnd extends FightWnd {
 		    return true;
 		}
 		return super.mouseup(ev);
+	    }
+
+	    public boolean dropthing(Coord c, Object thing) {
+		if(thing instanceof Action) {
+		    Action act = (Action)thing;
+		    int s = slotAt(c);
+		    if(s < 0)
+			return false;
+		    if(order[s] != act) {
+			int cp = findorder(act);
+			if(cp >= 0)
+			    order[cp] = order[s];
+			if(order[s] != null) {
+			    if(cp < 0)
+				order[s].u(0);
+			}
+			order[s] = act;
+			if(act.u < 1)
+			    act.u(1);
+		    }
+		    return true;
+		}
+		return false;
 	    }
 	}, 0, skillBarY);
 
