@@ -76,7 +76,7 @@ public class FightWnd extends Widget {
 	    this.a = a;
 	}
 
-	private void u(int u) {
+	public void u(int u) {
 	    if(this.u != u) {
 		this.u = u;
 		recount();
@@ -129,7 +129,7 @@ public class FightWnd extends Widget {
 	}
     }
 
-    private void recount() {
+    protected void recount() {
 	int u = 0;
 	for(Action act : acts)
 	    u += act.u;
@@ -144,6 +144,10 @@ public class FightWnd extends Widget {
 
 	public Actions(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
+	}
+
+	public Actions(Coord sz, int itemh) {
+	    super(sz, itemh);
 	}
 
 	protected List<Action> items() {return(acts);}
