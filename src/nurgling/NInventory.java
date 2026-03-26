@@ -494,7 +494,7 @@ public class NInventory extends Inventory
         if(checkBoxForRight != null) {
             // Since the button is positioned relative to sz.x, it should automatically
             // adjust when the inventory resizes. Only reposition if needed.
-            checkBoxForRight.c = new Coord(sz.x + UI.scale(2), UI.scale(27));
+            checkBoxForRight.c = new Coord(sz.x + UI.scale(1), UI.scale(27));
         }
     }
     
@@ -787,7 +787,7 @@ public class NInventory extends Inventory
         parent.pack();
 
         // Right panel toggle button - using mirrored textures
-        parent.add(checkBoxForRight, new Coord(sz.x - UI.scale(1), UI.scale(27)));
+        parent.add(checkBoxForRight, new Coord(sz.x + UI.scale(1), UI.scale(27)));
 
         toggles = NUtils.getGameUI().add(new NPopupWidget(new Coord(UI.scale(50), UI.scale(80)), NPopupWidget.Type.RIGHT));
         
