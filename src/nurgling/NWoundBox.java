@@ -61,7 +61,7 @@ public class NWoundBox extends WoundWnd.WoundBox {
 	int titleX = iconSz.x + UI.scale(10);
 	int titleAreaW = width - titleX;
 
-	// Collect AttrMod effects
+	// Collect AttrMod effects: icon + "Stat Name" (white) + "+/-N" (colored)
 	List<BufferedImage> effectImgs = new ArrayList<>();
 	for(ItemInfo inf : info) {
 	    if(inf instanceof AttrMod) {
@@ -71,9 +71,16 @@ public class NWoundBox extends WoundWnd.WoundBox {
 			Mod mod = (Mod)e;
 			String col = (mod.mod < 0) ? AttrMod.debuff : AttrMod.buff;
 			String sign = (mod.mod < 0) ? "-" : "+";
-			String txt = String.format("%s %s%d", mod.attr.name(), sign, Math.round(Math.abs(mod.mod)));
-			BufferedImage line = RichText.render(String.format("$col[%s]{%s}", col, txt), 0).img;
-			effectImgs.add(line);
+			BufferedImage txt = RichText.render(String.format("%s $col[%s]{%s%d}",
+			    mod.attr.name(), col, sign, Math.round(Math.abs(mod.mod))), 0).img;
+			BufferedImage attrIcon = mod.attr.icon();
+			if(attrIcon != null)
+			    attrIcon = convolvedown(attrIcon,
+				Coord.of(txt.getHeight(), txt.getHeight()), iconfilter);
+			if(attrIcon != null)
+			    effectImgs.add(ItemInfo.catimgsh(0, attrIcon, txt));
+			else
+			    effectImgs.add(txt);
 		    }
 		}
 	    }
