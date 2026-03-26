@@ -473,7 +473,7 @@ public class NInventory extends Inventory
     public void movePopup(Coord c) {
         if(toggles !=null)
         {
-            toggles.move(new Coord(c.x - toggles.sz.x + toggles.atl.x +UI.scale(10),c.y + UI.scale(35)));
+            toggles.move(new Coord(c.x - toggles.sz.x + UI.scale(2), c.y + UI.scale(35)));
         }
         // Update both right panels
         updateRightPanelPositions(c);
@@ -510,7 +510,7 @@ public class NInventory extends Inventory
         
         if (rightTogglesExpanded != null) {
             rightTogglesExpanded.move(new Coord(
-                    c.x + parent.sz.x - rightTogglesExpanded.atl.x - UI.scale(6),
+                    c.x + parent.sz.x - UI.scale(2),
                     c.y + UI.scale(20)
             ));
             rightTogglesExpanded.resize(panelW, outerH);
@@ -536,7 +536,7 @@ public class NInventory extends Inventory
         
         if (rightTogglesCompact != null) {
             rightTogglesCompact.move(new Coord(
-                    c.x + parent.sz.x - rightTogglesCompact.atl.x - UI.scale(6),
+                    c.x + parent.sz.x - UI.scale(2),
                     c.y + UI.scale(20)
             ));
             rightTogglesCompact.resize(compactPanelW, compactOuterH);
@@ -1007,7 +1007,7 @@ public class NInventory extends Inventory
         
         // Space label showing filled/total slots
         spaceLabel = new Label("");
-        spaceLabel.setcolor(new java.awt.Color(200, 200, 200));
+        spaceLabel.setcolor(java.awt.Color.WHITE);
         updateSpaceLabel();
         rightTogglesExpanded.add(spaceLabel, dropdownPos.add(new Coord(0, UI.scale(20))));
         
@@ -1393,8 +1393,9 @@ public class NInventory extends Inventory
         int contentWidth = itemListContainer.cont.sz.x;
         int itemHeight = UI.scale(20);
         
-        for (ItemGroup group : itemGroups) {
-            Widget itemWidget = createItemWidget(group, new Coord(contentWidth, itemHeight));
+        for (int idx = 0; idx < itemGroups.size(); idx++) {
+            ItemGroup group = itemGroups.get(idx);
+            Widget itemWidget = createItemWidget(group, new Coord(contentWidth, itemHeight), idx);
             itemListContent.add(itemWidget, new Coord(0, y));
             y += itemHeight + UI.scale(1);
         }
@@ -1487,8 +1488,9 @@ public class NInventory extends Inventory
         int contentWidth = compactListContainer.cont.sz.x;
         int itemHeight = UI.scale(18); // Single line height
         
-        for (ItemGroup group : itemGroups) {
-            Widget compactWidget = createCompactItemWidget(group, new Coord(contentWidth, itemHeight));
+        for (int idx = 0; idx < itemGroups.size(); idx++) {
+            ItemGroup group = itemGroups.get(idx);
+            Widget compactWidget = createCompactItemWidget(group, new Coord(contentWidth, itemHeight), idx);
             compactListContent.add(compactWidget, new Coord(0, y));
             y += itemHeight + UI.scale(1);
         }
@@ -1500,16 +1502,23 @@ public class NInventory extends Inventory
     
     // Progress bar color for curio items
     private static final Color CURIO_PROGRESS_COLOR = new Color(31, 209, 185, 128);
+    private static final Color ROW_EVEN = new Color(255, 255, 255, 13);  // #FFFFFF0D
+    private static final Color ROW_ODD  = new Color(0x1C, 0x25, 0x26);  // #1C2526
     
-    private Widget createItemWidget(ItemGroup group, Coord sz) {
+    private Widget createItemWidget(ItemGroup group, Coord sz, int rowIdx) {
         NInventory thisInv = this;
         return new Widget(sz) {
             @Override
             public void draw(GOut g) {
+                // Alternating row background
+                g.chcolor(((rowIdx % 2) == 0) ? ROW_EVEN : ROW_ODD);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+
                 int iconSize = UI.scale(19);
                 int margin = UI.scale(1);
                 int textY = UI.scale(2);
-                
+
                 // Draw curio study progress bar in background
                 if (group.curioMeter != null && group.curioMeter > 0) {
                     g.chcolor(CURIO_PROGRESS_COLOR);
@@ -1656,14 +1665,19 @@ public class NInventory extends Inventory
         }
     }
     
-    private Widget createCompactItemWidget(ItemGroup group, Coord sz) {
+    private Widget createCompactItemWidget(ItemGroup group, Coord sz, int rowIdx) {
         return new Widget(sz) {
             @Override
             public void draw(GOut g) {
+                // Alternating row background
+                g.chcolor(((rowIdx % 2) == 0) ? ROW_EVEN : ROW_ODD);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+
                 int iconSize = UI.scale(16);
                 int margin = UI.scale(1);
                 int textY = UI.scale(2);
-                
+
                 // Draw curio study progress bar in background
                 if (group.curioMeter != null && group.curioMeter > 0) {
                     g.chcolor(CURIO_PROGRESS_COLOR);

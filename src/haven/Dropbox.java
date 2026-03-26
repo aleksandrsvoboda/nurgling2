@@ -43,8 +43,9 @@ public abstract class Dropbox<T> extends ListWidget<T> {
         }
     }
 
+    public static Color bgColor = Color.BLACK;
     public void draw(GOut g) {
-        g.chcolor(Color.BLACK);
+        g.chcolor(bgColor);
         g.frect(Coord.z, sz);
         g.chcolor();
         if(sel != null)

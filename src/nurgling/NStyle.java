@@ -25,6 +25,7 @@ public class NStyle {
 	    g.frect(haven.Coord.of(x, fy), new haven.Coord(w, handleH));
 	    g.chcolor();
 	};
+	haven.Dropbox.bgColor = new java.awt.Color(0x1C, 0x25, 0x26);
     }
 
     public static Text.Foundry fcomboitems = new Text.Foundry(Text.sans, 16).aa(true);
