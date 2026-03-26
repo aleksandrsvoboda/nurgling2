@@ -20,8 +20,8 @@ public class NFightWnd extends FightWnd {
     private static final int DESC_H = UI.scale(208);
     private static final int MOVES_W = UI.scale(267);
     private static final int MOVES_H = UI.scale(208);
-    private static final int SAVE_W = UI.scale(73);
-    private static final int SAVE_H = UI.scale(56);
+    private static final int SAVE_W = UI.scale(77);
+    private static final int SAVE_H = UI.scale(60);
     private static final int MOVE_ITEM_H = UI.scale(26);
 
     private static final int TITLE_GAP = UI.scale(5);
@@ -213,8 +213,6 @@ public class NFightWnd extends FightWnd {
 	int skillBarY = contentY + DESC_H + DESC_SKILL_GAP;
 	Coord isz = invsq.sz();
 	int nslots = order.length;
-	// Even spacing: totalSlotW = nslots * isz.x, remaining = saveRowW - totalSlotW, gap = remaining / (nslots - 1)
-	int slotSpacing = (nslots > 1) ? (saveRowW - nslots * isz.x) / (nslots - 1) : 0;
 
 	Widget skillBar = add(new Widget(new Coord(saveRowW, isz.y)) {
 	    private UI.Grab grab;
@@ -222,7 +220,9 @@ public class NFightWnd extends FightWnd {
 	    private Coord dp;
 
 	    private Coord slotPos(int i) {
-		return Coord.of(i * (isz.x + slotSpacing), 0);
+		// Distribute rounding evenly so last slot right edge == saveRowW
+		int x = (nslots > 1) ? (int)((long)i * (saveRowW - isz.x) / (nslots - 1)) : 0;
+		return Coord.of(x, 0);
 	    }
 
 	    private int slotAt(Coord c) {
@@ -312,7 +312,8 @@ public class NFightWnd extends FightWnd {
 	int btnY = skillBarY + isz.y + SLOT_BTN_GAP;
 	int plusH = 0;
 	for(int i = 0; i < nslots; i++) {
-	    int cx = i * (isz.x + slotSpacing) + isz.x / 2;
+	    int slotX = (nslots > 1) ? (int)((long)i * (saveRowW - isz.x) / (nslots - 1)) : 0;
+	    int cx = slotX + isz.x / 2;
 	    final int si = i;
 	    Widget sub = adda(new NCloseButton(NStyle.minusbtni[0], NStyle.minusbtni[1], NStyle.minusbtni[2]).action(() -> {
 		Action act = order[si];

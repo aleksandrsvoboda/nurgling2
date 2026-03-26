@@ -13,11 +13,11 @@ public class NStyle {
 	    if(!sb.vis()) return;
 	    int w = haven.UI.scale(8);
 	    int x = sb.sz.x - w;
-	    // Track
+	    // Fill full widget width with track color (eliminates gap between list items and scrollbar)
 	    g.chcolor(0x33, 0x3E, 0x40, 0xFF);
-	    g.frect(haven.Coord.of(x, 0), new haven.Coord(w, sb.sz.y));
+	    g.frect(haven.Coord.of(0, 0), new haven.Coord(sb.sz.x, sb.sz.y));
 	    g.chcolor();
-	    // Handle
+	    // Handle (right-aligned, 8px wide)
 	    int handleH = haven.UI.scale(10);
 	    double a = (sb.max > sb.min) ? (double)sb.val / (double)(sb.max - sb.min) : 0;
 	    int fy = (int)((sb.sz.y - handleH) * a);
