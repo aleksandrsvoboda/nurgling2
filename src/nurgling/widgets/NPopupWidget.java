@@ -34,16 +34,12 @@ public class NPopupWidget extends Widget {
         g.frect(Coord.z, sz);
         g.chcolor();
 
-        // Orange border — skip the edge that connects to the parent
+        // Orange border on all edges
         g.chcolor(BORDER);
-        if(type != Type.TOP)
-            g.frect(Coord.z, new Coord(sz.x, bw));                         // top
-        if(type != Type.BOTTOM)
-            g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));         // bottom
-        if(type != Type.LEFT)
-            g.frect(Coord.z, new Coord(bw, sz.y));                         // left
-        if(type != Type.RIGHT)
-            g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));         // right
+        g.frect(Coord.z, new Coord(sz.x, bw));                         // top
+        g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));         // bottom
+        g.frect(Coord.z, new Coord(bw, sz.y));                         // left
+        g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));         // right
         g.chcolor();
 
         super.draw(g);
