@@ -184,18 +184,11 @@ public class TrufflePigHunter implements Action {
                 gui.msg("Found " + truffles.size() + " truffle(s)!");
 
                 for (Gob truffle : truffles) {
-                    // Check if pig is too close to this truffle (nurgling1 pattern)
+                    // If pig is close to truffle, pull it away so we can pick it up
                     currentPig = Finder.findGob(pigId);
                     if (currentPig != null) {
                         double pigToTruffleDist = truffle.rc.dist(currentPig.rc);
 
-                        // If pig is very close (< 11), skip this truffle - pig will eat it
-                        if (pigToTruffleDist < 11) {
-                            gui.msg("Pig too close to truffle, skipping...");
-                            continue;
-                        }
-
-                        // If pig is moderately close (< 20), pull the rope first
                         if (pigToTruffleDist < 20) {
                             gui.msg("Pulling pig away from truffle...");
                             pullRope(gui);
