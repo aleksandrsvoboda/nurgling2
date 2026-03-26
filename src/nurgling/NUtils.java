@@ -102,7 +102,7 @@ public class NUtils
         boolean hideNatureValue = (Boolean) NConfig.get(NConfig.Key.hideNature);
         boolean shouldHide = !hideNatureValue;
         // Sync to all session configs so Gob.setattr/added inline checks see the correct value
-        NConfig.setGlobal(NConfig.Key.hideNature, hideNatureValue);
+        NConfig.set(NConfig.Key.hideNature, hideNatureValue);
         // Iterate all sessions' gobs
         for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
             NGameUI gui = ctx.getGameUI();
@@ -137,7 +137,7 @@ public class NUtils
     public static void showHideEarthworm() {
         boolean hideEarthwormValue = (Boolean) NConfig.get(NConfig.Key.hideEarthworm);
         boolean shouldHide = !hideEarthwormValue;
-        NConfig.setGlobal(NConfig.Key.hideEarthworm, hideEarthwormValue);
+        NConfig.set(NConfig.Key.hideEarthworm, hideEarthwormValue);
         for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
             NGameUI gui = ctx.getGameUI();
             if (gui == null || gui.ui == null || gui.ui.sess == null) continue;
