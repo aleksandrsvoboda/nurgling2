@@ -34,6 +34,7 @@ import haven.render.Location;
 import static haven.Inventory.invsq;
 
 import nurgling.*;
+import nurgling.actions.SortInventory;
 import nurgling.i18n.L10n;
 import nurgling.widgets.*;
 
@@ -1361,6 +1362,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public static final KeyBinding kb_logout = KeyBinding.get("logout", KeyMatch.nil);
     public static final KeyBinding kb_switchchr = KeyBinding.get("logout-cs", KeyMatch.nil);
     public static final KeyBinding kb_instantLogout = KeyBinding.get("instantLogoutKB", KeyMatch.forchar('L', KeyMatch.C));
+    public static final KeyBinding kb_sort = KeyBinding.get("sort-inv", KeyMatch.nil);
     public boolean globtype(GlobKeyEvent ev) {
 	if(ev.c == ':') {
 	    entercmd();
@@ -1385,6 +1387,17 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    return(true);
 	} else if(kb_searchWidget.key().match(ev)) {
 		openSearchWidget();
+		return true;
+	} else if(kb_sort.key().match(ev)) {
+		for(Widget w = lchild; w != null; w = w.prev) {
+		    if(w instanceof Window && w.visible) {
+			NInventory inv = w.getchild(NInventory.class);
+			if(inv != null) {
+			    SortInventory.sort(inv);
+			    break;
+			}
+		    }
+		}
 		return true;
 	}
 	return(super.globtype(ev));
