@@ -517,7 +517,7 @@ public class QuestWnd extends Widget {
 		int id = INT.of(args[0]);
 		Indir<Resource> res = ui.sess.getresv(args[1]);
 		String title = (args.length > 2) ? STR.of(args[2]) : null;
-		return(new DefaultBox(id, res, title));
+		return(new nurgling.NQuestBox(id, res, title));
 	    }
 	}
 	public interface Info {
@@ -537,6 +537,10 @@ public class QuestWnd extends Widget {
 
 	public QuestList(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
+	}
+
+	public QuestList(Coord sz, int itemh) {
+	    super(sz, itemh);
 	}
 
 	protected List<Quest> items() {return(quests);}

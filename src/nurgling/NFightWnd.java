@@ -57,8 +57,8 @@ public class NFightWnd extends FightWnd {
 
     private BufferedImage renderMoveInfo(Action act, int width) {
 	Resource res = act.res.get();
-	BufferedImage scaledImg = act.rendericon();
-	Coord imgSz = Utils.imgsz(scaledImg);
+	Coord imgSz = UI.scale(new Coord(76, 76));
+	BufferedImage scaledImg = convolvedown(act.rendericon(), imgSz, iconfilter);
 	String title = res.flayer(Resource.tooltip).text();
 	Text.Line titleLine = titleFnd.render(title);
 

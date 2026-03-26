@@ -44,8 +44,8 @@ public class NWoundBox extends WoundWnd.WoundBox {
     public BufferedImage renderinfo(int width) {
 	Wound wnd = wound();
 	List<ItemInfo> info = wnd.info();
-	BufferedImage icon = wnd.icon();
-	Coord iconSz = Utils.imgsz(icon);
+	Coord iconSz = UI.scale(new Coord(76, 76));
+	BufferedImage icon = convolvedown(wnd.icon(), iconSz, iconfilter);
 	ItemInfo.Name nm = ItemInfo.find(ItemInfo.Name.class, info);
 	String name = (nm != null) ? nm.str.text : "";
 	Text.Line nameLine = nameFnd.render(name);
