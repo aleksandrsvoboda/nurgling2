@@ -10,8 +10,8 @@ import nurgling.i18n.L10n;
 public class NBAttrWnd extends BAttrWnd {
     private static final int nattrw = UI.scale(263);
     private static final Color HEADER_VAL = new Color(255, 255, 255, 128);
-    private static final Color ROW_EVEN = new Color(51, 62, 64);    // #333E40
-    private static final Color ROW_ODD  = new Color(40, 52, 54);    // #283436
+    private static final Color ROW_ODD = new Color(51, 62, 64);    // #333E40
+    private static final Color ROW_EVEN  = new Color(40, 52, 54);    // #283436
 
     public static class NAttr extends BAttrWnd.Attr {
 	private static final int ICON_SZ = UI.scale(20);

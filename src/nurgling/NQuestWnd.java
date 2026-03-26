@@ -6,8 +6,8 @@ import java.awt.Color;
 import static haven.CharWnd.*;
 
 public class NQuestWnd extends QuestWnd {
-    private static final Color ROW_EVEN = new Color(51, 62, 64);
-    private static final Color ROW_ODD  = new Color(40, 52, 54);
+    private static final Color ROW_ODD = new Color(51, 62, 64);
+    private static final Color ROW_EVEN  = new Color(40, 52, 54);
     private static final Color INFO_BG  = new Color(0x1C, 0x25, 0x26);
 
     private static final int INFO_W = UI.scale(267);

@@ -9,8 +9,8 @@ import nurgling.i18n.L10n;
 
 public class NSAttrWnd extends SAttrWnd {
     private static final int nsattrw = UI.scale(263);
-    private static final Color ROW_EVEN = new Color(51, 62, 64);    // #333E40
-    private static final Color ROW_ODD  = new Color(40, 52, 54);    // #283436
+    private static final Color ROW_ODD = new Color(51, 62, 64);    // #333E40
+    private static final Color ROW_EVEN  = new Color(40, 52, 54);    // #283436
     private static final Text.Foundry overviewf = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont((float)Math.floor(UI.scale(12.0)))
     ).aa(true);
