@@ -28,14 +28,14 @@ public class NFightWnd extends FightWnd {
     private static final int DESC_MOVES_GAP = UI.scale(17);
     private static final int DESC_SKILL_GAP = UI.scale(15);
     private static final int SLOT_BTN_GAP = UI.scale(4);
+    private static final int BTN_BTN_GAP = UI.scale(3);
     private static final int BTN_SAVE_GAP = UI.scale(15);
     private static final int SAVE_GAP = UI.scale(9);
-
-    private static final int BTN_BTN_GAP = UI.scale(3);
     private static final Coord NUM_BOX = UI.scale(new Coord(13, 14));
 
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
+
     private static final java.awt.Font descFont =
 	nurgling.conf.FontSettings.getOpenSans().deriveFont(
 	    (float)Math.floor(UI.scale(11.0)));
@@ -50,8 +50,6 @@ public class NFightWnd extends FightWnd {
     public NFightWnd(int nsave, int nact, int max) {
 	super(nsave, nact, max);
     }
-
-    // --- Info rendering (image left, name right, desc below) ---
 
     private BufferedImage renderMoveInfo(Action act, int width) {
 	Resource res = act.res.get();
@@ -107,14 +105,6 @@ public class NFightWnd extends FightWnd {
 	return result;
     }
 
-    // --- Slot position helper (mirrors BView.itemc) ---
-
-    private Coord slotc(int i) {
-	return new Coord(((invsq.sz().x + UI.scale(2)) * i) + (UI.scale(10) * (i / 5)), 0);
-    }
-
-    // --- Build Layout ---
-
     @Override
     protected void buildLayout() {
 	Coord nbisz = NFrame.nbox.bisz();
@@ -140,7 +130,7 @@ public class NFightWnd extends FightWnd {
 	info = infoBox;
 	NFrame.around(this, Collections.singletonList(info));
 
-	// --- Section 2: Moves box (right) — no orange border ---
+	// --- Section 2: Moves box (right) — background matches Actions exactly ---
 	int movesX = DESC_W + DESC_MOVES_GAP;
 	add(new Widget(new Coord(MOVES_W, MOVES_H)) {
 	    public void draw(GOut g) {
@@ -150,8 +140,7 @@ public class NFightWnd extends FightWnd {
 		super.draw(g);
 	    }
 	}, movesX, contentY);
-	int mp = UI.scale(5);
-	actlist = add(new Actions(new Coord(MOVES_W - mp * 2, MOVES_H - mp * 2), MOVE_ITEM_H) {
+	actlist = add(new Actions(new Coord(MOVES_W, MOVES_H), MOVE_ITEM_H) {
 	    @Override
 	    protected void drawslot(GOut g, Action item, int idx, Area area) {
 		g.chcolor(((idx % 2) == 0) ? ROW_EVEN : ROW_ODD);
@@ -170,9 +159,7 @@ public class NFightWnd extends FightWnd {
 		    private final Label use;
 		    private int pu = -1, pa = -1;
 		    {
-			// X/Y label on the right
 			use = adda(new Label("0/0", attrf), sz.x - UI.scale(5), sz.y / 2, 1.0, 0.5);
-			// Icon + name on the left
 			add(IconText.of(Coord.of(use.c.x - UI.scale(2), sz.y), act::rendericon,
 			    () -> act.res.get().flayer(Resource.tooltip).text()), Coord.z);
 		    }
@@ -211,49 +198,121 @@ public class NFightWnd extends FightWnd {
 
 	    @Override
 	    public void change(Action act) {
-		// Set info with our custom renderer — skip super.change which
-		// would overwrite with the old renderinfo layout
 		if(act != null)
 		    infoBox.set(() -> new TexI(renderMoveInfo(act, infoBox.sz.x - UI.scale(20))));
 		else if(sel != null)
 		    infoBox.set((Tex)null);
 		sel = act;
 	    }
-	}, movesX + mp, contentY + mp);
+	}, movesX, contentY);
 
-	// --- Section 3: Skill bar with numeric overlay + buttons below ---
+	// --- Compute save row width (drives skill bar width) ---
+	int saveRowW = nsave * SAVE_W + (nsave - 1) * SAVE_GAP;
+
+	// --- Section 3: Custom skill bar evenly spaced across save row width ---
 	int skillBarY = contentY + DESC_H + DESC_SKILL_GAP;
 	Coord isz = invsq.sz();
+	int nslots = order.length;
+	// Even spacing: totalSlotW = nslots * isz.x, remaining = saveRowW - totalSlotW, gap = remaining / (nslots - 1)
+	int slotSpacing = (nslots > 1) ? (saveRowW - nslots * isz.x) / (nslots - 1) : 0;
 
-	// BView with numeric overlay
-	Widget bv = add(new BView() {
-	    @Override
+	Widget skillBar = add(new Widget(new Coord(saveRowW, isz.y)) {
+	    private UI.Grab grab;
+	    private Action drag;
+	    private Coord dp;
+
+	    private Coord slotPos(int i) {
+		return Coord.of(i * (isz.x + slotSpacing), 0);
+	    }
+
+	    private int slotAt(Coord c) {
+		for(int i = 0; i < nslots; i++) {
+		    if(c.isect(slotPos(i), isz))
+			return i;
+		}
+		return -1;
+	    }
+
 	    public void draw(GOut g) {
-		super.draw(g);
-		for(int i = 0; i < order.length; i++) {
+		for(int i = 0; i < nslots; i++) {
+		    Coord sc = slotPos(i);
+		    g.image(invsq, sc);
 		    Action act = order[i];
-		    if(act != null) {
-			Coord sc = slotc(i);
-			// Background box at top-right of slot
-			Coord boxTL = sc.add(isz.x - NUM_BOX.x, 0);
-			g.chcolor(0, 0, 0, 204); // 80% opacity
-			g.frect(boxTL, NUM_BOX);
-			g.chcolor();
-			// Number centered in box
-			String num = Integer.toString(act.u);
-			Text.Line nt = numFnd.render(num);
-			g.aimage(nt.tex(), boxTL.add(NUM_BOX.div(2)).add(1, -1), 0.5, 0.5);
+		    try {
+			if(act != null) {
+			    Tex tex = act.res.get().flayer(Resource.imgc).tex();
+			    g.image(tex, sc.add(UI.scale(1), UI.scale(1)));
+			    // Numeric overlay
+			    Coord boxTL = sc.add(isz.x - NUM_BOX.x, 0);
+			    g.chcolor(0, 0, 0, 204);
+			    g.frect(boxTL, NUM_BOX);
+			    g.chcolor();
+			    Text.Line nt = numFnd.render(Integer.toString(act.u));
+			    g.aimage(nt.tex(), boxTL.add(NUM_BOX.div(2)).add(1, -1), 0.5, 0.5);
+			}
+		    } catch(Loading l) {}
+		    // Key label
+		    g.chcolor(156, 180, 158, 255);
+		    g.aimage(Text.render(keys[i]).tex(), sc.add(isz.sub(UI.scale(2), 0)), 1, 1);
+		    g.chcolor();
+		}
+		super.draw(g);
+	    }
+
+	    public boolean mousedown(MouseDownEvent ev) {
+		if(ev.b == 1) {
+		    int s = slotAt(ev.c);
+		    if(s >= 0) {
+			actlist.change(order[s]);
+			actlist.display();
+			if(order[s] != null) {
+			    grab = ui.grabmouse(this);
+			    drag = order[s];
+			    dp = ev.c;
+			}
+			return true;
+		    }
+		} else if(ev.b == 3) {
+		    int s = slotAt(ev.c);
+		    if(s >= 0 && order[s] != null) {
+			order[s].u(0);
+			order[s] = null;
+			return true;
 		    }
 		}
+		return super.mousedown(ev);
+	    }
+
+	    public void mousemove(MouseMoveEvent ev) {
+		super.mousemove(ev);
+		if(dp != null && ev.c.dist(dp) > 5) {
+		    if(grab != null) { grab.remove(); grab = null; }
+		    actlist.drag(drag);
+		    drag = null;
+		    dp = null;
+		}
+	    }
+
+	    public boolean mouseup(MouseUpEvent ev) {
+		if(grab != null) {
+		    grab.remove();
+		    grab = null;
+		    drag = null;
+		    dp = null;
+		    return true;
+		}
+		return super.mouseup(ev);
 	    }
 	}, 0, skillBarY);
 
-	// +/- buttons below each slot (nurgling ability-style icons)
-	int btnY = skillBarY + bv.sz.y + SLOT_BTN_GAP;
+	// Make skill bar a drop target by adding DropTarget support
+	// (DropTarget.dropthing is checked by the framework on the widget tree)
+
+	// +/- buttons below each slot
+	int btnY = skillBarY + isz.y + SLOT_BTN_GAP;
 	int plusH = 0;
-	for(int i = 0; i < order.length; i++) {
-	    Coord sc = slotc(i);
-	    int cx = sc.x + isz.x / 2;
+	for(int i = 0; i < nslots; i++) {
+	    int cx = i * (isz.x + slotSpacing) + isz.x / 2;
 	    final int si = i;
 	    Widget sub = adda(new NCloseButton(NStyle.minusbtni[0], NStyle.minusbtni[1], NStyle.minusbtni[2]).action(() -> {
 		Action act = order[si];
@@ -274,7 +333,7 @@ public class NFightWnd extends FightWnd {
 	}
 
 	// "Used X/Y" label
-	count = add(new Label("", attrf), bv.pos("ur").adds(10, 0));
+	count = add(new Label("", attrf), skillBar.pos("ur").adds(10, 0));
 
 	// --- Section 4: Save slots as boxes ---
 	int saveRowY = btnY + plusH + BTN_SAVE_GAP;
@@ -290,12 +349,10 @@ public class NFightWnd extends FightWnd {
 	    int sx = i * (SAVE_W + SAVE_GAP);
 	    add(new Widget(new Coord(SAVE_W, SAVE_H)) {
 		public void draw(GOut g) {
-		    // Background
 		    g.chcolor(INFO_BG);
 		    g.frect(Coord.z, sz);
 		    g.chcolor();
 
-		    // Orange border — full opacity if active, 50% if not
 		    int bw = Math.max(2, UI.scale(2));
 		    int alpha = (n == usesave) ? 255 : 128;
 		    g.chcolor(233, 156, 84, alpha);
@@ -305,7 +362,6 @@ public class NFightWnd extends FightWnd {
 		    g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
 		    g.chcolor();
 
-		    // Save name split into 2 lines, centered
 		    if(saves[n] != null) {
 			String txt = saves[n].text;
 			String line1, line2;
@@ -318,9 +374,8 @@ public class NFightWnd extends FightWnd {
 			    line2 = "";
 			}
 			Text.Line t1 = attrf.render(line1);
-			int cy = sz.y / 2;
 			if(line2.isEmpty()) {
-			    g.aimage(t1.tex(), Coord.of(sz.x / 2, cy), 0.5, 0.5);
+			    g.aimage(t1.tex(), sz.div(2), 0.5, 0.5);
 			} else {
 			    Text.Line t2 = attrf.render(line2);
 			    int gap = UI.scale(2);
@@ -331,7 +386,6 @@ public class NFightWnd extends FightWnd {
 			}
 		    }
 
-		    // Selection indicator
 		    if(savelist.sel != null && savelist.sel == n) {
 			int bw2 = Math.max(2, UI.scale(2));
 			g.chcolor(255, 255, 0, 64);
@@ -362,14 +416,14 @@ public class NFightWnd extends FightWnd {
 	    }, sx, saveRowY);
 	}
 
-	// Load / Save buttons to the right of save slots
-	int btnX = nsave * (SAVE_W + SAVE_GAP) + UI.scale(10);
+	// Load / Save buttons
+	int btnX = saveRowW + UI.scale(10);
 	Widget p;
-	p = add(new Button(UI.scale(69), L10n.get("char.fight.load"), false).action(() -> {
+	p = add(new Button(UI.scale(104), L10n.get("char.fight.load"), false).action(() -> {
 		    load(savelist.sel);
 		    use(savelist.sel);
 	}), btnX, saveRowY);
-	p = add(new Button(UI.scale(69), L10n.get("char.fight.save"), false).action(() -> {
+	p = add(new Button(UI.scale(104), L10n.get("char.fight.save"), false).action(() -> {
 		    if(savelist.sel < 0) {
 			getparent(GameUI.class).error(L10n.get("char.fight.no_save_selected"));
 		    } else {
