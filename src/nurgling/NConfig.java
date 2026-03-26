@@ -635,41 +635,26 @@ public class NConfig
 
     public static void set(Key key, Object val)
     {
-        NConfig cfg = resolveConfig();
-        if (cfg != null)
-        {
-            cfg.isUpd = true;
-            cfg.conf.put(key, val);
-        }
-        // Also update global config so changes persist to disk
-        // (NCore.tick only saves NConfig.current, not session configs)
-        if (current != null && current != cfg)
-        {
-            current.isUpd = true;
-            current.conf.put(key, val);
-        }
-    }
-
-    /**
-     * Sets a config value on ALL session configs and the global config.
-     * Use for settings that must be unified across all sessions (e.g., hideNature, hideEarthworm).
-     */
-    public static void setGlobal(Key key, Object val) {
         // Set on global config
-        if (current != null) {
+        if (current != null)
+        {
             current.conf.put(key, val);
             current.isUpd = true;
         }
-        // Propagate to all session configs
-        for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
-            if (ctx.config != null) {
+        // Propagate to all session configs so every session sees the same value
+        for (SessionContext ctx : SessionManager.getInstance().getAllSessions())
+        {
+            if (ctx.config != null)
+            {
                 ctx.config.conf.put(key, val);
             }
-            if (ctx.ui != null && ctx.ui.sessionConfig != null) {
+            if (ctx.ui != null && ctx.ui.sessionConfig != null)
+            {
                 ctx.ui.sessionConfig.conf.put(key, val);
             }
         }
     }
+
 
     public static void needUpdate()
     {
@@ -1219,7 +1204,7 @@ public class NConfig
             FileWriter f = new FileWriter(path, StandardCharsets.UTF_8);
             main.write(f);
             f.close();
-            current.isUpd = false;
+            this.isUpd = false;
         }
         catch (IOException e)
         {
