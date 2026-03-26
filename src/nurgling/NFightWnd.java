@@ -333,8 +333,8 @@ public class NFightWnd extends FightWnd {
 	    plusH = Math.max(plusH, addw.sz.y);
 	}
 
-	// "Used X/Y" label
-	count = add(new Label("", attrf), skillBar.pos("ur").adds(10, 0));
+	// "Used X/Y" label — 22px gap, top-aligned with skill bar (offset for text leading)
+	count = add(new Label("", attrf), skillBar.pos("ur").adds(22, -5));
 
 	// --- Section 4: Save slots as boxes ---
 	int saveRowY = btnY + plusH + BTN_SAVE_GAP;
@@ -417,21 +417,20 @@ public class NFightWnd extends FightWnd {
 	    }, sx, saveRowY);
 	}
 
-	// Load / Save buttons
-	int btnX = saveRowW + UI.scale(10);
-	Widget p;
-	p = add(new Button(UI.scale(104), L10n.get("char.fight.load"), false).action(() -> {
+	// Load / Save buttons — 22px gap, Load top-aligned, Save bottom-aligned with save slots
+	int btnX = saveRowW + UI.scale(22);
+	add(new Button(UI.scale(104), L10n.get("char.fight.load"), false).action(() -> {
 		    load(savelist.sel);
 		    use(savelist.sel);
 	}), btnX, saveRowY);
-	p = add(new Button(UI.scale(104), L10n.get("char.fight.save"), false).action(() -> {
+	adda(new Button(UI.scale(104), L10n.get("char.fight.save"), false).action(() -> {
 		    if(savelist.sel < 0) {
 			getparent(GameUI.class).error(L10n.get("char.fight.no_save_selected"));
 		    } else {
 			save(savelist.sel);
 			use(savelist.sel);
 		    }
-	}), btnX, p.c.y + p.sz.y + UI.scale(2));
+	}), btnX, saveRowY + SAVE_H, 0.0, 1.0);
 	pack();
     }
 }
