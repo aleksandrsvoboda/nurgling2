@@ -126,7 +126,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("silk_production", BotDescriptor.BotType.PRODUCTIONS, "Manages silk production starting at eggs all the way to silkworm cocoons.", "Silk cocoons production.", true, true, SilkProductionBot.class, "silkworm_cocoon", false));
 
         bots.add(new BotDescriptor("pickling", BotDescriptor.BotType.PRODUCTIONS, "Pickling Bot", "Complete automated pickling system. Manages brine levels, fills jars with fresh vegetables, extracts ready pickled items, and maintains continuous production cycle.", true, true, PicklingBot.class, "pickle", true));
-        bots.add(new BotDescriptor("grapejuicer", BotDescriptor.BotType.PRODUCTIONS, "Grape Juicer", "Presses grapes in extraction press and fills barrels with grape juice.", true, true, GrapeJuicer.class, "test45", false));
+        bots.add(new BotDescriptor("grapejuicer", BotDescriptor.BotType.PRODUCTIONS, "Grape Juicer", "Presses grapes in extraction press and fills barrels with grape juice.", true, true, GrapeJuicer.class, "grapejuicer", false));
 
         // BATTLE
         bots.add(new BotDescriptor("reagro", BotDescriptor.BotType.BATTLE, "Reagro", "Reagros enemies.", true, true, Reagro.class, "reagro", false));
@@ -183,7 +183,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("gardenpot_farmer", BotDescriptor.BotType.FARMING, "Garden Pot Farmer", "Complete garden pot farming cycle: harvests ready plants, fills with soil/water, and plants new items.", true, true, GardenPotFarmer.class, "gardenpot", false));
 
         // Truffle pig hunting
-        bots.add(new BotDescriptor("trufflepig", BotDescriptor.BotType.FARMING, "Truffle Pig Hunter", "Hunt truffles with a leashed pig along a defined path.", true, true, TrufflePigHunter.class, "test38", false));
+        bots.add(new BotDescriptor("trufflepig", BotDescriptor.BotType.FARMING, "Truffle Pig Hunter", "Hunt truffles with a leashed pig along a defined path.", true, true, TrufflePigHunter.class, "trufflepig", false));
 
         // FARMING QUALITY
         bots.add(new BotDescriptor("turnipq", BotDescriptor.BotType.FARMING_QUALITY, "Turnip Farmer Quality", "Automatically harvests and replants turnips in X*Y cell patches.", true, true, TurnipsFarmerQ.class, "turnipq", false));
@@ -241,8 +241,8 @@ public class BotRegistry {
         bots.add(new BotDescriptor("autoflaction", BotDescriptor.BotType.UTILS, "Drop Soil", "Drops soil from stockpile until there is 10 soil left in the stockpile..", false, true, SoilStockpileDropper.class, "dropsoil", false));
         bots.add(new BotDescriptor("measure_length", BotDescriptor.BotType.UTILS, "Zone Measure Tool", "Measure and mark zones on the ground. Select areas, view dimensions, and manage multiple selections.", false, true, ZoneMeasureTool.class, "measuring_length", false));
         bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true));
-        bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", false, true, CoracleBot.class, "test44", false));
-        bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", false, true, SkisBot.class, "test43", false));
+        bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", false, true, CoracleBot.class, "coracle", false));
+        bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", false, true, SkisBot.class, "skis", false));
 
         // BUILD
         bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));
