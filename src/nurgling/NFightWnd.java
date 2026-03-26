@@ -235,14 +235,14 @@ public class NFightWnd extends FightWnd {
 		    if(act != null) {
 			Coord sc = slotc(i);
 			// Background box at top-right of slot
-			Coord boxTL = sc.add(isz.x - NUM_BOX.x - UI.scale(1), UI.scale(1));
+			Coord boxTL = sc.add(isz.x - NUM_BOX.x, 0);
 			g.chcolor(0, 0, 0, 204); // 80% opacity
 			g.frect(boxTL, NUM_BOX);
 			g.chcolor();
 			// Number centered in box
 			String num = Integer.toString(act.u);
 			Text.Line nt = numFnd.render(num);
-			g.aimage(nt.tex(), boxTL.add(NUM_BOX.div(2)), 0.5, 0.5);
+			g.aimage(nt.tex(), boxTL.add(NUM_BOX.div(2)).add(1, -1), 0.5, 0.5);
 		    }
 		}
 	    }
