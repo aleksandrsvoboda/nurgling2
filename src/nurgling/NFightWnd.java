@@ -418,11 +418,11 @@ public class NFightWnd extends FightWnd {
 	}
 
 	// Load / Save buttons — 22px gap, Load top-aligned, Save bottom-aligned with save slots
-	int btnX = saveRowW + UI.scale(22);
+	int btnX = saveRowW + UI.scale(22) + 3;
 	add(new Button(UI.scale(104), L10n.get("char.fight.load"), false).action(() -> {
 		    load(savelist.sel);
 		    use(savelist.sel);
-	}), btnX, saveRowY);
+	}), btnX, saveRowY - 1);
 	adda(new Button(UI.scale(104), L10n.get("char.fight.save"), false).action(() -> {
 		    if(savelist.sel < 0) {
 			getparent(GameUI.class).error(L10n.get("char.fight.no_save_selected"));
@@ -430,7 +430,7 @@ public class NFightWnd extends FightWnd {
 			save(savelist.sel);
 			use(savelist.sel);
 		    }
-	}), btnX, saveRowY + SAVE_H, 0.0, 1.0);
+	}), btnX, saveRowY + SAVE_H + 1, 0.0, 1.0);
 	pack();
     }
 }
