@@ -8,24 +8,40 @@ import java.awt.image.*;
 import java.util.*;
 
 public class NStyle {
+    // === Theme colors ===
+    public static final Color rowOdd   = new Color(51, 62, 64);       // #333E40
+    public static final Color rowEven  = new Color(40, 52, 54);       // #283436
+    public static final Color infoBg   = new Color(0x1C, 0x25, 0x26); // #1C2526
+    public static final Color border   = new Color(233, 156, 84);     // #E99C54
+    public static final Color windowBg = new Color(40, 52, 54, 245);  // content area bg
+    public static final Color titleBg  = new Color(0x1C, 0x25, 0x26); // title bar bg
+    public static final Color separator = new Color(40, 52, 54);      // #283436
+
+    // === Fonts (nurgling replacements for CharWnd.catf / CharWnd.attrf) ===
+    public static final Text.Foundry ncatf = new Text.Foundry(
+	nurgling.conf.FontSettings.getOpenSansSemibold(), 16, Color.WHITE).aa(true);
+    public static final Text.Foundry nattrf = new Text.Foundry(
+	nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont(
+	    (float)Math.floor(haven.UI.scale(14.0)))).aa(true);
+
     static {
 	haven.Scrollbar.customDraw = (sb, g) -> {
 	    if(!sb.vis()) return;
 	    int w = haven.UI.scale(8);
 	    int x = sb.sz.x - w;
 	    // Fill full widget width with track color (eliminates gap between list items and scrollbar)
-	    g.chcolor(0x33, 0x3E, 0x40, 0xFF);
+	    g.chcolor(rowOdd);
 	    g.frect(haven.Coord.of(0, 0), new haven.Coord(sb.sz.x, sb.sz.y));
 	    g.chcolor();
 	    // Handle (right-aligned, 8px wide)
 	    int handleH = haven.UI.scale(10);
 	    double a = (sb.max > sb.min) ? (double)sb.val / (double)(sb.max - sb.min) : 0;
 	    int fy = (int)((sb.sz.y - handleH) * a);
-	    g.chcolor(0xE9, 0x9C, 0x54, 0xFF);
+	    g.chcolor(border);
 	    g.frect(haven.Coord.of(x, fy), new haven.Coord(w, handleH));
 	    g.chcolor();
 	};
-	haven.Dropbox.bgColor = new java.awt.Color(0x1C, 0x25, 0x26);
+	haven.Dropbox.bgColor = infoBg;
     }
 
     public static Text.Foundry fcomboitems = new Text.Foundry(Text.sans, 16).aa(true);

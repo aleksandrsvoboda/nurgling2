@@ -4,10 +4,6 @@ import haven.*;
 import java.awt.Color;
 
 public class NWindowDeco extends Window.DragDeco {
-    private static final Color BG     = new Color(40, 52, 54, 245);
-    private static final Color TITLE  = new Color(0x1C, 0x25, 0x26, 255);
-    private static final Color BORDER = new Color(233, 156, 84, 255);  // #E99C54 orange
-    private static final Color SEP    = new Color(40, 52, 54, 255);  // #283436
     private static final int TITLE_H = 21;
 
     public final boolean lg;
@@ -87,7 +83,7 @@ public class NWindowDeco extends Window.DragDeco {
                 return;
             }
         }
-        g.chcolor(BG);
+        g.chcolor(NStyle.windowBg);
         g.frect(new Coord(0, ca.ul.y), ca.sz());
         g.chcolor();
     }
@@ -109,7 +105,7 @@ public class NWindowDeco extends Window.DragDeco {
         drawbg(g);
 
         // 2. Title bar
-        g.chcolor(TITLE);
+        g.chcolor(NStyle.titleBg);
         g.frect(Coord.z, new Coord(sz.x, titleH));
         g.chcolor();
 
@@ -120,11 +116,11 @@ public class NWindowDeco extends Window.DragDeco {
         }
 
         // 4. Separator
-        g.chcolor(SEP);
+        g.chcolor(NStyle.separator);
         g.frect(new Coord(0, titleH - bw), new Coord(sz.x, bw));
 
         // 5. Outer border
-        g.chcolor(BORDER);
+        g.chcolor(NStyle.border);
         g.frect(Coord.z,                  new Coord(sz.x, bw));
         g.frect(new Coord(0, sz.y - bw),  new Coord(sz.x, bw));
         g.frect(Coord.z,                  new Coord(bw, sz.y));

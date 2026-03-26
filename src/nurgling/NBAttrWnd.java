@@ -10,8 +10,6 @@ import nurgling.i18n.L10n;
 public class NBAttrWnd extends BAttrWnd {
     private static final int nattrw = UI.scale(263);
     private static final Color HEADER_VAL = new Color(255, 255, 255, 128);
-    private static final Color ROW_ODD = new Color(51, 62, 64);    // #333E40
-    private static final Color ROW_EVEN  = new Color(40, 52, 54);    // #283436
 
     public static class NAttr extends BAttrWnd.Attr {
 	private static final int ICON_SZ = UI.scale(20);
@@ -20,7 +18,7 @@ public class NBAttrWnd extends BAttrWnd {
 	private double nlvlt = 0.0;
 	private int ncbv = -1, nccv = -1;
 
-	public NAttr(Glob glob, String attr, Color bg) {
+	private NAttr(Glob glob, String attr, Color bg) {
 	    super(Coord.of(nattrw, UI.scale(26)), glob, attr, bg);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.nimg = new TexI(convolve(res.flayer(Resource.imgc).img, Coord.of(ICON_SZ, ICON_SZ), iconfilter));
@@ -34,7 +32,7 @@ public class NBAttrWnd extends BAttrWnd {
 		Color c = Color.WHITE;
 		if(nccv > ncbv) c = buff;
 		else if(nccv < ncbv) c = debuff;
-		nct = attrf.render(Integer.toString(nccv), c);
+		nct = NStyle.nattrf.render(Integer.toString(nccv), c);
 	    }
 	    if((nlvlt > 0.0) && ((nlvlt -= dt) < 0))
 		nlvlt = 0.0;
@@ -127,7 +125,7 @@ public class NBAttrWnd extends BAttrWnd {
 
 	@Override
 	protected void drawslot(GOut g, El el, int idx, Area area) {
-	    g.chcolor(((idx % 2) == 0) ? ROW_EVEN : ROW_ODD);
+	    g.chcolor(((idx % 2) == 0) ? NStyle.rowEven : NStyle.rowOdd);
 	    g.frect2(area.ul, area.br);
 	    g.chcolor();
 	}
@@ -162,7 +160,7 @@ public class NBAttrWnd extends BAttrWnd {
 		if(el.a != da) {
 		    if(nm != null) {nm.reqdestroy(); nm = null;}
 		    if( a != null) { a.reqdestroy();  a = null;}
-		    Label a = adda(new Label(String.format("%d%%", Math.max((int)Math.round((1.0 - el.a) * 100), 1)), attrf),
+		    Label a = adda(new Label(String.format("%d%%", Math.max((int)Math.round((1.0 - el.a) * 100), 1)), NStyle.nattrf),
 				   sz.x - NConstipations.this.pctInset(), sz.y / 2, 1.0, 0.5);
 		    a.setcolor((el.a > 1.0) ? buffed : Utils.blendcol(none, full, el.a));
 		    nm = adda(new NItemIcon(Coord.of(a.c.x - UI.scale(5), sz.y), new ItemSpec(OwnerContext.uictx.curry(NConstipations.this.ui), el.t, null)),
@@ -186,27 +184,27 @@ public class NBAttrWnd extends BAttrWnd {
     @Override
     protected void buildLayout(Glob glob) {
 	Widget prev;
-	int catfDescent = ((Text.Foundry) catf).m.getDescent();
+	int catfDescent = NStyle.ncatf.m.getDescent();
 	Coord nbtl = NFrame.nbox.btloff();
 	int leftColX = 0;
 	int rightColX = (nattrw + NFrame.nbox.bisz().x) + UI.scale(15);
 
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.title")).tex()), "gfx/hud/chr/tips/base"),
+	prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.battr.title")).tex()), "gfx/hud/chr/tips/base"),
 		   new Coord(leftColX, 0));
 	attrs = new ArrayList<>();
 	NAttr aw;
-	attrs.add(aw = add(new NAttr(glob, "str", ROW_EVEN), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
-	attrs.add(aw = add(new NAttr(glob, "agi", ROW_ODD), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "int", ROW_EVEN), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "con", ROW_ODD), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "prc", ROW_EVEN), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "csm", ROW_ODD), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "dex", ROW_EVEN), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "wil", ROW_ODD), aw.pos("bl")));
-	attrs.add(aw = add(new NAttr(glob, "psy", ROW_EVEN), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "str", NStyle.rowEven), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl)));
+	attrs.add(aw = add(new NAttr(glob, "agi", NStyle.rowOdd), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "int", NStyle.rowEven), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "con", NStyle.rowOdd), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "prc", NStyle.rowEven), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "csm", NStyle.rowOdd), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "dex", NStyle.rowEven), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "wil", NStyle.rowOdd), aw.pos("bl")));
+	attrs.add(aw = add(new NAttr(glob, "psy", NStyle.rowEven), aw.pos("bl")));
 	Widget lframe = NFrame.around(this, attrs);
 
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.fep")).tex()), "gfx/hud/chr/tips/fep"),
+	prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.battr.fep")).tex()), "gfx/hud/chr/tips/fep"),
 		   lframe.pos("bl").x(leftColX).add(0, UI.scale(19)));
 	feps = add(new NFoodMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
 	Label fepLbl = add(new Label("") {
@@ -219,16 +217,16 @@ public class NBAttrWnd extends BAttrWnd {
 		if(!s.equals(last)) { settext(s); last = s; }
 	    }
 	}, prev.pos("ur").add(UI.scale(5), 0));
-	fepLbl.f = (Text.Foundry) catf;
+	fepLbl.f = NStyle.ncatf;
 	fepLbl.setcolor(HEADER_VAL);
 
 	int ah = attrs.get(attrs.size() - 1).pos("bl").y - attrs.get(0).pos("ul").y;
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.satiation")).tex()), "gfx/hud/chr/tips/constip"),
+	prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.battr.satiation")).tex()), "gfx/hud/chr/tips/constip"),
 		   new Coord(rightColX, 0));
 	cons = add(new NConstipations(Coord.of(nattrw, ah)), prev.pos("bl").add(0, UI.scale(10) - catfDescent).add(nbtl));
 	Widget rframe = NFrame.around(this, Collections.singletonList(cons));
 
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.battr.hunger")).tex()), "gfx/hud/chr/tips/hunger"),
+	prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.battr.hunger")).tex()), "gfx/hud/chr/tips/hunger"),
 		   rframe.pos("bl").x(rightColX).add(0, UI.scale(19)));
 	glut = add(new NGlutMeter(), prev.pos("bl").add(0, UI.scale(10) - catfDescent));
 	Label glutLbl = add(new Label("") {
@@ -239,7 +237,7 @@ public class NBAttrWnd extends BAttrWnd {
 		if(!s.equals(last)) { settext(s); last = s; }
 	    }
 	}, prev.pos("ur").add(UI.scale(5), 0));
-	glutLbl.f = (Text.Foundry) catf;
+	glutLbl.f = NStyle.ncatf;
 	glutLbl.setcolor(HEADER_VAL);
 
 	pack();

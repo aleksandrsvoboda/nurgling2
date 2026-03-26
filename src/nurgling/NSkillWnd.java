@@ -14,7 +14,6 @@ public class NSkillWnd extends SkillWnd {
     private Widget buyBar, entriesBg;
     private Tabs.Tab skillTab;
     private Tabs ntabs;
-    private static final Color INFO_BG = new Color(0x1C, 0x25, 0x26);
     private static final int INFO_W = UI.scale(267);
     private static final int INFO_H = UI.scale(348);
     private static final int ENTRIES_W = UI.scale(265);
@@ -208,11 +207,11 @@ public class NSkillWnd extends SkillWnd {
 	int innerH = INFO_H - nbisz.y;
 
 	// Section 1: "Lore & Skills" info box with NFrame border
-	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.skill.title")).tex()), "gfx/hud/chr/tips/skills"), Coord.z);
+	prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.skill.title")).tex()), "gfx/hud/chr/tips/skills"), Coord.z);
 	ImageInfoBox info = add(new ImageInfoBox(new Coord(innerW, innerH)) {
 	    @Override
 	    public void drawbg(GOut g) {
-		g.chcolor(INFO_BG);
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
 		g.chcolor();
 	    }
@@ -223,11 +222,11 @@ public class NSkillWnd extends SkillWnd {
 
 	// Section 2: "Entries" — dark background, no orange border
 	int entriesX = INFO_W + SECTION_GAP;
-	prev = add(new Img(catf.render(L10n.get("char.skill.entries")).tex()), entriesX, 0);
+	prev = add(new Img(NStyle.ncatf.render(L10n.get("char.skill.entries")).tex()), entriesX, 0);
 	Coord entriesPos = prev.pos("bl").add(0, TITLE_GAP);
 	entriesBg = add(new Widget(new Coord(ENTRIES_W, ENTRIES_H_SKILLS)) {
 	    public void draw(GOut g) {
-		g.chcolor(INFO_BG);
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
 		g.chcolor();
 		super.draw(g);
@@ -263,7 +262,7 @@ public class NSkillWnd extends SkillWnd {
 			}
 		    }
 		}, 0, 0);
-	    skg.catf = attrf;
+	    skg.catf = NStyle.nattrf;
 	}
 
 	// Credos tab
@@ -271,10 +270,10 @@ public class NSkillWnd extends SkillWnd {
 	{
 	    this.credos = credos.add(new CredoGrid(new Coord(ENTRIES_W, ENTRIES_H)) {
 		    {
-			pcrc = new Img(attrf.render(L10n.get("char.skill.pursuing")).tex());
-			ncrc = new Img(attrf.render(L10n.get("char.skill.credos_available")).tex());
-			ccrc = new Img(attrf.render(L10n.get("char.skill.credos_acquired")).tex());
-			prsf = attrf;
+			pcrc = new Img(NStyle.nattrf.render(L10n.get("char.skill.pursuing")).tex());
+			ncrc = new Img(NStyle.nattrf.render(L10n.get("char.skill.credos_available")).tex());
+			ccrc = new Img(NStyle.nattrf.render(L10n.get("char.skill.credos_acquired")).tex());
+			prsf = NStyle.nattrf;
 			m = UI.scale(10);
 		    }
 		    protected int topPad() { return UI.scale(5); }

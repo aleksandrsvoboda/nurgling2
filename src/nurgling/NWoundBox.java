@@ -12,8 +12,6 @@ import static haven.CharWnd.*;
 import static haven.PUtils.*;
 
 public class NWoundBox extends WoundWnd.WoundBox {
-    private static final Color INFO_BG = new Color(0x1C, 0x25, 0x26);
-
     private static final Text.Foundry nameFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
 
@@ -35,7 +33,7 @@ public class NWoundBox extends WoundWnd.WoundBox {
 
     @Override
     public void drawbg(GOut g) {
-	g.chcolor(INFO_BG);
+	g.chcolor(NStyle.infoBg);
 	g.frect(Coord.z, sz);
 	g.chcolor();
     }

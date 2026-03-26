@@ -42,11 +42,11 @@ public class CharWnd extends Window {
     public static final RichText.Foundry ifnd = new RichText.Foundry(RichText.IMAGESRC, RichText.ImageSource.legacy,
 								     java.awt.font.TextAttribute.FAMILY, "SansSerif",
 								     java.awt.font.TextAttribute.SIZE, UI.scale(9)).aa(true);
-    public static final Text.Furnace catf = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 16, java.awt.Color.WHITE).aa(true);
+    public static final Text.Furnace catf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
     public static final Text.Furnace failf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Resource.loadimg("gfx/hud/fontred")), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
-    public static final Text.Foundry attrf = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold().deriveFont((float)Math.floor(UI.scale(14.0)))).aa(true);
+    public static final Text.Foundry attrf = new Text.Foundry(Text.fraktur.deriveFont((float)Math.floor(UI.scale(16.0)))).aa(true);
     public static final PUtils.Convolution iconfilter = new PUtils.Lanczos(3);
-    public static final int attrw = UI.scale(257);
+    public static final int attrw = BAttrWnd.FoodMeter.frame.sz().x - wbox.bisz().x;
     public static final Color debuff = new Color(255, 128, 128);
     public static final Color buff = new Color(128, 255, 128);
     public static final Color tbuff = new Color(128, 128, 255);

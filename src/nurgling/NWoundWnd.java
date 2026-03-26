@@ -2,15 +2,10 @@ package nurgling;
 
 import haven.*;
 import java.util.*;
-import java.awt.Color;
 import static haven.CharWnd.*;
 import nurgling.i18n.L10n;
 
 public class NWoundWnd extends WoundWnd {
-    private static final Color ROW_ODD = new Color(51, 62, 64);
-    private static final Color ROW_EVEN  = new Color(40, 52, 54);
-    private static final Color INFO_BG  = new Color(0x1C, 0x25, 0x26);
-
     private static final int INFO_W = UI.scale(267);
     private static final int INFO_H = UI.scale(348);
     private static final int LIST_W = UI.scale(265);
@@ -31,13 +26,13 @@ public class NWoundWnd extends WoundWnd {
 	int infoInnerH = INFO_H - nbisz.y;
 
 	// Title
-	Widget prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.wound.title")).tex()), "gfx/hud/chr/tips/wounds"), 0, 0);
+	Widget prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.wound.title")).tex()), "gfx/hud/chr/tips/wounds"), 0, 0);
 	int contentY = prev.pos("bl").y + TITLE_GAP;
 
 	// Description box (left) — NFrame orange border, bg handled by NWoundBox
 	woundbox = add(new Widget(new Coord(infoInnerW, infoInnerH)) {
 		public void draw(GOut g) {
-		    g.chcolor(INFO_BG);
+		    g.chcolor(NStyle.infoBg);
 		    g.frect(Coord.z, sz);
 		    g.chcolor();
 		    super.draw(g);
@@ -54,7 +49,7 @@ public class NWoundWnd extends WoundWnd {
 	int listX = INFO_W + SECTION_GAP;
 	add(new Widget(new Coord(LIST_W, LIST_H)) {
 	    public void draw(GOut g) {
-		g.chcolor(INFO_BG);
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
 		g.chcolor();
 		super.draw(g);
@@ -63,7 +58,7 @@ public class NWoundWnd extends WoundWnd {
 	this.wounds = add(new WoundList(new Coord(LIST_W, LIST_H), WOUND_ITEM_H) {
 	    @Override
 	    protected void drawslot(GOut g, Wound w, int idx, Area area) {
-		g.chcolor(((idx % 2) == 0) ? ROW_EVEN : ROW_ODD);
+		g.chcolor(((idx % 2) == 0) ? NStyle.rowEven : NStyle.rowOdd);
 		g.frect2(area.ul, area.br);
 		g.chcolor();
 		if((wound != null) && (wound.woundid() == w.id))

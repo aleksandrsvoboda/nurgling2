@@ -12,10 +12,6 @@ import static haven.Inventory.invsq;
 import nurgling.i18n.L10n;
 
 public class NFightWnd extends FightWnd {
-    private static final Color ROW_ODD = new Color(51, 62, 64);
-    private static final Color ROW_EVEN  = new Color(40, 52, 54);
-    private static final Color INFO_BG  = new Color(0x1C, 0x25, 0x26);
-
     private static final int DESC_W = UI.scale(267);
     private static final int DESC_H = UI.scale(208);
     private static final int MOVES_W = UI.scale(267);
@@ -117,14 +113,14 @@ public class NFightWnd extends FightWnd {
 	int descInnerH = DESC_H - nbisz.y;
 
 	// Title
-	Widget prev = add(CharWnd.settip(new Img(CharWnd.catf.render(L10n.get("char.fight.title")).tex()), "gfx/hud/chr/tips/combat"), 0, 0);
+	Widget prev = add(CharWnd.settip(new Img(NStyle.ncatf.render(L10n.get("char.fight.title")).tex()), "gfx/hud/chr/tips/combat"), 0, 0);
 	int contentY = prev.pos("bl").y + TITLE_GAP;
 
 	// --- Section 1: Description box (left) — NFrame orange border ---
 	ImageInfoBox infoBox = add(new ImageInfoBox(new Coord(descInnerW, descInnerH)) {
 	    @Override
 	    public void drawbg(GOut g) {
-		g.chcolor(INFO_BG);
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
 		g.chcolor();
 	    }
@@ -138,7 +134,7 @@ public class NFightWnd extends FightWnd {
 	int movesX = DESC_W + DESC_MOVES_GAP;
 	add(new Widget(new Coord(MOVES_W, MOVES_H)) {
 	    public void draw(GOut g) {
-		g.chcolor(INFO_BG);
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
 		g.chcolor();
 		super.draw(g);
@@ -147,7 +143,7 @@ public class NFightWnd extends FightWnd {
 	actlist = add(new Actions(new Coord(MOVES_W, MOVES_H), MOVE_ITEM_H) {
 	    @Override
 	    protected void drawslot(GOut g, Action item, int idx, Area area) {
-		g.chcolor(((idx % 2) == 0) ? ROW_EVEN : ROW_ODD);
+		g.chcolor(((idx % 2) == 0) ? NStyle.rowEven : NStyle.rowOdd);
 		g.frect2(area.ul, area.br);
 		g.chcolor();
 		if((sel != null) && (sel == item))
@@ -163,7 +159,7 @@ public class NFightWnd extends FightWnd {
 		    private final Label use;
 		    private int pu = -1, pa = -1;
 		    {
-			use = adda(new Label("0/0", attrf), sz.x - UI.scale(5), sz.y / 2, 1.0, 0.5);
+			use = adda(new Label("0/0", NStyle.nattrf), sz.x - UI.scale(5), sz.y / 2, 1.0, 0.5);
 			add(IconText.of(Coord.of(use.c.x - UI.scale(2), sz.y), act::rendericon,
 			    () -> act.res.get().flayer(Resource.tooltip).text()), Coord.z);
 		    }
@@ -361,7 +357,7 @@ public class NFightWnd extends FightWnd {
 	}
 
 	// "Used X/Y" label — 22px gap, top-aligned with skill bar (offset for text leading)
-	count = add(new Label("", attrf), skillBar.pos("ur").adds(22, -5));
+	count = add(new Label("", NStyle.nattrf), skillBar.pos("ur").adds(22, -5));
 
 	// --- Section 4: Save slots as boxes ---
 	int saveRowY = btnY + plusH + BTN_SAVE_GAP;
@@ -377,13 +373,13 @@ public class NFightWnd extends FightWnd {
 	    int sx = i * (SAVE_W + SAVE_GAP);
 	    add(new Widget(new Coord(SAVE_W, SAVE_H)) {
 		public void draw(GOut g) {
-		    g.chcolor(INFO_BG);
+		    g.chcolor(NStyle.infoBg);
 		    g.frect(Coord.z, sz);
 		    g.chcolor();
 
 		    int bw = Math.max(2, UI.scale(2));
 		    int alpha = (n == usesave) ? 255 : 128;
-		    g.chcolor(233, 156, 84, alpha);
+		    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
 		    g.frect(Coord.z, new Coord(sz.x, bw));
 		    g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
 		    g.frect(Coord.z, new Coord(bw, sz.y));
@@ -401,11 +397,11 @@ public class NFightWnd extends FightWnd {
 			    line1 = txt;
 			    line2 = "";
 			}
-			Text.Line t1 = attrf.render(line1);
+			Text.Line t1 = NStyle.nattrf.render(line1);
 			if(line2.isEmpty()) {
 			    g.aimage(t1.tex(), sz.div(2), 0.5, 0.5);
 			} else {
-			    Text.Line t2 = attrf.render(line2);
+			    Text.Line t2 = NStyle.nattrf.render(line2);
 			    int gap = UI.scale(2);
 			    int totalH = t1.sz().y + gap + t2.sz().y;
 			    int y0 = (sz.y - totalH) / 2;
