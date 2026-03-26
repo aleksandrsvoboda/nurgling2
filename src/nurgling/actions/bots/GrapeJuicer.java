@@ -12,8 +12,6 @@ import nurgling.tools.*;
 import nurgling.tools.Container;
 import nurgling.widgets.Specialisation;
 
-import haven.res.ui.relcnt.RelCont;
-
 import java.util.ArrayList;
 
 import static haven.OCache.posres;
@@ -27,6 +25,8 @@ public class GrapeJuicer implements Action {
     private static final double JUICE_MAX = 10.0;
     private static final int PRESSING_MARKER = 7;
     private static final Coord GRAPE_SIZE = new Coord(1, 1);
+
+    private NArea lastPressArea;
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -77,7 +77,7 @@ public class GrapeJuicer implements Action {
             }
 
             // Phase 2: Press the grapes
-            pressGrapes(gui, context);
+            pressGrapes(gui);
 
             // Phase 3: Clean seeds and read juice level
             double juiceLevel = cleanSeedsAndReadJuice(gui, context);
@@ -94,12 +94,12 @@ public class GrapeJuicer implements Action {
 
     /**
      * Navigate to the extraction press area and return a fresh gob reference.
-     * Must be called before any press interaction, especially after visiting other areas.
+     * Also caches the area in lastPressArea for reuse.
      */
     private Gob navigateToPress(NContext context) throws InterruptedException {
-        NArea pressArea = context.getSpecArea(Specialisation.SpecName.extractionPress);
-        if (pressArea == null) return null;
-        return Finder.findGob(pressArea, new NAlias(PRESS_RES));
+        lastPressArea = context.getSpecArea(Specialisation.SpecName.extractionPress);
+        if (lastPressArea == null) return null;
+        return Finder.findGob(lastPressArea, new NAlias(PRESS_RES));
     }
 
     /**
@@ -110,7 +110,7 @@ public class GrapeJuicer implements Action {
      * @return number of grapes already in the press, or -1 on error
      */
     private int initializePress(NGameUI gui, NContext context) throws InterruptedException {
-        Gob press = navigateToPress(context);
+        Gob press = Finder.findGob(lastPressArea, new NAlias(PRESS_RES));;
         if (press == null) return -1;
 
         new PathFinder(press).run(gui);
@@ -133,7 +133,9 @@ public class GrapeJuicer implements Action {
         }
 
         // 2. Remove seeds (non-grape items) from press
-        removeSeedsFromPress(gui, context);
+        // Snapshot inventory so we only drop seeds, not pre-existing items
+        ArrayList<WItem> originalItems = gui.getInventory().getItems();
+        removeSeedsFromPress(gui, context, originalItems);
 
         // Re-navigate and reopen in case removeSeedsFromPress closed the window
         if (gui.getWindow(PRESS_CAP) == null) {
@@ -160,8 +162,9 @@ public class GrapeJuicer implements Action {
     /**
      * Remove all non-grape items (seeds) from the press inventory and drop them.
      * Handles multiple batches if player inventory is too small.
+     * Only drops items that weren't in the player inventory before (preserves pre-existing items).
      */
-    private void removeSeedsFromPress(NGameUI gui, NContext context) throws InterruptedException {
+    private void removeSeedsFromPress(NGameUI gui, NContext context, ArrayList<WItem> originalItems) throws InterruptedException {
         while (true) {
             NInventory pressInv = gui.getInventory(PRESS_CAP);
             if (pressInv == null) break;
@@ -181,7 +184,7 @@ public class GrapeJuicer implements Action {
             int freeSpace = gui.getInventory().getNumberFreeCoord(GRAPE_SIZE);
             if (freeSpace <= 0) {
                 closePressWindow(gui);
-                dropAllInventoryItems(gui);
+                dropNonOriginalItems(gui, originalItems);
                 // Reopen press
                 Gob press = navigateToPress(context);
                 if (press == null) break;
@@ -199,7 +202,7 @@ public class GrapeJuicer implements Action {
 
         // Drop any seeds we picked up
         closePressWindow(gui);
-        dropAllInventoryItems(gui);
+        dropNonOriginalItems(gui, originalItems);
     }
 
     /**
@@ -237,8 +240,7 @@ public class GrapeJuicer implements Action {
             }
 
             // Use TransferToContainer to handle pathfinding, opening, and transferring
-            NArea pressArea = context.getSpecArea(Specialisation.SpecName.extractionPress);
-            Container pressCont = new Container(press, PRESS_CAP, pressArea);
+            Container pressCont = new Container(press, PRESS_CAP, lastPressArea);
             pressCont.initattr(Container.Space.class);
             new TransferToContainer(pressCont, new NAlias(GRAPE_ITEM)).run(gui);
 
@@ -246,19 +248,14 @@ public class GrapeJuicer implements Action {
             remaining -= taken;
         }
 
-        // Close press window after loading
-        closePressWindow(gui);
-
         return totalLoaded;
     }
 
     /**
      * Click the Press button and wait for pressing to complete.
      */
-    private void pressGrapes(NGameUI gui, NContext context) throws InterruptedException {
-        // Navigate to press area (should already be there after fillPress, but be safe)
-        Gob press = navigateToPress(context);
-        if (press == null) return;
+    private void pressGrapes(NGameUI gui) throws InterruptedException {
+        Gob press = Finder.findGob(lastPressArea, new NAlias(PRESS_RES));
 
         // Open press window if not already open
         if (gui.getWindow(PRESS_CAP) == null) {
@@ -298,6 +295,7 @@ public class GrapeJuicer implements Action {
     /**
      * Take all seeds from the press, drop them on the ground, and read juice level.
      * Handles multiple cycles if player inventory is smaller than seed count.
+     * Only drops seed items, preserving any pre-existing inventory contents.
      * @return current juice level from the press meter
      */
     private double cleanSeedsAndReadJuice(NGameUI gui, NContext context) throws InterruptedException {
@@ -312,6 +310,9 @@ public class GrapeJuicer implements Action {
         // Read juice level first
         double juiceLevel = readJuiceLevel(gui);
 
+        // Snapshot inventory before transferring seeds
+        ArrayList<WItem> originalItems = gui.getInventory().getItems();
+
         // Take seeds out in batches (player inventory might be smaller than 25)
         NInventory pressInv = gui.getInventory(PRESS_CAP);
         while (pressInv != null) {
@@ -323,12 +324,11 @@ public class GrapeJuicer implements Action {
             // Check how much space we have in player inventory
             int freeSpace = gui.getInventory().getNumberFreeCoord(GRAPE_SIZE);
             if (freeSpace <= 0) {
-                // Close window, drop what we have, reopen
+                // Close window, drop seeds we have, reopen
                 closePressWindow(gui);
-                dropAllInventoryItems(gui);
+                dropNonOriginalItems(gui, originalItems);
 
                 // We're still at the press area (just dropped seeds on the ground nearby)
-                // Re-find press gob (still in range, no area change)
                 press = Finder.findGob(press.id);
                 if (press == null) {
                     press = navigateToPress(context);
@@ -352,8 +352,8 @@ public class GrapeJuicer implements Action {
         // Close window
         closePressWindow(gui);
 
-        // Drop all seeds from player inventory
-        dropAllInventoryItems(gui);
+        // Drop only seeds (items not in original snapshot)
+        dropNonOriginalItems(gui, originalItems);
 
         return juiceLevel;
     }
@@ -409,7 +409,7 @@ public class GrapeJuicer implements Action {
         NUtils.activateGob(press);
 
         // Wait for press marker to reach 0 or 4 (drained) - NOT infinite
-        // If juice went wrong way (barrel→press), this will timeout
+        // If juice went wrong way (barrel->press), this will timeout
         NTask drainWait = new NTask() {
             {
                 this.infinite = false;
@@ -539,18 +539,6 @@ public class GrapeJuicer implements Action {
                     return;
                 }
             }
-            // Check inside RelCont containers
-            if (child instanceof RelCont) {
-                for (Widget child2 = child.child; child2 != null; child2 = child2.next) {
-                    if (child2 instanceof Button) {
-                        Button b = (Button) child2;
-                        if (b.text.text.equals("Press")) {
-                            b.click();
-                            return;
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -564,7 +552,6 @@ public class GrapeJuicer implements Action {
         Window wnd = gui.getWindow(PRESS_CAP);
         if (wnd == null) return 0;
 
-        // Find the first VMeter in the window (juice level meter)
         for (Widget w = wnd.lchild; w != null; w = w.prev) {
             if (w instanceof VMeter) {
                 for (LayerMeter.Meter meter : ((VMeter) w).meters) {
@@ -576,15 +563,17 @@ public class GrapeJuicer implements Action {
     }
 
     /**
-     * Drop all items currently in the player inventory onto the ground.
+     * Drop only items that were NOT in the original inventory snapshot.
+     * This ensures we only drop seeds transferred from the press,
+     * preserving any pre-existing player inventory contents.
      */
-    private void dropAllInventoryItems(NGameUI gui) throws InterruptedException {
-        ArrayList<WItem> items = gui.getInventory().getItems();
-        if (items.isEmpty()) return;
-
-        for (WItem item : items) {
-            NUtils.drop(item);
-            NUtils.addTask(new ISRemoved(item.item.wdgid()));
+    private void dropNonOriginalItems(NGameUI gui, ArrayList<WItem> originalItems) throws InterruptedException {
+        ArrayList<WItem> currentItems = gui.getInventory().getItems();
+        for (WItem item : currentItems) {
+            if (!originalItems.contains(item)) {
+                NUtils.drop(item);
+                NUtils.addTask(new ISRemoved(item.item.wdgid()));
+            }
         }
     }
 }
