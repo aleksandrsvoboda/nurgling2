@@ -192,10 +192,10 @@ public class Specialisation extends Window
         specialisation.add(new SpecialisationItem(SpecName.buildMaterials.toString(),"Construction Materials",Resource.loadsimg("nurgling/categories/consmaterials")));
 
         // Extraction press
-        specialisation.add(new SpecialisationItem(SpecName.extractionPress.toString(),"Extraction Press",Resource.loadsimg("nurgling/categories/consmaterials")));
+        specialisation.add(new SpecialisationItem(SpecName.extractionPress.toString(),"Extraction Press",Resource.loadsimg("nurgling/categories/extraction_press")));
 
         // Truffle pig hunting area
-        specialisation.add(new SpecialisationItem(SpecName.trufflePig.toString(),"Truffle Pig",Resource.loadsimg("nurgling/categories/pigs")));
+        specialisation.add(new SpecialisationItem(SpecName.trufflePig.toString(),"Truffle Pig",Resource.loadsimg("nurgling/categories/truffle_pig")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
