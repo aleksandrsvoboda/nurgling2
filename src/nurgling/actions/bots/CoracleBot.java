@@ -10,7 +10,6 @@ import nurgling.tools.NParser;
 import nurgling.widgets.NEquipory;
 
 import java.util.ArrayList;
-import java.util.List;
 
 public class CoracleBot implements Action {
 
@@ -18,8 +17,6 @@ public class CoracleBot implements Action {
     private static final double PICKUP_RANGE = 55.0;
     private static final double MOUNT_RANGE = 66.0;
     private static final Coord CORACLE_INV_SIZE = new Coord(4, 3);
-    private static final int MOUNT_RETRIES = 3;
-    private static final int MOUNT_RETRY_DELAY_MS = 500;
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -48,16 +45,9 @@ public class CoracleBot implements Action {
     }
 
     private Results dismount(NGameUI gui) throws InterruptedException {
-        ArrayList<Gob> coracles = Finder.findGobs(CORACLE_GOB_ALIAS);
-        if (coracles.isEmpty())
+        Gob coracleGob = Finder.findGob(NUtils.player().rc, CORACLE_GOB_ALIAS, null, PICKUP_RANGE);
+        if (coracleGob == null)
             return Results.ERROR("No Coracle found nearby.");
-
-        List<Gob> sorted = NUtils.sortByNearest(coracles, NUtils.player().rc);
-        Gob coracleGob = sorted.get(0);
-
-        double dist = coracleGob.rc.dist(NUtils.player().rc);
-        if (dist >= PICKUP_RANGE)
-            return Results.ERROR("Coracle is too far to pick up.");
 
         if (isSurroundedByDeepWater(gui))
             return Results.ERROR("Surrounded by Deep Water! Get closer to Shallow Water or Land.");
@@ -66,22 +56,40 @@ public class CoracleBot implements Action {
         if (!flowerResult.IsSuccess())
             return Results.ERROR("Failed to pick up Coracle.");
 
-        Thread.sleep(300);
+        // Wait for item to arrive with sprite loaded (hand or equipment)
+        NTask waitPickup = new NTask() {
+            { maxCounter = 200; infinite = false; }
+            @Override
+            public boolean check() {
+                if (NUtils.getGameUI().vhand != null && NUtils.getGameUI().vhand.item.spr != null)
+                    return true;
+                NEquipory eq = NUtils.getEquipment();
+                if (eq != null) {
+                    for (WItem slot : eq.quickslots) {
+                        if (slot != null) {
+                            String name = ((NGItem) slot.item).name();
+                            if (name != null && name.endsWith("Coracle"))
+                                return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        };
+        NUtils.addTask(waitPickup);
+        if (waitPickup.criticalExit)
+            return Results.ERROR("Timed out picking up Coracle.");
 
-        // Check if coracle auto-equipped to any equipment slot
-        NEquipory eq = NUtils.getEquipment();
-        if (eq != null && eq.findItem("Coracle") != null) {
+        // If item went to equipment, done
+        if (gui.vhand == null)
             return Results.SUCCESS();
-        }
 
-        // If item went to hand, drop to inventory
-        if (gui.vhand != null) {
-            int freeSlots = gui.getInventory().getNumberFreeCoord(CORACLE_INV_SIZE);
-            if (freeSlots <= 0)
-                return Results.ERROR("No inventory space for Coracle (needs 4x3).");
-            NUtils.dropToInv();
-            NUtils.addTask(new WaitFreeHand());
-        }
+        // Item in hand — drop to inventory
+        int freeSlots = gui.getInventory().getNumberFreeCoord(CORACLE_INV_SIZE);
+        if (freeSlots <= 0)
+            return Results.ERROR("No inventory space for Coracle (needs 4x3).");
+        NUtils.dropToInv();
+        NUtils.addTask(new WaitFreeHand());
 
         return Results.SUCCESS();
     }
@@ -97,32 +105,39 @@ public class CoracleBot implements Action {
                 return Results.ERROR("Can't drop Coracle in Deep Water!");
 
             NUtils.drop(coracleItem);
-            Thread.sleep(300);
+
+            NTask waitGob = new NTask() {
+                { maxCounter = 100; infinite = false; }
+                @Override
+                public boolean check() {
+                    synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
+                        for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
+                            if (gob.ngob != null && gob.ngob.name != null
+                                && NParser.checkName(gob.ngob.name, CORACLE_GOB_ALIAS)
+                                && gob.rc.dist(NUtils.player().rc) < MOUNT_RANGE) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }
+            };
+            NUtils.addTask(waitGob);
+            if (waitGob.criticalExit)
+                return Results.ERROR("Could not find dropped Coracle in world.");
         }
 
-        // Find the dropped (or pre-existing) coracle gob
-        Gob coracleGob = null;
-        for (int attempt = 0; attempt < MOUNT_RETRIES; attempt++) {
-            Thread.sleep(MOUNT_RETRY_DELAY_MS);
-            ArrayList<Gob> coracles = Finder.findGobs(CORACLE_GOB_ALIAS);
-            if (!coracles.isEmpty()) {
-                List<Gob> sorted = NUtils.sortByNearest(coracles, NUtils.player().rc);
-                Gob candidate = sorted.get(0);
-                if (candidate.rc.dist(NUtils.player().rc) < MOUNT_RANGE) {
-                    ResDrawable rd = candidate.getattr(ResDrawable.class);
-                    if (rd != null && rd.sdt != null && rd.sdt.rbuf.length > 0 && rd.sdt.rbuf[0] == 22) {
-                        coracleGob = candidate;
-                        break;
-                    }
-                }
-            }
-        }
+        Gob coracleGob = Finder.findGob(NUtils.player().rc, CORACLE_GOB_ALIAS, null, MOUNT_RANGE);
 
         if (coracleGob == null) {
             if (coracleItem == null)
                 return Results.ERROR("No Coracle in inventory and no mountable Coracle nearby.");
             return Results.ERROR("Could not find dropped Coracle in world.");
         }
+
+        ResDrawable rd = coracleGob.getattr(ResDrawable.class);
+        if (rd != null && rd.sdt != null && rd.sdt.rbuf.length > 0 && rd.sdt.rbuf[0] != 22)
+            return Results.ERROR("Coracle is not mountable (state: " + rd.sdt.rbuf[0] + ").");
 
         Results flowerResult = new SelectFlowerAction("Into the blue yonder!", coracleGob).run(gui);
         if (!flowerResult.IsSuccess())

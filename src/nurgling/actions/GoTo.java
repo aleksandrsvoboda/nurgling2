@@ -45,6 +45,10 @@ public class GoTo implements Action
                     NUtils.getUI().core.addTask(new IsPoseMov(targetCoord, NUtils.player(), new NAlias("gfx/borka/coraclerowan")));
                     NUtils.getUI().core.addTask(new IsNotPose(NUtils.player(), new NAlias("gfx/borka/coraclerowan")));
                 }
+                else if (NParser.isIt(gob, new NAlias("skis-wilderness"))) {
+                    NUtils.getUI().core.addTask(new IsPoseMov(targetCoord, NUtils.player(), new NAlias("gfx/borka/skian-walk", "gfx/borka/skian-run")));
+                    NUtils.getUI().core.addTask(new IsNotPose(NUtils.player(), new NAlias("gfx/borka/skian-walk", "gfx/borka/skian-run")));
+                }
                 else if (NParser.isIt(gob, new NAlias("rowboat"))) {
                     NUtils.getUI().core.addTask(new IsPoseMov(targetCoord, NUtils.player(), new NAlias("gfx/borka/rowing")));
                     NUtils.getUI().core.addTask(new IsNotPose(NUtils.player(), new NAlias("gfx/borka/rowing")));
