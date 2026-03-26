@@ -299,13 +299,16 @@ public class GrapeJuicer implements Action {
      * @return current juice level from the press meter
      */
     private double cleanSeedsAndReadJuice(NGameUI gui, NContext context) throws InterruptedException {
-        // Navigate to press area (should still be there after pressing, but be safe)
-        Gob press = navigateToPress(context);
-        if (press == null) return 0;
-
-        // Walk to press and open window
-        new PathFinder(press).run(gui);
-        openPressWindow(gui, press);
+        // Window should already be open from pressing - only navigate if it's not
+        if (gui.getWindow(PRESS_CAP) == null) {
+            Gob press = Finder.findGob(lastPressArea, new NAlias(PRESS_RES));
+            if (press == null) {
+                press = navigateToPress(context);
+            }
+            if (press == null) return 0;
+            new PathFinder(press).run(gui);
+            openPressWindow(gui, press);
+        }
 
         // Read juice level first
         double juiceLevel = readJuiceLevel(gui);
@@ -329,7 +332,7 @@ public class GrapeJuicer implements Action {
                 dropNonOriginalItems(gui, originalItems);
 
                 // We're still at the press area (just dropped seeds on the ground nearby)
-                press = Finder.findGob(press.id);
+                Gob press = Finder.findGob(lastPressArea, new NAlias(PRESS_RES));
                 if (press == null) {
                     press = navigateToPress(context);
                 }
