@@ -179,7 +179,7 @@ public class WoundWnd extends Widget {
     public static class $wound implements Factory {
 	public Widget create(UI ui, Object[] args) {
 	    int id = Utils.iv(args[0]);
-	    return(new WoundBox(id));
+	    return(new nurgling.NWoundBox(id));
 	}
     }
 
@@ -194,6 +194,10 @@ public class WoundWnd extends Widget {
 
 	protected WoundList(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
+	}
+
+	protected WoundList(Coord sz, int itemh) {
+	    super(sz, itemh);
 	}
 
 	protected List<Wound> items() {return(wounds);}
