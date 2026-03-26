@@ -243,6 +243,6 @@ public class NBAttrWnd extends BAttrWnd {
 	glutLbl.setcolor(HEADER_VAL);
 
 	pack();
-		resize(sz.add(2, UI.scale(21) + 8));
+		resize(sz.add(UI.scale(2), UI.scale(21) + UI.scale(8)));
     }
 }
