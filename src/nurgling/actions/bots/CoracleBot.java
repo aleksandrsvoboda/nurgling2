@@ -68,13 +68,10 @@ public class CoracleBot implements Action {
 
         Thread.sleep(300);
 
-        // Check if coracle auto-equipped to shoulder slot
+        // Check if coracle auto-equipped to any equipment slot
         NEquipory eq = NUtils.getEquipment();
-        if (eq != null) {
-            WItem shoulderItem = eq.quickslots[NEquipory.Slots.SHOULDER.idx];
-            if (shoulderItem != null) {
-                return Results.SUCCESS();
-            }
+        if (eq != null && eq.findItem("Coracle") != null) {
+            return Results.SUCCESS();
         }
 
         // If item went to hand, drop to inventory
@@ -141,12 +138,9 @@ public class CoracleBot implements Action {
 
         NEquipory eq = NUtils.getEquipment();
         if (eq != null) {
-            WItem shoulderItem = eq.quickslots[NEquipory.Slots.SHOULDER.idx];
-            if (shoulderItem != null) {
-                String name = ((NGItem) shoulderItem.item).name();
-                if (name != null && NParser.checkName(name, "Coracle"))
-                    return shoulderItem;
-            }
+            WItem equipped = eq.findItem("Coracle");
+            if (equipped != null)
+                return equipped;
         }
 
         return null;
