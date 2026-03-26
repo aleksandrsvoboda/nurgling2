@@ -31,13 +31,11 @@ public class NFightWnd extends FightWnd {
     private static final int BTN_SAVE_GAP = UI.scale(15);
     private static final int SAVE_GAP = UI.scale(9);
 
-    private static final Coord MOVE_IMG_SZ = UI.scale(new Coord(60, 60));
+    private static final int BTN_BTN_GAP = UI.scale(3);
+    private static final Coord NUM_BOX = UI.scale(new Coord(13, 14));
 
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
-    private static final Text.Foundry smallFnd = new Text.Foundry(
-	nurgling.conf.FontSettings.getOpenSansSemibold(), 11, Color.WHITE).aa(true);
-
     private static final java.awt.Font descFont =
 	nurgling.conf.FontSettings.getOpenSans().deriveFont(
 	    (float)Math.floor(UI.scale(11.0)));
@@ -47,7 +45,7 @@ public class NFightWnd extends FightWnd {
 	TextAttribute.FONT, descFont).aa(true);
 
     private static final Text.Foundry numFnd = new Text.Foundry(
-	nurgling.conf.FontSettings.getOpenSansSemibold(), 10, Color.WHITE).aa(true);
+	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
 
     public NFightWnd(int nsave, int nact, int max) {
 	super(nsave, nact, max);
@@ -57,25 +55,25 @@ public class NFightWnd extends FightWnd {
 
     private BufferedImage renderMoveInfo(Action act, int width) {
 	Resource res = act.res.get();
-	BufferedImage resImg = res.flayer(Resource.imgc).img;
-	BufferedImage scaledImg = convolvedown(resImg, MOVE_IMG_SZ, iconfilter);
+	BufferedImage scaledImg = act.rendericon();
+	Coord imgSz = Utils.imgsz(scaledImg);
 	String title = res.flayer(Resource.tooltip).text();
 	Text.Line titleLine = titleFnd.render(title);
 
 	Resource.Pagina pag = res.layer(Resource.pagina);
 	String pagText = (pag != null) ? pag.text : "";
 
-	int visibleBottom = scaledImg.getHeight();
+	int visibleBottom = imgSz.y;
 	outer:
-	for(int row = scaledImg.getHeight() - 1; row >= 0; row--) {
-	    for(int col = 0; col < scaledImg.getWidth(); col++) {
+	for(int row = imgSz.y - 1; row >= 0; row--) {
+	    for(int col = 0; col < imgSz.x; col++) {
 		if((scaledImg.getRGB(col, row) & 0xFF000000) != 0) {
 		    visibleBottom = row + 1;
 		    break outer;
 		}
 	    }
 	}
-	int titleX = MOVE_IMG_SZ.x + UI.scale(10);
+	int titleX = imgSz.x + UI.scale(10);
 	int y = visibleBottom + 11;
 
 	RichText descRt = null;
@@ -236,9 +234,15 @@ public class NFightWnd extends FightWnd {
 		    Action act = order[i];
 		    if(act != null) {
 			Coord sc = slotc(i);
+			// Background box at top-right of slot
+			Coord boxTL = sc.add(isz.x - NUM_BOX.x - UI.scale(1), UI.scale(1));
+			g.chcolor(0, 0, 0, 204); // 80% opacity
+			g.frect(boxTL, NUM_BOX);
+			g.chcolor();
+			// Number centered in box
 			String num = Integer.toString(act.u);
 			Text.Line nt = numFnd.render(num);
-			g.aimage(nt.tex(), sc.add(isz.x - UI.scale(2), UI.scale(2)), 1.0, 0.0);
+			g.aimage(nt.tex(), boxTL.add(NUM_BOX.div(2)), 0.5, 0.5);
 		    }
 		}
 	    }
@@ -258,14 +262,14 @@ public class NFightWnd extends FightWnd {
 		    if(nu <= 0) { act.u(0); order[si] = null; }
 		    else act.u(nu);
 		}
-	    }), cx, btnY, 1.0, 0.0);
+	    }), cx - BTN_BTN_GAP / 2, btnY, 1.0, 0.0);
 	    Widget addw = adda(new NCloseButton(NStyle.plusbtni[0], NStyle.plusbtni[1], NStyle.plusbtni[2]).action(() -> {
 		Action act = order[si];
 		if(act != null) {
 		    int nu = Utils.clip(act.u + 1, 0, act.a);
 		    act.u(nu);
 		}
-	    }), cx, btnY, 0.0, 0.0);
+	    }), cx + BTN_BTN_GAP / 2, btnY, 0.0, 0.0);
 	    plusH = Math.max(plusH, addw.sz.y);
 	}
 
@@ -313,12 +317,12 @@ public class NFightWnd extends FightWnd {
 			    line1 = txt;
 			    line2 = "";
 			}
-			Text.Line t1 = smallFnd.render(line1);
+			Text.Line t1 = attrf.render(line1);
 			int cy = sz.y / 2;
 			if(line2.isEmpty()) {
 			    g.aimage(t1.tex(), Coord.of(sz.x / 2, cy), 0.5, 0.5);
 			} else {
-			    Text.Line t2 = smallFnd.render(line2);
+			    Text.Line t2 = attrf.render(line2);
 			    int gap = UI.scale(2);
 			    int totalH = t1.sz().y + gap + t2.sz().y;
 			    int y0 = (sz.y - totalH) / 2;
