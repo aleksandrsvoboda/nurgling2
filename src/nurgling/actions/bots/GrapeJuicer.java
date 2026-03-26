@@ -110,7 +110,7 @@ public class GrapeJuicer implements Action {
      * @return number of grapes already in the press, or -1 on error
      */
     private int initializePress(NGameUI gui, NContext context) throws InterruptedException {
-        Gob press = Finder.findGob(lastPressArea, new NAlias(PRESS_RES));;
+        Gob press = Finder.findGob(lastPressArea, new NAlias(PRESS_RES));
         if (press == null) return -1;
 
         new PathFinder(press).run(gui);
