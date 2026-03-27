@@ -98,6 +98,9 @@ public class TrufflePigHunter implements Action {
             return Results.ERROR("Path has no sections");
         }
 
+        gui.activeBotPath = path;
+        try {
+
         // Step 1: Find truffle pig area and navigate to it
         NArea trufflePigArea = NContext.findSpec(Specialisation.SpecName.trufflePig.toString());
         if (trufflePigArea == null) {
@@ -245,6 +248,9 @@ public class TrufflePigHunter implements Action {
 
         gui.msg("Truffle hunting complete!");
         return Results.SUCCESS();
+        } finally {
+            gui.activeBotPath = null;
+        }
     }
 
     private Results leashPig(NGameUI gui, Gob pig) throws InterruptedException {

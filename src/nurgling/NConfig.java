@@ -200,6 +200,9 @@ public class NConfig
         autoLogoutThreshold,
         autoLogoutCountdown,
         autoLogoutDelay,
+        // Bot path display
+        showBotPathOnMinimap,
+        showBotPathOnGround,
         // Localization
         language
     }
@@ -545,6 +548,10 @@ public class NConfig
         conf.put(Key.autoLogoutThreshold, 0);    // Energy threshold (0 = disabled)
         conf.put(Key.autoLogoutCountdown, 30);   // Countdown seconds before logout
         conf.put(Key.autoLogoutDelay, 60);       // Delay seconds when user clicks delay
+
+        // Bot path display
+        conf.put(Key.showBotPathOnMinimap, false);
+        conf.put(Key.showBotPathOnGround, false);
     }
 
 

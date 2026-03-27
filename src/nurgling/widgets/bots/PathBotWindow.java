@@ -1,6 +1,7 @@
 package nurgling.widgets.bots;
 
 import haven.*;
+import nurgling.NConfig;
 import nurgling.NUtils;
 import nurgling.routes.ForagerPath;
 import nurgling.routes.ForagerWaypoint;
@@ -260,13 +261,25 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
 
     /** Adds the start button. Call after adding any custom UI. */
     protected void addStartButton() {
+        CheckBox showOnMinimap = new CheckBox("Show path on minimap") {
+            @Override public void changed(boolean val) { NConfig.set(NConfig.Key.showBotPathOnMinimap, val); }
+        };
+        showOnMinimap.a = (Boolean) NConfig.get(NConfig.Key.showBotPathOnMinimap);
+        prev = add(showOnMinimap, prev.pos("bl").add(UI.scale(0, 10)));
+
+        CheckBox showOnGround = new CheckBox("Show path on ground") {
+            @Override public void changed(boolean val) { NConfig.set(NConfig.Key.showBotPathOnGround, val); }
+        };
+        showOnGround.a = (Boolean) NConfig.get(NConfig.Key.showBotPathOnGround);
+        prev = add(showOnGround, prev.pos("bl").add(UI.scale(0, 5)));
+
         prev = startButton = add(new Button(UI.scale(150), "Start") {
             @Override
             public void click() {
                 super.click();
                 handleStartBot();
             }
-        }, prev.pos("bl").add(UI.scale(0, 20)));
+        }, prev.pos("bl").add(UI.scale(0, 10)));
 
         startButton.disable(true);
     }

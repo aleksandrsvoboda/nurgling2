@@ -247,8 +247,78 @@ public class NMapView extends MapView
                 // Silently ignore errors
             }
         }
+
+        // Draw bot path on ground
+        drawBotPathOnGround(g);
     }
 
+    private void drawBotPathOnGround(GOut g) {
+        if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
+            return;
+        try {
+            NGameUI gui = NUtils.getGameUI();
+            if(gui == null) return;
+
+            // Get path from active bot execution or from open bot settings window
+            nurgling.routes.ForagerPath path = gui.activeBotPath;
+            if(path == null) {
+                // Check for open PathRecordable window
+                for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
+                    if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
+                        path = ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
+                        break;
+                    }
+                }
+            }
+            if(path == null || path.waypoints.isEmpty()) return;
+
+            haven.MiniMap.Location sessloc = gui.mmap != null ? gui.mmap.sessloc : null;
+            if(sessloc == null) return;
+
+            // Convert all visible waypoints to screen coordinates
+            java.util.List<Coord> screenPoints = new java.util.ArrayList<>();
+            for(nurgling.routes.ForagerWaypoint wp : path.waypoints) {
+                Coord2d worldPos = wp.toWorldCoord(sessloc);
+                if(worldPos == null) continue;
+                Coord3f sc = screenxf(worldPos);
+                if(sc == null) continue;
+                screenPoints.add(sc.round2());
+            }
+
+            if(screenPoints.isEmpty()) return;
+
+            // Draw lines between waypoints
+            for(int i = 0; i < screenPoints.size() - 1; i++) {
+                Coord a = screenPoints.get(i);
+                Coord b = screenPoints.get(i + 1);
+                g.chcolor(0, 0, 0, 180);
+                g.line(a, b, 4);
+                g.chcolor(0, 255, 128, 200);
+                g.line(a, b, 2);
+            }
+
+            // Draw nodes at each waypoint
+            int num = 1;
+            for(Coord sc : screenPoints) {
+                int r = UI.scale(6);
+                // Black outline
+                g.chcolor(0, 0, 0, 200);
+                g.fellipse(sc, new Coord(r, r));
+                // Green fill
+                g.chcolor(0, 255, 128, 220);
+                g.fellipse(sc, new Coord(r - 1, r - 1));
+                // Number label
+                g.chcolor(0, 0, 0, 255);
+                Text label = Text.render(String.valueOf(num));
+                g.aimage(label.tex(), sc, 0.5, 0.5);
+                label.dispose();
+                num++;
+            }
+            g.chcolor();
+        } catch(Exception e) {
+            // Ignore rendering errors
+        }
+    }
 
 
 

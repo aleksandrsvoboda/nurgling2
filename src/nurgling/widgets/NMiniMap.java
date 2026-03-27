@@ -270,12 +270,13 @@ NMiniMap extends MiniMap {
             }
         }
 
-        if(pathWnd == null) {
-            return;
+        // Get current path: from bot settings window, or from active bot execution
+        nurgling.routes.ForagerPath recordingPath = null;
+        if(pathWnd != null) {
+            recordingPath = pathWnd.getCurrentLoadedPath();
+        } else if((Boolean) nurgling.NConfig.get(nurgling.NConfig.Key.showBotPathOnMinimap) && gui.activeBotPath != null) {
+            recordingPath = gui.activeBotPath;
         }
-
-        // Get current path (either recording or loaded)
-        nurgling.routes.ForagerPath recordingPath = pathWnd.getCurrentLoadedPath();
         if(recordingPath == null || recordingPath.waypoints.isEmpty()) {
             return;
         }
