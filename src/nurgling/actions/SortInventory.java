@@ -44,25 +44,56 @@ public class SortInventory implements Action {
         if (!(a.item instanceof NGItem) || !(b.item instanceof NGItem)) {
             return 0;
         }
-        
+
         NGItem itemA = (NGItem) a.item;
         NGItem itemB = (NGItem) b.item;
-        
+
         // Compare by name first
         String nameA = itemA.name();
         String nameB = itemB.name();
+
         if (nameA == null) nameA = "";
         if (nameB == null) nameB = "";
         int nameCompare = nameA.compareTo(nameB);
         if (nameCompare != 0) return nameCompare;
 
+        String resA = itemA.res.toString();
+        String resB = itemB.res.toString();
+
+        if (resA == null) resA = "";
+        if (resB == null) resB = "";
+
+        int resCompare = resA.compareTo(resB);
+        if (resCompare != 0) return resCompare;
+
         // Then by quality (higher quality first)
         // Use stack quality if available, otherwise use item quality
         double qualA = getEffectiveQuality(itemA);
         double qualB = getEffectiveQuality(itemB);
-        return Double.compare(qualB, qualA);
+        if (Double.compare(qualB, qualA) != 0) return Double.compare(qualB, qualA);
+
+        int cA;
+        GItem.Amount CntA = itemA.getInfo(GItem.Amount.class);
+        if (CntA != null && CntA.itemnum() > 0) {
+            cA = CntA.itemnum();
+        } else {
+            cA = 0;
+        }
+
+        int cB;
+        GItem.Amount CntB = itemB.getInfo(GItem.Amount.class);
+        if (CntB != null && CntB.itemnum() > 0) {
+            cB = CntB.itemnum();
+        } else {
+            cB = 0;
+        }
+
+        if (cB != cA) return (cB - cA);
+
+        return 0;
     };
-    
+
+
     /**
      * Get effective quality for an item, considering stack quality for stacked items
      */
@@ -190,17 +221,20 @@ public class SortInventory implements Action {
             return;
         }
         
+
+
         // Sort items and create position mapping
         List<Object[]> sorted = items.stream()
-            .filter(witem -> getItemSize(witem).x * getItemSize(witem).y == 1)
-            .sorted(ITEM_COMPARATOR)
-            .map(witem -> new Object[]{
-                witem, 
-                getItemPos(witem),  // current pos
-                new Coord(0, 0)     // target pos (will be filled)
-            })
-            .collect(Collectors.toList());
-        
+                .filter(witem -> getItemSize(witem).x * getItemSize(witem).y == 1)
+                .sorted(Comparator.comparing(witem -> getItemPos(witem), Comparator.reverseOrder()))
+                .sorted(ITEM_COMPARATOR)
+                .map(witem -> new Object[]{
+                        witem,
+                        getItemPos(witem),  // current pos
+                        new Coord(0, 0)     // target pos (will be filled)
+                })
+                .collect(Collectors.toList());
+
         // Assign target positions
         int cur_x = -1, cur_y = 0;
         for (Object[] a : sorted) {
