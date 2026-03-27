@@ -37,6 +37,18 @@ NMiniMap extends MiniMap {
     public boolean showTreeIcons = true;
     public boolean showFishIcons = true;
 
+    // Cached waypoint number labels to avoid per-frame Text.render() allocations
+    private static Text[] waypointNumCache = new Text[128];
+    public static Text getWaypointLabel(int num) {
+        int idx = num - 1;
+        if(idx >= 0 && idx < waypointNumCache.length) {
+            if(waypointNumCache[idx] == null)
+                waypointNumCache[idx] = Text.render(String.valueOf(num));
+            return waypointNumCache[idx];
+        }
+        return Text.render(String.valueOf(num));
+    }
+
     private static final Coord2d sgridsz = new Coord2d(new Coord(100,100));
     public NMiniMap(Coord sz, MapFile file) {
         super(sz, file);
@@ -270,12 +282,13 @@ NMiniMap extends MiniMap {
             }
         }
 
-        if(pathWnd == null) {
-            return;
+        // Get current path: from bot settings window, or from active bot execution
+        nurgling.routes.ForagerPath recordingPath = null;
+        if(pathWnd != null) {
+            recordingPath = pathWnd.getCurrentLoadedPath();
+        } else if((Boolean) nurgling.NConfig.get(nurgling.NConfig.Key.showBotPathOnMinimap) && gui.activeBotPath != null) {
+            recordingPath = gui.activeBotPath;
         }
-
-        // Get current path (either recording or loaded)
-        nurgling.routes.ForagerPath recordingPath = pathWnd.getCurrentLoadedPath();
         if(recordingPath == null || recordingPath.waypoints.isEmpty()) {
             return;
         }
@@ -322,9 +335,7 @@ NMiniMap extends MiniMap {
                 
                 // Draw black number
                 g.chcolor(0, 0, 0, 255); // Black text
-                Text numText = Text.render(String.valueOf(num));
-                g.aimage(numText.tex(), c, 0.5, 0.5);
-                numText.dispose();
+                g.aimage(getWaypointLabel(num).tex(), c, 0.5, 0.5);
             }
             num++;
         }
@@ -1004,6 +1015,10 @@ NMiniMap extends MiniMap {
     @Override
     public void mousemove(MouseMoveEvent ev) {
         super.mousemove(ev);
+        // Base class drag uses private d2lscale which doesn't match our zoom - recompute with scalef()
+        if(drag != null && dragging) {
+            curloc = new Location(curloc.seg, dmc.add(dsc.sub(ev.c).mul(scalef())));
+        }
         if((Boolean)NConfig.get(NConfig.Key.showTerrainName)) {
             updateCurrentTerrainName(ev.c);
         }
@@ -1042,6 +1057,23 @@ NMiniMap extends MiniMap {
         int dataLevel = getDataLevel();
         float scaleFactor = getScaleFactor();
         return(UI.unscale((float)(1 << dataLevel) / scaleFactor));
+    }
+
+    @Override
+    public Coord xlate(Location loc) {
+        Location dloc = this.dloc;
+        if((dloc == null) || (dloc.seg != loc.seg))
+            return(null);
+        return(loc.tc.sub(dloc.tc).div(scalef()).add(sz.div(2)));
+    }
+
+    @Override
+    public Location xlate(Coord sc) {
+        Location dloc = this.dloc;
+        if(dloc == null)
+            return(null);
+        Coord tc = sc.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
+        return(new Location(dloc.seg, tc));
     }
 
     @Override

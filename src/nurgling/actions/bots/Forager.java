@@ -63,6 +63,8 @@ public class Forager implements Action {
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitCheckable(
                     NUtils.getGameUI().add((w = new nurgling.widgets.bots.Forager()), UI.scale(200, 200))
                 ));
+                if (w.cancelled)
+                    return Results.FAIL();
                 prop = w.prop;
             } catch (InterruptedException e) {
                 throw e;
@@ -83,12 +85,14 @@ public class Forager implements Action {
         }
 
         ForagerPath path = preset.foragerPath;
-        
+
         if (path.getSectionCount() == 0) {
             return Results.ERROR("Path has no sections");
         }
-        
-        
+
+        gui.activeBotPath = path;
+        try {
+
         // Get dangerous animal patterns from NConfig
         @SuppressWarnings("unchecked")
         ArrayList<NAreaRad> animalRads = (ArrayList<NAreaRad>) NConfig.get(NConfig.Key.animalrad);
@@ -180,8 +184,11 @@ public class Forager implements Action {
         
         // After completing all sections, perform finish action
         performSafetyAction(gui, preset.afterFinishAction);
-        
+
         return Results.SUCCESS();
+        } finally {
+            gui.activeBotPath = null;
+        }
     }
     
     private void processSection(NGameUI gui, ForagerSection section, java.util.List<ForagerAction> actions, 

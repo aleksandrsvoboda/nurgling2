@@ -867,9 +867,9 @@ public class MiniMap extends Widget
 	return(false);
     }
 
-    private UI.Grab drag;
-    private boolean dragging;
-    private Coord dsc, dmc;
+    protected UI.Grab drag;
+    protected boolean dragging;
+    protected Coord dsc, dmc;
     public boolean dragp(int button) {
 	return(button == 1);
     }

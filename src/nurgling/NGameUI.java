@@ -61,7 +61,8 @@ public class NGameUI extends GameUI
     public StudyDeskPlannerWidget studyDeskPlanner = null;
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
-    
+    public nurgling.routes.ForagerPath activeBotPath = null;
+
     // Local storage for ring settings
     public IconRingConfig iconRingConfig;
     private boolean ringSettingsApplied = false;
