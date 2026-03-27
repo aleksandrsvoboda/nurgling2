@@ -6,6 +6,7 @@ import haven.Scrollbar;
 import haven.Window;
 import nurgling.*;
 import nurgling.i18n.L10n;
+import nurgling.tools.NFileUtils;
 import org.json.*;
 
 import javax.swing.*;
@@ -445,7 +446,7 @@ public class BlueprintWidget extends Window
             }
             blueprint.put("trees", trees);
             
-            Files.write(file.toPath(), blueprint.toString(2).getBytes());
+            NFileUtils.writeAtomically(file.getAbsolutePath(), blueprint.toString(2));
             NUtils.getGameUI().msg("Blueprint saved successfully");
         } catch (Exception e) {
             NUtils.getGameUI().msg("Failed to save blueprint: " + e.getMessage());
@@ -525,7 +526,7 @@ public class BlueprintWidget extends Window
             root.put("blueprints", blueprintArray);
             
             File configFile = new File("tree_garden_blueprints.json");
-            Files.write(configFile.toPath(), root.toString(2).getBytes());
+            NFileUtils.writeAtomically(configFile.getAbsolutePath(), root.toString(2));
         } catch (Exception e) {
             e.printStackTrace();
         }

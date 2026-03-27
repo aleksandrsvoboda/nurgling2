@@ -3,6 +3,7 @@ package nurgling.cheese;
 import nurgling.NConfig;
 import nurgling.profiles.ConfigFactory;
 import nurgling.profiles.ProfileAwareService;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -60,20 +61,17 @@ public class CheeseOrdersManager implements ProfileAwareService {
 
     public void loadOrders() {
         orders.clear();
-        File file = new File(configPath);
-        if (file.exists()) {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(configPath), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            } catch (IOException ignore) {}
-
-            if (!contentBuilder.toString().isEmpty()) {
-                JSONObject main = new JSONObject(contentBuilder.toString());
+        String content = NFileUtils.readWithBackupFallback(configPath);
+        if (content != null && !content.isEmpty()) {
+            try {
+                JSONObject main = new JSONObject(content);
                 JSONArray array = main.getJSONArray("orders");
                 for (int i = 0; i < array.length(); i++) {
                     CheeseOrder order = new CheeseOrder(array.getJSONObject(i));
                     orders.put(order.getId(), order);
                 }
+            } catch (org.json.JSONException e) {
+                System.err.println("[CheeseOrdersManager] Failed to parse orders file (corrupt JSON): " + e.getMessage());
             }
         }
     }
@@ -87,9 +85,7 @@ public class CheeseOrdersManager implements ProfileAwareService {
         main.put("orders", jorders);
 
         try {
-            FileWriter f = new FileWriter(configPath, StandardCharsets.UTF_8);
-            main.write(f);
-            f.close();
+            NFileUtils.writeAtomically(configPath, main.toString());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

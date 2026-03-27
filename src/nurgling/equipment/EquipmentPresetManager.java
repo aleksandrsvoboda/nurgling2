@@ -6,6 +6,7 @@ import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.EquipmentBot;
 import nurgling.sessions.BotExecutor;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -27,20 +28,17 @@ public class EquipmentPresetManager {
 
     public void loadPresets() {
         presets.clear();
-        File file = new File(NConfig.current.getEquipmentPresetsPath());
-        if (file.exists()) {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(NConfig.current.getEquipmentPresetsPath()), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            } catch (IOException ignore) {}
-
-            if (!contentBuilder.toString().isEmpty()) {
-                JSONObject main = new JSONObject(contentBuilder.toString());
+        String content = NFileUtils.readWithBackupFallback(NConfig.current.getEquipmentPresetsPath());
+        if (content != null && !content.isEmpty()) {
+            try {
+                JSONObject main = new JSONObject(content);
                 JSONArray array = main.getJSONArray("presets");
                 for (int i = 0; i < array.length(); i++) {
                     EquipmentPreset preset = new EquipmentPreset(array.getJSONObject(i));
                     presets.put(preset.getId(), preset);
                 }
+            } catch (org.json.JSONException e) {
+                System.err.println("[EquipmentPresetManager] Failed to parse presets file (corrupt JSON): " + e.getMessage());
             }
         }
     }
@@ -54,9 +52,7 @@ public class EquipmentPresetManager {
         main.put("presets", jpresets);
 
         try {
-            FileWriter f = new FileWriter(customPath == null ? NConfig.current.getEquipmentPresetsPath() : customPath, StandardCharsets.UTF_8);
-            main.write(f);
-            f.close();
+            NFileUtils.writeAtomically(customPath == null ? NConfig.current.getEquipmentPresetsPath() : customPath, main.toString());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

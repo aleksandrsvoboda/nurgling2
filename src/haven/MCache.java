@@ -38,6 +38,7 @@ import haven.render.*;
 import nurgling.*;
 import nurgling.areas.*;
 import nurgling.overlays.map.*;
+import nurgling.tools.NFileUtils;
 import nurgling.profiles.ConfigFactory;
 import nurgling.tasks.GridsFilled;
 import nurgling.tasks.NTask;
@@ -150,32 +151,20 @@ public class MCache implements MapSource {
 		// DB not enabled - load from file (legacy support)
 		String areasPath = getAreasPath();
 
-		if(new File(areasPath).exists())
+		String content = NFileUtils.readWithBackupFallback(areasPath);
+		if (content != null && !content.isEmpty())
 		{
-			StringBuilder contentBuilder = new StringBuilder();
-			try (Stream<String> stream = Files.lines(Paths.get(areasPath), StandardCharsets.UTF_8))
-			{
-				stream.forEach(s -> contentBuilder.append(s).append("\n"));
-			}
-			catch (IOException ignore)
-			{
-			}
-
-			String content = contentBuilder.toString().trim();
-			if (!content.isEmpty() && content.startsWith("{"))
-			{
-				try {
-					JSONObject main = new JSONObject(content);
-					JSONArray array = (JSONArray) main.get("areas");
-					for (int i = 0; i < array.length(); i++)
-					{
-						NArea a = new NArea((JSONObject) array.get(i));
-						areas.put(a.id, a);
-					}
-					System.out.println("Loaded " + areas.size() + " areas from file");
-				} catch (org.json.JSONException e) {
-					// Ignore invalid JSON files
+			try {
+				JSONObject main = new JSONObject(content);
+				JSONArray array = (JSONArray) main.get("areas");
+				for (int i = 0; i < array.length(); i++)
+				{
+					NArea a = new NArea((JSONObject) array.get(i));
+					areas.put(a.id, a);
 				}
+				System.out.println("Loaded " + areas.size() + " areas from file");
+			} catch (org.json.JSONException e) {
+				System.err.println("[MCache] Failed to parse areas file (corrupt JSON): " + e.getMessage());
 			}
 		}
 		areasLoaded = true;

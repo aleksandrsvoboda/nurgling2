@@ -5,6 +5,7 @@ import nurgling.NGameUI;
 import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.sessions.BotExecutor;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -27,21 +28,18 @@ public class ScenarioManager {
 
     public void loadScenarios() {
         scenarios.clear();
-        File file = new File(NConfig.current.getScenariosPath());
-        if (file.exists()) {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(NConfig.current.getScenariosPath()), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            } catch (IOException ignore) {}
-
-            if (!contentBuilder.toString().isEmpty()) {
-                JSONObject main = new JSONObject(contentBuilder.toString());
+        String content = NFileUtils.readWithBackupFallback(NConfig.current.getScenariosPath());
+        if (content != null && !content.isEmpty()) {
+            try {
+                JSONObject main = new JSONObject(content);
                 JSONArray array = main.getJSONArray("scenarios");
                 for (int i = 0; i < array.length(); i++) {
                     Scenario scenario = new Scenario(array.getJSONObject(i));
                     scenarios.put(scenario.getId(), scenario);
                 }
                 needsUpdate = false;
+            } catch (org.json.JSONException e) {
+                System.err.println("[ScenarioManager] Failed to parse scenarios file (corrupt JSON): " + e.getMessage());
             }
         }
     }
@@ -55,9 +53,7 @@ public class ScenarioManager {
         main.put("scenarios", jscenarios);
 
         try {
-            FileWriter f = new FileWriter(customPath == null ? NConfig.current.getScenariosPath() : customPath, StandardCharsets.UTF_8);
-            main.write(f);
-            f.close();
+            NFileUtils.writeAtomically(customPath == null ? NConfig.current.getScenariosPath() : customPath, main.toString());
             needsUpdate = false;
         } catch (IOException e) {
             throw new RuntimeException(e);

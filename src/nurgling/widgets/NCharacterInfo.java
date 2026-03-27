@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.*;
 import nurgling.areas.NArea;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -176,9 +177,7 @@ public class NCharacterInfo extends Widget {
 
             try
             {
-                FileWriter f = new FileWriter(path,StandardCharsets.UTF_8);
-                main.write(f);
-                f.close();
+                NFileUtils.writeAtomically(path, main.toString());
             }
             catch (IOException e)
             {

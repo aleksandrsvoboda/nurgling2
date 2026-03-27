@@ -316,22 +316,14 @@ public class ExploredArea {
     private void loadFromFile() {
         // Use profile-specific config from NCore if available, otherwise fallback to global
         NConfig config = getConfig();
-        File file = new File(config.getExploredPath());
-        if (!file.exists()) {
-            return;
-        }
-        
+
         try {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(file.getAbsolutePath()), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            }
-            
-            if (contentBuilder.length() == 0) {
+            String content = NFileUtils.readWithBackupFallback(config.getExploredPath());
+            if (content == null || content.isEmpty()) {
                 return;
             }
-            
-            JSONObject json = new JSONObject(contentBuilder.toString());
+
+            JSONObject json = new JSONObject(content);
             if (!json.has("grids")) {
                 return;
             }
@@ -430,9 +422,7 @@ public class ExploredArea {
     private void saveSessionToFile() {
         NConfig config = getConfig();
         try {
-            FileWriter f = new FileWriter(config.getSessionExploredPath(), StandardCharsets.UTF_8);
-            sessionToJson().write(f);
-            f.close();
+            NFileUtils.writeAtomically(config.getSessionExploredPath(), sessionToJson().toString());
         } catch (IOException e) {
             // Ignore save errors
         }
@@ -443,22 +433,14 @@ public class ExploredArea {
      */
     private void loadSessionFromFile() {
         NConfig config = getConfig();
-        File file = new File(config.getSessionExploredPath());
-        if (!file.exists()) {
-            return;
-        }
-        
+
         try {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(file.getAbsolutePath()), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            }
-            
-            if (contentBuilder.length() == 0) {
+            String content = NFileUtils.readWithBackupFallback(config.getSessionExploredPath());
+            if (content == null || content.isEmpty()) {
                 return;
             }
-            
-            JSONObject json = new JSONObject(contentBuilder.toString());
+
+            JSONObject json = new JSONObject(content);
             
             // Load active state
             if (json.has("active")) {
@@ -659,9 +641,7 @@ public class ExploredArea {
                 
                 // Write merged result to file
                 JSONObject doc = toJsonFromData(mergedData);
-                try (FileWriter f = new FileWriter(filePath, StandardCharsets.UTF_8)) {
-                    doc.write(f);
-                }
+                NFileUtils.writeAtomically(filePath, doc.toString());
                 
                 // Update in-memory data with merged result (so we have the latest data)
                 // This is important to prevent re-saving stale data
@@ -701,9 +681,7 @@ public class ExploredArea {
      * Simple save without merge (fallback when locking fails).
      */
     private void saveWithoutMerge(String filePath) throws IOException {
-        try (FileWriter f = new FileWriter(filePath, StandardCharsets.UTF_8)) {
-            toJson().write(f);
-        }
+        NFileUtils.writeAtomically(filePath, toJson().toString());
     }
     
     /**
@@ -711,23 +689,14 @@ public class ExploredArea {
      */
     private Map<GridKey, boolean[]> readFromDisk(String filePath) {
         Map<GridKey, boolean[]> result = new HashMap<>();
-        
-        File file = new File(filePath);
-        if (!file.exists()) {
-            return result;
-        }
-        
+
         try {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(file.getAbsolutePath()), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            }
-            
-            if (contentBuilder.length() == 0) {
+            String content = NFileUtils.readWithBackupFallback(filePath);
+            if (content == null || content.isEmpty()) {
                 return result;
             }
-            
-            JSONObject json = new JSONObject(contentBuilder.toString());
+
+            JSONObject json = new JSONObject(content);
             if (!json.has("grids")) {
                 return result;
             }
