@@ -73,6 +73,8 @@ public class TrufflePigHunter implements Action {
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitCheckable(
                     NUtils.getGameUI().add((w = new nurgling.widgets.bots.TrufflePigHunter()), UI.scale(200, 200))
                 ));
+                if (w.cancelled)
+                    return Results.FAIL();
                 prop = w.prop;
             } catch (InterruptedException e) {
                 throw e;

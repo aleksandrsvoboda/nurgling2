@@ -41,6 +41,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
 
     // Ready state
     protected boolean isReady = false;
+    public boolean cancelled = false;
     protected Widget prev;
 
     // ========== Abstract methods that subclasses must implement ==========
@@ -642,6 +643,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     @Override
     public void wdgmsg(String msg, Object... args) {
         if (msg.equals("close")) {
+            cancelled = true;
             isReady = true;
             hide();
         }
