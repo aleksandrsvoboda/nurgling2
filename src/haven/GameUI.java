@@ -54,7 +54,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public Speedget speedget = null;
     private Text lastmsg;
     private double msgtime;
-    private Window invwnd;
+    protected Window invwnd;
     public Window equwnd;
     private Window makewnd;
     private Window srchwnd;

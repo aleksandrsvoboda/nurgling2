@@ -542,6 +542,14 @@ public class NGameUI extends GameUI
 
             // Check if this is the inventory being added
             if (place != null && place.equals("inv")) {
+                if (invwnd != null && (Boolean) NConfig.get(NConfig.Key.htmlInventory)) {
+                    // HTML/CSS rendered inventory mode
+                    NInventory ninv = (NInventory) maininv;
+                    ninv.htmlMode = true;
+                    invwnd.chdeco(new nurgling.widgets.html.NHtmlDeco());
+                    invwnd.add(new nurgling.widgets.html.NHtmlInventoryOverlay(ninv), haven.Coord.z);
+                    invwnd.pack();
+                }
                 // Inventory window was just created, now check the setting
                 initializeInventoryVisibility();
             }

@@ -61,6 +61,9 @@ public class NInventory extends Inventory
     
     // Flag to indicate inventory is being closed (to distinguish item consumed vs container closed)
     public boolean isClosing = false;
+
+    // When true, the HTML overlay renders the grid; skip native grid/slot drawing
+    public boolean htmlMode = false;
     
     // Flag to indicate if this inventory should be indexed in database
     // Only certain container types should be tracked (e.g. Cupboard, Chest, etc.)
@@ -245,9 +248,14 @@ public class NInventory extends Inventory
 
     @Override
     public void draw(GOut g) {
-        super.draw(g);
-        if((Boolean)NConfig.get(NConfig.Key.showInventoryNums) && oldinv != null) {
-            drawSlotNumbers(g);
+        if (htmlMode) {
+            // Skip grid background and slot numbers; just draw children (WItems)
+            draw(g, true);
+        } else {
+            super.draw(g);
+            if ((Boolean) NConfig.get(NConfig.Key.showInventoryNums) && oldinv != null) {
+                drawSlotNumbers(g);
+            }
         }
     }
     
