@@ -9,6 +9,7 @@ import nurgling.scenarios.Scenario;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
 import nurgling.sessions.ThreadLocalUI;
+import nurgling.tools.NFileUtils;
 import nurgling.widgets.NCornerMiniMap;
 import org.json.*;
 
@@ -1039,19 +1040,17 @@ public class NConfig
     @SuppressWarnings("unchecked")
     public void read() {
         current = this;
-        StringBuilder contentBuilder = new StringBuilder();
+        String content = NFileUtils.readWithBackupFallback(path);
 
-        try (Stream<String> stream = Files.lines(Paths.get(path), StandardCharsets.UTF_8))
+        if (content != null && !content.isEmpty())
         {
-            stream.forEach(s -> contentBuilder.append(s).append("\n"));
-        }
-        catch (IOException ignore)
-        {
-        }
-
-        if (!contentBuilder.toString().isEmpty())
-        {
-            JSONObject main = new JSONObject(contentBuilder.toString());
+            JSONObject main;
+            try {
+                main = new JSONObject(content);
+            } catch (org.json.JSONException e) {
+                System.err.println("[NConfig] Failed to parse config file (corrupt JSON), using defaults: " + path);
+                return;
+            }
             Map<String, Object> map = main.toMap();
             for (Map.Entry<String, Object> entry : map.entrySet())
             {
@@ -1201,9 +1200,7 @@ public class NConfig
         JSONObject main = new JSONObject(prep);
         try
         {
-            FileWriter f = new FileWriter(path, StandardCharsets.UTF_8);
-            main.write(f);
-            f.close();
+            NFileUtils.writeAtomically(path, main.toString());
             this.isUpd = false;
         }
         catch (IOException e)
@@ -1277,9 +1274,7 @@ public class NConfig
         main.put("areas",jareas);
         try
         {
-            FileWriter f = new FileWriter(path, StandardCharsets.UTF_8);
-            main.write(f);
-            f.close();
+            NFileUtils.writeAtomically(path, main.toString());
             this.isAreasUpd = false;
             this.lastAreasChangeTime = 0;
         }
@@ -1465,9 +1460,7 @@ public class NConfig
             main.put("scenarios", jscenarios);
 
             try {
-                FileWriter f = new FileWriter(customPath == null ? getScenariosPath() : customPath, StandardCharsets.UTF_8);
-                main.write(f);
-                f.close();
+                NFileUtils.writeAtomically(customPath == null ? getScenariosPath() : customPath, main.toString());
                 current.isScenariosUpd = false;
             } catch (IOException e) {
                 throw new RuntimeException(e);

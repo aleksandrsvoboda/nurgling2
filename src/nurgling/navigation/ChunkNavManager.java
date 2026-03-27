@@ -6,6 +6,7 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.overlays.map.MinimapChunkNavRenderer;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -428,7 +429,7 @@ public class ChunkNavManager {
 
             // Write to file next to chunknav directory
             Path pathFile = fileStore.getChunkDirectory().getParent().resolve("chunknav_path.json");
-            Files.write(pathFile, pathJson.toString(2).getBytes(StandardCharsets.UTF_8));
+            NFileUtils.writeAtomically(pathFile.toString(), pathJson.toString(2));
 
         } catch (Exception e) {
             // Ignore export errors

@@ -1,6 +1,7 @@
 package nurgling.scenarios;
 
 import nurgling.NConfig;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -34,24 +35,17 @@ public class CraftPresetManager {
 
     public void loadPresets() {
         presets.clear();
-        File file = new File(NConfig.current.getCraftPresetsPath());
-        if (file.exists()) {
-            StringBuilder contentBuilder = new StringBuilder();
-            try (Stream<String> stream = Files.lines(Paths.get(NConfig.current.getCraftPresetsPath()), StandardCharsets.UTF_8)) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            } catch (IOException ignore) {}
-
-            if (!contentBuilder.toString().isEmpty()) {
-                try {
-                    JSONObject main = new JSONObject(contentBuilder.toString());
-                    JSONArray array = main.getJSONArray("presets");
-                    for (int i = 0; i < array.length(); i++) {
-                        CraftPreset preset = new CraftPreset(array.getJSONObject(i));
-                        presets.put(preset.getId(), preset);
-                    }
-                } catch (Exception e) {
-                    System.err.println("Error loading craft presets: " + e.getMessage());
+        String content = NFileUtils.readWithBackupFallback(NConfig.current.getCraftPresetsPath());
+        if (content != null && !content.isEmpty()) {
+            try {
+                JSONObject main = new JSONObject(content);
+                JSONArray array = main.getJSONArray("presets");
+                for (int i = 0; i < array.length(); i++) {
+                    CraftPreset preset = new CraftPreset(array.getJSONObject(i));
+                    presets.put(preset.getId(), preset);
                 }
+            } catch (Exception e) {
+                System.err.println("Error loading craft presets: " + e.getMessage());
             }
         }
     }
@@ -65,9 +59,7 @@ public class CraftPresetManager {
         main.put("presets", jpresets);
 
         try {
-            FileWriter f = new FileWriter(NConfig.current.getCraftPresetsPath(), StandardCharsets.UTF_8);
-            main.write(f);
-            f.close();
+            NFileUtils.writeAtomically(NConfig.current.getCraftPresetsPath(), main.toString());
         } catch (IOException e) {
             System.err.println("Error saving craft presets: " + e.getMessage());
         }

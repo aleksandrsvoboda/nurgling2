@@ -3,6 +3,7 @@ package nurgling;
 import haven.*;
 import nurgling.profiles.ConfigFactory;
 import nurgling.profiles.ProfileAwareService;
+import nurgling.tools.NFileUtils;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import org.json.JSONArray;
@@ -244,27 +245,17 @@ public class TreeLocationService implements ProfileAwareService {
         lock.writeLock().lock();
         try {
             treeLocations.clear();
-            File file = new File(dataFile);
-            if (file.exists()) {
-                StringBuilder contentBuilder = new StringBuilder();
-                try (Stream<String> stream = Files.lines(Paths.get(dataFile), StandardCharsets.UTF_8)) {
-                    stream.forEach(s -> contentBuilder.append(s).append("\n"));
-                } catch (IOException e) {
-                    System.err.println("Failed to load tree locations: " + e.getMessage());
-                    return;
-                }
-
-                if (!contentBuilder.toString().trim().isEmpty()) {
-                    try {
-                        JSONObject main = new JSONObject(contentBuilder.toString());
-                        JSONArray array = main.getJSONArray("treeLocations");
-                        for (int i = 0; i < array.length(); i++) {
-                            TreeLocation location = new TreeLocation(array.getJSONObject(i));
-                            treeLocations.put(location.getLocationId(), location);
-                        }
-                    } catch (Exception e) {
-                        System.err.println("Failed to parse tree locations JSON: " + e.getMessage());
+            String content = NFileUtils.readWithBackupFallback(dataFile);
+            if (content != null && !content.isEmpty()) {
+                try {
+                    JSONObject main = new JSONObject(content);
+                    JSONArray array = main.getJSONArray("treeLocations");
+                    for (int i = 0; i < array.length(); i++) {
+                        TreeLocation location = new TreeLocation(array.getJSONObject(i));
+                        treeLocations.put(location.getLocationId(), location);
                     }
+                } catch (Exception e) {
+                    System.err.println("Failed to parse tree locations JSON: " + e.getMessage());
                 }
             }
         } finally {
@@ -287,9 +278,7 @@ public class TreeLocationService implements ProfileAwareService {
             main.put("version", 1);
             main.put("lastSaved", java.time.Instant.now().toString());
 
-            try (FileWriter writer = new FileWriter(dataFile, StandardCharsets.UTF_8)) {
-                writer.write(main.toString(2)); // Pretty print with indent
-            }
+            NFileUtils.writeAtomically(dataFile, main.toString(2));
         } catch (IOException e) {
             System.err.println("Failed to save tree locations: " + e.getMessage());
         }

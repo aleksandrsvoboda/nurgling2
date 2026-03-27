@@ -1,6 +1,7 @@
 package nurgling.routes;
 
 import haven.*;
+import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -100,7 +101,7 @@ public class ForagerPath {
         
         Path filePath = dirPath.resolve(name + ".json");
         JSONObject json = toJson();
-        Files.write(filePath, json.toString(2).getBytes());
+        NFileUtils.writeAtomically(filePath.toString(), json.toString(2));
     }
     
     public static ForagerPath load(String filePath) throws IOException {
