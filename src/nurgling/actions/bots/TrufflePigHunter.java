@@ -73,6 +73,8 @@ public class TrufflePigHunter implements Action {
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitCheckable(
                     NUtils.getGameUI().add((w = new nurgling.widgets.bots.TrufflePigHunter()), UI.scale(200, 200))
                 ));
+                if (w.cancelled)
+                    return Results.FAIL();
                 prop = w.prop;
             } catch (InterruptedException e) {
                 throw e;
@@ -97,6 +99,9 @@ public class TrufflePigHunter implements Action {
         if (path.getSectionCount() == 0) {
             return Results.ERROR("Path has no sections");
         }
+
+        gui.activeBotPath = path;
+        try {
 
         // Step 1: Find truffle pig area and navigate to it
         NArea trufflePigArea = NContext.findSpec(Specialisation.SpecName.trufflePig.toString());
@@ -245,6 +250,9 @@ public class TrufflePigHunter implements Action {
 
         gui.msg("Truffle hunting complete!");
         return Results.SUCCESS();
+        } finally {
+            gui.activeBotPath = null;
+        }
     }
 
     private Results leashPig(NGameUI gui, Gob pig) throws InterruptedException {
