@@ -309,9 +309,7 @@ public class NMapView extends MapView
                 g.fellipse(sc, new Coord(r - 1, r - 1));
                 // Number label
                 g.chcolor(0, 0, 0, 255);
-                Text label = Text.render(String.valueOf(num));
-                g.aimage(label.tex(), sc, 0.5, 0.5);
-                label.dispose();
+                g.aimage(nurgling.widgets.NMiniMap.getWaypointLabel(num).tex(), sc, 0.5, 0.5);
                 num++;
             }
             g.chcolor();

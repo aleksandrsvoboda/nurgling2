@@ -37,6 +37,18 @@ NMiniMap extends MiniMap {
     public boolean showTreeIcons = true;
     public boolean showFishIcons = true;
 
+    // Cached waypoint number labels to avoid per-frame Text.render() allocations
+    private static Text[] waypointNumCache = new Text[128];
+    public static Text getWaypointLabel(int num) {
+        int idx = num - 1;
+        if(idx >= 0 && idx < waypointNumCache.length) {
+            if(waypointNumCache[idx] == null)
+                waypointNumCache[idx] = Text.render(String.valueOf(num));
+            return waypointNumCache[idx];
+        }
+        return Text.render(String.valueOf(num));
+    }
+
     private static final Coord2d sgridsz = new Coord2d(new Coord(100,100));
     public NMiniMap(Coord sz, MapFile file) {
         super(sz, file);
@@ -323,9 +335,7 @@ NMiniMap extends MiniMap {
                 
                 // Draw black number
                 g.chcolor(0, 0, 0, 255); // Black text
-                Text numText = Text.render(String.valueOf(num));
-                g.aimage(numText.tex(), c, 0.5, 0.5);
-                numText.dispose();
+                g.aimage(getWaypointLabel(num).tex(), c, 0.5, 0.5);
             }
             num++;
         }
