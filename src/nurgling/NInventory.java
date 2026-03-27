@@ -37,8 +37,8 @@ public class NInventory extends Inventory
     public Widget compactListContent;
     public ICheckBox bundle;
     public MenuGrid.PagButton pagBundle = null;
-    boolean showPopup = false;
-    boolean showRightPanel = false;
+    public boolean showPopup = false;
+    public boolean showRightPanel = false;
     RightPanelMode rightPanelMode = RightPanelMode.EXPANDED;
     boolean compactNameAscending = true;
     boolean compactQuantityAscending = false;
@@ -61,6 +61,9 @@ public class NInventory extends Inventory
     
     // Flag to indicate inventory is being closed (to distinguish item consumed vs container closed)
     public boolean isClosing = false;
+
+    // When true, the HTML overlay renders the grid; skip native grid/slot drawing
+    public boolean htmlMode = false;
     
     // Flag to indicate if this inventory should be indexed in database
     // Only certain container types should be tracked (e.g. Cupboard, Chest, etc.)
@@ -245,9 +248,14 @@ public class NInventory extends Inventory
 
     @Override
     public void draw(GOut g) {
-        super.draw(g);
-        if((Boolean)NConfig.get(NConfig.Key.showInventoryNums) && oldinv != null) {
-            drawSlotNumbers(g);
+        if (htmlMode) {
+            // Skip grid background and slot numbers; just draw children (WItems)
+            draw(g, true);
+        } else {
+            super.draw(g);
+            if ((Boolean) NConfig.get(NConfig.Key.showInventoryNums) && oldinv != null) {
+                drawSlotNumbers(g);
+            }
         }
     }
     
@@ -561,7 +569,7 @@ public class NInventory extends Inventory
         }
     }
     
-    private void updateRightPanelVisibility() {
+    public void updateRightPanelVisibility() {
         if (rightTogglesExpanded != null) {
             if (showRightPanel && rightPanelMode == RightPanelMode.EXPANDED) {
                 rightTogglesExpanded.show();
@@ -758,36 +766,39 @@ public class NInventory extends Inventory
             new TexI(Resource.loadsimg("nurgling/hud/buttons/dropper/dh"))};
 
     public void installMainInv() {
-        searchwdg = new NSearchWidget(new Coord(sz));
-        searchwdg.resize(sz);
-        parent.add(searchwdg, (new Coord(0, sz.y + UI.scale(10))));
-        parent.add(new ICheckBox(collapsei[0], collapsei[1], collapsei[2], collapsei[3]) {
-                       @Override
-                       public void changed(boolean val) {
-                           super.changed(val);
-                           showPopup = val;
+        if (!htmlMode) {
+            searchwdg = new NSearchWidget(new Coord(sz));
+            searchwdg.resize(sz);
+            parent.add(searchwdg, (new Coord(0, sz.y + UI.scale(10))));
+            parent.add(new ICheckBox(collapsei[0], collapsei[1], collapsei[2], collapsei[3]) {
+                           @Override
+                           public void changed(boolean val) {
+                               super.changed(val);
+                               showPopup = val;
+                           }
                        }
-                   }
-                , new Coord(-gildingi[0].sz().x + UI.scale(2), UI.scale(27)));
-        
-        // Add sort button to main inventory window title bar
-        addSortButtonToTitleBar();
+                    , new Coord(-gildingi[0].sz().x + UI.scale(2), UI.scale(27)));
 
+            // Add sort button to main inventory window title bar
+            addSortButtonToTitleBar();
 
-        checkBoxForRight = new ICheckBox(collapseiRight[0], collapseiRight[1], collapseiRight[2], collapseiRight[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                showRightPanel = val;
-                NConfig.set(NConfig.Key.inventoryRightPanelShow, val);
-                updateRightPanelVisibility();
-            }
-        };
+            checkBoxForRight = new ICheckBox(collapseiRight[0], collapseiRight[1], collapseiRight[2], collapseiRight[3]) {
+                @Override
+                public void changed(boolean val) {
+                    super.changed(val);
+                    showRightPanel = val;
+                    NConfig.set(NConfig.Key.inventoryRightPanelShow, val);
+                    updateRightPanelVisibility();
+                }
+            };
 
-        parent.pack();
+            parent.pack();
 
-        // Right panel toggle button - using mirrored textures
-        parent.add(checkBoxForRight, new Coord(sz.x + UI.scale(4), UI.scale(27)));
+            // Right panel toggle button - using mirrored textures
+            parent.add(checkBoxForRight, new Coord(sz.x + UI.scale(4), UI.scale(27)));
+        } else {
+            parent.pack();
+        }
 
         toggles = NUtils.getGameUI().add(new NPopupWidget(new Coord(UI.scale(50), UI.scale(80)), NPopupWidget.Type.RIGHT));
         
@@ -906,7 +917,8 @@ public class NInventory extends Inventory
             rightPanelMode = RightPanelMode.EXPANDED;
         }
         
-        checkBoxForRight.a = showRightPanel;
+        if (checkBoxForRight != null)
+            checkBoxForRight.a = showRightPanel;
         updateRightPanelVisibility();
 
         movePopup(parent.c);

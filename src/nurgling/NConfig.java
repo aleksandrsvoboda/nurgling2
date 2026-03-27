@@ -137,6 +137,7 @@ public class NConfig
         picklingRedOnion,
         picklingYellowOnion,
         openInventoryOnLogin,
+        htmlInventory,
         bbDisplayMode,
         showCritterCircles,
         critterCircleSettings,
@@ -438,6 +439,7 @@ public class NConfig
 
         // Login settings
         conf.put(Key.openInventoryOnLogin, false);  // Default to closed (current behavior)
+        conf.put(Key.htmlInventory, false);  // Use HTML/CSS rendered inventory UI
 
         // Critter circles - colored discs under small critters for easier clicking
         conf.put(Key.showCritterCircles, true);

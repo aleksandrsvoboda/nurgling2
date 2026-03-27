@@ -20,7 +20,7 @@ public class NSearchWidget extends Widget {
     public CmdList cmdList;
     TextEntry searchF = null;
     public static final Text.Foundry nfnd = new Text.Foundry(Text.dfont, 10);
-    Window helpwnd;
+    public Window helpwnd;
     private static final BufferedImage[] searchbi = new BufferedImage[]{
             Resource.loadsimg("nurgling/hud/buttons/search/u"),
             Resource.loadsimg("nurgling/hud/buttons/search/d"),
@@ -38,7 +38,7 @@ public class NSearchWidget extends Widget {
 
     IButton help;
     IButton save;
-    ICheckBox list;
+    public ICheckBox list;
     int tpos_y;
 
     public Widget create(UI ui, Object[] args) {
@@ -195,7 +195,7 @@ public class NSearchWidget extends Widget {
         }
     }
 
-    void write() {
+    public void write() {
         try (OutputStreamWriter file = new OutputStreamWriter(Files.newOutputStream(Paths.get(path)), StandardCharsets.UTF_8)) {
             for(String key : cmdHistory.keySet())
                 file.write(key+"\n");

@@ -536,6 +536,12 @@ public class NGameUI extends GameUI
                 }
             }
 
+            // Set htmlMode BEFORE installMainInv so it skips native arrows/search
+            if (place != null && place.equals("inv") && invwnd != null
+                    && (Boolean) NConfig.get(NConfig.Key.htmlInventory)) {
+                ((NInventory) maininv).htmlMode = true;
+            }
+
             if (maininv != null && ((NInventory) maininv).searchwdg == null)
             {
                 ((NInventory) maininv).installMainInv();
@@ -543,6 +549,10 @@ public class NGameUI extends GameUI
 
             // Check if this is the inventory being added
             if (place != null && place.equals("inv")) {
+                if (((NInventory) maininv).htmlMode && invwnd != null) {
+                    invwnd.chdeco(new nurgling.widgets.html.NHtmlDeco());
+                    invwnd.pack();
+                }
                 // Inventory window was just created, now check the setting
                 initializeInventoryVisibility();
             }
