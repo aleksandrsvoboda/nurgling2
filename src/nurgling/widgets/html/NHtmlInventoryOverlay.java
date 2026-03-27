@@ -16,11 +16,9 @@ import org.xml.sax.InputSource;
 import org.xhtmlrenderer.simple.Graphics2DRenderer;
 
 /**
- * HTML/CSS rendered inventory grid background.
- *
- * Renders only the grid cells, borders, and slot numbers using HTML/CSS.
- * Draws at z=-1 so native WItem children (with their overlays for quality,
- * stack count, etc.) render on top via the normal widget tree.
+ * HTML/CSS rendered inventory grid background, slot numbers, and search bar.
+ * Draws at z=-1 so native WItem children render on top.
+ * Arrows and sort button live in NHtmlDeco (the window chrome).
  */
 public class NHtmlInventoryOverlay extends Widget {
     private final NInventory inv;
@@ -28,7 +26,14 @@ public class NHtmlInventoryOverlay extends Widget {
     private boolean dirty = true;
     private Coord lastIsz = Coord.z;
 
+    // Embedded search text entry
+    private TextEntry searchEntry;
+
     private static final Coord sqsz = Inventory.sqsz;
+
+    // Search bar dimensions
+    private static final int SEARCH_H = UI.scale(22);
+    private static final int SEARCH_GAP = UI.scale(8);
 
     private DocumentBuilder xmlBuilder;
 
@@ -37,6 +42,18 @@ public class NHtmlInventoryOverlay extends Widget {
         this.inv = inv;
         this.lastIsz = inv.isz;
         z(-1);
+
+        // Create embedded search text entry
+        searchEntry = add(new TextEntry(inv.sz.x - UI.scale(6), "") {
+            @Override
+            public boolean keydown(KeyDownEvent ev) {
+                boolean ret = super.keydown(ev);
+                NUtils.getGameUI().itemsForSearch.install(text());
+                return ret;
+            }
+        }, new Coord(UI.scale(3), inv.sz.y + SEARCH_GAP + UI.scale(2)));
+        searchEntry.setcanfocus(true);
+
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
@@ -53,7 +70,6 @@ public class NHtmlInventoryOverlay extends Widget {
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        // Fill the entire window content area, not just the inventory
         Window wnd = getparent(Window.class);
         Coord target = (wnd != null) ? wnd.csz() : inv.sz;
         if (!sz.equals(target)) {
@@ -63,6 +79,8 @@ public class NHtmlInventoryOverlay extends Widget {
         if (!lastIsz.equals(inv.isz)) {
             lastIsz = inv.isz;
             dirty = true;
+            searchEntry.move(new Coord(UI.scale(3), inv.sz.y + SEARCH_GAP + UI.scale(2)));
+            searchEntry.resize(Coord.of(inv.sz.x - UI.scale(6), searchEntry.sz.y));
         }
     }
 
@@ -74,11 +92,12 @@ public class NHtmlInventoryOverlay extends Widget {
         if (htmlTex != null) {
             g.image(htmlTex, Coord.z);
         }
+        super.draw(g);
     }
 
     private void renderToTexture() {
         try {
-            String xhtml = buildGridHtml();
+            String xhtml = buildHtml();
             Document doc = xmlBuilder.parse(new InputSource(new StringReader(xhtml)));
 
             BufferedImage img = new BufferedImage(sz.x, sz.y, BufferedImage.TYPE_INT_ARGB);
@@ -101,27 +120,27 @@ public class NHtmlInventoryOverlay extends Widget {
         }
     }
 
-    private String buildGridHtml() {
-        // Cells inset by 1px at top/left; grid bg fills the 1px gaps as borders
+    private String buildHtml() {
         int cellW = sqsz.x - 1;
         int cellH = sqsz.y - 1;
+        int gridW = inv.sz.x;
+        int gridH = inv.sz.y;
+        int searchY = gridH + SEARCH_GAP;
 
-        StringBuilder sb = new StringBuilder(4096);
+        StringBuilder sb = new StringBuilder(8192);
         sb.append("<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head><style type=\"text/css\">\n");
         sb.append("* { margin: 0; padding: 0; }\n");
         sb.append("body { font-family: SansSerif; }\n");
-        // Grid bg = cell border color (matches NHtmlDeco window bg so padding is seamless)
-        sb.append(".g { position: relative; width: ").append(sz.x).append("px; height: ").append(sz.y)
+        sb.append(".bg { position: relative; width: ").append(sz.x).append("px; height: ").append(sz.y)
           .append("px; background-color: #161d15; }\n");
-        // Cell fill — approximates RGBA(36,52,38,125) over dark window bg
         sb.append(".c { position: absolute; background-color: #1e2b1f; }\n");
-        // Masked cell
         sb.append(".m { position: absolute; background-color: #222222; }\n");
-        // Slot number centered in cell
         sb.append(".n { color: #3a4a36; font-size: ").append(UI.scale(11)).append("px; text-align: center; ")
           .append("line-height: ").append(cellH).append("px; }\n");
-        sb.append("</style></head>\n<body><div class=\"g\">\n");
+        sb.append(".search { position: absolute; background-color: #1a1a18; border: 1px solid #3a3828; }\n");
+        sb.append("</style></head>\n<body><div class=\"bg\">\n");
 
+        // Grid cells
         int slotNum = 1;
         for (int y = 0; y < inv.isz.y; y++) {
             for (int x = 0; x < inv.isz.x; x++) {
@@ -131,17 +150,18 @@ public class NHtmlInventoryOverlay extends Widget {
                         && (y * inv.isz.x + x) < inv.sqmask.length
                         && inv.sqmask[y * inv.isz.x + x];
                 String cls = masked ? "m" : "c";
-
                 sb.append("<div class=\"").append(cls)
-                  .append("\" style=\"left:").append(px)
-                  .append("px;top:").append(py)
-                  .append("px;width:").append(cellW)
-                  .append("px;height:").append(cellH).append("px;\">");
+                  .append("\" style=\"left:").append(px).append("px;top:").append(py)
+                  .append("px;width:").append(cellW).append("px;height:").append(cellH).append("px;\">");
                 sb.append("<div class=\"n\">").append(slotNum).append("</div>");
                 sb.append("</div>\n");
                 slotNum++;
             }
         }
+
+        // Search bar background
+        sb.append("<div class=\"search\" style=\"left:0px;top:").append(searchY)
+          .append("px;width:").append(gridW - 2).append("px;height:").append(SEARCH_H).append("px;\"></div>\n");
 
         sb.append("</div></body></html>");
         return sb.toString();
