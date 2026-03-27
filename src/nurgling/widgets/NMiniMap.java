@@ -1004,6 +1004,10 @@ NMiniMap extends MiniMap {
     @Override
     public void mousemove(MouseMoveEvent ev) {
         super.mousemove(ev);
+        // Base class drag uses private d2lscale which doesn't match our zoom - recompute with scalef()
+        if(drag != null && dragging) {
+            curloc = new Location(curloc.seg, dmc.add(dsc.sub(ev.c).mul(scalef())));
+        }
         if((Boolean)NConfig.get(NConfig.Key.showTerrainName)) {
             updateCurrentTerrainName(ev.c);
         }
@@ -1042,6 +1046,23 @@ NMiniMap extends MiniMap {
         int dataLevel = getDataLevel();
         float scaleFactor = getScaleFactor();
         return(UI.unscale((float)(1 << dataLevel) / scaleFactor));
+    }
+
+    @Override
+    public Coord xlate(Location loc) {
+        Location dloc = this.dloc;
+        if((dloc == null) || (dloc.seg != loc.seg))
+            return(null);
+        return(loc.tc.sub(dloc.tc).div(scalef()).add(sz.div(2)));
+    }
+
+    @Override
+    public Location xlate(Coord sc) {
+        Location dloc = this.dloc;
+        if(dloc == null)
+            return(null);
+        Coord tc = sc.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
+        return(new Location(dloc.seg, tc));
     }
 
     @Override
