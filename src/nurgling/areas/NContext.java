@@ -19,6 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NContext {
 
+    /** @deprecated Use per-session BotsInterruptWidget.waitBot instead — this global flag
+     *  caused cross-session interference when multiple sessions run bots. */
+    @Deprecated
     public final static AtomicBoolean waitBot = new AtomicBoolean(false);
     private HashMap<String, String> inAreas = new HashMap<>();
     private HashMap<String, TreeMap<Double,String>> outAreas = new HashMap<>();

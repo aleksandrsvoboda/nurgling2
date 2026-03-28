@@ -19,7 +19,7 @@ import static haven.OCache.posres;
 public class AutoDrink implements Action
 {
 
-    public final static AtomicBoolean stop = new AtomicBoolean(false);
+    public final AtomicBoolean stop = new AtomicBoolean(false);
 
     public AutoDrink()
     {
@@ -39,7 +39,9 @@ public class AutoDrink implements Action
                     double stamina = NUtils.getStamina();
                     if(stamina < 0)
                         return false;
-                    return (!NContext.waitBot.get() && stamina < 0.51) || stop.get();
+                    NGameUI g = NUtils.getGameUI();
+                    boolean botRunning = g != null && g.biw != null && g.biw.waitBot.get();
+                    return (!botRunning && stamina < 0.51) || stop.get();
                 }
             });
             if(stop.get()) {

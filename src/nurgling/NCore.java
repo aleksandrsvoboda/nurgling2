@@ -290,7 +290,7 @@ public class NCore extends Widget
         {
             if(autoDrink != null && !(Boolean)NConfig.get(NConfig.Key.autoDrink))
             {
-                AutoDrink.stop.set(true);
+                autoDrink.stop.set(true);
             }
         }
 
@@ -311,7 +311,7 @@ public class NCore extends Widget
         {
             if(autoSaveTableware != null && !(Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
             {
-                AutoSaveTableware.stop.set(true);
+                autoSaveTableware.stop.set(true);
             }
         }
         super.tick(dt);
