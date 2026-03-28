@@ -138,7 +138,7 @@ public class Window extends Widget {
     }
 
     protected Deco makedeco() {
-	return(new DefaultDeco(this.large));
+	return(new nurgling.NWindowDeco(this.large));
     }
 
     protected void added() {
@@ -406,7 +406,7 @@ public class Window extends Widget {
 
 	@Override
 	public void draw(GOut g, boolean strict) {
-		if(deco!=null && deco instanceof DefaultDeco) {
+		if(deco!=null) {
 			if(!this.cancelb.visible)
 				this.cancelb.show();
 

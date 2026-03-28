@@ -34,15 +34,15 @@ import static haven.PUtils.*;
 import nurgling.i18n.L10n;
 
 public class SAttrWnd extends Widget {
-    public final Collection<SAttr> attrs;
-    private final Coord studyc;
-    private CharWnd chr;
-    private int scost;
+    public Collection<SAttr> attrs;
+    protected Coord studyc;
+    protected CharWnd chr;
+    protected int scost;
 
     @RName("sattr")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new SAttrWnd(ui.sess.glob));
+	    return(new nurgling.NSAttrWnd(ui.sess.glob));
 	}
     }
 
@@ -55,8 +55,8 @@ public class SAttrWnd extends Widget {
 	private Text ct;
 	private int cbv, ccv;
 
-	private SAttr(Glob glob, String attr, Color bg) {
-	    super(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr);
+	public SAttr(Coord sz, Glob glob, String attr, Color bg) {
+	    super(sz, glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
 	    this.rnm = attrf.render(res.flayer(Resource.tooltip).text());
@@ -65,6 +65,10 @@ public class SAttrWnd extends Widget {
 		       sz.x - UI.scale(5), sz.y / 2, 1, 0.5);
 	    sub = adda(new IButton("gfx/hud/buttons/sub", "u", "d", "h").action(() -> adj(-1)),
 		       add.c.x - UI.scale(5), sz.y / 2, 1, 0.5);
+	}
+
+	private SAttr(Glob glob, String attr, Color bg) {
+	    this(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr, bg);
 	}
 
 	public void tick(double dt) {
@@ -185,7 +189,7 @@ public class SAttrWnd extends Widget {
 	}
     }
 
-    private void buy() {
+    protected void buy() {
 	ArrayList<Object> args = new ArrayList<>();
 	for (SAttr attr : attrs) {
 	    if (attr.tbv > 0) {
@@ -196,12 +200,16 @@ public class SAttrWnd extends Widget {
 	wdgmsg("sattr", args.toArray(new Object[0]));
     }
 
-    private void reset() {
+    protected void reset() {
 	for (SAttr attr : attrs)
 	    attr.reset();
     }
 
     public SAttrWnd(Glob glob) {
+	buildLayout(glob);
+    }
+
+    protected void buildLayout(Glob glob) {
 	Widget prev;
 	prev = add(CharWnd.settip(new Img(catf.render(L10n.get("char.sattr.title")).tex()), "gfx/hud/chr/tips/sattr"), Coord.z);
 	attrs = new ArrayList<>();

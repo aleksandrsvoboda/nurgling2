@@ -36,14 +36,14 @@ import static haven.PUtils.*;
 import static haven.PType.*;
 
 public class QuestWnd extends Widget {
-    public final Widget questbox;
-    public final QuestList cqst, dqst;
+    public Widget questbox;
+    public QuestList cqst, dqst;
     public Quest.Info quest;
 
     @RName("quests")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new QuestWnd());
+	    return(new nurgling.NQuestWnd());
 	}
     }
 
@@ -517,7 +517,7 @@ public class QuestWnd extends Widget {
 		int id = INT.of(args[0]);
 		Indir<Resource> res = ui.sess.getresv(args[1]);
 		String title = (args.length > 2) ? STR.of(args[2]) : null;
-		return(new DefaultBox(id, res, title));
+		return(new nurgling.NQuestBox(id, res, title));
 	    }
 	}
 	public interface Info {
@@ -537,6 +537,10 @@ public class QuestWnd extends Widget {
 
 	public QuestList(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
+	}
+
+	public QuestList(Coord sz, int itemh) {
+	    super(sz, itemh);
 	}
 
 	protected List<Quest> items() {return(quests);}
@@ -636,6 +640,10 @@ public class QuestWnd extends Widget {
     }
 
     public QuestWnd() {
+	buildLayout();
+    }
+
+    protected void buildLayout() {
 	Widget prev;
 
 	prev = add(CharWnd.settip(new Img(catf.render("Quest Log").tex()), "gfx/hud/chr/tips/quests"), new Coord(0, 0));

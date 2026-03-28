@@ -38,14 +38,14 @@ import nurgling.i18n.L10n;
 public class FightWnd extends Widget {
     public final int nsave;
     public int maxact;
-    public final Actions actlist;
-    public final Savelist savelist;
+    public Actions actlist;
+    public Savelist savelist;
     public List<Action> acts = new ArrayList<Action>();
     public final Action[] order;
     public int usesave;
-    private final Text[] saves;
-    private final ImageInfoBox info;
-    private final Label count;
+    protected final Text[] saves;
+    protected ImageInfoBox info;
+    protected Label count;
     private final Map<Indir<Resource>, Object[]> actrawinfo = new HashMap<>();
 
     private static final OwnerContext.ClassResolver<FightWnd> actxr = new OwnerContext.ClassResolver<FightWnd>()
@@ -76,7 +76,7 @@ public class FightWnd extends Widget {
 	    this.a = a;
 	}
 
-	private void u(int u) {
+	public void u(int u) {
 	    if(this.u != u) {
 		this.u = u;
 		recount();
@@ -129,7 +129,7 @@ public class FightWnd extends Widget {
 	}
     }
 
-    private void recount() {
+    protected void recount() {
 	int u = 0;
 	for(Action act : acts)
 	    u += act.u;
@@ -144,6 +144,10 @@ public class FightWnd extends Widget {
 
 	public Actions(Coord sz) {
 	    super(sz, attrf.height() + UI.scale(2));
+	}
+
+	public Actions(Coord sz, int itemh) {
+	    super(sz, itemh);
 	}
 
 	protected List<Action> items() {return(acts);}
@@ -319,7 +323,7 @@ public class FightWnd extends Widget {
 	private final double[] animpr = new double[order.length];
 	private boolean anim = false;
 
-	private BView() {
+	public BView() {
 	    super(new Coord(((invsq.sz().x + UI.scale(2)) * (order.length - 1)) + (UI.scale(10) * ((order.length - 1) / 5)), 0).add(invsq.sz()));
 	}
 
@@ -572,7 +576,7 @@ public class FightWnd extends Widget {
     @RName("fmg")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new FightWnd(Utils.iv(args[0]), Utils.iv(args[1]), Utils.iv(args[2])));
+	    return(new nurgling.NFightWnd(Utils.iv(args[0]), Utils.iv(args[1]), Utils.iv(args[2])));
 	}
     }
 
@@ -600,7 +604,7 @@ public class FightWnd extends Widget {
 	wdgmsg("use", n);
     }
 
-    private Text unused = new Text.Foundry(attrf.font.deriveFont(java.awt.Font.ITALIC)).aa(true).render(L10n.get("char.fight.unused_save"));
+    protected Text unused = new Text.Foundry(attrf.font.deriveFont(java.awt.Font.ITALIC)).aa(true).render(L10n.get("char.fight.unused_save"));
     public FightWnd(int nsave, int nact, int max) {
 	super(Coord.z);
 	this.nsave = nsave;
@@ -609,7 +613,10 @@ public class FightWnd extends Widget {
 	this.saves = new Text[nsave];
 	for(int i = 0; i < nsave; i++)
 	    saves[i] = unused;
+	buildLayout();
+    }
 
+    protected void buildLayout() {
 	Widget p;
 	info = add(new ImageInfoBox(UI.scale(new Coord(223, 160))), UI.scale(new Coord(5, 35)).add(wbox.btloff()));
 	Frame.around(this, Collections.singletonList(info));

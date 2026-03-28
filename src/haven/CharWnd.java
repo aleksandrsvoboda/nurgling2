@@ -330,7 +330,7 @@ public class CharWnd extends Window {
     @RName("chr")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
-	    return(new CharWnd(ui.sess.glob));
+	    return(new nurgling.NCharWnd(ui.sess.glob));
 	}
     }
 

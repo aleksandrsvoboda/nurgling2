@@ -37,7 +37,7 @@ public class NUI extends UI
     /** Window background mode (true = solid color, false = textures) */
     private boolean useSolidBackground = false;
     /** Window background color for solid mode */
-    private java.awt.Color windowBackgroundColor = new java.awt.Color(32, 32, 32);
+    private java.awt.Color windowBackgroundColor = new java.awt.Color(0x1C, 0x25, 0x26);
 
     /** Static verification flags - persist across NUI instances */
     private static boolean staticIsVerified = false;
@@ -666,7 +666,7 @@ public class NUI extends UI
     private void loadOpacitySettings() {
         Object configOpacityObj = NConfig.get(NConfig.Key.uiOpacity);
         Boolean configUseSolid = (Boolean) NConfig.get(NConfig.Key.useSolidBackground);
-        java.awt.Color configColor = NConfig.getColor(NConfig.Key.windowBackgroundColor, new java.awt.Color(32, 32, 32));
+        java.awt.Color configColor = NConfig.getColor(NConfig.Key.windowBackgroundColor, new java.awt.Color(0x1C, 0x25, 0x26));
 
         // Handle opacity with proper type conversion (JSON may return BigDecimal)
         float opacity = 1.0f; // default
