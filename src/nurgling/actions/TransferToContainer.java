@@ -22,6 +22,8 @@ public class TransferToContainer implements Action
     // When set, use exact name matching instead of NAlias substring matching
     String exactName = null;
 
+    boolean needsSorting = false;
+
     public TransferToContainer(Container container, NAlias items)
     {
         this.container = container;
@@ -174,7 +176,7 @@ public class TransferToContainer implements Action
 
                         // Calculate remaining items we can transfer
                         int remainingToTransfer = transfer_size - transferred;
-                        int itemsTransferred = transfer(currentItem, gui.getInventory(container.cap), remainingToTransfer, th != -1);
+                        int itemsTransferred = transfer(currentItem, gui.getInventory(container.cap), remainingToTransfer, needsSorting);
 
                         if (itemsTransferred > 0)
                         {
