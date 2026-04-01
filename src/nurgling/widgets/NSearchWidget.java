@@ -67,7 +67,7 @@ public class NSearchWidget extends Widget {
             @Override
             public void click() {
                 super.click();
-                helpwnd.show();
+                helpwnd.visible = !helpwnd.visible;
             }
         };
         help.settip(Resource.remote().loadwait("nurgling/hud/buttons/search/u").flayer(Resource.tooltip).text());
