@@ -622,12 +622,16 @@ public class NInventory extends Inventory
             new TexI(Resource.loadsimg("nurgling/hud/buttons/dropper/h")),
             new TexI(Resource.loadsimg("nurgling/hud/buttons/dropper/dh"))};
 
+    // Shared tooltip foundry for all header buttons: Open Sans Regular 11px
+    private static final Text.Foundry tipFnd = new Text.Foundry(nurgling.conf.FontSettings.getOpenSans(), 11, java.awt.Color.WHITE).aa(true);
+
     // Square clickable header button with icon drawn centered and hover highlight
     static class NHeaderButton extends Widget {
         private final Tex normal, pressed, hover;
         private boolean isHover = false;
         private UI.Grab grab = null;
         private Runnable action;
+        private String tip;
 
         NHeaderButton(Tex normal, Tex pressed, Tex hover, Runnable action) {
             super(new Coord(UI.scale(21), UI.scale(21)));
@@ -677,6 +681,11 @@ public class NInventory extends Inventory
             return false;
         }
 
+        NHeaderButton tip(String tip) { this.tip = tip; return this; }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev) { return tip != null ? tipFnd.render(tip).tex() : null; }
+
         @Override
         public void mousemove(MouseMoveEvent ev) {
             isHover = ev.c.isect(Coord.z, sz);
@@ -689,6 +698,7 @@ public class NInventory extends Inventory
         public boolean a = false; // checked state
         private boolean isHover = false;
         private java.util.function.Consumer<Boolean> onChange;
+        private String tip;
 
         NHeaderToggle(Tex unchecked, Tex checked, Tex hoverUnchecked, Tex hoverChecked, java.util.function.Consumer<Boolean> onChange) {
             super(new Coord(UI.scale(21), UI.scale(21)));
@@ -729,6 +739,11 @@ public class NInventory extends Inventory
             }
             return false;
         }
+
+        NHeaderToggle tip(String tip) { this.tip = tip; return this; }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev) { return tip != null ? tipFnd.render(tip).tex() : null; }
 
         @Override
         public void mousemove(MouseMoveEvent ev) {
@@ -786,9 +801,9 @@ public class NInventory extends Inventory
         @Override
         public Object tooltip(Coord c, Widget prev) {
             switch (state) {
-                case 0: return "Show simplified panel";
-                case 1: return "Show full panel";
-                case 2: return "Hide panel";
+                case 0: return tipFnd.render("Show simplified panel").tex();
+                case 1: return tipFnd.render("Show full panel").tex();
+                case 2: return tipFnd.render("Hide panel").tex();
                 default: return null;
             }
         }
@@ -809,24 +824,21 @@ public class NInventory extends Inventory
             // Search toggle in title bar - expands search panel below inventory
             searchBtn = new NHeaderToggle("nurgling/hud/buttons/inv/search", (val) -> {
                 toggleSearch(val);
-            });
-            searchBtn.settip("Search inventory");
+            }).tip("Search inventory");
             deco.add(searchBtn);
-
-            // Dropper/trash toggle in title bar
-            dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
-                NConfig.set(NConfig.Key.autoDropper, val);
-            });
-            dropperBtn.settip(Resource.remote().loadwait("nurgling/hud/buttons/dropper/u").flayer(Resource.tooltip).text());
-            ((NHeaderToggle) dropperBtn).a = (Boolean) NConfig.get(NConfig.Key.autoDropper);
-            deco.add(dropperBtn);
 
             // Sort button in title bar
             sortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
                 SortInventory.sort(NInventory.this);
-            });
-            sortBtnRef.settip("Sort Inventory");
+            }).tip("Sort Inventory");
             deco.add(sortBtnRef);
+
+            // Dropper/trash toggle in title bar
+            dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
+                NConfig.set(NConfig.Key.autoDropper, val);
+            }).tip("Auto-dropper");
+            ((NHeaderToggle) dropperBtn).a = (Boolean) NConfig.get(NConfig.Key.autoDropper);
+            deco.add(dropperBtn);
         }
 
         // --- Right panel (embedded in window, to the right of inventory grid) ---
@@ -946,19 +958,7 @@ public class NInventory extends Inventory
         int titleH = UI.scale(21);
         int btnGap = UI.scale(2);
 
-        // Right-aligned buttons: ... [sort] [trash] ---22px--- [X]
-        int x = deco.cbtn.c.x - UI.scale(22);
-
-        if (dropperBtn != null) {
-            x -= dropperBtn.sz.x + btnGap;
-            dropperBtn.c = new Coord(x, (titleH - dropperBtn.sz.y) / 2);
-        }
-        if (sortBtnRef != null) {
-            x -= sortBtnRef.sz.x + btnGap;
-            sortBtnRef.c = new Coord(x, (titleH - sortBtnRef.sz.y) / 2);
-        }
-
-        // Left-aligned: "Inventory" [expand] [search] ...
+        // Left-aligned: "Inventory" [expand] [search] [sort] [trash] ... ---22px--- [X]
         int leftX = UI.scale(70); // After "Inventory" text
         if (eyeBtn != null) {
             eyeBtn.c = new Coord(leftX, 0);
@@ -966,6 +966,14 @@ public class NInventory extends Inventory
         }
         if (searchBtn != null) {
             searchBtn.c = new Coord(leftX, 0);
+            leftX += searchBtn.sz.x + btnGap;
+        }
+        if (sortBtnRef != null) {
+            sortBtnRef.c = new Coord(leftX, 0);
+            leftX += sortBtnRef.sz.x + btnGap;
+        }
+        if (dropperBtn != null) {
+            dropperBtn.c = new Coord(leftX, 0);
         }
     }
 
