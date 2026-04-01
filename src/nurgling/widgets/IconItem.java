@@ -245,13 +245,16 @@ public class IconItem extends Widget
                         IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
                         if(IconItem.this.parent instanceof IngredientContainer)
                             ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,IconItem.this.val);
-                        else
+                        else if(IconItem.this.parent instanceof DropContainer)
                             ((DropContainer)IconItem.this.parent).setThreshold(IconItem.this.name,IconItem.this.val);
                     }
                     catch (NumberFormatException e)
                     {
                         IconItem.this.isThreshold = false;
-                        ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
+                        if(IconItem.this.parent instanceof IngredientContainer)
+                            ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
+                        else if(IconItem.this.parent instanceof DropContainer)
+                            ((DropContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
                     }
                     ui.destroy(SetThreshold.this);
 
