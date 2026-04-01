@@ -294,7 +294,7 @@ public class NSearchWidget extends Widget {
             return(new ItemWidget<CmdItem>(this, sz, item) {
                 {
                     item.resize(new Coord(NSearchWidget.this.sz.x - NStyle.removei[0].sz().x - UI.scale(10), item.sz.y));
-                    add(item);
+                    add(item, new Coord(0, (sz.y - item.sz.y) / 2));
                 }
 
                 @Override

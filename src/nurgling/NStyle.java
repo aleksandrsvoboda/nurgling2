@@ -25,10 +25,11 @@ public class NStyle {
 	    (float)Math.floor(haven.UI.scale(14.0)))).aa(true);
 
     static {
+	haven.Scrollbar.customWidth = haven.UI.scale(8);
 	haven.Scrollbar.customDraw = (sb, g) -> {
 	    if(!sb.vis()) return;
-	    int w = haven.UI.scale(8);
-	    int x = sb.sz.x - w;
+	    int w = sb.sz.x;
+	    int x = 0;
 	    // Fill full widget width with track color (eliminates gap between list items and scrollbar)
 	    g.chcolor(0x33, 0x3E, 0x40, 0xFF);
 	    g.frect(haven.Coord.of(0, 0), new haven.Coord(sb.sz.x, sb.sz.y));
