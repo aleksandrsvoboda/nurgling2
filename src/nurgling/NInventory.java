@@ -29,8 +29,13 @@ public class NInventory extends Inventory
     public Widget itemListContent;
     public ICheckBox bundle;
     public MenuGrid.PagButton pagBundle = null;
-    boolean expanded = false;
+    // 0=closed, 1=simplified, 2=expanded
+    int panelState = 0;
+    static final int PANEL_CLOSED = 0, PANEL_SIMPLIFIED = 1, PANEL_EXPANDED = 2;
+    static final int PANEL_W_SIMPLIFIED = UI.scale(130);
+    static final int PANEL_W_EXPANDED = UI.scale(250);
     Widget rightPanel;
+    java.util.List<Widget> expandedOnlyWidgets = new java.util.ArrayList<>();
     // Title bar button references (Widget type - these are NHeaderButton/NHeaderToggle wrappers)
     private Widget searchBtn;
     private TextEntry headerSearchField;
@@ -537,10 +542,14 @@ public class NInventory extends Inventory
         else
             oldinv = null;
         // Update embedded right panel periodically
-        if (expanded && rightPanel != null && rightPanel.visible) {
+        if (panelState != PANEL_CLOSED && rightPanel != null && rightPanel.visible) {
             if (NUtils.getTickId() % 10 == 0) {
-                rebuildItemList();
-                updateSpaceLabel();
+                if (panelState == PANEL_SIMPLIFIED) {
+                    rebuildCompactList();
+                } else {
+                    rebuildItemList();
+                    updateSpaceLabel();
+                }
             }
         }
         // Reposition title bar buttons on tick (window may have resized)
@@ -709,19 +718,74 @@ public class NInventory extends Inventory
         }
     }
 
+    // Square clickable header button that cycles through N states on click
+    static class NHeaderCycler extends Widget {
+        private final Tex icon, hoverIcon;
+        public int state = 0;
+        private final int numStates;
+        private boolean isHover = false;
+        private java.util.function.IntConsumer onChange;
+        // Background alpha per state: 0=no bg, >0 = highlight
+        private static final int[] STATE_ALPHA = {0, 20, 40};
+
+        NHeaderCycler(String base, int numStates, java.util.function.IntConsumer onChange) {
+            super(new Coord(UI.scale(21), UI.scale(21)));
+            this.icon = new TexI(Resource.loadsimg(base + "/u"));
+            this.hoverIcon = new TexI(Resource.loadsimg(base + "/h"));
+            this.numStates = numStates;
+            this.onChange = onChange;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            int bgAlpha = (state < STATE_ALPHA.length) ? STATE_ALPHA[state] : 0;
+            if (isHover || bgAlpha > 0) {
+                int alpha = isHover ? Math.max(bgAlpha, 25) + 10 : bgAlpha;
+                g.chcolor(255, 255, 255, alpha);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
+            Tex img = isHover ? hoverIcon : icon;
+            Coord offset = sz.sub(img.sz()).div(2);
+            g.image(img, offset);
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if (ev.b == 1) {
+                state = (state + 1) % numStates;
+                if (onChange != null) onChange.accept(state);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public void mousemove(MouseMoveEvent ev) {
+            isHover = ev.c.isect(Coord.z, sz);
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev) {
+            switch (state) {
+                case 0: return "Show simplified panel";
+                case 1: return "Show full panel";
+                case 2: return "Hide panel";
+                default: return null;
+            }
+        }
+    }
+
     public void installMainInv() {
         Window wnd = getparent(Window.class);
         NWindowDeco deco = (wnd != null && wnd.deco instanceof NWindowDeco) ? (NWindowDeco) wnd.deco : null;
 
         // --- Title bar buttons ---
         if (deco != null) {
-            // Expand/collapse toggle (leftmost, before search)
-            eyeBtn = new NHeaderToggle("nurgling/hud/buttons/inv/eye", (val) -> {
-                expanded = val;
-                NConfig.set(NConfig.Key.inventoryRightPanelShow, val);
-                toggleExpanded();
+            // Panel state cycler: closed → simplified → expanded → closed
+            eyeBtn = new NHeaderCycler("nurgling/hud/buttons/inv/eye", 3, (state) -> {
+                setPanelState(state);
             });
-            eyeBtn.settip("Toggle item panel");
             deco.add(eyeBtn);
 
             // Search icon in title bar
@@ -794,22 +858,50 @@ public class NInventory extends Inventory
         // Setup right panel contents (toggle buttons, dropdowns, item list)
         setupRightPanel();
 
-        // Load expanded state from config
-        Boolean expandedConfig = (Boolean) NConfig.get(NConfig.Key.inventoryRightPanelShow);
-        expanded = expandedConfig != null ? expandedConfig : false;
-        if (eyeBtn instanceof NHeaderToggle) ((NHeaderToggle) eyeBtn).a = expanded;
-        rightPanel.visible = expanded;
+        // Load panel state from config (0=closed, 1=simplified, 2=expanded)
+        Object stateConfig = NConfig.get(NConfig.Key.inventoryRightPanelShow);
+        if (stateConfig instanceof Number) {
+            panelState = ((Number) stateConfig).intValue();
+        } else if (stateConfig instanceof Boolean) {
+            // Migrate old boolean config: true→expanded, false→closed
+            panelState = ((Boolean) stateConfig) ? PANEL_EXPANDED : PANEL_CLOSED;
+        }
+        if (eyeBtn instanceof NHeaderCycler) ((NHeaderCycler) eyeBtn).state = panelState;
+        applyPanelState();
 
         parent.pack();
         positionTitleBarButtons();
         mainInvInstalled = true;
     }
 
-    private void toggleExpanded() {
-        if (rightPanel != null) {
-            rightPanel.visible = expanded;
-            parent.pack();
-            positionTitleBarButtons();
+    private void setPanelState(int state) {
+        panelState = state;
+        NConfig.set(NConfig.Key.inventoryRightPanelShow, state);
+        applyPanelState();
+        parent.pack();
+        positionTitleBarButtons();
+    }
+
+    private void applyPanelState() {
+        if (rightPanel == null) return;
+        int gap = UI.scale(8);
+
+        if (panelState == PANEL_CLOSED) {
+            rightPanel.visible = false;
+        } else if (panelState == PANEL_SIMPLIFIED) {
+            rightPanel.visible = true;
+            rightPanel.resize(new Coord(PANEL_W_SIMPLIFIED, sz.y));
+            rightPanel.move(new Coord(sz.x + gap, 0));
+            for (Widget w : expandedOnlyWidgets) w.visible = false;
+            updateItemListSize();
+            rebuildCompactList();
+        } else { // PANEL_EXPANDED
+            rightPanel.visible = true;
+            rightPanel.resize(new Coord(PANEL_W_EXPANDED, sz.y));
+            rightPanel.move(new Coord(sz.x + gap, 0));
+            for (Widget w : expandedOnlyWidgets) w.visible = true;
+            updateItemListSize();
+            rebuildItemList();
         }
     }
 
@@ -849,12 +941,15 @@ public class NInventory extends Inventory
         }
     }
 
+    private int itemListExpandedY; // y position of item list in expanded mode
+
     private void setupRightPanel() {
+        expandedOnlyWidgets.clear();
         int margin = UI.scale(8);
         int y = margin;
         int elementGap = UI.scale(5);
 
-        // --- Row 1: Toggle buttons (gilding, variety, numbering, stack) ---
+        // --- Row 1: Toggle buttons (all 7 in one line) ---
         int btnX = margin;
         Widget pw;
 
@@ -867,6 +962,7 @@ public class NInventory extends Inventory
         }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/gilding/u").flayer(Resource.tooltip).text());
         ((ICheckBox) pw).a = Slotted.show;
+        expandedOnlyWidgets.add(pw);
 
         btnX += pw.sz.x + elementGap;
         pw = rightPanel.add(new ICheckBox(vari[0], vari[1], vari[2], vari[3]) {
@@ -880,6 +976,7 @@ public class NInventory extends Inventory
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/var/u").flayer(Resource.tooltip).text());
         NFoodInfo.show = (Boolean) NConfig.get(NConfig.Key.showVarity);
         ((ICheckBox) pw).a = NFoodInfo.show;
+        expandedOnlyWidgets.add(pw);
 
         btnX += pw.sz.x + elementGap;
         pw = rightPanel.add(new ICheckBox(numberi[0], numberi[1], numberi[2], numberi[3]) {
@@ -891,6 +988,7 @@ public class NInventory extends Inventory
         }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/numbering/u").flayer(Resource.tooltip).text());
         ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.showInventoryNums);
+        expandedOnlyWidgets.add(pw);
 
         btnX += pw.sz.x + elementGap;
         pw = rightPanel.add(new ICheckBox(stacki[0], stacki[1], stacki[2], stacki[3]) {
@@ -902,6 +1000,7 @@ public class NInventory extends Inventory
         }, new Coord(btnX, y));
         ((ICheckBox) pw).a = Stack.show;
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/stack/u").flayer(Resource.tooltip).text());
+        expandedOnlyWidgets.add(pw);
 
         // Continue on same row: bundle, autoflower, autosplitter
         btnX += pw.sz.x + elementGap;
@@ -913,6 +1012,7 @@ public class NInventory extends Inventory
             }
         }, new Coord(btnX, y));
         bundle.settip(Resource.remote().loadwait("nurgling/hud/buttons/bundle/u").flayer(Resource.tooltip).text());
+        expandedOnlyWidgets.add(bundle);
 
         btnX += bundle.sz.x + elementGap;
         pw = rightPanel.add(new ICheckBox(autoflower[0], autoflower[1], autoflower[2], autoflower[3]) {
@@ -924,6 +1024,7 @@ public class NInventory extends Inventory
         }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/autoflower/u").flayer(Resource.tooltip).text());
         ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.autoFlower);
+        expandedOnlyWidgets.add(pw);
 
         btnX += pw.sz.x + elementGap;
         pw = rightPanel.add(new ICheckBox(autosplittor[0], autosplittor[1], autosplittor[2], autosplittor[3]) {
@@ -935,6 +1036,7 @@ public class NInventory extends Inventory
         }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/autosplittor/u").flayer(Resource.tooltip).text());
         ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.autoSplitter);
+        expandedOnlyWidgets.add(pw);
 
         // --- Row 3: Dropdowns (grouping, display type, quality filter) ---
         y += pw.sz.y + UI.scale(8);
@@ -959,6 +1061,7 @@ public class NInventory extends Inventory
         };
         groupingDropbox.change(Grouping.NONE);
         rightPanel.add(groupingDropbox, new Coord(dropX, y));
+        expandedOnlyWidgets.add(groupingDropbox);
 
         dropX += groupingW + elementGap;
         int displayTypeW = UI.scale(55);
@@ -980,6 +1083,7 @@ public class NInventory extends Inventory
         };
         displayTypeDropbox.change(currentDisplayType);
         rightPanel.add(displayTypeDropbox, new Coord(dropX, y));
+        expandedOnlyWidgets.add(displayTypeDropbox);
 
         dropX += displayTypeW + elementGap;
         int qualityW = UI.scale(32);
@@ -993,6 +1097,7 @@ public class NInventory extends Inventory
         };
         qualityFilterEntry.settip("Min quality filter\nEnter a number (e.g. 10)\nto show only items with q >= 10");
         rightPanel.add(qualityFilterEntry, new Coord(dropX, y + UI.scale(-2)));
+        expandedOnlyWidgets.add(qualityFilterEntry);
 
         // --- Row 4: Space label ---
         y += UI.scale(22);
@@ -1000,9 +1105,11 @@ public class NInventory extends Inventory
         spaceLabel.setcolor(java.awt.Color.WHITE);
         updateSpaceLabel();
         rightPanel.add(spaceLabel, new Coord(margin, y));
+        expandedOnlyWidgets.add(spaceLabel);
 
         // --- Row 5: Scrollable item list (fills remaining height) ---
         y += UI.scale(18);
+        itemListExpandedY = y;
         int listWidth = UI.scale(230);
         int listHeight = Math.max(UI.scale(100), sz.y - y - margin);
 
@@ -1021,10 +1128,19 @@ public class NInventory extends Inventory
     private void updateItemListSize() {
         if (itemListContainer == null || rightPanel == null) return;
         int margin = UI.scale(8);
-        int listWidth = UI.scale(230);
-        int listY = itemListContainer.c.y;
-        int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - listY - margin);
-        itemListContainer.resize(new Coord(listWidth, listHeight));
+        if (panelState == PANEL_SIMPLIFIED) {
+            // In simplified mode, list starts at top
+            itemListContainer.move(new Coord(margin, margin));
+            int listWidth = PANEL_W_SIMPLIFIED - margin * 2;
+            int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - margin * 2);
+            itemListContainer.resize(new Coord(listWidth, listHeight));
+        } else {
+            // In expanded mode, list below controls
+            itemListContainer.move(new Coord(margin, itemListExpandedY));
+            int listWidth = UI.scale(230);
+            int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - itemListExpandedY - margin);
+            itemListContainer.resize(new Coord(listWidth, listHeight));
+        }
     }
 
     /**
@@ -1319,6 +1435,93 @@ public class NInventory extends Inventory
         itemListContainer.cont.update();
     }
     
+    private void rebuildCompactList() {
+        if (itemListContent == null) return;
+
+        for (Widget child : new ArrayList<>(itemListContent.children())) {
+            child.destroy();
+        }
+
+        Map<String, ItemGroup> itemGroupMap = new HashMap<>();
+        for (Widget widget = this.child; widget != null; widget = widget.next) {
+            if (widget instanceof WItem) {
+                WItem wItem = (WItem) widget;
+                if (wItem.item instanceof NGItem) {
+                    NGItem nitem = (NGItem) wItem.item;
+                    String itemName = nitem.name();
+                    if (itemName != null) {
+                        ItemGroup group = itemGroupMap.get(itemName);
+                        if (group == null) {
+                            group = new ItemGroup(itemName);
+                            itemGroupMap.put(itemName, group);
+                        }
+                        group.addItem(nitem, wItem);
+                    }
+                }
+            }
+        }
+
+        List<ItemGroup> itemGroups = new ArrayList<>(itemGroupMap.values());
+        // Sort by quantity descending
+        itemGroups.sort((a, b) -> Integer.compare(b.totalQuantity, a.totalQuantity));
+
+        int y = 0;
+        int contentWidth = itemListContainer.cont.sz.x;
+        int itemHeight = UI.scale(18);
+
+        for (int idx = 0; idx < itemGroups.size(); idx++) {
+            ItemGroup group = itemGroups.get(idx);
+            final int rowIdx = idx;
+            Widget cw = new Widget(new Coord(contentWidth, itemHeight)) {
+                @Override
+                public void draw(GOut g) {
+                    g.chcolor(((rowIdx % 2) == 0) ? ROW_EVEN : ROW_ODD);
+                    g.frect(Coord.z, sz);
+                    g.chcolor();
+                    int iconSize = UI.scale(16);
+                    int margin = UI.scale(1);
+                    NGItem rep = group.getRepresentativeItem();
+                    if (rep != null) {
+                        try {
+                            Resource.Image img = rep.getres().layer(Resource.imgc);
+                            if (img != null) g.image(img.tex(), new Coord(margin, margin), new Coord(iconSize, iconSize));
+                        } catch (Exception e) { /* ignore */ }
+                    }
+                    g.text("x" + group.totalQuantity, new Coord(margin + iconSize + UI.scale(4), UI.scale(2)));
+                }
+
+                @Override
+                public boolean mousedown(MouseDownEvent ev) {
+                    if (ui.modshift && (ev.b == 1 || ev.b == 3)) {
+                        processGroupItems(group, ev.b == 3, "transfer");
+                        return true;
+                    }
+                    if (ui.modctrl && (ev.b == 1 || ev.b == 3)) {
+                        processGroupItems(group, ev.b == 3, "drop");
+                        return true;
+                    }
+                    if (ev.b == 1 && !group.wItems.isEmpty()) {
+                        WItem wItem = group.wItems.get(0);
+                        if (wItem != null && wItem.parent != null)
+                            wItem.item.wdgmsg("take", new Coord(sqsz.x / 2, sqsz.y / 2));
+                        return true;
+                    }
+                    return super.mousedown(ev);
+                }
+
+                @Override
+                public Object tooltip(Coord c, Widget prev) {
+                    return group.name + (group.averageQuality > 0 ? String.format(" (q%.1f)", group.averageQuality) : "");
+                }
+            };
+            itemListContent.add(cw, new Coord(0, y));
+            y += itemHeight + UI.scale(1);
+        }
+
+        itemListContent.pack();
+        itemListContainer.cont.update();
+    }
+
     // Progress bar color for curio items
     private static final Color CURIO_PROGRESS_COLOR = new Color(31, 209, 185, 128);
     private static final Color ROW_EVEN = new Color(255, 255, 255, 13);  // #FFFFFF0D
