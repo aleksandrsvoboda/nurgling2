@@ -1212,7 +1212,8 @@ public class NConfig
         }
         catch (IOException e)
         {
-            throw new RuntimeException(e);
+            // Don't crash the UI thread — isUpd stays true so we retry next tick
+            System.err.println("[NConfig] Warning: failed to save config, will retry: " + e.getMessage());
         }
     }
 
