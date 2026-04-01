@@ -133,7 +133,7 @@ public class NSearchWidget extends Widget {
             helpwnd.hide();
 
             // Embedded history list below search bar
-            int listY = searchF.sz.y + UI.scale(3);
+            int listY = searchF.sz.y + UI.scale(8);
             int listW = sz.x;
             historyScroll = add(new Scrollport(new Coord(listW, LIST_HEIGHT)), new Coord(0, listY));
             cmdList = historyScroll.cont.add(new CmdList(new Coord(listW, LIST_HEIGHT)), Coord.z);
@@ -160,7 +160,7 @@ public class NSearchWidget extends Widget {
 
     private void updateHeight() {
         if (listShown && historyScroll != null) {
-            this.sz = new Coord(this.sz.x, searchF.sz.y + UI.scale(3) + LIST_HEIGHT);
+            this.sz = new Coord(this.sz.x, searchF.sz.y + UI.scale(8) + LIST_HEIGHT);
         } else {
             this.sz = new Coord(this.sz.x, searchF.sz.y);
         }
@@ -287,13 +287,13 @@ public class NSearchWidget extends Widget {
 
         @Override
         public void resize(Coord sz) {
-            super.resize(new Coord(searchF.sz.x-UI.scale(6), sz.y));
+            super.resize(new Coord(NSearchWidget.this.sz.x - UI.scale(6), sz.y));
         }
 
         protected Widget makeitem(CmdItem item, int idx, Coord sz) {
             return(new ItemWidget<CmdItem>(this, sz, item) {
                 {
-                    item.resize(new Coord(searchF.sz.x - NStyle.removei[0].sz().x  + UI.scale(4), item.sz.y));
+                    item.resize(new Coord(NSearchWidget.this.sz.x - NStyle.removei[0].sz().x - UI.scale(10), item.sz.y));
                     add(item);
                 }
 
