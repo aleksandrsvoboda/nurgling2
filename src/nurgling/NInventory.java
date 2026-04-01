@@ -946,16 +946,16 @@ public class NInventory extends Inventory
         int titleH = UI.scale(21);
         int btnGap = UI.scale(2);
 
-        // Right-aligned buttons: ... [trash] [sort] [X]
-        int x = deco.cbtn.c.x;
+        // Right-aligned buttons: ... [sort] [trash] ---22px--- [X]
+        int x = deco.cbtn.c.x - UI.scale(22);
 
-        if (sortBtnRef != null) {
-            x -= sortBtnRef.sz.x + btnGap;
-            sortBtnRef.c = new Coord(x, (titleH - sortBtnRef.sz.y) / 2);
-        }
         if (dropperBtn != null) {
             x -= dropperBtn.sz.x + btnGap;
             dropperBtn.c = new Coord(x, (titleH - dropperBtn.sz.y) / 2);
+        }
+        if (sortBtnRef != null) {
+            x -= sortBtnRef.sz.x + btnGap;
+            sortBtnRef.c = new Coord(x, (titleH - sortBtnRef.sz.y) / 2);
         }
 
         // Left-aligned: "Inventory" [expand] [search] ...
