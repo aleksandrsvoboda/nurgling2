@@ -267,17 +267,21 @@ public class NSearchWidget extends Widget {
 
         @Override
         public void resize(Coord sz) {
-            remove.move(new Coord(sz.x - NStyle.removei[0].sz().x - UI.scale(5),  remove.c.y));
+            remove.move(new Coord(sz.x - Utils.imgsz(NStyle.cbtni[0]).x - UI.scale(5),  remove.c.y));
             super.resize(sz);
         }
 
         public CmdItem(String text){
             this.text = add(new Label(text));
-            remove = add(new IButton(NStyle.removei[0].back,NStyle.removei[1].back,NStyle.removei[2].back){
+            remove = add(new IButton(NStyle.cbtni[0],NStyle.cbtni[1],NStyle.cbtni[2]){
                 @Override
                 public void click() {
                     cmdHistory.remove(text);
                     write();
+                }
+                @Override
+                public boolean checkhit(Coord c) {
+                    return c.isect(Coord.z, sz);
                 }
             },this.text.pos("ur").add(UI.scale(5),UI.scale(1) ));
             remove.settip(Resource.remote().loadwait("nurgling/hud/buttons/removeItem/u").flayer(Resource.tooltip).text());
@@ -303,7 +307,7 @@ public class NSearchWidget extends Widget {
         protected Widget makeitem(CmdItem item, int idx, Coord sz) {
             return(new ItemWidget<CmdItem>(this, sz, item) {
                 {
-                    item.resize(new Coord(NSearchWidget.this.sz.x - NStyle.removei[0].sz().x - UI.scale(10), item.sz.y));
+                    item.resize(new Coord(NSearchWidget.this.sz.x - Utils.imgsz(NStyle.cbtni[0]).x - UI.scale(10), item.sz.y));
                     add(item, new Coord(0, (sz.y - item.sz.y) / 2));
                 }
 
