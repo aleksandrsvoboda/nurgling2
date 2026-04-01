@@ -32,7 +32,7 @@ public class NInventory extends Inventory
     // 0=closed, 1=simplified, 2=expanded
     int panelState = 0;
     static final int PANEL_CLOSED = 0, PANEL_SIMPLIFIED = 1, PANEL_EXPANDED = 2;
-    static final int PANEL_W_SIMPLIFIED = UI.scale(130);
+    static final int PANEL_W_SIMPLIFIED = UI.scale(85);
     static final int PANEL_W_EXPANDED = UI.scale(250);
     Widget rightPanel;
     java.util.List<Widget> expandedOnlyWidgets = new java.util.ArrayList<>();
