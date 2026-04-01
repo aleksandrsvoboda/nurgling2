@@ -36,6 +36,11 @@ public class NInventory extends Inventory
     static final int PANEL_W_EXPANDED = UI.scale(250);
     Widget rightPanel;
     java.util.List<Widget> expandedOnlyWidgets = new java.util.ArrayList<>();
+    java.util.List<Widget> simplifiedOnlyWidgets = new java.util.ArrayList<>();
+    // Compact list sort state
+    boolean compactNameAscending = true;
+    boolean compactQuantityAscending = false;
+    String compactLastSortType = "quantity";
     // Title bar button references (Widget type - these are NHeaderButton/NHeaderToggle wrappers)
     private Widget searchBtn;
     private TextEntry headerSearchField;
@@ -893,6 +898,7 @@ public class NInventory extends Inventory
             rightPanel.resize(new Coord(PANEL_W_SIMPLIFIED, sz.y));
             rightPanel.move(new Coord(sz.x + gap, 0));
             for (Widget w : expandedOnlyWidgets) w.visible = false;
+            for (Widget w : simplifiedOnlyWidgets) w.visible = true;
             updateItemListSize();
             rebuildCompactList();
         } else { // PANEL_EXPANDED
@@ -900,6 +906,7 @@ public class NInventory extends Inventory
             rightPanel.resize(new Coord(PANEL_W_EXPANDED, sz.y));
             rightPanel.move(new Coord(sz.x + gap, 0));
             for (Widget w : expandedOnlyWidgets) w.visible = true;
+            for (Widget w : simplifiedOnlyWidgets) w.visible = false;
             updateItemListSize();
             rebuildItemList();
         }
@@ -943,11 +950,52 @@ public class NInventory extends Inventory
 
     private int itemListExpandedY; // y position of item list in expanded mode
 
+    private static final TexI[] sortarrowi = new TexI[]{
+            new TexI(Resource.loadsimg("nurgling/hud/buttons/inv/sortarrow/u")),
+            new TexI(Resource.loadsimg("nurgling/hud/buttons/inv/sortarrow/d")),
+            new TexI(Resource.loadsimg("nurgling/hud/buttons/inv/sortarrow/h")),
+            new TexI(Resource.loadsimg("nurgling/hud/buttons/inv/sortarrow/dh"))};
+
+    private int itemListSimplifiedY; // y position of item list in simplified mode
+
     private void setupRightPanel() {
         expandedOnlyWidgets.clear();
+        simplifiedOnlyWidgets.clear();
         int margin = UI.scale(8);
         int y = margin;
         int elementGap = UI.scale(5);
+
+        // --- Simplified-only: sort arrow buttons (using NHeaderToggle for square hit area) ---
+        int sortBtnX = margin;
+        NHeaderToggle nameSortBtn = new NHeaderToggle(
+            sortarrowi[0], sortarrowi[1], sortarrowi[2], sortarrowi[3],
+            (val) -> {
+                compactNameAscending = !val;
+                compactLastSortType = "name";
+                rebuildCompactList();
+            }
+        );
+        nameSortBtn.a = false;
+        nameSortBtn.settip("Sort by name");
+        rightPanel.add(nameSortBtn, new Coord(sortBtnX, y));
+        simplifiedOnlyWidgets.add(nameSortBtn);
+
+        sortBtnX += nameSortBtn.sz.x + elementGap;
+        NHeaderToggle qtySortBtn = new NHeaderToggle(
+            sortarrowi[0], sortarrowi[1], sortarrowi[2], sortarrowi[3],
+            (val) -> {
+                compactQuantityAscending = !val;
+                compactLastSortType = "quantity";
+                rebuildCompactList();
+            }
+        );
+        qtySortBtn.a = true; // default: quantity descending
+        qtySortBtn.settip("Sort by quantity");
+        rightPanel.add(qtySortBtn, new Coord(sortBtnX, y));
+        simplifiedOnlyWidgets.add(qtySortBtn);
+
+        int sortRowH = nameSortBtn.sz.y + elementGap;
+        itemListSimplifiedY = margin + sortRowH;
 
         // --- Row 1: Toggle buttons (all 7 in one line) ---
         int btnX = margin;
@@ -1129,10 +1177,10 @@ public class NInventory extends Inventory
         if (itemListContainer == null || rightPanel == null) return;
         int margin = UI.scale(8);
         if (panelState == PANEL_SIMPLIFIED) {
-            // In simplified mode, list starts at top
-            itemListContainer.move(new Coord(margin, margin));
+            // In simplified mode, list below sort arrows
+            itemListContainer.move(new Coord(margin, itemListSimplifiedY));
             int listWidth = PANEL_W_SIMPLIFIED - margin * 2;
-            int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - margin * 2);
+            int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - itemListSimplifiedY - margin);
             itemListContainer.resize(new Coord(listWidth, listHeight));
         } else {
             // In expanded mode, list below controls
@@ -1462,8 +1510,25 @@ public class NInventory extends Inventory
         }
 
         List<ItemGroup> itemGroups = new ArrayList<>(itemGroupMap.values());
-        // Sort by quantity descending
-        itemGroups.sort((a, b) -> Integer.compare(b.totalQuantity, a.totalQuantity));
+        itemGroups.sort((a, b) -> {
+            if ("name".equals(compactLastSortType)) {
+                int r = a.name.compareTo(b.name);
+                if (!compactNameAscending) r = -r;
+                if (r == 0) {
+                    r = Integer.compare(a.totalQuantity, b.totalQuantity);
+                    return compactQuantityAscending ? r : -r;
+                }
+                return r;
+            } else {
+                int r = Integer.compare(a.totalQuantity, b.totalQuantity);
+                if (!compactQuantityAscending) r = -r;
+                if (r == 0) {
+                    r = a.name.compareTo(b.name);
+                    return compactNameAscending ? r : -r;
+                }
+                return r;
+            }
+        });
 
         int y = 0;
         int contentWidth = itemListContainer.cont.sz.x;
