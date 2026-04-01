@@ -19,6 +19,7 @@ public class NSearchWidget extends Widget {
     public CmdList cmdList;
     public TextEntry searchF = null;
     public static final Text.Foundry nfnd = new Text.Foundry(Text.dfont, 10);
+    private static final Text.Foundry tipFnd = new Text.Foundry(nurgling.conf.FontSettings.getOpenSans(), 11, java.awt.Color.WHITE).aa(true);
     Window helpwnd;
     private static final BufferedImage[] searchbi = new BufferedImage[]{
             Resource.loadsimg("nurgling/hud/buttons/inv/question/u"),
@@ -79,8 +80,11 @@ public class NSearchWidget extends Widget {
                     }
                 }
             }
+            @Override
+            public Object tooltip(Coord c, Widget prev) {
+                return tipFnd.render(nurgling.i18n.L10n.get("inventory.tip.search_help")).tex();
+            }
         };
-        help.settip(Resource.remote().loadwait("nurgling/hud/buttons/search/u").flayer(Resource.tooltip).text());
         save = new IButton(ssearchbi[0], ssearchbi[1], ssearchbi[2])
         {
             @Override
@@ -96,8 +100,11 @@ public class NSearchWidget extends Widget {
                     }
                 }
             }
+            @Override
+            public Object tooltip(Coord c, Widget prev) {
+                return tipFnd.render(nurgling.i18n.L10n.get("inventory.tip.save_query")).tex();
+            }
         };
-        save.settip(Resource.remote().loadwait("nurgling/hud/buttons/ssearch/u").flayer(Resource.tooltip).text());
         list = new ICheckBox(lsearchbi[0], lsearchbi[1], lsearchbi[2], lsearchbi[3])
         {
             @Override
@@ -105,8 +112,11 @@ public class NSearchWidget extends Widget {
                 super.changed(val);
                 setListShown(val);
             }
+            @Override
+            public Object tooltip(Coord c, Widget prev) {
+                return tipFnd.render(nurgling.i18n.L10n.get("inventory.tip.favorite_commands")).tex();
+            }
         };
-        list.settip(Resource.remote().loadwait("nurgling/hud/buttons/lsearch/u").flayer(Resource.tooltip).text());
         tpos_y = searchF.sz.y / 2 - help.sz.y / 2;
         add(help, new Coord(0, tpos_y));
         add(save, new Coord(0, tpos_y));

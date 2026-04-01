@@ -801,9 +801,9 @@ public class NInventory extends Inventory
         @Override
         public Object tooltip(Coord c, Widget prev) {
             switch (state) {
-                case 0: return tipFnd.render("Show simplified panel").tex();
-                case 1: return tipFnd.render("Show full panel").tex();
-                case 2: return tipFnd.render("Hide panel").tex();
+                case 0: return tipFnd.render(nurgling.i18n.L10n.get("inventory.tip.show_simplified")).tex();
+                case 1: return tipFnd.render(nurgling.i18n.L10n.get("inventory.tip.show_full")).tex();
+                case 2: return tipFnd.render(nurgling.i18n.L10n.get("inventory.tip.hide_panel")).tex();
                 default: return null;
             }
         }
@@ -824,19 +824,19 @@ public class NInventory extends Inventory
             // Search toggle in title bar - expands search panel below inventory
             searchBtn = new NHeaderToggle("nurgling/hud/buttons/inv/search", (val) -> {
                 toggleSearch(val);
-            }).tip("Search inventory");
+            }).tip(nurgling.i18n.L10n.get("inventory.tip.search"));
             deco.add(searchBtn);
 
             // Sort button in title bar
             sortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
                 SortInventory.sort(NInventory.this);
-            }).tip("Sort Inventory");
+            }).tip(nurgling.i18n.L10n.get("inventory.tip.sort"));
             deco.add(sortBtnRef);
 
             // Dropper/trash toggle in title bar
             dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
                 NConfig.set(NConfig.Key.autoDropper, val);
-            }).tip("Auto-dropper");
+            }).tip(nurgling.i18n.L10n.get("inventory.tip.autodrop"));
             ((NHeaderToggle) dropperBtn).a = (Boolean) NConfig.get(NConfig.Key.autoDropper);
             deco.add(dropperBtn);
         }
@@ -1005,7 +1005,7 @@ public class NInventory extends Inventory
             }
         );
         nameSortBtn.a = false;
-        nameSortBtn.settip("Sort by name");
+        nameSortBtn.tip(nurgling.i18n.L10n.get("inventory.tip.sort_by_name"));
         rightPanel.add(nameSortBtn, new Coord(sortBtnX, y));
         simplifiedOnlyWidgets.add(nameSortBtn);
 
@@ -1019,7 +1019,7 @@ public class NInventory extends Inventory
             }
         );
         qtySortBtn.a = true; // default: quantity descending
-        qtySortBtn.settip("Sort by quantity");
+        qtySortBtn.tip(nurgling.i18n.L10n.get("inventory.tip.sort_by_quantity"));
         rightPanel.add(qtySortBtn, new Coord(sortBtnX, y));
         simplifiedOnlyWidgets.add(qtySortBtn);
 
