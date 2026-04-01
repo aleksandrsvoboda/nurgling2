@@ -13,8 +13,6 @@ import nurgling.iteminfo.NCuriosity;
 import nurgling.iteminfo.NFoodInfo;
 import nurgling.tasks.*;
 import nurgling.tools.*;
-import nurgling.widgets.NPopupWidget;
-import nurgling.widgets.NSearchWidget;
 
 import java.util.Map;
 import java.util.HashMap;
@@ -26,23 +24,19 @@ import java.util.List;
 
 public class NInventory extends Inventory
 {
-    public NSearchWidget searchwdg;
-    public NPopupWidget toggles;
-    public NPopupWidget rightTogglesExpanded;
-    public NPopupWidget rightTogglesCompact;
-    public ICheckBox checkBoxForRight;
+    public boolean mainInvInstalled = false;
     public Scrollport itemListContainer;
     public Widget itemListContent;
-    public Scrollport compactListContainer;
-    public Widget compactListContent;
     public ICheckBox bundle;
     public MenuGrid.PagButton pagBundle = null;
-    boolean showPopup = false;
-    boolean showRightPanel = false;
-    RightPanelMode rightPanelMode = RightPanelMode.EXPANDED;
-    boolean compactNameAscending = true;
-    boolean compactQuantityAscending = false;
-    String compactLastSortType = "quantity"; // Track which was clicked last
+    boolean expanded = false;
+    Widget rightPanel;
+    // Title bar button references (Widget type - these are NHeaderButton/NHeaderToggle wrappers)
+    private Widget searchBtn;
+    private TextEntry headerSearchField;
+    private Widget eyeBtn;
+    private Widget dropperBtn;
+    private Widget sortBtnRef;
     short[][] oldinv = null;
     public Gob parentGob = null;
     long lastUpdate = 0;
@@ -173,11 +167,10 @@ public class NInventory extends Inventory
             public void click() {
                 SortInventory.sort(thisInv);
             }
-            
+
             @Override
             public void tick(double dt) {
                 super.tick(dt);
-                // Keep position updated relative to cbtn
                 if (deco.cbtn != null) {
                     Coord cbtnPos = deco.cbtn.c;
                     c = new Coord(cbtnPos.x - sz.x - UI.scale(2), cbtnPos.y);
@@ -186,7 +179,7 @@ public class NInventory extends Inventory
         };
         sortBtn.settip("Sort Inventory");
         deco.add(sortBtn);
-        
+
         // Initial position left of close button
         Coord cbtnPos = deco.cbtn.c;
         sortBtn.c = new Coord(cbtnPos.x - sortBtn.sz.x - UI.scale(2), cbtnPos.y);
@@ -208,10 +201,6 @@ public class NInventory extends Inventory
 
     public enum QualityType {
         High, Low
-    }
-    
-    public enum RightPanelMode {
-        COMPACT, EXPANDED
     }
     
     // Grouping modes for inventory panel (like hafen-client)
@@ -460,124 +449,18 @@ public class NInventory extends Inventory
     @Override
     public void resize(Coord sz) {
         super.resize(new Coord(sz));
-        if(searchwdg != null) {
-            searchwdg.resize(new Coord(sz.x , 0));
-            searchwdg.move(new Coord(0,sz.y + UI.scale(5)));
+        if (rightPanel != null) {
+            int gap = UI.scale(8);
+            rightPanel.move(new Coord(sz.x + gap, 0));
+            rightPanel.resize(new Coord(UI.scale(250), sz.y));
+            updateItemListSize();
         }
-        moveCheckbox();
         parent.pack();
-        movePopup(parent.c);
-        moveCheckboxAfterPack();
+        positionTitleBarButtons();
     }
 
     public void movePopup(Coord c) {
-        if(toggles !=null)
-        {
-            toggles.move(new Coord(c.x - toggles.sz.x + UI.scale(2), c.y + UI.scale(35)));
-        }
-        // Update both right panels
-        updateRightPanelPositions(c);
-        if(searchwdg!=null && searchwdg.history!=null) {
-            searchwdg.history.move(new Coord(c.x  + ((Window)parent).ca().ul.x + UI.scale(7), c.y + parent.sz.y- UI.scale(37)));
-        }
-    }
-
-    public void moveCheckbox() {
-        if(checkBoxForRight != null) {
-            // Since the button is positioned relative to sz.x, it should automatically 
-            // adjust when the inventory resizes. Only reposition if needed.
-            checkBoxForRight.c = new Coord(sz.x - UI.scale(40), 0);
-        }
-    }
-
-    public void moveCheckboxAfterPack() {
-        if(checkBoxForRight != null) {
-            // Since the button is positioned relative to sz.x, it should automatically
-            // adjust when the inventory resizes. Only reposition if needed.
-            checkBoxForRight.c = new Coord(sz.x + UI.scale(1), UI.scale(27));
-        }
-    }
-    
-    
-    private void updateRightPanelPositions(Coord c) {
-        int invH = this.sz.y;
-        int insetY = UI.scale(8); // Default inset
-        int desiredInner = Math.round(invH * 1.2f);
-        int outerH = desiredInner;
-        int panelW = UI.scale(250);
-        int compactPanelW = UI.scale(100); // Smaller width for compact mode
-        int compactOuterH = Math.round(invH * 1.2f); // Taller than expanded but still smaller than inventory
-        
-        if (rightTogglesExpanded != null) {
-            rightTogglesExpanded.move(new Coord(
-                    c.x + parent.sz.x - UI.scale(2),
-                    c.y + UI.scale(20)
-            ));
-            rightTogglesExpanded.resize(panelW, outerH);
-            
-            if (itemListContainer != null) {
-                // Resize expanded list container
-                int insetX = rightTogglesExpanded.atl.x;
-                insetY = rightTogglesExpanded.atl.y;
-                int contentLeft = insetX;
-                int contentRight = rightTogglesExpanded.sz.x - insetX;
-                int contentBottom = rightTogglesExpanded.sz.y - insetY;
-                int listTopY = itemListContainer.c.y;
-                int sidePad = UI.scale(12);
-                int bottomPad = UI.scale(8);
-                
-                int listWidth = Math.max(0, (contentRight - contentLeft) - sidePad * 2);
-                int listHeight = Math.max(0, contentBottom - listTopY - bottomPad);
-                
-                itemListContainer.resize(new Coord(listWidth, listHeight));
-                rebuildItemList();
-            }
-        }
-        
-        if (rightTogglesCompact != null) {
-            rightTogglesCompact.move(new Coord(
-                    c.x + parent.sz.x - UI.scale(2),
-                    c.y + UI.scale(20)
-            ));
-            rightTogglesCompact.resize(compactPanelW, compactOuterH);
-            
-            if (compactListContainer != null) {
-                // Resize compact list container  
-                int insetX = rightTogglesCompact.atl.x;
-                insetY = rightTogglesCompact.atl.y;
-                int contentLeft = insetX;
-                int contentRight = rightTogglesCompact.sz.x - insetX;
-                int contentBottom = rightTogglesCompact.sz.y - insetY;
-                int listTopY = compactListContainer.c.y;
-                int sidePad = UI.scale(4);
-                int bottomPad = UI.scale(8);
-                
-                int listWidth = Math.max(0, (contentRight - contentLeft) - sidePad * 2);
-                int listHeight = Math.max(0, contentBottom - listTopY - bottomPad);
-                
-                compactListContainer.resize(new Coord(listWidth, listHeight));
-                rebuildCompactList();
-            }
-        }
-    }
-    
-    private void updateRightPanelVisibility() {
-        if (rightTogglesExpanded != null) {
-            if (showRightPanel && rightPanelMode == RightPanelMode.EXPANDED) {
-                rightTogglesExpanded.show();
-            } else {
-                rightTogglesExpanded.hide();
-            }
-        }
-        
-        if (rightTogglesCompact != null) {
-            if (showRightPanel && rightPanelMode == RightPanelMode.COMPACT) {
-                rightTogglesCompact.show();
-                rebuildCompactList();
-            } else {
-                rightTogglesCompact.hide();
-            }
-        }
+        // No-op: panels are now embedded in the window
     }
 
     @Override
@@ -653,60 +536,15 @@ public class NInventory extends Inventory
         }
         else
             oldinv = null;
-        if(toggles !=null)
-            toggles.visible = parent.visible && showPopup;
-        if(rightTogglesExpanded != null) {
-            rightTogglesExpanded.visible = parent.visible && showRightPanel && (rightPanelMode == RightPanelMode.EXPANDED);
-            if (showRightPanel && rightPanelMode == RightPanelMode.EXPANDED) {
-                // Update expanded panel contents periodically
-                if (NUtils.getTickId() % 10 == 0) { // Update every 10 ticks
-                    updateRightPanelItems();
-                    updateSpaceLabel();
-                }
+        // Update embedded right panel periodically
+        if (expanded && rightPanel != null && rightPanel.visible) {
+            if (NUtils.getTickId() % 10 == 0) {
+                rebuildItemList();
+                updateSpaceLabel();
             }
         }
-        if(rightTogglesCompact != null) {
-            rightTogglesCompact.visible = parent.visible && showRightPanel && (rightPanelMode == RightPanelMode.COMPACT);
-            if (showRightPanel && rightPanelMode == RightPanelMode.COMPACT) {
-                // Update compact panel contents periodically
-                if (NUtils.getTickId() % 20 == 0) { // Update every 20 ticks (less frequent)
-                    rebuildCompactList();
-                }
-            }
-        }
-    }
-
-    private static final TexI[] collapsei = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/itogglec/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/itogglec/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/itogglec/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/itogglec/dh"))};
-
-    // Mirrored versions for right-side toggle
-    private static final TexI[] collapseiRight = createMirroredTextures(collapsei);
-    
-    // Helper method to create horizontally mirrored textures
-    private static TexI[] createMirroredTextures(TexI[] original) {
-        TexI[] mirrored = new TexI[original.length];
-        for (int i = 0; i < original.length; i++) {
-            BufferedImage img = original[i].back;
-
-            // Use ARGB format to ensure compatibility
-            int imageType = img.getType();
-            if (imageType == 0) {
-                imageType = BufferedImage.TYPE_INT_ARGB;
-            }
-
-            BufferedImage flippedImg = new BufferedImage(img.getWidth(), img.getHeight(), imageType);
-
-            // Create mirrored image using Graphics2D for better handling
-            java.awt.Graphics2D g2d = flippedImg.createGraphics();
-            g2d.drawImage(img, img.getWidth(), 0, 0, img.getHeight(), 0, 0, img.getWidth(), img.getHeight(), null);
-            g2d.dispose();
-
-            mirrored[i] = new TexI(flippedImg);
-        }
-        return mirrored;
+        // Reposition title bar buttons on tick (window may have resized)
+        positionTitleBarButtons();
     }
 
     private static final TexI[] gildingi = new TexI[]{
@@ -757,213 +595,382 @@ public class NInventory extends Inventory
             new TexI(Resource.loadsimg("nurgling/hud/buttons/dropper/h")),
             new TexI(Resource.loadsimg("nurgling/hud/buttons/dropper/dh"))};
 
+    // Square clickable header button with icon drawn centered and hover highlight
+    static class NHeaderButton extends Widget {
+        private final Tex normal, pressed, hover;
+        private boolean isHover = false;
+        private UI.Grab grab = null;
+        private Runnable action;
+
+        NHeaderButton(Tex normal, Tex pressed, Tex hover, Runnable action) {
+            super(new Coord(UI.scale(21), UI.scale(21)));
+            this.normal = normal;
+            this.pressed = pressed;
+            this.hover = hover;
+            this.action = action;
+        }
+
+        NHeaderButton(String base, Runnable action) {
+            this(new TexI(Resource.loadsimg(base + "/u")),
+                 new TexI(Resource.loadsimg(base + "/d")),
+                 new TexI(Resource.loadsimg(base + "/h")),
+                 action);
+        }
+
+        @Override
+        public void draw(GOut g) {
+            Tex img = (grab != null) ? pressed : (isHover ? hover : normal);
+            Coord imgSz = img.sz();
+            Coord offset = sz.sub(imgSz).div(2);
+            if (isHover) {
+                g.chcolor(255, 255, 255, 25);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
+            g.image(img, offset);
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if (ev.b == 1) {
+                grab = ui.grabmouse(this);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean mouseup(MouseUpEvent ev) {
+            if (grab != null && ev.b == 1) {
+                grab.remove();
+                grab = null;
+                if (ev.c.isect(Coord.z, sz) && action != null) action.run();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public void mousemove(MouseMoveEvent ev) {
+            isHover = ev.c.isect(Coord.z, sz);
+        }
+    }
+
+    // Square clickable header toggle (checkbox) with icon drawn centered and hover highlight
+    static class NHeaderToggle extends Widget {
+        private final Tex unchecked, checked, hoverUnchecked, hoverChecked;
+        public boolean a = false; // checked state
+        private boolean isHover = false;
+        private java.util.function.Consumer<Boolean> onChange;
+
+        NHeaderToggle(Tex unchecked, Tex checked, Tex hoverUnchecked, Tex hoverChecked, java.util.function.Consumer<Boolean> onChange) {
+            super(new Coord(UI.scale(21), UI.scale(21)));
+            this.unchecked = unchecked;
+            this.checked = checked;
+            this.hoverUnchecked = hoverUnchecked;
+            this.hoverChecked = hoverChecked;
+            this.onChange = onChange;
+        }
+
+        NHeaderToggle(String base, java.util.function.Consumer<Boolean> onChange) {
+            this(new TexI(Resource.loadsimg(base + "/u")),
+                 new TexI(Resource.loadsimg(base + "/d")),
+                 new TexI(Resource.loadsimg(base + "/h")),
+                 new TexI(Resource.loadsimg(base + "/dh")),
+                 onChange);
+        }
+
+        @Override
+        public void draw(GOut g) {
+            Tex img = a ? (isHover ? hoverChecked : checked) : (isHover ? hoverUnchecked : unchecked);
+            Coord imgSz = img.sz();
+            Coord offset = sz.sub(imgSz).div(2);
+            if (isHover) {
+                g.chcolor(255, 255, 255, 25);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
+            g.image(img, offset);
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if (ev.b == 1) {
+                a = !a;
+                if (onChange != null) onChange.accept(a);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public void mousemove(MouseMoveEvent ev) {
+            isHover = ev.c.isect(Coord.z, sz);
+        }
+    }
+
     public void installMainInv() {
-        searchwdg = new NSearchWidget(new Coord(sz));
-        searchwdg.resize(sz);
-        parent.add(searchwdg, (new Coord(0, sz.y + UI.scale(10))));
-        parent.add(new ICheckBox(collapsei[0], collapsei[1], collapsei[2], collapsei[3]) {
-                       @Override
-                       public void changed(boolean val) {
-                           super.changed(val);
-                           showPopup = val;
-                       }
-                   }
-                , new Coord(-gildingi[0].sz().x + UI.scale(5), UI.scale(27)));
-        
-        // Add sort button to main inventory window title bar
-        addSortButtonToTitleBar();
+        Window wnd = getparent(Window.class);
+        NWindowDeco deco = (wnd != null && wnd.deco instanceof NWindowDeco) ? (NWindowDeco) wnd.deco : null;
 
-
-        checkBoxForRight = new ICheckBox(collapseiRight[0], collapseiRight[1], collapseiRight[2], collapseiRight[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                showRightPanel = val;
+        // --- Title bar buttons ---
+        if (deco != null) {
+            // Expand/collapse toggle (leftmost, before search)
+            eyeBtn = new NHeaderToggle("nurgling/hud/buttons/inv/eye", (val) -> {
+                expanded = val;
                 NConfig.set(NConfig.Key.inventoryRightPanelShow, val);
-                updateRightPanelVisibility();
+                toggleExpanded();
+            });
+            eyeBtn.settip("Toggle item panel");
+            deco.add(eyeBtn);
+
+            // Search icon in title bar
+            searchBtn = new NHeaderButton("nurgling/hud/buttons/inv/search", () -> {
+                if (headerSearchField != null) {
+                    headerSearchField.visible = !headerSearchField.visible;
+                    if (headerSearchField.visible) {
+                        wnd.setfocus(headerSearchField);
+                    } else {
+                        headerSearchField.settext("");
+                        if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
+                            NUtils.getGameUI().itemsForSearch.install("");
+                        }
+                    }
+                }
+            });
+            searchBtn.settip("Search inventory");
+            deco.add(searchBtn);
+
+            // Search text entry (initially hidden, in title bar)
+            headerSearchField = new TextEntry(UI.scale(80), "") {
+                @Override
+                public boolean keydown(KeyDownEvent e) {
+                    boolean res = super.keydown(e);
+                    if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
+                        NUtils.getGameUI().itemsForSearch.install(text());
+                    }
+                    return res;
+                }
+            };
+            headerSearchField.visible = false;
+            headerSearchField.setcanfocus(true);
+            headerSearchField.autofocus = false;
+            deco.add(headerSearchField);
+
+            // Dropper/trash toggle in title bar
+            dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
+                NConfig.set(NConfig.Key.autoDropper, val);
+            });
+            dropperBtn.settip(Resource.remote().loadwait("nurgling/hud/buttons/dropper/u").flayer(Resource.tooltip).text());
+            ((NHeaderToggle) dropperBtn).a = (Boolean) NConfig.get(NConfig.Key.autoDropper);
+            deco.add(dropperBtn);
+
+            // Sort button in title bar
+            sortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
+                SortInventory.sort(NInventory.this);
+            });
+            sortBtnRef.settip("Sort Inventory");
+            deco.add(sortBtnRef);
+        }
+
+        // --- Right panel (embedded in window, to the right of inventory grid) ---
+        int panelW = UI.scale(250);
+        int gap = UI.scale(8);
+
+        rightPanel = new Widget(new Coord(panelW, sz.y)) {
+            @Override
+            public void draw(GOut g) {
+                // Draw vertical separator on left edge
+                int bw = Math.max(1, UI.scale(1));
+                g.chcolor(NStyle.separator);
+                g.frect(Coord.z, new Coord(bw, sz.y));
+                g.chcolor();
+                super.draw(g);
             }
         };
+        rightPanel.visible = false;
+        parent.add(rightPanel, new Coord(sz.x + gap, 0));
+
+        // Setup right panel contents (toggle buttons, dropdowns, item list)
+        setupRightPanel();
+
+        // Load expanded state from config
+        Boolean expandedConfig = (Boolean) NConfig.get(NConfig.Key.inventoryRightPanelShow);
+        expanded = expandedConfig != null ? expandedConfig : false;
+        if (eyeBtn instanceof NHeaderToggle) ((NHeaderToggle) eyeBtn).a = expanded;
+        rightPanel.visible = expanded;
 
         parent.pack();
+        positionTitleBarButtons();
+        mainInvInstalled = true;
+    }
 
-        // Right panel toggle button - using mirrored textures
-        parent.add(checkBoxForRight, new Coord(sz.x + UI.scale(1), UI.scale(27)));
+    private void toggleExpanded() {
+        if (rightPanel != null) {
+            rightPanel.visible = expanded;
+            parent.pack();
+            positionTitleBarButtons();
+        }
+    }
 
-        toggles = NUtils.getGameUI().add(new NPopupWidget(new Coord(UI.scale(50), UI.scale(80)), NPopupWidget.Type.RIGHT));
-        
-        // Create expanded panel
-        int panelW = UI.scale(250);
-        rightTogglesExpanded = NUtils.getGameUI().add(
-                new NPopupWidget(new Coord(panelW, UI.scale(100)), NPopupWidget.Type.LEFT)
-        );
-        int insetY = rightTogglesExpanded.atl.y;
-        int desiredInner = Math.round(this.sz.y * 0.80f);
-        int outerH = desiredInner + insetY * 2;
-        rightTogglesExpanded.resize(panelW, outerH);
-        
-        // Create compact panel (taller than expanded)
-        int compactPanelW = UI.scale(120);
-        int compactOuterH = Math.round(this.sz.y * 0.90f) + rightTogglesExpanded.atl.y * 2;
-        rightTogglesCompact = NUtils.getGameUI().add(
-                new NPopupWidget(new Coord(compactPanelW, compactOuterH), NPopupWidget.Type.LEFT)
-        );
+    private void positionTitleBarButtons() {
+        Window wnd = getparent(Window.class);
+        if (wnd == null || !(wnd.deco instanceof NWindowDeco)) return;
+        NWindowDeco deco = (NWindowDeco) wnd.deco;
+        int titleH = UI.scale(21);
+        int btnGap = UI.scale(2);
 
-        Widget pw = toggles.add(new ICheckBox(gildingi[0], gildingi[1], gildingi[2], gildingi[3]) {
+        // Right-aligned buttons: ... [trash] [sort] [X]
+        int x = deco.cbtn.c.x;
+
+        if (sortBtnRef != null) {
+            x -= sortBtnRef.sz.x + btnGap;
+            sortBtnRef.c = new Coord(x, (titleH - sortBtnRef.sz.y) / 2);
+        }
+        if (dropperBtn != null) {
+            x -= dropperBtn.sz.x + btnGap;
+            dropperBtn.c = new Coord(x, (titleH - dropperBtn.sz.y) / 2);
+        }
+
+        // Left-aligned: "Inventory" [expand] [search] [field] ...
+        int leftX = UI.scale(70); // After "Inventory" text
+        if (eyeBtn != null) {
+            eyeBtn.c = new Coord(leftX, 0);
+            leftX += eyeBtn.sz.x + btnGap;
+        }
+        if (searchBtn != null) {
+            searchBtn.c = new Coord(leftX, 0);
+            leftX += searchBtn.sz.x + btnGap;
+            if (headerSearchField != null) {
+                int fieldW = Math.max(UI.scale(60), x - leftX - UI.scale(10));
+                headerSearchField.resize(fieldW);
+                headerSearchField.c = new Coord(leftX, (titleH - headerSearchField.sz.y) / 2);
+            }
+        }
+    }
+
+    private void setupRightPanel() {
+        int margin = UI.scale(8);
+        int y = margin;
+        int elementGap = UI.scale(5);
+
+        // --- Row 1: Toggle buttons (gilding, variety, numbering, stack) ---
+        int btnX = margin;
+        Widget pw;
+
+        pw = rightPanel.add(new ICheckBox(gildingi[0], gildingi[1], gildingi[2], gildingi[3]) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
                 Slotted.show = val;
             }
-        }, toggles.atl);
+        }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/gilding/u").flayer(Resource.tooltip).text());
-        ((ICheckBox)pw).a = Slotted.show;
-        pw = toggles.add(new ICheckBox(vari[0], vari[1], vari[2], vari[3]) {
+        ((ICheckBox) pw).a = Slotted.show;
+
+        btnX += pw.sz.x + elementGap;
+        pw = rightPanel.add(new ICheckBox(vari[0], vari[1], vari[2], vari[3]) {
             @Override
-            public void changed(boolean val)
-            {
+            public void changed(boolean val) {
                 super.changed(val);
                 NFoodInfo.show = val;
                 NConfig.set(NConfig.Key.showVarity, val);
             }
-        }, pw.pos("bl").add(UI.scale(new Coord(0, 5))));
+        }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/var/u").flayer(Resource.tooltip).text());
-        NFoodInfo.show = (Boolean)NConfig.get(NConfig.Key.showVarity);
-        ((ICheckBox)pw).a = NFoodInfo.show;
+        NFoodInfo.show = (Boolean) NConfig.get(NConfig.Key.showVarity);
+        ((ICheckBox) pw).a = NFoodInfo.show;
 
-        ICheckBox rpw = toggles.add(new ICheckBox(numberi[0], numberi[1], numberi[2], numberi[3]) {
+        btnX += pw.sz.x + elementGap;
+        pw = rightPanel.add(new ICheckBox(numberi[0], numberi[1], numberi[2], numberi[3]) {
             @Override
-            public void changed(boolean val)
-            {
+            public void changed(boolean val) {
                 super.changed(val);
                 NConfig.set(NConfig.Key.showInventoryNums, val);
             }
-        }, pw.pos("ur").add(UI.scale(new Coord(5, 0))));
-        rpw.settip(Resource.remote().loadwait("nurgling/hud/buttons/numbering/u").flayer(Resource.tooltip).text());
-        ((ICheckBox)rpw).a = (Boolean)NConfig.get(NConfig.Key.showInventoryNums);
+        }, new Coord(btnX, y));
+        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/numbering/u").flayer(Resource.tooltip).text());
+        ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.showInventoryNums);
 
-        pw = toggles.add(new ICheckBox(stacki[0], stacki[1], stacki[2], stacki[3]) {
+        btnX += pw.sz.x + elementGap;
+        pw = rightPanel.add(new ICheckBox(stacki[0], stacki[1], stacki[2], stacki[3]) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
                 Stack.show = val;
             }
-        }, pw.pos("bl").add(UI.scale(new Coord(0, 5))));
-        ((ICheckBox)pw).a = Stack.show;
+        }, new Coord(btnX, y));
+        ((ICheckBox) pw).a = Stack.show;
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/stack/u").flayer(Resource.tooltip).text());
 
-        bundle = toggles.add(new ICheckBox(bundlei[0], bundlei[1], bundlei[2], bundlei[3]) {
+        // Continue on same row: bundle, autoflower, autosplitter
+        btnX += pw.sz.x + elementGap;
+        bundle = rightPanel.add(new ICheckBox(bundlei[0], bundlei[1], bundlei[2], bundlei[3]) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
                 pagBundle.use(new MenuGrid.Interaction(1, 0));
             }
-        }, pw.pos("ur").add(UI.scale(new Coord(5, 0))));
+        }, new Coord(btnX, y));
         bundle.settip(Resource.remote().loadwait("nurgling/hud/buttons/bundle/u").flayer(Resource.tooltip).text());
 
-        pw = toggles.add(new ICheckBox(autoflower[0], autoflower[1], autoflower[2], autoflower[3]) {
+        btnX += bundle.sz.x + elementGap;
+        pw = rightPanel.add(new ICheckBox(autoflower[0], autoflower[1], autoflower[2], autoflower[3]) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
                 NConfig.set(NConfig.Key.autoFlower, val);
             }
-        }, pw.pos("bl").add(UI.scale(new Coord(0, 5))));
+        }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/autoflower/u").flayer(Resource.tooltip).text());
-        ((ICheckBox)pw).a = (Boolean)NConfig.get(NConfig.Key.autoFlower);
-        pw = toggles.add(new ICheckBox(autosplittor[0], autosplittor[1], autosplittor[2], autosplittor[3]) {
+        ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.autoFlower);
+
+        btnX += pw.sz.x + elementGap;
+        pw = rightPanel.add(new ICheckBox(autosplittor[0], autosplittor[1], autosplittor[2], autosplittor[3]) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
                 NConfig.set(NConfig.Key.autoSplitter, val);
             }
-        }, pw.pos("bl").add(UI.scale(new Coord(0, 5))));
+        }, new Coord(btnX, y));
         pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/autosplittor/u").flayer(Resource.tooltip).text());
-        ((ICheckBox)pw).a = (Boolean)NConfig.get(NConfig.Key.autoSplitter);
+        ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.autoSplitter);
 
-        pw = toggles.add(new ICheckBox(dropperi[0], dropperi[1], dropperi[2], dropperi[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                NConfig.set(NConfig.Key.autoDropper, val);
-            }
-        }, pw.pos("bl").add(UI.scale(new Coord(0, 5))));
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/dropper/u").flayer(Resource.tooltip).text());
-        ((ICheckBox)pw).a = (Boolean)NConfig.get(NConfig.Key.autoDropper);
+        // --- Row 3: Dropdowns (grouping, display type, quality filter) ---
+        y += pw.sz.y + UI.scale(8);
+        int dropX = margin;
 
-        toggles.pack();
-
-        // Setup both right panels
-        setupExpandedPanel();
-        setupCompactPanel();
-
-        // Load settings from NConfig
-        Boolean showPanelConfig = (Boolean) NConfig.get(NConfig.Key.inventoryRightPanelShow);
-        showRightPanel = showPanelConfig != null ? showPanelConfig : false;
-        
-        String panelModeStr = (String) NConfig.get(NConfig.Key.inventoryRightPanelMode);
-        if ("COMPACT".equals(panelModeStr)) {
-            rightPanelMode = RightPanelMode.COMPACT;
-        } else {
-            rightPanelMode = RightPanelMode.EXPANDED;
-        }
-        
-        checkBoxForRight.a = showRightPanel;
-        updateRightPanelVisibility();
-
-        movePopup(parent.c);
-        toggles.pack();
-    }
-
-    private void setupExpandedPanel() {
-        int panelMargin = UI.scale(8);
-        Coord headerPos = rightTogglesExpanded.atl.add(new Coord(panelMargin, panelMargin));
-        int elementGap = UI.scale(5); // Consistent gap between elements
-
-        // Position for dropdowns - below header
-        Coord dropdownPos = headerPos.add(new Coord(0, 0));
-        
-        // Grouping dropdown (Type, Quality, Q1, Q5, Q10)
         int groupingW = UI.scale(85);
         groupingDropbox = new Dropbox<Grouping>(groupingW, Grouping.values().length, UI.scale(16)) {
             @Override
-            protected Grouping listitem(int i) {
-                return Grouping.values()[i];
-            }
-            
+            protected Grouping listitem(int i) { return Grouping.values()[i]; }
             @Override
             protected int listitems() { return Grouping.values().length; }
-            
             @Override
             protected void drawitem(GOut g, Grouping item, int idx) {
                 g.text(item.displayName, new Coord(3, 2));
             }
-            
             @Override
             public void change(Grouping item) {
                 super.change(item);
                 currentGrouping = item;
-                applySorting();
+                rebuildItemList();
             }
         };
         groupingDropbox.change(Grouping.NONE);
-        rightTogglesExpanded.add(groupingDropbox, dropdownPos);
-        
-        // Display type dropdown
-        int displayTypeX = groupingW + elementGap;
+        rightPanel.add(groupingDropbox, new Coord(dropX, y));
+
+        dropX += groupingW + elementGap;
         int displayTypeW = UI.scale(55);
         displayTypeDropbox = new Dropbox<DisplayType>(displayTypeW, DisplayType.values().length, UI.scale(16)) {
             @Override
-            protected DisplayType listitem(int i) {
-                return DisplayType.values()[i];
-            }
-            
+            protected DisplayType listitem(int i) { return DisplayType.values()[i]; }
             @Override
             protected int listitems() { return DisplayType.values().length; }
-            
             @Override
             protected void drawitem(GOut g, DisplayType item, int idx) {
                 g.text(item.name(), new Coord(3, 2));
             }
-            
             @Override
             public void change(DisplayType item) {
                 super.change(item);
@@ -972,10 +979,9 @@ public class NInventory extends Inventory
             }
         };
         displayTypeDropbox.change(currentDisplayType);
-        rightTogglesExpanded.add(displayTypeDropbox, dropdownPos.add(new Coord(displayTypeX, 0)));
-        
-        // Quality filter entry (no label, with tooltip)
-        int qualityX = displayTypeX + displayTypeW + elementGap;
+        rightPanel.add(displayTypeDropbox, new Coord(dropX, y));
+
+        dropX += displayTypeW + elementGap;
         int qualityW = UI.scale(32);
         qualityFilterEntry = new TextEntry(qualityW, "") {
             @Override
@@ -986,51 +992,41 @@ public class NInventory extends Inventory
             }
         };
         qualityFilterEntry.settip("Min quality filter\nEnter a number (e.g. 10)\nto show only items with q >= 10");
-        rightTogglesExpanded.add(qualityFilterEntry, dropdownPos.add(new Coord(qualityX, UI.scale(-2))));
-        
-        // View toggle button (compact mode) - after quality filter  
-        int viewToggleX = qualityX + qualityW + elementGap;
-        IButton viewToggle = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/lsearch/u"),
-            Resource.loadsimg("nurgling/hud/buttons/lsearch/d"),
-            Resource.loadsimg("nurgling/hud/buttons/lsearch/h")
-        ) {
-            @Override
-            public void click() {
-                rightPanelMode = RightPanelMode.COMPACT;
-                NConfig.set(NConfig.Key.inventoryRightPanelMode, "COMPACT");
-                updateRightPanelVisibility();
-            }
-        };
-        viewToggle.settip("Switch to compact view");
-        rightTogglesExpanded.add(viewToggle, dropdownPos.add(new Coord(viewToggleX, 0)));
-        
-        // Space label showing filled/total slots
+        rightPanel.add(qualityFilterEntry, new Coord(dropX, y + UI.scale(-2)));
+
+        // --- Row 4: Space label ---
+        y += UI.scale(22);
         spaceLabel = new Label("");
         spaceLabel.setcolor(java.awt.Color.WHITE);
         updateSpaceLabel();
-        rightTogglesExpanded.add(spaceLabel, dropdownPos.add(new Coord(0, UI.scale(20))));
-        
-        // Create Scrollport for item list
-        Coord listPos = dropdownPos.add(new Coord(0, UI.scale(35)));
-        int listWidth = UI.scale(220);
-        int listHeight = UI.scale(140);
-        
-        itemListContainer = rightTogglesExpanded.add(new Scrollport(new Coord(listWidth, listHeight)), listPos);
+        rightPanel.add(spaceLabel, new Coord(margin, y));
+
+        // --- Row 5: Scrollable item list (fills remaining height) ---
+        y += UI.scale(18);
+        int listWidth = UI.scale(230);
+        int listHeight = Math.max(UI.scale(100), sz.y - y - margin);
+
+        itemListContainer = rightPanel.add(new Scrollport(new Coord(listWidth, listHeight)), new Coord(margin, y));
         itemListContent = new Widget(new Coord(listWidth, UI.scale(50))) {
             @Override
             public void pack() {
-                // Auto-resize based on children
                 resize(contentsz());
             }
         };
         itemListContainer.cont.add(itemListContent, Coord.z);
-        
-        // Initial population of items
+
         rebuildItemList();
     }
-    
-    
+
+    private void updateItemListSize() {
+        if (itemListContainer == null || rightPanel == null) return;
+        int margin = UI.scale(8);
+        int listWidth = UI.scale(230);
+        int listY = itemListContainer.c.y;
+        int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - listY - margin);
+        itemListContainer.resize(new Coord(listWidth, listHeight));
+    }
+
     /**
      * Parse the quality filter text entry to get min quality value
      */
@@ -1050,93 +1046,11 @@ public class NInventory extends Inventory
             minQualityFilter = null;
         }
     }
-    
-    private void setupCompactPanel() {
-        int panelMargin = UI.scale(4);
-        Coord headerPos = rightTogglesCompact.atl.add(new Coord(panelMargin, panelMargin));
-        
-        // View toggle button in top-right of compact panel
-        IButton viewToggle = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/lsearch/u"),
-            Resource.loadsimg("nurgling/hud/buttons/lsearch/d"),
-            Resource.loadsimg("nurgling/hud/buttons/lsearch/h")
-        ) {
-            @Override
-            public void click() {
-                rightPanelMode = RightPanelMode.EXPANDED;
-                NConfig.set(NConfig.Key.inventoryRightPanelMode, "EXPANDED");
-                updateRightPanelVisibility();
-            }
-        };
-        viewToggle.settip("Switch to expanded view");
-        rightTogglesCompact.add(viewToggle, new Coord(rightTogglesCompact.sz.x - UI.scale(40), headerPos.y));
-        
-        // Sorting buttons for compact mode
-        // Name sort button (above icons area)
-        ICheckBox nameSortButton = new ICheckBox(
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/UP/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/DOWN/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/UP/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/DOWN/h"))
-        ) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                compactNameAscending = !val; // false = ascending, true = descending
-                compactLastSortType = "name"; // Mark name as last clicked
-                rebuildCompactList();
-            }
-        };
-        nameSortButton.a = false; // Start with ascending (up arrow)
-        nameSortButton.settip("Sort by name (ascending/descending)");
-        rightTogglesCompact.add(nameSortButton, new Coord(headerPos.x + UI.scale(3), headerPos.y));
-        
-        // Quantity sort button (above quantities area)  
-        ICheckBox quantitySortButton = new ICheckBox(
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/UP/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/DOWN/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/UP/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/arrows/v2/DOWN/h"))
-        ) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                compactQuantityAscending = !val; // false = ascending, true = descending
-                compactLastSortType = "quantity"; // Mark quantity as last clicked
-                rebuildCompactList();
-            }
-        };
-        quantitySortButton.a = true; // Start with descending (down arrow) for quantities
-        quantitySortButton.settip("Sort by quantity (ascending/descending)");
-        rightTogglesCompact.add(quantitySortButton, new Coord(headerPos.x + UI.scale(20), headerPos.y));
-
-        // Create compact Scrollport for item list (below the sorting buttons)
-        Coord listPos = headerPos.add(new Coord(0, UI.scale(25)));
-        int listWidth = UI.scale(90);
-        int listHeight = UI.scale(180);
-        
-        compactListContainer = rightTogglesCompact.add(new Scrollport(new Coord(listWidth, listHeight)), listPos);
-        compactListContent = new Widget(new Coord(listWidth, UI.scale(50))) {
-            @Override
-            public void pack() {
-                resize(contentsz());
-            }
-        };
-        compactListContainer.cont.add(compactListContent, Coord.z);
-        
-        // Initial population
-        rebuildCompactList();
-    }
 
     private void applySorting() {
-        // Trigger re-population of items with current sort settings
         rebuildItemList();
     }
 
-    private void updateRightPanelItems() {
-        rebuildItemList();
-    }
-    
     /**
      * Update the space label showing filled/total slots
      */
@@ -1405,101 +1319,6 @@ public class NInventory extends Inventory
         itemListContainer.cont.update();
     }
     
-    private void rebuildCompactList() {
-        if (compactListContent == null) return;
-        
-        // Clear existing widgets from content
-        for (Widget child : new ArrayList<>(compactListContent.children())) {
-            child.destroy();
-        }
-        
-        // Get current inventory items and group by name + quality (same logic as expanded)
-        Map<String, ItemGroup> itemGroupMap = new HashMap<>();
-        
-        for (Widget widget = this.child; widget != null; widget = widget.next) {
-            if (widget instanceof WItem) {
-                WItem wItem = (WItem) widget;
-                if (wItem.item instanceof NGItem) {
-                    NGItem nitem = (NGItem) wItem.item;
-                    String itemName = nitem.name();
-                    
-                    if (itemName != null) {
-                        Double quality = getItemQuality(nitem);
-                        
-                        // Apply quality filter (same as expanded mode)
-                        if (minQualityFilter != null) {
-                            double itemQ = quality != null ? quality : 0;
-                            if (itemQ < minQualityFilter) {
-                                continue; // Skip items below min quality
-                            }
-                        }
-                        
-                        String groupKey;
-                        
-                        // Create group key based on grouping mode
-                        if (currentGrouping == Grouping.NONE) {
-                            groupKey = itemName;
-                        } else {
-                            double quantifiedQ = quality != null ? ItemGroup.quantifyQuality(quality, currentGrouping) : 0;
-                            groupKey = itemName + "@Q" + (int) quantifiedQ;
-                        }
-                        
-                        ItemGroup group = itemGroupMap.get(groupKey);
-                        if (group == null) {
-                            group = new ItemGroup(itemName, quality, currentGrouping);
-                            itemGroupMap.put(groupKey, group);
-                        }
-                        group.addItem(nitem, wItem);
-                    }
-                }
-            }
-        }
-        
-        // Sort items - whatever was clicked last becomes the primary sort
-        List<ItemGroup> itemGroups = new ArrayList<>(itemGroupMap.values());
-        itemGroups.sort((a, b) -> {
-            if ("name".equals(compactLastSortType)) {
-                // Name is primary sort
-                int nameResult = a.name.compareTo(b.name);
-                if (!compactNameAscending) nameResult = -nameResult;
-                
-                // Secondary sort by quality for ties
-                if (nameResult == 0) {
-                    int qualityResult = Double.compare(a.averageQuality, b.averageQuality);
-                    return compactQuantityAscending ? qualityResult : -qualityResult;
-                }
-                return nameResult;
-            } else {
-                // Quantity is primary sort (default)
-                int quantityResult = Integer.compare(a.totalQuantity, b.totalQuantity);
-                if (!compactQuantityAscending) quantityResult = -quantityResult;
-                
-                // Secondary sort by name for ties
-                if (quantityResult == 0) {
-                    int nameResult = a.name.compareTo(b.name);
-                    return compactNameAscending ? nameResult : -nameResult;
-                }
-                return quantityResult;
-            }
-        });
-        
-        // Create compact list layout - one line per item
-        int y = 0;
-        int contentWidth = compactListContainer.cont.sz.x;
-        int itemHeight = UI.scale(18); // Single line height
-        
-        for (int idx = 0; idx < itemGroups.size(); idx++) {
-            ItemGroup group = itemGroups.get(idx);
-            Widget compactWidget = createCompactItemWidget(group, new Coord(contentWidth, itemHeight), idx);
-            compactListContent.add(compactWidget, new Coord(0, y));
-            y += itemHeight + UI.scale(1);
-        }
-        
-        // Let the content widget auto-resize and update scrollbar
-        compactListContent.pack();
-        compactListContainer.cont.update();
-    }
-    
     // Progress bar color for curio items
     private static final Color CURIO_PROGRESS_COLOR = new Color(31, 209, 185, 128);
     private static final Color ROW_EVEN = new Color(255, 255, 255, 13);  // #FFFFFF0D
@@ -1665,101 +1484,6 @@ public class NInventory extends Inventory
         }
     }
     
-    private Widget createCompactItemWidget(ItemGroup group, Coord sz, int rowIdx) {
-        return new Widget(sz) {
-            @Override
-            public void draw(GOut g) {
-                // Alternating row background
-                g.chcolor(((rowIdx % 2) == 0) ? ROW_EVEN : ROW_ODD);
-                g.frect(Coord.z, sz);
-                g.chcolor();
-
-                int iconSize = UI.scale(16);
-                int margin = UI.scale(1);
-                int textY = UI.scale(2);
-
-                // Draw curio study progress bar in background
-                if (group.curioMeter != null && group.curioMeter > 0) {
-                    g.chcolor(CURIO_PROGRESS_COLOR);
-                    int progressWidth = (int)((sz.x - iconSize - margin * 2) * group.curioMeter);
-                    g.frect(new Coord(iconSize + margin * 2, 0), new Coord(progressWidth, sz.y));
-                    g.chcolor();
-                }
-                
-                // Draw item icon
-                NGItem representativeItem = group.getRepresentativeItem();
-                if (representativeItem != null) {
-                    Coord iconPos = new Coord(margin, margin);
-                    
-                    try {
-                        Resource.Image img = representativeItem.getres().layer(Resource.imgc);
-                        if (img != null) {
-                            g.image(img.tex(), iconPos, new Coord(iconSize, iconSize));
-                        } else {
-                            g.chcolor(100, 150, 100, 200);
-                            g.frect(iconPos, new Coord(iconSize, iconSize));
-                            g.chcolor();
-                        }
-                    } catch (Exception e) {
-                        g.chcolor(100, 150, 100, 200);
-                        g.frect(iconPos, new Coord(iconSize, iconSize));
-                        g.chcolor();
-                    }
-                }
-                
-                // Draw quantity next to the icon with quality if grouped
-                int textStartX = margin + iconSize + UI.scale(4);
-                String displayText;
-                if (currentGrouping != Grouping.NONE && group.averageQuality > 0) {
-                    displayText = String.format("x%d q%.0f", group.totalQuantity, group.averageQuality);
-                } else {
-                    displayText = "x" + group.totalQuantity;
-                }
-                g.text(displayText, new Coord(textStartX, textY));
-            }
-            
-            @Override
-            public boolean mousedown(MouseDownEvent ev) {
-                // Shift+Click = Transfer items in group
-                if (ui.modshift && (ev.b == 1 || ev.b == 3)) {
-                    boolean reverse = (ev.b == 3);
-                    processGroupItems(group, reverse, "transfer");
-                    return true;
-                }
-                
-                // Ctrl+Click = Drop items in group
-                if (ui.modctrl && (ev.b == 1 || ev.b == 3)) {
-                    boolean reverse = (ev.b == 3);
-                    processGroupItems(group, reverse, "drop");
-                    return true;
-                }
-                
-                // Regular click = interact with first item
-                if (ev.b == 1 && !group.wItems.isEmpty()) {
-                    WItem wItem = group.wItems.get(0);
-                    if (wItem != null && wItem.parent != null) {
-                        wItem.item.wdgmsg("take", new Coord(sqsz.x / 2, sqsz.y / 2));
-                    }
-                    return true;
-                }
-                
-                return super.mousedown(ev);
-            }
-            
-            @Override
-            public Object tooltip(Coord c, Widget prev) {
-                StringBuilder sb = new StringBuilder();
-                sb.append(group.name);
-                if (group.averageQuality > 0) {
-                    sb.append(String.format(" (q%.1f)", group.averageQuality));
-                }
-                if (group.curioLph != null && group.curioMw != null) {
-                    sb.append(String.format("\nLP/H: %d  MW: %d", group.curioLph, group.curioMw));
-                }
-                return sb.toString();
-            }
-        };
-    }
 
     public short[][] containerMatrix()
     {

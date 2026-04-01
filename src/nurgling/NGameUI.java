@@ -536,7 +536,7 @@ public class NGameUI extends GameUI
                 }
             }
 
-            if (maininv != null && ((NInventory) maininv).searchwdg == null)
+            if (maininv != null && !((NInventory) maininv).mainInvInstalled)
             {
                 ((NInventory) maininv).installMainInv();
             }
