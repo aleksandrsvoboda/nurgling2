@@ -30,7 +30,7 @@ public class NStyle {
 	    int w = haven.UI.scale(8);
 	    int x = sb.sz.x - w;
 	    // Fill full widget width with track color (eliminates gap between list items and scrollbar)
-	    g.chcolor(rowOdd);
+	    g.chcolor(0x33, 0x3E, 0x40, 0xFF);
 	    g.frect(haven.Coord.of(0, 0), new haven.Coord(sb.sz.x, sb.sz.y));
 	    g.chcolor();
 	    // Handle (right-aligned, 8px wide)
