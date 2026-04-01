@@ -21,19 +21,19 @@ public class NSearchWidget extends Widget {
     public static final Text.Foundry nfnd = new Text.Foundry(Text.dfont, 10);
     Window helpwnd;
     private static final BufferedImage[] searchbi = new BufferedImage[]{
-            Resource.loadsimg("nurgling/hud/buttons/search/u"),
-            Resource.loadsimg("nurgling/hud/buttons/search/d"),
-            Resource.loadsimg("nurgling/hud/buttons/search/h")};
+            Resource.loadsimg("nurgling/hud/buttons/inv/question/u"),
+            Resource.loadsimg("nurgling/hud/buttons/inv/question/d"),
+            Resource.loadsimg("nurgling/hud/buttons/inv/question/h")};
     private static final BufferedImage[] ssearchbi = new BufferedImage[]{
-            Resource.loadsimg("nurgling/hud/buttons/ssearch/u"),
-            Resource.loadsimg("nurgling/hud/buttons/ssearch/d"),
-            Resource.loadsimg("nurgling/hud/buttons/ssearch/h")};
+            Resource.loadsimg("nurgling/hud/buttons/inv/star/u"),
+            Resource.loadsimg("nurgling/hud/buttons/inv/star/d"),
+            Resource.loadsimg("nurgling/hud/buttons/inv/star/h")};
 
     private static final Tex[] lsearchbi = new Tex[]{
-            Resource.loadtex("nurgling/hud/buttons/lsearch/u"),
-            Resource.loadtex("nurgling/hud/buttons/lsearch/d"),
-            Resource.loadtex("nurgling/hud/buttons/lsearch/h"),
-            Resource.loadtex("nurgling/hud/buttons/lsearch/dh")};
+            Resource.loadtex("nurgling/hud/buttons/inv/menu/u"),
+            Resource.loadtex("nurgling/hud/buttons/inv/menu/d"),
+            Resource.loadtex("nurgling/hud/buttons/inv/menu/h"),
+            Resource.loadtex("nurgling/hud/buttons/inv/menu/dh")};
 
     public IButton help;
     public IButton save;
