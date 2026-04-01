@@ -16,9 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import static haven.ItemInfo.catimgs;
 
 public class NSearchWidget extends Widget {
-    public NPopupWidget history;
     public CmdList cmdList;
-    TextEntry searchF = null;
+    public TextEntry searchF = null;
     public static final Text.Foundry nfnd = new Text.Foundry(Text.dfont, 10);
     Window helpwnd;
     private static final BufferedImage[] searchbi = new BufferedImage[]{
@@ -36,10 +35,15 @@ public class NSearchWidget extends Widget {
             Resource.loadtex("nurgling/hud/buttons/lsearch/h"),
             Resource.loadtex("nurgling/hud/buttons/lsearch/dh")};
 
-    IButton help;
-    IButton save;
-    ICheckBox list;
+    public IButton help;
+    public IButton save;
+    public ICheckBox list;
     int tpos_y;
+
+    // Embedded history list (replaces old floating popup)
+    private Scrollport historyScroll;
+    private boolean listShown = false;
+    private static final int LIST_HEIGHT = UI.scale(120);
 
     public Widget create(UI ui, Object[] args) {
         return (new NSearchWidget((Coord) args[0]));
@@ -89,6 +93,7 @@ public class NSearchWidget extends Widget {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
+                setListShown(val);
             }
         };
         list.settip(Resource.remote().loadwait("nurgling/hud/buttons/lsearch/u").flayer(Resource.tooltip).text());
@@ -126,9 +131,14 @@ public class NSearchWidget extends Widget {
             gui.add(helpwnd);
             initHelp();
             helpwnd.hide();
-            history = gui.add(new NPopupWidget(new Coord(UI.scale(200), UI.scale(150)), NPopupWidget.Type.TOP));
-            history.pack();
-            cmdList = history.add(new CmdList(UI.scale(250, 200)),history.atl);
+
+            // Embedded history list below search bar
+            int listY = searchF.sz.y + UI.scale(3);
+            int listW = sz.x;
+            historyScroll = add(new Scrollport(new Coord(listW, LIST_HEIGHT)), new Coord(0, listY));
+            cmdList = historyScroll.cont.add(new CmdList(new Coord(listW, LIST_HEIGHT)), Coord.z);
+            historyScroll.visible = false;
+
             read();
         } else {
             // Defer initialization - will be done later when GameUI is available
@@ -136,15 +146,39 @@ public class NSearchWidget extends Widget {
         }
     }
 
+    private void setListShown(boolean show) {
+        listShown = show;
+        if (historyScroll != null) {
+            historyScroll.visible = show;
+        }
+        updateHeight();
+        // Repack the parent window so it grows/shrinks
+        if (parent != null) {
+            parent.pack();
+        }
+    }
+
+    private void updateHeight() {
+        if (listShown && historyScroll != null) {
+            this.sz = new Coord(this.sz.x, searchF.sz.y + UI.scale(3) + LIST_HEIGHT);
+        } else {
+            this.sz = new Coord(this.sz.x, searchF.sz.y);
+        }
+    }
+
     @Override
     public void resize(Coord sz) {
         searchF.resize(sz.x - UI.scale(5) * 3 - help.sz.x * 3);
-        this.sz.y = searchF.sz.y;
         this.sz.x = sz.x;
         save.move(new Coord(sz.x - save.sz.x, tpos_y));
         list.move(new Coord(sz.x - save.sz.x - UI.scale(5) - list.sz.x, tpos_y));
-        history.resize(new Coord(searchF.sz.x+UI.scale(12), UI.scale(150)));
-        cmdList.resize(new Coord(0, UI.scale(120)));
+        if (historyScroll != null) {
+            historyScroll.resize(new Coord(sz.x, LIST_HEIGHT));
+        }
+        if (cmdList != null) {
+            cmdList.resize(new Coord(0, LIST_HEIGHT));
+        }
+        updateHeight();
     }
 
     TexI helpLayer;
@@ -165,12 +199,11 @@ public class NSearchWidget extends Widget {
 
     private double searchTickAccum = 0;
     private static final double SEARCH_TICK_INTERVAL = 1.0; // Only check once per second
-    
+
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        history.visible = parent.visible && list.a;
-        
+
         // Throttle search refresh to once per second instead of every frame
         searchTickAccum += dt;
         if (searchTickAccum >= SEARCH_TICK_INTERVAL) {
@@ -279,4 +312,3 @@ public class NSearchWidget extends Widget {
         }
     }
 }
-

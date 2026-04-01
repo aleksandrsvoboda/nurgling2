@@ -475,13 +475,7 @@ public class NInventory extends Inventory
     }
 
     public void movePopup(Coord c) {
-        // Position search history popup when window is dragged
-        if (searchwdg != null && searchwdg.history != null) {
-            searchwdg.history.move(new Coord(
-                c.x + ((Window) parent).ca().ul.x + UI.scale(7),
-                c.y + parent.sz.y - UI.scale(37)
-            ));
-        }
+        // No-op: all panels are now embedded in the window
     }
 
     @Override
@@ -874,8 +868,14 @@ public class NInventory extends Inventory
         searchVisible = show;
         if (searchwdg != null) {
             searchwdg.visible = show;
-            if (!show && NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
-                NUtils.getGameUI().itemsForSearch.install("");
+            if (!show) {
+                // Close history list and clear search
+                if (searchwdg.list != null && searchwdg.list.a) {
+                    searchwdg.list.set(false);
+                }
+                if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
+                    NUtils.getGameUI().itemsForSearch.install("");
+                }
             }
             parent.pack();
             positionTitleBarButtons();
