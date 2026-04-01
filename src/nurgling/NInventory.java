@@ -43,7 +43,8 @@ public class NInventory extends Inventory
     String compactLastSortType = "quantity";
     // Title bar button references (Widget type - these are NHeaderButton/NHeaderToggle wrappers)
     private Widget searchBtn;
-    private TextEntry headerSearchField;
+    public nurgling.widgets.NSearchWidget searchwdg;
+    boolean searchVisible = false;
     private Widget eyeBtn;
     private Widget dropperBtn;
     private Widget sortBtnRef;
@@ -465,12 +466,22 @@ public class NInventory extends Inventory
             rightPanel.resize(new Coord(UI.scale(250), sz.y));
             updateItemListSize();
         }
+        if (searchwdg != null) {
+            searchwdg.resize(sz);
+            searchwdg.move(new Coord(0, sz.y + UI.scale(5)));
+        }
         parent.pack();
         positionTitleBarButtons();
     }
 
     public void movePopup(Coord c) {
-        // No-op: panels are now embedded in the window
+        // Position search history popup when window is dragged
+        if (searchwdg != null && searchwdg.history != null) {
+            searchwdg.history.move(new Coord(
+                c.x + ((Window) parent).ca().ul.x + UI.scale(7),
+                c.y + parent.sz.y - UI.scale(37)
+            ));
+        }
     }
 
     @Override
@@ -793,64 +804,12 @@ public class NInventory extends Inventory
             });
             deco.add(eyeBtn);
 
-            // Search icon in title bar
-            searchBtn = new NHeaderButton("nurgling/hud/buttons/inv/search", () -> {
-                if (headerSearchField != null) {
-                    headerSearchField.visible = !headerSearchField.visible;
-                    if (headerSearchField.visible) {
-                        wnd.setfocus(headerSearchField);
-                    } else {
-                        headerSearchField.settext("");
-                        if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
-                            NUtils.getGameUI().itemsForSearch.install("");
-                        }
-                    }
-                }
+            // Search toggle in title bar - expands search panel below inventory
+            searchBtn = new NHeaderToggle("nurgling/hud/buttons/inv/search", (val) -> {
+                toggleSearch(val);
             });
             searchBtn.settip("Search inventory");
             deco.add(searchBtn);
-
-            // Search text entry (initially hidden, in title bar, dark themed)
-            headerSearchField = new TextEntry(UI.scale(80), "") {
-                @Override
-                public void draw(GOut g) {
-                    // Dark background matching title bar instead of default green
-                    g.chcolor(NStyle.windowBg);
-                    g.frect(Coord.z, sz);
-                    g.chcolor();
-                    // Subtle border
-                    int bw = Math.max(1, UI.scale(1));
-                    g.chcolor(NStyle.border);
-                    g.frect(Coord.z, new Coord(sz.x, bw));
-                    g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
-                    g.frect(Coord.z, new Coord(bw, sz.y));
-                    g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
-                    g.chcolor();
-                    // Text and caret rendering
-                    Text.Line tc = this.tcache;
-                    if (tc == null)
-                        this.tcache = tc = fnd.render(dtext(), defcol);
-                    int point = buf.point();
-                    g.image(tc.tex(), Coord.of(toffx - sx, (sz.y - tc.sz().y) / 2));
-                    if (hasfocus && ((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5) {
-                        int cx = tc.advance(point) - sx;
-                        g.image(caret, coff.add(toffx + cx, (sz.y - tc.img.getHeight()) / 2));
-                    }
-                }
-
-                @Override
-                public boolean keydown(KeyDownEvent e) {
-                    boolean res = super.keydown(e);
-                    if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
-                        NUtils.getGameUI().itemsForSearch.install(text());
-                    }
-                    return res;
-                }
-            };
-            headerSearchField.visible = false;
-            headerSearchField.setcanfocus(true);
-            headerSearchField.autofocus = false;
-            deco.add(headerSearchField);
 
             // Dropper/trash toggle in title bar
             dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
@@ -889,6 +848,12 @@ public class NInventory extends Inventory
         // Setup right panel contents (toggle buttons, dropdowns, item list)
         setupRightPanel();
 
+        // --- Search panel (below inventory, initially hidden) ---
+        searchwdg = new nurgling.widgets.NSearchWidget(new Coord(sz));
+        searchwdg.resize(sz);
+        searchwdg.visible = false;
+        parent.add(searchwdg, new Coord(0, sz.y + UI.scale(5)));
+
         // Load panel state from config (0=closed, 1=simplified, 2=expanded)
         Object stateConfig = NConfig.get(NConfig.Key.inventoryRightPanelShow);
         if (stateConfig instanceof Number) {
@@ -903,6 +868,18 @@ public class NInventory extends Inventory
         parent.pack();
         positionTitleBarButtons();
         mainInvInstalled = true;
+    }
+
+    private void toggleSearch(boolean show) {
+        searchVisible = show;
+        if (searchwdg != null) {
+            searchwdg.visible = show;
+            if (!show && NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
+                NUtils.getGameUI().itemsForSearch.install("");
+            }
+            parent.pack();
+            positionTitleBarButtons();
+        }
     }
 
     private void setPanelState(int state) {
@@ -957,7 +934,7 @@ public class NInventory extends Inventory
             dropperBtn.c = new Coord(x, (titleH - dropperBtn.sz.y) / 2);
         }
 
-        // Left-aligned: "Inventory" [expand] [search] [field] ...
+        // Left-aligned: "Inventory" [expand] [search] ...
         int leftX = UI.scale(70); // After "Inventory" text
         if (eyeBtn != null) {
             eyeBtn.c = new Coord(leftX, 0);
@@ -965,12 +942,6 @@ public class NInventory extends Inventory
         }
         if (searchBtn != null) {
             searchBtn.c = new Coord(leftX, 0);
-            leftX += searchBtn.sz.x + btnGap;
-            if (headerSearchField != null) {
-                int fieldW = Math.max(UI.scale(60), x - leftX - UI.scale(10));
-                headerSearchField.resize(fieldW);
-                headerSearchField.c = new Coord(leftX, (titleH - headerSearchField.sz.y) / 2);
-            }
         }
     }
 
