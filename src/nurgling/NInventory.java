@@ -810,8 +810,34 @@ public class NInventory extends Inventory
             searchBtn.settip("Search inventory");
             deco.add(searchBtn);
 
-            // Search text entry (initially hidden, in title bar)
+            // Search text entry (initially hidden, in title bar, dark themed)
             headerSearchField = new TextEntry(UI.scale(80), "") {
+                @Override
+                public void draw(GOut g) {
+                    // Dark background matching title bar instead of default green
+                    g.chcolor(NStyle.windowBg);
+                    g.frect(Coord.z, sz);
+                    g.chcolor();
+                    // Subtle border
+                    int bw = Math.max(1, UI.scale(1));
+                    g.chcolor(NStyle.border);
+                    g.frect(Coord.z, new Coord(sz.x, bw));
+                    g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
+                    g.frect(Coord.z, new Coord(bw, sz.y));
+                    g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
+                    g.chcolor();
+                    // Text and caret rendering
+                    Text.Line tc = this.tcache;
+                    if (tc == null)
+                        this.tcache = tc = fnd.render(dtext(), defcol);
+                    int point = buf.point();
+                    g.image(tc.tex(), Coord.of(toffx - sx, (sz.y - tc.sz().y) / 2));
+                    if (hasfocus && ((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5) {
+                        int cx = tc.advance(point) - sx;
+                        g.image(caret, coff.add(toffx + cx, (sz.y - tc.img.getHeight()) / 2));
+                    }
+                }
+
                 @Override
                 public boolean keydown(KeyDownEvent e) {
                     boolean res = super.keydown(e);
@@ -980,7 +1006,7 @@ public class NInventory extends Inventory
         rightPanel.add(nameSortBtn, new Coord(sortBtnX, y));
         simplifiedOnlyWidgets.add(nameSortBtn);
 
-        sortBtnX += nameSortBtn.sz.x + elementGap;
+        sortBtnX += nameSortBtn.sz.x + UI.scale(1);
         NHeaderToggle qtySortBtn = new NHeaderToggle(
             sortarrowi[0], sortarrowi[1], sortarrowi[2], sortarrowi[3],
             (val) -> {

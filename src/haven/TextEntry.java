@@ -50,8 +50,8 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     public int sx;
     public boolean pw = false;
     private boolean dirty = false;
-    private double focusstart;
-    private Text.Line tcache = null;
+    protected double focusstart;
+    protected Text.Line tcache = null;
     private UI.Grab d = null;
 
     @RName("text")
