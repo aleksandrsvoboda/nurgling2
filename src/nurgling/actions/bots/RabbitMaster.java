@@ -493,7 +493,7 @@ public class RabbitMaster implements Action {
         NUtils.addTask(new NTask() {
             @Override
             public boolean check() {
-                return gui.vhand != null && ((NGItem)gui.vhand.item).quality == newRabbit.quality;
+                return gui.vhand != null && ((NGItem)gui.vhand.item).quality != null && ((NGItem)gui.vhand.item).quality == newRabbit.quality;
             }
         });
         gui.getInventory().dropOn(oldRabbitPos, alias);
