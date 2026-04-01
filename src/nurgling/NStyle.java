@@ -9,8 +9,8 @@ import java.util.*;
 
 public class NStyle {
     // === Theme colors ===
-    public static final Color rowOdd   = new Color(51, 62, 64);       // #333E40
-    public static final Color rowEven  = new Color(40, 52, 54);       // #283436
+    public static final Color rowOdd   = new Color(0x28, 0x30, 0x31); // #283031
+    public static final Color rowEven  = new Color(0x1C, 0x25, 0x26); // #1C2526
     public static final Color infoBg   = new Color(0x1C, 0x25, 0x26); // #1C2526
     public static final Color border   = new Color(233, 156, 84);     // #E99C54
     public static final Color windowBg = new Color(40, 52, 54, 245);  // content area bg
