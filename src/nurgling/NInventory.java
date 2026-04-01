@@ -457,6 +457,13 @@ public class NInventory extends Inventory
         }
     }
 
+    private int fullContentWidth() {
+        int w = sz.x;
+        if (panelState == PANEL_SIMPLIFIED) w = sz.x + UI.scale(8) + PANEL_W_SIMPLIFIED;
+        else if (panelState == PANEL_EXPANDED) w = sz.x + UI.scale(8) + PANEL_W_EXPANDED;
+        return w;
+    }
+
     @Override
     public void resize(Coord sz) {
         super.resize(new Coord(sz));
@@ -467,9 +474,10 @@ public class NInventory extends Inventory
             updateItemListSize();
         }
         if (searchwdg != null) {
-            searchwdg.resize(sz);
+            searchwdg.resize(new Coord(fullContentWidth(), 0));
             searchwdg.move(new Coord(0, sz.y + UI.scale(5)));
         }
+        resizeSearchToFit();
         parent.pack();
         positionTitleBarButtons();
     }
@@ -859,6 +867,7 @@ public class NInventory extends Inventory
         if (eyeBtn instanceof NHeaderCycler) ((NHeaderCycler) eyeBtn).state = panelState;
         applyPanelState();
 
+        resizeSearchToFit();
         parent.pack();
         positionTitleBarButtons();
         mainInvInstalled = true;
@@ -877,8 +886,22 @@ public class NInventory extends Inventory
                     NUtils.getGameUI().itemsForSearch.install("");
                 }
             }
+            resizeSearchToFit();
             parent.pack();
             positionTitleBarButtons();
+        }
+    }
+
+    /**
+     * Resize search widget to match the full content width before pack(),
+     * so pack() calculates the correct window size.
+     */
+    private void resizeSearchToFit() {
+        if (searchwdg != null && searchwdg.visible) {
+            int fullW = fullContentWidth();
+            if (searchwdg.sz.x != fullW) {
+                searchwdg.resize(new Coord(fullW, 0));
+            }
         }
     }
 
@@ -886,6 +909,7 @@ public class NInventory extends Inventory
         panelState = state;
         NConfig.set(NConfig.Key.inventoryRightPanelShow, state);
         applyPanelState();
+        resizeSearchToFit();
         parent.pack();
         positionTitleBarButtons();
     }
