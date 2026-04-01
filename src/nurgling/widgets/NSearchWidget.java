@@ -68,6 +68,16 @@ public class NSearchWidget extends Widget {
             public void click() {
                 super.click();
                 helpwnd.visible = !helpwnd.visible;
+                if (helpwnd.visible) {
+                    // Position to the left of the inventory window
+                    Window invWnd = getparent(Window.class);
+                    if (invWnd != null) {
+                        int hx = invWnd.c.x - helpwnd.sz.x - UI.scale(5);
+                        int hy = invWnd.c.y;
+                        if (hx < 0) hx = 0;
+                        helpwnd.c = new Coord(hx, hy);
+                    }
+                }
             }
         };
         help.settip(Resource.remote().loadwait("nurgling/hud/buttons/search/u").flayer(Resource.tooltip).text());
