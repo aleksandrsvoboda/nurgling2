@@ -520,9 +520,9 @@ public class TunnelingDialog extends Window {
         int legendX = leftMargin + previewGrid.sz.x + 25;
         int previewBottom = y + previewGrid.sz.y;
         int legendItemHeight = 22;
-        addColoredLegend(legendX, previewBottom - 3 * legendItemHeight, COLOR_SUPPORT, "Support");
-        addColoredLegend(legendX, previewBottom - 2 * legendItemHeight, COLOR_TUNNEL, "Tunnel");
-        addColoredLegend(legendX, previewBottom - legendItemHeight, COLOR_WING, "Wing");
+        addColoredLegend(legendX, previewBottom - 3 * legendItemHeight, COLOR_SUPPORT, "Support", tunnelerWidgets);
+        addColoredLegend(legendX, previewBottom - 2 * legendItemHeight, COLOR_TUNNEL, "Tunnel", tunnelerWidgets);
+        addColoredLegend(legendX, previewBottom - legendItemHeight, COLOR_WING, "Wing", tunnelerWidgets);
 
         tunnelerWidgets.add(previewLabel);
         tunnelerWidgets.add(previewGrid);
@@ -719,7 +719,7 @@ public class TunnelingDialog extends Window {
         }
     }
 
-    private void addColoredLegend(int x, int y, Color color, String text) {
+    private void addColoredLegend(int x, int y, Color color, String text, List<Widget> trackingList) {
         Widget colorBox = new Widget(new Coord(UI.scale(14), UI.scale(14))) {
             @Override
             public void draw(GOut g) {
@@ -729,7 +729,12 @@ public class TunnelingDialog extends Window {
             }
         };
         add(colorBox, new Coord(x, y));
-        add(new Label(text), new Coord(x + UI.scale(18), y));
+        Label label = new Label(text);
+        add(label, new Coord(x + UI.scale(18), y));
+        if (trackingList != null) {
+            trackingList.add(colorBox);
+            trackingList.add(label);
+        }
     }
 
     private void selectDirection(Direction dir) {
