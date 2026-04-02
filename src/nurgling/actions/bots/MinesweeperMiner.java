@@ -124,10 +124,8 @@ public class MinesweeperMiner implements Action {
         queue.add(playerTile);
         visited.add(tileKey(playerTile));
 
-        Coord bestSafe = null;
-        int bestSafeScore = Integer.MIN_VALUE;
-        Coord bestUnknown = null;
-        int bestUnknownScore = Integer.MIN_VALUE;
+        Coord best = null;
+        int bestScore = Integer.MIN_VALUE;
         int candidates = 0;
         int rejectedDanger = 0;
 
@@ -162,39 +160,39 @@ public class MinesweeperMiner implements Action {
                 MinesweeperSolver.TileState state = solver.getState(neighbor);
                 if (state == MinesweeperSolver.TileState.DANGER) { rejectedDanger++; continue; }
 
+                // UNKNOWN tiles adjacent to numbered tiles are potential mines — never mine them
+                if (state != MinesweeperSolver.TileState.SUPPORTED &&
+                    state != MinesweeperSolver.TileState.SAFE) {
+                    if (solver.isAdjacentToNumberedTile(neighbor)) continue;
+                }
+
                 candidates++;
 
                 int forward = getForward(neighbor, direction) - startForward;
                 int dist = Math.abs(neighbor.x - playerTile.x) + Math.abs(neighbor.y - playerTile.y);
                 int lateralDev = Math.abs(lateral - startLateral);
 
-                // Forward progress is primary, then proximity, then centered
-                int score = forward * 10000 - dist * 10 - lateralDev;
-
+                // SAFE/SUPPORTED get a bonus worth ~0.5 tiles of forward progress.
+                // At equal forward distance, safe tiles win. But an unknown tile
+                // further forward (like rock at the far end of an open area) wins
+                // over a safe side-wall tile nearby.
+                int safetyBonus = 0;
                 if (state == MinesweeperSolver.TileState.SUPPORTED ||
                     state == MinesweeperSolver.TileState.SAFE) {
-                    if (score > bestSafeScore) {
-                        bestSafeScore = score;
-                        bestSafe = neighbor;
-                    }
-                } else {
-                    // UNKNOWN — only mine if NOT adjacent to any numbered tile
-                    if (solver.isAdjacentToNumberedTile(neighbor)) continue;
+                    safetyBonus = 5000;
+                }
 
-                    if (score > bestUnknownScore) {
-                        bestUnknownScore = score;
-                        bestUnknown = neighbor;
-                    }
+                int score = forward * 10000 + safetyBonus - dist * 10 - lateralDev;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = neighbor;
                 }
             }
         }
 
-        // Always prefer safe tiles over unknown
-        Coord best = bestSafe != null ? bestSafe : bestUnknown;
-
         System.out.println("[MswpMiner] findNextTile: candidates=" + candidates +
                 " danger=" + rejectedDanger +
-                " safeBest=" + bestSafe + " unknownBest=" + bestUnknown +
                 " picked=" + best +
                 (best != null ? " state=" + solver.getState(best) + " fwd=" +
                         (getForward(best, direction) - startForward) : ""));
