@@ -97,7 +97,8 @@ public class Specialisation extends Window
         candelabrum,
         buildMaterials,
         extractionPress,
-        trufflePig;
+        trufflePig,
+        thicket;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -196,6 +197,9 @@ public class Specialisation extends Window
 
         // Truffle pig hunting area
         specialisation.add(new SpecialisationItem(SpecName.trufflePig.toString(),"Truffle Pig",Resource.loadsimg("nurgling/categories/truffle_pig")));
+
+        // Thicket area for tick gathering
+        specialisation.add(new SpecialisationItem(SpecName.thicket.toString(),"Thicket",Resource.loadsimg("nurgling/categories/safety")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
