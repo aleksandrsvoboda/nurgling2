@@ -155,6 +155,8 @@ public class TunnelingDialog extends Window {
     // Mode-specific widgets (shown/hidden based on support type)
     private final List<Widget> tunnelerWidgets = new ArrayList<>();
     private final List<Widget> minesweeperWidgets = new ArrayList<>();
+    private Button confirmButton, cancelButton;
+    private int tunnelerButtonY, minesweeperButtonY;
 
     private static final Color COLOR_SELECTION = new Color(255, 200, 50);
 
@@ -553,13 +555,17 @@ public class TunnelingDialog extends Window {
 
         // === 5. BUTTONS (left aligned) ===
         int btnWidth = 140;
-        Button confirmButton = new Button(btnWidth, "Start") {
+        tunnelerButtonY = y;
+        // Minesweeper mode: buttons go right after the lateral deviation row
+        minesweeperButtonY = compassCenterY + windroseSize.y / 2 + btnDirS.sz.y + btnGap + 65;
+
+        confirmButton = new Button(btnWidth, "Start") {
             @Override
             public void click() { confirm(); }
         };
         add(confirmButton, new Coord(leftMargin, y));
 
-        Button cancelButton = new Button(btnWidth, "Cancel") {
+        cancelButton = new Button(btnWidth, "Cancel") {
             @Override
             public void click() { cancel(); }
         };
@@ -817,6 +823,7 @@ public class TunnelingDialog extends Window {
     }
 
     private void updateModeUI() {
+        if (confirmButton == null) return; // not yet initialized
         boolean isMinesweeper = (selectedSupportType == SupportType.NONE);
         for (Widget w : tunnelerWidgets) {
             if (isMinesweeper) w.hide(); else w.show();
@@ -824,6 +831,13 @@ public class TunnelingDialog extends Window {
         for (Widget w : minesweeperWidgets) {
             if (isMinesweeper) w.show(); else w.hide();
         }
+        // Move buttons and resize window
+        int btnY = isMinesweeper ? minesweeperButtonY : tunnelerButtonY;
+        int leftMargin = 20;
+        int btnWidth = 140;
+        confirmButton.move(new Coord(leftMargin, btnY));
+        cancelButton.move(new Coord(leftMargin + btnWidth + 15, btnY));
+        resize(new Coord(560, btnY + confirmButton.sz.y + 20));
         // Re-apply direction-dependent visibility for tunnel/wing side buttons
         if (!isMinesweeper) {
             selectDirection(selectedDirection);
