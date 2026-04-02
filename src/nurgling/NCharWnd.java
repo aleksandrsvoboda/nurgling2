@@ -30,6 +30,11 @@ public class NCharWnd extends CharWnd {
 
     @Override
     public void show() {
+        if(battr == null) {
+            // Skip CharWnd.show() which accesses battr — just show the widget
+            visible = true;
+            return;
+        }
         super.show();
         initialized = true;
         alignNavButtons();

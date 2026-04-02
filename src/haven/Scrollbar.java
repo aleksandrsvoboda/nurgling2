@@ -31,13 +31,16 @@ public class Scrollbar extends Widget {
     public static final Tex sflarp = Resource.loadtex("gfx/hud/sflarp");
     public static final int chcut = UI.scale(7);
     public static final int width = sflarp.sz().x;
+    public static int customWidth = 0; // If > 0, overrides default width
     public static java.util.function.BiConsumer<Scrollbar, GOut> customDraw = null;
     public Scrollable ctl;
     public int val, min, max;
     private UI.Grab drag = null;
 
+    private static int effectiveWidth() { return customWidth > 0 ? customWidth : width; }
+
     public Scrollbar(int h, int min, int max) {
-	super(new Coord(width, h));
+	super(new Coord(effectiveWidth(), h));
 	this.min = min;
 	this.max = max;
 	this.val = min;
@@ -135,10 +138,10 @@ public class Scrollbar extends Widget {
     }
 
     public void resize(int h) {
-	super.resize(new Coord(sflarp.sz().x, h));
+	super.resize(new Coord(effectiveWidth(), h));
     }
 
     public void move(Coord c) {
-	this.c = c.add(-sflarp.sz().x, 0);
+	this.c = c.add(-effectiveWidth(), 0);
     }
 }

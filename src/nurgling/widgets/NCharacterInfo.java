@@ -2,7 +2,6 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.*;
-import nurgling.areas.NArea;
 import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
