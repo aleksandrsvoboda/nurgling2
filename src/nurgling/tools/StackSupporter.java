@@ -127,6 +127,7 @@ public class StackSupporter {
             if (NParser.checkName(win.cap, unstackableContainers)
                 || NParser.checkName(name, new NAlias("Lynx Claws"))
                 || name.equals("Silkworm")
+                || name.equals("Tick")
                 || name.contains("Dried Filet")
                 || catExceptions.contains(name)) {
                 return false;

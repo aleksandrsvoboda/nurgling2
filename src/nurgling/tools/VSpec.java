@@ -1631,6 +1631,7 @@ public class VSpec {
         bugs.add(new JSONObject("{\"static\":\"gfx/invobjs/beethatstung\",\"name\":\"The Bee That Stung\"}"));
         bugs.add(new JSONObject("{\"static\":\"gfx/invobjs/waterstrider\",\"name\":\"Waterstrider\"}"));
         bugs.add(new JSONObject("{\"static\":\"gfx/invobjs/woodworm\",\"name\":\"Woodworm\"}"));
+        bugs.add(new JSONObject("{\"static\":\"gfx/invobjs/tick\",\"name\":\"Tick\"}"));
         categories.put("Bug", bugs);
 
         ArrayList<JSONObject> fishlines = new ArrayList<>();
