@@ -98,6 +98,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("boughbee", BotDescriptor.BotType.RESOURCES, "bot.boughbee.title", "bot.boughbee.desc", false, true, BoughBee.class, "boughpyre", false));
         bots.add(new BotDescriptor("forager", BotDescriptor.BotType.RESOURCES, "bot.forager.title", "bot.forager.desc", true, true, Forager.class, "forager", false));
         bots.add(new BotDescriptor("tunneling", BotDescriptor.BotType.RESOURCES, "Tunneling Bot", "Automatically digs tunnels from mine supports, placing new supports along the way. Supports wings (perpendicular tunnels).", false, true, TunnelingBot.class, "tunelling", false));
+        bots.add(new BotDescriptor("minesweeper", BotDescriptor.BotType.RESOURCES, "Minesweeper Miner", "Mines in a direction using minesweeper-style constraint solving to determine safe tiles. Stops when no provably-safe tiles remain.", false, true, MinesweeperMiner.class, "test35", false));
         bots.add(new BotDescriptor("tickbot", BotDescriptor.BotType.RESOURCES, "Tick Bot", "Stands in thicket area to gather ticks. Drops off to PUT area when inventory full. Stops if HP falls below 50%.", true, true, TickBot.class, "tick", false));
 
         // PRODUCTIONS
