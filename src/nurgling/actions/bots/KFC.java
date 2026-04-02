@@ -460,7 +460,7 @@ public class KFC implements Action {
             // Find coop with worse rooster and replace it
             for (CoopInfo coopInfo : coopInfos) {
                 if (coopInfo.roosterQuality < roosterQuality && coopInfo.roosterQuality != -1) {
-                    rooster = gui.getInventory().getItem(new NAlias("Cock"));
+                    rooster = gui.getInventory().getItem(new NAlias(Collections.singletonList("Cock"), Collections.singletonList("Dead")));
                     if (rooster == null) break;
 
                     // Navigate to chicken area and open coop for replacement
@@ -503,7 +503,7 @@ public class KFC implements Action {
             }
 
             // Process the rooster (butcher it)
-            rooster = gui.getInventory().getItem(new NAlias("Cock"));
+            rooster = gui.getInventory().getItem(new NAlias(Collections.singletonList("Cock"), Collections.singletonList("Dead")));
             if (rooster != null) {
                 butcherChicken(gui, rooster, "Cock", "Dead Cock");
             }
