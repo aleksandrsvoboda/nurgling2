@@ -199,7 +199,7 @@ public class Specialisation extends Window
         specialisation.add(new SpecialisationItem(SpecName.trufflePig.toString(),"Truffle Pig",Resource.loadsimg("nurgling/categories/truffle_pig")));
 
         // Thicket area for tick gathering
-        specialisation.add(new SpecialisationItem(SpecName.thicket.toString(),"Thicket",Resource.loadsimg("nurgling/categories/safety")));
+        specialisation.add(new SpecialisationItem(SpecName.thicket.toString(),"Thicket",Resource.loadsimg("nurgling/categories/tick")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
