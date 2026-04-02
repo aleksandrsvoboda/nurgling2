@@ -76,11 +76,6 @@ public class MinesweeperSolver {
         // Mark tiles within support coverage as SUPPORTED
         refreshSupportCoverage(center, radius);
 
-        int supportedCount = 0;
-        int wallCount = 0;
-        int unknownCount = 0;
-        int mineableCount = 0;
-
         // Mark non-mineable tiles as WALL, unknown mineable tiles stay UNKNOWN
         for (int x = center.x - radius; x <= center.x + radius; x++) {
             for (int y = center.y - radius; y <= center.y + radius; y++) {
@@ -89,32 +84,12 @@ public class MinesweeperSolver {
                 // Don't overwrite REVEALED, SAFE, DANGER, or SUPPORTED
                 if (current == TileState.REVEALED || current == TileState.SAFE ||
                         current == TileState.DANGER || current == TileState.SUPPORTED) {
-                    if (current == TileState.SUPPORTED) supportedCount++;
                     continue;
                 }
 
                 Coord tilePos = new Coord(x, y);
                 if (!isTileMineable(tilePos)) {
                     states.put(k, TileState.WALL);
-                    wallCount++;
-                } else {
-                    unknownCount++;
-                    mineableCount++;
-                }
-            }
-        }
-
-        System.out.println("[MswpSolver] refresh: supported=" + supportedCount + " wall=" + wallCount +
-                " unknown/mineable=" + unknownCount + " total states=" + states.size());
-
-        // Log nearby tile states around center
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dy = -2; dy <= 2; dy++) {
-                Coord t = new Coord(center.x + dx, center.y + dy);
-                TileState s = getState(t);
-                boolean mineable = isTileMineable(t);
-                if (mineable || s != TileState.WALL) {
-                    System.out.println("[MswpSolver]   Tile " + t + " state=" + s + " mineable=" + mineable);
                 }
             }
         }
@@ -391,13 +366,9 @@ public class MinesweeperSolver {
      */
     private void refreshSupportCoverage(Coord center, int radius) {
         ArrayList<Gob> supports = Finder.findGobs(ALL_SUPPORTS);
-        System.out.println("[MswpSolver] Found " + supports.size() + " supports");
         for (Gob support : supports) {
             Gob.Overlay ol = support.findol(NMiningSupport.class);
-            if (ol == null || !(ol.spr instanceof NMiningSupport)) {
-                System.out.println("[MswpSolver]   Support gob " + support.id + " at " + support.rc + " has NO NMiningSupport overlay");
-                continue;
-            }
+            if (ol == null || !(ol.spr instanceof NMiningSupport)) continue;
 
             NMiningSupport nms = (NMiningSupport) ol.spr;
             boolean[][] data = nms.getData();

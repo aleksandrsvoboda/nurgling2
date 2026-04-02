@@ -26,37 +26,18 @@ public class MinesweeperMiner implements Action {
     private static final NAlias ALL_SUPPORTS = new NAlias(
             "minebeam", "column", "towercap", "ladder", "minesupport", "naturalminesupport"
     );
-    private static final double TILE_SIZE = 11.0;
     private static final int SOLVER_RADIUS = 30;
+
+    private final Direction direction;
+    private final int maxLateral;
+
+    public MinesweeperMiner(Direction direction, int maxLateral) {
+        this.direction = direction;
+        this.maxLateral = maxLateral;
+    }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        // Show config dialog
-        int[] directionRef = new int[]{0};
-        int[] maxLateralRef = new int[]{5};
-        boolean[] confirmRef = new boolean[]{false};
-        boolean[] cancelRef = new boolean[]{false};
-
-        MinesweeperDialog dialog = new MinesweeperDialog();
-        dialog.setReferences(directionRef, maxLateralRef, confirmRef, cancelRef);
-        gui.add(dialog, UI.scale(200, 200));
-
-        NUtils.addTask(new NTask() {
-            @Override
-            public boolean check() {
-                return confirmRef[0] || cancelRef[0];
-            }
-        });
-
-        dialog.destroy();
-
-        if (cancelRef[0]) {
-            return Results.SUCCESS();
-        }
-
-        Direction direction = Direction.values()[directionRef[0]];
-        int maxLateral = maxLateralRef[0];
-
         gui.msg("Minesweeper Miner: Direction=" + direction.name + ", Max lateral=" + maxLateral);
 
         // Initialize solver
@@ -82,16 +63,12 @@ public class MinesweeperMiner implements Action {
             solver.refresh(playerTile, SOLVER_RADIUS);
             solver.solve();
 
-            System.out.println("[MswpMiner] Player tile: " + playerTile + ", startLateral: " + startLateral + ", maxLateral: " + maxLateral);
-
             // Find the closest safe mineable tile to the player
             Coord target = findNextTile(solver, playerTile, direction, startLateral, maxLateral);
             if (target == null) {
                 gui.msg("Minesweeper Miner: No more safe tiles. Mined " + tilesMinedTotal + " tiles total.");
                 break;
             }
-
-            System.out.println("[MswpMiner] Next target: " + target + " state=" + solver.getState(target));
 
             Results result = mineTile(gui, solver, target);
             if (!result.IsSuccess()) {
@@ -191,12 +168,6 @@ public class MinesweeperMiner implements Action {
             }
         }
 
-        System.out.println("[MswpMiner] findNextTile: candidates=" + candidates +
-                " danger=" + rejectedDanger +
-                " picked=" + best +
-                (best != null ? " state=" + solver.getState(best) + " fwd=" +
-                        (getForward(best, direction) - startForward) : ""));
-
         return best;
     }
 
@@ -227,12 +198,8 @@ public class MinesweeperMiner implements Action {
 
         Coord2d worldPos = tileCenter(tilePos);
 
-        System.out.println("[MswpMiner] mineTile " + tilePos + " — resetting cursor...");
-
         // Ensure cursor is in default state before pathfinding
         NUtils.getDefaultCur();
-
-        System.out.println("[MswpMiner] mineTile " + tilePos + " — pathfinding...");
 
         // Navigate to tile
         PathFinder pf = new PathFinder(NGob.getDummy(worldPos, 0,
@@ -240,12 +207,8 @@ public class MinesweeperMiner implements Action {
         pf.isHardMode = true;
         pf.run(gui);
 
-        System.out.println("[MswpMiner] mineTile " + tilePos + " — pathfinding done, restoring resources...");
-
         // Restore resources
         new RestoreResources().run(gui);
-
-        System.out.println("[MswpMiner] mineTile " + tilePos + " — starting mine loop...");
 
         // Mine the tile — same pattern as TunnelingBot.mineTileIfNeeded
         Resource resBefore = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
@@ -253,15 +216,12 @@ public class MinesweeperMiner implements Action {
         while (isTileMineable(gui, tilePos)) {
             handleBumlings(gui);
 
-            System.out.println("[MswpMiner] mineTile " + tilePos + " — sending mine command...");
-
             NUtils.mine(worldPos);
             gui.map.wdgmsg("sel", tilePos, tilePos, 0);
 
             if (NUtils.getStamina() > 0.4) {
                 Resource finalResBefore = resBefore;
                 Coord finalTilePos = tilePos;
-                System.out.println("[MswpMiner] mineTile " + tilePos + " — waiting for tile change...");
                 NUtils.addTask(new NTask() {
                     @Override
                     public boolean check() {
@@ -270,7 +230,6 @@ public class MinesweeperMiner implements Action {
                         return current != finalResBefore;
                     }
                 });
-                System.out.println("[MswpMiner] mineTile " + tilePos + " — tile changed!");
             }
 
             // Force right-click to cancel mining selection state,
@@ -287,8 +246,6 @@ public class MinesweeperMiner implements Action {
                 return Results.ERROR("Cannot restore resources");
             }
         }
-
-        System.out.println("[MswpMiner] mineTile " + tilePos + " — done mining, scanning for numbers...");
 
         // Wait for server to send minesweeper numbers (they arrive as Cavein overlays)
         Coord scanTile = tilePos;
@@ -323,8 +280,6 @@ public class MinesweeperMiner implements Action {
 
         // Run solver with new data
         solver.solve();
-
-        System.out.println("[MswpMiner] mineTile " + tilePos + " — complete (number=" + number + ")");
 
         return Results.SUCCESS();
     }
@@ -428,82 +383,4 @@ public class MinesweeperMiner implements Action {
         }
     }
 
-    /**
-     * Simple configuration dialog for the minesweeper miner.
-     */
-    public static class MinesweeperDialog extends Window {
-        private int[] directionRef;
-        private int[] maxLateralRef;
-        private boolean[] confirmRef;
-        private boolean[] cancelRef;
-
-        private int selectedDirection = 0;
-        private int maxLateral = 5;
-
-        private static final String[] DIR_NAMES = {"North", "South", "East", "West"};
-
-        public MinesweeperDialog() {
-            super(UI.scale(new Coord(250, 180)), "Minesweeper Miner");
-            int y = 10;
-
-            add(new Label("Direction:"), UI.scale(new Coord(10, y)));
-            y += 20;
-
-            // Direction buttons
-            for (int i = 0; i < DIR_NAMES.length; i++) {
-                final int idx = i;
-                Button btn = new Button(UI.scale(50), DIR_NAMES[i]) {
-                    @Override
-                    public void click() {
-                        selectedDirection = idx;
-                        if (directionRef != null) directionRef[0] = idx;
-                    }
-                };
-                add(btn, UI.scale(new Coord(10 + i * 55, y)));
-            }
-            y += 35;
-
-            // Max lateral deviation
-            add(new Label("Max lateral deviation:"), UI.scale(new Coord(10, y)));
-            y += 20;
-            TextEntry lateralEntry = new TextEntry(UI.scale(50), String.valueOf(maxLateral)) {
-                @Override
-                protected void changed() {
-                    super.changed();
-                    try {
-                        maxLateral = Integer.parseInt(text());
-                        if (maxLateralRef != null) maxLateralRef[0] = maxLateral;
-                    } catch (NumberFormatException ignored) {}
-                }
-            };
-            add(lateralEntry, UI.scale(new Coord(10, y)));
-            add(new Label("tiles"), UI.scale(new Coord(65, y + 3)));
-            y += 35;
-
-            // Confirm / Cancel
-            add(new Button(UI.scale(80), "Start") {
-                @Override
-                public void click() {
-                    if (directionRef != null) directionRef[0] = selectedDirection;
-                    if (maxLateralRef != null) maxLateralRef[0] = maxLateral;
-                    if (confirmRef != null) confirmRef[0] = true;
-                }
-            }, UI.scale(new Coord(30, y)));
-
-            add(new Button(UI.scale(80), "Cancel") {
-                @Override
-                public void click() {
-                    if (cancelRef != null) cancelRef[0] = true;
-                }
-            }, UI.scale(new Coord(130, y)));
-        }
-
-        public void setReferences(int[] directionRef, int[] maxLateralRef,
-                                   boolean[] confirmRef, boolean[] cancelRef) {
-            this.directionRef = directionRef;
-            this.maxLateralRef = maxLateralRef;
-            this.confirmRef = confirmRef;
-            this.cancelRef = cancelRef;
-        }
-    }
 }

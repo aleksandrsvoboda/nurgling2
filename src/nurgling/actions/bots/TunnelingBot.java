@@ -39,11 +39,12 @@ public class TunnelingBot implements Action {
         int[] supportTypeRef = new int[]{0};
         int[] wingOptionRef = new int[]{0};
         int[] wingSideRef = new int[]{0};
+        int[] maxLateralRef = new int[]{5};
         boolean[] confirmRef = new boolean[]{false};
         boolean[] cancelRef = new boolean[]{false};
 
         TunnelingDialog dialog = new TunnelingDialog();
-        dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, confirmRef, cancelRef);
+        dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, maxLateralRef, confirmRef, cancelRef);
         gui.add(dialog, UI.scale(200, 200));
 
         // Wait for user input
@@ -62,8 +63,14 @@ public class TunnelingBot implements Action {
 
         // Get configuration
         Direction direction = TunnelingDialog.getDirection(directionRef[0]);
-        TunnelSide tunnelSide = TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]);
         SupportType supportType = TunnelingDialog.getSupportType(supportTypeRef[0]);
+
+        // Dispatch to MinesweeperMiner if no support selected
+        if (supportType == SupportType.NONE) {
+            return new MinesweeperMiner(direction, maxLateralRef[0]).run(gui);
+        }
+
+        TunnelSide tunnelSide = TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]);
         WingOption wingOption = TunnelingDialog.getWingOption(directionRef[0], wingOptionRef[0]);
         TunnelSide wingSide = TunnelingDialog.getWingSide(directionRef[0], wingSideRef[0]);
 
