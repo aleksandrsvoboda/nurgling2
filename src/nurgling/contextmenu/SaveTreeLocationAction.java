@@ -11,7 +11,8 @@ public class SaveTreeLocationAction implements GobContextAction {
     public boolean appliesTo(Gob gob) {
         return gob.ngob.name.startsWith("gfx/terobjs/trees/")
                 && !gob.ngob.name.contains("log")
-                && !gob.ngob.name.contains("trunk");
+                && !gob.ngob.name.contains("trunk")
+                && !gob.ngob.name.contains("stump");
     }
 
     @Override
