@@ -6,7 +6,6 @@ import haven.res.ui.tt.stackn.Stack;
 import nurgling.*;
 import nurgling.sessions.BotExecutor;
 import nurgling.tasks.*;
-import nurgling.tools.StackSupporter;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -467,15 +466,6 @@ public class SortInventory implements Action {
             target.add(slot);
         }
         return target;
-    }
-
-    private boolean isAlreadySorted(List<List<Float>> current, List<List<Float>> target) {
-        for (int i = 0; i < current.size(); i++) {
-            if (!multisetEquals(current.get(i), target.get(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private boolean multisetEquals(List<Float> a, List<Float> b) {

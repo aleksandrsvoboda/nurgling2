@@ -9,7 +9,6 @@ import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NContext;
 import nurgling.tasks.GetNotFullStack;
-import nurgling.tasks.ISRemoved;
 import nurgling.tasks.ISRemovedLoftar;
 import nurgling.tasks.StackSizeChanged;
 import nurgling.tasks.WaitFreeHand;
