@@ -572,13 +572,11 @@ public class SortInventory implements Action {
             }
 
             if (fromSlot < 0) {
-                System.out.println("[StackSort] " + itemName + ": all sorted after " + (cycleNum - 1) + " cycles");
                 break;
             }
 
             // Safety: hand must be empty before starting a cycle
             if (gui.vhand != null) {
-                System.out.println("[StackSort] Aborting: hand not empty at cycle start");
                 gui.error("Stack sort failed: hand not empty. Drop held item and retry.");
                 break;
             }
@@ -588,16 +586,12 @@ public class SortInventory implements Action {
                 announced = true;
             }
 
-            System.out.println("[StackSort] === " + itemName + " cycle " + cycleNum
-                    + ": move q=" + excessQ + " from slot " + fromSlot + " → slot " + toSlot + " ===");
-
             // --- Execute one cycle ---
 
             // Step 1: take excess item → buffer
             takeItemFromSlot(positions.get(fromSlot), excessQ);
             // Verify we actually picked something up
             if (gui.vhand == null) {
-                System.out.println("[StackSort] Failed to take item from slot " + fromSlot + " — skipping cycle");
                 continue;
             }
             dropToBuffer(buffer);
@@ -634,18 +628,11 @@ public class SortInventory implements Action {
                 }
 
                 if (fillerSlot < 0) {
-                    System.out.println("[StackSort]   Chain BROKE at step " + chainStep
-                            + " — no filler for deficit=" + vacancyDeficit);
                     break;
                 }
 
-                System.out.println("[StackSort]   chain step " + chainStep + ": q=" + fillerQ
-                        + " from slot " + fillerSlot + " → slot " + vacancy);
-
                 takeItemFromSlot(positions.get(fillerSlot), fillerQ);
                 if (gui.vhand == null) {
-                    System.out.println("[StackSort]   Chain BROKE: failed to take q=" + fillerQ
-                            + " from slot " + fillerSlot);
                     break;
                 }
                 addItemToSlot(positions.get(vacancy));
@@ -654,7 +641,6 @@ public class SortInventory implements Action {
 
             // Step 3: close cycle — buffer item → vacancy
             if (!cancelled) {
-                System.out.println("[StackSort]   close: buffer → slot " + vacancy);
                 retrieveFromBuffer(buffer);
                 addItemToSlot(positions.get(vacancy));
             } else {
@@ -669,7 +655,6 @@ public class SortInventory implements Action {
             }
 
             if (cycleNum > 500) {
-                System.out.println("[StackSort] Safety limit (500 cycles). Aborting.");
                 gui.msg("Stack sort: too many cycles, aborting");
                 break;
             }
@@ -753,9 +738,6 @@ public class SortInventory implements Action {
             // Safety: if the item has contents (some container/stack we don't recognize),
             // never take the whole thing — that would pick up an entire stack
             if (slotItem.item.contents != null) {
-                System.out.println("[StackSort] WARNING: slot at " + pos
-                        + " has unrecognized contents type: " + slotItem.item.contents.getClass().getName()
-                        + " — skipping to avoid grabbing whole stack");
                 return;
             }
             // Verify quality matches before taking a single item
