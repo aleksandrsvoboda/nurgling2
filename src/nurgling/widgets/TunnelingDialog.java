@@ -746,6 +746,12 @@ public class TunnelingDialog extends Window {
     private void selectDirection(Direction dir) {
         selectedDirection = dir;
 
+        // In minesweeper mode, only update direction selection — skip tunnel/wing UI
+        if (selectedSupportType == SupportType.NONE) {
+            updateDirectionSelection(dir);
+            return;
+        }
+
         TunnelSide[] tunnelSides = dir.isVertical() ? VERTICAL_TUNNEL_SIDES : HORIZONTAL_TUNNEL_SIDES;
         TunnelSide[] wingSides = dir.isVertical() ? VERTICAL_WING_SIDES : HORIZONTAL_WING_SIDES;
         selectedTunnelSide = tunnelSides[0];
