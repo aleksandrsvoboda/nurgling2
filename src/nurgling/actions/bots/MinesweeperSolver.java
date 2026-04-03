@@ -40,6 +40,8 @@ public class MinesweeperSolver {
             {-1, 1},  {0, 1},  {1, 1}
     };
 
+    private static final int[][] CARDINALS = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
+
     private final Map<Long, TileState> states = new HashMap<>();
     private final Map<Long, Integer> numbers = new HashMap<>();
     private final NGameUI gui;
@@ -70,25 +72,34 @@ public class MinesweeperSolver {
 
     /**
      * Initialize/refresh the solver grid around a center position.
-     * Scans support coverage and tile types to pre-populate states.
+     * Prunes old entries far from the player to prevent unbounded growth.
      */
     public void refresh(Coord center, int radius) {
+        // Prune entries far from the player (2x radius)
+        int pruneRadius = radius * 2;
+        states.entrySet().removeIf(e -> {
+            int x = keyX(e.getKey());
+            int y = keyY(e.getKey());
+            return Math.abs(x - center.x) > pruneRadius || Math.abs(y - center.y) > pruneRadius;
+        });
+        numbers.entrySet().removeIf(e -> {
+            int x = keyX(e.getKey());
+            int y = keyY(e.getKey());
+            return Math.abs(x - center.x) > pruneRadius || Math.abs(y - center.y) > pruneRadius;
+        });
+
         // Mark tiles within support coverage as SUPPORTED
         refreshSupportCoverage(center, radius);
 
-        // Mark non-mineable tiles as WALL, unknown mineable tiles stay UNKNOWN
+        // Only check tiles we don't already know about.
+        // Skipping known tiles (including WALL) avoids thousands of
+        // redundant MCache.gettile() calls per iteration.
         for (int x = center.x - radius; x <= center.x + radius; x++) {
             for (int y = center.y - radius; y <= center.y + radius; y++) {
                 long k = key(x, y);
-                TileState current = states.get(k);
-                // Don't overwrite REVEALED, SAFE, DANGER, or SUPPORTED
-                if (current == TileState.REVEALED || current == TileState.SAFE ||
-                        current == TileState.DANGER || current == TileState.SUPPORTED) {
-                    continue;
-                }
+                if (states.containsKey(k)) continue;
 
-                Coord tilePos = new Coord(x, y);
-                if (!isTileMineable(tilePos)) {
+                if (!isTileMineable(x, y)) {
                     states.put(k, TileState.WALL);
                 }
             }
@@ -141,16 +152,20 @@ public class MinesweeperSolver {
     }
 
     /**
-     * Run the constraint solver. Returns the set of tiles newly deduced as SAFE.
+     * Run the constraint solver. Deduces SAFE and DANGER tiles from revealed numbers.
+     * Collects changes separately to avoid copying the full states map each iteration.
      */
-    public Set<Coord> solve() {
-        Set<Coord> newSafe = new HashSet<>();
+    public void solve() {
         boolean changed = true;
 
         while (changed) {
             changed = false;
 
-            for (Map.Entry<Long, TileState> entry : new ArrayList<>(states.entrySet())) {
+            // Collect changes to apply after iteration (avoids ConcurrentModificationException
+            // and avoids expensive new ArrayList<>(states.entrySet()) copies)
+            Map<Long, TileState> pending = new HashMap<>();
+
+            for (Map.Entry<Long, TileState> entry : states.entrySet()) {
                 if (entry.getValue() != TileState.REVEALED) continue;
 
                 long k = entry.getKey();
@@ -158,45 +173,50 @@ public class MinesweeperSolver {
                 int y = keyY(k);
                 int number = numbers.getOrDefault(k, 0);
 
-                List<Long> unknowns = new ArrayList<>();
+                int unknownCount = 0;
                 int dangerCount = 0;
+                long[] neighborKeys = new long[8];
+                TileState[] neighborStates = new TileState[8];
 
-                for (int[] d : NEIGHBORS) {
-                    long nk = key(x + d[0], y + d[1]);
-                    TileState ns = states.getOrDefault(nk, TileState.UNKNOWN);
-                    if (ns == TileState.DANGER) {
-                        dangerCount++;
-                    } else if (ns == TileState.UNKNOWN) {
-                        unknowns.add(nk);
-                    }
-                    // SAFE, SUPPORTED, WALL, REVEALED are not dangers and not unknown
+                for (int di = 0; di < NEIGHBORS.length; di++) {
+                    long nk = key(x + NEIGHBORS[di][0], y + NEIGHBORS[di][1]);
+                    neighborKeys[di] = nk;
+                    // Check pending changes first, then states
+                    TileState ns = pending.getOrDefault(nk, states.getOrDefault(nk, TileState.UNKNOWN));
+                    neighborStates[di] = ns;
+                    if (ns == TileState.DANGER) dangerCount++;
+                    else if (ns == TileState.UNKNOWN) unknownCount++;
                 }
 
                 // Rule 1: All mines accounted for — remaining unknowns are safe
-                if (dangerCount == number && !unknowns.isEmpty()) {
-                    for (long uk : unknowns) {
-                        states.put(uk, TileState.SAFE);
-                        newSafe.add(new Coord(keyX(uk), keyY(uk)));
-                        changed = true;
+                if (dangerCount == number && unknownCount > 0) {
+                    for (int di = 0; di < 8; di++) {
+                        if (neighborStates[di] == TileState.UNKNOWN) {
+                            pending.put(neighborKeys[di], TileState.SAFE);
+                            changed = true;
+                        }
                     }
                 }
 
                 // Rule 2: All unknowns must be mines
-                if (dangerCount + unknowns.size() == number && !unknowns.isEmpty()) {
-                    for (long uk : unknowns) {
-                        states.put(uk, TileState.DANGER);
-                        changed = true;
+                if (dangerCount + unknownCount == number && unknownCount > 0) {
+                    for (int di = 0; di < 8; di++) {
+                        if (neighborStates[di] == TileState.UNKNOWN) {
+                            pending.put(neighborKeys[di], TileState.DANGER);
+                            changed = true;
+                        }
                     }
                 }
             }
+
+            // Apply pending changes
+            states.putAll(pending);
 
             // Subset/overlap analysis between pairs of revealed tiles
             if (!changed) {
                 changed = solveSubsets();
             }
         }
-
-        return newSafe;
     }
 
     /**
@@ -206,7 +226,7 @@ public class MinesweeperSolver {
     private boolean solveSubsets() {
         boolean changed = false;
 
-        // Collect all revealed tiles with their constraint info
+        // Collect only revealed tiles that have remaining unknowns (active constraints)
         List<ConstraintInfo> constraints = new ArrayList<>();
         for (Map.Entry<Long, TileState> entry : states.entrySet()) {
             if (entry.getValue() != TileState.REVEALED) continue;
@@ -233,6 +253,7 @@ public class MinesweeperSolver {
         }
 
         // Compare pairs: if one's unknowns are a subset of another's
+        Map<Long, TileState> pending = new HashMap<>();
         for (int i = 0; i < constraints.size(); i++) {
             for (int j = 0; j < constraints.size(); j++) {
                 if (i == j) continue;
@@ -240,30 +261,26 @@ public class MinesweeperSolver {
                 ConstraintInfo a = constraints.get(i);
                 ConstraintInfo b = constraints.get(j);
 
-                // Check if A's unknowns are a subset of B's unknowns
                 if (b.unknowns.containsAll(a.unknowns)) {
-                    // The tiles in B but not in A must contain (b.remaining - a.remaining) dangers
                     Set<Long> diff = new HashSet<>(b.unknowns);
                     diff.removeAll(a.unknowns);
                     int diffDangers = b.remaining - a.remaining;
 
                     if (diff.isEmpty()) continue;
 
-                    // If diffDangers == 0, all diff tiles are safe
                     if (diffDangers == 0) {
                         for (long dk : diff) {
                             if (states.getOrDefault(dk, TileState.UNKNOWN) == TileState.UNKNOWN) {
-                                states.put(dk, TileState.SAFE);
+                                pending.put(dk, TileState.SAFE);
                                 changed = true;
                             }
                         }
                     }
 
-                    // If diffDangers == diff.size(), all diff tiles are dangers
                     if (diffDangers == diff.size()) {
                         for (long dk : diff) {
                             if (states.getOrDefault(dk, TileState.UNKNOWN) == TileState.UNKNOWN) {
-                                states.put(dk, TileState.DANGER);
+                                pending.put(dk, TileState.DANGER);
                                 changed = true;
                             }
                         }
@@ -272,43 +289,17 @@ public class MinesweeperSolver {
             }
         }
 
+        states.putAll(pending);
         return changed;
     }
 
     /**
-     * Get all tiles currently deduced as SAFE that are mineable.
-     */
-    public List<Coord> getSafeTiles() {
-        List<Coord> result = new ArrayList<>();
-        for (Map.Entry<Long, TileState> entry : states.entrySet()) {
-            if (entry.getValue() == TileState.SAFE) {
-                result.add(new Coord(keyX(entry.getKey()), keyY(entry.getKey())));
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Get all tiles within support coverage that are mineable.
-     */
-    public List<Coord> getSupportedMineableTiles() {
-        List<Coord> result = new ArrayList<>();
-        for (Map.Entry<Long, TileState> entry : states.entrySet()) {
-            if (entry.getValue() == TileState.SUPPORTED) {
-                Coord tile = new Coord(keyX(entry.getKey()), keyY(entry.getKey()));
-                if (isTileMineable(tile)) {
-                    result.add(tile);
-                }
-            }
-        }
-        return result;
-    }
-
-    /**
      * Check if a tile is mineable (rock or cave tile type).
+     * Uses raw coordinates to avoid Coord allocation.
      */
-    private boolean isTileMineable(Coord tilePos) {
+    private boolean isTileMineable(int x, int y) {
         try {
+            Coord tilePos = new Coord(x, y);
             Resource res = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
             if (res == null) return false;
             return NParser.checkName(res.name, MINEABLE_TILES);
@@ -327,15 +318,20 @@ public class MinesweeperSolver {
 
     /**
      * Check if a tile is adjacent to open space (already-mined, walkable area).
-     * A tile is adjacent to open space if at least one of its 4 cardinal neighbors
-     * is not mineable (i.e., it's already been mined into open ground).
+     * Uses the states map when possible to avoid MCache hits.
      */
     public boolean isAdjacentToOpenSpace(Coord tilePos) {
-        int[][] cardinals = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
-        for (int[] d : cardinals) {
-            Coord neighbor = new Coord(tilePos.x + d[0], tilePos.y + d[1]);
-            if (!isTileMineable(neighbor)) {
-                // Neighbor is open ground — this tile is on the mining frontier
+        for (int[] d : CARDINALS) {
+            int nx = tilePos.x + d[0];
+            int ny = tilePos.y + d[1];
+            long nk = key(nx, ny);
+            TileState ns = states.get(nk);
+            // WALL or REVEALED means it's already open/mined ground
+            if (ns == TileState.WALL || ns == TileState.REVEALED) {
+                return true;
+            }
+            // If not in states, check the map directly
+            if (ns == null && !isTileMineable(nx, ny)) {
                 return true;
             }
         }
@@ -344,16 +340,12 @@ public class MinesweeperSolver {
 
     /**
      * Check if an UNKNOWN tile is adjacent to any REVEALED tile with number > 0.
-     * Such tiles are potential dangers — the minesweeper numbers warn about them.
-     * Only tiles NOT adjacent to any numbered tile are safe to mine speculatively.
      */
     public boolean isAdjacentToNumberedTile(Coord tilePos) {
         for (int[] d : NEIGHBORS) {
-            Coord neighbor = new Coord(tilePos.x + d[0], tilePos.y + d[1]);
-            long nk = key(neighbor.x, neighbor.y);
+            long nk = key(tilePos.x + d[0], tilePos.y + d[1]);
             if (states.getOrDefault(nk, TileState.UNKNOWN) == TileState.REVEALED) {
-                int num = numbers.getOrDefault(nk, 0);
-                if (num > 0) {
+                if (numbers.getOrDefault(nk, 0) > 0) {
                     return true;
                 }
             }
@@ -381,7 +373,6 @@ public class MinesweeperSolver {
                         int ty = nms.begin.y + j;
                         long k = key(tx, ty);
                         TileState current = states.getOrDefault(k, TileState.UNKNOWN);
-                        // Only mark as SUPPORTED if not already REVEALED
                         if (current == TileState.UNKNOWN || current == TileState.SAFE) {
                             states.put(k, TileState.SUPPORTED);
                         }

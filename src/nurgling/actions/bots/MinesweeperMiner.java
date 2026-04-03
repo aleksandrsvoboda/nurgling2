@@ -112,9 +112,9 @@ public class MinesweeperMiner implements Action {
         while (!queue.isEmpty()) {
             Coord current = queue.poll();
 
-            // Check lateral bounds
-            int currentLateral = getLateral(current, direction);
-            if (Math.abs(currentLateral - startLateral) > maxLateral + 1) continue;
+            // Limit BFS distance to prevent loading distant map chunks
+            int bfsDist = Math.abs(current.x - playerTile.x) + Math.abs(current.y - playerTile.y);
+            if (bfsDist > SOLVER_RADIUS) continue;
 
             for (int[] d : cardinals) {
                 Coord neighbor = new Coord(current.x + d[0], current.y + d[1]);
@@ -123,7 +123,6 @@ public class MinesweeperMiner implements Action {
                 visited.add(nk);
 
                 int lateral = getLateral(neighbor, direction);
-                if (Math.abs(lateral - startLateral) > maxLateral + 1) continue;
 
                 // If neighbor is open (not mineable), add to BFS — we can walk through it
                 if (!isTileMineable(NUtils.getGameUI(), neighbor)) {
