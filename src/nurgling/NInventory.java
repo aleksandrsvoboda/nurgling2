@@ -847,17 +847,17 @@ public class NInventory extends Inventory
             }).tip(nurgling.i18n.L10n.get("inventory.tip.search"));
             deco.add(searchBtn);
 
-            // Sort button in title bar
-            sortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
-                SortInventory.sort(NInventory.this);
-            }).tip(nurgling.i18n.L10n.get("inventory.tip.sort"));
-            deco.add(sortBtnRef);
-
             // Stack sort button in title bar (deep sort within stacks)
             stackSortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/stacksort", () -> {
                 SortInventory.sortDeep(NInventory.this);
             }).tip("Sort Within Stacks");
             deco.add(stackSortBtnRef);
+
+            // Sort button in title bar
+            sortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
+                SortInventory.sort(NInventory.this);
+            }).tip(nurgling.i18n.L10n.get("inventory.tip.sort"));
+            deco.add(sortBtnRef);
 
             // Dropper/trash toggle in title bar
             dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
@@ -994,13 +994,13 @@ public class NInventory extends Inventory
             searchBtn.c = new Coord(leftX, 0);
             leftX += searchBtn.sz.x + btnGap;
         }
-        if (sortBtnRef != null) {
-            sortBtnRef.c = new Coord(leftX, 0);
-            leftX += sortBtnRef.sz.x + btnGap;
-        }
         if (stackSortBtnRef != null) {
             stackSortBtnRef.c = new Coord(leftX, 0);
             leftX += stackSortBtnRef.sz.x + btnGap;
+        }
+        if (sortBtnRef != null) {
+            sortBtnRef.c = new Coord(leftX, 0);
+            leftX += sortBtnRef.sz.x + btnGap;
         }
         if (dropperBtn != null) {
             dropperBtn.c = new Coord(leftX, 0);
