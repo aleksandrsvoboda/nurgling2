@@ -18,10 +18,12 @@ public class NMiningNumber extends Sprite implements RenderTree.Node
     Gob gob;
 
     ColorTex сt;
+    public final int val;
 
     public NMiningNumber(Owner owner, int val)
     {
         super(owner, null);
+        this.val = val;
         сt = new TexI(Resource.loadimg("marks/mining/" + String.valueOf(val))).st();
         gob = (Gob) owner;
         float[] data = {
