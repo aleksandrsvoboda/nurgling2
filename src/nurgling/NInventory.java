@@ -48,6 +48,7 @@ public class NInventory extends Inventory
     private Widget eyeBtn;
     private Widget dropperBtn;
     private Widget sortBtnRef;
+    private Widget stackSortBtnRef;
     short[][] oldinv = null;
     public Gob parentGob = null;
     long lastUpdate = 0;
@@ -194,6 +195,25 @@ public class NInventory extends Inventory
         // Initial position left of close button
         Coord cbtnPos = deco.cbtn.c;
         sortBtn.c = new Coord(cbtnPos.x - sortBtn.sz.x - UI.scale(2), cbtnPos.y);
+
+        // Stack sort button — left of the sort button
+        IButton stackSortBtn = new IButton(NStyle.sorti[0].back, NStyle.sorti[1].back, NStyle.sorti[2].back) {
+            @Override
+            public void click() {
+                SortInventory.sortDeep(thisInv);
+            }
+
+            @Override
+            public void tick(double dt) {
+                super.tick(dt);
+                if (sortBtn.c != null) {
+                    c = new Coord(sortBtn.c.x - sz.x - UI.scale(2), sortBtn.c.y);
+                }
+            }
+        };
+        stackSortBtn.settip("Sort Within Stacks");
+        deco.add(stackSortBtn);
+        stackSortBtn.c = new Coord(sortBtn.c.x - stackSortBtn.sz.x - UI.scale(2), sortBtn.c.y);
     }
     
     /**
@@ -833,6 +853,12 @@ public class NInventory extends Inventory
             }).tip(nurgling.i18n.L10n.get("inventory.tip.sort"));
             deco.add(sortBtnRef);
 
+            // Stack sort button in title bar (deep sort within stacks)
+            stackSortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
+                SortInventory.sortDeep(NInventory.this);
+            }).tip("Sort Within Stacks");
+            deco.add(stackSortBtnRef);
+
             // Dropper/trash toggle in title bar
             dropperBtn = new NHeaderToggle("nurgling/hud/buttons/inv/trash", (val) -> {
                 NConfig.set(NConfig.Key.autoDropper, val);
@@ -971,6 +997,10 @@ public class NInventory extends Inventory
         if (sortBtnRef != null) {
             sortBtnRef.c = new Coord(leftX, 0);
             leftX += sortBtnRef.sz.x + btnGap;
+        }
+        if (stackSortBtnRef != null) {
+            stackSortBtnRef.c = new Coord(leftX, 0);
+            leftX += stackSortBtnRef.sz.x + btnGap;
         }
         if (dropperBtn != null) {
             dropperBtn.c = new Coord(leftX, 0);

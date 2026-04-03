@@ -113,12 +113,18 @@ public class SortInventory implements Action {
     }
     
     private final NInventory inventory;
+    private final boolean deepSort;
     private volatile boolean cancelled = false;
     private static volatile SortInventory current;
     private static final Object lock = new Object();
-    
+
     public SortInventory(NInventory inventory) {
+        this(inventory, false);
+    }
+
+    public SortInventory(NInventory inventory, boolean deepSort) {
         this.inventory = inventory;
+        this.deepSort = deepSort;
     }
     
     /**
@@ -170,7 +176,7 @@ public class SortInventory implements Action {
         }
         
         if (!cancelled) {
-            gui.msg("Inventory sorted!");
+            gui.msg(deepSort ? "Stacks sorted!" : "Inventory sorted!");
         }
         
         return cancelled ? Results.FAIL() : Results.SUCCESS();
@@ -321,7 +327,7 @@ public class SortInventory implements Action {
         }
 
         // Second pass: sort individual items across same-type stacks by quality
-        if (!cancelled) {
+        if (!cancelled && deepSort) {
             sortWithinStacks(gui);
         }
     }
@@ -348,7 +354,7 @@ public class SortInventory implements Action {
     }
     
     /**
-     * Sort a specific inventory
+     * Sort a specific inventory (positional sort only)
      */
     public static void sort(NInventory inv) {
         if (!isValidInventory(inv)) {
@@ -358,13 +364,32 @@ public class SortInventory implements Action {
         NGameUI gui = NUtils.getGameUI();
         if (gui == null) return;
 
-        // Check cursor
         if (gui.vhand != null) {
             gui.error("Need default cursor to sort inventory!");
             return;
         }
 
         BotExecutor.runAsync("InventorySorter", new SortInventory(inv));
+    }
+
+    /**
+     * Deep sort: positional sort + redistribute items across same-type stacks
+     * so highest quality items are concentrated in the first stacks.
+     */
+    public static void sortDeep(NInventory inv) {
+        if (!isValidInventory(inv)) {
+            return;
+        }
+
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null) return;
+
+        if (gui.vhand != null) {
+            gui.error("Need default cursor to sort inventory!");
+            return;
+        }
+
+        BotExecutor.runAsync("StackSorter", new SortInventory(inv, true));
     }
     
     /**
@@ -567,6 +592,13 @@ public class SortInventory implements Action {
                 break;
             }
 
+            // Safety: hand must be empty before starting a cycle
+            if (gui.vhand != null) {
+                System.out.println("[StackSort] Aborting: hand not empty at cycle start");
+                gui.error("Stack sort failed: hand not empty. Drop held item and retry.");
+                break;
+            }
+
             if (!announced) {
                 gui.msg("Sorting within " + itemName + " stacks...");
                 announced = true;
@@ -579,6 +611,11 @@ public class SortInventory implements Action {
 
             // Step 1: take excess item → buffer
             takeItemFromSlot(positions.get(fromSlot), excessQ);
+            // Verify we actually picked something up
+            if (gui.vhand == null) {
+                System.out.println("[StackSort] Failed to take item from slot " + fromSlot + " — skipping cycle");
+                continue;
+            }
             dropToBuffer(buffer);
             int bufferTarget = toSlot;
             int vacancy = fromSlot;
@@ -622,6 +659,11 @@ public class SortInventory implements Action {
                         + " from slot " + fillerSlot + " → slot " + vacancy);
 
                 takeItemFromSlot(positions.get(fillerSlot), fillerQ);
+                if (gui.vhand == null) {
+                    System.out.println("[StackSort]   Chain BROKE: failed to take q=" + fillerQ
+                            + " from slot " + fillerSlot);
+                    break;
+                }
                 addItemToSlot(positions.get(vacancy));
                 vacancy = fillerSlot;
             }
@@ -724,6 +766,21 @@ public class SortInventory implements Action {
                 NUtils.addTask(new StackSizeChanged(stack, originalSize));
             }
         } else {
+            // Safety: if the item has contents (some container/stack we don't recognize),
+            // never take the whole thing — that would pick up an entire stack
+            if (slotItem.item.contents != null) {
+                System.out.println("[StackSort] WARNING: slot at " + pos
+                        + " has unrecognized contents type: " + slotItem.item.contents.getClass().getName()
+                        + " — skipping to avoid grabbing whole stack");
+                return;
+            }
+            // Verify quality matches before taking a single item
+            if (slotItem.item instanceof NGItem) {
+                Float itemQ = ((NGItem) slotItem.item).quality;
+                if (itemQ == null || Math.abs(itemQ - quality) >= 0.001f) {
+                    return;
+                }
+            }
             int wdgid = slotItem.item.wdgid();
             NUtils.takeItemToHand(slotItem);
             NUtils.addTask(new ISRemoved(wdgid));
