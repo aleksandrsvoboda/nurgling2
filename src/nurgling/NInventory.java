@@ -196,24 +196,23 @@ public class NInventory extends Inventory
         Coord cbtnPos = deco.cbtn.c;
         sortBtn.c = new Coord(cbtnPos.x - sortBtn.sz.x - UI.scale(2), cbtnPos.y);
 
-        // Stack sort button — left of the sort button
-        IButton stackSortBtn = new IButton(NStyle.stacksorti[0].back, NStyle.stacksorti[1].back, NStyle.stacksorti[2].back) {
-            @Override
-            public void click() {
-                SortInventory.sortDeep(thisInv);
-            }
-
+        // Stack sort button — left of the sort button, with box-clickable area
+        // Vertically center relative to the sort button
+        NHeaderButton stackSortBtn = new NHeaderButton(
+                NStyle.stacksorti[0], NStyle.stacksorti[1], NStyle.stacksorti[2],
+                () -> SortInventory.sortDeep(thisInv)) {
             @Override
             public void tick(double dt) {
                 super.tick(dt);
                 if (sortBtn.c != null) {
-                    c = new Coord(sortBtn.c.x - sz.x - UI.scale(2), sortBtn.c.y);
+                    int centerY = sortBtn.c.y + sortBtn.sz.y / 2 - sz.y / 2;
+                    c = new Coord(sortBtn.c.x - sz.x - UI.scale(2), centerY);
                 }
             }
-        };
-        stackSortBtn.settip("Sort Within Stacks");
+        }.tip("Sort Within Stacks");
         deco.add(stackSortBtn);
-        stackSortBtn.c = new Coord(sortBtn.c.x - stackSortBtn.sz.x - UI.scale(2), sortBtn.c.y);
+        int centerY = sortBtn.c.y + sortBtn.sz.y / 2 - stackSortBtn.sz.y / 2;
+        stackSortBtn.c = new Coord(sortBtn.c.x - stackSortBtn.sz.x - UI.scale(2), centerY);
     }
     
     /**
