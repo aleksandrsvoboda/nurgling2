@@ -312,12 +312,6 @@ public class SortInventory implements Action {
                 // Update current position
                 handu[1] = handu[2];
                 handu = b;
-                
-                // Wait a bit for the swap to happen
-                if (handu != null) {
-                    // Wait until we have something in hand or hand is free
-                    NUtils.getUI().core.addTask(new WaitTicks(2));
-                }
             }
             
             // Wait for hand to be free after chain is complete
@@ -808,7 +802,6 @@ public class SortInventory implements Action {
         } else {
             NUtils.itemact(slotItem);
             NUtils.addTask(new WaitFreeHand());
-            NUtils.getUI().core.addTask(new WaitTicks(2));
         }
     }
 
