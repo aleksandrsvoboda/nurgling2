@@ -20,6 +20,17 @@ public class AutoChooser implements Action
         this.item = item;
     }
 
+    private ArrayList<WItem> getItemsByExactName(String name) throws InterruptedException {
+        ArrayList<WItem> all = inv.getItems();
+        ArrayList<WItem> result = new ArrayList<>();
+        for (WItem witem : all) {
+            if (name.equals(((NGItem) witem.item).name())) {
+                result.add(witem);
+            }
+        }
+        return result;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
@@ -27,7 +38,7 @@ public class AutoChooser implements Action
         {
             NUtils.getUI().core.enableBotMod();
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
-            ArrayList<WItem> items = inv.getItems(item);
+            ArrayList<WItem> items = getItemsByExactName(item);
             if (!items.isEmpty())
                 ((Window) inv.parent).disable();
             ArrayList<WItem> for_ignore = new ArrayList<>();
@@ -41,7 +52,7 @@ public class AutoChooser implements Action
                 WItem cand = items.get(0);
                 new SelectFlowerAction(value, cand).run(gui);
                 for_ignore.add(cand);
-                items = inv.getItems(item);
+                items = getItemsByExactName(item);
                 items.removeAll(for_ignore);
             }
             NUtils.getUI().core.disableBotMod();
