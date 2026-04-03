@@ -109,6 +109,7 @@ public class TunnelingDialog extends Window {
     private static boolean savedWingSouth = false;
     private static boolean savedWingEast = false;
     private static boolean savedWingWest = false;
+    private static boolean savedRecordStones = true;
 
     // Current selections (initialized from saved values)
     private Direction selectedDirection = savedDirection;
@@ -119,6 +120,7 @@ public class TunnelingDialog extends Window {
     private boolean wingSouth = savedWingSouth;
     private boolean wingEast = savedWingEast;
     private boolean wingWest = savedWingWest;
+    private boolean recordStones = savedRecordStones;
 
     private int maxLateral = savedMaxLateral;
 
@@ -131,6 +133,7 @@ public class TunnelingDialog extends Window {
     private int[] maxLateralRef = null;
     private boolean[] confirmRef = null;
     private boolean[] cancelRef = null;
+    private boolean[] recordStonesRef = null;
 
     // UI Elements
     private IButton btnDirN, btnDirS, btnDirE, btnDirW;
@@ -553,7 +556,18 @@ public class TunnelingDialog extends Window {
         // Initially hidden
         for (Widget w : minesweeperWidgets) w.hide();
 
-        // === 5. BUTTONS (left aligned) ===
+        // === 5. RECORD STONES CHECKBOX ===
+        CheckBox recordStonesCheckbox = new CheckBox("Record stone types on map") {
+            { a = recordStones; }
+            @Override
+            public void changed(boolean val) {
+                recordStones = val;
+            }
+        };
+        add(recordStonesCheckbox, new Coord(leftMargin, y));
+        y += UI.scale(25);
+
+        // === 6. BUTTONS (left aligned) ===
         int btnWidth = 140;
         tunnelerButtonY = y;
         // Minesweeper mode: buttons go right after the lateral deviation row
@@ -1100,7 +1114,7 @@ public class TunnelingDialog extends Window {
 
     public void setReferences(int[] directionRef, int[] tunnelSideRef, int[] supportTypeRef,
                               int[] wingOptionRef, int[] wingSideRef, int[] maxLateralRef,
-                              boolean[] confirmRef, boolean[] cancelRef) {
+                              boolean[] confirmRef, boolean[] cancelRef, boolean[] recordStonesRef) {
         this.directionRef = directionRef;
         this.tunnelSideRef = tunnelSideRef;
         this.supportTypeRef = supportTypeRef;
@@ -1109,6 +1123,7 @@ public class TunnelingDialog extends Window {
         this.maxLateralRef = maxLateralRef;
         this.confirmRef = confirmRef;
         this.cancelRef = cancelRef;
+        this.recordStonesRef = recordStonesRef;
     }
 
     private void confirm() {
@@ -1122,6 +1137,7 @@ public class TunnelingDialog extends Window {
         savedWingSouth = wingSouth;
         savedWingEast = wingEast;
         savedWingWest = wingWest;
+        savedRecordStones = recordStones;
 
         if (directionRef != null) {
             directionRef[0] = selectedDirection.ordinal();
@@ -1152,6 +1168,9 @@ public class TunnelingDialog extends Window {
         }
         if (maxLateralRef != null) {
             maxLateralRef[0] = maxLateral;
+        }
+        if (recordStonesRef != null) {
+            recordStonesRef[0] = recordStones;
         }
         if (confirmRef != null) {
             confirmRef[0] = true;
