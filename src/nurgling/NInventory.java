@@ -197,7 +197,7 @@ public class NInventory extends Inventory
         sortBtn.c = new Coord(cbtnPos.x - sortBtn.sz.x - UI.scale(2), cbtnPos.y);
 
         // Stack sort button — left of the sort button
-        IButton stackSortBtn = new IButton(NStyle.sorti[0].back, NStyle.sorti[1].back, NStyle.sorti[2].back) {
+        IButton stackSortBtn = new IButton(NStyle.stacksorti[0].back, NStyle.stacksorti[1].back, NStyle.stacksorti[2].back) {
             @Override
             public void click() {
                 SortInventory.sortDeep(thisInv);
@@ -854,7 +854,7 @@ public class NInventory extends Inventory
             deco.add(sortBtnRef);
 
             // Stack sort button in title bar (deep sort within stacks)
-            stackSortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
+            stackSortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/stacksort", () -> {
                 SortInventory.sortDeep(NInventory.this);
             }).tip("Sort Within Stacks");
             deco.add(stackSortBtnRef);
