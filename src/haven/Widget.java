@@ -762,6 +762,11 @@ public class Widget {
 			cursor = ui.sess.getresv(args[0]);
 			if(cursor instanceof Resource.Named)
 				cursorRes = ((Resource.Named)cursor).name;
+			else if(cursor instanceof Session.CachedRes.Ref) {
+				String nm = ((Session.CachedRes.Ref)cursor).resnm();
+				if(nm != null)
+					cursorRes = nm;
+			}
 		}
 	} else if(msg == "tip") {
 	    int a = 0;
