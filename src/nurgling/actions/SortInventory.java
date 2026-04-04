@@ -1,6 +1,7 @@
 package nurgling.actions;
 
 import haven.*;
+import haven.res.ui.stackinv.ItemStack;
 import haven.res.ui.tt.stackn.Stack;
 import nurgling.*;
 import nurgling.sessions.BotExecutor;
@@ -111,12 +112,18 @@ public class SortInventory implements Action {
     }
     
     private final NInventory inventory;
+    private final boolean deepSort;
     private volatile boolean cancelled = false;
     private static volatile SortInventory current;
     private static final Object lock = new Object();
-    
+
     public SortInventory(NInventory inventory) {
+        this(inventory, false);
+    }
+
+    public SortInventory(NInventory inventory, boolean deepSort) {
         this.inventory = inventory;
+        this.deepSort = deepSort;
     }
     
     /**
@@ -168,7 +175,7 @@ public class SortInventory implements Action {
         }
         
         if (!cancelled) {
-            gui.msg("Inventory sorted!");
+            gui.msg(deepSort ? "Stacks sorted!" : "Inventory sorted!");
         }
         
         return cancelled ? Results.FAIL() : Results.SUCCESS();
@@ -304,18 +311,17 @@ public class SortInventory implements Action {
                 // Update current position
                 handu[1] = handu[2];
                 handu = b;
-                
-                // Wait a bit for the swap to happen
-                if (handu != null) {
-                    // Wait until we have something in hand or hand is free
-                    NUtils.getUI().core.addTask(new WaitTicks(2));
-                }
             }
             
             // Wait for hand to be free after chain is complete
             if (gui.vhand != null) {
                 NUtils.getUI().core.addTask(new WaitFreeHand());
             }
+        }
+
+        // Second pass: sort individual items across same-type stacks by quality
+        if (!cancelled && deepSort) {
+            sortWithinStacks(gui);
         }
     }
     
@@ -341,7 +347,7 @@ public class SortInventory implements Action {
     }
     
     /**
-     * Sort a specific inventory
+     * Sort a specific inventory (positional sort only)
      */
     public static void sort(NInventory inv) {
         if (!isValidInventory(inv)) {
@@ -351,7 +357,6 @@ public class SortInventory implements Action {
         NGameUI gui = NUtils.getGameUI();
         if (gui == null) return;
 
-        // Check cursor
         if (gui.vhand != null) {
             gui.error("Need default cursor to sort inventory!");
             return;
@@ -359,13 +364,33 @@ public class SortInventory implements Action {
 
         BotExecutor.runAsync("InventorySorter", new SortInventory(inv));
     }
+
+    /**
+     * Deep sort: positional sort + redistribute items across same-type stacks
+     * so highest quality items are concentrated in the first stacks.
+     */
+    public static void sortDeep(NInventory inv) {
+        if (!isValidInventory(inv)) {
+            return;
+        }
+
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null) return;
+
+        if (gui.vhand != null) {
+            gui.error("Need default cursor to sort inventory!");
+            return;
+        }
+
+        BotExecutor.runAsync("StackSorter", new SortInventory(inv, true));
+    }
     
     /**
      * Check if inventory is valid for sorting (not in excluded windows)
      */
     private static boolean isValidInventory(NInventory inv) {
         if (inv == null) return false;
-        
+
         Window wnd = inv.getparent(Window.class);
         if (wnd != null) {
             String caption = wnd.cap;
@@ -378,5 +403,469 @@ public class SortInventory implements Action {
             }
         }
         return true;
+    }
+
+    // =========================================================================
+    // Within-Stack Sorting (Second Pass) — Cycle-Chase Algorithm
+    // =========================================================================
+
+    private static class BufferLocation {
+        final NInventory inv;
+        final Coord coord;
+
+        BufferLocation(NInventory inv, Coord coord) {
+            this.inv = inv;
+            this.coord = coord;
+        }
+    }
+
+    /**
+     * Sorts individual items across same-type stacks so that the highest
+     * quality items are concentrated in the first stacks (descending).
+     * Uses a cycle-chase permutation sort with a single-slot buffer.
+     */
+    private void sortWithinStacks(NGameUI gui) throws InterruptedException {
+        // Wait a moment for the first-pass to fully settle in the UI
+        NUtils.getUI().core.addTask(new WaitTicks(3));
+
+        // Find item names that have at least one stack
+        Set<String> namesWithStacks = new HashSet<>();
+        for (Widget wdg = inventory.lchild; wdg != null; wdg = wdg.prev) {
+            if (cancelled) return;
+            if (!(wdg instanceof WItem)) continue;
+            WItem w = (WItem) wdg;
+            if (!(w.item instanceof NGItem)) continue;
+            NGItem ng = (NGItem) w.item;
+            if (ng.name() != null && w.item.contents instanceof ItemStack) {
+                namesWithStacks.add(ng.name());
+            }
+        }
+        if (namesWithStacks.isEmpty()) return;
+
+        for (String itemName : namesWithStacks) {
+            if (cancelled) return;
+
+            // Determine item size from any stack of this type
+            Coord itemSize = getStackedItemSize(itemName);
+            if (itemSize == null) continue;
+
+            // Find buffer slot matching this item's size
+            BufferLocation buffer = findBuffer(gui, itemSize);
+            if (buffer == null) {
+                gui.msg("Need 1 free " + itemSize.x + "x" + itemSize.y
+                        + " slot to sort " + itemName + " stacks");
+                continue;
+            }
+            performCycleSort(gui, itemName, buffer);
+        }
+    }
+
+    private List<List<Float>> computeTargetState(List<Float> sortedQualities, List<Integer> slotSizes) {
+        List<List<Float>> target = new ArrayList<>();
+        int idx = 0;
+        for (int size : slotSizes) {
+            List<Float> slot = new ArrayList<>();
+            for (int j = 0; j < size && idx < sortedQualities.size(); j++, idx++) {
+                slot.add(sortedQualities.get(idx));
+            }
+            target.add(slot);
+        }
+        return target;
+    }
+
+    private boolean multisetEquals(List<Float> a, List<Float> b) {
+        if (a.size() != b.size()) return false;
+        List<Float> bCopy = new ArrayList<>(b);
+        for (float v : a) {
+            int idx = findFloatIdx(bCopy, v);
+            if (idx < 0) return false;
+            bCopy.remove(idx);
+        }
+        return true;
+    }
+
+    /**
+     * Scans the inventory fresh for all slots of the given item type.
+     * Returns a list of (position, qualities) pairs, sorted by position.
+     * Only includes slots that have at least one item with non-null quality.
+     */
+    private List<Object[]> freshScan(String itemName) {
+        List<Object[]> slots = new ArrayList<>();
+        for (Widget wdg = inventory.lchild; wdg != null; wdg = wdg.prev) {
+            if (!(wdg instanceof WItem)) continue;
+            WItem w = (WItem) wdg;
+            if (!(w.item instanceof NGItem)) continue;
+            NGItem ng = (NGItem) w.item;
+            if (!itemName.equals(ng.name())) continue;
+
+            Coord pos = getItemPos(w);
+            List<Float> quals = getSlotQualities(pos);
+            if (!quals.isEmpty()) {
+                slots.add(new Object[]{pos, quals});
+            }
+        }
+        // Sort by position (top-to-bottom, left-to-right) for stable ordering
+        slots.sort((a, b) -> {
+            Coord pa = (Coord) a[0], pb = (Coord) b[0];
+            return pa.y != pb.y ? Integer.compare(pa.y, pb.y) : Integer.compare(pa.x, pb.x);
+        });
+        return slots;
+    }
+
+    /**
+     * Cycle-chase sorting: repeatedly find misplaced items and resolve
+     * permutation cycles using a single-slot buffer.
+     *
+     * Each cycle starts with a FRESH inventory scan so positions, sizes,
+     * and qualities are never stale.
+     */
+    private void performCycleSort(NGameUI gui, String itemName,
+            BufferLocation buffer) throws InterruptedException {
+
+        int cycleNum = 0;
+        boolean announced = false;
+        while (!cancelled) {
+            cycleNum++;
+
+            // === Fresh scan each cycle ===
+            List<Object[]> scan = freshScan(itemName);
+            if (scan.size() < 2) break;
+
+            List<Coord> positions = new ArrayList<>();
+            List<List<Float>> current = new ArrayList<>();
+            List<Integer> slotSizes = new ArrayList<>();
+            List<Float> allQualities = new ArrayList<>();
+
+            for (Object[] entry : scan) {
+                Coord pos = (Coord) entry[0];
+                @SuppressWarnings("unchecked")
+                List<Float> quals = (List<Float>) entry[1];
+                positions.add(pos);
+                current.add(quals);
+                slotSizes.add(quals.size());
+                allQualities.addAll(quals);
+            }
+
+            if (allQualities.size() < 2) break;
+
+            // Compute target: all qualities sorted descending, distributed by slot sizes
+            List<Float> sortedQualities = new ArrayList<>(allQualities);
+            sortedQualities.sort(Collections.reverseOrder());
+            List<List<Float>> target = computeTargetState(sortedQualities, slotSizes);
+
+            // Find a misplacement
+            int fromSlot = -1;
+            float excessQ = 0;
+            int toSlot = -1;
+
+            outer:
+            for (int s = 0; s < current.size(); s++) {
+                List<Float> excess = multisetDiff(current.get(s), target.get(s));
+                for (float q : excess) {
+                    for (int t = 0; t < target.size(); t++) {
+                        if (t == s) continue;
+                        List<Float> deficit = multisetDiff(target.get(t), current.get(t));
+                        if (containsFloat(deficit, q)) {
+                            fromSlot = s;
+                            excessQ = q;
+                            toSlot = t;
+                            break outer;
+                        }
+                    }
+                }
+            }
+
+            if (fromSlot < 0) {
+                break;
+            }
+
+            // Safety: hand must be empty before starting a cycle
+            if (gui.vhand != null) {
+                gui.error("Stack sort failed: hand not empty. Drop held item and retry.");
+                break;
+            }
+
+            if (!announced) {
+                gui.msg("Sorting within " + itemName + " stacks...");
+                announced = true;
+            }
+
+            // --- Execute one cycle ---
+
+            // Step 1: take excess item → buffer
+            takeItemFromSlot(positions.get(fromSlot), excessQ);
+            // Verify we actually picked something up
+            if (gui.vhand == null) {
+                continue;
+            }
+            dropToBuffer(buffer);
+            int bufferTarget = toSlot;
+            int vacancy = fromSlot;
+
+            // Step 2: chain — fill each vacancy from another slot
+            // Use the target computed at cycle start (stable within this cycle)
+            int chainStep = 0;
+            while (bufferTarget != vacancy && !cancelled) {
+                chainStep++;
+
+                // Re-scan only the current state, keep target fixed
+                List<List<Float>> chainCurrent = new ArrayList<>();
+                for (Coord pos : positions) {
+                    chainCurrent.add(getSlotQualities(pos));
+                }
+
+                List<Float> vacancyDeficit = multisetDiff(target.get(vacancy), chainCurrent.get(vacancy));
+
+                float fillerQ = 0;
+                int fillerSlot = -1;
+                for (float needed : vacancyDeficit) {
+                    for (int s = 0; s < chainCurrent.size(); s++) {
+                        if (s == vacancy) continue;
+                        List<Float> excess = multisetDiff(chainCurrent.get(s), target.get(s));
+                        if (containsFloat(excess, needed)) {
+                            fillerQ = needed;
+                            fillerSlot = s;
+                            break;
+                        }
+                    }
+                    if (fillerSlot >= 0) break;
+                }
+
+                if (fillerSlot < 0) {
+                    break;
+                }
+
+                takeItemFromSlot(positions.get(fillerSlot), fillerQ);
+                if (gui.vhand == null) {
+                    break;
+                }
+                addItemToSlot(positions.get(vacancy));
+                vacancy = fillerSlot;
+            }
+
+            // Step 3: close cycle — buffer item → vacancy
+            if (!cancelled) {
+                retrieveFromBuffer(buffer);
+                addItemToSlot(positions.get(vacancy));
+            } else {
+                if (gui.vhand == null) {
+                    retrieveFromBuffer(buffer);
+                }
+                if (gui.vhand != null) {
+                    NUtils.dropToInv(inventory);
+                    NUtils.addTask(new WaitFreeHand());
+                }
+                return;
+            }
+
+            if (cycleNum > 500) {
+                gui.msg("Stack sort: too many cycles, aborting");
+                break;
+            }
+        }
+    }
+
+    // --- Buffer operations ---
+
+    private BufferLocation findBuffer(NGameUI gui, Coord itemSize) throws InterruptedException {
+        // Prefer a free area in the inventory being sorted
+        Coord freeCoord = inventory.findFreeCoord(itemSize);
+        if (freeCoord != null) {
+            return new BufferLocation(inventory, freeCoord);
+        }
+
+        // Fall back to player inventory (when sorting a container)
+        if (inventory != gui.maininv) {
+            NInventory playerInv = gui.getInventory();
+            if (playerInv != null) {
+                Coord playerFree = playerInv.findFreeCoord(itemSize);
+                if (playerFree != null) {
+                    return new BufferLocation(playerInv, playerFree);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void dropToBuffer(BufferLocation buffer) throws InterruptedException {
+        if (NUtils.getGameUI().vhand == null) return;
+        buffer.inv.wdgmsg("drop", buffer.coord);
+        NUtils.addTask(new WaitFreeHand());
+    }
+
+    private void retrieveFromBuffer(BufferLocation buffer) throws InterruptedException {
+        WItem item = findSlotItemAtPos(buffer.inv, buffer.coord);
+        if (item != null) {
+            NUtils.takeItemToHand(item);
+        }
+    }
+
+    // --- Slot operations ---
+
+    /**
+     * Takes a specific item (identified by quality) from a slot to hand.
+     * Handles stacks (2+), stacks dissolving (2→1), and single items.
+     */
+    private void takeItemFromSlot(Coord pos, float quality) throws InterruptedException {
+        WItem slotItem = findSlotItemAtPos(pos);
+        if (slotItem == null) return;
+
+        if (slotItem.item.contents instanceof ItemStack) {
+            ItemStack stack = (ItemStack) slotItem.item.contents;
+            int originalSize = stack.wmap.size();
+
+            WItem target = null;
+            for (GItem gi : stack.order) {
+                if (gi instanceof NGItem) {
+                    NGItem ng = (NGItem) gi;
+                    if (ng.quality != null && Math.abs(ng.quality - quality) < 0.001f) {
+                        target = stack.wmap.get(gi);
+                        break;
+                    }
+                }
+            }
+            if (target == null) return;
+
+            NUtils.takeItemToHand(target);
+
+            if (originalSize <= 2) {
+                if (stack.parent != null) {
+                    NUtils.addTask(new ISRemovedLoftar(
+                            ((GItem.ContentsWindow) stack.parent).cont.wdgid(),
+                            stack, originalSize));
+                }
+            } else {
+                NUtils.addTask(new StackSizeChanged(stack, originalSize));
+            }
+        } else {
+            // Safety: if the item has contents (some container/stack we don't recognize),
+            // never take the whole thing — that would pick up an entire stack
+            if (slotItem.item.contents != null) {
+                return;
+            }
+            // Verify quality matches before taking a single item
+            if (slotItem.item instanceof NGItem) {
+                Float itemQ = ((NGItem) slotItem.item).quality;
+                if (itemQ == null || Math.abs(itemQ - quality) >= 0.001f) {
+                    return;
+                }
+            }
+            int wdgid = slotItem.item.wdgid();
+            NUtils.takeItemToHand(slotItem);
+            NUtils.addTask(new ISRemoved(wdgid));
+        }
+    }
+
+    /**
+     * Adds the hand item to a slot. Handles empty slots, single items
+     * (creates a stack), and existing stacks (grows the stack).
+     */
+    private void addItemToSlot(Coord pos) throws InterruptedException {
+        if (NUtils.getGameUI().vhand == null) return;
+
+        WItem slotItem = findSlotItemAtPos(pos);
+
+        if (slotItem == null) {
+            inventory.wdgmsg("drop", pos);
+            NUtils.addTask(new WaitFreeHand());
+        } else if (slotItem.item.contents instanceof ItemStack) {
+            ItemStack stack = (ItemStack) slotItem.item.contents;
+            int oldSize = stack.wmap.size();
+            NUtils.itemact(slotItem);
+            NUtils.addTask(new WaitFreeHand());
+            NUtils.addTask(new StackSizeChanged(stack, oldSize));
+        } else {
+            NUtils.itemact(slotItem);
+            NUtils.addTask(new WaitFreeHand());
+        }
+    }
+
+    // --- Scan and lookup helpers ---
+
+    /**
+     * Returns the inventory cell size of items for the given item name
+     * by finding any stack or single item of that name in the inventory.
+     */
+    private Coord getStackedItemSize(String itemName) {
+        for (Widget wdg = inventory.lchild; wdg != null; wdg = wdg.prev) {
+            if (!(wdg instanceof WItem)) continue;
+            WItem w = (WItem) wdg;
+            if (!(w.item instanceof NGItem)) continue;
+            if (itemName.equals(((NGItem) w.item).name())) {
+                return getItemSize(w);
+            }
+        }
+        return null;
+    }
+
+    private List<Float> getSlotQualities(Coord pos) {
+        WItem slotItem = findSlotItemAtPos(pos);
+        if (slotItem == null) return new ArrayList<>();
+
+        List<Float> qualities = new ArrayList<>();
+        if (slotItem.item.contents instanceof ItemStack) {
+            ItemStack stack = (ItemStack) slotItem.item.contents;
+            for (GItem gi : stack.order) {
+                if (gi instanceof NGItem && ((NGItem) gi).quality != null) {
+                    qualities.add(((NGItem) gi).quality);
+                }
+            }
+        } else if (slotItem.item instanceof NGItem) {
+            NGItem ng = (NGItem) slotItem.item;
+            if (ng.quality != null) {
+                qualities.add(ng.quality);
+            }
+        }
+        return qualities;
+    }
+
+    private WItem findSlotItemAtPos(Coord gridPos) {
+        return findSlotItemAtPos(inventory, gridPos);
+    }
+
+    private static WItem findSlotItemAtPos(NInventory inv, Coord gridPos) {
+        for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
+            if (wdg instanceof WItem) {
+                WItem w = (WItem) wdg;
+                Coord pos = w.c.sub(1, 1).div(Inventory.sqsz);
+                if (pos.equals(gridPos)) {
+                    return w;
+                }
+            }
+        }
+        return null;
+    }
+
+    // --- Multiset utilities for quality comparison ---
+
+    /**
+     * Returns elements in {@code a} that are not matched in {@code b} (multiset difference).
+     */
+    private static List<Float> multisetDiff(List<Float> a, List<Float> b) {
+        List<Float> bCopy = new ArrayList<>(b);
+        List<Float> diff = new ArrayList<>();
+        for (float v : a) {
+            int idx = findFloatIdx(bCopy, v);
+            if (idx >= 0) {
+                bCopy.remove(idx);
+            } else {
+                diff.add(v);
+            }
+        }
+        return diff;
+    }
+
+    private static boolean containsFloat(List<Float> list, float val) {
+        return findFloatIdx(list, val) >= 0;
+    }
+
+    private static int findFloatIdx(List<Float> list, float val) {
+        for (int i = 0; i < list.size(); i++) {
+            if (Math.abs(list.get(i) - val) < 0.001f) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

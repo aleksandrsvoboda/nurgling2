@@ -48,6 +48,7 @@ public class NInventory extends Inventory
     private Widget eyeBtn;
     private Widget dropperBtn;
     private Widget sortBtnRef;
+    private Widget stackSortBtnRef;
     short[][] oldinv = null;
     public Gob parentGob = null;
     long lastUpdate = 0;
@@ -194,6 +195,24 @@ public class NInventory extends Inventory
         // Initial position left of close button
         Coord cbtnPos = deco.cbtn.c;
         sortBtn.c = new Coord(cbtnPos.x - sortBtn.sz.x - UI.scale(2), cbtnPos.y);
+
+        // Stack sort button — left of the sort button, with box-clickable area
+        // Vertically center relative to the sort button
+        NHeaderButton stackSortBtn = new NHeaderButton(
+                NStyle.stacksorti[0], NStyle.stacksorti[1], NStyle.stacksorti[2],
+                () -> SortInventory.sortDeep(thisInv)) {
+            @Override
+            public void tick(double dt) {
+                super.tick(dt);
+                if (sortBtn.c != null) {
+                    int centerY = sortBtn.c.y + sortBtn.sz.y / 2 - sz.y / 2;
+                    c = new Coord(sortBtn.c.x - sz.x - UI.scale(2), centerY);
+                }
+            }
+        }.tip("Sort Within Stacks");
+        deco.add(stackSortBtn);
+        int centerY = sortBtn.c.y + sortBtn.sz.y / 2 - stackSortBtn.sz.y / 2;
+        stackSortBtn.c = new Coord(sortBtn.c.x - stackSortBtn.sz.x - UI.scale(2), centerY);
     }
     
     /**
@@ -827,6 +846,12 @@ public class NInventory extends Inventory
             }).tip(nurgling.i18n.L10n.get("inventory.tip.search"));
             deco.add(searchBtn);
 
+            // Stack sort button in title bar (deep sort within stacks)
+            stackSortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/stacksort", () -> {
+                SortInventory.sortDeep(NInventory.this);
+            }).tip("Sort Within Stacks");
+            deco.add(stackSortBtnRef);
+
             // Sort button in title bar
             sortBtnRef = new NHeaderButton("nurgling/hud/buttons/inv/sort", () -> {
                 SortInventory.sort(NInventory.this);
@@ -967,6 +992,10 @@ public class NInventory extends Inventory
         if (searchBtn != null) {
             searchBtn.c = new Coord(leftX, 0);
             leftX += searchBtn.sz.x + btnGap;
+        }
+        if (stackSortBtnRef != null) {
+            stackSortBtnRef.c = new Coord(leftX, 0);
+            leftX += stackSortBtnRef.sz.x + btnGap;
         }
         if (sortBtnRef != null) {
             sortBtnRef.c = new Coord(leftX, 0);
