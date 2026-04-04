@@ -442,15 +442,20 @@ public class SortInventory implements Action {
         }
         if (namesWithStacks.isEmpty()) return;
 
-        // Find buffer slot once
-        BufferLocation buffer = findBuffer(gui);
-        if (buffer == null) {
-            gui.msg("Need 1 free inventory slot to sort within stacks");
-            return;
-        }
-
         for (String itemName : namesWithStacks) {
             if (cancelled) return;
+
+            // Determine item size from any stack of this type
+            Coord itemSize = getStackedItemSize(itemName);
+            if (itemSize == null) continue;
+
+            // Find buffer slot matching this item's size
+            BufferLocation buffer = findBuffer(gui, itemSize);
+            if (buffer == null) {
+                gui.msg("Need 1 free " + itemSize.x + "x" + itemSize.y
+                        + " slot to sort " + itemName + " stacks");
+                continue;
+            }
             performCycleSort(gui, itemName, buffer);
         }
     }
@@ -492,7 +497,6 @@ public class SortInventory implements Action {
             if (!(w.item instanceof NGItem)) continue;
             NGItem ng = (NGItem) w.item;
             if (!itemName.equals(ng.name())) continue;
-            if (getItemSize(w).x * getItemSize(w).y != 1) continue;
 
             Coord pos = getItemPos(w);
             List<Float> quals = getSlotQualities(pos);
@@ -663,9 +667,9 @@ public class SortInventory implements Action {
 
     // --- Buffer operations ---
 
-    private BufferLocation findBuffer(NGameUI gui) throws InterruptedException {
-        // Prefer a free slot in the inventory being sorted
-        Coord freeCoord = inventory.findFreeCoord(new Coord(1, 1));
+    private BufferLocation findBuffer(NGameUI gui, Coord itemSize) throws InterruptedException {
+        // Prefer a free area in the inventory being sorted
+        Coord freeCoord = inventory.findFreeCoord(itemSize);
         if (freeCoord != null) {
             return new BufferLocation(inventory, freeCoord);
         }
@@ -674,7 +678,7 @@ public class SortInventory implements Action {
         if (inventory != gui.maininv) {
             NInventory playerInv = gui.getInventory();
             if (playerInv != null) {
-                Coord playerFree = playerInv.findFreeCoord(new Coord(1, 1));
+                Coord playerFree = playerInv.findFreeCoord(itemSize);
                 if (playerFree != null) {
                     return new BufferLocation(playerInv, playerFree);
                 }
@@ -778,6 +782,22 @@ public class SortInventory implements Action {
     }
 
     // --- Scan and lookup helpers ---
+
+    /**
+     * Returns the inventory cell size of items for the given item name
+     * by finding any stack or single item of that name in the inventory.
+     */
+    private Coord getStackedItemSize(String itemName) {
+        for (Widget wdg = inventory.lchild; wdg != null; wdg = wdg.prev) {
+            if (!(wdg instanceof WItem)) continue;
+            WItem w = (WItem) wdg;
+            if (!(w.item instanceof NGItem)) continue;
+            if (itemName.equals(((NGItem) w.item).name())) {
+                return getItemSize(w);
+            }
+        }
+        return null;
+    }
 
     private List<Float> getSlotQualities(Coord pos) {
         WItem slotItem = findSlotItemAtPos(pos);
