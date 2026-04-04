@@ -579,6 +579,12 @@ public class TunnelingDialog extends Window {
         // Set support type dropdown
         supportTypeDropbox.change(selectedSupportType);
 
+        // In minesweeper mode, only restore direction — skip tunnel/wing/preview
+        if (selectedSupportType == SupportType.NONE) {
+            updateDirectionSelection(selectedDirection);
+            return;
+        }
+
         // Update UI for saved direction (without resetting tunnel/wing sides)
         Direction dir = selectedDirection;
 
