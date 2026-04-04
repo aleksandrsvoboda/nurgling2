@@ -145,6 +145,10 @@ public class MinesweeperMiner implements Action {
                 candidates++;
 
                 int forward = getForward(neighbor, direction) - startForward;
+
+                // Don't go more than 10 tiles backwards
+                if (forward < -10) continue;
+
                 int dist = Math.abs(neighbor.x - playerTile.x) + Math.abs(neighbor.y - playerTile.y);
                 int lateralDev = Math.abs(lateral - startLateral);
 
