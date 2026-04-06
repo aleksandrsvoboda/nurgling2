@@ -278,33 +278,31 @@ public class SortContainersInArea implements Action {
                 containerInv.getItems(); // force load
                 NInventory playerInv = gui.getInventory();
 
-                // DEPOSIT: player inv -> container (one at a time, ISRemoved each)
+                // DEPOSIT: player inv -> container (one at a time)
                 for (Item it : toDeposit) {
+                    if (containerInv.getFreeSpace() <= 0) break;
                     WItem found = findInInventory(playerInv, it.name, it.quality, it.size);
                     if (found == null) continue;
-                    if (containerInv.getNumberFreeCoord(it.size) <= 0) break;
                     System.out.println("[SORT]   P" + pass + " IN " + it.name + " q" + String.format("%.1f", it.quality) + " -> c" + ci);
-                    int wdgId = found.item.wdgid();
-                    found.item.wdgmsg("transfer", Coord.z);
-                    NUtils.addTask(new ISRemoved(wdgId));
-                    it.container = ci;
-                    progress = true;
+                    if (tryTransfer(found)) {
+                        it.container = ci;
+                        progress = true;
+                    }
                 }
 
-                // EXTRACT: container -> player inv (one at a time, ISRemoved each)
+                // EXTRACT: container -> player inv (one at a time)
                 for (Item it : toExtract) {
-                    if (playerInv.getNumberFreeCoord(it.size) <= 0) {
+                    if (playerInv.getFreeSpace() <= 0) {
                         System.out.println("[SORT]   Player inv full");
                         break;
                     }
                     WItem found = findInInventory(containerInv, it.name, it.quality, it.size);
                     if (found == null) continue;
                     System.out.println("[SORT]   P" + pass + " OUT " + it.name + " q" + String.format("%.1f", it.quality) + " from c" + ci);
-                    int wdgId = found.item.wdgid();
-                    found.item.wdgmsg("transfer", Coord.z);
-                    NUtils.addTask(new ISRemoved(wdgId));
-                    it.container = -1;
-                    progress = true;
+                    if (tryTransfer(found)) {
+                        it.container = -1;
+                        progress = true;
+                    }
                 }
 
                 new CloseTargetContainer(cont).run(gui);
@@ -325,6 +323,27 @@ public class SortContainersInArea implements Action {
         for (Item it : allItems) if (it.container == -1) playerCount++;
         if (playerCount > 0)
             System.out.println("[SORT] Player inv: " + playerCount + " items remaining!");
+    }
+
+    /**
+     * Transfer one item. Returns true if successful, false if ISRemoved timed out.
+     * Rethrows InterruptedException if the bot was actually stopped by the user.
+     */
+    private boolean tryTransfer(WItem item) throws InterruptedException {
+        int wdgId = item.item.wdgid();
+        item.item.wdgmsg("transfer", Coord.z);
+        try {
+            NUtils.addTask(new ISRemoved(wdgId));
+            return true;
+        } catch (InterruptedException e) {
+            // criticalExit throws InterruptedException WITHOUT setting the thread interrupt flag.
+            // A real stop-button sets the flag. Check to distinguish.
+            if (Thread.currentThread().isInterrupted()) {
+                throw e; // real stop, propagate
+            }
+            System.out.println("[SORT]   WARN: transfer timed out for " + wdgId + ", skipping");
+            return false;
+        }
     }
 
     /**
