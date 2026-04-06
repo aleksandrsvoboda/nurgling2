@@ -280,9 +280,9 @@ public class SortContainersInArea implements Action {
 
                 // DEPOSIT: player inv -> container (one at a time)
                 for (Item it : toDeposit) {
-                    if (containerInv.getFreeSpace() <= 0) break;
                     WItem found = findInInventory(playerInv, it.name, it.quality, it.size);
                     if (found == null) continue;
+                    if (containerInv.getNumberFreeCoord(found.item) <= 0) break;
                     System.out.println("[SORT]   P" + pass + " IN " + it.name + " q" + String.format("%.1f", it.quality) + " -> c" + ci);
                     if (tryTransfer(found)) {
                         it.container = ci;
@@ -292,12 +292,12 @@ public class SortContainersInArea implements Action {
 
                 // EXTRACT: container -> player inv (one at a time)
                 for (Item it : toExtract) {
-                    if (playerInv.getFreeSpace() <= 0) {
-                        System.out.println("[SORT]   Player inv full");
-                        break;
-                    }
                     WItem found = findInInventory(containerInv, it.name, it.quality, it.size);
                     if (found == null) continue;
+                    if (playerInv.getNumberFreeCoord(found.item) <= 0) {
+                        System.out.println("[SORT]   Player inv full for " + it.size);
+                        break;
+                    }
                     System.out.println("[SORT]   P" + pass + " OUT " + it.name + " q" + String.format("%.1f", it.quality) + " from c" + ci);
                     if (tryTransfer(found)) {
                         it.container = -1;
