@@ -41,6 +41,14 @@ public class Inventory extends Widget implements DTarget {
     public boolean[] sqmask = null;
     Map<GItem, WItem> wmap = new HashMap<GItem, WItem>();
 
+    /**
+     * Returns all top-level WItems in this inventory (stacks as single units).
+     * Unlike getItems() which recurses into stacks, this returns the grid-level items.
+     */
+    public java.util.ArrayList<WItem> getTopLevelItems() {
+        return new java.util.ArrayList<>(wmap.values());
+    }
+
     static {
 	Coord sz = sqsz.add(1, 1);
 	WritableRaster buf = PUtils.imgraster(sz);
