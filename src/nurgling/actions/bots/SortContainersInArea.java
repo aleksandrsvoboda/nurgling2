@@ -157,8 +157,6 @@ public class SortContainersInArea implements Action {
             }
 
             containers.add(new CInfo(gob.id, gob.ngob.hash, cap, inv.isz.x, inv.isz.y, blocked));
-            System.out.println("[SORT] Container " + ci + " (" + cap + "): grid=" + inv.isz.x + "x" + inv.isz.y);
-
             new CloseTargetContainer(cont).run(gui);
         }
 
@@ -173,13 +171,6 @@ public class SortContainersInArea implements Action {
             if (c != 0) return c;
             return Double.compare(b.quality, a.quality);
         });
-
-        System.out.println("[SORT] Total items: " + allItems.size());
-        for (int i = 0; i < allItems.size(); i++) {
-            Item it = allItems.get(i);
-            System.out.println("[SORT]   [" + i + "] " + it.name + " q" + String.format("%.1f", it.quality)
-                    + " " + it.size.x + "x" + it.size.y + " cur=" + it.container);
-        }
 
         // ===== STEP 4: Tetris packing assignment =====
         int[] target = new int[allItems.size()];
@@ -201,21 +192,14 @@ public class SortContainersInArea implements Action {
             }
             if (!placed) {
                 target[i] = it.container;
-                System.out.println("[SORT]   WARN: no space for " + it.name + " q" + String.format("%.1f", it.quality));
             }
         }
 
-        // Log moves
         int moveCount = 0;
         for (int i = 0; i < allItems.size(); i++) {
-            if (allItems.get(i).container != target[i]) {
-                System.out.println("[SORT]   MOVE " + allItems.get(i).name + " q" + String.format("%.1f", allItems.get(i).quality)
-                        + " " + allItems.get(i).size.x + "x" + allItems.get(i).size.y
-                        + ": c" + allItems.get(i).container + " -> c" + target[i]);
+            if (allItems.get(i).container != target[i])
                 moveCount++;
-            }
         }
-        System.out.println("[SORT] " + moveCount + " items need to move");
 
         // ===== STEP 5: Move items =====
         if (moveCount > 0) {
@@ -283,7 +267,6 @@ public class SortContainersInArea implements Action {
                     WItem found = findInInventory(playerInv, it.name, it.quality, it.size);
                     if (found == null) continue;
                     if (containerInv.getNumberFreeCoord(found.item) <= 0) break;
-                    System.out.println("[SORT]   P" + pass + " IN " + it.name + " q" + String.format("%.1f", it.quality) + " -> c" + ci);
                     if (tryTransfer(found)) {
                         it.container = ci;
                         progress = true;
@@ -294,11 +277,8 @@ public class SortContainersInArea implements Action {
                 for (Item it : toExtract) {
                     WItem found = findInInventory(containerInv, it.name, it.quality, it.size);
                     if (found == null) continue;
-                    if (playerInv.getNumberFreeCoord(found.item) <= 0) {
-                        System.out.println("[SORT]   Player inv full for " + it.size);
+                    if (playerInv.getNumberFreeCoord(found.item) <= 0)
                         break;
-                    }
-                    System.out.println("[SORT]   P" + pass + " OUT " + it.name + " q" + String.format("%.1f", it.quality) + " from c" + ci);
                     if (tryTransfer(found)) {
                         it.container = -1;
                         progress = true;
@@ -308,21 +288,9 @@ public class SortContainersInArea implements Action {
                 new CloseTargetContainer(cont).run(gui);
             }
 
-            System.out.println("[SORT] === Pass " + pass + " done, progress=" + progress + " ===");
             if (!progress) break;
         }
 
-        // Log final state
-        System.out.println("[SORT] === FINAL STATE ===");
-        for (int ci = 0; ci < containers.size(); ci++) {
-            int count = 0;
-            for (Item it : allItems) if (it.container == ci) count++;
-            System.out.println("[SORT] Container " + ci + ": " + count + " items");
-        }
-        int playerCount = 0;
-        for (Item it : allItems) if (it.container == -1) playerCount++;
-        if (playerCount > 0)
-            System.out.println("[SORT] Player inv: " + playerCount + " items remaining!");
     }
 
     /**
@@ -341,7 +309,6 @@ public class SortContainersInArea implements Action {
             if (Thread.currentThread().isInterrupted()) {
                 throw e; // real stop, propagate
             }
-            System.out.println("[SORT]   WARN: transfer timed out for " + wdgId + ", skipping");
             return false;
         }
     }
