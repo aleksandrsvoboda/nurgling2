@@ -36,5 +36,6 @@ public class GobContextRegistry {
         register(new SaveBushLocationAction());
         register(new CutDownAreaAction());
         register(new ChipStoneAreaAction());
+        register(new ShearWoolAreaAction());
     }
 }
