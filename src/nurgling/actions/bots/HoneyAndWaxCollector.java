@@ -107,44 +107,25 @@ public class HoneyAndWaxCollector implements Action {
             NArea beeArea = beeSkepAreas.get(areaIdx);
             NUtils.navigateToArea(beeArea);
 
-            // Find all visible beehives (around the area, not bounded by it)
-            ArrayList<Gob> skeps = findHoneySkeps();
+            // Collect honey from closest skep repeatedly
+            Gob skep;
+            while ((skep = findClosestHoneySkep()) != null) {
+                PathFinder pf = new PathFinder(skep);
+                pf.isHardMode = true;
+                if (!pf.run(gui).IsSuccess())
+                    continue;
 
-            while (!skeps.isEmpty()) {
-                skeps.sort(NUtils.d_comp);
-                boolean barrelFull = false;
+                long attrBefore = skep.ngob.getModelAttribute();
+                NUtils.activateGob(skep);
 
-                for (Gob skep : skeps) {
-                    if (!hasHoney(skep))
-                        continue;
+                WaitModelAttributeChange waitAttr = new WaitModelAttributeChange(skep, attrBefore);
+                NUtils.getUI().core.addTask(waitAttr);
 
-                    PathFinder pf = new PathFinder(skep);
-                    pf.isHardMode = true;
-                    if (!pf.run(gui).IsSuccess())
-                        continue;
-
-                    long attrBefore = skep.ngob.getModelAttribute();
-                    NUtils.activateGob(skep);
-
-                    // Wait for model attribute change with soft timeout
-                    WaitModelAttributeChange waitAttr = new WaitModelAttributeChange(skep, attrBefore);
-                    NUtils.getUI().core.addTask(waitAttr);
-
-                    if (!waitAttr.changed) {
-                        // Attribute didn't change - barrel is full
-                        barrelFull = true;
-                        break;
-                    }
-                }
-
-                if (barrelFull) {
-                    // Empty barrel at cistern and come back
+                if (!waitAttr.changed) {
+                    // Barrel is full - empty at cistern and come back
                     NUtils.navigateToArea(cisternArea);
                     emptyBarrelAtCistern(gui, barrel, cistern);
                     NUtils.navigateToArea(beeArea);
-                    skeps = findHoneySkeps();
-                } else {
-                    break;
                 }
             }
         }
@@ -181,31 +162,21 @@ public class HoneyAndWaxCollector implements Action {
         for (NArea beeArea : beeSkepAreas) {
             NUtils.navigateToArea(beeArea);
 
-            boolean needRestart = true;
-            while (needRestart) {
-                needRestart = false;
-                ArrayList<Gob> skeps = findWaxSkeps();
-                skeps.sort(NUtils.d_comp);
-
-                for (Gob skep : skeps) {
-                    if (!hasWax(skep))
-                        continue;
-
-                    if (gui.getInventory().getNumberFreeCoord(Coord.of(1, 2)) < 1) {
-                        new FreeInventory2(context).run(gui);
-                        NUtils.navigateToArea(beeArea);
-                        needRestart = true;
-                        break;
-                    }
-
-                    PathFinder pf = new PathFinder(skep);
-                    pf.isHardMode = true;
-                    if (!pf.run(gui).IsSuccess())
-                        continue;
-                    new SelectFlowerAction("Harvest wax", skep).run(gui);
-                    NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/bushpickan"));
-                    NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/idle"));
+            Gob skep;
+            while ((skep = findClosestWaxSkep()) != null) {
+                if (gui.getInventory().getNumberFreeCoord(Coord.of(1, 2)) < 1) {
+                    new FreeInventory2(context).run(gui);
+                    NUtils.navigateToArea(beeArea);
+                    continue;
                 }
+
+                PathFinder pf = new PathFinder(skep);
+                pf.isHardMode = true;
+                if (!pf.run(gui).IsSuccess())
+                    continue;
+                new SelectFlowerAction("Harvest wax", skep).run(gui);
+                NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/bushpickan"));
+                NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/idle"));
             }
         }
 
@@ -214,16 +185,20 @@ public class HoneyAndWaxCollector implements Action {
         return Results.SUCCESS();
     }
 
-    private ArrayList<Gob> findHoneySkeps() {
+    private Gob findClosestHoneySkep() {
         ArrayList<Gob> skeps = Finder.findGobs(BEEHIVE);
         skeps.removeIf(s -> !hasHoney(s));
-        return skeps;
+        if (skeps.isEmpty()) return null;
+        skeps.sort(NUtils.d_comp);
+        return skeps.get(0);
     }
 
-    private ArrayList<Gob> findWaxSkeps() {
+    private Gob findClosestWaxSkep() {
         ArrayList<Gob> skeps = Finder.findGobs(BEEHIVE);
         skeps.removeIf(s -> !hasWax(s));
-        return skeps;
+        if (skeps.isEmpty()) return null;
+        skeps.sort(NUtils.d_comp);
+        return skeps.get(0);
     }
 
     private boolean hasHoney(Gob skep) {
