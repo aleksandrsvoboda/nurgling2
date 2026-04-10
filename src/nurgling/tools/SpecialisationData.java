@@ -21,7 +21,7 @@ public class SpecialisationData {
         data.put("seedQ",crops);
         ArrayList<String> cheeseRacks = new ArrayList<>(Arrays.asList("Inside", "Cellar", "Outside", "Mine"));
         data.put("cheeseRacks", cheeseRacks);
-        ArrayList<String> cistern = new ArrayList<>(Arrays.asList("Cow Milk", "Goat Milk", "Sheep Milk"));
+        ArrayList<String> cistern = new ArrayList<>(Arrays.asList("Cow Milk", "Goat Milk", "Sheep Milk", "Honey"));
         data.put("cistern", cistern);
         ArrayList<String> picklingJars = new ArrayList<>(Arrays.asList("Beetroots", "Carrots", "Eggs", "Herring", "Olives", "Cucumbers", "Red Onion", "Yellow Onion"));
         data.put("picklingJars", picklingJars);
