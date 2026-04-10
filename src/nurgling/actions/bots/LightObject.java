@@ -49,23 +49,23 @@ public class LightObject implements Action {
         } else if (gobName.contains("gfx/terobjs/brazier")) {
             return new LightConfig("Brazier", 8, true, -1);
         } else if (gobName.contains("gfx/terobjs/oven")) {
-            return new LightConfig("Oven", 8, true, -1);
-        } else if (gobName.contains("gfx/terobjs/smelter")) {
-            return new LightConfig("Ore Smelter", 8, true, -1);
+            return new LightConfig("Oven", 4, false, -1);
         } else if (gobName.contains("gfx/terobjs/smokeshed")) {
-            return new LightConfig("Smoke Shed", 8, true, -1);
+            return new LightConfig("Smoke Shed", 16, false, -1);
         } else if (gobName.contains("gfx/terobjs/primsmelter")) {
-            return new LightConfig("Stack Furnace", 8, true, -1);
+            return new LightConfig("Stack Furnace", 2, false, -1);
+        } else if (gobName.contains("gfx/terobjs/smelter")) {
+            return new LightConfig("Ore Smelter", 2, false, -1);
         } else if (gobName.contains("gfx/terobjs/kiln")) {
-            return new LightConfig("Kiln", 8, true, -1);
+            return new LightConfig("Kiln", 1, false, -1);
         } else if (gobName.contains("gfx/terobjs/wonders/tarpit")) {
-            return new LightConfig("Tar Kiln", 8, true, -1);
+            return new LightConfig("Tar Kiln", 16, false, -1);
         } else if (gobName.contains("gfx/terobjs/fineryforge")) {
-            return new LightConfig("Finery Forge", 8, true, -1);
+            return new LightConfig("Finery Forge", 8, false, -1);
         } else if (gobName.contains("gfx/terobjs/steelcrucible")) {
-            return new LightConfig("Steel Crucible", 8, true, -1);
+            return new LightConfig("Steel Crucible", 4, false, -1);
         } else if (gobName.contains("gfx/terobjs/crucible")) {
-            return new LightConfig("Crucible", 8, true, -1);
+            return new LightConfig("Crucible", 4, false, -1);
         }
         return null;
     }
