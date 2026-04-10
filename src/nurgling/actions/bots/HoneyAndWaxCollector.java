@@ -118,7 +118,9 @@ public class HoneyAndWaxCollector implements Action {
                     if (!hasHoney(skep))
                         continue;
 
-                    new PathFinder(skep).run(gui);
+                    PathFinder pf = new PathFinder(skep);
+                    pf.isHardMode = true;
+                    pf.run(gui);
 
                     long attrBefore = skep.ngob.getModelAttribute();
                     NUtils.activateGob(skep);
@@ -196,7 +198,9 @@ public class HoneyAndWaxCollector implements Action {
                         break;
                     }
 
-                    new PathFinder(skep).run(gui);
+                    PathFinder pf = new PathFinder(skep);
+                    pf.isHardMode = true;
+                    pf.run(gui);
                     new SelectFlowerAction("Harvest wax", skep).run(gui);
                     NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/bushpickan"));
                     NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/idle"));
