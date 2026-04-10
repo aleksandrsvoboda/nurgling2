@@ -17,6 +17,7 @@ public class LightFireplace implements Action {
 
     private final Gob fireplace;
     private static final int FIRE_FLAG = 4;
+    private static final Coord TORCH_SIZE = new Coord(1, 1);
 
     public LightFireplace(Gob fireplace) {
         this.fireplace = fireplace;
@@ -192,12 +193,12 @@ public class LightFireplace implements Action {
             waitForProgress(gui);
         }
 
-        // Put torch back where it came from
+        // Extinguish torch and put back where it came from
         if (gui.vhand != null) {
             if (torchSource == SOURCE_EQUIPMENT) {
-                NUtils.getEquipment().wdgmsg("drop", equipSlot);
-                NUtils.getUI().core.addTask(new WaitFreeHand());
+                extinguishAndReturnToEquip(gui, equipSlot);
             } else {
+                // From inventory - dropping to inv extinguishes it
                 NUtils.dropToInv();
                 NUtils.getUI().core.addTask(new WaitFreeHand());
             }
@@ -305,13 +306,61 @@ public class LightFireplace implements Action {
             waitForProgress(gui);
         }
 
-        // Place torch back on torchpost
+        // Extinguish torch and place back on torchpost
         if (gui.vhand != null) {
-            new PathFinder(unlitTorchpost).run(gui);
-            NUtils.activateItem(unlitTorchpost);
-            NUtils.getUI().core.addTask(new WaitFreeHand());
+            extinguishAndReturnToTorchpost(gui, unlitTorchpost);
         }
         return isFireLit();
+    }
+
+    // --- Extinguish helpers ---
+
+    private void extinguishAndReturnToEquip(NGameUI gui, int equipSlot) throws InterruptedException {
+        if (gui.vhand == null)
+            return;
+
+        if (gui.getInventory().getNumberFreeCoord(TORCH_SIZE) > 0) {
+            // Drop to inventory to extinguish
+            NUtils.dropToInv();
+            NUtils.getUI().core.addTask(new WaitFreeHand());
+            // Pick up extinguished torch and re-equip
+            WItem torch = gui.getInventory().getItem("Torch");
+            if (torch != null) {
+                NUtils.takeItemToHand(torch);
+                NUtils.getUI().core.addTask(new WaitItemInHand());
+                NUtils.getEquipment().wdgmsg("drop", equipSlot);
+                NUtils.getUI().core.addTask(new WaitFreeHand());
+            }
+        } else {
+            // No inventory space, return lit
+            NUtils.getEquipment().wdgmsg("drop", equipSlot);
+            NUtils.getUI().core.addTask(new WaitFreeHand());
+        }
+    }
+
+    private void extinguishAndReturnToTorchpost(NGameUI gui, Gob torchpost) throws InterruptedException {
+        if (gui.vhand == null)
+            return;
+
+        if (gui.getInventory().getNumberFreeCoord(TORCH_SIZE) > 0) {
+            // Drop to inventory to extinguish
+            NUtils.dropToInv();
+            NUtils.getUI().core.addTask(new WaitFreeHand());
+            // Pick up extinguished torch and return to torchpost
+            WItem torch = gui.getInventory().getItem("Torch");
+            if (torch != null) {
+                NUtils.takeItemToHand(torch);
+                NUtils.getUI().core.addTask(new WaitItemInHand());
+                new PathFinder(torchpost).run(gui);
+                NUtils.activateItem(torchpost);
+                NUtils.getUI().core.addTask(new WaitFreeHand());
+            }
+        } else {
+            // No inventory space, return lit
+            new PathFinder(torchpost).run(gui);
+            NUtils.activateItem(torchpost);
+            NUtils.getUI().core.addTask(new WaitFreeHand());
+        }
     }
 
     // --- Shared helpers ---
