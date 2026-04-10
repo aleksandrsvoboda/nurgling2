@@ -164,7 +164,7 @@ public class HoneyAndWaxCollector implements Action {
 
             Gob skep;
             while ((skep = findClosestWaxSkep()) != null) {
-                if (gui.getInventory().getNumberFreeCoord(Coord.of(1, 2)) < 1) {
+                if (gui.getInventory().getNumberFreeCoord(Coord.of(1, 1)) < 5) {
                     new FreeInventory2(context).run(gui);
                     NUtils.navigateToArea(beeArea);
                     continue;
