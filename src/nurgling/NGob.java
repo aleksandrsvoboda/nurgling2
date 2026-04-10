@@ -419,7 +419,6 @@ public class NGob
         if (a instanceof ResDrawable)
         {
             modelAttribute = ((ResDrawable) a).calcMarker();
-            logTorchpostState("checkattr:ResDrawable");
         }
         else if (a instanceof Following)
         {
@@ -441,12 +440,6 @@ public class NGob
                 parent.addcustomol(new NSpeedometerOverlay(parent));
             }
             return;
-        }
-
-        // Log Lumin attribute changes for torchpost diagnostics
-        if (a instanceof Lumin)
-        {
-            logTorchpostState("checkattr:Lumin");
         }
 
         if (a instanceof GobIcon)
@@ -598,13 +591,6 @@ public class NGob
         if (drawable.getres() != null)
         {
             name = drawable.getres().name;
-
-            // Log torchpost discovery
-            if (isTorchpost())
-            {
-                System.out.println("[TORCHPOST] processDrawable: discovered gobId=" + parent.id + " name=" + name);
-                logTorchpostState("processDrawable");
-            }
 
             if (name != null)
             {
@@ -1168,18 +1154,6 @@ public class NGob
 
     public void addol(Gob.Overlay ol)
     {
-        // Log overlay additions for torchpost diagnostics
-        if (isTorchpost())
-        {
-            String olRes = (ol.spr != null && ol.spr.res != null) ? ol.spr.res.name : "null";
-            String olClass = (ol.spr != null) ? ol.spr.getClass().getSimpleName() : "null";
-            String equipped = getEquedResource(ol);
-            String details = getEquedDetails(ol);
-            System.out.println("[TORCHPOST] addol: id=" + ol.id + " res=" + olRes + " sprClass=" + olClass + " equippedRes=" + equipped + " gobId=" + parent.id);
-            if (!details.isEmpty()) System.out.println("[TORCHPOST] addol details: " + details);
-            logTorchpostState("addol");
-        }
-
         if (name != null)
             if (name.equals("gfx/terobjs/dframe") || name.equals("gfx/terobjs/barrel"))
             {
@@ -1252,18 +1226,6 @@ public class NGob
 
     public void removeol(Gob.Overlay ol)
     {
-        // Log overlay removals for torchpost diagnostics
-        if (isTorchpost())
-        {
-            String olRes = (ol.spr != null && ol.spr.res != null) ? ol.spr.res.name : "null";
-            String olClass = (ol.spr != null) ? ol.spr.getClass().getSimpleName() : "null";
-            String equipped = getEquedResource(ol);
-            String details = getEquedDetails(ol);
-            System.out.println("[TORCHPOST] removeol: id=" + ol.id + " res=" + olRes + " sprClass=" + olClass + " equippedRes=" + equipped + " gobId=" + parent.id);
-            if (!details.isEmpty()) System.out.println("[TORCHPOST] removeol details: " + details);
-            logTorchpostState("removeol");
-        }
-
         if (name != null)
             if (name.equals("gfx/terobjs/dframe") || name.equals("gfx/terobjs/barrel"))
             {
@@ -1417,12 +1379,6 @@ public class NGob
         return -1;
     }
 
-    // ===== TORCHPOST DIAGNOSTIC LOGGING =====
-    private boolean isTorchpost()
-    {
-        return name != null && name.contains("torchpost");
-    }
-
     private String getEquedResource(Gob.Overlay ol)
     {
         if (ol.spr instanceof Equed)
@@ -1496,88 +1452,5 @@ public class NGob
             }
         }
         return sb.toString();
-    }
-
-    private void logTorchpostState(String trigger)
-    {
-        if (!isTorchpost()) return;
-        StringBuilder sb = new StringBuilder();
-        sb.append("[TORCHPOST] trigger=").append(trigger);
-        sb.append(" gobId=").append(parent.id);
-        sb.append(" name=").append(name);
-        sb.append(" modelAttribute=").append(modelAttribute);
-
-        // Log raw sdt bytes from ResDrawable
-        Drawable dr = parent.getattr(Drawable.class);
-        if (dr instanceof ResDrawable)
-        {
-            ResDrawable rd = (ResDrawable) dr;
-            sb.append(" sdt.len=").append(rd.sdt.rbuf.length);
-            sb.append(" sdt.bytes=[");
-            for (int i = 0; i < rd.sdt.rbuf.length; i++)
-            {
-                if (i > 0) sb.append(",");
-                sb.append(rd.sdt.rbuf[i] & 0xFF);
-            }
-            sb.append("]");
-        }
-
-        // Log Lumin attribute (fields are package-private, log presence)
-        Lumin lumin = parent.getattr(Lumin.class);
-        sb.append(" lumin=").append(lumin != null ? "PRESENT" : "null");
-
-        // Log all overlays
-        sb.append(" overlays=[");
-        int olCount = 0;
-        for (Gob.Overlay ol : parent.ols)
-        {
-            if (olCount > 0) sb.append("; ");
-            sb.append("id=").append(ol.id);
-            if (ol.spr != null)
-            {
-                sb.append(",sprClass=").append(ol.spr.getClass().getSimpleName());
-                if (ol.spr.res != null)
-                {
-                    sb.append(",res=").append(ol.spr.res.name);
-                }
-                // For Equed overlays, extract the inner espr resource via reflection
-                if (ol.spr instanceof Equed)
-                {
-                    try
-                    {
-                        Field esprField = Equed.class.getDeclaredField("espr");
-                        esprField.setAccessible(true);
-                        Sprite espr = (Sprite) esprField.get(ol.spr);
-                        if (espr != null && espr.res != null)
-                        {
-                            sb.append(",equippedRes=").append(espr.res.name);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        sb.append(",equippedRes=ERR:").append(e.getMessage());
-                    }
-                }
-            }
-            else if (ol.sm != null)
-            {
-                sb.append(",mill=").append(ol.sm.getClass().getSimpleName());
-            }
-            olCount++;
-        }
-        sb.append("]");
-
-        // Log all attributes
-        sb.append(" attrs=[");
-        int attrCount = 0;
-        for (Map.Entry<Class<? extends GAttrib>, GAttrib> entry : parent.attr.entrySet())
-        {
-            if (attrCount > 0) sb.append("; ");
-            sb.append(entry.getKey().getSimpleName());
-            attrCount++;
-        }
-        sb.append("]");
-
-        System.out.println(sb.toString());
     }
 }

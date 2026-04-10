@@ -32,26 +32,47 @@ public class LightFireplace implements Action {
             return Results.SUCCESS();
         }
 
+        if ((fireplace.ngob.getModelAttribute() & 1) == 0) {
+            gui.error("Fireplace has no fuel");
+            return Results.FAIL();
+        }
+
+        // Priority 0: Embers - can light directly via "Light My Fire"
+        if (fireplace.ngob.getModelAttribute() == 11) {
+            gui.msg("Fireplace has embers, lighting directly");
+            new PathFinder(fireplace).run(gui);
+            Results result = new SelectFlowerAction("Light My Fire", fireplace).run(gui);
+            if (result.IsSuccess()) {
+                NUtils.getUI().core.addTask(new WaitGobModelAttr(fireplace, FIRE_FLAG));
+                return Results.SUCCESS();
+            }
+        }
+        if (isFireLit())
+            return Results.SUCCESS();
+
         // Priority 1: Lit candelabrum
+        gui.msg("Looking for lit candelabrum");
         if (tryLitCandelabrum(gui))
             return Results.SUCCESS();
         if (isFireLit())
             return Results.SUCCESS();
 
         // Priority 2: Lit torch on torchpost
+        gui.msg("Lit candelabrum not found, looking for lit torch");
         if (tryLitTorch(gui))
             return Results.SUCCESS();
         if (isFireLit())
             return Results.SUCCESS();
 
         // Priority 3: Unlit torch on torchpost + lit brazier
+        gui.msg("Lit torch not found, looking for unlit torch and brazier");
         if (tryUnlitTorchWithBrazier(gui))
             return Results.SUCCESS();
         if (isFireLit())
             return Results.SUCCESS();
 
-        // Priority 4: Sticks (branches) - falls back to LightFire which uses NContext
-        gui.msg("No torch or candelabrum found, using branches");
+        // Priority 4: Sticks (branches)
+        gui.msg("No torch or brazier found, using branches");
         return new LightFire(fireplace).run(gui);
     }
 
