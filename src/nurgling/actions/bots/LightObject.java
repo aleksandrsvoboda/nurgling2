@@ -13,88 +13,125 @@ import nurgling.widgets.NEquipory;
 
 import java.util.ArrayList;
 
-public class LightFireplace implements Action {
+public class LightObject implements Action {
 
-    private final Gob fireplace;
-    private static final int FIRE_FLAG = 4;
+    private final Gob target;
     private static final Coord TORCH_SIZE = new Coord(1, 1);
 
-    public LightFireplace(Gob fireplace) {
-        this.fireplace = fireplace;
+    private static final int SOURCE_EQUIPMENT = 0;
+    private static final int SOURCE_INVENTORY = 1;
+
+    public LightObject(Gob target) {
+        this.target = target;
+    }
+
+    // --- Config system ---
+
+    static class LightConfig {
+        final String displayName;
+        final int fireFlag;
+        final boolean checkFuel;
+        final int embersAttr; // -1 if no embers state
+
+        LightConfig(String displayName, int fireFlag, boolean checkFuel, int embersAttr) {
+            this.displayName = displayName;
+            this.fireFlag = fireFlag;
+            this.checkFuel = checkFuel;
+            this.embersAttr = embersAttr;
+        }
+    }
+
+    public static LightConfig getConfig(String gobName) {
+        if (gobName.contains("gfx/terobjs/pow")) {
+            return new LightConfig("Fire Place", 4, true, 11);
+        } else if (gobName.contains("gfx/terobjs/cauldron")) {
+            return new LightConfig("Cauldron", 2, true, -1);
+        } else if (gobName.contains("gfx/terobjs/brazier")) {
+            return new LightConfig("Brazier", 8, true, -1);
+        }
+        return null;
     }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        if ((fireplace.ngob.getModelAttribute() & FIRE_FLAG) != 0) {
-            gui.msg("Fireplace is already lit");
+        String gobName = target.ngob.name;
+        if (gobName == null)
+            return Results.ERROR("Cannot determine object type");
+
+        LightConfig config = getConfig(gobName);
+        if (config == null)
+            return Results.ERROR("Unsupported object type: " + gobName);
+
+        if ((target.ngob.getModelAttribute() & config.fireFlag) != 0) {
+            gui.msg(config.displayName + " is already lit");
             return Results.SUCCESS();
         }
 
-        if ((fireplace.ngob.getModelAttribute() & 1) == 0) {
-            gui.error("Fireplace has no fuel");
+        if (config.checkFuel && (target.ngob.getModelAttribute() & 1) == 0) {
+            gui.error(config.displayName + " has no fuel");
             return Results.FAIL();
         }
 
         // Priority 0: Embers - can light directly via "Light My Fire"
-        if (fireplace.ngob.getModelAttribute() == 11) {
-            gui.msg("Fireplace has embers, lighting directly");
-            new PathFinder(fireplace).run(gui);
-            Results result = new SelectFlowerAction("Light My Fire", fireplace).run(gui);
+        if (config.embersAttr != -1 && target.ngob.getModelAttribute() == config.embersAttr) {
+            gui.msg(config.displayName + " has embers, lighting directly");
+            new PathFinder(target).run(gui);
+            Results result = new SelectFlowerAction("Light My Fire", target).run(gui);
             if (result.IsSuccess()) {
-                NUtils.getUI().core.addTask(new WaitGobModelAttr(fireplace, FIRE_FLAG));
+                NUtils.getUI().core.addTask(new WaitGobModelAttr(target, config.fireFlag));
                 return Results.SUCCESS();
             }
         }
-        if (isFireLit())
+        if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 1: Lit torch in equipment
         gui.msg("No embers, checking for equipped lit torch");
-        if (tryEquippedLitTorch(gui))
+        if (tryEquippedLitTorch(gui, config))
             return Results.SUCCESS();
-        if (isFireLit())
+        if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 2: Unlit torch (equipment or inventory) + lit brazier
         gui.msg("No equipped lit torch, checking for torch and nearby brazier");
-        if (tryTorchWithBrazier(gui))
+        if (tryTorchWithBrazier(gui, config))
             return Results.SUCCESS();
-        if (isFireLit())
+        if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 3: Lit candelabrum
         gui.msg("No torch with brazier found, looking for lit candelabrum");
-        if (tryLitCandelabrum(gui))
+        if (tryLitCandelabrum(gui, config))
             return Results.SUCCESS();
-        if (isFireLit())
+        if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 4: Lit torch on torchpost
         gui.msg("Lit candelabrum not found, looking for lit torch on torchpost");
-        if (tryLitTorchOnTorchpost(gui))
+        if (tryLitTorchOnTorchpost(gui, config))
             return Results.SUCCESS();
-        if (isFireLit())
+        if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 5: Unlit torch on torchpost + lit brazier
         gui.msg("Lit torch on torchpost not found, looking for unlit torch on torchpost and brazier");
-        if (tryUnlitTorchpostWithBrazier(gui))
+        if (tryUnlitTorchpostWithBrazier(gui, config))
             return Results.SUCCESS();
-        if (isFireLit())
+        if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 6: Sticks (branches)
         gui.msg("No torch or brazier found, using branches");
-        return new LightFire(fireplace).run(gui);
+        return new LightFire(target).run(gui);
     }
 
-    private boolean isFireLit() {
-        return (fireplace.ngob.getModelAttribute() & FIRE_FLAG) != 0;
+    private boolean isLit(LightConfig config) {
+        return (target.ngob.getModelAttribute() & config.fireFlag) != 0;
     }
 
     // --- Priority 1: Lit torch in equipment ---
 
-    private boolean tryEquippedLitTorch(NGameUI gui) throws InterruptedException {
+    private boolean tryEquippedLitTorch(NGameUI gui, LightConfig config) throws InterruptedException {
         NEquipory equip = NUtils.getEquipment();
         if (equip == null)
             return false;
@@ -118,8 +155,8 @@ public class LightFireplace implements Action {
         NUtils.takeItemToHand(torch);
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
-        new PathFinder(fireplace).run(gui);
-        NUtils.activateItem(fireplace);
+        new PathFinder(target).run(gui);
+        NUtils.activateItem(target);
         waitForProgress(gui);
 
         if (gui.vhand != null) {
@@ -131,16 +168,11 @@ public class LightFireplace implements Action {
 
     // --- Priority 2: Unlit torch (equipment or inventory) + lit brazier ---
 
-    private static final int SOURCE_EQUIPMENT = 0;
-    private static final int SOURCE_INVENTORY = 1;
-
-    private boolean tryTorchWithBrazier(NGameUI gui) throws InterruptedException {
-        // Find lit brazier first
+    private boolean tryTorchWithBrazier(NGameUI gui, LightConfig config) throws InterruptedException {
         Gob litBrazier = findLitBrazier();
         if (litBrazier == null)
             return false;
 
-        // Find unlit torch in equipment
         NEquipory equip = NUtils.getEquipment();
         int torchSource = -1;
         int equipSlot = -1;
@@ -161,7 +193,6 @@ public class LightFireplace implements Action {
             }
         }
 
-        // If not in equipment, check inventory
         if (torch == null) {
             ArrayList<WItem> invTorches = gui.getInventory().getItems(new NAlias("Torch"));
             for (WItem t : invTorches) {
@@ -177,19 +208,16 @@ public class LightFireplace implements Action {
         if (torch == null)
             return false;
 
-        // Take torch to hand
         NUtils.takeItemToHand(torch);
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
-        // Light torch on brazier
         new PathFinder(litBrazier).run(gui);
         NUtils.activateItem(litBrazier);
         waitForProgress(gui);
 
-        // Use lit torch on fireplace
         if (gui.vhand != null) {
-            new PathFinder(fireplace).run(gui);
-            NUtils.activateItem(fireplace);
+            new PathFinder(target).run(gui);
+            NUtils.activateItem(target);
             waitForProgress(gui);
         }
 
@@ -203,12 +231,12 @@ public class LightFireplace implements Action {
                 NUtils.getUI().core.addTask(new WaitFreeHand());
             }
         }
-        return isFireLit();
+        return isLit(config);
     }
 
     // --- Priority 3: Lit candelabrum ---
 
-    private boolean tryLitCandelabrum(NGameUI gui) throws InterruptedException {
+    private boolean tryLitCandelabrum(NGameUI gui, LightConfig config) throws InterruptedException {
         ArrayList<Gob> candelabrums = Finder.findGobs(new NAlias("gfx/terobjs/candelabrum"));
         Gob litCandelabrum = null;
         for (Gob c : candelabrums) {
@@ -223,11 +251,11 @@ public class LightFireplace implements Action {
         Coord2d originalPos = new Coord2d(litCandelabrum.rc.x, litCandelabrum.rc.y);
         new LiftObject(litCandelabrum).run(gui);
 
-        PathFinder pf = new PathFinder(fireplace);
+        PathFinder pf = new PathFinder(target);
         pf.isHardMode = true;
         pf.run(gui);
-        NUtils.activateGob(fireplace);
-        NUtils.getUI().core.addTask(new WaitGobModelAttr(fireplace, FIRE_FLAG));
+        NUtils.activateGob(target);
+        NUtils.getUI().core.addTask(new WaitGobModelAttr(target, config.fireFlag));
 
         new PlaceObject(litCandelabrum, originalPos, 0).run(gui);
         return true;
@@ -235,7 +263,7 @@ public class LightFireplace implements Action {
 
     // --- Priority 4: Lit torch on torchpost ---
 
-    private boolean tryLitTorchOnTorchpost(NGameUI gui) throws InterruptedException {
+    private boolean tryLitTorchOnTorchpost(NGameUI gui, LightConfig config) throws InterruptedException {
         ArrayList<Gob> torchposts = Finder.findGobs(new NAlias("torchpost"));
         Gob litTorchpost = null;
         for (Gob tp : torchposts) {
@@ -248,7 +276,6 @@ public class LightFireplace implements Action {
         if (litTorchpost == null)
             return false;
 
-        // Take lit torch via flower menu
         new PathFinder(litTorchpost).run(gui);
         Results flowerResult = new SelectFlowerAction("Take torch", litTorchpost).run(gui);
         if (!flowerResult.IsSuccess())
@@ -256,12 +283,10 @@ public class LightFireplace implements Action {
 
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
-        // Use torch on fireplace
-        new PathFinder(fireplace).run(gui);
-        NUtils.activateItem(fireplace);
+        new PathFinder(target).run(gui);
+        NUtils.activateItem(target);
         waitForProgress(gui);
 
-        // Place torch back on torchpost
         if (gui.vhand != null) {
             new PathFinder(litTorchpost).run(gui);
             NUtils.activateItem(litTorchpost);
@@ -272,7 +297,7 @@ public class LightFireplace implements Action {
 
     // --- Priority 5: Unlit torch on torchpost + lit brazier ---
 
-    private boolean tryUnlitTorchpostWithBrazier(NGameUI gui) throws InterruptedException {
+    private boolean tryUnlitTorchpostWithBrazier(NGameUI gui, LightConfig config) throws InterruptedException {
         ArrayList<Gob> torchposts = Finder.findGobs(new NAlias("torchpost"));
         Gob unlitTorchpost = null;
         for (Gob tp : torchposts) {
@@ -289,20 +314,17 @@ public class LightFireplace implements Action {
         if (litBrazier == null)
             return false;
 
-        // Take unlit torch (just right-click, no flower menu)
         new PathFinder(unlitTorchpost).run(gui);
         NUtils.rclickGob(unlitTorchpost);
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
-        // Light torch on brazier
         new PathFinder(litBrazier).run(gui);
         NUtils.activateItem(litBrazier);
         waitForProgress(gui);
 
-        // Use lit torch on fireplace
         if (gui.vhand != null) {
-            new PathFinder(fireplace).run(gui);
-            NUtils.activateItem(fireplace);
+            new PathFinder(target).run(gui);
+            NUtils.activateItem(target);
             waitForProgress(gui);
         }
 
@@ -310,7 +332,7 @@ public class LightFireplace implements Action {
         if (gui.vhand != null) {
             extinguishAndReturnToTorchpost(gui, unlitTorchpost);
         }
-        return isFireLit();
+        return isLit(config);
     }
 
     // --- Extinguish helpers ---
@@ -320,10 +342,8 @@ public class LightFireplace implements Action {
             return;
 
         if (gui.getInventory().getNumberFreeCoord(TORCH_SIZE) > 0) {
-            // Drop to inventory to extinguish
             NUtils.dropToInv();
             NUtils.getUI().core.addTask(new WaitFreeHand());
-            // Pick up extinguished torch and re-equip
             WItem torch = gui.getInventory().getItem("Torch");
             if (torch != null) {
                 NUtils.takeItemToHand(torch);
@@ -332,7 +352,6 @@ public class LightFireplace implements Action {
                 NUtils.getUI().core.addTask(new WaitFreeHand());
             }
         } else {
-            // No inventory space, return lit
             NUtils.getEquipment().wdgmsg("drop", equipSlot);
             NUtils.getUI().core.addTask(new WaitFreeHand());
         }
@@ -343,10 +362,8 @@ public class LightFireplace implements Action {
             return;
 
         if (gui.getInventory().getNumberFreeCoord(TORCH_SIZE) > 0) {
-            // Drop to inventory to extinguish
             NUtils.dropToInv();
             NUtils.getUI().core.addTask(new WaitFreeHand());
-            // Pick up extinguished torch and return to torchpost
             WItem torch = gui.getInventory().getItem("Torch");
             if (torch != null) {
                 NUtils.takeItemToHand(torch);
@@ -356,7 +373,6 @@ public class LightFireplace implements Action {
                 NUtils.getUI().core.addTask(new WaitFreeHand());
             }
         } else {
-            // No inventory space, return lit
             new PathFinder(torchpost).run(gui);
             NUtils.activateItem(torchpost);
             NUtils.getUI().core.addTask(new WaitFreeHand());

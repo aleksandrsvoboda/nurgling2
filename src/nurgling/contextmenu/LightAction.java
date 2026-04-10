@@ -2,13 +2,13 @@ package nurgling.contextmenu;
 
 import haven.Gob;
 import nurgling.actions.Action;
-import nurgling.actions.bots.LightFireplace;
+import nurgling.actions.bots.LightObject;
 
-public class LightFireplaceAction implements GobContextAction {
+public class LightAction implements GobContextAction {
 
     @Override
     public boolean appliesTo(Gob gob) {
-        return gob.ngob.name.contains("gfx/terobjs/pow");
+        return LightObject.getConfig(gob.ngob.name) != null;
     }
 
     @Override
@@ -18,6 +18,6 @@ public class LightFireplaceAction implements GobContextAction {
 
     @Override
     public Action create(Gob gob) {
-        return new LightFireplace(gob);
+        return new LightObject(gob);
     }
 }
