@@ -169,7 +169,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("reindeers", BotDescriptor.BotType.FARMING, "Teimdeer Manager", "Manages teimdeer.", true, true, nurgling.actions.bots.DeersAction.class, "reindeers", false));
         bots.add(new BotDescriptor("chicken", BotDescriptor.BotType.FARMING, "Chicken Manager", "Manages chicken coops.", true, true, KFC.class, "chicken", false));
         bots.add(new BotDescriptor("rabbit", BotDescriptor.BotType.FARMING, "Rabbit Manager", "Manages rabbit hutches.", true, true, RabbitMaster.class, "rabbit", false));
-        bots.add(new BotDescriptor("bee", BotDescriptor.BotType.FARMING, "Beehive Manager", "Collects honey and wax from beehives.", true, true, HoneyAndWaxCollector.class, "bee", true));
+        bots.add(new BotDescriptor("bee", BotDescriptor.BotType.FARMING, "Beehive Manager", "Collects honey and wax from beehives.", true, true, HoneyAndWaxCollector.class, "bee", false));
         bots.add(new BotDescriptor("stringgrass", BotDescriptor.BotType.FARMING, "String Grass Farmer", "Automatically harvests and replants string grass.", true, true, StringGrassFarmer.class, "stringgrass", false));
         bots.add(new BotDescriptor("wildkale", BotDescriptor.BotType.FARMING, "Wild Kale Farmer", "Automatically harvests and replants wild kale.", true, true, WildKaleFarmer.class, "wildkale", false));
         bots.add(new BotDescriptor("wildonion", BotDescriptor.BotType.FARMING, "Wild Onion Farmer", "Automatically harvests and replants wild onions.", true, true, WildOnionFarmer.class, "wildonion", false));
