@@ -48,6 +48,24 @@ public class LightObject implements Action {
             return new LightConfig("Cauldron", 2, true, -1);
         } else if (gobName.contains("gfx/terobjs/brazier")) {
             return new LightConfig("Brazier", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/oven")) {
+            return new LightConfig("Oven", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/smelter")) {
+            return new LightConfig("Ore Smelter", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/smokeshed")) {
+            return new LightConfig("Smoke Shed", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/primsmelter")) {
+            return new LightConfig("Stack Furnace", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/kiln")) {
+            return new LightConfig("Kiln", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/wonders/tarpit")) {
+            return new LightConfig("Tar Kiln", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/fineryforge")) {
+            return new LightConfig("Finery Forge", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/steelcrucible")) {
+            return new LightConfig("Steel Crucible", 8, true, -1);
+        } else if (gobName.contains("gfx/terobjs/crucible")) {
+            return new LightConfig("Crucible", 8, true, -1);
         }
         return null;
     }
