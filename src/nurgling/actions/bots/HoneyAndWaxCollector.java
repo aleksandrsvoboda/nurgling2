@@ -120,17 +120,18 @@ public class HoneyAndWaxCollector implements Action {
 
                     PathFinder pf = new PathFinder(skep);
                     pf.isHardMode = true;
-                    pf.run(gui);
+                    if (!pf.run(gui).IsSuccess())
+                        continue;
 
                     long attrBefore = skep.ngob.getModelAttribute();
                     NUtils.activateGob(skep);
 
-                    // Wait for model attribute change with timeout
+                    // Wait for model attribute change with soft timeout
                     WaitModelAttributeChange waitAttr = new WaitModelAttributeChange(skep, attrBefore);
                     NUtils.getUI().core.addTask(waitAttr);
 
-                    if (waitAttr.criticalExit) {
-                        // Timeout - attribute didn't change, barrel is full
+                    if (!waitAttr.changed) {
+                        // Attribute didn't change - barrel is full
                         barrelFull = true;
                         break;
                     }
@@ -167,7 +168,6 @@ public class HoneyAndWaxCollector implements Action {
         new PathFinder(cistern).run(gui);
         NUtils.activateGob(cistern);
         NUtils.getUI().core.addTask(new NTask() {
-            { infinite = false; maxCounter = 500; }
             @Override
             public boolean check() {
                 return !NUtils.isOverlay(barrel, HONEY_OVERLAY);
@@ -200,7 +200,8 @@ public class HoneyAndWaxCollector implements Action {
 
                     PathFinder pf = new PathFinder(skep);
                     pf.isHardMode = true;
-                    pf.run(gui);
+                    if (!pf.run(gui).IsSuccess())
+                        continue;
                     new SelectFlowerAction("Harvest wax", skep).run(gui);
                     NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/bushpickan"));
                     NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/idle"));
@@ -236,19 +237,28 @@ public class HoneyAndWaxCollector implements Action {
     }
 
     private static class WaitModelAttributeChange extends NTask {
-        private final Gob gob;
+        private final long gobId;
         private final long initialAttr;
+        public boolean changed = false;
+        private int ticks = 0;
 
         WaitModelAttributeChange(Gob gob, long initialAttr) {
-            this.gob = gob;
+            this.gobId = gob.id;
             this.initialAttr = initialAttr;
-            this.infinite = false;
-            this.maxCounter = 300;
+            this.infinite = true;
         }
 
         @Override
         public boolean check() {
-            return gob.ngob.getModelAttribute() != initialAttr;
+            ticks++;
+            Gob gob = Finder.findGob(gobId);
+            if (gob == null)
+                return true;
+            if (gob.ngob.getModelAttribute() != initialAttr) {
+                changed = true;
+                return true;
+            }
+            return ticks >= 300;
         }
     }
 }
