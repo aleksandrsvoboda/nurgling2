@@ -346,7 +346,7 @@ public class LightObject implements Action {
             NUtils.getUI().core.addTask(new WaitFreeHand());
             WItem torch = gui.getInventory().getItem("Torch");
             if (torch != null) {
-                NUtils.takeItemToHand(torch);
+                torch.item.wdgmsg("take", Coord.z);
                 NUtils.getUI().core.addTask(new WaitItemInHand());
                 NUtils.getEquipment().wdgmsg("drop", equipSlot);
                 NUtils.getUI().core.addTask(new WaitFreeHand());
@@ -366,7 +366,7 @@ public class LightObject implements Action {
             NUtils.getUI().core.addTask(new WaitFreeHand());
             WItem torch = gui.getInventory().getItem("Torch");
             if (torch != null) {
-                NUtils.takeItemToHand(torch);
+                torch.item.wdgmsg("take", Coord.z);
                 NUtils.getUI().core.addTask(new WaitItemInHand());
                 new PathFinder(torchpost).run(gui);
                 NUtils.activateItem(torchpost);
