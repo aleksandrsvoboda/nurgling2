@@ -30,42 +30,42 @@ public class LightObject implements Action {
     static class LightConfig {
         final String displayName;
         final int fireFlag;
-        final boolean checkFuel;
+        final int fuelFlag; // 0 = don't check fuel, otherwise bitmask for fuel bit
         final int embersAttr; // -1 if no embers state
 
-        LightConfig(String displayName, int fireFlag, boolean checkFuel, int embersAttr) {
+        LightConfig(String displayName, int fireFlag, int fuelFlag, int embersAttr) {
             this.displayName = displayName;
             this.fireFlag = fireFlag;
-            this.checkFuel = checkFuel;
+            this.fuelFlag = fuelFlag;
             this.embersAttr = embersAttr;
         }
     }
 
     public static LightConfig getConfig(String gobName) {
         if (gobName.contains("gfx/terobjs/pow")) {
-            return new LightConfig("Fire Place", 4, true, 11);
+            return new LightConfig("Fire Place", 4, 1, 11);
         } else if (gobName.contains("gfx/terobjs/cauldron")) {
-            return new LightConfig("Cauldron", 2, true, -1);
+            return new LightConfig("Cauldron", 2, 1, -1);
         } else if (gobName.contains("gfx/terobjs/brazier")) {
-            return new LightConfig("Brazier", 8, true, -1);
+            return new LightConfig("Brazier", 8, 1, -1);
         } else if (gobName.contains("gfx/terobjs/oven")) {
-            return new LightConfig("Oven", 4, false, -1);
+            return new LightConfig("Oven", 4, 0, -1);
         } else if (gobName.contains("gfx/terobjs/smokeshed")) {
-            return new LightConfig("Smoke Shed", 16, false, -1);
+            return new LightConfig("Smoke Shed", 16, 0, -1);
         } else if (gobName.contains("gfx/terobjs/primsmelter")) {
-            return new LightConfig("Stack Furnace", 2, false, -1);
+            return new LightConfig("Stack Furnace", 2, 0, -1);
         } else if (gobName.contains("gfx/terobjs/smelter")) {
-            return new LightConfig("Ore Smelter", 2, false, -1);
+            return new LightConfig("Ore Smelter", 2, 0, -1);
         } else if (gobName.contains("gfx/terobjs/kiln")) {
-            return new LightConfig("Kiln", 1, false, -1);
-        } else if (gobName.contains("gfx/terobjs/wonders/tarpit")) {
-            return new LightConfig("Tar Kiln", 16, false, -1);
+            return new LightConfig("Kiln", 1, 0, -1);
+        } else if (gobName.contains("gfx/terobjs/tarkiln")) {
+            return new LightConfig("Tar Kiln", 16, 0, -1);
         } else if (gobName.contains("gfx/terobjs/fineryforge")) {
-            return new LightConfig("Finery Forge", 8, false, -1);
+            return new LightConfig("Finery Forge", 8, 4, -1);
         } else if (gobName.contains("gfx/terobjs/steelcrucible")) {
-            return new LightConfig("Steel Crucible", 4, false, -1);
+            return new LightConfig("Steel Crucible", 4, 0, -1);
         } else if (gobName.contains("gfx/terobjs/crucible")) {
-            return new LightConfig("Crucible", 4, false, -1);
+            return new LightConfig("Crucible", 4, 2, -1);
         }
         return null;
     }
@@ -85,7 +85,7 @@ public class LightObject implements Action {
             return Results.SUCCESS();
         }
 
-        if (config.checkFuel && (target.ngob.getModelAttribute() & 1) == 0) {
+        if (config.fuelFlag != 0 && (target.ngob.getModelAttribute() & config.fuelFlag) == 0) {
             gui.error(config.displayName + " has no fuel");
             return Results.FAIL();
         }
