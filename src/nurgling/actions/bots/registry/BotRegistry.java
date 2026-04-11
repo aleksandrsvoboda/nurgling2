@@ -213,7 +213,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("filwaterzone", BotDescriptor.BotType.UTILS, "Fill Waterskins (Global Zone)", "Fills waterskins using global water zone with chunk navigation.", true, true, FillWaterskinsGlobal.class, "filwaterzone", false));
         bots.add(new BotDescriptor("unbox", BotDescriptor.BotType.UTILS, "Free Containers", "Frees containers in area.", false, true, FreeContainersInArea.class, "unbox", false));
         bots.add(new BotDescriptor("unbox_zone", BotDescriptor.BotType.UTILS, "Free Containers in Unbox Zone", "Automatically navigates to unbox zone and frees containers.", true, true, FreeContainersInUnboxZone.class, "unbox_zone", false));
-        bots.add(new BotDescriptor("sort_containers", BotDescriptor.BotType.UTILS, "Sort Containers in Area", "Sorts all items across containers in a selected area.", false, true, SortContainersInArea.class, "test44", false));
+        bots.add(new BotDescriptor("sort_containers", BotDescriptor.BotType.UTILS, "Sort Containers in Area", "Sorts all items across containers in a selected area.", false, true, SortContainersInArea.class, "sort_containers", false));
         bots.add(new BotDescriptor("water_cheker", BotDescriptor.BotType.UTILS, "Check Water", "Checks water.", false, true, CheckWater.class, "water_cheker", false));
         bots.add(new BotDescriptor("clay_cheker", BotDescriptor.BotType.UTILS, "Check Clay", "Checks clay.", false, true, CheckClay.class, "clay_cheker", true));
         bots.add(new BotDescriptor("clover", BotDescriptor.BotType.UTILS, "Feed Clover", "Feeds clover.", false, true, FeedClover.class, "clover", false));
