@@ -45,7 +45,6 @@ public class AutoDrink implements Action
                 }
             });
             if(stop.get()) {
-                NUtils.getUI().core.autoDrink = null;
                 return Results.SUCCESS();
             }
 
@@ -82,7 +81,6 @@ public class AutoDrink implements Action
                 });
             }
         }
-        NUtils.getUI().core.autoDrink = null;
         return Results.SUCCESS();
     }
 

@@ -277,12 +277,14 @@ public class NCore extends Widget
         {
             autoDrink = new AutoDrink();
             BotExecutor.runTask("AutoDrink", () -> {
-                NGameUI gui = NUtils.getGameUI();
-                if (gui != null) {
-                    try {
+                try {
+                    NGameUI gui = NUtils.getGameUI();
+                    if (gui != null) {
                         autoDrink.run(gui);
-                    } catch (InterruptedException ignored) {
                     }
+                } catch (InterruptedException ignored) {
+                } finally {
+                    autoDrink = null;
                 }
             });
         }
@@ -298,12 +300,14 @@ public class NCore extends Widget
         {
             autoSaveTableware = new AutoSaveTableware();
             BotExecutor.runTask("AutoSaveTableware", () -> {
-                NGameUI gui = NUtils.getGameUI();
-                if (gui != null) {
-                    try {
+                try {
+                    NGameUI gui = NUtils.getGameUI();
+                    if (gui != null) {
                         autoSaveTableware.run(gui);
-                    } catch (InterruptedException ignored) {
                     }
+                } catch (InterruptedException ignored) {
+                } finally {
+                    autoSaveTableware = null;
                 }
             });
         }
