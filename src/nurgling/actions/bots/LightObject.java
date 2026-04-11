@@ -111,14 +111,14 @@ public class LightObject implements Action {
             return Results.SUCCESS();
 
         // Priority 2: Unlit torch (equipment or inventory) + lit brazier
-        gui.msg("No equipped lit torch, checking for torch and nearby brazier");
+        gui.msg("No equipped lit torch, checking for torch and nearby fire source");
         if (tryTorchWithBrazier(gui, config))
             return Results.SUCCESS();
         if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 3: Lit candelabrum
-        gui.msg("No torch with brazier found, looking for lit candelabrum");
+        gui.msg("No torch with fire source found, looking for lit candelabrum");
         if (tryLitCandelabrum(gui, config))
             return Results.SUCCESS();
         if (isLit(config))
@@ -132,14 +132,14 @@ public class LightObject implements Action {
             return Results.SUCCESS();
 
         // Priority 5: Unlit torch on torchpost + lit brazier
-        gui.msg("Lit torch on torchpost not found, looking for unlit torch on torchpost and brazier");
+        gui.msg("Lit torch on torchpost not found, looking for unlit torch on torchpost and fire source");
         if (tryUnlitTorchpostWithBrazier(gui, config))
             return Results.SUCCESS();
         if (isLit(config))
             return Results.SUCCESS();
 
         // Priority 6: Sticks (branches)
-        gui.msg("No torch or brazier found, using branches");
+        gui.msg("No torch or fire source found, using branches");
         return new LightFire(target).run(gui);
     }
 
@@ -187,7 +187,7 @@ public class LightObject implements Action {
     // --- Priority 2: Unlit torch (equipment or inventory) + lit brazier ---
 
     private boolean tryTorchWithBrazier(NGameUI gui, LightConfig config) throws InterruptedException {
-        Gob litBrazier = findLitBrazier();
+        Gob litBrazier = findLitFireSource();
         if (litBrazier == null)
             return false;
 
@@ -328,7 +328,7 @@ public class LightObject implements Action {
         if (unlitTorchpost == null)
             return false;
 
-        Gob litBrazier = findLitBrazier();
+        Gob litBrazier = findLitFireSource();
         if (litBrazier == null)
             return false;
 
@@ -399,13 +399,41 @@ public class LightObject implements Action {
 
     // --- Shared helpers ---
 
-    private Gob findLitBrazier() {
-        ArrayList<Gob> braziers = Finder.findGobs(new NAlias("gfx/terobjs/brazier"));
-        for (Gob b : braziers) {
-            if (b.ngob.getModelAttribute() == 8)
-                return b;
+    private static final NAlias FIRE_SOURCE_ALIAS = new NAlias(
+            "gfx/terobjs/brazier",
+            "gfx/terobjs/pow",
+            "gfx/terobjs/oven",
+            "gfx/terobjs/kiln",
+            "gfx/terobjs/primsmelter",
+            "gfx/terobjs/smelter",
+            "gfx/terobjs/fineryforge",
+            "gfx/terobjs/steelcrucible",
+            "gfx/terobjs/crucible"
+    );
+
+    private Gob findLitFireSource() {
+        ArrayList<Gob> sources = Finder.findGobs(FIRE_SOURCE_ALIAS);
+        Gob closest = null;
+        double closestDist = Double.MAX_VALUE;
+        Coord2d playerPos = NUtils.player().rc;
+
+        for (Gob gob : sources) {
+            if (gob.id == target.id)
+                continue;
+            if (gob.ngob == null || gob.ngob.name == null)
+                continue;
+            LightConfig config = getConfig(gob.ngob.name);
+            if (config == null)
+                continue;
+            if ((gob.ngob.getModelAttribute() & config.fireFlag) == 0)
+                continue;
+            double dist = gob.rc.dist(playerPos);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closest = gob;
+            }
         }
-        return null;
+        return closest;
     }
 
     private void waitForProgress(NGameUI gui) throws InterruptedException {
