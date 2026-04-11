@@ -4,6 +4,7 @@ import haven.*;
 import haven.res.gfx.fx.eq.Equed;
 import nurgling.NGameUI;
 import nurgling.NGItem;
+import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.tasks.*;
@@ -20,6 +21,7 @@ public class LightObject implements Action {
 
     private static final int SOURCE_EQUIPMENT = 0;
     private static final int SOURCE_INVENTORY = 1;
+    private static final int SOURCE_BELT = 2;
 
     public LightObject(Gob target) {
         this.target = target;
@@ -223,6 +225,21 @@ public class LightObject implements Action {
             }
         }
 
+        if (torch == null) {
+            NInventory beltInv = getBeltInventory();
+            if (beltInv != null) {
+                ArrayList<WItem> beltTorches = beltInv.getItems(new NAlias("Torch"));
+                for (WItem t : beltTorches) {
+                    Resource res = t.item.getres();
+                    if (res != null && res.name.endsWith("torch") && !res.name.endsWith("torch-l")) {
+                        torch = t;
+                        torchSource = SOURCE_BELT;
+                        break;
+                    }
+                }
+            }
+        }
+
         if (torch == null)
             return false;
 
@@ -243,6 +260,8 @@ public class LightObject implements Action {
         if (gui.vhand != null) {
             if (torchSource == SOURCE_EQUIPMENT) {
                 extinguishAndReturnToEquip(gui, equipSlot);
+            } else if (torchSource == SOURCE_BELT) {
+                extinguishAndReturnToBelt(gui);
             } else {
                 // From inventory - dropping to inv extinguishes it
                 NUtils.dropToInv();
@@ -397,7 +416,24 @@ public class LightObject implements Action {
         }
     }
 
+    private void extinguishAndReturnToBelt(NGameUI gui) throws InterruptedException {
+        if (gui.vhand == null)
+            return;
+        NUtils.transferToBelt();
+        NUtils.getUI().core.addTask(new WaitFreeHand());
+    }
+
     // --- Shared helpers ---
+
+    private NInventory getBeltInventory() {
+        NEquipory equip = NUtils.getEquipment();
+        if (equip == null)
+            return null;
+        WItem beltSlot = equip.quickslots[NEquipory.Slots.BELT.idx];
+        if (beltSlot == null || !(beltSlot.item.contents instanceof NInventory))
+            return null;
+        return (NInventory) beltSlot.item.contents;
+    }
 
     private static final NAlias FIRE_SOURCE_ALIAS = new NAlias(
             "gfx/terobjs/brazier",
