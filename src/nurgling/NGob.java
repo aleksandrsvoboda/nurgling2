@@ -31,6 +31,7 @@ import nurgling.widgets.NQuestInfo;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.*;
+import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -1376,5 +1377,80 @@ public class NGob
             return 0;
         }
         return -1;
+    }
+
+    private String getEquedResource(Gob.Overlay ol)
+    {
+        if (ol.spr instanceof Equed)
+        {
+            try
+            {
+                Field esprField = Equed.class.getDeclaredField("espr");
+                esprField.setAccessible(true);
+                Sprite espr = (Sprite) esprField.get(ol.spr);
+                if (espr != null && espr.res != null)
+                {
+                    return espr.res.name;
+                }
+            }
+            catch (Exception e)
+            {
+                return "ERR:" + e.getMessage();
+            }
+        }
+        return "N/A";
+    }
+
+    private String getEquedDetails(Gob.Overlay ol)
+    {
+        StringBuilder sb = new StringBuilder();
+        // Extract raw sdt bytes from OlSprite
+        if (ol.sm instanceof OCache.OlSprite)
+        {
+            OCache.OlSprite os = (OCache.OlSprite) ol.sm;
+            sb.append("olSdt=[");
+            for (int i = 0; i < os.sdt.length; i++)
+            {
+                if (i > 0) sb.append(",");
+                sb.append(os.sdt[i] & 0xFF);
+            }
+            sb.append("]");
+        }
+        // Extract espr details
+        if (ol.spr instanceof Equed)
+        {
+            try
+            {
+                Field esprField = Equed.class.getDeclaredField("espr");
+                esprField.setAccessible(true);
+                Sprite espr = (Sprite) esprField.get(ol.spr);
+                if (espr != null)
+                {
+                    sb.append(" esprClass=").append(espr.getClass().getName());
+                    sb.append(" esprRes=").append(espr.res != null ? espr.res.name : "null");
+                    // Dump all fields on the espr
+                    for (Field f : espr.getClass().getDeclaredFields())
+                    {
+                        f.setAccessible(true);
+                        try
+                        {
+                            Object val = f.get(espr);
+                            String valStr = (val != null) ? val.toString() : "null";
+                            if (valStr.length() > 100) valStr = valStr.substring(0, 100) + "...";
+                            sb.append(" espr.").append(f.getName()).append("=").append(valStr);
+                        }
+                        catch (Exception e)
+                        {
+                            sb.append(" espr.").append(f.getName()).append("=ERR");
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                sb.append(" esprERR=").append(e.getMessage());
+            }
+        }
+        return sb.toString();
     }
 }
