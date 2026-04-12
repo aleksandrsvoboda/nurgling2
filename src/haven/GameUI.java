@@ -280,8 +280,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	setcanfocus(true);
 	setfocusctl(true);
 
-	chat = new ChatUI();
-	chatwdg = new NResizableWidget(chat,"ChatUI",new Coord(400,200));
+	chat = new nurgling.NChatUI();
+	chatwdg = new NResizableWidget(chat,"ChatUI",new Coord(918,175));
 	add(chatwdg);
 	add(new MapMenu(), 0, 0);
 	minimapc = new Coord(UI.scale(4), UI.scale(34));
