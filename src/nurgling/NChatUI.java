@@ -77,6 +77,22 @@ public class NChatUI extends ChatUI {
 
     /* ---- channel management ---- */
 
+    /**
+     * True iff the user should be able to close this channel from the sidebar.
+     * Some server-side channel types (e.g. RealmChannel) construct themselves
+     * with closable=true but aren't actually meant to be user-closable, so we
+     * filter them out here. Mirrors the class-name pattern used elsewhere
+     * (see ChatUI.findLocationChat).
+     */
+    private static boolean userClosable(Channel chan) {
+	if(chan == null || !chan.closable())
+	    return false;
+	String cn = chan.getClass().getName();
+	if(cn.contains("Realm"))
+	    return false;
+	return true;
+    }
+
     @Override
     public void select(Channel chan, boolean focus) {
 	Channel prev = sel;
@@ -188,7 +204,7 @@ public class NChatUI extends ChatUI {
 	    for(Selector.DarkChannel dch : chls) {
 		if(y + ROW_H > 0 && y < sz.y) {
 		    boolean isSel = (dch.chan == sel);
-		    boolean closable = dch.chan.closable();
+		    boolean closable = userClosable(dch.chan);
 		    // Row background for selected
 		    if(isSel) {
 			g.chcolor(SEL_BG);
@@ -222,11 +238,15 @@ public class NChatUI extends ChatUI {
 		super.draw(g);
 	}
 
-	/** Returns the channel whose close-X hit-box contains coord c, or null. */
+	/**
+	 * Returns the channel whose close-X hit-box contains coord c, or null.
+	 * The hit-box is the full right-side reserved strip across the row's
+	 * full height — much more forgiving than just the X icon's pixels.
+	 */
 	private Channel closeAt(Coord c) {
 	    int nameW = sb.visible ? sz.x - sb.sz.x : sz.x;
-	    int ix = nameW - CLOSE_PAD - CLOSE_W;
-	    if(c.x < ix || c.x >= ix + CLOSE_W) return null;
+	    int reservedX0 = nameW - (CLOSE_W + CLOSE_PAD * 2);
+	    if(c.x < reservedX0 || c.x >= nameW) return null;
 	    int scrollOff = sb.visible ? sb.val : 0;
 	    int idx = (c.y + scrollOff) / ROW_H;
 	    Channel chan;
@@ -234,10 +254,9 @@ public class NChatUI extends ChatUI {
 		if(idx < 0 || idx >= chansel.chls.size()) return null;
 		chan = chansel.chls.get(idx).chan;
 	    }
-	    if(!chan.closable()) return null;
+	    if(!userClosable(chan)) return null;
 	    int rowY = idx * ROW_H - scrollOff;
-	    int iy = rowY + (ROW_H - CLOSE_H) / 2;
-	    if(c.y < iy || c.y >= iy + CLOSE_H) return null;
+	    if(c.y < rowY || c.y >= rowY + ROW_H) return null;
 	    return chan;
 	}
 
