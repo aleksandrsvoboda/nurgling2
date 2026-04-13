@@ -11,8 +11,16 @@ public class NChatUI extends ChatUI {
     private static final int DIVIDER_W = UI.scale(2);
     private static final int ROW_H = UI.scale(24);
     private static final int TEXT_PAD = UI.scale(6); // horizontal breathing room inside row
+    private static final int CLOSE_PAD = UI.scale(6); // gap from right edge to X icon
     private static final String ELLIPSIS = "..";
     private static final int BORDER_W = Math.max(1, UI.scale(1));
+
+    // Close-button icons wrapping the existing NStyle close cross
+    private static final TexI closeIconU = new TexI(NStyle.cbtni[0]);
+    private static final TexI closeIconD = new TexI(NStyle.cbtni[1]);
+    private static final TexI closeIconH = new TexI(NStyle.cbtni[2]);
+    private static final int CLOSE_W = closeIconU.sz().x;
+    private static final int CLOSE_H = closeIconU.sz().y;
 
     private static final Color SIDEBAR_BG = new Color(0x28, 0x34, 0x36);
     private static final Color MSG_BG     = new Color(0x1C, 0x25, 0x26);
@@ -77,6 +85,9 @@ public class NChatUI extends ChatUI {
 	    prev.hide();
 	sel.show();
 	chansel.show(chan);
+	// Suppress the channel's own top-right close button; sidebar shows it instead.
+	if(chan != null && chan.cb != null)
+	    chan.cb.visible = false;
 	cresize();
 	if(focus || hasfocus)
 	    setfocus(chan);
@@ -143,6 +154,9 @@ public class NChatUI extends ChatUI {
 	private final Map<String, Text> nameCache = new HashMap<>();
 	private final Map<String, Text> selNameCache = new HashMap<>();
 	private final Map<String, Text> urgNameCache = new HashMap<>();
+	// Hover/press tracking for per-row close X
+	private Channel hoverCloseChan = null;
+	private Channel pressCloseChan = null;
 
 	NChatSidebar() {
 	    sb = add(new Scrollbar(0, 0, 0));
@@ -174,25 +188,57 @@ public class NChatUI extends ChatUI {
 	    for(Selector.DarkChannel dch : chls) {
 		if(y + ROW_H > 0 && y < sz.y) {
 		    boolean isSel = (dch.chan == sel);
+		    boolean closable = dch.chan.closable();
 		    // Row background for selected
 		    if(isSel) {
 			g.chcolor(SEL_BG);
 			g.frect(new Coord(0, y), new Coord(nameW, ROW_H));
 			g.chcolor();
 		    }
-		    // Channel name (truncated with ".." if needed, then centered)
+		    // Reserve right-side space for the X on closable rows
+		    int reservedRight = closable ? (CLOSE_W + CLOSE_PAD * 2) : 0;
+		    int textAreaW = nameW - reservedRight;
+		    // Channel name (truncated with ".." if needed, then centered in text area)
 		    String name = dch.chan.name();
-		    int maxTextW = Math.max(0, nameW - TEXT_PAD * 2);
+		    int maxTextW = Math.max(0, textAreaW - TEXT_PAD * 2);
 		    Text rendered = renderName(name, isSel, dch.chan.urgency, maxTextW);
-		    int textX = (nameW - rendered.sz().x) / 2;
+		    int textX = (textAreaW - rendered.sz().x) / 2;
 		    int textY = y + (ROW_H - rendered.sz().y) / 2;
 		    g.image(rendered.tex(), new Coord(textX, textY));
+		    // Close X for closable rows
+		    if(closable) {
+			TexI icon = closeIconU;
+			if(pressCloseChan == dch.chan)      icon = closeIconD;
+			else if(hoverCloseChan == dch.chan) icon = closeIconH;
+			int ix = nameW - CLOSE_PAD - CLOSE_W;
+			int iy = y + (ROW_H - CLOSE_H) / 2;
+			g.image(icon, new Coord(ix, iy));
+		    }
 		}
 		y += ROW_H;
 	    }
 	    // Draw scrollbar on top
 	    if(sb.visible)
 		super.draw(g);
+	}
+
+	/** Returns the channel whose close-X hit-box contains coord c, or null. */
+	private Channel closeAt(Coord c) {
+	    int nameW = sb.visible ? sz.x - sb.sz.x : sz.x;
+	    int ix = nameW - CLOSE_PAD - CLOSE_W;
+	    if(c.x < ix || c.x >= ix + CLOSE_W) return null;
+	    int scrollOff = sb.visible ? sb.val : 0;
+	    int idx = (c.y + scrollOff) / ROW_H;
+	    Channel chan;
+	    synchronized(chansel.chls) {
+		if(idx < 0 || idx >= chansel.chls.size()) return null;
+		chan = chansel.chls.get(idx).chan;
+	    }
+	    if(!chan.closable()) return null;
+	    int rowY = idx * ROW_H - scrollOff;
+	    int iy = rowY + (ROW_H - CLOSE_H) / 2;
+	    if(c.y < iy || c.y >= iy + CLOSE_H) return null;
+	    return chan;
 	}
 
 	private Text renderName(String name, boolean selected, int urgency, int maxWidth) {
@@ -235,6 +281,11 @@ public class NChatUI extends ChatUI {
 		return sb.mousedown(ev);
 	    }
 	    if(ev.b == 1) {
+		Channel closeChan = closeAt(ev.c);
+		if(closeChan != null) {
+		    pressCloseChan = closeChan;
+		    return true;
+		}
 		Channel chan = channelAt(ev.c);
 		if(chan != null)
 		    NChatUI.this.select(chan);
@@ -247,7 +298,22 @@ public class NChatUI extends ChatUI {
 	public boolean mouseup(MouseUpEvent ev) {
 	    if(sb.visible)
 		sb.mouseup(ev);
+	    if(ev.b == 1 && pressCloseChan != null) {
+		Channel pressed = pressCloseChan;
+		pressCloseChan = null;
+		Channel released = closeAt(ev.c);
+		if(released == pressed) {
+		    pressed.wdgmsg("close");
+		    return true;
+		}
+	    }
 	    return super.mouseup(ev);
+	}
+
+	@Override
+	public void mousemove(MouseMoveEvent ev) {
+	    hoverCloseChan = closeAt(ev.c);
+	    super.mousemove(ev);
 	}
 
 	@Override

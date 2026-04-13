@@ -130,7 +130,9 @@ public class ChatUI extends Widget
 	public final List<RenderedMessage> rmsgs = new ArrayList<>();
 	public int urgency = 0;
 	private final Scrollbar sb;
-	private final IButton cb;
+	public final IButton cb;
+
+	public boolean closable() { return cb != null; }
 	private double dy;
 
 	public boolean process(String msg) {
