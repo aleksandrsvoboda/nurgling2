@@ -12,6 +12,7 @@ public class NChatUI extends ChatUI {
     private static final int ROW_H = UI.scale(24);
     private static final int TEXT_PAD = UI.scale(6); // horizontal breathing room inside row
     private static final int CLOSE_PAD = UI.scale(6); // gap from right edge to X icon
+    private static final int ICON_PAD = UI.scale(4); // gap between channel name and its icon
     private static final String ELLIPSIS = "..";
     private static final int BORDER_W = Math.max(1, UI.scale(1));
 
@@ -214,12 +215,29 @@ public class NChatUI extends ChatUI {
 		    // Reserve right-side space for the X on closable rows
 		    int reservedRight = closable ? (CLOSE_W + CLOSE_PAD * 2) : 0;
 		    int textAreaW = nameW - reservedRight;
-		    // Channel name (truncated with ".." if needed, then centered in text area)
+		    // Channel icon (e.g. Village/Realm/PM), reuse DarkChannel's cached scaled icon
+		    Tex iconTex = null;
+		    try {
+			iconTex = dch.ricon();
+		    } catch(Loading l) {
+			// Icon not ready yet; render name only this frame
+		    }
+		    int iconW = (iconTex != null) ? iconTex.sz().x : 0;
+		    int iconH = (iconTex != null) ? iconTex.sz().y : 0;
+		    int iconReserve = (iconTex != null) ? (iconW + ICON_PAD) : 0;
+		    // Channel name (truncated with ".." if needed); truncation accounts for icon space
 		    String name = dch.chan.name();
-		    int maxTextW = Math.max(0, textAreaW - TEXT_PAD * 2);
+		    int maxTextW = Math.max(0, textAreaW - TEXT_PAD * 2 - iconReserve);
 		    Text rendered = renderName(name, isSel, dch.chan.urgency, maxTextW);
-		    int textX = (textAreaW - rendered.sz().x) / 2;
+		    // Center the [icon + name] group within the text area
+		    int groupW = rendered.sz().x + iconReserve;
+		    int groupX = (textAreaW - groupW) / 2;
 		    int textY = y + (ROW_H - rendered.sz().y) / 2;
+		    if(iconTex != null) {
+			int iconY = y + (ROW_H - iconH) / 2;
+			g.image(iconTex, new Coord(groupX, iconY));
+		    }
+		    int textX = groupX + iconReserve;
 		    g.image(rendered.tex(), new Coord(textX, textY));
 		    // Close X for closable rows
 		    if(closable) {
