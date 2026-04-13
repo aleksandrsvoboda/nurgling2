@@ -10,6 +10,8 @@ public class NChatUI extends ChatUI {
     private static final int SIDEBAR_W = UI.scale(131);
     private static final int DIVIDER_W = UI.scale(2);
     private static final int ROW_H = UI.scale(24);
+    private static final int TEXT_PAD = UI.scale(6); // horizontal breathing room inside row
+    private static final String ELLIPSIS = "..";
     private static final int BORDER_W = Math.max(1, UI.scale(1));
 
     private static final Color SIDEBAR_BG = new Color(0x28, 0x34, 0x36);
@@ -135,6 +137,9 @@ public class NChatUI extends ChatUI {
 
     private class NChatSidebar extends Widget {
 	private final Scrollbar sb;
+	// Cache keyed by (name + "|" + maxWidth) -> displayed (possibly truncated) string
+	private final Map<String, String> truncCache = new HashMap<>();
+	// Cache keyed by displayed string -> rendered Text (one map per visual state)
 	private final Map<String, Text> nameCache = new HashMap<>();
 	private final Map<String, Text> selNameCache = new HashMap<>();
 	private final Map<String, Text> urgNameCache = new HashMap<>();
@@ -175,9 +180,10 @@ public class NChatUI extends ChatUI {
 			g.frect(new Coord(0, y), new Coord(nameW, ROW_H));
 			g.chcolor();
 		    }
-		    // Channel name (centered)
+		    // Channel name (truncated with ".." if needed, then centered)
 		    String name = dch.chan.name();
-		    Text rendered = renderName(name, isSel, dch.chan.urgency);
+		    int maxTextW = Math.max(0, nameW - TEXT_PAD * 2);
+		    Text rendered = renderName(name, isSel, dch.chan.urgency, maxTextW);
 		    int textX = (nameW - rendered.sz().x) / 2;
 		    int textY = y + (ROW_H - rendered.sz().y) / 2;
 		    g.image(rendered.tex(), new Coord(textX, textY));
@@ -189,14 +195,38 @@ public class NChatUI extends ChatUI {
 		super.draw(g);
 	}
 
-	private Text renderName(String name, boolean selected, int urgency) {
-	    if(selected) {
-		return selNameCache.computeIfAbsent(name, n -> chanSelFont.render(n));
-	    } else if(urgency > 0) {
-		return urgNameCache.computeIfAbsent(name, n -> chanUrgFont.render(n));
-	    } else {
-		return nameCache.computeIfAbsent(name, n -> chanFont.render(n));
+	private Text renderName(String name, boolean selected, int urgency, int maxWidth) {
+	    Text.Foundry font = selected ? chanSelFont : (urgency > 0 ? chanUrgFont : chanFont);
+	    Map<String, Text> cache = selected ? selNameCache : (urgency > 0 ? urgNameCache : nameCache);
+	    String display = truncateName(name, font, maxWidth);
+	    return cache.computeIfAbsent(display, n -> font.render(n));
+	}
+
+	private String truncateName(String name, Text.Foundry font, int maxWidth) {
+	    String key = name + "|" + maxWidth;
+	    String cached = truncCache.get(key);
+	    if(cached != null)
+		return cached;
+
+	    Text.Line full = font.render(name);
+	    if(full.sz().x <= maxWidth) {
+		truncCache.put(key, name);
+		return name;
 	    }
+
+	    int ellw = font.strsize(ELLIPSIS).x;
+	    int avail = maxWidth - ellw;
+	    String result;
+	    if(avail <= 0) {
+		// Sidebar too narrow even for the ellipsis — render it alone
+		result = ELLIPSIS;
+	    } else {
+		int len = full.charat(avail);
+		if(len < 1) len = 1;
+		result = name.substring(0, len) + ELLIPSIS;
+	    }
+	    truncCache.put(key, result);
+	    return result;
 	}
 
 	@Override
