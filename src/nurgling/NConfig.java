@@ -396,6 +396,7 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/bat/bat", 50));
         arearadprop.add(new NAreaRad("gfx/kritter/boar/boar", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/bear/bear", 100));
+        arearadprop.add(new NAreaRad("gfx/kritter/bear/polarbear", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/adder/adder", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/wildgoat/wildgoat", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/badger/badger", 100));
@@ -414,6 +415,7 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/eagle/eagle", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/cavelouse/cavelouse", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/boreworm/boreworm", 200));
+        arearadprop.add(new NAreaRad("gfx/kritter/woodscorpion/woodscorpion", 50));
         conf.put(Key.animalrad, arearadprop);
 
         // Movement speed setting (0=Crawl, 1=Walk, 2=Run, 3=Sprint)
@@ -1136,6 +1138,25 @@ public class NConfig
                 conf.put(Key.baseurl, "https://raw.githubusercontent.com/aleksandrsvoboda/nurgling-release/stable/ver");
                 isUpd = true; // Mark config as updated so it gets saved
                 System.out.println("[NConfig] Migrated baseurl from Katodiy to aleksandrsvoboda");
+            }
+        }
+
+        // Migration: Ensure new animal radii entries are present in existing configs
+        if (conf.containsKey(Key.animalrad)) {
+            ArrayList<NAreaRad> savedRads = (ArrayList<NAreaRad>) conf.get(Key.animalrad);
+            java.util.Set<String> existingNames = new java.util.HashSet<>();
+            for (NAreaRad r : savedRads) existingNames.add(r.name);
+
+            // New animals to add if missing
+            String[][] newAnimals = {
+                {"gfx/kritter/bear/polarbear", "100"},
+                {"gfx/kritter/woodscorpion/woodscorpion", "50"},
+            };
+            for (String[] entry : newAnimals) {
+                if (!existingNames.contains(entry[0])) {
+                    savedRads.add(new NAreaRad(entry[0], Integer.parseInt(entry[1])));
+                    isUpd = true;
+                }
             }
         }
 
