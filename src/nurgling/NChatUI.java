@@ -181,6 +181,20 @@ public class NChatUI extends ChatUI {
 	}
 
 	@Override
+	public void resize(Coord sz) {
+	    super.resize(sz);
+	    // Always size/position the scrollbar so sb.sz.x is a stable reserve width,
+	    // even when sb.visible is false. Prevents layout shift when scroll appears.
+	    sb.resize(sz.y);
+	    sb.c = new Coord(sz.x - sb.sz.x, 0);
+	}
+
+	/** Reserved width for the scrollbar lane (always subtracted, so layout never shifts). */
+	private int sbReserve() {
+	    return sb.sz.x;
+	}
+
+	@Override
 	public void draw(GOut g) {
 	    List<Selector.DarkChannel> chls;
 	    synchronized(chansel.chls) {
@@ -192,24 +206,23 @@ public class NChatUI extends ChatUI {
 	    if(totalH > sz.y) {
 		sb.visible = true;
 		sb.max = totalH - sz.y;
-		sb.resize(sz.y);
-		sb.c = new Coord(sz.x - sb.sz.x, 0);
 		scrollOff = sb.val;
 	    } else {
 		sb.visible = false;
 		sb.val = 0;
 	    }
 
-	    int nameW = sb.visible ? sz.x - sb.sz.x : sz.x;
+	    int nameW = sz.x - sbReserve();
 	    int y = -scrollOff;
 	    for(Selector.DarkChannel dch : chls) {
 		if(y + ROW_H > 0 && y < sz.y) {
 		    boolean isSel = (dch.chan == sel);
 		    boolean closable = userClosable(dch.chan);
-		    // Row background for selected
+		    // Row background for selected — full width so the scrollbar lane
+		    // blends seamlessly (track color matches SEL_BG in NStyle).
 		    if(isSel) {
 			g.chcolor(SEL_BG);
-			g.frect(new Coord(0, y), new Coord(nameW, ROW_H));
+			g.frect(new Coord(0, y), new Coord(sz.x, ROW_H));
 			g.chcolor();
 		    }
 		    // Reserve right-side space for the X on closable rows
@@ -262,7 +275,7 @@ public class NChatUI extends ChatUI {
 	 * full height — much more forgiving than just the X icon's pixels.
 	 */
 	private Channel closeAt(Coord c) {
-	    int nameW = sb.visible ? sz.x - sb.sz.x : sz.x;
+	    int nameW = sz.x - sbReserve();
 	    int reservedX0 = nameW - (CLOSE_W + CLOSE_PAD * 2);
 	    if(c.x < reservedX0 || c.x >= nameW) return null;
 	    int scrollOff = sb.visible ? sb.val : 0;
