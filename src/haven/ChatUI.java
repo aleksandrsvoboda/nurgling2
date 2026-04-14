@@ -58,7 +58,7 @@ public class ChatUI extends Widget
     };
     public Channel sel = null;
     public int urgency = 0;
-    private final Selector chansel;
+    protected final Selector chansel;
     private Coord base = Coord.z;
     private QuickLine qline = null;
     private final LinkedList<Notification> notifs = new LinkedList<Notification>();
@@ -130,7 +130,9 @@ public class ChatUI extends Widget
 	public final List<RenderedMessage> rmsgs = new ArrayList<>();
 	public int urgency = 0;
 	private final Scrollbar sb;
-	private final IButton cb;
+	public final IButton cb;
+
+	public boolean closable() { return cb != null; }
 	private double dy;
 
 	public boolean process(String msg) {
@@ -471,10 +473,14 @@ public class ChatUI extends Widget
 	    }
 	}
 
-	public void draw(GOut g) {
+	protected void drawChannelBg(GOut g) {
 	    g.chcolor(0, 0, 0, 128);
 	    g.frect(Coord.z, sz);
 	    g.chcolor();
+	}
+
+	public void draw(GOut g) {
+	    drawChannelBg(g);
 	    int sy = (int)Math.round(dy), h = ih(), w = iw();
 	    boolean sel = false;
 	    synchronized(rmsgs) {
@@ -1291,7 +1297,7 @@ public class ChatUI extends Widget
 //		show(si);
 //	}
 
-	private class DarkChannel {
+	public class DarkChannel {
 	    public final Channel chan;
 	    public Text rname;
 	    public Tex ricon;
