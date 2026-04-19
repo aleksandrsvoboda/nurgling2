@@ -195,10 +195,12 @@ public class NMapWnd extends MapWnd {
     public Coord2d findMarkerPosition(String name) {
         MiniMap.Location sessloc = view.sessloc;
         if(sessloc == null) {return null;}
-        for (Map.Entry<Long, MapFile.SMarker> e : file.smarkers.entrySet()) {
-            MapFile.SMarker m = e.getValue();
-            if(m.seg == sessloc.seg.id && m.nm!= null && name!=null && m.nm.contains(name)) {
-                return m.tc.sub(sessloc.tc).mul(tilesz);
+        for (MapFile.Marker mark : file.markers) {
+            if(mark instanceof MapFile.SMarker) {
+                MapFile.SMarker m = (MapFile.SMarker) mark;
+                if(m.seg == sessloc.seg.id && m.nm != null && name != null && m.nm.contains(name)) {
+                    return m.tc.sub(sessloc.tc).mul(tilesz);
+                }
             }
         }
         return null;

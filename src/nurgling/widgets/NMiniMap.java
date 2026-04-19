@@ -852,7 +852,7 @@ NMiniMap extends MiniMap {
                 if(currentLevelCache != null && currentLevelCache.display != null) {
                     for(Coord c : dgext) {
                         if(currentLevelCache.display[dgext.ri(c)] == null) {
-                            currentLevelCache.display[dgext.ri(c)] = new DisplayGrid(dloc.seg, c, dataLevel, dloc.seg.grid(dataLevel, c.mul(1 << dataLevel)));
+                            currentLevelCache.display[dgext.ri(c)] = new DisplayGrid(this, dloc.seg, c, dataLevel, dloc.seg.grid(dataLevel, c.mul(1 << dataLevel)));
                         }
                     }
                     display = currentLevelCache.display;
@@ -876,7 +876,7 @@ NMiniMap extends MiniMap {
                     int loaded = 0;
                     for(Coord c : nextArea) {
                         if(loaded++ > 4) break; // Don't load too many at once to avoid lag
-                        nextDisplay[nextArea.ri(c)] = new DisplayGrid(dloc.seg, c, nextLevel, dloc.seg.grid(nextLevel, c.mul(1 << nextLevel)));
+                        nextDisplay[nextArea.ri(c)] = new DisplayGrid(this, dloc.seg, c, nextLevel, dloc.seg.grid(nextLevel, c.mul(1 << nextLevel)));
                     }
                     nextLevelCache = new LevelCache(nextDisplay, nextArea, nextLevel);
                 }
@@ -899,7 +899,7 @@ NMiniMap extends MiniMap {
                     int loaded = 0;
                     for(Coord c : prevArea) {
                         if(loaded++ > 4) break; // Don't load too many at once
-                        prevDisplay[prevArea.ri(c)] = new DisplayGrid(dloc.seg, c, prevLevel, dloc.seg.grid(prevLevel, c.mul(1 << prevLevel)));
+                        prevDisplay[prevArea.ri(c)] = new DisplayGrid(this, dloc.seg, c, prevLevel, dloc.seg.grid(prevLevel, c.mul(1 << prevLevel)));
                     }
                     previousLevelCache = new LevelCache(prevDisplay, prevArea, prevLevel);
                 }
@@ -1363,7 +1363,9 @@ NMiniMap extends MiniMap {
             Coord tc = c.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
             DisplayMarker mark = markerat(tc);
             if(mark != null) {
-                return(mark.tip);
+                try {
+                    return(new TexI(mark.tooltip()));
+                } catch(Loading l) {}
             }
 
             // Get terrain type tooltip
