@@ -32,6 +32,7 @@ import java.awt.event.KeyEvent;
 import java.awt.image.WritableRaster;
 import haven.render.Location;
 import static haven.Inventory.invsq;
+import static haven.PType.*;
 
 import nurgling.*;
 import nurgling.actions.SortInventory;
@@ -1188,12 +1189,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    else
 		help.set(res);
 	} else if(msg == "map-mark") {
-	    long gobid = Utils.uiv(args[0]);
-	    long oid = ((Number)args[1]).longValue();
+	    long gobid = UINT.of(args[0]);
+	    UID oid = UNIQID.of(args[1]);
 	    Indir<Resource> res = ui.sess.getresv(args[2]);
-	    String nm = (String)args[3];
+	    String nm = STR.of(args[3]);
+	    byte[] data = BYTES.opt(args, 4).or(new byte[0]);
 	    if(mapfile != null)
-		mapfile.markobj(gobid, oid, res, nm);
+		mapfile.markobj(gobid, oid, res, data, nm);
 	} else if(msg == "map-icons") {
 	    GobIcon.Settings conf = this.iconconf;
 	    int tag = Utils.iv(args[0]);

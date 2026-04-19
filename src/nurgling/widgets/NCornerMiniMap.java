@@ -105,7 +105,9 @@ public class NCornerMiniMap extends NMiniMap implements Console.Directory {
             Coord tc = c.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
             DisplayMarker mark = markerat(tc);
             if (mark != null) {
-                return (mark.tip);
+                try {
+                    return (new TexI(mark.tooltip()));
+                } catch(Loading l) {}
             }
         }
         return (super.tooltip(c, prev));
