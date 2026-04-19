@@ -293,7 +293,7 @@ public class Requestor implements Action {
 
                                     if(md.m instanceof MapFile.SMarker) {
                                         o.put("type", "shared");
-                                        o.put("id", ((MapFile.SMarker) md.m).oid);
+                                        o.put("id", ((MapFile.SMarker) md.m).oid.bits);
                                         o.put("image", ((MapFile.SMarker) md.m).res.name);
                                     } else if(md.m instanceof MapFile.PMarker) {
                                         o.put("type", "player");
@@ -331,7 +331,7 @@ public class Requestor implements Action {
                             obj.put("x", offset.x);
                             obj.put("y", offset.y);
                             obj.put("type", "shared");
-                            obj.put("id", marker.oid);
+                            obj.put("id", marker.oid.bits);
                             obj.put("image", marker.res.name);
 
                             JSONObject msg = new JSONObject();
