@@ -980,29 +980,37 @@ public class NInventory extends Inventory
         Window wnd = getparent(Window.class);
         if (wnd == null || !(wnd.deco instanceof NWindowDeco)) return;
         NWindowDeco deco = (NWindowDeco) wnd.deco;
-        int titleH = UI.scale(21);
         int btnGap = UI.scale(2);
+        int safetyGap = UI.scale(4);
 
-        // Left-aligned: "Inventory" [expand] [search] [sort] [trash] ... ---22px--- [X]
-        int leftX = UI.scale(70); // After "Inventory" text
-        if (eyeBtn != null) {
-            eyeBtn.c = new Coord(leftX, 0);
-            leftX += eyeBtn.sz.x + btnGap;
-        }
-        if (searchBtn != null) {
-            searchBtn.c = new Coord(leftX, 0);
-            leftX += searchBtn.sz.x + btnGap;
-        }
-        if (stackSortBtnRef != null) {
-            stackSortBtnRef.c = new Coord(leftX, 0);
-            leftX += stackSortBtnRef.sz.x + btnGap;
-        }
-        if (sortBtnRef != null) {
-            sortBtnRef.c = new Coord(leftX, 0);
-            leftX += sortBtnRef.sz.x + btnGap;
-        }
-        if (dropperBtn != null) {
-            dropperBtn.c = new Coord(leftX, 0);
+        // Display order, left-to-right
+        Widget[] displayOrder = { eyeBtn, searchBtn, stackSortBtnRef, sortBtnRef, dropperBtn };
+        // Drop priority when crowded: lowest priority (most-droppable) first
+        Widget[] dropOrder = { dropperBtn, sortBtnRef, stackSortBtnRef, searchBtn, eyeBtn };
+
+        // Reset visibility before recomputing layout
+        for (Widget b : displayOrder) if (b != null) b.visible = true;
+
+        // Right edge available for left-anchored buttons (just before the X close button)
+        int maxRightX = deco.cbtn.c.x - safetyGap;
+
+        while (true) {
+            int leftX = UI.scale(70); // After "Inventory" text
+            boolean fits = true;
+            for (Widget b : displayOrder) {
+                if (b == null || !b.visible) continue;
+                if (leftX + b.sz.x > maxRightX) { fits = false; break; }
+                b.c = new Coord(leftX, 0);
+                leftX += b.sz.x + btnGap;
+            }
+            if (fits) break;
+
+            // Hide the next-lowest-priority visible button and retry
+            boolean hid = false;
+            for (Widget b : dropOrder) {
+                if (b != null && b.visible) { b.visible = false; hid = true; break; }
+            }
+            if (!hid) break; // nothing left to drop
         }
     }
 
