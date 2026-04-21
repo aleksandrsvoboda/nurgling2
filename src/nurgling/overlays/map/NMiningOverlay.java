@@ -54,17 +54,30 @@ public class NMiningOverlay extends NOverlay
     @Override
     public void tick()
     {
+        ArrayList<Long> snapshot;
+        synchronized (curGobs)
+        {
+            snapshot = new ArrayList<>(curGobs);
+        }
+        ArrayList<Long> dead = new ArrayList<>();
+        for (Long id : snapshot)
+        {
+            if (Finder.findGob(id) == null)
+            {
+                dead.add(id);
+            }
+        }
         synchronized (forClear)
         {
             forClear.clear();
-            for (Long id : curGobs)
+            forClear.addAll(dead);
+        }
+        if (!dead.isEmpty())
+        {
+            synchronized (curGobs)
             {
-                if (Finder.findGob(id) == null)
-                {
-                    forClear.add(id);
-                }
+                curGobs.removeAll(dead);
             }
-            curGobs.removeAll(forClear);
         }
 
         requpdate2 = requpdate();
@@ -97,7 +110,11 @@ public class NMiningOverlay extends NOverlay
 //        Area curArea = space.area.xl(grid_ul);
         buf2 = new boolean[mm.sz.x + 2][mm.sz.y + 2];
         if((Boolean)NConfig.get(NConfig.Key.miningol)) {
-            for (Long id : curGobs) {
+            ArrayList<Long> snapshot;
+            synchronized (curGobs) {
+                snapshot = new ArrayList<>(curGobs);
+            }
+            for (Long id : snapshot) {
                 Gob g = Finder.findGob(id);
 
                 if (g != null && g.findol(NMiningSupport.class) != null) {
