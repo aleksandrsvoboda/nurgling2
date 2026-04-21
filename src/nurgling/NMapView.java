@@ -1052,6 +1052,13 @@ public class NMapView extends MapView
                         else if (inf.ci instanceof Composited.CompositeClick)
                             target = ((Composited.CompositeClick) inf.ci).gi.gob;
                     }
+                    // Claim boundary gobs: always forward Ctrl+RMB to the server so
+                    // the built-in "Memorize owner" flow keeps working.
+                    if (target != null && target.ngob != null && target.ngob.name != null
+                            && target.ngob.name.startsWith("gfx/terobjs/bounds/")) {
+                        super.hit(pc, mc, inf);
+                        return;
+                    }
                     boolean handled = false;
                     if (target != null) {
                         java.util.List<GobContextAction> actions = GobContextRegistry.getActionsFor(target);
@@ -1065,7 +1072,14 @@ public class NMapView extends MapView
                         java.util.List<TileContextAction> tileActions = TileContextRegistry.getActionsFor(mc);
                         if (!tileActions.isEmpty()) {
                             NUtils.getGameUI().add(new NTileContextMenu(mc, tileActions), new Coord(-1, -1));
+                            handled = true;
                         }
+                    }
+                    if (!handled) {
+                        // Nothing registered for this gob or tile — forward the click to the
+                        // server so Ctrl+RMB retains its original Haven behavior (e.g. claim
+                        // owner lookup, pointer/beam, etc.).
+                        super.hit(pc, mc, inf);
                     }
                 }
             }.run();
