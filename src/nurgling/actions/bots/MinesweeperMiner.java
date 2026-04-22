@@ -30,10 +30,16 @@ public class MinesweeperMiner implements Action {
 
     private final Direction direction;
     private final int maxLateral;
+    private final boolean recordStones;
 
     public MinesweeperMiner(Direction direction, int maxLateral) {
+        this(direction, maxLateral, true);
+    }
+
+    public MinesweeperMiner(Direction direction, int maxLateral, boolean recordStones) {
         this.direction = direction;
         this.maxLateral = maxLateral;
+        this.recordStones = recordStones;
     }
 
     @Override
@@ -215,6 +221,13 @@ public class MinesweeperMiner implements Action {
 
         // Mine the tile — same pattern as TunnelingBot.mineTileIfNeeded
         Resource resBefore = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
+
+        // Record stone type before mining changes the tile
+        if (recordStones && resBefore != null && resBefore.name.startsWith("gfx/tiles/rocks/")) {
+            if (gui.stoneLocationService != null) {
+                gui.stoneLocationService.saveStoneLocation(resBefore.name, worldPos);
+            }
+        }
 
         while (isTileMineable(gui, tilePos)) {
             handleBumlings(gui);

@@ -874,6 +874,13 @@ public class NConfig
     public String getTreeLocationsPath() {
         return getProfileAwarePath("tree_locations.nurgling.json");
     }
+
+    /**
+     * Gets the dynamic path for stone/ore locations configuration file
+     */
+    public String getStoneLocationsPath() {
+        return getProfileAwarePath("stone_locations.nurgling.json");
+    }
     
     /**
      * Gets the dynamic path for labeled marks configuration file
