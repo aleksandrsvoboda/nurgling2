@@ -98,10 +98,17 @@ public class BotsInterruptWidget extends Widget {
         }
     }
 
+    // Vertical space reserved above the gear area for the current-action label.
+    private static final int LABEL_H = UI.scale(18);
+    // Horizontal padding on each side of the gear area, reserved for label width.
+    private static final int LABEL_W_PAD = UI.scale(140);
+
     public BotsInterruptWidget() {
-        // Sized to roughly match the portrait inner area. Actual position is
-        // snapped to the portrait in tick().
-        sz = portraitInnerSz();
+        // Widget covers the portrait inner area PLUS label space above it,
+        // and extends horizontally on both sides so the action line has room.
+        // Actual position is snapped to the portrait in tick().
+        Coord p = portraitInnerSz();
+        sz = new Coord(p.x + 2 * LABEL_W_PAD, p.y + LABEL_H);
         initializeStackTraceFile();
     }
 
@@ -109,6 +116,17 @@ public class BotsInterruptWidget extends Widget {
         // Portrait NDraggableWidget is UI.scale(120,108); inner drawable
         // after the lock/vis/flip chrome is UI.scale(85, 88).
         return UI.scale(new Coord(85, 88));
+    }
+
+    /** Area of this widget used by gears (centered below the label strip). */
+    private Coord gearArea() {
+        Coord p = portraitInnerSz();
+        return new Coord(p.x, p.y);
+    }
+
+    /** Top-left of the gear area within the widget. */
+    private Coord gearOrigin() {
+        return new Coord(LABEL_W_PAD, LABEL_H);
     }
 
     public void addObserve(Thread t) {
@@ -146,14 +164,16 @@ public class BotsInterruptWidget extends Widget {
         int n = obs.size();
         if (n == 0) return;
         int cells = (n <= 1) ? 1 : (n <= 4) ? 2 : 3;
-        int cellW = sz.x / cells;
-        int cellH = sz.y / cells;
+        Coord gArea = gearArea();
+        Coord gOrigin = gearOrigin();
+        int cellW = gArea.x / cells;
+        int cellH = gArea.y / cells;
         Coord gsz = new Coord(Math.min(cellW, cellH), Math.min(cellW, cellH));
         for (int i = 0; i < obs.size(); i++) {
             int row = i / cells;
             int col = i % cells;
-            int x = col * cellW + (cellW - gsz.x) / 2;
-            int y = row * cellH + (cellH - gsz.y) / 2;
+            int x = gOrigin.x + col * cellW + (cellW - gsz.x) / 2;
+            int y = gOrigin.y + row * cellH + (cellH - gsz.y) / 2;
             Gear g = obs.get(i);
             g.setGearSize(gsz);
             g.move(new Coord(x, y));
@@ -223,45 +243,60 @@ public class BotsInterruptWidget extends Widget {
         GameUI gui = (GameUI) parent;
         if (gui.portrait == null) return;
         Coord inner = portraitInnerSz();
-        if (!sz.equals(inner)) {
-            sz = inner;
+        Coord want = new Coord(inner.x + 2 * LABEL_W_PAD, inner.y + LABEL_H);
+        if (!sz.equals(want)) {
+            sz = want;
             repack();
         }
-        // Portrait NDraggableWidget places its content at NDraggableWidget.off
-        Coord target = gui.portrait.c.add(NDraggableWidget.off);
+        // Position so that the gear area aligns with the portrait inner
+        // drawable, with label space above and padding on either side.
+        Coord target = gui.portrait.c.add(NDraggableWidget.off).sub(LABEL_W_PAD, LABEL_H);
         if (!c.equals(target)) move(target);
     }
 
     @Override
     public void draw(GOut g) {
         if (obs.isEmpty()) return;
-        // Draw label above the grid: current action of the first observed bot,
-        // prefixed with count if more than one is running.
-        String line = null;
-        Thread first = null;
-        synchronized (obs) {
-            if (!obs.isEmpty()) first = obs.get(0).t;
-        }
-        if (first != null) {
-            String action = currentAction(first);
-            int n = obs.size();
-            if (action == null) action = "(running)";
-            line = (n > 1 ? "(" + n + "x) " : "") + first.getName() + ": " + action;
-        }
-        if (line != null) drawLabel(g, line, sz);
         super.draw(g);
     }
 
-    /** Render a single-line label centered horizontally, above the given area. */
-    public static void drawLabel(GOut g, String line, Coord area) {
-        Text rendered = labelFoundry.render(truncate(line, area.x + UI.scale(200)));
-        int maxW = area.x + UI.scale(200); // allow some overflow horizontally
+    /**
+     * Called by NGameUI.draw() after every child widget has drawn, so the
+     * label renders on top of windows, inventories, etc. Coordinates passed
+     * to g.image are in GameUI (root) space.
+     */
+    public void drawOverlayLabel(GOut g) {
+        if (obs.isEmpty()) return;
+        Thread first;
+        int n;
+        synchronized (obs) {
+            if (obs.isEmpty()) return;
+            first = obs.get(0).t;
+            n = obs.size();
+        }
+        String action = currentAction(first);
+        if (action == null) action = "(running)";
+        String line = (n > 1 ? "(" + n + "x) " : "") + first.getName() + ": " + action;
+
+        Text rendered = labelFoundry.render(truncate(line, sz.x));
         Tex tex = rendered.tex();
-        int tx = area.x / 2 - tex.sz().x / 2;
-        int ty = -tex.sz().y - UI.scale(2);
-        // Clamp so the label doesn't drift past the left screen edge.
-        if (tx < -(maxW - area.x) / 2) tx = -(maxW - area.x) / 2;
-        g.image(tex, new Coord(tx, ty));
+
+        // Gear area center in widget-local coords -> translate to GameUI-root coords.
+        int gearCenterXLocal = LABEL_W_PAD + portraitInnerSz().x / 2;
+        int txLocal = gearCenterXLocal - tex.sz().x / 2;
+        if (txLocal < 0) txLocal = 0;
+        if (txLocal + tex.sz().x > sz.x) txLocal = Math.max(0, sz.x - tex.sz().x);
+        int tyLocal = LABEL_H - tex.sz().y - UI.scale(1);
+        if (tyLocal < 0) tyLocal = 0;
+
+        Coord abs = c.add(txLocal, tyLocal);
+        int padX = UI.scale(4), padY = UI.scale(2);
+        // 50% transparent black background.
+        g.chcolor(0, 0, 0, 128);
+        g.frect(abs.sub(padX, padY),
+                new Coord(tex.sz().x + 2 * padX, tex.sz().y + 2 * padY));
+        g.chcolor();
+        g.image(tex, abs);
     }
 
     private static final int MAX_LABEL_CHARS = 80;

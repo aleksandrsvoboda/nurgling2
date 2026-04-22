@@ -553,6 +553,33 @@ public class NGameUI extends GameUI
         msg("TICK#" + NUtils.getTickId() + " MSG: " + msg);
     }
 
+    @Override
+    public void draw(GOut g) {
+        super.draw(g);
+        // Always-on-top overlay: current action line for the portrait gear and
+        // for any window-dimmed bots. Drawn after every child so it sits above
+        // windows, inventories, popups, etc.
+        if (biw != null) biw.drawOverlayLabel(g);
+        drawDimmedWindowLabels(g, this);
+    }
+
+    /** Walk the widget tree and draw a current-action overlay label for every
+     *  Window whose DisablerWdg is visible. */
+    private void drawDimmedWindowLabels(GOut g, Widget root) {
+        if (root == null) return;
+        for (Widget w = root.lchild; w != null; w = w.prev) {
+            if (w instanceof haven.Window) {
+                haven.Window win = (haven.Window) w;
+                try {
+                    if (win.isDisabled()) win.drawDisablerOverlayLabel(g);
+                } catch (NullPointerException ignored) {
+                    // isDisabled can NPE when dwdg is null; skip.
+                }
+            }
+            drawDimmedWindowLabels(g, w);
+        }
+    }
+
     public NInventory getInventory ( String name ) {
         Window spwnd = getWindow ( name );
         if(spwnd == null){
