@@ -2,6 +2,7 @@ package nurgling.actions.bots;
 
 import haven.Area;
 import haven.Button;
+import haven.ChatUI;
 import haven.Coord;
 import haven.Coord2d;
 import haven.Gob;
@@ -46,6 +47,7 @@ public class Leveler implements Action
     private static final NAlias SOIL_PILE = new NAlias("gfx/terobjs/stockpile-soil");
     private static final NAlias SOIL = new NAlias("Soil", "Earthworm");
     private static final NAlias PAVING = new NAlias("gfx/tiles/paving");
+    private static final String CANNOT_LEVEL_MSG = "cannot be further leveled";
 
     private final HashSet<Long> done = new HashSet<>();
     private final HashSet<Long> skipped = new HashSet<>();
@@ -162,8 +164,11 @@ public class Leveler implements Action
             }
             prevLabel = curLabel;
 
+            NUtils.getUI().dropLastError();
+            int sysSizeBefore = syslogSize(gui);
             digBtn.click();
             didDigThisCycle = true;
+            final int sysBefore = sysSizeBefore;
 
             final Gob player = NUtils.player();
             if (player == null) return Results.FAIL();
@@ -179,9 +184,22 @@ public class Leveler implements Action
                     else idleCount = 0;
                     if (idleCount >= 360) return true;
                     if (NUtils.getStamina() < 0.25 || NUtils.getEnergy() < 0.3) return true;
-                    return gui.getInventory().calcFreeSpace() < MIN_FREE_SLOTS;
+                    if (gui.getInventory().calcFreeSpace() < MIN_FREE_SLOTS) return true;
+                    if (syslogContainsSince(gui, sysBefore, CANNOT_LEVEL_MSG)) return true;
+                    String err = NUtils.getUI().getLastError();
+                    return err != null && err.contains(CANNOT_LEVEL_MSG);
                 }
             });
+
+            String lastErr = NUtils.getUI().getLastError();
+            if ((lastErr != null && lastErr.contains(CANNOT_LEVEL_MSG))
+                    || syslogContainsSince(gui, sysBefore, CANNOT_LEVEL_MSG)) {
+                removeBtn.click();
+                NUtils.addTask(new WindowIsClosed(survey));
+                done.add(surveyId);
+                disposeIfNeeded(gui, true);
+                return Results.SUCCESS();
+            }
 
             if (NUtils.getStamina() < 0.25 || NUtils.getEnergy() < 0.3) {
                 closeWindow(survey);
@@ -212,6 +230,38 @@ public class Leveler implements Action
                 didDigThisCycle = false;
             }
         }
+    }
+
+    private static int syslogSize(NGameUI gui)
+    {
+        try {
+            ChatUI.Channel ch = gui.syslog;
+            if (ch == null) return 0;
+            synchronized (ch.rmsgs) {
+                return ch.rmsgs.size();
+            }
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static boolean syslogContainsSince(NGameUI gui, int startIdx, String needle)
+    {
+        try {
+            ChatUI.Channel ch = gui.syslog;
+            if (ch == null) return false;
+            synchronized (ch.rmsgs) {
+                for (int i = Math.max(0, startIdx); i < ch.rmsgs.size(); i++) {
+                    ChatUI.Channel.Message m = ch.rmsgs.get(i).msg;
+                    if (m instanceof ChatUI.Channel.SimpleMessage) {
+                        String t = ((ChatUI.Channel.SimpleMessage) m).text;
+                        if (t != null && t.contains(needle)) return true;
+                    }
+                }
+            }
+        } catch (Exception e) {
+        }
+        return false;
     }
 
     private static long surveyDiffUnits(LandSurvey survey)
