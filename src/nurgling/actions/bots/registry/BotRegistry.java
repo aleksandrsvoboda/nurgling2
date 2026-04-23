@@ -231,6 +231,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("destroy", BotDescriptor.BotType.UTILS, "Destroyer", "Destroy objects in area.", false, true, Destroyer.class, "destroy", false));
         bots.add(new BotDescriptor("destroytrellisplants", BotDescriptor.BotType.UTILS, "Destroy Trellis Plants", "Destroys all trellis plants in selected area.", false, true, DestroyTrellisPlants.class, "trellis_cleaner", false));
         bots.add(new BotDescriptor("flag", BotDescriptor.BotType.UTILS, "Survey Supporter", "Survey Supporter.", false, true, SurveySupport.class, "flag", false));
+
         bots.add(new BotDescriptor("dream_catcher", BotDescriptor.BotType.UTILS, "Collect dreams", "Collect dreams from all dream catchers in a dream catcher area.", true, true, CollectDreams.class, "dream_catcher", false));
         bots.add(new BotDescriptor("bugs", BotDescriptor.BotType.UTILS, "Catch bugs", "Catch bugs around player.", false, true, CatchBugsAround.class, "bugs", false));
         bots.add(new BotDescriptor("freeinv", BotDescriptor.BotType.UTILS, "Free inventory", "Free inventory with Area system.", true, true, FreeInvBot.class, "freeinv", false));
@@ -277,6 +278,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("navstresstest", BotDescriptor.BotType.TOOLS, "Navigation Stress Test", "Continuously tests chunk navigation between random areas. Results saved to JSON file.", false, true, NavigationStressTest.class, "test15", true));
         //bots.add(new BotDescriptor("testzonepatroller", BotDescriptor.BotType.UTILS, "Test Zone Patroller", "Patrols 15 test zones (test1-test15) every 30 minutes, returning to test16 between cycles.", true, true, TestZonePatroller.class, "worldexplorer", false));
         bots.add(new BotDescriptor("collect_silkworm_eggs_by_quality", BotDescriptor.BotType.TOOLS, "Collect Best Silkworm Eggs", "Collects highest quality silkworm eggs from containers in selected area. Considers individual egg quality within stacks.", false, true, CollectHighestQualitySilkwormEggs.class, "test35", false));
+        bots.add(new BotDescriptor("leveler", BotDescriptor.BotType.TOOLS, "Leveler", "Drives all visible land surveys to completion. Pulls soil from TAKE \"Soil\" area for fill, dumps excess to PUT \"Soil\" area or the soilDump paved zone.", true, true, Leveler.class, "test40", false));
     }
 
     public static BotDescriptor byId(String id) {
