@@ -13,7 +13,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
-
 public class FlaxFarmer implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {

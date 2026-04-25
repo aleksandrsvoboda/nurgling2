@@ -3,21 +3,15 @@ package nurgling.actions;
 import haven.Coord;
 import haven.Gob;
 import haven.WItem;
-import nurgling.NConfig;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
-import nurgling.areas.NContext;
-import nurgling.conf.NPrepBlocksProp;
 import nurgling.tasks.*;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 public class FuelByLogs implements Action
 {

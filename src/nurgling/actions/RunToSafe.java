@@ -1,13 +1,10 @@
 package nurgling.actions;
 
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.widgets.Specialisation;
-
-import java.util.List;
 
 public class RunToSafe implements Action{
     @Override

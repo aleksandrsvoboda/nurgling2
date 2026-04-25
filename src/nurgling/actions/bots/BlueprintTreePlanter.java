@@ -6,7 +6,6 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NBlueprintPlanterProp;
-import nurgling.overlays.TreeGhostPreview;
 import nurgling.tasks.*;
 import nurgling.tools.*;
 import nurgling.widgets.Specialisation;

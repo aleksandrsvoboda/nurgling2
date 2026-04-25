@@ -9,7 +9,6 @@ import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tools.*;
 import nurgling.widgets.TreeSpacingDialog;
 import nurgling.overlays.TreeGhostPreview;
-import nurgling.widgets.NEquipory;
 
 import java.util.*;
 

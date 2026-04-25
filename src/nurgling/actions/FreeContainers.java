@@ -3,7 +3,6 @@ package nurgling.actions;
 import haven.Gob;
 import haven.WItem;
 import nurgling.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.*;
 

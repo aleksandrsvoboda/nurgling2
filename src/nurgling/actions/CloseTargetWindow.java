@@ -1,7 +1,6 @@
 package nurgling.actions;
 
 import haven.*;
-import static haven.OCache.posres;
 import nurgling.*;
 import nurgling.tasks.*;
 

@@ -3,7 +3,6 @@ package nurgling.actions.bots;
 import haven.*;
 import haven.res.gfx.fx.eq.Equed;
 import nurgling.NGameUI;
-import nurgling.NGItem;
 import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;

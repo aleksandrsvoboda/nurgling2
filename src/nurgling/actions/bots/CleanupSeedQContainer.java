@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.Coord;
 import haven.Gob;
-import haven.ItemInfo;
 import haven.WItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;

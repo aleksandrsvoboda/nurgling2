@@ -4,15 +4,7 @@ import haven.Coord2d;
 import haven.Gob;
 import haven.Pair;
 import nurgling.NGameUI;
-import nurgling.NGob;
-import nurgling.NHitBox;
-import nurgling.NUtils;
-import nurgling.tasks.WaitPile;
-import nurgling.tasks.WaitPlob;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-
-import static haven.OCache.posres;
 
 public class CreateFreePiles implements Action{
     Pair<Coord2d, Coord2d> out;

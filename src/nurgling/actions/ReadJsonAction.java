@@ -1,6 +1,5 @@
 package nurgling.actions;
 
-import haven.Utils;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import org.json.JSONArray;

@@ -7,8 +7,6 @@ import nurgling.tasks.NTask;
 import nurgling.tools.NAlias;
 import nurgling.widgets.NEquipory;
 
-import java.util.ArrayList;
-
 /**
  * Repairs fishing rod using items from inventory and equipped items with storage (belt, creel, etc.)
  */

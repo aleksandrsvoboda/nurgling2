@@ -9,7 +9,6 @@ import haven.res.ui.croster.CattleId;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.tasks.NTask;
-import nurgling.tasks.WaitPose;
 import nurgling.tasks.WaitSound;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

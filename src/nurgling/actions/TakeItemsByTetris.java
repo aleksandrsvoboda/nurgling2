@@ -3,12 +3,9 @@ package nurgling.actions;
 import haven.Coord;
 import haven.Gob;
 import haven.UI;
-import haven.WItem;
 import nurgling.*;
 import nurgling.tasks.WaitItemFromPile;
 import nurgling.tools.Container;
-import nurgling.tools.NAlias;
-import nurgling.tools.StockpileUtils;
 
 import java.util.ArrayList;
 

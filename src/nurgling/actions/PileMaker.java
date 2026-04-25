@@ -8,7 +8,6 @@ import nurgling.NGob;
 import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.tasks.WaitPile;
-import nurgling.tasks.WaitPlaced;
 import nurgling.tasks.WaitPlob;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

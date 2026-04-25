@@ -1,20 +1,10 @@
 package nurgling.actions.bots;
 
-import haven.Coord2d;
-import haven.Gob;
-import haven.Pair;
 import haven.Resource;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
-import nurgling.tasks.WaitForBurnout;
-import nurgling.tools.Container;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.Specialisation;
-
-import java.util.ArrayList;
 
 public class CreateSoilPiles implements Action {
 

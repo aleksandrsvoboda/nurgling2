@@ -13,8 +13,6 @@ import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class LettuceAndPumpkinCollector implements Action {
     NArea input;

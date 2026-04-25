@@ -1,8 +1,6 @@
 package nurgling.actions.bots;
 
-import haven.Coord;
 import haven.Gob;
-import haven.Inventory;
 import haven.WItem;
 import haven.res.ui.tt.leashed.Leashed;
 import nurgling.NConfig;
@@ -13,7 +11,6 @@ import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.overlays.NCustomResult;
 import nurgling.tasks.NTask;
-import nurgling.tasks.WaitPose;
 import nurgling.tasks.WaitPoseOrMsg;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

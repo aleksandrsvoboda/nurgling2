@@ -2,7 +2,6 @@ package nurgling.actions;
 
 import haven.Coord2d;
 import haven.Gob;
-import haven.MenuSearch;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
@@ -24,8 +23,6 @@ public class LightGob implements Action
         this.gobs = gobs;
         this.flame_flag = flame_flag;
     }
-
-
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -130,8 +127,6 @@ public class LightGob implements Action
                 }
             }
         }
-
-
         
         // Alternative method: use branches to light fire
         // This is used when no lit candelabrum is available

@@ -4,7 +4,6 @@ import haven.Gob;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Context;
 import nurgling.tools.Finder;

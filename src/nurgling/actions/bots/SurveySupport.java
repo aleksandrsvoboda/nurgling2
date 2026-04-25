@@ -1,20 +1,15 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import haven.res.ui.relcnt.RelCont;
-import nurgling.NConfig;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.PathFinder;
 import nurgling.actions.RestoreResources;
 import nurgling.actions.Results;
-import nurgling.areas.NContext;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
 
 public class SurveySupport implements Action
 {

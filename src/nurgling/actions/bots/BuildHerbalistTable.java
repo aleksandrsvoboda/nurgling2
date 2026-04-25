@@ -1,6 +1,5 @@
 package nurgling.actions.bots;
 
-import haven.Coord;
 import haven.Coord2d;
 import haven.Gob;
 import haven.Resource;
@@ -15,7 +14,6 @@ import nurgling.actions.Results;
 import nurgling.areas.NContext;
 import nurgling.overlays.BuildGhostPreview;
 import nurgling.overlays.NCustomBauble;
-import nurgling.tools.NAlias;
 
 public class BuildHerbalistTable implements Action {
     @Override

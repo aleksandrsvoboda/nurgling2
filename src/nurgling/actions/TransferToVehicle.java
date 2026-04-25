@@ -1,11 +1,8 @@
 package nurgling.actions;
 
-import haven.Coord2d;
 import haven.Gob;
-import haven.Pair;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.areas.NArea;
 import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
 

@@ -15,7 +15,6 @@ import nurgling.tools.NAlias;
 import java.util.*;
 
 import static haven.MCache.tilesz;
-import static haven.OCache.posres;
 
 public class HarvestTrellis implements Action {
 

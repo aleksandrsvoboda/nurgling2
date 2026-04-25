@@ -7,7 +7,6 @@ import nurgling.NUtils;
 import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tasks.WaitCollectState;
 import nurgling.tasks.WaitPose;
-import nurgling.tasks.WaitPrepBlocksState;
 import nurgling.tools.NAlias;
 
 import static haven.OCache.posres;

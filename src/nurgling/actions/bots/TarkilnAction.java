@@ -1,23 +1,17 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tasks.*;
-import nurgling.tools.Container;
 import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-
-import static nurgling.actions.bots.Butcher.order;
 
 public class TarkilnAction implements Action {
 

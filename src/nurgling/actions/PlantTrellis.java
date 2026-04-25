@@ -11,7 +11,6 @@ import nurgling.tools.NAlias;
 import java.util.*;
 
 import static haven.MCache.tilesz;
-import static haven.OCache.posres;
 
 public class PlantTrellis implements Action {
     private static final NAlias TRELLIS_ALIAS = new NAlias("gfx/terobjs/plants/trellis");

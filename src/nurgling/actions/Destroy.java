@@ -4,9 +4,7 @@ import haven.Gob;
 import haven.MenuGrid;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.tasks.DrinkToLvl;
 import nurgling.tasks.GetCurs;
-import nurgling.tasks.WaitPos;
 import nurgling.tasks.WaitPose;
 
 public class Destroy implements Action

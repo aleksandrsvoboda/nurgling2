@@ -15,7 +15,6 @@ import java.util.ArrayList;
 
 import static nurgling.NUtils.getGameUI;
 
-
 public class HoneyAndWaxCollector implements Action {
 
     private static final NAlias BEEHIVE = new NAlias("gfx/terobjs/beehive");

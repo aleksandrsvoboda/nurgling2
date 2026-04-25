@@ -13,7 +13,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
-
 public class HempFarmer implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {

@@ -3,7 +3,6 @@ package nurgling.actions;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.areas.NArea;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

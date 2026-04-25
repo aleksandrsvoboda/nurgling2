@@ -5,7 +5,6 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.NGItem;
 import nurgling.NISBox;
-import nurgling.NConfig;
 import nurgling.actions.Action;
 import nurgling.actions.PathFinder;
 import nurgling.actions.Results;

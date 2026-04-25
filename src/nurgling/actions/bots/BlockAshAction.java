@@ -13,7 +13,6 @@ import nurgling.tasks.WaitForBurnout;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.tools.VSpec;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;

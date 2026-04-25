@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;

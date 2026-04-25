@@ -1,8 +1,6 @@
 package nurgling.actions.bots.cheese;
 
 import haven.Gob;
-import nurgling.tools.Container;
-import nurgling.tools.Finder;
 
 /**
  * Utility class for checking cheese rack status using overlays without opening containers
