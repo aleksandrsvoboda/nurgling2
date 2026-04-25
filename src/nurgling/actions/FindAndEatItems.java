@@ -4,9 +4,10 @@ import haven.*;
 import nurgling.*;
 import nurgling.areas.NContext;
 import nurgling.iteminfo.NFoodInfo;
+import nurgling.tools.Context;
 import nurgling.tasks.WaitItems;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
+
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 

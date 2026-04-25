@@ -5,7 +5,7 @@ import haven.res.ui.relcnt.RelCont;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.tasks.*;
-import nurgling.tools.Context;
+
 import nurgling.tools.NAlias;
 
 public class TakeFromBarrel implements Action{

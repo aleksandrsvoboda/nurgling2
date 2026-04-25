@@ -6,7 +6,7 @@ import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
+
 import nurgling.tools.NAlias;
 import nurgling.tools.StackSupporter;
 import nurgling.NInventory.QualityType;
