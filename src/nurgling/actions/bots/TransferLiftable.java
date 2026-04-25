@@ -15,13 +15,18 @@ import nurgling.widgets.Specialisation;
 import java.util.ArrayList;
 
 /**
- * Transfers liftable objects by always prompting user to select zones.
- * Always prompts for input zone selection.
- * Uses global CarrierOut zone if exists, otherwise prompts for output zone selection.
- * For automatic global zone navigation, use TransferLiftableGlobal instead.
+ * Transfers liftable objects between zones.
+ * Two modes:
+ * - requireGlobalZones=false (default): prompts user to select input zone, uses global CarrierOut or prompts for output
+ * - requireGlobalZones=true: requires global CarrierOut zone (errors if not found), tries global sorting zone for input with prompt fallback
  */
 public class TransferLiftable implements Action
 {
+    protected final boolean requireGlobalZones;
+
+    public TransferLiftable() { this.requireGlobalZones = false; }
+    public TransferLiftable(boolean requireGlobalZones) { this.requireGlobalZones = requireGlobalZones; }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
@@ -44,21 +49,32 @@ public class TransferLiftable implements Action
             return Results.ERROR("No config");
         }
 
-        // Create context for transfer
         NContext context = new NContext(gui);
 
-        // Always prompt for input area selection
-        String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
-        NArea inarea = context.getAreaById(insaId);
-
-        // Find CarrierOut area for output - use global if exists, otherwise prompt
         NArea.Specialisation carrierOutSpec = new NArea.Specialisation(Specialisation.SpecName.carrierout.toString());
         NArea carrierOutArea = NContext.findSpecGlobal(carrierOutSpec);
 
-        if (carrierOutArea == null)
-        {
-            String outsaId = context.createArea("Please, select output area", Resource.loadsimg("baubles/outputArea"));
-            carrierOutArea = context.getAreaById(outsaId);
+        NArea inarea;
+
+        if (requireGlobalZones) {
+            if (carrierOutArea == null) {
+                return Results.ERROR("No CarrierOut zone found! Please create a global zone with 'carrierout' specialization.");
+            }
+            NArea.Specialisation carrierInSpec = new NArea.Specialisation(Specialisation.SpecName.sorting.toString());
+            inarea = NContext.findSpecGlobal(carrierInSpec);
+            if (inarea == null) {
+                String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
+                inarea = context.getAreaById(insaId);
+            } else {
+                NUtils.navigateToArea(inarea);
+            }
+        } else {
+            String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
+            inarea = context.getAreaById(insaId);
+            if (carrierOutArea == null) {
+                String outsaId = context.createArea("Please, select output area", Resource.loadsimg("baubles/outputArea"));
+                carrierOutArea = context.getAreaById(outsaId);
+            }
         }
 
 
