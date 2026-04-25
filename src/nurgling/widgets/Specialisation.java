@@ -99,7 +99,8 @@ public class Specialisation extends Window
         extractionPress,
         trufflePig,
         thicket,
-        beeSkep;
+        beeSkep,
+        soilDump;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -204,6 +205,9 @@ public class Specialisation extends Window
 
         // Bee skep area
         specialisation.add(new SpecialisationItem(SpecName.beeSkep.toString(),"Bee Skep",Resource.loadsimg("nurgling/categories/bee")));
+
+        // Paved soil dump zone for Leveler bot
+        specialisation.add(new SpecialisationItem(SpecName.soilDump.toString(),"Soil Dump (paved)",Resource.loadsimg("nurgling/categories/tsoil")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override

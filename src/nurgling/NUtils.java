@@ -845,6 +845,57 @@ public class NUtils
         return false;
     }
 
+    /**
+     * Capture the player's current position as a grid-stable bookmark.
+     * The returned NGlobalCoord survives chunk-nav hops — the gridId and
+     * grid-local offset remain valid even when the starting grid is unloaded.
+     * Returns null if the player is not available.
+     */
+    public static NGlobalCoord bookmarkHere()
+    {
+        Gob player = player();
+        if (player == null) return null;
+        return new NGlobalCoord(player.rc);
+    }
+
+    /**
+     * Navigate back to a bookmarked position. Uses local pathfinding when the
+     * bookmarked grid is loaded and reachable, falls back to chunk navigation
+     * otherwise, then snaps onto the exact spot with a final local PathFinder.
+     * Returns false if the bookmark is null, the grid can't be resolved, or
+     * navigation fails.
+     */
+    public static boolean navigateTo(NGlobalCoord bookmark) throws InterruptedException
+    {
+        if (bookmark == null) return false;
+
+        Coord2d current = bookmark.getCurrentCoord();
+        if (current != null && nurgling.actions.PathFinder.isAvailable(current)) {
+            new nurgling.actions.PathFinder(current).run(getGameUI());
+            return true;
+        }
+
+        long gridId = bookmark.getGridId();
+        Coord localTile = bookmark.getLocalTile();
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.map instanceof NMapView) {
+            ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
+            if (chunkNav != null && chunkNav.isInitialized() && gridId != -1 && localTile != null) {
+                ChunkPath path = chunkNav.planToGridCoord(gridId, localTile);
+                if (path != null) {
+                    chunkNav.navigateWithPath(path, null, gui);
+                }
+            }
+        }
+
+        Coord2d after = bookmark.getCurrentCoord();
+        if (after != null && nurgling.actions.PathFinder.isAvailable(after)) {
+            new nurgling.actions.PathFinder(after).run(getGameUI());
+            return true;
+        }
+        return false;
+    }
+
     public static boolean navigateToArea(Specialisation string) throws InterruptedException
     {
         NArea area = NContext.findSpecGlobal(string.toString());
