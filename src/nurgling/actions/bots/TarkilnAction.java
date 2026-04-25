@@ -51,10 +51,20 @@ public class TarkilnAction implements Action {
             tarkilns.removeAll(forRemove);
 
             for(Gob tarkiln : tarkilns) {
-                new CollectFromGob(tarkiln, "Collect coal", "gfx/borka/bushpickan", true, new Coord(1, 1), 8, new NAlias("Coal"), pile_area).run(gui);
-                if(NUtils.getGameUI().getInventory().getFreeSpace() < 3) {
+                int attempts = 0;
+                while (true) {
+                    int freeBefore = NUtils.getGameUI().getInventory().getFreeSpace();
+                    new CollectFromGob(tarkiln, "Collect coal", "gfx/borka/bushpickan", true, new Coord(1, 1), 8, new NAlias("Coal"), pile_area).run(gui);
+                    if (NUtils.getGameUI().getInventory().getFreeSpace() >= 3) {
+                        break;
+                    }
+                    attempts++;
                     new FreeInventory2(context).run(gui);
                     NUtils.navigateToArea(area);
+                    int freeAfter = NUtils.getGameUI().getInventory().getFreeSpace();
+                    if (freeAfter < 3 || (attempts >= 2 && freeAfter <= freeBefore)) {
+                        break;
+                    }
                 }
             }
             new FreeInventory2(context).run(gui);
