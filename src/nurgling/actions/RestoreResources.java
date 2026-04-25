@@ -1,40 +1,44 @@
 package nurgling.actions;
 
-import haven.Coord;
-import haven.Coord2d;
-import haven.Gob;
-import haven.MCache;
 import nurgling.NGameUI;
-import nurgling.NGob;
-import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.actions.bots.Eater;
+import nurgling.areas.NGlobalCoord;
 
-import static haven.MCache.cmaps;
-import static haven.OCache.posres;
-
-public class RestoreResources implements Action{
+public class RestoreResources implements Action
+{
 
     @Override
-    public Results run(NGameUI gui) throws InterruptedException {
-            double stamina = NUtils.getStamina();
-            if (stamina >= 0 && stamina < 0.5) {
+    public Results run(NGameUI gui) throws InterruptedException
+    {
+        NGlobalCoord bookmark = NUtils.bookmarkHere();
+        boolean navigated = false;
+
+        double stamina = NUtils.getStamina();
+        if (stamina >= 0 && stamina < 0.5) {
+            if (!new Drink(0.9, false).run(gui).IsSuccess()) {
+                navigated = true;
+                new FillWaterskins().run(gui);
                 if (!new Drink(0.9, false).run(gui).IsSuccess()) {
-                    new FillWaterskins().run(gui);
-                    if (!new Drink(0.9, false).run(gui).IsSuccess()) {
-                        return Results.ERROR("Failed to restore stamina - no water available");
-                    }
+                    return Results.ERROR("Failed to restore stamina - no water available");
                 }
             }
-            double energy = NUtils.getEnergy();
-            if(energy >= 0 && energy < 0.35)
-            {
-                Eater eater = new Eater(true);
-                Results eatResult = eater.run(gui);
-                if (!eatResult.IsSuccess()) {
-                    return Results.ERROR("Failed to restore energy - no food available");
-                }
+        }
+
+        double energy = NUtils.getEnergy();
+        if (energy >= 0 && energy < 0.35) {
+            navigated = true;
+            Eater eater = new Eater(true);
+            Results eatResult = eater.run(gui);
+            if (!eatResult.IsSuccess()) {
+                return Results.ERROR("Failed to restore energy - no food available");
             }
-            return Results.SUCCESS();
+        }
+
+        if (navigated) {
+            NUtils.navigateTo(bookmark);
+        }
+
+        return Results.SUCCESS();
     }
 }
