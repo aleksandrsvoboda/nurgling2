@@ -10,9 +10,6 @@ import nurgling.widgets.FoodContainer;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.List;
-
-import static haven.Coord.of;
 
 public class Eater implements Action {
 

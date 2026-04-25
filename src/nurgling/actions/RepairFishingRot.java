@@ -7,7 +7,6 @@ import nurgling.areas.NContext;
 import nurgling.conf.NFishingSettings;
 import nurgling.tasks.NTask;
 
-
 public class RepairFishingRot implements Action {
 
     NFishingSettings prop;

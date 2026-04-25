@@ -4,7 +4,6 @@ import haven.Coord;
 import haven.Gob;
 import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
@@ -17,7 +16,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 public class Butcher implements Action {
 

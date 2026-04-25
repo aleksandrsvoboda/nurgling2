@@ -7,8 +7,6 @@ import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.HandIsFree;
-import nurgling.tasks.NTask;
-import nurgling.tools.Container;
 
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

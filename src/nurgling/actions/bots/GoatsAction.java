@@ -9,7 +9,6 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.conf.GoatsHerd;
 
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
