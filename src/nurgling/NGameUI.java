@@ -194,8 +194,8 @@ public class NGameUI extends GameUI
         // Position NImportStrategyDialog relative to areas widget center
         add(importDialog = new NImportStrategyDialog(), new Coord(sz.x/2 - importDialog.sz.x/2, sz.y/2 - importDialog.sz.y/2));
         importDialog.hide();
-        // Position BotsInterruptWidget (observer with gears) in center of screen
-        add(biw = new BotsInterruptWidget(), new Coord(sz.x/2 - biw.sz.x/2, sz.y/2 - biw.sz.y/2));
+        // BotsInterruptWidget tracks the portrait; it self-positions in tick().
+        add(biw = new BotsInterruptWidget(), Coord.z);
         waypointMovementService = new WaypointMovementService(this);
         fishLocationService = new FishLocationService(this, genus);
         treeLocationService = new TreeLocationService(this, genus);
@@ -553,6 +553,33 @@ public class NGameUI extends GameUI
         msg("TICK#" + NUtils.getTickId() + " MSG: " + msg);
     }
 
+    @Override
+    public void draw(GOut g) {
+        super.draw(g);
+        // Always-on-top overlay: current action line for the portrait gear and
+        // for any window-dimmed bots. Drawn after every child so it sits above
+        // windows, inventories, popups, etc.
+        if (biw != null) biw.drawOverlayLabel(g);
+        drawDimmedWindowLabels(g, this);
+    }
+
+    /** Walk the widget tree and draw a current-action overlay label for every
+     *  Window whose DisablerWdg is visible. */
+    private void drawDimmedWindowLabels(GOut g, Widget root) {
+        if (root == null) return;
+        for (Widget w = root.lchild; w != null; w = w.prev) {
+            if (w instanceof haven.Window) {
+                haven.Window win = (haven.Window) w;
+                try {
+                    if (win.isDisabled()) win.drawDisablerOverlayLabel(g);
+                } catch (NullPointerException ignored) {
+                    // isDisabled can NPE when dwdg is null; skip.
+                }
+            }
+            drawDimmedWindowLabels(g, w);
+        }
+    }
+
     public NInventory getInventory ( String name ) {
         Window spwnd = getWindow ( name );
         if(spwnd == null){
@@ -599,8 +626,7 @@ public class NGameUI extends GameUI
             nean.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 7));
         if(spec != null)
             spec.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 7));
-        if(biw != null)
-            biw.move(new Coord(sz.x / 2 - biw.sz.x / 2, sz.y / 2 - biw.sz.y / 2));
+        // biw snaps itself to the portrait every tick, no explicit move() needed here.
         if(blueprintWidget != null)
             blueprintWidget.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
     }
@@ -1146,7 +1172,31 @@ public class NGameUI extends GameUI
             }
         }
 
+        // Interrupt every running bot (main wheel + any window-dimmed bots).
+        if (nurgling.widgets.BotsInterruptWidget.kb_interrupt_bots.key().match(ev.awt)) {
+            if (biw != null && biw.hasRunningBots()) biw.interruptAll();
+            enableAllDimmedWindows(ui.root);
+            return true;
+        }
+
         return super.globtype(ev);
+    }
+
+    /** Walk the widget tree and enable() any Window that's currently disabled,
+     *  so AutoSplitter/AutoChooser-style bots see isDisabled()==false and exit. */
+    private void enableAllDimmedWindows(Widget root) {
+        if (root == null) return;
+        for (Widget w = root.lchild; w != null; w = w.prev) {
+            if (w instanceof haven.Window) {
+                haven.Window win = (haven.Window) w;
+                try {
+                    if (win.isDisabled()) win.enable();
+                } catch (NullPointerException ignored) {
+                    // Window.isDisabled can NPE if dwdg is null; safe to skip.
+                }
+            }
+            enableAllDimmedWindows(w);
+        }
     }
 
     public void toggleResourceTimerWindow() {

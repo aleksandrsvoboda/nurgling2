@@ -30,10 +30,10 @@ public class AutoSplitter implements Action
             NUtils.getUI().core.enableBotMod();
             NUtils.getUI().core.addTask(new WaitItemInHand(item));
             NInventory inv = (NInventory) item.parent;
-            ((Window) inv.parent).disable();
+            ((Window) inv.parent).disable(Thread.currentThread());
             ArrayList<WItem> items = inv.getItems(name);
             if (items.size() > 0)
-                ((Window) inv.parent).disable();
+                ((Window) inv.parent).disable(Thread.currentThread());
             inv.dropOn(inv.getFreeCoord(item), name);
 
             for (WItem witem : items)

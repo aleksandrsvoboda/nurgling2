@@ -115,7 +115,10 @@ public class NStyle {
             Resource.loadtex("nurgling/hud/gear/8"),
             Resource.loadtex("nurgling/hud/gear/9"),
             Resource.loadtex("nurgling/hud/gear/10"),
-            Resource.loadtex("nurgling/hud/gear/11")};
+            Resource.loadtex("nurgling/hud/gear/11"),
+            Resource.loadtex("nurgling/hud/gear/12"),
+            Resource.loadtex("nurgling/hud/gear/13"),
+            Resource.loadtex("nurgling/hud/gear/14")};
 
     public static final Tex[] alarm = new Tex[]{
             Resource.loadtex("nurgling/hud/alarm/0"),
