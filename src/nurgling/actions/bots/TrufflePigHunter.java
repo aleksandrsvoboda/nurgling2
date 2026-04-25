@@ -18,8 +18,6 @@ import nurgling.widgets.Specialisation;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static nurgling.NUtils.getGameUI;
-
 public class TrufflePigHunter implements Action {
 
     private static final NAlias PIG_ALIAS = new NAlias(new ArrayList<String>() {{

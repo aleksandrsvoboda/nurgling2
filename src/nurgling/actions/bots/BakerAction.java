@@ -67,11 +67,6 @@ public class BakerAction implements Action {
                     return res;
                 }
 
-            if (!res.IsSuccess())
-            {
-                return res;
-            }
-
             ArrayList<Container> forFuel = new ArrayList<>();
             for (Container container : containers)
             {

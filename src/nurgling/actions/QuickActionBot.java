@@ -2,14 +2,10 @@ package nurgling.actions;
 
 import haven.*;
 import nurgling.NConfig;
-import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.conf.QuickActionPreset;
-import nurgling.iteminfo.NFoodInfo;
-import nurgling.tasks.WaitPose;
 import nurgling.tools.Finder;
-import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
 
 import java.util.ArrayList;

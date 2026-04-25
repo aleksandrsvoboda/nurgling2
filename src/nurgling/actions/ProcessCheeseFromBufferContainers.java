@@ -15,7 +15,6 @@ import nurgling.actions.bots.cheese.CheeseAreaManager;
 import nurgling.actions.bots.cheese.CheeseInventoryOperations;
 import nurgling.tasks.ISRemoved;
 import nurgling.tasks.WaitForGobWithHash;
-import nurgling.tasks.WaitMoreItems;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

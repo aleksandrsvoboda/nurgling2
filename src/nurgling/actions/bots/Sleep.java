@@ -1,7 +1,6 @@
 package nurgling.actions.bots;
 
 import haven.Gob;
-import nurgling.NCharlist;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;

@@ -11,7 +11,6 @@ import nurgling.areas.NContext;
 import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tasks.WaitCollectState;
 import nurgling.tasks.WaitPose;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;

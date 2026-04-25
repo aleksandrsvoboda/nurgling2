@@ -1,15 +1,10 @@
 package nurgling.actions;
 
-import haven.Coord;
 import haven.Gob;
-import haven.Img;
 import haven.Widget;
 import haven.res.ui.invsq.InvSquare;
 import nurgling.*;
 import nurgling.tasks.*;
-import nurgling.tools.Container;
-
-import static haven.OCache.posres;
 
 public class IsVehicleFull implements Action
 {

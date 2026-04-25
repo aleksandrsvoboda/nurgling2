@@ -6,12 +6,10 @@ import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.tasks.NTask;
-import nurgling.tasks.WaitLifted;
 import nurgling.tasks.WaitWindow;
 import nurgling.tools.Finder;
 
 import static haven.OCache.posres;
-import static nurgling.tools.Finder.findLiftedbyPlayer;
 
 public class TakeFromVehicle implements Action {
     private final Gob vehicle;

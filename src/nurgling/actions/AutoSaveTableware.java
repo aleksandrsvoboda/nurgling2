@@ -4,7 +4,6 @@ import haven.*;
 import haven.res.ui.tt.wear.Wear;
 import nurgling.*;
 import nurgling.tasks.*;
-import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;

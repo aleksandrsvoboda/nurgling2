@@ -1,10 +1,7 @@
 package nurgling.actions;
 
 import haven.Gob;
-import haven.WItem;
-import nurgling.NGItem;
 import nurgling.NGameUI;
-import nurgling.areas.NArea;
 import nurgling.tools.Container;
 import nurgling.tools.Context;
 import nurgling.tools.Finder;

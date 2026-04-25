@@ -1,14 +1,11 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import haven.res.lib.tree.TreeScale;
 import nurgling.NGItem;
 import nurgling.NGameUI;
-import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.conf.NChipperProp;
-import nurgling.conf.NChopperProp;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -16,10 +13,7 @@ import nurgling.tools.NParser;
 import nurgling.widgets.NEquipory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-
-import static haven.OCache.posres;
 
 public class Chipper implements Action {
 

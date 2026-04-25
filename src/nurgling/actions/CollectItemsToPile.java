@@ -2,7 +2,6 @@ package nurgling.actions;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.tools.Finder;

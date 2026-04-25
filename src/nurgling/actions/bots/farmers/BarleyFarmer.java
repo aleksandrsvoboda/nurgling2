@@ -14,7 +14,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
-
 public class BarleyFarmer implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {

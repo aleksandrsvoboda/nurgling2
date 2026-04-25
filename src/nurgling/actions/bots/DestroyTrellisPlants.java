@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static haven.MCache.tilesz;
-import static haven.MCache.tilehsz;
 import haven.MCache;
 
 public class DestroyTrellisPlants implements Action {

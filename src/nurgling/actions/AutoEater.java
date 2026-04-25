@@ -1,8 +1,6 @@
 package nurgling.actions;
 
-import haven.Coord2d;
 import haven.Gob;
-import haven.Pair;
 import haven.WItem;
 import nurgling.*;
 import nurgling.iteminfo.NFoodInfo;

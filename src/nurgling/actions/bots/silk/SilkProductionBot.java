@@ -7,7 +7,6 @@ import nurgling.actions.bots.CollectAndKillRemainingCocoons;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;

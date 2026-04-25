@@ -7,7 +7,7 @@ import nurgling.conf.CropRegistry;
 import nurgling.tasks.NoGob;
 import nurgling.tasks.WaitMoreItems;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
+import nurgling.areas.NContext;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
@@ -302,8 +302,8 @@ public class HarvestCrop implements Action {
             if(!barrelOnlyIfInventoryFull || gui.getInventory().getFreeSpace() <= 7) {
                 // Find all containers in the seed area
                 ArrayList<Container> containers = new ArrayList<>();
-                for (Gob sm : Finder.findGobs(seed.getRCArea(), new NAlias(new ArrayList<>(Context.contcaps.keySet())))) {
-                    Container cand = new Container(sm, Context.contcaps.get(sm.ngob.name), null);
+                for (Gob sm : Finder.findGobs(seed.getRCArea(), new NAlias(new ArrayList<>(NContext.contcaps.keySet())))) {
+                    Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), null);
                     cand.initattr(Container.Space.class);
                     containers.add(cand);
                 }

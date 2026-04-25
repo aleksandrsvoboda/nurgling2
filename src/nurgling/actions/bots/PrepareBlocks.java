@@ -7,7 +7,6 @@ import haven.UI;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.conf.NPrepBlocksProp;
 import nurgling.tasks.WaitCheckable;
 import nurgling.tasks.WaitPose;

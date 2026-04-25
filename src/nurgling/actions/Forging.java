@@ -1,26 +1,16 @@
 package nurgling.actions;
 
-import haven.Gob;
 import haven.MenuGrid;
-import haven.WItem;
-import nurgling.NGItem;
 import nurgling.NGameUI;
-import nurgling.NInventory;
 import nurgling.NUtils;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitNoItems;
-import nurgling.tasks.WaitPoseOrMsg;
 import nurgling.tools.*;
-import nurgling.widgets.NEquipory;
 import nurgling.widgets.NMakewindow;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Forging implements Action
 {

@@ -1,10 +1,8 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import haven.res.ui.tt.cn.*;
 import nurgling.*;
 import nurgling.actions.*;
-import nurgling.iteminfo.*;
 import nurgling.tasks.*;
 
 import java.util.*;

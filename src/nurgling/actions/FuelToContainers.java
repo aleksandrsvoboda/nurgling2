@@ -8,7 +8,6 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tasks.HandIsFree;
 import nurgling.tasks.WaitFreeHand;
 import nurgling.tasks.WaitTargetSize;
 import nurgling.tasks.WindowIsClosed;

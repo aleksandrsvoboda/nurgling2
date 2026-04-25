@@ -7,7 +7,6 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -35,7 +34,7 @@ public class CollectAndKillRemainingCocoons implements Action {
         }
         
         // Get all containers in feeding area
-        ArrayList<Gob> feedingGobs = Finder.findGobs(feedingArea, new NAlias(new ArrayList<>(Context.contcaps.keySet())));
+        ArrayList<Gob> feedingGobs = Finder.findGobs(feedingArea, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));
         ArrayList<Container> feedingContainers = new ArrayList<>();
         
         for (Gob gob : feedingGobs) {

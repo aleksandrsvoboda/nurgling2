@@ -1,6 +1,5 @@
 package nurgling.actions.bots;
 
-import haven.Coord;
 import haven.Coord2d;
 import haven.Gob;
 import haven.Resource;
@@ -10,11 +9,9 @@ import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Build;
 import nurgling.actions.Results;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.overlays.BuildGhostPreview;
 import nurgling.overlays.NCustomBauble;
-import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
 

@@ -10,11 +10,8 @@ import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitMoreItems;
-import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
 
 import java.util.ArrayList;
-import java.util.Collections;
 
 public class Dropper implements Action {
 

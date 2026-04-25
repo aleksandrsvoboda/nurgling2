@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.Gob;
 import haven.res.gfx.hud.rosters.cow.Ochs;
-import haven.res.gfx.hud.rosters.pig.Pig;
 import haven.res.ui.croster.CattleId;
 import nurgling.NGameUI;
 import nurgling.NUtils;

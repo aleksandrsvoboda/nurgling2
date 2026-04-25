@@ -18,7 +18,7 @@ public class RestoreResources implements Action
         if (stamina >= 0 && stamina < 0.5) {
             if (!new Drink(0.9, false).run(gui).IsSuccess()) {
                 navigated = true;
-                new FillWaterskins().run(gui);
+                new FillWaterskinsGlobal().run(gui);
                 if (!new Drink(0.9, false).run(gui).IsSuccess()) {
                     return Results.ERROR("Failed to restore stamina - no water available");
                 }

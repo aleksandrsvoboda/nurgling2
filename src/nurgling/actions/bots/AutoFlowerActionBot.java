@@ -13,8 +13,6 @@ import nurgling.widgets.bots.AutoFlowerAction;
 
 import java.util.ArrayList;
 
-import static haven.OCache.posres;
-
 public class AutoFlowerActionBot implements Action {
 
     @Override

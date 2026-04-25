@@ -3,14 +3,9 @@ package nurgling.actions.bots;
 import haven.Coord;
 import haven.Gob;
 import haven.Resource;
-import haven.UI;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.conf.NPrepBlocksProp;
-import nurgling.tasks.WaitCheckable;
-import nurgling.tasks.WaitPose;
-import nurgling.tasks.WaitPrepBlocksState;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 

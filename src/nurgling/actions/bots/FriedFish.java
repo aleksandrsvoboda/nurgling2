@@ -11,7 +11,6 @@ import nurgling.tasks.NTask;
 import nurgling.tasks.WaitCarveState;
 import nurgling.tasks.WaitPose;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
@@ -22,7 +21,6 @@ import java.util.List;
 public class FriedFish implements Action {
 
     NAlias powname = new NAlias(new ArrayList<String>(List.of("gfx/terobjs/pow")));
-
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -40,8 +38,8 @@ public class FriedFish implements Action {
         (powsa = new SelectArea(Resource.loadsimg("baubles/fireplace"))).run(gui);
 
         ArrayList<Container> containers = new ArrayList<>();
-        for (Gob sm : Finder.findGobs(outsa.getRCArea(), new NAlias(new ArrayList<>(Context.contcaps.keySet())))) {
-            Container cand = new Container(sm, Context.contcaps.get(sm.ngob.name), null);
+        for (Gob sm : Finder.findGobs(outsa.getRCArea(), new NAlias(new ArrayList<>(NContext.contcaps.keySet())))) {
+            Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), null);
             cand.initattr(Container.Space.class);
             containers.add(cand);
         }

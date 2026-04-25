@@ -5,7 +5,6 @@ import haven.Coord2d;
 import haven.Gob;
 import haven.Pair;
 import haven.WItem;
-import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
@@ -23,7 +22,6 @@ import nurgling.widgets.Specialisation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 
 public class DFrameFishAction implements Action {
 

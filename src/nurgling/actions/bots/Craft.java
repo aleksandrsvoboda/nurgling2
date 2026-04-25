@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static haven.OCache.posres;
 import nurgling.tools.StackSupporter;
 
-
 public class Craft implements Action {
 
 

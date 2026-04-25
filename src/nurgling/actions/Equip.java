@@ -7,15 +7,12 @@ import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
-import nurgling.iteminfo.NFoodInfo;
 import nurgling.tasks.WaitItemInHand;
 import nurgling.tasks.WaitItemInEquip;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
 import nurgling.widgets.NEquipory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 
 public class Equip implements Action {

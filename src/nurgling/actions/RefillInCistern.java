@@ -6,13 +6,11 @@ import haven.Gob;
 import haven.Pair;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.areas.NArea;
 import nurgling.tasks.IsOverlay;
 import nurgling.tasks.WaitSound;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 

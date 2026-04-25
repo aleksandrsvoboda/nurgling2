@@ -11,7 +11,6 @@ import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.NAlarmWdg;
-import nurgling.widgets.bots.Checkable;
 
 import java.util.ArrayList;
 

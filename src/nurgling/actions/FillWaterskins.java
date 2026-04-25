@@ -17,33 +17,33 @@ import nurgling.widgets.Specialisation;
 import java.util.ArrayList;
 
 /**
- * Fills waterskins. Prefers the local water specialisation area, falls back to
- * global water area navigation, and only prompts the user to select an area
- * if neither is available.
+ * Fills waterskins from a water source (barrel, cistern, well).
+ * Two modes:
+ * - useGlobalZone=false (default): prompts user to select a water zone
+ * - useGlobalZone=true: uses NContext water specialisation area (local then global), errors if not found
  */
 public class FillWaterskins implements Action {
 
-    public FillWaterskins() {}
+    protected final boolean useGlobalZone;
+
+    public FillWaterskins() { this.useGlobalZone = false; }
+    public FillWaterskins(boolean useGlobalZone) { this.useGlobalZone = useGlobalZone; }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         Pair<Coord2d, Coord2d> area = null;
 
-        // 1) Local water spec area (visible)
-        NArea waterArea = NContext.findSpec(Specialisation.SpecName.water.toString());
-
-        // 2) Global water spec area (use chunk nav)
-        if (waterArea == null) {
-            waterArea = NContext.findSpecGlobal(Specialisation.SpecName.water.toString());
-        }
-
-        if (waterArea != null) {
-            NUtils.navigateToArea(waterArea);
-            area = waterArea.getRCArea();
-        }
-
-        // 3) Last resort: ask user to select an area
-        if (area == null) {
+        if (useGlobalZone) {
+            NArea nArea = NContext.findSpec(Specialisation.SpecName.water.toString());
+            if (nArea == null) {
+                nArea = NContext.findSpecGlobal(Specialisation.SpecName.water.toString());
+            }
+            if (nArea == null) {
+                return Results.ERROR("No water area found! Please create an area with 'water' specialization.");
+            }
+            NUtils.navigateToArea(nArea);
+            area = nArea.getRCArea();
+        } else {
             SelectArea insa;
             NUtils.getGameUI().msg("Please, select area with cistern or barrel");
             (insa = new SelectArea(Resource.loadsimg("baubles/waterRefiller"))).run(gui);

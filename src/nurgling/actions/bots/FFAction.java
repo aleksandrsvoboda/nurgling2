@@ -13,7 +13,6 @@ import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class FFAction implements Action {
 

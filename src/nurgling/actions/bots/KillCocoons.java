@@ -2,13 +2,9 @@ package nurgling.actions.bots;
 
 import haven.WItem;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tasks.NTask;
 import nurgling.tools.NAlias;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 

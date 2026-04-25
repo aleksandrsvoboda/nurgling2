@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.*;
 import nurgling.*;
-import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;

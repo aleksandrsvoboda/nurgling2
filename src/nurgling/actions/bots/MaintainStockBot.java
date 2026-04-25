@@ -3,7 +3,6 @@ package nurgling.actions.bots;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NInventory;
-import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.CloseTargetContainer;
 import nurgling.actions.OpenTargetContainer;

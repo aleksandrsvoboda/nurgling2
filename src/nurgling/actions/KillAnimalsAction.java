@@ -3,7 +3,6 @@ package nurgling.actions;
 import haven.Gob;
 import haven.res.ui.croster.CattleId;
 import haven.res.ui.croster.Entry;
-import haven.res.ui.croster.RosterWindow;
 import nurgling.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;

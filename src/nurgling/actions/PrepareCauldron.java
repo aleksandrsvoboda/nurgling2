@@ -7,7 +7,6 @@ import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -30,6 +30,7 @@ public class WildOnionFarmer implements Action {
         req.add(field);
         req.add(wildOnionAsSeed);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
+        opt.add(trough);
         opt.add(swill);
 
         if (new Validator(req, opt).run(gui).IsSuccess()) {

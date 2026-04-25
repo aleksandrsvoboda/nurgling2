@@ -1,13 +1,11 @@
 package nurgling.actions.bots;
 
-import haven.Coord;
 import haven.Fightview;
 import haven.Gob;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
-import nurgling.tasks.GetCurs;
 import nurgling.tasks.WaitAnyEscaper;
 import nurgling.tasks.WaitBattleWindow;
 import nurgling.tasks.WaitRelationState;
@@ -16,8 +14,6 @@ import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
 
 import java.util.ArrayList;
-
-import static haven.OCache.posres;
 
 public class Reagro implements Action {
     boolean isEnabled = true;

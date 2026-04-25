@@ -12,7 +12,6 @@ import nurgling.actions.CloseTargetContainer;
 import nurgling.actions.OpenTargetContainer;
 import nurgling.actions.PathFinder;
 import nurgling.actions.Results;
-import nurgling.actions.TakeWItemsFromContainer;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.ISRemoved;

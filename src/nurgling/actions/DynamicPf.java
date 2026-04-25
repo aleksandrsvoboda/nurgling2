@@ -13,11 +13,9 @@ import nurgling.pf.NPFMap;
 import nurgling.pf.Utils;
 import nurgling.tasks.DynMovingCompleted;
 import nurgling.tasks.IsMoving;
-import nurgling.tasks.MovingCompleted;
 import nurgling.tasks.WaitPath;
 import nurgling.tools.Finder;
 
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 

@@ -2,16 +2,10 @@ package nurgling.actions.bots;
 
 import haven.Gob;
 import haven.Resource;
-import haven.UI;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.conf.NCarrierProp;
-import nurgling.tasks.WaitCheckable;
 import nurgling.tools.Finder;
-import nurgling.tools.NAlias;
-
-import java.util.ArrayList;
 
 public class TransferFromVehToVeh implements Action {
     @Override

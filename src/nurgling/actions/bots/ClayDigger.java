@@ -1,9 +1,7 @@
 package nurgling.actions.bots;
 
-import haven.Gob;
 import haven.Resource;
 import haven.UI;
-import haven.res.lib.tree.TreeScale;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
@@ -11,15 +9,7 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NClayDiggerProp;
 import nurgling.tasks.WaitCheckable;
-import nurgling.tasks.WaitChopperState;
-import nurgling.tasks.WaitPose;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 public class ClayDigger implements Action {
     @Override

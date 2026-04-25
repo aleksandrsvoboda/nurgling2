@@ -1,7 +1,6 @@
 package nurgling.actions.bots;
 
 import haven.Gob;
-import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
@@ -14,7 +13,6 @@ import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class CurdingTubUnloader implements Action {
     @Override

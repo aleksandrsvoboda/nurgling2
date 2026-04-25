@@ -5,14 +5,11 @@ import nurgling.*;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tools.Context;
+
 import nurgling.widgets.FoodContainer;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.List;
-
-import static haven.Coord.of;
 
 public class Eater implements Action {
 

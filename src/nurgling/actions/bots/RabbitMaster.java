@@ -6,7 +6,6 @@ import haven.Inventory;
 import haven.WItem;
 import nurgling.*;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.WaitItems;
 import nurgling.tools.Container;

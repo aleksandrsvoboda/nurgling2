@@ -4,15 +4,10 @@ import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
-import nurgling.conf.NChipperProp;
 import nurgling.tasks.WaitChipperState;
-import nurgling.tasks.WaitLifted;
-import nurgling.tasks.WaitPose;
 import nurgling.tasks.WaitPoseOrNoGob;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.Specialisation;
 
 public class BuildCellar implements Action {
     @Override

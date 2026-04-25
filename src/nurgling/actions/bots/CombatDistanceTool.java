@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.Coord;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.widgets.NCombatDistanceTool;

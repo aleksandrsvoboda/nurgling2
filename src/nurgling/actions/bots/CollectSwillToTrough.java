@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.NGItem;
 import nurgling.NISBox;
 import nurgling.actions.Action;
@@ -13,7 +12,6 @@ import nurgling.actions.TakeItemsFromPile;
 import nurgling.actions.OpenTargetContainer;
 import nurgling.actions.TransferToTrough;
 import nurgling.areas.NContext;
-import nurgling.tasks.FilledTrough;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;

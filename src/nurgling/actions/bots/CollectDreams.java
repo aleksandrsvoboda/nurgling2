@@ -6,7 +6,6 @@ import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -14,9 +13,10 @@ import nurgling.widgets.Specialisation;
 public class CollectDreams implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        Context context = new Context();
+        NContext context = new NContext(gui);
+        NArea dreamcatcherArea = NContext.findSpec(Specialisation.SpecName.dreamcatcher.toString());
 
-        for (Gob dreamCatcher : Finder.findGobs(NContext.findSpec(Specialisation.SpecName.dreamcatcher.toString()),
+        for (Gob dreamCatcher : Finder.findGobs(dreamcatcherArea,
                 new NAlias("gfx/terobjs/dreca"))) {
             new PathFinder(dreamCatcher).run(gui);
             Results harvestResult;
@@ -30,11 +30,12 @@ public class CollectDreams implements Action {
             } while (harvestResult.isSuccess);
 
             if(NUtils.getGameUI().getInventory().getFreeSpace()<3) {
-                new FreeInventory(context).run(gui);
+                new FreeInventory2(context).run(gui);
+                NUtils.navigateToArea(dreamcatcherArea);
             }
         }
 
-        new FreeInventory(context).run(gui);
+        new FreeInventory2(context).run(gui);
 
         return Results.SUCCESS();
     }

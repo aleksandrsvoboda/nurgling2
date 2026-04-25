@@ -3,7 +3,6 @@ package nurgling.actions.bots;
 import haven.*;
 import nurgling.NConfig;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
@@ -18,9 +17,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-
-import static nurgling.widgets.Specialisation.SpecName.logs;
 
 public class Smoking implements Action {
     @Override

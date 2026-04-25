@@ -1,11 +1,8 @@
 package nurgling.actions;
 
-import haven.Coord;
-import haven.Gob;
 import haven.MenuGrid;
 import haven.WItem;
 import nurgling.*;
-import nurgling.areas.NContext;
 import nurgling.tasks.*;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
@@ -13,8 +10,6 @@ import nurgling.widgets.NEquipory;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static haven.OCache.posres;
 
 public class AutoDrink implements Action
 {
