@@ -7,7 +7,6 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -68,10 +67,10 @@ public class ArrangeSilkmothPairs implements Action {
     }
 
     private ArrayList<Container> getContainersInArea(NArea area) throws InterruptedException {
-        ArrayList<Gob> gobs = Finder.findGobs(area, new NAlias(new ArrayList<>(Context.contcaps.keySet())));
+        ArrayList<Gob> gobs = Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob gob : gobs) {
-            Container c = new Container(gob, Context.contcaps.get(gob.ngob.name),area);
+            Container c = new Container(gob, NContext.contcaps.get(gob.ngob.name),area);
             c.initattr(Container.Space.class);
             containers.add(c);
         }

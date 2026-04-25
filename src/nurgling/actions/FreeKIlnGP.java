@@ -8,7 +8,6 @@ import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitPose;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -28,7 +27,6 @@ public class FreeKIlnGP implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        Context context = new Context();
         for(Container container: containers)
         {
             Container.Space space = container.getattr(Container.Space.class);

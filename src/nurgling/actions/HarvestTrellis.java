@@ -8,7 +8,7 @@ import nurgling.tasks.NoGob;
 import nurgling.tasks.WaitGobModelAttrChange;
 import nurgling.tasks.WaitMoreItems;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
+import nurgling.areas.NContext;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
@@ -205,11 +205,11 @@ public class HarvestTrellis implements Action {
     }
 
     private void dropToContainers(NGameUI gui, NAlias item, NArea containerArea) throws InterruptedException {
-        // Find all containers in the area (using Context.contcaps pattern from HarvestCrop)
+        // Find all containers in the area (using NContext.contcaps pattern from HarvestCrop)
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob sm : Finder.findGobs(containerArea.getRCArea(),
-                                       new NAlias(new ArrayList<>(Context.contcaps.keySet())))) {
-            Container cand = new Container(sm, Context.contcaps.get(sm.ngob.name), null);
+                                       new NAlias(new ArrayList<>(NContext.contcaps.keySet())))) {
+            Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), null);
             cand.initattr(Container.Space.class);
             containers.add(cand);
         }
