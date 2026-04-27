@@ -4,11 +4,6 @@ import haven.*;
 import nurgling.*;
 import nurgling.areas.NContext;
 import nurgling.iteminfo.NFoodInfo;
-import nurgling.tools.Context;
-import nurgling.tasks.WaitItems;
-import nurgling.tools.Container;
-
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
@@ -35,59 +30,7 @@ public class FindAndEatItems implements Action
            cnt.addInItem(item, null);
         }
 
-//        for(String item: items) {
-//            for (Context.Input input : cnt.getInputs(item)) {
-//                if (input instanceof Context.InputPile) {
-//                    takeFromPile(gui, (Context.InputPile) input);
-//                } else if (input instanceof Context.InputContainer) {
-//                    takeFromContainer(gui, (Context.InputContainer) input);
-//                }
-//                if(!calcCalories())
-//                    break;
-//            }
-//            if(!calcCalories())
-//                break;
-//        }
         eatAll(gui);
-        return Results.SUCCESS();
-    }
-
-    public Results takeFromPile(NGameUI gui, Context.InputPile pile) throws InterruptedException
-    {
-        new PathFinder(pile.pile).run(gui);
-        new OpenTargetContainer("Stockpile",  pile.pile).run(gui);
-        while (calcCalories()) {
-            if(gui.getInventory().getNumberFreeCoord(new Coord(1,1))==0)
-            {
-                eatAll(gui);
-            }
-            TakeItemsFromPile tifp;
-            (tifp = new TakeItemsFromPile(pile.pile, gui.getStockpile(), 1)).run(gui);
-            if(tifp.getResult() == 0)
-                break;
-        }
-        new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
-        return Results.SUCCESS();
-    }
-
-    public Results takeFromContainer(NGameUI gui, Container cont) throws InterruptedException
-    {
-        new PathFinder(Finder.findGob(cont.gobid)).run(gui);
-        new OpenTargetContainer(cont).run(gui);
-        while (calcCalories()) {
-            if(gui.getInventory().getNumberFreeCoord(new Coord(1,1))==0)
-            {
-                eatAll(gui);
-            }
-            WItem taritem = NUtils.getGameUI().getInventory(cont.cap).getItem(new NAlias(items));
-            int oldSize = NUtils.getGameUI().getInventory().getItems(new NAlias(items)).size();
-            if( taritem == null )
-                break;
-            taritem.item.wdgmsg("transfer", Coord.z);
-            gui.ui.core.addTask(new WaitItems(NUtils.getGameUI().getInventory(), new NAlias(items), oldSize + 1));
-        }
-
-        new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
         return Results.SUCCESS();
     }
 
