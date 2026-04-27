@@ -6,12 +6,12 @@ import haven.Resource;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Parameterized tree/bush collection bot.
@@ -49,15 +49,15 @@ public class CollectFromTreeBot implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        SelectArea insa;
-        NUtils.getGameUI().msg(treesPrompt);
-        (insa = new SelectArea(Resource.loadsimg(treesIcon))).run(gui);
+        NContext context = new NContext(gui);
 
-        SelectArea outsa;
-        NUtils.getGameUI().msg(pilesPrompt);
-        (outsa = new SelectArea(Resource.loadsimg(pilesIcon))).run(gui);
+        String treeAreaId = context.createArea(treesPrompt, Resource.loadsimg(treesIcon));
+        NArea treeArea = context.getAreaById(treeAreaId);
 
-        ArrayList<Gob> trees = Finder.findGobs(insa.getRCArea(), treePattern);
+        String pileAreaId = context.createArea(pilesPrompt, Resource.loadsimg(pilesIcon));
+        NArea pileArea = context.getAreaById(pileAreaId);
+
+        ArrayList<Gob> trees = Finder.findGobs(treeArea, treePattern);
         if (filterByModelAttr) {
             trees.removeIf(tree -> {
                 long attr = tree.ngob.getModelAttribute();
@@ -68,9 +68,9 @@ public class CollectFromTreeBot implements Action {
 
         for (Gob tree : trees) {
             String pose = resolvePose(tree);
-            new CollectFromGob(tree, flowerAction, pose, itemSize, itemAlias, outsa.getRCArea()).run(gui);
+            new CollectFromGob(tree, flowerAction, pose, itemSize, itemAlias, pileArea.getRCArea()).run(gui);
         }
-        new TransferToPiles(outsa.getRCArea(), itemAlias).run(gui);
+        new TransferToPiles(pileArea.getRCArea(), itemAlias).run(gui);
         return Results.SUCCESS();
     }
 

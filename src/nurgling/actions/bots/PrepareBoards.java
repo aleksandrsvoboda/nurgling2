@@ -6,6 +6,8 @@ import haven.UI;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.conf.NPrepBoardsProp;
 import nurgling.tasks.WaitCheckable;
 import nurgling.tasks.WaitPose;
@@ -36,16 +38,16 @@ public class PrepareBoards implements Action {
         {
             return Results.ERROR("No config");
         }
-        SelectArea insa;
-        NUtils.getGameUI().msg("Please select area with logs");
-        (insa = new SelectArea(Resource.loadsimg("baubles/prepLogs"))).run(gui);
+        NContext context = new NContext(gui);
 
-        SelectArea outsa;
-        NUtils.getGameUI().msg("Please select area for piles");
-        (outsa = new SelectArea(Resource.loadsimg("baubles/prepBoardP"))).run(gui);
+        String logAreaId = context.createArea("Please select area with logs", Resource.loadsimg("baubles/prepLogs"));
+        NArea logArea = context.getAreaById(logAreaId);
+
+        String pileAreaId = context.createArea("Please select area for piles", Resource.loadsimg("baubles/prepBoardP"));
+        NArea pileArea = context.getAreaById(pileAreaId);
 
         ArrayList<Gob> logs;
-        while (!(logs = Finder.findGobs(insa.getRCArea(),new NAlias("log"))).isEmpty())
+        while (!(logs = Finder.findGobs(logArea, new NAlias("log"))).isEmpty())
         {
             logs.sort(NUtils.d_comp);
             Gob log = logs.get(0);
@@ -65,7 +67,7 @@ public class PrepareBoards implements Action {
                         break;
                     }
                     case NOFREESPACE: {
-                        if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
+                        if(!(new TransferToPiles(pileArea.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
                             return Results.FAIL();
                         break;
                     }
@@ -75,7 +77,7 @@ public class PrepareBoards implements Action {
                 }
             }
         }
-        if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
+        if(!(new TransferToPiles(pileArea.getRCArea(),new NAlias("board")).run(gui).IsSuccess()))
             return Results.FAIL();
         return Results.SUCCESS();
     }

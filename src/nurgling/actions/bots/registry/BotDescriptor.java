@@ -17,6 +17,7 @@ public class BotDescriptor {
     public final Class<? extends Action> clazz;
     public final String iconPath;
     public final boolean disStacks;
+    public final Map<String, Object> defaultSettings;
 
     public enum BotType {
         RESOURCES,
@@ -31,6 +32,10 @@ public class BotDescriptor {
     }
 
     public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, boolean disStacks) {
+        this(id, type, titleKey, descriptionKey, allowedAsStepInScenario, allowedAsItemInBotMenu, clazz, iconPath, disStacks, Map.of());
+    }
+
+    public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, boolean disStacks, Map<String, Object> defaultSettings) {
         this.id = id;
         this.type = type;
         this.titleKey = titleKey;
@@ -40,6 +45,7 @@ public class BotDescriptor {
         this.clazz = clazz;
         this.iconPath = iconPath;
         this.disStacks = disStacks;
+        this.defaultSettings = defaultSettings;
     }
 
     /**
@@ -76,14 +82,23 @@ public class BotDescriptor {
 
     public Action instantiate(Map<String, Object> settings) {
         try {
+            Map<String, Object> merged = mergeSettings(settings);
             try {
-                return clazz.getDeclaredConstructor(Map.class).newInstance(settings);
+                return clazz.getDeclaredConstructor(Map.class).newInstance(merged);
             } catch (NoSuchMethodException e) {
                 return clazz.getDeclaredConstructor().newInstance();
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Map<String, Object> mergeSettings(Map<String, Object> callerSettings) {
+        if (defaultSettings.isEmpty()) return callerSettings;
+        if (callerSettings == null || callerSettings.isEmpty()) return defaultSettings;
+        java.util.HashMap<String, Object> merged = new java.util.HashMap<>(defaultSettings);
+        merged.putAll(callerSettings);
+        return merged;
     }
 
     public String getUpIconPath() {
