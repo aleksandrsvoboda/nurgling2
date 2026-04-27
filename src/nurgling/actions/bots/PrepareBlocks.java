@@ -65,8 +65,8 @@ public class PrepareBlocks implements Action {
                     case LOGNOTFOUND:
                         break;
                     case TIMEFORDRINK: {
-                        if(!(new Drink(0.9, true).run(gui)).IsSuccess())
-                            return Results.ERROR("Drink is not found");
+                        if(!new RestoreResources().run(gui).IsSuccess())
+                            return Results.ERROR("Failed to restore resources");
                         break;
                     }
                     case NOFREESPACE: {

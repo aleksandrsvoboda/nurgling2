@@ -101,28 +101,11 @@ public class Chipper implements Action {
                     switch (wcs.getState()) {
                         case BUMLINGNOTFOUND:
                             break;
-                        case BUMLINGFORDRINK: {
-                            if (prop.autorefill) {
-                                if (FillWaterskins.checkIfNeed())
-                                    if (!(new FillWaterskins().run(gui).IsSuccess()))
-                                        return Results.FAIL();
-                                new PathFinder(bumling).run(gui);
-                            }
-                            if(!(new Drink(0.9,true).run(gui).IsSuccess()))
-                            {
-                                if (prop.autorefill) {
-                                    if (!(new FillWaterskins().run(gui).IsSuccess()))
-                                        return Results.FAIL();
-                                }
-                                else
-                                    return Results.FAIL();
-                                new PathFinder(bumling).run(gui);
-                            }
-                            break;
-                        }
+                        case BUMLINGFORDRINK:
                         case BUMLINGFOREAT: {
-                            if(!(new AutoEater().run(gui).IsSuccess()))
+                            if(!new RestoreResources().run(gui).IsSuccess())
                                 return Results.FAIL();
+                            new PathFinder(bumling).run(gui);
                             break;
                         }
                         case DANGER: {
@@ -159,29 +142,11 @@ public class Chipper implements Action {
                 WaitPlateuState wcs = new WaitPlateuState(prop);
                 NUtils.getUI().core.addTask(wcs);
                 switch (wcs.getState()) {
-                    case BUMLINGFORDRINK: {
-                        if (prop.autorefill) {
-                            if (FillWaterskins.checkIfNeed())
-                                if (!(new FillWaterskins().run(gui).IsSuccess()))
-                                    return Results.FAIL();
-                            new PathFinder(mountain).run(gui);
-                        }
-                        if(!(new Drink(0.9, true).run(gui).IsSuccess()))
-                        {
-                            if (prop.autorefill) {
-                                if (!(new FillWaterskins().run(gui).IsSuccess()))
-                                    return Results.FAIL();
-                                else
-                                    new PathFinder( mountain ).run (gui);
-                            }
-                            else
-                                return Results.FAIL();
-                        }
-                        break;
-                    }
+                    case BUMLINGFORDRINK:
                     case BUMLINGFOREAT: {
-                        if(!(new AutoEater().run(gui).IsSuccess()))
+                        if(!new RestoreResources().run(gui).IsSuccess())
                             return Results.FAIL();
+                        new PathFinder(mountain).run(gui);
                         break;
                     }
                     case DANGER: {
