@@ -61,25 +61,20 @@ public class GelatinAction implements Action {
 
         // Главный цикл крафта
         while (true) {
-            // Ищем зону со шкурами глобально
-            NArea hidesArea = NContext.findSpec(Specialisation.SpecName.readyHides.toString());
-            if (hidesArea == null) {
-                hidesArea = NContext.findSpecGlobal(Specialisation.SpecName.readyHides.toString());
-            }
+            // Создаем NContext для работы с зонами
+            NContext ncontext = new NContext(gui);
+
+            NArea hidesArea = ncontext.getSpecArea(Specialisation.SpecName.readyHides);
             if (hidesArea == null) {
                 return Results.ERROR("Required zone 'readyHides' not found");
             }
 
-            // Проверяем энергию
             double currentEnergy = NUtils.getEnergy();
             if (currentEnergy < 0.25) {
                 if (!new RestoreResources().run(gui).IsSuccess()) {
                     return Results.ERROR("Energy too low and failed to restore resources");
                 }
             }
-
-            // Создаем NContext для работы с зонами
-            NContext ncontext = new NContext(gui);
 
             // Настраиваем workstation на cauldron
             ncontext.workstation = new NContext.Workstation("gfx/terobjs/cauldron", null);

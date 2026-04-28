@@ -94,11 +94,11 @@ public class KFC implements Action {
             return Results.FAIL();
         }
         
-        // Find areas globally
-        NArea chickenArea = NContext.findSpecGlobal(Specialisation.SpecName.chicken.toString());
-        NArea incubatorArea = NContext.findSpecGlobal(Specialisation.SpecName.incubator.toString());
-        NArea swillArea = NContext.findSpecGlobal(Specialisation.SpecName.swill.toString());
-        NArea waterArea = NContext.findSpecGlobal(Specialisation.SpecName.water.toString());
+        // Resolve areas (local first, then global) without navigating — bot navigates explicitly below
+        NArea chickenArea = context.resolveSpecArea(Specialisation.SpecName.chicken);
+        NArea incubatorArea = context.resolveSpecArea(Specialisation.SpecName.incubator);
+        NArea swillArea = context.resolveSpecArea(Specialisation.SpecName.swill);
+        NArea waterArea = context.resolveSpecArea(Specialisation.SpecName.water);
         
         if (chickenArea == null) {
             return Results.ERROR("Chicken area not found!");

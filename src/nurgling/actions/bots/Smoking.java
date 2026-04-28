@@ -63,10 +63,10 @@ public class Smoking implements Action {
         if(!new Validator(req, opt).run(gui).IsSuccess()) {
             return Results.FAIL();
         }
-        
-        // Check global route availability
-        NArea smokeArea = NContext.findSpecGlobal(ssmokshed);
-        NArea logsArea = NContext.findSpecGlobal(slogs);
+
+        NContext context = new NContext(gui);
+        NArea smokeArea = context.resolveSpecArea(Specialisation.SpecName.smokshed);
+        NArea logsArea = context.resolveSpecArea(Specialisation.SpecName.smokedlog);
 
         ArrayList<NSmokProp> cands = new ArrayList<>();
         Pair<Coord2d,Coord2d> sheds = smokeArea.getRCArea();
@@ -81,7 +81,6 @@ public class Smoking implements Action {
             return Results.ERROR("No logs, or input areas not found");
         }
         HashMap<String,ArrayList<NSmokProp>> fuels = new HashMap<String,ArrayList<NSmokProp>>();
-        NContext context = new NContext(gui);
         for(NSmokProp prop : cands) {
             if(!fuels.containsKey(prop.fuel)) {
                 fuels.put(prop.fuel, new ArrayList<>());

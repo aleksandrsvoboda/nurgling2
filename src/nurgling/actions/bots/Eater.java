@@ -27,19 +27,10 @@ public class Eater implements Action {
     public Results run(NGameUI gui) throws InterruptedException {
         ArrayList<String> items = FoodContainer.getFoodNames();
 
-        Pair<Coord2d,Coord2d> area = null;
-        NArea nArea = NContext.findSpec(Specialisation.SpecName.eat.toString());
-        if(nArea==null)
-        {
-            nArea = NContext.findSpecGlobal(Specialisation.SpecName.eat.toString());
-        }
-        else
-        {
-            area = nArea.getRCArea();
-        }
-        if(area!=null) {
-            NContext cnt = new NContext(gui);
-            new FindAndEatItems(cnt, items, 8000, area).run(gui);
+        NContext cnt = new NContext(gui);
+        NArea nArea = cnt.getSpecArea(Specialisation.SpecName.eat);
+        if(nArea != null) {
+            new FindAndEatItems(cnt, items, 8000, nArea.getRCArea()).run(gui);
             return NUtils.getEnergy()*10000>8000?Results.SUCCESS():Results.FAIL();
         }
         else

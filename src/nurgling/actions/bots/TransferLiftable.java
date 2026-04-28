@@ -51,8 +51,7 @@ public class TransferLiftable implements Action
 
         NContext context = new NContext(gui);
 
-        NArea.Specialisation carrierOutSpec = new NArea.Specialisation(Specialisation.SpecName.carrierout.toString());
-        NArea carrierOutArea = NContext.findSpecGlobal(carrierOutSpec);
+        NArea carrierOutArea = context.resolveSpecArea(Specialisation.SpecName.carrierout);
 
         NArea inarea;
 
@@ -60,13 +59,10 @@ public class TransferLiftable implements Action
             if (carrierOutArea == null) {
                 return Results.ERROR("No CarrierOut zone found! Please create a global zone with 'carrierout' specialization.");
             }
-            NArea.Specialisation carrierInSpec = new NArea.Specialisation(Specialisation.SpecName.sorting.toString());
-            inarea = NContext.findSpecGlobal(carrierInSpec);
+            inarea = context.resolveSpecArea(Specialisation.SpecName.sorting);
             if (inarea == null) {
                 String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
                 inarea = context.getAreaById(insaId);
-            } else {
-                NUtils.navigateToArea(inarea);
             }
         } else {
             String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));

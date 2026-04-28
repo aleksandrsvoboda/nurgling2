@@ -34,9 +34,8 @@ public class SilkProductionBot implements Action {
         String eggs = "Silkworm Egg";
         String leaves = "Mulberry Leaf";
         String cacoons = "Silkworm Cocoon";
-        
 
-        boolean areasValid = validateRequiredAreas(gui);
+        boolean areasValid = validateRequiredAreas(gui, context);
 
         if(!areasValid) {
             return Results.ERROR("Not all required areas are defined");
@@ -102,20 +101,20 @@ public class SilkProductionBot implements Action {
         return Results.SUCCESS();
     }
 
-    private boolean validateRequiredAreas(NGameUI gui) {
-        NArea feedingArea = NContext.findSpecGlobal("silkwormFeeding");
+    private boolean validateRequiredAreas(NGameUI gui, NContext context) {
+        NArea feedingArea = context.resolveSpecArea(Specialisation.SpecName.silkwormFeeding);
         if (feedingArea == null) {
             gui.error("Silkworm Feeding spec area is required, but not found.");
             return false;
         }
 
-        NArea breedingArea = NContext.findSpecGlobal("silkmothBreeding");
+        NArea breedingArea = context.resolveSpecArea(Specialisation.SpecName.silkmothBreeding);
         if (breedingArea == null) {
             gui.error("Silkmoth Breeding spec area is required, but not found.");
             return false;
         }
 
-        NArea htablesSilkwormEgg = NContext.findSpecGlobal("htable", "Silkworm Egg");
+        NArea htablesSilkwormEgg = context.resolveSpecArea(Specialisation.SpecName.htable, "Silkworm Egg");
         if (htablesSilkwormEgg == null) {
             gui.error("Herbalist Table spec with Silkworm Egg sub spec area is required, but not found.");
             return false;

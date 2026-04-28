@@ -31,10 +31,11 @@ public class DFrameHidesAction implements Action {
         req.add(rrawhides);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
         if(new Validator(req, opt).run(gui).IsSuccess()) {
+            NContext context = new NContext(gui);
 
             ArrayList<Container> containers = new ArrayList<>();
 
-            NArea dframesarea = NContext.findSpec(rdframe);
+            NArea dframesarea = context.getSpecArea(Specialisation.SpecName.dframe, "Hides");
             for (Gob dframe : Finder.findGobs(dframesarea,
                     new NAlias("gfx/terobjs/dframe"))) {
                 Container cand = new Container(dframe,"Frame" , dframesarea);
@@ -80,9 +81,9 @@ public class DFrameHidesAction implements Action {
 
 
             new FreeContainers(containers, new NAlias(new ArrayList<>(Arrays.asList("Fur", "Hide", "Scale", "Tail", "skin", "hide")), new ArrayList<>(Arrays.asList("Fresh", "Raw")))).run(gui);
-            NUtils.navigateToArea(NContext.findSpecGlobal(Specialisation.SpecName.rawhides.toString()));
-            new FillContainersFromPiles(containers, NContext.findSpecGlobal(Specialisation.SpecName.rawhides.toString()).getRCArea(), raw).run(gui);
-            new TransferToPiles(NContext.findSpecGlobal(Specialisation.SpecName.rawhides.toString()).getRCArea(), new NAlias("Fresh")).run(gui);
+            NArea rawhidesArea = context.getSpecArea(Specialisation.SpecName.rawhides);
+            new FillContainersFromPiles(containers, rawhidesArea.getRCArea(), raw).run(gui);
+            new TransferToPiles(rawhidesArea.getRCArea(), new NAlias("Fresh")).run(gui);
 
             return Results.SUCCESS();
         }

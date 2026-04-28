@@ -45,6 +45,8 @@ public class HoneyAndWaxCollector implements Action {
             return Results.ERROR("Nothing selected");
         }
 
+        NContext context = new NContext(gui);
+
         // Phase 1: Find all bee skep areas
         ArrayList<NArea> beeSkepAreas = NContext.findAllSpec(Specialisation.SpecName.beeSkep.toString());
         if (beeSkepAreas.isEmpty()) {
@@ -54,7 +56,7 @@ public class HoneyAndWaxCollector implements Action {
 
         // Phase 2: Honey collection
         if (collectHoney) {
-            Results honeyResult = collectAllHoney(gui, beeSkepAreas);
+            Results honeyResult = collectAllHoney(gui, context, beeSkepAreas);
             if (!honeyResult.IsSuccess())
                 return honeyResult;
         }
@@ -69,17 +71,13 @@ public class HoneyAndWaxCollector implements Action {
         return Results.SUCCESS();
     }
 
-    private Results collectAllHoney(NGameUI gui, ArrayList<NArea> beeSkepAreas) throws InterruptedException {
-        // Find cistern area with Honey subspecialization
-        NArea cisternArea = NContext.findSpecGlobal(
-                Specialisation.SpecName.cistern.toString(), "Honey");
+    private Results collectAllHoney(NGameUI gui, NContext context, ArrayList<NArea> beeSkepAreas) throws InterruptedException {
+        NArea cisternArea = context.getSpecArea(Specialisation.SpecName.cistern, "Honey");
         if (cisternArea == null) {
             getGameUI().error("No Cistern area with Honey specialization found");
             return Results.ERROR("No Cistern area with Honey specialization");
         }
 
-        // Navigate to cistern area and find barrel + cistern
-        NUtils.navigateToArea(cisternArea);
         Gob barrel = Finder.findGob(cisternArea, BARREL_ALIAS);
         if (barrel == null) {
             getGameUI().error("No barrel found in Honey cistern area");

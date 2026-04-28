@@ -10,9 +10,9 @@ public class RunToSafe implements Action{
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NUtils.setSpeed(4);
-        NArea nArea = NContext.findSpecGlobal(Specialisation.SpecName.safe.toString());
+        NContext context = new NContext(gui);
+        NArea nArea = context.getSpecArea(Specialisation.SpecName.safe);
         if(nArea!=null) {
-
             return Results.SUCCESS();
         }
         else {

@@ -34,14 +34,11 @@ public class FillWaterskins implements Action {
         Pair<Coord2d, Coord2d> area = null;
 
         if (useGlobalZone) {
-            NArea nArea = NContext.findSpec(Specialisation.SpecName.water.toString());
-            if (nArea == null) {
-                nArea = NContext.findSpecGlobal(Specialisation.SpecName.water.toString());
-            }
+            NContext context = new NContext(gui);
+            NArea nArea = context.getSpecArea(Specialisation.SpecName.water);
             if (nArea == null) {
                 return Results.ERROR("No water area found! Please create an area with 'water' specialization.");
             }
-            NUtils.navigateToArea(nArea);
             area = nArea.getRCArea();
         } else {
             SelectArea insa;

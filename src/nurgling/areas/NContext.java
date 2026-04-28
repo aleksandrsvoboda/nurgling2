@@ -467,41 +467,66 @@ public class NContext {
         return null;
     }
 
-    public NArea getSpecArea(Specialisation.SpecName name) throws InterruptedException {
+    /**
+     * Resolve a spec area (local first, then global) with caching. Does NOT navigate.
+     * Use this when resolving multiple areas upfront before the bot decides where to go.
+     */
+    public NArea resolveSpecArea(Specialisation.SpecName name) {
         if(!areas.containsKey(name.toString())) {
             NArea area = findSpec(name.toString());
             if (area == null) {
                 area = findSpecGlobal(name.toString());
             }
             if (area != null) {
-                areas.put(String.valueOf(name.toString()), area);
+                areas.put(name.toString(), area);
             }
-            else
-            {
+            else {
                 return null;
             }
         }
-        navigateToAreaIfNeeded(name.toString());
         return areas.get(name.toString());
     }
 
-    public NArea getSpecArea(Specialisation.SpecName name, String sub) throws InterruptedException {
+    /**
+     * Resolve a spec area with subtype (local first, then global) with caching. Does NOT navigate.
+     */
+    public NArea resolveSpecArea(Specialisation.SpecName name, String sub) {
         String key = name.toString() + (sub != null ? "_" + sub : "");
         if(!areas.containsKey(key)) {
-            NArea area = findSpec(name.toString(),sub);
+            NArea area = findSpec(name.toString(), sub);
             if (area == null) {
-                area = findSpecGlobal(name.toString(),sub);
+                area = findSpecGlobal(name.toString(), sub);
             }
             if (area != null) {
                 areas.put(key, area);
             }
-            else
-            {
+            else {
                 return null;
             }
         }
-        navigateToAreaIfNeeded(key);
         return areas.get(key);
+    }
+
+    /**
+     * Resolve and navigate to a spec area (local first, then global) with caching.
+     * Use this when the bot needs to be AT the area immediately after the call.
+     */
+    public NArea getSpecArea(Specialisation.SpecName name) throws InterruptedException {
+        NArea area = resolveSpecArea(name);
+        if (area == null) return null;
+        navigateToAreaIfNeeded(name.toString());
+        return area;
+    }
+
+    /**
+     * Resolve and navigate to a spec area with subtype (local first, then global) with caching.
+     */
+    public NArea getSpecArea(Specialisation.SpecName name, String sub) throws InterruptedException {
+        NArea area = resolveSpecArea(name, sub);
+        if (area == null) return null;
+        String key = name.toString() + (sub != null ? "_" + sub : "");
+        navigateToAreaIfNeeded(key);
+        return area;
     }
 
     /**
