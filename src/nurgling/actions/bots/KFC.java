@@ -95,10 +95,10 @@ public class KFC implements Action {
         }
         
         // Resolve areas (local first, then global) without navigating — bot navigates explicitly below
-        NArea chickenArea = context.resolveSpecArea(Specialisation.SpecName.chicken);
-        NArea incubatorArea = context.resolveSpecArea(Specialisation.SpecName.incubator);
-        NArea swillArea = context.resolveSpecArea(Specialisation.SpecName.swill);
-        NArea waterArea = context.resolveSpecArea(Specialisation.SpecName.water);
+        NArea chickenArea = context.findArea(Specialisation.SpecName.chicken);
+        NArea incubatorArea = context.findArea(Specialisation.SpecName.incubator);
+        NArea swillArea = context.findArea(Specialisation.SpecName.swill);
+        NArea waterArea = context.findArea(Specialisation.SpecName.water);
         
         if (chickenArea == null) {
             return Results.ERROR("Chicken area not found!");
@@ -222,7 +222,7 @@ public class KFC implements Action {
             return Results.ERROR("No chicken coops found!");
         }
         
-        context.getSpecArea(Specialisation.SpecName.chicken);
+        context.goToArea(Specialisation.SpecName.chicken);
         Gob bestCoopGob = Finder.findGob(coopInfos.get(0).gobHash);
         if (bestCoopGob == null) {
             return Results.ERROR("Best coop not found!");
@@ -272,7 +272,7 @@ public class KFC implements Action {
         NAlias chickAlias = new NAlias(new ArrayList<>(List.of("Chick")), new ArrayList<>(List.of("Egg")));
         
         // Collect chicks from chicken coops
-        context.getSpecArea(Specialisation.SpecName.chicken);
+        context.goToArea(Specialisation.SpecName.chicken);
         for (String hash : coopHashes) {
             Gob gob = Finder.findGob(hash);
             if (gob == null) continue;
@@ -293,7 +293,7 @@ public class KFC implements Action {
             // If inventory getting full, transfer to incubators (don't kill yet)
             if (shouldDropOffItems(gui)) {
                 transferChicksToIncubators(gui, incubatorHashes);
-                context.getSpecArea(Specialisation.SpecName.chicken);
+                context.goToArea(Specialisation.SpecName.chicken);
             }
         }
         
@@ -309,7 +309,7 @@ public class KFC implements Action {
         ArrayList<WItem> chicks = gui.getInventory().getItems(chickAlias);
         if (chicks.isEmpty()) return;
         
-        context.getSpecArea(Specialisation.SpecName.incubator);
+        context.goToArea(Specialisation.SpecName.incubator);
         for (String hash : incubatorHashes) {
             chicks = gui.getInventory().getItems(chickAlias);
             if (chicks.isEmpty()) break;
@@ -393,7 +393,7 @@ public class KFC implements Action {
      * Good quality eggs stay in coops for hatching.
      */
     private void collectAndDisposeLowQualityEggs(NGameUI gui, ArrayList<String> coopHashes, double qualityThreshold) throws InterruptedException {
-        context.getSpecArea(Specialisation.SpecName.chicken);
+        context.goToArea(Specialisation.SpecName.chicken);
         for (String hash : coopHashes) {
             Gob gob = Finder.findGob(hash);
             if (gob == null) continue;
@@ -416,7 +416,7 @@ public class KFC implements Action {
             // If inventory getting full, dispose via FreeInventory2 and return to chicken area
             if (shouldDropOffItems(gui)) {
                 new FreeInventory2(context).run(gui);
-                context.getSpecArea(Specialisation.SpecName.chicken);
+                context.goToArea(Specialisation.SpecName.chicken);
             }
         }
     }
@@ -428,7 +428,7 @@ public class KFC implements Action {
 
         for (IncubatorInfo roosterInfo : qcocks) {
             // Navigate to incubator area and open the coop with rooster
-            context.getSpecArea(Specialisation.SpecName.incubator);
+            context.goToArea(Specialisation.SpecName.incubator);
             
             Gob roosterGob = Finder.findGob(roosterInfo.gobHash);
             if (roosterGob == null) continue;
@@ -464,7 +464,7 @@ public class KFC implements Action {
                     if (rooster == null) break;
 
                     // Navigate to chicken area and open coop for replacement
-                    context.getSpecArea(Specialisation.SpecName.chicken);
+                    context.goToArea(Specialisation.SpecName.chicken);
                     
                     Gob coopGob = Finder.findGob(coopInfo.gobHash);
                     if (coopGob == null) continue;
@@ -518,7 +518,7 @@ public class KFC implements Action {
 
         for (IncubatorInfo henInfo : qhens) {
             // Navigate to incubator area and open coop with hen
-            context.getSpecArea(Specialisation.SpecName.incubator);
+            context.goToArea(Specialisation.SpecName.incubator);
             
             Gob henGob = Finder.findGob(henInfo.gobHash);
             if (henGob == null) continue;
@@ -555,7 +555,7 @@ public class KFC implements Action {
                         if (hen == null) break;
 
                         // Navigate to chicken area and open coop for replacement
-                        context.getSpecArea(Specialisation.SpecName.chicken);
+                        context.goToArea(Specialisation.SpecName.chicken);
                         
                         Gob coopGob = Finder.findGob(coopInfo.gobHash);
                         if (coopGob == null) continue;

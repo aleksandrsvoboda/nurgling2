@@ -35,7 +35,7 @@ public class FillWaterskins implements Action {
 
         if (useGlobalZone) {
             NContext context = new NContext(gui);
-            NArea nArea = context.getSpecArea(Specialisation.SpecName.water);
+            NArea nArea = context.goToArea(Specialisation.SpecName.water);
             if (nArea == null) {
                 return Results.ERROR("No water area found! Please create an area with 'water' specialization.");
             }

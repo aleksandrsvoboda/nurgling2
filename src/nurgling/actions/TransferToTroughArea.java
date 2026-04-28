@@ -35,7 +35,7 @@ public class TransferToTroughArea implements Action {
     public TransferToTroughArea(NGameUI gui, NAlias items) throws InterruptedException {
         this.items = items;
         this.context = new NContext(gui);
-        this.troughArea = context.getSpecArea(Specialisation.SpecName.trough);
+        this.troughArea = context.goToArea(Specialisation.SpecName.trough);
 
         if (this.troughArea == null) {
             throw new IllegalArgumentException("No trough specialization area found in NContext");

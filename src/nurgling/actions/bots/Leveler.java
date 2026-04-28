@@ -336,7 +336,7 @@ public class Leveler implements Action
         }
 
         NContext ctx = new NContext(gui);
-        NArea dump = ctx.getSpecArea(Specialisation.SpecName.soilDump);
+        NArea dump = ctx.goToArea(Specialisation.SpecName.soilDump);
         if (dump != null) {
             Pair<Coord2d, Coord2d> rca = dump.getRCArea();
             if (rca != null) {

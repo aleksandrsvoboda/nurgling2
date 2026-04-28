@@ -64,7 +64,7 @@ public class CheeseRackManager {
 
             // Navigate to this area
             NContext context = new NContext(gui);
-            context.getAreaById(targetArea.id);
+            context.goToAreaById(targetArea.id);
 
             ArrayList<Gob> racks = Finder.findGobs(targetArea, new NAlias("gfx/terobjs/cheeserack"));
 

@@ -31,7 +31,7 @@ public class UnGardentPotAction implements Action {
         NContext icontext = new NContext(gui);
         if(new Validator(req, opt).run(gui).IsSuccess()) {
 
-            NArea kilns = icontext.getSpecArea(Specialisation.SpecName.kiln);
+            NArea kilns = icontext.goToArea(Specialisation.SpecName.kiln);
 
             ArrayList<Container> containers = new ArrayList<>();
             for (Gob sm : Finder.findGobs(kilns, new NAlias("gfx/terobjs/kiln"))) {

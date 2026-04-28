@@ -189,7 +189,7 @@ public class RabbitMaster implements Action {
     private void killRemainingRabbits(NGameUI gui, List<Hutch> incubators) throws InterruptedException {
         NContext context = new NContext(gui);
         FreeInventory2 freeInv = new FreeInventory2(context);
-        context.getSpecArea(Specialisation.SpecName.rabbit);
+        context.goToArea(Specialisation.SpecName.rabbit);
 
         for (Hutch h : incubators) {
             if (h.does.isEmpty() && h.bucks.isEmpty()) {
@@ -215,7 +215,7 @@ public class RabbitMaster implements Action {
 
                 if (gui.getInventory().getFreeSpace() < 2) {
                     freeInv.run(gui);
-                    context.getSpecArea(Specialisation.SpecName.rabbit);
+                    context.goToArea(Specialisation.SpecName.rabbit);
                     moveTo(gui, Finder.findGob(h.container.gobid));
                     openContainer(gui, h.container);
                     invHolder[0] = gui.getInventory(HUTCH_NAME);
@@ -236,7 +236,7 @@ public class RabbitMaster implements Action {
 
                 if (gui.getInventory().getFreeSpace() < 1) {
                     freeInv.run(gui);
-                    context.getSpecArea(Specialisation.SpecName.rabbit);
+                    context.goToArea(Specialisation.SpecName.rabbit);
                     moveTo(gui, Finder.findGob(h.container.gobid));
                     openContainer(gui, h.container);
                     invHolder[0] = gui.getInventory(HUTCH_NAME);
@@ -257,7 +257,7 @@ public class RabbitMaster implements Action {
 
                 if (gui.getInventory().getFreeSpace() < 5) {
                     freeInv.run(gui);
-                    context.getSpecArea(Specialisation.SpecName.rabbit);
+                    context.goToArea(Specialisation.SpecName.rabbit);
                     moveTo(gui, Finder.findGob(h.container.gobid));
                     openContainer(gui, h.container);
                     invHolder[0] = gui.getInventory(HUTCH_NAME);
@@ -282,7 +282,7 @@ public class RabbitMaster implements Action {
             closeContainer(gui, h.container);
         }
         freeInv.run(gui);
-        context.getSpecArea(Specialisation.SpecName.rabbit);
+        context.goToArea(Specialisation.SpecName.rabbit);
     }
 
     private void moveBunniesToIncubators(NGameUI gui, List<Hutch> breeders, List<Hutch> incubators) throws InterruptedException {

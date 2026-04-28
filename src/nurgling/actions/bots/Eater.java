@@ -28,7 +28,7 @@ public class Eater implements Action {
         ArrayList<String> items = FoodContainer.getFoodNames();
 
         NContext cnt = new NContext(gui);
-        NArea nArea = cnt.getSpecArea(Specialisation.SpecName.eat);
+        NArea nArea = cnt.goToArea(Specialisation.SpecName.eat);
         if(nArea != null) {
             new FindAndEatItems(cnt, items, 8000, nArea.getRCArea()).run(gui);
             return NUtils.getEnergy()*10000>8000?Results.SUCCESS():Results.FAIL();

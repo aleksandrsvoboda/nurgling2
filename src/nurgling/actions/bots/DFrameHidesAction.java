@@ -35,7 +35,7 @@ public class DFrameHidesAction implements Action {
 
             ArrayList<Container> containers = new ArrayList<>();
 
-            NArea dframesarea = context.getSpecArea(Specialisation.SpecName.dframe, "Hides");
+            NArea dframesarea = context.goToArea(Specialisation.SpecName.dframe, "Hides");
             for (Gob dframe : Finder.findGobs(dframesarea,
                     new NAlias("gfx/terobjs/dframe"))) {
                 Container cand = new Container(dframe,"Frame" , dframesarea);
@@ -81,7 +81,7 @@ public class DFrameHidesAction implements Action {
 
 
             new FreeContainers(containers, new NAlias(new ArrayList<>(Arrays.asList("Fur", "Hide", "Scale", "Tail", "skin", "hide")), new ArrayList<>(Arrays.asList("Fresh", "Raw")))).run(gui);
-            NArea rawhidesArea = context.getSpecArea(Specialisation.SpecName.rawhides);
+            NArea rawhidesArea = context.goToArea(Specialisation.SpecName.rawhides);
             new FillContainersFromPiles(containers, rawhidesArea.getRCArea(), raw).run(gui);
             new TransferToPiles(rawhidesArea.getRCArea(), new NAlias("Fresh")).run(gui);
 

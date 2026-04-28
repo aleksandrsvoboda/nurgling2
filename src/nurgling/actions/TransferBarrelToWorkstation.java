@@ -43,7 +43,7 @@ public class TransferBarrelToWorkstation implements Action {
             if (specName == null)
                 return Results.ERROR("NO WORKSTATION SPEC MAPPING for " + context.workstation.station);
             
-            NArea area = context.getSpecArea(context.workstation);
+            NArea area = context.goToArea(context.workstation);
             if (area == null)
                 return Results.ERROR("NO WORKSTATION AREA");
             

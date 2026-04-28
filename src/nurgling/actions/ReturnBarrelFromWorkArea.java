@@ -166,9 +166,9 @@ public class ReturnBarrelFromWorkArea implements Action {
         // Barrel not in cache - try to navigate to workstation area to reload objects
         NArea area;
         if (context.workstation == null) {
-            area = context.getSpecArea(Specialisation.SpecName.barrelworkarea);
+            area = context.goToArea(Specialisation.SpecName.barrelworkarea);
         } else {
-            area = context.getSpecArea(context.workstation);
+            area = context.goToArea(context.workstation);
         }
         
         if (area != null) {

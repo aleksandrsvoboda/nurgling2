@@ -28,7 +28,7 @@ public class CollectAndKillRemainingCocoons implements Action {
         String chrysalis = "Death's Head Chrysalis";
         
         // Get silkworm feeding area
-        NArea feedingArea = context.getSpecArea(Specialisation.SpecName.silkwormFeeding);
+        NArea feedingArea = context.goToArea(Specialisation.SpecName.silkwormFeeding);
         if (feedingArea == null) {
             return Results.SUCCESS(); // No feeding area, nothing to do
         }
@@ -69,7 +69,7 @@ public class CollectAndKillRemainingCocoons implements Action {
                         new CloseTargetContainer(container).run(gui);
                         new KillCocoons().run(gui);
                         new FreeInventory2(context).run(gui);
-                        context.getSpecArea(Specialisation.SpecName.silkwormFeeding);
+                        context.goToArea(Specialisation.SpecName.silkwormFeeding);
                         new PathFinder(Finder.findGob(container.gobid)).run(gui);
                         new OpenTargetContainer(container).run(gui);
                         // Refresh the item list after inventory was cleared

@@ -62,7 +62,7 @@ public class BuildSmokeShed implements Action {
                 // Fallback - ask user
                 NUtils.getGameUI().msg("Please, select area for thatching material");
                 String areaId = context.createArea("Thatching", Resource.loadsimg("baubles/tatching"));
-                nurgling.areas.NArea thatchingArea = context.getAreaById(areaId);
+                nurgling.areas.NArea thatchingArea = context.goToAreaById(areaId);
                 if (Finder.findGob(thatchingArea.getRCArea(), new NAlias("stockpile-bough")) != null) {
                     command.ingredients.add(new Build.Ingredient(new Coord(2, 1), thatchingArea, boughAlias, 6));
                 } else {

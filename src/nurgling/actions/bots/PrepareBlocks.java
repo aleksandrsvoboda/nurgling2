@@ -42,10 +42,10 @@ public class PrepareBlocks implements Action {
         NContext context = new NContext(gui);
 
         String logAreaId = context.createArea("Please select area with logs", Resource.loadsimg("baubles/prepLogs"));
-        NArea logArea = context.getAreaById(logAreaId);
+        NArea logArea = context.goToAreaById(logAreaId);
 
         String pileAreaId = context.createArea("Please select area for piles", Resource.loadsimg("baubles/prepBlockP"));
-        NArea pileArea = context.getAreaById(pileAreaId);
+        NArea pileArea = context.goToAreaById(pileAreaId);
 
         ArrayList<Gob> logs;
         while (!(logs = Finder.findGobs(logArea, new NAlias("log"))).isEmpty())

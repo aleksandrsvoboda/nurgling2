@@ -50,9 +50,9 @@ public class FillContainers2 implements Action
                         return Results.ERROR("NO ITEMS");
                 }
                 if (destinationSubSpec != null) {
-                    context.getSpecArea(destinationSpec, destinationSubSpec);
+                    context.goToArea(destinationSpec, destinationSubSpec);
                 } else {
-                    context.getSpecArea(destinationSpec);
+                    context.goToArea(destinationSpec);
                 }
                 TransferToContainer ttc = new TransferToContainer(cont, new NAlias(transferedItems));
                 ttc.run(gui);

@@ -19,7 +19,7 @@ public class FreeContainersInUnboxZone implements Action {
 
         // Find the area with "unbox" specialization
         NContext context = new NContext(gui);
-        NArea unboxArea = context.getSpecArea(Specialisation.SpecName.unbox);
+        NArea unboxArea = context.goToArea(Specialisation.SpecName.unbox);
 
         if (unboxArea == null) {
             NUtils.getGameUI().error("No unbox zone area found!");
@@ -62,7 +62,7 @@ public class FreeContainersInUnboxZone implements Action {
                                     if (target_size == 0) {
                                         new FreeInventory2(context).run(gui);
                                         if(Finder.findGob(pile.id)==null && (Boolean) NConfig.get(NConfig.Key.useGlobalPf)) {
-                                            context.getSpecArea(Specialisation.SpecName.unbox);
+                                            context.goToArea(Specialisation.SpecName.unbox);
 //                                            new RoutePointNavigator(this.closestRoutePoint).run(NUtils.getGameUI());
                                         }
                                         targets.clear();
@@ -84,7 +84,7 @@ public class FreeContainersInUnboxZone implements Action {
                         {
                             new FreeInventory2(context).run(gui);
                             if(Finder.findGob(pile.id) == null && (Boolean) NConfig.get(NConfig.Key.useGlobalPf)) {
-                                context.getSpecArea(Specialisation.SpecName.unbox);
+                                context.goToArea(Specialisation.SpecName.unbox);
 //                                new RoutePointNavigator(this.closestRoutePoint).run(NUtils.getGameUI());
                             }
                             if(Finder.findGob(pile.id) != null) {

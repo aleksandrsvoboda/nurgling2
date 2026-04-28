@@ -51,7 +51,7 @@ public class TransferLiftable implements Action
 
         NContext context = new NContext(gui);
 
-        NArea carrierOutArea = context.resolveSpecArea(Specialisation.SpecName.carrierout);
+        NArea carrierOutArea = context.findArea(Specialisation.SpecName.carrierout);
 
         NArea inarea;
 
@@ -59,17 +59,17 @@ public class TransferLiftable implements Action
             if (carrierOutArea == null) {
                 return Results.ERROR("No CarrierOut zone found! Please create a global zone with 'carrierout' specialization.");
             }
-            inarea = context.resolveSpecArea(Specialisation.SpecName.sorting);
+            inarea = context.findArea(Specialisation.SpecName.sorting);
             if (inarea == null) {
                 String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
-                inarea = context.getAreaById(insaId);
+                inarea = context.goToAreaById(insaId);
             }
         } else {
             String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
-            inarea = context.getAreaById(insaId);
+            inarea = context.goToAreaById(insaId);
             if (carrierOutArea == null) {
                 String outsaId = context.createArea("Please, select output area", Resource.loadsimg("baubles/outputArea"));
-                carrierOutArea = context.getAreaById(outsaId);
+                carrierOutArea = context.goToAreaById(outsaId);
             }
         }
 

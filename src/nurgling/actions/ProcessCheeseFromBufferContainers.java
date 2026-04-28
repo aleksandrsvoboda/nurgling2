@@ -110,7 +110,7 @@ public class ProcessCheeseFromBufferContainers implements Action {
     private void processBufferContainersForArea(NGameUI gui, NArea area, CheeseBranch.Place place) throws InterruptedException {
         // Navigate to the area first
         NContext context = new NContext(gui);
-        context.getAreaById(area.id);
+        context.goToAreaById(area.id);
 
         // Find buffer containers in this area
         ArrayList<Gob> containers = Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet()), new ArrayList<>()));
@@ -120,7 +120,7 @@ public class ProcessCheeseFromBufferContainers implements Action {
 
         // Re-navigate to area after potential FreeInventory2 calls
         context = new NContext(gui);
-        context.getAreaById(area.id);
+        context.goToAreaById(area.id);
 
         // Phase 2: Move remaining cheese to next stages
         moveRemainingCheeseToNextStageFromArea(gui, containers, area, place);
@@ -241,7 +241,7 @@ public class ProcessCheeseFromBufferContainers implements Action {
     private Gob refindContainerAfterFreeInventoryInArea(NGameUI gui, NArea area, Gob originalGob) throws InterruptedException {
         // Step 1: Navigate back to the specific area
         NContext context = new NContext(gui);
-        context.getAreaById(area.id);
+        context.goToAreaById(area.id);
 
         // Step 2: Find containers in the area again
         ArrayList<Gob> containers = Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet()), new ArrayList<>()));
@@ -451,7 +451,7 @@ public class ProcessCheeseFromBufferContainers implements Action {
                     moveInventoryCheeseToDestination(gui, destination, cheeseType, area, place);
                     // Navigate back to source area
                     NContext context = new NContext(gui);
-                    context.getAreaById(area.id);
+                    context.goToAreaById(area.id);
 
                     // CRITICAL FIX: Refresh container references after returning from destination
                     // The original Gob references become stale when character moves far away
@@ -570,7 +570,7 @@ public class ProcessCheeseFromBufferContainers implements Action {
             moveInventoryCheeseToDestination(gui, destination, cheeseType, area, place);
             // Navigate back to source area for next cheese type
             NContext context = new NContext(gui);
-            context.getAreaById(area.id);
+            context.goToAreaById(area.id);
         }
     }
 
@@ -608,7 +608,7 @@ public class ProcessCheeseFromBufferContainers implements Action {
 
             // Navigate to this destination area
             NContext context = new NContext(gui);
-            context.getAreaById(destinationArea.id);
+            context.goToAreaById(destinationArea.id);
 
             // Find and filter available racks in this area
             ArrayList<Gob> availableRacks = findAvailableRacksInArea(gui, destinationArea, destination);

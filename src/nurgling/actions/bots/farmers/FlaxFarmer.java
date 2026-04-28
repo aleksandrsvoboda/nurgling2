@@ -24,7 +24,7 @@ public class FlaxFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Flax");
+        nContext.goToArea(Specialisation.SpecName.crop, "Flax");
 
         NArea flaxFibersArea = NContext.findOut("Flax Fibres", 1);
 

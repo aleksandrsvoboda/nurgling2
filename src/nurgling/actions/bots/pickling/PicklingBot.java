@@ -78,7 +78,7 @@ public class PicklingBot implements Action {
     }
 
     private boolean processVegetable(NGameUI gui, NContext context, VegetableConfig vegetableConfig) throws InterruptedException {
-        NArea jarArea = context.resolveSpecArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
+        NArea jarArea = context.findArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
 
         if (jarArea == null) {
             NUtils.getGameUI().msg("Missing picklingJars area. Skipping " + vegetableConfig.subSpec + ".");

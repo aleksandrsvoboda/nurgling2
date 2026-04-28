@@ -31,7 +31,7 @@ public class GardenPotHarvester implements Action {
         // Outer loop: keep harvesting until all ready pots are done
         while (true) {
             // Navigate to pots area
-            externalContext.getAreaById(targetArea.id);
+            externalContext.goToAreaById(targetArea.id);
 
             // Find pots ready for harvest (re-check each iteration)
             ArrayList<Gob> allPots = Finder.findGobs(targetArea, GardenPotUtils.GARDEN_POT);
@@ -50,7 +50,7 @@ public class GardenPotHarvester implements Action {
                     gui.msg("Inventory nearly full, dropping off items...");
                     new FreeInventory2(externalContext).run(gui);
                     // Return to pot area
-                    externalContext.getAreaById(targetArea.id);
+                    externalContext.goToAreaById(targetArea.id);
                 }
 
                 // Re-check pot state (it might have changed)

@@ -35,7 +35,7 @@ public class TransferBarrelInWorkArea implements Action {
         new LiftObject(barrel).run(gui);
         
         if (context.workstation == null) {
-            NArea area = context.getSpecArea(Specialisation.SpecName.barrelworkarea);
+            NArea area = context.goToArea(Specialisation.SpecName.barrelworkarea);
             if (area != null) {
                 if (area.getRCArea() == null)
                     return Results.ERROR("Could not get area coordinates after navigation");

@@ -141,7 +141,7 @@ public class SelectAreaWithLiveGhosts extends SelectArea {
         {
             rotationCount = sa.getRotationCount();
             String insaId = context.createAreaWithGhost(sa);
-            ghostArea = context.getAreaById(insaId);
+            ghostArea = context.goToAreaById(insaId);
         } else
         {
             return Results.FAIL();

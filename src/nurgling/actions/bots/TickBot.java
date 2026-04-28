@@ -34,7 +34,7 @@ public class TickBot extends ActionWithFinal {
         NContext context = new NContext(gui);
 
         // Find and navigate to thicket area
-        NArea thicketArea = context.getSpecArea(Specialisation.SpecName.thicket);
+        NArea thicketArea = context.goToArea(Specialisation.SpecName.thicket);
         if (thicketArea == null) {
             return Results.ERROR("No Thicket area found");
         }

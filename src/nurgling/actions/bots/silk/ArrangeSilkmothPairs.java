@@ -24,7 +24,7 @@ public class ArrangeSilkmothPairs implements Action {
         NContext context = new NContext(gui);
 
         // Get silkmothBreeding area
-        NArea breedingArea = context.getSpecArea(Specialisation.SpecName.silkmothBreeding);
+        NArea breedingArea = context.goToArea(Specialisation.SpecName.silkmothBreeding);
         if (breedingArea == null) {
             return Results.ERROR("SilkmothBreeding area not found");
         }

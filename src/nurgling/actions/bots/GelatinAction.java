@@ -64,7 +64,7 @@ public class GelatinAction implements Action {
             // Создаем NContext для работы с зонами
             NContext ncontext = new NContext(gui);
 
-            NArea hidesArea = ncontext.getSpecArea(Specialisation.SpecName.readyHides);
+            NArea hidesArea = ncontext.goToArea(Specialisation.SpecName.readyHides);
             if (hidesArea == null) {
                 return Results.ERROR("Required zone 'readyHides' not found");
             }

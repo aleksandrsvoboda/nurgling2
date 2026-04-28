@@ -32,7 +32,7 @@ public class GlobalFreshFillingPhase implements Action {
 
         while (true) {
             NContext context = new NContext(gui);
-            nurgling.areas.NArea jarArea = context.getSpecArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
+            nurgling.areas.NArea jarArea = context.goToArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
             if (jarArea == null) return Results.FAIL();
 
             int availableSpace = countAvailableJarSpace(gui, jarArea);
@@ -61,7 +61,7 @@ public class GlobalFreshFillingPhase implements Action {
         Results result = new TakeItems2(context, vegetableConfig.freshAlias, maxItems).run(gui);
         if (!result.isSuccess) return false;
 
-        context.getSpecArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
+        context.goToArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
         return !gui.getInventory().getItems(new NAlias(vegetableConfig.freshAlias)).isEmpty();
     }
 

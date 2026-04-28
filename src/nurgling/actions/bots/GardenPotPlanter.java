@@ -42,7 +42,7 @@ public class GardenPotPlanter implements Action {
         // Outer loop: keep fetching and planting until all pots are done or no more items
         while (true) {
             // Navigate to pots area
-            externalContext.getAreaById(targetArea.id);
+            externalContext.goToAreaById(targetArea.id);
 
             // Find pots ready for planting (re-check each iteration)
             ArrayList<Gob> allPots = Finder.findGobs(targetArea, GardenPotUtils.GARDEN_POT);
@@ -75,7 +75,7 @@ public class GardenPotPlanter implements Action {
                 }
 
                 // Navigate back to pot area
-                externalContext.getAreaById(targetArea.id);
+                externalContext.goToAreaById(targetArea.id);
             }
 
             // Plant in ready pots until we run out of items

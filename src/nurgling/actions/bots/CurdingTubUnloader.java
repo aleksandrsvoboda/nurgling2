@@ -28,7 +28,7 @@ public class CurdingTubUnloader implements Action {
         NArea goatsCurdOutputArea = NContext.findOutGlobal("Goat's Curd", 1, gui);
         NArea cowsCurdOutputArea = NContext.findOutGlobal("Cow's Curd", 1, gui);
         NArea sheepsCurdOutputArea = NContext.findOutGlobal("Sheep's Curd", 1, gui);
-        NArea curdingTubArea = context.getSpecArea(curdingTubSpecName);
+        NArea curdingTubArea = context.goToArea(curdingTubSpecName);
 
         if (curdingTubArea == null) {
             return Results.ERROR("Curding Tub specialization area required, but not found!");

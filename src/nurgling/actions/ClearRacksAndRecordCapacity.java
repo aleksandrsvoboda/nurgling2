@@ -101,7 +101,7 @@ public class ClearRacksAndRecordCapacity implements Action {
     private int clearReadyCheeseFromArea(NGameUI gui, NArea area, CheeseBranch.Place place) throws InterruptedException {
         // Navigate to the area first
         NContext context = new NContext(gui);
-        context.getAreaById(area.id);
+        context.goToAreaById(area.id);
 
         // Find all cheese racks and buffer containers in this area
         ArrayList<Gob> rackGobs = Finder.findGobs(area, new NAlias(CheeseConstants.CHEESE_RACK_RESOURCE));

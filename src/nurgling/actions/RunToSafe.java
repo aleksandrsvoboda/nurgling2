@@ -11,7 +11,7 @@ public class RunToSafe implements Action{
     public Results run(NGameUI gui) throws InterruptedException {
         NUtils.setSpeed(4);
         NContext context = new NContext(gui);
-        NArea nArea = context.getSpecArea(Specialisation.SpecName.safe);
+        NArea nArea = context.goToArea(Specialisation.SpecName.safe);
         if(nArea!=null) {
             return Results.SUCCESS();
         }

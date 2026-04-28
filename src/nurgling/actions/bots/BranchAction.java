@@ -21,10 +21,10 @@ public class BranchAction implements Action {
         NContext context = new NContext(gui);
 
         String inputAreaId = context.createArea("Please select area with piles of blocks", Resource.loadsimg("baubles/prepBlockP"));
-        NArea inputArea = context.getAreaById(inputAreaId);
+        NArea inputArea = context.goToAreaById(inputAreaId);
 
         String outputAreaId = context.createArea("Please select area for output branches", Resource.loadsimg("baubles/branchStart"));
-        NArea outputArea = context.getAreaById(outputAreaId);
+        NArea outputArea = context.goToAreaById(outputAreaId);
 
         boolean oldStackingValue = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
         NUtils.stackSwitch(true);

@@ -45,10 +45,10 @@ public class Fishing implements Action {
         } else {
 
             String repAreaId = context.createArea("Please select area with repair instruments", Resource.loadsimg("baubles/fishingRep"));
-            repArea = context.getAreaById(repAreaId);
+            repArea = context.goToAreaById(repAreaId);
 
             String baitAreaId = context.createArea("Please select area with baits or lures", Resource.loadsimg("baubles/fishingBaits"));
-            baitArea = context.getAreaById(baitAreaId);
+            baitArea = context.goToAreaById(baitAreaId);
 
         }
 

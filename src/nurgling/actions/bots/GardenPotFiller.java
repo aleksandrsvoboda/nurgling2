@@ -50,9 +50,9 @@ public class GardenPotFiller implements Action {
         // Navigate to pots area
         NArea potArea;
         if (targetArea != null) {
-            potArea = context.getAreaById(targetArea.id);
+            potArea = context.goToAreaById(targetArea.id);
         } else {
-            potArea = context.getSpecArea(Specialisation.SpecName.plantingGardenPots);
+            potArea = context.goToArea(Specialisation.SpecName.plantingGardenPots);
         }
         if (potArea == null) {
             return Results.ERROR("No Planting Garden Pots area found. Please configure the specialization.");
@@ -80,9 +80,9 @@ public class GardenPotFiller implements Action {
 
         // Navigate back to pots area after getting mulch
         if (targetArea != null) {
-            context.getAreaById(targetArea.id);
+            context.goToAreaById(targetArea.id);
         } else {
-            context.getSpecArea(Specialisation.SpecName.plantingGardenPots);
+            context.goToArea(Specialisation.SpecName.plantingGardenPots);
         }
 
         // Fill each pot with mulch until marker shows full (2 or 3)
@@ -124,9 +124,9 @@ public class GardenPotFiller implements Action {
                     }
                     // Navigate back to pots area
                     if (targetArea != null) {
-                        context.getAreaById(targetArea.id);
+                        context.goToAreaById(targetArea.id);
                     } else {
-                        context.getSpecArea(Specialisation.SpecName.plantingGardenPots);
+                        context.goToArea(Specialisation.SpecName.plantingGardenPots);
                     }
                 }
             }
@@ -181,9 +181,9 @@ public class GardenPotFiller implements Action {
         // Navigate to pots area to get the list of pots
         NArea potArea;
         if (targetArea != null) {
-            potArea = context.getAreaById(targetArea.id);
+            potArea = context.goToAreaById(targetArea.id);
         } else {
-            potArea = context.getSpecArea(Specialisation.SpecName.plantingGardenPots);
+            potArea = context.goToArea(Specialisation.SpecName.plantingGardenPots);
         }
         if (potArea == null) {
             return Results.ERROR("No Planting Garden Pots area found");

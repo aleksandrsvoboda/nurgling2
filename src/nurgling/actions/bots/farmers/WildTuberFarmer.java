@@ -24,7 +24,7 @@ public class WildTuberFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Wild Tuber");
+        nContext.goToArea(Specialisation.SpecName.crop, "Wild Tuber");
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(field);

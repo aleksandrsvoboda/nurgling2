@@ -28,7 +28,7 @@ public class PrepareWorkStation implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        NArea area = context.getSpecArea(context.workstation);
+        NArea area = context.goToArea(context.workstation);
         if(area == null)
             return Results.ERROR("NO WORKSTATION");
         Gob ws = null;

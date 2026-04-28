@@ -25,7 +25,7 @@ public class BakerAction implements Action {
 
 
         // Get ovens area through context - this will handle navigation automatically
-        NArea ovens = context.getSpecArea(Specialisation.SpecName.ovens);
+        NArea ovens = context.goToArea(Specialisation.SpecName.ovens);
 
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob sm : Finder.findGobs(ovens, new NAlias("gfx/terobjs/oven")))

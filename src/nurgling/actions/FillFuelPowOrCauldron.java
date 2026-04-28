@@ -51,7 +51,7 @@ public class FillFuelPowOrCauldron implements Action
                 if(NUtils.getGameUI().getInventory().getItems(fuelname).isEmpty()) {
                     int target_size = count;
                     while (target_size != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(targetCoord) != 0) {
-                        NArea fuelarea = context.getSpecArea(Specialisation.SpecName.fuel, "Block");
+                        NArea fuelarea = context.goToArea(Specialisation.SpecName.fuel, "Block");
                         ArrayList<Gob> piles = Finder.findGobs(fuelarea, new NAlias("stockpile"));
                         if (piles.isEmpty()) {
                             if (gui.getInventory().getItems().isEmpty())
@@ -73,7 +73,7 @@ public class FillFuelPowOrCauldron implements Action
                     }
                 }
                 if(context.workstation!=null)
-                    context.getSpecArea(context.workstation);
+                    context.goToArea(context.workstation);
                 new PathFinder(Finder.findGob(gob.id)).run(gui);
                 ArrayList<WItem> fueltitem = NUtils.getGameUI().getInventory().getItems(fuelname);
                 if (fueltitem.size()<2) {

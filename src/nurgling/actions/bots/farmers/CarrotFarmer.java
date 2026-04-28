@@ -24,7 +24,7 @@ public class CarrotFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Carrot");
+        nContext.goToArea(Specialisation.SpecName.crop, "Carrot");
 
         NArea carrotArea = NContext.findOut("Carrot", 1);
 

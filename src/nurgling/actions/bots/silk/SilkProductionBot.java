@@ -75,7 +75,7 @@ public class SilkProductionBot implements Action {
         
         // Get htable containers for egg filling step
         ArrayList<Container> htableContainers = new ArrayList<>();
-        NArea htablesArea = context.getSpecArea(Specialisation.SpecName.htable, "Silkworm Egg");
+        NArea htablesArea = context.goToArea(Specialisation.SpecName.htable, "Silkworm Egg");
         if (htablesArea != null) {
             htableContainers = createContainersFromArea(htablesArea);
         }
@@ -102,19 +102,19 @@ public class SilkProductionBot implements Action {
     }
 
     private boolean validateRequiredAreas(NGameUI gui, NContext context) {
-        NArea feedingArea = context.resolveSpecArea(Specialisation.SpecName.silkwormFeeding);
+        NArea feedingArea = context.findArea(Specialisation.SpecName.silkwormFeeding);
         if (feedingArea == null) {
             gui.error("Silkworm Feeding spec area is required, but not found.");
             return false;
         }
 
-        NArea breedingArea = context.resolveSpecArea(Specialisation.SpecName.silkmothBreeding);
+        NArea breedingArea = context.findArea(Specialisation.SpecName.silkmothBreeding);
         if (breedingArea == null) {
             gui.error("Silkmoth Breeding spec area is required, but not found.");
             return false;
         }
 
-        NArea htablesSilkwormEgg = context.resolveSpecArea(Specialisation.SpecName.htable, "Silkworm Egg");
+        NArea htablesSilkwormEgg = context.findArea(Specialisation.SpecName.htable, "Silkworm Egg");
         if (htablesSilkwormEgg == null) {
             gui.error("Herbalist Table spec with Silkworm Egg sub spec area is required, but not found.");
             return false;

@@ -65,8 +65,8 @@ public class Smoking implements Action {
         }
 
         NContext context = new NContext(gui);
-        NArea smokeArea = context.resolveSpecArea(Specialisation.SpecName.smokshed);
-        NArea logsArea = context.resolveSpecArea(Specialisation.SpecName.smokedlog);
+        NArea smokeArea = context.findArea(Specialisation.SpecName.smokshed);
+        NArea logsArea = context.findArea(Specialisation.SpecName.smokedlog);
 
         ArrayList<NSmokProp> cands = new ArrayList<>();
         Pair<Coord2d,Coord2d> sheds = smokeArea.getRCArea();

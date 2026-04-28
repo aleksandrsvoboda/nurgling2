@@ -56,7 +56,7 @@ public class DepositItemsToSpecArea implements Action {
         gui.msg("DepositItems: Starting. Item=" + itemAlias + ", maxPerContainer=" + maxPerContainer);
         
         // Get the destination area
-        NArea area = context.getSpecArea(destinationSpec);
+        NArea area = context.goToArea(destinationSpec);
         if (area == null) return Results.ERROR("Destination spec area not found!");
 
         // Get all containers in this area (cupboards, troughs, etc)
@@ -192,7 +192,7 @@ public class DepositItemsToSpecArea implements Action {
                 gui.msg("DepositItems: Fill container #" + fillIndex + " [gob=" + container.gobid + "], items in inventory=" + itemsInInventory.size());
 
                 // Refresh the area context
-                context.getSpecArea(destinationSpec);
+                context.goToArea(destinationSpec);
 
                 // Transfer items to this container
                 // TransferToContainer will open container, call ItemCount.update(), and limit transfer to getNeeded()

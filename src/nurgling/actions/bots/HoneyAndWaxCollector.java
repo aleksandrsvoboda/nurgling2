@@ -72,7 +72,7 @@ public class HoneyAndWaxCollector implements Action {
     }
 
     private Results collectAllHoney(NGameUI gui, NContext context, ArrayList<NArea> beeSkepAreas) throws InterruptedException {
-        NArea cisternArea = context.getSpecArea(Specialisation.SpecName.cistern, "Honey");
+        NArea cisternArea = context.goToArea(Specialisation.SpecName.cistern, "Honey");
         if (cisternArea == null) {
             getGameUI().error("No Cistern area with Honey specialization found");
             return Results.ERROR("No Cistern area with Honey specialization");

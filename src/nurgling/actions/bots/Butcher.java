@@ -128,7 +128,7 @@ public class Butcher implements Action {
                         }
                     }
                 }
-                context.getSpecArea(Specialisation.SpecName.deadkritter);
+                context.goToArea(Specialisation.SpecName.deadkritter);
                 gobs = getGobs(area);
             }
             new FreeInventory2(new NContext(gui)).run(gui);

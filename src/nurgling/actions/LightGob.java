@@ -72,7 +72,7 @@ public class LightGob implements Action
         {
             NContext context = new NContext(gui);
             String lastposid = context.createPlayerLastPos();
-            NArea candArea = context.getSpecArea(Specialisation.SpecName.candelabrum);
+            NArea candArea = context.goToArea(Specialisation.SpecName.candelabrum);
             if (candArea != null)
             {
                 context.navigateToAreaIfNeeded(Specialisation.SpecName.candelabrum.toString());
@@ -107,7 +107,7 @@ public class LightGob implements Action
                         Gob lifted = Finder.findLiftedbyPlayer();
                         if(lifted!=null)
                         {
-                            Coord2d pos = Finder.getFreePlace(context.getAreaById(Specialisation.SpecName.candelabrum.toString()).getRCArea(), Finder.findLiftedbyPlayer().ngob.hitBox, 0);
+                            Coord2d pos = Finder.getFreePlace(context.goToAreaById(Specialisation.SpecName.candelabrum.toString()).getRCArea(), Finder.findLiftedbyPlayer().ngob.hitBox, 0);
                             new PlaceObject(litCandelabrum, pos, 0).run(gui);
                         }
                     }

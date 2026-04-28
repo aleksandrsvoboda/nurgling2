@@ -156,7 +156,7 @@ public class StudyDeskFiller implements Action {
      */
     private NArea getStudyDeskArea(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
-        return context.getSpecArea(Specialisation.SpecName.studyDesks);
+        return context.goToArea(Specialisation.SpecName.studyDesks);
     }
 
     /**

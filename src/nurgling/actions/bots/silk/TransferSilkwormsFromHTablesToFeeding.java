@@ -41,7 +41,7 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
         ArrayList<Container> feedingContainers = new ArrayList<>();
         
         // Pre-populate feeding containers for efficiency
-        NArea feedingArea = context.getSpecArea(Specialisation.SpecName.silkwormFeeding);
+        NArea feedingArea = context.goToArea(Specialisation.SpecName.silkwormFeeding);
         if (feedingArea != null) {
             feedingContainers = createContainersFromArea(feedingArea);
         }
@@ -50,7 +50,7 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
             int wormsTransferredTotal = 0;
             
             // Take silkworms from herbalist tables - use container-by-container approach
-            NArea htablesArea = context.getSpecArea(Specialisation.SpecName.htable, "Silkworm Egg");
+            NArea htablesArea = context.goToArea(Specialisation.SpecName.htable, "Silkworm Egg");
             if (htablesArea != null) {
                 htableContainers = createContainersFromArea(htablesArea);
                 
@@ -87,7 +87,7 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
                         if (wormsToTake == 0) {
                             // Inventory full - drop off and continue
                             dropOffWormsToFeedingContainers(gui, feedingContainers, wormsAlias, context);
-                            context.getSpecArea(Specialisation.SpecName.htable, "Silkworm Egg");
+                            context.goToArea(Specialisation.SpecName.htable, "Silkworm Egg");
 
                             new PathFinder(Finder.findGob(htableContainer.gobid)).run(gui);
                             new OpenTargetContainer(htableContainer).run(gui);
@@ -148,7 +148,7 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
     }
     
     private void dropOffWormsToFeedingContainers(NGameUI gui, ArrayList<Container> feedingContainers, NAlias wormsAlias, NContext context) throws InterruptedException {
-        context.getSpecArea(Specialisation.SpecName.silkwormFeeding);
+        context.goToArea(Specialisation.SpecName.silkwormFeeding);
         
         for (Container feedingContainer : feedingContainers) {
             if (gui.getInventory().getItems(wormsAlias).isEmpty()) {

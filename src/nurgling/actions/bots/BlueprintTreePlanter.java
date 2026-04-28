@@ -333,7 +333,7 @@ public class BlueprintTreePlanter implements Action {
             
             // Initialize context and find herbalist tables
             NContext context = new NContext(gui);
-            NArea htableArea = context.getSpecArea(Specialisation.SpecName.htable,"Trees");
+            NArea htableArea = context.goToArea(Specialisation.SpecName.htable,"Trees");
             
             if (htableArea == null) {
                 return Results.ERROR("No herbalist table area found. Please configure htable specialization.");
@@ -564,7 +564,7 @@ public class BlueprintTreePlanter implements Action {
     
     private Results getSoilFromZone(NGameUI gui, NContext context, int amount) throws InterruptedException {
         // Check soil area
-        NArea soilArea = context.getSpecArea(Specialisation.SpecName.soilForTrees);
+        NArea soilArea = context.goToArea(Specialisation.SpecName.soilForTrees);
         if (soilArea == null) {
             return Results.ERROR("No soil zone found. Please configure 'Soil for Trees' specialization.");
         }
@@ -599,7 +599,7 @@ public class BlueprintTreePlanter implements Action {
     
     private Results getWaterFromBarrel(NGameUI gui, NContext context) throws InterruptedException {
         // Check water area
-        NArea waterArea = context.getSpecArea(Specialisation.SpecName.waterForTrees);
+        NArea waterArea = context.goToArea(Specialisation.SpecName.waterForTrees);
         if (waterArea == null) {
             return Results.ERROR("No water zone found. Please configure 'Water for Trees' specialization.");
         }
@@ -953,7 +953,7 @@ public class BlueprintTreePlanter implements Action {
         }
         
         // 4. Find barrel with water
-        NArea waterArea = context.getSpecArea(Specialisation.SpecName.waterForTrees);
+        NArea waterArea = context.goToArea(Specialisation.SpecName.waterForTrees);
         if (waterArea == null) {
             return Results.ERROR("No water zone found. Please configure 'Water for Trees' specialization.");
         }

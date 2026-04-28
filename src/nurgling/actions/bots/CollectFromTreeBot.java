@@ -52,10 +52,10 @@ public class CollectFromTreeBot implements Action {
         NContext context = new NContext(gui);
 
         String treeAreaId = context.createArea(treesPrompt, Resource.loadsimg(treesIcon));
-        NArea treeArea = context.getAreaById(treeAreaId);
+        NArea treeArea = context.goToAreaById(treeAreaId);
 
         String pileAreaId = context.createArea(pilesPrompt, Resource.loadsimg(pilesIcon));
-        NArea pileArea = context.getAreaById(pileAreaId);
+        NArea pileArea = context.goToAreaById(pileAreaId);
 
         ArrayList<Gob> trees = Finder.findGobs(treeArea, treePattern);
         if (filterByModelAttr) {
