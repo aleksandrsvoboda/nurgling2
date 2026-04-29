@@ -3,6 +3,7 @@ package nurgling.actions.bots;
 import haven.*;
 import nurgling.*;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.*;
 import nurgling.tools.*;
@@ -101,10 +102,10 @@ public class SortContainersInArea implements Action {
         }
 
         // Area selection
-        gui.msg("Select area with containers to sort");
-        SelectArea selectArea = new SelectArea(Resource.loadsimg("baubles/inputArea"));
-        selectArea.run(gui);
-        Pair<Coord2d, Coord2d> area = selectArea.getRCArea();
+        NContext context = new NContext(gui);
+        String selectAreaId = context.createArea("Select area with containers to sort", Resource.loadsimg("baubles/inputArea"));
+        NArea selectAreaNArea = context.goToAreaById(selectAreaId);
+        Pair<Coord2d, Coord2d> area = selectAreaNArea.getRCArea();
         if (area == null) return Results.ERROR("No area selected");
 
         ArrayList<Gob> gobs = Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));

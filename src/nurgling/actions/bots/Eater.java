@@ -27,6 +27,10 @@ public class Eater implements Action {
     public Results run(NGameUI gui) throws InterruptedException {
         ArrayList<String> items = FoodContainer.getFoodNames();
 
+        if (items.isEmpty()) {
+            return Results.ERROR("No allowed food items configured");
+        }
+
         NContext cnt = new NContext(gui);
         NArea nArea = cnt.goToArea(Specialisation.SpecName.eat);
         if(nArea != null) {

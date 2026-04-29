@@ -5,6 +5,8 @@ import haven.Resource;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
 
@@ -14,10 +16,10 @@ public class Destroyer implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        SelectArea outsa;
-        NUtils.getGameUI().msg("Please, select input area");
-        (outsa = new SelectArea(Resource.loadsimg("baubles/outputArea"))).run(gui);
-        ArrayList<Gob> gobs = Finder.findGobs(outsa.getRCArea(), null);
+        NContext context = new NContext(gui);
+        String outsaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/outputArea"));
+        NArea outsaArea = context.goToAreaById(outsaId);
+        ArrayList<Gob> gobs = Finder.findGobs(outsaArea, null);
         while (!gobs.isEmpty()) {
             gobs.sort(NUtils.d_comp);
             for (Gob gob : gobs) {
@@ -37,7 +39,7 @@ public class Destroyer implements Action {
                     }
                 }
             }
-            gobs = Finder.findGobs(outsa.getRCArea(), null);
+            gobs = Finder.findGobs(outsaArea, null);
         }
         return Results.SUCCESS();
     }

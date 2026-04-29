@@ -29,15 +29,13 @@ public class TarkilnAction implements Action {
         Pair<Coord2d,Coord2d> pile_area = npile_area!=null?npile_area.getRCArea():null;
         if(pile_area==null)
         {
-            NUtils.getGameUI().msg("Please select area for output coal");
-            SelectArea onsa;
-            (onsa = new SelectArea(Resource.loadsimg("baubles/coalPiles"))).run(gui);
-            pile_area = onsa.getRCArea();
+            String onsaId = context.createArea("Please select area for output coal", Resource.loadsimg("baubles/coalPiles"));
+            NArea onsaArea = context.goToAreaById(onsaId);
+            pile_area = onsaArea.getRCArea();
         }
 
-        NUtils.getGameUI().msg("Please select area for fuel");
-        SelectArea insa;
-        (insa = new SelectArea(Resource.loadsimg("baubles/fuel"))).run(gui);
+        String insaId = context.createArea("Please select area for fuel", Resource.loadsimg("baubles/fuel"));
+        NArea insaArea = context.goToAreaById(insaId);
 
         if(new Validator(req, opt).run(gui).IsSuccess())
         {
@@ -70,7 +68,7 @@ public class TarkilnAction implements Action {
             new FreeInventory2(context).run(gui);
             NUtils.navigateToArea(area);
 
-            if(!new FillFuelTarkilns(tarkilns,insa.getRCArea()).run(gui).IsSuccess())
+            if(!new FillFuelTarkilns(tarkilns,insaArea.getRCArea()).run(gui).IsSuccess())
                 return Results.FAIL();
             ArrayList<String> flighted = new ArrayList<>();
             for (Gob cont : tarkilns) {

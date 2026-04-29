@@ -6,6 +6,8 @@ import haven.UI;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.conf.NCarrierProp;
 import nurgling.tasks.WaitCheckable;
 import nurgling.tools.Finder;
@@ -35,9 +37,9 @@ public class TransferToVeh implements Action {
             return Results.ERROR("No config");
         }
 
-        SelectArea insa;
-        NUtils.getGameUI().msg("Please, select input area");
-        (insa = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
+        NContext context = new NContext(gui);
+        String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
+        NArea insaArea = context.goToAreaById(insaId);
 
         SelectGob selgob;
         NUtils.getGameUI().msg("Please select output cart or vehicle");
@@ -54,7 +56,7 @@ public class TransferToVeh implements Action {
 
         int count = 0;
         ArrayList<Gob> gobs;
-        while (!(gobs = Finder.findGobs(insa.getRCArea(), new NAlias(prop.object))).isEmpty() && count < maxCount) {
+        while (!(gobs = Finder.findGobs(insaArea, new NAlias(prop.object))).isEmpty() && count < maxCount) {
             ArrayList<Gob> availableLogs = new ArrayList<>();
             for (Gob currGob: gobs)
             {

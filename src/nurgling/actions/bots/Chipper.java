@@ -5,6 +5,8 @@ import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.conf.NChipperProp;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
@@ -49,14 +51,14 @@ public class Chipper implements Action {
         if ((!prop.plateu && prop.tool == null)) {
             return Results.ERROR("Not set required tools");
         }
-        SelectArea insa;
+        NContext context = new NContext(gui);
+        String insaId;
         if (prop.plateu) {
-            NUtils.getGameUI().msg("Please select plateu area for chipping");
-            (insa = new SelectArea(Resource.loadsimg("baubles/chipperAreaM"))).run(gui);
+            insaId = context.createArea("Please select plateu area for chipping", Resource.loadsimg("baubles/chipperAreaM"));
         } else {
-            NUtils.getGameUI().msg("Please select area for chipping");
-            (insa = new SelectArea(Resource.loadsimg("baubles/chipperArea"))).run(gui);
+            insaId = context.createArea("Please select area for chipping", Resource.loadsimg("baubles/chipperArea"));
         }
+        NArea insaArea = context.goToAreaById(insaId);
 
 
         if(prop.plateu) {
@@ -67,18 +69,18 @@ public class Chipper implements Action {
             if (!new Equip(new NAlias(prop.tool)).run(gui).IsSuccess())
                 return Results.ERROR("Equipment not found: " + prop.tool);
         }
-        SelectArea psa = null;
+        NArea psaArea = null;
         if(!prop.nopiles)
         {
-            NUtils.getGameUI().msg("Please select area for piles");
-            (psa = new SelectArea(Resource.loadsimg("baubles/chipperPiles"))).run(gui);
+            String psaId = context.createArea("Please select area for piles", Resource.loadsimg("baubles/chipperPiles"));
+            psaArea = context.goToAreaById(psaId);
         }
 
         if(!prop.plateu) {
             NAlias pattern = new NAlias(new ArrayList<String>(List.of("gfx/terobjs/bumlings")));
 
             ArrayList<Gob> bumlings;
-            while (!(bumlings = Finder.findGobs(insa.getRCArea(), pattern)).isEmpty()) {
+            while (!(bumlings = Finder.findGobs(insaArea.getRCArea(), pattern)).isEmpty()) {
                 bumlings.sort(NUtils.d_comp);
 
                 Gob bumling = bumlings.get(0);
@@ -114,7 +116,7 @@ public class Chipper implements Action {
                         case TIMEFORPILE:
                         {
                             if(!prop.nopiles)
-                                new TransferToPiles(psa.getRCArea(),stones).run(gui);
+                                new TransferToPiles(psaArea.getRCArea(),stones).run(gui);
                             else
                                 for(WItem item : NUtils.getGameUI().getInventory().getItems(stones))
                                 {
@@ -126,11 +128,11 @@ public class Chipper implements Action {
                 }
             }
             if(!prop.nopiles)
-                new TransferToPiles(psa.getRCArea(),stones).run(gui);
+                new TransferToPiles(psaArea.getRCArea(),stones).run(gui);
         }
         else
         {
-            Coord2d mountain = NUtils.findMountain(insa.getRCArea());
+            Coord2d mountain = NUtils.findMountain(insaArea.getRCArea());
             if(mountain == null)
             {
                 return Results.ERROR(" no mountain terrain");
@@ -155,7 +157,7 @@ public class Chipper implements Action {
                     case TIMEFORPILE:
                     {
                         if(!prop.nopiles)
-                           if(!(new TransferToPiles(psa.getRCArea(),stones).run(gui).IsSuccess()))
+                           if(!(new TransferToPiles(psaArea.getRCArea(),stones).run(gui).IsSuccess()))
                                return Results.FAIL();
                         else
                             for(WItem item : NUtils.getGameUI().getInventory().getItems(stones))

@@ -8,6 +8,8 @@ import haven.Resource;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -32,12 +34,11 @@ public class DestroyTrellisPlants implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        // Prompt user to select area using SelectArea action
-        SelectArea selectArea;
-        NUtils.getGameUI().msg("Please select area to destroy trellis plants");
-        (selectArea = new SelectArea(Resource.loadsimg("baubles/outputArea"))).run(gui);
+        NContext context = new NContext(gui);
+        String selectAreaId = context.createArea("Please select area to destroy trellis plants", Resource.loadsimg("baubles/outputArea"));
+        NArea selectAreaNArea = context.goToAreaById(selectAreaId);
 
-        Pair<Coord2d, Coord2d> rcArea = selectArea.getRCArea();
+        Pair<Coord2d, Coord2d> rcArea = selectAreaNArea.getRCArea();
         if (rcArea == null) {
             return Results.ERROR("No area selected!");
         }

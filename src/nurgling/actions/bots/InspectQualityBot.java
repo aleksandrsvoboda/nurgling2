@@ -6,6 +6,8 @@ import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.PathFinder;
 import nurgling.actions.Results;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.overlays.QualityOl;
 import nurgling.tasks.GetCurs;
 import nurgling.tasks.NTask;
@@ -25,9 +27,9 @@ public class InspectQualityBot implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Prompt user to select area
-        SelectArea selectArea;
-        NUtils.getGameUI().msg("Please select area for quality inspection");
-        (selectArea = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
+        NContext context = new NContext(gui);
+        String selectAreaId = context.createArea("Please select area for quality inspection", Resource.loadsimg("baubles/inputArea"));
+        NArea selectAreaNArea = context.goToAreaById(selectAreaId);
         
         // Prompt user to select target object type
         SelectGob selgob;
@@ -41,7 +43,7 @@ public class InspectQualityBot implements Action {
         
         // Get all gobs of selected type in the area
         ArrayList<Gob> gobs = new ArrayList<>();
-        for (Gob gob : Finder.findGobs(selectArea.getRCArea(), null)) {
+        for (Gob gob : Finder.findGobs(selectAreaNArea.getRCArea(), null)) {
             if (gob.ngob.name.equals(targetGob.ngob.name)) {
                 gobs.add(gob);
             }

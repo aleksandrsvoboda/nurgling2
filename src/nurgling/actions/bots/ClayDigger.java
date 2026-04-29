@@ -36,21 +36,20 @@ public class ClayDigger implements Action {
         {
             return Results.ERROR("Not set required tools");
         }
-        NUtils.getGameUI().msg("Please select area for dig clay");
-        SelectArea insa;
-        (insa = new SelectArea(Resource.loadsimg("baubles/clayTime"))).run(gui);
+        NContext context = new NContext(gui);
+        String insaId = context.createArea("Please select area for dig clay", Resource.loadsimg("baubles/clayTime"));
+        NArea insaArea = context.goToAreaById(insaId);
 
 
         NArea area = NContext.findOut(new NAlias("clay"),1);
         if(area==null || area.getRCArea() == null)
         {
-            NUtils.getGameUI().msg("Please select area for output clay");
-            SelectArea onsa;
-            (onsa = new SelectArea(Resource.loadsimg("baubles/clayPiles"))).run(gui);
-            new DiggingResources(insa.getRCArea(),onsa.getRCArea(),new NAlias("clay"), prop.shovel).run(gui);
+            String onsaId = context.createArea("Please select area for output clay", Resource.loadsimg("baubles/clayPiles"));
+            NArea onsaArea = context.goToAreaById(onsaId);
+            new DiggingResources(insaArea.getRCArea(),onsaArea.getRCArea(),new NAlias("clay"), prop.shovel).run(gui);
         }
         else {
-            new DiggingResources(insa.getRCArea(), area.getRCArea(), new NAlias("clay"), prop.shovel).run(gui);
+            new DiggingResources(insaArea.getRCArea(), area.getRCArea(), new NAlias("clay"), prop.shovel).run(gui);
         }
 
         return Results.SUCCESS();

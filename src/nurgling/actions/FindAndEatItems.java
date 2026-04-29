@@ -25,7 +25,7 @@ public class FindAndEatItems implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        for(String item: items)
+        for(String item : items)
         {
            cnt.addInItem(item, null);
         }
