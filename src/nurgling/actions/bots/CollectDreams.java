@@ -14,7 +14,7 @@ public class CollectDreams implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
-        NArea dreamcatcherArea = NContext.findSpec(Specialisation.SpecName.dreamcatcher.toString());
+        NArea dreamcatcherArea = context.goToArea(Specialisation.SpecName.dreamcatcher);
 
         for (Gob dreamCatcher : Finder.findGobs(dreamcatcherArea,
                 new NAlias("gfx/terobjs/dreca"))) {
