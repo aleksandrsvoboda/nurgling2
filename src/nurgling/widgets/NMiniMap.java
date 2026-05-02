@@ -33,9 +33,13 @@ NMiniMap extends MiniMap {
     // Cache for tree icon textures to avoid reloading every frame
     private final java.util.HashMap<String, TexI> treeIconCache = new java.util.HashMap<>();
 
-    // Visibility flags for tree and fish icons
+    // Cache for stone/ore icon textures to avoid reloading every frame
+    private final java.util.HashMap<String, TexI> stoneIconCache = new java.util.HashMap<>();
+
+    // Visibility flags for tree, fish, and stone icons
     public boolean showTreeIcons = true;
     public boolean showFishIcons = true;
+    public boolean showStoneIcons = true;
 
     // Cached waypoint number labels to avoid per-frame Text.render() allocations
     private static Text[] waypointNumCache = new Text[128];
@@ -228,6 +232,7 @@ NMiniMap extends MiniMap {
         drawResourceTimers(g);
         drawFishLocations(g);
         drawTreeLocations(g);
+        drawStoneLocations(g);
         drawQueuedWaypoints(g);  // Draw waypoint visualization
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawMarkerLine(g);       // Draw line to selected marker
@@ -1360,6 +1365,42 @@ NMiniMap extends MiniMap {
                 }
             }
 
+            // Check for stone location tooltip
+            if(gui != null && gui.stoneLocationService != null && showStoneIcons) {
+                MapWnd mapwndStone = gui.mapfile;
+                boolean markersHiddenStone = (mapwndStone != null && Utils.eq(mapwndStone.markcfg, MapWnd.MarkerConfig.hideall));
+
+                if(!markersHiddenStone) {
+                    String markerSearchPatternStone = null;
+                    Widget parentWidgetStone = this.parent;
+                    while(parentWidgetStone != null) {
+                        if(parentWidgetStone instanceof NMapWnd) {
+                            markerSearchPatternStone = ((NMapWnd) parentWidgetStone).markerSearchPattern;
+                            break;
+                        }
+                        parentWidgetStone = parentWidgetStone.parent;
+                    }
+
+                    java.util.List<nurgling.StoneLocation> stoneLocations = gui.stoneLocationService.getStoneLocationsForSegment(sessloc.seg.id);
+                    int thresholdStone = UI.scale(10);
+
+                    for(nurgling.StoneLocation loc : stoneLocations) {
+                        if(markerSearchPatternStone != null && !markerSearchPatternStone.trim().isEmpty()) {
+                            String stoneName = loc.getStoneName();
+                            if(stoneName == null || !stoneName.toLowerCase().contains(markerSearchPatternStone.toLowerCase())) {
+                                continue;
+                            }
+                        }
+
+                        Coord screenPos = loc.getTileCoords().sub(dloc.tc).div(scalef()).add(hsz);
+
+                        if(c.dist(screenPos) < thresholdStone) {
+                            return Text.render(loc.getStoneName());
+                        }
+                    }
+                }
+            }
+
             Coord tc = c.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
             DisplayMarker mark = markerat(tc);
             if(mark != null) {
@@ -1684,6 +1725,92 @@ NMiniMap extends MiniMap {
         }
     }
 
+    private void drawStoneLocations(GOut g) {
+        if(sessloc == null || dloc == null) return;
+
+        if(!showStoneIcons) return;
+
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.stoneLocationService == null) return;
+
+        MapWnd mapwnd = gui.mapfile;
+        if(mapwnd != null && Utils.eq(mapwnd.markcfg, MapWnd.MarkerConfig.hideall)) {
+            return;
+        }
+
+        String markerSearchPattern = null;
+        Widget parentWidget = this.parent;
+        while(parentWidget != null) {
+            if(parentWidget instanceof NMapWnd) {
+                markerSearchPattern = ((NMapWnd) parentWidget).markerSearchPattern;
+                break;
+            }
+            parentWidget = parentWidget.parent;
+        }
+
+        java.util.List<nurgling.StoneLocation> stoneLocations = gui.stoneLocationService.getStoneLocationsForSegment(sessloc.seg.id);
+
+        Coord hsz = sz.div(2);
+
+        for(nurgling.StoneLocation stoneLoc : stoneLocations) {
+            if(markerSearchPattern != null && !markerSearchPattern.trim().isEmpty()) {
+                String stoneName = stoneLoc.getStoneName();
+                if(stoneName == null) {
+                    continue;
+                }
+                if(!stoneName.toLowerCase().contains(markerSearchPattern.toLowerCase())) {
+                    continue;
+                }
+            }
+
+            Coord screenPos = stoneLoc.getTileCoords().sub(dloc.tc).div(scalef()).add(hsz);
+
+            if(screenPos.x >= 0 && screenPos.x <= sz.x &&
+               screenPos.y >= 0 && screenPos.y <= sz.y) {
+
+                try {
+                    // Try to load inventory icon for this stone type
+                    String stoneResource = stoneLoc.getStoneResource();
+                    // gfx/tiles/rocks/feldspar -> feldspar
+                    String rockName = stoneResource.substring("gfx/tiles/rocks/".length());
+                    String iconResource = "gfx/invobjs/" + rockName;
+
+                    TexI tex = stoneIconCache.get(iconResource);
+
+                    if(tex == null) {
+                        Resource stoneRes = Resource.remote().loadwait(iconResource);
+                        java.awt.image.BufferedImage icon = stoneRes.layer(Resource.imgc).img;
+                        tex = new TexI(icon);
+                        stoneIconCache.put(iconResource, tex);
+                    }
+
+                    int dsz = Math.max(tex.sz().y, tex.sz().x);
+                    int targetSize = UI.scale(18);
+                    g.aimage(tex, screenPos, 0.5, 0.5, UI.scale(targetSize * tex.sz().x / dsz, targetSize * tex.sz().y / dsz));
+
+                } catch (Exception e) {
+                    // Fallback: gray circle for stone, gold for ore
+                    String name = stoneLoc.getStoneName().toLowerCase();
+                    boolean isOre = name.contains("cassiterite") || name.contains("chalcopyrite") ||
+                        name.contains("malachite") || name.contains("hematite") ||
+                        name.contains("magnetite") || name.contains("limonite") ||
+                        name.contains("cinnabar") || name.contains("galena") ||
+                        name.contains("argentite") || name.contains("cuprite") ||
+                        name.contains("hornsilver") || name.contains("petzite") ||
+                        name.contains("sylvanite") || name.contains("nagyagite") ||
+                        name.contains("coal") || name.contains("lead");
+                    if(isOre) {
+                        g.chcolor(218, 165, 32, 255); // Gold for ore
+                    } else {
+                        g.chcolor(160, 160, 160, 255); // Gray for stone
+                    }
+                    g.fellipse(screenPos, new Coord(UI.scale(4), UI.scale(4)));
+                    g.chcolor();
+                }
+            }
+        }
+    }
+
     private nurgling.FishLocation fishLocationAt(Coord tc) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.fishLocationService == null || dloc == null) return null;
@@ -1932,6 +2059,26 @@ NMiniMap extends MiniMap {
                             gui.add(detailsWnd, new Coord(100, 100));
                             gui.openFishDetailWindows.put(locationId, detailsWnd);
                         }
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Handle right-click release on stone location - delete it
+        if(ev.b == 3 && dloc != null && sessloc != null && showStoneIcons) {
+            NGameUI gui = NUtils.getGameUI();
+            if(gui != null && gui.stoneLocationService != null) {
+                java.util.List<nurgling.StoneLocation> stoneLocations = gui.stoneLocationService.getStoneLocationsForSegment(sessloc.seg.id);
+                int threshold = UI.scale(10);
+                Coord hsz = sz.div(2);
+
+                for(nurgling.StoneLocation loc : stoneLocations) {
+                    Coord screenPos = loc.getTileCoords().sub(dloc.tc).div(scalef()).add(hsz);
+
+                    if(ev.c.dist(screenPos) < threshold) {
+                        gui.stoneLocationService.removeStoneLocation(loc.getLocationId());
+                        gui.msg("Removed " + loc.getStoneName() + " marker", java.awt.Color.YELLOW);
                         return true;
                     }
                 }
