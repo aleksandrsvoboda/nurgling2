@@ -31,7 +31,6 @@ import nurgling.tasks.WaitWindow;
 import nurgling.tasks.WindowIsClosed;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
@@ -337,7 +336,7 @@ public class Leveler implements Action
         }
 
         NContext ctx = new NContext(gui);
-        NArea dump = ctx.getSpecArea(Specialisation.SpecName.soilDump);
+        NArea dump = ctx.goToArea(Specialisation.SpecName.soilDump);
         if (dump != null) {
             Pair<Coord2d, Coord2d> rca = dump.getRCArea();
             if (rca != null) {

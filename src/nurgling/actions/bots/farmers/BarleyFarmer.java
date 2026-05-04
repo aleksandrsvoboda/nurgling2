@@ -14,7 +14,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
-
 public class BarleyFarmer implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -26,7 +25,7 @@ public class BarleyFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Barley");
+        nContext.goToArea(Specialisation.SpecName.crop, "Barley");
 
         boolean ignoreStraw = (Boolean) NConfig.get(NConfig.Key.ignoreStrawInFarmers);
 

@@ -7,7 +7,6 @@ import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
-import nurgling.overlays.NMiningNumber;
 import nurgling.widgets.TunnelingDialog.Direction;
 
 import java.util.*;

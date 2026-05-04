@@ -2,17 +2,11 @@ package nurgling.actions;
 
 import haven.Gob;
 
-import haven.Coord;
-import haven.Gob;
-import haven.Skeleton;
-
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.tasks.WaitPose;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-
-import static haven.OCache.posres;
 
 public class TakeVehicle implements Action {
     @Override

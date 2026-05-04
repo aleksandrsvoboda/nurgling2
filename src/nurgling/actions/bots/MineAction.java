@@ -4,7 +4,6 @@ package nurgling.actions.bots;
 import haven.*;
 import nurgling.*;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitChipperState;
@@ -12,11 +11,9 @@ import nurgling.tools.NAlias;
 import nurgling.tools.Finder;
 import nurgling.tools.NParser;
 import nurgling.widgets.FoodContainer;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 
 import static haven.MCache.cmaps;
 import static haven.OCache.posres;

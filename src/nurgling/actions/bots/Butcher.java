@@ -4,20 +4,18 @@ import haven.Coord;
 import haven.Gob;
 import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.*;
-import nurgling.tools.Context;
+
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 public class Butcher implements Action {
 
@@ -130,7 +128,7 @@ public class Butcher implements Action {
                         }
                     }
                 }
-                context.getSpecArea(Specialisation.SpecName.deadkritter);
+                context.goToArea(Specialisation.SpecName.deadkritter);
                 gobs = getGobs(area);
             }
             new FreeInventory2(new NContext(gui)).run(gui);

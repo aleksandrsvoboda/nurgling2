@@ -1,7 +1,6 @@
 package nurgling.actions.bots;
 
 import haven.Gob;
-import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
@@ -14,7 +13,6 @@ import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class CurdingTubUnloader implements Action {
     @Override
@@ -30,7 +28,7 @@ public class CurdingTubUnloader implements Action {
         NArea goatsCurdOutputArea = NContext.findOutGlobal("Goat's Curd", 1, gui);
         NArea cowsCurdOutputArea = NContext.findOutGlobal("Cow's Curd", 1, gui);
         NArea sheepsCurdOutputArea = NContext.findOutGlobal("Sheep's Curd", 1, gui);
-        NArea curdingTubArea = NContext.findSpecGlobal(curdingTubSpecialization);
+        NArea curdingTubArea = context.goToArea(curdingTubSpecName);
 
         if (curdingTubArea == null) {
             return Results.ERROR("Curding Tub specialization area required, but not found!");
@@ -42,13 +40,11 @@ public class CurdingTubUnloader implements Action {
 
         NUtils.stackSwitch(true);
 
-        context.getSpecArea(curdingTubSpecName);
-        NArea cts = NContext.findSpec(curdingTubSpecialization);
-        ArrayList<Gob> curdingTubs = Finder.findGobs(cts, new NAlias("gfx/terobjs/curdingtub"));
+        ArrayList<Gob> curdingTubs = Finder.findGobs(curdingTubArea, new NAlias("gfx/terobjs/curdingtub"));
 
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob curdingTub : curdingTubs) {
-            Container cand = new Container(curdingTub, "Curding Tub", cts);
+            Container cand = new Container(curdingTub, "Curding Tub", curdingTubArea);
             cand.initattr(Container.Space.class);
             containers.add(cand);
         }

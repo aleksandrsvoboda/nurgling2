@@ -25,7 +25,7 @@ public class BeetrootFarmer implements Action {
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
         NArea beetrootLeavesArea = NContext.findOut("Beetroot Leaves", 1);
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Beetroot");
+        nContext.goToArea(Specialisation.SpecName.crop, "Beetroot");
 
         if(beetrootLeavesArea == null) {
             return Results.ERROR("PUT Area for Beetroot Leaves required, but not found!");

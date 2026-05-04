@@ -3,7 +3,6 @@ package nurgling.actions.bots;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NInventory;
-import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.CloseTargetContainer;
 import nurgling.actions.OpenTargetContainer;
@@ -89,7 +88,7 @@ public class MaintainStockBot implements Action {
 
         // Get the area and navigate to it using NContext
         NContext ncontext = new NContext(gui);
-        NArea area = ncontext.getAreaById(areaId);
+        NArea area = ncontext.goToAreaById(areaId);
         if (area == null) {
             return Results.ERROR("Area not found: " + areaId);
         }

@@ -7,7 +7,6 @@ import nurgling.NInventory;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -57,14 +56,14 @@ public class DepositItemsToSpecArea implements Action {
         gui.msg("DepositItems: Starting. Item=" + itemAlias + ", maxPerContainer=" + maxPerContainer);
         
         // Get the destination area
-        NArea area = context.getSpecArea(destinationSpec);
+        NArea area = context.goToArea(destinationSpec);
         if (area == null) return Results.ERROR("Destination spec area not found!");
 
         // Get all containers in this area (cupboards, troughs, etc)
-        ArrayList<Gob> gobs = Finder.findGobs(area, new NAlias(new ArrayList<>(Context.contcaps.keySet())));
+        ArrayList<Gob> gobs = Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob gob : gobs) {
-            Container c = new Container(gob, Context.contcaps.get(gob.ngob.name), area);
+            Container c = new Container(gob, NContext.contcaps.get(gob.ngob.name), area);
             // Initialize ItemCount updater with our target item and max count
             c.initItemCount(itemAlias, maxPerContainer);
             // Also initialize Space for free space tracking
@@ -193,7 +192,7 @@ public class DepositItemsToSpecArea implements Action {
                 gui.msg("DepositItems: Fill container #" + fillIndex + " [gob=" + container.gobid + "], items in inventory=" + itemsInInventory.size());
 
                 // Refresh the area context
-                context.getSpecArea(destinationSpec);
+                context.goToArea(destinationSpec);
 
                 // Transfer items to this container
                 // TransferToContainer will open container, call ItemCount.update(), and limit transfer to getNeeded()

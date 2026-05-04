@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static haven.OCache.posres;
 import nurgling.tools.StackSupporter;
 
-
 public class Craft implements Action {
 
 
@@ -153,7 +152,7 @@ public class Craft implements Action {
             String item = s.ing == null ? s.name : s.ing.name;
             if (ncontext.isInBarrel(item)) {
                 if (ncontext.workstation == null) {
-                    NArea barrelwa = ncontext.getSpecArea(Specialisation.SpecName.barrelworkarea);
+                    NArea barrelwa = ncontext.goToArea(Specialisation.SpecName.barrelworkarea);
                     if (barrelwa == null)
                         return Results.ERROR("Not found area for work with barrels!");
                     else
@@ -266,7 +265,7 @@ public class Craft implements Action {
             }
         }
         else if (ncontext.bwaused) {
-            NArea barrelwa = ncontext.getSpecArea(Specialisation.SpecName.barrelworkarea);
+            NArea barrelwa = ncontext.goToArea(Specialisation.SpecName.barrelworkarea);
             Pair<Coord2d, Coord2d> rcArea = barrelwa.getRCArea();
             Coord2d center = rcArea.b.sub(rcArea.a).div(2).add(rcArea.a);
             new PathFinder(center).run(gui);

@@ -18,7 +18,7 @@ public class FreeContainersInArea implements Action {
         ArrayList<Container> containers = new ArrayList<>();
         if(area!=null) {
             for (Gob sm : Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet())))) {
-                Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), context.getAreaById(workAreaId));
+                Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), context.goToAreaById(workAreaId));
                 cand.initattr(Container.Space.class);
                 containers.add(cand);
             }

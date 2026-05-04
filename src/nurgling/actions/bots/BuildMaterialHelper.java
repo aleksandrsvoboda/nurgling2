@@ -62,7 +62,7 @@ public class BuildMaterialHelper {
         // Fallback to user selection - create temp NArea
         NUtils.getGameUI().msg(selectMessage);
         String areaId = context.createArea(selectMessage, selectIcon);
-        NArea selectedArea = context.getAreaById(areaId);
+        NArea selectedArea = context.goToAreaById(areaId);
         return new Build.Ingredient(itemSize, selectedArea, itemAlias, count);
     }
 

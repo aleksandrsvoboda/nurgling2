@@ -3,7 +3,6 @@ package nurgling.actions;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.areas.NArea;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -56,8 +55,8 @@ public class DiggingResources implements Action
                     new TransferToPiles(out, items).run(gui);
                 }
                 else if(wds.getState() == WaitDiggerState.State.TIMEFORDRINK) {
-                    if(!(new Drink(0.9,false).run(gui)).IsSuccess())
-                        return Results.ERROR("Drink is not found");
+                    if(!new RestoreResources().run(gui).IsSuccess())
+                        return Results.ERROR("Failed to restore resources");
                 }
                 else if(wds.getState()== WaitDiggerState.State.DANGER)
                     return Results.ERROR("no energy");

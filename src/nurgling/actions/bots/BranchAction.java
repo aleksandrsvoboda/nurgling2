@@ -7,13 +7,10 @@ import nurgling.NUtils;
 import nurgling.NWItem;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tasks.NFlowerMenuIsClosed;
-import nurgling.tasks.WaitForBurnout;
-import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.tools.VSpec;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
@@ -21,25 +18,23 @@ public class BranchAction implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        NContext context = new NContext(gui);
 
-        NUtils.getGameUI().msg("Please select area with piles of blocks");
-        SelectArea insa;
-        (insa = new SelectArea(Resource.loadsimg("baubles/prepBlockP"))).run(gui);
+        String inputAreaId = context.createArea("Please select area with piles of blocks", Resource.loadsimg("baubles/prepBlockP"));
+        NArea inputArea = context.goToAreaById(inputAreaId);
 
-
-        NUtils.getGameUI().msg("Please select area for output branches");
-        SelectArea onsa;
-        (onsa = new SelectArea(Resource.loadsimg("baubles/branchStart"))).run(gui);
+        String outputAreaId = context.createArea("Please select area for output branches", Resource.loadsimg("baubles/branchStart"));
+        NArea outputArea = context.goToAreaById(outputAreaId);
 
         boolean oldStackingValue = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
         NUtils.stackSwitch(true);
 
-        while(NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(1, 2))!=0 && Finder.findGob(insa.getRCArea(), new NAlias("stockpile"))!=null) {
+        while(NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(1, 2))!=0 && Finder.findGob(inputArea, new NAlias("stockpile"))!=null) {
             int count = NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(1, 2));
             count = Math.min(count, NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(1, 1)));
             while (count != 0) {
                 if (NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(1, 2)) > 0) {
-                    Gob pile = Finder.findGob(insa.getRCArea(), new NAlias("stockpile"));
+                    Gob pile = Finder.findGob(inputArea, new NAlias("stockpile"));
                     if (pile == null) {
                         break;
                     }
@@ -57,7 +52,7 @@ public class BranchAction implements Action {
             for (WItem item : items) {
                 new SelectFlowerAction("Split", (NWItem) item).run(gui);
             }
-            new TransferToPiles(onsa.getRCArea(), new NAlias("Branch")).run(gui);
+            new TransferToPiles(outputArea.getRCArea(), new NAlias("Branch")).run(gui);
         }
 
         NUtils.stackSwitch(oldStackingValue);

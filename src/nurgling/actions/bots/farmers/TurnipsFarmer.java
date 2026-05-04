@@ -13,7 +13,6 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
-
 public class TurnipsFarmer implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -25,7 +24,7 @@ public class TurnipsFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Turnip");
+        nContext.goToArea(Specialisation.SpecName.crop, "Turnip");
 
         NArea turnipArea = NContext.findOut("Turnip", 1);
 

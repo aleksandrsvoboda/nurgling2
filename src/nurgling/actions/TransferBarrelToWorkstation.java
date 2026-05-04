@@ -43,17 +43,9 @@ public class TransferBarrelToWorkstation implements Action {
             if (specName == null)
                 return Results.ERROR("NO WORKSTATION SPEC MAPPING for " + context.workstation.station);
             
-            // Find workstation area globally and navigate to it
-            NArea area = context.getSpecArea(context.workstation);
-            if (area == null) {
-                area = NContext.findSpecGlobal(specName.toString());
-            }
+            NArea area = context.goToArea(context.workstation);
             if (area == null)
                 return Results.ERROR("NO WORKSTATION AREA");
-            
-            // Navigate to the area using global pathfinding before placing
-            // This works even if area is not currently visible
-            NUtils.navigateToArea(area);
             
             // Select workstation if not already selected
             if (context.workstation.selected == -1) {

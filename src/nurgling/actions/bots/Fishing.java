@@ -8,7 +8,7 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NFishingSettings;
 import nurgling.tasks.*;
-import nurgling.tools.Context;
+
 import nurgling.tools.NAlias;
 import nurgling.tools.VSpec;
 
@@ -33,10 +33,9 @@ public class Fishing implements Action {
         {
             return Results.ERROR("No config");
         }
-        SelectArea insa;
-        NUtils.getGameUI().msg("Please select area for fishing");
-        (insa = new SelectArea(Resource.loadsimg("baubles/fishingPlace"))).run(gui);
         NContext context = new NContext(gui);
+        String insaId = context.createArea("Please select area for fishing", Resource.loadsimg("baubles/fishingPlace"));
+        NArea insaArea = context.goToAreaById(insaId);
         NArea repArea = null;
         NArea baitArea= null;
         if(prop.useInventoryTools) {
@@ -45,19 +44,18 @@ public class Fishing implements Action {
         } else {
 
             String repAreaId = context.createArea("Please select area with repair instruments", Resource.loadsimg("baubles/fishingRep"));
-            repArea = context.getAreaById(repAreaId);
+            repArea = context.goToAreaById(repAreaId);
 
             String baitAreaId = context.createArea("Please select area with baits or lures", Resource.loadsimg("baubles/fishingBaits"));
-            baitArea = context.getAreaById(baitAreaId);
+            baitArea = context.goToAreaById(baitAreaId);
 
         }
 
         Pair<Coord2d,Coord2d> outArea = null;
         if(!prop.noPiles) {
-            SelectArea outsa;
-            NUtils.getGameUI().msg("Please select area for piles");
-            (outsa = new SelectArea(Resource.loadsimg("baubles/rawFish"))).run(gui);
-            outArea = outsa.getRCArea();
+            String outsaId = context.createArea("Please select area for piles", Resource.loadsimg("baubles/rawFish"));
+            NArea outsaArea = context.goToAreaById(outsaId);
+            outArea = outsaArea.getRCArea();
         }
 
         if(!new Equip(new NAlias(prop.tool)).run(gui).IsSuccess())
@@ -80,7 +78,7 @@ public class Fishing implements Action {
             }
         }
         NUtils.addTask(new GetCurs("fish"));
-        Coord2d fishPlace = insa.getRCArea().b.add(insa.getRCArea().a).div(2);
+        Coord2d fishPlace = insaArea.getRCArea().b.add(insaArea.getRCArea().a).div(2);
         NUtils.lclick(fishPlace);
         NUtils.addTask(new WaitPose(NUtils.player(),"fish"));
         currentPos = NUtils.player().rc;

@@ -29,7 +29,7 @@ public class GlobalExtractionPhase implements Action {
 
         while (true) {
             NContext context = new NContext(gui);
-            nurgling.areas.NArea jarArea = context.getSpecArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
+            nurgling.areas.NArea jarArea = context.goToArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
             if (jarArea == null) return Results.FAIL();
 
             int extractableItems = countExtractableItems(gui, jarArea);
@@ -77,7 +77,7 @@ public class GlobalExtractionPhase implements Action {
                         NUtils.stackSwitch(false);
                         // Navigate back to jar area after dropping off items
                         NContext context = new NContext(gui);
-                        context.getSpecArea(Specialisation.SpecName.picklingJars);
+                        context.goToArea(Specialisation.SpecName.picklingJars);
                         new PathFinder(Finder.findGob(container.gobid)).run(gui);
                         new OpenTargetContainer(container).run(gui);
 

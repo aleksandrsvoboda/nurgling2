@@ -5,14 +5,11 @@ import nurgling.*;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tools.Context;
+
 import nurgling.widgets.FoodContainer;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.List;
-
-import static haven.Coord.of;
 
 public class Eater implements Action {
 
@@ -30,19 +27,14 @@ public class Eater implements Action {
     public Results run(NGameUI gui) throws InterruptedException {
         ArrayList<String> items = FoodContainer.getFoodNames();
 
-        Pair<Coord2d,Coord2d> area = null;
-        NArea nArea = NContext.findSpec(Specialisation.SpecName.eat.toString());
-        if(nArea==null)
-        {
-            nArea = NContext.findSpecGlobal(Specialisation.SpecName.eat.toString());
+        if (items.isEmpty()) {
+            return Results.ERROR("No allowed food items configured");
         }
-        else
-        {
-            area = nArea.getRCArea();
-        }
-        if(area!=null) {
-            NContext cnt = new NContext(gui);
-            new FindAndEatItems(cnt, items, 8000, area).run(gui);
+
+        NContext cnt = new NContext(gui);
+        NArea nArea = cnt.goToArea(Specialisation.SpecName.eat);
+        if(nArea != null) {
+            new FindAndEatItems(cnt, items, 8000, nArea.getRCArea()).run(gui);
             return NUtils.getEnergy()*10000>8000?Results.SUCCESS():Results.FAIL();
         }
         else

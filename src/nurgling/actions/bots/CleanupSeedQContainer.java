@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.Coord;
 import haven.Gob;
-import haven.ItemInfo;
 import haven.WItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
@@ -11,7 +10,7 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.tasks.WaitFreeHand;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
+import nurgling.areas.NContext;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
@@ -31,8 +30,8 @@ public class CleanupSeedQContainer implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         ArrayList<Container> containers = new ArrayList<>();
-        for (Gob sm : Finder.findGobs(seed.getRCArea(), new NAlias(new ArrayList<>(Context.contcaps.keySet())))) {
-            Container cand = new Container(sm, Context.contcaps.get(sm.ngob.name), null);
+        for (Gob sm : Finder.findGobs(seed.getRCArea(), new NAlias(new ArrayList<>(NContext.contcaps.keySet())))) {
+            Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), null);
             cand.initattr(Container.Space.class);
             containers.add(cand);
         }

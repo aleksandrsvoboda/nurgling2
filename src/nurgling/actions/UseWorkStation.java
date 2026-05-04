@@ -4,7 +4,6 @@ import haven.*;
 import static haven.OCache.posres;
 import static nurgling.areas.NContext.workstation_spec_map;
 
-import haven.render.sl.BinOp;
 import nurgling.*;
 import nurgling.areas.*;
 import nurgling.tasks.*;

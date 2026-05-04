@@ -6,7 +6,6 @@ import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
-import nurgling.areas.NArea;
 import nurgling.overlays.NCustomBauble;
 
 import java.awt.image.BufferedImage;

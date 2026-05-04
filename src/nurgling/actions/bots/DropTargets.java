@@ -1,18 +1,12 @@
 package nurgling.actions.bots;
 
-import haven.Coord2d;
-import haven.Gob;
-import haven.Pair;
 import haven.WItem;
 import nurgling.NGameUI;
-import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.tasks.GetItems;
-import nurgling.tasks.WaitItems;
 import nurgling.tasks.WaitNoItems;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
+
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 

@@ -5,11 +5,8 @@ import nurgling.*;
 import nurgling.actions.Action;
 import nurgling.actions.GoTo;
 import nurgling.actions.Results;
-import nurgling.conf.NPrepBlocksProp;
 import nurgling.conf.NWorldExplorerProp;
 import nurgling.tasks.WaitCheckable;
-import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
 
 import static haven.Coord.of;
 

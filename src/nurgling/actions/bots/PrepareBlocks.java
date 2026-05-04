@@ -8,6 +8,7 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.conf.NPrepBlocksProp;
 import nurgling.tasks.WaitCheckable;
 import nurgling.tasks.WaitPose;
@@ -38,23 +39,23 @@ public class PrepareBlocks implements Action {
         {
             return Results.ERROR("No config");
         }
-        SelectArea insa;
-        NUtils.getGameUI().msg("Please select area with logs");
-        (insa = new SelectArea(Resource.loadsimg("baubles/prepLogs"))).run(gui);
+        NContext context = new NContext(gui);
 
-        SelectArea outsa;
-        NUtils.getGameUI().msg("Please select area for piles");
-        (outsa = new SelectArea(Resource.loadsimg("baubles/prepBlockP"))).run(gui);
+        String logAreaId = context.createArea("Please select area with logs", Resource.loadsimg("baubles/prepLogs"));
+        NArea logArea = context.goToAreaById(logAreaId);
+
+        String pileAreaId = context.createArea("Please select area for piles", Resource.loadsimg("baubles/prepBlockP"));
+        NArea pileArea = context.goToAreaById(pileAreaId);
 
         ArrayList<Gob> logs;
-        while (!(logs = Finder.findGobs(insa.getRCArea(),new NAlias("log"))).isEmpty())
+        while (!(logs = Finder.findGobs(logArea, new NAlias("log"))).isEmpty())
         {
             logs.sort(NUtils.d_comp);
             Gob log = logs.get(0);
             while (Finder.findGob(log.id) != null) {
                 if (NUtils.getGameUI().getInventory().calcNumberFreeCoord(new Coord(1, 2)) == 0)
                 {
-                    new TransferToPiles(outsa.getRCArea(),new NAlias("block")).run(gui);
+                    new TransferToPiles(pileArea.getRCArea(),new NAlias("block")).run(gui);
                 }
                 new PathFinder(log).run(gui);
                 new Equip(new NAlias(prop.tool)).run(gui);
@@ -66,12 +67,12 @@ public class PrepareBlocks implements Action {
                     case LOGNOTFOUND:
                         break;
                     case TIMEFORDRINK: {
-                        if(!(new Drink(0.9, true).run(gui)).IsSuccess())
-                            return Results.ERROR("Drink is not found");
+                        if(!new RestoreResources().run(gui).IsSuccess())
+                            return Results.ERROR("Failed to restore resources");
                         break;
                     }
                     case NOFREESPACE: {
-                        if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("block")).run(gui).IsSuccess()))
+                        if(!(new TransferToPiles(pileArea.getRCArea(),new NAlias("block")).run(gui).IsSuccess()))
                             return Results.FAIL();
                         break;
                     }
@@ -83,7 +84,7 @@ public class PrepareBlocks implements Action {
                 }
             }
         }
-        if(!(new TransferToPiles(outsa.getRCArea(),new NAlias("block")).run(gui).IsSuccess()))
+        if(!(new TransferToPiles(pileArea.getRCArea(),new NAlias("block")).run(gui).IsSuccess()))
             return Results.FAIL();
         return Results.SUCCESS();
     }

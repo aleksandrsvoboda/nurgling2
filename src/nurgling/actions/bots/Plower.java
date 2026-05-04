@@ -2,8 +2,9 @@ package nurgling.actions.bots;
 
 import haven.Resource;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tools.NAlias;
 
 public class Plower implements Action
@@ -13,11 +14,11 @@ public class Plower implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        SelectArea outsa;
-        NUtils.getGameUI().msg("Please select area for plowing");
-        (outsa = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
+        NContext context = new NContext(gui);
+        String outsaId = context.createArea("Please select area for plowing", Resource.loadsimg("baubles/inputArea"));
+        NArea outsaArea = context.goToAreaById(outsaId);
 
-        new PatrolArea(new NAlias( "vehicle/plow" ), outsa.getRCArea() ).run(gui);
+        new PatrolArea(new NAlias( "vehicle/plow" ), outsaArea.getRCArea() ).run(gui);
 
         return Results.SUCCESS();
     }

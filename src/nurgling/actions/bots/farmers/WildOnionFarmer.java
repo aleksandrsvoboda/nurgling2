@@ -24,12 +24,13 @@ public class WildOnionFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Wild Onion");
+        nContext.goToArea(Specialisation.SpecName.crop, "Wild Onion");
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(field);
         req.add(wildOnionAsSeed);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
+        opt.add(trough);
         opt.add(swill);
 
         if (new Validator(req, opt).run(gui).IsSuccess()) {

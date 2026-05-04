@@ -2,20 +2,16 @@ package nurgling.actions;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tasks.HandIsFree;
 import nurgling.tasks.NTask;
-import nurgling.tasks.WaitTargetSize;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 import static nurgling.tools.Finder.findLiftedbyPlayer;
 
@@ -100,7 +96,7 @@ public class FillFluid implements Action
             waterArea = NContext.findSpec(Specialisation.SpecName.water.toString());
             if (waterArea == null && context != null)
             {
-                waterArea = context.getSpecArea(Specialisation.SpecName.water);
+                waterArea = context.goToArea(Specialisation.SpecName.water);
                 if (waterArea != null)
                 {
                     context.navigateToAreaIfNeeded(Specialisation.SpecName.water.toString());
@@ -226,7 +222,7 @@ public class FillFluid implements Action
         }
 
         // Get water area and lift barrel
-        NArea waterArea = context.getSpecArea(Specialisation.SpecName.water);
+        NArea waterArea = context.goToArea(Specialisation.SpecName.water);
         if (waterArea == null) {
             return Results.ERROR("Water area not found");
         }
@@ -250,7 +246,7 @@ public class FillFluid implements Action
         }
 
         // Navigate to target area
-        context.getSpecArea(targetAreaName);
+        context.goToArea(targetAreaName);
 
         // Fill each gob until it stops accepting water
         for (Gob gob : gobsToFill) {
@@ -276,7 +272,7 @@ public class FillFluid implements Action
                 // Check if barrel is empty
                 if (!NUtils.isOverlay(barrel, content)) {
                     // Barrel empty - refill
-                    context.getSpecArea(Specialisation.SpecName.water);
+                    context.goToArea(Specialisation.SpecName.water);
                     if (!new RefillInCistern(area, content).run(gui).IsSuccess()) {
                         // No more water available
                         Gob placed = findLiftedbyPlayer();
@@ -286,7 +282,7 @@ public class FillFluid implements Action
                         }
                         return Results.SUCCESS(); // Filled what we could
                     }
-                    context.getSpecArea(targetAreaName);
+                    context.goToArea(targetAreaName);
                     continue; // Retry this gob
                 }
 
@@ -299,7 +295,7 @@ public class FillFluid implements Action
         }
 
         // Put barrel back in water area
-        context.getSpecArea(Specialisation.SpecName.water);
+        context.goToArea(Specialisation.SpecName.water);
         Gob placed = findLiftedbyPlayer();
         if (placed != null) {
             Coord2d pos = Finder.getFreePlace(area, placed);

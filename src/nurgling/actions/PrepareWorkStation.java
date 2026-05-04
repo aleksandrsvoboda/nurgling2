@@ -7,9 +7,7 @@ import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.HandIsFree;
-import nurgling.tasks.NTask;
-import nurgling.tools.Container;
-import nurgling.tools.Context;
+
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -30,7 +28,7 @@ public class PrepareWorkStation implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        NArea area = context.getSpecArea(context.workstation);
+        NArea area = context.goToArea(context.workstation);
         if(area == null)
             return Results.ERROR("NO WORKSTATION");
         Gob ws = null;

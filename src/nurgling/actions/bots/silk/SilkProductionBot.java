@@ -7,7 +7,6 @@ import nurgling.actions.bots.CollectAndKillRemainingCocoons;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -35,9 +34,8 @@ public class SilkProductionBot implements Action {
         String eggs = "Silkworm Egg";
         String leaves = "Mulberry Leaf";
         String cacoons = "Silkworm Cocoon";
-        
 
-        boolean areasValid = validateRequiredAreas(gui);
+        boolean areasValid = validateRequiredAreas(gui, context);
 
         if(!areasValid) {
             return Results.ERROR("Not all required areas are defined");
@@ -77,7 +75,7 @@ public class SilkProductionBot implements Action {
         
         // Get htable containers for egg filling step
         ArrayList<Container> htableContainers = new ArrayList<>();
-        NArea htablesArea = context.getSpecArea(Specialisation.SpecName.htable, "Silkworm Egg");
+        NArea htablesArea = context.goToArea(Specialisation.SpecName.htable, "Silkworm Egg");
         if (htablesArea != null) {
             htableContainers = createContainersFromArea(htablesArea);
         }
@@ -103,20 +101,20 @@ public class SilkProductionBot implements Action {
         return Results.SUCCESS();
     }
 
-    private boolean validateRequiredAreas(NGameUI gui) {
-        NArea feedingArea = NContext.findSpecGlobal("silkwormFeeding");
+    private boolean validateRequiredAreas(NGameUI gui, NContext context) {
+        NArea feedingArea = context.findArea(Specialisation.SpecName.silkwormFeeding);
         if (feedingArea == null) {
             gui.error("Silkworm Feeding spec area is required, but not found.");
             return false;
         }
 
-        NArea breedingArea = NContext.findSpecGlobal("silkmothBreeding");
+        NArea breedingArea = context.findArea(Specialisation.SpecName.silkmothBreeding);
         if (breedingArea == null) {
             gui.error("Silkmoth Breeding spec area is required, but not found.");
             return false;
         }
 
-        NArea htablesSilkwormEgg = NContext.findSpecGlobal("htable", "Silkworm Egg");
+        NArea htablesSilkwormEgg = context.findArea(Specialisation.SpecName.htable, "Silkworm Egg");
         if (htablesSilkwormEgg == null) {
             gui.error("Herbalist Table spec with Silkworm Egg sub spec area is required, but not found.");
             return false;

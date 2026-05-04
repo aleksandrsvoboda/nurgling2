@@ -7,6 +7,7 @@ import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.GetNotFullStack;
 import nurgling.tasks.ISRemovedLoftar;
@@ -69,10 +70,10 @@ public class CollectHighestQualitySilkwormEggs implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Phase 0: Area selection
-        gui.msg("Please select area containing containers with Silkworm Eggs");
-        SelectArea selectArea = new SelectArea(Resource.loadsimg("baubles/inputArea"));
-        selectArea.run(gui);
-        Pair<Coord2d, Coord2d> area = selectArea.getRCArea();
+        NContext context = new NContext(gui);
+        String selectAreaId = context.createArea("Please select area containing containers with Silkworm Eggs", Resource.loadsimg("baubles/inputArea"));
+        NArea selectAreaNArea = context.goToAreaById(selectAreaId);
+        Pair<Coord2d, Coord2d> area = selectAreaNArea.getRCArea();
 
         if (area == null) {
             return Results.ERROR("No area selected");

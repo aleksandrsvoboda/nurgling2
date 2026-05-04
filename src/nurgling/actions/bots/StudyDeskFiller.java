@@ -12,7 +12,6 @@ import nurgling.actions.CloseTargetContainer;
 import nurgling.actions.OpenTargetContainer;
 import nurgling.actions.PathFinder;
 import nurgling.actions.Results;
-import nurgling.actions.TakeWItemsFromContainer;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.ISRemoved;
@@ -157,7 +156,7 @@ public class StudyDeskFiller implements Action {
      */
     private NArea getStudyDeskArea(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
-        return context.getSpecArea(Specialisation.SpecName.studyDesks);
+        return context.goToArea(Specialisation.SpecName.studyDesks);
     }
 
     /**

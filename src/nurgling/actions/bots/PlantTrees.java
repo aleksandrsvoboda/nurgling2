@@ -3,13 +3,14 @@ package nurgling.actions.bots;
 import haven.*;
 import nurgling.*;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.NMapView;
 import nurgling.tasks.WaitPose;
 import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tools.*;
 import nurgling.widgets.TreeSpacingDialog;
 import nurgling.overlays.TreeGhostPreview;
-import nurgling.widgets.NEquipory;
 
 import java.util.*;
 
@@ -32,6 +33,7 @@ public class PlantTrees implements Action {
     private static final NAlias SHOVEL = new NAlias("Shovel");
 
     // State variables
+    private NContext context;
     private Pair<Coord2d, Coord2d> selectedArea;
     private ArrayList<Coord2d> plantingPositions;
     private TreeSpacingDialog spacingDialog;
@@ -45,6 +47,8 @@ public class PlantTrees implements Action {
         try {
             // Reset state for reusability
             resetState();
+
+            context = new NContext(gui);
 
             // Phase 1: Validation
             Results validation = validateEquipmentAndSeeds(gui);
@@ -119,18 +123,14 @@ public class PlantTrees implements Action {
      */
     private Results selectPlantingArea(NGameUI gui) throws InterruptedException {
         try {
-            NUtils.getUI().msg("Select area for tree planting...");
+            String selectorId = context.createArea("Select area for tree planting...", Resource.loadsimg("baubles/plantTrees"));
+            NArea selectorArea = context.goToAreaById(selectorId);
 
-            // Use basic area selection without rotation UI
-            SelectArea selector = new SelectArea(Resource.loadsimg("baubles/plantTrees"));
-
-            selector.run(gui);
-
-            if (selector.getRCArea() == null) {
+            if (selectorArea.getRCArea() == null) {
                 return Results.FAIL(); // User cancelled area selection
             }
 
-            this.selectedArea = selector.getRCArea();
+            this.selectedArea = selectorArea.getRCArea();
 
             // Validate area size (max 50x50 tiles for performance)
             double width = Math.abs(selectedArea.b.x - selectedArea.a.x);
@@ -464,6 +464,7 @@ public class PlantTrees implements Action {
         removeGhostPreview();
 
         // Reset state variables
+        context = null;
         selectedArea = null;
         plantingPositions = null;
         spacingDialog = null;

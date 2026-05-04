@@ -5,6 +5,7 @@ import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NAutoFlowerActionProp;
 import nurgling.tasks.*;
@@ -12,8 +13,6 @@ import nurgling.tools.Finder;
 import nurgling.widgets.bots.AutoFlowerAction;
 
 import java.util.ArrayList;
-
-import static haven.OCache.posres;
 
 public class AutoFlowerActionBot implements Action {
 
@@ -41,10 +40,9 @@ public class AutoFlowerActionBot implements Action {
         }
 
         NContext context = new NContext(gui);
-        
-        SelectArea selectArea;
-        NUtils.getGameUI().msg("Please select area for objects");
-        (selectArea = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
+
+        String selectAreaId = context.createArea("Please select area for objects", Resource.loadsimg("baubles/inputArea"));
+        NArea selectAreaNArea = context.goToAreaById(selectAreaId);
         
         SelectGob selgob;
         NUtils.getGameUI().msg("Please select target object");
@@ -56,7 +54,7 @@ public class AutoFlowerActionBot implements Action {
         }
 
         ArrayList<Gob> gobs = new ArrayList<>();
-        for (Gob gob : Finder.findGobs(selectArea.getRCArea(), null)) {
+        for (Gob gob : Finder.findGobs(selectAreaNArea.getRCArea(), null)) {
             if (gob.ngob.name.equals(targetGob.ngob.name)) {
                 gobs.add(gob);
             }

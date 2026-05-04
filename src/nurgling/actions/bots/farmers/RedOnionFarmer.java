@@ -24,7 +24,7 @@ public class RedOnionFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Red Onion");
+        nContext.goToArea(Specialisation.SpecName.crop, "Red Onion");
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(field);

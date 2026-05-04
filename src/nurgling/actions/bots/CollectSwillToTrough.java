@@ -2,7 +2,6 @@ package nurgling.actions.bots;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.NGItem;
 import nurgling.NISBox;
 import nurgling.actions.Action;
@@ -12,8 +11,8 @@ import nurgling.actions.TakeItemsFromContainer;
 import nurgling.actions.TakeItemsFromPile;
 import nurgling.actions.OpenTargetContainer;
 import nurgling.actions.TransferToTrough;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tasks.FilledTrough;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -41,10 +40,10 @@ public class CollectSwillToTrough implements Action {
         }
 
         // Step 2: Select area for swill collection
-        SelectArea insa;
-        gui.msg("Please select area for swill collection");
-        (insa = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
-        Pair<Coord2d, Coord2d> area = insa.getRCArea();
+        NContext context = new NContext(gui);
+        String insaId = context.createArea("Please select area for swill collection", Resource.loadsimg("baubles/inputArea"));
+        NArea insaArea = context.goToAreaById(insaId);
+        Pair<Coord2d, Coord2d> area = insaArea.getRCArea();
 
         if (area == null) {
             return Results.ERROR("No area selected");

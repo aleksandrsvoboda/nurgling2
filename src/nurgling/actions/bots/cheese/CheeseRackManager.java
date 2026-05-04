@@ -14,7 +14,6 @@ import nurgling.actions.TransferWItemsToContainer;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.actions.bots.cheese.CheeseRackOverlayUtils;
 import nurgling.cheese.CheeseOrdersManager;
 import nurgling.cheese.CheeseOrder;
 
@@ -65,7 +64,7 @@ public class CheeseRackManager {
 
             // Navigate to this area
             NContext context = new NContext(gui);
-            context.getAreaById(targetArea.id);
+            context.goToAreaById(targetArea.id);
 
             ArrayList<Gob> racks = Finder.findGobs(targetArea, new NAlias("gfx/terobjs/cheeserack"));
 

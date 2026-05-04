@@ -1,9 +1,7 @@
 package nurgling.actions.bots;
 
-import haven.Gob;
 import haven.Resource;
 import haven.UI;
-import haven.res.lib.tree.TreeScale;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
@@ -11,15 +9,7 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NClayDiggerProp;
 import nurgling.tasks.WaitCheckable;
-import nurgling.tasks.WaitChopperState;
-import nurgling.tasks.WaitPose;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 public class ClayDigger implements Action {
     @Override
@@ -46,21 +36,20 @@ public class ClayDigger implements Action {
         {
             return Results.ERROR("Not set required tools");
         }
-        NUtils.getGameUI().msg("Please select area for dig clay");
-        SelectArea insa;
-        (insa = new SelectArea(Resource.loadsimg("baubles/clayTime"))).run(gui);
+        NContext context = new NContext(gui);
+        String insaId = context.createArea("Please select area for dig clay", Resource.loadsimg("baubles/clayTime"));
+        NArea insaArea = context.goToAreaById(insaId);
 
 
         NArea area = NContext.findOut(new NAlias("clay"),1);
         if(area==null || area.getRCArea() == null)
         {
-            NUtils.getGameUI().msg("Please select area for output clay");
-            SelectArea onsa;
-            (onsa = new SelectArea(Resource.loadsimg("baubles/clayPiles"))).run(gui);
-            new DiggingResources(insa.getRCArea(),onsa.getRCArea(),new NAlias("clay"), prop.shovel).run(gui);
+            String onsaId = context.createArea("Please select area for output clay", Resource.loadsimg("baubles/clayPiles"));
+            NArea onsaArea = context.goToAreaById(onsaId);
+            new DiggingResources(insaArea.getRCArea(),onsaArea.getRCArea(),new NAlias("clay"), prop.shovel).run(gui);
         }
         else {
-            new DiggingResources(insa.getRCArea(), area.getRCArea(), new NAlias("clay"), prop.shovel).run(gui);
+            new DiggingResources(insaArea.getRCArea(), area.getRCArea(), new NAlias("clay"), prop.shovel).run(gui);
         }
 
         return Results.SUCCESS();

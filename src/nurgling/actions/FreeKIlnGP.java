@@ -1,24 +1,19 @@
 package nurgling.actions;
 
 import haven.Coord;
-import haven.WItem;
-import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
-import nurgling.tasks.WaitLifted;
 import nurgling.tasks.WaitPose;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 
 public class FreeKIlnGP implements Action
 {
@@ -32,7 +27,6 @@ public class FreeKIlnGP implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        Context context = new Context();
         for(Container container: containers)
         {
             Container.Space space = container.getattr(Container.Space.class);

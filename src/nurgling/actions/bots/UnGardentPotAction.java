@@ -28,10 +28,10 @@ public class UnGardentPotAction implements Action {
         req.add(rfuelb);
         req.add(rgardenpot);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
+        NContext icontext = new NContext(gui);
         if(new Validator(req, opt).run(gui).IsSuccess()) {
 
-
-            NArea kilns = NContext.findSpecGlobal(Specialisation.SpecName.kiln.toString());
+            NArea kilns = icontext.goToArea(Specialisation.SpecName.kiln);
 
             ArrayList<Container> containers = new ArrayList<>();
             for (Gob sm : Finder.findGobs(kilns, new NAlias("gfx/terobjs/kiln"))) {
@@ -56,7 +56,6 @@ public class UnGardentPotAction implements Action {
                 lighted.add(cont.gobHash);
             }
 
-            NContext icontext = new NContext(gui);
             try {
                 icontext.addInItem("Unfired Garden Pot", null);
             } catch (InterruptedException e) {

@@ -197,24 +197,24 @@ public class NContext {
         return outAreas.get(item);
     }
 
-    public NArea getSpecArea(NContext.Workstation workstation) throws InterruptedException {
+    public NArea goToArea(NContext.Workstation workstation) throws InterruptedException {
         String specName = workstation_spec_map.get(workstation.station).toString();
-        NUtils.getGameUI().msg("getSpecArea: Looking for spec '" + specName + "' for station '" + workstation.station + "'");
+        NUtils.getGameUI().msg("goToArea: Looking for spec '" + specName + "' for station '" + workstation.station + "'");
         
         if(!areas.containsKey(specName)) {
-            NUtils.getGameUI().msg("getSpecArea: Area not in cache, searching...");
+            NUtils.getGameUI().msg("goToArea: Area not in cache, searching...");
             NArea area = findSpec(specName);
-            NUtils.getGameUI().msg("getSpecArea: findSpec returned " + (area != null ? "area" : "null"));
+            NUtils.getGameUI().msg("goToArea: findSpec returned " + (area != null ? "area" : "null"));
             if (area == null) {
                 area = findSpecGlobal(specName);
-                NUtils.getGameUI().msg("getSpecArea: findSpecGlobal returned " + (area != null ? "area" : "null"));
+                NUtils.getGameUI().msg("goToArea: findSpecGlobal returned " + (area != null ? "area" : "null"));
             }
             if (area != null) {
                 areas.put(specName, area);
             }
             else
             {
-                NUtils.getGameUI().msg("getSpecArea: No area found, returning null");
+                NUtils.getGameUI().msg("goToArea: No area found, returning null");
                 return null;
             }
         }
@@ -320,9 +320,9 @@ public class NContext {
                 
                 NArea area;
                 if(workstation==null)
-                    area = getSpecArea(Specialisation.SpecName.barrelworkarea);
+                    area = goToArea(Specialisation.SpecName.barrelworkarea);
                 else
-                    area = getSpecArea(workstation);
+                    area = goToArea(workstation);
                 
                 if (area != null) {
                     haven.Pair<haven.Coord2d, haven.Coord2d> rcArea = area.getRCArea();
@@ -373,9 +373,9 @@ public class NContext {
         // Fallback: search in area by content
         NArea area;
         if(workstation==null)
-            area = getSpecArea(Specialisation.SpecName.barrelworkarea);
+            area = goToArea(Specialisation.SpecName.barrelworkarea);
         else
-            area = getSpecArea(workstation);
+            area = goToArea(workstation);
         if(area==null)
             return null;
         if(barrelstorage.containsKey(item))
@@ -467,41 +467,66 @@ public class NContext {
         return null;
     }
 
-    public NArea getSpecArea(Specialisation.SpecName name) throws InterruptedException {
+    /**
+     * Find an area by specialisation (local first, then global) with caching. Does NOT navigate.
+     * Use when resolving multiple areas upfront or checking existence.
+     */
+    public NArea findArea(Specialisation.SpecName name) {
         if(!areas.containsKey(name.toString())) {
             NArea area = findSpec(name.toString());
             if (area == null) {
                 area = findSpecGlobal(name.toString());
             }
             if (area != null) {
-                areas.put(String.valueOf(name.toString()), area);
+                areas.put(name.toString(), area);
             }
-            else
-            {
+            else {
                 return null;
             }
         }
-        navigateToAreaIfNeeded(name.toString());
         return areas.get(name.toString());
     }
 
-    public NArea getSpecArea(Specialisation.SpecName name, String sub) throws InterruptedException {
+    /**
+     * Find an area by specialisation + subtype (local first, then global) with caching. Does NOT navigate.
+     */
+    public NArea findArea(Specialisation.SpecName name, String sub) {
         String key = name.toString() + (sub != null ? "_" + sub : "");
         if(!areas.containsKey(key)) {
-            NArea area = findSpec(name.toString(),sub);
+            NArea area = findSpec(name.toString(), sub);
             if (area == null) {
-                area = findSpecGlobal(name.toString(),sub);
+                area = findSpecGlobal(name.toString(), sub);
             }
             if (area != null) {
                 areas.put(key, area);
             }
-            else
-            {
+            else {
                 return null;
             }
         }
-        navigateToAreaIfNeeded(key);
         return areas.get(key);
+    }
+
+    /**
+     * Find and navigate to an area (local first, then global) with caching.
+     * Use when the bot needs to be AT the area immediately after the call.
+     */
+    public NArea goToArea(Specialisation.SpecName name) throws InterruptedException {
+        NArea area = findArea(name);
+        if (area == null) return null;
+        navigateToAreaIfNeeded(name.toString());
+        return area;
+    }
+
+    /**
+     * Find and navigate to an area with subtype (local first, then global) with caching.
+     */
+    public NArea goToArea(Specialisation.SpecName name, String sub) throws InterruptedException {
+        NArea area = findArea(name, sub);
+        if (area == null) return null;
+        String key = name.toString() + (sub != null ? "_" + sub : "");
+        navigateToAreaIfNeeded(key);
+        return area;
     }
 
     /**
@@ -511,7 +536,7 @@ public class NContext {
      * @return The area containing the material, or null if not found
      */
     public NArea getBuildMaterialArea(ConstructionMaterialsRegistry.MaterialType materialType) throws InterruptedException {
-        return findSpecAreaNoNavigate(Specialisation.SpecName.buildMaterials, materialType.getSubtype());
+        return findArea(Specialisation.SpecName.buildMaterials, materialType.getSubtype());
     }
 
     /**
@@ -527,30 +552,6 @@ public class NContext {
             return getBuildMaterialArea(materialType);
         }
         return null;
-    }
-    
-    /**
-     * Find a specialization area WITHOUT navigating to it.
-     * Use this when you just need to check if a zone exists or get a reference.
-     * @param name Specialization name
-     * @param sub Subtype (can be null)
-     * @return The area or null if not found
-     */
-    public NArea findSpecAreaNoNavigate(Specialisation.SpecName name, String sub) throws InterruptedException {
-        String key = name.toString() + (sub != null ? "_" + sub : "");
-        if (!areas.containsKey(key)) {
-            NArea area = findSpec(name.toString(), sub);
-            if (area == null) {
-                area = findSpecGlobal(name.toString(), sub);
-            }
-            if (area != null) {
-                areas.put(key, area);
-            } else {
-                return null;
-            }
-        }
-        // NO navigation - just return the cached area
-        return areas.get(key);
     }
 
     /**
@@ -575,9 +576,9 @@ public class NContext {
 
     /**
      * Get an area by its ID and navigate to it using global pathfinding.
-     * Similar to getSpecArea but takes an area ID instead of spec name.
+     * Similar to goToArea but takes an area ID instead of spec name.
      */
-    public NArea getAreaById(int areaId) throws InterruptedException {
+    public NArea goToAreaById(int areaId) throws InterruptedException {
         String key = "area_" + areaId;
         if (!areas.containsKey(key)) {
             NArea area = NUtils.getGameUI().map.glob.map.areas.get(areaId);
@@ -591,7 +592,7 @@ public class NContext {
         return areas.get(key);
     }
 
-    public NArea getAreaById(String key) throws InterruptedException {
+    public NArea goToAreaById(String key) throws InterruptedException {
         if (!areas.containsKey(key)) {
             NArea area = NUtils.getGameUI().map.glob.map.areas.get(key);
             if (area != null) {
@@ -613,9 +614,9 @@ public class NContext {
         ArrayList<ObjectStorage> inputs = new ArrayList<>();
         NArea area;
         if (subtype != null && !subtype.isEmpty()) {
-            area = getSpecArea(name, subtype);
+            area = goToArea(name, subtype);
         } else {
-            area = getSpecArea(name);
+            area = goToArea(name);
         }
 
         if(area == null) {

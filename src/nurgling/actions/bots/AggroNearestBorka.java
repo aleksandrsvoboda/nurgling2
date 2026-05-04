@@ -1,12 +1,10 @@
 package nurgling.actions.bots;
 
 import haven.Coord;
-import haven.Coord2d;
 import haven.Fightview;
 import haven.Gob;
 import haven.res.ui.obj.buddy.Buddy;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;

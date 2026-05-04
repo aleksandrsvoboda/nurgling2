@@ -1,6 +1,5 @@
 package nurgling.actions.bots;
 
-import haven.Coord;
 import haven.Gob;
 import haven.Resource;
 import haven.WItem;
@@ -8,14 +7,12 @@ import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.tasks.WaitItemInHand;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tasks.WaitItems;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 public class CollectSameItemsFromEarth implements Action {
 
@@ -23,6 +20,8 @@ public class CollectSameItemsFromEarth implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        NContext context = new NContext(gui);
+
         SelectGob selgob;
         NUtils.getGameUI().msg("Please select item for pile");
         (selgob = new SelectGob(Resource.loadsimg("baubles/selectItem"))).run(gui);
@@ -31,12 +30,10 @@ public class CollectSameItemsFromEarth implements Action {
         {
             return Results.ERROR("Item not found");
         }
-        SelectArea insa;
-        NUtils.getGameUI().msg("Please select area with items");
-        (insa = new SelectArea(Resource.loadsimg("baubles/inputArea"))).run(gui);
-        SelectArea outsa;
-        NUtils.getGameUI().msg("Please select area for piles");
-        (outsa = new SelectArea(Resource.loadsimg("baubles/outputArea"))).run(gui);
+        String insaId = context.createArea("Please select area with items", Resource.loadsimg("baubles/inputArea"));
+        NArea insaArea = context.goToAreaById(insaId);
+        String outsaId = context.createArea("Please select area for piles", Resource.loadsimg("baubles/outputArea"));
+        NArea outsaArea = context.goToAreaById(outsaId);
 
         new PathFinder(target).run(gui);
         ArrayList<WItem> oldItems = NUtils.getGameUI().getInventory().getItems();
@@ -53,7 +50,7 @@ public class CollectSameItemsFromEarth implements Action {
                 break;
             }
         }
-        new CollectItemsToPile(insa.getRCArea(),outsa.getRCArea(),itemName).run(gui);
+        new CollectItemsToPile(insaArea.getRCArea(),outsaArea.getRCArea(),itemName).run(gui);
         return Results.SUCCESS();
     }
 }

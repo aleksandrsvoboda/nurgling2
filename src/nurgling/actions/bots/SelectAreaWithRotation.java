@@ -6,7 +6,6 @@ import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.areas.NArea;
 import nurgling.overlays.NCustomBauble;
-import nurgling.overlays.TrellisGhostPreview;
 import nurgling.widgets.TrellisDirectionDialog;
 
 import java.awt.image.BufferedImage;

@@ -14,7 +14,6 @@ import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class CompostBinUnloader implements Action {
     @Override
@@ -41,7 +40,7 @@ public class CompostBinUnloader implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
-            context.getSpecArea(compostBinSpecName);
+            context.goToArea(compostBinSpecName);
             NArea combinarea = NContext.findSpec(compostBinSpecialization);
             ArrayList<Gob> compostBins = Finder.findGobs(combinarea, new NAlias("gfx/terobjs/compostbin"));
 

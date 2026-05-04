@@ -51,11 +51,12 @@ public class PicklingBot implements Action {
             return Results.SUCCESS();
         }
 
+        NContext context = new NContext(gui);
         boolean anyProcessed = false;
 
         // Process each enabled vegetable individually
         for (VegetableConfig vegetableConfig : enabledVegetables) {
-            if (processVegetable(gui, vegetableConfig)) {
+            if (processVegetable(gui, context, vegetableConfig)) {
                 anyProcessed = true;
             }
         }
@@ -76,9 +77,8 @@ public class PicklingBot implements Action {
         return enabled;
     }
 
-    private boolean processVegetable(NGameUI gui, VegetableConfig vegetableConfig) throws InterruptedException {
-        // Check if required areas exist
-        NArea jarArea = NContext.findSpecGlobal(Specialisation.SpecName.picklingJars.toString(), vegetableConfig.subSpec);
+    private boolean processVegetable(NGameUI gui, NContext context, VegetableConfig vegetableConfig) throws InterruptedException {
+        NArea jarArea = context.findArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
 
         if (jarArea == null) {
             NUtils.getGameUI().msg("Missing picklingJars area. Skipping " + vegetableConfig.subSpec + ".");

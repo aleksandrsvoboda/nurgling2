@@ -35,17 +35,8 @@ public class TransferBarrelInWorkArea implements Action {
         new LiftObject(barrel).run(gui);
         
         if (context.workstation == null) {
-            // Find barrelworkarea globally and navigate to it
-            NArea area = context.getSpecArea(Specialisation.SpecName.barrelworkarea);
-            if (area == null) {
-                area = NContext.findSpecGlobal(Specialisation.SpecName.barrelworkarea.toString());
-            }
+            NArea area = context.goToArea(Specialisation.SpecName.barrelworkarea);
             if (area != null) {
-                // Navigate to the area using global pathfinding before placing
-                // This works even if area is not currently visible
-                NUtils.navigateToArea(area);
-                
-                // Now that we've navigated, getRCArea should be available
                 if (area.getRCArea() == null)
                     return Results.ERROR("Could not get area coordinates after navigation");
                 

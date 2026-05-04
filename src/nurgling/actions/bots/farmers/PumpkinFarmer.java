@@ -24,7 +24,7 @@ public class PumpkinFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Pumpkin");
+        nContext.goToArea(Specialisation.SpecName.crop, "Pumpkin");
 
         NArea pumpkinFlesh = NContext.findOut(new NAlias("Pumpkin Flesh"), 1);
 

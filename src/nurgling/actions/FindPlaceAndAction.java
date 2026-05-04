@@ -2,11 +2,7 @@ package nurgling.actions;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.areas.NArea;
-import nurgling.pf.CellsArray;
-import nurgling.pf.NPFMap;
-import nurgling.pf.Utils;
 import nurgling.tools.Finder;
 
 import static nurgling.tools.Finder.findLiftedbyPlayer;

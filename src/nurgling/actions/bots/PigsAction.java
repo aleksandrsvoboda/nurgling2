@@ -1,7 +1,6 @@
 package nurgling.actions.bots;
 
 import haven.Gob;
-import haven.res.gfx.hud.rosters.goat.Goat;
 import haven.res.gfx.hud.rosters.pig.Pig;
 import haven.res.ui.croster.CattleId;
 import nurgling.NGameUI;

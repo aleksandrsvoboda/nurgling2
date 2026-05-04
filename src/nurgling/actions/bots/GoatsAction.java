@@ -1,17 +1,14 @@
 package nurgling.actions.bots;
 
-import haven.Coord;
 import haven.Gob;
 import haven.res.gfx.hud.rosters.goat.Goat;
-import haven.res.gfx.hud.rosters.sheep.Sheep;
 import haven.res.ui.croster.CattleId;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.conf.GoatsHerd;
-import nurgling.tools.Context;
-import nurgling.tools.Finder;
+
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 

@@ -6,12 +6,12 @@ import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitCarveState;
 import nurgling.tasks.WaitPose;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
@@ -23,31 +23,27 @@ public class FriedFish implements Action {
 
     NAlias powname = new NAlias(new ArrayList<String>(List.of("gfx/terobjs/pow")));
 
-
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
-        SelectArea insa;
-        NUtils.getGameUI().msg("Please select area with raw fish");
-        (insa = new SelectArea(Resource.loadsimg("baubles/rawFish"))).run(gui);
+        String insaId = context.createArea("Please select area with raw fish", Resource.loadsimg("baubles/rawFish"));
+        NArea insaArea = context.goToAreaById(insaId);
 
-        SelectArea outsa;
-        NUtils.getGameUI().msg("Please select area for results");
-        (outsa = new SelectArea(Resource.loadsimg("baubles/prepFish"))).run(gui);
+        String outsaId = context.createArea("Please select area for results", Resource.loadsimg("baubles/prepFish"));
+        NArea outsaArea = context.goToAreaById(outsaId);
 
-        SelectArea powsa;
-        NUtils.getGameUI().msg("Please select area with fireplaces");
-        (powsa = new SelectArea(Resource.loadsimg("baubles/fireplace"))).run(gui);
+        String powsaId = context.createArea("Please select area with fireplaces", Resource.loadsimg("baubles/fireplace"));
+        NArea powsaArea = context.goToAreaById(powsaId);
 
         ArrayList<Container> containers = new ArrayList<>();
-        for (Gob sm : Finder.findGobs(outsa.getRCArea(), new NAlias(new ArrayList<>(Context.contcaps.keySet())))) {
-            Container cand = new Container(sm, Context.contcaps.get(sm.ngob.name), null);
+        for (Gob sm : Finder.findGobs(outsaArea.getRCArea(), new NAlias(new ArrayList<>(NContext.contcaps.keySet())))) {
+            Container cand = new Container(sm, NContext.contcaps.get(sm.ngob.name), null);
             cand.initattr(Container.Space.class);
             containers.add(cand);
         }
 
 
-            ArrayList<Gob> allPow = Finder.findGobs(powsa.getRCArea(), powname);
+            ArrayList<Gob> allPow = Finder.findGobs(powsaArea.getRCArea(), powname);
             ArrayList<Gob> pows = new ArrayList<>();
             for (Gob gob : allPow) {
                 if ((gob.ngob.getModelAttribute() & 48) == 0) {
@@ -59,7 +55,7 @@ public class FriedFish implements Action {
             }
             pows.sort(NUtils.y_min_comp);
             pows.sort(NUtils.x_min_comp);
-        while (Finder.findGob(insa.getRCArea(), new NAlias("stockpile"))!=null) {
+        while (Finder.findGob(insaArea.getRCArea(), new NAlias("stockpile"))!=null) {
             boolean readyToWork = false;
             for (Gob gob : pows) {
                 Gob.Overlay ol = (gob.findol(Roastspit.class));
@@ -155,7 +151,7 @@ public class FriedFish implements Action {
             while (count != 0) {
                 for (int i = 0; i < count; i++) {
                     if (NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(1, 3)) > 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(new Coord(2, 1)) > 0) {
-                        Gob pile = Finder.findGob(insa.getRCArea(), new NAlias("stockpile"));
+                        Gob pile = Finder.findGob(insaArea.getRCArea(), new NAlias("stockpile"));
                         if (pile == null) {
                             return Results.ERROR("No raw fish");
                         }

@@ -25,7 +25,7 @@ public class PipeweedFarmer implements Action {
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
         NArea pipeweedLeafArea = NContext.findOut("Fresh Leaf of Pipeweed", 1);
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Pipeweed");
+        nContext.goToArea(Specialisation.SpecName.crop, "Pipeweed");
 
         if(pipeweedLeafArea == null) {
             return Results.ERROR("PUT Area for Fresh Leaf of Pipeweed required, but not found!");

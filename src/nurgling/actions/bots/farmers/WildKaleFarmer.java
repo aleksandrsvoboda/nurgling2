@@ -24,7 +24,7 @@ public class WildKaleFarmer implements Action {
         NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
         NArea.Specialisation swill = new NArea.Specialisation(Specialisation.SpecName.swill.toString());
 
-        nContext.getSpecArea(Specialisation.SpecName.crop, "Wild Kale");
+        nContext.goToArea(Specialisation.SpecName.crop, "Wild Kale");
 
         NArea wildKaleArea = NContext.findOut("Wildkale Leaf", 1);
 

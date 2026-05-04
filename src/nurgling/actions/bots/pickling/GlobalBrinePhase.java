@@ -31,12 +31,12 @@ public class GlobalBrinePhase implements Action {
 
         while (true) {
             NContext context = new NContext(gui);
-            nurgling.areas.NArea jarArea = context.getSpecArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
+            nurgling.areas.NArea jarArea = context.goToArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
             if (jarArea == null) return Results.FAIL();
 
             if (!collectJarsNeedingBrine(gui, jarArea)) break;
 
-            nurgling.areas.NArea barrelArea = context.getSpecArea(Specialisation.SpecName.barrel, "Pickling Brine");
+            nurgling.areas.NArea barrelArea = context.goToArea(Specialisation.SpecName.barrel, "Pickling Brine");
             if (barrelArea == null) return Results.FAIL();
 
             ArrayList<Gob> barrels = Finder.findGobs(barrelArea, new NAlias("barrel"));
@@ -58,7 +58,7 @@ public class GlobalBrinePhase implements Action {
                 }
             }
 
-            context.getSpecArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
+            context.goToArea(Specialisation.SpecName.picklingJars, vegetableConfig.subSpec);
             returnJarsToContainers(gui, jarArea);
         }
         return workDone ? Results.SUCCESS() : Results.FAIL();

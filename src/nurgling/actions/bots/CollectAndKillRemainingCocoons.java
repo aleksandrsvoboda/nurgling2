@@ -7,7 +7,6 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -29,13 +28,13 @@ public class CollectAndKillRemainingCocoons implements Action {
         String chrysalis = "Death's Head Chrysalis";
         
         // Get silkworm feeding area
-        NArea feedingArea = context.getSpecArea(Specialisation.SpecName.silkwormFeeding);
+        NArea feedingArea = context.goToArea(Specialisation.SpecName.silkwormFeeding);
         if (feedingArea == null) {
             return Results.SUCCESS(); // No feeding area, nothing to do
         }
         
         // Get all containers in feeding area
-        ArrayList<Gob> feedingGobs = Finder.findGobs(feedingArea, new NAlias(new ArrayList<>(Context.contcaps.keySet())));
+        ArrayList<Gob> feedingGobs = Finder.findGobs(feedingArea, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));
         ArrayList<Container> feedingContainers = new ArrayList<>();
         
         for (Gob gob : feedingGobs) {
@@ -70,7 +69,7 @@ public class CollectAndKillRemainingCocoons implements Action {
                         new CloseTargetContainer(container).run(gui);
                         new KillCocoons().run(gui);
                         new FreeInventory2(context).run(gui);
-                        context.getSpecArea(Specialisation.SpecName.silkwormFeeding);
+                        context.goToArea(Specialisation.SpecName.silkwormFeeding);
                         new PathFinder(Finder.findGob(container.gobid)).run(gui);
                         new OpenTargetContainer(container).run(gui);
                         // Refresh the item list after inventory was cleared

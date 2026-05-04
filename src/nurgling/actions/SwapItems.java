@@ -1,7 +1,6 @@
 package nurgling.actions;
 
 import haven.*;
-import static haven.Inventory.sqsz;
 import nurgling.*;
 
 public class SwapItems implements Action

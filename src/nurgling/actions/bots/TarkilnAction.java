@@ -1,23 +1,16 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.tasks.*;
-import nurgling.tools.Container;
-import nurgling.tools.Context;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-
-import static nurgling.actions.bots.Butcher.order;
 
 public class TarkilnAction implements Action {
 
@@ -30,21 +23,19 @@ public class TarkilnAction implements Action {
         req.add(tarkilnsa);
 
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
-        Context context = new Context();
+        NContext context = new NContext(gui);
 
         NArea npile_area = NContext.findOut(new NAlias("Coal"),1);
         Pair<Coord2d,Coord2d> pile_area = npile_area!=null?npile_area.getRCArea():null;
         if(pile_area==null)
         {
-            NUtils.getGameUI().msg("Please select area for output coal");
-            SelectArea onsa;
-            (onsa = new SelectArea(Resource.loadsimg("baubles/coalPiles"))).run(gui);
-            pile_area = onsa.getRCArea();
+            String onsaId = context.createArea("Please select area for output coal", Resource.loadsimg("baubles/coalPiles"));
+            NArea onsaArea = context.goToAreaById(onsaId);
+            pile_area = onsaArea.getRCArea();
         }
 
-        NUtils.getGameUI().msg("Please select area for fuel");
-        SelectArea insa;
-        (insa = new SelectArea(Resource.loadsimg("baubles/fuel"))).run(gui);
+        String insaId = context.createArea("Please select area for fuel", Resource.loadsimg("baubles/fuel"));
+        NArea insaArea = context.goToAreaById(insaId);
 
         if(new Validator(req, opt).run(gui).IsSuccess())
         {
@@ -58,11 +49,26 @@ public class TarkilnAction implements Action {
             tarkilns.removeAll(forRemove);
 
             for(Gob tarkiln : tarkilns) {
-                new CollectFromGob(tarkiln, "Collect coal", "gfx/borka/bushpickan", true, new Coord(1, 1), 8, new NAlias("Coal"), pile_area).run(gui);
+                int attempts = 0;
+                while (true) {
+                    int freeBefore = NUtils.getGameUI().getInventory().getFreeSpace();
+                    new CollectFromGob(tarkiln, "Collect coal", "gfx/borka/bushpickan", true, new Coord(1, 1), 8, new NAlias("Coal"), pile_area).run(gui);
+                    if (NUtils.getGameUI().getInventory().getFreeSpace() >= 3) {
+                        break;
+                    }
+                    attempts++;
+                    new FreeInventory2(context).run(gui);
+                    NUtils.navigateToArea(area);
+                    int freeAfter = NUtils.getGameUI().getInventory().getFreeSpace();
+                    if (freeAfter < 3 || (attempts >= 2 && freeAfter <= freeBefore)) {
+                        break;
+                    }
+                }
             }
-            new FreeInventory(context).run(gui);
+            new FreeInventory2(context).run(gui);
+            NUtils.navigateToArea(area);
 
-            if(!new FillFuelTarkilns(tarkilns,insa.getRCArea()).run(gui).IsSuccess())
+            if(!new FillFuelTarkilns(tarkilns,insaArea.getRCArea()).run(gui).IsSuccess())
                 return Results.FAIL();
             ArrayList<String> flighted = new ArrayList<>();
             for (Gob cont : tarkilns) {

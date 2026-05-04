@@ -51,7 +51,7 @@ public class GrapeJuicer implements Action {
         }
 
         // Verify press exists by navigating to its area
-        context.getSpecArea(Specialisation.SpecName.extractionPress);
+        context.goToArea(Specialisation.SpecName.extractionPress);
         context.addInItem(GRAPE_ITEM, null);
         Gob press = navigateToPress(context);
         if (press == null) {
@@ -97,7 +97,7 @@ public class GrapeJuicer implements Action {
      * Also caches the area in lastPressArea for reuse.
      */
     private Gob navigateToPress(NContext context) throws InterruptedException {
-        lastPressArea = context.getSpecArea(Specialisation.SpecName.extractionPress);
+        lastPressArea = context.goToArea(Specialisation.SpecName.extractionPress);
         if (lastPressArea == null) return null;
         return Finder.findGob(lastPressArea, new NAlias(PRESS_RES));
     }
@@ -371,7 +371,7 @@ public class GrapeJuicer implements Action {
         closePressWindow(gui);
 
         // Navigate to barrel area (may be far from press)
-        NArea barrelArea = context.getSpecArea(Specialisation.SpecName.barrel, "Grape Juice");
+        NArea barrelArea = context.goToArea(Specialisation.SpecName.barrel, "Grape Juice");
         if (barrelArea == null) {
             return false;
         }

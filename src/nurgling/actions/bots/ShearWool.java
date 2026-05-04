@@ -2,17 +2,15 @@ package nurgling.actions.bots;
 
 import haven.Coord;
 import haven.Gob;
-import haven.MenuSearch;
 import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tasks.WaitCollectState;
 import nurgling.tasks.WaitPose;
-import nurgling.tools.Context;
+
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
@@ -33,7 +31,7 @@ public class ShearWool implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
-        ArrayList<Gob> gobs = Finder.findGobs(context.getSpecArea(spec), type);
+        ArrayList<Gob> gobs = Finder.findGobs(context.goToArea(spec), type);
 
         boolean needRestart = true;
         while (needRestart) {
@@ -42,7 +40,7 @@ public class ShearWool implements Action {
             for (Gob target : gobs) {
                 if (NUtils.getGameUI().getInventory().getNumberFreeCoord(Coord.of(1, 1)) < 3) {
                     new FreeInventory2(context).run(gui);
-                    gobs = Finder.findGobs(context.getSpecArea(spec), type);
+                    gobs = Finder.findGobs(context.goToArea(spec), type);
                     needRestart = true;
                     break;
                 }
@@ -69,7 +67,7 @@ public class ShearWool implements Action {
             }
         }
         new FreeInventory2(context).run(gui);
-        context.getSpecArea(spec);
+        context.goToArea(spec);
         return Results.SUCCESS();
     }
 }

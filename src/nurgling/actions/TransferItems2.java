@@ -3,7 +3,6 @@ package nurgling.actions;
 import haven.WItem;
 import nurgling.NGItem;
 import nurgling.NGameUI;
-import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
@@ -169,6 +168,10 @@ public class TransferItems2 implements Action
                 if (output instanceof NContext.Barrel) {
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),
                         itemTransfer.itemName).run(gui);
+                }
+                if (output instanceof NContext.Barter) {
+                    new TransferToBarter((NContext.Barter) output,
+                        new NAlias(itemTransfer.itemName), (int) itemTransfer.quality).run(gui);
                 }
             }
         }
