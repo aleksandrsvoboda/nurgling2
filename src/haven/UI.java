@@ -316,6 +316,11 @@ public class UI {
 	    } catch(Loading l) {
 		throw(l);
 	    } catch(RuntimeException | Error e) {
+		// Always release the barrier on failure so that subsequent
+		// commands for the same widget ID are not permanently blocked.
+		// Without this, a single failed command (e.g. from headless
+		// rendering state) starves all future messages to that widget.
+		finish(cmd);
 		throw(new CommandException(cmd, e));
 	    }
 	    finish(cmd);

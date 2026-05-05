@@ -2,54 +2,88 @@ package nurgling.actions;
 
 import haven.*;
 import nurgling.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.iteminfo.NFoodInfo;
+import nurgling.tools.Container;
+import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
 public class FindAndEatItems implements Action
 {
     final NContext cnt;
-    ArrayList<String> items;
-    double level;
-    Pair<Coord2d,Coord2d> area;
-    public FindAndEatItems(NContext context, ArrayList<String> items, int level, Pair<Coord2d,Coord2d> area)
+    final ArrayList<String> items;
+    final double level;
+
+    public FindAndEatItems(NContext context, ArrayList<String> items, int level)
     {
         this.cnt = context;
         this.items = items;
         this.level = level;
-        this.area = area;
     }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        for(String item : items)
-        {
-           cnt.addInItem(item, null);
+        NAlias foodAlias = new NAlias(items);
+
+        eatFood(gui, gui.getInventory().getItems(foodAlias));
+        if (energyReached()) {
+            return Results.SUCCESS();
         }
 
-        eatAll(gui);
-        return Results.SUCCESS();
-    }
-
-    boolean calcCalories() throws InterruptedException {
-        double curlvl = NUtils.getEnergy()*10000;
-        ArrayList<WItem> taritems = NUtils.getGameUI().getInventory().getItems(new NAlias(items));
-        for(WItem item: taritems)
-        {
-            NFoodInfo fi = ((NGItem)item.item).getInfo(NFoodInfo.class);
-            curlvl+=fi.end*100;
+        NArea area = cnt.findArea(Specialisation.SpecName.eat);
+        if (area == null) {
+            return Results.FAIL();
         }
-        return curlvl<level;
+
+        for (String item : items) {
+            cnt.addInItem(item, null);
+        }
+
+        NArea navigated = cnt.goToArea(Specialisation.SpecName.eat);
+        if (navigated == null) {
+            return Results.FAIL();
+        }
+
+        ArrayList<Gob> containerGobs = Finder.findGobs(navigated, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));
+        if (containerGobs.isEmpty()) {
+            return Results.FAIL();
+        }
+
+        for (Gob gob : containerGobs) {
+            if (energyReached()) {
+                return Results.SUCCESS();
+            }
+
+            String cap = NContext.contcaps.get(gob.ngob.name);
+            Container container = new Container(gob, cap, navigated);
+
+            new PathFinder(gob).run(gui);
+            new OpenTargetContainer(container).run(gui);
+
+            NInventory containerInv = gui.getInventory(cap);
+            if (containerInv != null) {
+                eatFood(gui, containerInv.getItems(foodAlias));
+            }
+
+            new CloseTargetContainer(container).run(gui);
+        }
+
+        return energyReached() ? Results.SUCCESS() : Results.FAIL();
     }
 
-    void eatAll(NGameUI gui) throws InterruptedException {
-        ArrayList<WItem> titems = NUtils.getGameUI().getInventory().getItems(new NAlias(items));
+    private boolean energyReached() {
+        return NUtils.getEnergy() * 10000 >= level;
+    }
 
-        for (WItem item : titems)
-        {
+    private void eatFood(NGameUI gui, ArrayList<WItem> foodItems) throws InterruptedException {
+        for (WItem item : foodItems) {
+            if (energyReached()) {
+                return;
+            }
             new SelectFlowerAction("Eat", (NWItem) item).run(gui);
         }
     }

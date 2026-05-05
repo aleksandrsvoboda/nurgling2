@@ -1,13 +1,10 @@
 package nurgling.actions.bots;
 
-import haven.*;
 import nurgling.*;
 import nurgling.actions.*;
-import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 
 import nurgling.widgets.FoodContainer;
-import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
@@ -32,12 +29,10 @@ public class Eater implements Action {
         }
 
         NContext cnt = new NContext(gui);
-        NArea nArea = cnt.goToArea(Specialisation.SpecName.eat);
-        if(nArea != null) {
-            new FindAndEatItems(cnt, items, 8000, nArea.getRCArea()).run(gui);
-            return NUtils.getEnergy()*10000>8000?Results.SUCCESS():Results.FAIL();
+        Results res = new FindAndEatItems(cnt, items, 8000).run(gui);
+        if (!res.IsSuccess()) {
+            return res;
         }
-        else
-            return Results.FAIL();
+        return NUtils.getEnergy() * 10000 > 8000 ? Results.SUCCESS() : Results.FAIL();
     }
 }
