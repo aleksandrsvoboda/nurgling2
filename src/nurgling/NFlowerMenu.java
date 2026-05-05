@@ -29,14 +29,25 @@ public class NFlowerMenu extends FlowerMenu
 
     public NFlowerMenu(String[] opts, UI ui)
     {
-        this(opts);
+        super();
+        // Use the factory-provided ui parameter — this constructor runs on a Loader
+        // thread which has no ThreadLocalUI, so NUtils.getGameUI() would return the
+        // wrong (active visual) session's GUI or null, causing NPE or cross-session state.
+        shiftMode = ui.gui != null && ui.gui.map instanceof NMapView && ((NMapView) ui.gui.map).shiftPressed;
+        initOpts(opts);
     }
 
     // Constructor for custom menus - no tree/bush detection
     public NFlowerMenu(String[] opts)
     {
         super();
-        shiftMode = ((NMapView)NUtils.getGameUI().map).shiftPressed;
+        NGameUI gui = NUtils.getGameUI();
+        shiftMode = gui != null && gui.map instanceof NMapView && ((NMapView) gui.map).shiftPressed;
+        initOpts(opts);
+    }
+
+    private void initOpts(String[] opts)
+    {
         nopts = new NPetal[opts.length];
         itemHeight = bl.sz().y + UI.scale(2);
         int y = 0;

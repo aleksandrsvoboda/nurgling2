@@ -293,29 +293,29 @@ public class SessionContext {
 
                 if (ui != null) {
                     synchronized (ui) {
+                        // Tick glob separately — rendering-related failures (NPE from null env,
+                        // SlotRemoved from stale render tree, ConcurrentModification from parallel
+                        // gob iteration) must NOT prevent ui.tick() from running, because NCore
+                        // task processing lives there. Without it, bot threads hang on task.wait().
                         try {
-                            // Tick the session (network, glob, etc.)
-                            // Run inside dedicated ForkJoinPool so that OCache's
-                            // parallelStream() uses this pool instead of the common
-                            // pool, preventing cross-session task interference.
                             if (ui.sess != null) {
                                 headlessTickPool.submit(() -> {
                                     ui.sess.glob.ctick();
                                 }).join();
-                                // Send pending map requests
                                 ui.sess.glob.map.sendreqs();
                             }
+                        } catch (Exception e) {
+                            // Glob tick failed — non-fatal, gob state may be stale this tick
+                        }
 
-                            // Tick the UI (processes widget state, bot actions, etc.)
+                        // Tick the UI (processes widget state, bot actions, etc.)
+                        // This MUST run even when glob.ctick() fails above, otherwise
+                        // NCore never checks tasks and all bot threads hang indefinitely.
+                        try {
                             ui.tick();
                             ui.lastevent = now;
                         } catch (Exception e) {
-                            // Headless ticks can fail from rendering-related state (NPE from null env,
-                            // SlotRemoved from stale render tree, ConcurrentModification from parallel
-                            // gob iteration, etc.). Catching broadly is critical — an unhandled exception
-                            // here kills the tick thread, which stops NCore task processing and causes
-                            // all bot threads to hang indefinitely until the session is promoted back
-                            // to visual mode.
+                            // Widget tick failed — non-fatal
                         }
                     }
                 }
