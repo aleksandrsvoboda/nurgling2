@@ -98,6 +98,7 @@ public class StackSupporter {
         catExceptions.add("Silkworm");
         catExceptions.add("Female Silkmoth");
         catExceptions.add("Male Silkmoth");
+        catExceptions.add("Tick");
         catExceptions.add("Bog Turtle Shell");
         catExceptions.add("Mole's Pawbone");
         catExceptions.add("Lobster");
