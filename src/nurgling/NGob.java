@@ -588,6 +588,7 @@ public class NGob
      */
     private void processDrawable(Drawable drawable)
     {
+        boolean explicitCustomHitBox = false;
         if (drawable.getres() != null)
         {
             name = drawable.getres().name;
@@ -826,11 +827,12 @@ public class NGob
                         if (custom != null)
                         {
                             hitBox = custom;
+                            explicitCustomHitBox = true;
                         }
                     }
                 if (hitBox != null)
                 {
-                    if (NParser.checkName(name, MOUNDBED_ALIAS) || NParser.checkName(name, IGNORED_ARCH))
+                    if (!explicitCustomHitBox && (NParser.checkName(name, MOUNDBED_ALIAS) || NParser.checkName(name, IGNORED_ARCH)))
                     {
                         hitBox = null;
                     } else
