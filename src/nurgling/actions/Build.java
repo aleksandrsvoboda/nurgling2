@@ -154,6 +154,27 @@ public class Build implements Action
         }
     }
     
+    /**
+     * Snapshot map.placing into a local before calling get(), to avoid the race where
+     * placing gets reassigned to a fresh not-done Future between WaitPlob succeeding
+     * and the get() call. Retries WaitPlob if the snapshot is null/not-ready (the
+     * snapshot is stale because placing was reassigned during the original wait).
+     * Returns null if no ready Plob is available after retries.
+     */
+    private MapView.Plob waitAndGetPlob() throws InterruptedException
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            NUtils.addTask(new WaitPlob());
+            Loader.Future<MapView.Plob> snapshot = NUtils.getGameUI().map.placing;
+            if (snapshot != null && snapshot.ready())
+            {
+                return snapshot.get();
+            }
+        }
+        return null;
+    }
+
     private Results runBuild(NGameUI gui) throws InterruptedException
     {
         // Create context for navigation and zone resolution
@@ -232,8 +253,11 @@ public class Build implements Action
                         }
                     }
                 }
-                NUtils.addTask(new WaitPlob());
-                MapView.Plob plob = NUtils.getGameUI().map.placing.get();
+                MapView.Plob plob = waitAndGetPlob();
+                if (plob == null)
+                {
+                    return Results.ERROR("Plob never became ready");
+                }
                 double rotationAngle = (rotationCount * Math.PI / 2.0);
                 plob.a = rotationAngle;
 
@@ -329,8 +353,11 @@ public class Build implements Action
                     }
                 }
             }
-            NUtils.addTask(new WaitPlob());
-            MapView.Plob plob = NUtils.getGameUI().map.placing.get();
+            MapView.Plob plob = waitAndGetPlob();
+            if (plob == null)
+            {
+                return Results.ERROR("Plob never became ready");
+            }
             double rotationAngle = (rotationCount * Math.PI / 2.0);
             plob.a = rotationAngle;
 
