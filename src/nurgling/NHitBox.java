@@ -49,6 +49,7 @@ public class NHitBox
             put("gfx/terobjs/arch/stonemansion", new NHitBox(new Coord(-50,-50),new Coord(50,50)));
             put("gfx/terobjs/arch/logcabin", new NHitBox(new Coord(-23,-23),new Coord(23,23)));
             put("gfx/terobjs/arch/greathall", new NHitBox(new Coord(-80,-55),new Coord(80,55)));
+            put("gfx/terobjs/arch/greathall-door", new NHitBox(new Coord2d(-3.3,-41.25),new Coord2d(3.3,41.25), true));
             put("gfx/terobjs/arch/timberhouse", new NHitBox(new Coord(-33,-33),new Coord(33,33)));
             put("gfx/terobjs/arch/stonetower", new NHitBox(new Coord(-39,-39),new Coord(39,39)));
             put("gfx/terobjs/arch/windmill", new NHitBox(new Coord(-28,-28),new Coord(28,28)));
@@ -104,6 +105,7 @@ public class NHitBox
             put("gfx/terobjs/arch/palisadegate", new NHitBox(new Coord(-5,-11),new Coord(5,11)));
             put("gfx/terobjs/potterswheel", new NHitBox(new Coord(-2,-6),new Coord(2,6)));
             put("gfx/terobjs/stockpile-oddtuber", new NHitBox(new Coord(-5,-5),new Coord(5,5)));
+            put("gfx/terobjs/stockpile-soil", new NHitBox(new Coord2d(-5.5,-5.5),new Coord2d(5.5,5.5)));
             put("gfx/terobjs/stockpile-lemon", new NHitBox(new Coord(-4,-4),new Coord(4,4)));
             put("gfx/terobjs/stockpile-nut", new NHitBox(new Coord(-4,-4),new Coord(4,4)));
             put("gfx/terobjs/stockpile-cavebulb", new NHitBox(new Coord(-4,-4),new Coord(4,4)));

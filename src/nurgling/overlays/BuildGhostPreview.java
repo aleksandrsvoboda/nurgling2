@@ -61,14 +61,21 @@ public class BuildGhostPreview extends GAttrib {
         // Track placed buildings to avoid showing overlaps
         ArrayList<NHitBoxD> placedBuildings = new ArrayList<>();
 
+        // Mirror Finder.getFreePlace(): use rotated dimensions for margin, and apply a 0.5
+        // offset for odd-dimension hitboxes so previews align with actual placement.
+        NHitBoxD tempBox = new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, Coord2d.of(0), rotationAngle);
+        Coord2d rotatedUL = tempBox.getCircumscribedUL();
+        Coord2d rotatedBR = tempBox.getCircumscribedBR();
         Coord inchMax = area.b.sub(area.a).floor();
-        Coord margin = buildingHitBox.end.sub(buildingHitBox.begin).floor(2, 2);
+        Coord margin = rotatedBR.sub(rotatedUL).floor(2, 2);
+        double xOffset = ((rotatedBR.x - rotatedUL.x) % 2.0 > 0.5) ? 0.5 : 0.0;
+        double yOffset = ((rotatedBR.y - rotatedUL.y) % 2.0 > 0.5) ? 0.5 : 0.0;
 
         // Simulate Finder.getFreePlace() behavior: pixel-by-pixel search
         for (int i = margin.x; i <= inchMax.x - margin.x; i++) {
             for (int j = margin.y; j <= inchMax.y - margin.y; j++) {
-                Coord2d testPos = area.a.add(i, j);
-                NHitBoxD testBox = new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, 0);
+                Coord2d testPos = area.a.add(i + xOffset, j + yOffset);
+                NHitBoxD testBox = new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle);
 
                 // Check collisions with obstacles AND already-placed buildings
                 boolean passed = true;
@@ -95,7 +102,7 @@ public class BuildGhostPreview extends GAttrib {
                     createGhostGob(worldPos);
 
                     // Add this building to placed list so we don't overlap it
-                    placedBuildings.add(new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, 0));
+                    placedBuildings.add(new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle));
                 }
             }
         }
