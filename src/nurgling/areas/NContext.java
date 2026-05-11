@@ -938,6 +938,19 @@ public class NContext {
         return id;
     }
 
+    public String createAreaFromSpace(NArea.Space space) {
+        if (space == null)
+            return null;
+        String id = "temp" + counter++;
+        NArea tempArea = new NArea(id);
+        tempArea.space = space;
+        tempArea.lastLocalChange = System.currentTimeMillis();
+        tempArea.grids_id.clear();
+        tempArea.grids_id.addAll(space.space.keySet());
+        areas.put(id, tempArea);
+        return id;
+    }
+
     public String createPlayerLastPos()
     {
         String id = "temp"+counter++;
