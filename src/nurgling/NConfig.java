@@ -692,6 +692,15 @@ public class NConfig
                 current.lastAreasChangeTime = now;
             }
         }
+        // Notify sync layer that the local user is actively editing so it can
+        // bias pull cadence / surface presence info (Phase 5).
+        try {
+            if (nurgling.NCore.databaseManager != null
+                && nurgling.NCore.databaseManager.getAreaService() != null) {
+                nurgling.NCore.databaseManager.getAreaService().markLocalEdit();
+            }
+        } catch (Exception ignore) {
+        }
     }
 
 

@@ -134,6 +134,15 @@ public class NAreasWidget extends Window
         },importbt.pos("ur").adds(UI.scale(5,0)));
         exportbt.settip(get("area.btn.export"));
 
+        haven.Button syncLogBtn = add(new haven.Button(UI.scale(70), "Sync log") {
+            @Override
+            public void click() {
+                super.click();
+                nurgling.widgets.NAreaSyncHistoryWidget.open();
+            }
+        }, exportbt.pos("ur").adds(UI.scale(10, 0)));
+        syncLogBtn.settip("Recent area sync events (auto-merges, conflicts, deletes)");
+
 //        // Export to Database button
 //        haven.Button exportDbBtn;
 //        add(exportDbBtn = new haven.Button(UI.scale(80), "Export to DB") {
@@ -193,6 +202,9 @@ public class NAreasWidget extends Window
                             break;
                         }
                     }
+                    if (al.sel != null && al.sel.area != null) {
+                        al.sel.area.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
+                    }
                     NConfig.needAreasUpdate();
                 }
             }
@@ -231,6 +243,7 @@ public class NAreasWidget extends Window
             if(area.path.startsWith(path))
             {
                 area.path = area.path.replace(path,newpath);
+                area.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
             }
         }
     }
@@ -381,6 +394,22 @@ public class NAreasWidget extends Window
         return false;
     }
 
+    /** Render an area tooltip including last-edited-by presence info (Phase 5). */
+    private static String buildAreaTip(String text, NArea area) {
+        if (area == null || area.lastTouchedBy == null || area.lastTouchedBy.isEmpty()) {
+            return text;
+        }
+        String when = "recently";
+        if (area.lastTouchedAt > 0) {
+            long ago = (System.currentTimeMillis() - area.lastTouchedAt) / 1000L;
+            if (ago < 60) when = ago + "s ago";
+            else if (ago < 3600) when = (ago / 60) + "m ago";
+            else if (ago < 86400) when = (ago / 3600) + "h ago";
+            else when = (ago / 86400) + "d ago";
+        }
+        return text + "\nLast edited by " + area.lastTouchedBy + " " + when;
+    }
+
     public class AreaItem extends Widget{
         Label text;
         IButton remove;
@@ -402,7 +431,7 @@ public class NAreasWidget extends Window
         public AreaItem(String text, NArea area){
             this.text = add(new Label(text));
             this.area = area;
-            this.settip(text);
+            this.settip(buildAreaTip(text, area));
             hide = add(new CheckBox(""){
                 @Override
                 public void changed(boolean val) {
@@ -575,7 +604,7 @@ public class NAreasWidget extends Window
                                                 NArea theArea = NUtils.getArea(areaId);
                                                 if(theArea != null) {
                                                     theArea.color = colorChooser.getColor();
-                                                    theArea.lastLocalChange = System.currentTimeMillis();
+                                                    theArea.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
                                                     if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null)
                                                     {
                                                         NOverlay nol = NUtils.getGameUI().map.nols.get(areaId);
@@ -921,7 +950,10 @@ public class NAreasWidget extends Window
                                     String prettyName = specItem != null ? specItem.prettyName : item.name;
                                     SpecialisationItem.this.text.settext(prettyName + "(" + option.name + ")");
                                     item.subtype = option.name;
-                                    
+                                    if (al.sel != null && al.sel.area != null) {
+                                        al.sel.area.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
+                                    }
+
                                     // Auto-rename area if its name matches the specialisation prettyName
                                     if(al.sel != null && al.sel.area != null) {
                                         NArea area = al.sel.area;

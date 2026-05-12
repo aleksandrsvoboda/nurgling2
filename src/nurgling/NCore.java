@@ -843,82 +843,53 @@ public class NCore extends Widget
 
         final String syncProfile = profile;
 
-        // Start sync with 4 second interval
+        // Start sync with 4 second interval. Conflict resolution (OCC + 3-way
+        // merge) happens in AreaService; this callback just applies results.
         databaseManager.getAreaService().startSync(syncProfile, 4,
             new nurgling.db.service.AreaService.AreaSyncCallback() {
                 @Override
                 public void onAreasUpdated(java.util.List<nurgling.areas.NArea> updatedAreas) {
-                    // Update areas in map cache
-                    if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null &&
-                        NUtils.getGameUI().map.glob != null && NUtils.getGameUI().map.glob.map != null) {
-                        long now = System.currentTimeMillis();
-                        int skipped = 0;
-                        int updated = 0;
-                        boolean needsWidgetRefresh = false;
-                        for (nurgling.areas.NArea newArea : updatedAreas) {
-                            // Check if this area was deleted locally - don't restore it
-                            boolean isLocallyDeleted = ((NMapView)NUtils.getGameUI().map).isLocallyDeleted(newArea.id);
-                            if (isLocallyDeleted) {
-                                System.out.println("Area sync: Skipping locally deleted area " + newArea.id + " (" + newArea.name + ")");
-                                skipped++;
-                                continue;
-                            }
-
-                            // Check if this area was modified locally recently
-                            // Window = debounce(3s) + save time(2s) + buffer(5s) = 10s
-                            nurgling.areas.NArea localArea = NUtils.getGameUI().map.glob.map.areas.get(newArea.id);
-                            if (localArea != null && (now - localArea.lastLocalChange) < 10000) {
-                                // Skip - local changes are still pending save
-                                skipped++;
-                                continue;
-                            }
-
-                            // Also skip if local version >= DB version (we just saved it)
-                            if (localArea != null && localArea.version >= newArea.version) {
-                                skipped++;
-                                continue;
-                            }
-
-                            if (localArea != null) {
-                                // Update existing area object (preserves references in labels/lists)
-                                localArea.updateFrom(newArea);
-                            } else {
-                                // New area - add it
-                                NUtils.getGameUI().map.glob.map.areas.put(newArea.id, newArea);
-                            }
-                            needsWidgetRefresh = true;
-                            
-                            // Force overlay to redraw
-                            try {
-                                nurgling.overlays.map.NOverlay overlay = NUtils.getGameUI().map.nols.get(newArea.id);
-                                if (overlay != null) {
-                                    overlay.requpdate2 = true;
-                                }
-                            } catch (Exception e) {
-                                // Ignore overlay refresh errors
-                            }
-                            updated++;
+                    if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null ||
+                        NUtils.getGameUI().map.glob == null || NUtils.getGameUI().map.glob.map == null) {
+                        return;
+                    }
+                    int updated = 0;
+                    boolean needsWidgetRefresh = false;
+                    for (nurgling.areas.NArea newArea : updatedAreas) {
+                        // Locally-tombstoned areas: ignore. The local delete has
+                        // already been pushed (or will be) and is the authoritative state.
+                        if (((NMapView)NUtils.getGameUI().map).isLocallyDeleted(newArea.id)) {
+                            continue;
                         }
-                        
-                        // Refresh area labels and widget
-                        if (needsWidgetRefresh) {
-                            refreshAreaLabelsAndWidget();
+                        nurgling.areas.NArea localArea = NUtils.getGameUI().map.glob.map.areas.get(newArea.id);
+                        if (localArea != null) {
+                            localArea.updateFrom(newArea);
+                        } else {
+                            NUtils.getGameUI().map.glob.map.areas.put(newArea.id, newArea);
                         }
-                        
-                        if (updated > 0) {
-                            System.out.println("Updated " + updated + " areas from database" + (skipped > 0 ? " (skipped " + skipped + " with pending local changes)" : ""));
-                        }
+                        needsWidgetRefresh = true;
+                        try {
+                            nurgling.overlays.map.NOverlay overlay = NUtils.getGameUI().map.nols.get(newArea.id);
+                            if (overlay != null) overlay.requpdate2 = true;
+                        } catch (Exception ignore) {}
+                        updated++;
+                    }
+                    if (needsWidgetRefresh) {
+                        refreshAreaLabelsAndWidget();
+                    }
+                    if (updated > 0) {
+                        System.out.println("Sync: applied " + updated + " merged area update(s)");
                     }
                 }
 
                 @Override
                 public void onAreaDeleted(int areaId) {
-                    // Remove area from map cache
                     if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null &&
                         NUtils.getGameUI().map.glob != null && NUtils.getGameUI().map.glob.map != null) {
+                        // Don't bounce back into the DB - just remove the local copy.
                         NUtils.getGameUI().map.glob.map.areas.remove(areaId);
                         refreshAreaLabelsAndWidget();
-                        System.out.println("Deleted area " + areaId + " from database sync");
+                        System.out.println("Sync: area " + areaId + " was tombstoned by another client");
                     }
                 }
 
