@@ -90,6 +90,7 @@ public class Scaner implements Action
                 }
             }
         }
+        area.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
         NConfig.needAreasUpdate();
         NUtils.getGameUI().areas.set(area.id);
 

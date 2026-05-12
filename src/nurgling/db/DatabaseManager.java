@@ -272,17 +272,28 @@ public class DatabaseManager {
             if (conn != null) {
                 this.adapter = DatabaseAdapterFactory.createAdapter(conn);
 
-                // Run migrations FIRST using this connection
-                runMigrations(conn);
+                try {
+                    // Run migrations FIRST using this connection
+                    runMigrations(conn);
 
-                // Initialize services after migrations
-                initializeServices();
+                    // Initialize services after migrations
+                    initializeServices();
 
-                connectionPoolManager.returnConnection(conn);
-                initialized = true;
-
-                System.out.println("DatabaseManager initialized successfully with " +
-                                 DatabaseAdapterFactory.getDatabaseType());
+                    initialized = true;
+                    System.out.println("DatabaseManager initialized successfully with " +
+                                     DatabaseAdapterFactory.getDatabaseType());
+                } catch (nurgling.db.migration.MigrationManager.SchemaTooNewException stne) {
+                    // Schema mismatch - leave manager uninitialized so sync skips itself.
+                    // Surface the error to any active game UI.
+                    try {
+                        if (nurgling.NUtils.getGameUI() != null) {
+                            nurgling.NUtils.getGameUI().msg("Area sync disabled: " + stne.getMessage(),
+                                java.awt.Color.RED);
+                        }
+                    } catch (Exception ignore) {}
+                } finally {
+                    connectionPoolManager.returnConnection(conn);
+                }
             } else {
                 System.err.println("Failed to initialize DatabaseManager: cannot get database connection");
             }
@@ -306,7 +317,7 @@ public class DatabaseManager {
     /**
      * Run database migrations using the provided connection
      */
-    private void runMigrations(Connection conn) {
+    private void runMigrations(Connection conn) throws SQLException {
         System.out.println("DatabaseManager: Starting migration check...");
         try {
             // Create adapter for this specific connection
@@ -316,6 +327,11 @@ public class DatabaseManager {
             migrationManager.runMigrations();
             conn.commit();
             System.out.println("DatabaseManager: Migrations completed");
+        } catch (nurgling.db.migration.MigrationManager.SchemaTooNewException stne) {
+            // Hard stop: do not initialize services, do not allow sync.
+            System.err.println("ABORT: " + stne.getMessage());
+            try { conn.rollback(); } catch (SQLException ignore) {}
+            throw stne;
         } catch (SQLException e) {
             System.err.println("Failed to run database migrations: " + e.getMessage());
             e.printStackTrace();
@@ -323,6 +339,7 @@ public class DatabaseManager {
                 conn.rollback();
             } catch (SQLException ignore) {
             }
+            throw e;
         }
     }
 

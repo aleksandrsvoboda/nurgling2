@@ -356,7 +356,7 @@ public class WorldBlueprintEditor implements Action {
             Coord br = new Coord(Math.min(MCache.cmaps.x, b[2] + 2 + 1), Math.min(MCache.cmaps.y, b[3] + 2 + 1));
             buildArea.space.space.put(g.getKey(), new NArea.VArea(new Area(ul, br)));
         }
-        buildArea.lastLocalChange = System.currentTimeMillis();
+        buildArea.markDirty(nurgling.areas.AreaFieldGroup.GEOMETRY);
         buildArea.grids_id.clear();
         buildArea.grids_id.addAll(buildArea.space.space.keySet());
 

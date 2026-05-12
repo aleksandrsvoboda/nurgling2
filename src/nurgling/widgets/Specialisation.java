@@ -268,6 +268,7 @@ public class Specialisation extends Window
                         }
                         
                         area.spec.add(new NArea.Specialisation(value));
+                        area.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
                         NConfig.needAreasUpdate();
                         NUtils.getGameUI().areas.loadSpec(area.id);
                         Specialisation.this.hide();

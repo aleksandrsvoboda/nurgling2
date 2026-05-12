@@ -13,6 +13,25 @@ import java.util.List;
  * Database migration manager that handles schema updates
  */
 public class MigrationManager {
+    /**
+     * The highest schema version this client knows about. If the database
+     * has a higher version it means a newer client has already migrated it
+     * and this older client may not understand the new columns/tables; we
+     * refuse to sync in that case rather than write incompatible rows.
+     */
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 7;
+
+    public static class SchemaTooNewException extends SQLException {
+        public final int clientVersion;
+        public final int dbVersion;
+        public SchemaTooNewException(int clientVersion, int dbVersion) {
+            super("Database schema version " + dbVersion + " is newer than this client supports ("
+                + clientVersion + "). Update your client to sync with this database.");
+            this.clientVersion = clientVersion;
+            this.dbVersion = dbVersion;
+        }
+    }
+
     private final Connection connection;
     private final DatabaseAdapter adapter;
 
@@ -27,6 +46,10 @@ public class MigrationManager {
 
         if (versionTableExists) {
             currentVersion = getCurrentVersion();
+        }
+
+        if (currentVersion > CLIENT_MAX_SCHEMA_VERSION) {
+            throw new SchemaTooNewException(CLIENT_MAX_SCHEMA_VERSION, currentVersion);
         }
 
         List<Migration> migrations = getMigrations();
@@ -269,7 +292,87 @@ public class MigrationManager {
             }
         });
 
+        migrations.add(new Migration(6, "Add uuid + tombstone columns to areas table for stable identity and converged deletes") {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                addColumnIfMissing(adapter, "areas", "uuid", "VARCHAR(36)");
+                addColumnIfMissing(adapter, "areas", "deleted_at", "TIMESTAMP");
+
+                // Backfill uuid for any rows that lack one. Per-row generation
+                // keeps this database-agnostic (no gen_random_uuid() on SQLite).
+                java.util.List<Integer> pendingIds = new java.util.ArrayList<>();
+                java.util.List<String> pendingProfiles = new java.util.ArrayList<>();
+                try (ResultSet rs = adapter.executeQuery("SELECT id, profile FROM areas WHERE uuid IS NULL")) {
+                    while (rs.next()) {
+                        pendingIds.add(rs.getInt("id"));
+                        pendingProfiles.add(rs.getString("profile"));
+                    }
+                }
+                for (int i = 0; i < pendingIds.size(); i++) {
+                    String uuid = java.util.UUID.randomUUID().toString();
+                    adapter.executeUpdate("UPDATE areas SET uuid = ? WHERE id = ? AND profile = ?",
+                        uuid, pendingIds.get(i), pendingProfiles.get(i));
+                }
+                if (!pendingIds.isEmpty()) {
+                    System.out.println("Backfilled " + pendingIds.size() + " UUIDs for existing areas");
+                }
+
+                try {
+                    adapter.executeUpdate("CREATE UNIQUE INDEX idx_areas_uuid ON areas (uuid)");
+                } catch (SQLException e) {
+                    if (!isAlreadyExists(e)) throw e;
+                }
+                try {
+                    adapter.executeUpdate("CREATE INDEX idx_areas_deleted_at ON areas (deleted_at)");
+                } catch (SQLException e) {
+                    if (!isAlreadyExists(e)) throw e;
+                }
+            }
+        });
+
+        migrations.add(new Migration(7, "Add presence columns (last_touched_by, last_touched_at) to areas table") {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                addColumnIfMissing(adapter, "areas", "last_touched_by", "VARCHAR(255)");
+                addColumnIfMissing(adapter, "areas", "last_touched_at", "TIMESTAMP");
+            }
+        });
+
         return migrations;
+    }
+
+    /** Helper: ALTER TABLE ADD COLUMN unless the column already exists. */
+    private static void addColumnIfMissing(DatabaseAdapter adapter, String table, String column, String type)
+            throws SQLException {
+        boolean exists = false;
+        if (adapter instanceof nurgling.db.PostgresAdapter) {
+            try (ResultSet rs = adapter.executeQuery(
+                    "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = ?",
+                    table, column)) {
+                exists = rs.next();
+            }
+        } else {
+            try (ResultSet rs = adapter.executeQuery("PRAGMA table_info(" + table + ")")) {
+                while (rs.next()) {
+                    if (column.equals(rs.getString("name"))) {
+                        exists = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!exists) {
+            adapter.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
+            System.out.println("Added column " + table + "." + column);
+        }
+    }
+
+    private static boolean isAlreadyExists(SQLException e) {
+        if (e.getSQLState() != null && (e.getSQLState().equals("42P07") || e.getSQLState().equals("42S11"))) {
+            return true;
+        }
+        String msg = e.getMessage();
+        return msg != null && msg.toLowerCase().contains("already exists");
     }
 
     private void ensureSqliteUniqueConstraints(DatabaseAdapter adapter) throws SQLException {

@@ -176,7 +176,8 @@ public class IngredientContainer extends BaseIngredientContainer {
                 if(area.name.startsWith("New Area") && area.jin.length() + area.jout.length() == 1) {
                     renameAreaToItem(area, name);
                 }
-                
+
+                area.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
                 NConfig.needAreasUpdate();
             }
         }
@@ -246,6 +247,7 @@ public class IngredientContainer extends BaseIngredientContainer {
         for(int i = 0; i < data.length(); i++) {
             if(((JSONObject) data.get(i)).get("name").equals(name)) {
                 ((JSONObject) data.get(i)).put("th",val);
+                markRoutingDirty();
                 NConfig.needAreasUpdate();
                 return;
             }
@@ -263,6 +265,7 @@ public class IngredientContainer extends BaseIngredientContainer {
         for(int i = 0; i < data.length(); i++) {
             if(((JSONObject) data.get(i)).get("name").equals(name)) {
                 ((JSONObject) data.get(i)).remove("th");
+                markRoutingDirty();
                 NConfig.needAreasUpdate();
                 return;
             }
@@ -281,10 +284,16 @@ public class IngredientContainer extends BaseIngredientContainer {
             if(((JSONObject) data.get(i)).get("name").equals(name)) {
                 ((JSONObject) data.get(i)).put("type",val.toString());
                 icons.get(i).type = val;
+                markRoutingDirty();
                 NConfig.needAreasUpdate();
                 return;
             }
         }
+    }
+
+    private void markRoutingDirty() {
+        NArea a = NUtils.getArea(id);
+        if (a != null) a.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
     }
 
     @Override
@@ -299,6 +308,7 @@ public class IngredientContainer extends BaseIngredientContainer {
         for(int i = 0; i < data.length(); i++) {
             if(((JSONObject) data.get(i)).get("name").equals(name)) {
                 data.remove(i);
+                markRoutingDirty();
                 NConfig.needAreasUpdate();
                 load(id);
                 return;
@@ -316,6 +326,7 @@ public class IngredientContainer extends BaseIngredientContainer {
             data = NUtils.getArea(id).jout;
 
         data.clear();
+        markRoutingDirty();
         NConfig.needAreasUpdate();
         load(id);
     }

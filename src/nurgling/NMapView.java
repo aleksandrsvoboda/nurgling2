@@ -823,10 +823,17 @@ public class NMapView extends MapView
             }
             NArea newArea = new NArea(key);
             newArea.id = id;
+            newArea.uuid = java.util.UUID.randomUUID().toString();
             newArea.space = result;
-            newArea.lastLocalChange = System.currentTimeMillis();
             newArea.grids_id.addAll(newArea.space.space.keySet());
             newArea.path = NUtils.getGameUI().areas.currentPath;
+            // Brand new area: baseline is empty so every group is "dirty" on first save.
+            newArea.baselineVersion = 0;
+            newArea.baselineSnapshot = null;
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.GEOMETRY);
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
             
             // Apply random color if setting is enabled
             Object randomColorSetting = NConfig.get(NConfig.Key.randomAreaColor);
@@ -1609,7 +1616,7 @@ public class NMapView extends MapView
             if(area.name.equals(name) && area.path.equals(path))
             {
                 area.hide = val;
-                area.lastLocalChange = System.currentTimeMillis();
+                area.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
                 NConfig.needAreasUpdate();
                 return;
             }
@@ -1656,7 +1663,7 @@ public class NMapView extends MapView
     {
         NArea area = glob.map.areas.get(id);
         area.name = new_name;
-        area.lastLocalChange = System.currentTimeMillis();
+        area.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
         NConfig.needAreasUpdate();
     }
 
