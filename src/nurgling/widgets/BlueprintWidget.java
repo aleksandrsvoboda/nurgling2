@@ -5,7 +5,9 @@ import haven.Label;
 import haven.Scrollbar;
 import haven.Window;
 import nurgling.*;
+import nurgling.actions.bots.WorldBlueprintEditor;
 import nurgling.i18n.L10n;
+import nurgling.sessions.BotExecutor;
 import nurgling.tools.NFileUtils;
 import org.json.*;
 
@@ -267,7 +269,15 @@ public class BlueprintWidget extends Window
             }
         }, new Coord(prev.c.x + prev.sz.x + UI.scale(5), baseY));
         load.settip("Import blueprint");
-        
+
+        prev = add(new haven.Button(UI.scale(120), "World Editor") {
+            @Override
+            public void click() {
+                super.click();
+                BotExecutor.runWithSupports("world_blueprint_editor", new WorldBlueprintEditor(), false, null);
+            }
+        }, new Coord(prev.c.x + prev.sz.x + UI.scale(15), baseY));
+
         int contentY = UI.scale(45);
         
         prev = add(new Label(L10n.get("blueprint.plants"), NStyle.areastitle), 

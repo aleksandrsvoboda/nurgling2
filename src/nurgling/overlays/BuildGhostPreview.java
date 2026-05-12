@@ -270,6 +270,29 @@ public class BuildGhostPreview extends GAttrib {
         return positions;
     }
     
+    /**
+     * Remove all ghost gobs from internal tracking without removing them from the world.
+     * Returns the released gobs so the caller can transfer ownership to another preview
+     * (used by multi-area selection to keep ghosts visible across selection rounds).
+     */
+    public List<Gob> takeGhosts() {
+        synchronized (ghostGobs) {
+            List<Gob> taken = new ArrayList<>(ghostGobs);
+            ghostGobs.clear();
+            return taken;
+        }
+    }
+
+    /**
+     * Adopt ghost gobs from another preview into this one's tracking list. The gobs are
+     * assumed to already be in glob.oc; this preview will dispose/track them going forward.
+     */
+    public void addExistingGhosts(List<Gob> ghosts) {
+        synchronized (ghostGobs) {
+            ghostGobs.addAll(ghosts);
+        }
+    }
+
     public void removeGhost(Coord2d pos) {
         synchronized (ghostGobs) {
             System.out.println("[BuildGhostPreview] removeGhost called for position: " + pos + ", total ghosts: " + ghostGobs.size());
