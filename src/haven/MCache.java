@@ -126,24 +126,10 @@ public class MCache implements MapSource {
 			((nurgling.NMapView)nurgling.NUtils.getGameUI().map).clearLocallyDeletedAreas();
 		}
 
-		// If DB is enabled - ONLY use DB, no fallback to file
+		// In DB mode the AreaService owns the bulk load: its first sync tick
+		// fires loadAreas + onFullSync on the sync worker thread. Loading here
+		// would race against that tick on a different thread.
 		if ((Boolean) nurgling.NConfig.get(nurgling.NConfig.Key.ndbenable)) {
-			if (nurgling.NCore.databaseManager != null && nurgling.NCore.databaseManager.isReady()) {
-				try {
-					String profile = getCurrentGenus();
-					if (profile == null || profile.isEmpty()) {
-						profile = "global";
-					}
-					java.util.Map<Integer, NArea> dbAreas = nurgling.NCore.databaseManager.getAreaService().loadAreas(profile);
-					if (dbAreas != null) {
-						areas.putAll(dbAreas);
-						System.out.println("Loaded " + dbAreas.size() + " areas from database");
-					}
-				} catch (Exception e) {
-					System.err.println("Failed to load areas from database: " + e.getMessage());
-				}
-			}
-			// DB enabled - mark as loaded even if DB not ready (sync will handle it later)
 			areasLoaded = true;
 			return;
 		}

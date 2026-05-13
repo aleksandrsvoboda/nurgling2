@@ -234,21 +234,26 @@ public class DatabaseSettings extends Panel {
      * Reload areas from database after DB settings change
      */
     private void reloadAreasFromDatabase() {
-        if (ui == null || nurgling.NUtils.getGameUI() == null || 
+        if (ui == null || nurgling.NUtils.getGameUI() == null ||
             nurgling.NUtils.getGameUI().map == null) {
             return;
         }
-        
+
         try {
-            // Clear current areas
-            nurgling.NUtils.getGameUI().map.glob.map.areas.clear();
-            // Reset loaded flag to force reload
-            nurgling.NUtils.getGameUI().map.glob.map.areasLoaded = false;
-            // Trigger reload (will load from DB since it's enabled)
-            nurgling.NUtils.getGameUI().map.glob.map.loadAreasIfNeeded();
-            // Refresh UI
+            // Sync owns the bulk load now. Reset firstPollDone so the next
+            // tick (which is at most a few seconds away) re-runs loadAreas
+            // and replaces the local map via onFullSync.
+            if (nurgling.NCore.databaseManager != null
+                && nurgling.NCore.databaseManager.getAreaService() != null) {
+                nurgling.NCore.databaseManager.getAreaService().requestReload();
+                System.out.println("Areas reload requested; sync will refresh local map shortly");
+            } else {
+                // DB not yet initialized: clear the flag so loadAreasIfNeeded
+                // can be retried by whatever wakes the sync.
+                nurgling.NUtils.getGameUI().map.glob.map.areasLoaded = false;
+                nurgling.NUtils.getGameUI().map.glob.map.loadAreasIfNeeded();
+            }
             refreshAreasUI();
-            System.out.println("Areas reloaded from database");
         } catch (Exception e) {
             System.err.println("Failed to reload areas from database: " + e.getMessage());
         }
