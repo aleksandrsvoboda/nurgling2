@@ -41,6 +41,13 @@ public class AreaService {
     private ScheduledExecutorService syncScheduler = null;
     private AreaSyncCallback syncCallback = null;
     private volatile long lastLocalEditAt = 0;
+    /**
+     * Whether the bulk load has run on the sync worker. The first effective
+     * tick after startSync sets this true and runs the bulk load instead of
+     * the delta poll. Resetting it forces a re-bulk-load on the next tick.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean firstPollDone =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public interface AreaSyncCallback {
         /**
@@ -282,38 +289,83 @@ public class AreaService {
 
         this.syncCallback = callback;
         this.syncEnabled = true;
+        this.firstPollDone.set(false);
         this.syncScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "Area-Sync-Worker");
             t.setDaemon(true);
             return t;
         });
 
-        syncScheduler.scheduleAtFixedRate(() -> {
-            if (!syncEnabled) return;
-            if (!databaseManager.isReady()) return;
+        syncScheduler.scheduleAtFixedRate(this::syncTick, 1, intervalSeconds, TimeUnit.SECONDS);
 
-            String currentProfile = getCurrentProfile();
-            if (currentProfile == null || currentProfile.isEmpty()) return;
+        System.out.println("Area sync started, interval=" + intervalSeconds + "s");
+    }
 
-            try {
-                Map<Integer, NArea> localAreas = getLocalAreasSnapshot();
-                List<NArea> updates = checkForUpdatesAndMerge(currentProfile, localAreas);
-                if (!updates.isEmpty() && syncCallback != null) {
-                    syncCallback.onAreasUpdated(updates);
-                }
-            } catch (Exception e) {
-                String msg = e.getMessage();
-                if (msg != null && !msg.contains("no such table") && !msg.contains("no such column")) {
-                    System.err.println("Area sync error: " + msg);
-                }
+    /**
+     * One tick of the sync scheduler. Both the bulk load (first effective
+     * tick) and the delta poll (subsequent ticks) run on the same worker
+     * thread, so they cannot race against each other.
+     */
+    private void syncTick() {
+        if (!syncEnabled) return;
+        if (databaseManager == null || !databaseManager.isReady()) return;
+
+        String currentProfile = getCurrentProfile();
+        if (currentProfile == null || currentProfile.isEmpty()) return;
+
+        try {
+            if (firstPollDone.compareAndSet(false, true)) {
+                runBulkLoad(currentProfile);
+                return;
             }
-        }, 5, intervalSeconds, TimeUnit.SECONDS);
+            runDeltaPoll(currentProfile);
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (msg != null && !msg.contains("no such table") && !msg.contains("no such column")) {
+                System.err.println("Area sync error: " + msg);
+            }
+        }
+    }
 
-        System.out.println("Area sync started with interval: " + intervalSeconds + " seconds");
+    /**
+     * First-tick path: fetch every live area in one query, hand the full map
+     * to onFullSync. No per-area toasts. This replaces MCache.loadAreasIfNeeded
+     * in DB mode and ensures the local map is populated on the same thread
+     * the delta poll will later use.
+     */
+    private void runBulkLoad(String profile) throws SQLException {
+        long t0 = System.currentTimeMillis();
+        Map<Integer, NArea> all = loadAreas(profile);
+        System.out.println("Area sync: bulk-loaded " + all.size() + " areas in "
+            + (System.currentTimeMillis() - t0) + "ms");
+        if (syncCallback != null) {
+            syncCallback.onFullSync(all);
+        }
+    }
+
+    /**
+     * Subsequent ticks: delta poll. Compares DB versions against local
+     * versions and fetches only what's newer.
+     */
+    private void runDeltaPoll(String profile) throws SQLException {
+        Map<Integer, NArea> localAreas = getLocalAreasSnapshot();
+        List<NArea> updates = checkForUpdatesAndMerge(profile, localAreas);
+        if (!updates.isEmpty() && syncCallback != null) {
+            syncCallback.onAreasUpdated(updates);
+        }
+    }
+
+    /**
+     * Force the next tick to re-run the bulk load (used by the manual
+     * "reload areas from database" action in DatabaseSettings).
+     */
+    public void requestReload() {
+        firstPollDone.set(false);
     }
 
     public void stopSync() {
         syncEnabled = false;
+        firstPollDone.set(false);
         if (syncScheduler != null) {
             syncScheduler.shutdown();
             try {
