@@ -821,9 +821,19 @@ public class NUtils
     {
         if (area == null) return false;
 
-        // Check if any corner of the area is reachable via local pathfinding
-        // If yes - we're already close enough, no need to use global navigation
+        // Check if any corner of the area is reachable via local pathfinding.
+        // If yes, walk onto a corner so callers can rely on the player actually
+        // being at the area afterwards. isAreaReachableByLocalPF has already
+        // verified getRCArea() != null, so checkHit is reliable here — skip the
+        // walk when the player is already inside the area.
         if (nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area)) {
+            Gob player = player();
+            if (player != null && !area.checkHit(player.rc)) {
+                Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
+                if (corner != null) {
+                    new nurgling.actions.PathFinder(corner).run(getGameUI());
+                }
+            }
             return true;
         }
 
@@ -901,9 +911,19 @@ public class NUtils
         NArea area = NContext.findSpecGlobal(string.toString());
         if (area == null) return false;
 
-        // Check if any corner of the area is reachable via local pathfinding
-        // If yes - we're already close enough, no need to use global navigation
+        // Check if any corner of the area is reachable via local pathfinding.
+        // If yes, walk onto a corner so callers can rely on the player actually
+        // being at the area afterwards. isAreaReachableByLocalPF has already
+        // verified getRCArea() != null, so checkHit is reliable here — skip the
+        // walk when the player is already inside the area.
         if (nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area)) {
+            Gob player = player();
+            if (player != null && !area.checkHit(player.rc)) {
+                Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
+                if (corner != null) {
+                    new nurgling.actions.PathFinder(corner).run(getGameUI());
+                }
+            }
             return true;
         }
 

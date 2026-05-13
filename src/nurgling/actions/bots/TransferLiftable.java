@@ -17,8 +17,8 @@ import java.util.ArrayList;
 /**
  * Transfers liftable objects between zones.
  * Two modes:
- * - requireGlobalZones=false (default): prompts user to select input zone, uses global CarrierOut or prompts for output
- * - requireGlobalZones=true: requires global CarrierOut zone (errors if not found), tries global sorting zone for input with prompt fallback
+ * - requireGlobalZones=false (default): prompts user for both input and output zones every run
+ * - requireGlobalZones=true: requires global CarrierOut zone (errors if not found), uses global sorting zone for input with prompt fallback
  */
 public class TransferLiftable implements Action
 {
@@ -51,11 +51,11 @@ public class TransferLiftable implements Action
 
         NContext context = new NContext(gui);
 
-        NArea carrierOutArea = context.findArea(Specialisation.SpecName.carrierout);
-
+        NArea carrierOutArea;
         NArea inarea;
 
         if (requireGlobalZones) {
+            carrierOutArea = context.findArea(Specialisation.SpecName.carrierout);
             if (carrierOutArea == null) {
                 return Results.ERROR("No CarrierOut zone found! Please create a global zone with 'carrierout' specialization.");
             }
@@ -67,10 +67,8 @@ public class TransferLiftable implements Action
         } else {
             String insaId = context.createArea("Please, select input area", Resource.loadsimg("baubles/inputArea"));
             inarea = context.goToAreaById(insaId);
-            if (carrierOutArea == null) {
-                String outsaId = context.createArea("Please, select output area", Resource.loadsimg("baubles/outputArea"));
-                carrierOutArea = context.goToAreaById(outsaId);
-            }
+            String outsaId = context.createArea("Please, select output area", Resource.loadsimg("baubles/outputArea"));
+            carrierOutArea = context.goToAreaById(outsaId);
         }
 
 
