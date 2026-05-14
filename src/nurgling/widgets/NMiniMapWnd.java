@@ -91,6 +91,7 @@ public class NMiniMapWnd extends Widget{
     public static final KeyBinding kb_path = KeyBinding.get("ol-mgrid", KeyMatch.nil);
     public static final KeyBinding kb_hidenature = KeyBinding.get("ol-hidenature", KeyMatch.nil);
     public static final KeyBinding kb_minesup = KeyBinding.get("ol-minesup", KeyMatch.nil);
+    public static final KeyBinding kb_planning = KeyBinding.get("ol-planning", KeyMatch.nil);
     final Coord marg = UI.scale(new Coord(5,5));
     public NMiniMapWnd(String name, NMapView map, MapFile file) {
         super(new Coord(UI.scale(133),UI.scale(133)));
@@ -215,6 +216,15 @@ public class NMiniMapWnd extends Widget{
         });
         chunkNav.a = (Boolean) NConfig.get(NConfig.Key.chunkNavOverlay);
         buttons.add(chunkNav);
+
+        // Planning layer ghost overlay toggle
+        ACheckBox planning = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/planning", kb_planning, L10n.get("minimap.planning_layer"));
+        planning.changed(a -> {
+            NConfig.set(NConfig.Key.planningLayerOverlay, a);
+            NConfig.needUpdate();
+        });
+        planning.a = (Boolean) NConfig.get(NConfig.Key.planningLayerOverlay);
+        buttons.add(planning);
 
         // Layout buttons with wrapping
         layoutButtons(buttons);

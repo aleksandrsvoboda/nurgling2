@@ -56,6 +56,7 @@ public class NMapView extends MapView
     public static final KeyBinding kb_cyclebbmode = KeyBinding.get("cyclebbmode",  KeyMatch.forcode(KeyEvent.VK_N, KeyMatch.C | KeyMatch.S));
     public static final KeyBinding kb_togglenature = KeyBinding.get("togglenature",  KeyMatch.forcode(KeyEvent.VK_H, KeyMatch.C));
     public static final KeyBinding kb_cleardmg = KeyBinding.get("cleardmg", KeyMatch.forcode(KeyEvent.VK_D, KeyMatch.C | KeyMatch.S));
+    public static final KeyBinding kb_planning_ghost = KeyBinding.get("planning-ghost", KeyMatch.forcode(KeyEvent.VK_G, 0));
     public static final int MINING_OVERLAY = - 1;
     public NGlobalCoord lastGC = null;
 
@@ -985,7 +986,24 @@ public class NMapView extends MapView
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
         }
-        
+
+        // Planning layer: while the overlay is enabled, RMB on a ghost removes it.
+        // We only consume the event if a ghost was actually found at that spot;
+        // otherwise the click falls through to normal RMB handling.
+        if (ev.b == 3 && !ui.modctrl && !ui.modshift && !ui.modmeta
+                && Boolean.TRUE.equals(NConfig.get(NConfig.Key.planningLayerOverlay))) {
+            final boolean[] consumed = {false};
+            new Maptest(ev.c) {
+                @Override
+                public void hit(Coord pc, Coord2d worldPos) {
+                    if (NUtils.getUI().core.planningLayer.removeAt(worldPos, MCache.tilesz.x * 1.5)) {
+                        consumed[0] = true;
+                    }
+                }
+            }.run();
+            if (consumed[0]) return true;
+        }
+
         // Alt+Ctrl+LMB activates area selection for chat sharing
         if(ev.b == 1 && ui.modmeta && ui.modctrl) {
             if(!isAreaSelectionMode.get()) {
@@ -1134,11 +1152,42 @@ public class NMapView extends MapView
     }
 
     @Override
+    public boolean globtype(GlobKeyEvent ev) {
+        // Planning layer: capture a ghost from the current placement preview
+        // instead of sending the build command to the server. Handled here in
+        // globtype (not keydown) so it fires regardless of which widget has
+        // focus during placement — focus typically isn't on the map until the
+        // user has clicked there. Guarded on placing!=null so plain G during
+        // normal play falls through to other globtype handlers.
+        if (kb_planning_ghost.key().match(ev)) {
+            Loader.Future<Plob> placing_l = this.placing;
+            if (placing_l != null && placing_l.done()) {
+                Plob plob = placing_l.get();
+                ResDrawable rd = plob.getattr(ResDrawable.class);
+                if (rd != null && rd.res != null) {
+                    try {
+                        String resName = rd.res.get().name;
+                        byte[] sdtBytes = (rd.sdt != null) ? rd.sdt.clone().bytes() : null;
+                        NUtils.getUI().core.planningLayer.addGhost(resName, sdtBytes, plob.rc, plob.a);
+                        // Use the normal unplace path so the render-tree slot and
+                        // package-private Plob cleanup happen correctly.
+                        uimsg("unplace");
+                        return true;
+                    } catch (Exception ex) {
+                        // Fall through to super if anything goes wrong.
+                    }
+                }
+            }
+        }
+        return super.globtype(ev);
+    }
+
+    @Override
     public boolean keydown(KeyDownEvent ev) {
         if(ev.code == 16) {
             shiftPressed = true;
         }
-        
+
         // Check preset keybindings first
         QuickActionPreset matchedPreset = findMatchingPreset(ev);
         if (matchedPreset != null) {

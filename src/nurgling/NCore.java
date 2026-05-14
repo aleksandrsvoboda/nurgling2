@@ -33,6 +33,7 @@ public class NCore extends Widget
     public AutoSaveTableware autoSaveTableware = null;
     public ScenarioManager scenarioManager = new ScenarioManager();
     public EquipmentPresetManager equipmentPresetManager = new EquipmentPresetManager();
+    public nurgling.planning.PlanningLayerManager planningLayer = new nurgling.planning.PlanningLayerManager();
 
     public static volatile nurgling.db.DatabaseManager databaseManager = null;
     public boolean isInspectMode()
@@ -243,6 +244,7 @@ public class NCore extends Widget
     public void updateConfigForProfile(String genus) {
         if (genus != null && !genus.isEmpty()) {
             config = nurgling.profiles.ConfigFactory.getConfig(genus);
+            planningLayer.initializeForProfile(genus);
         }
     }
 
@@ -342,6 +344,11 @@ public class NCore extends Widget
         if (config.isScenariosUpdated())
         {
             config.writeScenarios(null);
+        }
+        planningLayer.tick();
+        if (planningLayer.isDirty())
+        {
+            planningLayer.save();
         }
         synchronized (tasks)
         {
