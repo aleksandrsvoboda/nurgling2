@@ -1437,9 +1437,12 @@ public class NContext {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
                 if(id>=0) {
-                    for (NArea.Specialisation s : NUtils.getGameUI().map.glob.map.areas.get(id).spec) {
+                    NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
+                    // nols and glob.map.areas can fall briefly out of sync (e.g. after
+                    // a full DB sync replaces the area set) — skip stale overlay ids.
+                    if(test == null) continue;
+                    for (NArea.Specialisation s : test.spec) {
                         if (s.name.equals(name)) {
-                            NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
                             if(test.isVisible()) {
                                 Pair<Coord2d, Coord2d> testrc = test.getRCArea();
                                 if(testrc != null) {
@@ -1465,9 +1468,12 @@ public class NContext {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
                 if(id>=0) {
-                    for (NArea.Specialisation s : NUtils.getGameUI().map.glob.map.areas.get(id).spec) {
+                    NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
+                    // nols and glob.map.areas can fall briefly out of sync (e.g. after
+                    // a full DB sync replaces the area set) — skip stale overlay ids.
+                    if(test == null) continue;
+                    for (NArea.Specialisation s : test.spec) {
                         if (s.name.equals(name) && s.subtype != null && s.subtype.toLowerCase().equals(sub.toLowerCase())) {
-                            NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
                             if(test.isVisible()) {
                                 Pair<Coord2d,Coord2d> testrc = test.getRCArea();
                                 if(testrc!=null) {
