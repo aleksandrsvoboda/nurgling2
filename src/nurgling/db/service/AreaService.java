@@ -42,12 +42,13 @@ public class AreaService {
     private AreaSyncCallback syncCallback = null;
     private volatile long lastLocalEditAt = 0;
     /**
-     * Whether the bulk load has run on the sync worker. The first effective
-     * tick after startSync sets this true and runs the bulk load instead of
-     * the delta poll. Resetting it forces a re-bulk-load on the next tick.
+     * Per-session bulk-load tracking. Each session ID is added the first time
+     * the sync iterates it and runs a bulk load for its local map. Future ticks
+     * for that session do delta polls instead. Resetting (clear()) forces
+     * every session to re-bulk-load on its next tick.
      */
-    private final java.util.concurrent.atomic.AtomicBoolean firstPollDone =
-        new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final java.util.Set<String> bulkLoadedSessions =
+        java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     public interface AreaSyncCallback {
         /**
@@ -289,7 +290,7 @@ public class AreaService {
 
         this.syncCallback = callback;
         this.syncEnabled = true;
-        this.firstPollDone.set(false);
+        this.bulkLoadedSessions.clear();
         this.syncScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "Area-Sync-Worker");
             t.setDaemon(true);
@@ -298,54 +299,88 @@ public class AreaService {
 
         syncScheduler.scheduleAtFixedRate(this::syncTick, 1, intervalSeconds, TimeUnit.SECONDS);
 
-        System.out.println("Area sync started, interval=" + intervalSeconds + "s");
+        System.out.println("Area sync started, interval=" + intervalSeconds + "s (multi-session)");
     }
 
     /**
-     * One tick of the sync scheduler. Both the bulk load (first effective
-     * tick) and the delta poll (subsequent ticks) run on the same worker
-     * thread, so they cannot race against each other.
+     * One tick of the sync scheduler. Iterates every live session, binding
+     * ThreadLocalUI to each in turn so NUtils.getGameUI() inside the sync
+     * resolves to the right session. Each session gets its own bulk load on
+     * first encounter, then delta polls.
      */
     private void syncTick() {
         if (!syncEnabled) return;
         if (databaseManager == null || !databaseManager.isReady()) return;
 
-        String currentProfile = getCurrentProfile();
-        if (currentProfile == null || currentProfile.isEmpty()) return;
-
+        java.util.Collection<nurgling.sessions.SessionContext> sessions;
         try {
-            if (firstPollDone.compareAndSet(false, true)) {
-                runBulkLoad(currentProfile);
-                return;
-            }
-            runDeltaPoll(currentProfile);
+            sessions = nurgling.sessions.SessionManager.getInstance().getAllSessions();
         } catch (Exception e) {
-            String msg = e.getMessage();
-            if (msg != null && !msg.contains("no such table") && !msg.contains("no such column")) {
-                System.err.println("Area sync error: " + msg);
+            return;
+        }
+        if (sessions == null || sessions.isEmpty()) return;
+
+        // Drop tracking for sessions that no longer exist, so the Set doesn't
+        // grow unboundedly across logouts.
+        java.util.Set<String> liveIds = new java.util.HashSet<>();
+        for (nurgling.sessions.SessionContext s : sessions) {
+            if (s != null && s.sessionId != null) liveIds.add(s.sessionId);
+        }
+        bulkLoadedSessions.retainAll(liveIds);
+
+        for (nurgling.sessions.SessionContext sc : sessions) {
+            if (sc == null || sc.ui == null || sc.sessionId == null) continue;
+
+            // Use the accessor; the gameUI field is rarely populated, but
+            // sc.getGameUI() falls back to sc.ui.gui which is the real value.
+            nurgling.NGameUI gui = sc.getGameUI();
+            if (gui == null) continue;
+            if (gui.map == null || gui.map.glob == null || gui.map.glob.map == null) continue;
+
+            String profile = gui.getGenus();
+            if (profile == null || profile.isEmpty()) continue;
+
+            // Bind ThreadLocalUI so NUtils.getGameUI() inside the sync /
+            // callbacks resolves to *this* session, not whichever is visually
+            // active.
+            nurgling.sessions.ThreadLocalUI.set(sc.ui);
+            try {
+                if (bulkLoadedSessions.add(sc.sessionId)) {
+                    runBulkLoad(profile, sc.sessionId);
+                } else {
+                    runDeltaPoll(profile);
+                }
+            } catch (Exception e) {
+                // On failure, allow next tick to retry (bulk load if it was a
+                // bulk load) by dropping the session from the loaded set.
+                bulkLoadedSessions.remove(sc.sessionId);
+                String msg = e.getMessage();
+                if (msg != null && !msg.contains("no such table") && !msg.contains("no such column")) {
+                    System.err.println("Area sync error (session=" + sc.sessionId + "): " + msg);
+                }
+            } finally {
+                nurgling.sessions.ThreadLocalUI.clear();
             }
         }
     }
 
     /**
-     * First-tick path: fetch every live area in one query, hand the full map
-     * to onFullSync. No per-area toasts. This replaces MCache.loadAreasIfNeeded
-     * in DB mode and ensures the local map is populated on the same thread
-     * the delta poll will later use.
+     * Per-session first-tick bulk load. Runs while ThreadLocalUI is bound to
+     * the session, so onFullSync writes into the right glob.map.areas.
      */
-    private void runBulkLoad(String profile) throws SQLException {
+    private void runBulkLoad(String profile, String sessionId) throws SQLException {
         long t0 = System.currentTimeMillis();
         Map<Integer, NArea> all = loadAreas(profile);
         System.out.println("Area sync: bulk-loaded " + all.size() + " areas in "
-            + (System.currentTimeMillis() - t0) + "ms");
+            + (System.currentTimeMillis() - t0) + "ms (session=" + sessionId + ")");
         if (syncCallback != null) {
             syncCallback.onFullSync(all);
         }
     }
 
     /**
-     * Subsequent ticks: delta poll. Compares DB versions against local
-     * versions and fetches only what's newer.
+     * Per-session delta poll. The local-areas snapshot is taken via
+     * NUtils.getGameUI() which resolves to the currently-bound session.
      */
     private void runDeltaPoll(String profile) throws SQLException {
         Map<Integer, NArea> localAreas = getLocalAreasSnapshot();
@@ -356,16 +391,16 @@ public class AreaService {
     }
 
     /**
-     * Force the next tick to re-run the bulk load (used by the manual
-     * "reload areas from database" action in DatabaseSettings).
+     * Force every session to re-run its bulk load on next tick. Used by the
+     * manual "reload areas from database" action in DatabaseSettings.
      */
     public void requestReload() {
-        firstPollDone.set(false);
+        bulkLoadedSessions.clear();
     }
 
     public void stopSync() {
         syncEnabled = false;
-        firstPollDone.set(false);
+        bulkLoadedSessions.clear();
         if (syncScheduler != null) {
             syncScheduler.shutdown();
             try {

@@ -855,24 +855,26 @@ public class NCore extends Widget
                     }
                     int updated = 0;
                     boolean needsWidgetRefresh = false;
-                    for (nurgling.areas.NArea newArea : updatedAreas) {
-                        // Locally-tombstoned areas: ignore. The local delete has
-                        // already been pushed (or will be) and is the authoritative state.
-                        if (((NMapView)NUtils.getGameUI().map).isLocallyDeleted(newArea.id)) {
-                            continue;
+                    java.util.Map<Integer, nurgling.areas.NArea> areasMap = NUtils.getGameUI().map.glob.map.areas;
+                    // Same lock NMapView.tick uses when iterating areas (line ~865).
+                    synchronized (areasMap) {
+                        for (nurgling.areas.NArea newArea : updatedAreas) {
+                            if (((NMapView)NUtils.getGameUI().map).isLocallyDeleted(newArea.id)) {
+                                continue;
+                            }
+                            nurgling.areas.NArea localArea = areasMap.get(newArea.id);
+                            if (localArea != null) {
+                                localArea.updateFrom(newArea);
+                            } else {
+                                areasMap.put(newArea.id, newArea);
+                            }
+                            needsWidgetRefresh = true;
+                            try {
+                                nurgling.overlays.map.NOverlay overlay = NUtils.getGameUI().map.nols.get(newArea.id);
+                                if (overlay != null) overlay.requpdate2 = true;
+                            } catch (Exception ignore) {}
+                            updated++;
                         }
-                        nurgling.areas.NArea localArea = NUtils.getGameUI().map.glob.map.areas.get(newArea.id);
-                        if (localArea != null) {
-                            localArea.updateFrom(newArea);
-                        } else {
-                            NUtils.getGameUI().map.glob.map.areas.put(newArea.id, newArea);
-                        }
-                        needsWidgetRefresh = true;
-                        try {
-                            nurgling.overlays.map.NOverlay overlay = NUtils.getGameUI().map.nols.get(newArea.id);
-                            if (overlay != null) overlay.requpdate2 = true;
-                        } catch (Exception ignore) {}
-                        updated++;
                     }
                     if (needsWidgetRefresh) {
                         refreshAreaLabelsAndWidget();
@@ -886,8 +888,10 @@ public class NCore extends Widget
                 public void onAreaDeleted(int areaId) {
                     if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null &&
                         NUtils.getGameUI().map.glob != null && NUtils.getGameUI().map.glob.map != null) {
-                        // Don't bounce back into the DB - just remove the local copy.
-                        NUtils.getGameUI().map.glob.map.areas.remove(areaId);
+                        java.util.Map<Integer, nurgling.areas.NArea> areasMap = NUtils.getGameUI().map.glob.map.areas;
+                        synchronized (areasMap) {
+                            areasMap.remove(areaId);
+                        }
                         refreshAreaLabelsAndWidget();
                         System.out.println("Sync: area " + areaId + " was tombstoned by another client");
                     }
@@ -895,18 +899,16 @@ public class NCore extends Widget
 
                 @Override
                 public void onFullSync(java.util.Map<Integer, nurgling.areas.NArea> allAreas) {
-                    // Replace all areas in map cache, but filter out locally deleted areas
                     if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null &&
                         NUtils.getGameUI().map.glob != null && NUtils.getGameUI().map.glob.map != null) {
-                        NUtils.getGameUI().map.glob.map.areas.clear();
-                        for (java.util.Map.Entry<Integer, nurgling.areas.NArea> entry : allAreas.entrySet()) {
-                            // Skip areas that were deleted locally
-                            boolean isLocallyDeleted = ((NMapView)NUtils.getGameUI().map).isLocallyDeleted(entry.getKey());
-                            if (isLocallyDeleted) {
-                                System.out.println("Full sync: Skipping locally deleted area " + entry.getKey() + " (" + entry.getValue().name + ")");
-                                continue;
+                        java.util.Map<Integer, nurgling.areas.NArea> areasMap = NUtils.getGameUI().map.glob.map.areas;
+                        synchronized (areasMap) {
+                            areasMap.clear();
+                            for (java.util.Map.Entry<Integer, nurgling.areas.NArea> entry : allAreas.entrySet()) {
+                                boolean isLocallyDeleted = ((NMapView)NUtils.getGameUI().map).isLocallyDeleted(entry.getKey());
+                                if (isLocallyDeleted) continue;
+                                areasMap.put(entry.getKey(), entry.getValue());
                             }
-                            NUtils.getGameUI().map.glob.map.areas.put(entry.getKey(), entry.getValue());
                         }
                         refreshAreaLabelsAndWidget();
                         System.out.println("Full sync: loaded " + allAreas.size() + " areas from database");
