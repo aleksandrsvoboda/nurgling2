@@ -1961,6 +1961,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
+    /**
+     * Public factory so subclasses outside the haven package (e.g. NMapView)
+     * can construct a Plob for client-local placement scenarios. The Plob's
+     * protected constructor isn't reachable through Java protected-access
+     * rules from foreign-package subclasses (protected applies to the
+     * declaring class Plob, not to its outer class MapView).
+     */
+    public Plob createPlob(Indir<Resource> res, Message sdt) {
+	return(new Plob(res, sdt));
+    }
+
     private Collection<String> olflash = null;
     private double olftimer;
 
