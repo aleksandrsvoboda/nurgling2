@@ -26,15 +26,34 @@ public class DropContainer extends BaseIngredientContainer {
         return jitems;
     }
 
+    private static volatile HashMap<String, Integer> cachedProps = null;
+
     public static HashMap<String, Integer> getDropProps() {
-        JSONArray data = new JSONArray((NConfig.get(NConfig.Key.dropConf) instanceof JSONArray)?(JSONArray)NConfig.get(NConfig.Key.dropConf):(ArrayList<HashMap<String,Object>>)NConfig.get(NConfig.Key.dropConf));
+        HashMap<String, Integer> cached = cachedProps;
+        if (cached != null) return cached;
+
+        Object stored = NConfig.get(NConfig.Key.dropConf);
+        JSONArray data;
+        if (stored instanceof JSONArray) {
+            data = new JSONArray((JSONArray) stored);
+        } else if (stored != null) {
+            data = new JSONArray((ArrayList<HashMap<String,Object>>) stored);
+        } else {
+            data = new JSONArray();
+        }
+
         HashMap<String, Integer> props = new HashMap<>();
         for (int i = 0; i < data.length(); i++) {
             JSONObject jsonObject = ((JSONObject)data.get(i));
             String name = jsonObject.getString("name");
             props.put(name,jsonObject.has("th")?jsonObject.getInt("th"):1 );
         }
+        cachedProps = props;
         return props;
+    }
+
+    public static void invalidateCache() {
+        cachedProps = null;
     }
 
     @Override
@@ -43,6 +62,7 @@ public class DropContainer extends BaseIngredientContainer {
             res.put("name", name);
             addIcon(res);
             jitems.put(res);
+            invalidateCache();
         }
     }
 
@@ -63,12 +83,14 @@ public class DropContainer extends BaseIngredientContainer {
         for (int i = 0; i < jitems.length(); i++) {
             addIcon(((JSONObject) jitems.get(i)));
         }
+        invalidateCache();
     }
 
     @Override
     public void deleteAll() {
         super.deleteAll();
         jitems.clear();
+        invalidateCache();
     }
 
     @Override
@@ -87,7 +109,14 @@ public class DropContainer extends BaseIngredientContainer {
         icons.clear();
         jitems.clear();
 
-        jitems = new JSONArray((ArrayList<HashMap<String,Object>>) NConfig.get(NConfig.Key.dropConf));
+        Object stored = NConfig.get(NConfig.Key.dropConf);
+        if (stored instanceof JSONArray) {
+            jitems = new JSONArray((JSONArray) stored);
+        } else if (stored != null) {
+            jitems = new JSONArray((ArrayList<HashMap<String,Object>>) stored);
+        } else {
+            jitems = new JSONArray();
+        }
 
         for (int i = 0; i < jitems.length(); i++) {
             addIcon(((JSONObject) jitems.get(i)));
@@ -117,6 +146,7 @@ public class DropContainer extends BaseIngredientContainer {
             if(((JSONObject) jitems.get(i)).get("name").equals(name)) {
                 ((JSONObject) jitems.get(i)).put("th",val);
                 NConfig.needAreasUpdate();
+                invalidateCache();
                 return;
             }
         }
