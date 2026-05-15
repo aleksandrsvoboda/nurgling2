@@ -40,7 +40,7 @@ import java.util.HashSet;
 public class Leveler implements Action
 {
     private static final Coord SOIL_SIZE = new Coord(1, 1);
-    private static final int MIN_FREE_SLOTS = 5;
+    private static final int MIN_FREE_SLOTS = 6;
     private static final String SOIL_ITEM = "Soil";
     private static final NAlias SURVOBJ = new NAlias("survobj");
     private static final NAlias STOCKPILE = new NAlias("stockpile");
