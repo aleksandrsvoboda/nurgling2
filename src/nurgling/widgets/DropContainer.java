@@ -87,7 +87,14 @@ public class DropContainer extends BaseIngredientContainer {
         icons.clear();
         jitems.clear();
 
-        jitems = new JSONArray((ArrayList<HashMap<String,Object>>) NConfig.get(NConfig.Key.dropConf));
+        Object stored = NConfig.get(NConfig.Key.dropConf);
+        if (stored instanceof JSONArray) {
+            jitems = new JSONArray((JSONArray) stored);
+        } else if (stored != null) {
+            jitems = new JSONArray((ArrayList<HashMap<String,Object>>) stored);
+        } else {
+            jitems = new JSONArray();
+        }
 
         for (int i = 0; i < jitems.length(); i++) {
             addIcon(((JSONObject) jitems.get(i)));
