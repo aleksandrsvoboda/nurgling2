@@ -5,7 +5,10 @@ import haven.res.lib.itemtex.*;
 import nurgling.iteminfo.NSearchable;
 import nurgling.styles.TooltipStyle;
 import nurgling.tools.NSearchItem;
+import nurgling.widgets.DropContainer;
 import org.json.*;
+
+import java.util.HashMap;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -110,11 +113,26 @@ public class NWItem extends WItem
         
         search();
         
-        if((Boolean)NConfig.get(NConfig.Key.autoDropper) && ((NGItem) item).isSearched) {
-            if(parent instanceof NInventory && NUtils.getGameUI() !=null && NUtils.getGameUI().maininv == parent) {
-                NUtils.drop(this);
+        if((Boolean)NConfig.get(NConfig.Key.autoDropper)) {
+            if(parent instanceof NInventory && NUtils.getGameUI() != null && NUtils.getGameUI().maininv == parent) {
+                if (matchesDropperConfig()) {
+                    NUtils.drop(this);
+                } else if (((NGItem) item).isSearched) {
+                    NUtils.drop(this);
+                }
             }
         }
+    }
+
+    private boolean matchesDropperConfig()
+    {
+        String name = ((NGItem) item).name();
+        if (name == null) return false;
+        HashMap<String, Integer> props = DropContainer.getDropProps();
+        if (!props.containsKey(name)) return false;
+        Float q = ((NGItem) item).quality;
+        int threshold = props.get(name);
+        return q == null || q < threshold;
     }
 
     private void search()

@@ -23,6 +23,7 @@ public class Dropper extends Panel {
     @Override
     public void save() {
         NConfig.set(NConfig.Key.dropConf, dc.getDropJson());
+        DropContainer.invalidateCache();
     }
 
 }

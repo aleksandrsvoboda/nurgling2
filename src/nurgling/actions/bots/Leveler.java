@@ -12,6 +12,7 @@ import haven.Pair;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
+import haven.res.ui.stackinv.ItemStack;
 import haven.res.ui.surv.LandSurvey;
 import nurgling.NGameUI;
 import nurgling.NUtils;
@@ -333,7 +334,7 @@ public class Leveler implements Action
             new TransferToPiles(put.getRCArea(), SOIL_ITEM, 0).run(gui);
         }
 
-        if (gui.getInventory().getItems().isEmpty()) return Results.SUCCESS();
+        if (topLevelEmpty(gui)) return Results.SUCCESS();
 
         NContext ctx = new NContext(gui);
         NArea dump = ctx.goToArea(Specialisation.SpecName.soilDump);
@@ -342,18 +343,35 @@ public class Leveler implements Action
             if (rca != null) {
                 Coord2d center = rca.b.sub(rca.a).div(2).add(rca.a);
                 new PathFinder(center).run(gui);
-                ArrayList<WItem> all = gui.getInventory().getItems();
-                for (WItem w : all) {
-                    NUtils.drop(w);
+                ArrayList<Widget> toDrop = new ArrayList<>();
+                for (Widget w = gui.getInventory().child; w != null; w = w.next) {
+                    if (w instanceof WItem || w instanceof ItemStack) toDrop.add(w);
                 }
-                if (!all.isEmpty()) {
-                    NUtils.addTask(new WaitItems(gui.getInventory(), 0));
+                for (Widget w : toDrop) {
+                    if (w instanceof WItem) NUtils.drop((WItem) w);
+                    else w.wdgmsg("drop");
                 }
-                if (gui.getInventory().getItems().isEmpty()) return Results.SUCCESS();
+                if (!toDrop.isEmpty()) {
+                    NUtils.addTask(new NTask() {
+                        @Override
+                        public boolean check() {
+                            return topLevelEmpty(gui);
+                        }
+                    });
+                }
+                if (topLevelEmpty(gui)) return Results.SUCCESS();
             }
         }
 
         return bestEffort ? Results.SUCCESS() : Results.FAIL();
+    }
+
+    private static boolean topLevelEmpty(NGameUI gui)
+    {
+        for (Widget w = gui.getInventory().child; w != null; w = w.next) {
+            if (w instanceof WItem || w instanceof ItemStack) return false;
+        }
+        return true;
     }
 
     private static Area varea(LandSurvey survey)
