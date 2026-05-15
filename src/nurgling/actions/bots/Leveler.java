@@ -39,13 +39,12 @@ import java.util.HashSet;
 public class Leveler implements Action
 {
     private static final Coord SOIL_SIZE = new Coord(1, 1);
-    private static final int MIN_FREE_SLOTS = 2;
+    private static final int MIN_FREE_SLOTS = 5;
     private static final String SOIL_ITEM = "Soil";
     private static final NAlias SURVOBJ = new NAlias("survobj");
     private static final NAlias STOCKPILE = new NAlias("stockpile");
     private static final NAlias SOIL_PILE = new NAlias("gfx/terobjs/stockpile-soil");
     private static final NAlias SOIL = new NAlias("Soil", "Earthworm");
-    private static final NAlias PAVING = new NAlias("gfx/tiles/paving");
     private static final String CANNOT_LEVEL_MSG = "cannot be further leveled";
 
     private final HashSet<Long> done = new HashSet<>();
@@ -60,7 +59,7 @@ public class Leveler implements Action
                 return Results.ERROR("Leveler: failed to restore resources");
             }
 
-            Gob target = pickNearestPendingSurvey(gui);
+            Gob target = pickNearestPendingSurvey();
             if (target == null) {
                 gui.msg("Leveler: finished. Completed=" + done.size() + " skipped=" + skipped.size());
                 return Results.SUCCESS();
@@ -73,7 +72,7 @@ public class Leveler implements Action
         }
     }
 
-    private Gob pickNearestPendingSurvey(NGameUI gui) throws InterruptedException
+    private Gob pickNearestPendingSurvey()
     {
         Gob player = NUtils.player();
         if (player == null) return null;
@@ -332,8 +331,9 @@ public class Leveler implements Action
         if (put != null) {
             NUtils.navigateToArea(put);
             new TransferToPiles(put.getRCArea(), SOIL_ITEM, 0).run(gui);
-            if (gui.getInventory().getItems(SOIL).isEmpty()) return Results.SUCCESS();
         }
+
+        if (gui.getInventory().getItems().isEmpty()) return Results.SUCCESS();
 
         NContext ctx = new NContext(gui);
         NArea dump = ctx.goToArea(Specialisation.SpecName.soilDump);
@@ -342,14 +342,14 @@ public class Leveler implements Action
             if (rca != null) {
                 Coord2d center = rca.b.sub(rca.a).div(2).add(rca.a);
                 new PathFinder(center).run(gui);
-                ArrayList<WItem> soils = gui.getInventory().getItems(SOIL);
-                for (WItem w : soils) {
+                ArrayList<WItem> all = gui.getInventory().getItems();
+                for (WItem w : all) {
                     NUtils.drop(w);
                 }
-                if (!soils.isEmpty()) {
-                    NUtils.addTask(new WaitItems(gui.getInventory(), SOIL, 0));
+                if (!all.isEmpty()) {
+                    NUtils.addTask(new WaitItems(gui.getInventory(), 0));
                 }
-                if (gui.getInventory().getItems(SOIL).isEmpty()) return Results.SUCCESS();
+                if (gui.getInventory().getItems().isEmpty()) return Results.SUCCESS();
             }
         }
 
