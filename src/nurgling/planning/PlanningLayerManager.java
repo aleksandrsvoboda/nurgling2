@@ -550,7 +550,6 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
     /* ---------- Window-open gating ---------- */
 
     public void setWindowOpen(boolean open) { this.windowOpen = open; }
-    public boolean isWindowOpen() { return windowOpen; }
 
     /* ---------- Ghost ops ---------- */
 

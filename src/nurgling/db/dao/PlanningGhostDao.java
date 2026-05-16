@@ -53,8 +53,6 @@ public class PlanningGhostDao {
             this.lastTouchedAt = lastTouchedAt;
             this.deletedAt = deletedAt;
         }
-
-        public boolean isTombstone() { return deletedAt != null; }
     }
 
     public enum SaveOutcome { INSERTED, UPDATED, VERSION_CONFLICT }

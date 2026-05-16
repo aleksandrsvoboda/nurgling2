@@ -276,12 +276,6 @@ public class PlanningService {
         return new TreeSnapshot(folders, layers, ghosts, ghostLayerByGhostId);
     }
 
-    public CompletableFuture<TreeSnapshot> loadAllAsync(String profile) {
-        return CompletableFuture.supplyAsync(() -> {
-            try { return loadAll(profile); } catch (SQLException e) { throw new RuntimeException(e); }
-        });
-    }
-
     // -------------------- Bulk export (mid-session ndbenable toggle) --------------------
 
     /**
@@ -350,12 +344,6 @@ public class PlanningService {
         syncCallback = null;
         System.out.println("Planning sync stopped");
     }
-
-    public void requestReload() { bulkLoadedSessions.clear(); }
-
-    public boolean isSyncRunning() { return syncEnabled; }
-
-    public void markLocalEdit() { this.lastLocalEditAt = System.currentTimeMillis(); }
 
     private void syncTick() {
         if (!syncEnabled) return;
