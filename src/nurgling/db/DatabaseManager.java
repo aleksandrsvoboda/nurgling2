@@ -26,6 +26,7 @@ public class DatabaseManager {
     private ContainerService containerService;
     private StorageItemService storageItemService;
     private AreaService areaService;
+    private nurgling.db.service.PlanningService planningService;
 
     // Task queue for retry logic
     private final BlockingQueue<QueuedTask<?>> taskQueue = new LinkedBlockingQueue<>(1000);
@@ -312,6 +313,7 @@ public class DatabaseManager {
         this.containerService = new ContainerService(this);
         this.storageItemService = new StorageItemService(this);
         this.areaService = new AreaService(this);
+        this.planningService = new nurgling.db.service.PlanningService(this);
     }
 
     /**
@@ -525,6 +527,13 @@ public class DatabaseManager {
      */
     public AreaService getAreaService() {
         return areaService;
+    }
+
+    /**
+     * Get planning service (folders / layers / ghosts for the Base planner).
+     */
+    public nurgling.db.service.PlanningService getPlanningService() {
+        return planningService;
     }
 
     /**

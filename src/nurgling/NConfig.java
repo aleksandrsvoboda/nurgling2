@@ -878,6 +878,15 @@ public class NConfig
     }
 
     /**
+     * Gets the dynamic path for the local-only Base planner view state
+     * (active layer + per-user visibility map). Written in both file mode
+     * and DB mode because visibility is never synced.
+     */
+    public String getPlanningViewPath() {
+        return getProfileAwarePath("planning_view.nurgling.json");
+    }
+
+    /**
      * Gets the dynamic path for fish locations configuration file
      */
     public String getFishLocationsPath() {

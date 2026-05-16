@@ -35,6 +35,7 @@ public class PlanningFolder extends PlanningNode {
                 o.optString("name", "Folder"),
                 o.optBoolean("visible", true),
                 null);
+        f.orderIndex = o.optInt("orderIndex", 0);
         if (o.has("layers")) {
             JSONArray arr = o.getJSONArray("layers");
             for (int i = 0; i < arr.length(); i++) {

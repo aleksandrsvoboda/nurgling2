@@ -19,7 +19,7 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 7;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 8;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -338,7 +338,85 @@ public class MigrationManager {
             }
         });
 
+        migrations.add(new Migration(8, "Create planning_folders / planning_layers / planning_ghosts tables for Base planner") {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                // NOTE: visibility intentionally NOT a column — it's a local
+                // per-user preference stored alongside the DB in
+                // planning_view.nurgling.json.
+                if (!adapter.tableExists("planning_folders")) {
+                    adapter.executeUpdate(
+                        "CREATE TABLE planning_folders (" +
+                        "id VARCHAR(36) PRIMARY KEY, " +
+                        "name VARCHAR(255) NOT NULL, " +
+                        "order_index INTEGER NOT NULL DEFAULT 0, " +
+                        "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                        "version INTEGER NOT NULL DEFAULT 1, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "last_touched_by VARCHAR(255), " +
+                        "last_touched_at TIMESTAMP, " +
+                        "deleted_at TIMESTAMP" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pf_profile ON planning_folders (profile)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pf_deleted ON planning_folders (deleted_at)");
+                    System.out.println("Created planning_folders table");
+                }
+
+                if (!adapter.tableExists("planning_layers")) {
+                    adapter.executeUpdate(
+                        "CREATE TABLE planning_layers (" +
+                        "id VARCHAR(36) PRIMARY KEY, " +
+                        "parent_folder_id VARCHAR(36), " +
+                        "name VARCHAR(255) NOT NULL, " +
+                        "order_index INTEGER NOT NULL DEFAULT 0, " +
+                        "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                        "version INTEGER NOT NULL DEFAULT 1, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "last_touched_by VARCHAR(255), " +
+                        "last_touched_at TIMESTAMP, " +
+                        "deleted_at TIMESTAMP" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pl_profile ON planning_layers (profile)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pl_parent ON planning_layers (parent_folder_id)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pl_deleted ON planning_layers (deleted_at)");
+                    System.out.println("Created planning_layers table");
+                }
+
+                if (!adapter.tableExists("planning_ghosts")) {
+                    adapter.executeUpdate(
+                        "CREATE TABLE planning_ghosts (" +
+                        "id VARCHAR(36) PRIMARY KEY, " +
+                        "layer_id VARCHAR(36) NOT NULL, " +
+                        "res_name VARCHAR(512) NOT NULL, " +
+                        "sdt_b64 TEXT, " +
+                        "grid_id BIGINT NOT NULL, " +
+                        "ox DOUBLE PRECISION NOT NULL, " +
+                        "oy DOUBLE PRECISION NOT NULL, " +
+                        "angle DOUBLE PRECISION NOT NULL, " +
+                        "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                        "version INTEGER NOT NULL DEFAULT 1, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "last_touched_by VARCHAR(255), " +
+                        "last_touched_at TIMESTAMP, " +
+                        "deleted_at TIMESTAMP" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pg_profile ON planning_ghosts (profile)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pg_layer ON planning_ghosts (layer_id)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_pg_deleted ON planning_ghosts (deleted_at)");
+                    System.out.println("Created planning_ghosts table");
+                }
+            }
+        });
+
         return migrations;
+    }
+
+    private static void safeCreateIndex(DatabaseAdapter adapter, String sql) throws SQLException {
+        try {
+            adapter.executeUpdate(sql);
+        } catch (SQLException e) {
+            if (!isAlreadyExists(e)) throw e;
+        }
     }
 
     /** Helper: ALTER TABLE ADD COLUMN unless the column already exists. */

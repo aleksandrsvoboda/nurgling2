@@ -260,6 +260,7 @@ public class NCore extends Widget
                     databaseManager = new nurgling.db.DatabaseManager(1);
                     // Start area and route sync after database is initialized
                     startAreaSync();
+                    startPlanningSync();
                 }
             }
         }
@@ -269,6 +270,7 @@ public class NCore extends Widget
             synchronized (dbLock) {
                 if (databaseManager != null) {
                     stopAreaSync();
+                    stopPlanningSync();
                     databaseManager.shutdown();
                     databaseManager = null;
                 }
@@ -825,6 +827,7 @@ public class NCore extends Widget
     }
 
     private static volatile boolean areaSyncStarted = false;
+    private static volatile boolean planningSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;
 
     /**
@@ -976,6 +979,42 @@ public class NCore extends Widget
             databaseManager.getAreaService().stopSync();
         }
         areaSyncStarted = false;
+    }
+
+    /**
+     * Start Base planner DB sync. Pushes the current in-memory tree to DB
+     * once (so existing local content survives the toggle), then lets the
+     * service's scheduler take over.
+     */
+    private void startPlanningSync() {
+        if (planningSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            return;
+        }
+        nurgling.db.service.PlanningService svc = databaseManager.getPlanningService();
+        if (svc == null) return;
+
+        // One-shot push of whatever the manager has in memory so the toggle
+        // doesn't appear to drop user content. The subsequent bulk-load from
+        // sync will merge in anything other clients added.
+        try {
+            if (planningLayer != null) planningLayer.exportTreeToDatabase();
+        } catch (Exception e) {
+            System.err.println("Planning sync: initial export failed: " + e.getMessage());
+        }
+
+        svc.startSync(4, planningLayer);
+        planningSyncStarted = true;
+        System.out.println("Planning sync started");
+    }
+
+    /**
+     * Stop Base planner DB sync.
+     */
+    private void stopPlanningSync() {
+        if (databaseManager != null && databaseManager.getPlanningService() != null) {
+            databaseManager.getPlanningService().stopSync();
+        }
+        planningSyncStarted = false;
     }
 
 }

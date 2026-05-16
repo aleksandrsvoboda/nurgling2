@@ -37,6 +37,7 @@ public class PlanningLayer extends PlanningNode {
                 o.optString("name", "Layer"),
                 o.optBoolean("visible", true),
                 null);
+        layer.orderIndex = o.optInt("orderIndex", 0);
         if (o.has("ghosts")) {
             JSONArray arr = o.getJSONArray("ghosts");
             for (int i = 0; i < arr.length(); i++) {
