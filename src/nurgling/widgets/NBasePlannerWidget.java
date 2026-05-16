@@ -245,7 +245,7 @@ public class NBasePlannerWidget extends Window {
         private final List<TreeRow> rows = new ArrayList<>();
 
         TreeList(Coord sz) {
-            super(sz, UI.scale(20));
+            super(sz, UI.scale(28));
             rebuild();
         }
 
@@ -298,14 +298,13 @@ public class NBasePlannerWidget extends Window {
             this.node = row.node;
 
             int indentX = UI.scale(8 + 14 * row.depth);
-            int yMid = (sz.y - UI.scale(16)) / 2;
-
-            // Folder icon (only for folder rows)
-            // Drawn in draw(); no widget added.
+            int yLabel = (sz.y - UI.scale(14)) / 2;
+            int yIcon  = (sz.y - UI.scale(22)) / 2; // matches the rendered eye / X size
 
             // Label
             String displayName = row.node.name;
-            Label lbl = add(new Label(displayName), new Coord(indentX + (row.node instanceof PlanningFolder ? UI.scale(20) : 0), yMid - UI.scale(1)));
+            add(new Label(displayName),
+                new Coord(indentX + (row.node instanceof PlanningFolder ? UI.scale(20) : 0), yLabel));
 
             // Eye toggle
             eye = add(new ICheckBox(
@@ -314,7 +313,7 @@ public class NBasePlannerWidget extends Window {
                     manager().setVisible(node.id, val);
                     super.changed(val);
                 }
-            }, new Coord(sz.x - 2 * UI.scale(20) - UI.scale(8), yMid));
+            }, new Coord(sz.x - 2 * UI.scale(22) - UI.scale(8), yIcon));
             eye.a = node.visible;
             eye.settip("Toggle visibility");
 
@@ -326,7 +325,7 @@ public class NBasePlannerWidget extends Window {
                     if (list.sel == TreeRowWidget.this) list.sel = null;
                     NBasePlannerWidget.this.refresh();
                 }
-            }, new Coord(sz.x - UI.scale(20), yMid));
+            }, new Coord(sz.x - UI.scale(22), yIcon));
             remove.settip("Delete");
         }
 
