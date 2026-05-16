@@ -13,7 +13,9 @@ import haven.Resource;
 import nurgling.GhostAlpha;
 import nurgling.NConfig;
 import nurgling.NCore;
+import nurgling.NHitBox;
 import nurgling.NUtils;
+import nurgling.pf.NHitBoxD;
 import nurgling.db.DatabaseManager;
 import nurgling.db.service.PlanningService;
 import nurgling.profiles.ConfigFactory;
@@ -578,23 +580,7 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
     }
 
     public boolean removeGhostAt(Coord2d worldPos, double tolerance) {
-        PlanningGhost target = null;
-        Glob glob = activeGlob();
-        if (glob == null) return false;
-        synchronized (treeLock) {
-            double minDist = tolerance;
-            for (PlanningNode n : byId.values()) {
-                if (!(n instanceof PlanningLayer)) continue;
-                PlanningLayer layer = (PlanningLayer) n;
-                if (!effectiveVisibleUnlocked(layer)) continue;
-                for (PlanningGhost g : layer.ghosts) {
-                    Coord2d wp = resolveWorldPos(g, glob);
-                    if (wp == null) continue;
-                    double d = wp.dist(worldPos);
-                    if (d < minDist) { minDist = d; target = g; }
-                }
-            }
-        }
+        PlanningGhost target = findGhostAtInternal(worldPos, tolerance);
         if (target == null) return false;
         return removeGhost(target);
     }
@@ -626,9 +612,31 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
     }
 
     public PlanningGhost getGhostAt(Coord2d worldPos, double tolerance) {
+        return findGhostAtInternal(worldPos, tolerance);
+    }
+
+    /**
+     * Hit-test a world position against every visible ghost. Prefers a ghost
+     * whose rotated footprint actually contains the point; only falls back to
+     * nearest-center if no footprint is known for the resource (so unknown
+     * decorative gobs still match within {@code tolerance}).
+     */
+    private PlanningGhost findGhostAtInternal(Coord2d worldPos, double tolerance) {
         Glob glob = activeGlob();
         if (glob == null) return null;
         synchronized (treeLock) {
+            // Pass 1: footprint containment.
+            for (PlanningNode n : byId.values()) {
+                if (!(n instanceof PlanningLayer)) continue;
+                PlanningLayer layer = (PlanningLayer) n;
+                if (!effectiveVisibleUnlocked(layer)) continue;
+                for (PlanningGhost g : layer.ghosts) {
+                    Coord2d wp = resolveWorldPos(g, glob);
+                    if (wp == null) continue;
+                    if (footprintContains(g, wp, worldPos)) return g;
+                }
+            }
+            // Pass 2: nearest-center within tolerance for ghosts without a known footprint.
             PlanningGhost best = null;
             double minDist = tolerance;
             for (PlanningNode n : byId.values()) {
@@ -644,6 +652,14 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
             }
             return best;
         }
+    }
+
+    /** True if the rotated footprint of {@code g} at {@code ghostPos} contains {@code clickPos}. */
+    private static boolean footprintContains(PlanningGhost g, Coord2d ghostPos, Coord2d clickPos) {
+        NHitBox hb = NHitBox.findCustom(g.resName);
+        if (hb == null) return false;
+        NHitBoxD box = new NHitBoxD(hb.begin, hb.end, ghostPos, g.angleRadians());
+        return box.contains(clickPos, true);
     }
 
     public int removeInArea(Coord2d minWorld, Coord2d maxWorld) {
@@ -825,9 +841,6 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
             if (activeLayerId == null || !(byId.get(activeLayerId) instanceof PlanningLayer)) {
                 activeLayerId = firstLayerId();
             }
-            System.out.println("[Planning] onFullSync done: roots=" + roots.size()
-                + " byId=" + byId.size() + " activeLayerId=" + activeLayerId
-                + " managerId=" + System.identityHashCode(this));
         }
         pokePlannerWindow();
     }
@@ -931,19 +944,9 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
     private void pokePlannerWindow() {
         try {
             nurgling.NGameUI gui = NUtils.getGameUI();
-            if (gui == null) {
-                System.out.println("[Planning] pokePlannerWindow: gui is null");
-                return;
-            }
-            if (gui.basePlanner == null) {
-                System.out.println("[Planning] pokePlannerWindow: basePlanner is null");
-                return;
-            }
+            if (gui == null || gui.basePlanner == null) return;
             gui.basePlanner.refresh();
-            System.out.println("[Planning] pokePlannerWindow: refresh() called");
-        } catch (Exception e) {
-            System.err.println("[Planning] pokePlannerWindow failed: " + e);
-        }
+        } catch (Exception ignore) {}
     }
 
     private void removeLayerFromCurrentParent(PlanningLayer layer) {
