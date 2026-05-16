@@ -34,7 +34,8 @@ public class ProfileManager {
         "fog.nurgling.json",
         "resource_timers.nurgling.json",
         "tree_locations.nurgling.json",
-        "cheese_orders.nurgling.json"
+        "cheese_orders.nurgling.json",
+        "planning_layer.nurgling.json"
     );
 
     public ProfileManager(String genus) {

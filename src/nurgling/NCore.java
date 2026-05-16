@@ -33,6 +33,7 @@ public class NCore extends Widget
     public AutoSaveTableware autoSaveTableware = null;
     public ScenarioManager scenarioManager = new ScenarioManager();
     public EquipmentPresetManager equipmentPresetManager = new EquipmentPresetManager();
+    public nurgling.planning.PlanningLayerManager planningLayer = new nurgling.planning.PlanningLayerManager();
 
     public static volatile nurgling.db.DatabaseManager databaseManager = null;
     public boolean isInspectMode()
@@ -243,6 +244,7 @@ public class NCore extends Widget
     public void updateConfigForProfile(String genus) {
         if (genus != null && !genus.isEmpty()) {
             config = nurgling.profiles.ConfigFactory.getConfig(genus);
+            planningLayer.initializeForProfile(genus);
         }
     }
 
@@ -258,6 +260,7 @@ public class NCore extends Widget
                     databaseManager = new nurgling.db.DatabaseManager(1);
                     // Start area and route sync after database is initialized
                     startAreaSync();
+                    startPlanningSync();
                 }
             }
         }
@@ -267,6 +270,7 @@ public class NCore extends Widget
             synchronized (dbLock) {
                 if (databaseManager != null) {
                     stopAreaSync();
+                    stopPlanningSync();
                     databaseManager.shutdown();
                     databaseManager = null;
                 }
@@ -342,6 +346,11 @@ public class NCore extends Widget
         if (config.isScenariosUpdated())
         {
             config.writeScenarios(null);
+        }
+        planningLayer.tick();
+        if (planningLayer.isDirty())
+        {
+            planningLayer.save();
         }
         synchronized (tasks)
         {
@@ -818,6 +827,7 @@ public class NCore extends Widget
     }
 
     private static volatile boolean areaSyncStarted = false;
+    private static volatile boolean planningSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;
 
     /**
@@ -969,6 +979,69 @@ public class NCore extends Widget
             databaseManager.getAreaService().stopSync();
         }
         areaSyncStarted = false;
+    }
+
+    /**
+     * Start Base planner DB sync. Pushes the current in-memory tree to DB
+     * once (so existing local content survives the toggle), then lets the
+     * service's scheduler take over.
+     */
+    private void startPlanningSync() {
+        if (planningSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            return;
+        }
+        nurgling.db.service.PlanningService svc = databaseManager.getPlanningService();
+        if (svc == null) return;
+
+        // One-shot push of whatever the manager has in memory so the toggle
+        // doesn't appear to drop user content. The subsequent bulk-load from
+        // sync will merge in anything other clients added.
+        try {
+            if (planningLayer != null) planningLayer.exportTreeToDatabase();
+        } catch (Exception e) {
+            System.err.println("Planning sync: initial export failed: " + e.getMessage());
+        }
+
+        // Adapter callback that resolves the current session's PlanningLayerManager
+        // dynamically on each invocation. NUI lifecycle (login screen + game)
+        // creates more than one NCore over the app's life, and `this.planningLayer`
+        // captured at startSync time can become stale. Resolving each time via
+        // NUtils.getUI() (which honors ThreadLocalUI bound by syncTick) sends the
+        // event to whichever NCore the current session actually uses. Same pattern
+        // as AreaService's onAreasUpdated.
+        svc.startSync(4, new nurgling.db.service.PlanningService.PlanningSyncCallback() {
+            private nurgling.planning.PlanningLayerManager current() {
+                try {
+                    NUI ui = NUtils.getUI();
+                    if (ui != null && ui.core != null) {
+                        return ui.core.planningLayer;
+                    }
+                } catch (Exception ignore) {}
+                return null;
+            }
+            @Override
+            public void onFullSync(nurgling.db.service.PlanningService.TreeSnapshot snap) {
+                nurgling.planning.PlanningLayerManager mgr = current();
+                if (mgr != null) mgr.onFullSync(snap);
+            }
+            @Override
+            public void onSyncDelta(nurgling.db.service.PlanningService.SyncDelta delta) {
+                nurgling.planning.PlanningLayerManager mgr = current();
+                if (mgr != null) mgr.onSyncDelta(delta);
+            }
+        });
+        planningSyncStarted = true;
+        System.out.println("Planning sync started");
+    }
+
+    /**
+     * Stop Base planner DB sync.
+     */
+    private void stopPlanningSync() {
+        if (databaseManager != null && databaseManager.getPlanningService() != null) {
+            databaseManager.getPlanningService().stopSync();
+        }
+        planningSyncStarted = false;
     }
 
 }
