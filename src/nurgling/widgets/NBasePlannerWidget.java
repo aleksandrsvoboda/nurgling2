@@ -245,7 +245,7 @@ public class NBasePlannerWidget extends Window {
         private final List<TreeRow> rows = new ArrayList<>();
 
         TreeList(Coord sz) {
-            super(sz, UI.scale(28));
+            super(sz, UI.scale(22));
             rebuild();
         }
 
@@ -298,26 +298,21 @@ public class NBasePlannerWidget extends Window {
             this.node = row.node;
 
             int indentX = UI.scale(8 + 14 * row.depth);
-            int yLabel = (sz.y - UI.scale(14)) / 2;
-            int yIcon  = (sz.y - UI.scale(22)) / 2; // matches the rendered eye / X size
 
-            // Label
+            // Add widgets first (positions adjusted below using each widget's own sz).
             String displayName = row.node.name;
-            add(new Label(displayName),
-                new Coord(indentX + (row.node instanceof PlanningFolder ? UI.scale(20) : 0), yLabel));
+            Label lbl = add(new Label(displayName), Coord.z);
 
-            // Eye toggle
             eye = add(new ICheckBox(
                     "nurgling/hud/buttons/eye", "/u", "/d", "/h", "/dh") {
                 @Override public void changed(boolean val) {
                     manager().setVisible(node.id, val);
                     super.changed(val);
                 }
-            }, new Coord(sz.x - 2 * UI.scale(22) - UI.scale(8), yIcon));
+            }, Coord.z);
             eye.a = node.visible;
             eye.settip("Toggle visibility");
 
-            // Delete X
             remove = add(new IButton(NStyle.removei[0].back, NStyle.removei[1].back, NStyle.removei[2].back) {
                 @Override public void click() {
                     String id = node.id;
@@ -325,8 +320,16 @@ public class NBasePlannerWidget extends Window {
                     if (list.sel == TreeRowWidget.this) list.sel = null;
                     NBasePlannerWidget.this.refresh();
                 }
-            }, new Coord(sz.x - UI.scale(22), yIcon));
+            }, Coord.z);
             remove.settip("Delete");
+
+            // Now vertically center each widget against its own sz.y.
+            int rightMargin = UI.scale(5);
+            int gap = UI.scale(6);
+            remove.c = new Coord(sz.x - remove.sz.x - rightMargin, (sz.y - remove.sz.y) / 2);
+            eye.c    = new Coord(remove.c.x - gap - eye.sz.x,       (sz.y - eye.sz.y) / 2);
+            lbl.c    = new Coord(indentX + (row.node instanceof PlanningFolder ? UI.scale(20) : 0),
+                                 (sz.y - lbl.sz.y) / 2);
         }
 
         @Override

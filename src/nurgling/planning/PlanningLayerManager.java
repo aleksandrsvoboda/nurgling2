@@ -825,6 +825,8 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
             if (activeLayerId == null || !(byId.get(activeLayerId) instanceof PlanningLayer)) {
                 activeLayerId = firstLayerId();
             }
+            System.out.println("[Planning] onFullSync done: roots=" + roots.size()
+                + " byId=" + byId.size() + " activeLayerId=" + activeLayerId);
         }
         pokePlannerWindow();
     }
@@ -927,10 +929,20 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
     /** Best-effort UI refresh after sync mutates the tree. */
     private void pokePlannerWindow() {
         try {
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().basePlanner != null) {
-                NUtils.getGameUI().basePlanner.refresh();
+            nurgling.NGameUI gui = NUtils.getGameUI();
+            if (gui == null) {
+                System.out.println("[Planning] pokePlannerWindow: gui is null");
+                return;
             }
-        } catch (Exception ignore) {}
+            if (gui.basePlanner == null) {
+                System.out.println("[Planning] pokePlannerWindow: basePlanner is null");
+                return;
+            }
+            gui.basePlanner.refresh();
+            System.out.println("[Planning] pokePlannerWindow: refresh() called");
+        } catch (Exception e) {
+            System.err.println("[Planning] pokePlannerWindow failed: " + e);
+        }
     }
 
     private void removeLayerFromCurrentParent(PlanningLayer layer) {
