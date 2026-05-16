@@ -103,9 +103,9 @@ public class NBasePlannerWidget extends Window {
         btnExport.settip("Export selected (or all)");
 
         IButton btnEye = add(new IButton(
-                Resource.loadsimg("nurgling/hud/buttons/eye/u"),
-                Resource.loadsimg("nurgling/hud/buttons/eye/d"),
-                Resource.loadsimg("nurgling/hud/buttons/eye/h")) {
+                Resource.loadsimg("nurgling/hud/buttons/eye_2/u"),
+                Resource.loadsimg("nurgling/hud/buttons/eye_2/d"),
+                Resource.loadsimg("nurgling/hud/buttons/eye_2/h")) {
             @Override public void click() {
                 super.click();
                 manager().masterToggleVisibility();
@@ -114,7 +114,10 @@ public class NBasePlannerWidget extends Window {
         }, btnExport.pos("ur").adds(UI.scale(10), 0));
         btnEye.settip("Toggle all visibility");
 
-        Button btnClearArea = add(new Button(UI.scale(80), "CLEAR IN AREA") {
+        IButton btnClearArea = add(new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/clear_in_area/u"),
+                Resource.loadsimg("nurgling/hud/buttons/clear_in_area/d"),
+                Resource.loadsimg("nurgling/hud/buttons/clear_in_area/h")) {
             @Override public void click() {
                 super.click();
                 if (manager().getActiveLayer() == null) {
