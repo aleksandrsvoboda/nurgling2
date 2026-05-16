@@ -1002,7 +1002,34 @@ public class NCore extends Widget
             System.err.println("Planning sync: initial export failed: " + e.getMessage());
         }
 
-        svc.startSync(4, planningLayer);
+        // Adapter callback that resolves the current session's PlanningLayerManager
+        // dynamically on each invocation. NUI lifecycle (login screen + game)
+        // creates more than one NCore over the app's life, and `this.planningLayer`
+        // captured at startSync time can become stale. Resolving each time via
+        // NUtils.getUI() (which honors ThreadLocalUI bound by syncTick) sends the
+        // event to whichever NCore the current session actually uses. Same pattern
+        // as AreaService's onAreasUpdated.
+        svc.startSync(4, new nurgling.db.service.PlanningService.PlanningSyncCallback() {
+            private nurgling.planning.PlanningLayerManager current() {
+                try {
+                    NUI ui = NUtils.getUI();
+                    if (ui != null && ui.core != null) {
+                        return ui.core.planningLayer;
+                    }
+                } catch (Exception ignore) {}
+                return null;
+            }
+            @Override
+            public void onFullSync(nurgling.db.service.PlanningService.TreeSnapshot snap) {
+                nurgling.planning.PlanningLayerManager mgr = current();
+                if (mgr != null) mgr.onFullSync(snap);
+            }
+            @Override
+            public void onSyncDelta(nurgling.db.service.PlanningService.SyncDelta delta) {
+                nurgling.planning.PlanningLayerManager mgr = current();
+                if (mgr != null) mgr.onSyncDelta(delta);
+            }
+        });
         planningSyncStarted = true;
         System.out.println("Planning sync started");
     }

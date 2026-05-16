@@ -251,7 +251,8 @@ public class NBasePlannerWidget extends Window {
 
         public void rebuild() {
             rows.clear();
-            for (PlanningNode n : manager().getRoots()) {
+            PlanningLayerManager mgr = manager();
+            for (PlanningNode n : mgr.getRoots()) {
                 rows.add(new TreeRow(n, 0));
                 if (n instanceof PlanningFolder) {
                     for (PlanningLayer layer : ((PlanningFolder) n).layers) {
@@ -259,6 +260,12 @@ public class NBasePlannerWidget extends Window {
                     }
                 }
             }
+            System.out.println("[Planning] TreeList.rebuild: rows=" + rows.size()
+                + " managerId=" + System.identityHashCode(mgr)
+                + " planner.visible=" + NBasePlannerWidget.this.visible()
+                + " treeList.visible=" + this.visible()
+                + " sz=" + this.sz);
+            this.reset();
         }
 
         @Override
@@ -296,6 +303,8 @@ public class NBasePlannerWidget extends Window {
         public TreeRowWidget(TreeList list, TreeRow row, Coord sz) {
             super(list, sz, row);
             this.node = row.node;
+            System.out.println("[Planning] TreeRowWidget ctor: node=" + row.node.name
+                + " depth=" + row.depth + " sz=" + sz);
 
             int indentX = UI.scale(8 + 14 * row.depth);
 

@@ -826,7 +826,8 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
                 activeLayerId = firstLayerId();
             }
             System.out.println("[Planning] onFullSync done: roots=" + roots.size()
-                + " byId=" + byId.size() + " activeLayerId=" + activeLayerId);
+                + " byId=" + byId.size() + " activeLayerId=" + activeLayerId
+                + " managerId=" + System.identityHashCode(this));
         }
         pokePlannerWindow();
     }
