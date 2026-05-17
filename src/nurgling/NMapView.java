@@ -1006,7 +1006,7 @@ public class NMapView extends MapView
         // retried on later ticks as their data arrives.
         Set<Coord> readyCoords = new HashSet<>(currentGridCoords.size());
         for (Coord gc : currentGridCoords) {
-            if (NGridWallOverlay.cornersReady(glob.map, gc)) {
+            if (NGridWallOverlay.isReady(glob.map, gc)) {
                 readyCoords.add(gc);
             }
         }
