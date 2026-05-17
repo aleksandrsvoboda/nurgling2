@@ -20,6 +20,7 @@ public class World extends Panel {
         boolean showTroughRadius;
         boolean showMoundBedRadius;
         boolean showDamageShields;
+        boolean showGridWalls;
         boolean persistentBarrelLabels;
         boolean disableTileSmoothing;
         boolean disableTileTransitions;
@@ -40,6 +41,7 @@ public class World extends Panel {
     private CheckBox troughRadius;
     private CheckBox moundBedRadius;
     private CheckBox damageShields;
+    private CheckBox gridWalls;
     private CheckBox persistentBarrels;
     private CheckBox disableTileSmoothing;
     private CheckBox disableTileTransitions;
@@ -167,7 +169,14 @@ public class World extends Panel {
                 a = val;
             }
         }, prev.pos("bl").adds(0, 5));
-        
+
+        prev = gridWalls = content.add(new CheckBox(L10n.get("world.show_grid_walls")) {
+            public void set(boolean val) {
+                tempSettings.showGridWalls = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 5));
+
         prev = persistentBarrels = content.add(new CheckBox(L10n.get("world.persistent_barrels")) {
             public void set(boolean val) {
                 tempSettings.persistentBarrelLabels = val;
@@ -217,6 +226,7 @@ public class World extends Panel {
         tempSettings.showTroughRadius = (Boolean) NConfig.get(NConfig.Key.showTroughRadius);
         tempSettings.showMoundBedRadius = (Boolean) NConfig.get(NConfig.Key.showMoundBedRadius);
         tempSettings.showDamageShields = (Boolean) NConfig.get(NConfig.Key.showDamageShields);
+        tempSettings.showGridWalls = (Boolean) NConfig.get(NConfig.Key.gridbox);
         tempSettings.persistentBarrelLabels = (Boolean) NConfig.get(NConfig.Key.persistentBarrelLabels);
         tempSettings.disableTileSmoothing = (Boolean) NConfig.get(NConfig.Key.disableTileSmoothing);
         tempSettings.disableTileTransitions = (Boolean) NConfig.get(NConfig.Key.disableTileTransitions);
@@ -242,6 +252,7 @@ public class World extends Panel {
         troughRadius.a = tempSettings.showTroughRadius;
         moundBedRadius.a = tempSettings.showMoundBedRadius;
         damageShields.a = tempSettings.showDamageShields;
+        gridWalls.a = tempSettings.showGridWalls;
         persistentBarrels.a = tempSettings.persistentBarrelLabels;
         disableTileSmoothing.a = tempSettings.disableTileSmoothing;
         disableTileTransitions.a = tempSettings.disableTileTransitions;
@@ -266,7 +277,8 @@ public class World extends Panel {
         NConfig.set(NConfig.Key.showTroughRadius, tempSettings.showTroughRadius);
         NConfig.set(NConfig.Key.showMoundBedRadius, tempSettings.showMoundBedRadius);
         NConfig.set(NConfig.Key.showDamageShields, tempSettings.showDamageShields);
-        
+        NConfig.set(NConfig.Key.gridbox, tempSettings.showGridWalls);
+
         NConfig.set(NConfig.Key.persistentBarrelLabels, tempSettings.persistentBarrelLabels);
         
         // Save tile rendering settings
