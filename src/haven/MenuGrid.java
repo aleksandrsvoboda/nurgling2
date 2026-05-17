@@ -611,6 +611,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	boolean criminalIsInstall = false;
 	boolean trackingIsInstall = false;
 	boolean swimmingIsInstall = false;
+	boolean siegeEnginesIsInstall = false;
 
     public void uimsg(String msg, Object... args) {
 	if(msg == "goto") {
@@ -671,6 +672,11 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 				{
 					pag.button().use(new Interaction());
 					swimmingIsInstall = (Boolean) NConfig.get(NConfig.Key.swimming);
+				}
+				else if((Boolean) NConfig.get(NConfig.Key.autoShowSiegeEngines) != siegeEnginesIsInstall && (Boolean) NConfig.get(NConfig.Key.autoShowSiegeEngines) && ref.equals("paginae/act/siegeptr"))
+				{
+					pag.button().use(new Interaction());
+					siegeEnginesIsInstall = (Boolean) NConfig.get(NConfig.Key.autoShowSiegeEngines);
 				}
 
 				// Delegate toggle handling to NMenuGridWdg if it exists (for swimming, tracking, crime, and nopeace)
