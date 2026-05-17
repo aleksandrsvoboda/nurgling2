@@ -655,10 +655,23 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
 
     /** True if the rotated footprint of {@code g} at {@code ghostPos} contains {@code clickPos}. */
     private static boolean footprintContains(PlanningGhost g, Coord2d ghostPos, Coord2d clickPos) {
-        NHitBox hb = NHitBox.findCustom(g.resName);
-        if (hb == null) return false;
-        NHitBoxD box = new NHitBoxD(hb.begin, hb.end, ghostPos, g.angleRadians());
-        return box.contains(clickPos, true);
+        try {
+            NHitBox hb = NHitBox.findCustom(g.resName);
+            if (hb == null) return false;
+            // NHitBoxD.move_ortho does `switch (quarterTurns % 4)`; Java's `%`
+            // is sign-following so negative angles (e.g. plob.a = -π/2 from the
+            // auto-orient atan2) hit no case and leave c[] null → NPE in
+            // contains(). Normalize to [0, 2π) before constructing.
+            double a = g.angleRadians() % (2 * Math.PI);
+            if (a < 0) a += 2 * Math.PI;
+            NHitBoxD box = new NHitBoxD(hb.begin, hb.end, ghostPos, a);
+            return box.contains(clickPos, true);
+        } catch (Exception ex) {
+            // Belt-and-braces: never let a hit-test bug propagate up the render
+            // callback thread. Fall back to "no match" so the distance-based
+            // pass-2 still has a chance.
+            return false;
+        }
     }
 
     public int removeInArea(Coord2d minWorld, Coord2d maxWorld) {
