@@ -137,6 +137,7 @@ public class NConfig
         picklingRedOnion,
         picklingYellowOnion,
         openInventoryOnLogin,
+        autoShowSiegeEngines,
         bbDisplayMode,
         showCritterCircles,
         critterCircleSettings,
@@ -440,6 +441,7 @@ public class NConfig
 
         // Login settings
         conf.put(Key.openInventoryOnLogin, false);  // Default to closed (current behavior)
+        conf.put(Key.autoShowSiegeEngines, true);   // Default to on per user request
 
         // Critter circles - colored discs under small critters for easier clicking
         conf.put(Key.showCritterCircles, true);
