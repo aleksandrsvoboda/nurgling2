@@ -72,7 +72,6 @@ public class NMapView extends MapView
     // Grid wall overlay tracking: one wall overlay per loaded 100x100 grid
     private final Map<Coord, RenderTree.Slot> gridWallSlots = new HashMap<>();
     private final Map<Coord, NGridWallOverlay> gridWallOverlays = new HashMap<>();
-    private static final Color GRID_WALL_COLOR = new Color(255, 180, 0, 110);
 
     public NMapView(Coord sz, Glob glob, Coord2d cc, long plgob)
     {
@@ -1017,7 +1016,7 @@ public class NMapView extends MapView
             if (gridWallSlots.containsKey(gc)) continue;
             NGridWallOverlay ov = gridWallOverlays.get(gc);
             if (ov == null) {
-                ov = new NGridWallOverlay(gc, GRID_WALL_COLOR);
+                ov = new NGridWallOverlay(gc);
                 gridWallOverlays.put(gc, ov);
             }
             if (ov.tryBuild(glob.map)) {
