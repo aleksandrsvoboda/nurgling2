@@ -830,7 +830,7 @@ public class OptWnd extends Window {
 		y = addbtn(cont, "Switch to Session 10", nurgling.sessions.SessionTabBar.kb_session10, y);
 //		y = addbtn(cont, "Player grid box", NMapView.kb_displaypbox, y);
 //		y = addbtn(cont, "Player FOV box", NMapView.kb_displayfov, y);
-//		y = addbtn(cont, "Grid box", NMapView.kb_displaygrid, y);
+		y = addbtn(cont, L10n.get("opt.keybind.grid_walls"), NMapView.kb_displaygrid, y);
 		y = addbtn(cont, L10n.get("opt.keybind.toggle_bb"), NMapView.kb_togglebb, y);
 		y = addbtn(cont, L10n.get("opt.keybind.clear_dmg"), NMapView.kb_cleardmg, y);
 
