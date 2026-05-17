@@ -29,6 +29,7 @@ public class World extends Panel {
         Color boxFillColor = new Color(227, 28, 1, 195);
         Color boxEdgeColor = new Color(224, 193, 79, 255);
         int boxLineWidth = 4;
+        Color gridWallColor = new Color(255, 140, 0, 217);
     }
 
     private final WorldSettings tempSettings = new WorldSettings();
@@ -47,6 +48,7 @@ public class World extends Panel {
     private CheckBox disableTileTransitions;
     private CheckBox disableCloudShadows;
     private CheckBox darkenDeepOcean;
+    private NColorWidget gridWallColorWidget;
     private NColorWidget fillColorWidget;
     private NColorWidget edgeColorWidget;
     private HSlider lineWidthSlider;
@@ -177,6 +179,9 @@ public class World extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
 
+        prev = gridWallColorWidget = content.add(new NColorWidget(L10n.get("world.grid_wall_color")), prev.pos("bl").adds(20, 5));
+        gridWallColorWidget.color = tempSettings.gridWallColor;
+
         prev = persistentBarrels = content.add(new CheckBox(L10n.get("world.persistent_barrels")) {
             public void set(boolean val) {
                 tempSettings.persistentBarrelLabels = val;
@@ -236,6 +241,7 @@ public class World extends Panel {
         // Load colors if they exist in config
         tempSettings.boxFillColor = NConfig.getColor(NConfig.Key.boxFillColor, new Color(227, 28, 1, 195));
         tempSettings.boxEdgeColor = NConfig.getColor(NConfig.Key.boxEdgeColor, new Color(224, 193, 79, 255));
+        tempSettings.gridWallColor = NConfig.getColor(NConfig.Key.gridWallColor, new Color(255, 140, 0, 217));
         
         // Load line width
         Object lineWidthObj = NConfig.get(NConfig.Key.boxLineWidth);
@@ -260,6 +266,7 @@ public class World extends Panel {
         darkenDeepOcean.a = tempSettings.darkenDeepOcean;
         fillColorWidget.color = tempSettings.boxFillColor;
         edgeColorWidget.color = tempSettings.boxEdgeColor;
+        gridWallColorWidget.color = tempSettings.gridWallColor;
         lineWidthSlider.val = tempSettings.boxLineWidth;
         lineWidthLabel.settext(L10n.get("world.line_width") + " " + tempSettings.boxLineWidth);
     }
@@ -317,6 +324,8 @@ public class World extends Panel {
         tempSettings.boxEdgeColor = edgeColorWidget.color;
         NConfig.setColor(NConfig.Key.boxFillColor, tempSettings.boxFillColor);
         NConfig.setColor(NConfig.Key.boxEdgeColor, tempSettings.boxEdgeColor);
+        tempSettings.gridWallColor = gridWallColorWidget.color;
+        NConfig.setColor(NConfig.Key.gridWallColor, tempSettings.gridWallColor);
         
         // Save line width setting
         NConfig.set(NConfig.Key.boxLineWidth, tempSettings.boxLineWidth);

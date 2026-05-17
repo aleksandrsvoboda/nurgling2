@@ -69,9 +69,12 @@ public class NMapView extends MapView
     // Track areas that were deleted locally to prevent restoration during sync
     private final Set<Integer> locallyDeletedAreas = new HashSet<>();
 
-    // Grid wall overlay tracking: one wall overlay per loaded 100x100 grid
-    private final Map<Coord, RenderTree.Slot> gridWallSlots = new HashMap<>();
-    private final Map<Coord, NGridWallOverlay> gridWallOverlays = new HashMap<>();
+    // Grid wall overlay: a single combined-mesh overlay covering all loaded grids
+    private NGridWallOverlay gridWallOverlay = null;
+    private RenderTree.Slot gridWallSlot = null;
+    private Set<Coord> gridWallLastCoords = null;
+    private Color gridWallLastColor = null;
+    private static final Color GRID_WALL_DEFAULT_COLOR = new Color(255, 140, 0, 217);
 
     public NMapView(Coord sz, Glob glob, Coord2d cc, long plgob)
     {
@@ -978,15 +981,16 @@ public class NMapView extends MapView
     }
 
     /**
-     * Reconciles per-grid wall overlays against currently loaded grids based on
-     * the NConfig.Key.gridbox setting. Walls are short translucent rectangles around
-     * each 100x100 grid in the world.
+     * Reconciles the combined grid-wall overlay against currently loaded grids
+     * and the configured wall color. Builds one combined mesh, one draw call,
+     * dedupes shared edges between adjacent grids; rebuilds only when the grid
+     * set or color changes.
      */
     private void updateGridWalls()
     {
         boolean enabled = (Boolean) NConfig.get(NConfig.Key.gridbox);
         if (!enabled) {
-            if (!gridWallSlots.isEmpty() || !gridWallOverlays.isEmpty()) {
+            if (gridWallSlot != null) {
                 clearGridWalls();
             }
             return;
@@ -996,49 +1000,51 @@ public class NMapView extends MapView
         synchronized (glob.map.grids) {
             currentGridCoords = new HashSet<>(glob.map.grids.keySet());
         }
+        Color currentColor = NConfig.getColor(NConfig.Key.gridWallColor, GRID_WALL_DEFAULT_COLOR);
 
-        // Remove slots for grids that are no longer loaded
-        Iterator<Map.Entry<Coord, RenderTree.Slot>> it = gridWallSlots.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<Coord, RenderTree.Slot> entry = it.next();
-            if (!currentGridCoords.contains(entry.getKey())) {
-                try {
-                    entry.getValue().remove();
-                } catch (Exception ignored) {
-                }
-                it.remove();
-                gridWallOverlays.remove(entry.getKey());
+        // Only include grids whose corners have loaded terrain; the rest are
+        // retried on later ticks as their data arrives.
+        Set<Coord> readyCoords = new HashSet<>(currentGridCoords.size());
+        for (Coord gc : currentGridCoords) {
+            if (NGridWallOverlay.cornersReady(glob.map, gc)) {
+                readyCoords.add(gc);
             }
         }
 
-        // Build and attach overlays for newly loaded grids
-        for (Coord gc : currentGridCoords) {
-            if (gridWallSlots.containsKey(gc)) continue;
-            NGridWallOverlay ov = gridWallOverlays.get(gc);
-            if (ov == null) {
-                ov = new NGridWallOverlay(gc);
-                gridWallOverlays.put(gc, ov);
-            }
-            if (ov.tryBuild(glob.map)) {
-                try {
-                    RenderTree.Slot slot = basic.add(ov);
-                    gridWallSlots.put(gc, slot);
-                } catch (Exception ignored) {
-                }
+        boolean needRebuild = (gridWallOverlay == null)
+                || gridWallLastCoords == null
+                || !readyCoords.equals(gridWallLastCoords)
+                || !currentColor.equals(gridWallLastColor);
+
+        if (!needRebuild) return;
+
+        if (gridWallOverlay == null) {
+            gridWallOverlay = new NGridWallOverlay();
+        }
+        gridWallOverlay.rebuild(glob.map, readyCoords, currentColor);
+        gridWallLastCoords = readyCoords;
+        gridWallLastColor = currentColor;
+
+        if (gridWallSlot == null) {
+            try {
+                gridWallSlot = basic.add(gridWallOverlay);
+            } catch (Exception ignored) {
             }
         }
     }
 
     private void clearGridWalls()
     {
-        for (RenderTree.Slot slot : gridWallSlots.values()) {
+        if (gridWallSlot != null) {
             try {
-                slot.remove();
+                gridWallSlot.remove();
             } catch (Exception ignored) {
             }
+            gridWallSlot = null;
         }
-        gridWallSlots.clear();
-        gridWallOverlays.clear();
+        gridWallOverlay = null;
+        gridWallLastCoords = null;
+        gridWallLastColor = null;
     }
 
     public void toggleol(String tag, boolean a)
