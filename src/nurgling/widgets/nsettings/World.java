@@ -182,12 +182,14 @@ public class World extends Panel {
         prev = gridWallColorWidget = content.add(new NColorWidget(L10n.get("world.grid_wall_color")), prev.pos("bl").adds(20, 5));
         gridWallColorWidget.color = tempSettings.gridWallColor;
 
+        // -20 on x undoes the +20 indent applied to gridWallColorWidget above so
+        // subsequent widgets return to the normal Objects-section left margin.
         prev = persistentBarrels = content.add(new CheckBox(L10n.get("world.persistent_barrels")) {
             public void set(boolean val) {
                 tempSettings.persistentBarrelLabels = val;
                 a = val;
             }
-        }, prev.pos("bl").adds(0, 5));
+        }, prev.pos("bl").adds(-20, 5));
 
         // Bounding box colors section
         prev = content.add(new Label("● " + L10n.get("world.section.bbox_colors")), prev.pos("bl").adds(0, 15));
