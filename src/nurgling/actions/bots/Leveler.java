@@ -104,13 +104,6 @@ public class Leveler implements Action
         }
         LandSurvey survey = (LandSurvey) wnd;
 
-        if (varea(survey) != null && stockpileInside(gui, varea(survey))) {
-            gui.msg("Leveler: survey " + surveyId + " contains a stockpile - skipping");
-            closeWindow(survey);
-            skipped.add(surveyId);
-            return Results.SUCCESS();
-        }
-
         Label wlbl = findWlbl(survey);
         if (wlbl == null) {
             skipped.add(surveyId);
@@ -405,16 +398,6 @@ public class Leveler implements Action
         } catch (NullPointerException e) {
             return null;
         }
-    }
-
-    private static boolean stockpileInside(NGameUI gui, Area varea) throws InterruptedException
-    {
-        ArrayList<Gob> piles = Finder.findGobs(STOCKPILE);
-        for (Gob sp : piles) {
-            Coord tc = sp.rc.floor(MCache.tilesz);
-            if (varea.contains(tc)) return true;
-        }
-        return false;
     }
 
     private static Label findWlbl(LandSurvey survey)
