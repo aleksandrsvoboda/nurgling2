@@ -804,7 +804,7 @@ public class NGob
                             parent.addcustomol(new NBarrelOverlay(parent));
                         } else if (name.contains("gfx/terobjs/items/gems/gemstone"))
                         {
-                            parent.addcustomol(new NTexMarker(parent, new TexI(Resource.loadsimg("marks/gem")), () -> false));
+                            parent.addcustomol(new NTexMarker(parent, new TexI(Resource.loadsimg("marks/gem")), () -> false, true));
                         }
 
                         if (name.equals("gfx/borka/body"))
