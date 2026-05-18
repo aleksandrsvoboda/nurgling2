@@ -1190,6 +1190,24 @@ public class NMapView extends MapView
             return true;
         }
 
+        // Plain LMB/RMB on a gem's floating icon: redirect the click to the gem gob
+        // so the small ground item is easy to hit. Only fires without modifiers; all
+        // modifier combos keep their existing behavior.
+        if ((ev.b == 1 || ev.b == 3) && !ui.modctrl && !ui.modshift && !ui.modmeta) {
+            Gob iconTarget = findClickThroughIconGob(ev.c);
+            if (iconTarget != null) {
+                Coord2d gc = iconTarget.rc;
+                Coord pres = gc.floor(OCache.posres);
+                wdgmsg("click", Coord.z, pres, ev.b, ui.modflags(),
+                        0, (int) iconTarget.id, pres, 0, -1);
+                clickedGob = new ClickedGob(iconTarget, ev.b);
+                if (ev.b == 3) {
+                    NUtils.getUI().core.setLastAction(iconTarget);
+                }
+                return true;
+            }
+        }
+
         // Ctrl+RMB (without Shift) opens custom gob context menu
         if (ev.b == 3 && ui.modctrl && !ui.modshift) {
             new Click(ev.c, ev.b) {
@@ -1237,6 +1255,42 @@ public class NMapView extends MapView
         }
 
         return super.mousedown(ev);
+    }
+
+    // Finds a gob whose NTexMarker icon (drawn in screen space above the gob) was
+    // last rendered with its 48x48 rect containing the given screen position. Used
+    // to redirect clicks on the icon to the underlying gob (e.g. tiny gems on the
+    // ground). Picks the icon whose center is closest to the cursor when multiple
+    // overlap. Returns null if no fresh icon hit.
+    private Gob findClickThroughIconGob(Coord screenPos) {
+        if (glob == null || glob.oc == null) return null;
+        final long now = System.currentTimeMillis();
+        final int half = UI.scale(24);
+        Gob best = null;
+        int bestDist = Integer.MAX_VALUE;
+        synchronized (glob.oc) {
+            for (Gob gob : glob.oc) {
+                for (Gob.Overlay ol : gob.ols) {
+                    if (!(ol.spr instanceof nurgling.overlays.NTexMarker)) continue;
+                    nurgling.overlays.NTexMarker m = (nurgling.overlays.NTexMarker) ol.spr;
+                    if (!m.clickThroughToGob) continue;
+                    Coord sc = m.lastScreenCenter;
+                    if (sc == null) continue;
+                    // Stale icons (gob culled, off-screen, or just despawned) shouldn't
+                    // claim clicks. ~200ms covers ~12 frames at 60fps.
+                    if (now - m.lastDrawTimeMs > 200) continue;
+                    int dx = screenPos.x - sc.x;
+                    int dy = screenPos.y - sc.y;
+                    if (Math.abs(dx) > half || Math.abs(dy) > half) continue;
+                    int dist = dx * dx + dy * dy;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = gob;
+                    }
+                }
+            }
+        }
+        return best;
     }
 
     private Coord lastCoord = null;
