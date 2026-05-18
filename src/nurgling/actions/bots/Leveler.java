@@ -201,7 +201,7 @@ public class Leveler implements Action
             }
 
             if (NUtils.getStamina() < 0.25 || NUtils.getEnergy() < 0.3) {
-                closeWindow(survey);
+                stopDig(gui);
                 return Results.SUCCESS();
             }
 
@@ -372,6 +372,31 @@ public class Leveler implements Action
             if (w instanceof WItem || w instanceof ItemStack) return false;
         }
         return true;
+    }
+
+    private static void stopDig(NGameUI gui) throws InterruptedException
+    {
+        final Gob player = NUtils.player();
+        if (player == null) return;
+        NUtils.lclick(player.rc);
+        NUtils.addTask(new NTask()
+        {
+            int idleCount = 0;
+            int totalTicks = 0;
+
+            @Override
+            public boolean check()
+            {
+                totalTicks++;
+                if (totalTicks > 100) return true;
+                if (player.pose().contains("idle")) {
+                    idleCount++;
+                    return idleCount >= 3;
+                }
+                idleCount = 0;
+                return false;
+            }
+        });
     }
 
     private static Area varea(LandSurvey survey)
