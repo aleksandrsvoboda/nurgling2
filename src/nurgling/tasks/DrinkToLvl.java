@@ -15,9 +15,32 @@ public class DrinkToLvl extends NTask
 
     boolean no_water = false;
 
+    // ~10s with no stamina progress means water flow stalled.
+    private static final int STUCK_LIMIT = 300;
+    // ~30s hard ceiling so the task can never deadlock the caller.
+    private static final int HARD_CAP = 600;
+
+    private double lastStamina = -2;
+    private int stuckTicks = 0;
+    private int totalTicks = 0;
+
     @Override
     public boolean check()
     {
+        totalTicks++;
+        if (totalTicks > HARD_CAP) {
+            no_water = true;
+            return true;
+        }
+
+        double cur = NUtils.getStamina();
+        if (cur != lastStamina) {
+            lastStamina = cur;
+            stuckTicks = 0;
+        } else {
+            stuckTicks++;
+        }
+
         String lastError = NUtils.getUI().getLastError();
         if (lastError != null && lastError.equals("You have nothing on your hotbelt to drink."))
         {
@@ -34,7 +57,13 @@ public class DrinkToLvl extends NTask
             no_water = true;
             return true;
         }
-        return NUtils.getStamina() >= lvl;
+
+        if (stuckTicks > STUCK_LIMIT) {
+            no_water = true;
+            return true;
+        }
+
+        return cur >= lvl;
     }
 
     public boolean isNoWater()

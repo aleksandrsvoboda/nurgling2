@@ -92,9 +92,8 @@ public class Leveler implements Action
     {
         long surveyId = surveyGob.id;
 
-        new PathFinder(surveyGob.rc).run(gui);
-
         if (NUtils.getGameUI().getWindow("Land survey") == null) {
+            new PathFinder(surveyGob.rc).run(gui);
             NUtils.rclickGob(surveyGob);
             NUtils.addTask(new WaitWindow("Land survey"));
         }
