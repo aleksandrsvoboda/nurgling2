@@ -25,7 +25,7 @@ public class Forager extends PathBotWindow {
     CheckBox waterModeCheckbox = null;
 
     private static final String[] PLAYER_ACTIONS = {"nothing", "logout", "travel hearth"};
-    private static final String[] ANIMAL_ACTIONS = {"logout", "travel hearth"};
+    private static final String[] ANIMAL_ACTIONS = {"nothing", "logout", "travel hearth"};
     private static final String[] AFTER_FINISH_ACTIONS = {"nothing", "logout", "travel hearth"};
     private static final String[] FULL_INVENTORY_ACTIONS = {"nothing", "logout", "travel hearth"};
 
