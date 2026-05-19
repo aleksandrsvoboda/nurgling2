@@ -489,7 +489,7 @@ public class NInventory extends Inventory
         if (rightPanel != null) {
             int gap = UI.scale(8);
             rightPanel.move(new Coord(sz.x + gap, 0));
-            rightPanel.resize(new Coord(UI.scale(250), sz.y));
+            rightPanel.resize(new Coord(panelWidthForState(), sz.y));
             updateItemListSize();
         }
         if (searchwdg != null) {
@@ -976,6 +976,11 @@ public class NInventory extends Inventory
         }
     }
 
+    private int panelWidthForState() {
+        if (panelState == PANEL_SIMPLIFIED) return PANEL_W_SIMPLIFIED;
+        return PANEL_W_EXPANDED;
+    }
+
     private void positionTitleBarButtons() {
         Window wnd = getparent(Window.class);
         if (wnd == null || !(wnd.deco instanceof NWindowDeco)) return;
@@ -1225,7 +1230,8 @@ public class NInventory extends Inventory
         y += UI.scale(18);
         itemListExpandedY = y;
         int listWidth = UI.scale(230);
-        int listHeight = Math.max(UI.scale(100), sz.y - y - margin);
+        // Placeholder size; applyPanelState() will recalculate via updateItemListSize() once panelState is loaded.
+        int listHeight = UI.scale(100);
 
         itemListContainer = rightPanel.add(new Scrollport(new Coord(listWidth, listHeight)), new Coord(margin, y));
         itemListContent = new Widget(new Coord(listWidth, UI.scale(50))) {
@@ -1246,13 +1252,13 @@ public class NInventory extends Inventory
             // In simplified mode, list below sort arrows
             itemListContainer.move(new Coord(margin, itemListSimplifiedY));
             int listWidth = PANEL_W_SIMPLIFIED - margin * 2;
-            int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - itemListSimplifiedY - margin);
+            int listHeight = Math.max(0, rightPanel.sz.y - itemListSimplifiedY - margin);
             itemListContainer.resize(new Coord(listWidth, listHeight));
         } else {
             // In expanded mode, list below controls
             itemListContainer.move(new Coord(margin, itemListExpandedY));
             int listWidth = UI.scale(230);
-            int listHeight = Math.max(UI.scale(100), rightPanel.sz.y - itemListExpandedY - margin);
+            int listHeight = Math.max(0, rightPanel.sz.y - itemListExpandedY - margin);
             itemListContainer.resize(new Coord(listWidth, listHeight));
         }
     }
