@@ -63,6 +63,16 @@ public class NGItem extends GItem
         return false;
     }
 
+    public void consumedLongtip()
+    {
+        for (ItemInfo inf : info()) {
+            if (inf instanceof NFoodInfo) {
+                ((NFoodInfo) inf).consumedTooltip();
+                return;
+            }
+        }
+    }
+
     public ArrayList<NContent> content(){
         return content;
     }

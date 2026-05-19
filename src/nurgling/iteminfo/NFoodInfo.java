@@ -37,6 +37,11 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
     double expeted_fep;
     double needed;
     public boolean needToolTip = false;
+    private static final double FEP_EPSILON = 0.005;
+
+    public void consumedTooltip() {
+        needToolTip = false;
+    }
     double delta = 0;
     HashMap<String, Double> searchImage = new HashMap<>();
 
@@ -300,10 +305,12 @@ public class NFoodInfo extends FoodInfo  implements GItem.OverlayInfo<Tex>, NSea
                     }
                 }
             }
-            if (expeted_fep != calcExpectedFep() || needed != calcNeededFep())
+            double newExpected = calcExpectedFep();
+            double newNeeded = calcNeededFep();
+            if (Math.abs(expeted_fep - newExpected) > FEP_EPSILON || Math.abs(needed - newNeeded) > FEP_EPSILON)
             {
-                expeted_fep = calcExpectedFep();
-                needed = calcNeededFep();
+                expeted_fep = newExpected;
+                needed = newNeeded;
                 needToolTip = true;
             }
         }
