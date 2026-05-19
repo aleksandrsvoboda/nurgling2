@@ -27,6 +27,7 @@ import nurgling.actions.TransferToPiles;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
+import nurgling.tasks.WaitFreeHand;
 import nurgling.tasks.WaitItems;
 import nurgling.tasks.WaitWindow;
 import nurgling.tasks.WindowIsClosed;
@@ -94,6 +95,7 @@ public class Leveler implements Action
 
         if (NUtils.getGameUI().getWindow("Land survey") == null) {
             new PathFinder(surveyGob.rc).run(gui);
+            clearCursor(gui);
             NUtils.rclickGob(surveyGob);
             NUtils.addTask(new WaitWindow("Land survey"));
         }
@@ -323,6 +325,7 @@ public class Leveler implements Action
         if (put == null) put = NContext.findOutGlobal(SOIL_ITEM, 1, gui);
         if (put != null) {
             NUtils.navigateToArea(put);
+            clearCursor(gui);
             new TransferToPiles(put.getRCArea(), SOIL_ITEM, 0).run(gui);
         }
 
@@ -335,6 +338,7 @@ public class Leveler implements Action
             if (rca != null) {
                 Coord2d center = rca.b.sub(rca.a).div(2).add(rca.a);
                 new PathFinder(center).run(gui);
+                clearCursor(gui);
                 ArrayList<Widget> toDrop = new ArrayList<>();
                 for (Widget w = gui.getInventory().child; w != null; w = w.next) {
                     if (w instanceof WItem || w instanceof ItemStack) toDrop.add(w);
@@ -364,6 +368,14 @@ public class Leveler implements Action
             if (w instanceof WItem || w instanceof ItemStack) return false;
         }
         return true;
+    }
+
+    private static void clearCursor(NGameUI gui) throws InterruptedException
+    {
+        if (gui.vhand != null) {
+            NUtils.drop(gui.vhand);
+            NUtils.addTask(new WaitFreeHand());
+        }
     }
 
     private static void stopDig(NGameUI gui) throws InterruptedException
