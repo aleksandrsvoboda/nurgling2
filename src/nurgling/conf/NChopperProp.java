@@ -23,6 +23,7 @@ public class NChopperProp implements JConf
     public boolean bushes = false;
     public boolean checkWounds = false;
     public int woundDamageThreshold = 4;
+    public boolean carryLogsToCarrierOut = false;
 
     public NChopperProp(String username, String chrid) {
         this.username = username;
@@ -51,6 +52,8 @@ public class NChopperProp implements JConf
             checkWounds = (Boolean) values.get("checkWounds");
         if (values.get("woundDamageThreshold") != null)
             woundDamageThreshold = ((Number) values.get("woundDamageThreshold")).intValue();
+        if (values.get("carryLogsToCarrierOut") != null)
+            carryLogsToCarrierOut = (Boolean) values.get("carryLogsToCarrierOut");
     }
 
     public static void set(NChopperProp prop)
@@ -99,6 +102,7 @@ public class NChopperProp implements JConf
         jchopper.put("bushes", bushes);
         jchopper.put("checkWounds", checkWounds);
         jchopper.put("woundDamageThreshold", woundDamageThreshold);
+        jchopper.put("carryLogsToCarrierOut", carryLogsToCarrierOut);
         return jchopper;
     }
 

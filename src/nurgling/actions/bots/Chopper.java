@@ -5,12 +5,14 @@ import haven.res.lib.tree.TreeScale;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NChopperProp;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
+import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +45,14 @@ public class Chopper implements Action {
         }
 
         NContext context = new NContext(gui);
+
+        NArea carrierOutArea = null;
+        if (prop.carryLogsToCarrierOut) {
+            carrierOutArea = context.findArea(Specialisation.SpecName.carrierout);
+            if (carrierOutArea == null) {
+                return Results.ERROR("No CarrierOut zone found! Please create a global zone with 'carrierout' specialization.");
+            }
+        }
 
         String treeArea = context.createArea("Please select area for deforestation", Resource.loadsimg("baubles/chopperArea"));
 
@@ -139,8 +149,57 @@ public class Chopper implements Action {
                 }
             }
 
+            if (prop.carryLogsToCarrierOut && carrierOutArea != null) {
+                carryLogsFromArea(gui, context, treeArea, carrierOutArea);
+            }
         }
         new RunToSafe().run(gui);
         return Results.SUCCESS();
+    }
+
+    // Sweeps all log gobs from the deforestation area to a target area, one trip per log
+    // (player can only lift one liftable at a time). Mirrors the lift/nav/place/step-away
+    // pattern in TransferLiftable. Kept inline for now; promote to a shared Action class
+    // (e.g. CarryLiftablesToArea) when a second non-Chopper caller appears, and migrate
+    // TransferLiftable to use it at the same time to avoid duplicate sweep loops.
+    private void carryLogsFromArea(NGameUI gui, NContext context,
+                                   String sourceAreaId, NArea targetArea) throws InterruptedException {
+        // Match all tree-family gobs, then post-filter to logs only. NAlias keys are OR
+        // and substring-only, so prefix+suffix (starts with "gfx/terobjs/trees" AND ends
+        // with "log") cannot be expressed as a single alias.
+        NAlias treeFamilyAlias = new NAlias(
+                new ArrayList<>(List.of("gfx/terobjs/trees")),
+                new ArrayList<>(Arrays.asList("oldtrunk", "stump")));
+
+        while (true) {
+            ArrayList<Gob> candidates = context.getGobs(sourceAreaId, treeFamilyAlias);
+            ArrayList<Gob> logs = new ArrayList<>();
+            for (Gob g : candidates) {
+                if (g.ngob != null && g.ngob.name != null && g.ngob.name.endsWith("log")) {
+                    logs.add(g);
+                }
+            }
+            if (logs.isEmpty()) break;
+
+            ArrayList<Gob> available = new ArrayList<>();
+            for (Gob g : logs) {
+                if (PathFinder.isAvailable(g)) available.add(g);
+            }
+            if (available.isEmpty()) {
+                NUtils.getGameUI().msg("Can't reach any logs in chopping area, skipping carry.");
+                break;
+            }
+            available.sort(NUtils.d_comp);
+            Gob log = available.get(0);
+
+            new LiftObject(log).run(gui);
+            NUtils.navigateToArea(targetArea);
+            new FindPlaceAndAction(null, targetArea.getRCArea()).run(gui);
+
+            Coord2d shift = log.rc.sub(NUtils.player().rc).norm().mul(2);
+            new GoTo(NUtils.player().rc.sub(shift)).run(gui);
+
+            context.navigateToAreaIfNeeded(sourceAreaId);
+        }
     }
 }

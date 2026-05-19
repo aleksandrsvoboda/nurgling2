@@ -14,6 +14,7 @@ public class Chopper extends Window implements Checkable {
     CheckBox stumps = null;
     CheckBox bushes = null;
     CheckBox checkWounds = null;
+    CheckBox carryLogsToCarrierOut = null;
 
     UsingTools usingTools = null;
     UsingTools usingSovels = null;
@@ -99,6 +100,18 @@ public class Chopper extends Window implements Checkable {
 
         }, prev.pos("bl").add(UI.scale(0,5)));
 
+        prev = add(carryLogsToCarrierOut = new CheckBox(L10n.get("chopper.carry_logs_to_carrierout"))
+        {
+            {
+                a = finalStartprop.carryLogsToCarrierOut;
+            }
+            @Override
+            public void set(boolean a) {
+                super.set(a);
+            }
+
+        }, prev.pos("bl").add(UI.scale(0,5)));
+
         prev = add(usingTools = new UsingTools(UsingTools.Tools.axes), prev.pos("bl").add(UI.scale(0,5)));
         if(finalStartprop.tool!=null)
         {
@@ -140,6 +153,7 @@ public class Chopper extends Window implements Checkable {
                     prop.ngrowth = ngrowth.a;
                     prop.bushes = bushes.a;
                     prop.checkWounds = checkWounds.a;
+                    prop.carryLogsToCarrierOut = carryLogsToCarrierOut.a;
                     if(usingTools.s!=null)
                         prop.tool = usingTools.s.name;
                     if(prop.stumps && usingSovels.s!=null)
