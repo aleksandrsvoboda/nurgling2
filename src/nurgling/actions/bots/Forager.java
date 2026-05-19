@@ -139,16 +139,18 @@ public class Forager implements Action {
             }
             
             // Check for dangerous animals in radius 200
-            for (String animalPattern : dangerousAnimals) {
-                // Skip bats if ignoreBats is enabled
-                if (preset.ignoreBats && animalPattern.contains("bat")) {
-                    continue;
-                }
-                
-                Gob animal = Finder.findGob(NUtils.player().rc, new NAlias(animalPattern), null, 200.0);
-                if (animal != null) {
-                    performSafetyAction(gui, preset.onAnimalAction);
-                    return Results.SUCCESS();
+            if (!preset.onAnimalAction.equals("nothing")) {
+                for (String animalPattern : dangerousAnimals) {
+                    // Skip bats if ignoreBats is enabled
+                    if (preset.ignoreBats && animalPattern.contains("bat")) {
+                        continue;
+                    }
+
+                    Gob animal = Finder.findGob(NUtils.player().rc, new NAlias(animalPattern), null, 200.0);
+                    if (animal != null) {
+                        performSafetyAction(gui, preset.onAnimalAction);
+                        return Results.SUCCESS();
+                    }
                 }
             }
 
@@ -203,19 +205,21 @@ public class Forager implements Action {
                 return;
             }
             
-            for (String animalPattern : dangerousAnimals) {
-                // Skip bats if ignoreBats is enabled
-                if (preset.ignoreBats && animalPattern.contains("bat")) {
-                    continue;
-                }
-                
-                Gob animal = Finder.findGob(NUtils.player().rc, new NAlias(animalPattern), null, 200.0);
-                if (animal != null) {
-                    performSafetyAction(gui, preset.onAnimalAction);
-                    return;
+            if (!preset.onAnimalAction.equals("nothing")) {
+                for (String animalPattern : dangerousAnimals) {
+                    // Skip bats if ignoreBats is enabled
+                    if (preset.ignoreBats && animalPattern.contains("bat")) {
+                        continue;
+                    }
+
+                    Gob animal = Finder.findGob(NUtils.player().rc, new NAlias(animalPattern), null, 200.0);
+                    if (animal != null) {
+                        performSafetyAction(gui, preset.onAnimalAction);
+                        return;
+                    }
                 }
             }
-            
+
             processAction(gui, action, section.getCenterPoint(), radius, preset);
         }
     }
