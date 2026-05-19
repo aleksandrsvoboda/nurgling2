@@ -71,6 +71,8 @@ public class NWItem extends WItem
     private PaddedTip nlongtip = null;
     private List<ItemInfo> nttinfo = null;
     private boolean nlastModshift = false;
+    private double nlastLongtipBuild = 0;
+    private static final double NLONGTIP_REBUILD_INTERVAL = 0.5;
 
     @Override
     public Object tooltip(Coord c, Widget prev) {
@@ -86,10 +88,15 @@ public class NWItem extends WItem
             nlongtip = null;
             nttinfo = info;
         }
-        if (nlongtip == null || ((NGItem) item).needlongtip()) {
+        double now = Utils.rtime();
+        boolean wantRebuild = (nlongtip == null) || ((NGItem) item).needlongtip();
+        boolean throttled = (nlongtip != null) && (now - nlastLongtipBuild < NLONGTIP_REBUILD_INTERVAL);
+        if (wantRebuild && !throttled) {
             BufferedImage img = NTooltip.build(info);
             if (img != null) {
                 nlongtip = new PaddedTip(info, img);
+                ((NGItem) item).consumedLongtip();
+                nlastLongtipBuild = now;
             }
         }
         return nlongtip;
