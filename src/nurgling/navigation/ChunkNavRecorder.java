@@ -37,7 +37,8 @@ public class ChunkNavRecorder {
     // Walkable cave tiles (exceptions to the cave blocking pattern)
     // These are cave FLOORS (walkable ground inside caves), not cave WALLS
     private static final Set<String> WALKABLE_CAVE_TILES = new HashSet<>(Arrays.asList(
-            "gfx/tiles/deepcave"  // Cave floor - players can walk on this
+            "gfx/tiles/deepcave",  // Cave floor - players can walk on this
+            "gfx/tiles/deeptangle"
     ));
 
     /**
