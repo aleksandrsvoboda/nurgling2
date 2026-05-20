@@ -18,10 +18,9 @@ import static haven.PUtils.convolve;
  * Adds a compact base-attribute readout panel to Table furniture inventory windows.
  *
  * The "Table" window is laid out by the server: an item grid plus "Hunger reduction" /
- * "Food event bonus" labels and a "Feast!" button below it. To avoid colliding with any
- * of that, the panel is a thin single column that positions itself dynamically just to
- * the right of all sibling widgets every tick (see {@link BaseAttrsPanel#reposition()}),
- * top-aligned with the grid, rather than at a fixed offset.
+ * "Food event bonus" labels and a "Feast!" button below it. The panel is a 3x3 grid
+ * that {@link BaseAttrsPanel#reposition()} places as a footer below all of that every
+ * tick, stretched to span the full window width with the columns evenly distributed.
  *
  * Install is hooked from NInventory.added(); detection is by parent gob resource name.
  * A star toggle button in the title bar shows/hides the panel; visibility is persisted
@@ -162,20 +161,24 @@ public class TableInventoryExtension {
     }
 
     /**
-     * Compact single-column readout of the 9 base attributes (icon + white number).
-     * Sits to the right of the Table window content, top-aligned with the grid, and
-     * refreshes when values change.
+     * Compact 3x3 readout of the 9 base attributes (icon + white number), placed as a
+     * footer below the Table window content. The panel is stretched to the window's
+     * full content width and the three columns are distributed evenly across it, so it
+     * never leaves dead space on wide tables nor balloons narrow ones sideways.
      */
     public static class BaseAttrsPanel extends Widget {
+        private static final int COLS = 3;
+        private static final int ROWS = 3;
         private static final int ICON_SZ = UI.scale(16);
-        private static final int ROW_H = UI.scale(17);
-        private static final int SEP_W = Math.max(1, UI.scale(1));
-        private static final int LEFT_PAD = SEP_W + UI.scale(4);
-        private static final int MID_GAP = UI.scale(4);
-        private static final int NUM_W = UI.scale(28);
-        private static final int RIGHT_PAD = UI.scale(4);
-        private static final int PANEL_W = LEFT_PAD + ICON_SZ + MID_GAP + NUM_W + RIGHT_PAD;
-        private static final int GAP_RIGHT_OF_SIBLINGS = UI.scale(4);
+        private static final int CELL_H = UI.scale(18);
+        private static final int NUM_W = UI.scale(26);
+        private static final int ICON_NUM_GAP = UI.scale(3);
+        private static final int UNIT_W = ICON_SZ + ICON_NUM_GAP + NUM_W;
+        private static final int SEP_H = Math.max(1, UI.scale(1));
+        private static final int TOP_PAD = SEP_H + UI.scale(3);
+        private static final int PANEL_H = TOP_PAD + ROWS * CELL_H;
+        private static final int MIN_WIDTH = COLS * (UNIT_W + UI.scale(6));
+        private static final int GAP_BELOW_CONTENT = UI.scale(4);
         private static final Color VAL_COLOR = Color.WHITE;
 
         private final Tex[] icons = new Tex[ATTR_KEYS.length];
@@ -184,35 +187,34 @@ public class TableInventoryExtension {
         private long lastRefreshTick = -1;
 
         public BaseAttrsPanel() {
-            super(new Coord(PANEL_W, ATTR_KEYS.length * ROW_H));
+            super(new Coord(MIN_WIDTH, PANEL_H));
             for (int i = 0; i < ATTR_KEYS.length; i++) lastBase[i] = -1;
         }
 
         /**
-         * Place the panel just to the right of every other (visible) window child,
-         * top-aligned with the topmost one (the grid), then grow the window to fit.
-         * Excludes the deco and itself. Stable: since it never counts itself,
-         * repacking does not feed back into its own target position.
+         * Stretch the panel to the window's full content width and place it as a footer
+         * just below every other (visible) window child, then grow the window to fit.
+         * Excludes the deco and itself. Stable: since it never counts itself, repacking
+         * does not feed back into its own target width or position.
          */
         public void reposition() {
             if (parent == null || !visible) return;
             Widget deco = (parent instanceof Window) ? ((Window) parent).deco : null;
-            int maxX = 0;
-            int minY = Integer.MAX_VALUE;
+            int maxRight = 0;
+            int contentBottom = 0;
             for (Widget w = parent.child; w != null; w = w.next) {
-                if (w == this || w == deco) continue;
-                if (!w.visible) continue;
-                int rx = w.c.x + w.sz.x;
-                if (rx > maxX) maxX = rx;
-                if (w.c.y < minY) minY = w.c.y;
+                if (w == this || w == deco || !w.visible) continue;
+                maxRight = Math.max(maxRight, w.c.x + w.sz.x);
+                contentBottom = Math.max(contentBottom, w.c.y + w.sz.y);
             }
-            if (minY == Integer.MAX_VALUE) minY = 0;
-            Coord want = new Coord(maxX + GAP_RIGHT_OF_SIBLINGS, minY);
+            int width = Math.max(maxRight, MIN_WIDTH);
+            if (sz.x != width || sz.y != PANEL_H) resize(new Coord(width, PANEL_H));
+            Coord want = new Coord(0, contentBottom + GAP_BELOW_CONTENT);
             if (!want.equals(c)) this.c = want;
-            // Always pack while visible. Re-showing the panel after a hide leaves the
-            // window shrunk; since the panel's position is unchanged from before the
-            // hide, a move-gated pack would never grow the window back. pack()/resize()
-            // early-return when the size is already correct, so this stays cheap.
+            // Always pack while visible. Re-showing after a hide leaves the window
+            // shrunk with the panel position unchanged, so a move-gated pack would
+            // never grow it back. pack()/resize() early-return when the size is
+            // already correct, so this stays cheap.
             parent.pack();
         }
 
@@ -257,19 +259,24 @@ public class TableInventoryExtension {
 
         @Override
         public void draw(GOut g) {
-            // Thin vertical separator on the left edge, delineating from the grid.
+            // Thin separator above the footer, delineating it from the content above.
             g.chcolor(NStyle.separator);
-            g.frect(Coord.z, new Coord(SEP_W, sz.y));
+            g.frect(Coord.z, new Coord(sz.x, SEP_H));
             g.chcolor();
 
+            // Three columns spread evenly across the full width; each icon+number
+            // unit is kept tight and centered within its column slot.
+            int third = sz.x / COLS;
             for (int i = 0; i < ATTR_KEYS.length; i++) {
-                int cy = i * ROW_H + ROW_H / 2;
+                int col = i % COLS;
+                int row = i / COLS;
+                int unitX = col * third + (third - UNIT_W) / 2;
+                int cy = TOP_PAD + row * CELL_H + CELL_H / 2;
                 if (icons[i] != null) {
-                    g.aimage(icons[i], new Coord(LEFT_PAD, cy), 0, 0.5);
+                    g.aimage(icons[i], new Coord(unitX, cy), 0, 0.5);
                 }
                 if (valText[i] != null) {
-                    g.aimage(valText[i].tex(),
-                             new Coord(sz.x - RIGHT_PAD, cy), 1, 0.5);
+                    g.aimage(valText[i].tex(), new Coord(unitX + UNIT_W, cy), 1, 0.5);
                 }
             }
         }
