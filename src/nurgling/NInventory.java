@@ -139,6 +139,8 @@ public class NInventory extends Inventory
         super.added();
         // Add Plan button for Study Desk after the widget is added to its parent
         nurgling.widgets.StudyDeskInventoryExtension.addPlanButtonIfStudyDesk(this);
+        // Add compact base-attribute panel for Table furniture
+        nurgling.widgets.TableInventoryExtension.installIfTable(this);
         // Add Sort button for container inventories (not main inventory)
         addSortButtonIfContainer();
     }
