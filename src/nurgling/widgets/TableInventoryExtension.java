@@ -19,8 +19,9 @@ import static haven.PUtils.convolve;
  *
  * The "Table" window is laid out by the server: an item grid plus "Hunger reduction" /
  * "Food event bonus" labels and a "Feast!" button below it. To avoid colliding with any
- * of that, the panel positions itself dynamically below the lowest sibling widget every
- * tick (see {@link BaseAttrsPanel#reposition()}) rather than at a fixed offset.
+ * of that, the panel is a thin single column that positions itself dynamically just to
+ * the right of all sibling widgets every tick (see {@link BaseAttrsPanel#reposition()}),
+ * top-aligned with the grid, rather than at a fixed offset.
  *
  * Install is hooked from NInventory.added(); detection is by parent gob resource name.
  * A star toggle button in the title bar shows/hides the panel; visibility is persisted
@@ -161,19 +162,20 @@ public class TableInventoryExtension {
     }
 
     /**
-     * Compact 3x3 grid of base attribute readouts (icon + white number).
-     * Self-positions below all sibling widgets and refreshes when values change.
+     * Compact single-column readout of the 9 base attributes (icon + white number).
+     * Sits to the right of the Table window content, top-aligned with the grid, and
+     * refreshes when values change.
      */
     public static class BaseAttrsPanel extends Widget {
-        private static final int COLS = 3;
-        private static final int ROWS = 3;
         private static final int ICON_SZ = UI.scale(16);
-        private static final int CELL_W = UI.scale(52);
-        private static final int CELL_H = UI.scale(18);
-        private static final int H_GAP = UI.scale(2);
-        private static final int V_GAP = UI.scale(2);
-        private static final int TOP_PAD = UI.scale(4);
-        private static final int GAP_BELOW_SIBLINGS = UI.scale(4);
+        private static final int ROW_H = UI.scale(17);
+        private static final int SEP_W = Math.max(1, UI.scale(1));
+        private static final int LEFT_PAD = SEP_W + UI.scale(4);
+        private static final int MID_GAP = UI.scale(4);
+        private static final int NUM_W = UI.scale(28);
+        private static final int RIGHT_PAD = UI.scale(4);
+        private static final int PANEL_W = LEFT_PAD + ICON_SZ + MID_GAP + NUM_W + RIGHT_PAD;
+        private static final int GAP_RIGHT_OF_SIBLINGS = UI.scale(4);
         private static final Color VAL_COLOR = Color.WHITE;
 
         private final Tex[] icons = new Tex[ATTR_KEYS.length];
@@ -182,27 +184,30 @@ public class TableInventoryExtension {
         private long lastRefreshTick = -1;
 
         public BaseAttrsPanel() {
-            super(new Coord(COLS * CELL_W + (COLS - 1) * H_GAP,
-                            TOP_PAD + ROWS * CELL_H + (ROWS - 1) * V_GAP));
+            super(new Coord(PANEL_W, ATTR_KEYS.length * ROW_H));
             for (int i = 0; i < ATTR_KEYS.length; i++) lastBase[i] = -1;
         }
 
         /**
-         * Place the panel below every other (visible) window child, then grow the
-         * window to fit. Excludes the deco and itself. Stable: since it never counts
-         * itself, repacking does not feed back into its own target position.
+         * Place the panel just to the right of every other (visible) window child,
+         * top-aligned with the topmost one (the grid), then grow the window to fit.
+         * Excludes the deco and itself. Stable: since it never counts itself,
+         * repacking does not feed back into its own target position.
          */
         public void reposition() {
             if (parent == null || !visible) return;
             Widget deco = (parent instanceof Window) ? ((Window) parent).deco : null;
-            int maxY = 0;
+            int maxX = 0;
+            int minY = Integer.MAX_VALUE;
             for (Widget w = parent.child; w != null; w = w.next) {
                 if (w == this || w == deco) continue;
                 if (!w.visible) continue;
-                int by = w.c.y + w.sz.y;
-                if (by > maxY) maxY = by;
+                int rx = w.c.x + w.sz.x;
+                if (rx > maxX) maxX = rx;
+                if (w.c.y < minY) minY = w.c.y;
             }
-            Coord want = new Coord(0, maxY + GAP_BELOW_SIBLINGS);
+            if (minY == Integer.MAX_VALUE) minY = 0;
+            Coord want = new Coord(maxX + GAP_RIGHT_OF_SIBLINGS, minY);
             if (!want.equals(c)) this.c = want;
             // Always pack while visible. Re-showing the panel after a hide leaves the
             // window shrunk; since the panel's position is unchanged from before the
@@ -252,23 +257,19 @@ public class TableInventoryExtension {
 
         @Override
         public void draw(GOut g) {
-            // Thin separator above the panel to delineate it from server content.
+            // Thin vertical separator on the left edge, delineating from the grid.
             g.chcolor(NStyle.separator);
-            g.frect(Coord.z, new Coord(sz.x, Math.max(1, UI.scale(1))));
+            g.frect(Coord.z, new Coord(SEP_W, sz.y));
             g.chcolor();
 
             for (int i = 0; i < ATTR_KEYS.length; i++) {
-                int col = i % COLS;
-                int row = i / COLS;
-                int x = col * (CELL_W + H_GAP);
-                int y = TOP_PAD + row * (CELL_H + V_GAP);
-                int cy = y + CELL_H / 2;
+                int cy = i * ROW_H + ROW_H / 2;
                 if (icons[i] != null) {
-                    g.aimage(icons[i], new Coord(x, cy), 0, 0.5);
+                    g.aimage(icons[i], new Coord(LEFT_PAD, cy), 0, 0.5);
                 }
                 if (valText[i] != null) {
                     g.aimage(valText[i].tex(),
-                             new Coord(x + CELL_W - UI.scale(2), cy), 1, 0.5);
+                             new Coord(sz.x - RIGHT_PAD, cy), 1, 0.5);
                 }
             }
         }
