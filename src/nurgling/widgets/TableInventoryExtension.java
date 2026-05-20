@@ -18,9 +18,9 @@ import static haven.PUtils.convolve;
  * Adds a compact base-attribute readout panel to Table furniture inventory windows.
  *
  * The "Table" window is laid out by the server: an item grid plus "Hunger reduction" /
- * "Food event bonus" labels and a "Feast!" button below it. The panel is a 3x3 grid
- * that {@link BaseAttrsPanel#reposition()} places as a footer below all of that every
- * tick, stretched to span the full window width with the columns evenly distributed.
+ * "Food event bonus" labels and a "Feast!" button below it. The panel is a footer placed
+ * below all of that by {@link BaseAttrsPanel#reposition()} every tick, stretched to span
+ * the full window width: a thin FEP meter on top and a 3x3 base-attribute grid below it.
  *
  * Install is hooked from NInventory.added(); detection is by parent gob resource name.
  * A star toggle button in the title bar shows/hides the panel; visibility is persisted
@@ -161,10 +161,11 @@ public class TableInventoryExtension {
     }
 
     /**
-     * Compact 3x3 readout of the 9 base attributes (icon + white number), placed as a
-     * footer below the Table window content. The panel is stretched to the window's
-     * full content width and the three columns are distributed evenly across it, so it
-     * never leaves dead space on wide tables nor balloons narrow ones sideways.
+     * Footer panel below the Table window content: a thin FEP meter on top and a compact
+     * 3x3 readout of the 9 base attributes (icon + white number) below it. The panel is
+     * stretched to the window's full content width -- the FEP bar spans that width and
+     * the three attribute columns are distributed evenly across it -- so it never leaves
+     * dead space on wide tables nor balloons narrow ones sideways.
      */
     public static class BaseAttrsPanel extends Widget {
         private static final int COLS = 3;
@@ -176,7 +177,10 @@ public class TableInventoryExtension {
         private static final int UNIT_W = ICON_SZ + ICON_NUM_GAP + NUM_W;
         private static final int SEP_H = Math.max(1, UI.scale(1));
         private static final int TOP_PAD = SEP_H + UI.scale(3);
-        private static final int PANEL_H = TOP_PAD + ROWS * CELL_H;
+        private static final int FEP_BAR_H = UI.scale(12);
+        private static final int FEP_GAP = UI.scale(4);
+        private static final int GRID_TOP = TOP_PAD + FEP_BAR_H + FEP_GAP;
+        private static final int PANEL_H = GRID_TOP + ROWS * CELL_H;
         private static final int MIN_WIDTH = COLS * (UNIT_W + UI.scale(6));
         private static final int GAP_BELOW_CONTENT = UI.scale(4);
         private static final Color VAL_COLOR = Color.WHITE;
@@ -184,11 +188,13 @@ public class TableInventoryExtension {
         private final Tex[] icons = new Tex[ATTR_KEYS.length];
         private final int[] lastBase = new int[ATTR_KEYS.length];
         private final Text[] valText = new Text[ATTR_KEYS.length];
+        private final FepBar fepBar;
         private long lastRefreshTick = -1;
 
         public BaseAttrsPanel() {
             super(new Coord(MIN_WIDTH, PANEL_H));
             for (int i = 0; i < ATTR_KEYS.length; i++) lastBase[i] = -1;
+            fepBar = add(new FepBar(new Coord(MIN_WIDTH, FEP_BAR_H)), new Coord(0, TOP_PAD));
         }
 
         /**
@@ -209,6 +215,7 @@ public class TableInventoryExtension {
             }
             int width = Math.max(maxRight, MIN_WIDTH);
             if (sz.x != width || sz.y != PANEL_H) resize(new Coord(width, PANEL_H));
+            if (fepBar.sz.x != width) fepBar.resize(new Coord(width, FEP_BAR_H));
             Coord want = new Coord(0, contentBottom + GAP_BELOW_CONTENT);
             if (!want.equals(c)) this.c = want;
             // Always pack while visible. Re-showing after a hide leaves the window
@@ -264,6 +271,9 @@ public class TableInventoryExtension {
             g.frect(Coord.z, new Coord(sz.x, SEP_H));
             g.chcolor();
 
+            // Children: the FEP meter bar.
+            super.draw(g);
+
             // Three columns spread evenly across the full width; each icon+number
             // unit is kept tight and centered within its column slot.
             int third = sz.x / COLS;
@@ -271,7 +281,7 @@ public class TableInventoryExtension {
                 int col = i % COLS;
                 int row = i / COLS;
                 int unitX = col * third + (third - UNIT_W) / 2;
-                int cy = TOP_PAD + row * CELL_H + CELL_H / 2;
+                int cy = GRID_TOP + row * CELL_H + CELL_H / 2;
                 if (icons[i] != null) {
                     g.aimage(icons[i], new Coord(unitX, cy), 0, 0.5);
                 }
@@ -279,6 +289,65 @@ public class TableInventoryExtension {
                     g.aimage(valText[i].tex(), new Coord(unitX + UNIT_W, cy), 1, 0.5);
                 }
             }
+        }
+    }
+
+    /**
+     * Thin FEP (Food Event Points) meter for the table footer. The server only feeds the
+     * character window's FoodMeter, so this widget cannot be its own server-fed meter --
+     * instead it mirrors the live cap/els from {@code chrwdg.battr.feps} and renders its
+     * own slim segmented bar. Hovering delegates to the source meter's tooltip, so it
+     * shows exactly the same event breakdown as the character sheet.
+     */
+    public static class FepBar extends Widget {
+        private static final Color METER_BG = new Color(22, 39, 51);
+        private static final int BORDER = Math.max(1, UI.scale(1));
+
+        public FepBar(Coord sz) {
+            super(sz);
+        }
+
+        private static BAttrWnd.FoodMeter source() {
+            GameUI gui = NUtils.getGameUI();
+            if (gui == null || gui.chrwdg == null || gui.chrwdg.battr == null) return null;
+            return gui.chrwdg.battr.feps;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            g.chcolor(METER_BG);
+            g.frect(Coord.z, sz);
+            g.chcolor();
+
+            BAttrWnd.FoodMeter fm = source();
+            if (fm != null && fm.cap > 0) {
+                double x = 0;
+                int w = sz.x;
+                for (BAttrWnd.FoodMeter.El el : fm.els) {
+                    int l = (int) Math.floor((x / fm.cap) * w);
+                    int r = (int) Math.floor(((x += el.a) / fm.cap) * w);
+                    try {
+                        g.chcolor(el.ev().col);
+                        g.frect(new Coord(l, 0), new Coord(r - l, sz.y));
+                    } catch (Loading ignored) {
+                    }
+                }
+                g.chcolor();
+            }
+
+            // 1px border framing the meter.
+            g.chcolor(NStyle.separator);
+            g.frect(Coord.z, new Coord(sz.x, BORDER));
+            g.frect(new Coord(0, sz.y - BORDER), new Coord(sz.x, BORDER));
+            g.frect(Coord.z, new Coord(BORDER, sz.y));
+            g.frect(new Coord(sz.x - BORDER, 0), new Coord(BORDER, sz.y));
+            g.chcolor();
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev) {
+            BAttrWnd.FoodMeter fm = source();
+            return (fm != null) ? fm.tooltip(c, prev) : null;
         }
     }
 }
