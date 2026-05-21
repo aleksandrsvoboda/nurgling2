@@ -184,9 +184,24 @@ public class TableInventoryExtension {
         private static final int MIN_WIDTH = COLS * (UNIT_W + UI.scale(6));
         private static final int GAP_BELOW_CONTENT = UI.scale(4);
         private static final Color VAL_COLOR = Color.WHITE;
+        // Rank tint: index 0 = most saturated (the very top / very bottom stat),
+        // index 2 = subtlest. Lesser shades blend toward white.
+        private static final Color GREEN_BASE = new Color(60, 220, 60);
+        private static final Color RED_BASE = new Color(235, 70, 70);
+        private static final Color[] GREEN = {
+            GREEN_BASE,
+            Utils.blendcol(GREEN_BASE, Color.WHITE, 0.40),
+            Utils.blendcol(GREEN_BASE, Color.WHITE, 0.70),
+        };
+        private static final Color[] RED = {
+            RED_BASE,
+            Utils.blendcol(RED_BASE, Color.WHITE, 0.40),
+            Utils.blendcol(RED_BASE, Color.WHITE, 0.70),
+        };
 
         private final Tex[] icons = new Tex[ATTR_KEYS.length];
         private final int[] lastBase = new int[ATTR_KEYS.length];
+        private final Color[] lastColor = new Color[ATTR_KEYS.length];
         private final Text[] valText = new Text[ATTR_KEYS.length];
         private final FepBar fepBar;
         private long lastRefreshTick = -1;
@@ -240,13 +255,10 @@ public class TableInventoryExtension {
         private void refresh() {
             Glob glob = (ui != null && ui.sess != null) ? ui.sess.glob : null;
             if (glob == null) return;
+            int[] vals = new int[ATTR_KEYS.length];
             for (int i = 0; i < ATTR_KEYS.length; i++) {
                 Glob.CAttr a = glob.getcattr(ATTR_KEYS[i]);
-                if (a == null) continue;
-                if (a.base != lastBase[i]) {
-                    lastBase[i] = a.base;
-                    valText[i] = NStyle.nattrf.render(Integer.toString(a.base), VAL_COLOR);
-                }
+                vals[i] = a.base;
                 if (icons[i] == null) {
                     try {
                         Resource res = a.res().get();
@@ -262,6 +274,33 @@ public class TableInventoryExtension {
                     }
                 }
             }
+            // Colour each number by its rank: the three highest values shade green
+            // (most saturated for the very top), the three lowest shade red, the
+            // middle three stay white. A value's rank comes from strict greater/less
+            // counts, so tied values always resolve to the same colour.
+            for (int i = 0; i < ATTR_KEYS.length; i++) {
+                Color col = rankColor(vals, i);
+                if (vals[i] != lastBase[i] || col != lastColor[i]) {
+                    lastBase[i] = vals[i];
+                    lastColor[i] = col;
+                    valText[i] = NStyle.nattrf.render(Integer.toString(vals[i]), col);
+                }
+            }
+        }
+
+        private static Color rankColor(int[] vals, int i) {
+            int v = vals[i];
+            int gt = 0, lt = 0;
+            for (int value : vals) {
+                if (value > v) gt++;
+                else if (value < v) lt++;
+            }
+            boolean green = gt <= 2;
+            boolean red = lt <= 2;
+            if (green && red) return VAL_COLOR;  // heavy tie cluster: stay neutral
+            if (green) return GREEN[gt];
+            if (red) return RED[lt];
+            return VAL_COLOR;
         }
 
         @Override
