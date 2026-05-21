@@ -1,11 +1,9 @@
 package nurgling.widgets;
 
 import haven.*;
-import nurgling.NConfig;
 import nurgling.NInventory;
 import nurgling.NStyle;
 import nurgling.NUtils;
-import nurgling.NWindowDeco;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -28,9 +26,11 @@ import static haven.PUtils.convolve;
  *
  * {@link TableController} re-lays this every tick: the tableware/food grids are left as
  * anchors; the HR/FEB lines and Feast button are moved up beside the tableware grid
- * (renamed "HR:" / "FEB:"); a FEP element is placed below the food grid; and a togglable
- * right panel (base attributes + food satiation) is placed to the right of the food grid.
- * The star title-bar button shows/hides only that right panel.
+ * (renamed "HR:" / "FEB:"); a FEP element is placed below the food grid; and a right
+ * panel (base attributes + food satiation) is placed to the right of the food grid.
+ *
+ * The whole custom UI is gated on the Feast button: it is shown only while the table
+ * has one, and the window reverts to the vanilla server layout when it does not.
  */
 public class TableInventoryExtension {
 
@@ -61,11 +61,16 @@ public class TableInventoryExtension {
         // only the first one installs the controller and our widgets.
         if (findController(wnd) != null) return;
 
+        // Our widgets start hidden; the controller shows them only while the table
+        // has a Feast button.
         RightPanel rightPanel = new RightPanel();
-        rightPanel.visible = readShowConfig();
+        rightPanel.visible = false;
         FepElement fepElement = new FepElement();
+        fepElement.visible = false;
         Label hrLabel = new Label("");
+        hrLabel.visible = false;
         Label febLabel = new Label("");
+        febLabel.visible = false;
         TableController ctrl = new TableController(rightPanel, fepElement, hrLabel, febLabel);
 
         wnd.add(rightPanel, Coord.z);
@@ -73,17 +78,6 @@ public class TableInventoryExtension {
         wnd.add(hrLabel, Coord.z);
         wnd.add(febLabel, Coord.z);
         wnd.add(ctrl, Coord.z);
-
-        if (wnd.deco instanceof NWindowDeco) {
-            NWindowDeco deco = (NWindowDeco) wnd.deco;
-            StarToggleButton btn = new StarToggleButton(deco, rightPanel);
-            btn.settip("Toggle Stats Panel");
-            deco.add(btn);
-            if (deco.cbtn != null) {
-                int cy = deco.cbtn.c.y + (deco.cbtn.sz.y - btn.sz.y) / 2;
-                btn.c = new Coord(deco.cbtn.c.x - btn.sz.x - UI.scale(2), cy);
-            }
-        }
     }
 
     private static boolean isTableInventory(NInventory inv) {
@@ -97,50 +91,6 @@ public class TableInventoryExtension {
         for (Widget w = wnd.child; w != null; w = w.next)
             if (w instanceof TableController) return (TableController) w;
         return null;
-    }
-
-    private static boolean readShowConfig() {
-        Object v = NConfig.get(NConfig.Key.tableBaseAttrsShow);
-        return v instanceof Boolean && (Boolean) v;
-    }
-
-    /**
-     * Star toggle button in the title bar. Shows/hides the right panel only.
-     */
-    private static class StarToggleButton extends IButton {
-        private final NWindowDeco deco;
-        private final RightPanel panel;
-
-        StarToggleButton(NWindowDeco deco, RightPanel panel) {
-            super(Resource.loadsimg("nurgling/hud/buttons/inv/star/u"),
-                  Resource.loadsimg("nurgling/hud/buttons/inv/star/d"),
-                  Resource.loadsimg("nurgling/hud/buttons/inv/star/h"));
-            this.deco = deco;
-            this.panel = panel;
-        }
-
-        @Override
-        public void click() {
-            boolean show = !readShowConfig();
-            NConfig.set(NConfig.Key.tableBaseAttrsShow, show);
-            panel.visible = show;
-        }
-
-        @Override
-        public void tick(double dt) {
-            super.tick(dt);
-            if (deco.cbtn == null) return;
-            int leftmostX = deco.cbtn.c.x;
-            int titleBottom = deco.cbtn.c.y + deco.cbtn.sz.y;
-            for (Widget w = deco.child; w != null; w = w.next) {
-                if (w == this || w == deco.cbtn || w.c == null) continue;
-                if (w.c.y > titleBottom) continue;
-                if (w.c.x <= 0 || w.c.x >= deco.cbtn.c.x) continue;
-                if (w.c.x < leftmostX) leftmostX = w.c.x;
-            }
-            int cy = deco.cbtn.c.y + (deco.cbtn.sz.y - sz.y) / 2;
-            c = new Coord(leftmostX - sz.x - UI.scale(2), cy);
-        }
     }
 
     /**
@@ -196,6 +146,23 @@ public class TableInventoryExtension {
             }
             if (food == null) return;  // window not fully loaded yet
 
+            // The whole custom UI is gated on the Feast button: a table without one
+            // (used only as food storage) keeps the vanilla server layout.
+            if (feast == null) {
+                if (srvHR != null) srvHR.visible = true;
+                if (srvFEB != null) srvFEB.visible = true;
+                hrLabel.visible = false;
+                febLabel.visible = false;
+                fepElement.visible = false;
+                rightPanel.visible = false;
+                wnd.pack();
+                return;
+            }
+            hrLabel.visible = true;
+            febLabel.visible = true;
+            fepElement.visible = true;
+            rightPanel.visible = true;
+
             int foodTop = food.c.y, foodBottom = food.c.y + food.sz.y;
             int foodLeft = food.c.x, foodRight = food.c.x + food.sz.x;
 
@@ -242,8 +209,7 @@ public class TableInventoryExtension {
             fepElement.c = new Coord(foodLeft, foodBottom + GAP);
 
             // --- right panel: to the right of the food grid, top-aligned with it ---
-            if (rightPanel.visible)
-                rightPanel.c = new Coord(foodRight + GAP, foodTop);
+            rightPanel.c = new Coord(foodRight + GAP, foodTop);
 
             // --- size the window to bound everything (invisible children excluded) ---
             wnd.pack();
