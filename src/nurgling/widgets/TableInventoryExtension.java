@@ -8,23 +8,29 @@ import nurgling.NUtils;
 import nurgling.NWindowDeco;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static haven.CharWnd.iconfilter;
 import static haven.PUtils.convolve;
 
 /**
- * Adds a compact base-attribute readout panel to Table furniture inventory windows.
+ * Enhanced "Table" furniture window.
  *
- * The "Table" window is laid out by the server: an item grid plus "Hunger reduction" /
- * "Food event bonus" labels and a "Feast!" button below it. The panel is a footer placed
- * below all of that by {@link BaseAttrsPanel#reposition()} every tick, stretched to span
- * the full window width: a thin FEP meter on top and a 3x3 base-attribute grid below it.
+ * The server lays the table window out as: a 3x3 tableware grid and a small 1x2 grid at
+ * the top, a variable food grid below them, and "Hunger modifier" / "Food event bonus"
+ * labels plus a (conditional) "Feast!" button beneath that.
  *
- * Install is hooked from NInventory.added(); detection is by parent gob resource name.
- * A star toggle button in the title bar shows/hides the panel; visibility is persisted
- * in NConfig under Key.tableBaseAttrsShow.
+ * {@link TableController} re-lays this every tick: the tableware/food grids are left as
+ * anchors; the HR/FEB lines and Feast button are moved up beside the tableware grid
+ * (renamed "HR:" / "FEB:"); a FEP element is placed below the food grid; and a togglable
+ * right panel (base attributes + food satiation) is placed to the right of the food grid.
+ * The star title-bar button shows/hides only that right panel.
  */
 public class TableInventoryExtension {
 
@@ -41,21 +47,43 @@ public class TableInventoryExtension {
     }
 
     private static final String[] ATTR_KEYS = {
-        "str", "agi", "int",
-        "con", "prc", "csm",
-        "dex", "wil", "psy"
+        "str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"
     };
 
+    private static final int GAP = UI.scale(6);
+
     public static void installIfTable(NInventory inv) {
-        if (inv == null) return;
+        if (inv == null || inv.parent == null) return;
         if (!isTableInventory(inv)) return;
-        if (inv.parent == null) return;
-        // Idempotent: added() / install paths can fire repeatedly. The window deco and
-        // the window itself persist across inventory re-creation, so detect an already
-        // installed button/panel and bail rather than stacking duplicates.
-        if (hasToggleButton(inv) || findPanel(inv.parent) != null) return;
-        addPanel(inv);
-        addToggleButton(inv);
+        Window wnd = inv.getparent(Window.class);
+        if (wnd == null) return;
+        // Idempotent: the table has several inventories, each of which fires added();
+        // only the first one installs the controller and our widgets.
+        if (findController(wnd) != null) return;
+
+        RightPanel rightPanel = new RightPanel();
+        rightPanel.visible = readShowConfig();
+        FepElement fepElement = new FepElement();
+        Label hrLabel = new Label("");
+        Label febLabel = new Label("");
+        TableController ctrl = new TableController(rightPanel, fepElement, hrLabel, febLabel);
+
+        wnd.add(rightPanel, Coord.z);
+        wnd.add(fepElement, Coord.z);
+        wnd.add(hrLabel, Coord.z);
+        wnd.add(febLabel, Coord.z);
+        wnd.add(ctrl, Coord.z);
+
+        if (wnd.deco instanceof NWindowDeco) {
+            NWindowDeco deco = (NWindowDeco) wnd.deco;
+            StarToggleButton btn = new StarToggleButton(deco, rightPanel);
+            btn.settip("Toggle Stats Panel");
+            deco.add(btn);
+            if (deco.cbtn != null) {
+                int cy = deco.cbtn.c.y + (deco.cbtn.sz.y - btn.sz.y) / 2;
+                btn.c = new Coord(deco.cbtn.c.x - btn.sz.x - UI.scale(2), cy);
+            }
+        }
     }
 
     private static boolean isTableInventory(NInventory inv) {
@@ -65,47 +93,10 @@ public class TableInventoryExtension {
         return TABLE_RES.contains(d.getres().name);
     }
 
-    private static boolean hasToggleButton(NInventory inv) {
-        Window wnd = inv.getparent(Window.class);
-        if (wnd == null || !(wnd.deco instanceof NWindowDeco)) return false;
-        NWindowDeco deco = (NWindowDeco) wnd.deco;
-        for (Widget w = deco.child; w != null; w = w.next) {
-            if (w instanceof StarToggleButton) return true;
-        }
-        return false;
-    }
-
-    private static BaseAttrsPanel findPanel(Widget wnd) {
-        if (wnd == null) return null;
-        for (Widget w = wnd.child; w != null; w = w.next) {
-            if (w instanceof BaseAttrsPanel) return (BaseAttrsPanel) w;
-        }
+    private static TableController findController(Widget wnd) {
+        for (Widget w = wnd.child; w != null; w = w.next)
+            if (w instanceof TableController) return (TableController) w;
         return null;
-    }
-
-    private static void addPanel(NInventory inv) {
-        BaseAttrsPanel panel = new BaseAttrsPanel();
-        // Initial coord is a placeholder; the panel's first tick() runs reposition()
-        // to place it below all siblings. Repositioning is deferred out of added()
-        // so pack() is not called mid-add.
-        inv.parent.add(panel, Coord.z);
-        panel.visible = readShowConfig();
-    }
-
-    private static void addToggleButton(NInventory inv) {
-        Window wnd = inv.getparent(Window.class);
-        if (wnd == null || !(wnd.deco instanceof NWindowDeco)) return;
-        NWindowDeco deco = (NWindowDeco) wnd.deco;
-
-        StarToggleButton btn = new StarToggleButton(deco);
-        btn.settip("Toggle Base Attributes");
-        deco.add(btn);
-        // tick() will reposition; seed an initial position left of cbtn so it
-        // isn't drawn at (0,0) on the very first frame.
-        if (deco.cbtn != null) {
-            int centerY = deco.cbtn.c.y + (deco.cbtn.sz.y - btn.sz.y) / 2;
-            btn.c = new Coord(deco.cbtn.c.x - btn.sz.x - UI.scale(2), centerY);
-        }
     }
 
     private static boolean readShowConfig() {
@@ -114,32 +105,25 @@ public class TableInventoryExtension {
     }
 
     /**
-     * Star toggle button placed in the Table window title bar. Marker class so
-     * installIfTable() can detect an already-installed instance and stay idempotent.
+     * Star toggle button in the title bar. Shows/hides the right panel only.
      */
     private static class StarToggleButton extends IButton {
         private final NWindowDeco deco;
+        private final RightPanel panel;
 
-        StarToggleButton(NWindowDeco deco) {
+        StarToggleButton(NWindowDeco deco, RightPanel panel) {
             super(Resource.loadsimg("nurgling/hud/buttons/inv/star/u"),
                   Resource.loadsimg("nurgling/hud/buttons/inv/star/d"),
                   Resource.loadsimg("nurgling/hud/buttons/inv/star/h"));
             this.deco = deco;
+            this.panel = panel;
         }
 
         @Override
         public void click() {
-            boolean nowShow = !readShowConfig();
-            NConfig.set(NConfig.Key.tableBaseAttrsShow, nowShow);
-            // deco.parent is the Table Window; the panel is a sibling of the inventory.
-            BaseAttrsPanel panel = findPanel(deco.parent);
-            if (panel == null) return;
-            panel.visible = nowShow;
-            if (nowShow) {
-                panel.reposition();
-            } else if (panel.parent != null) {
-                panel.parent.pack();
-            }
+            boolean show = !readShowConfig();
+            NConfig.set(NConfig.Key.tableBaseAttrsShow, show);
+            panel.visible = show;
         }
 
         @Override
@@ -149,43 +133,150 @@ public class TableInventoryExtension {
             int leftmostX = deco.cbtn.c.x;
             int titleBottom = deco.cbtn.c.y + deco.cbtn.sz.y;
             for (Widget w = deco.child; w != null; w = w.next) {
-                if (w == this || w == deco.cbtn) continue;
-                if (w.c == null) continue;
+                if (w == this || w == deco.cbtn || w.c == null) continue;
                 if (w.c.y > titleBottom) continue;
                 if (w.c.x <= 0 || w.c.x >= deco.cbtn.c.x) continue;
                 if (w.c.x < leftmostX) leftmostX = w.c.x;
             }
-            int centerY = deco.cbtn.c.y + (deco.cbtn.sz.y - sz.y) / 2;
-            c = new Coord(leftmostX - sz.x - UI.scale(2), centerY);
+            int cy = deco.cbtn.c.y + (deco.cbtn.sz.y - sz.y) / 2;
+            c = new Coord(leftmostX - sz.x - UI.scale(2), cy);
         }
     }
 
     /**
-     * Footer panel below the Table window content: a thin FEP meter on top and a compact
-     * 3x3 readout of the 9 base attributes (icon + white number) below it. The panel is
-     * stretched to the window's full content width -- the FEP bar spans that width and
-     * the three attribute columns are distributed evenly across it -- so it never leaves
-     * dead space on wide tables nor balloons narrow ones sideways.
+     * Invisible per-window controller. Each tick it discovers the server widgets and
+     * re-lays the whole table window, then sizes the window to fit.
      */
-    public static class BaseAttrsPanel extends Widget {
-        private static final int COLS = 3;
-        private static final int ROWS = 3;
-        private static final int ICON_SZ = UI.scale(16);
-        private static final int CELL_H = UI.scale(18);
-        private static final int NUM_W = UI.scale(26);
-        private static final int ICON_NUM_GAP = UI.scale(3);
-        private static final int UNIT_W = ICON_SZ + ICON_NUM_GAP + NUM_W;
-        private static final int SEP_H = Math.max(1, UI.scale(1));
-        private static final int TOP_PAD = SEP_H + UI.scale(3);
-        private static final int FEP_BAR_H = UI.scale(12);
-        private static final int FEP_GAP = UI.scale(4);
-        private static final int GRID_TOP = TOP_PAD + FEP_BAR_H + FEP_GAP;
-        private static final int PANEL_H = GRID_TOP + ROWS * CELL_H;
-        private static final int MIN_WIDTH = COLS * (UNIT_W + UI.scale(6));
-        private static final int GAP_BELOW_CONTENT = UI.scale(4);
-        private static final Color VAL_COLOR = Color.WHITE;
-        // Rank tint: index 0 = most saturated (the very top / very bottom stat),
-        // index 2 = subtlest. Lesser shades blend toward white.
+    public static class TableController extends Widget {
+        private final RightPanel rightPanel;
+        private final FepElement fepElement;
+        private final Label hrLabel, febLabel;
+
+        TableController(RightPanel rp, FepElement fe, Label hr, Label fb) {
+            super(new Coord(1, 1));
+            visible = false;
+            this.rightPanel = rp;
+            this.fepElement = fe;
+            this.hrLabel = hr;
+            this.febLabel = fb;
+        }
+
+        @Override
+        public void tick(double dt) {
+            super.tick(dt);
+            layout();
+        }
+
+        private void layout() {
+            Window wnd = getparent(Window.class);
+            if (wnd == null) return;
+
+            // --- discover server widgets ---
+            Inventory food = null, tableware = null;
+            long foodArea = -1;
+            Button feast = null;
+            Label srvHR = null, srvFEB = null;
+            for (Widget w = wnd.child; w != null; w = w.next) {
+                if (w instanceof Inventory) {
+                    Inventory iv = (Inventory) w;
+                    long area = (long) iv.sz.x * iv.sz.y;
+                    if (area > foodArea) { foodArea = area; food = iv; }
+                    if (iv.isz != null && iv.isz.x == 3 && iv.isz.y == 3) tableware = iv;
+                } else if (w instanceof Button) {
+                    Button b = (Button) w;
+                    if (b.text != null && "Feast!".equals(b.text.text)) feast = b;
+                } else if ((w instanceof Label) && (w != hrLabel) && (w != febLabel)) {
+                    String t = ((Label) w).text();
+                    if (t != null) {
+                        if (t.startsWith("Hunger")) srvHR = (Label) w;
+                        else if (t.startsWith("Food event")) srvFEB = (Label) w;
+                    }
+                }
+            }
+            if (food == null) return;  // window not fully loaded yet
+
+            int foodTop = food.c.y, foodBottom = food.c.y + food.sz.y;
+            int foodLeft = food.c.x, foodRight = food.c.x + food.sz.x;
+
+            // --- right edge of the top band (tableware grid + the 1x2 grid) ---
+            int topBandRight = 0;
+            for (Widget w = wnd.child; w != null; w = w.next) {
+                if (w == this || w == rightPanel || w == fepElement
+                        || w == hrLabel || w == febLabel || w == feast) continue;
+                if (w == wnd.deco || !w.visible) continue;
+                if (w.c.y + w.sz.y <= foodTop)
+                    topBandRight = Math.max(topBandRight, w.c.x + w.sz.x);
+            }
+
+            // --- HR / FEB / Feast block: top-right, bottom-aligned to the tableware grid ---
+            if (srvHR != null) {
+                srvHR.visible = false;
+                hrLabel.settext(shorten(srvHR.text(), "HR"));
+            }
+            if (srvFEB != null) {
+                srvFEB.visible = false;
+                febLabel.settext(shorten(srvFEB.text(), "FEB"));
+            }
+            int blockX = topBandRight + GAP;
+            int blockBottom = (tableware != null) ? tableware.c.y + tableware.sz.y : foodTop;
+            int y = blockBottom;
+            if (feast != null) {
+                feast.c = new Coord(blockX, y - feast.sz.y);
+                y -= feast.sz.y + UI.scale(3);
+            }
+            febLabel.c = new Coord(blockX, y - febLabel.sz.y);
+            y -= febLabel.sz.y + UI.scale(3);
+            hrLabel.c = new Coord(blockX, y - hrLabel.sz.y);
+
+            // --- FEP element: below the food grid, exactly the food grid's width ---
+            if (fepElement.sz.x != food.sz.x)
+                fepElement.resize(new Coord(food.sz.x, FepElement.HEIGHT));
+            fepElement.c = new Coord(foodLeft, foodBottom + GAP);
+
+            // --- right panel: to the right of the food grid, top-aligned with it ---
+            if (rightPanel.visible)
+                rightPanel.c = new Coord(foodRight + GAP, foodTop);
+
+            // --- size the window to bound everything (invisible children excluded) ---
+            wnd.pack();
+        }
+
+        /** "Hunger modifier: 35%" + "HR" -> "HR: 35%". */
+        private static String shorten(String text, String prefix) {
+            if (text == null) return "";
+            int ci = text.indexOf(':');
+            return (ci < 0) ? prefix : prefix + text.substring(ci);
+        }
+    }
+
+    /**
+     * Togglable right panel: the base-attributes column with the food-satiation column
+     * beside it.
+     */
+    public static class RightPanel extends Widget {
+        final StatsColumn stats;
+        final SatiationColumn sat;
+
+        RightPanel() {
+            super(Coord.z);
+            stats = add(new StatsColumn(), Coord.z);
+            sat = add(new SatiationColumn(StatsColumn.HEIGHT), new Coord(stats.sz.x + GAP, 0));
+            resize(new Coord(stats.sz.x + GAP + sat.sz.x, StatsColumn.HEIGHT));
+        }
+    }
+
+    /**
+     * Single-column readout of the 9 base attributes (icon + white number). Each number
+     * is tinted by its rank: the three highest shade green, the three lowest red.
+     */
+    public static class StatsColumn extends Widget {
+        static final int ICON_SZ = UI.scale(16);
+        static final int ROW_H = UI.scale(17);
+        static final int PAD = UI.scale(3);
+        static final int NUM_W = UI.scale(34);
+        static final int COL_W = PAD + ICON_SZ + UI.scale(4) + NUM_W + PAD;
+        static final int HEIGHT = ROW_H * 9;
+
         private static final Color GREEN_BASE = new Color(60, 220, 60);
         private static final Color RED_BASE = new Color(235, 70, 70);
         private static final Color[] GREEN = {
@@ -203,52 +294,20 @@ public class TableInventoryExtension {
         private final int[] lastBase = new int[ATTR_KEYS.length];
         private final Color[] lastColor = new Color[ATTR_KEYS.length];
         private final Text[] valText = new Text[ATTR_KEYS.length];
-        private final FepBar fepBar;
-        private long lastRefreshTick = -1;
+        private long lastTick = -1;
 
-        public BaseAttrsPanel() {
-            super(new Coord(MIN_WIDTH, PANEL_H));
-            for (int i = 0; i < ATTR_KEYS.length; i++) lastBase[i] = -1;
-            fepBar = add(new FepBar(new Coord(MIN_WIDTH, FEP_BAR_H)), new Coord(0, TOP_PAD));
-        }
-
-        /**
-         * Stretch the panel to the window's full content width and place it as a footer
-         * just below every other (visible) window child, then grow the window to fit.
-         * Excludes the deco and itself. Stable: since it never counts itself, repacking
-         * does not feed back into its own target width or position.
-         */
-        public void reposition() {
-            if (parent == null || !visible) return;
-            Widget deco = (parent instanceof Window) ? ((Window) parent).deco : null;
-            int maxRight = 0;
-            int contentBottom = 0;
-            for (Widget w = parent.child; w != null; w = w.next) {
-                if (w == this || w == deco || !w.visible) continue;
-                maxRight = Math.max(maxRight, w.c.x + w.sz.x);
-                contentBottom = Math.max(contentBottom, w.c.y + w.sz.y);
-            }
-            int width = Math.max(maxRight, MIN_WIDTH);
-            if (sz.x != width || sz.y != PANEL_H) resize(new Coord(width, PANEL_H));
-            if (fepBar.sz.x != width) fepBar.resize(new Coord(width, FEP_BAR_H));
-            Coord want = new Coord(0, contentBottom + GAP_BELOW_CONTENT);
-            if (!want.equals(c)) this.c = want;
-            // Always pack while visible. Re-showing after a hide leaves the window
-            // shrunk with the panel position unchanged, so a move-gated pack would
-            // never grow it back. pack()/resize() early-return when the size is
-            // already correct, so this stays cheap.
-            parent.pack();
+        StatsColumn() {
+            super(new Coord(COL_W, HEIGHT));
+            for (int i = 0; i < lastBase.length; i++) lastBase[i] = -1;
         }
 
         @Override
         public void tick(double dt) {
             super.tick(dt);
-            if (!visible) return;
-            reposition();
             long now = NUtils.getTickId();
-            if (now == lastRefreshTick) return;
-            if (now % 10 != 0 && lastRefreshTick != -1) return;
-            lastRefreshTick = now;
+            if (now == lastTick) return;
+            if (now % 10 != 0 && lastTick != -1) return;
+            lastTick = now;
             refresh();
         }
 
@@ -264,20 +323,15 @@ public class TableInventoryExtension {
                         Resource res = a.res().get();
                         if (res != null) {
                             Resource.Image img = res.layer(Resource.imgc);
-                            if (img != null) {
+                            if (img != null)
                                 icons[i] = new TexI(convolve(img.img,
                                     new Coord(ICON_SZ, ICON_SZ), iconfilter));
-                            }
                         }
                     } catch (Loading e) {
                         // try again next refresh
                     }
                 }
             }
-            // Colour each number by its rank: the three highest values shade green
-            // (most saturated for the very top), the three lowest shade red, the
-            // middle three stay white. A value's rank comes from strict greater/less
-            // counts, so tied values always resolve to the same colour.
             for (int i = 0; i < ATTR_KEYS.length; i++) {
                 Color col = rankColor(vals, i);
                 if (vals[i] != lastBase[i] || col != lastColor[i]) {
@@ -289,64 +343,203 @@ public class TableInventoryExtension {
         }
 
         private static Color rankColor(int[] vals, int i) {
-            int v = vals[i];
-            int gt = 0, lt = 0;
-            for (int value : vals) {
-                if (value > v) gt++;
-                else if (value < v) lt++;
+            int v = vals[i], gt = 0, lt = 0;
+            for (int x : vals) {
+                if (x > v) gt++;
+                else if (x < v) lt++;
             }
-            boolean green = gt <= 2;
-            boolean red = lt <= 2;
-            if (green && red) return VAL_COLOR;  // heavy tie cluster: stay neutral
+            boolean green = gt <= 2, red = lt <= 2;
+            if (green && red) return Color.WHITE;
             if (green) return GREEN[gt];
             if (red) return RED[lt];
-            return VAL_COLOR;
+            return Color.WHITE;
         }
 
         @Override
         public void draw(GOut g) {
-            // Thin separator above the footer, delineating it from the content above.
-            g.chcolor(NStyle.separator);
-            g.frect(Coord.z, new Coord(sz.x, SEP_H));
-            g.chcolor();
-
-            // Children: the FEP meter bar.
-            super.draw(g);
-
-            // Three columns spread evenly across the full width; each icon+number
-            // unit is kept tight and centered within its column slot.
-            int third = sz.x / COLS;
             for (int i = 0; i < ATTR_KEYS.length; i++) {
-                int col = i % COLS;
-                int row = i / COLS;
-                int unitX = col * third + (third - UNIT_W) / 2;
-                int cy = GRID_TOP + row * CELL_H + CELL_H / 2;
-                if (icons[i] != null) {
-                    g.aimage(icons[i], new Coord(unitX, cy), 0, 0.5);
-                }
-                if (valText[i] != null) {
-                    g.aimage(valText[i].tex(), new Coord(unitX + UNIT_W, cy), 1, 0.5);
-                }
+                int cy = i * ROW_H + ROW_H / 2;
+                if (icons[i] != null)
+                    g.aimage(icons[i], new Coord(PAD, cy), 0, 0.5);
+                if (valText[i] != null)
+                    g.aimage(valText[i].tex(), new Coord(COL_W - PAD, cy), 1, 0.5);
             }
         }
     }
 
     /**
-     * Thin FEP (Food Event Points) meter for the table footer. The server only feeds the
-     * character window's FoodMeter, so this widget cannot be its own server-fed meter --
-     * instead it mirrors the live cap/els from {@code chrwdg.battr.feps} and renders its
-     * own slim segmented bar. Hovering delegates to the source meter's tooltip, so it
-     * shows exactly the same event breakdown as the character sheet.
+     * Scrollable column of food-satiation items (icon + number), mirrored from the
+     * character window's satiation list. A scrollbar appears when items overflow.
+     */
+    public static class SatiationColumn extends Scrollport {
+        static final int WIDTH = UI.scale(74);
+
+        SatiationColumn(int height) {
+            super(new Coord(WIDTH, height));
+            cont.add(new SatiationContent(cont.sz.x), Coord.z);
+        }
+    }
+
+    /** Scroll content for {@link SatiationColumn}: mirrors chrwdg.battr.cons. */
+    public static class SatiationContent extends Widget {
+        static final int ICON_SZ = UI.scale(16);
+        static final int ROW_H = UI.scale(17);
+        static final int PAD = UI.scale(3);
+        private static final Map<Indir<Resource>, Tex> iconCache = new HashMap<>();
+
+        private static final class Row {
+            Tex icon;
+            Text num;
+        }
+
+        private List<Row> rows = new ArrayList<>();
+        private long lastTick = -1;
+
+        SatiationContent(int width) {
+            super(new Coord(width, ROW_H));
+        }
+
+        private static BAttrWnd.Constipations sourceCons() {
+            GameUI gui = NUtils.getGameUI();
+            if (gui == null || gui.chrwdg == null || gui.chrwdg.battr == null) return null;
+            return gui.chrwdg.battr.cons;
+        }
+
+        @Override
+        public void tick(double dt) {
+            super.tick(dt);
+            long now = NUtils.getTickId();
+            if (now == lastTick) return;
+            if (now % 10 != 0 && lastTick != -1) return;
+            lastTick = now;
+            rebuild();
+        }
+
+        private void rebuild() {
+            BAttrWnd.Constipations cons = sourceCons();
+            List<Row> nrows = new ArrayList<>();
+            if (cons != null) {
+                List<BAttrWnd.Constipations.El> els = new ArrayList<>(cons.els);
+                els.sort(Comparator.comparingDouble(e -> e.a));
+                for (BAttrWnd.Constipations.El el : els) {
+                    Row r = new Row();
+                    r.icon = icon(el.t);
+                    int pct = Math.max((int) Math.round((1.0 - el.a) * 100), 1);
+                    Color c = (el.a > 1.0) ? BAttrWnd.Constipations.buffed
+                            : Utils.blendcol(BAttrWnd.Constipations.none,
+                                             BAttrWnd.Constipations.full, el.a);
+                    r.num = NStyle.nattrf.render(pct + "%", c);
+                    nrows.add(r);
+                }
+            }
+            rows = nrows;
+            int h = Math.max(rows.size() * ROW_H, ROW_H);
+            if (sz.y != h) {
+                resize(new Coord(sz.x, h));
+                if (parent instanceof Scrollport.Scrollcont)
+                    ((Scrollport.Scrollcont) parent).update();
+            }
+        }
+
+        private static Tex icon(ResData t) {
+            if (t == null || t.res == null) return null;
+            Tex cached = iconCache.get(t.res);
+            if (cached != null) return cached;
+            try {
+                Resource res = t.res.get();
+                if (res != null) {
+                    Resource.Image img = res.layer(Resource.imgc);
+                    if (img != null) {
+                        Tex tex = new TexI(convolve(img.img,
+                            new Coord(ICON_SZ, ICON_SZ), iconfilter));
+                        iconCache.put(t.res, tex);
+                        return tex;
+                    }
+                }
+            } catch (Loading e) {
+                // try again next rebuild
+            }
+            return null;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            for (int i = 0; i < rows.size(); i++) {
+                Row r = rows.get(i);
+                int cy = i * ROW_H + ROW_H / 2;
+                if (r.icon != null)
+                    g.aimage(r.icon, new Coord(PAD, cy), 0, 0.5);
+                if (r.num != null)
+                    g.aimage(r.num.tex(), new Coord(sz.x - PAD, cy), 1, 0.5);
+            }
+        }
+    }
+
+    /**
+     * The FEP element placed below the food grid: a "sum/cap" readout on the left and a
+     * thin FEP meter filling the rest. Sized by the controller to the food grid's width.
+     */
+    public static class FepElement extends Widget {
+        static final int HEIGHT = UI.scale(16);
+        static final int BAR_H = UI.scale(12);
+        static final int NUM_W = UI.scale(62);
+
+        private final FepBar bar;
+        private Text valTex;
+        private String lastStr = null;
+
+        FepElement() {
+            super(new Coord(UI.scale(120), HEIGHT));
+            bar = add(new FepBar(new Coord(UI.scale(60), BAR_H)),
+                      new Coord(NUM_W, (HEIGHT - BAR_H) / 2));
+        }
+
+        @Override
+        public void resize(Coord nsz) {
+            super.resize(nsz);
+            int bw = Math.max(UI.scale(1), nsz.x - NUM_W);
+            bar.resize(new Coord(bw, BAR_H));
+            bar.c = new Coord(NUM_W, (nsz.y - BAR_H) / 2);
+        }
+
+        @Override
+        public void tick(double dt) {
+            super.tick(dt);
+            BAttrWnd.FoodMeter fm = FepBar.source();
+            String s = "";
+            if (fm != null) {
+                double sum = 0;
+                for (BAttrWnd.FoodMeter.El el : fm.els) sum += el.a;
+                s = String.format("%.0f/%.0f", sum, fm.cap);
+            }
+            if (!s.equals(lastStr)) {
+                lastStr = s;
+                valTex = s.isEmpty() ? null : NStyle.nattrf.render(s, Color.WHITE);
+            }
+        }
+
+        @Override
+        public void draw(GOut g) {
+            if (valTex != null)
+                g.aimage(valTex.tex(), new Coord(UI.scale(2), sz.y / 2), 0, 0.5);
+            super.draw(g);
+        }
+    }
+
+    /**
+     * Thin FEP meter. The server feeds only the character window's FoodMeter, so this
+     * mirrors its live cap/els and renders its own slim segmented bar; hovering delegates
+     * to the source meter's tooltip (identical event breakdown to the character sheet).
      */
     public static class FepBar extends Widget {
         private static final Color METER_BG = new Color(22, 39, 51);
         private static final int BORDER = Math.max(1, UI.scale(1));
 
-        public FepBar(Coord sz) {
+        FepBar(Coord sz) {
             super(sz);
         }
 
-        private static BAttrWnd.FoodMeter source() {
+        static BAttrWnd.FoodMeter source() {
             GameUI gui = NUtils.getGameUI();
             if (gui == null || gui.chrwdg == null || gui.chrwdg.battr == null) return null;
             return gui.chrwdg.battr.feps;
@@ -374,7 +567,6 @@ public class TableInventoryExtension {
                 g.chcolor();
             }
 
-            // 1px border framing the meter.
             g.chcolor(NStyle.separator);
             g.frect(Coord.z, new Coord(sz.x, BORDER));
             g.frect(new Coord(0, sz.y - BORDER), new Coord(sz.x, BORDER));
