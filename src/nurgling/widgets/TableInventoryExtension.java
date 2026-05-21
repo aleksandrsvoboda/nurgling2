@@ -151,6 +151,7 @@ public class TableInventoryExtension {
         private final RightPanel rightPanel;
         private final FepElement fepElement;
         private final Label hrLabel, febLabel;
+        private int feastFullW = -1;  // server's original Feast button width, captured once
 
         TableController(RightPanel rp, FepElement fe, Label hr, Label fb) {
             super(new Coord(1, 1));
@@ -221,7 +222,14 @@ public class TableInventoryExtension {
             int blockBottom = (tableware != null) ? tableware.c.y + tableware.sz.y : foodTop;
             int y = blockBottom;
             if (feast != null) {
-                feast.c = new Coord(blockX, y - feast.sz.y);
+                // Halve the (very wide) server Feast button and shift it left a bit.
+                if (feastFullW < 0) feastFullW = feast.sz.x;
+                int targetW = feastFullW / 2;
+                if (feast.sz.x != targetW) {
+                    feast.resize(new Coord(targetW, feast.sz.y));
+                    feast.redraw();
+                }
+                feast.c = new Coord(blockX - UI.scale(40), y - feast.sz.y);
                 y -= feast.sz.y + UI.scale(3);
             }
             febLabel.c = new Coord(blockX, y - febLabel.sz.y);
