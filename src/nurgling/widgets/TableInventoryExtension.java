@@ -208,8 +208,8 @@ public class TableInventoryExtension {
                 fepElement.resize(new Coord(food.sz.x, FepElement.HEIGHT));
             fepElement.c = new Coord(foodLeft, foodBottom + GAP);
 
-            // --- right panel: to the right of the food grid, top-aligned with it ---
-            rightPanel.c = new Coord(foodRight + GAP, foodTop);
+            // --- right panel: to the right of the food grid, top-aligned with the window ---
+            rightPanel.c = new Coord(foodRight + GAP, 0);
 
             // --- size the window to bound everything (invisible children excluded) ---
             wnd.pack();
