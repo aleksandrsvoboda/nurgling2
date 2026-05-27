@@ -378,7 +378,7 @@ public class Leveler implements Action
         return g.rc.floor(MCache.tilesz);
     }
 
-    private static Gob findSurveyByTile(Coord tile) throws InterruptedException
+    private static Gob findSurveyByTile(Coord tile)
     {
         for (Gob g : Finder.findGobs(SURVOBJ)) {
             if (tileOf(g).equals(tile)) return g;
