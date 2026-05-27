@@ -50,23 +50,14 @@ public class NGlobalCoord {
     }
 
     /**
-     * Returns the grid-local tile coordinate of this bookmark, or null if the
-     * grid is not currently loaded. Safe to call across sessions/chunk-nav hops —
-     * combines stored grid id with the stored posres offset.
+     * Returns the grid-local tile coordinate of this bookmark.
+     * Computed directly from the stored posres offset, so it works even when
+     * the bookmarked grid is no longer in glob.map.grids. This lets chunk-nav
+     * route to bookmarks whose destination chunk has been unloaded.
      */
     public Coord getLocalTile()
     {
         if(oldCoord == null) return null;
-        Coord2d absolute = getCurrentCoord();
-        if(absolute == null) return null;
-        synchronized (NUtils.getGameUI().ui.sess.glob.map.grids) {
-            for (MCache.Grid g : NUtils.getGameUI().ui.sess.glob.map.grids.values()) {
-                if (g.id == grid_id) {
-                    Coord2d worldTile = new Coord2d(absolute.x / MCache.tilesz.x, absolute.y / MCache.tilesz.y);
-                    return worldTile.floor().sub(g.ul);
-                }
-            }
-        }
-        return null;
+        return oldCoord.mul(posres).floor(MCache.tilesz);
     }
 }
