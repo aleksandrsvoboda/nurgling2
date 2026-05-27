@@ -71,12 +71,15 @@ public class TableInventoryExtension {
         hrLabel.visible = false;
         Label febLabel = new Label("");
         febLabel.visible = false;
-        TableController ctrl = new TableController(rightPanel, fepElement, hrLabel, febLabel);
+        DrinkList drinkList = new DrinkList();
+        drinkList.visible = false;
+        TableController ctrl = new TableController(rightPanel, fepElement, hrLabel, febLabel, drinkList);
 
         wnd.add(rightPanel, Coord.z);
         wnd.add(fepElement, Coord.z);
         wnd.add(hrLabel, Coord.z);
         wnd.add(febLabel, Coord.z);
+        wnd.add(drinkList, Coord.z);
         wnd.add(ctrl, Coord.z);
     }
 
@@ -101,15 +104,17 @@ public class TableInventoryExtension {
         private final RightPanel rightPanel;
         private final FepElement fepElement;
         private final Label hrLabel, febLabel;
+        private final DrinkList drinkList;
         private int feastFullW = -1;  // server's original Feast button width, captured once
 
-        TableController(RightPanel rp, FepElement fe, Label hr, Label fb) {
+        TableController(RightPanel rp, FepElement fe, Label hr, Label fb, DrinkList dl) {
             super(new Coord(1, 1));
             visible = false;
             this.rightPanel = rp;
             this.fepElement = fe;
             this.hrLabel = hr;
             this.febLabel = fb;
+            this.drinkList = dl;
         }
 
         @Override
@@ -155,6 +160,7 @@ public class TableInventoryExtension {
                 febLabel.visible = false;
                 fepElement.visible = false;
                 rightPanel.visible = false;
+                drinkList.visible = false;
                 wnd.pack();
                 return;
             }
@@ -208,8 +214,17 @@ public class TableInventoryExtension {
                 fepElement.resize(new Coord(food.sz.x, FepElement.HEIGHT));
             fepElement.c = new Coord(foodLeft, foodBottom + GAP);
 
-            // --- right panel: to the right of the food grid, top-aligned with it ---
-            rightPanel.c = new Coord(foodRight + GAP, foodTop);
+            // --- right panel: to the right of the food grid, top-aligned with the window ---
+            rightPanel.c = new Coord(foodRight + GAP, 0);
+
+            // --- drink list: below the right panel, only when the buff has rows ---
+            boolean hasDrinks = drinkList.rowCount() > 0;
+            drinkList.visible = hasDrinks;
+            if (hasDrinks) {
+                if (drinkList.sz.x != rightPanel.sz.x)
+                    drinkList.resize(new Coord(rightPanel.sz.x, drinkList.sz.y));
+                drinkList.c = new Coord(rightPanel.c.x, rightPanel.c.y + rightPanel.sz.y + GAP);
+            }
 
             // --- size the window to bound everything (invisible children excluded) ---
             wnd.pack();
@@ -553,6 +568,152 @@ public class TableInventoryExtension {
         public Object tooltip(Coord c, Widget prev) {
             BAttrWnd.FoodMeter fm = source();
             return (fm != null) ? fm.tooltip(c, prev) : null;
+        }
+    }
+
+    /**
+     * Lines from the "Drink, and be Merry" buff (e.g. "Milk: 1", "Wine: 3"), shown below
+     * the right panel. The buff lives on the GameUI's Bufflist; we walk to it each
+     * refresh, find the buff by name, and read each drink info entry's fields. The buff
+     * pushes one server-loaded {@code Drinkbuff} info per drink type, carrying the
+     * drink's display name and the sip count -- read here via cached reflection.
+     */
+    public static class DrinkList extends Widget {
+        static final int ROW_H = UI.scale(16);
+        static final int SEP_H = Math.max(1, UI.scale(1));
+        static final int TOP_PAD = SEP_H + UI.scale(3);
+        private static final String BUFF_NAME = "Drink, and be Merry";
+        private static final String DRINKBUFF_SUFFIX = ".drinkbuff.Drinkbuff";
+
+        private static final class Row {
+            final String text;
+            final Text rendered;
+            Row(String t, Text r) { text = t; rendered = r; }
+        }
+
+        private List<Row> rows = new ArrayList<>();
+        private long lastTick = -1;
+
+        // Reflection cache for the server-loaded Drinkbuff info class: public fields
+        // "nm" (String) and "n" (int). Cached per Class instance.
+        private static Class<?> drinkbuffClass;
+        private static java.lang.reflect.Field drinkNmField;
+        private static java.lang.reflect.Field drinkNField;
+
+        DrinkList() {
+            super(new Coord(UI.scale(140), 1));
+        }
+
+        public int rowCount() { return rows.size(); }
+
+        @Override
+        public void tick(double dt) {
+            super.tick(dt);
+            long now = NUtils.getTickId();
+            if (now == lastTick) return;
+            if (now % 10 != 0 && lastTick != -1) return;
+            lastTick = now;
+            rebuild();
+        }
+
+        private void rebuild() {
+            Buff buff = findBuff();
+            List<String> newLines = new ArrayList<>();
+            if (buff != null) {
+                try {
+                    List<ItemInfo> info = buff.info();
+                    if (info != null) {
+                        for (ItemInfo ii : info) {
+                            if (ii.getClass().getName().endsWith(DRINKBUFF_SUFFIX)) {
+                                String line = drinkLine(ii);
+                                if (line != null) newLines.add(line);
+                            }
+                        }
+                    }
+                } catch (Loading e) {
+                    return;  // try again next refresh
+                }
+            }
+            if (!linesChanged(newLines)) return;
+            // Dispose old Texts before replacing the row list.
+            for (Row old : rows) {
+                if (old.rendered != null) old.rendered.dispose();
+            }
+            List<Row> nrows = new ArrayList<>(newLines.size());
+            for (String s : newLines)
+                nrows.add(new Row(s, Text.std.render(s, Color.WHITE)));
+            rows = nrows;
+            int h = rows.isEmpty() ? 0 : TOP_PAD + rows.size() * ROW_H;
+            if (sz.y != Math.max(h, 1))
+                resize(new Coord(sz.x, Math.max(h, 1)));
+        }
+
+        /** Read "nm" and "n" from a Drinkbuff info entry by reflection, format as "nm: n". */
+        private static String drinkLine(ItemInfo ii) {
+            try {
+                Class<?> c = ii.getClass();
+                if (c != drinkbuffClass) {
+                    java.lang.reflect.Field fnm = c.getDeclaredField("nm");
+                    java.lang.reflect.Field fn = c.getDeclaredField("n");
+                    fnm.setAccessible(true);
+                    fn.setAccessible(true);
+                    drinkNmField = fnm;
+                    drinkNField = fn;
+                    drinkbuffClass = c;
+                }
+                Object nm = drinkNmField.get(ii);
+                int n = drinkNField.getInt(ii);
+                return (nm == null) ? null : (nm + ": " + n);
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+
+        private boolean linesChanged(List<String> newLines) {
+            if (newLines.size() != rows.size()) return true;
+            for (int i = 0; i < newLines.size(); i++)
+                if (!newLines.get(i).equals(rows.get(i).text)) return true;
+            return false;
+        }
+
+        private static Buff findBuff() {
+            GameUI gui = NUtils.getGameUI();
+            if (gui == null) return null;
+            // GameUI.buffs is the canonical Bufflist; it's wrapped in an NDraggableWidget
+            // so it isn't a direct child of GameUI -- use the public field instead.
+            Bufflist bufflist = gui.buffs;
+            if (bufflist == null) return null;
+            for (Widget b = bufflist.child; b != null; b = b.next) {
+                if (!(b instanceof Buff)) continue;
+                Buff buff = (Buff) b;
+                try {
+                    Resource r = buff.res.get();
+                    Resource.Tooltip ttl = r.layer(Resource.tooltip);
+                    if (ttl != null) {
+                        String name = ttl.text();
+                        if (name != null && name.contains(BUFF_NAME))
+                            return buff;
+                    }
+                } catch (Loading e) {
+                    // skip and continue searching
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            if (rows.isEmpty()) return;
+            // Thin separator above, matching the FEP element / footer look.
+            g.chcolor(NStyle.separator);
+            g.frect(Coord.z, new Coord(sz.x, SEP_H));
+            g.chcolor();
+            int y = TOP_PAD;
+            for (Row r : rows) {
+                if (r.rendered != null)
+                    g.image(r.rendered.tex(), new Coord(UI.scale(2), y));
+                y += ROW_H;
+            }
         }
     }
 }
