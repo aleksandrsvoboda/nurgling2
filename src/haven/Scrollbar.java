@@ -137,6 +137,16 @@ public class Scrollbar extends Widget {
 	}
     }
 
+    private double acc = 0.5;
+    public void ch(double a) {
+	acc += a;
+	int i = (int)Math.floor(acc);
+	if(i != 0) {
+	    ch(i);
+	    acc -= i;
+	}
+    }
+
     public void resize(int h) {
 	super.resize(new Coord(effectiveWidth(), h));
     }

@@ -39,7 +39,6 @@ import haven.render.*;
 import haven.render.States;
 import haven.render.gl.*;
 import haven.render.lwjgl.*;
-import haven.JOGLPanel.SyncMode;
 
 public class LWJGLPanel extends AWTGLCanvas implements GLPanel, Console.Directory {
     private static final int[][] glversions = {

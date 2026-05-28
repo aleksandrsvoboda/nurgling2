@@ -71,6 +71,10 @@ public class NMakewindow extends Widget {
 
         public Ingredient ing = null;
 
+        public int using = 0;
+        public List<MenuGrid.Pagina> rpag = null;
+        public Coord rcc = null;
+
         public Spec(Indir<Resource> res, Message sdt, int num, Object[] info) {
             this.res = res;
             this.sdt = new MessageBuf(sdt);
@@ -230,6 +234,15 @@ public class NMakewindow extends Widget {
             if(s.spr != null)
                 s.spr.tick(dt);
             s.tick(dt);
+            if((s.rcc != null) && (s.rpag != null)) {
+                if(!s.rpag.isEmpty()) {
+                    SListMenu.of(UI.scale(250, 120), s.rpag,
+                                 pag -> pag.button().name(), pag -> pag.button().img(),
+                                 pag -> pag.button().use(new MenuGrid.Interaction(1, ui.modflags())))
+                        .addat(this, s.rcc.add(UI.scale(5, 5))).tick(dt);
+                }
+                s.rcc = null;
+            }
         }
         for(Spec s : outputs) {
             if(s.spr != null)
@@ -269,6 +282,31 @@ public class NMakewindow extends Widget {
             if (clickForCategories(inputs, popt, sc, ev.c)) return true;
             sc = new Coord(xoff, outy);
             if (clickForCategories(outputs, popt, sc, ev.c)) return true;
+        }
+        else
+        {
+            Coord sc = new Coord(xoff, 0);
+            boolean popt = false;
+            int idx = 0;
+            for(Spec s : inputs) {
+                boolean opt = s.opt();
+                if(opt != popt)
+                    sc = sc.add(10, 0);
+                if(ev.c.isect(sc, Inventory.sqsz)) {
+                    if(ev.b == 1) {
+                        wdgmsg("choose", idx);
+                        return true;
+                    } else if(ev.b == 3) {
+                        if(s.rpag == null)
+                            wdgmsg("findrcps", idx);
+                        s.rcc = ev.c;
+                        return true;
+                    }
+                }
+                sc = sc.add(Inventory.sqsz.x, 0);
+                popt = opt;
+                idx++;
+            }
         }
         return super.mousedown(ev);
     }
@@ -398,6 +436,17 @@ public class NMakewindow extends Widget {
             this.qmod = qmod;
         } else if(msg == "tool") {
             tools.add(ui.sess.getres((Integer)args[0]));
+        } else if(msg == "use") {
+            inputs.get(Utils.iv(args[0])).using = Utils.iv(args[1]);
+        } else if(msg == "inprcps") {
+            int idx = Utils.iv(args[0]);
+            List<MenuGrid.Pagina> rcps = new ArrayList<>();
+            GameUI gui = getparent(GameUI.class);
+            if((gui != null) && (gui.menu != null)) {
+                for(int a = 1; a < args.length; a++)
+                    rcps.add(gui.menu.paginafor(ui.sess.getres((Integer)args[a])));
+            }
+            inputs.get(idx).rpag = rcps;
         } else {
             super.uimsg(msg, args);
         }
@@ -427,6 +476,11 @@ public class NMakewindow extends Widget {
                 sg.image(invsq, Coord.z);
             }
             s.draw(sg);
+            if(!autoMode && !opt && (s.count > 0) && (s.using < s.count)) {
+                sg.chcolor(255, 0, 0, 64);
+                sg.frect2(Coord.of(0, (invsq.sz().y * s.using) / s.count), invsq.sz());
+                sg.chcolor();
+            }
             c = c.add(Inventory.sqsz.x, 0);
             popt = opt;
             if(autoMode)

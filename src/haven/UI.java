@@ -149,11 +149,6 @@ public class UI {
 
     private class WidgetConsole extends Console {
 	{
-	    setcmd("q", new Command() {
-		    public void run(Console cons, String[] args) {
-			HackThread.tg().interrupt();
-		    }
-		});
 	    setcmd("lo", new Command() {
 		    public void run(Console cons, String[] args) {
 			sess.close();
@@ -934,10 +929,10 @@ public class UI {
 	uictx.setmousepos(c);
     }
 	
-    public void mousewheel(MouseEvent ev, Coord c, int amount) {
+    public void mousewheel(MouseEvent ev, Coord c, int ia, double sa) {
 	setmods(ev);
 	mc = c;
-	dispatch(root, new Widget.MouseWheelEvent(c, amount));
+	dispatch(root, new Widget.MouseWheelEvent(c, ia, sa));
     }
 
     public static enum Cursor {

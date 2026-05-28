@@ -357,6 +357,31 @@ For the next hafen integration:
 
 ---
 
-**Last Updated:** 2026-02-27
-**Last Integration:** hafen-integration-proper-v2 (57d9570b2)
-**Hafen Commits Integrated:** 20 commits through d58dcb242
+**Last Updated:** 2026-05-27
+**Last Integration:** hafen-integration-2026-05-v2 (branch off master 55e317e55)
+**Hafen Commits Integrated:** 37 commits (merge-base 20dc6f473 → hafen/master a2043d0d5)
+
+> Note: The Feb 2026 reference above (57d9570b2 / d58dcb242) is historical and is
+> NOT in the current master's ancestry — a later, undocumented integration brought
+> hafen history up to merge-base `20dc6f473` ("Handle cached icon resources more
+> robustly", 2026-05-03). Always derive the real merge-base with
+> `git merge-base HEAD hafen/master` rather than trusting this footer.
+
+### May 2026 integration notes (37 commits)
+
+- **Conflicts (3, the rest auto-merged):**
+  - `Makewindow.java` — took hafen's rewrite, re-added the `NMakewindow` factory override + import.
+  - `WItem.java` — took hafen's reusable `GItem.RStateInfo.combine` (nurgling side was the old inline copy).
+  - `GLPanel.java` — adopted hafen's `import haven.GSettings.SyncMode` (enum moved from `JOGLPanel`), kept nurgling imports.
+- **Compile fix after merge:** hafen converted cameras to fine-scrolling, changing
+  `Camera.wheel(Coord, int)` → `wheel(MouseWheelEvent)` (uses `ev.s`). Updated nurgling's
+  custom cameras `NOrthoCam` and `RSTCam` in `MapView.java`. (`mmousewheel(Coord, int)` is a
+  separate, unchanged interface — left alone.)
+- **MiniMap redisplay moved into `tick()`** (with `DisplayMarker.dispupdate()`); `NMiniMap`
+  still works because its `tick()` calls `super.tick()` and it computes marker positions itself.
+- **Make-window feature port (NMakewindow):** ported hafen's two new features into nurgling's
+  reimplementation — server `use` msg (in-use red overlay on inputs) and `inprcps` msg +
+  `choose`/`findrcps` clicks (input recipe-choice popup). Split cleanly: autoMode = nurgling
+  automation, normal mode = hafen input-choice.
+- **Verified safe (no nurgling refs):** GSettings `SyncMode` move, profiling-switch removal,
+  `SListBox` fine-scroll (internal `cury` int→double, public API unchanged).
