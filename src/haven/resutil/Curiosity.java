@@ -45,11 +45,9 @@ public class Curiosity extends ItemInfo.Tip implements GItem.ColorInfo {
 	this.enc = enc;
 	this.time = time;
 	UI ui = null;
-	if(owner instanceof Widget) {
-	    Widget wdg = (Widget)owner;
-	    if(wdg.getparent(CharWnd.class) != null)
-		ui = wdg.ui;
-	}
+	Widget wdg = owner.fcontext(Widget.class, false);
+	if(wdg != null && (wdg.getparent(SAttrWnd.class) != null))
+	    ui = wdg.ui;
 	this.ui = ui;
     }
 
