@@ -241,11 +241,11 @@ public class NUI extends UI
     }
 
     @Override
-    public void mousewheel(MouseEvent ev, Coord c, int amount) {
+    public void mousewheel(MouseEvent ev, Coord c, int ia, double sa) {
         NUI previousUI = ThreadLocalUI.get();
         ThreadLocalUI.set(this);
         try {
-            super.mousewheel(ev, c, amount);
+            super.mousewheel(ev, c, ia, sa);
         } finally {
             if (previousUI != null)
                 ThreadLocalUI.set(previousUI);
