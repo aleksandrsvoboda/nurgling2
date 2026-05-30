@@ -417,6 +417,8 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/cavelouse/cavelouse", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/boreworm/boreworm", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/woodscorpion/woodscorpion", 50));
+        arearadprop.add(new NAreaRad("gfx/kritter/rat/caverat", 100));
+        arearadprop.add(new NAreaRad("gfx/kritter/ooze/greenooze", 100));
         conf.put(Key.animalrad, arearadprop);
 
         // Movement speed setting (0=Crawl, 1=Walk, 2=Run, 3=Sprint)
@@ -1178,6 +1180,8 @@ public class NConfig
             String[][] newAnimals = {
                 {"gfx/kritter/bear/polarbear", "100"},
                 {"gfx/kritter/woodscorpion/woodscorpion", "50"},
+                {"gfx/kritter/rat/caverat", "100"},
+                {"gfx/kritter/ooze/greenooze", "100"},
             };
             for (String[] entry : newAnimals) {
                 if (!existingNames.contains(entry[0])) {

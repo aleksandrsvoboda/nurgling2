@@ -104,13 +104,12 @@ public class NCritterCircle extends Sprite {
     private final Pipe.Op fillMat;
     private final String critterPath;
     private Coord2d lc;
-    private boolean visible;
+    private RenderTree.Slot _slot;
 
     public NCritterCircle(Owner owner, Color color, float radius, String critterPath) {
         super(owner, null);
         this.fillMat = new BaseColor(color);
         this.critterPath = critterPath;
-        this.visible = isEnabled(critterPath);
 
         FloatBuffer posb = Utils.wfbuf(VERTEX_COUNT * 3 * 2);
         FloatBuffer nrmb = Utils.wfbuf(VERTEX_COUNT * 3 * 2);
@@ -180,11 +179,8 @@ public class NCritterCircle extends Sprite {
 
     @Override
     public void gtick(Render g) {
-        boolean enabled = isEnabled(critterPath);
-        if (visible != enabled) {
-            visible = enabled;
-        }
-        if (!visible)
+        // Only update terrain height while actually rendered
+        if (_slot == null)
             return;
         Coord2d cc = ((Gob) owner).rc;
         if (lc == null || !lc.equals(cc)) {
@@ -195,6 +191,10 @@ public class NCritterCircle extends Sprite {
 
     @Override
     public void added(RenderTree.Slot slot) {
+        // Only attach geometry when this critter's circle is enabled.
+        // When disabled, render nothing; tick() re-adds us once re-enabled.
+        if (!isEnabled(critterPath))
+            return;
         slot.ostate(Pipe.Op.compose(
                 Rendered.postpfx,
                 new States.Facecull(States.Facecull.Mode.NONE),
@@ -202,15 +202,22 @@ public class NCritterCircle extends Sprite {
         ));
         slot.add(smod, fillMat);
         slot.add(emod, EDGE_MAT);
+        _slot = slot;
     }
 
     @Override
     public boolean tick(double dt) {
-        if (!isEnabled(critterPath))
-            return false;
         String pose = ((Gob) owner).pose();
         if (pose != null && NParser.checkName(pose, DEAD_KNOCKED))
             return true;
+        // Toggle rendering live as the per-critter checkbox / master toggle changes.
+        boolean enabled = isEnabled(critterPath);
+        if (enabled && _slot == null) {
+            RUtils.multiadd(((Gob) owner).slots, this);
+        } else if (!enabled && _slot != null) {
+            _slot.remove();
+            _slot = null;
+        }
         return super.tick(dt);
     }
 
