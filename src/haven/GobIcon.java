@@ -985,7 +985,7 @@ public class GobIcon extends GAttrib {
 			patterns.put("Herbs",Pattern.compile("gfx/invobjs/herbs/.*"));
 			patterns.put("Bushes",Pattern.compile("gfx/terobjs/mm/bushes/.*"));
 			patterns.put("Trees",Pattern.compile("gfx/terobjs/mm/trees/.*"));
-			patterns.put("Bumblings",Pattern.compile("(gfx/invobjs/.*).*(ore|mineral|arkose|mica|diorite|gneiss|microlite|obsidian|sodalite|olivine|rock|metal|flint|coal|galena|ilmenite|argentite|leadglance|graywacke|cuprite|limonite|diabase|pegmatite|pumice|cassiterite|sylvanite|corund|zincspar|orthoclase|hornsilver|eclogite|gabbro|malachite|granite|dolomite|schist|quartz|calcite|cinnabar|serpentine|basalt|tremolite|rhyolite|feldspar|soapstone|bauxite|chert|pyrite|hematite|alabaster|apatite|fluorite|jasper|scoria|agates|tuff|zeolite|hornblende|magnetite|pyrophyllite|bentonite|marble|muscovite|phyllite|taconite|wollastonite|talc|siltstone|slate|diatomite|tufa|limestone)"));
+			patterns.put("Bumblings",Pattern.compile("(gfx/invobjs/.*).*(ore|mineral|arkose|mica|diorite|gneiss|microlite|obsidian|sodalite|olivine|rock|metal|flint|coal|galena|ilmenite|argentite|leadglance|graywacke|cuprite|limonite|diabase|pegmatite|pumice|cassiterite|sylvanite|corund|zincspar|orthoclase|hornsilver|eclogite|gabbro|malachite|granite|dolomite|schist|quartz|calcite|cinnabar|serpentine|basalt|tremolite|rhyolite|feldspar|soapstone|bauxite|chert|pyrite|hematite|alabaster|apatite|fluorite|jasper|scoria|agates|tuff|zeolite|hornblende|magnetite|pyrophyllite|bentonite|marble|muscovite|phyllite|taconite|wollastonite|talc|siltstone|slate|diatomite|tufa|limestone|sandstone)"));
 			patterns.put("Players",Pattern.compile("gfx/hud/mmap/plo"));
 			patterns.put("Display",null);
 			patterns.put("Notify",null);
