@@ -24,6 +24,7 @@ public class NCombatDistanceTool extends haven.Window implements Runnable {
         animalDistances.put("gfx/kritter/cattle/cattle", 27.0);
         animalDistances.put("gfx/kritter/badger/badger", 19.9);
         animalDistances.put("gfx/kritter/bear/bear", 24.7);
+        animalDistances.put("gfx/kritter/bear/polarbear", 24.7);
         animalDistances.put("gfx/kritter/boar/boar", 25.1);
         animalDistances.put("gfx/kritter/caveangler/caveangler", 27.2);
         animalDistances.put("gfx/kritter/cavelouse/cavelouse", 22.0);
