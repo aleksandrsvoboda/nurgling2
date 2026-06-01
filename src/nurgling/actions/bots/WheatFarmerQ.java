@@ -47,7 +47,7 @@ public class WheatFarmerQ implements Action {
             ).run(gui);
             if (strawArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/wheat"), new NAlias("Wheat"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/wheat"), new NAlias("Wheat"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Wheat"), NContext.findSpec(trough)).run(gui);

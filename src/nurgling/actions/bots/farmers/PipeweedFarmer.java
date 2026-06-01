@@ -64,7 +64,7 @@ public class PipeweedFarmer implements Action {
             
             if (pipeweedLeafArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), pipeweedLeafArea.getRCArea(), new NAlias("tobacco-fresh", "Fresh Leaf of Pipeweed")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/pipeweed"), new NAlias("Pipeweed"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/pipeweed")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

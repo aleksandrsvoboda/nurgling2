@@ -31,7 +31,12 @@ public class CollectItemsToPile implements Action{
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NAlias collected_items = new NAlias(items.keys, new ArrayList<>( Arrays.asList ( "stockpile" , "barrel") ));
+        // Preserve any exceptions the caller passed (e.g. "seed" to keep seeds out of a
+        // vegetable pile) and add the standard container exclusions on top.
+        ArrayList<String> exceptions = new ArrayList<>(items.exceptions);
+        exceptions.add("stockpile");
+        exceptions.add("barrel");
+        NAlias collected_items = new NAlias(items.keys, exceptions);
 
         while ( !Finder.findGobs (in,collected_items ).isEmpty () ){
             ArrayList<WItem> testItems = null;

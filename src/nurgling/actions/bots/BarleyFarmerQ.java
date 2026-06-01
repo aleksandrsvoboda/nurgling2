@@ -47,7 +47,7 @@ public class BarleyFarmerQ implements Action {
             ).run(gui);
             if (strawArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/barley"), new NAlias("Barley"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/barley"), new NAlias("Barley"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Barley"), NContext.findSpec(trough)).run(gui);

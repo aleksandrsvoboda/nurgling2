@@ -60,7 +60,7 @@ public class GarlicFarmer implements Action {
             if (NContext.findSpec(garlicAsSeed) != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), NContext.findSpec(garlicAsSeed).getRCArea(), new NAlias("items/garlic", "Garlic")).run(gui);
 
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(garlicAsSeed), new NAlias("plants/garlic"), new NAlias("Garlic"), true).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(garlicAsSeed), new NAlias("plants/garlic")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

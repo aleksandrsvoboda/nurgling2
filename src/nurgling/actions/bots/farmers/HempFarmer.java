@@ -65,7 +65,7 @@ public class HempFarmer implements Action {
             
             if (hempFibersArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), hempFibersArea.getRCArea(), new NAlias("hempfibre", "Hemp Fibres")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/hemp"), new NAlias("Hemp"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/hemp")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

@@ -68,7 +68,7 @@ public class BeetrootFarmer implements Action {
             if (NContext.findSpec(beetrootAsSeed) != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), NContext.findSpec(beetrootAsSeed).getRCArea(), new NAlias("items/beet", "Beetroot")).run(gui);
 
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(beetrootAsSeed), new NAlias("plants/beet"), new NAlias("Beetroot"), true).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(beetrootAsSeed), new NAlias("plants/beet")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

@@ -49,7 +49,7 @@ public class PumpkinFarmerQ implements Action {
             if (pumpkinFleshArea != null)
                 new LettuceAndPumpkinCollector(NContext.findSpec(cropQ), NContext.findSpec(seedQ), pumpkinFleshArea, new NAlias("items/pumpkin", "Pumpkin"), null, true).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pumpkin"), new NAlias("Pumpkin"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pumpkin"), new NAlias("Pumpkin"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Pumpkin"), NContext.findSpec(trough)).run(gui);

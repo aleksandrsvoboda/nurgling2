@@ -28,6 +28,24 @@ public class CropRegistry {
 
     public static final Map<NAlias, List<CropStage>> HARVESTABLE = new HashMap<>();
 
+    /** All harvest stages registered for a crop (empty if unknown). */
+    public static List<CropStage> getStages(NAlias crop) {
+        return HARVESTABLE.getOrDefault(crop, Collections.emptyList());
+    }
+
+    /**
+     * The harvest product for a crop with the given storage behavior, or null if the
+     * crop has no such product. Used to derive planting material per storage location
+     * (BARREL = stacked seeds, STOCKPILE = vegetables).
+     */
+    public static CropStage getProductByStorage(NAlias crop, StorageBehavior behavior) {
+        for (CropStage stage : getStages(crop)) {
+            if (stage.storageBehavior == behavior)
+                return stage;
+        }
+        return null;
+    }
+
     static {
         // Turnip
         HARVESTABLE.put(

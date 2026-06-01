@@ -47,7 +47,7 @@ public class GreenKaleFarmerQ implements Action {
             ).run(gui);
             if (greenKale != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), greenKale.getRCArea(), new NAlias("items/greenkale", "Green Kale")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/greenkale"), new NAlias("Green Kale"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/greenkale"), new NAlias("Green Kale"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Green Kale"), NContext.findSpec(trough)).run(gui);

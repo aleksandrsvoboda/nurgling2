@@ -40,7 +40,7 @@ public class CarrotFarmerQ implements Action {
                     true
             ).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/carrot"), new NAlias("Carrot"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/carrot"), new NAlias("Carrot"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Carrot"), NContext.findSpec(trough)).run(gui);

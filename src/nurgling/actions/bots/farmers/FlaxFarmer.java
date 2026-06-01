@@ -65,7 +65,7 @@ public class FlaxFarmer implements Action {
             
             if (flaxFibersArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), flaxFibersArea.getRCArea(), new NAlias("flaxfibre", "Flax Fibres")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/flax"), new NAlias("Flax"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/flax")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

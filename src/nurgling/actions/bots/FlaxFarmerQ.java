@@ -47,7 +47,7 @@ public class FlaxFarmerQ implements Action {
             ).run(gui);
             if (flaxFibersArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), flaxFibersArea.getRCArea(), new NAlias("flaxfibre", "Flax Fibres")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/flax"), new NAlias("Flax"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/flax"), new NAlias("Flax"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Flax"), NContext.findSpec(trough)).run(gui);

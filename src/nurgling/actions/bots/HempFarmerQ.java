@@ -47,7 +47,7 @@ public class HempFarmerQ implements Action {
             ).run(gui);
             if (hempFibersArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), hempFibersArea.getRCArea(), new NAlias("hempfibre", "Hemp Fibres")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/hemp"), new NAlias("Hemp"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/hemp"), new NAlias("Hemp"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Hemp"), NContext.findSpec(trough)).run(gui);

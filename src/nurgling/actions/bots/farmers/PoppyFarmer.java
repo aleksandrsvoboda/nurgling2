@@ -66,7 +66,7 @@ public class PoppyFarmer implements Action {
             
             if (poppyFlowerArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), poppyFlowerArea.getRCArea(), new NAlias("flower-poppy", "Poppy Flower")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/poppy"), new NAlias("Poppy"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/poppy")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

@@ -40,7 +40,7 @@ public class YellowOnionFarmerQ implements Action {
                     true
             ).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/yellowonion"), new NAlias("Yellow Onion"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/yellowonion"), new NAlias("Yellow Onion"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Yellow Onion"), NContext.findSpec(trough)).run(gui);

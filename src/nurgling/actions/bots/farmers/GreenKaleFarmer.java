@@ -65,7 +65,7 @@ public class GreenKaleFarmer implements Action {
             
             if (greenKale != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), greenKale.getRCArea(), new NAlias("items/greenkale", "Green Kale")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/greenkale"), new NAlias("Green Kale"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/greenkale")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 
