@@ -39,9 +39,24 @@ public class SpecialisationData {
         
         // Construction materials subtypes
         ArrayList<String> buildMaterials = new ArrayList<>(Arrays.asList(
-            "Block", "Board", "Stone", "String", "Nugget", "Metal Bar", 
+            "Block", "Board", "Stone", "String", "Nugget", "Metal Bar",
             "Clay", "Brick", "Thatch", "Branch", "Bough", "Log", "Fibre"
         ));
         data.put("buildMaterials", buildMaterials);
+
+        // Stone types selectable for the Paving specialisation (matches Chipper.stones)
+        ArrayList<String> paving = new ArrayList<>(Arrays.asList(
+            "Alabaster", "Apatite", "Arkose", "Basalt", "Bat Rock", "Black Coal", "Black Ore",
+            "Bloodstone", "Breccia", "Cassiterite", "Cat Gold", "Chalcopyrite", "Chert", "Cinnabar",
+            "Diabase", "Diorite", "Direvein", "Dolomite", "Dross", "Eclogite", "Feldspar", "Flint",
+            "Fluorospar", "Gabbro", "Galena", "Gneiss", "Granite", "Graywacke", "Greenschist",
+            "Heavy Earth", "Horn Silver", "Hornblende", "Iron Ochre", "Jasper", "Korund", "Kyanite",
+            "Lava Rock", "Lead Glance", "Leaf Ore", "Limestone", "Malachite", "Marble", "Meteorite",
+            "Mica", "Microlite", "Obsidian", "Olivine", "Orthoclase", "Peacock Ore", "Pegmatite",
+            "Porphyry", "Pumice", "Quarryartz", "Quartz", "Rhyolite", "Rock Crystal", "Sandstone",
+            "Schist", "Schrifterz", "Serpentine", "Shard of Conch", "Silvershine", "Slag", "Slate",
+            "Soapstone", "Sodalite", "Sunstone", "Wine Glance", "Zincspar"
+        ));
+        data.put("paving", paving);
     }
 }

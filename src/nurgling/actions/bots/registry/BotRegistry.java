@@ -279,6 +279,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("navstresstest", BotDescriptor.BotType.TOOLS, "Navigation Stress Test", "Continuously tests chunk navigation between random areas. Results saved to JSON file.", false, true, NavigationStressTest.class, "test15", true));
         //bots.add(new BotDescriptor("testzonepatroller", BotDescriptor.BotType.UTILS, "Test Zone Patroller", "Patrols 15 test zones (test1-test15) every 30 minutes, returning to test16 between cycles.", true, true, TestZonePatroller.class, "worldexplorer", false));
         bots.add(new BotDescriptor("collect_silkworm_eggs_by_quality", BotDescriptor.BotType.TOOLS, "Collect Best Silkworm Eggs", "Collects highest quality silkworm eggs from containers in selected area. Considers individual egg quality within stacks.", false, true, CollectHighestQualitySilkwormEggs.class, "test35", false));
+        bots.add(new BotDescriptor("pave_areas", BotDescriptor.BotType.TOOLS, "Pave Areas", "Paves every area with the Paving specialisation, fetching its configured stone from that stone's Take area.", false, true, PaveAreas.class, "test40", false));
     }
 
     public static BotDescriptor byId(String id) {
