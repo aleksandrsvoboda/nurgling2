@@ -1031,10 +1031,10 @@ public class NContext {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
                 if(id>0 && player!=null) {
-                    if (NUtils.getGameUI().map.glob.map.areas.get(id).containIn(name)) {
-                        NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
+                    NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
+                    if (test != null && test.containIn(name)) {
                         Pair<Coord2d, Coord2d> testrc = test.getRCArea();
-                        if(test.getRCArea()!=null) {
+                        if(testrc!=null) {
                             double testdist;
                             if ((testdist = (testrc.a.dist(player.rc) + testrc.b.dist(player.rc))) < dist) {
                                 res = test;
@@ -1055,10 +1055,10 @@ public class NContext {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
                 if(id>0) {
-                    if (NUtils.getGameUI().map.glob.map.areas.get(id).containIn(name)) {
-                        NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
+                    NArea test = NUtils.getGameUI().map.glob.map.areas.get(id);
+                    if (test != null && test.containIn(name)) {
                         Pair<Coord2d, Coord2d> testrc = test.getRCArea();
-                        if(test.getRCArea()!=null) {
+                        if(testrc!=null) {
                             double testdist;
                             if ((testdist = (testrc.a.dist(NUtils.player().rc) + testrc.b.dist(NUtils.player().rc))) < dist) {
                                 res = test;
