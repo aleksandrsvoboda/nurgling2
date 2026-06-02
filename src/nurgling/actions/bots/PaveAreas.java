@@ -43,6 +43,9 @@ public class PaveAreas implements Action
     private static final String PAVING_ACTION = "Lay Stone Paving";
     private static final String PAVING_PREFIX = "gfx/tiles/paving/";
     private static final Coord STONE_SIZE = new Coord(1, 1);
+    // Tiles per side of a single paving selection. Small enough that one batch
+    // won't drain a full stamina bar, so the bot can drink/eat between chunks.
+    private static final int CHUNK_SIDE = 4;
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException
@@ -77,9 +80,6 @@ public class PaveAreas implements Action
 
         while (true)
         {
-            // Top up stamina/energy; this bookmarks the current (in-area) spot and returns to it.
-            new RestoreResources().run(gui);
-
             List<Area> rects = zoneRects(gui, zone);
             if (rects.isEmpty())
             {
@@ -89,41 +89,69 @@ public class PaveAreas implements Action
                     return Results.ERROR("Cannot load paving area '" + zone.name + "'");
             }
 
-            int unpaved = countUnpaved(gui, rects);
-            if (unpaved == 0)
+            int before = countUnpaved(gui, rects);
+            if (before == 0)
             {
                 gui.msg("Paving area '" + zone.name + "' complete");
                 return Results.SUCCESS();
             }
 
-            // Fetch just enough stone (1 per tile), capped by free inventory space.
-            int have = gui.getInventory().getWItems(stoneAlias).size();
-            if (have < unpaved)
-            {
-                ensureStones(gui, context, stone, unpaved);
-                NUtils.navigateToArea(zone);
-                have = gui.getInventory().getWItems(stoneAlias).size();
-                if (have == 0)
-                    return Results.ERROR("No '" + stone + "' available in its Take area");
-            }
-
-            int before = unpaved;
+            // Pave in small chunks so we have a recovery point between batches:
+            // before each chunk we can top up stamina/energy (drink/eat) and refill
+            // stone, instead of running a single huge selection out of resources.
             for (Area rect : rects)
             {
-                if (gui.getInventory().getWItems(stoneAlias).size() == 0)
-                    break;
-                paveRect(gui, rect, stoneAlias);
+                for (Area chunk : chunksOf(rect))
+                {
+                    int need = countUnpaved(gui, java.util.Collections.singletonList(chunk));
+                    if (need == 0)
+                        continue; // chunk already fully paved
+
+                    // Keep stamina/energy up. If we genuinely cannot restore (no
+                    // water/food reachable), stop with that error rather than
+                    // grinding the player to exhaustion.
+                    Results rr = new RestoreResources().run(gui);
+                    if (!rr.IsSuccess())
+                        return rr;
+
+                    // Ensure enough stone for this chunk; refill toward a full
+                    // inventory when low so we are not constantly travelling.
+                    if (gui.getInventory().getWItems(stoneAlias).size() < need)
+                    {
+                        ensureStones(gui, context, stone, before);
+                        if (gui.getInventory().getWItems(stoneAlias).size() == 0)
+                            return Results.ERROR("No '" + stone + "' available in its Take area");
+                    }
+
+                    paveRect(gui, chunk, stoneAlias);
+                }
             }
 
             int after = countUnpaved(gui, rects);
             if (after >= before)
             {
-                // A full pass with stone in hand made no progress: the remaining
-                // tiles cannot be paved (water / cliff / built-on).
+                // A full pass with stone and resources available made no progress:
+                // the remaining tiles cannot be paved (water / cliff / built-on).
                 gui.msg("Paving area '" + zone.name + "': " + after + " tile(s) cannot be paved, skipping");
                 return Results.SUCCESS();
             }
         }
+    }
+
+    /** Split a rectangle into CHUNK_SIDE-sized sub-rectangles (br exclusive). */
+    private List<Area> chunksOf(Area rect)
+    {
+        List<Area> out = new ArrayList<>();
+        for (int x = rect.ul.x; x < rect.br.x; x += CHUNK_SIDE)
+        {
+            for (int y = rect.ul.y; y < rect.br.y; y += CHUNK_SIDE)
+            {
+                int ex = Math.min(x + CHUNK_SIDE, rect.br.x);
+                int ey = Math.min(y + CHUNK_SIDE, rect.br.y);
+                out.add(new Area(new Coord(x, y), new Coord(ex, ey)));
+            }
+        }
+        return out;
     }
 
     /** Lay stone over one rectangle, consuming stone from inventory. */
