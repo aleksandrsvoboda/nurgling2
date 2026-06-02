@@ -2,11 +2,14 @@ package nurgling.actions.bots;
 
 import haven.Area;
 import haven.Coord;
+import haven.GItem;
 import haven.Gob;
 import haven.Loading;
 import haven.MCache;
 import haven.MenuGrid;
 import haven.Resource;
+import haven.WItem;
+import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
@@ -116,10 +119,10 @@ public class PaveAreas implements Action
 
                     // Ensure enough stone for this chunk; refill toward a full
                     // inventory when low so we are not constantly travelling.
-                    if (gui.getInventory().getWItems(stoneAlias).size() < need)
+                    if (stoneCount(gui, stoneAlias) < need)
                     {
                         ensureStones(gui, context, stone, before);
-                        if (gui.getInventory().getWItems(stoneAlias).size() == 0)
+                        if (stoneCount(gui, stoneAlias) == 0)
                             return Results.ERROR("No '" + stone + "' available in its Take area");
                     }
 
@@ -201,7 +204,7 @@ public class PaveAreas implements Action
             }
         });
 
-        int prev = gui.getInventory().getWItems(stoneAlias).size();
+        int prev = stoneCount(gui, stoneAlias);
         while (true)
         {
             // Wait for the player to settle (idle for a stretch) or run low on resources.
@@ -224,7 +227,7 @@ public class PaveAreas implements Action
                 }
             });
 
-            int now = gui.getInventory().getWItems(stoneAlias).size();
+            int now = stoneCount(gui, stoneAlias);
             if (now == prev || now == 0)
                 break; // no more stone consumed since last settle, or out of stone
             prev = now;
@@ -265,7 +268,7 @@ public class PaveAreas implements Action
     private void ensureStones(NGameUI gui, NContext context, String stone, int targetTotal) throws InterruptedException
     {
         NAlias stoneAlias = new NAlias(stone);
-        int have = gui.getInventory().getWItems(stoneAlias).size();
+        int have = stoneCount(gui, stoneAlias);
         if (have >= targetTotal)
             return;
 
@@ -329,6 +332,33 @@ public class PaveAreas implements Action
             }
         }
         return count;
+    }
+
+    /**
+     * Actual number of stones in inventory (not slots): sums each stack's
+     * Amount, counting a loose single stone (no Amount info) as 1. This avoids
+     * both the slot-undercount of getWItems().size() and the hang of
+     * getTotalAmountItems on un-stacked items.
+     */
+    private int stoneCount(NGameUI gui, NAlias stoneAlias) throws InterruptedException
+    {
+        int total = 0;
+        for (WItem w : gui.getInventory().getItems(stoneAlias))
+        {
+            int n = 1;
+            try
+            {
+                GItem.Amount am = ((NGItem) w.item).getInfo(GItem.Amount.class);
+                if (am != null)
+                    n = am.itemnum();
+            }
+            catch (Loading l)
+            {
+                n = 1;
+            }
+            total += n;
+        }
+        return total;
     }
 
     private String stoneOf(NArea zone)
