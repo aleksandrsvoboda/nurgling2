@@ -100,7 +100,8 @@ public class Specialisation extends Window
         trufflePig,
         thicket,
         beeSkep,
-        soilDump;
+        soilDump,
+        paving;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -208,6 +209,9 @@ public class Specialisation extends Window
 
         // Paved soil dump zone for Leveler bot
         specialisation.add(new SpecialisationItem(SpecName.soilDump.toString(),"Soil Dump (paved)",Resource.loadsimg("nurgling/categories/tsoil")));
+
+        // Stone paving zone (subtype = stone type to lay, e.g. Soapstone, Diabase)
+        specialisation.add(new SpecialisationItem(SpecName.paving.toString(),"Stone Paving",Resource.loadsimg("nurgling/categories/consmaterials")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
