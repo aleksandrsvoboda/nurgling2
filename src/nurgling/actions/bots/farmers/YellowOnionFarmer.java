@@ -59,7 +59,7 @@ public class YellowOnionFarmer implements Action {
             if (NContext.findSpec(yellowOnionAsSeed) != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), NContext.findSpec(yellowOnionAsSeed).getRCArea(), new NAlias("items/yellowonion", "Yellow Onion")).run(gui);
 
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(yellowOnionAsSeed), new NAlias("plants/yellowonion"), new NAlias("Yellow Onion"), true).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(yellowOnionAsSeed), new NAlias("plants/yellowonion")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

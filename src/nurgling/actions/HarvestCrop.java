@@ -156,8 +156,8 @@ public class HarvestCrop implements Action {
         if(NUtils.getStamina()<0.35) {
             if (!new Drink(0.9, false).run(gui).isSuccess)
                 if ((Boolean) NConfig.get(NConfig.Key.harvestautorefill)) {
-                    if (FillWaterskins.checkIfNeed())
-                        if (!(new FillWaterskins().run(gui).IsSuccess()))
+                    if (FillWaterskinsGlobal.checkIfNeed())
+                        if (!(new FillWaterskinsGlobal().run(gui).IsSuccess()))
                             throw new InterruptedException();
                         else if (!new Drink(0.9, false).run(gui).isSuccess)
                             throw new InterruptedException();

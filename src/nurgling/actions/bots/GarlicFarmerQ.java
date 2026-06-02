@@ -40,7 +40,7 @@ public class GarlicFarmerQ implements Action {
                     true
             ).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/garlic"), new NAlias("Garlic"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/garlic"), new NAlias("Garlic"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Garlic"), NContext.findSpec(trough)).run(gui);

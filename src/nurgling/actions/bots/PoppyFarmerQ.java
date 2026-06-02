@@ -47,7 +47,7 @@ public class PoppyFarmerQ implements Action {
             ).run(gui);
             if (poppyFlowerArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), poppyFlowerArea.getRCArea(), new NAlias("flower-poppy", "Poppy Flower")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/poppy"), new NAlias("Poppy"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/poppy"), new NAlias("Poppy"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Poppy"), NContext.findSpec(trough)).run(gui);

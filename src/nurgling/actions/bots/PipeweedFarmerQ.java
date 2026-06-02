@@ -47,7 +47,7 @@ public class PipeweedFarmerQ implements Action {
             ).run(gui);
             if (pipeweedLeafArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), pipeweedLeafArea.getRCArea(), new NAlias("tobacco-fresh", "Fresh Leaf of Pipeweed")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pipeweed"), new NAlias("Pipeweed"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pipeweed"), new NAlias("Pipeweed"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Pipeweed"), NContext.findSpec(trough)).run(gui);

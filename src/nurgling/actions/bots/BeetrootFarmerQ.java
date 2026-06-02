@@ -48,7 +48,7 @@ public class BeetrootFarmerQ implements Action {
             if (beetrootLeavesArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), beetrootLeavesArea.getRCArea(), new NAlias("beetleaves", "Beetroot Leaves")).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/beet"), new NAlias("Beetroot"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/beet"), new NAlias("Beetroot"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Beetroot"), NContext.findSpec(trough)).run(gui);

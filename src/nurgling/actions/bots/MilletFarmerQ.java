@@ -47,7 +47,7 @@ public class MilletFarmerQ implements Action {
             ).run(gui);
             if (strawArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/millet"), new NAlias("Millet"), false, true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/millet"), new NAlias("Millet"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Millet"), NContext.findSpec(trough)).run(gui);

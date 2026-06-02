@@ -40,7 +40,12 @@ public class LettuceAndPumpkinCollector implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NAlias collected_items = new NAlias(items.keys, new ArrayList<>(Arrays.asList("stockpile", "barrel")));
+        // Preserve any exceptions the caller passed (e.g. "plants" to keep growing
+        // crops out of the ground-item search) and add the standard container exclusions.
+        ArrayList<String> exceptions = new ArrayList<>(items.exceptions);
+        exceptions.add("stockpile");
+        exceptions.add("barrel");
+        NAlias collected_items = new NAlias(items.keys, exceptions);
         ArrayList<WItem> testItems;
 
         int totalItemsThatCanFit = 0;

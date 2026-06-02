@@ -67,7 +67,7 @@ public class WheatFarmer implements Action {
             
             if (!ignoreStraw && strawArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/wheat"), new NAlias("Wheat"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/wheat")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

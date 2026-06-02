@@ -66,7 +66,7 @@ public class WildFlowerFarmer implements Action {
             
             if (wildFlowerArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), wildFlowerArea.getRCArea(), new NAlias(new ArrayList<>(Arrays.asList("flower-wild", "Wildflower")), new ArrayList<>(Arrays.asList("seed")))).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/wildflower"), new NAlias("Wildflower Seeds"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/wildflower")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

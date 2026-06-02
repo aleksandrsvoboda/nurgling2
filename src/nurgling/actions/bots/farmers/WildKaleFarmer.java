@@ -64,7 +64,7 @@ public class WildKaleFarmer implements Action {
             
             if (wildKaleArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), wildKaleArea.getRCArea(), new NAlias("leaf-brassica", "Wildkale Leaf")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/wildbrassica"), new NAlias("Wildkale Seeds"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/wildbrassica")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 

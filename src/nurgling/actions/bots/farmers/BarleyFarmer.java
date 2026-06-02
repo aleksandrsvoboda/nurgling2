@@ -68,7 +68,7 @@ public class BarleyFarmer implements Action {
             
             if (!ignoreStraw && strawArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/barley"), new NAlias("Barley"), false).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/barley")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 
