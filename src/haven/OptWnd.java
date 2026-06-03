@@ -815,6 +815,7 @@ public class OptWnd extends Window {
 		y = addbtn(cont, L10n.get("opt.keybind.nature"), NMiniMapWnd.kb_nature, y);
 		y = addbtn(cont, L10n.get("opt.keybind.night"), NMiniMapWnd.kb_night, y);
 		y = addbtn(cont, L10n.get("opt.keybind.sort_inventory"), GameUI.kb_sort, y);
+		y = addbtn(cont, L10n.get("opt.keybind.interrupt_bots"), nurgling.widgets.BotsInterruptWidget.kb_interrupt_bots, y);
 		y = cont.adda(new Label("Session Hotkeys"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 		y = addbtn(cont, "Previous Session", nurgling.sessions.SessionTabBar.kb_session_prev, y);
 		y = addbtn(cont, "Next Session", nurgling.sessions.SessionTabBar.kb_session_next, y);
