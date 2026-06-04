@@ -99,16 +99,16 @@ public class PaveAreas implements Action
                 return Results.SUCCESS();
             }
 
-            // Pave in small chunks so we have a recovery point between batches:
-            // before each chunk we can top up stamina/energy (drink/eat) and refill
-            // stone, instead of running a single huge selection out of resources.
+            // Pave in small batches so we have a recovery point between them:
+            // before each batch we can top up stamina/energy (drink/eat) and
+            // refill stone, instead of running a single huge selection out of
+            // resources. Each batch is an all-unpaved rectangle, so we never
+            // re-pave an already-paved tile within an unevenly-paved region.
             for (Area rect : rects)
             {
-                for (Area chunk : chunksOf(rect))
+                for (Area pr : unpavedRectsOf(gui, rect))
                 {
-                    int need = countUnpaved(gui, java.util.Collections.singletonList(chunk));
-                    if (need == 0)
-                        continue; // chunk already fully paved
+                    int need = (pr.br.x - pr.ul.x) * (pr.br.y - pr.ul.y);
 
                     // Keep stamina/energy up. If we genuinely cannot restore (no
                     // water/food reachable), stop with that error rather than
@@ -117,7 +117,7 @@ public class PaveAreas implements Action
                     if (!rr.IsSuccess())
                         return rr;
 
-                    // Ensure enough stone for this chunk; refill toward a full
+                    // Ensure enough stone for this batch; refill toward a full
                     // inventory when low so we are not constantly travelling.
                     if (stoneCount(gui, stoneAlias) < need)
                     {
@@ -126,7 +126,7 @@ public class PaveAreas implements Action
                             return Results.ERROR("No '" + stone + "' available in its Take area");
                     }
 
-                    paveRect(gui, chunk, stoneAlias);
+                    paveRect(gui, pr, stoneAlias);
                 }
             }
 
@@ -141,17 +141,64 @@ public class PaveAreas implements Action
         }
     }
 
-    /** Split a rectangle into CHUNK_SIDE-sized sub-rectangles (br exclusive). */
-    private List<Area> chunksOf(Area rect)
+    /**
+     * Decompose the unpaved tiles of a grid-rectangle into a set of all-unpaved
+     * sub-rectangles, each at most CHUNK_SIDE per side (greedy: grow width along
+     * the row, then grow height while the whole span stays unpaved). Every
+     * returned rectangle contains only unpaved tiles, so selecting it never
+     * re-paves an already-paved tile; the CHUNK_SIDE cap keeps stamina batching.
+     */
+    private List<Area> unpavedRectsOf(NGameUI gui, Area rect)
     {
+        MCache mc = gui.ui.sess.glob.map;
+        int w = rect.br.x - rect.ul.x;
+        int h = rect.br.y - rect.ul.y;
         List<Area> out = new ArrayList<>();
-        for (int x = rect.ul.x; x < rect.br.x; x += CHUNK_SIDE)
+        if (w <= 0 || h <= 0)
+            return out;
+
+        // free[i][j] = unpaved tile not yet claimed by a rectangle.
+        boolean[][] free = new boolean[w][h];
+        for (int i = 0; i < w; i++)
+            for (int j = 0; j < h; j++)
+                free[i][j] = isUnpaved(mc, rect.ul.x + i, rect.ul.y + j);
+
+        for (int j = 0; j < h; j++)
         {
-            for (int y = rect.ul.y; y < rect.br.y; y += CHUNK_SIDE)
+            for (int i = 0; i < w; i++)
             {
-                int ex = Math.min(x + CHUNK_SIDE, rect.br.x);
-                int ey = Math.min(y + CHUNK_SIDE, rect.br.y);
-                out.add(new Area(new Coord(x, y), new Coord(ex, ey)));
+                if (!free[i][j])
+                    continue;
+
+                // Grow width along this row, capped at CHUNK_SIDE.
+                int rw = 0;
+                while (rw < CHUNK_SIDE && i + rw < w && free[i + rw][j])
+                    rw++;
+
+                // Grow height while the whole [i, i+rw) span stays unpaved, capped.
+                int rh = 0;
+                boolean spanFree = true;
+                while (rh < CHUNK_SIDE && j + rh < h && spanFree)
+                {
+                    for (int k = i; k < i + rw; k++)
+                    {
+                        if (!free[k][j + rh])
+                        {
+                            spanFree = false;
+                            break;
+                        }
+                    }
+                    if (spanFree)
+                        rh++;
+                }
+
+                // Claim the tiles and emit the rectangle (br exclusive).
+                for (int dx = 0; dx < rw; dx++)
+                    for (int dy = 0; dy < rh; dy++)
+                        free[i + dx][j + dy] = false;
+
+                out.add(new Area(new Coord(rect.ul.x + i, rect.ul.y + j),
+                                 new Coord(rect.ul.x + i + rw, rect.ul.y + j + rh)));
             }
         }
         return out;
@@ -312,26 +359,26 @@ public class PaveAreas implements Action
         MCache mc = gui.ui.sess.glob.map;
         int count = 0;
         for (Area rect : rects)
-        {
             for (int x = rect.ul.x; x < rect.br.x; x++)
-            {
                 for (int y = rect.ul.y; y < rect.br.y; y++)
-                {
-                    Resource res;
-                    try
-                    {
-                        res = mc.tilesetr(mc.gettile(new Coord(x, y)));
-                    }
-                    catch (Loading l)
-                    {
-                        res = null;
-                    }
-                    if (res != null && res.name != null && !res.name.startsWith(PAVING_PREFIX))
+                    if (isUnpaved(mc, x, y))
                         count++;
-                }
-            }
-        }
         return count;
+    }
+
+    /** True if the tile at (x,y) exists, is loaded, and is not yet paved. */
+    private boolean isUnpaved(MCache mc, int x, int y)
+    {
+        Resource res;
+        try
+        {
+            res = mc.tilesetr(mc.gettile(new Coord(x, y)));
+        }
+        catch (Loading l)
+        {
+            res = null;
+        }
+        return res != null && res.name != null && !res.name.startsWith(PAVING_PREFIX);
     }
 
     /**
