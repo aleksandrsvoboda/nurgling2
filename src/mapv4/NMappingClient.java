@@ -3,7 +3,6 @@ package mapv4;
 import haven.Coord;
 import haven.Gob;
 import haven.MapFile;
-import haven.WebBrowser;
 import nurgling.NConfig;
 import nurgling.NUtils;
 
@@ -206,7 +205,7 @@ public class NMappingClient {
             try {
                 String urlString = String.format((String) NConfig.get(NConfig.Key.endpoint) + "/#/grid/%d/%d/%d/6", 
                     mapRef.mapID, mapRef.gc.x, mapRef.gc.y);
-                WebBrowser.self.show(URI.create(urlString).toURL());
+                NUtils.getGameUI().ui.wnd.toolkit().browse(URI.create(urlString));
             } catch (Exception e) {
                 NUtils.getGameUI().error("Invalid URL: " + e.getMessage());
             }

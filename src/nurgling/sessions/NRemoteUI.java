@@ -59,10 +59,9 @@ public class NRemoteUI extends RemoteUI {
                 sm.addSessionAsActive(sess, nui);
             }
 
-            // Register lifecycle listener with GLPanel if not already done
-            if (ui.getContext() instanceof GLPanel) {
-                GLPanel panel = (GLPanel) ui.getContext();
-                GLPanel.Loop loop = panel.getLoop();
+            // Register lifecycle listener with the UI loop if not already done
+            UILoop loop = ui.getLoop();
+            if (loop != null) {
                 if (loop.getUILifecycleListener() == null) {
                     loop.setUILifecycleListener(new NUILifecycleListener());
                 }
@@ -70,7 +69,7 @@ public class NRemoteUI extends RemoteUI {
                 // Initialize SessionUIController if needed
                 SessionUIController ctrl = SessionUIController.getInstance();
                 if (ctrl == null) {
-                    SessionUIController.initialize(panel);
+                    SessionUIController.initialize(loop);
                 }
 
                 // Note: attachToUI() is called by NUILifecycleListener.afterNewUI()

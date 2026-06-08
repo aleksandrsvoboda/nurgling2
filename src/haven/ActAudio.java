@@ -104,12 +104,14 @@ public class ActAudio extends State {
 
     public static class RootChannel implements Channel {
 	public final String name;
+	public final Audio.Mixer rootmixer;
 	public double volume;
 	private Audio.VolAdjust volc = null;
 	private Audio.Mixer mixer = null;
 
-	private RootChannel(String name) {
+	private RootChannel(String name, Audio.Mixer rootmixer) {
 	    this.name = name;
+	    this.rootmixer = rootmixer;
 	    this.volume = Double.parseDouble(Utils.getpref("sfxvol-" + name, "1.0"));
 	}
 
@@ -120,7 +122,7 @@ public class ActAudio extends State {
 		    if((ret = this.mixer) == null) {
 			this.volc = new Audio.VolAdjust(ret = this.mixer = new Audio.Mixer(true));
 			this.volc.vol = volume;
-			Audio.play(this.volc);
+			rootmixer.add(this.volc);
 		    }
 		}
 	    }
@@ -137,7 +139,7 @@ public class ActAudio extends State {
 	public void clear() {
 	    synchronized(this) {
 		if(mixer != null) {
-		    Audio.stop(volc);
+		    rootmixer.stop(volc);
 		    /* XXX? clear() should only be called once, so
 		     * ensure mixer isn't later mistakenly re-added
 		     * due to racy code still using this channel.
@@ -167,9 +169,17 @@ public class ActAudio extends State {
     }
 
     public static class Root {
-	public final RootChannel aui = new RootChannel("aui");
-	public final RootChannel pos = new RootChannel("pos");
-	public final RootChannel amb = new RootChannel("amb");
+	public final Audio.Root sys;
+	public final RootChannel aui;
+	public final RootChannel pos;
+	public final RootChannel amb;
+
+	public Root(Audio.Root sys) {
+	    this.sys = sys;
+	    aui = new RootChannel("aui", sys.mixer);
+	    pos = new RootChannel("pos", sys.mixer);
+	    amb = new RootChannel("amb", sys.mixer);
+	}
 
 	public void clear() {
 	    pos.clear();

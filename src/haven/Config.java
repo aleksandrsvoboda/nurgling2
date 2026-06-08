@@ -38,7 +38,8 @@ public class Config {
     public static final Properties jarprops = getjarprops();
     public static final String confid = jarprops.getProperty("config.client-id", "Nurgling2");
     public static final Variable<Boolean> par = Variable.def(() -> true);
-    public final Properties localprops = getlocalprops();
+    public static final Variable<Boolean> exp = Variable.propb("haven.experimental", false);
+    public final Properties localprops = getlocalprops(), userprops = getuserprops();
 
     private static Config global = null;
     public static Config get() {
@@ -48,6 +49,60 @@ public class Config {
 	    if(global == null)
 		global = new Config();
 	    return(global);
+	}
+    }
+
+    private static Path findlocaldir() {
+	try {
+	    windows: {
+		String path = System.getenv("APPDATA");
+		if(path == null)
+		    break windows;
+		Path appdata = Utils.path(path);
+		if(!Files.exists(appdata) || !Files.isDirectory(appdata) || !Files.isReadable(appdata) || !Files.isWritable(appdata))
+		    break windows;
+		Path base = Utils.pj(appdata, "Haven and Hearth");
+		if(!Files.exists(base)) {
+		    try {
+			Files.createDirectories(base);
+		    } catch(IOException e) {
+			break windows;
+		    }
+		}
+		return(base);
+	    }
+	    fallback: {
+		String path = System.getProperty("user.home", null);
+		if(path == null)
+		    break fallback;
+		Path home = Utils.path(path);
+		if(!Files.exists(home) || !Files.isDirectory(home) || !Files.isReadable(home) || !Files.isWritable(home))
+		    break fallback;
+		Path base = Utils.pj(home, ".haven");
+		if(!Files.exists(base)) {
+		    try {
+			Files.createDirectories(base);
+		    } catch(IOException e) {
+			break fallback;
+		    }
+		}
+		return(base);
+	    }
+	} catch(SecurityException e) {
+	}
+	Warning.warn("found no reasonable place to store local files");
+	return(null);
+    }
+
+    private static Path localdir;
+    private static boolean haslocaldir = false;
+    public static Path localdir() {
+	synchronized(Config.class) {
+	    if(!haslocaldir) {
+		localdir = findlocaldir();
+		haslocaldir = true;
+	    }
+	    return(localdir);
 	}
     }
 
@@ -81,11 +136,30 @@ public class Config {
 	return(ret);
     }
 
+    private static Properties getuserprops() {
+	Properties ret = new Properties();
+	try {
+	    Path base = localdir();
+	    if(base != null) {
+		try(InputStream fp = Files.newInputStream(Utils.pj(base, "haven-config.properties"))) {
+		    ret.load(fp);
+		} catch(NoSuchFileException exc) {
+		    /* That's quite alright. */
+		}
+	    }
+	} catch(Exception exc) {
+	    new Warning(exc, "unexpected error occurred when loading user properties").issue();
+	}
+	return(ret);
+    }
+
     public String getprop(String name, String def) {
 	String ret;
 	if((ret = Utils.getprop(name, null)) != null)
 	    return(ret);
 	if((ret = localprops.getProperty(name)) != null)
+	    return(ret);
+	if((ret = userprops.getProperty(name)) != null)
 	    return(ret);
 	if((ret = jarprops.getProperty(name)) != null)
 	    return(ret);
@@ -154,6 +228,9 @@ public class Config {
 	}
 	public static Variable<Double> propf(String name, Double defval) {
 	    return(prop(name, Double::parseDouble, () -> defval));
+	}
+	public static Variable<Ratio> propr(String name, Ratio defval) {
+	    return(prop(name, Ratio::parse, () -> defval));
 	}
 	public static Variable<byte[]> propb(String name, byte[] defval) {
 	    return(prop(name, Utils.hex::dec, () -> defval));
@@ -262,13 +339,13 @@ public class Config {
 		System.exit(0);
 		break;
 	    case 'd':
-		UIPanel.dbtext.set(true);
+		UILoop.dbtext.set(true);
 		break;
 	    case 'P':
-		UIPanel.profile.set(true);
+		UILoop.profile.set(true);
 		break;
 	    case 'f':
-		MainFrame.initfullscreen.set(true);
+		Client.initfullscreen.set(true);
 		break;
 	    case 'r':
 		Resource.resdir.set(Utils.path(opt.arg));

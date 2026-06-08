@@ -1828,9 +1828,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    initload = now;
 	}
 	if((terrain.loading() == null) && (gobs.loading() == null) && initdraw) {
-	    wdgmsg("initload", now - initload);
+	    initload(now - initload);
 	    initload = -1;
 	}
+    }
+
+    protected void initload(double time) {
+	wdgmsg("initload", time);
     }
 
     public void tick(double dt) {

@@ -24,8 +24,8 @@ public class HeadlessMain {
     public static final int EXIT_CHARACTER_NOT_FOUND = 6;
 
     private final HeadlessConfig config;
-    private HeadlessPanel panel;
-    private Thread panelThread;
+    private volatile NHeadlessLoop loop;
+    private volatile Thread sessionThread;
 
     public HeadlessMain(HeadlessConfig config) {
         this.config = config;
@@ -210,21 +210,20 @@ public class HeadlessMain {
             // Bootstrap creates login screen which we don't need since we already authenticated
             RemoteUI remoteUI = new RemoteUI(session);
 
-            // Create headless panel
-            panel = new HeadlessPanel();
-
-            // Start panel thread
-            panelThread = new HackThread(() -> {
-                try {
-                    runUILoop(remoteUI);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }, "HeadlessUI");
-            panelThread.start();
-
-            // Wait for panel thread to finish
-            panelThread.join();
+            // Drive the session on a headless UI loop (DummyToolkit + stub environment).
+            // The loop runs its own render/tick thread; this thread drives the runner.
+            sessionThread = Thread.currentThread();
+            NHeadlessLoop loop = this.loop = new NHeadlessLoop(new Coord(1920, 1080));
+            loop.start();
+            try {
+                UI.Runner task = remoteUI;
+                while (task != null)
+                    task = task.run(loop.newui(task));
+            } finally {
+                loop.newui(null);
+                loop.dispose();
+                this.loop = null;
+            }
 
             log("Session ended");
             return EXIT_SUCCESS;
@@ -239,35 +238,16 @@ public class HeadlessMain {
     }
 
     /**
-     * Run the UI loop with the given runner.
-     */
-    private void runUILoop(UI.Runner runner) throws InterruptedException {
-        // Start the panel's tick loop in background
-        Thread tickThread = new HackThread(panel, "HeadlessTick");
-        tickThread.start();
-
-        try {
-            while (runner != null) {
-                UI ui = panel.newui(runner);
-                runner.init(ui);
-                runner = runner.run(ui);
-            }
-        } finally {
-            panel.stop();
-            tickThread.interrupt();
-            tickThread.join(5000);
-        }
-    }
-
-    /**
      * Stop the headless client.
      */
     public void stop() {
-        if (panel != null) {
-            panel.stop();
+        Thread t = sessionThread;
+        if (t != null) {
+            t.interrupt();
         }
-        if (panelThread != null) {
-            panelThread.interrupt();
+        NHeadlessLoop l = loop;
+        if (l != null) {
+            l.dispose();
         }
     }
 
