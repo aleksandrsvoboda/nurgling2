@@ -190,10 +190,12 @@ public abstract class UILoop implements Console.Directory {
 	    if(pos.y < 0)
 		pos.y = 0;
 	    Coord br = pos.add(sz);
-	    Coord m = UI.scale(2, 2);
-	    g.chcolor(244, 247, 21, 192);
+	    /* nurgling: tooltip border/bg from TooltipStyle (was on GLPanel.drawtooltip;
+	     * GLPANEL_MARGIN is also assumed by NWItem image layout). */
+	    Coord m = UI.scale(nurgling.styles.TooltipStyle.GLPANEL_MARGIN, nurgling.styles.TooltipStyle.GLPANEL_MARGIN);
+	    g.chcolor(nurgling.styles.TooltipStyle.COLOR_TOOLTIP_BORDER);
 	    g.rect2(pos.sub(m).sub(1, 1), br.add(m));
-	    g.chcolor(35, 35, 35, 192);
+	    g.chcolor(nurgling.styles.TooltipStyle.COLOR_TOOLTIP_BG);
 	    g.frect2(pos.sub(m), br.add(m));
 	    g.chcolor();
 	    g.image(tex, pos);
@@ -436,6 +438,7 @@ public abstract class UILoop implements Console.Directory {
 	if(f.ftime > frames[ckf]) {
 	    fps = (int)Math.round(i / (f.ftime - frames[ckf]));
 	    uidle = twait / (f.ftime - frames[ckf]);
+	    nurgling.NUtils.setFps(fps); // feed nurgling's DbStatsOverlay (was on GLPanel.Loop)
 	}
     }
 
