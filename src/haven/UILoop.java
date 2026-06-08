@@ -113,6 +113,11 @@ public abstract class UILoop implements Console.Directory {
 	    }
 	    newui.env = this.env;
 	    newui.cons.add(this);
+	    /* nurgling: keep the static UI fallback current (was GLPanel.Loop's
+	     * `UI.ui = newui`); UI.getInstance() prefers SessionManager.getActiveUI()
+	     * but falls back to this during bootstrap / before the session is active. */
+	    if(newui instanceof nurgling.NUI)
+		UI.setInstance((nurgling.NUI)newui);
 	}
 	newui.loop = this;
 	synchronized(uilock) {
