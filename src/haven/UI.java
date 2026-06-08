@@ -219,6 +219,9 @@ public class UI {
 	cons.add(audio);
 	widgets.put(0, root);
 	rwidgets.put(root, 0);
+	/* nurgling: make the owning loop visible to fun.init() (NRemoteUI.onInit needs
+	 * ui.getLoop()); set before init since newui() can only assign loop afterwards. */
+	this.loop = UILoop.constructing();
 	if(fun != null)
 	    fun.init(this);
 	if(sess == null) {

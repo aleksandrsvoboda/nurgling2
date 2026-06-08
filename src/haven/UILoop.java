@@ -83,6 +83,12 @@ public abstract class UILoop implements Console.Directory {
 	return new UI(wnd, audio, sz, fun);
     }
 
+    /* nurgling: the UI constructor calls fun.init() (-> NRemoteUI.onInit, which needs
+     * ui.getLoop()) before newui() can assign ui.loop. Expose the loop under
+     * construction via a thread-local so the UI ctor can set ui.loop *before* init. */
+    private static final ThreadLocal<UILoop> constructing = new ThreadLocal<>();
+    static UILoop constructing() { return constructing.get(); }
+
     /* nurgling: multi-session lifecycle hooks (formerly on GLPanel.Loop). */
     private UILifecycleListener lifecycleListener;
     public void setUILifecycleListener(UILifecycleListener l) { this.lifecycleListener = l; }
@@ -99,7 +105,12 @@ public abstract class UILoop implements Console.Directory {
 	    newui = reuse;
 	    newui.env = this.env;
 	} else {
-	    newui = mkui(wnd, audio, new Coord(wnd.size()), fun);
+	    constructing.set(this);
+	    try {
+		newui = mkui(wnd, audio, new Coord(wnd.size()), fun);
+	    } finally {
+		constructing.remove();
+	    }
 	    newui.env = this.env;
 	    newui.cons.add(this);
 	}
