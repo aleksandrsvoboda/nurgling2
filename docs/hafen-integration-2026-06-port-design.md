@@ -1,5 +1,17 @@
 # Hafen Integration 2026-06 — Port Design
 
+> ## EXECUTION STATUS (2026-06-08): COMMITTED, builds clean, runtime-testing pending
+> Branch `hafen-integration-2026-06`, merge commit `9852d1b92` (parents
+> `7bccf9846` nurgling + `e16dcf24b` hafen). All 11 conflicts resolved,
+> panels/HeadlessPanel removed, full `ant clean` build passes, `bin/hafen.jar`
+> built. **Ancestry verified** (`git merge-base --is-ancestor e16dcf24b HEAD` → 0).
+> Nurgling customizations confirmed intact post-merge: NGob field, Session
+> `injectMessage`/`CachedRes`, Material `MaterialFactory`, container-color
+> `customMask` forcing.
+>
+> **Not yet done:** in-game testing of normal login, multi-session
+> switch/demote-to-headless, and headless `-bots` run. Not pushed.
+
 **Status:** Design / pre-execution
 **Merge-base:** `a2043d0d5` → **hafen/master `e16dcf24b`**
 **Scope:** 159 new hafen commits, **101 Java files, +22,632 / −2,628**
