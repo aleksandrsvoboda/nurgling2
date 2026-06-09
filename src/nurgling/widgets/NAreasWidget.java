@@ -457,6 +457,7 @@ public class NAreasWidget extends Window
                     add(L10n.get("area.menu.set_color"));
                     add(L10n.get("area.menu.edit_name"));
                     add(L10n.get("area.menu.scan"));
+                    add(L10n.get("area.menu.delete"));
                 }
             };
 
@@ -535,7 +536,7 @@ public class NAreasWidget extends Window
 
         NFlowerMenu menu;
 
-        public void opts( Coord c ) {
+        private void ensureMenu() {
             if(menu == null) {
                 menu = new NFlowerMenu(opt.toArray(new String[0])) {
                     @Override
@@ -637,6 +638,11 @@ public class NAreasWidget extends Window
                             {
                                 Scaner.startScan(area);
                             }
+                            else if (option.name.equals(get("area.menu.delete")))
+                            {
+                                ((NMapView)NUtils.getGameUI().map).removeAreaById(area.id);
+                                NConfig.needAreasUpdate();
+                            }
                             else if (option.name.equals(get("area.menu.edit_folder")))
                             {
                                 NEditFolderName.changeName(currentPath, AreaItem.this.text.text());
@@ -690,6 +696,11 @@ public class NAreasWidget extends Window
 
                 };
             }
+        }
+
+        // Open the context menu anchored relative to this list row.
+        public void opts( Coord c ) {
+            ensureMenu();
             Widget par = parent;
             Coord pos = c;
             while(par!=null && !(par instanceof GameUI))
@@ -698,6 +709,15 @@ public class NAreasWidget extends Window
                 par = par.parent;
             }
             ui.root.add(menu, pos.add(UI.scale(25,38)));
+        }
+
+        // Open the same context menu at an absolute root-space coordinate
+        // (used when right-clicking the area's name label in the world). The list
+        // row this is invoked on may be detached (its own ui is null), so anchor
+        // on the GameUI's root explicitly.
+        public void optsAt( Coord rootPos ) {
+            ensureMenu();
+            NUtils.getGameUI().ui.root.add(menu, rootPos);
         }
 
         @Override

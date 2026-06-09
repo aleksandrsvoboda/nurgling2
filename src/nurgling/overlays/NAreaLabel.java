@@ -18,6 +18,7 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
     protected Coord3f pos;
     public TexI label = null;
     public TexI sellabel = null;
+    public TexI graylabel = null;
     protected TexI img = null;
     NArea area;
     public Coord sc;
@@ -36,6 +37,7 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
     {
         BufferedImage img = NStyle.openings.render(area.name).img;
         BufferedImage selimg = NStyle.selopenings.render(area.name).img;
+        BufferedImage grayimg = NStyle.disabledopenings.render(area.name).img;
         if(!area.spec.isEmpty()) {
             int iconSize = UI.scale(32);
             BufferedImage first = Specialisation.findSpecialisation(area.spec.get(0).name) == null ? null : Specialisation.findSpecialisation(area.spec.get(0).name).image;
@@ -52,9 +54,11 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
             }
             img = ItemInfo.catimgsh(UI.scale(5), img, first);
             selimg = ItemInfo.catimgsh(UI.scale(5), selimg, first);
+            grayimg = ItemInfo.catimgsh(UI.scale(5), grayimg, first);
         }
         label = new TexI(img);
         sellabel = new TexI(selimg);
+        graylabel = new TexI(grayimg);
     }
 
     @Override
@@ -80,6 +84,10 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
             if(isSelected)
             {
                 g.aimage(sellabel, sc, 0.5, 0.5);
+            }
+            else if(area.hide && graylabel != null)
+            {
+                g.aimage(graylabel, sc, 0.5, 0.5);
             }
             else {
                 g.aimage(label, sc, 0.5, 0.5);
