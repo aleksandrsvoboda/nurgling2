@@ -595,47 +595,11 @@ public class NInventory extends Inventory
         positionTitleBarButtons();
     }
 
-    private static final TexI[] gildingi = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/gilding/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/gilding/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/gilding/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/gilding/dh"))};
-
-    private static final TexI[] vari = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/var/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/var/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/var/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/var/dh"))};
-
-    private static final TexI[] stacki = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/stack/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/stack/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/stack/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/stack/dh"))};
-
-    private static final TexI[] autoflower = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autoflower/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autoflower/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autoflower/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autoflower/dh"))};
-
-    private static final TexI[] autosplittor = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autosplittor/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autosplittor/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autosplittor/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/autosplittor/dh"))};
-
     private static final TexI[] bundlei = new TexI[]{
             new TexI(Resource.loadsimg("nurgling/hud/buttons/bundle/u")),
             new TexI(Resource.loadsimg("nurgling/hud/buttons/bundle/d")),
             new TexI(Resource.loadsimg("nurgling/hud/buttons/bundle/h")),
             new TexI(Resource.loadsimg("nurgling/hud/buttons/bundle/dh"))};
-
-    private static final TexI[] numberi = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/numbering/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/numbering/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/numbering/h")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/numbering/dh"))};
 
     private static final TexI[] dropperi = new TexI[]{
             new TexI(Resource.loadsimg("nurgling/hud/buttons/dropper/u")),
@@ -886,7 +850,13 @@ public class NInventory extends Inventory
         rightPanel.visible = false;
         parent.add(rightPanel, new Coord(sz.x + gap, 0));
 
-        // Setup right panel contents (toggle buttons, dropdowns, item list)
+        // Apply persisted inventory display preferences to the static overlay flags.
+        // These were previously toggled from the inventory panel; they now live in QoL.
+        Slotted.show = (Boolean) NConfig.get(NConfig.Key.showGilding);
+        Stack.show = (Boolean) NConfig.get(NConfig.Key.showStackOverlay);
+        NFoodInfo.show = (Boolean) NConfig.get(NConfig.Key.showVarity);
+
+        // Setup right panel contents (dropdowns, item list)
         setupRightPanel();
 
         // --- Search panel (below inventory, initially hidden) ---
@@ -1070,97 +1040,20 @@ public class NInventory extends Inventory
         int sortRowH = nameSortBtn.sz.y + elementGap;
         itemListSimplifiedY = margin + sortRowH;
 
-        // --- Row 1: Toggle buttons (all 7 in one line) ---
-        int btnX = margin;
-        Widget pw;
-
-        pw = rightPanel.add(new ICheckBox(gildingi[0], gildingi[1], gildingi[2], gildingi[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                Slotted.show = val;
-            }
-        }, new Coord(btnX, y));
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/gilding/u").flayer(Resource.tooltip).text());
-        ((ICheckBox) pw).a = Slotted.show;
-        expandedOnlyWidgets.add(pw);
-
-        btnX += pw.sz.x + elementGap;
-        pw = rightPanel.add(new ICheckBox(vari[0], vari[1], vari[2], vari[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                NFoodInfo.show = val;
-                NConfig.set(NConfig.Key.showVarity, val);
-            }
-        }, new Coord(btnX, y));
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/var/u").flayer(Resource.tooltip).text());
-        NFoodInfo.show = (Boolean) NConfig.get(NConfig.Key.showVarity);
-        ((ICheckBox) pw).a = NFoodInfo.show;
-        expandedOnlyWidgets.add(pw);
-
-        btnX += pw.sz.x + elementGap;
-        pw = rightPanel.add(new ICheckBox(numberi[0], numberi[1], numberi[2], numberi[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                NConfig.set(NConfig.Key.showInventoryNums, val);
-            }
-        }, new Coord(btnX, y));
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/numbering/u").flayer(Resource.tooltip).text());
-        ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.showInventoryNums);
-        expandedOnlyWidgets.add(pw);
-
-        btnX += pw.sz.x + elementGap;
-        pw = rightPanel.add(new ICheckBox(stacki[0], stacki[1], stacki[2], stacki[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                Stack.show = val;
-            }
-        }, new Coord(btnX, y));
-        ((ICheckBox) pw).a = Stack.show;
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/stack/u").flayer(Resource.tooltip).text());
-        expandedOnlyWidgets.add(pw);
-
-        // Continue on same row: bundle, autoflower, autosplitter
-        btnX += pw.sz.x + elementGap;
-        bundle = rightPanel.add(new ICheckBox(bundlei[0], bundlei[1], bundlei[2], bundlei[3]) {
+        // Bundle (automatic stacking) state holder. The on-screen toggle was moved
+        // out of the inventory; this checkbox is no longer added to the panel, but its
+        // .a field is still synced from MenuGrid and read as live state by bots and
+        // NUtils.stackSwitch (via pagBundle). Stacking is toggled through the native
+        // game bundle button now.
+        bundle = new ICheckBox(bundlei[0], bundlei[1], bundlei[2], bundlei[3]) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
                 pagBundle.use(new MenuGrid.Interaction(1, 0));
             }
-        }, new Coord(btnX, y));
-        bundle.settip(Resource.remote().loadwait("nurgling/hud/buttons/bundle/u").flayer(Resource.tooltip).text());
-        expandedOnlyWidgets.add(bundle);
+        };
 
-        btnX += bundle.sz.x + elementGap;
-        pw = rightPanel.add(new ICheckBox(autoflower[0], autoflower[1], autoflower[2], autoflower[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                NConfig.set(NConfig.Key.autoFlower, val);
-            }
-        }, new Coord(btnX, y));
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/autoflower/u").flayer(Resource.tooltip).text());
-        ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.autoFlower);
-        expandedOnlyWidgets.add(pw);
-
-        btnX += pw.sz.x + elementGap;
-        pw = rightPanel.add(new ICheckBox(autosplittor[0], autosplittor[1], autosplittor[2], autosplittor[3]) {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                NConfig.set(NConfig.Key.autoSplitter, val);
-            }
-        }, new Coord(btnX, y));
-        pw.settip(Resource.remote().loadwait("nurgling/hud/buttons/autosplittor/u").flayer(Resource.tooltip).text());
-        ((ICheckBox) pw).a = (Boolean) NConfig.get(NConfig.Key.autoSplitter);
-        expandedOnlyWidgets.add(pw);
-
-        // --- Row 3: Dropdowns (grouping, display type, quality filter) ---
-        y += pw.sz.y + UI.scale(8);
+        // --- Row 1: Dropdowns (grouping, display type, quality filter) ---
         int dropX = margin;
 
         int groupingW = UI.scale(85);

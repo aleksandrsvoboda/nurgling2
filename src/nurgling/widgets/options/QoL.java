@@ -56,6 +56,12 @@ public class QoL extends Panel {
     private CheckBox treeHarvestBoughs;
     private CheckBox treeHarvestBark;
     private CheckBox syncCamera;
+    private CheckBox invGilding;
+    private CheckBox invVarOverlay;
+    private CheckBox invSlotNumbers;
+    private CheckBox invStackOverlay;
+    private CheckBox invAutoAction;
+    private CheckBox invAutoSplit;
     private TextEntry treeScaleMinThresholdEntry;
     private HSlider treeDisplayScaleSlider;
     private Label treeDisplayScaleLabel;
@@ -296,6 +302,14 @@ public class QoL extends Panel {
         rightPrev = randomAreaColor = rightColumn.add(new CheckBox(L10n.get("qol.random_area_color")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = syncCamera = rightColumn.add(new CheckBox("Sync camera across sessions"), rightPrev.pos("bl").adds(0, 5));
 
+        rightPrev = rightColumn.add(new Label("● " + L10n.get("qol.section.inventory")), rightPrev.pos("bl").adds(0, 15));
+        rightPrev = invGilding = rightColumn.add(new CheckBox(L10n.get("qol.inv_gilding_overlay")), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = invVarOverlay = rightColumn.add(new CheckBox(L10n.get("qol.inv_var_overlay")), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = invSlotNumbers = rightColumn.add(new CheckBox(L10n.get("qol.inv_slot_numbers")), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = invStackOverlay = rightColumn.add(new CheckBox(L10n.get("qol.inv_stack_overlay")), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = invAutoAction = rightColumn.add(new CheckBox(L10n.get("qol.inv_auto_action")), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = invAutoSplit = rightColumn.add(new CheckBox(L10n.get("qol.inv_auto_split")), rightPrev.pos("bl").adds(0, 5));
+
         rightPrev = rightColumn.add(new Label("● " + L10n.get("qol.section.debug")), rightPrev.pos("bl").adds(0, 15));
         rightPrev = debug = rightColumn.add(new CheckBox(L10n.get("qol.debug")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = printpfmap = rightColumn.add(new CheckBox(L10n.get("qol.printpfmap")), rightPrev.pos("bl").adds(0, 5));
@@ -376,6 +390,13 @@ public class QoL extends Panel {
         treeHarvestBoughs.a = getBool(NConfig.Key.treeHarvestBoughs);
         treeHarvestBark.a = getBool(NConfig.Key.treeHarvestBark);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
+
+        invGilding.a = getBool(NConfig.Key.showGilding);
+        invVarOverlay.a = getBool(NConfig.Key.showVarity);
+        invSlotNumbers.a = getBool(NConfig.Key.showInventoryNums);
+        invStackOverlay.a = getBool(NConfig.Key.showStackOverlay);
+        invAutoAction.a = getBool(NConfig.Key.autoFlower);
+        invAutoSplit.a = getBool(NConfig.Key.autoSplitter);
 
         Object treeScalePref = NConfig.get(NConfig.Key.treeDisplayScale);
         int treeScaleValue = 100;
@@ -655,6 +676,20 @@ public class QoL extends Panel {
                 NUtils.showHideNature();
             }
         }
+
+        // Inventory overlays / behavior (moved out of the inventory window).
+        // For the three overlay flags backed by static fields, mirror the value so
+        // the change takes effect immediately without reopening inventories.
+        NConfig.set(NConfig.Key.showGilding, invGilding.a);
+        haven.res.ui.tt.slot.Slotted.show = invGilding.a;
+        NConfig.set(NConfig.Key.showVarity, invVarOverlay.a);
+        nurgling.iteminfo.NFoodInfo.show = invVarOverlay.a;
+        NConfig.set(NConfig.Key.showInventoryNums, invSlotNumbers.a);
+        NConfig.set(NConfig.Key.showStackOverlay, invStackOverlay.a);
+        haven.res.ui.tt.stackn.Stack.show = invStackOverlay.a;
+        NConfig.set(NConfig.Key.autoFlower, invAutoAction.a);
+        NConfig.set(NConfig.Key.autoSplitter, invAutoSplit.a);
+
         NConfig.needUpdate();
     }
 
