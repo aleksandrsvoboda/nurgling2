@@ -260,20 +260,35 @@ public class AreaService {
     }
 
     public CompletableFuture<Integer> exportAreasToDatabaseAsync(Map<Integer, NArea> areas, String profile) {
-        List<NArea> areasCopy = new ArrayList<>(areas.values());
-        return databaseManager.executeWithRetry(adapter -> {
+        final List<NArea> areasCopy = new ArrayList<>(areas.values());
+        // NOTE: do NOT wrap this loop in executeWithRetry / executeOperation.
+        // saveArea() internally calls databaseManager.executeOperation(), which
+        // borrows a connection. Wrapping that in an outer executeOperation
+        // produces NESTED borrows on the same thread; on SQLite (pool size 1)
+        // the inner borrow self-deadlocks until BORROW_TIMEOUT_MS expires and
+        // every save silently fails.
+        return CompletableFuture.supplyAsync(() -> {
             int count = 0;
+            SQLException firstError = null;
             for (NArea area : areasCopy) {
-                // Re-enter through the higher-level API so OCC + merge is applied per row.
                 try {
                     saveArea(area, profile);
+                    count++;
                 } catch (SQLException e) {
-                    throw e;
+                    if (firstError == null) firstError = e;
+                    System.err.println("Area save failed for id=" + area.id
+                        + " (" + area.name + "): " + e.getMessage());
+                    // continue: other areas can still save; this one stays
+                    // dirty and will retry on the next debounce.
                 }
-                count++;
+            }
+            if (firstError != null) {
+                // Propagate so NConfig's exceptionally handler re-arms the
+                // debounce flag and we retry on the next tick.
+                throw new RuntimeException(firstError);
             }
             return count;
-        }, "Export " + areasCopy.size() + " areas");
+        });
     }
 
     // -------------------- Periodic sync poll --------------------
