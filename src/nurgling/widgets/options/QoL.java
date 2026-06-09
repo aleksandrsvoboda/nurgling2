@@ -60,7 +60,6 @@ public class QoL extends Panel {
     private CheckBox invVarOverlay;
     private CheckBox invSlotNumbers;
     private CheckBox invStackOverlay;
-    private CheckBox invAutoAction;
     private CheckBox invAutoSplit;
     private TextEntry treeScaleMinThresholdEntry;
     private HSlider treeDisplayScaleSlider;
@@ -307,7 +306,6 @@ public class QoL extends Panel {
         rightPrev = invVarOverlay = rightColumn.add(new CheckBox(L10n.get("qol.inv_var_overlay")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = invSlotNumbers = rightColumn.add(new CheckBox(L10n.get("qol.inv_slot_numbers")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = invStackOverlay = rightColumn.add(new CheckBox(L10n.get("qol.inv_stack_overlay")), rightPrev.pos("bl").adds(0, 5));
-        rightPrev = invAutoAction = rightColumn.add(new CheckBox(L10n.get("qol.inv_auto_action")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = invAutoSplit = rightColumn.add(new CheckBox(L10n.get("qol.inv_auto_split")), rightPrev.pos("bl").adds(0, 5));
 
         rightPrev = rightColumn.add(new Label("● " + L10n.get("qol.section.debug")), rightPrev.pos("bl").adds(0, 15));
@@ -395,7 +393,6 @@ public class QoL extends Panel {
         invVarOverlay.a = getBool(NConfig.Key.showVarity);
         invSlotNumbers.a = getBool(NConfig.Key.showInventoryNums);
         invStackOverlay.a = getBool(NConfig.Key.showStackOverlay);
-        invAutoAction.a = getBool(NConfig.Key.autoFlower);
         invAutoSplit.a = getBool(NConfig.Key.autoSplitter);
 
         Object treeScalePref = NConfig.get(NConfig.Key.treeDisplayScale);
@@ -687,7 +684,6 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.showInventoryNums, invSlotNumbers.a);
         NConfig.set(NConfig.Key.showStackOverlay, invStackOverlay.a);
         haven.res.ui.tt.stackn.Stack.show = invStackOverlay.a;
-        NConfig.set(NConfig.Key.autoFlower, invAutoAction.a);
         NConfig.set(NConfig.Key.autoSplitter, invAutoSplit.a);
 
         NConfig.needUpdate();

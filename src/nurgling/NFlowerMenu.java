@@ -26,6 +26,10 @@ public class NFlowerMenu extends FlowerMenu
 
     int len = 0;
     public boolean shiftMode = false;
+    // Whether ctrl was held when this menu was opened (the originating right-click).
+    // Captured at construction because the user releases ctrl before picking a petal.
+    // Used to trigger the auto action selector (apply chosen action to all matching items).
+    public boolean ctrlMode = false;
 
     public NFlowerMenu(String[] opts, UI ui)
     {
@@ -34,6 +38,7 @@ public class NFlowerMenu extends FlowerMenu
         // thread which has no ThreadLocalUI, so NUtils.getGameUI() would return the
         // wrong (active visual) session's GUI or null, causing NPE or cross-session state.
         shiftMode = ui.gui != null && ui.gui.map instanceof NMapView && ((NMapView) ui.gui.map).shiftPressed;
+        ctrlMode = ui.modctrl;
         initOpts(opts);
     }
 
@@ -43,6 +48,7 @@ public class NFlowerMenu extends FlowerMenu
         super();
         NGameUI gui = NUtils.getGameUI();
         shiftMode = gui != null && gui.map instanceof NMapView && ((NMapView) gui.map).shiftPressed;
+        ctrlMode = gui != null && gui.ui != null && gui.ui.modctrl;
         initOpts(opts);
     }
 
@@ -113,7 +119,7 @@ public class NFlowerMenu extends FlowerMenu
                 }
             }
         }
-        if(!ui.modshift && !NUtils.getUI().core.isBotmod() && (Boolean)NConfig.get(NConfig.Key.autoFlower))
+        if(!ui.modshift && !NUtils.getUI().core.isBotmod() && ctrlMode)
         {
             if (option != null && NUtils.getUI().core.getLastActions()!=null)
             {

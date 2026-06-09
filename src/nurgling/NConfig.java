@@ -31,7 +31,6 @@ public class NConfig
         minimapVilol, minimapClaimol, minimapRealmol,
         selectedWorld,
         showVarity,
-        autoFlower,
         autoSplitter,
         showGilding,
         showStackOverlay,
@@ -240,7 +239,6 @@ public class NConfig
         conf.put(Key.minimapRealmol, false);
         conf.put(Key.selectedWorld, null);
         conf.put(Key.showVarity, false);
-        conf.put(Key.autoFlower, false);
         conf.put(Key.autoSplitter, false);
         conf.put(Key.showGilding, false);
         conf.put(Key.showStackOverlay, true);
