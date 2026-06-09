@@ -320,6 +320,8 @@ public abstract class UILoop implements Console.Directory {
 	synchronized(ui) {
 	    ui.draw(g);
 	}
+	/* nurgling: always-on FPS counter (was in GLPanel.display, bottom-left). */
+	FastText.aprintf(g, new Coord(10, g.sz().y - UI.scale(10)), 0, 1, "FPS: %d", fps);
 	if(dbtext.get())
 	    drawstats(ui, g, buf);
 	drawtooltip(ui, g);

@@ -101,6 +101,12 @@ public class Requestor implements Action {
                 if (task.isExpired()) {
                     continue;
                 }
+                // GameUI may be transiently null on this background thread during
+                // login / session transitions; skip the task until it is ready.
+                NGameUI rgui = NUtils.getGameUI();
+                if (rgui == null || rgui.map == null || rgui.map.glob == null) {
+                    continue;
+                }
                 switch (task.type) {
                     case "reqGrid": {
                         String[][] gridMap = NUtils.getGameUI().map.glob.map.constructSection((Coord)task.args[0]);
