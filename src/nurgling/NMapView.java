@@ -155,7 +155,7 @@ public class NMapView extends MapView
     public NMarkerLineOverlay markerLineOverlay = null;
     private RenderTree.Slot markerLineSlot = null;
 
-    public static boolean hitNWidgetsInfo(Coord pc) {
+    public static boolean hitNWidgetsInfo(Coord pc, int button) {
         boolean isFound = false;
         NMapView mapView = (NMapView)NUtils.getGameUI().map;
         synchronized (mapView.dummys) {
@@ -179,6 +179,11 @@ public class NMapView extends MapView
                                     NUtils.getGameUI().areas.al.sel = ai;
                                     NUtils.getGameUI().areas.al.display(ai);
                                     NUtils.getGameUI().areas.select(area.id);
+                                    // Right-click on the world label opens the same
+                                    // context menu as right-clicking the list row.
+                                    if(button == 3) {
+                                        ai.optsAt(NUtils.getUI().mc);
+                                    }
                                     break;
                                 }
                             }
@@ -341,7 +346,7 @@ public class NMapView extends MapView
 
     public void createAreaLabel(Integer id) {
         NArea area = glob.map.areas.get(id);
-        Pair<Coord2d,Coord2d> space = area.getRCArea();
+        Pair<Coord2d,Coord2d> space = area.getRCArea(false);
 
         if(space!=null)
         {

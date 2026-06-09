@@ -2168,7 +2168,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
-		if(NMapView.hitNWidgetsInfo(pc))
+		if(NMapView.hitNWidgetsInfo(pc, clickb))
 			return;
 		if(NMapView.isRecordingRoutePoint) {
 			return;

@@ -343,6 +343,13 @@ public class NArea
 
     public Pair<Coord2d,Coord2d> getRCArea()
     {
+        return getRCArea(true);
+    }
+
+    // respectHide=false computes the geometry even for hidden areas; used to place
+    // the name label so disabled areas can still show a (grayed-out) label.
+    public Pair<Coord2d,Coord2d> getRCArea(boolean respectHide)
+    {
         if(isVisible())
         {
             Coord begin = null;
@@ -351,7 +358,7 @@ public class NArea
             for (Long id : space.space.keySet())
             {
                 MCache.Grid grid = NUtils.getGameUI().map.glob.map.findGrid(id);
-                if(grid==null || hide)
+                if(grid==null || (respectHide && hide))
                     return null;
                 Area area = space.space.get(id).area;
                 Coord b = area.ul.add(grid.ul);
