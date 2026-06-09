@@ -46,7 +46,7 @@ public class Client implements Console.Directory {
     public Client(Toolkit tk) {
 	this.tk = tk;
 	this.wnd = tk.window();
-	wnd.title("Haven & Hearth");
+	wnd.title("Haven & Hearth (Nurgling II)");
 	Coord fsz = Utils.getprefc("mainwnd/locksize", null);
 	if(fsz == null)
 	    wnd.sizing(new Windeye.Sizing().minsize(UI.scale(800, 600)).normsize(Utils.getprefc("mainwnd/size", UI.scale(1024, 768))));
@@ -194,9 +194,9 @@ public class Client implements Console.Directory {
 		    fun = nurgling.sessions.NBootstrap.create();
 		String t= fun.title();
 		if(t == null)
-		    wnd.title("Haven & Hearth");
+		    wnd.title("Haven & Hearth (Nurgling II)");
 		else
-		    wnd.title("Haven & Hearth \u2013 " + t);
+		    wnd.title("Haven & Hearth (Nurgling II) \u2013 " + t);
 		fun = fun.run(newui(fun));
 	    }
 	}
