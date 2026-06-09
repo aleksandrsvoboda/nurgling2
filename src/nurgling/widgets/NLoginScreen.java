@@ -80,7 +80,7 @@ public class NLoginScreen extends LoginScreen
             @Override
             public void click() {
                 try {
-                    WebBrowser.sshow(new URL("https://discord.com/invite/3YF5yaKKPn"));
+                    ui.wnd.toolkit().browse(java.net.URI.create("https://discord.com/invite/3YF5yaKKPn"));
                 } catch (Exception e) {
                     System.err.println("[NLoginScreen] Failed to open Discord link: " + e.getMessage());
                 }

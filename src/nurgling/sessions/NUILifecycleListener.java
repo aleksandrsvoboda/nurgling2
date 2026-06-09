@@ -18,11 +18,11 @@ public class NUILifecycleListener implements UILifecycleListener {
      *
      * @param runner The runner that will use the UI (e.g., NRemoteUI)
      * @param currentUI The current UI (may be null)
-     * @param panel The UIPanel creating the UI
+     * @param loop The UILoop creating the UI
      * @return non-null UI to reuse, null to create new
      */
     @Override
-    public UI beforeNewUI(UI.Runner runner, UI currentUI, UIPanel panel) {
+    public UI beforeNewUI(UI.Runner runner, UI currentUI, UILoop loop) {
         if (runner instanceof NRemoteUI) {
             NRemoteUI nrui = (NRemoteUI) runner;
             SessionManager sm = SessionManager.getInstance();
@@ -33,8 +33,8 @@ public class NUILifecycleListener implements UILifecycleListener {
                 NUI existingUI = ctx.ui;
 
                 // Update the GL environment for rendering
-                if (panel instanceof GLPanel) {
-                    existingUI.env = ((GLPanel) panel).env();
+                if (loop != null) {
+                    existingUI.env = loop.env;
                 }
 
                 // Set as the global UI instance
@@ -98,10 +98,10 @@ public class NUILifecycleListener implements UILifecycleListener {
      * Called when a new session is requested (e.g., "Add Account" button).
      * We demote the current session to headless to show the login screen.
      *
-     * @param panel The UIPanel handling the request
+     * @param loop The UILoop handling the request
      */
     @Override
-    public void onNewSessionRequested(UIPanel panel) {
+    public void onNewSessionRequested(UILoop loop) {
         SessionManager sm = SessionManager.getInstance();
         NUI currentUI = sm.getActiveUI();
 

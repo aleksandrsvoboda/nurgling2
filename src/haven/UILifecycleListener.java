@@ -35,10 +35,10 @@ public interface UILifecycleListener {
      * Called before creating a new UI.
      * @param runner The runner that will use the UI
      * @param currentUI The current UI (may be null)
-     * @param panel The UIPanel creating the UI
+     * @param loop The UILoop creating the UI
      * @return non-null UI to reuse instead of creating new, null to proceed normally
      */
-    default UI beforeNewUI(UI.Runner runner, UI currentUI, UIPanel panel) {
+    default UI beforeNewUI(UI.Runner runner, UI currentUI, UILoop loop) {
         return null;
     }
 
@@ -54,8 +54,8 @@ public interface UILifecycleListener {
 
     /**
      * Called when a new session is requested (e.g., "Add Account" button).
-     * @param panel The UIPanel handling the request
+     * @param loop The UILoop handling the request
      */
-    default void onNewSessionRequested(UIPanel panel) {
+    default void onNewSessionRequested(UILoop loop) {
     }
 }

@@ -357,9 +357,9 @@ For the next hafen integration:
 
 ---
 
-**Last Updated:** 2026-05-27
-**Last Integration:** hafen-integration-2026-05-v2 (branch off master 55e317e55)
-**Hafen Commits Integrated:** 37 commits (merge-base 20dc6f473 → hafen/master a2043d0d5)
+**Last Updated:** 2026-06-08
+**Last Integration:** hafen-integration-2026-06 (merge commit 9852d1b92, branch off master 7bccf9846)
+**Hafen Commits Integrated:** 159 commits (merge-base a2043d0d5 → hafen/master e16dcf24b)
 
 > Note: The Feb 2026 reference above (57d9570b2 / d58dcb242) is historical and is
 > NOT in the current master's ancestry — a later, undocumented integration brought
@@ -385,3 +385,47 @@ For the next hafen integration:
   automation, normal mode = hafen input-choice.
 - **Verified safe (no nurgling refs):** GSettings `SyncMode` move, profiling-switch removal,
   `SListBox` fine-scroll (internal `cury` int→double, public API unchanged).
+
+### June 2026 integration notes (159 commits — the "iosys" rewrite) — MAJOR
+
+This was hafen's `iosys` branch: a ground-up rewrite of the client I/O layer. Far
+larger than a normal integration. Full port design + recovery info:
+`docs/hafen-integration-2026-06-port-design.md`. Merge commit `9852d1b92`.
+
+- **Architecture change:** `MainFrame`(AWT Frame) + `UIPanel`/`GLPanel`/`JOGLPanel`/
+  `LWJGLPanel` + `UI.Context` were **deleted**, replaced by `Client` +
+  `haven.iosys.tk.Toolkit`/`Windeye` + abstract `UILoop`. `MainFrame` is now a
+  6-line `Client.main()` shim upstream. Panama FFI lives in `opt/panama` (compiled
+  only on JDK ≥ 22 via `has-panama`); the main client still builds on the current JDK.
+- **Conflicts (11):** README, build.xml (kept nurgling Main-Class=MainFrame + extra
+  jars, added hafen-panama.jar + Add-Exports/Enable-Native-Access), Utils
+  (kept public `imgsz` + hafen `initlocale`), GobIcon (imports), UI
+  (`UI.Context`→added `UILoop loop` back-ref; kept get/setInstance; took hafen
+  CommandQueue.drain), OptWnd (took hafen ui-param panels + audio API, re-grafted
+  L10n + nqolwnd), MainFrame, and modify/delete on the 4 panel classes.
+- **The real work (git couldn't flag it — classes vanished):** nurgling's
+  multi-session + headless subsystems were built on the deleted classes.
+  - Added to `UILoop`: a `mkui()` factory (so every loop builds `NUI` not `UI`), a
+    `UI.loop` back-reference, and the multi-session lifecycle hooks
+    (`beforeNewUI`/`afterNewUI`) that formerly lived on `GLPanel.Loop.newui()`.
+  - `MainFrame` rebuilt as a pure nurgling **launcher** (config/l10n/logging/error-
+    handling/headless-dispatch/NBootstrap factory) delegating windowing to `Client`.
+    Kept `MainFrame.config` (NConfig) + `setupres()`→`Client.setupres()` so NCore /
+    HeadlessMain were untouched. Edited the merged `Client.java` in place
+    (Option A): `ClientLoop.mkui()`→`NUI`, `Client.Main`→`NBootstrap.create()`.
+  - Multi-session (`NRemoteUI`/`NUILifecycleListener`/`SessionUIController`/
+    `UILifecycleListener`): retargeted `UIPanel`/`GLPanel`/`ui.getContext()` →
+    `UILoop`/`ui.getLoop()`/`loop.env`.
+  - **Headless rebuilt on hafen infra:** new `NHeadlessLoop extends UILoop` backed by
+    `DummyToolkit.DummyWindow.of(size, new HeadlessEnvironment(), null)`. Kept the
+    GL-free `HeadlessEnvironment`/`HeadlessRender`/… stub (no GPU/Acephal needed —
+    headless never used real GL). Deleted `HeadlessPanel`; `HeadlessMain` drives the
+    loop via `task.run(loop.newui(task))` (UI ctor calls `fun.init`).
+- **Compile-fix ripples after merge (caught by `ant clean`, not incremental):**
+  - Audio rewrite removed static `Audio.play`/`Audio.volume` → `ui.sfx(...)` /
+    `ui.audio.sys.volume()` (NAlarmManager routes through `UI.getInstance()`).
+  - `WebBrowser` deleted → `ui.wnd.toolkit().browse(URI)` (NMappingClient, NLoginScreen).
+- **Deferred (recorded, not lost):** LWJGLPanel's GL-cleanup hardening (shutdown
+  hook / swapBuffers guard / env-dispose). LWJGL-backend only; JOGL is default.
+- **Status:** `ant clean` builds; ancestry verified. Runtime testing (visual login,
+  multi-session switch/demote, headless `-bots`) still pending at time of writing.

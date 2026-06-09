@@ -18,16 +18,16 @@ public class SessionUIController implements SessionManager.SessionChangeListener
 
     private SessionTabBar tabBar;
     private NUI currentUI;
-    private UIPanel panel;
+    private UILoop loop;
 
     /**
      * Initialize the SessionUIController singleton.
      * Should be called once during application startup.
      */
-    public static void initialize(UIPanel panel) {
+    public static void initialize(UILoop loop) {
         if (instance == null) {
             instance = new SessionUIController();
-            instance.panel = panel;
+            instance.loop = loop;
             SessionManager.getInstance().addListener(instance);
         }
     }
@@ -100,10 +100,10 @@ public class SessionUIController implements SessionManager.SessionChangeListener
     }
 
     /**
-     * Get the panel this controller was initialized with.
+     * Get the loop this controller was initialized with.
      */
-    public UIPanel getPanel() {
-        return panel;
+    public UILoop getLoop() {
+        return loop;
     }
 
     // SessionChangeListener implementation

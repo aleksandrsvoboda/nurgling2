@@ -1,6 +1,7 @@
 package nurgling;
 
 import haven.*;
+import haven.iosys.tk.*;
 import haven.render.Render;
 import nurgling.sessions.ThreadLocalUI;
 import nurgling.widgets.*;
@@ -93,13 +94,14 @@ public class NUI extends UI
     /**
      * Constructor for NUI.
      *
-     * @param uictx The context for the UI.
+     * @param wnd   The toolkit window backing the UI.
+     * @param audio The audio root for the UI.
      * @param sz    The size of the UI.
      * @param fun   The runner function for the UI.
      */
-    public NUI(Context uictx, Coord sz, Runner fun)
+    public NUI(Windeye wnd, Audio.Root audio, Coord sz, Runner fun)
     {
-        super(uictx, sz, fun);
+        super(wnd, audio, sz, fun);
         if (fun != null)
         {
             root.add(core = new NCore());

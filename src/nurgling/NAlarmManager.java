@@ -2,6 +2,7 @@ package nurgling;
 
 import haven.Audio;
 import haven.Resource;
+import haven.UI;
 
 import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -20,7 +21,10 @@ public class NAlarmManager {
         if (startTick > NUtils.getTickId())
             startTick = 0;
         if (last!=null && !last.equals(resName) || NUtils.getTickId() - startTick > duration) {
-            Audio.play(Audio.fromres(Resource.local().loadwait(resName)));
+            // Audio is now per-UI (no global player); play through the active UI.
+            NUI ui = UI.getInstance();
+            if (ui != null)
+                ui.sfx(Audio.fromres(Resource.local().loadwait(resName)));
             last = resName;
             startTick = NUtils.getTickId();
         }
