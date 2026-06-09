@@ -31,8 +31,9 @@ public class NConfig
         minimapVilol, minimapClaimol, minimapRealmol,
         selectedWorld,
         showVarity,
-        autoFlower,
         autoSplitter,
+        showGilding,
+        showStackOverlay,
         autoDropper,
         is_real_time,
         baseurl,
@@ -238,8 +239,9 @@ public class NConfig
         conf.put(Key.minimapRealmol, false);
         conf.put(Key.selectedWorld, null);
         conf.put(Key.showVarity, false);
-        conf.put(Key.autoFlower, false);
         conf.put(Key.autoSplitter, false);
+        conf.put(Key.showGilding, false);
+        conf.put(Key.showStackOverlay, true);
         conf.put(Key.autoDropper, false);
         conf.put(Key.is_real_time, true);
         conf.put(Key.numbelts, 3);
