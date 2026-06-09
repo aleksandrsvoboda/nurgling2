@@ -211,7 +211,7 @@ public class Specialisation extends Window
         specialisation.add(new SpecialisationItem(SpecName.soilDump.toString(),"Soil Dump (paved)",Resource.loadsimg("nurgling/categories/tsoil")));
 
         // Stone paving zone (subtype = stone type to lay, e.g. Soapstone, Diabase)
-        specialisation.add(new SpecialisationItem(SpecName.paving.toString(),"Stone Paving",Resource.loadsimg("nurgling/categories/consmaterials")));
+        specialisation.add(new SpecialisationItem(SpecName.paving.toString(),"Stone Paving",Resource.loadsimg("nurgling/categories/paving")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
