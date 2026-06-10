@@ -335,9 +335,19 @@ public class NCore extends Widget
         {
             config.write();
         }
-        if (config.isAreasUpdated())
+        // Area-save trigger is now per-session: check THIS session's own MCache
+        // dirty flag (not the genus-shared NConfig) so a same-world session can't
+        // clear our flag before our edit is written.
+        if (ui != null && ui.gui != null && ui.gui.map != null)
         {
-            config.writeAreas(null);
+            nurgling.NMapView amap = (nurgling.NMapView) ui.gui.map;
+            if (amap.glob.map.isAreasUpdated())
+            {
+                config.writeAreas(null);
+            }
+            // File mode: pick up area edits another in-process session wrote to
+            // the shared per-genus file (no-op in DB mode, which uses the sync worker).
+            amap.reloadAreasFromFileIfChanged();
         }
         if (config.isExploredUpdated())
         {

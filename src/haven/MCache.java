@@ -77,7 +77,7 @@ public class MCache implements MapSource {
     /**
      * Get the appropriate areas path based on current profile context
      */
-    private String getAreasPath() {
+    public String getAreasPath() {
         try {
             // Try to get the current genus from NGameUI if available
             String genus = getCurrentGenus();
@@ -113,6 +113,37 @@ public class MCache implements MapSource {
 
 	public boolean areasLoaded = false;
 
+	// Per-session area-save dirty tracking. Lives here (on the per-session
+	// MCache), NOT on the genus-shared NConfig, so that two same-world sessions
+	// in one client don't share - and clobber - each other's save trigger.
+	// Each session persists its own edited areas map.
+	public volatile boolean isAreasUpd = false;
+	public volatile long lastAreasChangeTime = 0;
+	private static final long AREAS_DEBOUNCE_MS = 3000; // 3s debounce, batches rapid edits
+
+	// File mode only: mtime of the shared per-genus areas file at last load/save.
+	// Used to detect edits another in-process session wrote to the same file so
+	// this session can self-reload (DB mode uses the sync worker instead).
+	public volatile long areasFileMtime = 0;
+
+	public void markAreasDirty() {
+		this.isAreasUpd = true;
+		this.lastAreasChangeTime = System.currentTimeMillis();
+	}
+
+	public void clearAreasDirty() {
+		this.isAreasUpd = false;
+		this.lastAreasChangeTime = 0;
+	}
+
+	/** True when areas changed locally AND the debounce window has elapsed. */
+	public boolean isAreasUpdated() {
+		if (isAreasUpd && lastAreasChangeTime > 0) {
+			return System.currentTimeMillis() - lastAreasChangeTime >= AREAS_DEBOUNCE_MS;
+		}
+		return false;
+	}
+
 	void init()
 	{
 		// Delay areas loading until genus is available
@@ -136,6 +167,8 @@ public class MCache implements MapSource {
 
 		// DB not enabled - load from file (legacy support)
 		String areasPath = getAreasPath();
+		try { areasFileMtime = new java.io.File(areasPath).lastModified(); }
+		catch (Exception e) { areasFileMtime = 0; }
 
 		String content = NFileUtils.readWithBackupFallback(areasPath);
 		if (content != null && !content.isEmpty())
