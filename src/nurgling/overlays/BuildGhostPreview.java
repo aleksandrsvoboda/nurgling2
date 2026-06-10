@@ -183,7 +183,6 @@ public class BuildGhostPreview extends GAttrib {
     }
 
     public void dispose() {
-        System.out.println("[BuildGhostPreview] dispose() called, removing " + ghostGobs.size() + " ghosts");
         List<Gob> toRemove;
         synchronized (ghostGobs) {
             toRemove = new ArrayList<>(ghostGobs);
@@ -191,7 +190,6 @@ public class BuildGhostPreview extends GAttrib {
         }
         
         if (toRemove.isEmpty()) {
-            System.out.println("[BuildGhostPreview] No ghosts to remove");
             return;
         }
         
@@ -220,8 +218,6 @@ public class BuildGhostPreview extends GAttrib {
                 return null;
             });
         }
-        
-        System.out.println("[BuildGhostPreview] dispose() completed");
     }
 
     /**
@@ -266,7 +262,6 @@ public class BuildGhostPreview extends GAttrib {
                 positions.add(ghost.rc);
             }
         }
-        System.out.println("[BuildGhostPreview] getGhostPositions() returning " + positions.size() + " positions");
         return positions;
     }
     
@@ -295,7 +290,6 @@ public class BuildGhostPreview extends GAttrib {
 
     public void removeGhost(Coord2d pos) {
         synchronized (ghostGobs) {
-            System.out.println("[BuildGhostPreview] removeGhost called for position: " + pos + ", total ghosts: " + ghostGobs.size());
             Gob toRemove = null;
             double minDist = Double.MAX_VALUE;
             // Find the closest ghost within tolerance
@@ -308,7 +302,6 @@ public class BuildGhostPreview extends GAttrib {
             }
             if (toRemove != null) {
                 ghostGobs.remove(toRemove);
-                System.out.println("[BuildGhostPreview] Removed ghost at " + toRemove.rc + " (dist=" + minDist + "), remaining: " + ghostGobs.size());
                 try {
                     glob.oc.remove(toRemove);
                 } catch (Exception e) {

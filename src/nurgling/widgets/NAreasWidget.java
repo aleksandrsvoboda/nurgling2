@@ -233,7 +233,10 @@ public class NAreasWidget extends Window
     @Override
     public void show()
     {
-        showPath(currentPath);
+        // Preserve any active search when the window reappears (e.g. after "Select area
+        // space"). updateFilteredList() falls back to showPath(currentPath) when the query
+        // is empty, so the no-search case is unchanged.
+        updateFilteredList();
         super.show();
     }
 
@@ -1115,7 +1118,8 @@ public class NAreasWidget extends Window
     public boolean show(boolean show) {
         if(show)
         {
-            showPath(currentPath);
+            // Preserve any active search on re-show (see show()).
+            updateFilteredList();
             ((NMapView)NUtils.getGameUI().map).initDummys();
         }
         return super.show(show);
