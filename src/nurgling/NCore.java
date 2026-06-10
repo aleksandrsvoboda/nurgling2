@@ -335,7 +335,12 @@ public class NCore extends Widget
         {
             config.write();
         }
-        if (config.isAreasUpdated())
+        // Area-save trigger is now per-session: check THIS session's own MCache
+        // dirty flag (not the genus-shared NConfig) so a same-world session can't
+        // clear our flag before our edit is written.
+        haven.MCache areaCache = (ui != null && ui.gui != null && ui.gui.map != null)
+            ? ((nurgling.NMapView) ui.gui.map).glob.map : null;
+        if (areaCache != null && areaCache.isAreasUpdated())
         {
             config.writeAreas(null);
         }
