@@ -340,6 +340,54 @@ public class NMapView extends MapView
         }
     }
 
+    private long lastAreasReloadCheck = 0;
+
+    /**
+     * File mode only: if another in-process session wrote area edits to the
+     * shared per-genus areas file, reload this session's in-memory map + labels
+     * so the change propagates. No-op in DB mode (the sync worker handles that)
+     * and throttled to once per second. Called from NCore.tick per session.
+     */
+    public void reloadAreasFromFileIfChanged()
+    {
+        if ((Boolean) NConfig.get(NConfig.Key.ndbenable)) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastAreasReloadCheck < 1000) return;
+        lastAreasReloadCheck = now;
+
+        String path = glob.map.getAreasPath();
+        if (path == null) return;
+        long mtime;
+        try { mtime = new java.io.File(path).lastModified(); }
+        catch (Exception e) { return; }
+        if (mtime == glob.map.areasFileMtime) return; // unchanged since our last load/save
+
+        // Another session changed the shared file - rebuild our map and labels.
+        synchronized (glob.map.areas) {
+            destroyDummys();
+            glob.map.areas.clear();
+            glob.map.areasLoaded = false;
+            glob.map.loadAreasIfNeeded();
+            initDummys();
+        }
+        glob.map.areasFileMtime = mtime;
+
+        // Refresh region overlays + the areas widget (mirrors DatabaseSettings.refreshAreasUI).
+        if (nols != null) {
+            for (NOverlay o : nols.values()) {
+                if (o != null) o.requpdate2 = true;
+            }
+        }
+        try {
+            if (NUtils.getGameUI() != null && NUtils.getGameUI().areas != null
+                && NUtils.getGameUI().areas.al != null) {
+                NUtils.getGameUI().areas.showPath(NUtils.getGameUI().areas.currentPath);
+            }
+        } catch (Exception ignore) {}
+        System.out.println("Areas reloaded from file (changed by another session)");
+    }
+
     public void initRouteDummys(int id) {
         destroyRouteDummys();
     }

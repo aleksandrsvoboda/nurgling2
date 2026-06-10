@@ -1304,8 +1304,13 @@ public class NConfig
             }
 
             // DB not enabled - write to file
-            writeAreasToFile(getAreasPath());
+            String areasPath = getAreasPath();
+            writeAreasToFile(areasPath);
             mcache.clearAreasDirty();
+            // Record the mtime we just wrote so our own write isn't mistaken for
+            // another session's edit on the next reload check.
+            try { mcache.areasFileMtime = new java.io.File(areasPath).lastModified(); }
+            catch (Exception e) { /* leave mtime as-is */ }
         }
     }
 
