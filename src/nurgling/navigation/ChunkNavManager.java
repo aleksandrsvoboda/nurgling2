@@ -481,10 +481,6 @@ public class ChunkNavManager {
 
     /**
      * Fast check: is there a chunk-level path from the player's chunk to any of the area's chunks?
-     * Uses BFS through neighbor/portal connections. If this returns false, tile-level A* will also fail.
-     */
-    /**
-     * Fast check: is there a chunk-level path from the player's chunk to any of the area's chunks?
      * Uses BFS through connectedChunks and portal connections.
      * If this returns false, tile-level A* will also fail.
      */
@@ -513,7 +509,10 @@ public class ChunkNavManager {
             if (playerGrid == null) return false;
             long playerChunkId = playerGrid.id;
             if (targetChunks.contains(playerChunkId)) return true;
-            if (graph.getChunk(playerChunkId) == null) return false;
+            // Player's chunk isn't recorded yet (just entered, teleported, or within the
+            // record throttle window). Don't prune here — fall through to the full pathfinder,
+            // which calls forceRecordVisibleGrids() before searching and can still find a path.
+            if (graph.getChunk(playerChunkId) == null) return true;
 
             // BFS from player chunk through connectedChunks and portals
             Set<Long> visited = new HashSet<>();
