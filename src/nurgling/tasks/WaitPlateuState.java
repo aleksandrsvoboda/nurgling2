@@ -29,20 +29,19 @@ public class WaitPlateuState extends NTask
     @Override
     public boolean check()
     {
-        int space = NUtils.getGameUI().getInventory().calcFreeSpace();
-        if(space <= 1 && space >= 0)
-        {
-            state = State.TIMEFORPILE;
+        if (NUtils.getEnergy() < 0.36) {
+            if (prop.autoeat)
+                state = State.BUMLINGFOREAT;
+            if (NUtils.getEnergy() < 0.23)
+                state = State.DANGER;
         }
-        else {
-            if (NUtils.getEnergy() < 0.36) {
-                if (prop.autoeat)
-                    state = State.BUMLINGFOREAT;
-                if (NUtils.getEnergy() < 0.23)
-                    state = State.DANGER;
-            }
-            if (NUtils.getStamina() <= 0.45) {
-                state = State.BUMLINGFORDRINK;
+        if (NUtils.getStamina() <= 0.45) {
+            state = State.BUMLINGFORDRINK;
+        }
+        if (state == State.WORKING) {
+            int space = NUtils.getGameUI().getInventory().calcFreeSpace();
+            if (space <= 1 && space >= 0) {
+                state = State.TIMEFORPILE;
             }
         }
         return state!= State.WORKING;

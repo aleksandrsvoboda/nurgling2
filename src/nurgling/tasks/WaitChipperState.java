@@ -51,14 +51,9 @@ public class WaitChipperState extends NTask
     @Override
     public boolean check()
     {
-        int space = NUtils.getGameUI().getInventory().calcFreeSpace();
         if(Finder.findGob(bumling.id)==null)
         {
             state = State.BUMLINGNOTFOUND;
-        }
-        else if(!ignoreInventoryFull && space <= 1 && space >= 0)
-        {
-            state = State.TIMEFORPILE;
         }
         else {
             if (NUtils.getEnergy() < 0.36) {
@@ -69,6 +64,12 @@ public class WaitChipperState extends NTask
             }
             if (NUtils.getStamina() <= 0.45) {
                 state = State.BUMLINGFORDRINK;
+            }
+            if (state == State.WORKING) {
+                int space = NUtils.getGameUI().getInventory().calcFreeSpace();
+                if (!ignoreInventoryFull && space <= 1 && space >= 0) {
+                    state = State.TIMEFORPILE;
+                }
             }
         }
 

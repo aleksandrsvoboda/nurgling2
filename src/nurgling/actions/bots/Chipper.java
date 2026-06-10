@@ -88,6 +88,10 @@ public class Chipper implements Action {
                 new PathFinder(bumling).run(gui);
 
                 while (Finder.findGob(bumling.id) != null) {
+                    Results rr = new RestoreResources().run(gui);
+                    if (!rr.IsSuccess())
+                        return Results.ERROR("Failed to restore resources");
+
                     new SelectFlowerAction("Chip stone", bumling).run(gui);
                     if (prop.tool.equals("Pickaxe")) {
                         NUtils.getUI().core.addTask(new WaitPoseOrNoGob(NUtils.player(),bumling, "gfx/borka/pickan"));
@@ -139,6 +143,10 @@ public class Chipper implements Action {
             }
             new PathFinder( mountain ).run (gui);
             do {
+                Results rr = new RestoreResources().run(gui);
+                if (!rr.IsSuccess())
+                    return Results.ERROR("Failed to restore resources");
+
                 NUtils.dig();
                 NUtils.getUI().core.addTask(new WaitPose(NUtils.player(), "gfx/borka/pickaxeanspot"));
                 WaitPlateuState wcs = new WaitPlateuState(prop);
