@@ -52,10 +52,12 @@ public class SelectAreaWithLiveGhosts extends SelectArea {
 
         Gob player = NUtils.player();
 
-        if (image != null && player != null)
-        {
-            player.addcustomol(new NCustomBauble(player, image, spr, mapView.isAreaSelectionMode));
-        }
+        // NOTE: the selection bubble is NOT added here. NCustomBauble removes itself as
+        // soon as isAreaSelectionMode is false (its tick() returns !flag), and the flag is
+        // still false during the build-menu/plob setup below (it is only set true inside the
+        // selection loop). Adding it now would let it self-remove before selection mode
+        // begins, so the bubble would never appear. It is added inside the loop instead,
+        // right after the flag is set true.
 
         // Activate build menu once to get hitbox/resource/sdt
         for (MenuGrid.Pagina pag : NUtils.getGameUI().menu.paginae)
@@ -136,6 +138,15 @@ public class SelectAreaWithLiveGhosts extends SelectArea {
             mapView.currentSelectionCoords = null;
             mapView.rotationRequested = false;
             mapView.isAreaSelectionMode.set(true);
+
+            // Show the "select build area" bubble above the player's head. Added here,
+            // after the flag is true, so NCustomBauble.tick() does not immediately remove
+            // it. Re-added every round; the previous round's bubble is auto-removed when the
+            // flag drops to false at the end of that round's selection.
+            if (image != null && player != null)
+            {
+                player.addcustomol(new NCustomBauble(player, image, spr, mapView.isAreaSelectionMode));
+            }
 
             if (areasSelected == 0)
             {
