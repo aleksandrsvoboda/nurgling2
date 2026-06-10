@@ -61,6 +61,30 @@ public class Craft implements Action {
      */
     boolean prefilled = false;
 
+    /**
+     * Original recipe identity captured before PrepareWorkStation runs. Lighting a
+     * cold station (LightFire) opens the "Light fire" recipe in the craft window and
+     * may leave it open if its own restore fails. We use this to re-select the
+     * original recipe so mwnd never ends up pointing at the wrong makeWidget.
+     */
+    private String savedRecipeName = null;
+    private boolean savedAutoMode = false;
+    private boolean savedNoTransfer = false;
+    private String savedCraftCount = null;
+    private final Map<Integer, IngredientSel> savedInputIng = new HashMap<>();
+    private final Map<Integer, IngredientSel> savedOutputIng = new HashMap<>();
+
+    private static class IngredientSel {
+        final java.awt.image.BufferedImage img;
+        final String name;
+        final boolean isIgnored;
+        IngredientSel(java.awt.image.BufferedImage img, String name, boolean isIgnored) {
+            this.img = img;
+            this.name = name;
+            this.isIgnored = isIgnored;
+        }
+    }
+
     private int getActualItemCount(WItem item) {
         if (item.item.info != null) {
             for (ItemInfo inf : item.item.info) {
@@ -167,14 +191,24 @@ public class Craft implements Action {
 
         // Prepare workstation once before craft loop
         if (ncontext.workstation != null) {
+            // Remember the recipe (and selected ingredients) while mwnd is still valid,
+            // so we can restore it if PrepareWorkStation leaves a different recipe open.
+            saveRecipeState();
             if (!new PrepareWorkStation(ncontext, ncontext.workstation.station).run(gui).IsSuccess()) {
                 return Results.ERROR("Failed to prepare workstation");
             }
             if (ncontext.workstation.targetPoint != null) {
                 new PathFinder(ncontext.workstation.targetPoint.getCurrentCoord()).run(gui);
             }
-            // Refresh mwnd reference after PrepareWorkStation (may have changed due to LightFire)
+            // Re-select our recipe if PrepareWorkStation (LightFire) left a different one open,
+            // then refresh mwnd to the live makeWidget.
             refreshMakeWidget(gui);
+            // The re-opened recipe builds a fresh makeWidget whose Spec names load
+            // asynchronously (Spec.tick resolves them from the sprite/resource). Until a
+            // name is non-null, isInBarrel(name) is false, so barrel ingredients (e.g. a
+            // 35-unit Wheat Flour / 25-unit Water) are wrongly counted as needing inventory
+            // slots and collapse the batch size (for_craft) to 1. Wait for names to load.
+            waitForSpecNames(gui);
         }
 
         Results craftResult = null;
@@ -224,7 +258,7 @@ public class Craft implements Action {
             // Use stack-aware calculation for better inventory utilization
             for_craft = calculateMaxCraftsWithStacking(ncontext, freeSpace, left.get());
         }
-        
+
 
         if (for_craft <= 0) {
             return Results.ERROR("Not enough inventory space");
@@ -242,12 +276,19 @@ public class Craft implements Action {
             }
 
             String item = s.ing == null ? s.name : s.ing.name;
-            if (ncontext.isInBarrel(item) && ncontext.getPlacedBarrelHash(item) == null) {
-                if(ncontext.workstation == null) {
-                    new TransferBarrelInWorkArea(ncontext, item).run(gui);
-                }
-                else {
-                    new TransferBarrelToWorkstation(ncontext, item).run(gui);
+            if (ncontext.isInBarrel(item)) {
+                // Barrel ingredients are supplied by a barrel placed at the workstation /
+                // work area; the station draws from it directly. Only transfer the barrel
+                // if it isn't placed yet (e.g. first craft iteration) — a barrel item must
+                // never fall through to TakeItems2, since it's not taken into inventory.
+                // On later iterations the barrel is already placed and there is nothing to do.
+                if (ncontext.getPlacedBarrelHash(item) == null) {
+                    if(ncontext.workstation == null) {
+                        new TransferBarrelInWorkArea(ncontext, item).run(gui);
+                    }
+                    else {
+                        new TransferBarrelToWorkstation(ncontext, item).run(gui);
+                    }
                 }
             } else if (!prefilled) {
                 // В режиме prefilled ингредиенты уже в инвентаре, пропускаем TakeItems2
@@ -647,12 +688,144 @@ public class Craft implements Action {
     }
 
     /**
+     * Capture the current recipe name and selected ingredients from mwnd while it is
+     * still valid, so they can be restored after the craft window is hijacked by
+     * fire-lighting (LightFire opens the "Light fire" recipe).
+     */
+    /**
+     * Wait until every (non-ignored) input/output spec of the current makeWidget has
+     * resolved its name. Needed after a recipe re-open, since names load asynchronously
+     * (Spec.tick) and the slot estimator depends on isInBarrel(name) — a null name reads
+     * as "not in a barrel" and inflates the estimate. Mirrors AutocraftBot's guard.
+     */
+    private void waitForSpecNames(NGameUI gui) throws InterruptedException {
+        final boolean isHeadless = nurgling.headless.Headless.isHeadless();
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                if (mwnd == null || mwnd.inputs == null || mwnd.inputs.isEmpty()) {
+                    return false;
+                }
+                for (NMakewindow.Spec spec : mwnd.inputs) {
+                    if (spec.ing != null && spec.ing.isIgnored) {
+                        continue;
+                    }
+                    if (spec.name == null) {
+                        return false;
+                    }
+                    if (!isHeadless && spec.spr == null) {
+                        return false;
+                    }
+                }
+                for (NMakewindow.Spec spec : mwnd.outputs) {
+                    if (spec.name == null) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
+    }
+
+    private void saveRecipeState() {
+        savedRecipeName = null;
+        savedAutoMode = false;
+        savedNoTransfer = false;
+        savedInputIng.clear();
+        savedOutputIng.clear();
+        if (mwnd == null) {
+            return;
+        }
+        savedRecipeName = mwnd.rcpnm;
+        savedAutoMode = mwnd.autoMode;
+        savedNoTransfer = mwnd.noTransfer != null && mwnd.noTransfer.a;
+        savedCraftCount = mwnd.getCraftCount();
+        for (int i = 0; i < mwnd.inputs.size(); i++) {
+            NMakewindow.Spec spec = mwnd.inputs.get(i);
+            if (spec.ing != null) {
+                savedInputIng.put(i, new IngredientSel(spec.ing.img, spec.ing.name, spec.ing.isIgnored));
+            }
+        }
+        for (int i = 0; i < mwnd.outputs.size(); i++) {
+            NMakewindow.Spec spec = mwnd.outputs.get(i);
+            if (spec.ing != null) {
+                savedOutputIng.put(i, new IngredientSel(spec.ing.img, spec.ing.name, spec.ing.isIgnored));
+            }
+        }
+    }
+
+    /**
      * Refresh the mwnd reference from the current craft window.
      * This is needed after operations that may change the craft widget (like LightFire).
+     *
+     * LightFire opens the "Light fire" recipe and is supposed to restore ours afterward,
+     * but if that restore fails the craft window is left on the wrong recipe. Grabbing it
+     * blindly would point mwnd at a recipe whose Specs have null names. So if the live
+     * recipe doesn't match the one we started with, re-open ours and re-apply the saved
+     * ingredient selections before adopting the new makeWidget.
      */
-    private void refreshMakeWidget(NGameUI gui) {
+    private void refreshMakeWidget(NGameUI gui) throws InterruptedException {
+        if (savedRecipeName != null
+                && (gui.craftwnd == null || gui.craftwnd.makeWidget == null
+                    || !savedRecipeName.equals(gui.craftwnd.makeWidget.rcpnm))) {
+            MenuGrid.Pagina target = null;
+            for (MenuGrid.Pagina pag : gui.menu.paginae) {
+                try {
+                    if (pag.button() != null && savedRecipeName.equals(pag.button().name())) {
+                        target = pag;
+                        break;
+                    }
+                } catch (Loading l) {
+                    // Skip paginae that aren't loaded yet.
+                }
+            }
+            if (target != null) {
+                target.button().use(new MenuGrid.Interaction(1, 0));
+                final String want = savedRecipeName;
+                NUtils.addTask(new NTask() {
+                    @Override
+                    public boolean check() {
+                        return gui.craftwnd != null && gui.craftwnd.makeWidget != null
+                                && want.equals(gui.craftwnd.makeWidget.rcpnm);
+                    }
+                });
+            }
+        }
+
         if (gui.craftwnd != null && gui.craftwnd.makeWidget != null) {
             mwnd = gui.craftwnd.makeWidget;
+            if (savedRecipeName != null) {
+                // Restore autocraft mode and transfer settings. A freshly re-opened
+                // recipe defaults to autoMode=false ("regular crafting"), which disables
+                // category/ingredient selection and the barrel logistics the bot relies on.
+                // Set this before re-applying ingredients, since Spec.categories is
+                // recomputed from autoMode on tick.
+                mwnd.autoMode = savedAutoMode;
+                if (mwnd.noTransfer != null) {
+                    mwnd.noTransfer.a = savedNoTransfer;
+                    mwnd.noTransfer.visible = savedAutoMode;
+                }
+                // Restore the requested target quantity. A freshly re-opened recipe has an
+                // empty quantity field; if the bot is later relaunched it would read that
+                // empty field and fall back to 1, silently shrinking the order.
+                if (savedCraftCount != null && !savedCraftCount.isEmpty()) {
+                    mwnd.setCraftCount(savedCraftCount);
+                }
+            }
+            // Re-apply ingredient selections onto the fresh widget (a re-opened recipe
+            // starts with categories unselected).
+            for (Map.Entry<Integer, IngredientSel> e : savedInputIng.entrySet()) {
+                if (e.getKey() < mwnd.inputs.size()) {
+                    IngredientSel sel = e.getValue();
+                    mwnd.inputs.get(e.getKey()).ing = mwnd.new Ingredient(sel.img, sel.name, sel.isIgnored);
+                }
+            }
+            for (Map.Entry<Integer, IngredientSel> e : savedOutputIng.entrySet()) {
+                if (e.getKey() < mwnd.outputs.size()) {
+                    IngredientSel sel = e.getValue();
+                    mwnd.outputs.get(e.getKey()).ing = mwnd.new Ingredient(sel.img, sel.name, sel.isIgnored);
+                }
+            }
         }
     }
 

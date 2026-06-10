@@ -53,9 +53,11 @@ public class NParser
             final NAlias regEx
     ) {
         if (regEx == null || name == null) return false;
+        String def = regEx.getDefault();
+        if (def == null) return false;
         String lowerName = name.toLowerCase();
 
-        if (regEx.getDefault().toLowerCase().equals(lowerName)) {
+        if (def.toLowerCase().equals(lowerName)) {
             return true;
         }
 

@@ -797,6 +797,25 @@ public class NMakewindow extends Widget {
         return(super.globtype(ev));
     }
 
+    /**
+     * Current text of the target-quantity field, or "" if unavailable. Used to
+     * carry the requested craft count across a recipe re-open (which builds a fresh
+     * widget with an empty field).
+     */
+    public String getCraftCount()
+    {
+        return (craft_num != null) ? craft_num.text() : "";
+    }
+
+    /**
+     * Restore the target-quantity field text (see {@link #getCraftCount()}).
+     */
+    public void setCraftCount(String value)
+    {
+        if (craft_num != null && value != null)
+            craft_num.settext(value);
+    }
+
     void craft()
     {
         if(!autoMode)
