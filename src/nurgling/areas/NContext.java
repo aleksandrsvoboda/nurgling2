@@ -1234,6 +1234,10 @@ public class NContext {
         if (gui.map instanceof NMapView) {
             ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
             if (chunkNav != null && chunkNav.isInitialized()) {
+                // Quick check: skip areas with no chunk-level path from player
+                if (!chunkNav.isAreaReachableByChunks(area)) {
+                    return Double.MAX_VALUE;
+                }
                 try {
                     // Use AreaNavigationHelper to find shortest path to any of the 4 corners
                     ChunkPath path = AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
@@ -1327,6 +1331,7 @@ public class NContext {
         if (gui != null && gui.map != null) {
             Set<Integer> nids = gui.map.nols.keySet();
             for (Integer id : nids) {
+                if (Thread.currentThread().isInterrupted()) break;
                 if (id > 0) {
                     NArea cand = gui.map.glob.map.areas.get(id);
                     if (cand != null && cand.containOut(name)) {
@@ -1361,6 +1366,7 @@ public class NContext {
         if (targets.size() > 1) {
             double bestDist = Double.MAX_VALUE;
             for (NArea test : targets) {
+                if (Thread.currentThread().isInterrupted()) break;
                 double dist = getDistanceToArea(test, gui);
                 if (dist < bestDist) {
                     res = test;
