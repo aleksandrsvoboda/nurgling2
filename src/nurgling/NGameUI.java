@@ -218,8 +218,11 @@ public class NGameUI extends GameUI
         dbStatsOverlay.hide(); // Hidden by default, toggle with F11 or settings
 
         // Profile-aware components are now initialized in attached() before super.attached()
+
+        // Load external plugins and let them attach to this session's UI.
+        nurgling.plugins.NPluginManager.onGameUIReady(this);
     }
-    
+
     @Override
     protected void attached() {
         // Initialize profile-aware components BEFORE calling super.attached()
