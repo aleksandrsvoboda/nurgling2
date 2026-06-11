@@ -479,6 +479,7 @@ public class Fightview extends Widget {
                 }
             }
         }
+        nurgling.plugins.CombatEvents.fireUsed(this, lastact);
         return;
 	} else if(msg == "ruse") {
 	    Relation rel = getrel(Utils.uiv(args[0]));

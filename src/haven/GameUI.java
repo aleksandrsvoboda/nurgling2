@@ -49,6 +49,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public GobIcon.Settings iconconf;
     public MiniMap mmap;
     public Fightview fv;
+    public NFightsess fsess;
     private NDraggableWidget fightBuffsInfoWdg;
     private NDraggableWidget fightActionsWdg;
     final protected List<Widget> meters = new LinkedList<Widget>();
@@ -639,6 +640,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	   add(new NDraggableWidget( fv = (Fightview)child,"Fightview",UI.scale(230,380)));
 	} else if(place == "fsess") {
 	    NFightsess fsess = (NFightsess)child;
+	    this.fsess = fsess;
 	    add(fsess);
 	    // Destroy old widgets if they exist to ensure only one instance
 	    if(fightBuffsInfoWdg != null) {

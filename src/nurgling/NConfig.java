@@ -122,6 +122,8 @@ public class NConfig
         studyDeskLayout,
         waypointRetryOnStuck,
         verboseCal,
+        pluginsAllowUnsigned,  // Dev only: load external plugin jars without signature verification
+        pluginsDir,            // Optional override for the plugin drop-folder (default: "plugins")
         highlightRockTiles,
         preferredMovementSpeed,
         preferredHorseSpeed,
@@ -256,6 +258,7 @@ public class NConfig
         conf.put(Key.showCSprite, true);
         conf.put(Key.hideNature, false);
         conf.put(Key.hideEarthworm, true);  // true = show earthworms (checkbox unchecked by default)
+        conf.put(Key.pluginsAllowUnsigned, false);  // default: only load signed plugins
         conf.put(Key.invert_hor, false);
         conf.put(Key.invert_ver, false);
         conf.put(Key.show_drag_menu, true);
