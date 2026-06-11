@@ -2175,6 +2175,8 @@ public class NMapView extends MapView
 
         public NPlob(Indir<Resource> res, Message sdt) {
             super(res, sdt);
+            // Ctrl-held object-to-object snapping (falls back to grid without Ctrl).
+            this.adjust = new NStdPlace();
             // Add bounding box support for temporal objects
             addPlobBoundingBox(res, sdt);
         }
@@ -2198,6 +2200,13 @@ public class NMapView extends MapView
                 }
             }
         }
+    }
+
+    /** Ensure the local-placement path (e.g. MMB clone-pick) also gets an NPlob
+     *  (with snapping + bounding box) rather than a plain haven Plob. */
+    @Override
+    public Plob createPlob(Indir<Resource> res, Message sdt) {
+        return(new NPlob(res, sdt));
     }
 
     // Override uimsg to use NPlob instead of Plob

@@ -147,12 +147,12 @@ public class NHitBox
             put("gfx/terobjs/grandstudydesk", new NHitBox(new Coord2d(-6.2,-11.75),new Coord2d(7.45,11.75)));
         }
     };
-    static NHitBox fromObstacle(Coord2d[][] p)
+    public static NHitBox fromObstacle(Coord2d[][] p)
     {
         return fromObstacle(p ,false);
     }
 
-    static NHitBox fromObstacle(Coord2d[][] p, boolean force)
+    public static NHitBox fromObstacle(Coord2d[][] p, boolean force)
     {
         if(p.length == 1 && p[0].length == 4)
         {
