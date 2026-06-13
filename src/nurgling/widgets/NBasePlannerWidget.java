@@ -36,6 +36,12 @@ public class NBasePlannerWidget extends Window {
 
     private boolean clearInAreaArmed = false;
 
+    /** Folder we are currently navigated "inside", or null for the root view.
+     *  Mirrors {@link NAreasWidget#currentPath}: clicking a folder drills in,
+     *  clicking the ".." row goes back up. The tree is single-level so this is
+     *  either null (root) or one folder id. */
+    private String currentFolderId = null;
+
     public NBasePlannerWidget() {
         super(UI.scale(new Coord(700, 500)), "Base planner");
 
@@ -45,6 +51,8 @@ public class NBasePlannerWidget extends Window {
                 promptName("New folder", "Folder", name -> {
                     if (name == null || name.isEmpty()) return;
                     manager().createFolder(name);
+                    // Folders always live at the root; surface the new one.
+                    currentFolderId = null;
                     refresh();
                 });
             }
@@ -142,10 +150,13 @@ public class NBasePlannerWidget extends Window {
     public boolean isClearInAreaArmed() { return clearInAreaArmed; }
     public void disarmClearInArea() { clearInAreaArmed = false; }
 
-    /** If the user has currently selected a folder row, returns its id; otherwise null. */
+    /** Parent folder for a newly created layer: the folder we're navigated
+     *  inside, else the selected row's folder, else null (root). */
     private String currentParentFolderId() {
+        if (currentFolderId != null) return currentFolderId;
         if (treeList.sel == null) return null;
         PlanningNode n = treeList.sel.node;
+        if (n == null) return null;
         if (n instanceof PlanningFolder) return n.id;
         return n.parentId;
     }
@@ -233,11 +244,15 @@ public class NBasePlannerWidget extends Window {
 
     /* ---------- Left panel: flattened tree list ---------- */
 
-    /** A single visible row in the tree (either a folder or a layer, with depth for indent). */
+    /** A single visible row in the tree: a folder, a layer, or the synthetic
+     *  ".." back row ({@code back == true}, {@code node == null}). */
     public static class TreeRow {
         public final PlanningNode node;
         public final int depth;
-        public TreeRow(PlanningNode node, int depth) { this.node = node; this.depth = depth; }
+        public final boolean back;
+        public TreeRow(PlanningNode node, int depth) { this.node = node; this.depth = depth; this.back = false; }
+        private TreeRow() { this.node = null; this.depth = 0; this.back = true; }
+        public static TreeRow backRow() { return new TreeRow(); }
     }
 
     public class TreeList extends SListBox<TreeRow, Widget> {
@@ -251,12 +266,18 @@ public class NBasePlannerWidget extends Window {
 
         public void rebuild() {
             rows.clear();
-            for (PlanningNode n : manager().getRoots()) {
-                rows.add(new TreeRow(n, 0));
-                if (n instanceof PlanningFolder) {
-                    for (PlanningLayer layer : ((PlanningFolder) n).layers) {
-                        rows.add(new TreeRow(layer, 1));
-                    }
+            PlanningFolder folder = (currentFolderId != null) ? manager().getFolder(currentFolderId) : null;
+            // The folder may have vanished (deleted locally or via DB sync) while
+            // we were inside it — fall back to the root view.
+            if (currentFolderId != null && folder == null) currentFolderId = null;
+            if (folder != null) {
+                rows.add(TreeRow.backRow());
+                for (PlanningLayer layer : folder.layers) {
+                    rows.add(new TreeRow(layer, 0));
+                }
+            } else {
+                for (PlanningNode n : manager().getRoots()) {
+                    rows.add(new TreeRow(n, 0));
                 }
             }
             this.reset();
@@ -273,7 +294,16 @@ public class NBasePlannerWidget extends Window {
         @Override
         public void change(TreeRow row) {
             super.change(row);
-            if (row != null && row.node instanceof PlanningLayer) {
+            if (row == null) return;
+            // change() only fires when the click wasn't consumed by a child
+            // button (eye/remove), so navigation here never steals those clicks.
+            if (row.back) {
+                currentFolderId = null;
+                NBasePlannerWidget.this.refresh();
+            } else if (row.node instanceof PlanningFolder) {
+                currentFolderId = row.node.id;
+                NBasePlannerWidget.this.refresh();
+            } else if (row.node instanceof PlanningLayer) {
                 manager().setActiveLayer(row.node.id);
                 if (ghostList != null) ghostList.rebuild();
             }
@@ -297,6 +327,15 @@ public class NBasePlannerWidget extends Window {
         public TreeRowWidget(TreeList list, TreeRow row, Coord sz) {
             super(list, sz, row);
             this.node = row.node;
+
+            // The ".." back row has no node and no eye/remove controls.
+            if (row.back) {
+                eye = null;
+                remove = null;
+                Label lbl = add(new Label(".."), Coord.z);
+                lbl.c = new Coord(UI.scale(28), (sz.y - lbl.sz.y) / 2);
+                return;
+            }
 
             int indentX = UI.scale(8 + 14 * row.depth);
 
@@ -335,6 +374,11 @@ public class NBasePlannerWidget extends Window {
 
         @Override
         public void draw(GOut g) {
+            if (((TreeRow) item).back) {
+                g.image(folderIcon, new Coord(UI.scale(8), (sz.y - UI.scale(16)) / 2), UI.scale(16, 16));
+                super.draw(g);
+                return;
+            }
             // Active-layer highlight stripe
             String activeId = manager().getActiveLayerId();
             if (node instanceof PlanningLayer && activeId != null && activeId.equals(node.id)) {
@@ -351,7 +395,8 @@ public class NBasePlannerWidget extends Window {
 
         @Override
         public boolean mousedown(MouseDownEvent ev) {
-            ((TreeList) list).sel = this;
+            // Don't make the ".." back row the export selection (its node is null).
+            if (!((TreeRow) item).back) ((TreeList) list).sel = this;
             return super.mousedown(ev);
         }
     }
