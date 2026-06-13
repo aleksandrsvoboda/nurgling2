@@ -124,8 +124,6 @@ public class NWItem extends WItem
             if(parent instanceof NInventory && NUtils.getGameUI() != null && NUtils.getGameUI().maininv == parent) {
                 if (matchesDropperConfig()) {
                     NUtils.drop(this);
-                } else if (((NGItem) item).isSearched) {
-                    NUtils.drop(this);
                 }
             }
         }
