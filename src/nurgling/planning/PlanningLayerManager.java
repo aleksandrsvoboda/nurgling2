@@ -60,7 +60,23 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
     private final Map<String, PlanningNode> byId = new HashMap<>();
     private final Map<String, PlanningGhost> ghostById = new HashMap<>();
     private final Map<String, String> layerByGhostId = new HashMap<>();
-    private final Map<String, Gob> materialized = new HashMap<>();
+    /**
+     * Live ghost Gobs, keyed by ghost id. Each entry remembers the exact
+     * {@link Glob} it was inserted into so teardown always removes it from the
+     * <i>same</i> world — never from whatever session happens to be focused (or
+     * from {@code null} mid-teleport). Decoupling the bookkeeping slot from the
+     * owning world is what produced the duplicate-on-{@code -1} bug: removal was
+     * aimed at {@code activeGlob()} and missed, but the slot was freed anyway,
+     * orphaning the Gob and letting the next tick spawn a second copy.
+     */
+    private final Map<String, Materialized> materialized = new HashMap<>();
+
+    /** A live ghost Gob bound to the world it actually lives in. */
+    private static final class Materialized {
+        final Gob gob;
+        final Glob owner;
+        Materialized(Gob gob, Glob owner) { this.gob = gob; this.owner = owner; }
+    }
     /** Per-user, per-profile visibility preferences. Always loaded/saved locally. */
     private final Map<String, Boolean> localVisibility = new HashMap<>();
     private String activeLayerId;
@@ -717,14 +733,24 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
                 if (!effectiveVisibleUnlocked(layer)) continue;
                 for (PlanningGhost g : layer.ghosts) {
                     shouldBeVisible.add(g.id);
-                    if (!materialized.containsKey(g.id)) materializeOne(g, glob);
+                    Materialized m = materialized.get(g.id);
+                    if (m == null) {
+                        materializeOne(g, glob);
+                    } else {
+                        // Already live — keep it pinned to its true grid, or drop
+                        // it if that grid is no longer loaded in its own world
+                        // (e.g. the player descended into a mine). This is what
+                        // makes the layer self-correcting across segment swaps,
+                        // exactly like the per-grid area overlays.
+                        reanchorOrDrop(g, m);
+                    }
                 }
             }
-            Iterator<Map.Entry<String, Gob>> it = materialized.entrySet().iterator();
+            Iterator<Map.Entry<String, Materialized>> it = materialized.entrySet().iterator();
             while (it.hasNext()) {
-                Map.Entry<String, Gob> e = it.next();
+                Map.Entry<String, Materialized> e = it.next();
                 if (!shouldBeVisible.contains(e.getKey())) {
-                    try { glob.oc.remove(e.getValue()); } catch (Exception ignore) {}
+                    removeFromOwner(e.getValue());
                     it.remove();
                 }
             }
@@ -744,30 +770,53 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
             ghost.move(wp, g.angleRadians());
             glob.oc.add(ghost);
             if (ghost.ngob != null) ghost.ngob.hitBox = null;
-            materialized.put(g.id, ghost);
+            // Remember the world we just added it to, so teardown can never miss.
+            materialized.put(g.id, new Materialized(ghost, glob));
         } catch (Exception ex) {
             // Resource not loadable now; the entry stays for next tick.
         }
     }
 
-    private void destroyMaterialized(String ghostId) {
-        Gob g = materialized.remove(ghostId);
-        if (g == null) return;
-        Glob glob = activeGlob();
-        if (glob != null) {
-            try { glob.oc.remove(g); } catch (Exception ignore) {}
+    /**
+     * Keep a live ghost Gob pinned to its true grid. If the grid is no longer
+     * loaded in the Gob's own world, remove the Gob and drop the slot instead of
+     * leaving it floating at a now-meaningless absolute coordinate (the stale
+     * coordinate is what rendered the plan onto the mine / wrong base).
+     *
+     * <p>Must be called under {@code treeLock} (mutates {@code materialized}).</p>
+     */
+    private void reanchorOrDrop(PlanningGhost g, Materialized m) {
+        if (m.owner == null) { materialized.remove(g.id); return; }
+        Coord2d wp = resolveWorldPos(g, m.owner);
+        if (wp == null) {
+            // True grid trimmed (player left the area / went underground).
+            removeFromOwner(m);
+            materialized.remove(g.id);
+            return;
         }
+        // Re-pin if the resolved position drifted from where the Gob sits.
+        if (m.gob.rc == null || m.gob.rc.dist(wp) > 0.01) {
+            try { m.gob.move(wp, g.angleRadians()); } catch (Exception ignore) {}
+        }
+    }
+
+    /** Remove a live ghost Gob from the exact world it was added to. */
+    private static void removeFromOwner(Materialized m) {
+        if (m == null || m.owner == null || m.gob == null) return;
+        try { m.owner.oc.remove(m.gob); } catch (Exception ignore) {}
+    }
+
+    private void destroyMaterialized(String ghostId) {
+        // Remove from the Gob's own world, not whatever session is focused. The
+        // slot is freed only after the real Gob has been told to leave.
+        removeFromOwner(materialized.remove(ghostId));
     }
 
     private void destroyAllMaterialized() {
         if (materialized.isEmpty()) return;
-        Glob glob = activeGlob();
-        Iterator<Map.Entry<String, Gob>> it = materialized.entrySet().iterator();
+        Iterator<Map.Entry<String, Materialized>> it = materialized.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, Gob> e = it.next();
-            if (glob != null) {
-                try { glob.oc.remove(e.getValue()); } catch (Exception ignore) {}
-            }
+            removeFromOwner(it.next().getValue());
             it.remove();
         }
     }
