@@ -245,6 +245,7 @@ public class NConfig
         conf.put(Key.showGilding, false);
         conf.put(Key.showStackOverlay, true);
         conf.put(Key.autoDropper, false);
+        conf.put(Key.dropConf, new JSONArray());
         conf.put(Key.is_real_time, true);
         conf.put(Key.numbelts, 3);
         conf.put(Key.showCropStage, false);
@@ -624,8 +625,9 @@ public class NConfig
         NConfig cfg = resolveConfig();
         if (cfg == null)
             return null;
-        else
+        synchronized (cfg.conf) {
             return cfg.conf.get(key);
+        }
     }
 
     /**
@@ -634,28 +636,39 @@ public class NConfig
      * regardless of which thread (tick vs mouse event) is calling.
      */
     public static Object getGlobal(Key key) {
-        if (current == null) return null;
-        return current.conf.get(key);
+        NConfig cur = current;
+        if (cur == null) return null;
+        synchronized (cur.conf) {
+            return cur.conf.get(key);
+        }
     }
 
     public static void set(Key key, Object val)
     {
         // Set on global config
-        if (current != null)
+        NConfig cur = current;
+        if (cur != null)
         {
-            current.conf.put(key, val);
-            current.isUpd = true;
+            synchronized (cur.conf) {
+                cur.conf.put(key, val);
+            }
+            cur.isUpd = true;
         }
         // Propagate to all session configs so every session sees the same value
         for (SessionContext ctx : SessionManager.getInstance().getAllSessions())
         {
             if (ctx.config != null)
             {
-                ctx.config.conf.put(key, val);
+                synchronized (ctx.config.conf) {
+                    ctx.config.conf.put(key, val);
+                }
             }
-            if (ctx.ui != null && ctx.ui.sessionConfig != null)
+            NConfig sc = (ctx.ui != null) ? ctx.ui.sessionConfig : null;
+            if (sc != null)
             {
-                ctx.ui.sessionConfig.conf.put(key, val);
+                synchronized (sc.conf) {
+                    sc.conf.put(key, val);
+                }
             }
         }
     }
@@ -762,7 +775,7 @@ public class NConfig
         return result;
     }
 
-    public static NConfig current;
+    public static volatile NConfig current;
 
     // Profile management - World-specific configurations
     private static final Map<String, NConfig> profileInstances = new HashMap<>();
@@ -1064,7 +1077,12 @@ public class NConfig
 
     @SuppressWarnings("unchecked")
     public void read() {
-        current = this;
+        // NOTE: do NOT publish `current = this` here. Publishing a half-built
+        // instance (constructor defaults only, before the file is parsed) opened
+        // a race: a concurrent NConfig.set() from another thread would mark this
+        // defaults-only instance dirty and the tick-thread write() would flush it
+        // to disk, erasing keys that hadn't been loaded yet (e.g. dropConf). We
+        // now publish `current` only once `conf` is fully populated (see below).
         String content = NFileUtils.readWithBackupFallback(path);
 
         if (content != null && !content.isEmpty())
@@ -1074,6 +1092,7 @@ public class NConfig
                 main = new JSONObject(content);
             } catch (org.json.JSONException e) {
                 System.err.println("[NConfig] Failed to parse config file (corrupt JSON), using defaults: " + path);
+                current = this;
                 return;
             }
             Map<String, Object> map = main.toMap();
@@ -1180,6 +1199,10 @@ public class NConfig
 
         conf.put(Key.showCSprite,conf.get(Key.nextshowCSprite));
         conf.put(Key.flatsurface,conf.get(Key.nextflatsurface));
+
+        // Publish only now that conf is fully populated, so no other thread can
+        // observe (and flush) a partially-loaded config as the global current.
+        current = this;
     }
 
     @SuppressWarnings("unchecked")
@@ -1214,8 +1237,14 @@ public class NConfig
     @SuppressWarnings("unchecked")
     public void write()
     {
+        // Snapshot under lock so we never iterate the map while another thread
+        // mutates it via set(); serialization/IO then happens off the lock.
+        Map<Key, Object> snapshot;
+        synchronized (conf) {
+            snapshot = new HashMap<>(conf);
+        }
         Map<String, Object> prep = new HashMap<>();
-        for (Map.Entry<Key, Object> entry : conf.entrySet())
+        for (Map.Entry<Key, Object> entry : snapshot.entrySet())
         {
             if (entry.getValue() instanceof JConf)
             {

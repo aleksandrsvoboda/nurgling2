@@ -32,7 +32,11 @@ public class DropContainer extends BaseIngredientContainer {
         HashMap<String, Integer> cached = cachedProps;
         if (cached != null) return cached;
 
-        Object stored = NConfig.get(NConfig.Key.dropConf);
+        // Read from the GLOBAL config (the instance that persists dropConf to
+        // disk), not the session-resolved one. A per-session config instance can
+        // transiently serve an empty dropConf even while the on-disk value is
+        // intact, which would otherwise wipe autodrop until the next restart.
+        Object stored = NConfig.getGlobal(NConfig.Key.dropConf);
         JSONArray data;
         if (stored instanceof JSONArray) {
             data = new JSONArray((JSONArray) stored);
@@ -48,7 +52,11 @@ public class DropContainer extends BaseIngredientContainer {
             String name = jsonObject.getString("name");
             props.put(name,jsonObject.has("th")?jsonObject.getInt("th"):1 );
         }
-        cachedProps = props;
+        // Never cache an empty result: a one-off empty read (e.g. before the
+        // config has loaded) must not poison the cache for the whole session.
+        if (!props.isEmpty()) {
+            cachedProps = props;
+        }
         return props;
     }
 
@@ -109,7 +117,10 @@ public class DropContainer extends BaseIngredientContainer {
         icons.clear();
         jitems.clear();
 
-        Object stored = NConfig.get(NConfig.Key.dropConf);
+        // Read from the global config (the disk-backed instance) so the panel
+        // always reflects the real saved list, never a transient empty value
+        // from a per-session config instance.
+        Object stored = NConfig.getGlobal(NConfig.Key.dropConf);
         if (stored instanceof JSONArray) {
             jitems = new JSONArray((JSONArray) stored);
         } else if (stored != null) {
