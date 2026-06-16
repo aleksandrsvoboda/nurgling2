@@ -47,10 +47,10 @@ public class NMapWnd extends MapWnd {
         int btnSpacing = UI.scale(5);
         Coord btnPos = view.c.add(view.sz.x - UI.scale(35), UI.scale(15));
         
-        // Ores button (rightmost) - opens Terrain Search Window (no icon toggle)
-        oresBtn = add(new MapToggleButton("ores", "Ores Search", this::openOresSearch), btnPos);
-        oresBtn.a = false; // Always show as unpressed (no toggle state)
-        oresBtn.click(this::openOresSearch); // Left click opens window
+        // Ores button (rightmost) - toggles stone icons, right-click opens Terrain Search
+        oresBtn = add(new MapToggleButton("ores", "Toggle stone/ore icons (Right-click: Terrain Search)", this::openOresSearch), btnPos);
+        oresBtn.a = getStoneIconsState();
+        oresBtn.changed(val -> setStoneIconsState(val));
         
         // Fish button (middle)
         btnPos = btnPos.sub(oresBtn.sz.x + btnSpacing, 0);
@@ -117,6 +117,21 @@ public class NMapWnd extends MapWnd {
             ((NMiniMap) gui.mmap).showFishIcons = val;
         if(view instanceof NMiniMap)
             ((NMiniMap) view).showFishIcons = val;
+    }
+
+    private boolean getStoneIconsState() {
+        NGameUI gui = (NGameUI) NUtils.getGameUI();
+        if(gui != null && gui.mmap instanceof NMiniMap)
+            return ((NMiniMap) gui.mmap).showStoneIcons;
+        return true;
+    }
+
+    private void setStoneIconsState(boolean val) {
+        NGameUI gui = (NGameUI) NUtils.getGameUI();
+        if(gui != null && gui.mmap instanceof NMiniMap)
+            ((NMiniMap) gui.mmap).showStoneIcons = val;
+        if(view instanceof NMiniMap)
+            ((NMiniMap) view).showStoneIcons = val;
     }
 
     private void openTreeSearch() {
