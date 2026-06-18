@@ -129,6 +129,29 @@ public class NWItem extends WItem
         }
     }
 
+    // Server flood protection: dropping many items in the same instant (after
+    // picking up a big batch, or trimming a large stack) sends a burst of
+    // "drop" messages that trips the server's spam protection and disconnects
+    // the client. Auto-drops are throttled to at most one item per interval,
+    // shared statically across every item so the COMBINED drop rate -- loose
+    // items and stacked items together -- stays under the threshold.
+    private static final long AUTODROP_INTERVAL_MS = 150;
+    private static long lastAutodropMs = 0;
+
+    // Returns true (and consumes the slot) only when enough time has passed
+    // since the last auto-drop. Call this immediately before actually dropping,
+    // and only once it is certain the item will be dropped, so slots are never
+    // wasted.
+    private static boolean autodropAllowed()
+    {
+        long now = System.currentTimeMillis();
+        if (now - lastAutodropMs >= AUTODROP_INTERVAL_MS) {
+            lastAutodropMs = now;
+            return true;
+        }
+        return false;
+    }
+
     private void autoDrop()
     {
         NGItem ngitem = (NGItem) item;
@@ -163,11 +186,13 @@ public class NWItem extends WItem
                 if (q == null) continue;             // quality not loaded yet -> re-check next tick
                 if (q >= threshold) continue;        // keep items at/above the threshold
                 if (child.autodropRequested) continue; // already asked to drop -> no duplicate messages
+                if (!autodropAllowed()) return;      // throttled -> drop it on a later tick
                 child.autodropRequested = true;
                 // Drop exactly this one item to the ground -- the same hand-free
                 // message the client sends when you ctrl-click a single item in
                 // a stack (WItem.mousedown: wdgmsg("drop", coord, count)).
                 gi.wdgmsg("drop", Coord.z, 1);
+                return;                              // one drop per throttle slot
             }
             return;
         }
@@ -178,10 +203,12 @@ public class NWItem extends WItem
         // widget has not attached yet (the container carries no quality of its
         // own). Dropping on a null quality is exactly what caused whole stacks
         // to be discarded, so it is deliberately not done.
+        if (ngitem.autodropRequested) return;        // already asked to drop -> no repeated messages
         Float q = ngitem.quality;
-        if (q != null && q < threshold) {
-            NUtils.drop(this);
-        }
+        if (q == null || q >= threshold) return;     // keep: unknown quality, or at/above threshold
+        if (!autodropAllowed()) return;              // throttled -> drop it on a later tick
+        ngitem.autodropRequested = true;
+        NUtils.drop(this);
     }
 
     private void search()
