@@ -2,12 +2,14 @@ package nurgling;
 
 import haven.*;
 import haven.res.lib.itemtex.*;
+import haven.res.ui.stackinv.ItemStack;
 import nurgling.iteminfo.NSearchable;
 import nurgling.styles.TooltipStyle;
 import nurgling.tools.NSearchItem;
 import nurgling.widgets.DropContainer;
 import org.json.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import java.awt.*;
@@ -122,22 +124,64 @@ public class NWItem extends WItem
         
         if((Boolean)NConfig.get(NConfig.Key.autoDropper)) {
             if(parent instanceof NInventory && NUtils.getGameUI() != null && NUtils.getGameUI().maininv == parent) {
-                if (matchesDropperConfig()) {
-                    NUtils.drop(this);
-                }
+                autoDrop();
             }
         }
     }
 
-    private boolean matchesDropperConfig()
+    private void autoDrop()
     {
-        String name = ((NGItem) item).name();
-        if (name == null) return false;
+        NGItem ngitem = (NGItem) item;
+        String name = ngitem.name();
+        if (name == null) return;
         HashMap<String, Integer> props = DropContainer.getDropProps();
-        if (!props.containsKey(name)) return false;
-        Float q = ((NGItem) item).quality;
+        if (!props.containsKey(name)) return;
         int threshold = props.get(name);
-        return q == null || q < threshold;
+
+        // Stack container: trim only the sub-threshold items out of the stack
+        // instead of dropping the whole thing. The container itself carries no
+        // quality (quality lives on each stacked child), so dropping it would
+        // discard everything regardless of the threshold. Each child is an
+        // independent GItem, so dropping it is the same hand-free "drop"
+        // message used for loose items.
+        //
+        // NOTE: the container's tooltip (which is what makes its quality
+        // resolve to null) and its contents widget arrive in separate server
+        // messages, in no guaranteed order. Until contents has attached we must
+        // NOT fall through to the loose branch below -- that would drop the
+        // whole stack. The loose branch only drops items with a concrete
+        // quality, and a stack container's quality is always null, so a stack
+        // is safe in either branch; it simply gets trimmed on a later tick once
+        // contents is present.
+        if (ngitem.contents instanceof ItemStack) {
+            ItemStack stack = (ItemStack) ngitem.contents;
+            // Snapshot the order so the live list isn't touched while drops fire.
+            for (GItem gi : new ArrayList<>(stack.order)) {
+                if (!(gi instanceof NGItem)) continue;
+                NGItem child = (NGItem) gi;
+                Float q = child.quality;
+                if (q == null) continue;             // quality not loaded yet -> re-check next tick
+                if (q >= threshold) continue;        // keep items at/above the threshold
+                if (child.autodropRequested) continue; // already asked to drop -> no duplicate messages
+                child.autodropRequested = true;
+                // Drop exactly this one item to the ground -- the same hand-free
+                // message the client sends when you ctrl-click a single item in
+                // a stack (WItem.mousedown: wdgmsg("drop", coord, count)).
+                gi.wdgmsg("drop", Coord.z, 1);
+            }
+            return;
+        }
+
+        // Loose item: drop only when it has a concrete quality below the
+        // threshold. A null quality is NEVER dropped here -- it may be an item
+        // whose tooltip has not loaded yet, or a stack container whose contents
+        // widget has not attached yet (the container carries no quality of its
+        // own). Dropping on a null quality is exactly what caused whole stacks
+        // to be discarded, so it is deliberately not done.
+        Float q = ngitem.quality;
+        if (q != null && q < threshold) {
+            NUtils.drop(this);
+        }
     }
 
     private void search()

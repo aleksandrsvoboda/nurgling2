@@ -23,6 +23,7 @@ public class NGItem extends GItem
     int lastQuestUpdate = 0;
     String name = null;
     public Float quality = null;
+    public boolean autodropRequested = false; // guards against re-sending autodrop for a stacked item already being dropped
     public long meterUpdated = 0;
     public int hardArmor = 0;
     public int softArmor = 0;

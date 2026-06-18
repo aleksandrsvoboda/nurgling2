@@ -1068,6 +1068,10 @@ public class NInventory extends Inventory
             }
             @Override
             public void change(Grouping item) {
+                // Clicking outside the open droplist fires change(null); ignore it
+                // so we never wipe the current grouping out from under draw/rebuild.
+                if (item == null)
+                    return;
                 super.change(item);
                 currentGrouping = item;
                 rebuildItemList();
@@ -1090,6 +1094,10 @@ public class NInventory extends Inventory
             }
             @Override
             public void change(DisplayType item) {
+                // Clicking outside the open droplist fires change(null); ignore it
+                // so we never wipe currentDisplayType out from under draw/rebuild.
+                if (item == null)
+                    return;
                 super.change(item);
                 currentDisplayType = item;
                 rebuildItemList();
@@ -1605,9 +1613,10 @@ public class NInventory extends Inventory
                 // Calculate text positions
                 int textStartX = margin + iconSize + UI.scale(4);
                 
-                // Display based on current DisplayType
+                // Display based on current DisplayType (fall back to Name if unset)
                 String displayText;
-                switch (currentDisplayType) {
+                DisplayType dt = (currentDisplayType != null) ? currentDisplayType : DisplayType.Name;
+                switch (dt) {
                     case Quality:
                         String qSign = (currentGrouping == Grouping.NONE || currentGrouping == Grouping.Q) ? "" : "+";
                         if (group.averageQuality > 0) {
