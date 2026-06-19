@@ -8,6 +8,7 @@ import static haven.Inventory.*;
 
 import haven.render.Render;
 import haven.res.lib.itemtex.*;
+import static haven.PType.*;
 import nurgling.*;
 import nurgling.actions.bots.*;
 import nurgling.areas.*;
@@ -62,6 +63,7 @@ public class NMakewindow extends Widget {
     public class Spec implements GSprite.Owner, ItemInfo.SpriteOwner {
         public Indir<Resource> res;
         public MessageBuf sdt;
+        public ResData constraint = null;
         public Tex num;
         public String name;
         public int count;
@@ -294,7 +296,7 @@ public class NMakewindow extends Widget {
                     sc = sc.add(10, 0);
                 if(ev.c.isect(sc, Inventory.sqsz)) {
                     if(ev.b == 1) {
-                        wdgmsg("choose", idx);
+                        wdgmsg("choose", idx, ui.modflags());
                         return true;
                     } else if(ev.b == 3) {
                         if(s.rpag == null)
@@ -404,29 +406,52 @@ public class NMakewindow extends Widget {
         NUtils.getGameUI().add(new SaveCraftPresetDialog(this), UI.scale(new Coord(200, 200)));
     }
 
+    // Parse one make-window spec (protocol v31: modular message format).
+    private Spec parsespec(Object[] desc) {
+        int a = 0;
+        Indir<Resource> res = ui.sess.getresv(desc[a++]);
+        Message sdt = BYTES.is(desc, a) ? new MessageBuf(BYTES.of(desc, a++)) : MessageBuf.nil;
+        int num = INT.of(desc, a++);
+        Object[] info = OBJS.is(desc, a) ? OBJS.of(desc, a++) : new Object[0];
+        Spec ret = new Spec(res, sdt, num, info);
+        while(a < desc.length) {
+            Object[] arg = OBJS.of(desc[a++]);
+            switch(STR.of(arg[0])) {
+            case "constraint":
+                ResData cst = new ResData(ui.sess.getresv(arg[1]), Message.nil);
+                if(BYTES.is(arg, 2))
+                    cst.sdt = new MessageBuf(BYTES.of(arg, 2));
+                ret.constraint = cst;
+                break;
+            }
+        }
+        return ret;
+    }
+
     public void uimsg(String msg, Object... args) {
         if(msg == "inpop") {
-            List<Spec> inputs = new LinkedList<Spec>();
-            for(int i = 0; i < args.length;) {
-                int resid = (Integer)args[i++];
-                Message sdt = (args[i] instanceof byte[])?new MessageBuf((byte[])args[i++]):MessageBuf.nil;
-                int num = (Integer)args[i++];
-                Object[] info = {};
-                if((i < args.length) && (args[i] instanceof Object[]))
-                    info = (Object[])args[i++];
-                inputs.add(new Spec(ui.sess.getres(resid), sdt, num, info));
+            List<Spec> inputs;
+            if(INT.is(args, 0)) {
+                // Indexed update: reuse existing specs, replace by index.
+                inputs = new ArrayList<>(this.inputs);
+                for(int i = 0; i < args.length; i += 2)
+                    inputs.set(INT.of(args, i), parsespec(OBJS.of(args, i + 1)));
+            } else {
+                inputs = new ArrayList<>();
+                for(int i = 0; i < args.length; i++)
+                    inputs.add(parsespec(OBJS.of(args[i])));
             }
             this.inputs = inputs;
         } else if(msg == "opop") {
-            List<Spec> outputs = new LinkedList<Spec>();
-            for(int i = 0; i < args.length;) {
-                int resid = (Integer)args[i++];
-                Message sdt = (args[i] instanceof byte[])?new MessageBuf((byte[])args[i++]):MessageBuf.nil;
-                int num = (Integer)args[i++];
-                Object[] info = {};
-                if((i < args.length) && (args[i] instanceof Object[]))
-                    info = (Object[])args[i++];
-                outputs.add(new Spec(ui.sess.getres(resid), sdt, num, info));
+            List<Spec> outputs;
+            if(INT.is(args, 0)) {
+                outputs = new ArrayList<>(this.outputs);
+                for(int i = 0; i < args.length; i += 2)
+                    outputs.set(INT.of(args, i), parsespec(OBJS.of(args, i + 1)));
+            } else {
+                outputs = new ArrayList<>();
+                for(int i = 0; i < args.length; i++)
+                    outputs.add(parsespec(OBJS.of(args[i])));
             }
             this.outputs = outputs;
         } else if(msg == "qmod") {

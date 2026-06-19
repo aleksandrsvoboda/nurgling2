@@ -1,3 +1,29 @@
+/*
+ *  This file is part of the Haven & Hearth game client.
+ *  Copyright (C) 2009 Fredrik Tolf <fredrik@dolda2000.com>, and
+ *                     Björn Johannessen <johannessen.bjorn@gmail.com>
+ *
+ *  Redistribution and/or modification of this file is subject to the
+ *  terms of the GNU Lesser General Public License, version 3, as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  Other parts of this source tree adhere to other copying
+ *  rights. Please see the file `COPYING' in the root directory of the
+ *  source tree for details.
+ *
+ *  A copy the GNU Lesser General Public License is distributed along
+ *  with the source tree of which this file is a part in the file
+ *  `doc/LPGL-3'. If it is missing for any reason, please see the Free
+ *  Software Foundation's website at <http://www.fsf.org/>, or write
+ *  to the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
+ *  Boston, MA 02111-1307 USA
+ */
+
 package haven;
 
 import java.util.*;
@@ -12,24 +38,22 @@ import nurgling.actions.bots.registry.BotRegistry;
 import nurgling.sessions.BotExecutor;
 import nurgling.widgets.NBotsMenu;
 
-public class MenuSearch extends Window {
+public abstract class MenuSearch extends Window {
     public final MenuGrid menu;
     public final Results rls;
     public final TextEntry sbox;
-    private Pagina root;
-    private List<Result> cur = Collections.emptyList();
-    private List<Result> filtered = Collections.emptyList();
-    private boolean recons = false;
+    protected List<Result> cur = Collections.emptyList();
+    protected List<Result> filtered = Collections.emptyList();
+    private boolean recons = true;
     private Coord drag_start = null;
     private boolean drag_mode = false;
     private Grab grab = null;
-    private final Set<Pagina> allPaginae = new HashSet<>();
 
     public class Result {
 	public final PagButton btn;
 	public final BotDescriptor bot;
 
-	private Result(PagButton btn) {
+	protected Result(PagButton btn) {
 	    this.btn = btn;
 	    this.bot = null;
 	}
@@ -58,8 +82,8 @@ public class MenuSearch extends Window {
 	}
     }
 
-    private static final Text.Foundry elf = CharWnd.attrf;
-    private static final int elh = elf.height() + UI.scale(2);
+    public static final Text.Foundry elf = CharWnd.attrf;
+    public static final int elh = elf.height() + UI.scale(2);
     public class Results extends SListBox<Result, Widget> {
 	private Results(Coord sz) {
 	    super(sz, elh);
@@ -157,8 +181,8 @@ public class MenuSearch extends Window {
 	}
     }
 
-    public MenuSearch(MenuGrid menu) {
-	super(Coord.z, "Action search");
+    public MenuSearch(String title, MenuGrid menu) {
+	super(Coord.z, title);
 	this.menu = menu;
 	rls = add(new Results(UI.scale(250, 500)), Coord.z);
 	sbox = add(new TextEntry(UI.scale(250), "") {
@@ -169,15 +193,21 @@ public class MenuSearch extends Window {
 		public void activate(String text) {
 		    if(rls.sel != null)
 			activateResult(rls.sel);
-		    if(!ui.modctrl)
-			MenuSearch.this.wdgmsg("close");
+		    if(!ui.modctrl) {
+			reqclose();
+			settext("");
+			refilter();
+		    }
 		}
 	    }, 0, rls.sz.y);
 	pack();
-	setroot(null);
     }
 
-    private void refilter() {
+    public MenuSearch(MenuGrid menu) {
+	this("Action search", menu);
+    }
+
+    protected void refilter() {
 	List<Result> found = Fuzzy.fuzzyFilterAndSort(sbox.text().toLowerCase(), this.cur);
 	this.filtered = found;
 	int idx = filtered.indexOf(rls.sel);
@@ -191,21 +221,13 @@ public class MenuSearch extends Window {
 	}
     }
 
-    private void updlist() {
+    protected abstract boolean generate(List<PagButton> buf);
+
+    protected void updlist() {
 	recons = false;
-	// Accumulate all paginae ever seen for global search
-	synchronized(menu.paginae) {
-	    allPaginae.addAll(menu.paginae);
-	}
-	List<PagButton> found = new ArrayList<>();
-	for(Pagina pag : allPaginae) {
-	    try {
-		found.add(pag.button());
-	    } catch(Loading l) {
-		recons = true;
-	    }
-	}
-	Collections.sort(found, Comparator.comparing(PagButton::name));
+	List<PagButton> buf = new ArrayList<>();
+	if(generate(buf))
+	    recons = true;
 
 	// Build results, reusing existing Result objects where possible
 	Map<PagButton, Result> prevBtns = new HashMap<>();
@@ -218,7 +240,7 @@ public class MenuSearch extends Window {
 	}
 
 	List<Result> results = new ArrayList<>();
-	for(PagButton btn : found) {
+	for(PagButton btn : buf) {
 	    Result pr = prevBtns.get(btn);
 	    if(pr != null)
 		results.add(pr);
@@ -239,20 +261,12 @@ public class MenuSearch extends Window {
 	refilter();
     }
 
-    public void setroot(Pagina nr) {
-	root = nr;
-	updlist();
-	rls.sb.val = 0;
+    protected void recons() {
+	recons = true;
     }
 
     public void tick(double dt) {
-	boolean needsUpdate = recons;
-	if(!needsUpdate) {
-	    synchronized(menu.paginae) {
-		needsUpdate = !allPaginae.containsAll(menu.paginae);
-	    }
-	}
-	if(needsUpdate)
+	if(tvisible() && recons)
 	    updlist();
 	super.tick(dt);
     }
@@ -301,6 +315,48 @@ public class MenuSearch extends Window {
 		    }
 		});
 	    }
+	}
+    }
+
+    public static class Main extends MenuSearch {
+	private int pagseq;
+	private final Set<Pagina> allPaginae = new HashSet<>();
+
+	public static final KeyBinding kb_itemcraft = KeyBinding.get("scm-itemcraft", KeyMatch.nil);
+	public Main(MenuGrid menu) {
+	    super(menu);
+	    add(new Button(sbox.sz.x, "Search by ingredient", false).action(() -> menu.wdgmsg("act", "itemcraft")),
+		sbox.pos("bl").adds(0, 5)).setgkey(kb_itemcraft);
+	    pagseq = menu.pagseq;
+	    pack();
+	}
+
+	// Nurgling: global action search across every pagina ever seen (ignores
+	// the current menu category), so the search box finds anything.
+	protected boolean generate(List<PagButton> buf) {
+	    boolean recons = false;
+	    synchronized(menu.paginae) {
+		allPaginae.addAll(menu.paginae);
+	    }
+	    for(Pagina pag : allPaginae) {
+		try {
+		    buf.add(pag.button());
+		} catch(Loading l) {
+		    recons = true;
+		}
+	    }
+	    Collections.sort(buf, Comparator.comparing(PagButton::name));
+	    return(recons);
+	}
+
+	public void tick(double dt) {
+	    if(tvisible()) {
+		if(pagseq != menu.pagseq) {
+		    recons();
+		    pagseq = menu.pagseq;
+		}
+	    }
+	    super.tick(dt);
 	}
     }
 }

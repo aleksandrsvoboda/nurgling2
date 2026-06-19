@@ -357,9 +357,9 @@ For the next hafen integration:
 
 ---
 
-**Last Updated:** 2026-06-08
-**Last Integration:** hafen-integration-2026-06 (merge commit 9852d1b92, branch off master 7bccf9846)
-**Hafen Commits Integrated:** 159 commits (merge-base a2043d0d5 → hafen/master e16dcf24b)
+**Last Updated:** 2026-06-18
+**Last Integration:** hafen-integration-2026-06b (merge commit f924bf54d, branch off master)
+**Hafen Commits Integrated:** 49 commits (merge-base e16dcf24b → hafen/master dcb2e1b70)
 
 > Note: The Feb 2026 reference above (57d9570b2 / d58dcb242) is historical and is
 > NOT in the current master's ancestry — a later, undocumented integration brought
@@ -429,3 +429,47 @@ larger than a normal integration. Full port design + recovery info:
   hook / swapBuffers guard / env-dispose). LWJGL-backend only; JOGL is default.
 - **Status:** `ant clean` builds; ancestry verified. Runtime testing (visual login,
   multi-session switch/demote, headless `-bots`) still pending at time of writing.
+
+### June 2026 round 2 (49 commits — make-window v31 + MenuSearch refactor)
+
+Normal-size integration on top of the iosys merge (merge-base `e16dcf24b` →
+hafen/master `dcb2e1b70`). Merge commit `f924bf54d`, branch
+`hafen-integration-2026-06b`. Only **3 git conflicts** — but the real risk was a
+nurgling-only file that auto-merged clean yet would break at runtime.
+
+- **⚠ Hidden runtime break — NMakewindow (no git conflict).** Hafen bumped
+  `Session.PVER` 30 → 31 and rewrote the make-window `inpop`/`opop` wire format
+  (modular: each spec wrapped in an `OBJS` array; indexed updates when first arg is
+  an INT; new `constraint` sub-arg; `Spec` ctor → `ResData`). Nurgling's
+  `NMakewindow` is a parallel reimplementation (`extends Widget`, its own `Spec`,
+  its own flat-format parser) — git/ant can't flag it, but the v31 server would
+  send the new format and crafting/autocraft/presets would misparse. **Ported**
+  `parsespec()` + dual-form `inpop`/`opop` + `constraint` field; added
+  `ui.modflags()` to the `choose` send. Category detection is name-based
+  (`VSpec.categories.get(s.name)`), unaffected by the constraint change.
+- **Conflicts (3):**
+  - `MenuSearch.java` — hafen made it `abstract` (base + `Main` subclass + abstract
+    `generate()` + `recons`/`tvisible()`/`pagseq` + `reqclose();settext();refilter()`
+    in `activate`). Re-grafted nurgling features onto the new shape: `Result.bot`,
+    `Fuzzy.fuzzyFilterAndSort` in `refilter()`, drag-drop+grab+`draw()`+`tooltip()`
+    in `Results`, bots from `BotRegistry.allowedInBotMenu()` in base `updlist()`,
+    and global-paginae accumulation moved into `Main.generate()` (uses `menu.pagseq`
+    to retrigger; nurgling search stays global, ignoring the current category root).
+  - `GameUI.java` — hafen replaced `wdgmsg("close")` listening with per-window
+    `reqclose(Runnable)` callbacks and made the search window always-present
+    (`MenuSearch.Main` created at `place=="menu"`). The old close-router `wdgmsg`
+    override auto-merged away; csearch button auto-merged to the toggle form. Kept
+    nurgling's `NMapWnd`/`NMenuGridWdg`/`NMiniMapWnd` and the intentionally
+    commented-out `MapMenu` buttons; added the always-present srchwnd alongside the
+    nurgling menu-grid widget; added the map-window `reqclose` callback to `NMapWnd`.
+  - `MainFrame.java` — modify/delete: hafen deleted its own 7-line compatibility
+    shim (`092e98b92`); nurgling's MainFrame is our launcher → kept ours.
+- **Auto-merged, verified intact:** Makewindow (3-line nurgling delta), Window
+  (`reqclose(Runnable)` setter), GobIcon, Audio/JavaSound/DummyAudio (NAlarmManager
+  already uses `ui.sfx()`), Session (injectMessage/CachedRes), Material
+  (MaterialFactory), container-color customMask. All `opt/panama/**` additions
+  (DBus/desktop-portal/OSX/ALSA FFI) are JDK ≥ 22-only and don't touch the main build.
+- **Status:** `ant clean` builds; ancestry verified (`f924bf54d` two-parent merge,
+  hafen tip `dcb2e1b70` is an ancestor of HEAD). **Runtime testing pending** —
+  especially crafting/autocraft/craft-presets (NMakewindow v31 port), action search
+  incl. bot drag-drop, window close behavior, and audio/alarms. Not pushed.
