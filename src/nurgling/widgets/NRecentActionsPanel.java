@@ -240,6 +240,14 @@ public class NRecentActionsPanel extends Widget {
             // Create IButton with the action's icon (already a BufferedImage)
             this.button = new IButton(this.recentAction.icon, this.recentAction.icon, this.recentAction.icon) {
                 @Override
+                public boolean checkhit(Coord c) {
+                    if (recentAction.pagina == null && recentAction.botAction == null) {
+                        return false;
+                    }
+                    return c.isect(Coord.z, sz);
+                }
+
+                @Override
                 public void click() {
                     try {
                         if (recentAction.pagina != null) {
