@@ -240,6 +240,18 @@ public class NRecentActionsPanel extends Widget {
             // Create IButton with the action's icon (already a BufferedImage)
             this.button = new IButton(this.recentAction.icon, this.recentAction.icon, this.recentAction.icon) {
                 @Override
+                public boolean checkhit(Coord c) {
+                    // Make the entire cell clickable, not just the opaque icon pixels.
+                    // Recipe icons are non-square silhouettes with transparent margins, so the
+                    // default alpha-based hit test left parts of the cell unresponsive.
+                    // Keep empty placeholder slots click-through.
+                    if (recentAction.pagina == null && recentAction.botAction == null) {
+                        return false;
+                    }
+                    return c.isect(Coord.z, sz);
+                }
+
+                @Override
                 public void click() {
                     try {
                         if (recentAction.pagina != null) {
