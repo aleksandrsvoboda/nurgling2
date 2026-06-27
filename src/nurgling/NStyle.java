@@ -17,6 +17,24 @@ public class NStyle {
     public static final Color titleBg  = new Color(0x1C, 0x25, 0x26); // title bar bg
     public static final Color separator = new Color(40, 52, 54);      // #283436
 
+    /**
+     * Resolves the window content-area background color, honoring the user's
+     * runtime solid-background / opacity / color settings when running under NUI.
+     * Single source of truth shared by NWindowDeco and the menu grid so they
+     * never visually drift apart.
+     */
+    public static Color resolveWindowBg(haven.UI ui) {
+	if(ui instanceof NUI) {
+	    NUI nui = (NUI)ui;
+	    if(nui.getUseSolidBackground()) {
+		Color c = nui.getWindowBackgroundColor();
+		return new Color(c.getRed(), c.getGreen(), c.getBlue(),
+				 (int)(255 * nui.getUIOpacity()));
+	    }
+	}
+	return windowBg;
+    }
+
     // === Fonts (nurgling replacements for CharWnd.catf / CharWnd.attrf) ===
     public static final Text.Foundry ncatf = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 16, Color.WHITE).aa(true);

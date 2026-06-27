@@ -12,9 +12,7 @@ public class NMenuGridWdg extends Widget
     private boolean lastCrimeState = false;
     private boolean lastAllowVisitingState = false;
 
-    final Coord marg = UI.scale(new Coord(6,6));
     final Coord dmarg = UI.scale(new Coord(2,2));
-    public static final IBox pbox = Window.wbox;
     public NMenuGridWdg()
     {
         super( Coord.z);
@@ -67,8 +65,20 @@ public class NMenuGridWdg extends Widget
     @Override
     public void draw(GOut g)
     {
+        Coord bgc = menuGrid.c.sub(dmarg);
+        Coord bgsz = menuGrid.sz.add(dmarg.mul(2));
+        // Flat themed panel, matching NWindowDeco (solid bg + 1px orange border).
+        g.chcolor(NStyle.resolveWindowBg(ui));
+        g.frect(bgc, bgsz);
+        g.chcolor();
         super.draw(g);
-        pbox.draw(g, menuGrid.c.sub(marg), menuGrid.sz.add(marg.mul(2)));
+        int bw = Math.max(1, UI.scale(1));
+        g.chcolor(NStyle.border);
+        g.frect(bgc,                                  new Coord(bgsz.x, bw));
+        g.frect(new Coord(bgc.x, bgc.y + bgsz.y - bw), new Coord(bgsz.x, bw));
+        g.frect(bgc,                                  new Coord(bw, bgsz.y));
+        g.frect(new Coord(bgc.x + bgsz.x - bw, bgc.y), new Coord(bw, bgsz.y));
+        g.chcolor();
     }
     
     /**
