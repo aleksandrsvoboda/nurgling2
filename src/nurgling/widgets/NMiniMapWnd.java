@@ -141,14 +141,21 @@ public class NMiniMapWnd extends Widget{
         ACheckBox ico = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/ico", GameUI.kb_ico, L10n.get("minimap.icon_settings"));
         ico.state(() -> NMiniMapWnd.this.ui.gui.wndstate(NMiniMapWnd.this.ui.gui.iconwnd));
         ico.click(() -> {
-            if(NUtils.getGameUI() == null || NUtils.getGameUI().iconconf == null)
+            GameUI gui = NUtils.getGameUI();
+            if(gui == null || gui.iconconf == null)
                 return;
-            if(NUtils.getGameUI().iconwnd == null) {
-                NUtils.getGameUI().iconwnd = new GobIcon.SettingsWindow(NUtils.getGameUI().iconconf);
-                NUtils.getGameUI().fitwdg(NUtils.getGameUI().add(NUtils.getGameUI().iconwnd, Utils.getprefc("wndc-icon", new Coord(200, 200))));
+            if(gui.iconwnd == null) {
+                // reqclose: hafen replaced GameUI's wdgmsg("close") router with
+                // per-window callbacks, so the window's X must destroy it here.
+                gui.iconwnd = new GobIcon.SettingsWindow(gui.iconconf).reqclose(() -> {
+                    if(gui.iconwnd != null)
+                        gui.iconwnd.reqdestroy();
+                    gui.iconwnd = null;
+                });
+                gui.fitwdg(gui.add(gui.iconwnd, Utils.getprefc("wndc-icon", new Coord(200, 200))));
             } else {
-                ui.destroy(NUtils.getGameUI().iconwnd);
-                NUtils.getGameUI().iconwnd = null;
+                gui.iconwnd.reqdestroy();
+                gui.iconwnd = null;
             }
         });
         buttons.add(ico);
