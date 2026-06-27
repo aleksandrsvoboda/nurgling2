@@ -65,8 +65,6 @@ public class NMenuGridWdg extends Widget
     @Override
     public void draw(GOut g)
     {
-        // Panel wraps the grid with an equal margin on every side (symmetric
-        // icon-to-border spacing), and stays inside the widget's clip.
         Coord bgc = menuGrid.c.sub(dmarg);
         Coord bgsz = menuGrid.sz.add(dmarg.mul(2));
         // Flat themed panel, matching NWindowDeco (solid bg + 1px orange border).
