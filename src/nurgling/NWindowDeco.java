@@ -71,19 +71,7 @@ public class NWindowDeco extends Window.DragDeco {
     }
 
     protected void drawbg(GOut g) {
-        if(ui instanceof NUI) {
-            NUI nui = (NUI)ui;
-            float opacity = nui.getUIOpacity();
-            if(nui.getUseSolidBackground()) {
-                Color bgColor = nui.getWindowBackgroundColor();
-                int alpha = (int)(255 * opacity);
-                g.chcolor(bgColor.getRed(), bgColor.getGreen(), bgColor.getBlue(), alpha);
-                g.frect(new Coord(0, ca.ul.y), ca.sz());
-                g.chcolor();
-                return;
-            }
-        }
-        g.chcolor(NStyle.windowBg);
+        g.chcolor(NStyle.resolveWindowBg(ui));
         g.frect(new Coord(0, ca.ul.y), ca.sz());
         g.chcolor();
     }

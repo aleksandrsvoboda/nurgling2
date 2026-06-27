@@ -45,6 +45,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     public static Pagina lastPagina = null;
     public final static Tex bg = Inventory.invsq;
     public final static Coord bgsz = Inventory.sqsz;
+    public static boolean drawCellBg = false;
     public final static RichText.Foundry ttfnd = new RichText.Foundry(TextAttribute.FAMILY, "SansSerif", TextAttribute.SIZE, UI.scale(10f));
     private static Coord gsz = new Coord(8, 4);
     public final Set<Pagina> paginae = new HashSet<Pagina>();
@@ -453,7 +454,8 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	for(int y = 0; y < gsz.y; y++) {
 	    for(int x = 0; x < gsz.x; x++) {
 		Coord p = bgsz.mul(new Coord(x, y));
-		g.image(bg, p);
+		if(drawCellBg)
+		    g.image(bg, p);
 		PagButton btn = layout[x][y];
 		if(btn != null) {
 		    GSprite spr;
