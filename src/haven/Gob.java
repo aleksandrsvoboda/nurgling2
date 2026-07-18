@@ -123,6 +123,8 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		gob.defer(() -> remove(false));
 		return;
 	    }
+	    if(!added)
+		return;
 	    remove0();
 	    gob.ols.remove(this);
 		gob.ngob.removeol(this);
