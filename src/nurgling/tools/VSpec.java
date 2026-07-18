@@ -3193,26 +3193,42 @@ public class VSpec {
         jotun_state.put(NStyle.Container.FULL, 112);
     }
 
+    private static final String YESTERYEAR_PREFIX = "Yesteryear's ";
+
+    // Off-season harvests are reported with a "Yesteryear's " prefix (e.g. "Yesteryear's Alder Catkin")
+    // instead of the normal in-season product name; strip it so discovery tracking still matches.
+    private static String normalizeProductName(String name) {
+        return name.startsWith(YESTERYEAR_PREFIX) ? name.substring(YESTERYEAR_PREFIX.length()) : name;
+    }
+
+    public static boolean hasUndiscoveredProduct(String gobResName) {
+        return gobResName != null && gobResName.startsWith("gfx/terobjs")
+            && object.containsKey(gobResName)
+            && NUtils.getGameUI() != null && NUtils.getGameUI().getCharInfo() != null
+            && object.get(gobResName).size() != NUtils.getGameUI().getCharInfo().LpExplorerGetSize(gobResName);
+    }
+
     public static void checkLpExplorer(Gob clickedGob, String name) {
         if(clickedGob!=null) {
+            String normalized = normalizeProductName(name);
             if (NUtils.getGameUI() != null && NUtils.getGameUI().getCharInfo() != null) {
                 if (clickedGob.ngob.name != null && object.containsKey(clickedGob.ngob.name)) {
-                    if (object.get(clickedGob.ngob.name).contains(name)) {
+                    if (object.get(clickedGob.ngob.name).contains(normalized)) {
                         boolean objectExists = NUtils.getGameUI().getCharInfo().IsLpExplorerContains(clickedGob.ngob.name);
 
                         if (!objectExists) {
-                            NUtils.getGameUI().getCharInfo().LpExplorerAdd(clickedGob.ngob.name,name);
+                            NUtils.getGameUI().getCharInfo().LpExplorerAdd(clickedGob.ngob.name,normalized);
                             NUtils.getGameUI().getCharInfo().newLpExplorer = true;
 
                         } else {
                             int currentSize = NUtils.getGameUI().getCharInfo().LpExplorerGetSize(clickedGob.ngob.name);
                             int totalSize = object.get(clickedGob.ngob.name).size();
-                            boolean productExists = NUtils.getGameUI().getCharInfo().IsLpExplorerContains(clickedGob.ngob.name, name);
-                            
+                            boolean productExists = NUtils.getGameUI().getCharInfo().IsLpExplorerContains(clickedGob.ngob.name, normalized);
+
 
                             if (currentSize != totalSize) {
-                                if (object.get(clickedGob.ngob.name).contains(name) && !productExists) {
-                                    NUtils.getGameUI().getCharInfo().LpExplorerAdd(clickedGob.ngob.name,name);
+                                if (object.get(clickedGob.ngob.name).contains(normalized) && !productExists) {
+                                    NUtils.getGameUI().getCharInfo().LpExplorerAdd(clickedGob.ngob.name,normalized);
                                     NUtils.getGameUI().getCharInfo().newLpExplorer = true;
                                 }
                             }

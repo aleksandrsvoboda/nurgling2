@@ -5,6 +5,7 @@ import haven.res.ui.obj.buddy.Buddy;
 import nurgling.*;
 import nurgling.overlays.map.MinimapChunkNavRenderer;
 import nurgling.overlays.map.MinimapClaimRenderer;
+import nurgling.overlays.map.MinimapDiscoveryRenderer;
 import nurgling.overlays.map.MinimapExploredAreaRenderer;
 import nurgling.tools.ExploredArea;
 import nurgling.tools.NParser;
@@ -209,6 +210,9 @@ NMiniMap extends MiniMap {
 
         // Render ChunkNav exploration overlay (checks config internally)
         MinimapChunkNavRenderer.renderChunkNav(this, g);
+
+        // Render undiscovered-LP gob markers (shares NConfig.Key.lpassistent toggle with NLPassistant)
+        MinimapDiscoveryRenderer.renderDiscoveryMarkers(this, g);
 
         boolean playerSegment = (sessloc != null) && ((curloc == null) || (sessloc.seg.id == curloc.seg.id));
         // Show grid when zoomed in enough (scale >= 0.25, i.e. not too far out)
@@ -1937,6 +1941,24 @@ NMiniMap extends MiniMap {
                 }
             }
         }
+        // Handle right-click release on an undiscovered-LP marker - open the same flower
+        // menu a real gob icon would (mirrors NMiniMapWnd.clickicon's use of mvclick).
+        if(ev.b == 3 && dloc != null && sessloc != null) {
+            Gob gob = MinimapDiscoveryRenderer.gobAt(this, ev.c);
+            if(gob != null) {
+                Location loc = xlate(ev.c);
+                NGameUI gui = NUtils.getGameUI();
+                if(loc != null && gui != null && gui.map != null) {
+                    // Set clickedGob so VSpec.checkLpExplorer (driven by NGItem.tick()) can
+                    // attribute whatever item the flower-menu action produces to this gob -
+                    // otherwise LP discovery tracking never sees minimap-triggered gathers.
+                    gui.map.clickedGob = new MapView.ClickedGob(gob, ev.b);
+                    mvclick(gui.map, null, loc, gob, ev.b);
+                    return true;
+                }
+            }
+        }
+
         return super.mouseup(ev);
     }
 
