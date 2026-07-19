@@ -26,8 +26,6 @@ public class NLPassistant extends Sprite implements RenderTree.Node
 
     ColorTex сt;
 
-    int targetSize = 0;
-
 
     public NLPassistant(Owner owner)
     {
@@ -35,7 +33,6 @@ public class NLPassistant extends Sprite implements RenderTree.Node
         сt = new TexI(Resource.loadimg("marks/newlpassistant")).st();
         gob = (Gob) owner;
         name = gob.ngob.name;
-        targetSize = VSpec.object.get(name).size();
         double len = MCache.tilesz.x*2;
         if(gob.ngob.hitBox!=null)
             len = Math.max(gob.ngob.hitBox.end.dist(gob.ngob.hitBox.begin),len);
@@ -65,7 +62,7 @@ public class NLPassistant extends Sprite implements RenderTree.Node
     @Override
     public boolean tick(double dt)
     {
-        return !(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null || NUtils.getGameUI().getCharInfo().LpExplorerGetSize(name) == targetSize;
+        return !(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null || !VSpec.hasUndiscoveredProduct(name);
     }
 
 }
