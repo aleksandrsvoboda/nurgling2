@@ -9,7 +9,7 @@ import haven.res.ui.tt.stackn.StackName;
 import monitoring.ItemWatcher;
 import nurgling.iteminfo.NCuriosity;
 import nurgling.iteminfo.NFoodInfo;
-import nurgling.tools.VSpec;
+import nurgling.tools.LpExplorer;
 import nurgling.widgets.NQuestInfo;
 
 import java.util.ArrayList;
@@ -159,7 +159,7 @@ public class NGItem extends GItem
                     // Exclude tools from LPExplorer tracking
                     if(!name.contains(" Axe") && !name.contains(" Saw"))
                     {
-                        VSpec.checkLpExplorer(NUtils.getGameUI().map.clickedGob.gob, name);
+                        LpExplorer.checkLpExplorer(NUtils.getGameUI().map.clickedGob.gob, name);
                     }
                 }
                 

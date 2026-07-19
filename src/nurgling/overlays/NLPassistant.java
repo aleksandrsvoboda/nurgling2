@@ -5,7 +5,7 @@ import haven.*;
 import haven.render.*;
 import nurgling.NConfig;
 import nurgling.NUtils;
-import nurgling.tools.VSpec;
+import nurgling.tools.LpExplorer;
 import nurgling.widgets.NQuestInfo;
 
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ public class NLPassistant extends Sprite implements RenderTree.Node
     @Override
     public boolean tick(double dt)
     {
-        return !(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null || !VSpec.hasUndiscoveredProduct(name);
+        return !(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null || !LpExplorer.hasUndiscoveredProduct(name);
     }
 
 }
