@@ -2,7 +2,7 @@ package nurgling.overlays.map;
 
 import haven.*;
 import nurgling.NConfig;
-import nurgling.tools.VSpec;
+import nurgling.tools.LpExplorer;
 
 import java.awt.Color;
 
@@ -27,7 +27,7 @@ public class MinimapDiscoveryRenderer {
         synchronized (oc) {
             for (Gob gob : oc) {
                 try {
-                    if (gob.ngob == null || !VSpec.hasUndiscoveredProduct(gob.ngob.name))
+                    if (gob.ngob == null || !LpExplorer.hasUndiscoveredProduct(gob.ngob.name))
                         continue;
 
                     Coord screenPos = map.p2c(gob.rc);
@@ -57,7 +57,7 @@ public class MinimapDiscoveryRenderer {
         synchronized (oc) {
             for (Gob gob : oc) {
                 try {
-                    if (gob.ngob == null || !VSpec.hasUndiscoveredProduct(gob.ngob.name))
+                    if (gob.ngob == null || !LpExplorer.hasUndiscoveredProduct(gob.ngob.name))
                         continue;
                     if (map.p2c(gob.rc).dist(screenCoord) < threshold)
                         return gob;

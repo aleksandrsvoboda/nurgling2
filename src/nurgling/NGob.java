@@ -1100,7 +1100,7 @@ public class NGob
             }
             if (cachedLpassistent)
             {
-                if (VSpec.hasUndiscoveredProduct(name))
+                if (LpExplorer.hasUndiscoveredProduct(name))
                 {
                     parent.addcustomol(new NLPassistant(parent));
                 }
