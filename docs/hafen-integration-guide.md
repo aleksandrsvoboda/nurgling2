@@ -357,9 +357,9 @@ For the next hafen integration:
 
 ---
 
-**Last Updated:** 2026-06-18
-**Last Integration:** hafen-integration-2026-06b (merge commit f924bf54d, branch off master)
-**Hafen Commits Integrated:** 49 commits (merge-base e16dcf24b → hafen/master dcb2e1b70)
+**Last Updated:** 2026-07-19
+**Last Integration:** hafen-integration-2026-07 (merge commit fecdd698c, branch off origin/master)
+**Hafen Commits Integrated:** 31 commits (merge-base dcb2e1b70 → hafen/master 592d4d5ac)
 
 > Note: The Feb 2026 reference above (57d9570b2 / d58dcb242) is historical and is
 > NOT in the current master's ancestry — a later, undocumented integration brought
@@ -473,3 +473,59 @@ nurgling-only file that auto-merged clean yet would break at runtime.
   hafen tip `dcb2e1b70` is an ancestor of HEAD). **Runtime testing pending** —
   especially crafting/autocraft/craft-presets (NMakewindow v31 port), action search
   incl. bot drag-drop, window close behavior, and audio/alarms. Not pushed.
+
+### July 2026 integration (31 commits — "rekey" + new authd protocol) — SMALL
+
+Merge-base `dcb2e1b70` → hafen/master `592d4d5ac`. Merge commit `fecdd698c`, branch
+`hafen-integration-2026-07` (branched off **origin/master**, which was ahead of local
+master). Only **1 conflict**, and — unlike the last two rounds — **no hidden runtime
+break**: `Session.PVER` stayed at 31, so no wire format changed under a nurgling
+reimplementation.
+
+- **Theme 1 — "rekey" (physical keys vs. key symbols).** `Key.Std` is no longer a
+  `Key`; it now implements a new nested `Key.Sym`. `Key` loses `nm()` and gains
+  `primary()` / `primary(Collection)` / `is(Sym)`; `KeyDownEvent` gains `sym()`.
+  Std constants gained `char ch` values and the list constants were renamed
+  (`NUMKEYS`→`NUMBERS`, `NUMPADKEYS`→`PADNUMBERS`, `ALPHAKEYS`→`LATIN`, plus `ALL`).
+  **Zero nurgling impact** — every nurgling keybind site (`NMapView`, `SessionTabBar`,
+  `NToolBeltProp`, `QuickActionPreset`, `NGameUI`) uses the AWT-era API
+  (`KeyMatch.forcode`, `java.awt.event.KeyEvent`, `ev.code`, `ev.awt`), which the
+  compat layer still exposes. Nothing in `src/nurgling` references `haven.iosys.tk.Key`.
+  ⚠ Note for future: the `Key.Std` id prefix changed `"std."` → `"std:"`. That is a
+  *persisted* id — hafen-side keybinds stored under old ids won't resolve. Harmless
+  today because nurgling doesn't persist those ids, but don't build on `Key.Std.id()`.
+- **Theme 2 — new authd protocol.** `AuthClient.cmd()`/`esendmsg()` changed from a
+  positional arg list to a command name plus keyword pairs (sends `cmd + "*"`;
+  `TokenInfo.encode()` returns a `Map` instead of `Object[]`).
+  `Credentials.name()` → `authname()`, and **`tryauth()` now returns `Session.User`
+  instead of `String`** (it also canonicalizes: `authname` is updated to the account
+  name the server returns). `Bootstrap.settoken` now no-ops on a null user and writes
+  `null` rather than `""` to clear a pref.
+- **Conflict (1): `Bootstrap.java`.** Nurgling owns this file (factory +
+  `setFactory`/`create`, `preRun`/`createRemoteUI` hooks, and the `authmech` switch
+  that picks `NLoginScreen` for "native"). Hafen rewrote the auth flow inside `run()`.
+  The conflict was only the adjacent login-widget + `loginname` lines: **kept
+  nurgling's `authmech` switch, took hafen's `String loginname = null`** — hafen now
+  derives it from `creds.authname()` after auth and only persists it when non-null.
+  Everything else in `run()` auto-merged; `createRemoteUI(sess)` at the tail survived.
+- **Compile fix (1):** `nurgling/headless/SimpleAuthClient` assigned `tryauth()` to a
+  `String` → now takes `Session.User` and reads `.name`. This was the *only* fallout,
+  and javac caught it because the signature changed (contrast with June's NMakewindow
+  wire-format break, which nothing could catch statically).
+- **Auto-merged, verified intact:** `AuthClient` (nurgling's `alwaysObfuscate`
+  connect logic — hafen's edits were in `esendmsg`/`Credentials`, well away from the
+  ctor), `Client` (`mkui()`→`NUI`, `NBootstrap.create()`, Nurgling II window titles),
+  `HashDirCache` (public `base`), `Widget` (nurgling hunks at lines ~45/65/702/2018 vs
+  hafen's `key_tab.match(ev.awt, KeyMatch.S)` at ~1358 — no overlap).
+- **Checked and clear:** `NBootstrap` is the only nurgling subclass of a rewritten
+  hafen class, and it only overrides the two nurgling-added hooks (it does *not*
+  duplicate `run()`, so the auth-flow rewrite flows through automatically).
+  `NLoginScreen` keeps its own token store (`saveLoginToken`), independent of
+  `Bootstrap`'s `savedtoken-*` prefs, so `settoken`'s null-vs-empty change can't
+  corrupt it. No nurgling toolkit subclasses, so the large `AWTToolkit` /
+  `NEWTContext` / `opt/panama` GLX-WGL diffs are inert.
+- **Status:** `ant clean` + full build succeeds (5336 classes, jar built); ancestry
+  verified (`fecdd698c` two-parent, hafen tip `592d4d5ac` is an ancestor).
+  **Runtime testing pending** — login is the area to exercise: native login via
+  `NLoginScreen`, saved-token login, headless `-bots` auth, and multi-session
+  switch/demote (which re-enters `NBootstrap.preRun`). Not pushed.
