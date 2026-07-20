@@ -19,6 +19,24 @@ public class BuildTrellis implements Action {
     private static final int TRELLIS_PER_TILE = 3;
     private NContext context;
 
+    /**
+     * Snapshot map.placing into a local before calling get(), to avoid the race where
+     * placing gets reassigned to a fresh not-done Future between WaitPlob succeeding
+     * and the get() call. Retries WaitPlob if the snapshot is null/not-ready (the
+     * snapshot is stale because placing was reassigned during the original wait).
+     * Returns null if no ready Plob is available after retries.
+     */
+    private MapView.Plob waitAndGetPlob() throws InterruptedException {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            NUtils.addTask(new WaitPlob());
+            Loader.Future<MapView.Plob> snapshot = NUtils.getGameUI().map.placing;
+            if (snapshot != null && snapshot.ready()) {
+                return snapshot.get();
+            }
+        }
+        return null;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
             Build.Command command = new Build.Command();
@@ -46,8 +64,10 @@ public class BuildTrellis implements Action {
                     }
                 }
 
-                NUtils.addTask(new WaitPlob());
-                MapView.Plob plob = NUtils.getGameUI().map.placing.get();
+                MapView.Plob plob = waitAndGetPlob();
+                if (plob == null) {
+                    return Results.ERROR("Plob never became ready");
+                }
                 NHitBox trellisHitBox = plob.ngob.hitBox;
 
 
@@ -112,8 +132,10 @@ public class BuildTrellis implements Action {
                     }
                 }
 
-                NUtils.addTask(new WaitPlob());
-                plob = NUtils.getGameUI().map.placing.get();
+                plob = waitAndGetPlob();
+                if (plob == null) {
+                    return Results.ERROR("Plob never became ready");
+                }
                 plob.a = needRotate ? Math.PI / 2 : 0;
 
                 pos = findFreePlaceWithLimit(area, needRotate ? plob.ngob.hitBox.rotate() : plob.ngob.hitBox, tileCount, orientation);
@@ -334,6 +356,11 @@ public class BuildTrellis implements Action {
     private boolean refillIng(NGameUI gui, ArrayList<Build.Ingredient> curings) throws InterruptedException {
             for(Build.Ingredient ingredient: curings) {
                 if(ingredient.specialWay == null) {
+                    // Nothing needed for this ingredient - don't make a pointless trip
+                    if (ingredient.count <= 0) {
+                        continue;
+                    }
+
                     if (ingredient.nArea == null) {
                         NUtils.getGameUI().msg("No area defined for " + ingredient.name.getKeys().get(0));
                         continue;
