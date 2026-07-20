@@ -6,24 +6,67 @@ import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.widgets.NEquipory;
+import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 
+/**
+ * Unified workstation lighter.
+ *
+ * <p>Lights one or more workstations (cauldron, fireplace, oven, kiln, smelter, ...) by trying a
+ * prioritized list of fuel sources. Each batchable source is expressed as three phases so a whole
+ * batch of gobs shares a single setup/teardown of the lighting implement:
+ * <ul>
+ *   <li><b>acquire</b> (once) — take the torch to hand / lift the candelabrum;</li>
+ *   <li><b>apply</b> (per gob) — carry the implement to each target and ignite it;</li>
+ *   <li><b>release</b> (once) — return the torch to its post/slot, place the candelabrum back.</li>
+ * </ul>
+ *
+ * <p>Priority order: embers → equipped lit torch → unlit torch + brazier → lit candelabrum →
+ * torchpost (lit) → torchpost (unlit) + brazier → branches.
+ *
+ * <p>Behavior contract:
+ * <ul>
+ *   <li><b>Fail-closed</b> — if any requested gob cannot be lit the whole run fails; if a gob lacks
+ *       fuel the run fails <i>up front</i>, before any implement is acquired or firebrand crafted.</li>
+ *   <li><b>Branches never batch</b> — a firebrand is single-use, so the branch tier re-crafts per gob.</li>
+ *   <li><b>Torch stays equipped</b> — a lit torch is only lit while equipped/in-hand; the apply loop
+ *       never routes it through inventory (that extinguishes it).</li>
+ *   <li><b>Context menu unchanged</b> — the single-{@link Gob} constructor keeps today's behavior and
+ *       does <i>not</i> fetch a candelabrum from its designated area; only the list constructor (used
+ *       by bots) enables the area fetch, matching the old {@code LightGob} capability.</li>
+ * </ul>
+ */
 public class LightObject implements Action {
 
-    private final Gob target;
+    private final ArrayList<Gob> targets;
+    private final boolean allowCandelabrumAreaFetch;
+
     private static final Coord TORCH_SIZE = new Coord(1, 1);
 
     private static final int SOURCE_EQUIPMENT = 0;
     private static final int SOURCE_INVENTORY = 1;
     private static final int SOURCE_BELT = 2;
 
+    /** Single-target constructor used by the right-click context menu. Preserves legacy behavior:
+     *  does not navigate to a candelabrum area. */
     public LightObject(Gob target) {
-        this.target = target;
+        this.targets = new ArrayList<>();
+        this.targets.add(target);
+        this.allowCandelabrumAreaFetch = false;
+    }
+
+    /** Batch constructor used by bots (via {@code LightGob}). Enables candelabrum-area fetch so it is a
+     *  strict superset of the old {@code LightGob} behavior. */
+    public LightObject(ArrayList<Gob> targets) {
+        this.targets = new ArrayList<>(targets);
+        this.allowCandelabrumAreaFetch = true;
     }
 
     // --- Config system ---
@@ -73,87 +116,116 @@ public class LightObject implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        String gobName = target.ngob.name;
-        if (gobName == null)
-            return Results.ERROR("Cannot determine object type");
-
-        LightConfig config = getConfig(gobName);
-        if (config == null)
-            return Results.ERROR("Unsupported object type: " + gobName);
-
-        if ((target.ngob.getModelAttribute() & config.fireFlag) != 0) {
-            gui.msg(config.displayName + " is already lit");
+        if (targets.isEmpty())
             return Results.SUCCESS();
-        }
 
-        if (config.fuelFlag != 0 && (target.ngob.getModelAttribute() & config.fuelFlag) == 0) {
-            gui.error(config.displayName + " has no fuel");
-            return Results.FAIL();
-        }
-
-        // Priority 0: Embers - can light directly via "Light My Fire"
-        if (config.embersAttr != -1 && target.ngob.getModelAttribute() == config.embersAttr) {
-            gui.msg(config.displayName + " has embers, lighting directly");
-            new PathFinder(target).run(gui);
-            Results result = new SelectFlowerAction("Light My Fire", target).run(gui);
-            if (result.IsSuccess()) {
-                NUtils.getUI().core.addTask(new WaitGobModelAttr(target, config.fireFlag));
-                return Results.SUCCESS();
+        // --- Precheck all targets up front (fail-closed on fuel) ---
+        ArrayList<Gob> remaining = new ArrayList<>();
+        for (Gob t : targets) {
+            if (t == null || t.ngob == null || t.ngob.name == null)
+                return Results.ERROR("Cannot determine object type");
+            LightConfig config = getConfig(t.ngob.name);
+            if (config == null)
+                return Results.ERROR("Unsupported object type: " + t.ngob.name);
+            if (isLit(t, config))
+                continue; // already lit, nothing to do
+            if (config.fuelFlag != 0 && (t.ngob.getModelAttribute() & config.fuelFlag) == 0) {
+                // No reason to acquire an implement or craft a firebrand for a gob that can't be lit.
+                gui.error(config.displayName + " has no fuel");
+                return Results.FAIL();
             }
+            remaining.add(t);
         }
-        if (isLit(config))
+        if (remaining.isEmpty())
             return Results.SUCCESS();
 
-        // Priority 1: Lit torch in equipment
-        gui.msg("No embers, checking for equipped lit torch");
-        if (tryEquippedLitTorch(gui, config))
-            return Results.SUCCESS();
-        if (isLit(config))
-            return Results.SUCCESS();
+        // Priority 0: Embers (per-gob self-light, no shared implement).
+        lightEmbers(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 2: Unlit torch (equipment or inventory) + lit brazier
-        gui.msg("No equipped lit torch, checking for torch and nearby fire source");
-        if (tryTorchWithBrazier(gui, config))
-            return Results.SUCCESS();
-        if (isLit(config))
-            return Results.SUCCESS();
+        // Priority 1: Lit torch in equipment.
+        tryEquippedLitTorch(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 3: Lit candelabrum
-        gui.msg("No torch with fire source found, looking for lit candelabrum");
-        if (tryLitCandelabrum(gui, config))
-            return Results.SUCCESS();
-        if (isLit(config))
-            return Results.SUCCESS();
+        // Priority 2: Unlit torch (equipment/inventory/belt) + nearby lit fire source.
+        tryTorchWithBrazier(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 4: Lit torch on torchpost
-        gui.msg("Lit candelabrum not found, looking for lit torch on torchpost");
-        if (tryLitTorchOnTorchpost(gui, config))
-            return Results.SUCCESS();
-        if (isLit(config))
-            return Results.SUCCESS();
+        // Priority 3: Lit candelabrum (in view, and from its area for the batch/bot path).
+        tryLitCandelabrum(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 5: Unlit torch on torchpost + lit brazier
-        gui.msg("Lit torch on torchpost not found, looking for unlit torch on torchpost and fire source");
-        if (tryUnlitTorchpostWithBrazier(gui, config))
-            return Results.SUCCESS();
-        if (isLit(config))
-            return Results.SUCCESS();
+        // Priority 4: Lit torch on a torchpost.
+        tryLitTorchOnTorchpost(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 6: Sticks (branches)
-        gui.msg("No torch or fire source found, using branches");
-        return new LightFire(target).run(gui);
+        // Priority 5: Unlit torch on a torchpost + nearby lit fire source.
+        tryUnlitTorchpostWithBrazier(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
+
+        // Priority 6: Branches — always per-gob, never batched (firebrand is single-use).
+        return lightWithBranches(gui, remaining);
     }
 
-    private boolean isLit(LightConfig config) {
-        return (target.ngob.getModelAttribute() & config.fireFlag) != 0;
+    private boolean isLit(Gob gob, LightConfig config) {
+        return (gob.ngob.getModelAttribute() & config.fireFlag) != 0;
+    }
+
+    /** Order a set of targets nearest-first from the player's current position (snapshot). */
+    private ArrayList<Gob> orderByProximity(ArrayList<Gob> gobs) {
+        ArrayList<Gob> ordered = new ArrayList<>();
+        for (Gob g : gobs)
+            if (g != null && g.ngob != null)
+                ordered.add(g);
+        Coord2d p = NUtils.player().rc;
+        ordered.sort((a, b) -> Double.compare(a.rc.dist(p), b.rc.dist(p)));
+        return ordered;
+    }
+
+    // --- Priority 0: Embers ---
+
+    private void lightEmbers(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+        for (Gob t : orderByProximity(remaining)) {
+            LightConfig config = getConfig(t.ngob.name);
+            if (config == null || config.embersAttr == -1)
+                continue;
+            if (t.ngob.getModelAttribute() != config.embersAttr)
+                continue;
+            new PathFinder(t).run(gui);
+            Results result = new SelectFlowerAction("Light My Fire", t).run(gui);
+            if (result.IsSuccess())
+                NUtils.getUI().core.addTask(new WaitGobModelAttr(t, config.fireFlag));
+            if (isLit(t, config))
+                remaining.remove(t);
+        }
+    }
+
+    /** Apply a lit torch (already in hand) to each remaining target, keeping the torch equipped. */
+    private void applyTorchToTargets(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+        for (Gob t : orderByProximity(remaining)) {
+            if (gui.vhand == null)
+                break; // torch left our hand (extinguished / lost) — stop and release
+            LightConfig config = getConfig(t.ngob.name);
+            if (config == null)
+                continue;
+            if (isLit(t, config)) {
+                remaining.remove(t);
+                continue;
+            }
+            new PathFinder(t).run(gui);
+            NUtils.activateItem(t);
+            waitForProgress(gui);
+            if (isLit(t, config))
+                remaining.remove(t);
+        }
     }
 
     // --- Priority 1: Lit torch in equipment ---
 
-    private boolean tryEquippedLitTorch(NGameUI gui, LightConfig config) throws InterruptedException {
+    private void tryEquippedLitTorch(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         NEquipory equip = NUtils.getEquipment();
         if (equip == null)
-            return false;
+            return;
 
         int sourceSlot = -1;
         WItem torch = null;
@@ -169,28 +241,28 @@ public class LightObject implements Action {
             }
         }
         if (torch == null)
-            return false;
+            return;
 
+        // Acquire (once)
         NUtils.takeItemToHand(torch);
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
-        new PathFinder(target).run(gui);
-        NUtils.activateItem(target);
-        waitForProgress(gui);
+        // Apply (per gob)
+        applyTorchToTargets(gui, remaining);
 
+        // Release (once) — back to equip slot; the torch stays lit there.
         if (gui.vhand != null) {
             NUtils.getEquipment().wdgmsg("drop", sourceSlot);
             NUtils.getUI().core.addTask(new WaitFreeHand());
         }
-        return true;
     }
 
     // --- Priority 2: Unlit torch (equipment or inventory) + lit brazier ---
 
-    private boolean tryTorchWithBrazier(NGameUI gui, LightConfig config) throws InterruptedException {
+    private void tryTorchWithBrazier(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         Gob litBrazier = findLitFireSource();
         if (litBrazier == null)
-            return false;
+            return;
 
         NEquipory equip = NUtils.getEquipment();
         int torchSource = -1;
@@ -240,8 +312,9 @@ public class LightObject implements Action {
         }
 
         if (torch == null)
-            return false;
+            return;
 
+        // Acquire (once): take the torch and light it on the brazier.
         NUtils.takeItemToHand(torch);
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
@@ -249,13 +322,10 @@ public class LightObject implements Action {
         NUtils.activateItem(litBrazier);
         waitForProgress(gui);
 
-        if (gui.vhand != null) {
-            new PathFinder(target).run(gui);
-            NUtils.activateItem(target);
-            waitForProgress(gui);
-        }
+        // Apply (per gob)
+        applyTorchToTargets(gui, remaining);
 
-        // Extinguish torch and put back where it came from
+        // Release (once): extinguish and return the torch where it came from.
         if (gui.vhand != null) {
             if (torchSource == SOURCE_EQUIPMENT) {
                 extinguishAndReturnToEquip(gui, equipSlot);
@@ -267,42 +337,86 @@ public class LightObject implements Action {
                 NUtils.getUI().core.addTask(new WaitFreeHand());
             }
         }
-        return isLit(config);
     }
 
     // --- Priority 3: Lit candelabrum ---
 
-    private boolean tryLitCandelabrum(NGameUI gui, LightConfig config) throws InterruptedException {
-        ArrayList<Gob> candelabrums = Finder.findGobs(new NAlias("gfx/terobjs/candelabrum"));
-        Gob litCandelabrum = null;
-        for (Gob c : candelabrums) {
-            if (c.ngob.getModelAttribute() == 3) {
-                litCandelabrum = c;
-                break;
-            }
+    private void tryLitCandelabrum(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+        // In-view lit candelabrum: lift once, light all, place back once.
+        Gob litCandelabrum = findLitCandelabrumInView();
+        if (litCandelabrum != null) {
+            Coord2d originalPos = new Coord2d(litCandelabrum.rc.x, litCandelabrum.rc.y);
+            new LiftObject(litCandelabrum).run(gui);
+            applyCandelabrumToTargets(gui, remaining);
+            new PlaceObject(litCandelabrum, originalPos, 0).run(gui);
+            return;
         }
-        if (litCandelabrum == null)
-            return false;
 
-        Coord2d originalPos = new Coord2d(litCandelabrum.rc.x, litCandelabrum.rc.y);
-        new LiftObject(litCandelabrum).run(gui);
+        // Fetch from the candelabrum area (bot/batch path only — keeps the context menu unchanged).
+        if (!allowCandelabrumAreaFetch)
+            return;
 
-        PathFinder pf = new PathFinder(target);
-        pf.isHardMode = true;
-        pf.run(gui);
-        NUtils.activateGob(target);
-        NUtils.getUI().core.addTask(new WaitGobModelAttr(target, config.fireFlag));
+        NContext context = new NContext(gui);
+        String lastposid = context.createPlayerLastPos();
+        NArea candArea = context.goToArea(Specialisation.SpecName.candelabrum);
+        if (candArea == null)
+            return;
 
-        new PlaceObject(litCandelabrum, originalPos, 0).run(gui);
-        return true;
+        context.navigateToAreaIfNeeded(Specialisation.SpecName.candelabrum.toString());
+        Gob areaCandelabrum = findLitCandelabrumInView();
+        if (areaCandelabrum == null) {
+            context.navigateToAreaIfNeeded(lastposid);
+            return;
+        }
+
+        new LiftObject(areaCandelabrum).run(gui);
+        context.navigateToAreaIfNeeded(lastposid);
+        applyCandelabrumToTargets(gui, remaining);
+
+        // Return the candelabrum to its area, then go back to where we were working.
+        context.navigateToAreaIfNeeded(Specialisation.SpecName.candelabrum.toString());
+        Gob lifted = Finder.findLiftedbyPlayer();
+        if (lifted != null) {
+            Coord2d pos = Finder.getFreePlace(
+                    context.goToAreaById(Specialisation.SpecName.candelabrum.toString()).getRCArea(),
+                    lifted.ngob.hitBox, 0);
+            new PlaceObject(areaCandelabrum, pos, 0).run(gui);
+        }
+        context.navigateToAreaIfNeeded(lastposid);
+    }
+
+    private Gob findLitCandelabrumInView() {
+        for (Gob c : Finder.findGobs(new NAlias("gfx/terobjs/candelabrum"))) {
+            if (c != null && c.ngob.getModelAttribute() == 3)
+                return c;
+        }
+        return null;
+    }
+
+    /** Apply a carried (lifted) lit candelabrum to each remaining target. */
+    private void applyCandelabrumToTargets(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+        for (Gob t : orderByProximity(remaining)) {
+            LightConfig config = getConfig(t.ngob.name);
+            if (config == null)
+                continue;
+            if (isLit(t, config)) {
+                remaining.remove(t);
+                continue;
+            }
+            PathFinder pf = new PathFinder(t);
+            pf.isHardMode = true;
+            pf.run(gui);
+            NUtils.activateGob(t);
+            NUtils.getUI().core.addTask(new WaitGobModelAttr(t, config.fireFlag));
+            remaining.remove(t);
+        }
     }
 
     // --- Priority 4: Lit torch on torchpost ---
 
-    private boolean tryLitTorchOnTorchpost(NGameUI gui, LightConfig config) throws InterruptedException {
-        ArrayList<Gob> torchposts = Finder.findGobs(new NAlias("torchpost"));
+    private void tryLitTorchOnTorchpost(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         Gob litTorchpost = null;
-        for (Gob tp : torchposts) {
+        for (Gob tp : Finder.findGobs(new NAlias("torchpost"))) {
             TorchpostState state = getTorchpostState(tp);
             if (state.hasTorch && state.isLit) {
                 litTorchpost = tp;
@@ -310,33 +424,31 @@ public class LightObject implements Action {
             }
         }
         if (litTorchpost == null)
-            return false;
+            return;
 
+        // Acquire (once)
         new PathFinder(litTorchpost).run(gui);
         Results flowerResult = new SelectFlowerAction("Take torch", litTorchpost).run(gui);
         if (!flowerResult.IsSuccess())
-            return false;
-
+            return;
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
-        new PathFinder(target).run(gui);
-        NUtils.activateItem(target);
-        waitForProgress(gui);
+        // Apply (per gob)
+        applyTorchToTargets(gui, remaining);
 
+        // Release (once): return the torch to the post.
         if (gui.vhand != null) {
             new PathFinder(litTorchpost).run(gui);
             NUtils.activateItem(litTorchpost);
             NUtils.getUI().core.addTask(new WaitFreeHand());
         }
-        return true;
     }
 
     // --- Priority 5: Unlit torch on torchpost + lit brazier ---
 
-    private boolean tryUnlitTorchpostWithBrazier(NGameUI gui, LightConfig config) throws InterruptedException {
-        ArrayList<Gob> torchposts = Finder.findGobs(new NAlias("torchpost"));
+    private void tryUnlitTorchpostWithBrazier(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         Gob unlitTorchpost = null;
-        for (Gob tp : torchposts) {
+        for (Gob tp : Finder.findGobs(new NAlias("torchpost"))) {
             TorchpostState state = getTorchpostState(tp);
             if (state.hasTorch && !state.isLit) {
                 unlitTorchpost = tp;
@@ -344,12 +456,13 @@ public class LightObject implements Action {
             }
         }
         if (unlitTorchpost == null)
-            return false;
+            return;
 
         Gob litBrazier = findLitFireSource();
         if (litBrazier == null)
-            return false;
+            return;
 
+        // Acquire (once): take the unlit torch and light it on the brazier.
         new PathFinder(unlitTorchpost).run(gui);
         NUtils.rclickGob(unlitTorchpost);
         NUtils.getUI().core.addTask(new WaitItemInHand());
@@ -358,17 +471,37 @@ public class LightObject implements Action {
         NUtils.activateItem(litBrazier);
         waitForProgress(gui);
 
-        if (gui.vhand != null) {
-            new PathFinder(target).run(gui);
-            NUtils.activateItem(target);
-            waitForProgress(gui);
-        }
+        // Apply (per gob)
+        applyTorchToTargets(gui, remaining);
 
-        // Extinguish torch and place back on torchpost
+        // Release (once): extinguish and put the torch back on the post.
         if (gui.vhand != null) {
             extinguishAndReturnToTorchpost(gui, unlitTorchpost);
         }
-        return isLit(config);
+    }
+
+    // --- Priority 6: Branches (never batched — re-craft a firebrand per gob) ---
+
+    private Results lightWithBranches(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+        for (Gob t : new ArrayList<>(remaining)) {
+            LightConfig config = getConfig(t.ngob.name);
+            if (config == null)
+                return Results.ERROR("Unsupported object type: " + t.ngob.name);
+            if (isLit(t, config)) {
+                remaining.remove(t);
+                continue;
+            }
+            Results lightResult = new LightFire(t).run(gui);
+            if (!lightResult.IsSuccess()) {
+                gui.error("Failed to light fire on object: " + t.ngob.name);
+                return lightResult;
+            }
+            Gob updated = Finder.findGob(t.id);
+            if (updated != null && !isLit(updated, config))
+                return Results.ERROR("Fire lighting failed - state did not change");
+            remaining.remove(t);
+        }
+        return remaining.isEmpty() ? Results.SUCCESS() : Results.FAIL();
     }
 
     // --- Extinguish helpers ---
@@ -446,6 +579,13 @@ public class LightObject implements Action {
             "gfx/terobjs/crucible"
     );
 
+    private boolean isTarget(long id) {
+        for (Gob t : targets)
+            if (t != null && t.id == id)
+                return true;
+        return false;
+    }
+
     private Gob findLitFireSource() {
         ArrayList<Gob> sources = Finder.findGobs(FIRE_SOURCE_ALIAS);
         Gob closest = null;
@@ -453,7 +593,7 @@ public class LightObject implements Action {
         Coord2d playerPos = NUtils.player().rc;
 
         for (Gob gob : sources) {
-            if (gob.id == target.id)
+            if (isTarget(gob.id))
                 continue;
             if (gob.ngob == null || gob.ngob.name == null)
                 continue;
