@@ -28,8 +28,10 @@ import java.util.ArrayList;
  *   <li><b>release</b> (once) — return the torch to its post/slot, place the candelabrum back.</li>
  * </ul>
  *
- * <p>Priority order: embers → equipped lit torch → unlit torch + brazier → lit candelabrum →
- * torchpost (lit) → torchpost (unlit) + brazier → branches.
+ * <p>Priority order: embers → equipped lit torch → unlit torch + brazier → in-view lit candelabrum →
+ * torchpost (lit) → torchpost (unlit) + brazier → branches → (bot path only, last resort) fetch a lit
+ * candelabrum from its designated spec area. The area fetch is last because it can be a long round-trip;
+ * every nearby option is preferred over it.
  *
  * <p>Behavior contract:
  * <ul>
@@ -151,8 +153,8 @@ public class LightObject implements Action {
         tryTorchWithBrazier(gui, remaining);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 3: Lit candelabrum (in view, and from its area for the batch/bot path).
-        tryLitCandelabrum(gui, remaining);
+        // Priority 3: Lit candelabrum already in view (cheap — no area travel).
+        tryLitCandelabrumInView(gui, remaining);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 4: Lit torch on a torchpost.
@@ -164,7 +166,15 @@ public class LightObject implements Action {
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 6: Branches — always per-gob, never batched (firebrand is single-use).
-        return lightWithBranches(gui, remaining);
+        lightWithBranches(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
+
+        // Last resort (bot/batch path only): fetch a lit candelabrum from its designated spec area.
+        // This can be a long round-trip, so it runs only after every nearby option has been exhausted.
+        if (allowCandelabrumAreaFetch)
+            tryCandelabrumFromArea(gui, remaining);
+
+        return remaining.isEmpty() ? Results.SUCCESS() : Results.FAIL();
     }
 
     private boolean isLit(Gob gob, LightConfig config) {
@@ -339,23 +349,22 @@ public class LightObject implements Action {
         }
     }
 
-    // --- Priority 3: Lit candelabrum ---
+    // --- Priority 3: Lit candelabrum already in view (no area travel) ---
 
-    private void tryLitCandelabrum(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
-        // In-view lit candelabrum: lift once, light all, place back once.
+    private void tryLitCandelabrumInView(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         Gob litCandelabrum = findLitCandelabrumInView();
-        if (litCandelabrum != null) {
-            Coord2d originalPos = new Coord2d(litCandelabrum.rc.x, litCandelabrum.rc.y);
-            new LiftObject(litCandelabrum).run(gui);
-            applyCandelabrumToTargets(gui, remaining);
-            new PlaceObject(litCandelabrum, originalPos, 0).run(gui);
+        if (litCandelabrum == null)
             return;
-        }
+        // Lift once, light all, place back once.
+        Coord2d originalPos = new Coord2d(litCandelabrum.rc.x, litCandelabrum.rc.y);
+        new LiftObject(litCandelabrum).run(gui);
+        applyCandelabrumToTargets(gui, remaining);
+        new PlaceObject(litCandelabrum, originalPos, 0).run(gui);
+    }
 
-        // Fetch from the candelabrum area (bot/batch path only — keeps the context menu unchanged).
-        if (!allowCandelabrumAreaFetch)
-            return;
+    // --- Last resort: fetch a lit candelabrum from its designated spec area (bot/batch path only) ---
 
+    private void tryCandelabrumFromArea(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         NContext context = new NContext(gui);
         String lastposid = context.createPlayerLastPos();
         NArea candArea = context.goToArea(Specialisation.SpecName.candelabrum);
@@ -482,26 +491,25 @@ public class LightObject implements Action {
 
     // --- Priority 6: Branches (never batched — re-craft a firebrand per gob) ---
 
-    private Results lightWithBranches(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+    private void lightWithBranches(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         for (Gob t : new ArrayList<>(remaining)) {
             LightConfig config = getConfig(t.ngob.name);
             if (config == null)
-                return Results.ERROR("Unsupported object type: " + t.ngob.name);
+                continue;
             if (isLit(t, config)) {
                 remaining.remove(t);
                 continue;
             }
             Results lightResult = new LightFire(t).run(gui);
             if (!lightResult.IsSuccess()) {
-                gui.error("Failed to light fire on object: " + t.ngob.name);
-                return lightResult;
+                // Leave unlit for the last-resort candelabrum-area tier / final fail-closed check.
+                gui.error("Failed to light fire with branches on: " + t.ngob.name);
+                continue;
             }
             Gob updated = Finder.findGob(t.id);
-            if (updated != null && !isLit(updated, config))
-                return Results.ERROR("Fire lighting failed - state did not change");
-            remaining.remove(t);
+            if (updated != null && isLit(updated, config))
+                remaining.remove(t);
         }
-        return remaining.isEmpty() ? Results.SUCCESS() : Results.FAIL();
     }
 
     // --- Extinguish helpers ---
