@@ -34,9 +34,9 @@ public class SimpleAuthClient {
                 AuthClient client = new AuthClient(new haven.NamedSocketAddress(host, authPort));
                 try {
                     AuthClient.NativeCred cred = new AuthClient.NativeCred(username, password);
-                    String authedUser = cred.tryauth(client);
+                    haven.Session.User authedUser = cred.tryauth(client);
                     response.setCookie(client.getcookie());
-                    response.setUsername(authedUser);
+                    response.setUsername(authedUser.name);
                 } finally {
                     client.close();
                 }
