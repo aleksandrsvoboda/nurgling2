@@ -297,6 +297,11 @@ public class Tileset extends Resource.Layer {
 	}
 
 	public void flavor(Buffer buf, Terrain trn, Random seed) {
+	    /* Decorative sprite flavor only. Non-sprite flavors (notably
+	     * gfx/tiles/flavor/ridge-edge, which draws cliff edges) are
+	     * deliberately left alone so cliffs stay visible. */
+	    if(!(Boolean)nurgling.NConfig.get(nurgling.NConfig.Key.showCSprite))
+		return;
 	    Resource res = this.res.get();
 	    DRandom trnd = new DRandom(new DRandom(seed).randl(res.name.hashCode(), trn.tile));
 	    Random ornd = new Random();
