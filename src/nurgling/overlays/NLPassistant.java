@@ -22,8 +22,6 @@ public class NLPassistant extends Sprite implements RenderTree.Node
 
     Gob gob;
 
-    String name;
-
     ColorTex сt;
 
 
@@ -32,7 +30,6 @@ public class NLPassistant extends Sprite implements RenderTree.Node
         super(owner, null);
         сt = new TexI(Resource.loadimg("marks/newlpassistant")).st();
         gob = (Gob) owner;
-        name = gob.ngob.name;
         double len = MCache.tilesz.x*2;
         if(gob.ngob.hitBox!=null)
             len = Math.max(gob.ngob.hitBox.end.dist(gob.ngob.hitBox.begin),len);
@@ -62,7 +59,16 @@ public class NLPassistant extends Sprite implements RenderTree.Node
     @Override
     public boolean tick(double dt)
     {
-        return !(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null || !LpExplorer.hasUndiscoveredProduct(name);
+        if (!(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null)
+            return true;
+        try
+        {
+            return !LpExplorer.hasUndiscoveredProduct(gob);
+        }
+        catch (Loading l)
+        {
+            return false; // Sprite still loading; keep the overlay, re-check next tick.
+        }
     }
 
 }
