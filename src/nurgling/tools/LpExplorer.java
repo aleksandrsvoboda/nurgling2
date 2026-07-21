@@ -1,9 +1,9 @@
 package nurgling.tools;
 
-import haven.Astronomy;
 import haven.Gob;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.overlays.NTreeHarvestOl;
 import nurgling.widgets.NCharacterInfo;
 
 import java.util.Arrays;
@@ -11,7 +11,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 // Tracks which LP-discoverable products (VSpec.object) the player has found for each gob type,
-// including the Summer/Autumn "normal" vs Winter/Spring "Yesteryear's" split for fruit/berries.
+// including the normal vs "Yesteryear's" split for fruit/berries.
 public class LpExplorer {
     private static final String YESTERYEAR_PREFIX = "Yesteryear's ";
 
@@ -31,32 +31,30 @@ public class LpExplorer {
         return name.startsWith(YESTERYEAR_PREFIX) ? name.substring(YESTERYEAR_PREFIX.length()) : name;
     }
 
-    // Per the "Yesteryear's" patch: fruit trees/bushes carry fresh fruit through Summer and Autumn; unharvested
-    // fruit then reads as "Yesteryear's " through Winter and Spring, until Summer replenishes it fresh again.
-    private static Astronomy.Season currentSeason() {
-        if (NUtils.getUI() == null || NUtils.getUI().sess == null || NUtils.getUI().sess.glob == null
-            || NUtils.getUI().sess.glob.ast == null) {
-            return null;
-        }
-        return NUtils.getUI().sess.glob.ast.season();
-    }
-
-    public static boolean hasUndiscoveredProduct(String gobResName) {
+    // Throws haven.Loading if the gob's sprite hasn't loaded yet - propagated to the caller,
+    // same as NTreeHarvestOl.hasHarvestableSeed() itself does.
+    public static boolean hasUndiscoveredProduct(Gob gob) {
+        if (gob == null || gob.ngob == null)
+            return false;
+        String gobResName = gob.ngob.name;
         if (gobResName == null || !VSpec.object.containsKey(gobResName))
             return false;
         NGameUI gui = NUtils.getGameUI();
         if (gui == null || gui.getCharInfo() == null)
             return false;
 
+        // Only flag gobs that currently, actually show something harvestable - not just any
+        // instance of a resource type that's ever capable of producing an undiscovered product.
+        if (NTreeHarvestOl.isTreeOrBushRes(gobResName) && !NTreeHarvestOl.hasHarvestableSeed(gob))
+            return false;
+
         NCharacterInfo info = gui.getCharInfo();
-        Astronomy.Season season = currentSeason();
-        boolean normalNow = season == Astronomy.Season.Summer || season == Astronomy.Season.Autumn;
-        boolean yesteryearNow = season == Astronomy.Season.Winter || season == Astronomy.Season.Spring;
         for (String product : VSpec.object.get(gobResName)) {
             if (yesteryearCapableProducts.contains(product)) {
-                if (normalNow && !info.IsLpExplorerContains(gobResName, product))
-                    return true;
-                if (yesteryearNow && !info.IsLpExplorerContains(gobResName, YESTERYEAR_PREFIX + product))
+                // The live harvest state can't tell normal and Yesteryear's fruit apart, so treat
+                // either variant being undiscovered as reason enough to flag this gob.
+                if (!info.IsLpExplorerContains(gobResName, product) ||
+                    !info.IsLpExplorerContains(gobResName, YESTERYEAR_PREFIX + product))
                     return true;
             } else if (!info.IsLpExplorerContains(gobResName, product)) {
                 return true;

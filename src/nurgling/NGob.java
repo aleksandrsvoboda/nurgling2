@@ -1081,9 +1081,16 @@ public class NGob
             }
             if (cachedLpassistent)
             {
-                if (LpExplorer.hasUndiscoveredProduct(name))
+                try
                 {
-                    parent.addcustomol(new NLPassistant(parent));
+                    if (LpExplorer.hasUndiscoveredProduct(parent))
+                    {
+                        parent.addcustomol(new NLPassistant(parent));
+                    }
+                }
+                catch (Loading l)
+                {
+                    // Sprite still loading, try again next tick.
                 }
             }
         }

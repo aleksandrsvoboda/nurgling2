@@ -55,7 +55,7 @@ public class MinimapDiscoveryRenderer {
         synchronized (oc) {
             for (Gob gob : oc) {
                 try {
-                    if (gob.ngob != null && LpExplorer.hasUndiscoveredProduct(gob.ngob.name) && visitor.test(gob))
+                    if (gob.ngob != null && LpExplorer.hasUndiscoveredProduct(gob) && visitor.test(gob))
                         return;
                 } catch (Loading l) {
                     // Position not ready yet this frame, skip.

@@ -148,21 +148,21 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         return n.startsWith("gfx/terobjs/bushes");
     }
 
-    public static TexI computeLabel(Gob gob) {
-        if (gob == null) return null;
-        Drawable dr = gob.getattr(Drawable.class);
-        ResDrawable d = (dr instanceof ResDrawable) ? (ResDrawable) dr : null;
-        if (d == null) return null;
+    /**
+     * True if this gob is a loaded, mature tree/bush (i.e. one that could show any harvest
+     * indicator at all). Throws Loading if the sprite hasn't loaded yet, same as isSpriteKind().
+     */
+    private static boolean isMatureTreeOrBush(Gob gob, ResDrawable d) {
         Resource res = d.getres();
         if (!isTreeOrBush(res))
-            return null;
+            return false;
 
         if (!isSpriteKind(gob, "Tree"))
-            return null;
+            return false;
 
         Message data = d.sdt.clone();
         if (data == null || data.eom())
-            return null;
+            return false;
 
         data.skip(1);
         int growth = data.eom() ? -1 : data.uint8();
@@ -174,9 +174,35 @@ public class NTreeHarvestOl extends NObjectTexLabel {
             }
         }
 
-        if (!(growth == -1 || growth >= 100))
+        return growth == -1 || growth >= 100;
+    }
+
+    /**
+     * Whether this specific gob instance currently shows a harvestable seed/fruit layer, per the
+     * live state data the 3D renderer itself uses — not a per-resource-type guess. Ignores the
+     * treeHarvestSeeds display toggle (that's a rendering preference, irrelevant to this data
+     * query). Throws Loading if the sprite hasn't loaded yet.
+     */
+    public static boolean hasHarvestableSeed(Gob gob) {
+        if (gob == null) return false;
+        Drawable dr = gob.getattr(Drawable.class);
+        if (!(dr instanceof ResDrawable)) return false;
+        ResDrawable d = (ResDrawable) dr;
+        if (!isMatureTreeOrBush(gob, d)) return false;
+
+        int sdt = Sprite.decnum(d.sdt.clone());
+        return (sdt & 1) != 1;
+    }
+
+    public static TexI computeLabel(Gob gob) {
+        if (gob == null) return null;
+        Drawable dr = gob.getattr(Drawable.class);
+        ResDrawable d = (dr instanceof ResDrawable) ? (ResDrawable) dr : null;
+        if (d == null) return null;
+        if (!isMatureTreeOrBush(gob, d))
             return null;
 
+        Resource res = d.getres();
         int sdt = Sprite.decnum(d.sdt.clone());
         String base = res.basename();
         boolean isTree = res.name.startsWith("gfx/terobjs/trees");
