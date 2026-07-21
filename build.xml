@@ -171,6 +171,32 @@
     <chmod file="build/hafen.jar" perm="a+x" />
   </target>
 
+  <target name="check-resource-code" depends="jar" description="Check fetched resource code for updates">
+    <exec executable="java" failonerror="true">
+      <arg value="-cp" />
+      <arg path="build/hafen.jar" />
+      <arg value="haven.Resource" />
+      <arg value="find-updates" />
+      <arg value="-U" />
+      <arg value="https://game.havenandhearth.com/res/" />
+      <redirector outputproperty="resource-code.updates">
+        <outputfilterchain>
+          <linecontainsregexp negate="true">
+            <regexp pattern="^find-updates: warning: resource no longer found: (ui/rbuff|lib/tspec|lib/mapres)" />
+          </linecontainsregexp>
+        </outputfilterchain>
+      </redirector>
+    </exec>
+    <condition property="resource-code.outdated">
+      <and>
+        <isset property="resource-code.updates" />
+        <not><equals arg1="${resource-code.updates}" arg2="" trim="true" /></not>
+      </and>
+    </condition>
+    <fail if="resource-code.outdated"
+          message="Resource code updates are available:${line.separator}${resource-code.updates}" />
+  </target>
+
   <target name="res-jar" depends="build-env" unless="has-res-jar">
     <get src="${ext-lib-base}/builtin-res.jar" dest="lib/ext/builtin-res.jar"
 	 usetimestamp="true" />
