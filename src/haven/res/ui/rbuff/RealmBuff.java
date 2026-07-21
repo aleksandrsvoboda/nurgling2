@@ -6,7 +6,6 @@ import java.util.*;
 import java.awt.image.BufferedImage;
 
 /* >wdg: RealmBuff */
-@haven.FromResource(name = "ui/rbuff", version = 21)
 public class RealmBuff extends Buff implements ItemInfo.ResOwner {
     public final Indir<Resource> res;
     public Object[] rawinfo;

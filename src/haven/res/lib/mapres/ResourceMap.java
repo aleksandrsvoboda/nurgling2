@@ -4,7 +4,6 @@ package haven.res.lib.mapres;
 import haven.*;
 import java.util.*;
 
-@haven.FromResource(name = "lib/mapres", version = 2)
 public class ResourceMap implements Resource.Resolver {
     public final Resource.Resolver bk;
     public final Map<Integer, Integer> map;
