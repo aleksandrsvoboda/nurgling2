@@ -668,8 +668,7 @@ public class NContext {
             NArea area = areas.get(id);
             if(area != null) {
                 NArea.Ingredient ingredient = area.getInput(item);
-                if(ingredient == null) {
-                } else {
+                if(ingredient != null) {
                     switch (ingredient.type) {
                     case BARTER:
                         inputs.add(new Barter(Finder.findGob(area, new NAlias("gfx/terobjs/barterstand")),
@@ -691,13 +690,34 @@ public class NContext {
                         for (Gob gob : Finder.findGobs(area, new NAlias("stockpile"))) {
                             inputs.add(new Pile(gob));
                         }
-
+                        break;
                     }
                     case BARREL: {
                         for (Gob gob : Finder.findGobs(area, new NAlias("barrel"))) {
                             inputs.add(new Barrel(gob));
                         }
                     }
+                    }
+                }
+                else {
+                    // Ad-hoc / temporary area selected via "select area with:" has an empty ingredient
+                    // list (jin), so getInput returns null. Default to treating the selected cell as a
+                    // container source (mirrors getOutStorages): scan for known containers and piles so
+                    // the chest is actually opened instead of failing with empty inputs.
+                    for (Gob gob : Finder.findGobs(area, new NAlias(new ArrayList<String>(contcaps.keySet()), new ArrayList<>()))) {
+                        String hash = gob.ngob.hash;
+                        if(containers.containsKey(hash))
+                        {
+                            inputs.add(containers.get(hash));
+                        }
+                        else {
+                            Container ic = new Container(gob, contcaps.get(gob.ngob.name),area);
+                            containers.put(gob.ngob.hash, ic);
+                            inputs.add(ic);
+                        }
+                    }
+                    for (Gob gob : Finder.findGobs(area, new NAlias("stockpile"))) {
+                        inputs.add(new Pile(gob));
                     }
                 }
             }
