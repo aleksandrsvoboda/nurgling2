@@ -64,30 +64,67 @@ A clean `find-updates` run shows only "no longer found" warnings (if any).
 Everything else needs to be resolved.
 
 
-## Step 2: Fetch Clean Upstream Code
+## Step 2: Fetch Both Clean Versions
 
-Fetch the new server code into a staging directory so you can examine what
-changed without destroying anything:
+You need **two** clean upstream versions — old and new. Diffing your tree
+against new-clean alone does not work: that diff mixes upstream's changes and
+your customizations together, and you cannot reliably tell them apart. Code
+that looks like a nurgling addition is often upstream code that upstream has
+since removed, and "fixing" it by keeping it silently reintroduces stale
+upstream behavior.
+
+### New clean
 
 ```
-java -cp bin/hafen.jar haven.Resource get-code -o staging/src <resource-names>
+java -cp bin/hafen.jar haven.Resource get-code -o newstage <resource-names>
 ```
 
-Now diff the staged code against your current code:
+### Old clean
+
+The server only serves the current version, so old-clean cannot be fetched
+over HTTP. It comes from the client's on-disk resource cache, which still
+holds the version last downloaded — the version your `@FromResource`
+annotations were written against. `tools/DumpCachedRes.java` dumps those
+cached resources back out as `.res` files:
 
 ```
-diff src/haven/res/path/to/File.java staging/src/haven/res/path/to/File.java
+javac -cp bin/hafen.jar -d tools/classes tools/DumpCachedRes.java
+java -cp "bin/hafen.jar;tools/classes" DumpCachedRes oldres <resource-names>
 ```
 
-For each resource, categorize the files:
+It prints the recovered version for each resource. **Check that these match
+your local `@FromResource` versions** — if the client has re-downloaded a
+resource since the update, the cache holds new-clean and that resource's
+baseline is unusable. A cached version *older* than your annotation is fine;
+the resulting diff just covers more versions than strictly needed.
 
-- **No custom code** — your file is identical to the staged file (minus the
-  version number). Safe to overwrite directly.
-- **Has custom code** — your file differs from the staged file beyond just the
-  version annotation. These need careful merging.
+`get-code` accepts a `file:` URL, so the extraction runs through the normal
+path:
 
-To identify which files have custom modifications, look for project-specific
-imports, classes, or patterns (e.g., `NConfig`, `NGItem`, `nurgling` imports).
+```
+java -cp bin/hafen.jar haven.Resource get-code \
+    -U "file:///<abs-path>/oldres/" -o oldstage <resource-names>
+```
+
+### Isolate the upstream delta
+
+`get-code` writes files with platform line endings, so on Windows normalize
+before diffing or every file appears entirely rewritten:
+
+```
+find oldstage newstage -name '*.java' -exec sed -i 's/\r$//' {} +
+```
+
+Now diff old-clean against new-clean. This — and only this — is what upstream
+actually changed:
+
+```
+diff -u oldstage/haven/res/path/to/File.java newstage/haven/res/path/to/File.java
+```
+
+Most files will differ only in the version annotation. Those resources are
+pure version bumps: nothing to integrate, and your custom code is unaffected.
+Only the files with a real delta need work.
 
 
 ## Step 3: Create a PR Branch
@@ -101,51 +138,47 @@ git checkout -b resource-update-YYYY-MM-DD master
 
 ## Step 4: Apply Updates
 
-### Files Without Custom Code
+### Files With No Upstream Delta
 
-For files that have no custom modifications, simply copy the staged version:
+If old-clean and new-clean differ only in the version annotation, there is
+nothing to integrate. Bump the annotation in your file and leave everything
+else alone. Do **not** copy the staged file over yours — that would wipe your
+customizations for no reason.
 
-```
-cp staging/src/haven/res/path/to/File.java src/haven/res/path/to/File.java
-```
+### Files With an Upstream Delta
 
-Or run `get-code` directly into `src/`:
-
-```
-java -cp bin/hafen.jar haven.Resource get-code <resource-name>
-```
-
-### Files With Custom Code
-
-These require understanding what upstream actually changed so you can apply
-only those changes while preserving your modifications.
-
-**Examine the upstream diff.** You need to know what the server changed between
-the old version and the new version. The staged file is the new version. To get
-the old clean version, use one of:
-
-- The `upstream-resources` branch (if maintained — see "Git Merge Approach"
-  below)
-- Git history (`git log --follow src/haven/res/path/to/File.java`)
-- A previous staging directory snapshot
-
-Diff old clean vs new clean to isolate the upstream changes:
-
-```
-diff old-clean/File.java staging/src/haven/res/path/to/File.java
-```
-
-**Apply upstream changes manually.** Edit your customized file, incorporating
-only the upstream modifications. Common upstream changes include:
+Apply only what the old→new diff showed, keeping your custom code. Common
+upstream changes include:
 
 - New method parameters or return types
+- A method being replaced by a differently-named one
 - `UI.scale()` wrapping around hardcoded pixel values
 - New imports or removed imports
 - Bug fixes in existing logic
 
-Leave all custom code untouched. If an upstream change touches a line you've
-also modified, use judgment: the upstream change may need to be adapted to
-work with your modification.
+Note that upstream *removals* matter as much as additions. If upstream deleted
+a method, delete it from your file too, even if it looks like something worth
+keeping — leaving it behind means running stale upstream code.
+
+If an upstream change touches a line you have also modified, use judgment: the
+upstream change may need to be adapted to work with your modification.
+
+### Verify the Result Mechanically
+
+Let git check your merge rather than trusting a read-through. For each file,
+three-way merge with old-clean as the base and compare against what you
+actually wrote:
+
+```
+git merge-file -p --diff3 src/haven/res/path/to/File.java \
+    oldstage/haven/res/path/to/File.java \
+    newstage/haven/res/path/to/File.java
+```
+
+A clean merge whose output matches your file byte-for-byte means you dropped
+nothing and invented nothing. Conflicts are expected where custom code sits
+next to a rewritten region — inspect those and confirm your resolution is the
+union of both sides.
 
 
 ## Step 5: Fix Version Annotations
@@ -164,8 +197,12 @@ and should run instead of the server's code.
 ## Step 6: Build and Verify
 
 ```
-ant
+ant clean && ant
 ```
+
+Build clean, not incrementally. Upstream changes frequently add or remove
+method overrides, and incremental `javac` does not recompile the subclasses
+that such a change breaks.
 
 Fix any compilation errors — upstream changes may have introduced new method
 signatures or removed deprecated ones.
@@ -180,10 +217,10 @@ Expected result: no "needs update", no "conflicting versions", no "strangely
 newer locally". Only "no longer found" warnings (for retired resources) are
 acceptable.
 
-Clean up the staging directory:
+Clean up the staging directories:
 
 ```
-rm -rf staging/
+rm -rf oldres/ oldstage/ newstage/ tools/classes/
 ```
 
 Commit, push, open a PR.
@@ -265,6 +302,13 @@ git log --oneline -1 <that-commit>
 If the merge-base is ancient relative to when your customizations were made,
 the branch is stale.
 
+**As of this writing the branch is in exactly this state.** Its last two
+`get-code` commits were never merged into master, so the merge-base is a plain
+code commit rather than a clean-upstream one, and its own files still contain
+nurgling code (for example `RosterWindow.java` on that branch still has the
+custom animal imports). Do not treat it as a clean baseline until it has been
+repaired as below.
+
 **Fix — re-establish the merge-base:**
 
 1. Ensure `upstream-resources` has current clean upstream code (run `get-code`
@@ -288,8 +332,24 @@ upstream commit IS the merge-base, so subsequent normal merges work correctly.
 
 ## Common Pitfalls
 
+- **Diffing your tree against new-clean only** — the single most common
+  mistake. That diff cannot distinguish your customizations from upstream's
+  changes. Anything upstream *removed* looks exactly like something you added,
+  so you "preserve" it and silently keep running stale upstream code. Always
+  recover old-clean and diff old-clean against new-clean first.
+- **Reconstructing old-clean from git history instead of the cache** — the
+  files in git are your customized versions, and were customized at import, so
+  `git log -S` cannot tell you whether a line was ever upstream's. It gives
+  confident wrong answers. Use `tools/DumpCachedRes.java`.
+- **Trusting the cache without checking the version it printed** — if the
+  client re-downloaded the resource after the server updated, the cache holds
+  new-clean and the diff will show no upstream delta at all, which looks
+  exactly like a clean result.
+- **Not normalizing line endings** — `get-code` writes platform line endings.
+  On Windows, un-normalized staged files diff as 100% changed, burying the
+  real delta.
 - **Running `get-code` on your dev branch** — destroys custom code. Always use
-  a staging directory (`-o staging/src`) or a dedicated branch.
+  a staging directory (`-o newstage`) or a dedicated branch.
 - **Committing directly to master** — always use a PR branch.
 - **Setting version higher than server** — your code won't run. The version
   override requires an exact match.
