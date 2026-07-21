@@ -171,8 +171,13 @@ public class BakerAction implements Action {
                 }
             }
             
-            // If we couldn't take anything, we're done
+            // If we couldn't take anything more, stop trying to top off the ovens. If we already
+            // loaded dough into at least one oven, bake that partial batch instead of aborting the
+            // whole run (49 doughs won't fill 5 ovens, but the filled ones should still be baked).
             if(!tookSomething) {
+                if(anyOvenHasDough(containers)) {
+                    return Results.SUCCESS();
+                }
                 return Results.ERROR("NO MORE DOUGH AVAILABLE");
             }
         }
@@ -197,6 +202,16 @@ public class BakerAction implements Action {
         return freeSpace != null && freeSpace == 0;
     }
     
+    private boolean anyOvenHasDough(ArrayList<Container> containers) {
+        for(Container oven : containers) {
+            Container.Space space = oven.getattr(Container.Space.class);
+            if(space != null && !space.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean allOvensFilled(ArrayList<Container> containers) {
         for(Container oven : containers) {
             if(!isReady(oven)) {
