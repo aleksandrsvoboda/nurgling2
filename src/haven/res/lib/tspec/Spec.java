@@ -4,7 +4,6 @@ package haven.res.lib.tspec;
 import haven.*;
 import java.util.*;
 
-@haven.FromResource(name = "lib/tspec", version = 5)
 public class Spec implements GSprite.Owner, ItemInfo.SpriteOwner {
     private static final Object[] definfo = {
 	new Object[] {Loading.waitfor(Resource.remote().load("ui/tt/defn", 7))},

@@ -3,6 +3,22 @@
 <project name="hafen" default="deftgt" xmlns:if="ant:if">
   <property file="build.properties" />
   <property name="ext-lib-base" value="http://www.havenandhearth.com/java" />
+  <property name="junit-platform.version" value="1.14.2" />
+  <property name="junit-platform.jar" location="lib/ext/junit/junit-platform-console-standalone-${junit-platform.version}.jar" />
+  <property name="junit-platform.sha256" value="5566ffe2aa48263867bca745925f73bf7b01591b30d9a60f191c0b16fa0955e9" />
+
+  <path id="client.classpath">
+	<pathelement path="lib/ext/jogl/jogl-all.jar" />
+	<pathelement path="lib/ext/jogl/gluegen-rt.jar" />
+	<pathelement path="lib/ext/lwjgl/lwjgl-fat.jar" />
+	<pathelement path="lib/ext/lwjgl/lwjgl-awt.jar" />
+	<pathelement path="lib/ext/lwjgl/lwjgl-opengl-fat.jar" />
+	<pathelement path="lib/ext/steamworks/steamworks4j.jar" />
+    <pathelement path="etc/json-java.jar" />
+    <pathelement path="etc/postgresql-42.7.5.jar" />
+    <pathelement path="etc/sqlite-jdbc-3.49.1.0.jar" />
+	<pathelement path="lib/jglob.jar" />
+  </path>
 
   <target name="build-env">
     <mkdir dir="build" />
@@ -104,18 +120,7 @@
 	   source="1.8" target="1.8" includeantruntime="no"
            encoding="UTF-8"
 	   bootclasspath="${boot-classpath}">
-      <classpath>
-	<pathelement path="lib/ext/jogl/jogl-all.jar" />
-	<pathelement path="lib/ext/jogl/gluegen-rt.jar" />
-	<pathelement path="lib/ext/lwjgl/lwjgl-fat.jar" />
-	<pathelement path="lib/ext/lwjgl/lwjgl-awt.jar" />
-	<pathelement path="lib/ext/lwjgl/lwjgl-opengl-fat.jar" />
-	<pathelement path="lib/ext/steamworks/steamworks4j.jar" />
-    <pathelement path="etc/json-java.jar" />
-    <pathelement path="etc/postgresql-42.7.5.jar" />
-    <pathelement path="etc/sqlite-jdbc-3.49.1.0.jar" />
-	<pathelement path="lib/jglob.jar" />
-      </classpath>
+      <classpath refid="client.classpath" />
       <compilerarg if:set="explicit-annotations" value="-proc:full" />
       <compilerarg value="-Xlint:unchecked" />
       <compilerarg value="-Xlint:deprecation" />
@@ -169,32 +174,6 @@
       </manifest>
     </jar>
     <chmod file="build/hafen.jar" perm="a+x" />
-  </target>
-
-  <target name="check-resource-code" depends="jar" description="Check fetched resource code for updates">
-    <exec executable="java" failonerror="true">
-      <arg value="-cp" />
-      <arg path="build/hafen.jar" />
-      <arg value="haven.Resource" />
-      <arg value="find-updates" />
-      <arg value="-U" />
-      <arg value="https://game.havenandhearth.com/res/" />
-      <redirector outputproperty="resource-code.updates">
-        <outputfilterchain>
-          <linecontainsregexp negate="true">
-            <regexp pattern="^find-updates: warning: resource no longer found: (ui/rbuff|lib/tspec|lib/mapres)" />
-          </linecontainsregexp>
-        </outputfilterchain>
-      </redirector>
-    </exec>
-    <condition property="resource-code.outdated">
-      <and>
-        <isset property="resource-code.updates" />
-        <not><equals arg1="${resource-code.updates}" arg2="" trim="true" /></not>
-      </and>
-    </condition>
-    <fail if="resource-code.outdated"
-          message="Resource code updates are available:${line.separator}${resource-code.updates}" />
   </target>
 
   <target name="res-jar" depends="build-env" unless="has-res-jar">
@@ -263,6 +242,85 @@
       <jvmarg if:set="jogl-exports" value="--add-exports=java.desktop/sun.java2d=ALL-UNNAMED" />
       <jvmarg if:set="jogl-access" value="--enable-native-access=ALL-UNNAMED" />
       <!-- <sysproperty key="haven.renderer" value="lwjgl" /> -->
+    </java>
+  </target>
+
+  <target name="test-env">
+    <mkdir dir="lib/ext/junit" />
+    <available property="test/junit-present" file="${junit-platform.jar}" />
+  </target>
+
+  <target name="test-verify" depends="test-env" if="test/junit-present">
+    <checksum file="${junit-platform.jar}" algorithm="SHA-256"
+              property="${junit-platform.sha256}" verifyproperty="test/junit-valid" />
+    <condition property="test/has-junit">
+      <istrue value="${test/junit-valid}" />
+    </condition>
+  </target>
+
+  <target name="test-deps" depends="test-verify" unless="test/has-junit">
+    <delete file="${junit-platform.jar}" />
+    <get src="https://repo.maven.apache.org/maven2/org/junit/platform/junit-platform-console-standalone/${junit-platform.version}/junit-platform-console-standalone-${junit-platform.version}.jar"
+         dest="${junit-platform.jar}" maxtime="60" retries="3" />
+    <checksum file="${junit-platform.jar}" algorithm="SHA-256"
+              property="${junit-platform.sha256}" verifyproperty="test/junit-download-valid" />
+    <fail message="Downloaded JUnit jar has an unexpected checksum">
+      <condition>
+        <not><istrue value="${test/junit-download-valid}" /></not>
+      </condition>
+    </fail>
+  </target>
+
+  <target name="test-compile" depends="hafen-client, test-deps">
+    <delete dir="build/test-classes" />
+    <mkdir dir="build/test-classes" />
+    <javac srcdir="test" destdir="build/test-classes" debug="on"
+           source="1.8" target="1.8" includeantruntime="no" encoding="UTF-8">
+      <classpath>
+        <pathelement path="build/classes" />
+        <path refid="client.classpath" />
+        <pathelement location="${junit-platform.jar}" />
+      </classpath>
+      <compilerarg value="-Xlint:-options" />
+    </javac>
+  </target>
+
+  <target name="test" depends="test-compile" description="Run local tests">
+    <java classname="org.junit.platform.console.ConsoleLauncher" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/classes" />
+        <pathelement path="build/test-classes" />
+        <path refid="client.classpath" />
+        <pathelement location="${junit-platform.jar}" />
+      </classpath>
+      <arg value="execute" />
+      <arg value="--disable-banner" />
+      <arg value="--scan-class-path=build/test-classes" />
+      <arg value="--exclude-tag=resource-e2e" />
+      <arg value="--fail-if-no-tests" />
+      <arg value="--details=summary" />
+    </java>
+  </target>
+
+  <target name="resource-contract-clean">
+    <delete dir="build/classes" />
+    <delete dir="build/test-classes" />
+  </target>
+
+  <target name="test-resource-contracts" depends="resource-contract-clean, test-compile" description="Check resource contracts against the live endpoint">
+    <java classname="org.junit.platform.console.ConsoleLauncher" fork="true" failonerror="true" timeout="180000">
+      <classpath>
+        <pathelement path="build/classes" />
+        <pathelement path="build/test-classes" />
+        <path refid="client.classpath" />
+        <pathelement location="${junit-platform.jar}" />
+      </classpath>
+      <arg value="execute" />
+      <arg value="--disable-banner" />
+      <arg value="--select-class=haven.ResourceContractVerifierTest" />
+      <arg value="--select-class=haven.ResourceContractE2ETest" />
+      <arg value="--fail-if-no-tests" />
+      <arg value="--details=summary" />
     </java>
   </target>
 
