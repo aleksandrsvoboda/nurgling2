@@ -84,12 +84,48 @@ java -cp bin/hafen.jar haven.Resource get-code -o newstage <resource-names>
 The server only serves the current version, so old-clean cannot be fetched
 over HTTP. It comes from the client's on-disk resource cache, which still
 holds the version last downloaded — the version your `@FromResource`
-annotations were written against. `tools/DumpCachedRes.java` dumps those
-cached resources back out as `.res` files:
+annotations were written against.
+
+Dump those cached resources back out as `.res` files. This is throwaway
+scaffolding, not something the repo carries — put it in a scratch file,
+use it, delete it:
+
+```java
+import haven.*;
+import java.io.*;
+import java.nio.file.*;
+
+public class DumpCachedRes {
+    public static void main(String[] args) throws Exception {
+	Path dst = Paths.get(args[0]);
+	ResCache cache = ResCache.global;
+	for(int i = 1; i < args.length; i++) {
+	    String nm = args[i];
+	    Path out = dst.resolve(nm + ".res");
+	    Files.createDirectories(out.getParent());
+	    try(InputStream in = cache.fetch("res/" + nm);
+		OutputStream o = Files.newOutputStream(out))
+	    {
+		byte[] buf = new byte[8192];
+		int n;
+		while((n = in.read(buf)) > 0)
+		    o.write(buf, 0, n);
+	    } catch(FileNotFoundException e) {
+		System.out.println("miss: " + nm + " (not in cache)");
+		continue;
+	    }
+	    /* "Haven Resource 1" signature, then a little-endian uint16. */
+	    byte[] all = Files.readAllBytes(out);
+	    System.out.println("wrote " + out + " (version " +
+			       ((all[16] & 0xff) | ((all[17] & 0xff) << 8)) + ")");
+	}
+    }
+}
+```
 
 ```
-javac -cp bin/hafen.jar -d tools/classes tools/DumpCachedRes.java
-java -cp "bin/hafen.jar;tools/classes" DumpCachedRes oldres <resource-names>
+javac -cp bin/hafen.jar -d scratch scratch/DumpCachedRes.java
+java -cp "bin/hafen.jar;scratch" DumpCachedRes oldres <resource-names>
 ```
 
 It prints the recovered version for each resource. **Check that these match
@@ -220,7 +256,7 @@ acceptable.
 Clean up the staging directories:
 
 ```
-rm -rf oldres/ oldstage/ newstage/ tools/classes/
+rm -rf oldres/ oldstage/ newstage/ scratch/
 ```
 
 Commit, push, open a PR.
@@ -340,7 +376,8 @@ upstream commit IS the merge-base, so subsequent normal merges work correctly.
 - **Reconstructing old-clean from git history instead of the cache** — the
   files in git are your customized versions, and were customized at import, so
   `git log -S` cannot tell you whether a line was ever upstream's. It gives
-  confident wrong answers. Use `tools/DumpCachedRes.java`.
+  confident wrong answers. Recover old-clean from the client cache instead
+  (Step 2).
 - **Trusting the cache without checking the version it printed** — if the
   client re-downloaded the resource after the server updated, the cache holds
   new-clean and the diff will show no upstream delta at all, which looks
