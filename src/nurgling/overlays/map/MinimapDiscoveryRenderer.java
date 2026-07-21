@@ -5,6 +5,7 @@ import nurgling.NConfig;
 import nurgling.tools.LpExplorer;
 
 import java.awt.Color;
+import java.util.function.Predicate;
 
 /**
  * Draws a flat green dot on the minimap over any currently loaded gob that still has an
@@ -17,55 +18,49 @@ public class MinimapDiscoveryRenderer {
     private static final int MARKER_RADIUS_PX = 5;
 
     public static void renderDiscoveryMarkers(MiniMap map, GOut g) {
-        if (!(Boolean) NConfig.get(NConfig.Key.lpassistent))
-            return;
-        if (map.ui == null || map.ui.sess == null || map.dloc == null)
-            return;
-
         Coord half = new Coord(UI.scale(MARKER_RADIUS_PX), UI.scale(MARKER_RADIUS_PX));
-        OCache oc = map.ui.sess.glob.oc;
-        synchronized (oc) {
-            for (Gob gob : oc) {
-                try {
-                    if (gob.ngob == null || !LpExplorer.hasUndiscoveredProduct(gob.ngob.name))
-                        continue;
-
-                    Coord screenPos = map.p2c(gob.rc);
-                    if (screenPos.x < -half.x || screenPos.x > map.sz.x + half.x ||
-                        screenPos.y < -half.y || screenPos.y > map.sz.y + half.y)
-                        continue;
-
-                    g.chcolor(MARKER_TINT);
-                    g.fellipse(screenPos, half);
-                    g.chcolor();
-                } catch (Loading l) {
-                    // Position not ready yet this frame, skip.
-                }
+        forEachDiscoverableGob(map, gob -> {
+            Coord screenPos = map.p2c(gob.rc);
+            if (screenPos.x >= -half.x && screenPos.x <= map.sz.x + half.x &&
+                screenPos.y >= -half.y && screenPos.y <= map.sz.y + half.y) {
+                g.chcolor(MARKER_TINT);
+                g.fellipse(screenPos, half);
+                g.chcolor();
             }
-        }
+            return false; // never stop early; draw every marker
+        });
     }
 
     /** Finds the discoverable gob (if any) whose marker is under the given minimap screen coordinate. */
     public static Gob gobAt(MiniMap map, Coord screenCoord) {
-        if (!(Boolean) NConfig.get(NConfig.Key.lpassistent))
-            return null;
-        if (map.ui == null || map.ui.sess == null || map.dloc == null)
-            return null;
-
         int threshold = UI.scale(MARKER_RADIUS_PX + 3);
+        Gob[] hit = new Gob[1];
+        forEachDiscoverableGob(map, gob -> {
+            if (map.p2c(gob.rc).dist(screenCoord) >= threshold)
+                return false;
+            hit[0] = gob;
+            return true; // stop at first match
+        });
+        return hit[0];
+    }
+
+    /** Visits every loaded gob with an undiscovered LP product; the visitor returns true to stop early. */
+    private static void forEachDiscoverableGob(MiniMap map, Predicate<Gob> visitor) {
+        if (!(Boolean) NConfig.get(NConfig.Key.lpassistent))
+            return;
+        if (map.ui == null || map.ui.sess == null || map.dloc == null)
+            return;
+
         OCache oc = map.ui.sess.glob.oc;
         synchronized (oc) {
             for (Gob gob : oc) {
                 try {
-                    if (gob.ngob == null || !LpExplorer.hasUndiscoveredProduct(gob.ngob.name))
-                        continue;
-                    if (map.p2c(gob.rc).dist(screenCoord) < threshold)
-                        return gob;
+                    if (gob.ngob != null && LpExplorer.hasUndiscoveredProduct(gob.ngob.name) && visitor.test(gob))
+                        return;
                 } catch (Loading l) {
                     // Position not ready yet this frame, skip.
                 }
             }
         }
-        return null;
     }
 }
