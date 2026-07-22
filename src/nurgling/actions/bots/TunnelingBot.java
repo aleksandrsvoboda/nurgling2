@@ -31,6 +31,9 @@ public class TunnelingBot implements Action {
     // Tile size in world units
     private static final double TILE_SIZE = 11.0;
 
+    // Whether to record stone types on the map during mining
+    private boolean recordStones = true;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Show configuration dialog
@@ -42,9 +45,10 @@ public class TunnelingBot implements Action {
         int[] maxLateralRef = new int[]{5};
         boolean[] confirmRef = new boolean[]{false};
         boolean[] cancelRef = new boolean[]{false};
+        boolean[] recordStonesRef = new boolean[]{true};
 
         TunnelingDialog dialog = new TunnelingDialog();
-        dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, maxLateralRef, confirmRef, cancelRef);
+        dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, maxLateralRef, confirmRef, cancelRef, recordStonesRef);
         gui.add(dialog, UI.scale(200, 200));
 
         // Wait for user input
@@ -65,9 +69,11 @@ public class TunnelingBot implements Action {
         Direction direction = TunnelingDialog.getDirection(directionRef[0]);
         SupportType supportType = TunnelingDialog.getSupportType(supportTypeRef[0]);
 
+        this.recordStones = recordStonesRef[0];
+
         // Dispatch to MinesweeperMiner if no support selected
         if (supportType == SupportType.NONE) {
-            return new MinesweeperMiner(direction, maxLateralRef[0]).run(gui);
+            return new MinesweeperMiner(direction, maxLateralRef[0], this.recordStones).run(gui);
         }
 
         TunnelSide tunnelSide = TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]);
@@ -275,6 +281,13 @@ public class TunnelingBot implements Action {
 
         // Mine the tile
         Resource resBefore = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
+
+        // Record stone type before mining changes the tile
+        if (recordStones && resBefore != null && resBefore.name.startsWith("gfx/tiles/rocks/")) {
+            if (gui.stoneLocationService != null) {
+                gui.stoneLocationService.saveStoneLocation(resBefore.name, worldPos);
+            }
+        }
 
         while (needsMining(gui, tilePos)) {
             // Clear any stones that may have fallen during previous mining
