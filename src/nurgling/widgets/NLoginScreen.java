@@ -9,8 +9,7 @@ import nurgling.i18n.L10n;
 
 import java.io.*;
 import java.net.URL;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -34,6 +33,10 @@ public class NLoginScreen extends LoginScreen
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final long BASE_RETRY_DELAY_MS = 1000; // Start with 1 second
     private static final long MAX_RETRY_DELAY_MS = 30000; // Cap at 30 seconds
+    private static final int VERSION_CHECK_TIMEOUT_MS = 2000;
+    private volatile boolean updateAvailable = false;
+    private boolean updateNoticeShown = false;
+    private boolean firstFrameDrawn = false;
 
     /**
      * Compares two version strings numerically.
@@ -97,75 +100,57 @@ public class NLoginScreen extends LoginScreen
                 loginItems.add(new NLoginDataItem(item));
             }
         }
-        // Check for version updates - failures are silently ignored
-        try
-        {
-            if (new File("ver").exists())
-            {
-                URL upd_url = new URL((String) Objects.requireNonNull(NConfig.get(NConfig.Key.baseurl)));
-                ReadableByteChannel rbc = null;
-                FileOutputStream fos = null;
-                BufferedReader reader = null;
-                BufferedReader reader2 = null;
-                
-                try {
-                    // Attempt to download version file
-                    rbc = Channels.newChannel(upd_url.openStream());
-                    
-                    // Check if channel was successfully created before proceeding
-                    if(rbc == null) {
-                        return; // Silently skip version check if update URL is unavailable
-                    }
-                    
-                    fos = new FileOutputStream("tmp_ver");
-                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-                    fos.close();
-                    
-                    // Read remote version
-                    reader = new BufferedReader(new InputStreamReader(Files.newInputStream(Paths.get("tmp_ver")), StandardCharsets.UTF_8));
-                    String line = reader.readLine();
-                    reader.close();
-                    
-                    // Read local version
-                    reader2 = new BufferedReader(new InputStreamReader(Files.newInputStream(Paths.get("ver")), StandardCharsets.UTF_8));
-                    String line2 = reader2.readLine();
-                    reader2.close();
-                    
-                    // Compare versions - only show update message if remote is newer than local
-                    if (isRemoteVersionNewer(line, line2))
-                    {
-                        Window win = adda(new Window(new Coord(UI.scale(150, 40)), L10n.get("login.attention"))
-                        {
-                            @Override
-                            public void wdgmsg(String msg, Object... args)
-                            {
-                                if (msg.equals("close"))
-                                {
-                                    hide();
-                                }
-                                else
-                                {
-                                    super.wdgmsg(msg, args);
-                                }
-                            }
-                        }, bgc.x, bg.sz().y / 8, 0.5, 0.5);
+        startVersionCheck();
+    }
 
-                        win.add(new Label(L10n.get("login.new_version")));
-                    }
-                } finally {
-                    // Ensure all resources are properly closed
-                    try { if (rbc != null) rbc.close(); } catch (IOException ignored) {}
-                    try { if (fos != null) fos.close(); } catch (IOException ignored) {}
-                    try { if (reader != null) reader.close(); } catch (IOException ignored) {}
-                    try { if (reader2 != null) reader2.close(); } catch (IOException ignored) {}
+    private void startVersionCheck() {
+        if (!new File("ver").isFile())
+            return;
+        Object baseurl = NConfig.get(NConfig.Key.baseurl);
+        if (!(baseurl instanceof String))
+            return;
+        Thread checker = new HackThread(() -> {
+            try {
+                URLConnection conn = new URL((String) baseurl).openConnection();
+                conn.setConnectTimeout(VERSION_CHECK_TIMEOUT_MS);
+                conn.setReadTimeout(VERSION_CHECK_TIMEOUT_MS);
+                try (BufferedReader remote = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                     BufferedReader local = Files.newBufferedReader(Paths.get("ver"), StandardCharsets.UTF_8)) {
+                    updateAvailable = isRemoteVersionNewer(remote.readLine(), local.readLine());
                 }
+            } catch (Exception ignored) {
             }
+        }, "Version check");
+        checker.setDaemon(true);
+        checker.start();
+    }
+
+    private void showUpdateNotice() {
+        Window win = adda(new Window(new Coord(UI.scale(150, 40)), L10n.get("login.attention")) {
+            @Override
+            public void wdgmsg(String msg, Object... args) {
+                if (msg.equals("close"))
+                    hide();
+                else
+                    super.wdgmsg(msg, args);
+            }
+        }, bgc.x, bg.sz().y / 8, 0.5, 0.5);
+        win.add(new Label(L10n.get("login.new_version")));
+    }
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        if (firstFrameDrawn && updateAvailable && !updateNoticeShown) {
+            updateNoticeShown = true;
+            showUpdateNotice();
         }
-        catch (Exception e)
-        {
-            // Silently ignore all version check errors to prevent login screen crashes
-            System.err.println("[NLoginScreen] Version check failed: " + e.getMessage());
-        }
+    }
+
+    @Override
+    public void draw(GOut g) {
+        super.draw(g);
+        firstFrameDrawn = true;
     }
 
     @Override
