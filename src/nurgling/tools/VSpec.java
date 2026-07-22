@@ -630,8 +630,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/birchlog", birchOp_log);
 
         ArrayList<String> birdcherryOp_log = new ArrayList<>();
-        birdcherryOp_log.add("Board of Birdcherry"); // Р”РѕСЃРєР°
-        birdcherryOp_log.add("Block of Bird Cherry"); // Р‘Р»РѕРє
+        birdcherryOp_log.add("Board of Birdcherrywood"); // Р”РѕСЃРєР°
+        birdcherryOp_log.add("Block of Birdcherrywood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/birdcherrytreelog", birdcherryOp_log);
 
         ArrayList<String> blackpineOp_log = new ArrayList<>();
@@ -700,8 +700,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/conkertreelog", conkerOp_log);
 
         ArrayList<String> corkOakOp_log = new ArrayList<>();
-        corkOakOp_log.add("Board of Cork Oak"); // Р”РѕСЃРєР°
-        corkOakOp_log.add("Block of Cork Oak"); // Р‘Р»РѕРє
+        corkOakOp_log.add("Board of Corkoak"); // Р”РѕСЃРєР°
+        corkOakOp_log.add("Block of Corkoak"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/corkoaklog", corkOakOp_log);
 
         ArrayList<String> crabappleOp_log = new ArrayList<>();
@@ -855,8 +855,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/peartreelog", pearOp_log);
 
         ArrayList<String> persimmonOp_log = new ArrayList<>();
-        persimmonOp_log.add("Board of Persimmon"); // Р”РѕСЃРєР°
-        persimmonOp_log.add("Block of Persimmon"); // Р‘Р»РѕРє
+        persimmonOp_log.add("Board of Persimmonwood"); // Р”РѕСЃРєР°
+        persimmonOp_log.add("Block of Persimmonwood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/persimmontreelog", persimmonOp_log);
 
         ArrayList<String> pineOp_log = new ArrayList<>();
@@ -890,8 +890,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/sallowlog", sallowOp_log);
 
         ArrayList<String> silverfirOp_log = new ArrayList<>();
-        silverfirOp_log.add("Board of Silver Fir"); // Р”РѕСЃРєР°
-        silverfirOp_log.add("Block of Silver Fir"); // Р‘Р»РѕРє
+        silverfirOp_log.add("Board of Silverfir"); // Р”РѕСЃРєР°
+        silverfirOp_log.add("Block of Silverfir"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/silverfirlog", silverfirOp_log);
 
         ArrayList<String> sorbOp_log = new ArrayList<>();
@@ -2444,7 +2444,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-baywillow\",\"name\":\"Board of Bay Willow\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-beech\",\"name\":\"Board of Beech\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-birch\",\"name\":\"Board of Birch\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-birdcherrytree\",\"name\":\"Board of Birdcherry\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-birdcherrytree\",\"name\":\"Board of Birdcherrywood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-blackpine\",\"name\":\"Board of Black Pine\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-blackpoplar\",\"name\":\"Board of Black Poplar\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-treeheath\",\"name\":\"Board of Briarwood (Heath)\"}"));
@@ -2457,7 +2457,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-cherry\",\"name\":\"Board of Cherry\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-chestnuttree\",\"name\":\"Board of Chestnutwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-conkertree\",\"name\":\"Board of Conker\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-corkoak\",\"name\":\"Board of Cork Oak\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-corkoak\",\"name\":\"Board of Corkoak\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-crabappletree\",\"name\":\"Board of Crabapplewood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-cypress\",\"name\":\"Board of Cypress\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-dogwood\",\"name\":\"Board of Dogwood\"}"));
@@ -2488,7 +2488,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-orangetree\",\"name\":\"Board of Orange\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-osier\",\"name\":\"Board of Osier\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-peartree\",\"name\":\"Board of Pearwood\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-persimmontree\",\"name\":\"Board of Persimmon\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-persimmontree\",\"name\":\"Board of Persimmonwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-pine\",\"name\":\"Board of Pine\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-planetree\",\"name\":\"Board of Plane\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-plumtree\",\"name\":\"Board of Plumwood\"}"));
@@ -2496,7 +2496,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-quincetree\",\"name\":\"Board of Quince\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-rowan\",\"name\":\"Board of Rowan\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-sallow\",\"name\":\"Board of Sallow\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-silverfir\",\"name\":\"Board of Silver Fir\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-silverfir\",\"name\":\"Board of Silverfir\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-sorbtree\",\"name\":\"Board of Sorb\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-spruce\",\"name\":\"Board of Spruce\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-stonepine\",\"name\":\"Board of Stone Pine\"}"));
@@ -2542,7 +2542,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-baywillow\",\"name\":\"Block of Bay Willow\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-beech\",\"name\":\"Block of Beech\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-birch\",\"name\":\"Block of Birch\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-birdcherrytree\",\"name\":\"Block of Bird Cherry\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-birdcherrytree\",\"name\":\"Block of Birdcherrywood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-blackpine\",\"name\":\"Block of Black Pine\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-blackpoplar\",\"name\":\"Block of Black Poplar\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-treeheath\",\"name\":\"Block of Tree Heath\"}"));
@@ -2554,7 +2554,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-cherry\",\"name\":\"Block of Cherry\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-chestnuttree\",\"name\":\"Block of Chestnutwood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-conkertree\",\"name\":\"Block of Conker\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-corkoak\",\"name\":\"Block of Cork Oak\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-corkoak\",\"name\":\"Block of Corkoak\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-crabappletree\",\"name\":\"Block of Crabapplewood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-cypress\",\"name\":\"Block of Cypress\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-dogwood\",\"name\":\"Block of Dogwood\"}"));
@@ -2585,7 +2585,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-orangetree\",\"name\":\"Block of Orange\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-osier\",\"name\":\"Block of Osier\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-peartree\",\"name\":\"Block of Pearwood\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-persimmontree\",\"name\":\"Block of Persimmon\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-persimmontree\",\"name\":\"Block of Persimmonwood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-pine\",\"name\":\"Block of Pine\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-planetree\",\"name\":\"Block of Plane\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-plumtree\",\"name\":\"Block of Plumwood\"}"));
@@ -2593,7 +2593,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-quincetree\",\"name\":\"Block of Quince\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-rowan\",\"name\":\"Block of Rowan\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-sallow\",\"name\":\"Block of Sallow\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-silverfir\",\"name\":\"Block of Silver Fir\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-silverfir\",\"name\":\"Block of Silverfir\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-sorbtree\",\"name\":\"Block of Sorb\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-spruce\",\"name\":\"Block of Spruce\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-stonepine\",\"name\":\"Block of Stone Pine\"}"));

@@ -2,6 +2,7 @@ package nurgling.overlays;
 
 import haven.*;
 import nurgling.NUtils;
+import nurgling.tools.HarvestSpecs;
 import nurgling.tools.LpExplorer;
 
 import java.awt.image.BufferedImage;
@@ -10,17 +11,17 @@ import java.util.List;
 
 /**
  * Small floating icon marking a gob with undiscovered LP products - the same screen-space label
- * style NTreeHarvestOl uses for its harvest icons, not a 3D ground overlay. Shows every
+ * style NObjHarvestOl uses for its harvest icons, not a 3D ground overlay. Shows every
  * currently-undiscovered product's own icon (e.g. an apple for an undiscovered apple tree, or
  * Board/Block for a log with either still unpicked) stacked together and lightly tinted green,
  * via LpExplorer.getMarkerIcon() - falling back to a generic marker if no icon can be resolved at
  * all.
  *
- * This is a fallback only: when a gob is a tree/bush AND "Show harvest icons on trees" is
- * enabled, NTreeHarvestOl itself tints its own seed icon instead (see LpExplorer usage in
- * NTreeHarvestOl.computeLabel()) rather than showing a second, separate marker. NLPassistant
- * only attaches when that display isn't available - harvest-icons disabled, or a resource
- * NTreeHarvestOl doesn't cover at all (ground herbs/mushrooms, mineable rocks, felled logs).
+ * This is a fallback only: when a gob's type has its own always-visible harvest overlay enabled
+ * (see nurgling.tools.HarvestSpecs), NObjHarvestOl itself tints its own icon(s) instead (see
+ * LpExplorer usage in the HarvestSpec implementations) rather than showing a second, separate
+ * marker. NLPassistant only attaches when that display isn't available - its overlay disabled, or
+ * a resource none of the HarvestSpecs cover at all (ground herbs/mushrooms).
  */
 public class NLPassistant extends NObjectTexLabel
 {
@@ -53,10 +54,10 @@ public class NLPassistant extends NObjectTexLabel
     {
         shownProducts = products;
         TexI icon = LpExplorer.getMarkerIcon(gob, products);
-        // Same framed presentation NTreeHarvestOl's own harvest-icon label uses, so ours reads
+        // Same framed presentation NObjHarvestOl's own harvest-icon label uses, so ours reads
         // as the same family of UI element - just with the icon(s) themselves tinted to stand out.
         BufferedImage framed = icon != null ? icon.back
-            : NTreeHarvestOl.catimgshCentered(1, NTreeHarvestOl.tint(Resource.loadimg("marks/newlpassistant"), NTreeHarvestOl.LP_UNDISCOVERED_TINT));
+            : NObjHarvestOl.catimgshCentered(1, NObjHarvestOl.tint(Resource.loadimg("marks/newlpassistant"), NObjHarvestOl.LP_UNDISCOVERED_TINT));
         TexI tinted = new TexI(framed);
         this.label = tinted;
         this.img = tinted;
@@ -67,8 +68,8 @@ public class NLPassistant extends NObjectTexLabel
     {
         if (!LpExplorer.isEnabled() || NUtils.getGameUI() == null)
             return true;
-        // NTreeHarvestOl handles display for this gob itself once harvest-icons are on.
-        if (gob.ngob != null && NTreeHarvestOl.coversGob(gob.ngob.name))
+        // NObjHarvestOl handles display for this gob itself once its type's overlay is on.
+        if (gob.ngob != null && HarvestSpecs.isCovered(gob.ngob.name))
             return true;
 
         List<String> products;

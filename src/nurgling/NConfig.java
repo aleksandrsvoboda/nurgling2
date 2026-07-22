@@ -181,6 +181,9 @@ public class NConfig
         treeHarvestLeaves,
         treeHarvestBoughs,
         treeHarvestBark,
+        bushHarvestOverlay,
+        logHarvestOverlay,
+        stoneHarvestOverlay,
         treeDisplayScale,
         thinOutlines,
         itemQualityOverlay,
@@ -502,6 +505,9 @@ public class NConfig
         conf.put(Key.treeHarvestLeaves, true);    // Sub-filter: show leaf icons
         conf.put(Key.treeHarvestBoughs, true);    // Sub-filter: show bough icons
         conf.put(Key.treeHarvestBark, true);      // Sub-filter: show bark icons
+        conf.put(Key.bushHarvestOverlay, false);  // Show harvest icons on mature bushes
+        conf.put(Key.logHarvestOverlay, false);   // Show harvest icons on felled logs (Board/Block)
+        conf.put(Key.stoneHarvestOverlay, false); // Show harvest icons on mineable stones
         conf.put(Key.treeDisplayScale, 100);       // Tree display size percentage (25-100)
 
         // Outline rendering settings
