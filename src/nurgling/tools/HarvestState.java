@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Reads a tree/bush gob's live harvest state (maturity, currently-visible seed/leaf layers) and
  * resolves harvestable-product icons. Pure gob/resource facts with no LP-discovery awareness -
- * extracted out of NTreeHarvestOl so that class (the "Show harvest icons on trees" display) and
+ * extracted out of NObjHarvestOl so that class (the always-visible harvest overlay) and
  * LpExplorer (LP-discovery tracking) can both depend on this instead of on each other.
  */
 public class HarvestState {
@@ -204,8 +204,18 @@ public class HarvestState {
         ResDrawable d = (ResDrawable) dr;
         if (!isMatureTreeOrBush(gob, d)) return false;
 
-        int sdt = Sprite.decnum(d.sdt.clone());
+        return hasSeedBit(Sprite.decnum(d.sdt.clone()));
+    }
+
+    // Named accessors for the live per-instance state bitmask's two known bits, so callers that
+    // already have the decoded sdt in hand (TreeHarvestSpec/BushHarvestSpec, which decode it once
+    // to check both) don't need to re-derive the bit meanings themselves.
+    public static boolean hasSeedBit(int sdt) {
         return (sdt & 1) != 1;
+    }
+
+    public static boolean hasLeafBit(int sdt) {
+        return (sdt & 2) != 2;
     }
 
     /** Resolves a tree/bush species' icon for one harvest category ("seed"/"leaf"/"bough"/"bark"). */

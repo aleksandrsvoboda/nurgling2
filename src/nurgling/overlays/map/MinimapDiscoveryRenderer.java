@@ -1,7 +1,7 @@
 package nurgling.overlays.map;
 
 import haven.*;
-import nurgling.overlays.NTreeHarvestOl;
+import nurgling.overlays.NObjHarvestOl;
 import nurgling.tools.LpExplorer;
 
 import java.awt.Color;
@@ -29,7 +29,7 @@ public class MinimapDiscoveryRenderer {
                 return false;
 
             if (icon != null) {
-                g.usestate(new ColorMask(NTreeHarvestOl.LP_UNDISCOVERED_TINT));
+                g.usestate(new ColorMask(NObjHarvestOl.LP_UNDISCOVERED_TINT));
                 g.image(icon, screenPos.sub(half));
                 g.defstate();
             } else {

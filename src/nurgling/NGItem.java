@@ -161,8 +161,18 @@ public class NGItem extends GItem
                     {
                         LpExplorer.checkLpExplorer(NUtils.getGameUI().map.clickedGob.gob, name);
                     }
+                    else if (name.startsWith("Board of ") || name.startsWith("Block of "))
+                    {
+                        // TEMPORARY diagnostic - remove once the board/block discovery-tracking bug is found.
+                        System.out.println("[LP-DEBUG] '" + name + "' excluded by the Axe/Saw tool filter - not passed to checkLpExplorer.");
+                    }
                 }
-                
+                else if (name.startsWith("Board of ") || name.startsWith("Block of "))
+                {
+                    // TEMPORARY diagnostic - remove once the board/block discovery-tracking bug is found.
+                    System.out.println("[LP-DEBUG] New item '" + name + "' resolved but map.clickedGob was null - can't attribute it to a gob.");
+                }
+
             }
 
         }

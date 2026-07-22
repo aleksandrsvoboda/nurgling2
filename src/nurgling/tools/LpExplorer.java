@@ -8,7 +8,7 @@ import haven.TexI;
 import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.overlays.NTreeHarvestOl;
+import nurgling.overlays.NObjHarvestOl;
 import nurgling.widgets.NCharacterInfo;
 
 import java.awt.image.BufferedImage;
@@ -69,7 +69,7 @@ public class LpExplorer {
 
     // Every currently-undiscovered product this gob tracks, not just the first - lets markers
     // (e.g. NLPassistant) show every still-undiscovered icon at once instead of just one at a
-    // time, matching how NTreeHarvestOl stacks leaf/seed/bough/bark simultaneously.
+    // time, matching how NObjHarvestOl stacks leaf/seed/bough/bark simultaneously.
     public static List<String> allUndiscoveredProducts(Gob gob) {
         if (gob == null || gob.ngob == null)
             return Collections.emptyList();
@@ -90,7 +90,7 @@ public class LpExplorer {
     // than one product. The data does follow a reliable naming convention though (confirmed by
     // grepping every multi-product entry in VSpec.java): leaf products always contain "Leaf" or
     // "Leaves" (e.g. "Fig Leaf", "Laurel Leaves"), bough products always contain "Bough" (e.g.
-    // "Alder Bough"), and everything else is the seed/fruit/catkin product NTreeHarvestOl's
+    // "Alder Bough"), and everything else is the seed/fruit/catkin product NObjHarvestOl's
     // "seed" icon represents.
     public static boolean hasUndiscoveredSeedProduct(String gobResName) {
         return hasUndiscoveredProductMatching(gobResName, product -> !isLeafProduct(product) && !isBoughProduct(product));
@@ -151,7 +151,7 @@ public class LpExplorer {
 
     // The icon representing one of this gob's undiscovered LP products, if resolvable: for
     // trees/bushes, the harvest-category icon (seed/leaf/bough) matching this specific product,
-    // matching what NTreeHarvestOl itself would show; otherwise a name-based lookup via VSpec's
+    // matching what NObjHarvestOl itself would show; otherwise a name-based lookup via VSpec's
     // stacking-icon data (e.g. mineable "bumlings" ore/stone gobs, or a log's Board/Block, whose
     // names already have icons recorded there for stack-size purposes). Returns null if nothing
     // can be resolved (falls back to a generic marker at the call site).
@@ -166,9 +166,11 @@ public class LpExplorer {
     }
 
     // A single combined, tinted icon showing every currently-undiscovered product for this gob at
-    // once, stacked top-to-bottom the same way NTreeHarvestOl stacks leaf/seed/bough/bark - used
-    // by NLPassistant's 3D-world marker so a log (Board + Block) or a multi-product tree/bush
-    // reads the same way whether NTreeHarvestOl or the fallback marker is showing it.
+    // once, stacked the same way NObjHarvestOl stacks leaf/seed/bough/bark - used by
+    // NLPassistant's 3D-world marker so a log (Board + Block) or a multi-product tree/bush reads
+    // the same way whether NObjHarvestOl or the fallback marker is showing it. Delegates the
+    // actual tint+layout to NObjHarvestOl.compose(), the same step its own always-on overlay uses,
+    // so the two displays never drift apart.
     public static TexI getMarkerIcon(Gob gob, List<String> knownUndiscoveredProducts) {
         if (gob == null || gob.ngob == null)
             return null;
@@ -176,24 +178,35 @@ public class LpExplorer {
         if (products.isEmpty())
             return null;
 
-        BufferedImage[] parts = new BufferedImage[products.size()];
-        boolean any = false;
-        for (int i = 0; i < parts.length; i++) {
-            BufferedImage img = resolveProductIcon(gob, products.get(i));
-            if (img != null) {
-                parts[i] = NTreeHarvestOl.tint(img, NTreeHarvestOl.LP_UNDISCOVERED_TINT);
-                any = true;
-            }
+        List<HarvestSpec.Part> parts = new ArrayList<>(products.size());
+        for (String product : products) {
+            BufferedImage img = resolveProductIcon(gob, product);
+            if (img != null)
+                parts.add(new HarvestSpec.Part(product, img, true));
         }
-        if (!any)
-            return null;
-        return new TexI(NTreeHarvestOl.catimgshCentered(1, parts));
+
+        // Lay out the same direction the gob's own always-on harvest overlay would (e.g. a log's
+        // Board+Block side by side), so the fallback marker and NObjHarvestOl read consistently.
+        HarvestSpec spec = HarvestSpecs.forResource(gob.ngob.name);
+        boolean horizontal = spec != null && spec.horizontal();
+        return NObjHarvestOl.compose(horizontal, parts);
+    }
+
+    // Whether this exact product is still undiscovered for this gob - package-visible so
+    // ProductListHarvestSpec (the log/stone always-on overlay) can tint individual icons the same
+    // way the tree/bush categories already do.
+    static boolean isProductUndiscovered(String gobResName, String product) {
+        NCharacterInfo info = charInfo();
+        if (info == null || gobResName == null || product == null)
+            return false;
+        return isCurrentSeasonProduct(product) && !info.IsLpExplorerContains(gobResName, product);
     }
 
     // Resolves one product's own icon: the matching harvest-category icon (seed/leaf/bough) for
     // tree/bush species, so a leaf product shows its leaf icon rather than always falling back to
-    // the seed icon; the generic VSpec name-based lookup otherwise.
-    private static BufferedImage resolveProductIcon(Gob gob, String product) {
+    // the seed icon; the generic VSpec name-based lookup otherwise. Package-visible so
+    // ProductListHarvestSpec can resolve log/stone icons the same way.
+    static BufferedImage resolveProductIcon(Gob gob, String product) {
         Drawable dr = gob.getattr(Drawable.class);
         if (dr instanceof ResDrawable) {
             Resource res = ((ResDrawable) dr).getres();
@@ -220,6 +233,13 @@ public class LpExplorer {
         // by the same species-based name assumption instead.
         boolean barkProduct = HarvestState.isTreeOrBushRes(gobName) && name.equals(HarvestState.getBarkProductName(gobName));
         if (!trackedProduct && !barkProduct)
+        {
+            // TEMPORARY diagnostic - remove once the board/block discovery-tracking bug is found.
+            if (name.startsWith("Board of ") || name.startsWith("Block of "))
+            {
+                System.out.println("[LP-DEBUG] '" + name + "' didn't match clickedGob '" + gobName + "' - VSpec.object has: "
+                    + (VSpec.object.containsKey(gobName) ? VSpec.object.get(gobName) : "NO ENTRY for this resource"));
+            }
             // Not a product this gob is tracked for - leave clickedGob as-is rather than
             // clearing it. Some products (e.g. a log's Board/Block) only appear several seconds
             // after the click, via a crafting animation; if any other, unrelated item happens to
@@ -227,11 +247,15 @@ public class LpExplorer {
             // unconditionally would discard the click before the actual product ever appears,
             // so it could never be recorded as discovered at all.
             return;
+        }
 
         NCharacterInfo info = gui.getCharInfo();
         if (!info.IsLpExplorerContains(gobName, name)) {
             info.LpExplorerAdd(gobName, name);
             info.newLpExplorer = true;
+            // TEMPORARY diagnostic - remove once the board/block discovery-tracking bug is found.
+            if (name.startsWith("Board of ") || name.startsWith("Block of "))
+                System.out.println("[LP-DEBUG] Recorded '" + name + "' as discovered for gob '" + gobName + "'");
         }
         gui.map.clickedGob = null;
     }
