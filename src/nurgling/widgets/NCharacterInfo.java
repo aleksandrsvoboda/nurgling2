@@ -29,6 +29,11 @@ public class NCharacterInfo extends Widget {
     public boolean newLpExplorer = false;
     String varCand = null;
     private final HashMap<String,ArrayList<String>> lpExplorer = new HashMap<>();
+    // Every value ever added to lpExplorer, across all resources - kept in lockstep with it so
+    // IsLpExplorerContainsAnywhere() (checked every tick per bark-tracked tree) is an O(1) lookup
+    // instead of scanning every resource's discovered-product list, which otherwise gets slower
+    // the longer a character has been playing.
+    private final Set<String> lpExplorerAllValues = new HashSet<>();
 
     public boolean IsLpExplorerContains(String name)
     {
@@ -43,11 +48,7 @@ public class NCharacterInfo extends Widget {
     public boolean IsLpExplorerContainsAnywhere(String var)
     {
         synchronized(lpExplorer) {
-            for (ArrayList<String> vals : lpExplorer.values()) {
-                if (vals.contains(var))
-                    return true;
-            }
-            return false;
+            return lpExplorerAllValues.contains(var);
         }
     }
 
@@ -74,6 +75,7 @@ public class NCharacterInfo extends Widget {
                 lpExplorer.put(name,new ArrayList<>());
                 lpExplorer.get(name).add(var);
             }
+            lpExplorerAllValues.add(var);
         }
     }
 
@@ -149,6 +151,7 @@ public class NCharacterInfo extends Widget {
                                 lpExplorer.put(jlp.getString("name"), new ArrayList<>());
                                 lpExplorer.get(jlp.getString("name")).add(jlp.getString("key"));
                             }
+                            lpExplorerAllValues.add(jlp.getString("key"));
                         }
                     }
                 }

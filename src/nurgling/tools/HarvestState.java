@@ -3,16 +3,19 @@ package nurgling.tools;
 import haven.*;
 import nurgling.NUtils;
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * Reads a tree/bush gob's live harvest state (maturity, currently-visible seed/leaf layers) and
@@ -30,11 +33,18 @@ public class HarvestState {
     private static final Map<String, String> LEAVES_MAP;
     private static final Map<String, String> BOUGHS_MAP;
     private static final Map<String, String> BARKS_MAP;
+    private static final Map<String, String> BARK_ICON_TO_PRODUCT;
 
     private static final Map<String, Optional<BufferedImage>> ICON_CACHE = new ConcurrentHashMap<>();
 
-    private static final Set<String> YESTERYEAR_CAPABLE_SEEDS;
+    // Off-season fruit is reported under this literal prefix (e.g. "Yesteryear's Red Apple");
+    // shared with LpExplorer so both sides of the season-aware behavior (icon selection here,
+    // discovery-check filtering there) agree on the exact same string.
+    public static final String YESTERYEAR_PREFIX = "Yesteryear's ";
+
     private static final Map<String, String> YESTERYEAR_ICON_OVERRIDE;
+
+    private static final Pattern BUMLING_VARIANT_SUFFIX = Pattern.compile("\\d+$");
 
     static {
         Map<String, String> seeds = new HashMap<>();
@@ -88,6 +98,7 @@ public class HarvestState {
         boughs.put("sweetgum", "gfx/invobjs/bough-sweetgum");
         boughs.put("yew", "gfx/invobjs/bough-yew");
         boughs.put("beech", "gfx/invobjs/bough-beech");
+        boughs.put("poplar", "gfx/invobjs/bough-poplar");
         BOUGHS_MAP = Collections.unmodifiableMap(boughs);
 
         Map<String, String> barks = new HashMap<>();
@@ -104,16 +115,6 @@ public class HarvestState {
         barks.put("wychelm", "gfx/invobjs/toughbark");
         BARKS_MAP = Collections.unmodifiableMap(barks);
 
-        // Species confirmed (via VSpec's -yester icon entries) to grow a "Yesteryear's " variant
-        // of their normal fruit during the off-season (Winter/Spring). Everything else (catkins,
-        // nuts, pods, etc.) has no seasonal icon swap.
-        YESTERYEAR_CAPABLE_SEEDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "appletree", "cherry", "figtree", "lemontree", "mulberry", "orangetree", "peartree",
-            "persimmontree", "plumtree", "quincetree", "strawberrytree", "medlartree", "sorbtree",
-            "crabappletree", "blackberrybush", "redcurrant", "sandthorn", "blackcurrant",
-            "elderberrybush", "gooseberrybush", "raspberrybush"
-        )));
-
         // The Yesteryear's icon is simply the normal seed icon's resource path with a "-yester"
         // suffix appended - except for these two, confirmed (via VSpec) to use a differently-named
         // resource instead of following that convention.
@@ -121,25 +122,48 @@ public class HarvestState {
         yesterOverrides.put("blackberrybush", "gfx/invobjs/seed-blackberry-yester");
         yesterOverrides.put("sandthorn", "gfx/invobjs/sandthorn-yester");
         YESTERYEAR_ICON_OVERRIDE = Collections.unmodifiableMap(yesterOverrides);
+
+        // The bark item name a species yields, keyed by the same per-species icon path BARKS_MAP
+        // already assigns it (birch/willow get a uniquely-named item, everything else in
+        // BARKS_MAP shares "Tough Bark") - one source of truth instead of a second hand-guessed
+        // name per species that can independently go stale (confirmed happened once already:
+        // birch was guessed as "Birchbark", really "Birch Bark").
+        Map<String, String> barkNames = new HashMap<>();
+        barkNames.put("gfx/invobjs/bark-birch", "Birch Bark");
+        barkNames.put("gfx/invobjs/bark-willow", "Willow Bark");
+        barkNames.put("gfx/invobjs/toughbark", "Tough Bark");
+        BARK_ICON_TO_PRODUCT = Collections.unmodifiableMap(barkNames);
     }
 
     private HarvestState() {}
 
+    /**
+     * Mineable "bumling" resources are suffixed with a trailing digit for their visual variant
+     * (e.g. "granite3"), but VSpec.object/categories track them by the bare species name - strips
+     * that suffix so lookups against those maps work regardless of which variant a gob is
+     * currently showing. A no-op for every other resource.
+     */
+    public static String normalizeBumlingRes(String resName) {
+        if (resName != null && resName.contains("bumlings"))
+            return BUMLING_VARIANT_SUFFIX.matcher(resName).replaceAll("");
+        return resName;
+    }
+
+    private static boolean isTreeRes(String resname) {
+        return resname != null && resname.startsWith("gfx/terobjs/trees")
+            && !resname.endsWith("log") && !resname.endsWith("oldtrunk");
+    }
+
+    private static boolean isBushRes(String resname) {
+        return resname != null && resname.startsWith("gfx/terobjs/bushes");
+    }
+
     public static boolean isTreeOrBushRes(String resname) {
-        if (resname == null) return false;
-        if (resname.startsWith("gfx/terobjs/trees"))
-            return !resname.endsWith("log") && !resname.endsWith("oldtrunk");
-        return resname.startsWith("gfx/terobjs/bushes");
+        return isTreeRes(resname) || isBushRes(resname);
     }
 
     public static boolean isTreeOrBush(Resource res) {
-        if (res == null) return false;
-        String n = res.name;
-        if (n == null) return false;
-        if (n.startsWith("gfx/terobjs/trees")) {
-            return !n.endsWith("log") && !n.endsWith("oldtrunk");
-        }
-        return n.startsWith("gfx/terobjs/bushes");
+        return res != null && isTreeOrBushRes(res.name);
     }
 
     public static boolean hasBough(String basename) {
@@ -148,18 +172,14 @@ public class HarvestState {
 
     /**
      * The bark item a tree/bush species yields, assuming the generic "Treebark" unless the
-     * species is confirmed (per the wiki) to give something else - reuses BARKS_MAP's existing
-     * per-species grouping rather than a second parallel map, since that's the same "does this
-     * species get special-cased bark" distinction the harvest-icon (bark-birch/bark-willow vs.
-     * shared toughbark vs. generic bark icon) already encodes.
+     * species is confirmed to give something else - joins BARKS_MAP's per-species icon path
+     * through BARK_ICON_TO_PRODUCT rather than guessing the name directly, so the two "does this
+     * species get special-cased bark" facts can't drift out of sync with each other.
      */
     public static String getBarkProductName(String gobResName) {
         if (gobResName == null) return null;
         String basename = gobResName.substring(gobResName.lastIndexOf('/') + 1);
-        if ("birch".equals(basename)) return "Birchbark";
-        if ("willow".equals(basename)) return "Willow Bark";
-        if (BARKS_MAP.containsKey(basename)) return "Tough Bark";
-        return "Treebark";
+        return BARK_ICON_TO_PRODUCT.getOrDefault(BARKS_MAP.get(basename), "Treebark");
     }
 
     /**
@@ -181,9 +201,9 @@ public class HarvestState {
         data.skip(1);
         int growth = data.eom() ? -1 : data.uint8();
         if (growth != -1) {
-            if (res.name.contains("gfx/terobjs/trees") && !res.name.endsWith("log") && !res.name.endsWith("oldtrunk")) {
+            if (isTreeRes(res.name)) {
                 growth = (int) (TREE_MULT * (growth - TREE_START));
-            } else if (res.name.startsWith("gfx/terobjs/bushes")) {
+            } else if (isBushRes(res.name)) {
                 growth = (int) (BUSH_MULT * (growth - BUSH_START));
             }
         }
@@ -219,13 +239,14 @@ public class HarvestState {
     }
 
     /** Resolves a tree/bush species' icon for one harvest category ("seed"/"leaf"/"bough"/"bark"). */
-    public static BufferedImage getIcon(String basename, String type) {
-        if (basename == null) return null;
+    public static BufferedImage getIcon(Resource res, String type) {
+        if (res == null) return null;
+        String basename = res.basename();
 
         String resourceName = null;
         if ("seed".equals(type)) {
             resourceName = SEEDS_MAP.containsKey(basename) ? SEEDS_MAP.get(basename) : "gfx/invobjs/seed-" + basename;
-            if (YESTERYEAR_CAPABLE_SEEDS.contains(basename) && isYesteryearSeason()) {
+            if (isYesteryearSeason() && isYesteryearCapable(res.name)) {
                 resourceName = YESTERYEAR_ICON_OVERRIDE.containsKey(basename)
                     ? YESTERYEAR_ICON_OVERRIDE.get(basename) : resourceName + "-yester";
             }
@@ -234,14 +255,25 @@ public class HarvestState {
         } else if ("bough".equals(type)) {
             resourceName = BOUGHS_MAP.get(basename);
         } else if ("bark".equals(type)) {
-            if (BARKS_MAP.containsKey(basename)) {
-                resourceName = BARKS_MAP.get(basename);
-            } else {
-                resourceName = "gfx/invobjs/bark";
-            }
+            resourceName = BARKS_MAP.containsKey(basename) ? BARKS_MAP.get(basename) : "gfx/invobjs/bark";
         }
 
         return loadIcon(resourceName);
+    }
+
+    /**
+     * Whether this tree/bush resource has a confirmed "Yesteryear's " seasonal counterpart for its
+     * seed/fruit product - derived directly from VSpec.object (a species with a seasonal pair
+     * lists both the normal and "Yesteryear's "-prefixed product as literal sibling entries)
+     * rather than a separately hand-maintained species list that could drift out of sync with it.
+     */
+    public static boolean isYesteryearCapable(String gobResName) {
+        List<String> products = VSpec.object.get(gobResName);
+        if (products == null) return false;
+        for (String product : products) {
+            if (product.startsWith(YESTERYEAR_PREFIX)) return true;
+        }
+        return false;
     }
 
     // Loads, scales, and caches an icon by its exact resource path - the generic half of
@@ -264,6 +296,35 @@ public class HarvestState {
         }
         ICON_CACHE.put(resourceName, Optional.ofNullable(img));
         return img;
+    }
+
+    private static BufferedImage unknownIcon;
+
+    /**
+     * A generic "?" icon shown in place of a category we determined should be visible (a live
+     * bitmask bit set, or a tracked resource with no VSpec entry) but couldn't resolve an actual
+     * icon for - almost always a species new to the game that hasn't been added to VSpec/
+     * HarvestState's maps yet. Makes that gap visible in-game instead of silently showing
+     * nothing, so it gets noticed and reported rather than going unnoticed indefinitely.
+     */
+    public static BufferedImage unknownIcon() {
+        if (unknownIcon == null) {
+            Coord sz = UI.scale(26, 26);
+            BufferedImage img = TexI.mkbuf(sz);
+            Graphics2D g = (Graphics2D) img.getGraphics();
+            g.setColor(Color.DARK_GRAY);
+            g.fillRect(0, 0, sz.x, sz.y);
+            g.setColor(Color.WHITE);
+            g.setFont(g.getFont().deriveFont(Font.BOLD, sz.y * 0.75f));
+            FontMetrics fm = g.getFontMetrics();
+            String s = "?";
+            int x = (sz.x - fm.stringWidth(s)) / 2;
+            int y = (sz.y - fm.getHeight()) / 2 + fm.getAscent();
+            g.drawString(s, x, y);
+            g.dispose();
+            unknownIcon = img;
+        }
+        return unknownIcon;
     }
 
     // Whether it's currently the off-season (Winter/Spring) that swaps some species' fruit icon

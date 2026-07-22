@@ -13,11 +13,8 @@ import nurgling.widgets.NCharacterInfo;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 
 // Tracks which LP-discoverable products (VSpec.object) the player has found for each gob type.
@@ -26,29 +23,21 @@ import java.util.function.Predicate;
 // decides which of the two is currently displayed) - so recording a discovery is a direct name
 // match, no normalization needed.
 public class LpExplorer {
-    private static final String YESTERYEAR_PREFIX = "Yesteryear's ";
-
-    // Products confirmed (via HarvestState's -yester icon overrides/suffix) to have a seasonal
-    // "Yesteryear's " counterpart. Used only to pick which of the pair is the current season's
-    // variant when checking for undiscovered products - checking the off-season one would tint an
-    // icon that's already been discovered for the current season and can't clear until the
-    // off-season variant is also found, possibly months away.
-    private static final Set<String> yesteryearCapableProducts = new HashSet<>(Arrays.asList(
-        "Red Apple", "Cherries", "Fig", "Lemon", "Mulberry", "Orange", "Pear", "Persimmon", "Plum",
-        "Quince", "Wood Strawberry", "Medlar", "Sorb Apple", "Crabapples", "Blackberry",
-        "Redcurrant", "Seaberries", "Blackcurrant", "Elderberries", "Gooseberry", "Raspberry"
-    ));
-
     public static boolean isEnabled() {
         return Boolean.TRUE.equals(NConfig.get(NConfig.Key.lpassistent));
     }
 
     // True if this product is the one that could actually be picked up right now - i.e. it either
-    // has no seasonal counterpart at all, or it's the variant matching the current season.
-    private static boolean isCurrentSeasonProduct(String product) {
-        boolean isYesteryearVariant = product.startsWith(YESTERYEAR_PREFIX);
-        String base = isYesteryearVariant ? product.substring(YESTERYEAR_PREFIX.length()) : product;
-        if (!yesteryearCapableProducts.contains(base))
+    // has no seasonal counterpart at all, or it's the variant matching the current season. Whether
+    // a seasonal pair exists at all is derived from VSpec.object itself (does the sibling name
+    // appear in this same resource's product list) rather than a separately hand-maintained
+    // species list, so there's nothing to keep in sync when a new species is added.
+    private static boolean isCurrentSeasonProduct(String gobResName, String product) {
+        boolean isYesteryearVariant = product.startsWith(HarvestState.YESTERYEAR_PREFIX);
+        String base = isYesteryearVariant ? product.substring(HarvestState.YESTERYEAR_PREFIX.length()) : product;
+        String sibling = isYesteryearVariant ? base : (HarvestState.YESTERYEAR_PREFIX + base);
+        List<String> products = VSpec.object.get(gobResName);
+        if (products == null || !products.contains(sibling))
             return true;
         return isYesteryearVariant == HarvestState.isYesteryearSeason();
     }
@@ -83,6 +72,18 @@ public class LpExplorer {
         return undiscoveredProductsMatching(gobResName, product -> true);
     }
 
+    /** Which harvest categories (seed/leaf/bough) still have an undiscovered product for a resource. */
+    public static class UndiscoveredCategories {
+        public final boolean seed, leaf, bough;
+        private UndiscoveredCategories(boolean seed, boolean leaf, boolean bough) {
+            this.seed = seed;
+            this.leaf = leaf;
+            this.bough = bough;
+        }
+    }
+
+    private static final UndiscoveredCategories NONE_UNDISCOVERED = new UndiscoveredCategories(false, false, false);
+
     // VSpec.object lists every trackable product for a resource with no category metadata at all
     // (e.g. figtree -> ["Fig Leaf", "Fig"]), so a blanket "is anything undiscovered" check can't
     // tell which of several simultaneously-shown icons (seed/leaf/bough) it actually applies to -
@@ -91,17 +92,24 @@ public class LpExplorer {
     // grepping every multi-product entry in VSpec.java): leaf products always contain "Leaf" or
     // "Leaves" (e.g. "Fig Leaf", "Laurel Leaves"), bough products always contain "Bough" (e.g.
     // "Alder Bough"), and everything else is the seed/fruit/catkin product NObjHarvestOl's
-    // "seed" icon represents.
-    public static boolean hasUndiscoveredSeedProduct(String gobResName) {
-        return hasUndiscoveredProductMatching(gobResName, product -> !isLeafProduct(product) && !isBoughProduct(product));
-    }
+    // "seed" icon represents. Classified in one pass over the product list (used by
+    // TreeHarvestSpec/BushHarvestSpec) rather than one independent rescan per category.
+    public static UndiscoveredCategories undiscoveredCategories(String gobResName) {
+        if (gobResName == null || !VSpec.object.containsKey(gobResName))
+            return NONE_UNDISCOVERED;
+        NCharacterInfo info = charInfo();
+        if (info == null)
+            return NONE_UNDISCOVERED;
 
-    public static boolean hasUndiscoveredLeafProduct(String gobResName) {
-        return hasUndiscoveredProductMatching(gobResName, LpExplorer::isLeafProduct);
-    }
-
-    public static boolean hasUndiscoveredBoughProduct(String gobResName) {
-        return hasUndiscoveredProductMatching(gobResName, LpExplorer::isBoughProduct);
+        boolean seed = false, leaf = false, bough = false;
+        for (String product : VSpec.object.get(gobResName)) {
+            if (!isCurrentSeasonProduct(gobResName, product) || info.IsLpExplorerContains(gobResName, product))
+                continue;
+            if (isLeafProduct(product)) leaf = true;
+            else if (isBoughProduct(product)) bough = true;
+            else seed = true;
+        }
+        return new UndiscoveredCategories(seed, leaf, bough);
     }
 
     // Bark isn't listed in VSpec.object at all (unlike seed/leaf/bough, which are literal product
@@ -128,10 +136,6 @@ public class LpExplorer {
         return product.contains("Bough");
     }
 
-    private static boolean hasUndiscoveredProductMatching(String gobResName, Predicate<String> category) {
-        return !undiscoveredProductsMatching(gobResName, category).isEmpty();
-    }
-
     private static List<String> undiscoveredProductsMatching(String gobResName, Predicate<String> category) {
         if (gobResName == null || !VSpec.object.containsKey(gobResName))
             return Collections.emptyList();
@@ -141,7 +145,7 @@ public class LpExplorer {
 
         List<String> result = new ArrayList<>();
         for (String product : VSpec.object.get(gobResName)) {
-            if (!category.test(product) || !isCurrentSeasonProduct(product))
+            if (!category.test(product) || !isCurrentSeasonProduct(gobResName, product))
                 continue;
             if (!info.IsLpExplorerContains(gobResName, product))
                 result.add(product);
@@ -199,7 +203,7 @@ public class LpExplorer {
         NCharacterInfo info = charInfo();
         if (info == null || gobResName == null || product == null)
             return false;
-        return isCurrentSeasonProduct(product) && !info.IsLpExplorerContains(gobResName, product);
+        return isCurrentSeasonProduct(gobResName, product) && !info.IsLpExplorerContains(gobResName, product);
     }
 
     // Resolves one product's own icon: the matching harvest-category icon (seed/leaf/bough) for
@@ -212,7 +216,7 @@ public class LpExplorer {
             Resource res = ((ResDrawable) dr).getres();
             if (HarvestState.isTreeOrBush(res)) {
                 String type = isLeafProduct(product) ? "leaf" : isBoughProduct(product) ? "bough" : "seed";
-                BufferedImage img = HarvestState.getIcon(res.basename(), type);
+                BufferedImage img = HarvestState.getIcon(res, type);
                 if (img != null)
                     return img;
             }
@@ -220,9 +224,24 @@ public class LpExplorer {
         return HarvestState.loadIcon(VSpec.getIconPath(product));
     }
 
+    // Called for every newly-resolved item name near a gob - clickedGob is null if the pickup
+    // can't be attributed to one (e.g. no gob was clicked recently enough). All the "should we
+    // even consider this pickup" decisions (no gob, a tool rather than a product) live here too,
+    // alongside the temporary diagnostic logging, so both stay in the one place instead of split
+    // across this method and its caller.
     public static void checkLpExplorer(Gob clickedGob, String name) {
-        if (clickedGob == null)
+        if (clickedGob == null) {
+            // TEMPORARY diagnostic - log every unattributed pickup. Remove once verification is complete.
+            System.out.println("[LP-DEBUG] New item '" + name + "' resolved but map.clickedGob was null - can't attribute it to a gob.");
             return;
+        }
+        // Exclude tools from LP tracking - the player's own axe/saw resolving its name near a gob
+        // isn't a harvested product.
+        if (name.contains(" Axe") || name.contains(" Saw")) {
+            // TEMPORARY diagnostic - log every tool exclusion. Remove once verification is complete.
+            System.out.println("[LP-DEBUG] '" + name + "' excluded by the Axe/Saw tool filter - not passed to checkLpExplorer.");
+            return;
+        }
         NGameUI gui = NUtils.getGameUI();
         String gobName = clickedGob.ngob.name;
         if (gui == null || gui.getCharInfo() == null || gobName == null)
@@ -234,12 +253,10 @@ public class LpExplorer {
         boolean barkProduct = HarvestState.isTreeOrBushRes(gobName) && name.equals(HarvestState.getBarkProductName(gobName));
         if (!trackedProduct && !barkProduct)
         {
-            // TEMPORARY diagnostic - remove once the board/block discovery-tracking bug is found.
-            if (name.startsWith("Board of ") || name.startsWith("Block of "))
-            {
-                System.out.println("[LP-DEBUG] '" + name + "' didn't match clickedGob '" + gobName + "' - VSpec.object has: "
-                    + (VSpec.object.containsKey(gobName) ? VSpec.object.get(gobName) : "NO ENTRY for this resource"));
-            }
+            // TEMPORARY diagnostic - log every non-match to help catch data mismatches. Remove once verification is complete.
+            System.out.println("[LP-DEBUG] '" + name + "' didn't match clickedGob '" + gobName + "' - VSpec.object has: "
+                + (VSpec.object.containsKey(gobName) ? VSpec.object.get(gobName) : "NO ENTRY for this resource")
+                + ", assumed bark name: '" + HarvestState.getBarkProductName(gobName) + "'");
             // Not a product this gob is tracked for - leave clickedGob as-is rather than
             // clearing it. Some products (e.g. a log's Board/Block) only appear several seconds
             // after the click, via a crafting animation; if any other, unrelated item happens to
@@ -253,9 +270,8 @@ public class LpExplorer {
         if (!info.IsLpExplorerContains(gobName, name)) {
             info.LpExplorerAdd(gobName, name);
             info.newLpExplorer = true;
-            // TEMPORARY diagnostic - remove once the board/block discovery-tracking bug is found.
-            if (name.startsWith("Board of ") || name.startsWith("Block of "))
-                System.out.println("[LP-DEBUG] Recorded '" + name + "' as discovered for gob '" + gobName + "'");
+            // TEMPORARY diagnostic - log every recorded discovery. Remove once verification is complete.
+            System.out.println("[LP-DEBUG] Recorded '" + name + "' as discovered for gob '" + gobName + "'");
         }
         gui.map.clickedGob = null;
     }

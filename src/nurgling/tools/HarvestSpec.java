@@ -34,7 +34,10 @@ public interface HarvestSpec {
 
     // Shared by TreeHarvestSpec/BushHarvestSpec: only add a category's icon if it's actually
     // shown and resolvable, so callers can build their part list with one line per category
-    // instead of repeating this null/shown check for each one.
+    // instead of repeating this null/shown check for each one. Not every known species tracks
+    // every category (most trees have no distinct leaf product, for instance), so a category
+    // simply not resolving here is normal, not a sign of an unrecognized species - see
+    // TreeHarvestSpec/BushHarvestSpec's species-level "?" check for that instead.
     static void addPart(List<Part> parts, String id, boolean shown, BufferedImage img, boolean undiscovered) {
         if (shown && img != null)
             parts.add(new Part(id, img, undiscovered));
