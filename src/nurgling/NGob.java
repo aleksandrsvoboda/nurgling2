@@ -62,6 +62,17 @@ public class NGob
     public long grid_id;
     public Coord gcoord;
     private final Queue<DelayedOverlayTask> delayedOverlayTasks = new ConcurrentLinkedQueue<>();
+
+    // The HarvestSpec (if any) covering this gob's resource, cached here since resolving it
+    // (HarvestSpecs.forResource's 4-way match scan) is only actually needed when the gob's
+    // Drawable/name changes (see updateHarvestOverlay()) - both this class's own tick() and
+    // NLPassistant's tick() check it every frame, so re-resolving it there too would repeat that
+    // scan far more often than necessary.
+    private HarvestSpec cachedHarvestSpec = null;
+
+    public HarvestSpec harvestSpec() {
+        return cachedHarvestSpec;
+    }
     
     // Cached values for performance
     private static final Set<String> ANIMAL_NAMES = Set.of(
@@ -502,6 +513,7 @@ public class NGob
             // checks the spec's master toggle, so a null spec here or a null label below are the
             // only two things this method needs to react to - no need to duplicate those checks.
             HarvestSpec spec = name == null ? null : HarvestSpecs.forResource(name);
+            cachedHarvestSpec = spec;
             TexI label = spec == null ? null : nurgling.overlays.NObjHarvestOl.computeLabel(parent, spec);
             if (label == null)
             {
@@ -607,10 +619,7 @@ public class NGob
                     return;
                 }
 
-                if (name.contains("bumlings"))
-                {
-                    name = name.replaceAll("\\d+$", "");
-                }
+                name = HarvestState.normalizeBumlingRes(name);
 
                 if (name.contains("palisade") && cachedShortPalisades)
                 {
@@ -1078,7 +1087,8 @@ public class NGob
             {
                 // NObjHarvestOl handles display itself (tints its own icon(s)) once this gob
                 // type's always-visible harvest overlay is on - don't show a second marker.
-                if (!HarvestSpecs.isCovered(name))
+                boolean covered = cachedHarvestSpec != null && Boolean.TRUE.equals(NConfig.get(cachedHarvestSpec.masterToggle()));
+                if (!covered)
                 {
                     try
                     {

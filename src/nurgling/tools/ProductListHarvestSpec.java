@@ -45,9 +45,16 @@ public class ProductListHarvestSpec implements HarvestSpec {
 
     @Override
     public List<Part> parts(Gob gob, ResDrawable d) {
-        String gobResName = d.getres().name;
+        // Bumlings' actual resource carries a variant-digit suffix VSpec.object doesn't key by
+        // (see normalizeBumlingRes) - a no-op for logs, which have no such suffix.
+        String gobResName = HarvestState.normalizeBumlingRes(d.getres().name);
         List<String> products = VSpec.object.get(gobResName);
-        if (products == null || products.isEmpty())
+        if (products == null)
+            // A resource this spec matches (a log or a stone) but with no VSpec.object entry at
+            // all - almost always a species new to the game we haven't added data for yet. Flag
+            // it with the generic "?" rather than silently showing nothing.
+            return Collections.singletonList(new Part("unknown", HarvestState.unknownIcon(), true));
+        if (products.isEmpty())
             return Collections.emptyList();
 
         boolean lpassistentOn = LpExplorer.isEnabled();

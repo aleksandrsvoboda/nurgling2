@@ -37,19 +37,25 @@ public class BushHarvestSpec implements HarvestSpec {
             return Collections.emptyList();
 
         Resource res = d.getres();
+        if (!VSpec.object.containsKey(res.name))
+            // A species we have no data for at all - see TreeHarvestSpec's identical check for
+            // why this is judged at the species level, not per-category below.
+            return Collections.singletonList(new Part("unknown", HarvestState.unknownIcon(), true));
+
         int sdt = Sprite.decnum(d.sdt.clone());
-        String base = res.basename();
 
         boolean seed = HarvestState.hasSeedBit(sdt);
         boolean leaf = HarvestState.hasLeafBit(sdt);
 
         boolean lpassistentOn = LpExplorer.isEnabled();
-        boolean seedUndiscovered = seed && lpassistentOn && LpExplorer.hasUndiscoveredSeedProduct(res.name);
-        boolean leafUndiscovered = leaf && lpassistentOn && LpExplorer.hasUndiscoveredLeafProduct(res.name);
+        LpExplorer.UndiscoveredCategories undiscovered = lpassistentOn
+            ? LpExplorer.undiscoveredCategories(res.name) : null;
+        boolean seedUndiscovered = seed && undiscovered != null && undiscovered.seed;
+        boolean leafUndiscovered = leaf && undiscovered != null && undiscovered.leaf;
 
         List<Part> parts = new ArrayList<>(2);
-        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(base, "leaf"), leafUndiscovered);
-        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(base, "seed"), seedUndiscovered);
+        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf"), leafUndiscovered);
+        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(res, "seed"), seedUndiscovered);
         return parts;
     }
 }

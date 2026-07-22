@@ -1,8 +1,9 @@
 package nurgling.overlays;
 
 import haven.*;
+import nurgling.NConfig;
 import nurgling.NUtils;
-import nurgling.tools.HarvestSpecs;
+import nurgling.tools.HarvestSpec;
 import nurgling.tools.LpExplorer;
 
 import java.awt.image.BufferedImage;
@@ -68,9 +69,14 @@ public class NLPassistant extends NObjectTexLabel
     {
         if (!LpExplorer.isEnabled() || NUtils.getGameUI() == null)
             return true;
-        // NObjHarvestOl handles display for this gob itself once its type's overlay is on.
-        if (gob.ngob != null && HarvestSpecs.isCovered(gob.ngob.name))
-            return true;
+        // NObjHarvestOl handles display for this gob itself once its type's overlay is on. Reads
+        // the spec NGob already resolved and cached (see NGob.updateHarvestOverlay()) rather than
+        // re-resolving it here, since this runs every tick for every fallback marker.
+        if (gob.ngob != null) {
+            HarvestSpec spec = gob.ngob.harvestSpec();
+            if (spec != null && Boolean.TRUE.equals(NConfig.get(spec.masterToggle())))
+                return true;
+        }
 
         List<String> products;
         try

@@ -39,6 +39,13 @@ public class TreeHarvestSpec implements HarvestSpec {
             return Collections.emptyList();
 
         Resource res = d.getres();
+        if (!VSpec.object.containsKey(res.name))
+            // A species we have no data for at all (e.g. one the game added after this mod was
+            // last updated) - flag it rather than silently showing nothing. Not every KNOWN
+            // species tracks every category (most have no distinct leaf product, for instance),
+            // so that's judged here at the species level, not per-category below.
+            return Collections.singletonList(new Part("unknown", HarvestState.unknownIcon(), true));
+
         int sdt = Sprite.decnum(d.sdt.clone());
         String base = res.basename();
 
@@ -53,16 +60,18 @@ public class TreeHarvestSpec implements HarvestSpec {
         boolean bark = showBark;
 
         boolean lpassistentOn = LpExplorer.isEnabled();
-        boolean seedUndiscovered = seed && lpassistentOn && LpExplorer.hasUndiscoveredSeedProduct(res.name);
-        boolean leafUndiscovered = leaf && lpassistentOn && LpExplorer.hasUndiscoveredLeafProduct(res.name);
-        boolean boughUndiscovered = bough && lpassistentOn && LpExplorer.hasUndiscoveredBoughProduct(res.name);
+        LpExplorer.UndiscoveredCategories undiscovered = lpassistentOn
+            ? LpExplorer.undiscoveredCategories(res.name) : null;
+        boolean seedUndiscovered = seed && undiscovered != null && undiscovered.seed;
+        boolean leafUndiscovered = leaf && undiscovered != null && undiscovered.leaf;
+        boolean boughUndiscovered = bough && undiscovered != null && undiscovered.bough;
         boolean barkUndiscovered = bark && lpassistentOn && LpExplorer.hasUndiscoveredBarkProduct(res.name);
 
         List<Part> parts = new ArrayList<>(4);
-        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(base, "leaf"), leafUndiscovered);
-        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(base, "seed"), seedUndiscovered);
-        HarvestSpec.addPart(parts, "bough", bough, HarvestState.getIcon(base, "bough"), boughUndiscovered);
-        HarvestSpec.addPart(parts, "bark", bark, HarvestState.getIcon(base, "bark"), barkUndiscovered);
+        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf"), leafUndiscovered);
+        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(res, "seed"), seedUndiscovered);
+        HarvestSpec.addPart(parts, "bough", bough, HarvestState.getIcon(res, "bough"), boughUndiscovered);
+        HarvestSpec.addPart(parts, "bark", bark, HarvestState.getIcon(res, "bark"), barkUndiscovered);
         return parts;
     }
 }

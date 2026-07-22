@@ -33,6 +33,11 @@ public class VSpec {
         appletreeOp.add("Yesteryear's Red Apple");
         object.put("gfx/terobjs/trees/appletree", appletreeOp);
 
+        // Green Apple Tree
+        ArrayList<String> appletreegreenOp = new ArrayList<>();
+        appletreegreenOp.add("Green Apple"); // РЎРµРјРµРЅР°
+        object.put("gfx/terobjs/trees/appletreegreen", appletreegreenOp);
+
         // Ash Tree
         ArrayList<String> ashOp = new ArrayList<>();
         ashOp.add("Ash Samaras"); // РЎРµРјРµРЅР°
@@ -286,6 +291,7 @@ public class VSpec {
         // Poplar Tree
         ArrayList<String> poplarOp = new ArrayList<>();
         poplarOp.add("Poplar Catkin"); // РЎРµРјРµРЅР°
+        poplarOp.add("Poplar Bough"); // Р’РµС‚РєРё
         object.put("gfx/terobjs/trees/poplar", poplarOp);
 
         // Quince Tree
@@ -1706,6 +1712,7 @@ public class VSpec {
         treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-sweetgum\",\"name\":\"Sweetgum Bough\"}"));
         treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-yew\",\"name\":\"Yew Bough\"}"));
         treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-beech\",\"name\":\"Beech Bough\"}"));
+        treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-poplar\",\"name\":\"Poplar Bough\"}"));
         categories.put("Tree Bough", treeBoughs);
 
         ArrayList<JSONObject> thatchingMaterials = new ArrayList<>();

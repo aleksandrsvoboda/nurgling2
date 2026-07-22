@@ -28,14 +28,4 @@ public class HarvestSpecs {
         }
         return null;
     }
-
-    /**
-     * True if this gob's always-visible harvest overlay is currently showing (its type's master
-     * toggle is on) - so the LP-discovery fallback marker should let it handle display instead of
-     * showing a second, separate marker.
-     */
-    public static boolean isCovered(String gobResName) {
-        HarvestSpec spec = forResource(gobResName);
-        return spec != null && Boolean.TRUE.equals(NConfig.get(spec.masterToggle()));
-    }
 }
