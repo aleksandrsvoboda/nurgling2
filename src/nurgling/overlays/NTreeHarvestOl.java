@@ -2,17 +2,17 @@ package nurgling.overlays;
 
 import haven.*;
 
+import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import nurgling.NConfig;
 import nurgling.styles.TooltipStyle;
+import nurgling.tools.HarvestState;
+import nurgling.tools.LpExplorer;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -22,87 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * Renders small combined icons (leaf + fruit/seed + bough + bark) only when the object is mature/ready.
  */
 public class NTreeHarvestOl extends NObjectTexLabel {
-    private static final int TREE_START = 10;
-    private static final int BUSH_START = 30;
-    private static final double TREE_MULT = 100.0 / (100.0 - TREE_START);
-    private static final double BUSH_MULT = 100.0 / (100.0 - BUSH_START);
-
-    private static final Map<String, String> SEEDS_MAP;
-    private static final Map<String, String> LEAVES_MAP;
-    private static final Map<String, String> BOUGHS_MAP;
-    private static final Map<String, String> BARKS_MAP;
+    // Light tint (icon stays recognizable) marking a still-undiscovered LP product's icon,
+    // shared with NLPassistant's own standalone fallback marker.
+    public static final Color LP_UNDISCOVERED_TINT = new Color(0, 255, 0, 110);
 
     private static final Map<String, TexI> LABEL_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, Optional<BufferedImage>> ICON_CACHE = new ConcurrentHashMap<>();
-
-    static {
-        Map<String, String> seeds = new HashMap<>();
-        seeds.put("almondtree", "gfx/invobjs/almond");
-        seeds.put("appletree", "gfx/invobjs/apple");
-        seeds.put("appletreegreen", "gfx/invobjs/applegreen");
-        seeds.put("birdcherrytree", "gfx/invobjs/birdcherry");
-        seeds.put("carobtree", "gfx/invobjs/carobfruit");
-        seeds.put("cherry", "gfx/invobjs/cherry");
-        seeds.put("chestnuttree", "gfx/invobjs/chestnut");
-        seeds.put("corkoak", "gfx/invobjs/cork");
-        seeds.put("figtree", "gfx/invobjs/fig");
-        seeds.put("hazel", "gfx/invobjs/hazelnut");
-        seeds.put("lemontree", "gfx/invobjs/lemon");
-        seeds.put("medlartree", "gfx/invobjs/medlar");
-        seeds.put("mulberry", "gfx/invobjs/mulberry");
-        seeds.put("olivetree", "gfx/invobjs/olive");
-        seeds.put("orangetree", "gfx/invobjs/orange");
-        seeds.put("peartree", "gfx/invobjs/pear");
-        seeds.put("persimmontree", "gfx/invobjs/persimmon");
-        seeds.put("plumtree", "gfx/invobjs/plum");
-        seeds.put("quincetree", "gfx/invobjs/quince");
-        seeds.put("rowan", "gfx/invobjs/rowanberry");
-        seeds.put("sorbtree", "gfx/invobjs/sorbapple");
-        seeds.put("stonepine", "gfx/invobjs/stonepinecone");
-        seeds.put("strawberrytree", "gfx/invobjs/woodstrawberry");
-        seeds.put("walnuttree", "gfx/invobjs/walnut");
-        seeds.put("whitebeam", "gfx/invobjs/whitebeamfruit");
-        seeds.put("charredtree", null);
-        seeds.put("ghostpipe", "gfx/invobjs/ghostpipes");
-        seeds.put("mastic", "gfx/invobjs/masticfruit");
-        seeds.put("poppycaps", "gfx/invobjs/poppycapss");
-        SEEDS_MAP = Collections.unmodifiableMap(seeds);
-
-        Map<String, String> leaves = new HashMap<>();
-        leaves.put("conkertree", "gfx/invobjs/leaf-conkertree");
-        leaves.put("figtree", "gfx/invobjs/leaf-fig");
-        leaves.put("laurel", "gfx/invobjs/leaf-laurel");
-        leaves.put("maple", "gfx/invobjs/leaf-maple");
-        leaves.put("mulberry", "gfx/invobjs/leaf-mulberrytree");
-        leaves.put("teabush", "gfx/invobjs/tea-fresh");
-        LEAVES_MAP = Collections.unmodifiableMap(leaves);
-
-        Map<String, String> boughs = new HashMap<>();
-        boughs.put("alder", "gfx/invobjs/bough-alder");
-        boughs.put("elm", "gfx/invobjs/bough-elm");
-        boughs.put("fir", "gfx/invobjs/bough-fir");
-        boughs.put("grayalder", "gfx/invobjs/bough-grayalder");
-        boughs.put("linden", "gfx/invobjs/bough-linden");
-        boughs.put("spruce", "gfx/invobjs/bough-spruce");
-        boughs.put("sweetgum", "gfx/invobjs/bough-sweetgum");
-        boughs.put("yew", "gfx/invobjs/bough-yew");
-        boughs.put("beech", "gfx/invobjs/bough-beech");
-        BOUGHS_MAP = Collections.unmodifiableMap(boughs);
-
-        Map<String, String> barks = new HashMap<>();
-        barks.put("birch", "gfx/invobjs/bark-birch");
-        barks.put("willow", "gfx/invobjs/bark-willow");
-        barks.put("beech", "gfx/invobjs/toughbark");
-        barks.put("cedar", "gfx/invobjs/toughbark");
-        barks.put("elm", "gfx/invobjs/toughbark");
-        barks.put("juniper", "gfx/invobjs/toughbark");
-        barks.put("linden", "gfx/invobjs/toughbark");
-        barks.put("mulberry", "gfx/invobjs/toughbark");
-        barks.put("orangetree", "gfx/invobjs/toughbark");
-        barks.put("sallow", "gfx/invobjs/toughbark");
-        barks.put("wychelm", "gfx/invobjs/toughbark");
-        BARKS_MAP = Collections.unmodifiableMap(barks);
-    }
 
     private final Gob gob;
 
@@ -134,64 +58,16 @@ public class NTreeHarvestOl extends NObjectTexLabel {
     }
 
     public static boolean isTreeOrBushRes(String resname) {
-        if (resname == null) return false;
-        return resname.startsWith("gfx/terobjs/trees") || resname.startsWith("gfx/terobjs/bushes");
-    }
-
-    public static boolean isTreeOrBush(Resource res) {
-        if (res == null) return false;
-        String n = res.name;
-        if (n == null) return false;
-        if (n.startsWith("gfx/terobjs/trees")) {
-            return !n.endsWith("log") && !n.endsWith("oldtrunk");
-        }
-        return n.startsWith("gfx/terobjs/bushes");
+        return HarvestState.isTreeOrBushRes(resname);
     }
 
     /**
-     * True if this gob is a loaded, mature tree/bush (i.e. one that could show any harvest
-     * indicator at all). Throws Loading if the sprite hasn't loaded yet, same as isSpriteKind().
+     * True if this gob currently shows its own harvest-icon display (i.e. is a tree/bush AND
+     * "Show harvest icons on trees" is enabled) - so LP-assistant markers should let this class's
+     * own icon-tinting handle it instead of showing a second, separate marker.
      */
-    private static boolean isMatureTreeOrBush(Gob gob, ResDrawable d) {
-        Resource res = d.getres();
-        if (!isTreeOrBush(res))
-            return false;
-
-        if (!isSpriteKind(gob, "Tree"))
-            return false;
-
-        Message data = d.sdt.clone();
-        if (data == null || data.eom())
-            return false;
-
-        data.skip(1);
-        int growth = data.eom() ? -1 : data.uint8();
-        if (growth != -1) {
-            if (res.name.contains("gfx/terobjs/trees") && !res.name.endsWith("log") && !res.name.endsWith("oldtrunk")) {
-                growth = (int) (TREE_MULT * (growth - TREE_START));
-            } else if (res.name.startsWith("gfx/terobjs/bushes")) {
-                growth = (int) (BUSH_MULT * (growth - BUSH_START));
-            }
-        }
-
-        return growth == -1 || growth >= 100;
-    }
-
-    /**
-     * Whether this specific gob instance currently shows a harvestable seed/fruit layer, per the
-     * live state data the 3D renderer itself uses — not a per-resource-type guess. Ignores the
-     * treeHarvestSeeds display toggle (that's a rendering preference, irrelevant to this data
-     * query). Throws Loading if the sprite hasn't loaded yet.
-     */
-    public static boolean hasHarvestableSeed(Gob gob) {
-        if (gob == null) return false;
-        Drawable dr = gob.getattr(Drawable.class);
-        if (!(dr instanceof ResDrawable)) return false;
-        ResDrawable d = (ResDrawable) dr;
-        if (!isMatureTreeOrBush(gob, d)) return false;
-
-        int sdt = Sprite.decnum(d.sdt.clone());
-        return (sdt & 1) != 1;
+    public static boolean coversGob(String resName) {
+        return isTreeOrBushRes(resName) && Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestOverlay));
     }
 
     public static TexI computeLabel(Gob gob) {
@@ -199,7 +75,7 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         Drawable dr = gob.getattr(Drawable.class);
         ResDrawable d = (dr instanceof ResDrawable) ? (ResDrawable) dr : null;
         if (d == null) return null;
-        if (!isMatureTreeOrBush(gob, d))
+        if (!HarvestState.isMatureTreeOrBush(gob, d))
             return null;
 
         Resource res = d.getres();
@@ -214,26 +90,42 @@ public class NTreeHarvestOl extends NObjectTexLabel {
 
         boolean seed = showSeeds && (sdt & 1) != 1;
         boolean leaf = showLeaves && (sdt & 2) != 2;
-        boolean bough = showBoughs && isTree && BOUGHS_MAP.containsKey(base);
+        boolean bough = showBoughs && isTree && HarvestState.hasBough(base);
         boolean bark = showBark && isTree;
+
+        // If a shown icon's OWN category still has an LP-undiscovered product, tint just that
+        // icon instead of a separate marker - reverts to normal automatically once discovered,
+        // since this whole method re-evaluates every tick. Checked per-category (not "is anything
+        // for this species undiscovered") since a species can track more than one product (e.g.
+        // figtree -> "Fig Leaf" + "Fig"), and a blanket check would tint the wrong icon, or leave
+        // the right one untinted, whenever only one of them is still unknown.
+        boolean lpassistentOn = LpExplorer.isEnabled();
+        boolean seedUndiscovered = seed && lpassistentOn && LpExplorer.hasUndiscoveredSeedProduct(res.name);
+        boolean leafUndiscovered = leaf && lpassistentOn && LpExplorer.hasUndiscoveredLeafProduct(res.name);
+        boolean boughUndiscovered = bough && lpassistentOn && LpExplorer.hasUndiscoveredBoughProduct(res.name);
+        boolean barkUndiscovered = bark && lpassistentOn && LpExplorer.hasUndiscoveredBarkProduct(res.name);
 
         StringBuilder key = new StringBuilder();
         key.append(res.name.startsWith("gfx/terobjs/bushes") ? "bush_" : "tree_");
         key.append(base).append("_");
         if (seed) key.append("withSeed_");
+        if (seedUndiscovered) key.append("undiscoveredSeed_");
         if (leaf) key.append("withLeaf_");
+        if (leafUndiscovered) key.append("undiscoveredLeaf_");
         if (bough) key.append("withBough_");
+        if (boughUndiscovered) key.append("undiscoveredBough_");
         if (bark) key.append("withBark_");
+        if (barkUndiscovered) key.append("undiscoveredBark_");
 
         TexI cached = LABEL_CACHE.get(key.toString());
         if (cached != null)
             return cached;
 
         BufferedImage[] parts = new BufferedImage[]{
-                leaf ? getIcon(base, "leaf") : null,
-                seed ? getIcon(base, "seed") : null,
-                bough ? getIcon(base, "bough") : null,
-                bark ? getIcon(base, "bark") : null,
+                resolveIcon(base, "leaf", leaf, leafUndiscovered),
+                resolveIcon(base, "seed", seed, seedUndiscovered),
+                resolveIcon(base, "bough", bough, boughUndiscovered),
+                resolveIcon(base, "bark", bark, barkUndiscovered),
         };
 
         boolean hasPart = false;
@@ -252,7 +144,15 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         return tex;
     }
 
-    private static BufferedImage catimgshCentered(int margin, BufferedImage... imgs) {
+    // Resolves one harvest-category icon, tinted if its product is still LP-undiscovered.
+    private static BufferedImage resolveIcon(String base, String type, boolean shown, boolean undiscovered) {
+        if (!shown) return null;
+        BufferedImage img = HarvestState.getIcon(base, type);
+        return (undiscovered && img != null) ? tint(img, LP_UNDISCOVERED_TINT) : img;
+    }
+
+    // Public so NLPassistant and LpExplorer can frame their own icon(s) in the same style.
+    public static BufferedImage catimgshCentered(int margin, BufferedImage... imgs) {
         int w = 0, h = -margin;
         int n = 0;
         for (BufferedImage img : imgs) {
@@ -278,54 +178,17 @@ public class NTreeHarvestOl extends NObjectTexLabel {
         return ret;
     }
 
-    private static BufferedImage getIcon(String basename, String type) {
-        if (basename == null) return null;
-
-        String resourceName = null;
-        if ("seed".equals(type)) {
-            if (SEEDS_MAP.containsKey(basename)) {
-                resourceName = SEEDS_MAP.get(basename);
-            } else {
-                resourceName = "gfx/invobjs/seed-" + basename;
-            }
-        } else if ("leaf".equals(type)) {
-            resourceName = LEAVES_MAP.get(basename);
-        } else if ("bough".equals(type)) {
-            resourceName = BOUGHS_MAP.get(basename);
-        } else if ("bark".equals(type)) {
-            if (BARKS_MAP.containsKey(basename)) {
-                resourceName = BARKS_MAP.get(basename);
-            } else {
-                resourceName = "gfx/invobjs/bark";
-            }
-        }
-
-        if (resourceName == null) return null;
-
-        Optional<BufferedImage> cached = ICON_CACHE.get(resourceName);
-        if (cached != null) return cached.orElse(null);
-
-        BufferedImage img;
-        try {
-            img = Resource.remote().loadwait(resourceName).flayer(Resource.imgc).img;
-            Coord tsz = resourceName.startsWith("gfx/invobjs/bough-") ? UI.scale(26, 52) : UI.scale(26, 26);
-            img = PUtils.convolvedown(img, tsz, CharWnd.iconfilter);
-        } catch (Exception e) {
-            img = null;
-        }
-        ICON_CACHE.put(resourceName, Optional.ofNullable(img));
-        return img;
-    }
-
-    private static boolean isSpriteKind(Gob gob, String... kind) {
-        List<String> kinds = Arrays.asList(kind);
-        Drawable d = gob.getattr(Drawable.class);
-        if (d instanceof ResDrawable) {
-            Sprite spr = ((ResDrawable) d).spr;
-            if (spr == null) throw new Loading();
-            Class<?> spc = spr.getClass();
-            return kinds.contains(spc.getSimpleName()) || (spc.getSuperclass() != null && kinds.contains(spc.getSuperclass().getSimpleName()));
-        }
-        return false;
+    // Tint that preserves the source image's own alpha/silhouette, matching the math
+    // haven.ColorMask applies for 3D-rendered sprites (result = base*(1-a) + tint*a). Public so
+    // NLPassistant and LpExplorer can tint their own icons the same way.
+    public static BufferedImage tint(BufferedImage src, Color color) {
+        BufferedImage out = TexI.mkbuf(Utils.imgsz(src));
+        Graphics2D g = (Graphics2D) out.getGraphics();
+        g.drawImage(src, 0, 0, null);
+        g.setComposite(AlphaComposite.SrcAtop);
+        g.setColor(color);
+        g.fillRect(0, 0, out.getWidth(), out.getHeight());
+        g.dispose();
+        return out;
     }
 }
