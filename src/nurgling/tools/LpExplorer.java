@@ -18,6 +18,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 // Tracks which LP-discoverable products (VSpec.object) the player has found for each gob type.
@@ -45,6 +47,51 @@ public class LpExplorer {
         return isYesteryearVariant == HarvestState.isYesteryearSeason();
     }
 
+    // Resources confirmed to have every product (including bark, for trees) already discovered -
+    // checked before any of the per-tick scanning below (VSpec.object iteration, and for
+    // trees/bushes the live bitmask decode too), so a fully-explored species stops paying that
+    // cost every tick for every one of its gobs, forever. Deliberately independent of the live
+    // per-instance bitmask (whether a product is CURRENTLY visible on a given gob) - discovery
+    // status is a per-RESOURCE fact, the same regardless of which instance or moment you look at,
+    // so it's what's safe to cache and share across every gob of that resource.
+    //
+    // Invalidated whole-cache on every season change rather than per-entry, since that's simpler
+    // and seasons change only a few times a year: a Yesteryear's-capable resource can be "fully
+    // discovered" while its off-season variant is out of season, then stop being once that
+    // variant's season arrives and it's still unfound, so the cache can't be permanent for those.
+    private static final Set<String> fullyDiscoveredResources = ConcurrentHashMap.newKeySet();
+    private static volatile int fullyDiscoveredCacheSeason = -1;
+
+    // Package-visible so ProductListHarvestSpec (the log/stone/old-trunk always-on overlay) can
+    // skip its own per-product undiscovered checks the same way once nothing's left to find.
+    static boolean isFullyDiscovered(String gobResName) {
+        if (gobResName == null)
+            return false;
+        int season = HarvestState.isYesteryearSeason() ? 1 : 0;
+        if (season != fullyDiscoveredCacheSeason) {
+            fullyDiscoveredResources.clear();
+            fullyDiscoveredCacheSeason = season;
+        }
+        if (fullyDiscoveredResources.contains(gobResName))
+            return true;
+
+        NCharacterInfo info = charInfo();
+        if (info == null)
+            return false;
+        List<String> products = VSpec.object.get(gobResName);
+        if (products != null) {
+            for (String product : products) {
+                if (isCurrentSeasonProduct(gobResName, product) && !info.IsLpExplorerContains(gobResName, product))
+                    return false;
+            }
+        }
+        if (HarvestSpecs.TREE.matches(gobResName) && hasUndiscoveredBarkProduct(gobResName))
+            return false;
+
+        fullyDiscoveredResources.add(gobResName);
+        return true;
+    }
+
     // Throws haven.Loading if the gob's sprite hasn't loaded yet - propagated to the caller,
     // same as HarvestState.hasHarvestableSeed() itself does.
     public static boolean hasUndiscoveredProduct(Gob gob) {
@@ -66,6 +113,8 @@ public class LpExplorer {
         if (gob == null || gob.ngob == null)
             return Collections.emptyList();
         String gobResName = gob.ngob.name;
+        if (isFullyDiscovered(gobResName))
+            return Collections.emptyList();
 
         if (!HarvestState.isTreeOrBushRes(gobResName))
             return undiscoveredProductsMatching(gobResName, product -> true);
@@ -124,6 +173,8 @@ public class LpExplorer {
     // TreeHarvestSpec/BushHarvestSpec) rather than one independent rescan per category.
     public static UndiscoveredCategories undiscoveredCategories(String gobResName) {
         if (gobResName == null || !VSpec.object.containsKey(gobResName))
+            return NONE_UNDISCOVERED;
+        if (isFullyDiscovered(gobResName))
             return NONE_UNDISCOVERED;
         NCharacterInfo info = charInfo();
         if (info == null)
