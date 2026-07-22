@@ -15,7 +15,7 @@ import haven.res.gfx.hud.rosters.horse.Horse;
 import haven.res.gfx.hud.rosters.pig.Pig;
 import haven.res.gfx.hud.rosters.sheep.Sheep;
 
-@haven.FromResource(name = "ui/croster", version = 77)
+@haven.FromResource(name = "ui/croster", version = 78)
 public class RosterWindow extends Window {
     public static final Map<Glob, RosterWindow> rosters = new HashMap<>();
     public static int rmseq = 0;
@@ -49,12 +49,8 @@ public class RosterWindow extends Window {
 	rmseq++;
     }
 
-    public void wdgmsg(Widget sender, String msg, Object... args) {
-	if((sender == this) && msg.equals("close")) {
-	    this.hide();
-	    return;
-	}
-	super.wdgmsg(sender, msg, args);
+    public void reqclose() {
+	hide();
     }
 
     public <C extends Entry> void show(Class<C> cClass){
