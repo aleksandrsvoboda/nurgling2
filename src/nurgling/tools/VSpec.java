@@ -984,6 +984,13 @@ public class VSpec {
         zelkovaOp_log.add("Board of Zelkova"); // Р”РѕСЃРєР°
         zelkovaOp_log.add("Block of Zelkova"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/zelkovalog", zelkovaOp_log);
+
+        // Old Trunk - a special decayed-tree resource distinct from a normal felled log (not tied
+        // to any particular standing species), yielding only a single curiosity.
+        ArrayList<String> oldtrunkOp = new ArrayList<>();
+        oldtrunkOp.add("Block of Mirkwood"); // Р‘Р»РѕРє
+        object.put("gfx/terobjs/trees/oldtrunk", oldtrunkOp);
+
         ArrayList<String> alabasterOp = new ArrayList<>();
         alabasterOp.add("Alabaster"); // РљР°РјРµРЅСЊ
         object.put("gfx/terobjs/bumlings/alabaster", alabasterOp);

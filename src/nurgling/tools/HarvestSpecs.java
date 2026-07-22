@@ -5,7 +5,7 @@ import nurgling.NConfig;
 import java.util.Arrays;
 import java.util.List;
 
-/** The four gob types the always-visible harvest overlay (NObjHarvestOl) currently covers. */
+/** The gob types the always-visible harvest overlay (NObjHarvestOl) currently covers. */
 public class HarvestSpecs {
     public static final HarvestSpec TREE = new TreeHarvestSpec();
     public static final HarvestSpec BUSH = new BushHarvestSpec();
@@ -15,8 +15,11 @@ public class HarvestSpecs {
     public static final HarvestSpec STONE = new ProductListHarvestSpec(
         name -> name.startsWith("gfx/terobjs/bumlings"),
         NConfig.Key.stoneHarvestOverlay, false);
+    public static final HarvestSpec OLDTRUNK = new ProductListHarvestSpec(
+        name -> name.equals("gfx/terobjs/trees/oldtrunk"),
+        NConfig.Key.oldtrunkHarvestOverlay, false);
 
-    private static final List<HarvestSpec> ALL = Arrays.asList(TREE, BUSH, LOG, STONE);
+    private static final List<HarvestSpec> ALL = Arrays.asList(TREE, BUSH, LOG, STONE, OLDTRUNK);
 
     private HarvestSpecs() {}
 

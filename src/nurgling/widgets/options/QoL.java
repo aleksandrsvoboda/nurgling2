@@ -59,6 +59,7 @@ public class QoL extends Panel {
     private CheckBox bushHarvestOverlay;
     private CheckBox logHarvestOverlay;
     private CheckBox stoneHarvestOverlay;
+    private CheckBox oldtrunkHarvestOverlay;
     private CheckBox syncCamera;
     private CheckBox invGilding;
     private CheckBox invVarOverlay;
@@ -161,6 +162,7 @@ public class QoL extends Panel {
         leftPrev = bushHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.bush_harvest_overlay")), leftPrev.pos("bl").adds(-10, 8));
         leftPrev = logHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.log_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = stoneHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.stone_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = oldtrunkHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.oldtrunk_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_display_scale")), leftPrev.pos("bl").adds(-10, 8));
         {
             treeDisplayScaleLabel = new Label("100%");
@@ -397,6 +399,7 @@ public class QoL extends Panel {
         bushHarvestOverlay.a = getBool(NConfig.Key.bushHarvestOverlay);
         logHarvestOverlay.a = getBool(NConfig.Key.logHarvestOverlay);
         stoneHarvestOverlay.a = getBool(NConfig.Key.stoneHarvestOverlay);
+        oldtrunkHarvestOverlay.a = getBool(NConfig.Key.oldtrunkHarvestOverlay);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
 
         invGilding.a = getBool(NConfig.Key.showGilding);
@@ -611,6 +614,7 @@ public class QoL extends Panel {
         boolean oldBushHarvestOverlay = getBool(NConfig.Key.bushHarvestOverlay);
         boolean oldLogHarvestOverlay = getBool(NConfig.Key.logHarvestOverlay);
         boolean oldStoneHarvestOverlay = getBool(NConfig.Key.stoneHarvestOverlay);
+        boolean oldOldtrunkHarvestOverlay = getBool(NConfig.Key.oldtrunkHarvestOverlay);
 
         NConfig.set(NConfig.Key.treeHarvestOverlay, treeHarvestOverlay.a);
         NConfig.set(NConfig.Key.treeHarvestSeeds, treeHarvestSeeds.a);
@@ -620,6 +624,7 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.bushHarvestOverlay, bushHarvestOverlay.a);
         NConfig.set(NConfig.Key.logHarvestOverlay, logHarvestOverlay.a);
         NConfig.set(NConfig.Key.stoneHarvestOverlay, stoneHarvestOverlay.a);
+        NConfig.set(NConfig.Key.oldtrunkHarvestOverlay, oldtrunkHarvestOverlay.a);
 
         // Rebuild harvest overlays if any setting changed
         if (oldTreeHarvestOverlay != treeHarvestOverlay.a
@@ -629,7 +634,8 @@ public class QoL extends Panel {
                 || oldTreeHarvestBark != treeHarvestBark.a
                 || oldBushHarvestOverlay != bushHarvestOverlay.a
                 || oldLogHarvestOverlay != logHarvestOverlay.a
-                || oldStoneHarvestOverlay != stoneHarvestOverlay.a) {
+                || oldStoneHarvestOverlay != stoneHarvestOverlay.a
+                || oldOldtrunkHarvestOverlay != oldtrunkHarvestOverlay.a) {
             rebuildHarvestOverlays();
         }
 

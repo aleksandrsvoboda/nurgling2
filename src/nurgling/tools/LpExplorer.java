@@ -4,6 +4,7 @@ import haven.Drawable;
 import haven.Gob;
 import haven.ResDrawable;
 import haven.Resource;
+import haven.Sprite;
 import haven.TexI;
 import nurgling.NConfig;
 import nurgling.NGameUI;
@@ -64,12 +65,37 @@ public class LpExplorer {
             return Collections.emptyList();
         String gobResName = gob.ngob.name;
 
-        // Only flag gobs that currently, actually show something harvestable - not just any
-        // instance of a resource type that's ever capable of producing an undiscovered product.
-        if (HarvestState.isTreeOrBushRes(gobResName) && !HarvestState.hasHarvestableSeed(gob))
+        if (!HarvestState.isTreeOrBushRes(gobResName))
+            return undiscoveredProductsMatching(gobResName, product -> true);
+
+        Drawable dr = gob.getattr(Drawable.class);
+        if (!(dr instanceof ResDrawable))
+            return Collections.emptyList();
+        ResDrawable d = (ResDrawable) dr;
+        if (!HarvestState.isMatureTreeOrBush(gob, d))
             return Collections.emptyList();
 
-        return undiscoveredProductsMatching(gobResName, product -> true);
+        // Seed/leaf are gated by their own live bit; bough (a fixed per-species trait, already
+        // implied by the product simply existing in VSpec.object) and bark (assumed always
+        // available on a mature tree/bush) aren't bit-gated at all - matching TreeHarvestSpec/
+        // BushHarvestSpec's own per-category availability model, which this used to not follow
+        // (it previously hid every category, not just seed, whenever the seed bit was clear, and
+        // never considered bark at all since bark isn't a VSpec.object entry).
+        int sdt = Sprite.decnum(d.sdt.clone());
+        boolean seedPresent = HarvestState.hasSeedBit(sdt);
+        boolean leafPresent = HarvestState.hasLeafBit(sdt);
+
+        List<String> products = undiscoveredProductsMatching(gobResName, product -> {
+            if (isLeafProduct(product)) return leafPresent;
+            if (isBoughProduct(product)) return true;
+            return seedPresent;
+        });
+
+        if (HarvestSpecs.TREE.matches(gobResName) && hasUndiscoveredBarkProduct(gobResName)) {
+            products = new ArrayList<>(products);
+            products.add(HarvestState.getBarkProductName(gobResName));
+        }
+        return products;
     }
 
     /** Which harvest categories (seed/leaf/bough) still have an undiscovered product for a resource. */
@@ -215,7 +241,10 @@ public class LpExplorer {
         if (dr instanceof ResDrawable) {
             Resource res = ((ResDrawable) dr).getres();
             if (HarvestState.isTreeOrBush(res)) {
-                String type = isLeafProduct(product) ? "leaf" : isBoughProduct(product) ? "bough" : "seed";
+                String type = isLeafProduct(product) ? "leaf"
+                    : isBoughProduct(product) ? "bough"
+                    : product.equals(HarvestState.getBarkProductName(res.name)) ? "bark"
+                    : "seed";
                 BufferedImage img = HarvestState.getIcon(res, type);
                 if (img != null)
                     return img;
