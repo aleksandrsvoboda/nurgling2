@@ -1971,10 +1971,6 @@ NMiniMap extends MiniMap {
                     // MiniMap.mvclick() itself falls back to when its own mc param is null.
                     gui.map.wdgmsg("click", ui.mc, pres, ev.b, ui.modflags(),
                         0, (int) gob.id, pres, 0, -1);
-                    // Set clickedGob so LpExplorer.checkLpExplorer (driven by NGItem.tick()) can
-                    // attribute whatever item the flower-menu action produces to this gob -
-                    // otherwise LP discovery tracking never sees minimap-triggered gathers.
-                    gui.map.clickedGob = new MapView.ClickedGob(gob, ev.b);
                     return true;
                 }
             }

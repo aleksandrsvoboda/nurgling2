@@ -33,6 +33,7 @@ public class NGItem extends GItem
     boolean addedToInventoryCache = false; // Track if item was added to container cache for DB sync
     boolean isStackContainer = false; // True if this item is a stack container (holds other items)
     ItemWatcher.ItemInfo cachedItemInfo = null; // Reference to ItemInfo in cache for removal
+
     public NGItem(Indir<Resource> res, Message sdt)
     {
         super(res, sdt);
@@ -154,11 +155,11 @@ public class NGItem extends GItem
             }
             if(name!=null)
             {
-                // checkLpExplorer decides for itself whether this pickup can be attributed to a
-                // gob and whether it's a trackable product (vs. a tool) - see its own diagnostic
-                // logging for both cases.
-                MapView.ClickedGob clickedGob = NUtils.getGameUI().map.clickedGob;
-                LpExplorer.checkLpExplorer(clickedGob != null ? clickedGob.gob : null, name);
+                // Looks up which resource tracks this name directly from VSpec.object - no gob
+                // reference needed at all, since discovery is tracked per resource, not per the
+                // specific gob instance that happened to produce it. See its own diagnostic
+                // logging for unrecognized names/tool exclusions.
+                LpExplorer.checkLpExplorer(name);
             }
 
         }

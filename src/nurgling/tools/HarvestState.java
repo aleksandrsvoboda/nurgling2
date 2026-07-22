@@ -182,6 +182,11 @@ public class HarvestState {
         return BARK_ICON_TO_PRODUCT.getOrDefault(BARKS_MAP.get(basename), "Treebark");
     }
 
+    /** Whether this is one of the fixed set of bark item names any species can yield. */
+    public static boolean isBarkProductName(String name) {
+        return "Treebark".equals(name) || BARK_ICON_TO_PRODUCT.containsValue(name);
+    }
+
     /**
      * True if this gob is a loaded, mature tree/bush (i.e. one that could show any harvest
      * indicator at all). Throws Loading if the sprite hasn't loaded yet, same as isSpriteKind().
