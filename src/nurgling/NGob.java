@@ -1081,16 +1081,21 @@ public class NGob
             }
             if (cachedLpassistent)
             {
-                try
+                // NTreeHarvestOl handles display itself (tints its own seed icon) for
+                // tree/bush gobs once harvest-icons are on - don't show a second marker.
+                if (!nurgling.overlays.NTreeHarvestOl.coversGob(name))
                 {
-                    if (LpExplorer.hasUndiscoveredProduct(parent))
+                    try
                     {
-                        parent.addcustomol(new NLPassistant(parent));
+                        if (LpExplorer.hasUndiscoveredProduct(parent))
+                        {
+                            parent.addcustomol(new NLPassistant(parent));
+                        }
                     }
-                }
-                catch (Loading l)
-                {
-                    // Sprite still loading, try again next tick.
+                    catch (Loading l)
+                    {
+                        // Sprite still loading, try again next tick.
+                    }
                 }
             }
         }

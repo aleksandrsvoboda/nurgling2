@@ -1790,6 +1790,17 @@ NMiniMap extends MiniMap {
                 return true;
             }
         }
+
+        // Check for right-click on an undiscovered-LP marker. Our marker isn't a real
+        // DisplayIcon, so without this check, base MiniMap.mousedown() falls through to its own
+        // clickloc(..., press=true), which fires mvclick() with no gob immediately on press -
+        // walking the player to the coarse clicked tile before our (correct, gob-precise)
+        // mouseup handler ever runs. Consume here; actual handling happens in mouseup.
+        if(ev.b == 3 && dloc != null && sessloc != null) {
+            if(MinimapDiscoveryRenderer.gobAt(this, ev.c) != null) {
+                return true;
+            }
+        }
         return super.mousedown(ev);
     }
 
@@ -1942,18 +1953,28 @@ NMiniMap extends MiniMap {
             }
         }
         // Handle right-click release on an undiscovered-LP marker - open the same flower
-        // menu a real gob icon would (mirrors NMiniMapWnd.clickicon's use of mvclick).
+        // menu a real gob icon would. mvclick() derives its click destination from the clicked
+        // MINIMAP TILE (coarse, tile-granularity) rather than the gob itself, which walked the
+        // player near the tree but not precisely to it, and didn't reliably register as an
+        // interact-click on arrival. Use the same fix NMapView already applies for the analogous
+        // "clicked a small floating icon, redirect to the actual gob" case (its
+        // findClickThroughIconGob() handling): send the gob's own exact position as the click
+        // destination instead of the imprecise clicked location.
         if(ev.b == 3 && dloc != null && sessloc != null) {
             Gob gob = MinimapDiscoveryRenderer.gobAt(this, ev.c);
             if(gob != null) {
-                Location loc = xlate(ev.c);
                 NGameUI gui = NUtils.getGameUI();
-                if(loc != null && gui != null && gui.map != null) {
+                if(gui != null && gui.map != null) {
+                    Coord pres = gob.rc.floor(OCache.posres);
+                    // ui.mc (current absolute mouse position) rather than Coord.z, so a resulting
+                    // flower menu opens where the cursor actually is - matches what
+                    // MiniMap.mvclick() itself falls back to when its own mc param is null.
+                    gui.map.wdgmsg("click", ui.mc, pres, ev.b, ui.modflags(),
+                        0, (int) gob.id, pres, 0, -1);
                     // Set clickedGob so LpExplorer.checkLpExplorer (driven by NGItem.tick()) can
                     // attribute whatever item the flower-menu action produces to this gob -
                     // otherwise LP discovery tracking never sees minimap-triggered gathers.
                     gui.map.clickedGob = new MapView.ClickedGob(gob, ev.b);
-                    mvclick(gui.map, null, loc, gob, ev.b);
                     return true;
                 }
             }

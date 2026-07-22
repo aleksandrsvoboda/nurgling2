@@ -37,6 +37,20 @@ public class NCharacterInfo extends Widget {
         }
     }
 
+    // Some products (e.g. "Treebark"/"Tough Bark") are the exact same curiosity regardless of
+    // which resource produced them, unlike most products which are uniquely named per resource -
+    // for those, discovery needs checking across every resource's list, not just one.
+    public boolean IsLpExplorerContainsAnywhere(String var)
+    {
+        synchronized(lpExplorer) {
+            for (ArrayList<String> vals : lpExplorer.values()) {
+                if (vals.contains(var))
+                    return true;
+            }
+            return false;
+        }
+    }
+
     public boolean IsLpExplorerContains(String name, String var)
     {
         synchronized(lpExplorer) {

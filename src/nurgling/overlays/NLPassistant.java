@@ -1,74 +1,89 @@
 package nurgling.overlays;
 
-
 import haven.*;
-import haven.render.*;
-import nurgling.NConfig;
 import nurgling.NUtils;
 import nurgling.tools.LpExplorer;
-import nurgling.widgets.NQuestInfo;
 
-import java.util.ArrayList;
+import java.awt.image.BufferedImage;
+import java.util.Collections;
+import java.util.List;
 
-
-public class NLPassistant extends Sprite implements RenderTree.Node
+/**
+ * Small floating icon marking a gob with undiscovered LP products - the same screen-space label
+ * style NTreeHarvestOl uses for its harvest icons, not a 3D ground overlay. Shows every
+ * currently-undiscovered product's own icon (e.g. an apple for an undiscovered apple tree, or
+ * Board/Block for a log with either still unpicked) stacked together and lightly tinted green,
+ * via LpExplorer.getMarkerIcon() - falling back to a generic marker if no icon can be resolved at
+ * all.
+ *
+ * This is a fallback only: when a gob is a tree/bush AND "Show harvest icons on trees" is
+ * enabled, NTreeHarvestOl itself tints its own seed icon instead (see LpExplorer usage in
+ * NTreeHarvestOl.computeLabel()) rather than showing a second, separate marker. NLPassistant
+ * only attaches when that display isn't available - harvest-icons disabled, or a resource
+ * NTreeHarvestOl doesn't cover at all (ground herbs/mushrooms, mineable rocks, felled logs).
+ */
+public class NLPassistant extends NObjectTexLabel
 {
-
-    static final VertexArray.Layout pfmt = new VertexArray.Layout(new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0,
-            20),
-            new VertexArray.Layout.Input( Tex2D.texc, new VectorFormat(2, NumberFormat.FLOAT32), 0, 12, 20));
-
-    final Model emod;
-
-    Gob gob;
-
-    ColorTex сt;
-
+    private final Gob gob;
+    // Which products the currently-shown icon(s) represent - a gob can track more than one
+    // product (e.g. a log's Board and Block), so the icon needs to be re-resolved whenever this
+    // changes, not just set once at construction.
+    private List<String> shownProducts = Collections.emptyList();
 
     public NLPassistant(Owner owner)
     {
-        super(owner, null);
-        сt = new TexI(Resource.loadimg("marks/newlpassistant")).st();
-        gob = (Gob) owner;
-        double len = MCache.tilesz.x*2;
-        if(gob.ngob.hitBox!=null)
-            len = Math.max(gob.ngob.hitBox.end.dist(gob.ngob.hitBox.begin),len);
-        float[] data = {
-                (float) len, (float) len, 2f, 1, 1,
-                -(float) len, (float) len, 2f, 1, 0,
-                -(float) len, -(float) len, 2f, 0, 0,
-                (float) len, -(float) len, 2f, 0, 1,
-        };
-        VertexArray va = new VertexArray(pfmt,
-                new VertexArray.Buffer((4) * pfmt.inputs[0].stride, DataBuffer.Usage.STATIC,
-                        DataBuffer.Filler.of(data)));
-        this.emod = new Model(Model.Mode.TRIANGLE_FAN, va, null);
+        super(owner);
+        this.gob = (Gob) owner;
+        refresh(currentProducts());
     }
 
-
-    public void added(RenderTree.Slot slot)
+    private List<String> currentProducts()
     {
-        Pipe.Op rmat = Pipe.Op.compose(new Rendered.Order.Default(-100), new States.Depthtest(States.Depthtest.Test.LE), States.maskdepth,
-            FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
-                BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)), сt, Clickable.No, Rendered.postpfx);
-        slot.add(emod,rmat);
+        try
+        {
+            return LpExplorer.allUndiscoveredProducts(gob);
+        }
+        catch (Loading l)
+        {
+            return shownProducts; // Sprite still loading; keep whatever we last had.
+        }
     }
 
-
+    private void refresh(List<String> products)
+    {
+        shownProducts = products;
+        TexI icon = LpExplorer.getMarkerIcon(gob, products);
+        // Same framed presentation NTreeHarvestOl's own harvest-icon label uses, so ours reads
+        // as the same family of UI element - just with the icon(s) themselves tinted to stand out.
+        BufferedImage framed = icon != null ? icon.back
+            : NTreeHarvestOl.catimgshCentered(1, NTreeHarvestOl.tint(Resource.loadimg("marks/newlpassistant"), NTreeHarvestOl.LP_UNDISCOVERED_TINT));
+        TexI tinted = new TexI(framed);
+        this.label = tinted;
+        this.img = tinted;
+    }
 
     @Override
     public boolean tick(double dt)
     {
-        if (!(Boolean) NConfig.get(NConfig.Key.lpassistent) || NUtils.getGameUI() == null)
+        if (!LpExplorer.isEnabled() || NUtils.getGameUI() == null)
             return true;
+        // NTreeHarvestOl handles display for this gob itself once harvest-icons are on.
+        if (gob.ngob != null && NTreeHarvestOl.coversGob(gob.ngob.name))
+            return true;
+
+        List<String> products;
         try
         {
-            return !LpExplorer.hasUndiscoveredProduct(gob);
+            products = LpExplorer.allUndiscoveredProducts(gob);
         }
         catch (Loading l)
         {
             return false; // Sprite still loading; keep the overlay, re-check next tick.
         }
+        if (products.isEmpty())
+            return true; // Everything this gob tracks has been discovered - remove.
+        if (!products.equals(shownProducts))
+            refresh(products);
+        return false;
     }
-
 }
