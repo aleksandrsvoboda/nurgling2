@@ -15,7 +15,9 @@ import nurgling.widgets.NCharacterInfo;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 // Tracks which LP-discoverable products (VSpec.object) the player has found for each gob type.
@@ -253,56 +255,70 @@ public class LpExplorer {
         return HarvestState.loadIcon(VSpec.getIconPath(product));
     }
 
-    // Called for every newly-resolved item name near a gob - clickedGob is null if the pickup
-    // can't be attributed to one (e.g. no gob was clicked recently enough). All the "should we
-    // even consider this pickup" decisions (no gob, a tool rather than a product) live here too,
-    // alongside the temporary diagnostic logging, so both stay in the one place instead of split
-    // across this method and its caller.
-    public static void checkLpExplorer(Gob clickedGob, String name) {
-        if (clickedGob == null) {
-            // TEMPORARY diagnostic - log every unattributed pickup. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] New item '" + name + "' resolved but map.clickedGob was null - can't attribute it to a gob.");
-            return;
+    // Reverse index: product name -> the one resource that tracks it in VSpec.object. Built
+    // lazily (VSpec's own static data is populated by class-init order this class shouldn't
+    // assume has already run) and cached, mirroring VSpec.getIconPath's existing reverse-index
+    // pattern. Confirmed exactly one resource per product name across the whole of VSpec.object
+    // (no two species share a seed/leaf/bough/board/block/ore name) except bark, which is handled
+    // separately below since it isn't a VSpec.object entry at all.
+    private static Map<String, String> productToResource;
+
+    private static synchronized Map<String, String> productToResource() {
+        if (productToResource == null) {
+            Map<String, String> index = new HashMap<>();
+            for (Map.Entry<String, ArrayList<String>> e : VSpec.object.entrySet()) {
+                for (String product : e.getValue()) {
+                    index.putIfAbsent(product, e.getKey());
+                }
+            }
+            productToResource = index;
         }
-        // Exclude tools from LP tracking - the player's own axe/saw resolving its name near a gob
-        // isn't a harvested product.
+        return productToResource;
+    }
+
+    // Called for every newly-resolved item name. Discovery is tracked per RESOURCE (any gob of a
+    // species satisfies the same discovery, not just the specific instance that produced it), so
+    // this looks up which resource the name belongs to directly from VSpec.object - no need to
+    // remember which gob the player last clicked at all, which used to require reading
+    // map.clickedGob at name-resolution time; since name resolution needs a server round-trip, a
+    // crafting/pickup delay (e.g. sawing a board) gave the player plenty of time to click
+    // something else in the meantime and overwrite it, misattributing or losing the discovery
+    // entirely. All the "should we even consider this pickup" decisions (a tool rather than a
+    // product, an unrecognized name) live here too, alongside the temporary diagnostic logging.
+    public static void checkLpExplorer(String name) {
+        // Exclude tools from LP tracking - the player's own axe/saw resolving its name isn't a
+        // harvested product (VSpec.object wouldn't have an entry for it anyway, but this avoids
+        // relying on that alone).
         if (name.contains(" Axe") || name.contains(" Saw")) {
             // TEMPORARY diagnostic - log every tool exclusion. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] '" + name + "' excluded by the Axe/Saw tool filter - not passed to checkLpExplorer.");
+            System.out.println("[LP-DEBUG] '" + name + "' excluded by the Axe/Saw tool filter.");
             return;
         }
         NGameUI gui = NUtils.getGameUI();
-        String gobName = clickedGob.ngob.name;
-        if (gui == null || gui.getCharInfo() == null || gobName == null)
+        if (gui == null || gui.getCharInfo() == null)
             return;
+        NCharacterInfo info = gui.getCharInfo();
 
-        boolean trackedProduct = VSpec.object.containsKey(gobName) && VSpec.object.get(gobName).contains(name);
-        // Bark isn't in VSpec.object (see hasUndiscoveredBarkProduct()), so recognize it here
-        // by the same species-based name assumption instead.
-        boolean barkProduct = HarvestState.isTreeOrBushRes(gobName) && name.equals(HarvestState.getBarkProductName(gobName));
-        if (!trackedProduct && !barkProduct)
-        {
-            // TEMPORARY diagnostic - log every non-match to help catch data mismatches. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] '" + name + "' didn't match clickedGob '" + gobName + "' - VSpec.object has: "
-                + (VSpec.object.containsKey(gobName) ? VSpec.object.get(gobName) : "NO ENTRY for this resource")
-                + ", assumed bark name: '" + HarvestState.getBarkProductName(gobName) + "'");
-            // Not a product this gob is tracked for - leave clickedGob as-is rather than
-            // clearing it. Some products (e.g. a log's Board/Block) only appear several seconds
-            // after the click, via a crafting animation; if any other, unrelated item happens to
-            // resolve its name for the first time during that window, clearing clickedGob here
-            // unconditionally would discard the click before the actual product ever appears,
-            // so it could never be recorded as discovered at all.
+        String gobName = productToResource().get(name);
+        if (gobName == null && HarvestState.isBarkProductName(name))
+            // Bark isn't a VSpec.object entry and several species share the exact same bark item
+            // name - the resource key here is just a stable, synthetic storage key; discovery for
+            // bark is always checked globally (IsLpExplorerContainsAnywhere), never against a
+            // specific resource, so which key it's filed under doesn't matter.
+            gobName = "bark:" + name;
+
+        if (gobName == null) {
+            // TEMPORARY diagnostic - log every unrecognized item. Remove once verification is complete.
+            System.out.println("[LP-DEBUG] '" + name + "' isn't a tracked LP product.");
             return;
         }
 
-        NCharacterInfo info = gui.getCharInfo();
         if (!info.IsLpExplorerContains(gobName, name)) {
             info.LpExplorerAdd(gobName, name);
             info.newLpExplorer = true;
             // TEMPORARY diagnostic - log every recorded discovery. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] Recorded '" + name + "' as discovered for gob '" + gobName + "'");
+            System.out.println("[LP-DEBUG] Recorded '" + name + "' as discovered for '" + gobName + "'");
         }
-        gui.map.clickedGob = null;
     }
 
     private static NCharacterInfo charInfo() {
