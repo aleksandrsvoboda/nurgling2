@@ -6,7 +6,6 @@ import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.NConfig;
 import nurgling.NCore;
-import haven.res.ui.croster.Entry;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -135,8 +134,6 @@ public class BotsInterruptWidget extends Widget {
     public void removeObserve(Thread t)
     {
         t.interrupt();
-        // Clear kill list highlight when bot stops
-        Entry.killList.clear();
         synchronized (obs)
         {
             for(Gear g: obs)
@@ -178,8 +175,6 @@ public class BotsInterruptWidget extends Widget {
             {
                 if(g.t.isInterrupted() || !g.t.isAlive())
                 {
-                    // Clear kill list highlight when bot stops
-                    Entry.killList.clear();
                     if(stackObs.contains(g.t))
                     {
                         stackObs.remove(g.t);
@@ -263,7 +258,6 @@ public class BotsInterruptWidget extends Widget {
         synchronized (obs) {
             for (Gear g : new ArrayList<>(obs)) {
                 g.t.interrupt();
-                Entry.killList.clear();
                 if (stackObs.contains(g.t)) {
                     stackObs.remove(g.t);
                 }
