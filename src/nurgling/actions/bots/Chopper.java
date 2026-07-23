@@ -193,8 +193,9 @@ public class Chopper implements Action {
             Gob log = available.get(0);
 
             new LiftObject(log).run(gui);
-            NUtils.navigateToArea(targetArea);
-            new FindPlaceAndAction(null, targetArea.getRCArea()).run(gui);
+            // FindPlaceAndAction walks onto targetArea first (NArea supplied),
+            // loading the whole zone before choosing a drop cell.
+            new FindPlaceAndAction(null, targetArea).run(gui);
 
             Coord2d shift = log.rc.sub(NUtils.player().rc).norm().mul(2);
             new GoTo(NUtils.player().rc.sub(shift)).run(gui);
