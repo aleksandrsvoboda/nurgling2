@@ -62,6 +62,17 @@ public class NGob
     public long grid_id;
     public Coord gcoord;
     private final Queue<DelayedOverlayTask> delayedOverlayTasks = new ConcurrentLinkedQueue<>();
+
+    // The HarvestSpec (if any) covering this gob's resource, cached here since resolving it
+    // (HarvestSpecs.forResource's 4-way match scan) is only actually needed when the gob's
+    // Drawable/name changes (see updateHarvestOverlay()) - both this class's own tick() and
+    // NLPassistant's tick() check it every frame, so re-resolving it there too would repeat that
+    // scan far more often than necessary.
+    private HarvestSpec cachedHarvestSpec = null;
+
+    public HarvestSpec harvestSpec() {
+        return cachedHarvestSpec;
+    }
     
     // Cached values for performance
     private static final Set<String> ANIMAL_NAMES = Set.of(
@@ -488,37 +499,22 @@ public class NGob
         }
     }
 
-    public void refreshTreeHarvestOverlay() {
-        Drawable dr = parent.getattr(Drawable.class);
-        if (dr != null) updateTreeHarvestOverlay(dr);
+    public void refreshHarvestOverlay() {
+        if (parent.getattr(Drawable.class) != null) updateHarvestOverlay();
     }
 
-    private void updateTreeHarvestOverlay(Drawable drawable)
+    private void updateHarvestOverlay()
     {
         try
         {
-            Gob.Overlay ol = parent.findol(nurgling.overlays.NTreeHarvestOl.class);
+            Gob.Overlay ol = parent.findol(nurgling.overlays.NObjHarvestOl.class);
 
-            if (name == null || !nurgling.overlays.NTreeHarvestOl.isTreeOrBushRes(name))
-            {
-                if (ol != null) ol.remove(true);
-                return;
-            }
-
-            boolean enabled = Boolean.TRUE.equals(NConfig.get(NConfig.Key.treeHarvestOverlay));
-            if (!enabled)
-            {
-                if (ol != null) ol.remove(true);
-                return;
-            }
-
-            if (!(drawable instanceof ResDrawable))
-            {
-                if (ol != null) ol.remove(true);
-                return;
-            }
-
-            TexI label = nurgling.overlays.NTreeHarvestOl.computeLabel(parent);
+            // computeLabel() re-derives the drawable/ResDrawable from the gob itself and already
+            // checks the spec's master toggle, so a null spec here or a null label below are the
+            // only two things this method needs to react to - no need to duplicate those checks.
+            HarvestSpec spec = name == null ? null : HarvestSpecs.forResource(name);
+            cachedHarvestSpec = spec;
+            TexI label = spec == null ? null : nurgling.overlays.NObjHarvestOl.computeLabel(parent, spec);
             if (label == null)
             {
                 if (ol != null) ol.remove(true);
@@ -527,11 +523,22 @@ public class NGob
 
             if (ol == null)
             {
-                parent.addcustomol(new nurgling.overlays.NTreeHarvestOl(parent));
+                parent.addcustomol(new nurgling.overlays.NObjHarvestOl(parent, spec));
             }
-            else if (ol.spr instanceof nurgling.overlays.NTreeHarvestOl)
+            else if (ol.spr instanceof nurgling.overlays.NObjHarvestOl)
             {
-                ((nurgling.overlays.NTreeHarvestOl) ol.spr).refresh();
+                nurgling.overlays.NObjHarvestOl existing = (nurgling.overlays.NObjHarvestOl) ol.spr;
+                if (existing.spec() == spec)
+                {
+                    existing.refresh();
+                }
+                else
+                {
+                    // The gob's type changed (e.g. a tree felled into a log) - the attached
+                    // overlay was built for the old spec, so replace it rather than reuse it.
+                    ol.remove(true);
+                    parent.addcustomol(new nurgling.overlays.NObjHarvestOl(parent, spec));
+                }
             }
         }
         catch (Loading l)
@@ -612,10 +619,7 @@ public class NGob
                     return;
                 }
 
-                if (name.contains("bumlings"))
-                {
-                    name = name.replaceAll("\\d+$", "");
-                }
+                name = HarvestState.normalizeBumlingRes(name);
 
                 if (name.contains("palisade") && cachedShortPalisades)
                 {
@@ -634,7 +638,7 @@ public class NGob
                 
                 // Check for temporary rings (session-only, for objects without GobIcon)
                 checkTempRing();
-                updateTreeHarvestOverlay(drawable);
+                updateHarvestOverlay();
                 updateTreeDisplayScale();
             }
 
@@ -1081,15 +1085,21 @@ public class NGob
             }
             if (cachedLpassistent)
             {
-                if (name != null && name.startsWith("gfx/terobjs"))
+                // NObjHarvestOl handles display itself (tints its own icon(s)) once this gob
+                // type's always-visible harvest overlay is on - don't show a second marker.
+                boolean covered = cachedHarvestSpec != null && Boolean.TRUE.equals(NConfig.get(cachedHarvestSpec.masterToggle()));
+                if (!covered)
                 {
-                    if (NUtils.getGameUI() != null && NUtils.getGameUI().getCharInfo() != null)
+                    try
                     {
-                        if (VSpec.object.containsKey(name))
-                            if (VSpec.object.get(name).size() != NUtils.getGameUI().getCharInfo().LpExplorerGetSize(name))
-                            {
-                                parent.addcustomol(new NLPassistant(parent));
-                            }
+                        if (LpExplorer.hasUndiscoveredProduct(parent))
+                        {
+                            parent.addcustomol(new NLPassistant(parent));
+                        }
+                    }
+                    catch (Loading l)
+                    {
+                        // Sprite still loading, try again next tick.
                     }
                 }
             }

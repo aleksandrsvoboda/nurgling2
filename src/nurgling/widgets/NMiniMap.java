@@ -5,6 +5,7 @@ import haven.res.ui.obj.buddy.Buddy;
 import nurgling.*;
 import nurgling.overlays.map.MinimapChunkNavRenderer;
 import nurgling.overlays.map.MinimapClaimRenderer;
+import nurgling.overlays.map.MinimapDiscoveryRenderer;
 import nurgling.overlays.map.MinimapExploredAreaRenderer;
 import nurgling.tools.ExploredArea;
 import nurgling.tools.NParser;
@@ -209,6 +210,9 @@ NMiniMap extends MiniMap {
 
         // Render ChunkNav exploration overlay (checks config internally)
         MinimapChunkNavRenderer.renderChunkNav(this, g);
+
+        // Render undiscovered-LP gob markers (shares NConfig.Key.lpassistent toggle with NLPassistant)
+        MinimapDiscoveryRenderer.renderDiscoveryMarkers(this, g);
 
         boolean playerSegment = (sessloc != null) && ((curloc == null) || (sessloc.seg.id == curloc.seg.id));
         // Show grid when zoomed in enough (scale >= 0.25, i.e. not too far out)
@@ -1786,6 +1790,17 @@ NMiniMap extends MiniMap {
                 return true;
             }
         }
+
+        // Check for right-click on an undiscovered-LP marker. Our marker isn't a real
+        // DisplayIcon, so without this check, base MiniMap.mousedown() falls through to its own
+        // clickloc(..., press=true), which fires mvclick() with no gob immediately on press -
+        // walking the player to the coarse clicked tile before our (correct, gob-precise)
+        // mouseup handler ever runs. Consume here; actual handling happens in mouseup.
+        if(ev.b == 3 && dloc != null && sessloc != null) {
+            if(MinimapDiscoveryRenderer.gobAt(this, ev.c) != null) {
+                return true;
+            }
+        }
         return super.mousedown(ev);
     }
 
@@ -1937,6 +1952,30 @@ NMiniMap extends MiniMap {
                 }
             }
         }
+        // Handle right-click release on an undiscovered-LP marker - open the same flower
+        // menu a real gob icon would. mvclick() derives its click destination from the clicked
+        // MINIMAP TILE (coarse, tile-granularity) rather than the gob itself, which walked the
+        // player near the tree but not precisely to it, and didn't reliably register as an
+        // interact-click on arrival. Use the same fix NMapView already applies for the analogous
+        // "clicked a small floating icon, redirect to the actual gob" case (its
+        // findClickThroughIconGob() handling): send the gob's own exact position as the click
+        // destination instead of the imprecise clicked location.
+        if(ev.b == 3 && dloc != null && sessloc != null) {
+            Gob gob = MinimapDiscoveryRenderer.gobAt(this, ev.c);
+            if(gob != null) {
+                NGameUI gui = NUtils.getGameUI();
+                if(gui != null && gui.map != null) {
+                    Coord pres = gob.rc.floor(OCache.posres);
+                    // ui.mc (current absolute mouse position) rather than Coord.z, so a resulting
+                    // flower menu opens where the cursor actually is - matches what
+                    // MiniMap.mvclick() itself falls back to when its own mc param is null.
+                    gui.map.wdgmsg("click", ui.mc, pres, ev.b, ui.modflags(),
+                        0, (int) gob.id, pres, 0, -1);
+                    return true;
+                }
+            }
+        }
+
         return super.mouseup(ev);
     }
 

@@ -78,6 +78,13 @@ public class Astronomy {
 
 	public Season season() { return Season.values()[is]; }
 
+	// True during the off-season (Winter/Spring) when tree/bush fruit that's normally picked in
+	// Summer/Autumn instead spawns as its "Yesteryear's " variant.
+	public boolean isYesteryearSeason() {
+		Season s = season();
+		return s == Season.Winter || s == Season.Spring;
+	}
+
 	enum Season {
 		Spring(30), Summer(105), Autumn(30), Winter(15);
 

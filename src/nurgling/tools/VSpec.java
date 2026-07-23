@@ -1,8 +1,6 @@
 package nurgling.tools;
 
-import haven.Gob;
 import nurgling.NStyle;
-import nurgling.NUtils;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -32,7 +30,13 @@ public class VSpec {
         // Apple Tree
         ArrayList<String> appletreeOp = new ArrayList<>();
         appletreeOp.add("Red Apple"); // РЎРµРјРµРЅР°
+        appletreeOp.add("Yesteryear's Red Apple");
         object.put("gfx/terobjs/trees/appletree", appletreeOp);
+
+        // Green Apple Tree
+        ArrayList<String> appletreegreenOp = new ArrayList<>();
+        appletreegreenOp.add("Green Apple"); // РЎРµРјРµРЅР°
+        object.put("gfx/terobjs/trees/appletreegreen", appletreegreenOp);
 
         // Ash Tree
         ArrayList<String> ashOp = new ArrayList<>();
@@ -52,6 +56,7 @@ public class VSpec {
         // Beech Tree
         ArrayList<String> beechOp = new ArrayList<>();
         beechOp.add("Beech Nuts"); // РЎРµРјРµРЅР°
+        beechOp.add("Beech Bough"); // Р’РµС‚РєРё
         object.put("gfx/terobjs/trees/beech", beechOp);
 
         // Birch Tree
@@ -102,6 +107,7 @@ public class VSpec {
         // Cherry Tree
         ArrayList<String> cherryOp = new ArrayList<>();
         cherryOp.add("Cherries"); // РџР»РѕРґС‹
+        cherryOp.add("Yesteryear's Cherries");
         object.put("gfx/terobjs/trees/cherry", cherryOp);
 
         // Chestnut Tree
@@ -146,6 +152,7 @@ public class VSpec {
         ArrayList<String> figOp = new ArrayList<>();
         figOp.add("Fig Leaf"); // Р›РёСЃС‚СЊСЏ
         figOp.add("Fig"); // РЎРµРјРµРЅР°
+        figOp.add("Yesteryear's Fig");
         object.put("gfx/terobjs/trees/figtree", figOp);
 
         // Gray Alder Tree
@@ -188,6 +195,7 @@ public class VSpec {
         // Lemon Tree
         ArrayList<String> lemonOp = new ArrayList<>();
         lemonOp.add("Lemon"); // РџР»РѕРґС‹
+        lemonOp.add("Yesteryear's Lemon");
         object.put("gfx/terobjs/trees/lemontree", lemonOp);
 
         // Linden Tree
@@ -215,6 +223,7 @@ public class VSpec {
         // Medlar Tree
         ArrayList<String> medlarOp = new ArrayList<>();
         medlarOp.add("Medlar"); // РЎРµРјРµРЅР°
+        medlarOp.add("Yesteryear's Medlar");
         object.put("gfx/terobjs/trees/medlartree", medlarOp);
 
         // Mound Tree
@@ -226,6 +235,7 @@ public class VSpec {
         ArrayList<String> mulberryOp = new ArrayList<>();
         mulberryOp.add("Mulberry Leaf"); // Р›РёСЃС‚СЊСЏ
         mulberryOp.add("Mulberry"); // РЎРµРјРµРЅР° (РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕСЃР»РµРґРЅРёРј)
+        mulberryOp.add("Yesteryear's Mulberry");
         object.put("gfx/terobjs/trees/mulberry", mulberryOp);
 
         // Oak Tree
@@ -242,6 +252,7 @@ public class VSpec {
         // Orange Tree
         ArrayList<String> orangeOp = new ArrayList<>();
         orangeOp.add("Orange"); // РџР»РѕРґС‹
+        orangeOp.add("Yesteryear's Orange");
         object.put("gfx/terobjs/trees/orangetree", orangeOp);
 
         // Osier Tree
@@ -252,11 +263,13 @@ public class VSpec {
         // Pear Tree
         ArrayList<String> pearOp = new ArrayList<>();
         pearOp.add("Pear"); // РџР»РѕРґС‹
+        pearOp.add("Yesteryear's Pear");
         object.put("gfx/terobjs/trees/peartree", pearOp);
 
         // Persimmon Tree
         ArrayList<String> persimmonOp = new ArrayList<>();
         persimmonOp.add("Persimmon"); // РџР»РѕРґС‹
+        persimmonOp.add("Yesteryear's Persimmon");
         object.put("gfx/terobjs/trees/persimmontree", persimmonOp);
 
         // Pine Tree
@@ -272,16 +285,19 @@ public class VSpec {
         // Plum Tree
         ArrayList<String> plumOp = new ArrayList<>();
         plumOp.add("Plum"); // РџР»РѕРґС‹
+        plumOp.add("Yesteryear's Plum");
         object.put("gfx/terobjs/trees/plumtree", plumOp);
 
         // Poplar Tree
         ArrayList<String> poplarOp = new ArrayList<>();
         poplarOp.add("Poplar Catkin"); // РЎРµРјРµРЅР°
+        poplarOp.add("Poplar Bough"); // Р’РµС‚РєРё
         object.put("gfx/terobjs/trees/poplar", poplarOp);
 
         // Quince Tree
         ArrayList<String> quinceOp = new ArrayList<>();
         quinceOp.add("Quince"); // РџР»РѕРґС‹
+        quinceOp.add("Yesteryear's Quince");
         object.put("gfx/terobjs/trees/quincetree", quinceOp);
 
         // Rowan Tree
@@ -302,6 +318,7 @@ public class VSpec {
         // Sorb Tree
         ArrayList<String> sorbOp = new ArrayList<>();
         sorbOp.add("Sorb Apple"); // РЎРµРјРµРЅР°
+        sorbOp.add("Yesteryear's Sorb Apple");
         object.put("gfx/terobjs/trees/sorbtree", sorbOp);
 
         // Spruce Tree
@@ -334,6 +351,7 @@ public class VSpec {
         // Wood Strawberry Tree
         ArrayList<String> woodstrawberryOp = new ArrayList<>();
         woodstrawberryOp.add("Wood Strawberry"); // РџР»РѕРґС‹
+        woodstrawberryOp.add("Yesteryear's Wood Strawberry");
         object.put("gfx/terobjs/trees/strawberrytree", woodstrawberryOp);
 
         // Terebinth Tree
@@ -410,6 +428,7 @@ public class VSpec {
         // Crabapple Tree
         ArrayList<String> crabappleOp = new ArrayList<>();
         crabappleOp.add("Crabapples"); // РџР»РѕРґС‹
+        crabappleOp.add("Yesteryear's Crabapples");
         object.put("gfx/terobjs/trees/crabappletree", crabappleOp);
 
         // Dwarf Pine Tree
@@ -431,11 +450,13 @@ public class VSpec {
         // Blackberry Bush
         ArrayList<String> blackberryOp = new ArrayList<>();
         blackberryOp.add("Blackberry"); // РџР»РѕРґС‹
+        blackberryOp.add("Yesteryear's Blackberry");
         object.put("gfx/terobjs/bushes/blackberrybush", blackberryOp);
 
         // Blackcurrant Bush
         ArrayList<String> blackcurrantOp = new ArrayList<>();
         blackcurrantOp.add("Blackcurrant"); // РџР»РѕРґС‹
+        blackcurrantOp.add("Yesteryear's Blackcurrant");
         object.put("gfx/terobjs/bushes/blackcurrant", blackcurrantOp);
 
         // Blackthorn Bush
@@ -471,6 +492,7 @@ public class VSpec {
         // Elderberry Bush
         ArrayList<String> elderberryOp = new ArrayList<>();
         elderberryOp.add("Elderberries"); // РџР»РѕРґС‹
+        elderberryOp.add("Yesteryear's Elderberries");
         object.put("gfx/terobjs/bushes/elderberrybush", elderberryOp);
 
         // Fly Woodbine Bush
@@ -486,6 +508,7 @@ public class VSpec {
         // Gooseberry Bush
         ArrayList<String> gooseberryOp = new ArrayList<>();
         gooseberryOp.add("Gooseberry"); // РџР»РѕРґС‹
+        gooseberryOp.add("Yesteryear's Gooseberry");
         object.put("gfx/terobjs/bushes/gooseberrybush", gooseberryOp);
 
         // Gorse Bush
@@ -521,11 +544,13 @@ public class VSpec {
         // Raspberry Bush
         ArrayList<String> raspberryOp = new ArrayList<>();
         raspberryOp.add("Raspberry"); // РџР»РѕРґС‹
+        raspberryOp.add("Yesteryear's Raspberry");
         object.put("gfx/terobjs/bushes/raspberrybush", raspberryOp);
 
         // Sandthorn Bush
         ArrayList<String> sandthornOp = new ArrayList<>();
         sandthornOp.add("Seaberries"); // РџР»РѕРґС‹
+        sandthornOp.add("Yesteryear's Seaberries");
         object.put("gfx/terobjs/bushes/sandthorn", sandthornOp);
 
         // Spindle Bush
@@ -557,6 +582,7 @@ public class VSpec {
         // Redcurrant Bush
         ArrayList<String> redcurrantOp = new ArrayList<>();
         redcurrantOp.add("Redcurrant"); // РџР»РѕРґС‹
+        redcurrantOp.add("Yesteryear's Redcurrant");
         object.put("gfx/terobjs/bushes/redcurrant", redcurrantOp);
 
         // Boxwood Bush
@@ -580,8 +606,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/almondtreelog", almondOp_log);
 
         ArrayList<String> appleOp_log = new ArrayList<>();
-        appleOp_log.add("Board of Apple"); // Р”РѕСЃРєР°
-        appleOp_log.add("Block of Apple"); // Р‘Р»РѕРє
+        appleOp_log.add("Board of Applewood"); // Р”РѕСЃРєР°
+        appleOp_log.add("Block of Applewood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/appletreelog", appleOp_log);
 
         ArrayList<String> ashOp_log = new ArrayList<>();
@@ -610,8 +636,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/birchlog", birchOp_log);
 
         ArrayList<String> birdcherryOp_log = new ArrayList<>();
-        birdcherryOp_log.add("Board of Birdcherry"); // Р”РѕСЃРєР°
-        birdcherryOp_log.add("Block of Bird Cherry"); // Р‘Р»РѕРє
+        birdcherryOp_log.add("Board of Birdcherrywood"); // Р”РѕСЃРєР°
+        birdcherryOp_log.add("Block of Birdcherrywood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/birdcherrytreelog", birdcherryOp_log);
 
         ArrayList<String> blackpineOp_log = new ArrayList<>();
@@ -619,10 +645,15 @@ public class VSpec {
         blackpineOp_log.add("Block of Black Pine"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/blackpinelog", blackpineOp_log);
 
-        ArrayList<String> blackpOp_loglarOp_log = new ArrayList<>();
-        blackpOp_loglarOp_log.add("Board of Black POp_loglar"); // Р”РѕСЃРєР°
-        blackpOp_loglarOp_log.add("Block of Black POp_loglar"); // Р‘Р»РѕРє
-        object.put("gfx/terobjs/trees/blackpOp_loglarlog", blackpOp_loglarOp_log);
+        ArrayList<String> blackpoplarOp_log = new ArrayList<>();
+        blackpoplarOp_log.add("Board of Black Poplar"); // Р”РѕСЃРєР°
+        blackpoplarOp_log.add("Block of Black Poplar"); // Р‘Р»РѕРє
+        object.put("gfx/terobjs/trees/blackpoplarlog", blackpoplarOp_log);
+
+        ArrayList<String> poplarOp_log = new ArrayList<>();
+        poplarOp_log.add("Board of Poplar"); // Р”РѕСЃРєР°
+        poplarOp_log.add("Block of Poplar"); // Р‘Р»РѕРє
+        object.put("gfx/terobjs/trees/poplarlog", poplarOp_log);
 
         ArrayList<String> briarwoodOp_log = new ArrayList<>();
         briarwoodOp_log.add("Board of Briarwood (Heath)"); // Р”РѕСЃРєР°
@@ -650,13 +681,13 @@ public class VSpec {
         object.put("gfx/terobjs/trees/charredtreelog", charredOp_log);
 
         ArrayList<String> chasteOp_log = new ArrayList<>();
-        chasteOp_log.add("Board of Chaste"); // Р”РѕСЃРєР°
-        chasteOp_log.add("Block of Chaste Tree"); // Р‘Р»РѕРє
+        chasteOp_log.add("Board of Chastetreewood"); // Р”РѕСЃРєР°
+        chasteOp_log.add("Block of Chaste Treewood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/chastetreelog", chasteOp_log);
 
         ArrayList<String> checkerOp_log = new ArrayList<>();
-        checkerOp_log.add("Board of Checker"); // Р”РѕСЃРєР°
-        checkerOp_log.add("Block of Checker Tree"); // Р‘Р»РѕРє
+        checkerOp_log.add("Board of Checkerwood"); // Р”РѕСЃРєР°
+        checkerOp_log.add("Block of Checker Treewood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/checkertreelog", checkerOp_log);
 
         ArrayList<String> cherryOp_log = new ArrayList<>();
@@ -675,13 +706,13 @@ public class VSpec {
         object.put("gfx/terobjs/trees/conkertreelog", conkerOp_log);
 
         ArrayList<String> corkOakOp_log = new ArrayList<>();
-        corkOakOp_log.add("Board of Cork Oak"); // Р”РѕСЃРєР°
-        corkOakOp_log.add("Block of Cork Oak"); // Р‘Р»РѕРє
+        corkOakOp_log.add("Board of Corkoak"); // Р”РѕСЃРєР°
+        corkOakOp_log.add("Block of Corkoak"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/corkoaklog", corkOakOp_log);
 
         ArrayList<String> crabappleOp_log = new ArrayList<>();
-        crabappleOp_log.add("Board of Crabapple"); // Р”РѕСЃРєР°
-        crabappleOp_log.add("Block of Crabapple"); // Р‘Р»РѕРє
+        crabappleOp_log.add("Board of Crabapplewood"); // Р”РѕСЃРєР°
+        crabappleOp_log.add("Block of Crabapplewood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/crabappletreelog", crabappleOp_log);
 
         ArrayList<String> cypressOp_log = new ArrayList<>();
@@ -725,7 +756,7 @@ public class VSpec {
         object.put("gfx/terobjs/trees/gnomeshatlog", gnomeshatOp_log);
 
         ArrayList<String> goldenchainOp_log = new ArrayList<>();
-        goldenchainOp_log.add("Board of Golden-chain"); // Р”РѕСЃРєР°
+        goldenchainOp_log.add("Board of Goldenchain"); // Р”РѕСЃРєР°
         goldenchainOp_log.add("Block of Golden Chain"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/goldenchainlog", goldenchainOp_log);
 
@@ -825,13 +856,13 @@ public class VSpec {
         object.put("gfx/terobjs/trees/osierlog", osierOp_log);
 
         ArrayList<String> pearOp_log = new ArrayList<>();
-        pearOp_log.add("Board of Pear"); // Р”РѕСЃРєР°
-        pearOp_log.add("Block of Pear"); // Р‘Р»РѕРє
+        pearOp_log.add("Board of Pearwood"); // Р”РѕСЃРєР°
+        pearOp_log.add("Block of Pearwood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/peartreelog", pearOp_log);
 
         ArrayList<String> persimmonOp_log = new ArrayList<>();
-        persimmonOp_log.add("Board of Persimmon"); // Р”РѕСЃРєР°
-        persimmonOp_log.add("Block of Persimmon"); // Р‘Р»РѕРє
+        persimmonOp_log.add("Board of Persimmonwood"); // Р”РѕСЃРєР°
+        persimmonOp_log.add("Block of Persimmonwood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/persimmontreelog", persimmonOp_log);
 
         ArrayList<String> pineOp_log = new ArrayList<>();
@@ -845,14 +876,9 @@ public class VSpec {
         object.put("gfx/terobjs/trees/planetreelog", planeOp_log);
 
         ArrayList<String> plumOp_log = new ArrayList<>();
-        plumOp_log.add("Board of Plum"); // Р”РѕСЃРєР°
-        plumOp_log.add("Block of Plum"); // Р‘Р»РѕРє
+        plumOp_log.add("Board of Plumwood"); // Р”РѕСЃРєР°
+        plumOp_log.add("Block of Plumwood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/plumtreelog", plumOp_log);
-
-        ArrayList<String> pOp_loglarOp_log = new ArrayList<>();
-        pOp_loglarOp_log.add("Board of POp_loglar"); // Р”РѕСЃРєР°
-        pOp_loglarOp_log.add("Block of POp_loglar"); // Р‘Р»РѕРє
-        object.put("gfx/terobjs/trees/pOp_loglarlog", pOp_loglarOp_log);
 
         ArrayList<String> quinceOp_log = new ArrayList<>();
         quinceOp_log.add("Board of Quince"); // Р”РѕСЃРєР°
@@ -870,8 +896,8 @@ public class VSpec {
         object.put("gfx/terobjs/trees/sallowlog", sallowOp_log);
 
         ArrayList<String> silverfirOp_log = new ArrayList<>();
-        silverfirOp_log.add("Board of Silver Fir"); // Р”РѕСЃРєР°
-        silverfirOp_log.add("Block of Silver Fir"); // Р‘Р»РѕРє
+        silverfirOp_log.add("Board of Silverfir"); // Р”РѕСЃРєР°
+        silverfirOp_log.add("Block of Silverfir"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/silverfirlog", silverfirOp_log);
 
         ArrayList<String> sorbOp_log = new ArrayList<>();
@@ -958,6 +984,13 @@ public class VSpec {
         zelkovaOp_log.add("Board of Zelkova"); // Р”РѕСЃРєР°
         zelkovaOp_log.add("Block of Zelkova"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/zelkovalog", zelkovaOp_log);
+
+        // Old Trunk - a special decayed-tree resource distinct from a normal felled log (not tied
+        // to any particular standing species), yielding only a single curiosity.
+        ArrayList<String> oldtrunkOp = new ArrayList<>();
+        oldtrunkOp.add("Block of Mirkwood"); // Р‘Р»РѕРє
+        object.put("gfx/terobjs/trees/oldtrunk", oldtrunkOp);
+
         ArrayList<String> alabasterOp = new ArrayList<>();
         alabasterOp.add("Alabaster"); // РљР°РјРµРЅСЊ
         object.put("gfx/terobjs/bumlings/alabaster", alabasterOp);
@@ -1686,6 +1719,7 @@ public class VSpec {
         treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-sweetgum\",\"name\":\"Sweetgum Bough\"}"));
         treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-yew\",\"name\":\"Yew Bough\"}"));
         treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-beech\",\"name\":\"Beech Bough\"}"));
+        treeBoughs.add(new JSONObject("{\"static\":\"gfx/invobjs/bough-poplar\",\"name\":\"Poplar Bough\"}"));
         categories.put("Tree Bough", treeBoughs);
 
         ArrayList<JSONObject> thatchingMaterials = new ArrayList<>();
@@ -2424,7 +2458,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-baywillow\",\"name\":\"Board of Bay Willow\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-beech\",\"name\":\"Board of Beech\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-birch\",\"name\":\"Board of Birch\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-birdcherrytree\",\"name\":\"Board of Birdcherry\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-birdcherrytree\",\"name\":\"Board of Birdcherrywood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-blackpine\",\"name\":\"Board of Black Pine\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-blackpoplar\",\"name\":\"Board of Black Poplar\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-treeheath\",\"name\":\"Board of Briarwood (Heath)\"}"));
@@ -2437,7 +2471,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-cherry\",\"name\":\"Board of Cherry\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-chestnuttree\",\"name\":\"Board of Chestnutwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-conkertree\",\"name\":\"Board of Conker\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-corkoak\",\"name\":\"Board of Cork Oak\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-corkoak\",\"name\":\"Board of Corkoak\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-crabappletree\",\"name\":\"Board of Crabapplewood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-cypress\",\"name\":\"Board of Cypress\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-dogwood\",\"name\":\"Board of Dogwood\"}"));
@@ -2468,7 +2502,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-orangetree\",\"name\":\"Board of Orange\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-osier\",\"name\":\"Board of Osier\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-peartree\",\"name\":\"Board of Pearwood\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-persimmontree\",\"name\":\"Board of Persimmon\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-persimmontree\",\"name\":\"Board of Persimmonwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-pine\",\"name\":\"Board of Pine\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-planetree\",\"name\":\"Board of Plane\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-plumtree\",\"name\":\"Board of Plumwood\"}"));
@@ -2476,7 +2510,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-quincetree\",\"name\":\"Board of Quince\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-rowan\",\"name\":\"Board of Rowan\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-sallow\",\"name\":\"Board of Sallow\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-silverfir\",\"name\":\"Board of Silver Fir\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-silverfir\",\"name\":\"Board of Silverfir\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-sorbtree\",\"name\":\"Board of Sorb\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-spruce\",\"name\":\"Board of Spruce\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-stonepine\",\"name\":\"Board of Stone Pine\"}"));
@@ -2522,7 +2556,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-baywillow\",\"name\":\"Block of Bay Willow\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-beech\",\"name\":\"Block of Beech\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-birch\",\"name\":\"Block of Birch\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-birdcherrytree\",\"name\":\"Block of Bird Cherry\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-birdcherrytree\",\"name\":\"Block of Birdcherrywood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-blackpine\",\"name\":\"Block of Black Pine\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-blackpoplar\",\"name\":\"Block of Black Poplar\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-treeheath\",\"name\":\"Block of Tree Heath\"}"));
@@ -2534,7 +2568,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-cherry\",\"name\":\"Block of Cherry\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-chestnuttree\",\"name\":\"Block of Chestnutwood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-conkertree\",\"name\":\"Block of Conker\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-corkoak\",\"name\":\"Block of Cork Oak\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-corkoak\",\"name\":\"Block of Corkoak\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-crabappletree\",\"name\":\"Block of Crabapplewood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-cypress\",\"name\":\"Block of Cypress\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-dogwood\",\"name\":\"Block of Dogwood\"}"));
@@ -2565,7 +2599,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-orangetree\",\"name\":\"Block of Orange\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-osier\",\"name\":\"Block of Osier\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-peartree\",\"name\":\"Block of Pearwood\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-persimmontree\",\"name\":\"Block of Persimmon\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-persimmontree\",\"name\":\"Block of Persimmonwood\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-pine\",\"name\":\"Block of Pine\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-planetree\",\"name\":\"Block of Plane\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-plumtree\",\"name\":\"Block of Plumwood\"}"));
@@ -2573,7 +2607,7 @@ public class VSpec {
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-quincetree\",\"name\":\"Block of Quince\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-rowan\",\"name\":\"Block of Rowan\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-sallow\",\"name\":\"Block of Sallow\"}"));
-        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-silverfir\",\"name\":\"Block of Silver Fir\"}"));
+        blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-silverfir\",\"name\":\"Block of Silverfir\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-sorbtree\",\"name\":\"Block of Sorb\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-spruce\",\"name\":\"Block of Spruce\"}"));
         blocks.add(new JSONObject("{\"static\":\"gfx/invobjs/wblock-stonepine\",\"name\":\"Block of Stone Pine\"}"));
@@ -3193,39 +3227,6 @@ public class VSpec {
         jotun_state.put(NStyle.Container.FULL, 112);
     }
 
-    public static void checkLpExplorer(Gob clickedGob, String name) {
-        if(clickedGob!=null) {
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().getCharInfo() != null) {
-                if (clickedGob.ngob.name != null && object.containsKey(clickedGob.ngob.name)) {
-                    if (object.get(clickedGob.ngob.name).contains(name)) {
-                        boolean objectExists = NUtils.getGameUI().getCharInfo().IsLpExplorerContains(clickedGob.ngob.name);
-
-                        if (!objectExists) {
-                            NUtils.getGameUI().getCharInfo().LpExplorerAdd(clickedGob.ngob.name,name);
-                            NUtils.getGameUI().getCharInfo().newLpExplorer = true;
-
-                        } else {
-                            int currentSize = NUtils.getGameUI().getCharInfo().LpExplorerGetSize(clickedGob.ngob.name);
-                            int totalSize = object.get(clickedGob.ngob.name).size();
-                            boolean productExists = NUtils.getGameUI().getCharInfo().IsLpExplorerContains(clickedGob.ngob.name, name);
-                            
-
-                            if (currentSize != totalSize) {
-                                if (object.get(clickedGob.ngob.name).contains(name) && !productExists) {
-                                    NUtils.getGameUI().getCharInfo().LpExplorerAdd(clickedGob.ngob.name,name);
-                                    NUtils.getGameUI().getCharInfo().newLpExplorer = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null) {
-                NUtils.getGameUI().map.clickedGob = null;
-            }
-        }
-    }
-
     public static ArrayList<String> getCategory(String name) {
         ArrayList<String> result = new ArrayList<>();
         for(String cat: categories.keySet())
@@ -3240,6 +3241,35 @@ public class VSpec {
             }
         }
         return result;
+    }
+
+    // Reverse index over `categories` (name -> icon path), built lazily on first use since
+    // `categories` itself is populated by static initializers earlier in this class - built eagerly
+    // here instead, it could run before that population completes. Called every minimap-render
+    // frame per undiscovered non-tree/bush gob via getIconPath(), so this trades a one-time build
+    // for O(1) lookups instead of rescanning every category's every entry on every call.
+    private static HashMap<String, String> iconPathByName;
+
+    // Looks up the icon resource path already recorded for an exact item name in the stacking
+    // category data (e.g. "Cassiterite" -> "gfx/invobjs/cassiterite"). Returns null if the name
+    // isn't in any category. General-purpose - not just for stacking despite where the data lives.
+    public static String getIconPath(String name) {
+        if (name == null) return null;
+        if (iconPathByName == null) {
+            HashMap<String, String> index = new HashMap<>();
+            for (ArrayList<JSONObject> entries : categories.values()) {
+                for (JSONObject entry : entries) {
+                    // Multi-frame items (e.g. several meats) use a "layer" array instead of a
+                    // single "static" path - skip those rather than erroring, since callers here
+                    // only ever want a single icon image.
+                    if (entry.has("static") && entry.has("name")) {
+                        index.putIfAbsent(entry.getString("name"), entry.getString("static"));
+                    }
+                }
+            }
+            iconPathByName = index;
+        }
+        return iconPathByName.get(name);
     }
 
     public static ArrayList<String> getCategoryContent(String name) {
