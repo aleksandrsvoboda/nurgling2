@@ -2,6 +2,7 @@ package nurgling.tools;
 
 import haven.Drawable;
 import haven.Gob;
+import haven.MapView;
 import haven.ResDrawable;
 import haven.Resource;
 import haven.Sprite;
@@ -329,22 +330,16 @@ public class LpExplorer {
 
     // Called for every newly-resolved item name. Discovery is tracked per RESOURCE (any gob of a
     // species satisfies the same discovery, not just the specific instance that produced it), so
-    // this looks up which resource the name belongs to directly from VSpec.object - no need to
-    // remember which gob the player last clicked at all, which used to require reading
-    // map.clickedGob at name-resolution time; since name resolution needs a server round-trip, a
-    // crafting/pickup delay (e.g. sawing a board) gave the player plenty of time to click
-    // something else in the meantime and overwrite it, misattributing or losing the discovery
-    // entirely. All the "should we even consider this pickup" decisions (a tool rather than a
-    // product, an unrecognized name) live here too, alongside the temporary diagnostic logging.
+    // this looks up which resource the name belongs to directly from VSpec.object rather than
+    // needing to know exactly which gob produced it. All the "should we even consider this
+    // pickup" decisions (a tool rather than a product, an unrecognized name, not actually a
+    // harvest) live here too.
     public static void checkLpExplorer(String name) {
         // Exclude tools from LP tracking - the player's own axe/saw resolving its name isn't a
         // harvested product (VSpec.object wouldn't have an entry for it anyway, but this avoids
         // relying on that alone).
-        if (name.contains(" Axe") || name.contains(" Saw")) {
-            // TEMPORARY diagnostic - log every tool exclusion. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] '" + name + "' excluded by the Axe/Saw tool filter.");
+        if (name.contains(" Axe") || name.contains(" Saw"))
             return;
-        }
         NGameUI gui = NUtils.getGameUI();
         if (gui == null || gui.getCharInfo() == null)
             return;
@@ -358,17 +353,26 @@ public class LpExplorer {
             // specific resource, so which key it's filed under doesn't matter.
             gobName = "bark:" + name;
 
-        if (gobName == null) {
-            // TEMPORARY diagnostic - log every unrecognized item. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] '" + name + "' isn't a tracked LP product.");
+        if (gobName == null)
             return;
-        }
+
+        // Require the last gob the player right-clicked to be some kind of harvestable resource -
+        // without this, merely opening a cupboard/chest containing undiscovered items would mark
+        // them "discovered" the moment their names resolve, without the player ever harvesting
+        // anything. Checked by resource TYPE rather than exact identity: name resolution needs a
+        // server round-trip, so the player may click a second, different harvestable gob (e.g. a
+        // stone right after a tree) before a delayed product (like a sawn board) resolves - the
+        // reverse lookup above already tells us exactly which resource this product belongs to,
+        // so clickedGob only needs to confirm a harvest interaction just happened, not identify
+        // which one.
+        MapView.ClickedGob clicked = gui.map.clickedGob;
+        String clickedGobName = (clicked != null && clicked.gob.ngob != null) ? clicked.gob.ngob.name : null;
+        if (clickedGobName == null || HarvestSpecs.forResource(clickedGobName) == null)
+            return;
 
         if (!info.IsLpExplorerContains(gobName, name)) {
             info.LpExplorerAdd(gobName, name);
             info.newLpExplorer = true;
-            // TEMPORARY diagnostic - log every recorded discovery. Remove once verification is complete.
-            System.out.println("[LP-DEBUG] Recorded '" + name + "' as discovered for '" + gobName + "'");
         }
     }
 
