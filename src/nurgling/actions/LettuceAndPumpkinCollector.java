@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public class LettuceAndPumpkinCollector implements Action {
+    private static final int PICKUP_VISIBILITY_MAX_CHECKS = 200;
+
     NArea input;
     NArea seedOutput;
     NArea itemOutput;
@@ -58,21 +60,24 @@ public class LettuceAndPumpkinCollector implements Action {
 
                 if ((this.items.keys.contains("Head of Lettuce") && gui.getInventory().getNumberFreeCoord(testItems.get(0)) <= Math.floor(totalItemsThatCanFit/2))
                         || (this.items.keys.contains("Pumpkin") && gui.getInventory().getNumberFreeCoord(testItems.get(0)) == 0)) {
-                    splitItems(gui);
+                    if (!splitItems(gui))
+                        return Results.FAIL();
 
                     if (!(testItems = gui.getInventory().getItems(new NAlias("Seed"))).isEmpty()) {
-                        transferSeeds(gui);
+                        if (!transferSeeds(gui))
+                            return Results.FAIL();
                     }
 
                     if (!(testItems = gui.getInventory().getItems(new NAlias(this.secondaryItemAlias))).isEmpty()) {
-                        new TransferToPiles(itemOutput.getRCArea(), new NAlias(this.secondaryItemAlias)).run(gui);
+                        if (!transferSecondaryItems(gui))
+                            return Results.FAIL();
                     }
 
                     currentQuantity = 0;
                 }
             }
 
-            Gob item = Finder.findGob(collected_items);
+            Gob item = Finder.findGob(input, collected_items);
             if (item == null)
                 break;
             if (item.rc.dist(gui.map.player().rc) > MCache.tilesz2.x) {
@@ -80,23 +85,31 @@ public class LettuceAndPumpkinCollector implements Action {
                 pf.run(gui);
             }
             NUtils.takeFromEarth(item);
-            NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), items, currentQuantity+1));
+            NUtils.getUI().core.addTask(new WaitMoreItems(
+                    NUtils.getGameUI().getInventory(),
+                    items,
+                    currentQuantity + 1,
+                    PICKUP_VISIBILITY_MAX_CHECKS
+            ));
         }
 
-        splitItems(gui);
+        if (!splitItems(gui))
+            return Results.FAIL();
 
         if (!(testItems = gui.getInventory().getItems(new NAlias("Seed"))).isEmpty()) {
-            transferSeeds(gui);
+            if (!transferSeeds(gui))
+                return Results.FAIL();
         }
 
         if (!(testItems = gui.getInventory().getItems(new NAlias(this.secondaryItemAlias))).isEmpty()) {
-            new TransferToPiles(itemOutput.getRCArea(), new NAlias(this.secondaryItemAlias)).run(gui);
+            if (!transferSecondaryItems(gui))
+                return Results.FAIL();
         }
 
         return Results.SUCCESS();
     }
 
-    private void transferSeeds(NGameUI gui) throws InterruptedException {
+    private boolean transferSeeds(NGameUI gui) throws InterruptedException {
         if (isQualityGrid) {
             // Quality mode: transfer seeds to containers
             ArrayList<Container> containers = new ArrayList<>();
@@ -110,8 +123,10 @@ public class LettuceAndPumpkinCollector implements Action {
                 throw new RuntimeException("No container found in seed area!");
 
             Container container = containers.get(0);
-            new TransferToContainer(container, new NAlias("Seed")).run(gui);
-            new CloseTargetContainer(container).run(gui);
+            boolean transferred = new TransferToContainer(container, new NAlias("Seed")).run(gui).IsSuccess();
+            boolean inventoryEmpty = gui.getInventory().getItems(new NAlias("Seed")).isEmpty();
+            boolean closed = new CloseTargetContainer(container).run(gui).IsSuccess();
+            return transferred && inventoryEmpty && closed;
         } else {
             // Regular mode: transfer seeds to barrels, then trough, then piles
             ArrayList<Gob> barrels = Finder.findGobs(seedOutput, new NAlias("barrel"));
@@ -119,34 +134,49 @@ public class LettuceAndPumpkinCollector implements Action {
             if (!barrels.isEmpty()) {
                 for (Gob barrel : barrels) {
                     TransferToBarrel tb = new TransferToBarrel(barrel, new NAlias("Seed"));
-                    tb.run(gui);
+                    if (!tb.run(gui).IsSuccess())
+                        return false;
                     if (!tb.isFull()) break;
                 }
 
                 if (troughArea != null && !gui.getInventory().getItems(new NAlias("Seed")).isEmpty()) {
                     Gob trough = Finder.findGob(troughArea, new NAlias("gfx/terobjs/trough"));
                     if (trough != null) {
-                        new TransferToTrough(trough, new NAlias("Seed")).run(gui);
+                        if (!new TransferToTrough(trough, new NAlias("Seed")).run(gui).IsSuccess())
+                            return false;
                     }
                 }
             }
 
             if (!gui.getInventory().getItems(new NAlias("Seed")).isEmpty()) {
-                new TransferToPiles(seedOutput.getRCArea(), new NAlias("Seed")).run(gui);
+                if (!new TransferToPiles(seedOutput.getRCArea(), new NAlias("Seed")).run(gui).IsSuccess())
+                    return false;
+                return gui.getInventory().getItems(new NAlias("Seed")).isEmpty();
             }
+            return true;
         }
     }
 
-    private void splitItems(NGameUI gui) throws InterruptedException {
+    private boolean transferSecondaryItems(NGameUI gui) throws InterruptedException {
+        NAlias secondaryItems = new NAlias(this.secondaryItemAlias);
+        if (!new TransferToPiles(itemOutput.getRCArea(), secondaryItems).run(gui).IsSuccess())
+            return false;
+        return gui.getInventory().getItems(secondaryItems).isEmpty();
+    }
+
+    private boolean splitItems(NGameUI gui) throws InterruptedException {
         NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
         ArrayList<WItem> items = NUtils.getGameUI().getInventory().getItems(this.items);
         for (WItem item : items) {
             if(this.items.keys.contains("Head of Lettuce")) {
-                new SelectFlowerAction("Split", (NWItem) item).run(gui);
+                if (!new SelectFlowerAction("Split", (NWItem) item).run(gui).IsSuccess())
+                    return false;
             } else if(this.items.keys.contains("Pumpkin")) {
-                new SelectFlowerAction("Slice", (NWItem) item).run(gui);
+                if (!new SelectFlowerAction("Slice", (NWItem) item).run(gui).IsSuccess())
+                    return false;
             }
 
         }
+        return true;
     }
 }

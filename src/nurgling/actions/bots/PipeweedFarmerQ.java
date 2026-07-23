@@ -45,9 +45,13 @@ public class PipeweedFarmerQ implements Action {
                     new NAlias("plants/pipeweed"),
                     true
             ).run(gui);
-            if (pipeweedLeafArea != null)
-                new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), pipeweedLeafArea.getRCArea(), new NAlias("tobacco-fresh", "Fresh Leaf of Pipeweed")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pipeweed"), new NAlias("Pipeweed"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), pipeweedLeafArea.getRCArea(), new NAlias("tobacco-fresh", "Fresh Leaf of Pipeweed")),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pipeweed"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Pipeweed"), NContext.findSpec(trough)).run(gui);
