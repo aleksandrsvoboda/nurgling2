@@ -27,7 +27,8 @@ class QualityFarmerContractE2ETest {
     void single_tile_quality_cycle_deposits_product_before_planting(
             String cropResource,
             String byproduct,
-            String seed
+            String plantingMaterial,
+            boolean stackedPlantingMaterial
     ) throws InterruptedException {
         FarmerPort port = new FarmerPort(byproduct);
         NAlias plantingMaterials = CropRegistry.getQualityPlantingMaterials(new NAlias(cropResource));
@@ -38,26 +39,37 @@ class QualityFarmerContractE2ETest {
                         ? Results.SUCCESS()
                         : Results.FAIL(),
                 ignored -> {
+                    QualityPlantingContract.Material<String> validMaterial =
+                            stackedPlantingMaterial
+                                    ? QualityPlantingContract.Material.stack(
+                                            plantingMaterial,
+                                            plantingMaterial,
+                                            5
+                                    )
+                                    : QualityPlantingContract.Material.individual(
+                                            plantingMaterial,
+                                            plantingMaterial
+                                    );
                     List<QualityPlantingContract.Material<String>> backpack = Arrays.asList(
                             QualityPlantingContract.Material.individual(byproduct, byproduct),
-                            QualityPlantingContract.Material.stack(seed, seed, 5)
+                            validMaterial
                     );
                     plantingOrder.addAll(
                             QualityPlantingContract.plan(backpack, plantingMaterials, 1, 5)
                     );
-                    port.events.add("plant:" + seed);
+                    port.events.add("plant:" + plantingMaterial);
                     return plantingOrder.size() == 1 ? Results.SUCCESS() : Results.FAIL();
                 }
         ).run(null);
 
         assertTrue(completed.IsSuccess());
         assertEquals(Arrays.asList(byproduct), port.productStorage);
-        assertEquals(Arrays.asList(seed), plantingOrder);
+        assertEquals(Arrays.asList(plantingMaterial), plantingOrder);
         assertEquals(
-                Arrays.asList("deposit:" + byproduct, "plant:" + seed),
+                Arrays.asList("deposit:" + byproduct, "plant:" + plantingMaterial),
                 port.events
         );
-        assertTrue(plantingMaterials.matches(seed));
+        assertTrue(plantingMaterials.matches(plantingMaterial));
         assertFalse(plantingMaterials.matches(byproduct));
     }
 
@@ -112,10 +124,11 @@ class QualityFarmerContractE2ETest {
 
     private static Stream<Arguments> p0SingleTileCrops() {
         return Stream.of(
-                Arguments.of("plants/hemp", "Hemp Fibres", "Hemp Seeds"),
-                Arguments.of("plants/flax", "Flax Fibres", "Flax Seeds"),
-                Arguments.of("plants/lettuce", "Head of Lettuce", "Lettuce Seeds"),
-                Arguments.of("plants/pumpkin", "Pumpkin", "Pumpkin Seeds")
+                Arguments.of("plants/beet", "Beetroot Leaves", "Beetroot", false),
+                Arguments.of("plants/hemp", "Hemp Fibres", "Hemp Seeds", true),
+                Arguments.of("plants/flax", "Flax Fibres", "Flax Seeds", true),
+                Arguments.of("plants/lettuce", "Head of Lettuce", "Lettuce Seeds", true),
+                Arguments.of("plants/pumpkin", "Pumpkin", "Pumpkin Seeds", true)
         );
     }
 
