@@ -93,9 +93,10 @@ public class TransferLiftable implements Action
             // Lift the item
             new LiftObject(item).run(gui);
 
-            NUtils.navigateToArea(carrierOutArea);
-            // Move to output area and place the item
-            new FindPlaceAndAction(null, carrierOutArea.getRCArea()).run(gui);
+            // Move to output area and place the item. FindPlaceAndAction walks
+            // onto the area first (it has the NArea) so the whole zone is loaded
+            // before a drop cell is chosen.
+            new FindPlaceAndAction(null, carrierOutArea).run(gui);
 
             // Move away from the placed item
             Coord2d shift = item.rc.sub(NUtils.player().rc).norm().mul(2);

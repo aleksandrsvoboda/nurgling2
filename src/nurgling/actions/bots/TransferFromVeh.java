@@ -29,7 +29,9 @@ public class TransferFromVeh implements Action {
 
         while (new TakeFromVehicle(selgob.result).run(gui).IsSuccess()) {
             Gob gob = Finder.findLiftedbyPlayer();
-            new FindPlaceAndAction(gob, outsaArea.getRCArea()).run(gui);
+            // Pass the NArea so FindPlaceAndAction walks onto the output area
+            // (loading it fully) before picking a drop cell.
+            new FindPlaceAndAction(gob, outsaArea).run(gui);
             Coord2d shift = gob.rc.sub(NUtils.player().rc).norm().mul(2);
             new GoTo(NUtils.player().rc.sub(shift)).run(gui);
         }

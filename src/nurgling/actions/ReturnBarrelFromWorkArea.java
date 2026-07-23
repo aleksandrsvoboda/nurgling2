@@ -172,8 +172,9 @@ public class ReturnBarrelFromWorkArea implements Action {
         }
         
         if (area != null) {
-            // Navigate to area using global pathfinding
-            NUtils.navigateToArea(area);
+            // Navigate to area using global pathfinding. ensurePresence=true so we
+            // actually walk in and the area's gobs (the barrel we're hunting) stream in.
+            NUtils.navigateToArea(area, true);
             
             // Retry search after navigation
             barrels = Finder.findGobs(new NAlias("barrel"));
