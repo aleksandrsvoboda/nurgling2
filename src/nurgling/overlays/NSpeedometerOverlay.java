@@ -13,7 +13,7 @@ import java.text.DecimalFormat;
 
 public class NSpeedometerOverlay extends Sprite implements RenderTree.Node, PView.Render2D {
     private static final DecimalFormat SPEED_FORMAT = new DecimalFormat("0.0");
-    private static final Font SPEED_FONT = new Font("Arial", Font.BOLD, 16);
+    private static final Font SPEED_FONT = new Font("Arial", Font.BOLD, 16).deriveFont(16f * 0.9f);
     private static final Color OUTLINE_COLOR = Color.BLACK;
     
     // Speed comparison colors
@@ -31,9 +31,6 @@ public class NSpeedometerOverlay extends Sprite implements RenderTree.Node, PVie
     // Visibility flags
     private boolean shouldShow = false;
     private boolean configEnabled = true;
-    
-    // Speedometer icon texture
-    public final Tex speedometerIcon = Resource.loadtex("nurgling/hud/speedometer");
     
     public NSpeedometerOverlay(Owner owner) {
         super(owner, null);
@@ -142,33 +139,26 @@ public class NSpeedometerOverlay extends Sprite implements RenderTree.Node, PVie
     }
     
     private TexI createSpeedTexture(String speedText, Color speedColor) {
-        // Get font metrics and icon dimensions
+        // Get font metrics
         FontMetrics fm = Toolkit.getDefaultToolkit().getFontMetrics(SPEED_FONT);
-        int iconWidth = speedometerIcon.sz().x;
-        int iconHeight = speedometerIcon.sz().y;
         int textWidth = fm.stringWidth(speedText);
         int textHeight = fm.getHeight();
-        
-        // Calculate combined dimensions with small gap between icon and text
-        int gap = 3;
-        int totalWidth = iconWidth + gap + textWidth + 4; // Add padding
-        int totalHeight = Math.max(iconHeight, textHeight) + 2;
-        
+
+        // Calculate dimensions with padding for the outline
+        int totalWidth = textWidth + 4;
+        int totalHeight = textHeight + 2;
+
         BufferedImage img = new BufferedImage(totalWidth, totalHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = img.createGraphics();
-        
+
         // Enable anti-aliasing
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Draw speedometer icon
-        int iconY = (totalHeight - iconHeight) / 2;
-        g2d.drawImage(((TexI)speedometerIcon).back, 2, iconY, null);
-        
-        // Calculate text position (vertically centered with icon)
-        int textX = 2 + iconWidth + gap;
+
+        // Calculate text position
+        int textX = 2;
         int textY = (totalHeight - textHeight) / 2 + fm.getAscent();
-        
+
         // Draw text outline (black text slightly offset)
         g2d.setFont(SPEED_FONT);
         g2d.setColor(OUTLINE_COLOR);
