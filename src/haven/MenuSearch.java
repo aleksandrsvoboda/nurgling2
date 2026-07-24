@@ -265,10 +265,11 @@ public abstract class MenuSearch extends Window {
 	recons = true;
     }
 
-    public void tick(double dt) {
-	if(tvisible() && recons)
+    public void tick(TickEvent ev) {
+	if(ev.visible && recons) {
 	    updlist();
-	super.tick(dt);
+	}
+	super.tick(ev);
     }
 
     public boolean keydown(KeyDownEvent ev) {
@@ -349,14 +350,14 @@ public abstract class MenuSearch extends Window {
 	    return(recons);
 	}
 
-	public void tick(double dt) {
-	    if(tvisible()) {
+	public void tick(TickEvent ev) {
+	    if(ev.visible) {
 		if(pagseq != menu.pagseq) {
 		    recons();
 		    pagseq = menu.pagseq;
 		}
 	    }
-	    super.tick(dt);
+	    super.tick(ev);
 	}
     }
 }
