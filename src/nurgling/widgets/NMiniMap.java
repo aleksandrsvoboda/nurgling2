@@ -1249,8 +1249,13 @@ NMiniMap extends MiniMap {
                 }
 
                 Coord markPos = mark.m.tc.sub(dloc.tc).div(scalef()).add(hsz);
+                // This custom drawmarkers draws at markPos instead of mark.sc, but
+                // MiniMap.mousehover() still hit-tests hover against mark.sc (and skips
+                // markers whose sc is null). Keep sc in sync with where we actually draw
+                // so marker hover -- e.g. thingwall province lines -- works.
+                mark.sc = markPos;
                 mark.draw(g, markPos);
-                
+
                 // Draw name for quest giver markers (bush/bumling)
                 if(mark.m instanceof MapFile.SMarker) {
                     MapFile.SMarker sm = (MapFile.SMarker)mark.m;
