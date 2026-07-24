@@ -1266,7 +1266,7 @@ NMiniMap extends MiniMap {
                     }
 
                     if((Boolean)NConfig.get(NConfig.Key.showThingwallNames) && NParser.checkName(sm.res.name, "thingwall") && mark.m.nm != null && !mark.m.nm.isEmpty()) {
-                        Text nameText = NStyle.gmeter.render(mark.m.nm);
+                        Text nameText = NStyle.cmeter.render(mark.m.nm);
                         Coord textPos = markPos.add(0, UI.scale(10));
                         g.aimage(nameText.tex(), textPos, 0.5, 0);
                     }
