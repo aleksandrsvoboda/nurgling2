@@ -83,8 +83,17 @@ public class Window extends Widget {
 
     public void disable()
     {
-		if(dwdg!=null)
+		disable(null);
+    }
+
+    /** Disable variant that tracks the running bot thread so the DisablerWdg
+     *  can display its current action line above the gear. */
+    public void disable(Thread botThread)
+    {
+		if(dwdg!=null) {
+			dwdg.botThread = botThread;
 			dwdg.show();
+		}
     }
 
 	public void enable()
@@ -400,9 +409,41 @@ public class Window extends Widget {
 		}
 	}
 
+	/** Called from NGameUI.draw() after all children have rendered, so the
+	 *  action label sits on top of every other UI element. The GOut passed
+	 *  in is in GameUI-root coordinate space. */
+	public void drawDisablerOverlayLabel(GOut g)
+	{
+		if (dwdg == null || !dwdg.visible) return;
+		String line = dwdg.botLine();
+		if (line == null) return;
+
+		Coord area = deco.contarea().sz();
+		Coord gsz = NStyle.gear[0].sz();
+		int iw = (int) Math.round(gsz.x * 0.9);
+		int ih = (int) Math.round(gsz.y * 0.9);
+		Coord gearTopLocal = new Coord(area.x / 2 - iw / 2, area.y / 2 - ih / 2);
+		Coord dwdgRoot = dwdg.rootpos();
+		Coord gearTopRoot = dwdgRoot.add(gearTopLocal);
+
+		Text rendered = NStyle.hotkey.render(line);
+		Tex tex = rendered.tex();
+		int tx = dwdgRoot.x + area.x / 2 - tex.sz().x / 2;
+		int ty = gearTopRoot.y - tex.sz().y - UI.scale(6);
+		if (ty < 0) ty = 0;
+		int padX = UI.scale(4), padY = UI.scale(2);
+		g.chcolor(0, 0, 0, 128);
+		g.frect(new Coord(tx - padX, ty - padY),
+		        new Coord(tex.sz().x + 2 * padX, tex.sz().y + 2 * padY));
+		g.chcolor();
+		g.image(tex, new Coord(tx, ty));
+	}
+
 	DisablerWdg dwdg = null;
 
 	public class DisablerWdg extends Widget{
+
+	public Thread botThread = null;
 
 	@Override
 	public void draw(GOut g, boolean strict) {
@@ -415,11 +456,30 @@ public class Window extends Widget {
 			g.frect(Coord.z, deco.contarea().sz());
 			g.chcolor();
 
-			int id = (int) (NUtils.getTickId() / 5) % 12;
-			g.image(NStyle.gear[id], new Coord(deco.contarea().sz().x / 2 - NStyle.gear[0].sz().x / 2, deco.contarea().sz().y / 2 - NStyle.gear[0].sz().y / 2));
+			Coord area = deco.contarea().sz();
+			Coord gsz = NStyle.gear[0].sz();
+			// 10% smaller than native texture size.
+			int iw = (int)Math.round(gsz.x * 0.9);
+			int ih = (int)Math.round(gsz.y * 0.9);
+			Coord isz = new Coord(iw, ih);
+			Coord gpos = new Coord(area.x / 2 - iw / 2, area.y / 2 - ih / 2);
+
+			int id = (int) (NUtils.getTickId() / 5) % 15;
+			g.image(NStyle.gear[id], gpos, isz);
+
+			// Note: the action-line label is drawn as an always-on-top overlay
+			// by NGameUI.draw via Window.drawDisablerOverlayLabel, not here.
+
 			super.draw(g,strict);
 		}
 	}
+
+		public String botLine() {
+			if(botThread == null) return "Bot running…";
+			String action = nurgling.widgets.BotsInterruptWidget.currentAction(botThread);
+			if(action == null) action = "(running)";
+			return botThread.getName() + ": " + action;
+		}
 
 		@Override
 		public void resize(Coord sz) {
@@ -437,6 +497,8 @@ public class Window extends Widget {
 					parent.hide();
 				}
 			});
+			// No hover tooltip; the action line is rendered above the gear.
+			cancelb.tooltip = null;
 			cancelb.hide();
 		}
 	}
