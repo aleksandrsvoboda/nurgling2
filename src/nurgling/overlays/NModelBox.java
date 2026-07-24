@@ -210,6 +210,20 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
     String currentDisplayMode = null;
     boolean currentClickable = false;
+    float currentGobScale = 1f;
+
+    /**
+     * Gobs shrunk for display (e.g. hide stockpiles) scale their whole render subtree,
+     * hitbox included. Undo that here so the box keeps showing the real footprint.
+     */
+    private float gobScale() {
+        nurgling.gattrr.NHideStockpileScale s = gob.getattr(nurgling.gattrr.NHideStockpileScale.class);
+        return (s != null && s.scale > 0) ? s.scale : 1f;
+    }
+
+    private Pipe.Op withScale(Pipe.Op mat, float scale) {
+        return (scale == 1f) ? mat : Pipe.Op.compose(mat, Location.scale(1f / scale));
+    }
 
     private void refreshDisplay() {
         if (!isVisible || slot == null) return;
@@ -219,6 +233,7 @@ public class NModelBox extends Sprite implements RenderTree.Node {
         String mode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
         if (mode == null) mode = "FILLED";
         boolean clickable = gob.ngob.natureHidden;
+        float scale = gobScale();
 
         for (RenderTree.Node n : nodes) {
             try {
@@ -227,10 +242,10 @@ public class NModelBox extends Sprite implements RenderTree.Node {
                     hidePol.updateMaterials(mode, clickable);
 
                     if (mode.equals("FILLED") || mode.equals("FILLED_ALWAYS")) {
-                        slot.add(hidePol.emod, hidePol.emat);
-                        slot.add(hidePol.lmod, hidePol.lmat);
+                        slot.add(hidePol.emod, withScale(hidePol.emat, scale));
+                        slot.add(hidePol.lmod, withScale(hidePol.lmat, scale));
                     } else if (mode.equals("OUTLINE") || mode.equals("OUTLINE_ALWAYS")) {
-                        slot.add(hidePol.lmod, hidePol.lmat);
+                        slot.add(hidePol.lmod, withScale(hidePol.lmat, scale));
                     }
                 }
             } catch (RenderTree.SlotRemoved e) {
@@ -260,6 +275,11 @@ public class NModelBox extends Sprite implements RenderTree.Node {
         }
         if (clickable != currentClickable) {
             currentClickable = clickable;
+            needsRefresh = true;
+        }
+        float scale = gobScale();
+        if (scale != currentGobScale) {
+            currentGobScale = scale;
             needsRefresh = true;
         }
         if (needsRefresh && isVisible) {

@@ -64,6 +64,8 @@ public class QoL extends Panel {
     private TextEntry treeScaleMinThresholdEntry;
     private HSlider treeDisplayScaleSlider;
     private Label treeDisplayScaleLabel;
+    private HSlider hideStockpileScaleSlider;
+    private Label hideStockpileScaleLabel;
 
     private Dropbox<String> preferredSpeedDropbox;
     private Dropbox<String> preferredHorseSpeedDropbox;
@@ -144,8 +146,19 @@ public class QoL extends Panel {
         leftPrev = shortWalls = leftColumn.add(new CheckBox(L10n.get("qol.short_walls")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = decalsOnTop = leftColumn.add(new CheckBox(L10n.get("qol.decals_on_top")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = thinOutlines = leftColumn.add(new CheckBox(L10n.get("qol.thin_outlines")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = leftColumn.add(new Label(L10n.get("qol.hide_stockpile_scale")), leftPrev.pos("bl").adds(10, 3));
+        {
+            hideStockpileScaleLabel = new Label("50%");
+            hideStockpileScaleSlider = new HSlider(UI.scale(150), 25, 100, 50) {
+                public void changed() {
+                    hideStockpileScaleLabel.settext(String.format("%d%%", this.val));
+                }
+            };
+            leftColumn.addhlp(leftPrev.pos("bl").adds(0, 2), UI.scale(5), hideStockpileScaleSlider, hideStockpileScaleLabel);
+            leftPrev = hideStockpileScaleSlider;
+        }
 
-        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.tree_growth")), leftPrev.pos("bl").adds(0, 15));
+        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.tree_growth")), leftPrev.pos("bl").adds(-10, 15));
         leftPrev = treeScaleDisableZoomHide = leftColumn.add(new CheckBox(L10n.get("qol.tree_always_show")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_min_threshold")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = treeScaleMinThresholdEntry = leftColumn.add(new TextEntry.NumberValue(50, "0"), leftPrev.pos("bl").adds(0, 5));
@@ -403,6 +416,14 @@ public class QoL extends Panel {
         treeDisplayScaleSlider.val = treeScaleValue;
         treeDisplayScaleLabel.settext(String.format("%d%%", treeScaleValue));
 
+        Object hideStockpilePref = NConfig.get(NConfig.Key.hideStockpileScale);
+        int hideStockpileValue = 50;
+        if (hideStockpilePref instanceof Number) {
+            hideStockpileValue = ((Number) hideStockpilePref).intValue();
+        }
+        hideStockpileScaleSlider.val = hideStockpileValue;
+        hideStockpileScaleLabel.settext(String.format("%d%%", hideStockpileValue));
+
         Object minThreshold = NConfig.get(NConfig.Key.treeScaleMinThreshold);
         treeScaleMinThresholdEntry.settext(minThreshold == null ? "0" : minThreshold.toString());
 
@@ -626,6 +647,16 @@ public class QoL extends Panel {
             rebuildTreeScale();
         }
 
+        int oldHideStockpileScale = 50;
+        Object oldHideStockpileScaleObj = NConfig.get(NConfig.Key.hideStockpileScale);
+        if (oldHideStockpileScaleObj instanceof Number) {
+            oldHideStockpileScale = ((Number) oldHideStockpileScaleObj).intValue();
+        }
+        NConfig.set(NConfig.Key.hideStockpileScale, hideStockpileScaleSlider.val);
+        if (oldHideStockpileScale != hideStockpileScaleSlider.val) {
+            rebuildHideStockpiles();
+        }
+
         int minThreshold = parseIntOrDefault(treeScaleMinThresholdEntry.text(), 0);
         NConfig.set(NConfig.Key.treeScaleMinThreshold, minThreshold);
 
@@ -713,6 +744,30 @@ public class QoL extends Panel {
                         gob.setattr(new nurgling.gattrr.NTreeDisplayScale(gob, scale / 100.0f));
                     } else {
                         gob.delattr(nurgling.gattrr.NTreeDisplayScale.class);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Applies a changed hide-stockpile display size to every hide stockpile already in view.
+     */
+    private void rebuildHideStockpiles() {
+        if(NUtils.getGameUI() == null || NUtils.getGameUI().ui == null || NUtils.getGameUI().ui.sess == null) {
+            return;
+        }
+        int scale = hideStockpileScaleSlider.val;
+        OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
+        synchronized(oc) {
+            for(Gob gob : oc) {
+                if(gob != null && gob.ngob != null && gob.ngob.name != null
+                    && gob.ngob.name.equals(nurgling.NGob.HIDE_STOCKPILE_RES)) {
+                    gob.ngob.updateConfigCache(true);
+                    if(scale < 100) {
+                        gob.setattr(new nurgling.gattrr.NHideStockpileScale(gob, scale / 100.0f));
+                    } else {
+                        gob.delattr(nurgling.gattrr.NHideStockpileScale.class);
                     }
                 }
             }
