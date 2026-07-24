@@ -959,6 +959,7 @@ public class Widget {
 
     public static class TickEvent extends Event {
 	public final double dt;
+	public boolean visible = true;
 
 	public TickEvent(double dt) {
 	    this.dt = dt;
@@ -970,6 +971,17 @@ public class Widget {
 		dispatch(wdg);
 	    }
 	    return(true);
+	}
+
+	public boolean dispatch(Widget w) {
+	    boolean pv = visible;
+	    try {
+		if(!w.visible)
+		    visible = false;
+		return(super.dispatch(w));
+	    } finally {
+		visible = pv;
+	    }
 	}
 
 	protected boolean shandle(Widget w) {
