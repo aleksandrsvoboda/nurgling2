@@ -16,6 +16,7 @@ import haven.res.ui.obj.buddy.Buddy;
 import haven.BuddyWnd;
 import monitoring.NGlobalSearchItems;
 import nurgling.gattrr.NCustomScale;
+import nurgling.gattrr.NHideStockpileScale;
 import nurgling.gattrr.NTreeDisplayScale;
 import nurgling.overlays.*;
 import nurgling.overlays.NSpeedometerOverlay;
@@ -69,6 +70,7 @@ public class NGob
         "gfx/kritter/reindeer/reindeer", "gfx/kritter/sheep/sheep"
     );
     private static final NAlias WALL_TRELLIS_ALIAS = new NAlias("wall", "trellis");
+    public static final String HIDE_STOCKPILE_RES = "gfx/terobjs/stockpile-hide";
     private static final NAlias BORKA_ALIAS = new NAlias("borka");
     private static final NAlias PLANTS_ALIAS = new NAlias("plants");
     private static final NAlias GARDEN_POT_ALIAS = new NAlias("gardenpot");
@@ -88,6 +90,7 @@ public class NGob
     private boolean cachedQuestNotified = false;
     private boolean cachedLpassistent = false;
     private int cachedTreeDisplayScale = 100;
+    private int cachedHideStockpileScale = 100;
     private int configCacheCounter = 0;
     private static final int CONFIG_CACHE_INTERVAL = 30;
     
@@ -170,6 +173,7 @@ public class NGob
             cachedQuestNotified = (Boolean) NConfig.get(NConfig.Key.questNotified);
             cachedLpassistent = (Boolean) NConfig.get(NConfig.Key.lpassistent);
             cachedTreeDisplayScale = ((Number) NConfig.get(NConfig.Key.treeDisplayScale)).intValue();
+            cachedHideStockpileScale = ((Number) NConfig.get(NConfig.Key.hideStockpileScale)).intValue();
             configCacheCounter = 1;
         }
     }
@@ -559,6 +563,20 @@ public class NGob
         }
     }
 
+    private void updateHideStockpileScale() {
+        if (name == null || !name.equals(HIDE_STOCKPILE_RES))
+            return;
+        if (cachedHideStockpileScale < 100) {
+            float s = cachedHideStockpileScale / 100.0f;
+            NHideStockpileScale existing = parent.getattr(NHideStockpileScale.class);
+            if (existing == null || existing.scale != s)
+                parent.setattr(new NHideStockpileScale(parent, s));
+        } else {
+            if (parent.getattr(NHideStockpileScale.class) != null)
+                parent.delattr(NHideStockpileScale.class);
+        }
+    }
+
     /**
      * Checks if temporary ring should be added (for objects without GobIcon)
      */
@@ -636,6 +654,7 @@ public class NGob
                 checkTempRing();
                 updateTreeHarvestOverlay(drawable);
                 updateTreeDisplayScale();
+                updateHideStockpileScale();
             }
 
             if (drawable.getres().getLayers() != null)
