@@ -45,10 +45,13 @@ public class BeetrootFarmerQ implements Action {
                     new NAlias("plants/beet"),
                     true
             ).run(gui);
-            if (beetrootLeavesArea != null)
-                new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), beetrootLeavesArea.getRCArea(), new NAlias("beetleaves", "Beetroot Leaves")).run(gui);
-
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/beet"), new NAlias("Beetroot"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), beetrootLeavesArea.getRCArea(), new NAlias("beetleaves", "Beetroot Leaves")),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/beet"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Beetroot"), NContext.findSpec(trough)).run(gui);

@@ -36,7 +36,7 @@ public class TurnipsFarmerQ implements Action {
                     true
             ).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/turnip"), new NAlias("Turnip"), true).run(gui);
+            SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/turnip")).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Turnip"), NContext.findSpec(trough)).run(gui);

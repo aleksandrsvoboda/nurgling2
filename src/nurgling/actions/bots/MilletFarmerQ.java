@@ -45,9 +45,13 @@ public class MilletFarmerQ implements Action {
                     new NAlias("plants/millet"),
                     true
             ).run(gui);
-            if (strawArea != null)
-                new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/millet"), new NAlias("Millet"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), strawArea.getRCArea(), new NAlias("straw", "Straw")),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/millet"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Millet"), NContext.findSpec(trough)).run(gui);

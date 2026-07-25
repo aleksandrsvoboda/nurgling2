@@ -24,9 +24,6 @@ public class SeedCrop implements Action {
     final NArea vegArea;
 
     final NAlias crop;
-    // iseed is only used by the quality-grid path; the regular path derives its
-    // planting material(s) from CropRegistry.
-    final NAlias iseed;
 
     boolean isQualityGrid = false;
 
@@ -67,17 +64,12 @@ public class SeedCrop implements Action {
         this.seed = seed;
         this.crop = crop;
         this.vegArea = vegArea;
-        this.iseed = null;
     }
 
-    // Quality-grid planting (plants individual high-quality items from a container).
-    public SeedCrop(NArea field, NArea seed, NAlias crop, NAlias iseed, boolean isQualityGrid) {
-        this.field = field;
-        this.seed = seed;
-        this.crop = crop;
-        this.iseed = iseed;
-        this.isQualityGrid = isQualityGrid;
-        this.vegArea = seed;
+    public static SeedCrop forQualityGrid(NArea field, NArea seed, NAlias crop) {
+        SeedCrop action = new SeedCrop(field, seed, crop, seed);
+        action.isQualityGrid = true;
+        return action;
     }
 
 
@@ -364,6 +356,12 @@ public class SeedCrop implements Action {
     }
 
     private void seedForQuality(NGameUI gui) throws InterruptedException {
+        NAlias plantingMaterials = CropRegistry.getQualityPlantingMaterials(crop);
+        if (plantingMaterials.keys.isEmpty()) {
+            gui.error("No registered planting materials for quality seeding!");
+            throw new InterruptedException();
+        }
+
         int[] seedingPattern = getQualitySeedingPattern();
         int patX = seedingPattern[0];
         int patY = seedingPattern[1];
@@ -401,7 +399,7 @@ public class SeedCrop implements Action {
 
         // 3. Get all seeds in the container
         new OpenTargetContainer(container).run(gui);
-        ArrayList<WItem> seeds = gui.getInventory(container.cap).getItems(iseed);
+        ArrayList<WItem> seeds = gui.getInventory(container.cap).getItems(plantingMaterials);
 
         int canSeedCells = getSeedingCapacity(seeds);
 
@@ -413,9 +411,24 @@ public class SeedCrop implements Action {
         int fetchCount = Math.min(seeds.size(), gui.getInventory().getFreeSpace());
 
         // 4. Fetch top seeds to inventory
-        new TakeAvailableItemsFromContainer(container, iseed, fetchCount, NInventory.QualityType.High).run(gui);
+        new TakeAvailableItemsFromContainer(
+                container,
+                plantingMaterials,
+                fetchCount,
+                NInventory.QualityType.High
+        ).run(gui);
 
-        List<WItem> plantingOrder = getPlantingOrder(NUtils.getGameUI().getInventory().getItems(iseed), toSeed.size());
+        List<WItem> inventoryMaterials = NUtils.getGameUI().getInventory().getItems(plantingMaterials);
+        List<WItem> plantingOrder = QualityPlantingContract.plan(
+                describePlantingMaterials(inventoryMaterials),
+                plantingMaterials,
+                toSeed.size(),
+                5
+        );
+        if (plantingOrder.size() < toSeed.size()) {
+            gui.error("Not enough valid planting materials after fetching from container!");
+            throw new InterruptedException();
+        }
 
         // 5. Seed just those x*y tiles, individually
         for (int i = 0; i < toSeed.size(); i++) {
@@ -553,41 +566,18 @@ public class SeedCrop implements Action {
         return totalCells;
     }
 
-    private List<WItem> getPlantingOrder(List<WItem> seeds, int tilesToPlant) {
-        List<WItem> order = new ArrayList<>();
-        int planted = 0;
-
-        List<Integer> amounts = new ArrayList<>();
-        for (WItem item : seeds) {
-            int amt = -1;
-            List<ItemInfo> infoList = item.item.info;
-            if (infoList != null) {
-                for (ItemInfo info : infoList) {
-                    if (info instanceof GItem.Amount) {
-                        amt = ((GItem.Amount) info).itemnum();
-                        break;
-                    }
-                }
-            }
-            amounts.add(amt);
-        }
-
-        for (int i = 0; i < seeds.size() && planted < tilesToPlant; i++) {
-            WItem item = seeds.get(i);
-            int amt = amounts.get(i);
-
-            if (amt == -1) {
-                order.add(item);
-                planted++;
+    private List<QualityPlantingContract.Material<WItem>> describePlantingMaterials(List<WItem> items) {
+        List<QualityPlantingContract.Material<WItem>> materials = new ArrayList<>();
+        for (WItem item : items) {
+            String name = ((NGItem) item.item).name();
+            GItem.Amount amount = ((NGItem) item.item).getInfo(GItem.Amount.class);
+            if (amount == null) {
+                materials.add(QualityPlantingContract.Material.individual(item, name));
             } else {
-                while (amt >= 5 && planted < tilesToPlant) {
-                    order.add(item);
-                    amt -= 5;
-                    planted++;
-                }
+                materials.add(QualityPlantingContract.Material.stack(item, name, amount.itemnum()));
             }
         }
-        return order;
+        return materials;
     }
 
     private boolean isTileFreeForSeeding(Area.Tile tile, boolean ignoreStraw) {

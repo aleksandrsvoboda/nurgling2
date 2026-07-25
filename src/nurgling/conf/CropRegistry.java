@@ -1,6 +1,7 @@
 package nurgling.conf;
 
 import nurgling.tools.NAlias;
+import nurgling.tools.NExactAlias;
 
 import java.util.*;
 
@@ -44,6 +45,20 @@ public class CropRegistry {
                 return stage;
         }
         return null;
+    }
+
+    /**
+     * Exact item names that can plant the crop in a quality grid.
+     *
+     * <p>Quality farmers must not use a loose crop-name alias here: "Hemp",
+     * for example, also matches the non-plantable "Hemp Fibres".</p>
+     */
+    public static NAlias getQualityPlantingMaterials(NAlias crop) {
+        Set<String> names = new LinkedHashSet<>();
+        for (CropStage stage : getStages(crop)) {
+            names.addAll(stage.result.keys);
+        }
+        return new NExactAlias(new ArrayList<>(names));
     }
 
     static {

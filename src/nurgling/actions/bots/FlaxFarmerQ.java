@@ -45,9 +45,13 @@ public class FlaxFarmerQ implements Action {
                     new NAlias("plants/flax"),
                     true
             ).run(gui);
-            if (flaxFibersArea != null)
-                new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), flaxFibersArea.getRCArea(), new NAlias("flaxfibre", "Flax Fibres")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/flax"), new NAlias("Flax"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), flaxFibersArea.getRCArea(), new NAlias("flaxfibre", "Flax Fibres")),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/flax"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Flax"), NContext.findSpec(trough)).run(gui);

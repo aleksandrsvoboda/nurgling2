@@ -47,10 +47,13 @@ public class PumpkinFarmerQ implements Action {
                     true
             ).run(gui);
 
-            if (pumpkinFleshArea != null)
-                new LettuceAndPumpkinCollector(NContext.findSpec(cropQ), NContext.findSpec(seedQ), pumpkinFleshArea, new NAlias(Arrays.asList("items/pumpkin", "Pumpkin"), Arrays.asList("plants", "seed", "flesh")), null, true).run(gui);
-
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pumpkin"), new NAlias("Pumpkin"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new LettuceAndPumpkinCollector(NContext.findSpec(cropQ), NContext.findSpec(seedQ), pumpkinFleshArea, new NAlias(Arrays.asList("items/pumpkin", "Pumpkin"), Arrays.asList("plants", "seed", "flesh")), null, true),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/pumpkin"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Pumpkin"), NContext.findSpec(trough)).run(gui);

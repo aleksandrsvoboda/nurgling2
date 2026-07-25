@@ -45,9 +45,13 @@ public class GreenKaleFarmerQ implements Action {
                     new NAlias("plants/greenkale"),
                     true
             ).run(gui);
-            if (greenKale != null)
-                new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), greenKale.getRCArea(), new NAlias("items/greenkale", "Green Kale")).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/greenkale"), new NAlias("Green Kale"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), greenKale.getRCArea(), new NAlias("items/greenkale", "Green Kale")),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/greenkale"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Green Kale"), NContext.findSpec(trough)).run(gui);

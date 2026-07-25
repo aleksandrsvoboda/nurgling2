@@ -45,9 +45,13 @@ public class LettuceFarmerQ implements Action {
                     new NAlias("plants/lettuce"),
                     true
             ).run(gui);
-            if (lettuceLeafArea != null)
-                new LettuceAndPumpkinCollector(NContext.findSpec(cropQ), NContext.findSpec(seedQ), lettuceLeafArea, new NAlias("items/lettucehead", "Head of Lettuce"), null, true).run(gui);
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/lettuce"), new NAlias("Lettuce"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new LettuceAndPumpkinCollector(NContext.findSpec(cropQ), NContext.findSpec(seedQ), lettuceLeafArea, new NAlias("items/lettucehead", "Head of Lettuce"), null, true),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/lettuce"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Lettuce"), NContext.findSpec(trough)).run(gui);

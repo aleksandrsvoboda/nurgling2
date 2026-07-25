@@ -46,10 +46,13 @@ public class LeekFarmerQ implements Action {
                     true
             ).run(gui);
 
-            if (leekArea != null)
-                new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), leekArea.getRCArea(), new NAlias("items/leek")).run(gui);
-
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/leek"), new NAlias("Leek"), true).run(gui);
+            if (!new QualityFarmerCycleContract(
+                    new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), leekArea.getRCArea(), new NAlias("items/leek")),
+                    SeedCrop.forQualityGrid(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/leek"))
+            ).run(gui).IsSuccess()) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.FAIL();
+            }
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
                 new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Leek"), NContext.findSpec(trough)).run(gui);
