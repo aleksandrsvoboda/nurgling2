@@ -17,7 +17,15 @@ public class BotDescriptor {
     public final Class<? extends Action> clazz;
     public final String iconPath;
     public final boolean disStacks;
+    public final StackMode stackMode;
     public final Map<String, Object> defaultSettings;
+
+    /** What a bot needs inventory stacking to be while it runs. */
+    public enum StackMode {
+        UNCHANGED,
+        ENABLED,
+        DISABLED
+    }
 
     public enum BotType {
         RESOURCES,
@@ -36,6 +44,15 @@ public class BotDescriptor {
     }
 
     public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, boolean disStacks, Map<String, Object> defaultSettings) {
+        this(id, type, titleKey, descriptionKey, allowedAsStepInScenario, allowedAsItemInBotMenu, clazz, iconPath,
+                disStacks ? StackMode.DISABLED : StackMode.UNCHANGED, defaultSettings);
+    }
+
+    public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, StackMode stackMode) {
+        this(id, type, titleKey, descriptionKey, allowedAsStepInScenario, allowedAsItemInBotMenu, clazz, iconPath, stackMode, Map.of());
+    }
+
+    public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, StackMode stackMode, Map<String, Object> defaultSettings) {
         this.id = id;
         this.type = type;
         this.titleKey = titleKey;
@@ -44,7 +61,8 @@ public class BotDescriptor {
         this.allowedAsItemInBotMenu = allowedAsItemInBotMenu;
         this.clazz = clazz;
         this.iconPath = iconPath;
-        this.disStacks = disStacks;
+        this.stackMode = stackMode;
+        this.disStacks = stackMode == StackMode.DISABLED;
         this.defaultSettings = defaultSettings;
     }
 

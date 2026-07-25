@@ -14,6 +14,8 @@ public class FarmingSettingsPanel extends Panel {
     private CheckBox validateAllCropsBeforeHarvestCheck;
     private CheckBox skipButcherInKFCCheck;
     private CheckBox skipPluckingCocksInKFCCheck;
+    private CheckBox skipButcherInDucksCheck;
+    private CheckBox skipPluckingDrakesInDucksCheck;
 
     public FarmingSettingsPanel() {
         super(L10n.get("farming.title"));
@@ -94,6 +96,24 @@ public class FarmingSettingsPanel extends Panel {
         add(skipPluckingCocksInKFCCheck, new Coord(margin, y));
         y += UI.scale(28);
 
+        skipButcherInDucksCheck = new CheckBox(L10n.get("farming.skip_butcher_ducks")) {
+            public void set(boolean val) {
+                a = val;
+            }
+        };
+
+        add(skipButcherInDucksCheck, new Coord(margin, y));
+        y += UI.scale(28);
+
+        skipPluckingDrakesInDucksCheck = new CheckBox(L10n.get("farming.skip_pluck_drakes_ducks")) {
+            public void set(boolean val) {
+                a = val;
+            }
+        };
+
+        add(skipPluckingDrakesInDucksCheck, new Coord(margin, y));
+        y += UI.scale(28);
+
         add(new Label(L10n.get("farming.pattern_x")), new Coord(margin, y));
         y += UI.scale(24);
 
@@ -144,6 +164,12 @@ public class FarmingSettingsPanel extends Panel {
         Boolean skipPluckCocks = (Boolean) NConfig.get(NConfig.Key.skipPluckingCocksInKFC);
         skipPluckingCocksInKFCCheck.a = skipPluckCocks != null && skipPluckCocks;
 
+        Boolean skipButcherDucks = (Boolean) NConfig.get(NConfig.Key.skipButcherInDucks);
+        skipButcherInDucksCheck.a = skipButcherDucks != null && skipButcherDucks;
+
+        Boolean skipPluckDrakes = (Boolean) NConfig.get(NConfig.Key.skipPluckingDrakesInDucks);
+        skipPluckingDrakesInDucksCheck.a = skipPluckDrakes != null && skipPluckDrakes;
+
         String pat = (String) NConfig.get(NConfig.Key.qualityGrindSeedingPatter);
         if (pat == null || !pat.matches("\\d+x\\d+")) pat = "3x3";
         String[] parts = pat.split("x");
@@ -161,6 +187,8 @@ public class FarmingSettingsPanel extends Panel {
         NConfig.set(NConfig.Key.validateAllCropsBeforeHarvest, validateAllCropsBeforeHarvestCheck.a);
         NConfig.set(NConfig.Key.skipButcherInKFC, skipButcherInKFCCheck.a);
         NConfig.set(NConfig.Key.skipPluckingCocksInKFC, skipPluckingCocksInKFCCheck.a);
+        NConfig.set(NConfig.Key.skipButcherInDucks, skipButcherInDucksCheck.a);
+        NConfig.set(NConfig.Key.skipPluckingDrakesInDucks, skipPluckingDrakesInDucksCheck.a);
         String xVal = xEntry.text();
         String yVal = yEntry.text();
         if (!xVal.matches("\\d+")) xVal = "3";

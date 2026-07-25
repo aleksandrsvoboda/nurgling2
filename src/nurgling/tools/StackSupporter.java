@@ -41,6 +41,7 @@ public class StackSupporter {
         customStackSizes.put("Cattail Roots", 4);
         customStackSizes.put("Heartwood Leaves", 4);
         customStackSizes.put("Oyster", 4);
+        customStackSizes.put("Duck Egg", 3);
 
         putAll(3,
                 "Tuber", "Onion", "Beetroot", "Carrot", "Cucumber",
@@ -71,7 +72,7 @@ public class StackSupporter {
                 "Entrails", "Feather", "Fine Feather", " Meat",
                 "Raw Meat", "Bollock", "Filet of ", "Raw Chevon",
                 "Raw Beef", "Raw Mutton", "Raw Pork", "Raw Horsemeat",
-                "Raw ", "Crab Meat", "Poultry", "Soil", "Mulch", "Nuts"
+                "Raw ", "Crab Meat", "Poultry", "Soil", "Mulch", "Nuts", "Branch"
         );
 
         putAll(10,

@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.*;
 import nurgling.actions.Action;
 import nurgling.actions.ActionWithFinal;
+import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.conf.*;
 import nurgling.sessions.BotExecutor;
 import java.awt.*;
@@ -47,7 +48,7 @@ public class NRecentActionsPanel extends Widget {
             }
             
             // Create new recent action
-            RecentAction newAction = new RecentAction(pagina, null, resourceName, null);
+            RecentAction newAction = new RecentAction(pagina, null, resourceName, null, BotDescriptor.StackMode.UNCHANGED);
             
             // Remove duplicate if it exists
             recentActions.removeIf(action -> action.resourceName.equals(resourceName));
@@ -72,11 +73,19 @@ public class NRecentActionsPanel extends Widget {
      * Adds a bot action to the recent actions stack
      */
     public synchronized void addBotAction(String botPath, Action botAction) {
+        addBotAction(botPath, botAction, BotDescriptor.StackMode.UNCHANGED);
+    }
+
+    /**
+     * Adds a bot action to the recent actions stack, remembering the stacking mode it
+     * needs so re-running it from the panel behaves like running it from the bot menu.
+     */
+    public synchronized void addBotAction(String botPath, Action botAction, BotDescriptor.StackMode stackMode) {
         if (botPath == null || botAction == null) return;
-        
+
         try {
             // Create new recent action for bot
-            RecentAction newAction = new RecentAction(null, botAction, botPath, botPath);
+            RecentAction newAction = new RecentAction(null, botAction, botPath, botPath, stackMode);
             
             // Remove duplicate if it exists
             recentActions.removeIf(action -> action.resourceName.equals(botPath));
@@ -143,13 +152,15 @@ public class NRecentActionsPanel extends Widget {
         final Action botAction;
         final String resourceName;
         final String botPath;
+        final BotDescriptor.StackMode stackMode;
         final BufferedImage icon;
-        
-        RecentAction(MenuGrid.Pagina pagina, Action botAction, String resourceName, String botPath) {
+
+        RecentAction(MenuGrid.Pagina pagina, Action botAction, String resourceName, String botPath, BotDescriptor.StackMode stackMode) {
             this.pagina = pagina;
             this.botAction = botAction;
             this.resourceName = resourceName != null ? resourceName : "";
             this.botPath = botPath;
+            this.stackMode = stackMode;
             this.icon = createIcon(pagina, botPath);
         }
         
@@ -235,7 +246,7 @@ public class NRecentActionsPanel extends Widget {
             super(BUTTON_SIZE);
             
             // Create empty action for null slots
-            this.recentAction = (action != null) ? action : new RecentAction(null, null, "", null);
+            this.recentAction = (action != null) ? action : new RecentAction(null, null, "", null, BotDescriptor.StackMode.UNCHANGED);
             
             // Create IButton with the action's icon (already a BufferedImage)
             this.button = new IButton(this.recentAction.icon, this.recentAction.icon, this.recentAction.icon) {
@@ -263,7 +274,7 @@ public class NRecentActionsPanel extends Widget {
                                     ((ActionWithFinal) recentAction.botAction).endAction();
                                 }
                             };
-                            BotExecutor.runWithSupports(recentAction.botPath + "-RecentAction", recentAction.botAction, false, onComplete);
+                            BotExecutor.runWithSupports(recentAction.botPath + "-RecentAction", recentAction.botAction, recentAction.stackMode, onComplete);
                         }
                     } catch (Exception e) {
                         // Silently ignore errors in action execution

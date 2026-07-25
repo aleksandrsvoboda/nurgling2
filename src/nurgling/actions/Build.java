@@ -8,6 +8,7 @@ import nurgling.NISBox;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
+import nurgling.conf.ConstructionMaterialsRegistry;
 import nurgling.overlays.BuildGhostPreview;
 import nurgling.tasks.*;
 import nurgling.tools.*;
@@ -592,7 +593,7 @@ public class Build implements Action
                     // No containers, try stockpiles
                     while (ingredient.count != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord) != 0)
                     {
-                        ArrayList<Gob> piles = Finder.findGobs(ingredientArea, new NAlias("stockpile"));
+                        ArrayList<Gob> piles = Finder.findGobs(ingredientArea, ConstructionMaterialsRegistry.getStockpileName(ingredient.name));
                         if (piles.isEmpty())
                         {
                             if (NUtils.getGameUI().getInventory().getItems(ingredient.name).size() != ingredient.count)
