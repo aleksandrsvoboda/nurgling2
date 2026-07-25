@@ -161,6 +161,19 @@ public class NWItem extends WItem
         if (!props.containsKey(name)) return;
         int threshold = props.get(name);
 
+        // No threshold configured -> the user wants every item of this name
+        // gone, whatever its quality. Drop it as a whole, which also covers a
+        // stack container (dropping the container drops the whole stack, which
+        // is exactly what "drop all of these" means) and items whose quality
+        // never resolves. No quality is needed, so nothing can stall here.
+        if (threshold == DropContainer.ALWAYS) {
+            if (ngitem.autodropRequested) return;
+            if (!autodropAllowed()) return;
+            ngitem.autodropRequested = true;
+            NUtils.drop(this);
+            return;
+        }
+
         // Stack container: trim only the sub-threshold items out of the stack
         // instead of dropping the whole thing. The container itself carries no
         // quality (quality lives on each stacked child), so dropping it would

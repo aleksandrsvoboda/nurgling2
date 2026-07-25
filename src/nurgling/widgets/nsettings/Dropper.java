@@ -22,7 +22,10 @@ public class Dropper extends Panel {
 
     @Override
     public void save() {
-        NConfig.set(NConfig.Key.dropConf, dc.getDropJson());
+        // Store a snapshot, never the panel's live array: the panel mutates its
+        // own copy on every load/add/delete, and sharing it with NConfig wiped
+        // the saved drop list the next time this panel was opened.
+        NConfig.set(NConfig.Key.dropConf, dc.getDropJsonCopy());
         DropContainer.invalidateCache();
     }
 

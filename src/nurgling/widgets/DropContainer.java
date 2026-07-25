@@ -22,11 +22,44 @@ public class DropContainer extends BaseIngredientContainer {
         super("drop");
     }
 
-    public JSONArray getDropJson() {
-        return jitems;
-    }
+    /**
+     * Threshold value meaning "drop every item with this name, whatever its
+     * quality". This is what an entry with no explicit "th" means: the user
+     * dragged the item in and never set a number, so they want all of them
+     * gone. (The old default of 1 meant "drop only below q1", i.e. never.)
+     */
+    public static final int ALWAYS = Integer.MAX_VALUE;
 
     private static volatile HashMap<String, Integer> cachedProps = null;
+
+    /**
+     * Deep copy so the panel and the config never share mutable JSON. Sharing
+     * them let an in-place edit on one side silently rewrite the other -- which
+     * is how the saved drop list used to get wiped on the next panel load.
+     */
+    private static JSONArray copyOf(JSONArray src) {
+        JSONArray dst = new JSONArray();
+        for (int i = 0; i < src.length(); i++) {
+            Object o = src.get(i);
+            dst.put(o instanceof JSONObject ? new JSONObject(o.toString()) : o);
+        }
+        return dst;
+    }
+
+    private static JSONArray readStored() {
+        Object stored = NConfig.getGlobal(NConfig.Key.dropConf);
+        if (stored instanceof JSONArray) {
+            return copyOf((JSONArray) stored);
+        } else if (stored != null) {
+            return new JSONArray((ArrayList<HashMap<String, Object>>) stored);
+        }
+        return new JSONArray();
+    }
+
+    /** Snapshot of the panel's list, safe to hand to NConfig. */
+    public JSONArray getDropJsonCopy() {
+        return copyOf(jitems);
+    }
 
     public static HashMap<String, Integer> getDropProps() {
         HashMap<String, Integer> cached = cachedProps;
@@ -36,21 +69,15 @@ public class DropContainer extends BaseIngredientContainer {
         // disk), not the session-resolved one. A per-session config instance can
         // transiently serve an empty dropConf even while the on-disk value is
         // intact, which would otherwise wipe autodrop until the next restart.
-        Object stored = NConfig.getGlobal(NConfig.Key.dropConf);
-        JSONArray data;
-        if (stored instanceof JSONArray) {
-            data = new JSONArray((JSONArray) stored);
-        } else if (stored != null) {
-            data = new JSONArray((ArrayList<HashMap<String,Object>>) stored);
-        } else {
-            data = new JSONArray();
-        }
+        JSONArray data = readStored();
 
         HashMap<String, Integer> props = new HashMap<>();
         for (int i = 0; i < data.length(); i++) {
             JSONObject jsonObject = ((JSONObject)data.get(i));
             String name = jsonObject.getString("name");
-            props.put(name,jsonObject.has("th")?jsonObject.getInt("th"):1 );
+            // No threshold (or a cleared one) means "always drop this item".
+            int th = jsonObject.has("th") ? jsonObject.getInt("th") : ALWAYS;
+            props.put(name, th > 0 ? th : ALWAYS);
         }
         // Never cache an empty result: a one-off empty read (e.g. before the
         // config has loaded) must not poison the cache for the whole session.
@@ -115,19 +142,15 @@ public class DropContainer extends BaseIngredientContainer {
             it.destroy();
         }
         icons.clear();
-        jitems.clear();
 
         // Read from the global config (the disk-backed instance) so the panel
         // always reflects the real saved list, never a transient empty value
         // from a per-session config instance.
-        Object stored = NConfig.getGlobal(NConfig.Key.dropConf);
-        if (stored instanceof JSONArray) {
-            jitems = new JSONArray((JSONArray) stored);
-        } else if (stored != null) {
-            jitems = new JSONArray((ArrayList<HashMap<String,Object>>) stored);
-        } else {
-            jitems = new JSONArray();
-        }
+        //
+        // Do NOT clear/mutate the old jitems here: after a save it is (or was)
+        // the very array stored in NConfig, so clearing it wiped the saved drop
+        // list. readStored() returns a private deep copy; just replace the field.
+        jitems = readStored();
 
         for (int i = 0; i < jitems.length(); i++) {
             addIcon(((JSONObject) jitems.get(i)));
@@ -154,9 +177,14 @@ public class DropContainer extends BaseIngredientContainer {
 
     public void setThreshold(String name, int val) {
         for(int i = 0; i < jitems.length(); i++) {
-            if(((JSONObject) jitems.get(i)).get("name").equals(name)) {
-                ((JSONObject) jitems.get(i)).put("th",val);
-                NConfig.needAreasUpdate();
+            JSONObject jo = (JSONObject) jitems.get(i);
+            if(jo.get("name").equals(name)) {
+                if (val > 0) {
+                    jo.put("th", val);
+                } else {
+                    // Cleared threshold -> back to "always drop this item".
+                    jo.remove("th");
+                }
                 invalidateCache();
                 return;
             }
