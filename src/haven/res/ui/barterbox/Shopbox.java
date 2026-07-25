@@ -20,7 +20,15 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	qualc = UI.scale(220 + 40, 5).add(invsq.sz()),
 	cbtnc = UI.scale(220, 66),
 	spipec = UI.scale(85, 66),
-	bpipec = UI.scale(300, 66);
+	bpipec = UI.scale(300, 66),
+	cntc = UI.scale(5, 63);
+    /* The stand only ever buys one item per "buy" message, so buying several means
+     * sending it several times. Guards against a mistyped quantity queueing an
+     * absurd number of messages. */
+    public static final int MAXBUY = 500;
+    /* Quantity last typed by the player. The server rebuilds all five boxes every
+     * time the stand is opened, so without this the field would reset to one. */
+    private static int lastqty = 1;
     public ResData res;
     public ItemSpec price;
     public Text num;
@@ -30,7 +38,7 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
     public GSprite spr;
     private Object[] info = {};
     private Button spipe, bpipe, bbtn, cbtn;
-    private TextEntry pnume, pqe;
+    private TextEntry pnume, pqe, cnte;
     public final boolean admin;
 
     public static Widget mkwidget(UI ui, Object... args) {
@@ -50,6 +58,16 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	    pqe = adda(new TextEntry(UI.scale(40), ""), qualc.add(UI.scale(40, 0)), 0.0, 1.0);
 	    pqe.canactivate = true; pqe.dshow = true;
 	}
+	/* Everything else in the box sits either at the icon row or in the button
+	 * strip, leaving the band between them free in both modes -- which is the
+	 * only place this fits without colliding with the owner's pipe and price
+	 * buttons. Bottom-aligned rather than placed at a fixed top, so it clears
+	 * the button strip whatever height the configured button style happens to
+	 * be (Button.hs comes from a swappable image, not a constant). */
+	cnte = adda(new TextEntry(UI.scale(45), Integer.toString(lastqty)), cntc, 0.0, 1.0);
+	cnte.canactivate = true; cnte.dshow = true;
+	cnte.tooltip = "Number of purchases";
+	updbtn();
     }
 
     public abstract class AttrCache<T> {
@@ -214,10 +232,30 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	return(super.mousedown(ev));
     }
 
-    public void wdgmsg(Widget sender, String msg, Object... args) {
-	Integer n;
-	if(sender == bbtn) {
+    private int qty() {
+	Integer n = parsenum(cnte);
+	lastqty = ((n == null) || (n < 1)) ? 1 : n;
+	return(lastqty);
+    }
+
+    /* The server evaluates every "buy" independently, so anything the player
+     * cannot pay for is simply refused. Clamping to the remaining stock keeps the
+     * common case from generating a pile of pointless messages. */
+    private void buy(int n) {
+	if((bbtn == null) || (n < 1))
+	    return;
+	if(leftNum > 0)
+	    n = Math.min(n, leftNum);
+	n = Math.min(n, MAXBUY);
+	for(int i = 0; i < n; i++)
 	    wdgmsg("buy");
+    }
+
+    public void wdgmsg(Widget sender, String msg, Object... args) {
+	if(sender == bbtn) {
+	    buy(qty());
+	} else if(sender == cnte) {
+	    buy(qty());
 	} else if(sender == spipe) {
 	    wdgmsg("spipe");
 	} else if(sender == bpipe) {
@@ -239,6 +277,9 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	    bbtn.reqdestroy();
 	    bbtn = null;
 	}
+	/* Shown rather than recreated, so that a quantity being typed survives the
+	 * price and stock refreshes the server sends. */
+	cnte.show(canbuy);
     }
 
     private static Text rnum(String fmt, int n) {
