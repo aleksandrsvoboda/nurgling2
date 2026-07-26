@@ -64,7 +64,7 @@ public class StackSupporter {
                 "Forageable", "Bug", "Miscellaneous",
                 "Bark", "Shellfish", "Fish Fresh Water", "Fish Ocean",
                 "Fish Cave", "Fish", "Cured Tea", "Stackable Curiosities",
-                "Chitin"
+                "Chitin", "Olive"
         );
 
         putAll(5,
