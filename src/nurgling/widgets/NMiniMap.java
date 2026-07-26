@@ -1971,6 +1971,13 @@ NMiniMap extends MiniMap {
                 NGameUI gui = NUtils.getGameUI();
                 if(gui != null && gui.map != null) {
                     Coord pres = gob.rc.floor(OCache.posres);
+                    // Register this as a real gob click the same way MapView.Click.hit() does for a
+                    // 3D-world click. LpExplorer.recentHarvestClick() gates discovery recording on
+                    // map.clickedGob being a freshly-clicked harvestable gob; the raw wdgmsg below
+                    // goes straight to the server and never touches clickedGob, so without this the
+                    // gate reads whatever stale gob the last 3D click left there - and the harvest
+                    // gets recorded only if that happened to be harvestable and recent.
+                    gui.map.clickedGob = new MapView.ClickedGob(gob, ev.b);
                     // ui.mc (current absolute mouse position) rather than Coord.z, so a resulting
                     // flower menu opens where the cursor actually is - matches what
                     // MiniMap.mvclick() itself falls back to when its own mc param is null.
