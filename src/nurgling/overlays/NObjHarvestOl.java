@@ -106,6 +106,13 @@ public class NObjHarvestOl extends NObjectTexLabel {
     // computeLabel() above (the always-on overlay) and by LpExplorer.getMarkerIcon() (the
     // LP-discovery fallback marker), so the two displays compose icons identically.
     public static TexI compose(boolean horizontal, List<HarvestSpec.Part> parts) {
+        return compose(horizontal, true, parts);
+    }
+
+    // background=false composes the icons over a transparent buffer (no dark backing square) - used
+    // by the minimap markers, which read better as bare icons; the in-world overlays keep the
+    // backing for legibility against terrain.
+    public static TexI compose(boolean horizontal, boolean background, List<HarvestSpec.Part> parts) {
         if (parts.isEmpty())
             return null;
         BufferedImage[] imgs = new BufferedImage[parts.size()];
@@ -113,19 +120,24 @@ public class NObjHarvestOl extends NObjectTexLabel {
             HarvestSpec.Part part = parts.get(i);
             imgs[i] = part.undiscovered ? tint(part.icon, LP_UNDISCOVERED_TINT) : part.icon;
         }
-        BufferedImage combined = catimgshCentered(horizontal, 1, imgs);
+        BufferedImage combined = catimgshCentered(horizontal, background, 1, imgs);
         return combined != null ? new TexI(combined) : null;
     }
 
     // Public so NLPassistant and LpExplorer can frame their own icon(s) in the same style.
     // Vertical (top-to-bottom) layout - the original/default orientation.
     public static BufferedImage catimgshCentered(int margin, BufferedImage... imgs) {
-        return catimgshCentered(false, margin, imgs);
+        return catimgshCentered(false, true, margin, imgs);
     }
 
     // horizontal=true lays icons left-to-right (centered vertically) instead of top-to-bottom
     // (centered horizontally) - e.g. a log's Board+Block read better side by side than stacked.
     public static BufferedImage catimgshCentered(boolean horizontal, int margin, BufferedImage... imgs) {
+        return catimgshCentered(horizontal, true, margin, imgs);
+    }
+
+    // background=false skips the dark backing square, leaving the icons over a transparent buffer.
+    public static BufferedImage catimgshCentered(boolean horizontal, boolean background, int margin, BufferedImage... imgs) {
         int cross = 0, along = -margin;
         int n = 0;
         for (BufferedImage img : imgs) {
@@ -142,8 +154,10 @@ public class NObjHarvestOl extends NObjectTexLabel {
         int h = horizontal ? cross : along;
         BufferedImage ret = TexI.mkbuf(new Coord(w + pad * 2, h + pad * 2));
         Graphics g = ret.getGraphics();
-        g.setColor(TooltipStyle.COLOR_OVERLAY_BG);
-        g.fillRect(0, 0, w + pad * 2, h + pad * 2);
+        if (background) {
+            g.setColor(TooltipStyle.COLOR_OVERLAY_BG);
+            g.fillRect(0, 0, w + pad * 2, h + pad * 2);
+        }
         int pos = pad;
         for (BufferedImage img : imgs) {
             if (img == null) continue;

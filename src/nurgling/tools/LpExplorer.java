@@ -274,14 +274,17 @@ public class LpExplorer {
     // to NObjHarvestOl.compose(), the same step its own always-on overlay uses, so the two
     // displays never drift apart.
     public static TexI getMarkerIcon(Gob gob, List<String> knownUndiscoveredProducts) {
-        return getMarkerIcon(gob, knownUndiscoveredProducts, true);
+        return getMarkerIcon(gob, knownUndiscoveredProducts, true, true);
     }
 
     /**
      * As getMarkerIcon(), but blocking=false never waits on an icon fetch - it composes from
      * whatever is already loaded and returns null if nothing is. For the render thread.
+     * background=false drops the dark backing square (the minimap wants bare icons; the in-world
+     * markers keep the backing for legibility) - it's part of the cache key so the two variants
+     * of the same gob/products don't share one composed image.
      */
-    public static TexI getMarkerIcon(Gob gob, List<String> knownUndiscoveredProducts, boolean blocking) {
+    public static TexI getMarkerIcon(Gob gob, List<String> knownUndiscoveredProducts, boolean blocking, boolean background) {
         if (gob == null || gob.ngob == null)
             return null;
         List<String> products = knownUndiscoveredProducts != null ? knownUndiscoveredProducts : allUndiscoveredProducts(gob);
@@ -289,7 +292,7 @@ public class LpExplorer {
             return null;
 
         String key = gob.ngob.name + '|' + (HarvestState.isYesteryearSeason() ? 'y' : 'n')
-            + '|' + String.join(",", products);
+            + '|' + (background ? 'b' : 't') + '|' + String.join(",", products);
         TexI cached = MARKER_ICON_CACHE.get(key);
         if (cached != null)
             return cached;
@@ -315,7 +318,7 @@ public class LpExplorer {
         // Lay out the same direction the gob's own always-on harvest overlay would (e.g. a log's
         // Board+Block side by side), so the fallback marker and NObjHarvestOl read consistently.
         HarvestSpec spec = HarvestSpecs.forResource(gob.ngob.name);
-        TexI tex = NObjHarvestOl.compose(spec != null && spec.horizontal(), parts);
+        TexI tex = NObjHarvestOl.compose(spec != null && spec.horizontal(), background, parts);
         // Don't memoize while an icon is still in flight - the next call re-composes once it
         // arrives. A permanently-absent icon isn't pending, so that composition does get cached
         // and we stop rebuilding it every frame.

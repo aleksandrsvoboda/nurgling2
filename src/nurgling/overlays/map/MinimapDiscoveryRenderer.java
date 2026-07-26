@@ -40,7 +40,7 @@ public class MinimapDiscoveryRenderer {
             // Non-blocking: an icon that hasn't loaded yet is simply left out of the composition
             // (and the whole marker falls back to a dot if none of them have), rather than parking
             // the render thread on a resource fetch.
-            TexI icon = LpExplorer.getMarkerIcon(marker.gob, marker.products, false);
+            TexI icon = LpExplorer.getMarkerIcon(marker.gob, marker.products, false, false);
             Coord screenPos = map.p2c(marker.gob.rc);
             Coord half = icon != null ? icon.sz().div(2) : fallbackHalf;
             if (screenPos.x < -half.x || screenPos.x > map.sz.x + half.x ||
@@ -62,7 +62,7 @@ public class MinimapDiscoveryRenderer {
     /** Finds the discoverable gob (if any) whose marker is under the given minimap screen coordinate. */
     public static Gob gobAt(MiniMap map, Coord screenCoord) {
         for (Marker marker : discoverable(map)) {
-            TexI icon = LpExplorer.getMarkerIcon(marker.gob, marker.products, false);
+            TexI icon = LpExplorer.getMarkerIcon(marker.gob, marker.products, false, false);
             int threshold = icon != null
                 ? Math.max(icon.sz().x, icon.sz().y) / 2 + UI.scale(3)
                 : UI.scale(FALLBACK_RADIUS_PX + 3);
