@@ -8,7 +8,6 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -245,6 +244,15 @@ public class HarvestState {
 
     /** Resolves a tree/bush species' icon for one harvest category ("seed"/"leaf"/"bough"/"bark"). */
     public static BufferedImage getIcon(Resource res, String type) {
+        return getIcon(res, type, true);
+    }
+
+    /**
+     * As getIcon(), but blocking=false never waits on a resource fetch - it queues the fetch and
+     * throws haven.Loading instead of parking the calling thread on network I/O. Callers on the
+     * render thread must use this; see loadIcon() for why Loading rather than null.
+     */
+    public static BufferedImage getIcon(Resource res, String type, boolean blocking) {
         if (res == null) return null;
         String basename = res.basename();
 
@@ -263,7 +271,7 @@ public class HarvestState {
             resourceName = BARKS_MAP.containsKey(basename) ? BARKS_MAP.get(basename) : "gfx/invobjs/bark";
         }
 
-        return loadIcon(resourceName);
+        return loadIcon(resourceName, blocking);
     }
 
     /**
@@ -286,6 +294,23 @@ public class HarvestState {
     // resolving a non-tree/bush product's icon via VSpec.getIconPath()) that don't have a tree
     // basename/category to go through getIcon() with.
     public static BufferedImage loadIcon(String resourceName) {
+        return loadIcon(resourceName, true);
+    }
+
+    /**
+     * As loadIcon(), but blocking=false throws haven.Loading rather than waiting when the resource
+     * hasn't arrived yet. The fetch is still queued by the load() call, so a later call (next
+     * frame) picks it up - and nothing is cached, since remembering a not-yet-loaded icon as
+     * absent would make it absent forever.
+     *
+     * Loading rather than a null return so callers can tell "not here yet" from "this resource
+     * genuinely doesn't exist", which IS cached as null and is a final answer they can build on.
+     *
+     * The gob-tick paths (NObjHarvestOl / NLPassistant) keep blocking, which is what they always
+     * did; the minimap renderer must not, since it runs on the render thread where a resource
+     * round-trip is a visible freeze.
+     */
+    public static BufferedImage loadIcon(String resourceName, boolean blocking) {
         if (resourceName == null) return null;
 
         Optional<BufferedImage> cached = ICON_CACHE.get(resourceName);
@@ -293,11 +318,19 @@ public class HarvestState {
 
         BufferedImage img;
         try {
-            img = Resource.remote().loadwait(resourceName).flayer(Resource.imgc).img;
-            Coord tsz = resourceName.startsWith("gfx/invobjs/bough-") ? UI.scale(26, 52) : UI.scale(26, 26);
-            img = PUtils.convolvedown(img, tsz, CharWnd.iconfilter);
-        } catch (Exception e) {
-            img = null;
+            Resource res = blocking ? Resource.remote().loadwait(resourceName)
+                                    : Resource.remote().load(resourceName).get();
+            // layer() rather than flayer(): a resource with no image layer is a permanent miss we
+            // want to cache, not a NoSuchLayerException to unwind through the render loop.
+            Resource.Image lay = res.layer(Resource.imgc);
+            if (lay == null) {
+                img = null;
+            } else {
+                Coord tsz = resourceName.startsWith("gfx/invobjs/bough-") ? UI.scale(26, 52) : UI.scale(26, 26);
+                img = PUtils.convolvedown(lay.img, tsz, CharWnd.iconfilter);
+            }
+        } catch (Resource.LoadException e) {
+            img = null;                     // genuinely missing/broken resource - cache the miss
         }
         ICON_CACHE.put(resourceName, Optional.ofNullable(img));
         return img;
@@ -332,25 +365,41 @@ public class HarvestState {
         return unknownIcon;
     }
 
+    // Memoized because this sits in a genuinely hot path: it's consulted once per product per gob
+    // per frame (LpExplorer.isCurrentSeasonProduct/isFullyDiscovered, getIcon, marker cache keys),
+    // and Astronomy.season() allocates a fresh Season[] on every call via values(). A second of
+    // staleness is meaningless for a value that changes a handful of times a year.
+    private static final long SEASON_CHECK_INTERVAL = 1000;
+    private static volatile boolean cachedYesteryearSeason = false;
+    private static volatile long lastSeasonCheck = 0;
+
     // Whether it's currently the off-season (Winter/Spring) that swaps some species' fruit icon
     // for their "Yesteryear's " variant. Defaults to false (normal icon) if the season isn't known
     // yet (e.g. still loading), same fail-safe direction as the rest of this class's Loading handling.
     // Public so LpExplorer can filter its discovery check to the same season-appropriate product.
     public static boolean isYesteryearSeason() {
-        UI ui = NUtils.getUI();
-        if (ui == null || ui.sess == null || ui.sess.glob == null || ui.sess.glob.ast == null)
-            return false;
-        return ui.sess.glob.ast.isYesteryearSeason();
+        long now = System.currentTimeMillis();
+        if (now - lastSeasonCheck > SEASON_CHECK_INTERVAL) {
+            UI ui = NUtils.getUI();
+            cachedYesteryearSeason = (ui != null) && (ui.sess != null) && (ui.sess.glob != null)
+                && (ui.sess.glob.ast != null) && ui.sess.glob.ast.isYesteryearSeason();
+            lastSeasonCheck = now;
+        }
+        return cachedYesteryearSeason;
     }
 
-    private static boolean isSpriteKind(Gob gob, String... kind) {
-        List<String> kinds = Arrays.asList(kind);
+    // Single-kind rather than varargs: the varargs form allocated an array plus an Arrays.asList
+    // wrapper on every call, and this runs per gob per tick through isMatureTreeOrBush().
+    private static boolean isSpriteKind(Gob gob, String kind) {
         Drawable d = gob.getattr(Drawable.class);
         if (d instanceof ResDrawable) {
             Sprite spr = ((ResDrawable) d).spr;
             if (spr == null) throw new Loading();
             Class<?> spc = spr.getClass();
-            return kinds.contains(spc.getSimpleName()) || (spc.getSuperclass() != null && kinds.contains(spc.getSuperclass().getSimpleName()));
+            if (kind.equals(spc.getSimpleName()))
+                return true;
+            Class<?> sup = spc.getSuperclass();
+            return sup != null && kind.equals(sup.getSimpleName());
         }
         return false;
     }

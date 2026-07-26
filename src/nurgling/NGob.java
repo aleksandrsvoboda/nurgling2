@@ -1107,7 +1107,11 @@ public class NGob
                 // NObjHarvestOl handles display itself (tints its own icon(s)) once this gob
                 // type's always-visible harvest overlay is on - don't show a second marker.
                 boolean covered = cachedHarvestSpec != null && Boolean.TRUE.equals(NConfig.get(cachedHarvestSpec.masterToggle()));
-                if (!covered)
+                // Test for an existing marker before running the discovery scan, not after:
+                // addcustomol() discards a duplicate, but only once we've already paid for the
+                // scan and for constructing the marker (which resolves its icon). NLPassistant
+                // takes itself off again from its own tick() once nothing is left to find.
+                if (!covered && parent.findol(NLPassistant.class) == null)
                 {
                     try
                     {

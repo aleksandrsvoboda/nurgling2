@@ -123,6 +123,12 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		gob.defer(() -> remove(false));
 		return;
 	    }
+	    /* Nurgling: an overlay that self-removed from ctick() (which calls remove0() and
+	     * drops it from gob.ols itself) can still have a remove(true) in flight from the
+	     * same frame, deferred behind it. !added means exactly that case - already fully
+	     * removed - so returning here skips only work ctick() has done, and spares
+	     * remove0()'s IllegalStateException. An overlay is never in gob.ols with added
+	     * false: addol() sets it before ols.add(), and only remove0() clears it. */
 	    if(!added)
 		return;
 	    remove0();

@@ -2,6 +2,7 @@ package nurgling.tools;
 
 import haven.Drawable;
 import haven.Gob;
+import haven.Loading;
 import haven.MapView;
 import haven.ResDrawable;
 import haven.Resource;
@@ -60,25 +61,57 @@ public class LpExplorer {
     // and seasons change only a few times a year: a Yesteryear's-capable resource can be "fully
     // discovered" while its off-season variant is out of season, then stop being once that
     // variant's season arrives and it's still unfound, so the cache can't be permanent for those.
-    private static final Set<String> fullyDiscoveredResources = ConcurrentHashMap.newKeySet();
+    //
+    // Kept per character, not as one shared set, because what it caches is derived entirely from
+    // NCharacterInfo - which is per-character. A single set would let a second character (or a
+    // second session) inherit the first one's "already found everything" and silently suppress
+    // every marker it should still be showing. Keying by character rather than clearing on change
+    // also matters because NUtils.getUI() resolves to whichever UI is currently active: with two
+    // sessions running, a shared set guarded by "has the character changed?" would be cleared and
+    // rebuilt on alternating ticks and never actually cache anything.
+    private static final Map<String, Set<String>> fullyDiscoveredByChr = new ConcurrentHashMap<>();
     private static volatile int fullyDiscoveredCacheSeason = -1;
+
+    /** The set of resources with nothing left to find, for this character in the current season. */
+    private static Set<String> fullyDiscovered(NCharacterInfo info) {
+        int season = HarvestState.isYesteryearSeason() ? 1 : 0;
+        if (season != fullyDiscoveredCacheSeason) {
+            fullyDiscoveredByChr.clear();
+            // Both of these key on the season already, so this isn't needed for correctness - it's
+            // here to stop the previous season's entries sitting in memory for the rest of a
+            // long-running session.
+            NObjHarvestOl.clearLabelCache();
+            MARKER_ICON_CACHE.clear();
+            fullyDiscoveredCacheSeason = season;
+        }
+        return fullyDiscoveredByChr.computeIfAbsent(cacheScope(info), k -> ConcurrentHashMap.newKeySet());
+    }
+
+    /**
+     * Identity of the character whose discovery state any cached tint decision reflects. Public so
+     * NObjHarvestOl can key its own label cache by it - those labels bake in which products are
+     * still undiscovered, which is a per-character fact.
+     */
+    public static String cacheScope() {
+        return cacheScope(charInfo());
+    }
+
+    private static String cacheScope(NCharacterInfo info) {
+        return (info == null || info.chrid == null) ? "" : info.chrid;
+    }
 
     // Package-visible so ProductListHarvestSpec (the log/stone/old-trunk always-on overlay) can
     // skip its own per-product undiscovered checks the same way once nothing's left to find.
     static boolean isFullyDiscovered(String gobResName) {
         if (gobResName == null)
             return false;
-        int season = HarvestState.isYesteryearSeason() ? 1 : 0;
-        if (season != fullyDiscoveredCacheSeason) {
-            fullyDiscoveredResources.clear();
-            fullyDiscoveredCacheSeason = season;
-        }
-        if (fullyDiscoveredResources.contains(gobResName))
-            return true;
-
         NCharacterInfo info = charInfo();
         if (info == null)
             return false;
+        Set<String> known = fullyDiscovered(info);
+        if (known.contains(gobResName))
+            return true;
+
         List<String> products = VSpec.object.get(gobResName);
         if (products != null) {
             for (String product : products) {
@@ -89,22 +122,14 @@ public class LpExplorer {
         if (HarvestSpecs.TREE.matches(gobResName) && hasUndiscoveredBarkProduct(gobResName))
             return false;
 
-        fullyDiscoveredResources.add(gobResName);
+        known.add(gobResName);
         return true;
     }
 
     // Throws haven.Loading if the gob's sprite hasn't loaded yet - propagated to the caller,
     // same as HarvestState.hasHarvestableSeed() itself does.
     public static boolean hasUndiscoveredProduct(Gob gob) {
-        return firstUndiscoveredProduct(gob) != null;
-    }
-
-    // Same check as hasUndiscoveredProduct(), but also returns which product it is - lets callers
-    // that need both (e.g. MinimapDiscoveryRenderer, which gates on this and then resolves an
-    // icon for the same product) avoid running the discovery scan twice per gob.
-    public static String firstUndiscoveredProduct(Gob gob) {
-        List<String> products = allUndiscoveredProducts(gob);
-        return products.isEmpty() ? null : products.get(0);
+        return !allUndiscoveredProducts(gob).isEmpty();
     }
 
     // Every currently-undiscovered product this gob tracks, not just the first - lets markers
@@ -233,47 +258,70 @@ public class LpExplorer {
         return result;
     }
 
-    // The icon representing one of this gob's undiscovered LP products, if resolvable: for
-    // trees/bushes, the harvest-category icon (seed/leaf/bough) matching this specific product,
-    // matching what NObjHarvestOl itself would show; otherwise a name-based lookup via VSpec's
-    // stacking-icon data (e.g. mineable "bumlings" ore/stone gobs, or a log's Board/Block, whose
-    // names already have icons recorded there for stack-size purposes). Returns null if nothing
-    // can be resolved (falls back to a generic marker at the call site).
-    public static TexI getMarkerIcon(Gob gob, String knownUndiscoveredProduct) {
-        if (gob == null || gob.ngob == null)
-            return null;
-        String product = knownUndiscoveredProduct != null ? knownUndiscoveredProduct : firstUndiscoveredProduct(gob);
-        if (product == null)
-            return null;
-        BufferedImage img = resolveProductIcon(gob, product);
-        return img != null ? new TexI(img) : null;
-    }
+    // Composed marker images, keyed by everything they depend on: the gob's resource (which icon
+    // set), the season (Yesteryear's fruit uses a different icon), and the exact product list.
+    // Memoized because the minimap redraws every marker every frame, and a TexI is not a cheap
+    // thing to throw away - each one lazily allocates and uploads its own GL texture the first
+    // time it's drawn (TexI.st()), so a fresh instance per frame means a fresh texture per frame.
+    // Nothing here depends on the character - every part is composed as undiscovered - so unlike
+    // fullyDiscoveredByChr this needs no per-character scoping.
+    private static final Map<String, TexI> MARKER_ICON_CACHE = new ConcurrentHashMap<>();
 
     // A single combined, tinted icon showing every currently-undiscovered product for this gob at
     // once, stacked the same way NObjHarvestOl stacks leaf/seed/bough/bark - used by
-    // NLPassistant's 3D-world marker so a log (Board + Block) or a multi-product tree/bush reads
-    // the same way whether NObjHarvestOl or the fallback marker is showing it. Delegates the
-    // actual tint+layout to NObjHarvestOl.compose(), the same step its own always-on overlay uses,
-    // so the two displays never drift apart.
+    // NLPassistant's 3D-world marker and by the minimap, so a log (Board + Block) or a
+    // multi-product tree/bush reads the same way in both places. Delegates the actual tint+layout
+    // to NObjHarvestOl.compose(), the same step its own always-on overlay uses, so the two
+    // displays never drift apart.
     public static TexI getMarkerIcon(Gob gob, List<String> knownUndiscoveredProducts) {
+        return getMarkerIcon(gob, knownUndiscoveredProducts, true);
+    }
+
+    /**
+     * As getMarkerIcon(), but blocking=false never waits on an icon fetch - it composes from
+     * whatever is already loaded and returns null if nothing is. For the render thread.
+     */
+    public static TexI getMarkerIcon(Gob gob, List<String> knownUndiscoveredProducts, boolean blocking) {
         if (gob == null || gob.ngob == null)
             return null;
         List<String> products = knownUndiscoveredProducts != null ? knownUndiscoveredProducts : allUndiscoveredProducts(gob);
         if (products.isEmpty())
             return null;
 
+        String key = gob.ngob.name + '|' + (HarvestState.isYesteryearSeason() ? 'y' : 'n')
+            + '|' + String.join(",", products);
+        TexI cached = MARKER_ICON_CACHE.get(key);
+        if (cached != null)
+            return cached;
+
         List<HarvestSpec.Part> parts = new ArrayList<>(products.size());
+        boolean pending = false;
         for (String product : products) {
-            BufferedImage img = resolveProductIcon(gob, product);
+            BufferedImage img;
+            try {
+                img = resolveProductIcon(gob, product, blocking);
+            } catch (Loading l) {
+                // Non-blocking, and this icon hasn't arrived yet. A null return would instead mean
+                // the resource genuinely doesn't exist - a final answer we're happy to bake in.
+                pending = true;
+                continue;
+            }
             if (img != null)
                 parts.add(new HarvestSpec.Part(product, img, true));
         }
+        if (parts.isEmpty())
+            return null;
 
         // Lay out the same direction the gob's own always-on harvest overlay would (e.g. a log's
         // Board+Block side by side), so the fallback marker and NObjHarvestOl read consistently.
         HarvestSpec spec = HarvestSpecs.forResource(gob.ngob.name);
-        boolean horizontal = spec != null && spec.horizontal();
-        return NObjHarvestOl.compose(horizontal, parts);
+        TexI tex = NObjHarvestOl.compose(spec != null && spec.horizontal(), parts);
+        // Don't memoize while an icon is still in flight - the next call re-composes once it
+        // arrives. A permanently-absent icon isn't pending, so that composition does get cached
+        // and we stop rebuilding it every frame.
+        if (tex != null && !pending)
+            MARKER_ICON_CACHE.put(key, tex);
+        return tex;
     }
 
     // Whether this exact product is still undiscovered for this gob - package-visible so
@@ -291,6 +339,11 @@ public class LpExplorer {
     // the seed icon; the generic VSpec name-based lookup otherwise. Package-visible so
     // ProductListHarvestSpec can resolve log/stone icons the same way.
     static BufferedImage resolveProductIcon(Gob gob, String product) {
+        return resolveProductIcon(gob, product, true);
+    }
+
+    // blocking=false never waits on a resource fetch; see HarvestState.loadIcon().
+    static BufferedImage resolveProductIcon(Gob gob, String product, boolean blocking) {
         Drawable dr = gob.getattr(Drawable.class);
         if (dr instanceof ResDrawable) {
             Resource res = ((ResDrawable) dr).getres();
@@ -299,12 +352,12 @@ public class LpExplorer {
                     : isBoughProduct(product) ? "bough"
                     : product.equals(HarvestState.getBarkProductName(res.name)) ? "bark"
                     : "seed";
-                BufferedImage img = HarvestState.getIcon(res, type);
+                BufferedImage img = HarvestState.getIcon(res, type, blocking);
                 if (img != null)
                     return img;
             }
         }
-        return HarvestState.loadIcon(VSpec.getIconPath(product));
+        return HarvestState.loadIcon(VSpec.getIconPath(product), blocking);
     }
 
     // Reverse index: product name -> the one resource that tracks it in VSpec.object. Built
@@ -320,7 +373,15 @@ public class LpExplorer {
             Map<String, String> index = new HashMap<>();
             for (Map.Entry<String, ArrayList<String>> e : VSpec.object.entrySet()) {
                 for (String product : e.getValue()) {
-                    index.putIfAbsent(product, e.getKey());
+                    String prev = index.putIfAbsent(product, e.getKey());
+                    // The one-resource-per-product-name assumption this index rests on isn't
+                    // enforced anywhere in VSpec, so say so loudly rather than silently filing
+                    // that product's discoveries under whichever resource happened to be first.
+                    if (prev != null) {
+                        System.out.println("LpExplorer: VSpec.object lists product \"" + product
+                            + "\" under both " + prev + " and " + e.getKey()
+                            + "; discoveries for it will be tracked against " + prev + " only.");
+                    }
                 }
             }
             productToResource = index;
@@ -356,24 +417,51 @@ public class LpExplorer {
         if (gobName == null)
             return;
 
-        // Require the last gob the player right-clicked to be some kind of harvestable resource -
-        // without this, merely opening a cupboard/chest containing undiscovered items would mark
-        // them "discovered" the moment their names resolve, without the player ever harvesting
-        // anything. Checked by resource TYPE rather than exact identity: name resolution needs a
-        // server round-trip, so the player may click a second, different harvestable gob (e.g. a
-        // stone right after a tree) before a delayed product (like a sawn board) resolves - the
-        // reverse lookup above already tells us exactly which resource this product belongs to,
-        // so clickedGob only needs to confirm a harvest interaction just happened, not identify
-        // which one.
-        MapView.ClickedGob clicked = gui.map.clickedGob;
-        String clickedGobName = (clicked != null && clicked.gob.ngob != null) ? clicked.gob.ngob.name : null;
-        if (clickedGobName == null || HarvestSpecs.forResource(clickedGobName) == null)
+        if (!recentHarvestClick(gui.map))
             return;
 
         if (!info.IsLpExplorerContains(gobName, name)) {
             info.LpExplorerAdd(gobName, name);
             info.newLpExplorer = true;
         }
+    }
+
+    // How long after clicking a harvestable gob a resolving item name is still attributed to that
+    // harvest. Only needs to cover a server round-trip plus the item's own resource load.
+    private static final long HARVEST_CLICK_WINDOW = 10_000;
+
+    // MapView hands out a new ClickedGob instance per click, so identity is what tells us a click
+    // is a *new* one rather than the same one we already timed.
+    private static MapView.ClickedGob timedClick = null;
+    private static long timedClickAt = 0;
+
+    /**
+     * Whether the player right-clicked a harvestable gob recently enough for a product name
+     * resolving now to plausibly have come from it.
+     *
+     * Without any such gate, merely opening a cupboard full of undiscovered items would mark them
+     * all discovered the moment their names resolve. The gob is matched by resource TYPE rather
+     * than exact identity, because name resolution needs a server round-trip and the player may
+     * click a second harvestable gob before a delayed product (a sawn board, say) comes back -
+     * productToResource() already tells us which resource the product belongs to, so the click
+     * only has to confirm that *a* harvest just happened.
+     *
+     * The time bound is what keeps that looseness honest. MapView only reassigns clickedGob on the
+     * next map click, so a type check alone would leave the gate open indefinitely: one click on a
+     * tree would credit every item name that resolved afterwards, however much later.
+     */
+    private static synchronized boolean recentHarvestClick(MapView map) {
+        MapView.ClickedGob clicked = (map == null) ? null : map.clickedGob;
+        if (clicked == null || clicked.gob.ngob == null)
+            return false;
+        if (HarvestSpecs.forResource(clicked.gob.ngob.name) == null)
+            return false;
+        long now = System.currentTimeMillis();
+        if (clicked != timedClick) {
+            timedClick = clicked;
+            timedClickAt = now;
+        }
+        return (now - timedClickAt) < HARVEST_CLICK_WINDOW;
     }
 
     private static NCharacterInfo charInfo() {

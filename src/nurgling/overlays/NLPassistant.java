@@ -21,8 +21,9 @@ import java.util.List;
  * This is a fallback only: when a gob's type has its own always-visible harvest overlay enabled
  * (see nurgling.tools.HarvestSpecs), NObjHarvestOl itself tints its own icon(s) instead (see
  * LpExplorer usage in the HarvestSpec implementations) rather than showing a second, separate
- * marker. NLPassistant only attaches when that display isn't available - its overlay disabled, or
- * a resource none of the HarvestSpecs cover at all (ground herbs/mushrooms).
+ * marker. NLPassistant only attaches when that display isn't available, i.e. when the gob type's
+ * own overlay toggle is off - every resource VSpec.object tracks is covered by some HarvestSpec,
+ * so "no spec at all" is not a case that arises today.
  */
 public class NLPassistant extends NObjectTexLabel
 {
@@ -54,14 +55,28 @@ public class NLPassistant extends NObjectTexLabel
     private void refresh(List<String> products)
     {
         shownProducts = products;
+        // getMarkerIcon() already returns a framed, tinted, memoized TexI in the same presentation
+        // NObjHarvestOl's own harvest-icon label uses, so ours reads as the same family of UI
+        // element - use it directly rather than unwrapping and re-wrapping its image.
         TexI icon = LpExplorer.getMarkerIcon(gob, products);
-        // Same framed presentation NObjHarvestOl's own harvest-icon label uses, so ours reads
-        // as the same family of UI element - just with the icon(s) themselves tinted to stand out.
-        BufferedImage framed = icon != null ? icon.back
-            : NObjHarvestOl.catimgshCentered(1, NObjHarvestOl.tint(Resource.loadimg("marks/newlpassistant"), NObjHarvestOl.LP_UNDISCOVERED_TINT));
-        TexI tinted = new TexI(framed);
-        this.label = tinted;
-        this.img = tinted;
+        TexI tex = icon != null ? icon : genericMarker();
+        this.label = tex;
+        this.img = tex;
+    }
+
+    // Shown when none of this gob's products resolve to an icon. The same image for every such
+    // gob, so it's built once - a per-instance TexI would mean a per-instance GL texture.
+    private static TexI genericMarker;
+
+    private static synchronized TexI genericMarker()
+    {
+        if (genericMarker == null)
+        {
+            BufferedImage framed = NObjHarvestOl.catimgshCentered(1,
+                NObjHarvestOl.tint(Resource.loadimg("marks/newlpassistant"), NObjHarvestOl.LP_UNDISCOVERED_TINT));
+            genericMarker = new TexI(framed);
+        }
+        return genericMarker;
     }
 
     @Override

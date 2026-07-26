@@ -10,6 +10,8 @@ import java.awt.image.BufferedImage;
 import nurgling.NConfig;
 import nurgling.styles.TooltipStyle;
 import nurgling.tools.HarvestSpec;
+import nurgling.tools.HarvestState;
+import nurgling.tools.LpExplorer;
 
 import java.util.List;
 import java.util.Map;
@@ -78,6 +80,13 @@ public class NObjHarvestOl extends NObjectTexLabel {
 
         StringBuilder key = new StringBuilder();
         key.append(d.getres().name).append('_');
+        // The season belongs in the key because a Yesteryear's-capable species resolves a
+        // different seed icon in Winter/Spring under an otherwise identical part id ("seed"), so
+        // without it the first season's fruit icon would stay cached for the rest of the session.
+        key.append(HarvestState.isYesteryearSeason() ? "y_" : "n_");
+        // The character does too: the per-part undiscovered flags below are that character's
+        // discovery state, and a second character (or session) must not read the first one's.
+        key.append(LpExplorer.cacheScope()).append('_');
         for (HarvestSpec.Part part : parts)
             key.append(part.id).append(part.undiscovered ? "_u_" : "_n_");
         String keyStr = key.toString();
