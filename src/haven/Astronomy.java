@@ -78,6 +78,16 @@ public class Astronomy {
 
 	public Season season() { return Season.values()[is]; }
 
+	/* Nurgling addition (not upstream): true during the off-season (Winter/Spring) when
+	 * tree/bush fruit that's normally picked in Summer/Autumn instead spawns as its
+	 * "Yesteryear's " variant. Lives here rather than in nurgling.tools.HarvestState only
+	 * because Season is package-private. Callers should go through
+	 * HarvestState.isYesteryearSeason(), which memoizes this. */
+	public boolean isYesteryearSeason() {
+		Season s = season();
+		return s == Season.Winter || s == Season.Spring;
+	}
+
 	enum Season {
 		Spring(30), Summer(105), Autumn(30), Winter(15);
 
