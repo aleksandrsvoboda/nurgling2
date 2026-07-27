@@ -49,7 +49,11 @@ public class HarvestCrop implements Action {
 
         Gob trough = null;
 
-        if(!isQualityGrid) {
+        // The trough area is optional (farmers register it via Validator's opt list), so trougha
+        // is null whenever none is configured or one is out of findSpec()'s range. Everything
+        // downstream already handles a null trough gob - TransferToTrough returns early on it,
+        // and the quality-grid path leaves it null deliberately.
+        if(!isQualityGrid && trougha != null) {
             trough = Finder.findGob(trougha, new NAlias("gfx/terobjs/trough"));
         }
 

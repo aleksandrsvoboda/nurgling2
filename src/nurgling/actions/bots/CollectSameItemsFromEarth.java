@@ -50,6 +50,14 @@ public class CollectSameItemsFromEarth implements Action {
                 break;
             }
         }
+        // WaitItems can complete without a new item ever landing in the inventory - it also
+        // returns on a full inventory, on its 1000-tick give-up, and as soon as the summed stack
+        // quantities reach the target (which counts widgets), so the loop above can leave
+        // itemName unset. Without a name there is nothing to collect, so stop here rather than
+        // hand a null alias to CollectItemsToPile.
+        if (itemName == null)
+            return Results.ERROR("Could not determine the item picked up - inventory may be full");
+
         new CollectItemsToPile(insaArea.getRCArea(),outsaArea.getRCArea(),itemName).run(gui);
         return Results.SUCCESS();
     }
