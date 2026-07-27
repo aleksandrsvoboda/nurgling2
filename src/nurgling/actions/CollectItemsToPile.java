@@ -36,6 +36,12 @@ public class CollectItemsToPile implements Action{
         ArrayList<String> exceptions = new ArrayList<>(items.exceptions);
         exceptions.add("stockpile");
         exceptions.add("barrel");
+        // A growing crop and the item it yields share a name - "gfx/terobjs/plants/garlic"
+        // vs "gfx/terobjs/items/garlic" - so an item alias like "Garlic" (substring match)
+        // also hits the planted crop. Picking up from the earth can never apply to a plant,
+        // so exclude the plant path outright: on a partially planted field takeFromEarth
+        // would otherwise wait forever for a gob that never goes away.
+        exceptions.add("plants/");
         NAlias collected_items = new NAlias(items.keys, exceptions);
 
         while ( !Finder.findGobs (in,collected_items ).isEmpty () ){

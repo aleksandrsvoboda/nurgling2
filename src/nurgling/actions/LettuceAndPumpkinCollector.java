@@ -40,11 +40,17 @@ public class LettuceAndPumpkinCollector implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        // Preserve any exceptions the caller passed (e.g. "plants" to keep growing
-        // crops out of the ground-item search) and add the standard container exclusions.
+        // Preserve any exceptions the caller passed (e.g. "flesh" to keep the by-product
+        // out of the search) and add the standard container exclusions.
         ArrayList<String> exceptions = new ArrayList<>(items.exceptions);
         exceptions.add("stockpile");
         exceptions.add("barrel");
+        // A growing crop and the item it yields share a name - "gfx/terobjs/plants/pumpkin"
+        // vs "gfx/terobjs/items/pumpkin" - so an item alias like "Pumpkin" (substring match)
+        // also hits the planted crop. Picking up from the earth can never apply to a plant,
+        // so exclude the plant path outright: on a partially planted field takeFromEarth
+        // would otherwise wait forever for a gob that never goes away.
+        exceptions.add("plants/");
         NAlias collected_items = new NAlias(items.keys, exceptions);
         ArrayList<WItem> testItems;
 
