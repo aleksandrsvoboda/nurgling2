@@ -6,6 +6,7 @@ import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.NConfig;
 import nurgling.NCore;
+import nurgling.actions.bots.registry.BotDescriptor;
 import haven.res.ui.croster.Entry;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 
 public class BotsInterruptWidget extends Widget {
+    /** Stacking state before the first stack-mode bot of the current batch started. */
     boolean oldStackState = false;
 
     /** Per-session flag: true when this session has bots running.
@@ -104,19 +106,48 @@ public class BotsInterruptWidget extends Widget {
 
     public void addObserve(Thread t, boolean disStack)
     {
-        if(disStack)
+        addObserve(t, disStack ? BotDescriptor.StackMode.DISABLED : BotDescriptor.StackMode.UNCHANGED);
+    }
+
+    public void addObserve(Thread t, BotDescriptor.StackMode stackMode)
+    {
+        if(stackMode != BotDescriptor.StackMode.UNCHANGED)
         {
             if(stackObs.isEmpty())
-            {
-                 if(((NInventory) NUtils.getGameUI().maininv).bundle.a) {
-                     oldStackState = true;
-                     NUtils.stackSwitch(false);
-                 }
-            }
-            if(oldStackState)
-                stackObs.add(t);
+                oldStackState = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
+            stackObs.add(new StackObservation(t, stackMode));
+            applyStackMode();
         }
         addObserve(t);
+    }
+
+    /**
+     * Set stacking to whatever the still-running bots need, or back to the state the
+     * player had before the batch started once none of them care any more.
+     * DISABLED wins over ENABLED while both are running.
+     */
+    private void applyStackMode()
+    {
+        if(stackObs.isEmpty())
+            NUtils.stackSwitch(oldStackState);
+        else
+            NUtils.stackSwitch(!hasActiveStackMode(BotDescriptor.StackMode.DISABLED));
+    }
+
+    private void finishStackMode(Thread t)
+    {
+        if(stackObs.removeIf(obs -> obs.thread == t))
+            applyStackMode();
+    }
+
+    private boolean hasActiveStackMode(BotDescriptor.StackMode stackMode)
+    {
+        for(StackObservation obs : stackObs)
+        {
+            if(obs.stackMode == stackMode)
+                return true;
+        }
+        return false;
     }
 
 
@@ -142,15 +173,7 @@ public class BotsInterruptWidget extends Widget {
             for(Gear g: obs)
             {
                 if(g.t == t) {
-                    if(stackObs.contains(g.t))
-                    {
-                        stackObs.remove(g.t);
-                        if(stackObs.isEmpty() && oldStackState)
-                        {
-                            NUtils.stackSwitch(true);
-                        }
-
-                    }
+                    finishStackMode(g.t);
                     g.remove();
                     obs.remove(g);
                     break;
@@ -180,15 +203,7 @@ public class BotsInterruptWidget extends Widget {
                 {
                     // Clear kill list highlight when bot stops
                     Entry.killList.clear();
-                    if(stackObs.contains(g.t))
-                    {
-                        stackObs.remove(g.t);
-                        if(stackObs.isEmpty() && oldStackState)
-                        {
-                            NUtils.stackSwitch(true);
-                        }
-
-                    }
+                    finishStackMode(g.t);
                     g.remove();
                     obs.remove(g);
                     if(obs.isEmpty())
@@ -247,7 +262,17 @@ public class BotsInterruptWidget extends Widget {
     }
 
     final ArrayList<Gear> obs = new ArrayList<>();
-    final ArrayList<Thread> stackObs = new ArrayList<>();
+    final ArrayList<StackObservation> stackObs = new ArrayList<>();
+
+    private static class StackObservation {
+        final Thread thread;
+        final BotDescriptor.StackMode stackMode;
+
+        StackObservation(Thread thread, BotDescriptor.StackMode stackMode) {
+            this.thread = thread;
+            this.stackMode = stackMode;
+        }
+    }
 
     /**
      * Check if there are any bots currently running.
@@ -264,15 +289,10 @@ public class BotsInterruptWidget extends Widget {
             for (Gear g : new ArrayList<>(obs)) {
                 g.t.interrupt();
                 Entry.killList.clear();
-                if (stackObs.contains(g.t)) {
-                    stackObs.remove(g.t);
-                }
+                finishStackMode(g.t);
                 g.remove();
             }
             obs.clear();
-            if (oldStackState && stackObs.isEmpty()) {
-                NUtils.stackSwitch(true);
-            }
         }
         waitBot.set(false);
         repack();

@@ -3,7 +3,6 @@ package nurgling.widgets;
 import haven.*;
 import haven.Label;
 import haven.Window;
-import haven.res.lib.itemtex.ItemTex;
 import nurgling.*;
 import nurgling.i18n.L10n;
 import nurgling.tools.VSpec;
@@ -248,7 +247,7 @@ public class NCatSelection extends Window {
             return new ItemWidget<Element>(this, sz, item) {
                 {
                     // Загружаем иконку элемента и добавляем к виджету
-                    Tex icon = new TexI(ItemTex.create(item.res));
+                    Tex icon = NCatSelectionIcons.itemIcon(item.res);
                     add(new ElementWidget(item, icon), Coord.z);
                 }
             };

@@ -20,7 +20,9 @@ import java.util.Comparator;
 
 public class DFrameHidesAction implements Action {
 
-    NAlias raw = new NAlias("Fresh");
+    NAlias raw = new NAlias(new ArrayList<>(Arrays.asList("Fresh", "Raw lucky rabbit's foot")));
+    NAlias fresh = new NAlias("Fresh");
+    NAlias rawLuckyRabbitFoot = new NAlias("Raw lucky rabbit's foot");
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NArea.Specialisation rdframe = new NArea.Specialisation(Specialisation.SpecName.dframe.toString(), "Hides");
@@ -80,10 +82,11 @@ public class DFrameHidesAction implements Action {
             });
 
 
-            new FreeContainers(containers, new NAlias(new ArrayList<>(Arrays.asList("Fur", "Hide", "Scale", "Tail", "skin", "hide")), new ArrayList<>(Arrays.asList("Fresh", "Raw")))).run(gui);
+            new FreeContainers(containers, new NAlias(new ArrayList<>(Arrays.asList("Fur", "Hide", "Scale", "Tail", "skin", "hide", "Lucky rabbit's foot")), new ArrayList<>(Arrays.asList("Fresh", "Raw")))).run(gui);
             NArea rawhidesArea = context.goToArea(Specialisation.SpecName.rawhides);
             new FillContainersFromPiles(containers, rawhidesArea.getRCArea(), raw).run(gui);
-            new TransferToPiles(rawhidesArea.getRCArea(), new NAlias("Fresh")).run(gui);
+            new TransferToPiles(rawhidesArea.getRCArea(), fresh).run(gui);
+            new TransferToPiles(rawhidesArea.getRCArea(), rawLuckyRabbitFoot).run(gui);
 
             return Results.SUCCESS();
         }

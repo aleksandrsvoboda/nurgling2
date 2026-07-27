@@ -51,9 +51,9 @@ public class NBotsMenu extends Widget
             NLayout layout = layouts.get(groupType);
             if (layout == null) continue;
             if (bot.clazz == CatchBugsAround.class) {
-                layout.elements.add(new NToggleNButton(bot.iconPath, bot.instantiate(Map.of()), bot.disStacks));
+                layout.elements.add(new NToggleNButton(bot.iconPath, bot.instantiate(Map.of()), bot.stackMode));
             } else {
-                layout.elements.add(new NButton(bot.iconPath, bot.instantiate(Map.of()), bot.disStacks));
+                layout.elements.add(new NButton(bot.iconPath, bot.instantiate(Map.of()), bot.stackMode));
             }
         }
 
@@ -218,6 +218,7 @@ public class NBotsMenu extends Widget
         public final IButton btn;
         public String path;
         public boolean disStacks;
+        public BotDescriptor.StackMode stackMode = BotDescriptor.StackMode.UNCHANGED;
         NButton(String path, Action action) {
             this.path = path;
             Resource res = Resource.remote().loadwait(dir_path + path + "/u");
@@ -279,8 +280,14 @@ public class NBotsMenu extends Widget
 
         NButton(String path, Action action, Boolean disStacks)
         {
+            this(path, action, disStacks ? BotDescriptor.StackMode.DISABLED : BotDescriptor.StackMode.UNCHANGED);
+        }
+
+        NButton(String path, Action action, BotDescriptor.StackMode stackMode)
+        {
             this(path, action);
-            this.disStacks = disStacks;
+            this.stackMode = stackMode;
+            this.disStacks = stackMode == BotDescriptor.StackMode.DISABLED;
         }
 
         private NButton()
@@ -315,7 +322,7 @@ public class NBotsMenu extends Widget
             NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
             if (gui != null && gui.recentActionsPanel != null) {
-                gui.recentActionsPanel.addBotAction(path, action);
+                gui.recentActionsPanel.addBotAction(path, action, stackMode);
             }
 
             // Callback to run showLayouts and handle ActionWithFinal
@@ -330,7 +337,7 @@ public class NBotsMenu extends Widget
             showLayouts();
 
             // Use BotExecutor with support threads
-            BotExecutor.runWithSupports(path, action, disStacks, onComplete);
+            BotExecutor.runWithSupports(path, action, stackMode, onComplete);
         }
 
 
@@ -340,8 +347,8 @@ public class NBotsMenu extends Widget
         private boolean active = false;
         private Thread thread;
 
-        NToggleNButton(String path, Action action, boolean disStacks) {
-            super(path, action, disStacks);
+        NToggleNButton(String path, Action action, BotDescriptor.StackMode stackMode) {
+            super(path, action, stackMode);
 
             btn.action(new Runnable() {
                 @Override
@@ -351,10 +358,10 @@ public class NBotsMenu extends Widget
 
                     if (!active) {
                         if (gui != null && gui.recentActionsPanel != null) {
-                            gui.recentActionsPanel.addBotAction(path, action);
+                            gui.recentActionsPanel.addBotAction(path, action, stackMode);
                         }
 
-                        thread = BotExecutor.runAsync(path + "-ToggleThread", action, disStacks);
+                        thread = BotExecutor.runAsync(path + "-ToggleThread", action, stackMode);
                         if (gui != null) {
                             gui.msg("Started: " + path);
                         }

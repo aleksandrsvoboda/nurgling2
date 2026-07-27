@@ -2,6 +2,7 @@ package nurgling.sessions;
 
 import nurgling.*;
 import nurgling.actions.Action;
+import nurgling.actions.bots.registry.BotDescriptor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +28,7 @@ public class BotExecutor {
      * @return The created thread, or null if no GUI is available
      */
     public static Thread runAsync(String name, Action action) {
-        return runAsync(name, action, false);
+        return runAsync(name, action, BotDescriptor.StackMode.UNCHANGED);
     }
 
     /**
@@ -39,6 +40,18 @@ public class BotExecutor {
      * @return The created thread, or null if no GUI is available
      */
     public static Thread runAsync(String name, Action action, boolean disableStacks) {
+        return runAsync(name, action, disableStacks ? BotDescriptor.StackMode.DISABLED : BotDescriptor.StackMode.UNCHANGED);
+    }
+
+    /**
+     * Run an action asynchronously with session binding.
+     *
+     * @param name The name of the thread (for debugging/display)
+     * @param action The action to run
+     * @param stackMode What the action needs inventory stacking to be while it runs
+     * @return The created thread, or null if no GUI is available
+     */
+    public static Thread runAsync(String name, Action action, BotDescriptor.StackMode stackMode) {
         NUI boundUI = NUtils.getUI();
         NGameUI gui = (boundUI != null) ? boundUI.gui : null;
         if (gui == null) return null;
@@ -54,11 +67,7 @@ public class BotExecutor {
             }
         }, name);
 
-        if (disableStacks) {
-            gui.biw.addObserve(t, true);
-        } else {
-            gui.biw.addObserve(t);
-        }
+        gui.biw.addObserve(t, stackMode);
         t.start();
         return t;
     }
@@ -74,6 +83,21 @@ public class BotExecutor {
      */
     public static Thread runWithSupports(String name, Action action,
                                          boolean disableStacks, Runnable onComplete) {
+        return runWithSupports(name, action,
+                disableStacks ? BotDescriptor.StackMode.DISABLED : BotDescriptor.StackMode.UNCHANGED, onComplete);
+    }
+
+    /**
+     * Run an action with support threads.
+     *
+     * @param name The name of the main thread
+     * @param action The main action to run (may have getSupp() returning support actions)
+     * @param stackMode What the action needs inventory stacking to be while it runs
+     * @param onComplete Callback to run when the action completes (can be null)
+     * @return The main thread, or null if no GUI is available
+     */
+    public static Thread runWithSupports(String name, Action action,
+                                         BotDescriptor.StackMode stackMode, Runnable onComplete) {
         NUI boundUI = NUtils.getUI();
         NGameUI gui = (boundUI != null) ? boundUI.gui : null;
         if (gui == null) return null;
@@ -104,11 +128,7 @@ public class BotExecutor {
             }
         }, name);
 
-        if (disableStacks) {
-            gui.biw.addObserve(t, true);
-        } else {
-            gui.biw.addObserve(t);
-        }
+        gui.biw.addObserve(t, stackMode);
         t.start();
         return t;
     }
