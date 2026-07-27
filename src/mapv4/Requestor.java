@@ -43,6 +43,10 @@ public class Requestor implements Action {
         this.parent = parent;
     }
 
+    private static boolean kamiCompat() {
+        return Boolean.TRUE.equals(NConfig.get(NConfig.Key.kamiCompatMapper));
+    }
+
 
 
     public class MapperTask
@@ -115,6 +119,8 @@ public class Requestor implements Action {
                         }
                         JSONObject data = new JSONObject();
                         data.put("grids", gridMap);
+                        if (kamiCompat())
+                            data.put("genus", NUtils.getGameUI().getGenus());
                         JSONObject msg = new JSONObject();
                         msg.put("data", data);
                         msg.put("reqMethod", "POST");
@@ -187,6 +193,8 @@ public class Requestor implements Action {
                             JSONObject data = new JSONObject();
                             JSONObject prop = new JSONObject();
                             prop.put("name", NUtils.getGameUI().chrid);
+                            if (kamiCompat())
+                                prop.put("genus", NUtils.getGameUI().getGenus());
                             prop.put("type", "player");
                             prop.put("gridID", String.valueOf(g.id));
                             JSONObject c = new JSONObject();
@@ -225,6 +233,8 @@ public class Requestor implements Action {
                                     }
                                     JSONObject propb = new JSONObject();
                                     propb.put("name", "???");
+                                    if (kamiCompat())
+                                        propb.put("genus", NUtils.getGameUI().getGenus());
                                     propb.put("type", "white");
                                     Buddy buddy = borka.getattr(Buddy.class);
                                     if (buddy != null &&  buddy.b!=null) {
@@ -292,6 +302,8 @@ public class Requestor implements Action {
                                     long gridId = ((MapFile.Segment.ByCoord)md.indirGrid).cur.get().id;
                                     JSONObject o = new JSONObject();
                                     o.put("name", md.m.nm);
+                                    if (kamiCompat())
+                                        o.put("genus", NUtils.getGameUI().getGenus());
                                     o.put("gridID", String.valueOf(gridId));
                                     Coord gridOffset = md.m.tc.sub(mgc.mul(100));
                                     o.put("x", gridOffset.x);
@@ -333,6 +345,8 @@ public class Requestor implements Action {
 
                             JSONObject obj = new JSONObject();
                             obj.put("name", marker.nm);
+                            if (kamiCompat())
+                                obj.put("genus", NUtils.getGameUI().getGenus());
                             obj.put("gridID", String.valueOf(grid.id));
                             obj.put("x", offset.x);
                             obj.put("y", offset.y);
@@ -375,6 +389,8 @@ public class Requestor implements Action {
                         // Build JSON payload
                         JSONObject data = new JSONObject();
                         data.put("gridId", String.valueOf(gridId));
+                        if (kamiCompat())
+                            data.put("genus", NUtils.getGameUI().getGenus());
                         JSONArray overlayArray = new JSONArray();
                         for (OverlayData ol : overlays) {
                             overlayArray.put(ol.toJSON());

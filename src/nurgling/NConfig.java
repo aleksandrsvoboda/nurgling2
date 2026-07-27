@@ -93,6 +93,7 @@ public class NConfig
         automaptrack,
         unloadgreen,
         sendOverlays,
+        kamiCompatMapper,
         showInventoryNums,
         hidecredo,
         autoDrink,
@@ -286,6 +287,7 @@ public class NConfig
         conf.put(Key.automaptrack, false);
         conf.put(Key.unloadgreen, false);
         conf.put(Key.sendOverlays, false);
+        conf.put(Key.kamiCompatMapper, false);
         conf.put(Key.showInventoryNums, true);
         conf.put(Key.autoDrink, false);
         conf.put(Key.autoSaveTableware, true);

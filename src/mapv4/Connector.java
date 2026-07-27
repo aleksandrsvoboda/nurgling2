@@ -118,6 +118,8 @@ public class Connector implements Action {
             JSONObject extraData = new JSONObject();
             MultipartUtility multipart = new MultipartUtility((String) msg.get("url"), "utf-8");
             multipart.addFormField("id", (String) ((JSONObject)msg.get("data")).get("gridID"));
+            if (Boolean.TRUE.equals(NConfig.get(NConfig.Key.kamiCompatMapper)))
+                multipart.addFormField("genus", NUtils.getGameUI().getGenus());
             multipart.addFilePart("file", (InputStream) ((JSONObject)msg.get("data")).get("inputStream"), "minimap.png");
             extraData.put("season", NUtils.getGameUI().map.glob.ast.is);
             multipart.addFormField("extraData", extraData.toString());

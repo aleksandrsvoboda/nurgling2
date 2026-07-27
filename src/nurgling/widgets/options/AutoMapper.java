@@ -12,6 +12,7 @@ public class AutoMapper extends Panel {
     private TextEntry te;
     private CheckBox uploadGreen;
     private CheckBox sendOverlays;
+    private CheckBox kamiCompat;
 
     public AutoMapper() {
         super();
@@ -38,6 +39,8 @@ public class AutoMapper extends Panel {
 
         prev = sendOverlays = add(new CheckBox(L10n.get("automapper.send_overlays")), prev.pos("bl").adds(0, 5));
 
+        prev = kamiCompat = add(new CheckBox(L10n.get("automapper.kami_compat")), prev.pos("bl").adds(0, 5));
+
         load();
         pack();
     }
@@ -49,6 +52,7 @@ public class AutoMapper extends Panel {
         navTrack.a = getBool(NConfig.Key.automaptrack);
         uploadGreen.a = getBool(NConfig.Key.unloadgreen);
         sendOverlays.a = getBool(NConfig.Key.sendOverlays);
+        kamiCompat.a = getBool(NConfig.Key.kamiCompatMapper);
     }
 
     @Override
@@ -60,6 +64,7 @@ public class AutoMapper extends Panel {
         NConfig.set(NConfig.Key.automaptrack, navTrack.a);
         NConfig.set(NConfig.Key.unloadgreen, uploadGreen.a);
         NConfig.set(NConfig.Key.sendOverlays, sendOverlays.a);
+        NConfig.set(NConfig.Key.kamiCompatMapper, kamiCompat.a);
         // Reset overlay support flag when user enables the setting (allows retry)
         if (sendOverlays.a && NUtils.getUI() != null && NUtils.getUI().core != null
                 && NUtils.getUI().core.mappingClient != null) {
