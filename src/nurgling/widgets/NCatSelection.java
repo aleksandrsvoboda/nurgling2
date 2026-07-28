@@ -10,6 +10,7 @@ import nurgling.tools.VSpec;
 import org.json.JSONObject;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
@@ -232,6 +233,36 @@ public class NCatSelection extends Window {
         }
     }
 
+    private static Tex missingIcon = null;
+
+    // Иконка элемента. Битый или удаленный с сервера ресурс не должен ронять UI-поток,
+    // поэтому вместо иконки подставляем заглушку.
+    private static Tex icon(Element item) {
+        try {
+            BufferedImage img = ItemTex.create(item.res);
+            if(img != null)
+                return new TexI(img);
+        } catch(Resource.LoadException e) {
+            System.out.println("NCatSelection: failed to load icon for '" + item.getName() + "' (" + item.res + "): " + e.getMessage());
+        }
+        return missingIcon();
+    }
+
+    private static Tex missingIcon() {
+        if(missingIcon == null) {
+            Coord sz = UI.scale(new Coord(32, 32));
+            BufferedImage img = TexI.mkbuf(sz);
+            Graphics g = img.getGraphics();
+            g.setColor(new java.awt.Color(255, 64, 64, 160));
+            g.drawRect(1, 1, sz.x - 3, sz.y - 3);
+            g.drawLine(1, 1, sz.x - 2, sz.y - 2);
+            g.drawLine(1, sz.y - 2, sz.x - 2, 1);
+            g.dispose();
+            missingIcon = new TexI(img);
+        }
+        return missingIcon;
+    }
+
     public class ElementList extends SListBox<Element, Widget> {
         private List<Element> internalElements = new ArrayList<>();
         public ElementList(Coord sz) {
@@ -248,8 +279,7 @@ public class NCatSelection extends Window {
             return new ItemWidget<Element>(this, sz, item) {
                 {
                     // Загружаем иконку элемента и добавляем к виджету
-                    Tex icon = new TexI(ItemTex.create(item.res));
-                    add(new ElementWidget(item, icon), Coord.z);
+                    add(new ElementWidget(item, icon(item)), Coord.z);
                 }
             };
         }

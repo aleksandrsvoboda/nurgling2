@@ -1323,7 +1323,7 @@ public class VSpec {
         categories.put("Crop Seeds", seeds);
 
         ArrayList<JSONObject> cropsOther = new ArrayList<>();
-        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/lettucehead\",\"name\":\"Head of Lettuce\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/lettucehead\",\"name\":\"Head of Lettuce\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkinflesh\",\"name\":\"Pumpkin Flesh\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkin\",\"name\":\"Pumpkin\"}"));
         categories.put("Crops - other", cropsOther);
