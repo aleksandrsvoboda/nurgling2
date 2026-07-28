@@ -98,7 +98,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("boughbee", BotDescriptor.BotType.RESOURCES, "bot.boughbee.title", "bot.boughbee.desc", false, true, BoughBee.class, "boughpyre", false));
         bots.add(new BotDescriptor("forager", BotDescriptor.BotType.RESOURCES, "bot.forager.title", "bot.forager.desc", true, true, Forager.class, "forager", false));
         bots.add(new BotDescriptor("tunneling", BotDescriptor.BotType.RESOURCES, "Tunneling Bot", "Digs tunnels with support placement, or use 'No Support' mode for minesweeper-guided mining without supports.", false, true, TunnelingBot.class, "tunelling", false));
-        bots.add(new BotDescriptor("tickbot", BotDescriptor.BotType.RESOURCES, "Tick Bot", "Stands in thicket area to gather ticks. Drops off to PUT area when inventory full. Stops if HP falls below 50%.", true, true, TickBot.class, "tick", false));
+        bots.add(new BotDescriptor("tickbot", BotDescriptor.BotType.RESOURCES, "bot.tick.title", "bot.tick.desc", true, true, TickBot.class, "tick", false));
 
         // PRODUCTIONS
         bots.add(new BotDescriptor("smelter", BotDescriptor.BotType.PRODUCTIONS, "Smelter", "Smelts ore.", true, true, SmelterAction.class, "smelter", true));
