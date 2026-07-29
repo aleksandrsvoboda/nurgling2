@@ -208,27 +208,38 @@ public class NDraggableWidget extends Widget
         }
     }
 
+    /**
+     * Forward a click to one of the control buttons, translating the event into
+     * the button's own coordinate space. The buttons sit visually on top of the
+     * content while in DRAG mode, but the content is higher in the event z-order
+     * (it is added last), so it would otherwise swallow clicks aimed at the
+     * buttons. Handling them explicitly here makes lock/visibility/flip work on
+     * every window regardless of what the content does with the event.
+     */
+    private boolean btnClick(ICheckBox btn, MouseDownEvent ev) {
+        return btn.visible() && btn.mousedown(ev.derive(ev.c.sub(btn.c)));
+    }
+
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         if (ui.core.mode == NCore.Mode.DRAG) {
-            if (!btnLock.mousedown(ev) &&
-                    !btnVis.mousedown(ev) &&
-                    !btnFlip.mousedown(ev)) {
-                if (ev.c.isect(Coord.z, sz))
-                    if (ui.grabs.isEmpty()) {
-                        if (!btnLock.a) {
-                            if (ev.b == 1) {
-                                dm = ui.grabmouse(this);
-                                doff = ev.c;
-                            }
-                        }
-                    } else {
-                        if (ev.b == 1) {
-                            dm = ui.grabmouse(this);
-                            doff = ev.c;
-                        }
-                        parent.setfocus(this);
-                    }
+            if (btnClick(btnLock, ev) || btnClick(btnVis, ev) || btnClick(btnFlip, ev))
+                return true;
+
+            if (ev.c.isect(Coord.z, sz)) {
+                // Start dragging only when this widget is unlocked, nothing else
+                // is currently grabbed and it is the left mouse button.
+                if (ev.b == 1 && !btnLock.a && ui.grabs.isEmpty()) {
+                    dm = ui.grabmouse(this);
+                    doff = ev.c;
+                    parent.setfocus(this);
+                }
+                // Consume the event so it does not fall through to widgets
+                // stacked underneath this one. Without this, overlapping
+                // draggable widgets would all grab the mouse at once and get
+                // stuck to the cursor on release. Only the topmost widget under
+                // the pointer should react.
+                return true;
             }
         }
         return super.mousedown(ev);
