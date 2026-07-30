@@ -87,6 +87,30 @@ public class TakeFromVehicle implements Action {
                 }
             }
         }
+        else if(vehicle.ngob.name.contains("knarr")) {
+            new PathFinder(vehicle).run(gui);
+            new SelectFlowerAction("Cargo", vehicle).run(gui);
+            NUtils.addTask(new WaitWindow("Knarr"));
+            for (Widget widget : NUtils.getGameUI().getWindow("Knarr").children()) {
+                if (widget instanceof NInventory)
+                    continue;
+                if (widget.children().size() >= 64) {
+                    for (Widget child : widget.children()) {
+                        if (!(child instanceof InvSquare)) {
+                            child.wdgmsg("click", UI.scale(15,15),1,0);
+                            NUtils.addTask(new NTask() {
+                                @Override
+                                public boolean check() {
+                                    return Finder.findLiftedbyPlayer() != null;
+                                }
+                            });
+                            return Results.SUCCESS();
+                        }
+                    }
+                    return Results.FAIL();
+                }
+            }
+        }
         return Results.FAIL();
     }
 }

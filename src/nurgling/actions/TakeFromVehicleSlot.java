@@ -29,6 +29,8 @@ public class TakeFromVehicleSlot implements Action {
             return takeFromWindowSlot(gui, "Cargo", "Snekkja", 16);
         } else if (vehicle.ngob.name.contains("wagon")) {
             return takeFromWindowSlot(gui, "Open", "Wagon", 20);
+        } else if (vehicle.ngob.name.contains("knarr")) {
+            return takeFromWindowSlot(gui, "Cargo", "Knarr", 64);
         }
         return Results.FAIL();
     }
@@ -101,10 +103,22 @@ public class TakeFromVehicleSlot implements Action {
             return count;
         }
 
-        boolean isSnekkja = vehicle.ngob.name.contains("snekkja");
-        String flowerAction = isSnekkja ? "Cargo" : "Open";
-        String windowName = isSnekkja ? "Snekkja" : "Wagon";
-        int minChildren = isSnekkja ? 16 : 20;
+        String flowerAction;
+        String windowName;
+        int minChildren;
+        if (vehicle.ngob.name.contains("snekkja")) {
+            flowerAction = "Cargo";
+            windowName = "Snekkja";
+            minChildren = 16;
+        } else if (vehicle.ngob.name.contains("knarr")) {
+            flowerAction = "Cargo";
+            windowName = "Knarr";
+            minChildren = 64;
+        } else {
+            flowerAction = "Open";
+            windowName = "Wagon";
+            minChildren = 20;
+        }
 
         new PathFinder(vehicle).run(gui);
         Window existing = NUtils.getGameUI().getWindow(windowName);
