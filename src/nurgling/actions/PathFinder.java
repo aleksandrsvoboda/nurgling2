@@ -16,6 +16,11 @@ import static nurgling.pf.Graph.getPath;
 public class PathFinder implements Action {
     private final int VISIBLE_AREA = 41;
     public static double pfmdelta = 1.5;
+    /** Consecutive re-paths without displacement before the watchdog is told. */
+    private static final int STUCK_STREAK_LIMIT = 3;
+    /** Hard cap on re-paths, so a wedged character eventually fails the action
+     *  instead of spinning here forever. */
+    private static final int MAX_RESTARTS = 20;
     NPFMap pfmap = null;
     Coord start_pos = null;
     Coord end_pos = null;
@@ -77,6 +82,13 @@ public class PathFinder implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        // Stuck detection: if the character keeps failing to reach a waypoint
+        // without actually moving between attempts, it is wedged against
+        // something and re-pathing will never help.
+        int restarts = 0;
+        int stuckStreak = 0;
+        Coord2d lastRestartPos = null;
+
         while (true) {
             LinkedList<Graph.Vertex> path = construct();
 
@@ -107,6 +119,20 @@ public class PathFinder implements Action {
                 }
                 if (!needRestart)
                     return Results.SUCCESS();
+
+                restarts++;
+                Coord2d here = gui.map.player().rc;
+                if (lastRestartPos != null && here.dist(lastRestartPos) < pfmdelta)
+                    stuckStreak++;
+                else
+                    stuckStreak = 0;
+                lastRestartPos = here;
+
+                if (stuckStreak == STUCK_STREAK_LIMIT)
+                    NUtils.getUI().core.watchdog.reportStall(
+                            "PathFinder: character not moving after " + stuckStreak + " re-paths");
+                if (restarts >= MAX_RESTARTS)
+                    return Results.ERROR("Path blocked: gave up after " + restarts + " attempts");
             } else {
                 if (dn) {
 //                    if(start_pos == end_poses.get(0) && NUtils.player().rc.dist(Utils.pfGridToWorld(pfmap.cells[start_pos]))

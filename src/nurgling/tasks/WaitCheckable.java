@@ -13,4 +13,10 @@ public class WaitCheckable extends NTask{
     public boolean check() {
         return widget.check();
     }
+
+    // Waits for the user to finish with a widget - there is no upper bound.
+    @Override
+    public long stallTimeoutMs() {
+        return Long.MAX_VALUE;
+    }
 }

@@ -132,6 +132,11 @@ public class NConfig
         skipPluckingCocksInKFC,
         studyDeskLayout,
         waypointRetryOnStuck,
+        botStallTimeout,             // Seconds a bot may block on one task before it is flagged STALLED
+        botStallAlarm,               // Play an alarm sound when a bot becomes STALLED
+        botStallDiscord,             // Send a Discord notification when a bot becomes STALLED
+        botStallAutoInterrupt,       // Automatically interrupt a bot that stays STALLED
+        botStallAutoInterruptDelay,  // Seconds to stay STALLED before the automatic interrupt fires
         verboseCal,
         pluginsAllowUnsigned,  // Dev only: load external plugin jars without signature verification
         pluginsDir,            // Optional override for the plugin drop-folder (default: "plugins")
@@ -374,6 +379,11 @@ public class NConfig
         conf.put(Key.validateAllCropsBeforeHarvest, false);
         conf.put(Key.studyDeskLayout, "");
         conf.put(Key.waypointRetryOnStuck, true);
+        conf.put(Key.botStallTimeout, 90);
+        conf.put(Key.botStallAlarm, true);
+        conf.put(Key.botStallDiscord, false);
+        conf.put(Key.botStallAutoInterrupt, false);
+        conf.put(Key.botStallAutoInterruptDelay, 300);
         conf.put(Key.verboseCal, false);
         conf.put(Key.highlightRockTiles, true);
         conf.put(Key.showSpeedometer, false);

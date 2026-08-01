@@ -34,6 +34,8 @@ public class NCore extends Widget
     public ScenarioManager scenarioManager = new ScenarioManager();
     public EquipmentPresetManager equipmentPresetManager = new EquipmentPresetManager();
     public nurgling.planning.PlanningLayerManager planningLayer = new nurgling.planning.PlanningLayerManager();
+    /** Notices bots that stop making progress; see nurgling.watchdog.BotWatchdog. */
+    public final nurgling.watchdog.BotWatchdog watchdog = new nurgling.watchdog.BotWatchdog(this);
 
     public static volatile nurgling.db.DatabaseManager databaseManager = null;
     public boolean isInspectMode()
@@ -63,6 +65,7 @@ public class NCore extends Widget
             {
                 synchronized (pt.task)
                 {
+                    pt.task.notified = true;
                     pt.task.notify();
                 }
             }
@@ -73,6 +76,7 @@ public class NCore extends Widget
                 {
                     synchronized (task)
                     {
+                        task.notified = true;
                         task.notify();
                     }
                 }
@@ -168,6 +172,8 @@ public class NCore extends Widget
     // This ensures container contents, inventory items, etc. are fully loaded
     // before the bot acts on them.
     private static final long PENDING_SAFETY_TIMEOUT_MS = 2000;
+    /** How often a parked bot thread wakes to let the watchdog measure its wait. */
+    private static final long WAIT_POLL_MS = 500;
     private static class PendingTask {
         final NTask task;
         final long completedAt;
@@ -380,6 +386,7 @@ public class NCore extends Widget
                     {
                         synchronized (pt.task)
                         {
+                            pt.task.notified = true;
                             pt.task.notify();
                         }
                         pit.remove();
@@ -409,6 +416,7 @@ public class NCore extends Widget
             for_remove.clear();
         }
         mappingClient.tick(dt);
+        watchdog.tick();
     }
 
 
@@ -419,12 +427,20 @@ public class NCore extends Widget
         {
             if(!task.check())
             {
+                task.notified = false;
                 synchronized (tasks)
                 {
                     tasks.add(task);
                 }
+                watchdog.taskEnter(task);
                 try {
-                    task.wait();
+                    // Bounded wait: wait(WAIT_POLL_MS) releases the monitor on every
+                    // iteration so tick()'s notify() still works, while letting the
+                    // watchdog observe how long this task has been blocking the bot.
+                    while(!task.notified)
+                    {
+                        task.wait(WAIT_POLL_MS);
+                    }
                     if(task.criticalExit)
                     {
                         ui.gui.error("Incorrect final of task " + task.getClass().toString());
@@ -436,9 +452,19 @@ public class NCore extends Widget
                     {
                         tasks.remove(task);
                         pending_notify.removeIf(pt -> pt.task == task);
-                        throw e;
                     }
+                    throw e;
                 }
+                finally
+                {
+                    watchdog.taskExit(task);
+                }
+            }
+            else
+            {
+                // Satisfied immediately - still counts as progress, so a bot
+                // churning through instant tasks isn't mistaken for a stall.
+                watchdog.progress(null);
             }
         }
         if(task.criticalExit)

@@ -187,6 +187,13 @@ public class SessionContext {
     }
 
     /**
+     * Check if any bot in this session has been flagged as stalled by the watchdog.
+     */
+    public boolean hasStalledBot() {
+        return (ui != null && ui.core != null) && ui.core.watchdog.hasStalledBots();
+    }
+
+    /**
      * Clear a latched alarm. Called when the user switches to this session - looking at it is
      * the acknowledgement.
      */

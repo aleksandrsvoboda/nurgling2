@@ -24,4 +24,10 @@ public class WaitKeyPress extends NTask {
         }
         return result;
     }
+
+    // Waits for the user to press a key - there is no upper bound.
+    @Override
+    public long stallTimeoutMs() {
+        return Long.MAX_VALUE;
+    }
 }

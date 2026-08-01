@@ -55,6 +55,8 @@ public class SessionTabBar extends Widget {
     private static final Color ALARM_TEXT = new Color(0xFF, 0x3B, 0x3B);       // #FF3B3B
     /** Ticks per half-cycle of the alarm border pulse (~1.5Hz at 60fps). */
     private static final int ALARM_PULSE_TICKS = 20;
+    private static final Color STALLED_BORDER = new Color(0xFF, 0x8C, 0x00);   // #FF8C00
+    private static final Color STALLED_TEXT = new Color(0xFF, 0x8C, 0x00);     // #FF8C00
     private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
     private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
     private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
@@ -417,10 +419,11 @@ public class SessionTabBar extends Widget {
                                     boolean isActive, boolean closeHovered, boolean canClose) {
         // Determine state colors
         boolean alarmed = ctx.hasAlarm();
+        boolean stalledBot = ctx.hasStalledBot();
         boolean inCombat = ctx.isInCombat();
         boolean runningBot = ctx.isRunningBot();
 
-        // Choose colors based on state priority: Alarm > Combat > Bot > Active > Idle
+        // Choose colors based on state priority: Alarm > Stalled > Combat > Bot > Active > Idle
         // Alarm sits above Active on purpose, so the session being approached is still marked
         // when it is the one already on screen.
         Color borderColor;
@@ -431,6 +434,9 @@ public class SessionTabBar extends Widget {
             boolean pulseHigh = ((NUtils.getTickId() / ALARM_PULSE_TICKS) % 2) == 0;
             borderColor = pulseHigh ? ALARM_BORDER : ALARM_BORDER_ALT;
             textColor = ALARM_TEXT;
+        } else if (stalledBot) {
+            borderColor = STALLED_BORDER;
+            textColor = STALLED_TEXT;
         } else if (inCombat) {
             borderColor = COMBAT_BORDER;
             textColor = COMBAT_TEXT;
@@ -487,9 +493,11 @@ public class SessionTabBar extends Widget {
     }
 
     private void drawStatusIcon(GOut g, int x, int y, SessionContext ctx) {
-        // Determine which icon to show (priority: combat > bot > none)
+        // Determine which icon to show (priority: stalled > combat > bot > none)
         Tex icon = null;
-        if (ctx.isInCombat()) {
+        if (ctx.hasStalledBot()) {
+            icon = warningIcon;
+        } else if (ctx.isInCombat()) {
             icon = warningIcon;
         } else if (ctx.isRunningBot()) {
             icon = gearIcon;

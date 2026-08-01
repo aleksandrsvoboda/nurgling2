@@ -21,4 +21,11 @@ public class WaitDuration extends NTask {
     public boolean check() {
         return System.currentTimeMillis() >= targetTimeMs;
     }
+
+    // This task knows exactly how long it intends to block, so give the
+    // watchdog that deadline plus a little slack instead of the global default.
+    @Override
+    public long stallTimeoutMs() {
+        return Math.max(0, targetTimeMs - System.currentTimeMillis()) + 10_000;
+    }
 }
