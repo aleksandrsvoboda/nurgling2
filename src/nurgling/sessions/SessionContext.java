@@ -163,6 +163,13 @@ public class SessionContext {
     }
 
     /**
+     * Check if any bot in this session has been flagged as stalled by the watchdog.
+     */
+    public boolean hasStalledBot() {
+        return (ui != null && ui.core != null) && ui.core.watchdog.hasStalledBots();
+    }
+
+    /**
      * Check if this session is in combat.
      * Detects combat by checking if Fightview exists, is visible, and has active opponents.
      */

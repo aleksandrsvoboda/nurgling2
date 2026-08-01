@@ -46,6 +46,8 @@ public class SessionTabBar extends Widget {
     private static final Color IDLE_TEXT = new Color(150, 150, 150);           // Gray
     private static final Color COMBAT_BORDER = new Color(0xFF, 0x64, 0x64);    // #FF6464
     private static final Color COMBAT_TEXT = new Color(0xFF, 0x64, 0x64);      // #FF6464
+    private static final Color STALLED_BORDER = new Color(0xFF, 0x8C, 0x00);   // #FF8C00
+    private static final Color STALLED_TEXT = new Color(0xFF, 0x8C, 0x00);     // #FF8C00
     private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
     private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
     private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
@@ -369,14 +371,18 @@ public class SessionTabBar extends Widget {
     private void drawSessionButton(GOut g, int x, int y, SessionContext ctx, boolean hovered,
                                     boolean isActive, boolean closeHovered, boolean canClose) {
         // Determine state colors
+        boolean stalledBot = ctx.hasStalledBot();
         boolean inCombat = ctx.isInCombat();
         boolean runningBot = ctx.isRunningBot();
 
-        // Choose colors based on state priority: Combat > Bot > Active > Idle
+        // Choose colors based on state priority: Stalled > Combat > Bot > Active > Idle
         Color borderColor;
         Color textColor;
 
-        if (inCombat) {
+        if (stalledBot) {
+            borderColor = STALLED_BORDER;
+            textColor = STALLED_TEXT;
+        } else if (inCombat) {
             borderColor = COMBAT_BORDER;
             textColor = COMBAT_TEXT;
         } else if (runningBot) {
@@ -432,9 +438,11 @@ public class SessionTabBar extends Widget {
     }
 
     private void drawStatusIcon(GOut g, int x, int y, SessionContext ctx) {
-        // Determine which icon to show (priority: combat > bot > none)
+        // Determine which icon to show (priority: stalled > combat > bot > none)
         Tex icon = null;
-        if (ctx.isInCombat()) {
+        if (ctx.hasStalledBot()) {
+            icon = warningIcon;
+        } else if (ctx.isInCombat()) {
             icon = warningIcon;
         } else if (ctx.isRunningBot()) {
             icon = gearIcon;

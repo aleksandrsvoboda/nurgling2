@@ -49,4 +49,11 @@ public class WaitForMapLoadByGridId extends NTask {
         // Grid not loaded yet
         return false;
     }
+
+    // check() already bails out at TIMEOUT_MS; stay just above it so the
+    // task's own timeout wins rather than the watchdog flagging a stall.
+    @Override
+    public long stallTimeoutMs() {
+        return TIMEOUT_MS + 5000;
+    }
 }

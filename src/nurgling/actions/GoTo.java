@@ -60,7 +60,12 @@ public class GoTo implements Action
             }
         }
         else {
-            NUtils.getUI().core.addTask(new IsMoving(targetCoord));
+            IsMoving moving = new IsMoving(targetCoord);
+            NUtils.getUI().core.addTask(moving);
+            // getResult() is false when the walk animation never started, i.e. the
+            // character is blocked. Tell the watchdog; the walk itself still proceeds.
+            if(!moving.getResult())
+                NUtils.getUI().core.watchdog.reportStall("character did not start moving toward " + targetCoord);
             NUtils.getUI().core.addTask(new MovingCompleted(targetCoord));
         }
         if(NUtils.getGameUI().map.player().rc.dist(targetCoord) > 2*pfmdelta)

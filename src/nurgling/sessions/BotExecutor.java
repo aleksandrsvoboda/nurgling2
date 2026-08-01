@@ -2,6 +2,9 @@ package nurgling.sessions;
 
 import nurgling.*;
 import nurgling.actions.Action;
+import nurgling.actions.Results;
+import nurgling.watchdog.BotState;
+import nurgling.watchdog.BotWatchdog;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,8 +19,37 @@ import java.util.function.Consumer;
  * When a bot thread is created through this executor, it is automatically
  * bound to the current session. This ensures that even if the user switches
  * to a different session, the bot continues operating on its original session.
+ *
+ * Every thread started here is also registered with the session's
+ * {@link BotWatchdog}, so a bot that hangs or crashes gets reported instead of
+ * silently disappearing.
  */
 public class BotExecutor {
+
+    private static BotWatchdog watchdog(NUI boundUI) {
+        return (boundUI != null && boundUI.core != null) ? boundUI.core.watchdog : null;
+    }
+
+    /** Register a bot thread with the session watchdog before it is started. */
+    public static void register(NUI boundUI, Thread t, String name) {
+        BotWatchdog wd = watchdog(boundUI);
+        if (wd != null)
+            wd.register(t, name);
+    }
+
+    /** Record the outcome of an action run and report crashes to the user. */
+    private static void finish(NUI boundUI, NGameUI gui, String name, BotState state, String msg) {
+        BotWatchdog wd = watchdog(boundUI);
+        if (wd != null)
+            wd.unregister(Thread.currentThread(), state, msg);
+        if (state == BotState.ERROR && gui != null)
+            gui.error(name + ": CRASHED: " + msg);
+    }
+
+    private static BotState stateOf(Results res) {
+        // Some actions return null; treat that as a normal completion.
+        return (res == null || res.IsSuccess()) ? BotState.FINISHED : BotState.FAILED;
+    }
 
     /**
      * Run an action asynchronously with session binding.
@@ -46,14 +78,19 @@ public class BotExecutor {
         Thread t = new Thread(() -> {
             ThreadLocalUI.set(boundUI);
             try {
-                action.run(gui);
+                finish(boundUI, gui, name, stateOf(action.run(gui)), null);
             } catch (InterruptedException e) {
                 gui.msg(name + ": STOPPED");
+                finish(boundUI, gui, name, BotState.FINISHED, "stopped");
+            } catch (Throwable e) {
+                e.printStackTrace();
+                finish(boundUI, gui, name, BotState.ERROR, String.valueOf(e));
             } finally {
                 ThreadLocalUI.clear();
             }
         }, name);
 
+        register(boundUI, t, name);
         if (disableStacks) {
             gui.biw.addObserve(t, true);
         } else {
@@ -89,9 +126,13 @@ public class BotExecutor {
                     st.start();
                 }
                 // Run main action
-                action.run(gui);
+                finish(boundUI, gui, name, stateOf(action.run(gui)), null);
             } catch (InterruptedException e) {
                 gui.msg(name + ": STOPPED");
+                finish(boundUI, gui, name, BotState.FINISHED, "stopped");
+            } catch (Throwable e) {
+                e.printStackTrace();
+                finish(boundUI, gui, name, BotState.ERROR, String.valueOf(e));
             } finally {
                 // Stop all support threads
                 for (Thread st : supports) {
@@ -104,6 +145,7 @@ public class BotExecutor {
             }
         }, name);
 
+        register(boundUI, t, name);
         if (disableStacks) {
             gui.biw.addObserve(t, true);
         } else {
@@ -118,16 +160,24 @@ public class BotExecutor {
      */
     private static Thread createSupportThread(String baseName, Action action,
                                                NUI boundUI, NGameUI gui) {
-        return new Thread(() -> {
+        String name = baseName + "-Support";
+        Thread t = new Thread(() -> {
             ThreadLocalUI.set(boundUI);
             try {
                 action.run(gui);
+                finish(boundUI, gui, name, BotState.FINISHED, null);
             } catch (InterruptedException e) {
                 // Support stopped - normal
+                finish(boundUI, gui, name, BotState.FINISHED, "stopped");
+            } catch (Throwable e) {
+                e.printStackTrace();
+                finish(boundUI, gui, name, BotState.ERROR, String.valueOf(e));
             } finally {
                 ThreadLocalUI.clear();
             }
-        }, baseName + "-Support");
+        }, name);
+        register(boundUI, t, name);
+        return t;
     }
 
     /**
@@ -169,10 +219,16 @@ public class BotExecutor {
             ThreadLocalUI.set(boundUI);
             try {
                 task.accept(gui);
+                finish(boundUI, gui, name, BotState.FINISHED, null);
+            } catch (Throwable e) {
+                e.printStackTrace();
+                finish(boundUI, gui, name, BotState.ERROR, String.valueOf(e));
             } finally {
                 ThreadLocalUI.clear();
             }
         }, name);
+
+        register(boundUI, t, name);
         gui.biw.addObserve(t);
         t.start();
         return t;
