@@ -71,7 +71,7 @@ public class LettuceAndPumpkinCollector implements Action {
                     }
 
                     if (!(testItems = gui.getInventory().getItems(new NAlias(this.secondaryItemAlias))).isEmpty()) {
-                        new TransferToPiles(itemOutput.getRCArea(), new NAlias(this.secondaryItemAlias)).run(gui);
+                        transferSecondaryItems(gui);
                     }
 
                     currentQuantity = 0;
@@ -96,10 +96,20 @@ public class LettuceAndPumpkinCollector implements Action {
         }
 
         if (!(testItems = gui.getInventory().getItems(new NAlias(this.secondaryItemAlias))).isEmpty()) {
-            new TransferToPiles(itemOutput.getRCArea(), new NAlias(this.secondaryItemAlias)).run(gui);
+            transferSecondaryItems(gui);
         }
 
         return Results.SUCCESS();
+    }
+
+    /**
+     * Moves the sliced by-product ("Pumpkin Flesh" / "Lettuce Leaf") to its piles by exact name.
+     * The exact-name form keeps TransferToPiles on the batched Stockpile.put() path - matched as
+     * an alias, "Pumpkin Flesh" collides with its own stacking-category sibling "Pumpkin" and
+     * every load would be moved one item at a time.
+     */
+    private void transferSecondaryItems(NGameUI gui) throws InterruptedException {
+        new TransferToPiles(itemOutput.getRCArea(), this.secondaryItemAlias, 0).run(gui);
     }
 
     private void transferSeeds(NGameUI gui) throws InterruptedException {
