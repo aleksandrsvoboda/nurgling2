@@ -2,6 +2,7 @@ package nurgling;
 
 import haven.*;
 import nurgling.tasks.*;
+import nurgling.tools.StockpileUtils;
 
 import java.awt.event.*;
 import java.util.*;
@@ -111,7 +112,7 @@ public class NISBox extends ISBox
 
     protected void added() {
         if(parent instanceof Window) {
-            boolean isStockpile = "Stockpile".equals(((Window) parent).cap);
+            boolean isStockpile = StockpileUtils.isISBoxCap(((Window) parent).cap);
             if(isStockpile) {
                 take = new TakeButton(UI.scale(60), "Take");
                 value = new TextEntry.NumberValue(UI.scale(40), "");

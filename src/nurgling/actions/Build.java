@@ -589,25 +589,23 @@ public class Build implements Action
                     }
                 } else
                 {
-                    // No containers, try stockpiles
+                    // No containers, try ISBox storages: stockpiles and produce sacks alike
                     while (ingredient.count != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord) != 0)
                     {
-                        ArrayList<Gob> piles = Finder.findGobs(ingredientArea, new NAlias("stockpile"));
-                        if (piles.isEmpty())
-                        {
-                            if (NUtils.getGameUI().getInventory().getItems(ingredient.name).size() != ingredient.count)
-                                return false;
-                        }
-                        piles.sort(NUtils.d_comp);
+                        ArrayList<Gob> piles = Finder.findGobs(ingredientArea, StockpileUtils.isboxNames());
                         if (piles.isEmpty())
                             return false;
+                        piles.sort(NUtils.d_comp);
                         Gob pile = piles.get(0);
+                        String cap = StockpileUtils.capFor(pile);
                         new PathFinder(pile).run(NUtils.getGameUI());
-                        new OpenTargetContainer("Stockpile", pile).run(NUtils.getGameUI());
+                        new OpenTargetContainer(cap, pile).run(NUtils.getGameUI());
                         TakeItemsFromPile tifp;
-                        (tifp = new TakeItemsFromPile(pile, NUtils.getGameUI().getStockpile(), Math.min(ingredient.count, NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord)))).run(gui);
-                        new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
+                        (tifp = new TakeItemsFromPile(pile, NUtils.getGameUI().getStockpile(cap), Math.min(ingredient.count, NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord)))).run(gui);
+                        new CloseTargetWindow(NUtils.getGameUI().getWindow(cap)).run(gui);
                         ingredient.count = ingredient.count - tifp.getResult();
+                        if (tifp.getResult() == 0)
+                            break; // nothing to take here, avoid spinning on the same storage
                     }
                 }
             }

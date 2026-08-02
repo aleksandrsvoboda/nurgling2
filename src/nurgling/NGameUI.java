@@ -11,6 +11,7 @@ import nurgling.overlays.QualityOl;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
 import nurgling.tools.NSearchItem;
+import nurgling.tools.StockpileUtils;
 import nurgling.widgets.*;
 
 import java.awt.event.KeyEvent;
@@ -581,14 +582,36 @@ public class NGameUI extends GameUI
         return (NInventory) maininv;
     }
 
-    public NISBox getStockpile () {
-        Window spwnd = getWindow ( "Stockpile" );
+    public NISBox getStockpile ( String cap ) {
+        Window spwnd = getWindow ( cap );
         if(spwnd == null){
             return null;
         }
         for ( Widget sp = spwnd.lchild ; sp != null ; sp = sp.prev ) {
             if ( sp instanceof NISBox ) {
                 return ( ( NISBox ) sp );
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Any opened ISBox storage window (stockpile, produce sack, ...), stockpile first.
+     */
+    public NISBox getStockpile () {
+        NISBox box = getStockpile ( StockpileUtils.STOCKPILE_CAP );
+        if(box != null)
+            return box;
+        for ( Widget w = lchild ; w != null ; w = w.prev ) {
+            if ( w instanceof Window ) {
+                Window wnd = ( Window ) w;
+                if ( StockpileUtils.isISBoxCap ( wnd.cap ) ) {
+                    for ( Widget sp = wnd.lchild ; sp != null ; sp = sp.prev ) {
+                        if ( sp instanceof NISBox ) {
+                            return ( ( NISBox ) sp );
+                        }
+                    }
+                }
             }
         }
         return null;

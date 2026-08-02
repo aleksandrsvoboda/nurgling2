@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.*;
 import nurgling.*;
 import nurgling.tasks.*;
+import nurgling.tools.StockpileUtils;
 
 import java.util.ArrayList;
 
@@ -10,6 +11,7 @@ public class TakeItemsFromPile implements Action
 {
     NISBox pile;
     Gob gpile;
+    String cap;
     int target_size = Integer.MAX_VALUE;
     int took = 0;
     ArrayList<NGItem> items = new ArrayList<>();
@@ -19,6 +21,8 @@ public class TakeItemsFromPile implements Action
         this.pile = pile;
         this.target_size = target_size;
         this.gpile = gob;
+        String gobcap = StockpileUtils.capFor(gob);
+        this.cap = (gobcap != null) ? gobcap : StockpileUtils.STOCKPILE_CAP;
     }
 
     @Override
@@ -26,7 +30,7 @@ public class TakeItemsFromPile implements Action
     {
         while (took < target_size)
         {
-            NISBox box = gui.getStockpile();
+            NISBox box = gui.getStockpile(cap);
             if (box == null)
                 break;
             /* total() waits for the pile's label to parse. calcCount() can still answer -1
