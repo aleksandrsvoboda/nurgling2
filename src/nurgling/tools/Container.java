@@ -31,7 +31,15 @@ public class Container implements NContext.ObjectStorage {
 
     public Map<Class<? extends Updater>, Updater> updaters = new HashMap<Class<? extends Updater>, Updater>();
     public void update() throws InterruptedException {
-        if(NUtils.getGameUI().getInventory(cap)!=null)
+        NInventory inv = NUtils.getGameUI().getInventory(cap);
+        /* getInventory resolves by window caption, so it can hand back a different
+         * container of the same kind. Recording its numbers here would mark this container
+         * as full and drop it from every later lookup, so only refuse the ones we can prove
+         * are foreign - an unbound window still has to be accepted, since containers opened
+         * by hand carry no binding at all. */
+        if(inv != null && inv.parentGob != null && inv.parentGob.id != gobid)
+            return;
+        if(inv != null)
         {
             for (Updater upd : updaters.values()) {
                 upd.update();

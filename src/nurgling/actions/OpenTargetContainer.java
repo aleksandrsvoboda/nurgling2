@@ -12,9 +12,28 @@ public class OpenTargetContainer implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        if(NUtils.getGameUI().getWindow(name)==null)
+        Window already = NUtils.getGameUI().getWindow(name);
+        if(already != null && !isOwnedBy(gui, already, gob))
+        {
+            /* A container window is keyed only by its caption, so an open window from a
+             * previously visited container of the same kind suppresses the click below and
+             * the bot silently keeps working with that container instead of this one. Two
+             * cupboards standing a couple of tiles apart stay in range of each other, so
+             * every second one in a row was never opened at all. */
+            already.wdgmsg("close");
+            gui.ui.core.addTask(new WindowIsClosed(already));
+            already = null;
+        }
+        if(already == null)
+        {
+            /* Inventory's factory binds the new window to core.getLastActions().gob, which
+             * only real UI clicks populate - a bot's wdgmsg goes straight to the server and
+             * leaves every bot-opened container unbound. Set it here so the window that is
+             * about to arrive knows which gob it belongs to. */
+            gui.ui.core.setLastAction(gob);
             gui.map.wdgmsg ( "click", Coord.z, gob.rc.floor ( posres ), 3, 0, 0, ( int ) gob.id,
                     gob.rc.floor ( posres ), 0, -1 );
+        }
         switch (name)
         {
             case "Stockpile":
@@ -39,6 +58,29 @@ public class OpenTargetContainer implements Action
             cont.update();
         }
         return Results.SUCCESS();
+    }
+
+    /**
+     * Whether an already open window is the one belonging to gob, and so may be reused
+     * instead of being closed and reopened.
+     *
+     * Only NInventory-backed containers carry the binding. Windows without one (stockpiles
+     * and other ISBoxes, barter stands) are left alone and keep the previous behaviour.
+     */
+    private static boolean isOwnedBy(NGameUI gui, Window wnd, Gob gob)
+    {
+        NInventory inv = null;
+        for(Widget w = wnd.lchild; w != null; w = w.prev)
+        {
+            if(w instanceof NInventory)
+            {
+                inv = (NInventory) w;
+                break;
+            }
+        }
+        if(inv == null)
+            return true;
+        return inv.parentGob != null && gob != null && inv.parentGob.id == gob.id;
     }
 
     public OpenTargetContainer(String name, Gob gob)
