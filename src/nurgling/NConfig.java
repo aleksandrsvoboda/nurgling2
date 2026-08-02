@@ -1598,8 +1598,10 @@ public class NConfig
                     newArea.id = existingArea.id;
                     mapView.glob.map.areas.put(newArea.id, newArea);
                 } else {
-                    // Add as new area with new id
-                    int maxId = 0;
+                    // Add as new area with new id. Stay above the DB's own
+                    // watermark too - tombstoned rows keep their ids and the
+                    // sync would delete an imported area that reused one.
+                    int maxId = NMapView.maxKnownDbAreaId();
                     for (NArea area : mapView.glob.map.areas.values()) {
                         if (area.id > maxId) {
                             maxId = area.id;
