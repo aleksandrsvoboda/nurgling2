@@ -40,7 +40,7 @@ public class AutoChooser implements Action
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
             ArrayList<WItem> items = getItemsByExactName(item);
             if (!items.isEmpty())
-                ((Window) inv.parent).disable();
+                ((Window) inv.parent).disable(Thread.currentThread());
             ArrayList<WItem> for_ignore = new ArrayList<>();
             while (!items.isEmpty())
             {
