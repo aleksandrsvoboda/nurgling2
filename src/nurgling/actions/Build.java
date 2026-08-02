@@ -593,6 +593,8 @@ public class Build implements Action
                     while (ingredient.count != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord) != 0)
                     {
                         ArrayList<Gob> piles = Finder.findGobs(ingredientArea, StockpileUtils.isboxNames());
+                        // An emptied produce sack stays on the ground, but right-clicking it picks it up
+                        piles.removeIf(StockpileUtils::isEmptyStorage);
                         if (piles.isEmpty())
                             return false;
                         piles.sort(NUtils.d_comp);

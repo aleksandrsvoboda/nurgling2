@@ -28,18 +28,23 @@ public class TakeItemsFromPile implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-        int count = Math.min(pile.calcCount(), target_size);
-        while (gui.getStockpile(cap)!=null)
+        while (took < target_size)
         {
+            NISBox box = gui.getStockpile(cap);
+            if(box == null)
+                break;
+            // A produce sack stays open when emptied, unlike a stockpile, which just disappears
+            int left = box.calcCount();
+            if(left <= 0)
+                break;
+            int count = Math.min(left, target_size - took);
             ((NUI)gui.ui).enableMonitor(gui.maininv);
-            gui.getStockpile(cap).transfer(count);
+            box.transfer(count);
             WaitItemFromPile wifp = new WaitItemFromPile(count);
             NUtils.getUI().core.addTask(wifp);
             took += wifp.getTotalItemCount();
             ((NUI)gui.ui).disableMonitor();
             items.addAll(wifp.getResult());
-            if(target_size <=took)
-                return Results.SUCCESS();
         }
 
         return Results.SUCCESS();
