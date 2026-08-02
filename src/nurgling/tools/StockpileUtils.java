@@ -26,6 +26,13 @@ public class StockpileUtils {
     private static final NAlias isboxNames = new NAlias(new ArrayList<>(isboxcaps.keySet()));
 
     /**
+     * Resource names of ISBox storages that are known to hold nothing. A produce sack keeps
+     * existing when emptied, switching from producesack-closed0..4 to producesack-ter, and
+     * right-clicking it in that state picks the sack itself up as an item instead of opening it.
+     */
+    private static final NAlias emptyNames = new NAlias("producesack-ter");
+
+    /**
      * Caption of the ISBox window for the given gob, or null if the gob is not an ISBox storage.
      */
     public static String capFor(Gob gob) {
@@ -57,6 +64,13 @@ public class StockpileUtils {
      */
     public static NAlias isboxNames() {
         return isboxNames;
+    }
+
+    /**
+     * True if the gob is an ISBox storage that is known to be empty and must not be right-clicked.
+     */
+    public static boolean isEmptyStorage(Gob gob) {
+        return gob != null && gob.ngob != null && NParser.checkName(gob.ngob.name, emptyNames);
     }
 
     public static HashMap<String, Coord> itemMaxSize = new HashMap<>();

@@ -27,6 +27,9 @@ public class OpenTargetContainer implements Action
         }
         if(already == null)
         {
+            // Right-clicking an emptied produce sack picks the sack up instead of opening it
+            if(StockpileUtils.isEmptyStorage(gob))
+                return Results.FAIL();
             /* Inventory's factory binds the new window to core.getLastActions().gob, which
              * only real UI clicks populate - a bot's wdgmsg goes straight to the server and
              * leaves every bot-opened container unbound. Set it here so the window that is
