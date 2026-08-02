@@ -17,6 +17,20 @@ public class NArea
     public String path = "";
     public boolean hide = false;
 
+    /**
+     * "Soft delete" for an area: the user toggled the disable checkbox in the area list, so
+     * automation must not pick this area up any more (the area itself is kept, along with its
+     * specialisations and in/out lists, so it can be re-enabled later).
+     *
+     * Every area lookup in {@link NContext} has to consult this. Do not rely on
+     * {@link #getRCArea()} returning null for hidden areas as an implicit filter — that only
+     * covers areas whose grids are currently loaded and nearby, and the ChunkNav-based global
+     * lookups do not go through it at all.
+     */
+    public boolean isDisabled() {
+        return hide;
+    }
+
 
 
     public static class Specialisation
