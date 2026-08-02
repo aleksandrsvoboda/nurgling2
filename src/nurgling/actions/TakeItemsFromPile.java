@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.*;
 import nurgling.*;
 import nurgling.tasks.*;
+import nurgling.tools.StockpileUtils;
 
 import java.util.ArrayList;
 
@@ -10,6 +11,7 @@ public class TakeItemsFromPile implements Action
 {
     NISBox pile;
     Gob gpile;
+    String cap;
     int target_size = Integer.MAX_VALUE;
     int took = 0;
     ArrayList<NGItem> items = new ArrayList<>();
@@ -19,16 +21,18 @@ public class TakeItemsFromPile implements Action
         this.pile = pile;
         this.target_size = target_size;
         this.gpile = gob;
+        String gobcap = StockpileUtils.capFor(gob);
+        this.cap = (gobcap != null) ? gobcap : StockpileUtils.STOCKPILE_CAP;
     }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
         int count = Math.min(pile.calcCount(), target_size);
-        while (gui.getStockpile()!=null)
+        while (gui.getStockpile(cap)!=null)
         {
             ((NUI)gui.ui).enableMonitor(gui.maininv);
-            gui.getStockpile().transfer(count);
+            gui.getStockpile(cap).transfer(count);
             WaitItemFromPile wifp = new WaitItemFromPile(count);
             NUtils.getUI().core.addTask(wifp);
             took += wifp.getTotalItemCount();
