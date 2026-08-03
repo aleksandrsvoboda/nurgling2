@@ -41,6 +41,7 @@ public class StackSupporter {
         customStackSizes.put("Cattail Roots", 4);
         customStackSizes.put("Heartwood Leaves", 4);
         customStackSizes.put("Oyster", 4);
+        customStackSizes.put("Petrified Seashell", 3);
 
         putAll(3,
                 "Tuber", "Onion", "Beetroot", "Carrot", "Cucumber",

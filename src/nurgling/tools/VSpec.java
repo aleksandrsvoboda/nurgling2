@@ -3065,6 +3065,7 @@ public class VSpec {
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cattailhead\",\"name\":\"Cattail Head\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/yulecracker\",\"name\":\"Yule Cracker\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/brain-tiny\",\"name\":\"Tiny Brain\"}"));
+        StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/petrifiedshell\",\"name\":\"Petrified Seashell\"}"));
         categories.put("Stackable Curiosities", StackableCurios);
 
         ArrayList<JSONObject> NoneStackableCurio = new ArrayList<>();
@@ -3106,7 +3107,6 @@ public class VSpec {
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/oldboot-r\",\"name\":\"An Old Boot\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/oldboot-l\",\"name\":\"The Other Old Boot\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/scentgland\",\"name\":\"Scent Gland\"}"));
-        NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/petrifiedshell\",\"name\":\"Petrified Seashell\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/spiredforestconch\",\"name\":\"Spired Conch\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/strangeroot\",\"name\":\"Strange Root\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/slyear-prep\",\"name\":\"Sly Ear of the Fox\"}"));
