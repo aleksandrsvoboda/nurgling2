@@ -7,6 +7,7 @@ import nurgling.areas.NContext;
 import nurgling.tools.*;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 
 public class FreeContainers implements Action
@@ -42,7 +43,28 @@ public class FreeContainers implements Action
             navigateToTargetContainer(gui, container);
 
             new OpenTargetContainer(container).run(gui);
-            for (WItem item : (pattern == null) ? gui.getInventory(container.cap).getItems() : gui.getInventory(container.cap).getItems(pattern))
+            ArrayList<WItem> items = (pattern == null) ? gui.getInventory(container.cap).getItems() : gui.getInventory(container.cap).getItems(pattern);
+            // NContext.addOutItem() caches the best-fitting area per item name and reuses it for
+            // later calls whose quality merely exceeds an already-cached (possibly lower) threshold.
+            // That cache is only correct if items are fed to it in descending quality order per name
+            // (see FreeInventory2, which does the same sort) - otherwise a low-quality item scanned
+            // first can lock in a low-threshold area, and a higher-quality item of the same name that
+            // should go to a better zone gets routed there instead.
+            items.sort(new Comparator<WItem>() {
+                @Override
+                public int compare(WItem o1, WItem o2) {
+                    Float q1 = ((NGItem) o1.item).quality;
+                    Float q2 = ((NGItem) o2.item).quality;
+                    if (q1 == null && q2 == null)
+                        return 0;
+                    if (q1 == null)
+                        return 1;
+                    if (q2 == null)
+                        return -1;
+                    return Float.compare(q2, q1);
+                }
+            });
+            for (WItem item : items)
             {
                 if (context.addOutItem(((NGItem) item.item).name(), null, ((NGItem) item.item).quality != null ? ((NGItem) item.item).quality : 1))
                     targets.add(((NGItem) item.item).name());
