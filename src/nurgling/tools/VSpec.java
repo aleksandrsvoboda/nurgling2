@@ -3064,6 +3064,7 @@ public class VSpec {
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/mistletoe\",\"name\":\"Mistletoe\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cattailhead\",\"name\":\"Cattail Head\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/yulecracker\",\"name\":\"Yule Cracker\"}"));
+        StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/brain-tiny\",\"name\":\"Tiny Brain\"}"));
         categories.put("Stackable Curiosities", StackableCurios);
 
         ArrayList<JSONObject> NoneStackableCurio = new ArrayList<>();
