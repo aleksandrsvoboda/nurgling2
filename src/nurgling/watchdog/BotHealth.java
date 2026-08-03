@@ -27,6 +27,22 @@ public class BotHealth {
     /** True once the automatic interrupt has fired, so it only fires once. */
     public volatile boolean autoInterrupted = false;
 
+    // --- self-recovery bookkeeping, all touched from the UI thread only ---
+    /** Nudges attempted in the current stall episode. */
+    public volatile int recoveryAttempts = 0;
+    /** When the next nudge is due, or 0 when not recovering. */
+    public volatile long nextNudgeAt = 0;
+    /** Why recovery started; becomes the stall reason if recovery fails. */
+    public volatile String recoveryReason = null;
+    /** Player position at the last nudge, to tell "moved" from "still wedged". */
+    public volatile haven.Coord2d nudgeFrom = null;
+    /**
+     * Last time anything reported this bot as stuck. Progress arriving within the
+     * recovery window does not end the episode: a wedged character still completes
+     * tasks (failed walk attempts), so "a task finished" is not proof it got free.
+     */
+    public volatile long lastStallSignalAt = 0;
+
     public BotHealth(Thread thread, String botName) {
         this.thread = thread;
         this.botName = botName;
@@ -36,6 +52,10 @@ public class BotHealth {
 
     public boolean isStalled() {
         return state == BotState.STALLED;
+    }
+
+    public boolean isRecovering() {
+        return state == BotState.RECOVERING;
     }
 
     public long stalledForMs() {
@@ -64,6 +84,10 @@ public class BotHealth {
             sb.append(' ').append(fmtDuration(stalledForMs()));
             if (stallReason != null)
                 sb.append(" | ").append(stallReason);
+        } else if (state == BotState.RECOVERING) {
+            sb.append(" (nudge ").append(recoveryAttempts).append(')');
+            if (recoveryReason != null)
+                sb.append(" | ").append(recoveryReason);
         } else if (currentTask != null) {
             sb.append(" | ").append(currentTask)
               .append(' ').append(fmtDuration(System.currentTimeMillis() - taskStartedAt));

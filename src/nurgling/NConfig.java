@@ -133,6 +133,7 @@ public class NConfig
         studyDeskLayout,
         waypointRetryOnStuck,
         botStallTimeout,             // Seconds a bot may block on one task before it is flagged STALLED
+        botStallRecoveryAttempts,    // How many times to quietly nudge a stuck character before raising the alarm
         botStallAlarm,               // Play an alarm sound when a bot becomes STALLED
         botStallDiscord,             // Send a Discord notification when a bot becomes STALLED
         botStallAutoInterrupt,       // Automatically interrupt a bot that stays STALLED
@@ -380,6 +381,7 @@ public class NConfig
         conf.put(Key.studyDeskLayout, "");
         conf.put(Key.waypointRetryOnStuck, true);
         conf.put(Key.botStallTimeout, 90);
+        conf.put(Key.botStallRecoveryAttempts, 10);
         conf.put(Key.botStallAlarm, true);
         conf.put(Key.botStallDiscord, false);
         conf.put(Key.botStallAutoInterrupt, false);
