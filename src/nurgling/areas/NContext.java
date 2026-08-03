@@ -1012,34 +1012,68 @@ public class NContext {
     }
 
     public boolean addOutItem(String name, BufferedImage loadsimg, double th) throws InterruptedException {
-        if(!outAreas.containsKey(name))
+        TreeMap<Double,String> thmap = outAreas.get(name);
+        if(thmap == null)
         {
-            outAreas.put(name,new TreeMap<>());
+            outAreas.put(name, thmap = new TreeMap<>());
+            resolveOutAreas(name, thmap);
         }
-        else
+        else if(thmap.floorEntry(th) == null)
         {
-            for(Double key :outAreas.get(name).descendingKeySet())
+            // Nothing cached can accept this quality, but a zone may have appeared since the last
+            // scan (createArea below, or the player defining one mid-run), so look again before
+            // giving up - the old code re-ran the global lookup in exactly this situation too.
+            resolveOutAreas(name, thmap);
+        }
+        if(thmap.floorEntry(th) != null)
+            return true;
+        if (loadsimg!=null) {
+            thmap.put(Math.abs(th), createArea("Please select area for:" + name, Resource.loadsimg("baubles/custom"), loadsimg));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Enumerate every reachable output zone for an item in one pass and cache the nearest area
+     * per quality threshold.
+     * <p>
+     * Resolving all thresholds at once is what makes the cache independent of the order items are
+     * scanned in. The previous implementation resolved a single best-fitting area per call and then
+     * short-circuited any later call whose quality merely exceeded an already-cached threshold, so a
+     * low-quality item seen first cached only its low-threshold zone and every later high-quality
+     * item of the same name was routed there instead of to its own (higher-threshold) zone.
+     */
+    private void resolveOutAreas(String name, TreeMap<Double,String> thmap) {
+        if(gui == null || gui.map == null)
+            return;
+        HashMap<Double,NArea> best = new HashMap<>();
+        HashMap<Double,Double> bestDist = new HashMap<>();
+        for(Integer id : gui.map.nols.keySet())
+        {
+            if(Thread.currentThread().isInterrupted())
+                break;
+            if(id <= 0)
+                continue;
+            NArea cand = gui.map.glob.map.areas.get(id);
+            if(cand == null || !cand.containOut(name))
+                continue;
+            double dist = getDistanceToArea(cand, gui);
+            if(dist == Double.MAX_VALUE)
+                continue;
+            Double key = Math.abs((double)cand.getOutput(name).th);
+            Double cur = bestDist.get(key);
+            if(cur == null || dist < cur)
             {
-                if(th>key) {
-                    return true;
-                }
+                bestDist.put(key, dist);
+                best.put(key, cand);
             }
         }
-        NArea area = findOutGlobal(name, th, gui);
-        if(area!=null)
+        for(Map.Entry<Double,NArea> entry : best.entrySet())
         {
-            areas.put(String.valueOf(area.id),area);
-            outAreas.get(name).put(Math.abs((double)area.getOutput(name).th), String.valueOf(area.id));
+            areas.put(String.valueOf(entry.getValue().id), entry.getValue());
+            thmap.put(entry.getKey(), String.valueOf(entry.getValue().id));
         }
-        if (loadsimg!=null && area == null) {
-            outAreas.get(name).put(Math.abs(th), createArea("Please select area for:" + name, Resource.loadsimg("baubles/custom"), loadsimg));
-        }
-        else
-        {
-            if(area == null)
-                return false;
-        }
-        return true;
     }
 
     
