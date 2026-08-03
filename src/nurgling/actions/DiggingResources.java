@@ -35,7 +35,7 @@ public class DiggingResources implements Action
         ArrayList<Coord2d> tiles = null;
         if (NParser.checkName("clay", items)) {
             tiles = Finder.findTilesInArea(new NAlias(new ArrayList<String>(Arrays.asList("water",
-                    "dirt")), new ArrayList<String>()), res);
+                    "dirt", "acre")), new ArrayList<String>()), res);
         } else if (NParser.checkName("sand", items)) {
             tiles = Finder.findTilesInArea(new NAlias(new ArrayList<String>(Arrays.asList("beach")), new ArrayList<String>()), res);
         }
