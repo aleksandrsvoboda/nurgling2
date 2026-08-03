@@ -42,7 +42,8 @@ public class EmptyBarrelsIntoCisternAction implements GobContextAction {
             int emptied;
             if (vehicle.ngob.name.contains("cart")) {
                 emptied = emptyFromCart(gui, cistern, vehicle);
-            } else if (vehicle.ngob.name.contains("snekkja") || vehicle.ngob.name.contains("wagon")) {
+            } else if (vehicle.ngob.name.contains("snekkja") || vehicle.ngob.name.contains("knarr")
+                    || vehicle.ngob.name.contains("wagon")) {
                 emptied = emptyFromWindowVehicle(gui, cistern, vehicle);
             } else {
                 return Results.ERROR("Not a supported vehicle type");

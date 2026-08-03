@@ -42,7 +42,8 @@ public class FillBarrelsFromVehicleAction implements GobContextAction {
             int filled;
             if (vehicle.ngob.name.contains("cart")) {
                 filled = fillFromCart(gui, well, vehicle);
-            } else if (vehicle.ngob.name.contains("snekkja") || vehicle.ngob.name.contains("wagon")) {
+            } else if (vehicle.ngob.name.contains("snekkja") || vehicle.ngob.name.contains("knarr")
+                    || vehicle.ngob.name.contains("wagon")) {
                 filled = fillFromWindowVehicle(gui, well, vehicle);
             } else {
                 return Results.ERROR("Not a supported vehicle type");
