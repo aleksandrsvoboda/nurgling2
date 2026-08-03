@@ -227,8 +227,10 @@ public class Client implements Console.Directory {
 	    } finally {
 		newui(null);
 	    }
-	    savewndstate();
 	} finally {
+	    /* Save the window state even if the session loop died on an
+	     * unchecked exception, rather than losing the last resize. */
+	    savewndstate();
 	    loop.dispose();
 	    this.loop = null;
 	    mt = null;
