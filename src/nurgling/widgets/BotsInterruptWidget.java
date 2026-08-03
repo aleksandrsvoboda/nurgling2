@@ -6,8 +6,10 @@ import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.NConfig;
 import nurgling.NCore;
+import nurgling.watchdog.BotHealth;
 import haven.res.ui.croster.Entry;
 
+import java.awt.Color;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +31,12 @@ public class BotsInterruptWidget extends Widget {
     private static long lastStackTraceWrite = 0;
     private static final long STACK_TRACE_WRITE_INTERVAL = 2000; // 2 seconds
 
+    /** Tint applied to the gear of a bot the watchdog flagged as stalled. */
+    private static final Color STALLED_COLOR = new Color(255, 80, 80);
+
+    /** Tint applied while the watchdog is trying to shake a stuck character loose. */
+    private static final Color RECOVERING_COLOR = new Color(255, 200, 60);
+
 
     public class Gear extends Widget
     {
@@ -49,9 +57,20 @@ public class BotsInterruptWidget extends Widget {
             sz = NStyle.gear[0].sz();
         }
 
+        /** Watchdog record for this thread, or null when it isn't tracked. */
+        BotHealth health() {
+            return (ui != null && ui.core != null) ? ui.core.watchdog.of(t) : null;
+        }
+
         @Override
         public void tick(double dt) {
             super.tick(dt);
+            BotHealth h = health();
+            if(h != null && (h.isStalled() || h.isRecovering()))
+            {
+                cancelb.settip(h.describe());
+                return;
+            }
             StackTraceElement el = null;
             for(StackTraceElement e : t.getStackTrace())
             {
@@ -67,9 +86,20 @@ public class BotsInterruptWidget extends Widget {
 
         @Override
         public void draw(GOut g) {
-            int id = (int) (NUtils.getTickId() / 5) % 12;
+            BotHealth h = health();
+            boolean stalled = (h != null) && h.isStalled();
+            boolean recovering = (h != null) && h.isRecovering();
+            // A stalled bot gets a red gear frozen on one frame: a wheel that
+            // stopped turning reads as "stuck" at a glance. While the watchdog is
+            // still trying to free it, the gear keeps turning but goes amber.
+            int id = stalled ? 0 : (int) (NUtils.getTickId() / 5) % 12;
 
+            Color tint = stalled ? STALLED_COLOR : (recovering ? RECOVERING_COLOR : null);
+            if(tint != null)
+                g.chcolor(tint);
             g.image(NStyle.gear[id], new Coord(sz.x / 2 - NStyle.gear[0].sz().x / 2, sz.y / 2 - NStyle.gear[0].sz().y / 2));
+            if(tint != null)
+                g.chcolor();
             super.draw(g);
         }
     }
@@ -210,11 +240,19 @@ public class BotsInterruptWidget extends Widget {
             // Find current bot action (same logic as gear tooltip)
             String currentAction = null;
             String botName = null;
+            String state = "UNKNOWN";
+            long stalledForMs = 0;
 
             synchronized (obs) {
                 if (!obs.isEmpty()) {
                     Gear firstGear = obs.iterator().next();
                     botName = firstGear.t.getName();
+
+                    BotHealth h = firstGear.health();
+                    if (h != null) {
+                        state = h.state.name();
+                        stalledForMs = h.stalledForMs();
+                    }
 
                     for (StackTraceElement el : firstGear.t.getStackTrace()) {
                         if (el.toString().contains("actions.")) {
@@ -227,6 +265,8 @@ public class BotsInterruptWidget extends Widget {
 
             json.append("  \"botName\": \"").append(botName != null ? botName : "Unknown").append("\",\n");
             json.append("  \"currentAction\": \"").append(currentAction != null ? currentAction.replace("\"", "\\\"") : "No action found").append("\",\n");
+            json.append("  \"state\": \"").append(state).append("\",\n");
+            json.append("  \"stalledForMs\": ").append(stalledForMs).append(",\n");
             json.append("  \"activeBotsCount\": ").append(obs.size()).append("\n");
             json.append("}");
 

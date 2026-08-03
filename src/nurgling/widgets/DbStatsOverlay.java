@@ -66,8 +66,14 @@ public class DbStatsOverlay extends Widget {
                 
                 synchronized (biw.obs) {
                     for (BotsInterruptWidget.Gear gear : biw.obs) {
-                        String actionInfo = getBotActionInfo(gear.t);
-                        addLine("  " + actionInfo, TASK_COLOR);
+                        nurgling.watchdog.BotHealth h = gear.health();
+                        if (h != null && h.isStalled()) {
+                            addLine("  " + h.describe(), ERROR_COLOR);
+                        } else if (h != null) {
+                            addLine(String.format("  [%s] %s", h.state, getBotActionInfo(gear.t)), TASK_COLOR);
+                        } else {
+                            addLine("  " + getBotActionInfo(gear.t), TASK_COLOR);
+                        }
                     }
                 }
             }

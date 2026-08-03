@@ -16,6 +16,13 @@ import static nurgling.pf.Graph.getPath;
 public class PathFinder implements Action {
     private final int VISIBLE_AREA = 41;
     public static double pfmdelta = 1.5;
+    /** Consecutive re-paths without displacement before the watchdog is told. */
+    private static final int STUCK_STREAK_LIMIT = 3;
+    /** Hard cap on re-paths, so a wedged character eventually fails the action
+     *  instead of spinning here forever. */
+    private static final int MAX_RESTARTS = 20;
+    /** Gap to the target's hitbox that already counts as standing at it. */
+    private static final double AT_TARGET_GAP = MCache.tilesz.x;
     NPFMap pfmap = null;
     Coord start_pos = null;
     Coord end_pos = null;
@@ -77,7 +84,24 @@ public class PathFinder implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        // Stuck detection: if the character keeps failing to reach a waypoint
+        // without actually moving between attempts, it is wedged against
+        // something and re-pathing will never help.
+        int restarts = 0;
+        int stuckStreak = 0;
+        Coord2d lastRestartPos = null;
+
         while (true) {
+            // Already up against the target: there is nothing left to walk. The
+            // caller's click makes the server take the last step, exactly as it
+            // does for a player. Checked before pathing, because a failed walk
+            // attempt inside GoTo reports a stall on its own and GoTo has no idea
+            // what the target is.
+            if (atTarget()) {
+                NUtils.getUI().core.watchdog.cancelRecovery();
+                return Results.SUCCESS();
+            }
+
             LinkedList<Graph.Vertex> path = construct();
 
             if (path != null) {
@@ -107,6 +131,41 @@ public class PathFinder implements Action {
                 }
                 if (!needRestart)
                     return Results.SUCCESS();
+
+                nurgling.watchdog.BotWatchdog watchdog = NUtils.getUI().core.watchdog;
+                // Walking failed, but we are already up against the target: that
+                // is arrival, not a stall. Shaking would only push us off the one
+                // spot the interaction works from, so call off anything GoTo
+                // started while it was trying to walk.
+                if (atTarget()) {
+                    watchdog.cancelRecovery();
+                    return Results.SUCCESS();
+                }
+
+                Coord2d here = gui.map.player().rc;
+                if (lastRestartPos != null && here.dist(lastRestartPos) < pfmdelta)
+                    stuckStreak++;
+                else
+                    stuckStreak = 0;
+                lastRestartPos = here;
+
+                // Keep reporting for as long as the character stays put: the
+                // watchdog uses a fresh signal to tell "still wedged" from
+                // "moved again", since a wedged character still finishes tasks.
+                if (stuckStreak >= STUCK_STREAK_LIMIT)
+                    watchdog.reportMovementStall(
+                            "PathFinder: character not moving after " + stuckStreak + " re-paths");
+
+                // Attempts spent while the watchdog is shaking the character are
+                // not the character's own doing; giving up in the middle of that
+                // would kill the recovery before it had a chance to work.
+                if (!watchdog.isRecovering())
+                    restarts++;
+                if (restarts >= MAX_RESTARTS) {
+                    String reason = "Path blocked: gave up after " + restarts + " attempts";
+                    watchdog.reportRecoveryFailed(reason);
+                    return Results.ERROR(reason);
+                }
             } else {
                 if (dn) {
 //                    if(start_pos == end_poses.get(0) && NUtils.player().rc.dist(Utils.pfGridToWorld(pfmap.cells[start_pos]))
@@ -117,6 +176,44 @@ public class PathFinder implements Action {
 
             }
         }
+    }
+
+    /**
+     * Whether the character is already standing right up against the target
+     * object.
+     *
+     * <p>In a one-tile passage the grid often refuses to put the character on the
+     * cell in front of an object - its hitbox and the wall leave nothing free -
+     * even though a player just walks into it and clicks. There is nothing to
+     * re-path to and nothing to shake loose there: the character is where it
+     * needs to be, so let the caller click and have the server take the last step.
+     *
+     * <p>Measured to the hitbox, so a cupboard and a barn are not judged alike.
+     * Many gobs carry no hitbox at all; those fall back to the centre with the
+     * same allowance, which simply means large ones never take this path - the
+     * safe direction to be wrong in.
+     */
+    private boolean atTarget() {
+        // Placing something needs the character positioned exactly, so a virtual
+        // build-site target is never "close enough". A real object is: hardMode
+        // only asks to approach it squarely, which is moot once we touch it.
+        if (dummy != null)
+            return false;
+        Gob target = (target_id != -2) ? Finder.findGob(target_id) : null;
+        if (target == null)
+            return false;
+        Gob player = NUtils.player();
+        if (player == null)
+            return false;
+
+        NHitBox hb = (target.ngob != null) ? target.ngob.hitBox : null;
+        if (hb == null)
+            return player.rc.dist(target.rc) <= AT_TARGET_GAP;
+        // Hitboxes are stored unrotated in object space.
+        Coord2d rel = player.rc.sub(target.rc).rotate(-target.a);
+        double dx = Math.max(Math.max(hb.begin.x - rel.x, 0), rel.x - hb.end.x);
+        double dy = Math.max(Math.max(hb.begin.y - rel.y, 0), rel.y - hb.end.y);
+        return Math.hypot(dx, dy) <= AT_TARGET_GAP;
     }
 
     public LinkedList<Graph.Vertex> construct() throws InterruptedException {
