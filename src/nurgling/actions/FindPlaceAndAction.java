@@ -27,7 +27,14 @@ public class FindPlaceAndAction implements Action {
             // object that has not loaded yet. Only possible when we know the NArea.
             if (narea != null) {
                 NUtils.navigateToArea(narea, true);
+                // Recompute now that we've navigated there: at construction time the
+                // area's grids may not have been loaded yet (or it was >1000 tiles
+                // away), which makes getRCArea() return null and would otherwise leave
+                // the stale null captured in the constructor.
+                area = narea.getRCArea();
             }
+            if (area == null)
+                return Results.ERROR("Area not available");
             Coord2d pos = Finder.getFreePlace(area, placed);
             if(pos!=null) {
 
