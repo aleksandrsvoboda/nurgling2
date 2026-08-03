@@ -139,9 +139,12 @@ public class NHitBox
             put("gfx/terobjs/dovecote", new NHitBox(new Coord(-7,-7),new Coord(7,7)));
             put("gfx/terobjs/anvil", new NHitBox(new Coord(-7,-2),new Coord(5,2)));
             put("gfx/terobjs/moundbed", new NHitBox(new Coord2d(-15.4, -10.45),new Coord2d(15.4, 10.45)));
+            put("gfx/terobjs/producesack-ter", new NHitBox(new Coord2d(-4,-4),new Coord2d(4,4)));
+            put("gfx/terobjs/producesack-closed0", new NHitBox(new Coord2d(-4,-4),new Coord2d(4,4)));
             put("gfx/terobjs/producesack-closed1", new NHitBox(new Coord2d(-4,-4),new Coord2d(4,4)));
             put("gfx/terobjs/producesack-closed2", new NHitBox(new Coord2d(-4,-4),new Coord2d(4,4)));
             put("gfx/terobjs/producesack-closed3", new NHitBox(new Coord2d(-4,-4),new Coord2d(4,4)));
+            put("gfx/terobjs/producesack-closed4", new NHitBox(new Coord2d(-4,-4),new Coord2d(4,4)));
             put("gfx/terobjs/arch/belltower", new NHitBox(new Coord2d(-15,-19),new Coord2d(15,19)));
             put("gfx/terobjs/still", new NHitBox(new Coord2d(-12,-6),new Coord2d(5,6)));
             put("gfx/terobjs/grandstudydesk", new NHitBox(new Coord2d(-6.2,-11.75),new Coord2d(7.45,11.75)));
