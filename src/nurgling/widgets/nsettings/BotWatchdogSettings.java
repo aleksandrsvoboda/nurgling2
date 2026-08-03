@@ -16,7 +16,10 @@ public class BotWatchdogSettings extends Panel {
     private static final int DEF_TIMEOUT = 90;
     private static final int DEF_AUTO_INTERRUPT_DELAY = 300;
 
+    private static final int DEF_RECOVERY_ATTEMPTS = 10;
+
     private TextEntry stallTimeout;
+    private TextEntry recoveryAttempts;
     private CheckBox alarm;
     private CheckBox discord;
     private CheckBox autoInterrupt;
@@ -47,6 +50,22 @@ public class BotWatchdogSettings extends Panel {
         add(new Label("seconds"), new Coord(margin + labelWidth + entryWidth + UI.scale(5), y));
         y += UI.scale(22);
         add(new Label("Tasks that legitimately wait longer (growth, firing, travel) set their own limit."),
+            new Coord(margin, y));
+        y += lineHeight + sectionGap;
+
+        add(new Label("● Self-recovery"), new Coord(margin, y));
+        y += UI.scale(22);
+
+        add(new Label("Nudge attempts before alarm:"), new Coord(margin, y));
+        recoveryAttempts = add(new TextEntry(entryWidth, ""), new Coord(margin + labelWidth, y));
+        y += UI.scale(22);
+        add(new Label("A character wedged while walking is poked a short step aside, silently"),
+            new Coord(margin, y));
+        y += UI.scale(18);
+        add(new Label("for the first three tries. 0 disables recovery and alarms immediately."),
+            new Coord(margin, y));
+        y += UI.scale(18);
+        add(new Label("Only walking is recovered from, and never with an item on the cursor."),
             new Coord(margin, y));
         y += lineHeight + sectionGap;
 
@@ -87,6 +106,8 @@ public class BotWatchdogSettings extends Panel {
     @Override
     public void load() {
         stallTimeout.settext(String.valueOf(getConfigInt(NConfig.Key.botStallTimeout, DEF_TIMEOUT)));
+        recoveryAttempts.settext(String.valueOf(
+            getConfigInt(NConfig.Key.botStallRecoveryAttempts, DEF_RECOVERY_ATTEMPTS)));
         alarm.a = getConfigBool(NConfig.Key.botStallAlarm, true);
         discord.a = getConfigBool(NConfig.Key.botStallDiscord, false);
         autoInterrupt.a = getConfigBool(NConfig.Key.botStallAutoInterrupt, false);
@@ -97,6 +118,8 @@ public class BotWatchdogSettings extends Panel {
     @Override
     public void save() {
         NConfig.set(NConfig.Key.botStallTimeout, parseIntSafe(stallTimeout.text(), DEF_TIMEOUT));
+        NConfig.set(NConfig.Key.botStallRecoveryAttempts,
+            parseCountSafe(recoveryAttempts.text(), DEF_RECOVERY_ATTEMPTS));
         NConfig.set(NConfig.Key.botStallAlarm, alarm.a);
         NConfig.set(NConfig.Key.botStallDiscord, discord.a);
         NConfig.set(NConfig.Key.botStallAutoInterrupt, autoInterrupt.a);
@@ -116,6 +139,16 @@ public class BotWatchdogSettings extends Panel {
     private boolean getConfigBool(NConfig.Key key, boolean defaultValue) {
         Object val = NConfig.get(key);
         return (val instanceof Boolean) ? (Boolean) val : defaultValue;
+    }
+
+    /** Like {@link #parseIntSafe}, but 0 is meaningful (recovery disabled). */
+    private int parseCountSafe(String text, int defaultValue) {
+        try {
+            int v = Integer.parseInt(text.trim());
+            return (v >= 0) ? v : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private int parseIntSafe(String text, int defaultValue) {

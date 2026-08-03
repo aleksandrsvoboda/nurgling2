@@ -65,7 +65,8 @@ public class GoTo implements Action
             // getResult() is false when the walk animation never started, i.e. the
             // character is blocked. Tell the watchdog; the walk itself still proceeds.
             if(!moving.getResult())
-                NUtils.getUI().core.watchdog.reportStall("character did not start moving toward " + targetCoord);
+                NUtils.getUI().core.watchdog.reportMovementStall(
+                        "character did not start moving toward " + targetCoord);
             NUtils.getUI().core.addTask(new MovingCompleted(targetCoord));
         }
         if(NUtils.getGameUI().map.player().rc.dist(targetCoord) > 2*pfmdelta)

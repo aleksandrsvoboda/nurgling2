@@ -1,11 +1,19 @@
 package nurgling.watchdog;
 
+import haven.Coord;
+import haven.Coord2d;
+import haven.Gob;
+import haven.Loading;
+import haven.MCache;
 import nurgling.NAlarmManager;
 import nurgling.NConfig;
 import nurgling.NCore;
 import nurgling.NGameUI;
 import nurgling.conf.NDiscordNotification;
 import nurgling.tasks.NTask;
+import nurgling.tools.NParser;
+
+import static haven.OCache.posres;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -25,6 +33,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * flagged, unless {@link NConfig.Key#botStallAutoInterrupt} is enabled. A false
  * positive therefore costs a red gear, not a broken bot.
  *
+ * <p>One stall shape is fixable from here: a character wedged against geometry
+ * while trying to walk. Those get a few quiet nudges before the alarm - see
+ * {@link #reportMovementStall}. Everything else is a logic bug in the bot, which
+ * shaking the character cannot fix and can make worse by disturbing UI state, so
+ * it raises the alarm immediately.
+ *
  * <p>Threading: {@link #register}, {@link #taskEnter}, {@link #taskExit},
  * {@link #progress} and {@link #reportStall} run on bot threads; {@link #tick}
  * runs on the UI thread. All shared state is volatile or in a concurrent map.
@@ -32,6 +46,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BotWatchdog {
     private static final long DEFAULT_THRESHOLD_MS = 90_000;
     private static final long DEFAULT_AUTO_INTERRUPT_MS = 300_000;
+
+    /** Time given to one nudge to take effect before the next one is tried. */
+    private static final long RECOVERY_GRACE_MS = 8_000;
+    /** Grace before the very first nudge, so a false alarm can be withdrawn. */
+    private static final long FIRST_NUDGE_DELAY_MS = 3_000;
+    /** Nudges made without saying anything at all. */
+    private static final int QUIET_ATTEMPTS = 3;
+    private static final int DEFAULT_MAX_ATTEMPTS = 10;
+    /** How far the character must leave the nudged-from spot to count as freed. */
+    private static final double MOVED_DELTA = 3.0;
 
     private final NCore core;
     private final Map<Thread, BotHealth> health = new ConcurrentHashMap<>();
@@ -61,6 +85,17 @@ public class BotWatchdog {
                 return ms;
         }
         return DEFAULT_AUTO_INTERRUPT_MS;
+    }
+
+    /** How many times the watchdog may try to shake a stuck character loose. */
+    private static int maxRecoveryAttempts() {
+        Object v = NConfig.get(NConfig.Key.botStallRecoveryAttempts);
+        if (v instanceof Number) {
+            int n = ((Number) v).intValue();
+            if (n >= 0)
+                return n;
+        }
+        return DEFAULT_MAX_ATTEMPTS;
     }
 
     private static boolean flag(NConfig.Key key, boolean fallback) {
@@ -133,8 +168,8 @@ public class BotWatchdog {
     }
 
     /**
-     * Record observable progress. Clears a STALLED state, so a bot that
-     * recovers on its own reports that it recovered.
+     * Record observable progress. Ends a stall or recovery episode once the
+     * stall signals have stopped, so a bot that gets free reports it.
      */
     public void progress(String what) {
         progress(current(), what);
@@ -143,28 +178,140 @@ public class BotWatchdog {
     private void progress(BotHealth h, String what) {
         if (h == null)
             return;
-        h.lastProgressAt = System.currentTimeMillis();
-        if (h.state == BotState.STALLED) {
-            h.state = BotState.RUNNING;
-            h.stallReason = null;
-            h.stalledSince = 0;
-            h.autoInterrupted = false;
+        long now = System.currentTimeMillis();
+        h.lastProgressAt = now;
+
+        boolean wasStuck = h.state == BotState.STALLED || h.state == BotState.RECOVERING;
+        if (wasStuck) {
+            if (!looksFree(h, now))
+                return;
+            int attempts = h.recoveryAttempts;
+            boolean loud = h.state == BotState.STALLED || attempts > QUIET_ATTEMPTS;
+            clearStall(h);
             NGameUI gui = gui();
-            if (gui != null)
-                gui.msg("Bot " + h.botName + ": recovered" + (what != null ? " (" + what + ")" : ""));
-        } else {
-            h.state = BotState.RUNNING;
+            if (gui != null && loud) {
+                gui.msg("Bot " + h.botName + ": recovered"
+                        + (attempts > 0 ? " after " + attempts + " nudge(s)" : "")
+                        + (what != null ? " (" + what + ")" : ""));
+            }
         }
+        h.state = BotState.RUNNING;
     }
 
     /**
-     * Explicit stall report from action code that can detect a hang itself
-     * (e.g. PathFinder noticing the character isn't moving).
+     * Whether a stuck bot can be declared free again.
+     *
+     * <p>Silence alone is not evidence: when the movement code gives up, the stall
+     * reports stop simply because nobody is left to make them, and a wedged
+     * character keeps completing tasks either way. So the character also has to
+     * have physically left the spot it was nudged from.
+     */
+    private boolean looksFree(BotHealth h, long now) {
+        if (now - h.lastStallSignalAt < RECOVERY_GRACE_MS)
+            return false;
+        if (h.lastProgressAt <= h.lastStallSignalAt)
+            return false;
+        Coord2d from = h.nudgeFrom;
+        if (from == null)
+            return true; // never nudged: nothing to compare against
+        NGameUI gui = gui();
+        if (gui == null || gui.map == null)
+            return false;
+        try {
+            Gob pl = gui.map.player();
+            return (pl != null) && pl.rc.dist(from) > MOVED_DELTA;
+        } catch (Loading e) {
+            return false;
+        }
+    }
+
+    private static void clearStall(BotHealth h) {
+        h.state = BotState.RUNNING;
+        h.stallReason = null;
+        h.stalledSince = 0;
+        h.autoInterrupted = false;
+        h.recoveryAttempts = 0;
+        h.nextNudgeAt = 0;
+        h.recoveryReason = null;
+        h.nudgeFrom = null;
+    }
+
+    /**
+     * Explicit stall report from action code that detects a hang itself. Raises
+     * the alarm straight away: only a character wedged while walking can be
+     * helped by the watchdog, see {@link #reportMovementStall}.
      */
     public void reportStall(String reason) {
         BotHealth h = current();
         if (h != null)
+            signalStuck(h, reason, false);
+    }
+
+    /**
+     * Report a character that is trying to walk and not getting anywhere - the
+     * classic case of being wedged in a bad hitbox. This is the only stall shape
+     * self-recovery is offered for. Safe to call repeatedly while the condition
+     * holds; it keeps the episode alive.
+     */
+    public void reportMovementStall(String reason) {
+        BotHealth h = current();
+        if (h != null)
+            signalStuck(h, reason, true);
+    }
+
+    /**
+     * The movement code gave up for good. Recovery failed, so stop pretending
+     * otherwise and raise the alarm - silence from here on is not success.
+     */
+    public void reportRecoveryFailed(String reason) {
+        BotHealth h = current();
+        if (h == null)
+            return;
+        h.lastStallSignalAt = System.currentTimeMillis();
+        markStalled(h, reason);
+    }
+
+    /**
+     * Drop an ongoing recovery without a word. For movement code that decides the
+     * situation was not a stall after all - the character is already where it
+     * needs to be - and that a nudge would now do harm rather than good.
+     */
+    public void cancelRecovery() {
+        BotHealth h = current();
+        if (h != null && h.isRecovering()) {
+            clearStall(h);
+            h.lastStallSignalAt = 0;
+        }
+    }
+
+    /** True when the calling bot is currently being nudged by the watchdog. */
+    public boolean isRecovering() {
+        BotHealth h = current();
+        return (h != null) && h.isRecovering();
+    }
+
+    /**
+     * Entry point for every stall detector.
+     *
+     * <p>{@code recoverable} means the character is stuck walking, which a nudge
+     * can plausibly fix. Every other hang - a task waiting on something that will
+     * never arrive - is a logic bug that shaking the character does not fix and
+     * may make worse, so those go straight to the alarm.
+     */
+    private void signalStuck(BotHealth h, String reason, boolean recoverable) {
+        h.lastStallSignalAt = System.currentTimeMillis();
+        if (h.state == BotState.STALLED || h.state == BotState.RECOVERING)
+            return;
+        if (recoverable && maxRecoveryAttempts() > 0 && canNudge()) {
+            h.state = BotState.RECOVERING;
+            h.recoveryReason = reason;
+            h.recoveryAttempts = 0;
+            // Hold off on the first nudge: the movement code gets a moment to
+            // look at the situation and call it off if shaking would be wrong.
+            h.nextNudgeAt = h.lastStallSignalAt + FIRST_NUDGE_DELAY_MS;
+        } else {
             markStalled(h, reason);
+        }
     }
 
     private static String simpleName(NTask task) {
@@ -200,14 +347,18 @@ public class BotWatchdog {
                 if (taskStart != 0) {
                     long threshold = h.taskThresholdMs;
                     if (threshold > 0 && threshold != Long.MAX_VALUE && now - taskStart > threshold) {
-                        markStalled(h, "waiting on " + h.currentTask + " for "
-                                + BotHealth.fmtDuration(now - taskStart));
+                        signalStuck(h, "waiting on " + h.currentTask + " for "
+                                + BotHealth.fmtDuration(now - taskStart), false);
                     }
                 } else if (now - h.lastProgressAt > defThreshold) {
                     // Not parked on a task at all: an action loop that never finishes anything.
-                    markStalled(h, "no progress for " + BotHealth.fmtDuration(now - h.lastProgressAt));
+                    signalStuck(h, "no progress for "
+                            + BotHealth.fmtDuration(now - h.lastProgressAt), false);
                 }
             }
+
+            if (h.state == BotState.RECOVERING && now >= h.nextNudgeAt)
+                stepRecovery(h, now);
 
             if (h.isStalled() && !h.autoInterrupted
                     && flag(NConfig.Key.botStallAutoInterrupt, false)
@@ -223,6 +374,104 @@ public class BotWatchdog {
                 }
             }
         }
+    }
+
+    // -------------------------------------------------------- self-recovery
+
+    /**
+     * One step of the recovery ladder, run on the UI thread: check whether the
+     * previous nudge worked, then either nudge again or give up and call for help.
+     */
+    private void stepRecovery(BotHealth h, long now) {
+        // Nothing has reported this bot as stuck for a while and it did finish
+        // something in the meantime: it is moving again.
+        if (looksFree(h, now)) {
+            int attempts = h.recoveryAttempts;
+            clearStall(h);
+            NGameUI gui = gui();
+            if (gui != null && attempts > QUIET_ATTEMPTS)
+                gui.msg("Bot " + h.botName + ": recovered after " + attempts + " nudge(s)");
+            return;
+        }
+
+        int max = maxRecoveryAttempts();
+        if (h.recoveryAttempts >= max || !canNudge()) {
+            markStalled(h, h.recoveryReason
+                    + (h.recoveryAttempts > 0 ? " (still stuck after " + h.recoveryAttempts + " nudges)" : ""));
+            return;
+        }
+
+        nudge(h);
+        h.recoveryAttempts++;
+        h.nextNudgeAt = now + RECOVERY_GRACE_MS;
+
+        // The first few tries stay completely silent - most wedges come free on
+        // their own and there is nothing worth interrupting the user for.
+        if (h.recoveryAttempts > QUIET_ATTEMPTS) {
+            NGameUI gui = gui();
+            if (gui != null)
+                gui.msg("Bot " + h.botName + ": stuck, trying to shake loose ("
+                        + h.recoveryAttempts + "/" + max + ")");
+        }
+    }
+
+    /** True when nudging the character is possible and safe to do right now. */
+    private boolean canNudge() {
+        NGameUI gui = gui();
+        if (gui == null || gui.map == null)
+            return false;
+        try {
+            if (gui.map.player() == null)
+                return false;
+        } catch (Loading e) {
+            return false;
+        }
+        // An item on the cursor would be dropped on the ground by the nudge click,
+        // and nothing would ever pick it back up.
+        if (gui.vhand != null)
+            return false;
+        // A non-default cursor means the character is in a mode - placing a
+        // building, aiming - where a map click carries out that action instead of
+        // just walking. Leave those alone entirely.
+        String curs = (core.ui.root != null) ? core.ui.root.cursorRes : null;
+        if (curs != null && !NParser.checkName(curs, "arw"))
+            return false;
+        // Never walk the character around during a fight; that is a situation
+        // where the user genuinely has to look at the screen.
+        return gui.fv == null || gui.fv.current == null;
+    }
+
+    /**
+     * Click a short distance away from the character, the way a player pokes a
+     * stuck character loose by hand. Direction rotates and distance grows with
+     * each attempt, so a blocked side does not get retried forever.
+     */
+    private void nudge(BotHealth h) {
+        NGameUI gui = gui();
+        if (gui == null || gui.map == null || !canNudge())
+            return;
+        Gob pl;
+        try {
+            pl = gui.map.player();
+        } catch (Loading e) {
+            return;
+        }
+        if (pl == null)
+            return;
+
+        int n = h.recoveryAttempts;
+        Coord2d from = pl.rc;
+        // Eight compass directions, offset by half a step on each full turn.
+        double ang = (Math.PI / 4) * (n % 8) + (Math.PI / 8) * (n / 8);
+        double dist = MCache.tilesz.x * (1 + Math.min(n, 4) * 0.5);
+        Coord2d dst = from.add(Math.cos(ang) * dist, Math.sin(ang) * dist);
+        h.nudgeFrom = from;
+
+        // From the fourth attempt on, cancel whatever the character is doing
+        // first - a queued action can be what is holding it in place.
+        if (n >= QUIET_ATTEMPTS)
+            gui.map.wdgmsg("click", Coord.z, from.floor(posres), 3, 0);
+        gui.map.wdgmsg("click", Coord.z, dst.floor(posres), 1, 0);
     }
 
     /** Transition into STALLED, firing the configured notifications exactly once. */

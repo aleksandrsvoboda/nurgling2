@@ -34,6 +34,9 @@ public class BotsInterruptWidget extends Widget {
     /** Tint applied to the gear of a bot the watchdog flagged as stalled. */
     private static final Color STALLED_COLOR = new Color(255, 80, 80);
 
+    /** Tint applied while the watchdog is trying to shake a stuck character loose. */
+    private static final Color RECOVERING_COLOR = new Color(255, 200, 60);
+
 
     public class Gear extends Widget
     {
@@ -63,7 +66,7 @@ public class BotsInterruptWidget extends Widget {
         public void tick(double dt) {
             super.tick(dt);
             BotHealth h = health();
-            if(h != null && h.isStalled())
+            if(h != null && (h.isStalled() || h.isRecovering()))
             {
                 cancelb.settip(h.describe());
                 return;
@@ -85,14 +88,17 @@ public class BotsInterruptWidget extends Widget {
         public void draw(GOut g) {
             BotHealth h = health();
             boolean stalled = (h != null) && h.isStalled();
+            boolean recovering = (h != null) && h.isRecovering();
             // A stalled bot gets a red gear frozen on one frame: a wheel that
-            // stopped turning reads as "stuck" at a glance.
+            // stopped turning reads as "stuck" at a glance. While the watchdog is
+            // still trying to free it, the gear keeps turning but goes amber.
             int id = stalled ? 0 : (int) (NUtils.getTickId() / 5) % 12;
 
-            if(stalled)
-                g.chcolor(STALLED_COLOR);
+            Color tint = stalled ? STALLED_COLOR : (recovering ? RECOVERING_COLOR : null);
+            if(tint != null)
+                g.chcolor(tint);
             g.image(NStyle.gear[id], new Coord(sz.x / 2 - NStyle.gear[0].sz().x / 2, sz.y / 2 - NStyle.gear[0].sz().y / 2));
-            if(stalled)
+            if(tint != null)
                 g.chcolor();
             super.draw(g);
         }

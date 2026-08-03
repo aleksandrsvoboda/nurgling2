@@ -8,7 +8,9 @@ public enum BotState {
     RUNNING,
     /** Thread is parked in NCore.addTask waiting for an NTask to complete. */
     WAITING,
-    /** No progress for longer than the configured threshold. Non-fatal by default. */
+    /** No progress yet, but the watchdog is quietly trying to shake the character loose. */
+    RECOVERING,
+    /** No progress for longer than the configured threshold, and self-recovery failed. */
     STALLED,
     /** Action returned successfully, or was interrupted by the user. */
     FINISHED,
