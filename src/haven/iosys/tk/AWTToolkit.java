@@ -681,17 +681,29 @@ public abstract class AWTToolkit implements Toolkit {
 	    return(this);
 	}
 
+	/* Sizing is specified in drawable units, just like size() reports
+	 * them, but the AWT frame is sized in outer-window units, so the
+	 * decorations have to be added on. Otherwise, a size that is saved
+	 * and then restored shrinks by the decoration size every time. */
+	private java.awt.Dimension fsz(Coord csz) {
+	    if(csz == null)
+		return(null);
+	    java.awt.Insets in = frame.getInsets();
+	    return(new java.awt.Dimension(csz.x + in.left + in.right,
+					  csz.y + in.top + in.bottom));
+	}
+
 	public AWTWindow sizing(Sizing info) {
 	    awtrun(() -> {
 		if(info.fixsize == null) {
 		    frame.setResizable(true);
 		    if(info.normsize != null)
-			frame.setSize(info.normsize.x, info.normsize.y);
-		    frame.setMinimumSize((info.minsize == null) ? null : new java.awt.Dimension(info.minsize.x, info.minsize.y));
-		    frame.setMaximumSize((info.maxsize == null) ? null : new java.awt.Dimension(info.maxsize.x, info.maxsize.y));
+			frame.setSize(fsz(info.normsize));
+		    frame.setMinimumSize(fsz(info.minsize));
+		    frame.setMaximumSize(fsz(info.maxsize));
 		} else {
 		    frame.setResizable(false);
-		    frame.setSize(info.fixsize.x, info.fixsize.y);
+		    frame.setSize(fsz(info.fixsize));
 		    frame.setMinimumSize(null);
 		    frame.setMaximumSize(null);
 		}
@@ -725,9 +737,9 @@ public abstract class AWTToolkit implements Toolkit {
 		frame.dispose();
 		frame.setUndecorated(false);
 		frame.setVisible(true);
+		frame.pack();
 		if(sizing != null)
 		    sizing(sizing);
-		frame.pack();
 	    });
 	    excl = false;
 	}
