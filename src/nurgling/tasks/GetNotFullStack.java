@@ -39,7 +39,11 @@ public class GetNotFullStack extends NTask
                     return true;
                 } else {
                     if (NParser.checkName(((NGItem)item.item).name(), name)) {
-                        if (item.item.contents != null && ((ItemStack) item.item.contents).wmap.size()!=maxSize) {
+                        /* Strictly less than, not "different from": maxSize is our guess at the
+                         * server's stack depth, and when it guesses low every stack the server
+                         * built deeper than that would come back as a fill target. Merging into
+                         * one is a no-op server-side, and the item stays stuck in the hand. */
+                        if (item.item.contents != null && ((ItemStack) item.item.contents).wmap.size() < maxSize) {
                             result = (ItemStack) item.item.contents;
                             return false;
                         }
