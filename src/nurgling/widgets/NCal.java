@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NUI;
+import nurgling.conf.FontSettings;
 import nurgling.i18n.L10n;
 
 import java.awt.Color;
@@ -35,8 +36,10 @@ public class NCal extends Cal {
      * has to fit. */
     private static final int TIME_COL_W = UI.scale(230);
 
-    private static final Text.Furnace fnd =
-        new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, Color.WHITE).aa(true), 2, 1, Color.BLACK);
+    /* Same bundled Open Sans the custom tooltips and window titles use, blurred
+     * against black so it stays legible over the map. */
+    private static final Text.Furnace fnd = new PUtils.BlurFurn(
+        new Text.Foundry(FontSettings.getOpenSansSemibold(), 12, Color.WHITE).aa(true), 2, 1, Color.BLACK);
 
     /* The event icons are plain 32x32 TexI, not UI-scaled resources, so their
      * grid spacing is in raw pixels the way Cal has always drawn them. */
