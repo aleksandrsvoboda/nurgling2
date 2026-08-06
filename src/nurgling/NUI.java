@@ -410,6 +410,47 @@ public class NUI extends UI
 
     }
 
+    public volatile String province = null;
+    public volatile String realm = null;
+
+    private boolean loggedProvince = false;
+
+    @Override
+    public void newwidgetp(int id, String type, int parent, Object[] pargs, Object... cargs) throws InterruptedException
+    {
+        super.newwidgetp(id, type, parent, pargs, cargs);
+        if (type.startsWith("ui/province"))
+            setProvince(id, cargs);
+    }
+
+    private void setProvince(int id, Object[] cargs)
+    {
+        if (!loggedProvince)
+        {
+            loggedProvince = true;
+            StringBuilder buf = new StringBuilder("[NUI] ui/provinces cargs[" + cargs.length + "]:");
+            for (int i = 0; i < cargs.length; i++)
+                buf.append(" #").append(i).append('=').append(cargs[i])
+                   .append('(').append(cargs[i] == null ? "null" : cargs[i].getClass().getSimpleName()).append(')');
+            System.out.println(buf);
+        }
+        /* Index layout: [province, ?, ?, realm] in a realm, [province, ?, ?]
+         * outside one.
+         *
+         * These are deliberately never cleared again. The server tears this
+         * widget down and rebuilds it as the registry changes, so clearing on
+         * destroy leaves the HUD blank for good; keeping the last known values
+         * is what upstream does and what actually stays populated. */
+        String prov = (cargs.length > 0 && cargs[0] != null) ? String.valueOf(cargs[0]) : null;
+        String rlm = (cargs.length > 3 && cargs[3] != null) ? String.valueOf(cargs[3]) : null;
+        if (prov != null)
+            province = prov;
+        if (rlm != null)
+            realm = rlm;
+        System.out.println("[NUI] province=" + province + " realm=" + realm + " on ui@"
+                           + Integer.toHexString(System.identityHashCode(this)));
+    }
+
     @Override
     public void addwidget(int id, int parent, Object... pargs)
     {

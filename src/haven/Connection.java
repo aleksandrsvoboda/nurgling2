@@ -204,6 +204,10 @@ public class Connection implements Transport {
 	    }
 	}
 
+	public boolean hasrtt() {return(nrpls > 0);}
+	public double srtt() {return(srtt);}
+	public double rttv() {return(rttv);}
+
 	private static final String[] apfx = {"", "k", "M", "G", "T"};
 	private String abbr(String fmt, double n) {
 	    int pi = 0;

@@ -162,7 +162,7 @@ public class NGameUI extends GameUI
             Coord calPos = oldCalendarWidget.c;
             oldCalendarWidget.destroy();
             calendar = new NCal();
-            add(new NDraggableWidget(calendar, "Calendar", UI.scale(400,90)), calPos);
+            add(new NDraggableWidget(calendar, "Calendar", NCal.COMPACT_SZ), calPos);
         }
         add(new NDraggableWidget(alarmWdg = new NAlarmWdg(),"alarm",NStyle.alarm[0].sz().add(NDraggableWidget.delta)));
         // Starvation alert widget - monitors energy and shows warnings
