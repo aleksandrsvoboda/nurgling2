@@ -122,6 +122,10 @@ public class ProcessCheeseFromBufferContainers implements Action {
         context = new NContext(gui);
         context.goToAreaById(area.id);
 
+        // Phase 1 walks far away (FreeInventory2), which unloads the container gobs. Pathing to
+        // such a stale reference crashes inside PathFinder, so take fresh ones before Phase 2.
+        containers = refindContainersInArea(gui, area, containers);
+
         // Phase 2: Move remaining cheese to next stages
         moveRemainingCheeseToNextStageFromArea(gui, containers, area, place);
     }
@@ -138,7 +142,15 @@ public class ProcessCheeseFromBufferContainers implements Action {
         // Use centralized constants for sizes
         NContext freshContext = new NContext(gui);
 
-        for (Gob containerGob : containers) {
+        for (Gob staleGob : containers) {
+            // Processing an earlier container may have run FreeInventory2 and walked far away,
+            // which unloads the gobs captured before the loop. Resolve a live reference by id.
+            Gob containerGob = Finder.findGob(staleGob.id);
+            if (containerGob == null) {
+                System.out.println("ProcessCheeseFromBufferContainers: container " + staleGob.id + " is no longer loaded, skipping");
+                continue;
+            }
+
             // Skip checking empty containers.
             if ((containerGob.ngob.name.equals("gfx/terobjs/chest") || containerGob.ngob.name.equals("gfx/terobjs/cupboard")) && containerGob.ngob.getModelAttribute() == 2) {
                 continue;
@@ -328,7 +340,15 @@ public class ProcessCheeseFromBufferContainers implements Action {
         Map<String, CheeseBranch.Place> cheeseTypeToDestination = new HashMap<>();
         Map<String, ArrayList<CheeseLocation>> cheeseByType = new HashMap<>();
 
-        for (Gob containerGob : containers) {
+        for (Gob staleGob : containers) {
+            // A container can leave the object cache between iterations (an earlier container sent
+            // us to another area). PathFinder cannot path to an unloaded gob, so skip it.
+            Gob containerGob = Finder.findGob(staleGob.id);
+            if (containerGob == null) {
+                System.out.println("ProcessCheeseFromBufferContainers: container " + staleGob.id + " is no longer loaded, skipping");
+                continue;
+            }
+
             // Skip checking empty containers.
             if ((containerGob.ngob.name.equals("gfx/terobjs/chest") || containerGob.ngob.name.equals("gfx/terobjs/cupboard")) && containerGob.ngob.getModelAttribute() == 2) {
                 continue;
