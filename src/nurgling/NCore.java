@@ -29,8 +29,12 @@ public class NCore extends Widget
     public boolean debug = false;
     boolean isinspect = false;
     public NMappingClient mappingClient;
-    public AutoDrink autoDrink = null;
-    public AutoSaveTableware autoSaveTableware = null;
+    public volatile AutoDrink autoDrink = null;
+    public volatile AutoSaveTableware autoSaveTableware = null;
+    private volatile Thread autoDrinkThread = null;
+    private volatile Thread autoSaveTablewareThread = null;
+    private final Object autoHelperLock = new Object();
+    private boolean autoHelpersDisposed = false;
     public ScenarioManager scenarioManager = new ScenarioManager();
     public EquipmentPresetManager equipmentPresetManager = new EquipmentPresetManager();
     public nurgling.planning.PlanningLayerManager planningLayer = new nurgling.planning.PlanningLayerManager();
@@ -277,20 +281,31 @@ public class NCore extends Widget
             }
         }
 
-        if(autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
+        NGameUI gui = NUtils.getGameUI();
+        if(gui != null && autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
         {
-            autoDrink = new AutoDrink();
-            BotExecutor.runTask("AutoDrink", () -> {
-                try {
-                    NGameUI gui = NUtils.getGameUI();
-                    if (gui != null) {
-                        autoDrink.run(gui);
-                    }
-                } catch (InterruptedException ignored) {
-                } finally {
-                    autoDrink = null;
+            synchronized (autoHelperLock) {
+                if (!autoHelpersDisposed && autoDrink == null) {
+                    AutoDrink action = new AutoDrink();
+                    autoDrink = action;
+                    autoDrinkThread = BotExecutor.runTask("AutoDrink", () -> {
+                        try {
+                            NGameUI taskgui = NUtils.getGameUI();
+                            if (taskgui != null) {
+                                action.run(taskgui);
+                            }
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            synchronized (autoHelperLock) {
+                                if (autoDrinkThread == Thread.currentThread())
+                                    autoDrinkThread = null;
+                                if (autoDrink == action)
+                                    autoDrink = null;
+                            }
+                        }
+                    });
                 }
-            });
+            }
         }
         else
         {
@@ -300,20 +315,30 @@ public class NCore extends Widget
             }
         }
 
-        if(autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
+        if(gui != null && autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
         {
-            autoSaveTableware = new AutoSaveTableware();
-            BotExecutor.runTask("AutoSaveTableware", () -> {
-                try {
-                    NGameUI gui = NUtils.getGameUI();
-                    if (gui != null) {
-                        autoSaveTableware.run(gui);
-                    }
-                } catch (InterruptedException ignored) {
-                } finally {
-                    autoSaveTableware = null;
+            synchronized (autoHelperLock) {
+                if (!autoHelpersDisposed && autoSaveTableware == null) {
+                    AutoSaveTableware action = new AutoSaveTableware();
+                    autoSaveTableware = action;
+                    autoSaveTablewareThread = BotExecutor.runTask("AutoSaveTableware", () -> {
+                        try {
+                            NGameUI taskgui = NUtils.getGameUI();
+                            if (taskgui != null) {
+                                action.run(taskgui);
+                            }
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            synchronized (autoHelperLock) {
+                                if (autoSaveTablewareThread == Thread.currentThread())
+                                    autoSaveTablewareThread = null;
+                                if (autoSaveTableware == action)
+                                    autoSaveTableware = null;
+                            }
+                        }
+                    });
                 }
-            });
+            }
         }
         else
         {
@@ -411,6 +436,26 @@ public class NCore extends Widget
         mappingClient.tick(dt);
     }
 
+    private void stopAutoHelpers() {
+        synchronized (autoHelperLock) {
+            autoHelpersDisposed = true;
+
+            AutoDrink drink = autoDrink;
+            if (drink != null)
+                drink.stop.set(true);
+            Thread drinkThread = autoDrinkThread;
+            if (drinkThread != null)
+                drinkThread.interrupt();
+
+            AutoSaveTableware tableware = autoSaveTableware;
+            if (tableware != null)
+                tableware.stop.set(true);
+            Thread tablewareThread = autoSaveTablewareThread;
+            if (tablewareThread != null)
+                tablewareThread.interrupt();
+        }
+    }
+
 
 
     public void addTask(final NTask task) throws InterruptedException
@@ -449,6 +494,7 @@ public class NCore extends Widget
 
     @Override
     public void dispose() {
+        stopAutoHelpers();
         mappingClient.done.set(true);
         // Don't shutdown databaseManager here - it's static and should persist across UI/session changes
         // It will be shutdown only when the application exits or database is disabled
