@@ -504,6 +504,9 @@ public class ChunkNavRecorder {
         // Ladders
         if (lower.contains("/ladder")) return true;
 
+        // Natural cave mouths - the passage itself, not a wall
+        if (lower.contains("/cavein") || lower.contains("/caveout")) return true;
+
         // All types of gates - only passable when OPEN (modelAttribute == 1)
         // Includes: polegate, polebiggate, palisadegate, palisadebiggate, drystonewallgate, drystonewallbiggate
         if (lower.contains("/polegate") || lower.contains("/polebiggate") ||
@@ -534,6 +537,9 @@ public class ChunkNavRecorder {
 
         // Ladders
         if (lower.contains("/ladder")) return true;
+
+        // Natural cave mouths - the passage itself, not a wall
+        if (lower.contains("/cavein") || lower.contains("/caveout")) return true;
 
         // Gates - only passable when OPEN (modelAttribute == 1)
         if (lower.contains("/polegate") || lower.contains("/polebiggate") ||

@@ -110,6 +110,8 @@ public class GateDetector {
                 "minehole",
                 "ladder",
                 "stairs",
+                "cavein",
+                "caveout",
                 "cellardoor");
         for (String door : listOfDoors) {
             if(gob.ngob.name.contains(door)) {
@@ -120,7 +122,41 @@ public class GateDetector {
         return false;
     }
 
+    // Natural cave mouths, which link the surface with the FIRST mine level.
+    // The game ships one resource per ridge orientation (cavein-n, cavein-w, ...),
+    // so these are base names and must be matched as prefixes, not exactly.
+    public static final String CAVEIN = "gfx/tiles/ridges/cavein";
+    public static final String CAVEOUT = "gfx/tiles/ridges/caveout";
+
+    /**
+     * Check whether a gob name is a natural cave mouth (either direction).
+     */
+    public static boolean isCaveMouth(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase();
+        return lower.contains("cavein") || lower.contains("caveout");
+    }
+
+    /**
+     * Compare a concrete gob name against a name returned by {@link #getDoorPair}.
+     * Cave mouths pair on their base name because the game has per-orientation
+     * variants, so a plain equals() never matches them.
+     */
+    public static boolean isSameDoor(String gobName, String pairName) {
+        if (gobName == null || pairName == null) return false;
+        if (gobName.equals(pairName)) return true;
+        return isCaveMouth(pairName) && gobName.toLowerCase().startsWith(pairName.toLowerCase());
+    }
+
     public static String getDoorPair(String input) {
+        if (input == null) return null;
+
+        // Cave mouths: match on base name so any ridge orientation pairs correctly.
+        // Check caveout first - both share the "cave" prefix.
+        String lower = input.toLowerCase();
+        if (lower.contains("caveout")) return CAVEIN;
+        if (lower.contains("cavein")) return CAVEOUT;
+
         String[][] pairs = {
                 {"gfx/terobjs/arch/stonestead-door", "gfx/terobjs/arch/stonestead"},
                 {"gfx/terobjs/arch/stonemansion-door", "gfx/terobjs/arch/stonemansion"},
