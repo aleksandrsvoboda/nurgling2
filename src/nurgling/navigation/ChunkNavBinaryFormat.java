@@ -53,6 +53,8 @@ public class ChunkNavBinaryFormat {
     public static final byte PORTAL_MINEHOLE = 6;
     public static final byte PORTAL_LADDER = 7;
     public static final byte PORTAL_UNKNOWN = 8;
+    public static final byte PORTAL_CAVEIN = 9;
+    public static final byte PORTAL_CAVEOUT = 10;
 
     /**
      * Write a chunk to binary format.
@@ -505,6 +507,8 @@ public class ChunkNavBinaryFormat {
             case MINE_ENTRANCE: return PORTAL_MINE_ENTRANCE;
             case MINEHOLE: return PORTAL_MINEHOLE;
             case LADDER: return PORTAL_LADDER;
+            case CAVEIN: return PORTAL_CAVEIN;
+            case CAVEOUT: return PORTAL_CAVEOUT;
             default: return PORTAL_UNKNOWN;
         }
     }
@@ -519,6 +523,8 @@ public class ChunkNavBinaryFormat {
             case PORTAL_MINE_ENTRANCE: return ChunkPortal.PortalType.MINE_ENTRANCE;
             case PORTAL_MINEHOLE: return ChunkPortal.PortalType.MINEHOLE;
             case PORTAL_LADDER: return ChunkPortal.PortalType.LADDER;
+            case PORTAL_CAVEIN: return ChunkPortal.PortalType.CAVEIN;
+            case PORTAL_CAVEOUT: return ChunkPortal.PortalType.CAVEOUT;
             default: return null; // Unknown type - don't default to DOOR
         }
     }

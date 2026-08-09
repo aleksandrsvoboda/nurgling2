@@ -299,6 +299,7 @@ public class ChunkNavExecutor implements Action {
                 boolean isPortal = lower.contains("door") || lower.contains("stairs") ||
                                    lower.contains("cellar") || lower.contains("ladder") ||
                                    lower.contains("entrance") || lower.contains("minehole") ||
+                                   lower.contains("cavein") || lower.contains("caveout") ||
                                    lower.contains("stonemansion") || lower.contains("logcabin") ||
                                    lower.contains("timberhouse") || lower.contains("stonestead") ||
                                    lower.contains("greathall") || lower.contains("stonetower") ||
@@ -486,6 +487,8 @@ public class ChunkNavExecutor implements Action {
                                    portalName.contains("stairs") ||
                                    portalName.contains("ladder") ||
                                    portalName.contains("minehole") ||
+                                   portalName.contains("cavein") ||
+                                   portalName.contains("caveout") ||
                                    portalName.contains("-door");
 
         if (isLoadingPortal) {
@@ -547,6 +550,8 @@ public class ChunkNavExecutor implements Action {
             case CELLAR:
                 return "cellar".equalsIgnoreCase(targetLayer) || "inside".equalsIgnoreCase(targetLayer);
             case LADDER:
+            case CAVEIN:
+            case CAVEOUT:
                 return "outside".equalsIgnoreCase(targetLayer);
             case STAIRS_UP:
             case STAIRS_DOWN:
@@ -1218,6 +1223,8 @@ public class ChunkNavExecutor implements Action {
             case MINEHOLE:
             case LADDER:
             case MINE_ENTRANCE:
+            case CAVEIN:
+            case CAVEOUT:
                 return true;
             case GATE:
             default:

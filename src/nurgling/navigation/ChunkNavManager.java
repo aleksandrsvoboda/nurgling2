@@ -971,6 +971,8 @@ public class ChunkNavManager {
             case CELLAR:
                 return "cellar".equals(targetLayer) || "inside".equals(targetLayer);
             case LADDER:
+            case CAVEIN:
+            case CAVEOUT:
                 return "outside".equals(targetLayer);
             case STAIRS_UP:
             case STAIRS_DOWN:

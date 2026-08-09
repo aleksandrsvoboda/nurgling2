@@ -23,7 +23,9 @@ public class ChunkPortal {
         CELLAR,         // Cellar entrance
         MINE_ENTRANCE,  // Mine entrance (legacy, generic)
         MINEHOLE,       // Minehole - goes DOWN into mine
-        LADDER;         // Ladder - goes UP out of mine level
+        LADDER,         // Ladder - goes UP out of mine level
+        CAVEIN,         // Natural cave mouth - goes DOWN into the first mine level
+        CAVEOUT;        // Natural cave mouth - goes UP out of the first mine level
 
         public static PortalType fromString(String s) {
             try {
@@ -79,6 +81,16 @@ public class ChunkPortal {
         }
         if (name.contains("ladder")) {
             return PortalType.LADDER;
+        }
+
+        // Natural cave mouths (gfx/tiles/ridges/cavein*, caveout*).
+        // These connect the surface with the FIRST mine level only.
+        // Check caveout first - both share the "cave" prefix.
+        if (name.contains("caveout")) {
+            return PortalType.CAVEOUT;
+        }
+        if (name.contains("cavein")) {
+            return PortalType.CAVEIN;
         }
 
         // Gates are NOT portals - they're just openings in walls.

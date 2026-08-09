@@ -83,6 +83,8 @@ public class PortalTraversalTracker {
         "cellar",
         "minehole",
         "ladder",
+        "cavein",
+        "caveout",
         "stairs",
         // Buildings - clicking these teleports you inside
         "stonemansion",
@@ -289,6 +291,9 @@ public class PortalTraversalTracker {
         if (entranceName != null) {
             Coord entranceCoord = null;
             String entranceHash = null;
+            // For cave mouths getDoorPair() returns a base name (no ridge orientation
+            // suffix), so prefer the concrete clicked gob name when we can confirm it.
+            String entranceGobName = entranceName;
 
             // Use cached lastActions gob (captured BEFORE grid change, like routes system)
             // This is the most reliable way because we captured it while the grid was still loaded
@@ -300,9 +305,11 @@ public class PortalTraversalTracker {
                 // NOT the reverse (don't match stonemansion-door when looking for stonemansion)
                 if (isPortalGob(cachedName) &&
                         (cachedName.equals(entranceName) ||
-                                cachedName.endsWith("/" + getSimpleName(entranceName)))) {
+                                cachedName.endsWith("/" + getSimpleName(entranceName)) ||
+                                GateDetector.isSameDoor(cachedName, entranceName))) {
                     entranceCoord = cachedLastActionsGobLocalCoord;
                     entranceHash = getPortalHash(cachedLastActionsGob);
+                    entranceGobName = cachedName;
                     // Use the portal's actual grid ID (fixes boundary bug)
                     if (cachedLastActionsGobGridId != -1) {
                         entranceGridId = cachedLastActionsGobGridId;
@@ -311,7 +318,7 @@ public class PortalTraversalTracker {
             }
 
             if (entranceCoord != null && entranceHash != null) {
-                recordPortalConnection(entranceHash, entranceName, entranceGridId, toGridId, entranceCoord);
+                recordPortalConnection(entranceHash, entranceGobName, entranceGridId, toGridId, entranceCoord);
 
                 // Update entry portal with where we appear in destination
                 updatePortalExitCoord(entranceHash, entranceGridId, exitLocalCoord);
@@ -724,6 +731,8 @@ public class PortalTraversalTracker {
         if (ChunkPortal.isBuildingExterior(exitPortalName)) return ChunkNavManager.SURFACE_INSTANCE;
         // Exit portal is a minehole -> we LEFT a mine -> now on surface
         if (lower.contains("minehole")) return ChunkNavManager.SURFACE_INSTANCE;
+        // Exit portal is a cave mouth on the surface -> we LEFT the first mine level
+        if (lower.contains("cavein")) return ChunkNavManager.SURFACE_INSTANCE;
         // cellardoor -> we left cellar back into building interior
         if (lower.contains("cellardoor")) return toGridId;
         // All other exits (ladder, -door, cellarstairs, etc.) -> new instance
