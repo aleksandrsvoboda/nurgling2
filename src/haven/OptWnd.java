@@ -764,13 +764,10 @@ public class OptWnd extends Window {
 	}
     }
 
-    private static final Text kbtt = RichText.render("$col[255,255,0]{Escape}: Cancel input\n" +
-						     "$col[255,255,0]{Backspace}: Revert to default\n" +
-						     "$col[255,255,0]{Delete}: Disable keybinding", 0);
     public class BindingPanel extends Panel {
 	private int addbtn(Widget cont, String nm, KeyBinding cmd, int y) {
 	    return(cont.addhl(new Coord(0, y), cont.sz.x,
-			      new Label(nm), new SetButton(UI.scale(175), cmd))
+			      new Label(nm), new nurgling.widgets.NKeyBindButton(UI.scale(175), cmd))
 		   + UI.scale(2));
 	}
 
@@ -824,7 +821,7 @@ public class OptWnd extends Window {
 		y = cont.adda(new Label(L10n.get("opt.keybind.special")), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 		y = addbtn(cont, L10n.get("opt.keybind.quick_action"), NMapView.kb_quickaction, y);
 		y = addbtn(cont, L10n.get("opt.keybind.quick_action_alt"), NMapView.kb_quickignaction, y);
-		y = addbtn(cont, L10n.get("opt.keybind.nature"), NMiniMapWnd.kb_nature, y);
+		y = addbtn(cont, L10n.get("opt.keybind.nature"), NMapView.kb_togglenature, y);
 		y = addbtn(cont, L10n.get("opt.keybind.night"), NMiniMapWnd.kb_night, y);
 		y = addbtn(cont, L10n.get("opt.keybind.sort_inventory"), GameUI.kb_sort, y);
 		y = cont.adda(new Label("Session Hotkeys"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
@@ -844,6 +841,7 @@ public class OptWnd extends Window {
 //		y = addbtn(cont, "Player FOV box", NMapView.kb_displayfov, y);
 		y = addbtn(cont, L10n.get("opt.keybind.grid_walls"), NMapView.kb_displaygrid, y);
 		y = addbtn(cont, L10n.get("opt.keybind.toggle_bb"), NMapView.kb_togglebb, y);
+		y = addbtn(cont, L10n.get("opt.keybind.cycle_bb_mode"), NMapView.kb_cyclebbmode, y);
 		y = addbtn(cont, L10n.get("opt.keybind.clear_dmg"), NMapView.kb_cleardmg, y);
 
 		y = cont.adda(new Label(L10n.get("opt.keybind.belt")), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
@@ -862,43 +860,6 @@ public class OptWnd extends Window {
 	    pack();
 	}
 
-	public class SetButton extends KeyMatch.Capture {
-	    public final KeyBinding cmd;
-
-	    public SetButton(int w, KeyBinding cmd) {
-		super(w, cmd.key());
-		this.cmd = cmd;
-	    }
-
-	    public void set(KeyMatch key) {
-		super.set(key);
-		cmd.set(key);
-		NConfig.needUpdate();
-	    }
-
-	    public void draw(GOut g) {
-		if(cmd.key() != key)
-		    super.set(cmd.key());
-		super.draw(g);
-	    }
-
-	    protected KeyMatch mkmatch(KeyEvent ev) {
-		return(KeyMatch.forevent(ev, ~cmd.modign));
-	    }
-
-	    protected boolean handle(KeyEvent ev) {
-		if(ev.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
-		    cmd.set(null);
-		    super.set(cmd.key());
-		    return(true);
-		}
-		return(super.handle(ev));
-	    }
-
-	    public Object tooltip(Coord c, Widget prev) {
-		return(kbtt.tex());
-	    }
-	}
     }
 
 

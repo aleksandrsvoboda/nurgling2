@@ -45,7 +45,13 @@ import static haven.OCache.posres;
 public class NGob
 {
     public boolean effector = false;
-    public volatile boolean natureHidden = false;
+    /** Cached answer to "should this gob be hidden", refreshed when {@link GobHide#version()} moves. */
+    public volatile boolean hidden = false;
+    /** Whether {@link Gob#hide()} has actually been called, so the sweep never double-applies. */
+    public volatile boolean hideApplied = false;
+    /** Resolved once when the resource name becomes known; null for almost every gob. */
+    public volatile GobHide.HideCategory hideCat = null;
+    private volatile int hideVersion = 0;
     public NHitBox hitBox = null;
     public String name = null;
     public boolean isQuested = true;
@@ -73,6 +79,41 @@ public class NGob
 
     public HarvestSpec harvestSpec() {
         return cachedHarvestSpec;
+    }
+
+    /**
+     * Whether this gob should currently be hidden from the world view.
+     *
+     * <p>Called from {@link Gob#setattr} and {@link Gob#added}, two of the hottest paths in the
+     * client, so the answer is cached against {@link GobHide#version()}: gobs with no category
+     * (the vast majority) return immediately, and the rest only re-evaluate after a settings change.
+     */
+    public boolean isHidden() {
+        if (hideCat == null)
+            return false;
+        int v = GobHide.version();
+        if (v != hideVersion) {
+            boolean h = GobHide.shouldHide(parent, hideCat);
+            hidden = h;
+            // Published last: a reader that sees this version must also see the decision above,
+            // otherwise GobHide.apply() can conclude "already applied" from a stale answer.
+            hideVersion = v;
+            return h;
+        }
+        return hidden;
+    }
+
+    /** Drops the cached decision so the next {@link #isHidden()} re-evaluates from scratch. */
+    public void invalidateHidden() {
+        hideVersion = 0;
+    }
+
+    /**
+     * Whether hiding this gob would leave a clickable box behind. Without one the object would be
+     * both invisible and unreachable, so {@link GobHide} refuses to hide it.
+     */
+    public boolean hasClickBox() {
+        return hitBox != null;
     }
     
     // Cached values for performance
@@ -473,7 +514,7 @@ public class NGob
                     {
                         // Try creating temp mark again (will skip if already exists)
                         tryCreateTempMark((GobIcon) a, gob);
-                        
+
                         // Add ring overlay if enabled in settings
                         if (nurgling.overlays.NGobIconRing.shouldShowRing(gob))
                         {
@@ -481,6 +522,15 @@ public class NGob
                             {
                                 gob.addcustomol(nurgling.overlays.NGobIconRing.createAutoSize(gob));
                             }
+                        }
+
+                        // Icon settings resolve asynchronously, so the "don't hide objects with a
+                        // map icon" exception cannot be answered when the gob first appears. Now
+                        // that the icon is actually ready, re-decide.
+                        if (hideCat != null && GobHide.respectMapIcons())
+                        {
+                            invalidateHidden();
+                            GobHide.apply(gob);
                         }
                     }
             ));
@@ -620,13 +670,6 @@ public class NGob
 
             if (name != null)
             {
-                // Mark as nature-hidden for newly appearing gobs when hide is active
-                if (NUtils.isNatureObject(name) && !(Boolean) NConfig.get(NConfig.Key.hideNature)) {
-                    natureHidden = true;
-                } else if (NUtils.isEarthworm(name) && !(Boolean) NConfig.get(NConfig.Key.hideEarthworm)) {
-                    natureHidden = true;
-                }
-
                 // Set customMask for objects that need custom materials
                 // NOTE: ttubs use message flags, not overlays
                 if (name.contains("gfx/terobjs/barrel") || name.contains("gfx/terobjs/dframe")) {
@@ -638,6 +681,14 @@ public class NGob
                 }
 
                 name = HarvestState.normalizeBumlingRes(name);
+
+                // Resolved once per name change. The hide decision itself is deferred to the end of
+                // this method, because it depends on hitBox, which is only worked out further down.
+                GobHide.HideCategory cat = GobHide.categoryOf(name);
+                if (cat != hideCat) {
+                    hideCat = cat;
+                    invalidateHidden();
+                }
 
                 if (name.contains("palisade") && cachedShortPalisades)
                 {
@@ -931,6 +982,14 @@ public class NGob
                     parent.addcustomol(new nurgling.overlays.NMoundBedRadius(parent));
                 }
             }
+
+            // Now that name and hitBox are both settled, reconcile the gob's visibility. This also
+            // covers drawable changes that move a gob between categories (a felled tree becoming a
+            // log), where the render node was dropped under the old category's rules.
+            if (hideCat != null || hideApplied)
+                // Deferred onto the loader: this runs inside Gob.setattr on the session's message
+                // thread, and GobHide.apply -> Gob.show() blocks in Loading.waitfor.
+                parent.defer(() -> GobHide.apply(parent));
         }
     }
 

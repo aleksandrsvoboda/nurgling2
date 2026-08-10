@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.*;
 import nurgling.i18n.L10n;
 import nurgling.overlays.NModelBox;
+import nurgling.tools.GobHide;
 import nurgling.widgets.NColorWidget;
 import java.awt.Color;
 import java.util.ConcurrentModificationException;
@@ -13,7 +14,6 @@ public class World extends Panel {
     private static class WorldSettings {
         boolean flatSurface;
         boolean decorativeObjects;
-        boolean hideNature;
         boolean hideEarthworm;
         boolean showBB;
         boolean showBeehiveRadius;
@@ -35,7 +35,6 @@ public class World extends Panel {
     private final WorldSettings tempSettings = new WorldSettings();
     private CheckBox flatSurface;
     private CheckBox decorativeObjects;
-    private CheckBox natura;
     private CheckBox earthworm;
     private CheckBox boundingBoxes;
     private CheckBox beehiveRadius;
@@ -123,13 +122,6 @@ public class World extends Panel {
 
         // Objects section
         prev = content.add(new Label("● " + L10n.get("world.section.objects")), prev.pos("bl").adds(0, 15));
-        prev = natura = content.add(new CheckBox(L10n.get("world.hide_nature")) {
-            public void set(boolean val) {
-                tempSettings.hideNature = !val;
-                a = val;
-            }
-        }, prev.pos("bl").adds(0, 5));
-
         prev = earthworm = content.add(new CheckBox(L10n.get("world.hide_earthworms")) {
             public void set(boolean val) {
                 tempSettings.hideEarthworm = !val;
@@ -216,9 +208,10 @@ public class World extends Panel {
         pack();
     }
 
-    public void setNatureStatus(Boolean a) {
-        tempSettings.hideNature = a;
-        natura.a = !a;
+    /** Re-reads showBB after the Ctrl+N hotkey changed it while this panel was already open. */
+    public void syncShowBB() {
+        tempSettings.showBB = (Boolean) NConfig.get(NConfig.Key.showBB);
+        boundingBoxes.a = tempSettings.showBB;
     }
 
     @Override
@@ -226,7 +219,6 @@ public class World extends Panel {
         // Load current settings into temporary structure
         tempSettings.flatSurface = (Boolean) NConfig.get(NConfig.Key.nextflatsurface);
         tempSettings.decorativeObjects = (Boolean) NConfig.get(NConfig.Key.nextshowCSprite);
-        tempSettings.hideNature = (Boolean) NConfig.get(NConfig.Key.hideNature);
         tempSettings.hideEarthworm = (Boolean) NConfig.get(NConfig.Key.hideEarthworm);
         tempSettings.showBB = (Boolean) NConfig.get(NConfig.Key.showBB);
         tempSettings.showBeehiveRadius = (Boolean) NConfig.get(NConfig.Key.showBeehiveRadius);
@@ -253,7 +245,6 @@ public class World extends Panel {
         // Update UI components
         flatSurface.a = tempSettings.flatSurface;
         decorativeObjects.a = tempSettings.decorativeObjects;
-        natura.a = !tempSettings.hideNature;
         earthworm.a = !tempSettings.hideEarthworm;
         boundingBoxes.a = tempSettings.showBB;
         beehiveRadius.a = tempSettings.showBeehiveRadius;
@@ -311,14 +302,12 @@ public class World extends Panel {
             }
         }
         
-        // Save hideNature setting
-        NConfig.set(NConfig.Key.hideNature, tempSettings.hideNature);
-
-        // Save hideEarthworm setting
+        // Earthworms predate the categorised hiding system and keep their own config key, but
+        // the sweep that applies them is now the shared one.
         boolean oldHideEarthworm = (Boolean) NConfig.get(NConfig.Key.hideEarthworm);
-        NConfig.set(NConfig.Key.hideEarthworm, tempSettings.hideEarthworm);
         if (oldHideEarthworm != tempSettings.hideEarthworm) {
-            NUtils.showHideEarthworm();
+            GobHide.setCategory(GobHide.HideCategory.EARTHWORMS, !tempSettings.hideEarthworm);
+            GobHide.applyAll();
         }
 
         // Update colors from UI widgets
@@ -332,24 +321,8 @@ public class World extends Panel {
         // Save line width setting
         NConfig.set(NConfig.Key.boxLineWidth, tempSettings.boxLineWidth);
 
-        if ((Boolean) NConfig.get(NConfig.Key.hideNature) != tempSettings.hideNature) {
-            // Sync with mini map
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().mmapw != null) {
-                NUtils.getGameUI().mmapw.natura.a = !tempSettings.hideNature;
-            }
-            
-            // Sync with QoL panel
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                if (panel.settingsWindow != null && panel.settingsWindow.qol != null) {
-                    panel.settingsWindow.qol.syncHideNature();
-                }
-            }
-            
-            NUtils.showHideNature();
-        }
-
-        // Force update of all NModelBox instances
+        // Rebuild the cached box styles once, then refresh the live boxes.
+        NModelBox.invalidateStyles();
         try {
             if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null)
             {

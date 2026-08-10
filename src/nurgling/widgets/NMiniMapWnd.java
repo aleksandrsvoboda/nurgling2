@@ -17,7 +17,6 @@ public class NMiniMapWnd extends Widget{
     public IButton geoloc;
     public static final KeyBinding kb_night = KeyBinding.get("mwnd_night", KeyMatch.nil);
     public static final KeyBinding kb_fog = KeyBinding.get("mwnd_fog", KeyMatch.nil);
-    public static final KeyBinding kb_nature = KeyBinding.get("mwnd_nature", KeyMatch.nil);
     public static final KeyBinding kb_resourcetimers = KeyBinding.get("mwnd_resourcetimers", KeyMatch.nil);
     public static class NMenuCheckBox extends ICheckBox {
         public NMenuCheckBox(String base, KeyBinding gkey, String tooltip) {
@@ -183,9 +182,9 @@ public class NMiniMapWnd extends Widget{
         });
         buttons.add(geoloc);
 
-        natura = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/natura", kb_nature, L10n.get("minimap.natural_objects"));
+        natura = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/natura", NMapView.kb_togglenature, L10n.get("minimap.natural_objects"));
         natura.changed(a -> switchStatus("natura", !a));
-        natura.a = !(Boolean) NConfig.get(NConfig.Key.hideNature);
+        natura.a = !nurgling.tools.GobHide.isEnabled();
         buttons.add(natura);
 
         nightvision = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/daynight", kb_night, L10n.get("minimap.night_vision"));
@@ -277,22 +276,8 @@ public class NMiniMapWnd extends Widget{
                 break;
             }
             case "natura": {
-                NConfig.set(NConfig.Key.hideNature,a);
-                NUtils.showHideNature();
-                
-                // Sync with World settings panel
-                if (NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                    ((OptWnd.NSettingsPanel)NUtils.getGameUI().opts.nqolwnd).settingsWindow.world.setNatureStatus(a);
-                }
-                
-                // Sync with QoL panel
-                if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                    OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                    if (panel.settingsWindow != null && panel.settingsWindow.qol != null) {
-                        panel.settingsWindow.qol.syncHideNature();
-                    }
-                }
-                
+                // `a` is "hide objects" - the checkbox itself is inverted (it reads "show nature").
+                nurgling.tools.GobHide.setEnabled(a);
                 break;
             }
             case "night":
