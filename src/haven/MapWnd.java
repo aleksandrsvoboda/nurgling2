@@ -366,6 +366,7 @@ public class MapWnd extends Window implements Console.Directory {
 	public void mark(Location loc, boolean onmap) {
 	    Marker nm = new PMarker(file, loc.seg.id, loc.tc, "New marker", BuddyWnd.gc[new Random().nextInt(BuddyWnd.gc.length)], onmap);
 	    file.add(nm);
+	    uploadpmarker(nm);
 	    focus(nm);
 	}
 
@@ -755,6 +756,7 @@ public class MapWnd extends Window implements Console.Directory {
 			    public void activate(String text) {
 				mark.nm = text;
 				view.file.update(mark);
+				uploadpmarker(mark);
 				commit();
 				change2(null);
 			    }
@@ -769,12 +771,14 @@ public class MapWnd extends Window implements Console.Directory {
 			    public void changed(int group) {
 				pm.color = BuddyWnd.gc[group];
 				view.file.update(mark);
+				uploadpmarker(mark);
 			    }
 			});
 		    onmapbtn = (CheckBox)tool.add(new CheckBox("Display in world").state(() -> pm.onmap));
 		    onmapbtn.set(v -> {
 			pm.onmap = v;
 			view.file.update(mark);
+			uploadpmarker(mark);
 		    });
 		}
 		mremove = tool.add(new Button(UI.scale(200), "Remove", false) {
@@ -823,6 +827,16 @@ public class MapWnd extends Window implements Console.Directory {
 
     public void focus(Marker m) {
 	mrefocus = m;
+    }
+
+    private void uploadpmarker(Marker mark) {
+	if(!(mark instanceof PMarker))
+	    return;
+	if((ui == null) || (ui.core == null) || (ui.core.mappingClient == null))
+	    return;
+	if(!Boolean.TRUE.equals(nurgling.NConfig.get(nurgling.NConfig.Key.autoMapper)))
+	    return;
+	ui.core.mappingClient.uploadPMarker(file, (PMarker)mark);
     }
 
     protected Deco makedeco() {

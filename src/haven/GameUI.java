@@ -739,12 +739,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		try {
 		    file = MapFile.load(mapstore, mapfilename());
 			if((Boolean) NConfig.get(NConfig.Key.autoMapper)) {
-				NUtils.getUI().core.mappingClient.requestor.processMap(file, (m) -> {
-					if(m instanceof MapFile.PMarker) {
-						return (Boolean) NConfig.get(NConfig.Key.unloadgreen) && ((MapFile.PMarker)m).color.equals(Color.GREEN);
-					}
-					return true;
-				});
+				NUtils.getUI().core.mappingClient.requestor.processMap(file, mapv4.Requestor::uploadable);
 			}
 		} catch(java.io.IOException e) {
 		    /* XXX: Not quite sure what to do here. It's

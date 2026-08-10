@@ -221,4 +221,10 @@ public class NMappingClient {
             requestor.uploadSMarker(gob, marker);
         }
     }
+
+    public void uploadPMarker(MapFile file, MapFile.PMarker marker) {
+        if (requestor != null) {
+            requestor.uploadPMarker(file, marker);
+        }
+    }
 }
