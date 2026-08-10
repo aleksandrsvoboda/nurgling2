@@ -53,11 +53,6 @@ public class NGob
     public volatile GobHide.HideCategory hideCat = null;
     private volatile int hideVersion = 0;
     public NHitBox hitBox = null;
-    /**
-     * Display-only click target for hideable gobs that have no real {@link #hitBox} (crops).
-     * Kept separate because hitBox also feeds pathfinding - see {@link NHitBox#findHideBox}.
-     */
-    public NHitBox hideBox = null;
     public String name = null;
     public boolean isQuested = true;
     public boolean customMask = false;
@@ -98,8 +93,12 @@ public class NGob
             return false;
         int v = GobHide.version();
         if (v != hideVersion) {
+            boolean h = GobHide.shouldHide(parent, hideCat);
+            hidden = h;
+            // Published last: a reader that sees this version must also see the decision above,
+            // otherwise GobHide.apply() can conclude "already applied" from a stale answer.
             hideVersion = v;
-            hidden = GobHide.shouldHide(parent, hideCat);
+            return h;
         }
         return hidden;
     }
@@ -114,21 +113,7 @@ public class NGob
      * both invisible and unreachable, so {@link GobHide} refuses to hide it.
      */
     public boolean hasClickBox() {
-        return hitBox != null || hideBox != null || NHitBox.findHideBox(name) != null;
-    }
-
-    /**
-     * Creates the display-only click box for a gob that is about to be hidden and has no real
-     * hitbox (crops). Deliberately lazy: a farm field holds hundreds of crop gobs, and attaching an
-     * overlay to every one of them at spawn time would cost real frame budget for a box that only
-     * matters while the category is actually being hidden.
-     */
-    public void ensureHideBox() {
-        if (hitBox != null || hideBox != null || name == null)
-            return;
-        hideBox = NHitBox.findHideBox(name);
-        if (hideBox != null)
-            parent.addcustomol(new nurgling.overlays.NModelBox(parent, hideBox, true));
+        return hitBox != null;
     }
     
     // Cached values for performance
@@ -1002,7 +987,9 @@ public class NGob
             // covers drawable changes that move a gob between categories (a felled tree becoming a
             // log), where the render node was dropped under the old category's rules.
             if (hideCat != null || hideApplied)
-                GobHide.apply(parent);
+                // Deferred onto the loader: this runs inside Gob.setattr on the session's message
+                // thread, and GobHide.apply -> Gob.show() blocks in Loading.waitfor.
+                parent.defer(() -> GobHide.apply(parent));
         }
     }
 

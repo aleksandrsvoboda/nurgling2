@@ -164,29 +164,6 @@ public class NHitBox
         return null;
     }
 
-    /** One tile square - crops occupy exactly one tile, and MCache.tilesz is 11 units. */
-    private static final NHitBox CROP_BOX = new NHitBox(new Coord2d(-5.5, -5.5), new Coord2d(5.5, 5.5), true);
-
-    /**
-     * A display-only box for gobs that can be hidden but carry no real hitbox.
-     *
-     * <p>Hiding a gob strips its render nodes, and the box overlay is what remains to click on.
-     * Crops are not obstacles, so they have no {@link Resource.Obstacle}/{@link Resource.Neg} layer
-     * and would otherwise hide into nothing. This box deliberately never becomes
-     * {@link nurgling.NGob#hitBox}: that field also feeds {@link nurgling.pf.CellsArray}, and
-     * marking every crop as an obstacle would wreck pathfinding across farm fields.
-     *
-     * @return a box to draw for hidden gobs of this resource, or null if the resource needs none
-     */
-    public static NHitBox findHideBox(String name)
-    {
-        if (name == null)
-            return null;
-        if (name.startsWith("gfx/terobjs/plants/") && !name.startsWith("gfx/terobjs/plants/trellis"))
-            return CROP_BOX;
-        return null;
-    }
-
     public static NHitBox findCustom(String name)
     {
         NHitBox res = custom.get(name);

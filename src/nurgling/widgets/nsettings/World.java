@@ -208,6 +208,12 @@ public class World extends Panel {
         pack();
     }
 
+    /** Re-reads showBB after the Ctrl+N hotkey changed it while this panel was already open. */
+    public void syncShowBB() {
+        tempSettings.showBB = (Boolean) NConfig.get(NConfig.Key.showBB);
+        boundingBoxes.a = tempSettings.showBB;
+    }
+
     @Override
     public void load() {
         // Load current settings into temporary structure
@@ -315,7 +321,8 @@ public class World extends Panel {
         // Save line width setting
         NConfig.set(NConfig.Key.boxLineWidth, tempSettings.boxLineWidth);
 
-        // Force update of all NModelBox instances
+        // Rebuild the cached box styles once, then refresh the live boxes.
+        NModelBox.invalidateStyles();
         try {
             if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null)
             {

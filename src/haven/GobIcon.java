@@ -685,6 +685,10 @@ public class GobIcon extends GAttrib {
 	}
 
 	public void dsave() {
+	    // Icon settings live outside hideConf, but the "don't hide objects that have their map
+	    // icon enabled" exception depends on them, so nothing else would re-evaluate the gobs
+	    // this just affected.
+	    nurgling.tools.GobHide.onIconSettingsChanged();
 	    synchronized(this) {
 		if(!saving) {
 		    Defer.later(this::dsave0, null);

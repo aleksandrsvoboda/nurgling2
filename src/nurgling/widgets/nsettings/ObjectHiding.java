@@ -197,12 +197,7 @@ public class ObjectHiding extends Panel {
         NConfig.setColor(NConfig.Key.hideBoxEdgeColor, tempSettings.edgeColor);
         NConfig.set(NConfig.Key.hideBoxLineWidth, tempSettings.lineWidth);
 
-        // Preserve the "always visible" half of the mode - the checkbox only chooses fill vs outline.
-        Object mode = NConfig.get(NConfig.Key.hideBoxDisplayMode);
-        String modeStr = (mode instanceof String) ? (String) mode : NModelBox.DEF_MODE;
-        boolean always = modeStr.endsWith("_ALWAYS");
-        NConfig.set(NConfig.Key.hideBoxDisplayMode,
-                (tempSettings.fillBoxes ? "FILLED" : "OUTLINE") + (always ? "_ALWAYS" : ""));
+        NConfig.set(NConfig.Key.hideBoxDisplayMode, tempSettings.fillBoxes ? "FILLED" : "OUTLINE");
         NModelBox.invalidateStyles();
 
         GobHide.setRespectMapIcons(tempSettings.respectMapIcons);

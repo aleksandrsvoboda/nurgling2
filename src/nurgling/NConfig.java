@@ -1113,8 +1113,9 @@ public class NConfig
         // The constructor already seeded a default hideConf, so "does conf contain it" cannot tell
         // us whether the user's file had one. Track what the file actually carried instead.
         boolean fileHadHideConf = false;
+        boolean hadConfigFile = (content != null && !content.isEmpty());
 
-        if (content != null && !content.isEmpty())
+        if (hadConfigFile)
         {
             JSONObject main;
             try {
@@ -1197,25 +1198,23 @@ public class NConfig
         }
 
         // Migration: fold the legacy inverted `hideNature` flag into the categorised hideConf.
-        // hideNature == false meant "nature objects are currently hidden", which under the new
-        // model is the master switch plus the three categories it used to cover.
-        if (!fileHadHideConf) {
-            Map<String, Object> hideConf = nurgling.tools.GobHide.defaults();
+        // Only for configs that predate hideConf - a fresh install keeps the constructor defaults.
+        if (hadConfigFile && !fileHadHideConf) {
             Object legacy = conf.get(Key.hideNature);
-            if ((legacy instanceof Boolean) && !((Boolean) legacy)) {
-                hideConf.put("enabled", true);
-                hideConf.put(nurgling.tools.GobHide.HideCategory.TREES.name(), true);
-                hideConf.put(nurgling.tools.GobHide.HideCategory.BUSHES.name(), true);
-                hideConf.put(nurgling.tools.GobHide.HideCategory.BOULDERS.name(), true);
-                System.out.println("[NConfig] Migrated hideNature into hideConf (hiding was enabled)");
-            }
-            conf.put(Key.hideConf, hideConf);
+            // Inverted semantics: hideNature == false meant nature was hidden.
+            boolean natureWasHidden = (legacy instanceof Boolean) && !((Boolean) legacy);
+            conf.put(Key.hideConf, nurgling.tools.GobHide.legacyMigration(natureWasHidden));
+            System.out.println("[NConfig] Migrated hideNature into hideConf (hiding was "
+                    + (natureWasHidden ? "enabled" : "disabled") + ")");
 
             // Hidden-object boxes used to share the general bounding-box style. Seed the new keys
             // from whatever the user already had, so upgrading changes nothing on screen until they
-            // deliberately give the two styles different values.
-            if (conf.get(Key.bbDisplayMode) instanceof String)
-                conf.put(Key.hideBoxDisplayMode, conf.get(Key.bbDisplayMode));
+            // deliberately give the two styles different values. The depth-tested/always-visible
+            // distinction is not carried over: the hidden-box mode only has FILLED and OUTLINE.
+            if (conf.get(Key.bbDisplayMode) instanceof String) {
+                String mode = ((String) conf.get(Key.bbDisplayMode));
+                conf.put(Key.hideBoxDisplayMode, mode.startsWith("OUTLINE") ? "OUTLINE" : "FILLED");
+            }
             if (conf.get(Key.boxFillColor) != null)
                 conf.put(Key.hideBoxFillColor, conf.get(Key.boxFillColor));
             if (conf.get(Key.boxEdgeColor) != null)

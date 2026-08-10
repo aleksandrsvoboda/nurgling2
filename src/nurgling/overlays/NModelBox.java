@@ -276,24 +276,11 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
     Gob gob;
 
-    /**
-     * When true this box exists only to give a hidden object something to click; it stays invisible
-     * for the general "show object boundaries" overlay. Used for gobs with a display-only
-     * {@link NHitBox#findHideBox} box, which do not have a real footprint worth outlining.
-     */
-    private final boolean hideOnly;
-
     public NModelBox(Gob gob)
-    {
-        this(gob, gob.ngob.hitBox, false);
-    }
-
-    public NModelBox(Gob gob, NHitBox box, boolean hideOnly)
     {
         super(null, null);
         this.gob = gob;
-        this.hideOnly = hideOnly;
-        this.bb = NBoundingBox.getBoundingBox(box);
+        this.bb = NBoundingBox.getBoundingBox(gob.ngob.hitBox);
     }
 
     Collection<RenderTree.Node> nodes = new ArrayList<>();
@@ -316,7 +303,6 @@ public class NModelBox extends Sprite implements RenderTree.Node {
      * Updates materials for rendering the bounding box with new colors.
      */
     public void updateMaterials() {
-        invalidateStyles();
         currentStyle = null;
         if (isVisible && slot != null) {
             refreshDisplay();
@@ -371,9 +357,8 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
     @Override
     public boolean tick(double dt) {
-        boolean hiddenNow = (gob.ngob != null) && gob.ngob.isHidden();
-        boolean newShowState = hideOnly ? hiddenNow
-                : ((Boolean) NConfig.get(NConfig.Key.showBB) || hiddenNow);
+        boolean newShowState = ((Boolean) NConfig.get(NConfig.Key.showBB)
+                || (gob.ngob != null && gob.ngob.isHidden()));
 
         // Re-resolve the style every tick: the box can flip between the hidden and the boundary
         // style without the show state changing at all (e.g. showBB on, then the gob gets hidden).

@@ -54,7 +54,21 @@ public class NMapView extends MapView
     public static final KeyBinding kb_displaygrid = KeyBinding.get("gridbox",  KeyMatch.nil);
     public static final KeyBinding kb_togglebb = KeyBinding.get("togglebb",  KeyMatch.forcode(KeyEvent.VK_N, KeyMatch.C));
     public static final KeyBinding kb_cyclebbmode = KeyBinding.get("cyclebbmode",  KeyMatch.forcode(KeyEvent.VK_N, KeyMatch.C | KeyMatch.S));
-    public static final KeyBinding kb_togglenature = KeyBinding.get("togglenature",  KeyMatch.forcode(KeyEvent.VK_H, KeyMatch.C));
+    public static final KeyBinding kb_togglenature = togglenatureBinding();
+
+    /**
+     * The minimap panel used to carry its own "mwnd_nature" binding for the same action. That id is
+     * gone, so move whatever the user had bound to it across once rather than silently discarding
+     * their customisation.
+     */
+    private static KeyBinding togglenatureBinding() {
+        String legacy = Utils.getpref("keybind/mwnd_nature", "");
+        if(!legacy.isEmpty() && Utils.getpref("keybind/togglenature", "").isEmpty()) {
+            Utils.setpref("keybind/togglenature", legacy);
+            Utils.setpref("keybind/mwnd_nature", "");
+        }
+        return KeyBinding.get("togglenature", KeyMatch.forcode(KeyEvent.VK_H, KeyMatch.C));
+    }
     public static final KeyBinding kb_cleardmg = KeyBinding.get("cleardmg", KeyMatch.forcode(KeyEvent.VK_D, KeyMatch.C | KeyMatch.S));
     public static final int MINING_OVERLAY = - 1;
     public NGlobalCoord lastGC = null;
@@ -1457,6 +1471,14 @@ public class NMapView extends MapView
             boolean val = (Boolean) NConfig.get(NConfig.Key.showBB);
             NConfig.set(NConfig.Key.showBB, !val);
             NUtils.getGameUI().msg("Bounding Boxes: " + (!val ? "enabled" : "disabled"));
+            // The World panel stages this value on open and writes it back on Save, so an open
+            // panel would otherwise revert what this hotkey just did.
+            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null
+                    && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
+                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
+                if (panel.settingsWindow != null && panel.settingsWindow.world != null)
+                    panel.settingsWindow.world.syncShowBB();
+            }
         }
         if(kb_cyclebbmode.key().match(ev)) {
             String currentMode = (String) NConfig.get(NConfig.Key.bbDisplayMode);

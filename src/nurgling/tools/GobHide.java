@@ -9,7 +9,10 @@ import nurgling.NGob;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -30,21 +33,20 @@ import java.util.function.Predicate;
 public class GobHide {
     private static final String TREE_PREFIX = "gfx/terobjs/trees/";
     private static final String ARCH_PREFIX = "gfx/terobjs/arch/";
-    private static final String PLANT_PREFIX = "gfx/terobjs/plants/";
-    private static final String TRELLIS_PREFIX = PLANT_PREFIX + "trellis";
+    private static final String TRELLIS_PREFIX = "gfx/terobjs/plants/trellis";
 
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_RESPECT_ICONS = "respectMapIcons";
 
     public enum HideCategory {
-        TREES("hiding.cat.trees", true, true, n -> n.startsWith(TREE_PREFIX) && !isLogRes(n) && !n.endsWith("stump")),
+        TREES("hiding.cat.trees", true, true, n -> n.startsWith(TREE_PREFIX) && !isLogRes(n)),
         TREE_LOGS("hiding.cat.tree_logs", true, true, GobHide::isLogRes),
         BUSHES("hiding.cat.bushes", true, true, n -> n.startsWith("gfx/terobjs/bushes/")),
-        BOULDERS("hiding.cat.boulders", true, true, n -> n.startsWith("gfx/terobjs/bumlings")),
+        BOULDERS("hiding.cat.boulders", true, true,
+                n -> n.startsWith("gfx/terobjs/bumlings") || n.equals("gfx/terobjs/stonepillar")),
         WALLS("hiding.cat.walls", true, true, GobHide::isWallRes),
         HOUSES("hiding.cat.houses", true, true, GobHide::isHouseRes),
         STOCKPILES("hiding.cat.stockpiles", true, true, n -> n.startsWith("gfx/terobjs/stockpile-")),
-        CROPS("hiding.cat.crops", true, true, n -> n.startsWith(PLANT_PREFIX) && !n.startsWith(TRELLIS_PREFIX)),
         TRELLISES("hiding.cat.trellises", true, true, n -> n.startsWith(TRELLIS_PREFIX)),
         /**
          * Earthworms predate the categorised system and keep their own config key and their own
@@ -79,10 +81,12 @@ public class GobHide {
     }
 
     /** Categories offered by the Object Hiding panel - everything except the legacy earthworm toggle. */
-    public static final HideCategory[] PANEL_CATEGORIES = {
-            HideCategory.TREES, HideCategory.BUSHES, HideCategory.BOULDERS, HideCategory.TREE_LOGS,
-            HideCategory.WALLS, HideCategory.HOUSES, HideCategory.STOCKPILES, HideCategory.CROPS,
-            HideCategory.TRELLISES
+    public static final HideCategory[] PANEL_CATEGORIES =
+            Arrays.stream(HideCategory.values()).filter(c -> c.gatedByMaster).toArray(HideCategory[]::new);
+
+    /** Categories switched on for a fresh install, so the hotkey does something out of the box. */
+    private static final HideCategory[] DEFAULT_ON = {
+            HideCategory.TREES, HideCategory.BUSHES, HideCategory.BOULDERS, HideCategory.TREE_LOGS
     };
 
     private static volatile int version = 1;
@@ -106,8 +110,6 @@ public class GobHide {
     }
 
     private static boolean isWallRes(String n) {
-        if (n.equals("gfx/terobjs/stonepillar"))
-            return true;
         if (!n.startsWith(ARCH_PREFIX))
             return false;
         String s = n.substring(ARCH_PREFIX.length());
@@ -202,9 +204,6 @@ public class GobHide {
         if (want == ngob.hideApplied)
             return;
         if (want) {
-            // Must happen before hide(): once the render nodes are gone the box is the only thing
-            // left to click on.
-            ngob.ensureHideBox();
             gob.hide();
             ngob.hideApplied = true;
         } else {
@@ -220,11 +219,16 @@ public class GobHide {
             NGameUI gui = ctx.getGameUI();
             if (gui == null || gui.ui == null || gui.ui.sess == null)
                 continue;
+            // Snapshot under the monitor, then apply outside it: Gob.show() blocks in
+            // Loading.waitfor until the resource resolves, and stalling there while holding the
+            // object cache would take the render and network threads down with it.
+            List<Gob> gobs = new ArrayList<>();
             synchronized (gui.ui.sess.glob.oc) {
-                for (Gob gob : gui.ui.sess.glob.oc) {
-                    apply(gob);
-                }
+                for (Gob gob : gui.ui.sess.glob.oc)
+                    gobs.add(gob);
             }
+            for (Gob gob : gobs)
+                apply(gob);
         }
     }
 
@@ -238,13 +242,41 @@ public class GobHide {
         return fresh;
     }
 
-    public static Map<String, Object> defaults() {
+    private static Map<String, Object> build(boolean enabled, boolean respectIcons, HideCategory[] on) {
         Map<String, Object> m = new HashMap<>();
-        m.put(KEY_ENABLED, false);
-        m.put(KEY_RESPECT_ICONS, true);
+        m.put(KEY_ENABLED, enabled);
+        m.put(KEY_RESPECT_ICONS, respectIcons);
         for (HideCategory cat : PANEL_CATEGORIES)
             m.put(cat.name(), false);
+        for (HideCategory cat : on)
+            m.put(cat.name(), true);
         return m;
+    }
+
+    /**
+     * Settings for a fresh install: hiding on, with the four nature categories ticked. The master
+     * switch starts on because the legacy default did too - hideNature defaulted to false, which
+     * under the old inverted semantics meant nature was hidden out of the box.
+     */
+    public static Map<String, Object> defaults() {
+        return build(true, true, DEFAULT_ON);
+    }
+
+    /**
+     * Reproduces the behaviour of the legacy {@code hideNature} flag for an upgrading config.
+     *
+     * <p>Faithfulness matters in both directions. If nature was hidden we enable exactly what
+     * {@code NUtils.isNatureObject} used to cover - trees (stumps included), bushes, boulders and
+     * stone pillars, but never logs or oldtrunks - and switch the map-icon exception off, because
+     * the legacy flag had no such exception. If nature was not hidden the master switch stays off,
+     * but the categories are still primed with the standard set so the hotkey has something to
+     * toggle rather than silently doing nothing.
+     */
+    public static Map<String, Object> legacyMigration(boolean natureWasHidden) {
+        HideCategory[] on = natureWasHidden
+                ? new HideCategory[]{HideCategory.TREES, HideCategory.BUSHES, HideCategory.BOULDERS}
+                : DEFAULT_ON;
+        return build(natureWasHidden, false, on);
     }
 
     public static boolean isEnabled() {
@@ -296,6 +328,18 @@ public class GobHide {
         NConfig.set(NConfig.Key.hideConf, next);
         NConfig.needUpdate();
         bump();
+    }
+
+    /**
+     * Called when the user edits minimap icon settings. The map-icon exception depends on those
+     * settings, but they live outside hideConf, so nothing else would ever re-evaluate the
+     * affected gobs. Cheap no-op unless the exception is actually in play.
+     */
+    public static void onIconSettingsChanged() {
+        if (!isEnabled() || !respectMapIcons())
+            return;
+        bump();
+        applyAll();
     }
 
     private static void syncMinimapToggle(boolean enabled) {
