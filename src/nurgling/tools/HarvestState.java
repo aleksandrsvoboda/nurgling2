@@ -115,11 +115,13 @@ public class HarvestState {
         BARKS_MAP = Collections.unmodifiableMap(barks);
 
         // The Yesteryear's icon is simply the normal seed icon's resource path with a "-yester"
-        // suffix appended - except for these two, confirmed (via VSpec) to use a differently-named
-        // resource instead of following that convention.
+        // suffix appended - except for these, confirmed (via VSpec) to use a differently-named
+        // resource instead of following that convention. Only add an entry here after checking the
+        // path against VSpec: sandthorn was listed as "gfx/invobjs/sandthorn-yester", which doesn't
+        // exist (VSpec has "gfx/invobjs/seed-sandthorn-yester" - what the default rule already
+        // produces), and the failed load crashed the UI thread from the gob tick.
         Map<String, String> yesterOverrides = new HashMap<>();
         yesterOverrides.put("blackberrybush", "gfx/invobjs/seed-blackberry-yester");
-        yesterOverrides.put("sandthorn", "gfx/invobjs/sandthorn-yester");
         YESTERYEAR_ICON_OVERRIDE = Collections.unmodifiableMap(yesterOverrides);
 
         // The bark item name a species yields, keyed by the same per-species icon path BARKS_MAP
@@ -329,8 +331,13 @@ public class HarvestState {
                 Coord tsz = resourceName.startsWith("gfx/invobjs/bough-") ? UI.scale(26, 52) : UI.scale(26, 26);
                 img = PUtils.convolvedown(lay.img, tsz, CharWnd.iconfilter);
             }
-        } catch (Resource.LoadException e) {
-            img = null;                     // genuinely missing/broken resource - cache the miss
+        } catch (Resource.LoadException | Resource.BadResourceException e) {
+            // Genuinely missing/broken resource - cache the miss. Both branches are needed: a
+            // resource the server doesn't have surfaces from Queued.get() as NoSuchResourceException
+            // (a BadResourceException), and only its *cause* is a LoadException - so catching
+            // LoadException alone lets a bad icon path unwind out of the gob tick and kill the UI
+            // thread. haven.Loading is unrelated to both, so the non-blocking path still propagates.
+            img = null;
         }
         ICON_CACHE.put(resourceName, Optional.ofNullable(img));
         return img;
