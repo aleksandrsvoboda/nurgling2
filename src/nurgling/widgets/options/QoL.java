@@ -172,7 +172,10 @@ public class QoL extends Panel {
         leftPrev = logHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.log_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = stoneHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.stone_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = oldtrunkHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.oldtrunk_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
-        leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_display_scale")), leftPrev.pos("bl").adds(-10, 8));
+        // No de-indent here: bushHarvestOverlay above already stepped back out of the harvest
+        // sub-options, so subtracting another 10 put this label - and, since the column positions
+        // each widget relative to the previous one, everything below it - at a negative x.
+        leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_display_scale")), leftPrev.pos("bl").adds(0, 8));
         {
             treeDisplayScaleLabel = new Label("100%");
             treeDisplayScaleSlider = new HSlider(UI.scale(150), 25, 100, 100) {
