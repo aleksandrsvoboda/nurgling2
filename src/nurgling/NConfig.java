@@ -50,8 +50,15 @@ public class NConfig
         flatsurface,
         nextshowCSprite,
         showCSprite,
+        // Legacy, migration-only: folded into hideConf on load (see read()). Kept as a constant
+        // purely so old config files still parse into something we can migrate from.
         hideNature,
         hideEarthworm,
+        hideConf,
+        hideBoxFillColor,
+        hideBoxEdgeColor,
+        hideBoxLineWidth,
+        hideBoxDisplayMode,
         invert_hor,
         invert_ver,
         kinprop,
@@ -263,8 +270,14 @@ public class NConfig
         conf.put(Key.flatsurface, false);
         conf.put(Key.nextshowCSprite, false);
         conf.put(Key.showCSprite, true);
-        conf.put(Key.hideNature, false);
         conf.put(Key.hideEarthworm, true);  // true = show earthworms (checkbox unchecked by default)
+        conf.put(Key.hideConf, nurgling.tools.GobHide.defaults());
+        // Hidden-object boxes are styled independently of the general showBB boxes; these defaults
+        // match the old shared values so upgrading users see no visual change.
+        conf.put(Key.hideBoxFillColor, new Color(227, 28, 1, 195));
+        conf.put(Key.hideBoxEdgeColor, new Color(224, 193, 79, 255));
+        conf.put(Key.hideBoxLineWidth, 4);
+        conf.put(Key.hideBoxDisplayMode, "FILLED");
         conf.put(Key.pluginsAllowUnsigned, false);  // default: only load signed plugins
         conf.put(Key.invert_hor, false);
         conf.put(Key.invert_ver, false);
@@ -1097,6 +1110,10 @@ public class NConfig
         // now publish `current` only once `conf` is fully populated (see below).
         String content = NFileUtils.readWithBackupFallback(path);
 
+        // The constructor already seeded a default hideConf, so "does conf contain it" cannot tell
+        // us whether the user's file had one. Track what the file actually carried instead.
+        boolean fileHadHideConf = false;
+
         if (content != null && !content.isEmpty())
         {
             JSONObject main;
@@ -1107,6 +1124,7 @@ public class NConfig
                 current = this;
                 return;
             }
+            fileHadHideConf = main.has(Key.hideConf.name());
             Map<String, Object> map = main.toMap();
             for (Map.Entry<String, Object> entry : map.entrySet())
             {
@@ -1177,6 +1195,37 @@ public class NConfig
         if (!conf.containsKey(Key.showSpeedometer)) {
             conf.put(Key.showSpeedometer, true);
         }
+
+        // Migration: fold the legacy inverted `hideNature` flag into the categorised hideConf.
+        // hideNature == false meant "nature objects are currently hidden", which under the new
+        // model is the master switch plus the three categories it used to cover.
+        if (!fileHadHideConf) {
+            Map<String, Object> hideConf = nurgling.tools.GobHide.defaults();
+            Object legacy = conf.get(Key.hideNature);
+            if ((legacy instanceof Boolean) && !((Boolean) legacy)) {
+                hideConf.put("enabled", true);
+                hideConf.put(nurgling.tools.GobHide.HideCategory.TREES.name(), true);
+                hideConf.put(nurgling.tools.GobHide.HideCategory.BUSHES.name(), true);
+                hideConf.put(nurgling.tools.GobHide.HideCategory.BOULDERS.name(), true);
+                System.out.println("[NConfig] Migrated hideNature into hideConf (hiding was enabled)");
+            }
+            conf.put(Key.hideConf, hideConf);
+
+            // Hidden-object boxes used to share the general bounding-box style. Seed the new keys
+            // from whatever the user already had, so upgrading changes nothing on screen until they
+            // deliberately give the two styles different values.
+            if (conf.get(Key.bbDisplayMode) instanceof String)
+                conf.put(Key.hideBoxDisplayMode, conf.get(Key.bbDisplayMode));
+            if (conf.get(Key.boxFillColor) != null)
+                conf.put(Key.hideBoxFillColor, conf.get(Key.boxFillColor));
+            if (conf.get(Key.boxEdgeColor) != null)
+                conf.put(Key.hideBoxEdgeColor, conf.get(Key.boxEdgeColor));
+            if (conf.get(Key.boxLineWidth) instanceof Number)
+                conf.put(Key.hideBoxLineWidth, conf.get(Key.boxLineWidth));
+
+            isUpd = true;
+        }
+        conf.remove(Key.hideNature);
 
         // Migration: Replace old Katodiy baseurl with new aleksandrsvoboda URL
         if (conf.containsKey(Key.baseurl)) {

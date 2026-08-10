@@ -1457,13 +1457,6 @@ public class NMapView extends MapView
             boolean val = (Boolean) NConfig.get(NConfig.Key.showBB);
             NConfig.set(NConfig.Key.showBB, !val);
             NUtils.getGameUI().msg("Bounding Boxes: " + (!val ? "enabled" : "disabled"));
-            
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                if (panel.settingsWindow != null && panel.settingsWindow.qol != null) {
-                    panel.settingsWindow.qol.syncShowBB();
-                }
-            }
         }
         if(kb_cyclebbmode.key().match(ev)) {
             String currentMode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
@@ -1489,6 +1482,7 @@ public class NMapView extends MapView
             }
             
             NConfig.set(NConfig.Key.bbDisplayMode, newMode);
+            nurgling.overlays.NModelBox.invalidateStyles();
             
             // Display user-friendly message
             String displayMsg;
@@ -1518,31 +1512,14 @@ public class NMapView extends MapView
             return true;
         }
         if(kb_togglenature.key().match(ev)) {
-            boolean val = (Boolean) NConfig.get(NConfig.Key.hideNature);
-            NConfig.set(NConfig.Key.hideNature, !val);
-            NUtils.getGameUI().msg("Hide Nature: " + (!val ? "enabled" : "disabled"));
-            NUtils.showHideNature();
-            
-            // Sync with mini map
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().mmapw != null) {
-                NUtils.getGameUI().mmapw.natura.a = !(!val);
-            }
-            
-            // Sync with QoL panel
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                if (panel.settingsWindow != null && panel.settingsWindow.qol != null) {
-                    panel.settingsWindow.qol.syncHideNature();
-                }
-            }
-            
-            // Sync with World settings panel
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                if (panel.settingsWindow != null && panel.settingsWindow.world != null) {
-                    panel.settingsWindow.world.setNatureStatus(!val);
-                }
-            }
+            // GobHide.setEnabled owns the sweep and the minimap button state; settings panels
+            // re-read config in load() when they are opened, so nothing needs pushing to them.
+            nurgling.tools.GobHide.toggle();
+            NUtils.getGameUI().msg("Hide Objects: " + (nurgling.tools.GobHide.isEnabled() ? "enabled" : "disabled"));
+            // Must consume: the minimap's hide toggle carries this same binding as its gkey (for the
+            // tooltip), and UI.keydown falls through to globtype when nobody handles the event,
+            // which would toggle a second time and cancel this one out.
+            return true;
         }
 
         return super.keydown(ev);

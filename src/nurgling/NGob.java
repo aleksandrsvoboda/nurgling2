@@ -45,8 +45,19 @@ import static haven.OCache.posres;
 public class NGob
 {
     public boolean effector = false;
-    public volatile boolean natureHidden = false;
+    /** Cached answer to "should this gob be hidden", refreshed when {@link GobHide#version()} moves. */
+    public volatile boolean hidden = false;
+    /** Whether {@link Gob#hide()} has actually been called, so the sweep never double-applies. */
+    public volatile boolean hideApplied = false;
+    /** Resolved once when the resource name becomes known; null for almost every gob. */
+    public volatile GobHide.HideCategory hideCat = null;
+    private volatile int hideVersion = 0;
     public NHitBox hitBox = null;
+    /**
+     * Display-only click target for hideable gobs that have no real {@link #hitBox} (crops).
+     * Kept separate because hitBox also feeds pathfinding - see {@link NHitBox#findHideBox}.
+     */
+    public NHitBox hideBox = null;
     public String name = null;
     public boolean isQuested = true;
     public boolean customMask = false;
@@ -73,6 +84,51 @@ public class NGob
 
     public HarvestSpec harvestSpec() {
         return cachedHarvestSpec;
+    }
+
+    /**
+     * Whether this gob should currently be hidden from the world view.
+     *
+     * <p>Called from {@link Gob#setattr} and {@link Gob#added}, two of the hottest paths in the
+     * client, so the answer is cached against {@link GobHide#version()}: gobs with no category
+     * (the vast majority) return immediately, and the rest only re-evaluate after a settings change.
+     */
+    public boolean isHidden() {
+        if (hideCat == null)
+            return false;
+        int v = GobHide.version();
+        if (v != hideVersion) {
+            hideVersion = v;
+            hidden = GobHide.shouldHide(parent, hideCat);
+        }
+        return hidden;
+    }
+
+    /** Drops the cached decision so the next {@link #isHidden()} re-evaluates from scratch. */
+    public void invalidateHidden() {
+        hideVersion = 0;
+    }
+
+    /**
+     * Whether hiding this gob would leave a clickable box behind. Without one the object would be
+     * both invisible and unreachable, so {@link GobHide} refuses to hide it.
+     */
+    public boolean hasClickBox() {
+        return hitBox != null || hideBox != null || NHitBox.findHideBox(name) != null;
+    }
+
+    /**
+     * Creates the display-only click box for a gob that is about to be hidden and has no real
+     * hitbox (crops). Deliberately lazy: a farm field holds hundreds of crop gobs, and attaching an
+     * overlay to every one of them at spawn time would cost real frame budget for a box that only
+     * matters while the category is actually being hidden.
+     */
+    public void ensureHideBox() {
+        if (hitBox != null || hideBox != null || name == null)
+            return;
+        hideBox = NHitBox.findHideBox(name);
+        if (hideBox != null)
+            parent.addcustomol(new nurgling.overlays.NModelBox(parent, hideBox, true));
     }
     
     // Cached values for performance
@@ -473,7 +529,7 @@ public class NGob
                     {
                         // Try creating temp mark again (will skip if already exists)
                         tryCreateTempMark((GobIcon) a, gob);
-                        
+
                         // Add ring overlay if enabled in settings
                         if (nurgling.overlays.NGobIconRing.shouldShowRing(gob))
                         {
@@ -481,6 +537,15 @@ public class NGob
                             {
                                 gob.addcustomol(nurgling.overlays.NGobIconRing.createAutoSize(gob));
                             }
+                        }
+
+                        // Icon settings resolve asynchronously, so the "don't hide objects with a
+                        // map icon" exception cannot be answered when the gob first appears. Now
+                        // that the icon is actually ready, re-decide.
+                        if (hideCat != null && GobHide.respectMapIcons())
+                        {
+                            invalidateHidden();
+                            GobHide.apply(gob);
                         }
                     }
             ));
@@ -620,13 +685,6 @@ public class NGob
 
             if (name != null)
             {
-                // Mark as nature-hidden for newly appearing gobs when hide is active
-                if (NUtils.isNatureObject(name) && !(Boolean) NConfig.get(NConfig.Key.hideNature)) {
-                    natureHidden = true;
-                } else if (NUtils.isEarthworm(name) && !(Boolean) NConfig.get(NConfig.Key.hideEarthworm)) {
-                    natureHidden = true;
-                }
-
                 // Set customMask for objects that need custom materials
                 // NOTE: ttubs use message flags, not overlays
                 if (name.contains("gfx/terobjs/barrel") || name.contains("gfx/terobjs/dframe")) {
@@ -638,6 +696,14 @@ public class NGob
                 }
 
                 name = HarvestState.normalizeBumlingRes(name);
+
+                // Resolved once per name change. The hide decision itself is deferred to the end of
+                // this method, because it depends on hitBox, which is only worked out further down.
+                GobHide.HideCategory cat = GobHide.categoryOf(name);
+                if (cat != hideCat) {
+                    hideCat = cat;
+                    invalidateHidden();
+                }
 
                 if (name.contains("palisade") && cachedShortPalisades)
                 {
@@ -931,6 +997,12 @@ public class NGob
                     parent.addcustomol(new nurgling.overlays.NMoundBedRadius(parent));
                 }
             }
+
+            // Now that name and hitBox are both settled, reconcile the gob's visibility. This also
+            // covers drawable changes that move a gob between categories (a felled tree becoming a
+            // log), where the render node was dropped under the old category's rules.
+            if (hideCat != null || hideApplied)
+                GobHide.apply(parent);
         }
     }
 

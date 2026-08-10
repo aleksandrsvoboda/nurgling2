@@ -18,10 +18,8 @@ public class QoL extends Panel {
     private Label nightVisionBrightnessLabel;
     private CheckBox autoDrink;
     private CheckBox autoSaveTableware;
-    private CheckBox showBB;
     private CheckBox showCritterCircles;
     private CheckBox showCSprite;
-    private CheckBox hideNature;
     private CheckBox miningOL;
     private CheckBox tracking;
     private CheckBox crime;
@@ -139,10 +137,8 @@ public class QoL extends Panel {
             leftColumn.addhlp(leftPrev.pos("bl").adds(0, 2), UI.scale(5), nightVisionBrightnessSlider, nightVisionBrightnessLabel);
             leftPrev = nightVisionBrightnessSlider;
         }
-        leftPrev = showBB = leftColumn.add(new CheckBox(L10n.get("qol.bounding_boxes")), leftPrev.pos("bl").adds(-10, 5));
-        leftPrev = showCritterCircles = leftColumn.add(new CheckBox(L10n.get("qol.critter_circles")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = showCritterCircles = leftColumn.add(new CheckBox(L10n.get("qol.critter_circles")), leftPrev.pos("bl").adds(-10, 5));
         leftPrev = showCSprite = leftColumn.add(new CheckBox(L10n.get("qol.show_decorative")), leftPrev.pos("bl").adds(0, 5));
-        leftPrev = hideNature = leftColumn.add(new CheckBox(L10n.get("qol.hide_nature")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = uniformBiomeColors = leftColumn.add(new CheckBox(L10n.get("qol.uniform_biome")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = showTerrainName = leftColumn.add(new CheckBox(L10n.get("qol.show_terrain_name")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = simpleInspect = leftColumn.add(new CheckBox(L10n.get("qol.simple_inspect")), leftPrev.pos("bl").adds(0, 5));
@@ -370,11 +366,9 @@ public class QoL extends Panel {
         
         autoDrink.a = getBool(NConfig.Key.autoDrink);
         autoSaveTableware.a = getBool(NConfig.Key.autoSaveTableware);
-        showBB.a = getBool(NConfig.Key.showBB);
         showCritterCircles.a = getBool(NConfig.Key.showCritterCircles);
         showCSprite.a = getBool(NConfig.Key.nextshowCSprite);
 
-        hideNature.a = !getBool(NConfig.Key.hideNature);
         miningOL.a = getBool(NConfig.Key.miningol);
         tracking.a = getBool(NConfig.Key.tracking);
         crime.a = getBool(NConfig.Key.crime);
@@ -479,26 +473,12 @@ public class QoL extends Panel {
         temsmarktimeEntry.settext(time == null ? "" : time.toString());
     }
 
-    public void syncShowBB() {
-        showBB.a = getBool(NConfig.Key.showBB);
-    }
-
-    public void syncHideNature() {
-        hideNature.a = !getBool(NConfig.Key.hideNature);
-    }
-
     public void syncMiningOverlay() {
         miningOL.a = getBool(NConfig.Key.miningol);
     }
 
     @Override
     public void save() {
-        boolean oldHideNature = false;
-        if (NConfig.get(NConfig.Key.hideNature) instanceof Boolean) {
-            oldHideNature = (Boolean) NConfig.get(NConfig.Key.hideNature);
-        }
-        boolean newHideNature = !hideNature.a;
-
         NConfig.set(NConfig.Key.showCropStage, showCropStage.a);
         NConfig.set(NConfig.Key.simplecrops, simpleCrops.a);
         NConfig.set(NConfig.Key.nightVision, nightVision.a);
@@ -511,10 +491,8 @@ public class QoL extends Panel {
         
         NConfig.set(NConfig.Key.autoDrink, autoDrink.a);
         NConfig.set(NConfig.Key.autoSaveTableware, autoSaveTableware.a);
-        NConfig.set(NConfig.Key.showBB, showBB.a);
         NConfig.set(NConfig.Key.showCritterCircles, showCritterCircles.a);
         NConfig.set(NConfig.Key.nextshowCSprite, showCSprite.a);
-        NConfig.set(NConfig.Key.hideNature, newHideNature);
         
         // Save mining overlay and sync with minimap button
         boolean oldMiningOL = getBool(NConfig.Key.miningol);
@@ -718,17 +696,10 @@ public class QoL extends Panel {
         if(NUtils.getGameUI() != null) {
             if(NUtils.getGameUI().mmapw != null) {
                 NUtils.getGameUI().mmapw.nightvision.a = nightVision.a;
-                NUtils.getGameUI().mmapw.natura.a = hideNature.a;
             }
         }
         if(NUtils.getUI() != null && NUtils.getUI().core != null)
             NUtils.getUI().core.debug = debug.a;
-
-        if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null) {
-            if (oldHideNature != newHideNature) {
-                NUtils.showHideNature();
-            }
-        }
 
         // Inventory overlays / behavior (moved out of the inventory window).
         // For the three overlay flags backed by static fields, mirror the value so
