@@ -8,7 +8,6 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
-import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
 import nurgling.tools.NParser;
 import nurgling.widgets.NAlarmWdg;
@@ -16,6 +15,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -25,15 +25,20 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class Requestor implements Action {
     private static final int MAX_QUEUE_SIZE = 1000;
     private static final int PREPGRID_RETRY_LIMIT = 3;
     private static final long TASK_TIMEOUT_MS = 30000; // 30 seconds max lifetime for a task
     private static final long GRID_TASK_TIMEOUT_MS = 15000; // 15 seconds for grid-related tasks
-    
+    private static final long POLL_INTERVAL_MS = 1000;
+    private static final long GRID_RETRY_DELAY_MS = 250;
+    private static final int MARKER_GRID_RETRIES = 40; // ~10s for a single marker
+    private static final int SCAN_RETRIES = 240;       // ~60s for the login-time sweep
+    private static final long LOCK_WAIT_MS = 2000;
+
     public final BlockingQueue<MapperTask> list = new ArrayBlockingQueue<>(MAX_QUEUE_SIZE);
+    private final List<MapperTask> deferred = new ArrayList<>();
     private final Map<String, Integer> prepGridRetries = new HashMap<>();
     private long lastCleanupTime = System.currentTimeMillis();
     private static final long CLEANUP_INTERVAL_MS = 5000; // Cleanup every 5 seconds
@@ -54,6 +59,8 @@ public class Requestor implements Action {
         String type;
         Object[] args;
         final long createdAt;
+        long dueAt = 0;
+        int retries = 0;
 
         public MapperTask(String type, Object[] args) {
             this.type = type;
@@ -65,7 +72,16 @@ public class Requestor implements Action {
             long timeout = getTimeoutForType(type);
             return System.currentTimeMillis() - createdAt > timeout;
         }
-        
+
+        /**
+         * The map sweep paces itself with its own retry budget and accumulates
+         * results across passes, so discarding it mid-flight throws away
+         * everything it has collected. It bounds itself instead.
+         */
+        public boolean droppableWhenExpired() {
+            return !type.equals("processMap");
+        }
+
         private long getTimeoutForType(String taskType) {
             switch (taskType) {
                 case "prepGrid":
@@ -99,10 +115,27 @@ public class Requestor implements Action {
                 lastCleanupTime = currentTime;
             }
             
-            MapperTask task = list.poll(1, TimeUnit.SECONDS);
+            // Re-arm tasks that were waiting on a grid load, and shorten the
+            // poll so the next one is picked up on time rather than a second late.
+            long wait = POLL_INTERVAL_MS;
+            for (Iterator<MapperTask> di = deferred.iterator(); di.hasNext(); ) {
+                MapperTask d = di.next();
+                long left = d.dueAt - currentTime;
+                if (left <= 0) {
+                    // Keep it deferred rather than dropping it if the queue is full.
+                    if (list.offer(d))
+                        di.remove();
+                    else
+                        wait = Math.min(wait, GRID_RETRY_DELAY_MS);
+                } else {
+                    wait = Math.min(wait, left);
+                }
+            }
+
+            MapperTask task = list.poll(wait, TimeUnit.MILLISECONDS);
             if (task != null) {
                 // Skip expired tasks to prevent queue buildup
-                if (task.isExpired()) {
+                if (task.isExpired() && task.droppableWhenExpired()) {
                     continue;
                 }
                 // GameUI may be transiently null on this background thread during
@@ -263,75 +296,69 @@ public class Requestor implements Action {
                     }
                     case "processMap":
                     {
-                        MapFile mapfile = (MapFile)task.args[0];
-                        @SuppressWarnings("unchecked")
-                        Predicate<MapFile.Marker> uploadCheck = (Predicate<MapFile.Marker>)task.args[1];
-                        if(mapfile.lock.readLock().tryLock()) {
-                            List<MarkerData> markers = mapfile.markers.stream().filter(uploadCheck).map(m -> {
-                                Coord mgc = new Coord(Math.floorDiv(m.tc.x, 100), Math.floorDiv(m.tc.y, 100));
-                                MapFile.Segment.ByCoord indirGrid = (MapFile.Segment.ByCoord)mapfile.segments.get(m.seg).grid(mgc);
-                                return new MarkerData(m, indirGrid);
-                            }).collect(Collectors.toList());
-                            mapfile.lock.readLock().unlock();
-                            ArrayList<JSONObject> loadedMarkers = new ArrayList<>();
-                            for (int i = 0; i < markers.size(); i++)
-                            {
-                                try
-                                {
-                                    MarkerData md = markers.get(i);
-                                    if (md.indirGrid.get() == null)
-                                        continue;
-                                    Coord mgc = new Coord(Math.floorDiv(md.m.tc.x, 100), Math.floorDiv(md.m.tc.y, 100));
-                                    NUtils.addTask(new NTask() {
-                                        int count = 0;
-                                        private static final int MAX_FRAMES = 100; // ~0.5 sec at 200fps, prevents queue buildup
-                                        @Override
-                                        public boolean check() {
-                                            if(count++ >= MAX_FRAMES)
-                                                return true;
-                                            return ((MapFile.Segment.ByCoord)md.indirGrid).cur!=null && ((MapFile.Segment.ByCoord)md.indirGrid).cur.loading.done();
-                                        }
+                        MapScan scan = (MapScan)task.args[0];
 
-                                        @Override
-                                        public String toString() {
-                                            return "Requester2: grid loading check, frame " + count + "/" + MAX_FRAMES;
-                                        }
-                                    });
-                                    if(!(((MapFile.Segment.ByCoord)md.indirGrid).cur!=null && ((MapFile.Segment.ByCoord)md.indirGrid).cur.loading.done()))
+                        // First pass: snapshot the markers we care about and kick
+                        // off the load of every grid they sit on.
+                        if (scan.pending == null) {
+                            if (!scan.file.lock.readLock().tryLock(LOCK_WAIT_MS, TimeUnit.MILLISECONDS)) {
+                                retry(task, SCAN_RETRIES);
+                                break;
+                            }
+                            try {
+                                List<MarkerData> found = new ArrayList<>();
+                                for (MapFile.Marker m : scan.file.markers) {
+                                    if (!scan.filter.test(m))
                                         continue;
-                                    long gridId = ((MapFile.Segment.ByCoord)md.indirGrid).cur.get().id;
-                                    JSONObject o = new JSONObject();
-                                    o.put("name", md.m.nm);
-                                    if (kamiCompat())
-                                        o.put("genus", NUtils.getGameUI().getGenus());
-                                    o.put("gridID", String.valueOf(gridId));
-                                    Coord gridOffset = md.m.tc.sub(mgc.mul(100));
-                                    o.put("x", gridOffset.x);
-                                    o.put("y", gridOffset.y);
-
-                                    if(md.m instanceof MapFile.SMarker) {
-                                        o.put("type", "shared");
-                                        o.put("id", ((MapFile.SMarker) md.m).oid.bits);
-                                        o.put("image", ((MapFile.SMarker) md.m).res.name);
-                                    } else if(md.m instanceof MapFile.PMarker) {
-                                        o.put("type", "player");
-                                        o.put("color", ((MapFile.PMarker) md.m).color);
+                                    try {
+                                        MapFile.Segment.ByCoord ref = gridref(scan.file, m);
+                                        if (ref != null)
+                                            found.add(new MarkerData(m, ref));
+                                    } catch (Message.BinError e) {
+                                        // Unreadable segment; the other markers are still fine.
                                     }
-                                    loadedMarkers.add(o);
                                 }
-                                catch (Exception ex)
-                                {
-                                    // maybe some logging here someday...
-                                }
+                                scan.pending = found;
+                            } finally {
+                                scan.file.lock.readLock().unlock();
                             }
-                            JSONObject msg = new JSONObject();
-                            msg.put("data", new JSONArray(loadedMarkers.toArray()));
-                            msg.put("reqMethod", "POST");
-                            msg.put("url", (String)NConfig.get(NConfig.Key.endpoint) + "/markerUpdate");
-                            msg.put("header", "MARKERS");
-                            if (!parent.connector.msgs.offer(msg)) {
-                                // Queue full, markers update dropped
+                        }
+
+                        // Later passes: harvest every marker whose grid has arrived.
+                        for (Iterator<MarkerData> mi = scan.pending.iterator(); mi.hasNext(); ) {
+                            MarkerData md = mi.next();
+                            MapFile.Segment.Cached cur = md.grid.cur;
+                            if (cur == null) {
+                                // No grid was ever mapped at that coordinate.
+                                mi.remove();
+                                continue;
                             }
+                            if (!cur.loading.done())
+                                continue;
+                            mi.remove();
+                            try {
+                                MapFile.Grid g = cur.get();
+                                if (g != null)
+                                    scan.ready.add(markerJSON(md.m, g.id));
+                            } catch (Loading | Defer.DeferredException e) {
+                                // Grid failed to load; skip this marker.
+                            }
+                        }
+
+                        if (!scan.pending.isEmpty() && (task.retries < SCAN_RETRIES)) {
+                            retry(task, SCAN_RETRIES);
+                            break;
+                        }
+                        if (scan.ready.isEmpty())
+                            break;
+
+                        JSONObject msg = new JSONObject();
+                        msg.put("data", new JSONArray(scan.ready.toArray()));
+                        msg.put("reqMethod", "POST");
+                        msg.put("url", (String)NConfig.get(NConfig.Key.endpoint) + "/markerUpdate");
+                        msg.put("header", "MARKERS");
+                        if (!parent.connector.msgs.offer(msg)) {
+                            // Queue full, markers update dropped
                         }
                         break;
                     }
@@ -363,6 +390,51 @@ public class Requestor implements Action {
                                 // Queue full, marker update dropped
                             }
                         } catch (Exception ignored) {
+                        }
+                        break;
+                    }
+                    case "uploadPMarker":
+                    {
+                        // Player-placed flags carry no Gob, so the grid has to be
+                        // resolved out of the map file's own segment index.
+                        MapFile mapfile = (MapFile)task.args[0];
+                        MapFile.PMarker marker = (MapFile.PMarker)task.args[1];
+                        if (!uploadable(marker))
+                            break;
+                        MapFile.Segment.ByCoord ref;
+                        if (!mapfile.lock.readLock().tryLock(LOCK_WAIT_MS, TimeUnit.MILLISECONDS)) {
+                            retry(task, MARKER_GRID_RETRIES);
+                            break;
+                        }
+                        try {
+                            ref = gridref(mapfile, marker);
+                        } catch (Message.BinError e) {
+                            break;
+                        } finally {
+                            mapfile.lock.readLock().unlock();
+                        }
+                        if ((ref == null) || (ref.cur == null))
+                            break;
+                        if (!ref.cur.loading.done()) {
+                            retry(task, MARKER_GRID_RETRIES);
+                            break;
+                        }
+                        MapFile.Grid grid;
+                        try {
+                            grid = ref.cur.get();
+                        } catch (Loading | Defer.DeferredException e) {
+                            break;
+                        }
+                        if (grid == null)
+                            break;
+
+                        JSONObject msg = new JSONObject();
+                        msg.put("data", new JSONArray(List.of(markerJSON(marker, grid.id))));
+                        msg.put("reqMethod", "POST");
+                        msg.put("url", (String)NConfig.get(NConfig.Key.endpoint) + "/markerUpdate");
+                        msg.put("header", "PMARKER");
+                        if (!parent.connector.msgs.offer(msg)) {
+                            // Queue full, marker update dropped
                         }
                         break;
                     }
@@ -452,15 +524,84 @@ public class Requestor implements Action {
      * Called periodically when adding new tasks.
      */
     private void cleanupExpiredTasks() {
-        list.removeIf(MapperTask::isExpired);
+        list.removeIf(t -> t.isExpired() && t.droppableWhenExpired());
+    }
+
+    /**
+     * Steps a task aside until its map grid has had a chance to load, rather
+     * than blocking the requestor thread or busy-requeueing it.
+     */
+    private void retry(MapperTask task, int limit) {
+        if (task.retries++ >= limit)
+            return;
+        task.dueAt = System.currentTimeMillis() + GRID_RETRY_DELAY_MS;
+        deferred.add(task);
+    }
+
+    /**
+     * Locates the map-file grid a marker sits on. The caller must hold
+     * {@code file.lock.readLock()} - the segment index checks for it.
+     */
+    private static MapFile.Segment.ByCoord gridref(MapFile file, MapFile.Marker m) {
+        MapFile.Segment seg = file.segments.get(m.seg);
+        if (seg == null)
+            return null;
+        Coord mgc = new Coord(Math.floorDiv(m.tc.x, 100), Math.floorDiv(m.tc.y, 100));
+        Indir<MapFile.Grid> ind = seg.grid(mgc);
+        return (ind instanceof MapFile.Segment.ByCoord) ? (MapFile.Segment.ByCoord)ind : null;
+    }
+
+    /**
+     * Sharing player-placed flags is opt-in and limited to green ones - see the
+     * "Upload green markers" setting. Resource markers are always shared.
+     */
+    public static boolean uploadable(MapFile.Marker m) {
+        if (m instanceof MapFile.PMarker) {
+            return Boolean.TRUE.equals(NConfig.get(NConfig.Key.unloadgreen))
+                    && ((MapFile.PMarker)m).color.equals(Color.GREEN);
+        }
+        return true;
+    }
+
+    private static JSONObject markerJSON(MapFile.Marker m, long gridId) {
+        Coord mgc = new Coord(Math.floorDiv(m.tc.x, 100), Math.floorDiv(m.tc.y, 100));
+        Coord offset = m.tc.sub(mgc.mul(100));
+        JSONObject o = new JSONObject();
+        o.put("name", m.nm);
+        if (kamiCompat())
+            o.put("genus", NUtils.getGameUI().getGenus());
+        o.put("gridID", String.valueOf(gridId));
+        o.put("x", offset.x);
+        o.put("y", offset.y);
+        if (m instanceof MapFile.SMarker) {
+            o.put("type", "shared");
+            o.put("id", ((MapFile.SMarker)m).oid.bits);
+            o.put("image", ((MapFile.SMarker)m).res.name);
+        } else if (m instanceof MapFile.PMarker) {
+            // Deliberately no "image": the server falls back to its custom-marker
+            // icon for player flags. Colour goes out as hex like the tracking
+            // payload does - a bare java.awt.Color stringifies into garbage.
+            o.put("type", "player");
+            o.put("color", Integer.toHexString(((MapFile.PMarker)m).color.getRGB()));
+        }
+        return o;
     }
 
     public void processMap(MapFile mapfile, Predicate<MapFile.Marker> uploadCheck) {
-        list.offer(new MapperTask("processMap", new Object[]{mapfile, uploadCheck}));
+        list.offer(new MapperTask("processMap", new Object[]{new MapScan(mapfile, uploadCheck)}));
     }
 
     public void uploadSMarker(Gob gob, MapFile.SMarker marker) {
         list.offer(new MapperTask("uploadMarker", new Object[]{gob, marker}));
+    }
+
+    public void uploadPMarker(MapFile file, MapFile.PMarker marker) {
+        for (MapperTask task : list) {
+            if (task.type.equals("uploadPMarker") && task.args != null && task.args[1] == marker) {
+                return;
+            }
+        }
+        list.offer(new MapperTask("uploadPMarker", new Object[]{file, marker}));
     }
 
     public void sendOverlayUpdate(long gridId, MCache.Grid grid) {
@@ -476,13 +617,29 @@ public class Requestor implements Action {
         list.offer(new MapperTask("overlayUpload", new Object[]{gridId, grid}));
     }
 
-    private class MarkerData {
-        MapFile.Marker m;
-        Indir<MapFile.Grid> indirGrid;
+    private static class MarkerData {
+        final MapFile.Marker m;
+        final MapFile.Segment.ByCoord grid;
 
-        MarkerData(MapFile.Marker m, Indir<MapFile.Grid> indirGrid) {
+        MarkerData(MapFile.Marker m, MapFile.Segment.ByCoord grid) {
             this.m = m;
-            this.indirGrid = indirGrid;
+            this.grid = grid;
+        }
+    }
+
+    /**
+     * State for the login-time marker sweep, carried across retries while the
+     * grids the markers sit on are still loading.
+     */
+    private static class MapScan {
+        final MapFile file;
+        final Predicate<MapFile.Marker> filter;
+        final List<JSONObject> ready = new ArrayList<>();
+        List<MarkerData> pending = null;
+
+        MapScan(MapFile file, Predicate<MapFile.Marker> filter) {
+            this.file = file;
+            this.filter = filter;
         }
     }
 }
