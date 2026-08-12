@@ -90,11 +90,38 @@ public class NLoginScreen extends LoginScreen
 
         adda(new StatusLabel(HttpStatus.mond.get(), 0.5), bg.sz().x/2, bg.sz().y, 0.5, 1);
         ArrayList<NLoginData> logpass = (ArrayList<NLoginData>) NConfig.get(NConfig.Key.credentials);
+        boolean hadStoredPasswords = false;
         if (logpass != null)
         {
             for (NLoginData item : logpass)
             {
+                hadStoredPasswords |= item.hadLegacyPassword;
                 loginItems.add(new NLoginDataItem(item));
+            }
+            if (hadStoredPasswords)
+            {
+                /* Config written by a client that stored passwords in plain
+                 * text. They were dropped on load; re-saving rewrites the file
+                 * without them. */
+                NConfig.set(NConfig.Key.credentials, logpass);
+                Window win = adda(new Window(new Coord(UI.scale(360, 60)), L10n.get("login.attention"))
+                {
+                    @Override
+                    public void wdgmsg(String msg, Object... args)
+                    {
+                        if (msg.equals("close"))
+                        {
+                            hide();
+                        }
+                        else
+                        {
+                            super.wdgmsg(msg, args);
+                        }
+                    }
+                }, bgc.x, bg.sz().y / 4, 0.5, 0.5);
+
+                win.add(new Label(L10n.get("login.passwords_dropped")), new Coord(0, 0));
+                win.add(new Label(L10n.get("login.passwords_dropped_hint")), new Coord(0, UI.scale(18)));
             }
         }
         // Check for version updates - failures are silently ignored
@@ -283,7 +310,10 @@ public class NLoginScreen extends LoginScreen
             Credbox clogin = (Credbox) login;
             if (!clogin.pass.text().isEmpty())
             {
-                saveLoginPass(clogin.user.text(), clogin.pass.text());
+                /* Remember that this account was used, but never the password.
+                 * With "remember me" ticked the auth server issues a token on
+                 * success, and that is what gets saved for next time. */
+                saveLoginName(clogin.user.text());
             }
             else
             {
@@ -302,37 +332,28 @@ public class NLoginScreen extends LoginScreen
         super.wdgmsg(sender, msg, args);
     }
 
-    void saveLoginPass(String login, String pass)
+    /**
+     * Records that an account was logged into, so it shows up in the saved
+     * list. No secret is stored here - see {@link #saveLoginToken} for the
+     * token that actually lets the entry log in unattended.
+     */
+    void saveLoginName(String login)
     {
-        ArrayList<NLoginData> logpass;
-        if (!pass.isEmpty())
-        {
+        if (login.isEmpty())
+            return;
 
-            logpass = (ArrayList<NLoginData>) (NConfig.get(NConfig.Key.credentials));
-            if (logpass == null)
-            {
-                logpass = new ArrayList<>();
-            }
-            boolean isFound = false;
-            for (NLoginData item : logpass)
-            {
-                if (item.name.equals(login))
-                {
-                    if (!pass.equals(item.pass))
-                    {
-                        item.pass = pass;
-                        item.isTokenUsed = false;
-                        NConfig.set(NConfig.Key.credentials, logpass);
-                    }
-                    isFound = true;
-                }
-            }
-            if (!isFound)
-            {
-                logpass.add(new NLoginData(login, pass));
-                NConfig.set(NConfig.Key.credentials, logpass);
-            }
+        ArrayList<NLoginData> logpass = (ArrayList<NLoginData>) (NConfig.get(NConfig.Key.credentials));
+        if (logpass == null)
+        {
+            logpass = new ArrayList<>();
         }
+        for (NLoginData item : logpass)
+        {
+            if (item.name.equals(login))
+                return;
+        }
+        logpass.add(new NLoginData(login));
+        NConfig.set(NConfig.Key.credentials, logpass);
     }
 
 
@@ -359,7 +380,6 @@ public class NLoginScreen extends LoginScreen
                             {
                                 item.token = Arrays.copyOf(buff, buff.length);
                                 item.isTokenUsed = true;
-                                item.pass = "";
                                 NConfig.set(NConfig.Key.credentials, logpass);
                             }
 
@@ -368,7 +388,6 @@ public class NLoginScreen extends LoginScreen
                     {
                         item.token = Arrays.copyOf(buff, buff.length);
                         item.isTokenUsed = true;
-                        item.pass = "";
                         NConfig.set(NConfig.Key.credentials, logpass);
                     }
                     isFound = true;
@@ -487,10 +506,26 @@ public class NLoginScreen extends LoginScreen
                 msgMode = true;
                 // Reset auto-login state when user manually selects login
                 NLoginScreen.this.resetAutoLoginState();
-                if (!nd.isTokenUsed)
-                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.NativeCred(nd.name, nd.pass), false});
+                /* Prefer the token stored alongside this entry, falling back to
+                 * the one the base client keeps for the account. */
+                byte[] token = (nd.isTokenUsed && nd.token != null)
+                        ? nd.token
+                        : Bootstrap.gettoken(nd.name, confname);
+                if (token != null)
+                {
+                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.TokenCred(nd.name, Arrays.copyOf(token, token.length)), false});
+                }
                 else
-                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.TokenCred(nd.name, Arrays.copyOf(nd.token, nd.token.length)), false});
+                {
+                    /* No token for this account - it was never saved, has been
+                     * revoked, or the entry predates dropping stored passwords.
+                     * Fill the name in and let the user type the password;
+                     * ticking "remember me" saves a token so the next click
+                     * logs straight in. */
+                    Credbox cb = (Credbox) login;
+                    cb.user.settext2(nd.name);
+                    cb.setfocus(cb.pass);
+                }
                 msgMode = false;
             }
             return res;
