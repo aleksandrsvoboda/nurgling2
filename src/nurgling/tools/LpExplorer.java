@@ -457,7 +457,8 @@ public class LpExplorer {
         MapView.ClickedGob clicked = (map == null) ? null : map.clickedGob;
         if (clicked == null || clicked.gob.ngob == null)
             return false;
-        if (HarvestSpecs.forResource(clicked.gob.ngob.name) == null)
+        String resName = clicked.gob.ngob.name;
+        if (HarvestSpecs.forResource(resName) == null && !isFallenYesteryearFruit(resName))
             return false;
         long now = System.currentTimeMillis();
         if (clicked != timedClick) {
@@ -465,6 +466,16 @@ public class LpExplorer {
             timedClickAt = now;
         }
         return (now - timedClickAt) < HARVEST_CLICK_WINDOW;
+    }
+
+    // Yesteryear's (winter/spring off-season) fruit doesn't hand its item straight to the player
+    // like an in-season "Pick" does - it drops as its own ground gob next to the tree/bush (see
+    // BlueprintPlob's preload list for the full set of "gfx/terobjs/items/<species>-yester"
+    // resources), which the player then clicks separately to pick up. HarvestSpecs only covers
+    // the tree/bush/log/stone/oldtrunk gobs themselves, so without this that click never opened
+    // the discovery window and every Yesteryear's product silently failed to register.
+    private static boolean isFallenYesteryearFruit(String resName) {
+        return resName != null && resName.startsWith("gfx/terobjs/items/") && resName.endsWith("-yester");
     }
 
     private static NCharacterInfo charInfo() {
