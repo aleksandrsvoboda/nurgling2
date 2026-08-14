@@ -1829,6 +1829,7 @@ public class VSpec {
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/silkegg\",\"name\":\"Silkworm Egg\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/springbumblebee\",\"name\":\"Springtime Bumblebee\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/stagbeetle\",\"name\":\"Stag Beetle\"}"));
+        baits.add(new JSONObject("{\"static\":\"gfx/invobjs/tick\",\"name\":\"Tick\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/waterstrider\",\"name\":\"Waterstrider\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/woodworm\",\"name\":\"Woodworm\"}"));
         categories.put("Bait", baits);
