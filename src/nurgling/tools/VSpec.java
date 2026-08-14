@@ -1808,6 +1808,8 @@ public class VSpec {
         baits.addAll(royalAntItems);
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/bayshrimp\",\"name\":\"Bay Shrimp\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/beelarvae\",\"name\":\"Bee Larvae\"}"));
+        // Only the bloated form is usable as bait; a plain Tick is not.
+        baits.add(new JSONObject("{\"static\":\"gfx/invobjs/tick-bloated\",\"name\":\"Bloated Tick\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/brimstonebutterfly\",\"name\":\"Brimstone Butterfly\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/cavemoth\",\"name\":\"Cave Moth\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/chumbait\",\"name\":\"Chum Bait\"}"));
@@ -1829,7 +1831,6 @@ public class VSpec {
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/silkegg\",\"name\":\"Silkworm Egg\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/springbumblebee\",\"name\":\"Springtime Bumblebee\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/stagbeetle\",\"name\":\"Stag Beetle\"}"));
-        baits.add(new JSONObject("{\"static\":\"gfx/invobjs/tick\",\"name\":\"Tick\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/waterstrider\",\"name\":\"Waterstrider\"}"));
         baits.add(new JSONObject("{\"static\":\"gfx/invobjs/woodworm\",\"name\":\"Woodworm\"}"));
         categories.put("Bait", baits);
