@@ -8,6 +8,7 @@ import nurgling.i18n.L10n;
 import nurgling.overlays.NLPassistant;
 import nurgling.overlays.NObjHarvestOl;
 import nurgling.tools.HarvestSpecs;
+import nurgling.tools.LpExplorer;
 import nurgling.widgets.nsettings.Panel;
 
 public class QoL extends Panel {
@@ -29,6 +30,7 @@ public class QoL extends Panel {
     private CheckBox disableMenugridKeys;
     private CheckBox questNotified;
     private CheckBox lpassistent;
+    private CheckBox yesteryearAlwaysTracked;
     private CheckBox debug;
     private CheckBox tempmark;
     private CheckBox tempmarkIgnoreDist;
@@ -316,7 +318,8 @@ public class QoL extends Panel {
         rightPrev = autoSaveTableware = rightColumn.add(new CheckBox(L10n.get("qol.auto_save_tableware")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = questNotified = rightColumn.add(new CheckBox(L10n.get("qol.quest_notified")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = lpassistent = rightColumn.add(new CheckBox(L10n.get("qol.lp_assistant")), rightPrev.pos("bl").adds(0, 5));
-        rightPrev = disableMenugridKeys = rightColumn.add(new CheckBox(L10n.get("qol.disable_menugrid")), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = yesteryearAlwaysTracked = rightColumn.add(new CheckBox(L10n.get("qol.yesteryear_always_tracked")), rightPrev.pos("bl").adds(10, 3));
+        rightPrev = disableMenugridKeys = rightColumn.add(new CheckBox(L10n.get("qol.disable_menugrid")), rightPrev.pos("bl").adds(-10, 5));
         rightPrev = verboseCal = rightColumn.add(new CheckBox(L10n.get("qol.verbose_cal")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = disableDrugEffects = rightColumn.add(new CheckBox(L10n.get("qol.disable_drugs")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = randomAreaColor = rightColumn.add(new CheckBox(L10n.get("qol.random_area_color")), rightPrev.pos("bl").adds(0, 5));
@@ -381,6 +384,7 @@ public class QoL extends Panel {
         disableMenugridKeys.a = getBool(NConfig.Key.disableMenugridKeys);
         questNotified.a = getBool(NConfig.Key.questNotified);
         lpassistent.a = getBool(NConfig.Key.lpassistent);
+        yesteryearAlwaysTracked.a = getBool(NConfig.Key.yesteryearAlwaysTracked);
         debug.a = getBool(NConfig.Key.debug);
         printpfmap.a = getBool(NConfig.Key.printpfmap);
         tempmark.a = getBool(NConfig.Key.tempmark);
@@ -547,6 +551,12 @@ public class QoL extends Panel {
             }
         }
         
+        boolean oldYesteryearAlwaysTracked = getBool(NConfig.Key.yesteryearAlwaysTracked);
+        NConfig.set(NConfig.Key.yesteryearAlwaysTracked, yesteryearAlwaysTracked.a);
+        if (oldYesteryearAlwaysTracked != yesteryearAlwaysTracked.a) {
+            LpExplorer.invalidateDiscoveryCache();
+        }
+
         NConfig.set(NConfig.Key.debug, debug.a);
         NConfig.set(NConfig.Key.printpfmap, printpfmap.a);
         NConfig.set(NConfig.Key.tempmark, tempmark.a);

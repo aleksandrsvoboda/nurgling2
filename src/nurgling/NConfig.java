@@ -191,6 +191,7 @@ public class NConfig
         treeHarvestBoughs,
         treeHarvestBark,
         bushHarvestOverlay,
+        yesteryearAlwaysTracked,
         logHarvestOverlay,
         stoneHarvestOverlay,
         oldtrunkHarvestOverlay,
@@ -524,6 +525,7 @@ public class NConfig
         conf.put(Key.treeHarvestBoughs, true);    // Sub-filter: show bough icons
         conf.put(Key.treeHarvestBark, true);      // Sub-filter: show bark icons
         conf.put(Key.bushHarvestOverlay, false);  // Show harvest icons on mature bushes
+        conf.put(Key.yesteryearAlwaysTracked, false); // Track Yesteryear's fruit LP discovery year-round instead of only in-season
         conf.put(Key.logHarvestOverlay, false);   // Show harvest icons on felled logs (Board/Block)
         conf.put(Key.stoneHarvestOverlay, false); // Show harvest icons on mineable stones
         conf.put(Key.oldtrunkHarvestOverlay, false); // Show harvest icons on old trunks
