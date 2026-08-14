@@ -235,6 +235,11 @@ public class Graph implements Runnable
 
     public static LinkedList<Vertex> getPath(NPFMap map, LinkedList<Vertex> path)
     {
+        return getPath(map, path, true);
+    }
+
+    public static LinkedList<Vertex> getPath(NPFMap map, LinkedList<Vertex> path, boolean smooth)
+    {
             Coord dir = new Coord();
             Gob player = NUtils.player();
 
@@ -257,7 +262,7 @@ public class Graph implements Runnable
                 }
                 path.removeAll(for_remove);
             }
-            if (!path.isEmpty()) {
+            if (smooth && !path.isEmpty()) {
                 LinkedList<Vertex> for_remove = new LinkedList<>();
                 int shift = 2;
                 for (int i = -1; i < path.size(); i++) {

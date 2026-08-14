@@ -32,6 +32,41 @@ public class PathFinder implements Action {
     Mode mode = Mode.NEAREST;
     Gob gobInStartPos = null;
     double badDir = Double.MAX_VALUE;
+    private Coord2d requestedEnd;
+    private final ArrayList<AvoidanceZone> avoidanceZones = new ArrayList<>();
+    private ArrayList<ResolvedAvoidanceZone> resolvedAvoidanceZones = new ArrayList<>();
+
+    private static class AvoidanceZone {
+        final long gobId;
+        final Coord2d fixedCenter;
+        final double radius;
+
+        AvoidanceZone(long gobId, Coord2d fixedCenter, double radius) {
+            this.gobId = gobId;
+            this.fixedCenter = fixedCenter;
+            this.radius = radius;
+        }
+
+        Coord2d center() {
+            if (gobId >= 0) {
+                Gob gob = Finder.findGob(gobId);
+                return gob != null ? gob.rc : null;
+            }
+            return fixedCenter;
+        }
+    }
+
+    private static class ResolvedAvoidanceZone {
+        final AvoidanceZone source;
+        final Coord2d center;
+        final double radius;
+
+        ResolvedAvoidanceZone(AvoidanceZone source, Coord2d center, double radius) {
+            this.source = source;
+            this.center = center;
+            this.radius = radius;
+        }
+    }
 
 
 
@@ -47,6 +82,7 @@ public class PathFinder implements Action {
     public PathFinder(Coord2d begin, Coord2d end) {
         this.begin = begin;
         this.end = end;
+        this.requestedEnd = new Coord2d(end.x, end.y);
     }
 
     public PathFinder(Coord2d begin, Gob target) {
@@ -75,6 +111,25 @@ public class PathFinder implements Action {
         this.mode = mode;
     }
 
+    /**
+     * Keep the generated path outside a circular safety area around a moving gob.
+     * The gob position is resolved again whenever the path is rebuilt.
+     */
+    public PathFinder avoidGob(Gob gob, double radius) {
+        if (gob != null && radius > 0) {
+            avoidanceZones.add(new AvoidanceZone(gob.id, null, radius));
+        }
+        return this;
+    }
+
+    /** Keep the generated path outside a fixed circular safety area. */
+    public PathFinder avoidArea(Coord2d center, double radius) {
+        if (center != null && radius > 0) {
+            avoidanceZones.add(new AvoidanceZone(-1, center, radius));
+        }
+        return this;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         while (true) {
@@ -85,6 +140,11 @@ public class PathFinder implements Action {
 //                NUtils.getGameUI().msg(Utils.pfGridToWorld(path.getLast().pos).toString());
                 //TODO syntetic points
                 for (Graph.Vertex vert : path) {
+                    if (avoidanceZonesMoved()) {
+                        this.begin = gui.map.player().rc;
+                        needRestart = true;
+                        break;
+                    }
                     Coord2d targetCoord = Utils.pfGridToWorld(vert.pos);
 
                     if(vert == path.getLast() && isHardMode || dummy!=null) {
@@ -127,6 +187,8 @@ public class PathFinder implements Action {
         LinkedList<Graph.Vertex> path = new LinkedList<>();
         int mul = 1;
         while (path.isEmpty() && mul < 200) {
+            resolvedAvoidanceZones = resolveAvoidanceZones();
+            end = safeDestination(requestedEnd, begin, resolvedAvoidanceZones);
             if(pfmap!=null && pfmap.lastMul)
                 return null;
             pfmap = new NPFMap(begin, end, mul);
@@ -143,6 +205,7 @@ public class PathFinder implements Action {
             pfmap.waterMode = waterMode;
             pfmap.gatesAlwaysClosed = gatesAlwaysClosed;
             pfmap.build();
+            applyAvoidanceZones();
             CellsArray dca = null;
             if (dummy != null)
                 dca = pfmap.addGob(dummy);
@@ -236,7 +299,7 @@ public class PathFinder implements Action {
 
             if (res != null) {
                 if (!isDynamic)
-                    path = getPath(pfmap, res.path);
+                    path = Graph.getPath(pfmap, res.path, avoidanceZones.isEmpty());
                 else
                     path = res.path;
 //                NPFMap.print(pfmap.getSize(), res.getVert());
@@ -247,6 +310,97 @@ public class PathFinder implements Action {
             mul++;
         }
         return null;
+    }
+
+    private ArrayList<ResolvedAvoidanceZone> resolveAvoidanceZones() {
+        ArrayList<ResolvedAvoidanceZone> result = new ArrayList<>();
+        for (AvoidanceZone zone : avoidanceZones) {
+            Coord2d center = zone.center();
+            if (center != null) {
+                result.add(new ResolvedAvoidanceZone(zone,
+                        new Coord2d(center.x, center.y), zone.radius));
+            }
+        }
+        return result;
+    }
+
+    private boolean avoidanceZonesMoved() {
+        if (avoidanceZones.isEmpty()) {
+            return false;
+        }
+        ArrayList<ResolvedAvoidanceZone> current = resolveAvoidanceZones();
+        if (current.size() != resolvedAvoidanceZones.size()) {
+            return true;
+        }
+        double threshold = MCache.tilehsz.x;
+        for (ResolvedAvoidanceZone previous : resolvedAvoidanceZones) {
+            ResolvedAvoidanceZone match = null;
+            for (ResolvedAvoidanceZone candidate : current) {
+                if (candidate.source == previous.source) {
+                    match = candidate;
+                    break;
+                }
+            }
+            if (match == null || match.center.dist(previous.center) > threshold) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyAvoidanceZones() {
+        if (resolvedAvoidanceZones.isEmpty()) {
+            return;
+        }
+        double gridStep = MCache.tilehsz.x;
+        for (ResolvedAvoidanceZone zone : resolvedAvoidanceZones) {
+            double blockedRadius = zone.radius;
+            double startDistance = begin.dist(zone.center);
+            if (startDistance < blockedRadius) {
+                // If danger moved onto the player, preserve an outward annulus so
+                // the pathfinder can escape without first moving closer to it.
+                blockedRadius = Math.max(0, startDistance - gridStep);
+            }
+            double blockedRadiusSq = blockedRadius * blockedRadius;
+            for (int x = 1; x < pfmap.size - 1; x++) {
+                for (int y = 1; y < pfmap.size - 1; y++) {
+                    Coord2d cellCenter = Utils.pfGridToWorld(pfmap.cells[x][y].pos);
+                    double dx = cellCenter.x - zone.center.x;
+                    double dy = cellCenter.y - zone.center.y;
+                    if ((dx * dx) + (dy * dy) <= blockedRadiusSq) {
+                        pfmap.cells[x][y].val = 2;
+                    }
+                }
+            }
+        }
+    }
+
+    private static Coord2d safeDestination(Coord2d requested, Coord2d start,
+                                           ArrayList<ResolvedAvoidanceZone> zones) {
+        Coord2d result = new Coord2d(requested.x, requested.y);
+        double clearance = MCache.tilehsz.x;
+        // Pushing once per zone also handles overlapping safety circles.
+        for (int pass = 0; pass < zones.size() + 1; pass++) {
+            boolean changed = false;
+            for (ResolvedAvoidanceZone zone : zones) {
+                double distance = result.dist(zone.center);
+                if (distance < zone.radius + clearance) {
+                    Coord2d direction = result.sub(zone.center);
+                    if (direction.len() < 0.001) {
+                        direction = start.sub(zone.center);
+                    }
+                    if (direction.len() < 0.001) {
+                        direction = new Coord2d(1, 0);
+                    }
+                    result = zone.center.add(direction.norm().mul(zone.radius + clearance));
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                break;
+            }
+        }
+        return result;
     }
 
     private boolean fixStartEnd(boolean test) {
