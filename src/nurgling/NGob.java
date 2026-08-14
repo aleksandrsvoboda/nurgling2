@@ -1116,14 +1116,19 @@ public class NGob
 
             if (hash == null)
             {
-                NGameUI gui = NUtils.getGameUI();
-                if (gui != null && gui.ui != null && gui.ui.sess != null) {
+                // Use the gob's OWN session map, not NUtils.getGameUI(). Gobs are ticked from
+                // OCache.ctick via parallelStream, so on those worker threads ThreadLocalUI is
+                // unset and getGameUI() falls back to the *active* (foreground) session. For a
+                // background session that made the hash/grid_id be computed against a foreign
+                // MCache, which broke portal identification (ChunkPortal.gobHash) for bots.
+                MCache map = (parent.glob != null) ? parent.glob.map : null;
+                if (map != null) {
                     Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
-                    synchronized (gui.ui.sess.glob.map.grids)
+                    synchronized (map.grids)
                     {
-                        if (gui.ui.sess.glob.map.grids.containsKey(pltc.div(cmaps)))
+                        if (map.grids.containsKey(pltc.div(cmaps)))
                         {
-                            MCache.Grid g = gui.ui.sess.glob.map.getgridt(pltc);
+                            MCache.Grid g = map.getgridt(pltc);
                             StringBuilder hashInput = new StringBuilder();
                             Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
                             hashInput.append(name).append(g.id).append(coord.toString());
