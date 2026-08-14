@@ -77,6 +77,7 @@ public class NHitBox
             put("gfx/terobjs/beehive", new NHitBox(new Coord(-5,-5),new Coord(5,5)));
             put("gfx/terobjs/dng/giantspool", new NHitBox(new Coord(-3,-3),new Coord(3,3)));
             put("gfx/terobjs/dng/rathole", new NHitBox(new Coord2d(0,0),new Coord2d(0,0), true));
+            put("gfx/terobjs/dng/giantcheese", new NHitBox(new Coord2d(-7.0,-5.2),new Coord2d(5.5,5.2)));
             put("gfx/terobjs/column", new NHitBox(new Coord(-4,-4),new Coord(4,4)));
             put("gfx/terobjs/meatgrinder", new NHitBox(new Coord(-4,-4),new Coord(4,4)));
             put("gfx/terobjs/brazier", new NHitBox(new Coord(-4,-4),new Coord(4,4)));
