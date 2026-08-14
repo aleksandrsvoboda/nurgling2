@@ -244,7 +244,7 @@ public class BotWatchdog {
     public void reportStall(String reason) {
         BotHealth h = current();
         if (h != null)
-            signalStuck(h, reason, false);
+            signalStuck(h, reason, false, true);
     }
 
     /**
@@ -256,7 +256,7 @@ public class BotWatchdog {
     public void reportMovementStall(String reason) {
         BotHealth h = current();
         if (h != null)
-            signalStuck(h, reason, true);
+            signalStuck(h, reason, true, true);
     }
 
     /**
@@ -297,10 +297,18 @@ public class BotWatchdog {
      * can plausibly fix. Every other hang - a task waiting on something that will
      * never arrive - is a logic bug that shaking the character does not fix and
      * may make worse, so those go straight to the alarm.
+     *
+     * <p>{@code keepAlive} marks the reports that are evidence the condition still
+     * holds, and so may refresh the signal timestamp of an episode that is already
+     * open. The {@link #tick} detectors are not: they fire every frame for as long
+     * as the episode lasts, and refreshing from there would keep {@link #looksFree}
+     * permanently false, so a nudge that actually worked could never be noticed.
      */
-    private void signalStuck(BotHealth h, String reason, boolean recoverable) {
-        h.lastStallSignalAt = System.currentTimeMillis();
-        if (h.state == BotState.STALLED || h.state == BotState.RECOVERING)
+    private void signalStuck(BotHealth h, String reason, boolean recoverable, boolean keepAlive) {
+        boolean open = h.state == BotState.STALLED || h.state == BotState.RECOVERING;
+        if (!open || keepAlive)
+            h.lastStallSignalAt = System.currentTimeMillis();
+        if (open)
             return;
         if (recoverable && maxRecoveryAttempts() > 0 && canNudge()) {
             h.state = BotState.RECOVERING;
@@ -348,12 +356,12 @@ public class BotWatchdog {
                     long threshold = h.taskThresholdMs;
                     if (threshold > 0 && threshold != Long.MAX_VALUE && now - taskStart > threshold) {
                         signalStuck(h, "waiting on " + h.currentTask + " for "
-                                + BotHealth.fmtDuration(now - taskStart), false);
+                                + BotHealth.fmtDuration(now - taskStart), false, false);
                     }
                 } else if (now - h.lastProgressAt > defThreshold) {
                     // Not parked on a task at all: an action loop that never finishes anything.
                     signalStuck(h, "no progress for "
-                            + BotHealth.fmtDuration(now - h.lastProgressAt), false);
+                            + BotHealth.fmtDuration(now - h.lastProgressAt), false, false);
                 }
             }
 

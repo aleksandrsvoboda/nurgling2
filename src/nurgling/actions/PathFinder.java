@@ -142,19 +142,25 @@ public class PathFinder implements Action {
                     return Results.SUCCESS();
                 }
 
-                Coord2d here = gui.map.player().rc;
-                if (lastRestartPos != null && here.dist(lastRestartPos) < pfmdelta)
-                    stuckStreak++;
-                else
-                    stuckStreak = 0;
-                lastRestartPos = here;
+                // The player gob can be momentarily absent (grid reload, map
+                // switch); without a position there is nothing to compare, so
+                // skip this round of bookkeeping rather than fail on it.
+                Gob player = gui.map.player();
+                if (player != null) {
+                    Coord2d here = player.rc;
+                    if (lastRestartPos != null && here.dist(lastRestartPos) < pfmdelta)
+                        stuckStreak++;
+                    else
+                        stuckStreak = 0;
+                    lastRestartPos = here;
 
-                // Keep reporting for as long as the character stays put: the
-                // watchdog uses a fresh signal to tell "still wedged" from
-                // "moved again", since a wedged character still finishes tasks.
-                if (stuckStreak >= STUCK_STREAK_LIMIT)
-                    watchdog.reportMovementStall(
-                            "PathFinder: character not moving after " + stuckStreak + " re-paths");
+                    // Keep reporting for as long as the character stays put: the
+                    // watchdog uses a fresh signal to tell "still wedged" from
+                    // "moved again", since a wedged character still finishes tasks.
+                    if (stuckStreak >= STUCK_STREAK_LIMIT)
+                        watchdog.reportMovementStall(
+                                "PathFinder: character not moving after " + stuckStreak + " re-paths");
+                }
 
                 // Attempts spent while the watchdog is shaking the character are
                 // not the character's own doing; giving up in the middle of that
@@ -162,9 +168,13 @@ public class PathFinder implements Action {
                 if (!watchdog.isRecovering())
                     restarts++;
                 if (restarts >= MAX_RESTARTS) {
+                    // Almost every caller ignores the returned Results, so an error
+                    // return would let the bot carry on and act from the wrong
+                    // place. Abort the run instead, the way the rest of the bot
+                    // code signals "cannot continue".
                     String reason = "Path blocked: gave up after " + restarts + " attempts";
                     watchdog.reportRecoveryFailed(reason);
-                    return Results.ERROR(reason);
+                    throw new InterruptedException(reason);
                 }
             } else {
                 if (dn) {
