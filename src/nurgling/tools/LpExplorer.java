@@ -39,20 +39,12 @@ public class LpExplorer {
     // a seasonal pair exists at all is derived from VSpec.object itself (does the sibling name
     // appear in this same resource's product list) rather than a separately hand-maintained
     // species list, so there's nothing to keep in sync when a new species is added.
-    //
-    // The season boundary isn't a hard cutoff in-game - a tree can carry both the outgoing and
-    // incoming variant's fruit at once for a while, which makes the strict either/or check below
-    // look "stuck" right around the transition (the variant it decided wasn't current just sits
-    // there undiscovered-but-ignored). NConfig.Key.yesteryearAlwaysTracked lets a player opt out of
-    // the season guess entirely and just track both variants all the time instead.
     private static boolean isCurrentSeasonProduct(String gobResName, String product) {
         boolean isYesteryearVariant = product.startsWith(HarvestState.YESTERYEAR_PREFIX);
         String base = isYesteryearVariant ? product.substring(HarvestState.YESTERYEAR_PREFIX.length()) : product;
         String sibling = isYesteryearVariant ? base : (HarvestState.YESTERYEAR_PREFIX + base);
         List<String> products = VSpec.object.get(gobResName);
         if (products == null || !products.contains(sibling))
-            return true;
-        if (Boolean.TRUE.equals(NConfig.get(NConfig.Key.yesteryearAlwaysTracked)))
             return true;
         return isYesteryearVariant == HarvestState.isYesteryearSeason();
     }
@@ -79,17 +71,6 @@ public class LpExplorer {
     // rebuilt on alternating ticks and never actually cache anything.
     private static final Map<String, Set<String>> fullyDiscoveredByChr = new ConcurrentHashMap<>();
     private static volatile int fullyDiscoveredCacheSeason = -1;
-
-    // Same staleness the season-change check above guards against, triggered instead by flipping
-    // NConfig.Key.yesteryearAlwaysTracked: a resource cached "fully discovered" under the old
-    // setting may have skipped a now-required Yesteryear's product (or vice versa), so every cache
-    // keyed off that verdict has to drop. Public so QoL's settings screen can call it right after
-    // changing the toggle, the same moment lpassistent's own toggle already tears down state.
-    public static void invalidateDiscoveryCache() {
-        fullyDiscoveredByChr.clear();
-        NObjHarvestOl.clearLabelCache();
-        MARKER_ICON_CACHE.clear();
-    }
 
     /** The set of resources with nothing left to find, for this character in the current season. */
     private static Set<String> fullyDiscovered(NCharacterInfo info) {
