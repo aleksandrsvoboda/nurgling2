@@ -606,11 +606,12 @@ public class LightObject implements Action {
                     return isLit(t, config);
                 }
             });
-            if (isLit(t, config))
-                remaining.remove(t);
+            if (!isLit(t, config))
+                break; // strike failed (box likely out of charges) — leave this and the rest to later tiers
+            remaining.remove(t);
         }
 
-        // Release (once): put the matchbox back where it came from.
+        // Release (once): put the matchbox back where it came from — an exhausted box is still held.
         if (gui.vhand != null) {
             if (matchesSource == SOURCE_BELT) {
                 NUtils.transferToBelt();
