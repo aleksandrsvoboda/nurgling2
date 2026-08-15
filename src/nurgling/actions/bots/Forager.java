@@ -9,6 +9,7 @@ import nurgling.conf.NForagerProp;
 import nurgling.routes.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.tools.NParser;
 import nurgling.widgets.NAlarmWdg;
 
 import java.util.ArrayList;
@@ -17,8 +18,29 @@ import java.util.Map;
 
 public class Forager implements Action {
 
+    private static final String PATH_AROUND = "path around";
     private HashSet<Long> processedGobs = new HashSet<>();
     private String presetName = null;
+
+    private static class DangerousAnimalRule {
+        final NAreaRad config;
+        final NAlias alias;
+
+        DangerousAnimalRule(NAreaRad config) {
+            this.config = config;
+            this.alias = new NAlias(config.name);
+        }
+    }
+
+    private static class DangerousAnimal {
+        final Gob gob;
+        final DangerousAnimalRule rule;
+
+        DangerousAnimal(Gob gob, DangerousAnimalRule rule) {
+            this.gob = gob;
+            this.rule = rule;
+        }
+    }
 
     public Forager() {
         // Default constructor - will show UI
@@ -96,10 +118,12 @@ public class Forager implements Action {
         // Get dangerous animal patterns from NConfig
         @SuppressWarnings("unchecked")
         ArrayList<NAreaRad> animalRads = (ArrayList<NAreaRad>) NConfig.get(NConfig.Key.animalrad);
-        ArrayList<String> dangerousAnimals = new ArrayList<>();
+        ArrayList<DangerousAnimalRule> dangerousAnimals = new ArrayList<>();
         if (animalRads != null) {
             for (NAreaRad rad : animalRads) {
-                dangerousAnimals.add(rad.name);
+                if (!(preset.ignoreBats && rad.name.toLowerCase().contains("bat"))) {
+                    dangerousAnimals.add(new DangerousAnimalRule(rad));
+                }
             }
         }
         
@@ -113,9 +137,10 @@ public class Forager implements Action {
             return Results.ERROR("Cannot get start position - waypoint not in current segment");
         }
         
-        PathFinder pf = new PathFinder(startPos);
-        pf.waterMode = preset.waterMode;
-        pf.run(gui);
+        Results pathResult = runPathFinder(gui, new PathFinder(startPos), dangerousAnimals, preset);
+        if (!pathResult.IsSuccess()) {
+            return pathResult;
+        }
 
         // Check inventory before starting
         if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
@@ -138,42 +163,33 @@ public class Forager implements Action {
                 }
             }
             
-            // Check for dangerous animals in radius 200
-            if (!preset.onAnimalAction.equals("nothing")) {
-                for (String animalPattern : dangerousAnimals) {
-                    // Skip bats if ignoreBats is enabled
-                    if (preset.ignoreBats && animalPattern.contains("bat")) {
-                        continue;
-                    }
-
-                    Gob animal = Finder.findGob(NUtils.player().rc, new NAlias(animalPattern), null, 200.0);
-                    if (animal != null) {
-                        performSafetyAction(gui, preset.onAnimalAction);
-                        return Results.SUCCESS();
-                    }
-                }
+            ArrayList<DangerousAnimal> visibleDanger = findDangerousAnimals(dangerousAnimals);
+            if (shouldStopForAnimal(visibleDanger, preset)) {
+                performSafetyAction(gui, preset.onAnimalAction);
+                return Results.SUCCESS();
             }
 
             // Check if there are any target objects near the section endpoint (within 1 tile = 11 units)
             Coord2d sectionEnd = section.endPoint;
-            Gob targetGob = findGobNear(sectionEnd, 11.0);
+            Gob targetGob = findGobNear(sectionEnd, 11.0, visibleDanger, preset);
 
             if (targetGob != null)
             {
                 // Go to the object if found within 1 tile
-                PathFinder pfGob = new PathFinder(targetGob);
-                pfGob.waterMode = preset.waterMode;
-                pfGob.run(gui);
+                pathResult = runPathFinder(gui, new PathFinder(targetGob), dangerousAnimals, preset);
             } else
             {
                 // Go to the endpoint if no objects found nearby
-                PathFinder pfEnd = new PathFinder(sectionEnd);
-                pfEnd.waterMode = preset.waterMode;
-                pfEnd.run(gui);
+                pathResult = runPathFinder(gui, new PathFinder(sectionEnd), dangerousAnimals, preset);
+            }
+            if (!pathResult.IsSuccess()) {
+                return pathResult;
             }
 
             // Process actions for this section
-            processSection(gui, section, preset.actions, dangerousAnimals, preset);
+            if (processSection(gui, section, preset.actions, dangerousAnimals, preset)) {
+                return Results.SUCCESS();
+            }
 
             // Check inventory after each section
             if (isInventoryFull(gui)) {
@@ -193,8 +209,9 @@ public class Forager implements Action {
         }
     }
     
-    private void processSection(NGameUI gui, ForagerSection section, java.util.List<ForagerAction> actions, 
-                                 ArrayList<String> dangerousAnimals, NForagerProp.PresetData preset) throws InterruptedException {
+    private boolean processSection(NGameUI gui, ForagerSection section, java.util.List<ForagerAction> actions,
+                                   ArrayList<DangerousAnimalRule> dangerousAnimals,
+                                   NForagerProp.PresetData preset) throws InterruptedException {
         double radius = 250.0;
         
         // Use actions from preset, not from section
@@ -202,33 +219,30 @@ public class Forager implements Action {
             // Check for safety before each action
             if (!NAlarmWdg.borkas.isEmpty() && !preset.onPlayerAction.equals("nothing")) {
                 performSafetyAction(gui, preset.onPlayerAction);
-                return;
-            }
-            
-            if (!preset.onAnimalAction.equals("nothing")) {
-                for (String animalPattern : dangerousAnimals) {
-                    // Skip bats if ignoreBats is enabled
-                    if (preset.ignoreBats && animalPattern.contains("bat")) {
-                        continue;
-                    }
-
-                    Gob animal = Finder.findGob(NUtils.player().rc, new NAlias(animalPattern), null, 200.0);
-                    if (animal != null) {
-                        performSafetyAction(gui, preset.onAnimalAction);
-                        return;
-                    }
-                }
+                return true;
             }
 
-            processAction(gui, action, section.getCenterPoint(), radius, preset);
+            ArrayList<DangerousAnimal> visibleDanger = findDangerousAnimals(dangerousAnimals);
+            if (shouldStopForAnimal(visibleDanger, preset)) {
+                performSafetyAction(gui, preset.onAnimalAction);
+                return true;
+            }
+
+            processAction(gui, action, section.getCenterPoint(), radius, dangerousAnimals,
+                          visibleDanger, preset);
         }
+        return false;
     }
     
-    private void processAction(NGameUI gui, ForagerAction action, Coord2d center, double radius, NForagerProp.PresetData preset) throws InterruptedException {
+    private void processAction(NGameUI gui, ForagerAction action, Coord2d center, double radius,
+                               ArrayList<DangerousAnimalRule> dangerousAnimals,
+                               ArrayList<DangerousAnimal> visibleDanger,
+                               NForagerProp.PresetData preset) throws InterruptedException {
         ArrayList<Gob> gobs = Finder.findGobs(center, new NAlias(action.targetObjectPattern), null, radius);
         
-        // Filter out already processed gobs
-        gobs.removeIf(gob -> processedGobs.contains(gob.id));
+        // Do not enter a hostile's configured safety circle to collect an item.
+        gobs.removeIf(gob -> processedGobs.contains(gob.id) ||
+                (isPathAround(preset) && isInsideDangerZone(gob.rc, visibleDanger)));
         
         if (gobs.isEmpty()) {
             return;
@@ -246,9 +260,13 @@ public class Forager implements Action {
                         break;
                     }
 
-                    PathFinder pfPick = new PathFinder(gob);
-                    pfPick.waterMode = preset.waterMode;
-                    pfPick.run(gui);
+                    if (!runPathFinder(gui, new PathFinder(gob), dangerousAnimals, preset).IsSuccess()) {
+                        continue;
+                    }
+                    if (isPathAround(preset) &&
+                            isInsideDangerZone(gob.rc, findDangerousAnimals(dangerousAnimals))) {
+                        continue;
+                    }
                     new SelectFlowerAction("Pick", gob).run(gui);
                     NUtils.getUI().core.addTask(new nurgling.tasks.WaitGobRemoval(gob.id));
                     
@@ -259,9 +277,13 @@ public class Forager implements Action {
                 
             case FLOWER_ACTION:
                 for (Gob gob : gobs) {
-                    PathFinder pfFlower = new PathFinder(gob);
-                    pfFlower.waterMode = preset.waterMode;
-                    pfFlower.run(gui);
+                    if (!runPathFinder(gui, new PathFinder(gob), dangerousAnimals, preset).IsSuccess()) {
+                        continue;
+                    }
+                    if (isPathAround(preset) &&
+                            isInsideDangerZone(gob.rc, findDangerousAnimals(dangerousAnimals))) {
+                        continue;
+                    }
                     new SelectFlowerAction(action.actionName, gob).run(gui);
                     
                     // Wait for pose change
@@ -332,6 +354,7 @@ public class Forager implements Action {
             case "travel hearth":
                 gui.act("travel", "hearth");
                 break;
+            case PATH_AROUND:
             case "nothing":
             default:
                 // Do nothing
@@ -339,11 +362,88 @@ public class Forager implements Action {
         }
     }
     
-    private Gob findGobNear(Coord2d pos, double radius) {
+    private PathFinder configurePathFinder(PathFinder pathFinder,
+                                           ArrayList<DangerousAnimalRule> dangerousAnimals,
+                                           NForagerProp.PresetData preset) throws InterruptedException {
+        pathFinder.waterMode = preset.waterMode;
+        if (isPathAround(preset)) {
+            for (DangerousAnimal danger : findDangerousAnimals(dangerousAnimals)) {
+                pathFinder.avoidGob(danger.gob, danger.rule.config.radius);
+            }
+        }
+        return pathFinder;
+    }
+
+    private Results runPathFinder(NGameUI gui, PathFinder pathFinder,
+                                  ArrayList<DangerousAnimalRule> dangerousAnimals,
+                                  NForagerProp.PresetData preset) throws InterruptedException {
+        return configurePathFinder(pathFinder, dangerousAnimals, preset).run(gui);
+    }
+
+    private boolean isPathAround(NForagerProp.PresetData preset) {
+        return PATH_AROUND.equals(preset.onAnimalAction);
+    }
+
+    private boolean shouldStopForAnimal(ArrayList<DangerousAnimal> dangerousAnimals,
+                                        NForagerProp.PresetData preset) {
+        if ("nothing".equals(preset.onAnimalAction) || isPathAround(preset)) {
+            return false;
+        }
+        Coord2d player = NUtils.player().rc;
+        for (DangerousAnimal danger : dangerousAnimals) {
+            if (danger.gob.rc.dist(player) < 200.0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ArrayList<DangerousAnimal> findDangerousAnimals(
+            ArrayList<DangerousAnimalRule> rules) throws InterruptedException {
+        ArrayList<Gob> candidates = new ArrayList<>();
+        synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
+            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
+                if (!(gob instanceof OCache.Virtual) && gob.id != NUtils.playerID() &&
+                        !gob.attr.isEmpty() && !gob.getClass().getName().contains("GlobEffector")) {
+                    candidates.add(gob);
+                }
+            }
+        }
+
+        ArrayList<DangerousAnimal> result = new ArrayList<>();
+        for (Gob gob : candidates) {
+            for (DangerousAnimalRule rule : rules) {
+                boolean matches = gob.ngob != null && gob.ngob.name != null
+                        ? NParser.checkName(gob.ngob.name, rule.alias)
+                        : NParser.isIt(gob, rule.alias);
+                if (matches) {
+                    result.add(new DangerousAnimal(gob, rule));
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isInsideDangerZone(Coord2d pos, ArrayList<DangerousAnimal> dangerousAnimals) {
+        for (DangerousAnimal danger : dangerousAnimals) {
+            if (pos.dist(danger.gob.rc) <= danger.rule.config.radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Gob findGobNear(Coord2d pos, double radius,
+                            ArrayList<DangerousAnimal> dangerousAnimals,
+                            NForagerProp.PresetData preset) {
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
             for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
                 if (!(gob instanceof OCache.Virtual || gob.attr.isEmpty() || gob.getClass().getName().contains("GlobEffector"))) {
                     if (gob.id != NUtils.playerID() && gob.rc.dist(pos) <= radius && !(gob instanceof MapView.Plob) && gob.id > 0) {
+                        if (isPathAround(preset) && isInsideDangerZone(gob.rc, dangerousAnimals)) {
+                            continue;
+                        }
                         return gob;
                     }
                 }
