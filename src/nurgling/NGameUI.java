@@ -79,7 +79,6 @@ public class NGameUI extends GameUI
     private static final Map<String, Float> WORLD_SPEED_MAP = new HashMap<>();
 
     private void initWorldSpeedMap() {
-        WORLD_SPEED_MAP.put("b7c199a4557503a8", 4.93f); // W16.1
         WORLD_SPEED_MAP.put("c646473983afec09", DEFAULT_WORLD_SPEED); // W16
     }
 
