@@ -9,7 +9,6 @@ import nurgling.conf.NForagerProp;
 import nurgling.routes.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.NAlarmWdg;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -130,8 +129,8 @@ public class Forager implements Action {
             if (section == null) continue;
 
             
-            // Check for dangerous players
-            if (!NAlarmWdg.borkas.isEmpty()) {
+            // Check for dangerous players (this session's own detections)
+            if (gui.alarmWdg != null && gui.alarmWdg.hasBorkas()) {
                 if (!preset.onPlayerAction.equals("nothing")) {
                     performSafetyAction(gui, preset.onPlayerAction);
                     return Results.SUCCESS();
@@ -200,7 +199,7 @@ public class Forager implements Action {
         // Use actions from preset, not from section
         for (ForagerAction action : actions) {
             // Check for safety before each action
-            if (!NAlarmWdg.borkas.isEmpty() && !preset.onPlayerAction.equals("nothing")) {
+            if (gui.alarmWdg != null && gui.alarmWdg.hasBorkas() && !preset.onPlayerAction.equals("nothing")) {
                 performSafetyAction(gui, preset.onPlayerAction);
                 return;
             }

@@ -7,6 +7,7 @@ import nurgling.NMapView;
 import nurgling.NUI;
 
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
 
 /**
  * Holds all state for a single game session.
@@ -55,8 +56,21 @@ public class SessionContext {
     /** Dedicated ForkJoinPool for headless tick processing.
      *  Prevents parallel streams in OCache.ctick() from using the common pool,
      *  which would cause cross-session task interference with the UI thread.
-     *  Uses 2 threads — headless sessions don't render and need minimal parallelism. */
-    private final ForkJoinPool headlessTickPool = new ForkJoinPool(2);
+     *  Uses 2 threads — headless sessions don't render and need minimal parallelism.
+     *
+     *  Every worker is bound to this session's UI at creation. Gob ticks reach code that asks for
+     *  "the" game UI; without a binding those calls fall back to the active (rendered) session, so
+     *  a background session would read and mutate the foreground session's state. Binding at thread
+     *  creation rather than per-task is deliberate: OCache.ctick() forks parallel work onto sibling
+     *  workers in this same pool, which never see a per-task binding. */
+    private final ForkJoinPool headlessTickPool = new ForkJoinPool(2, pool -> new ForkJoinWorkerThread(pool) {
+        @Override
+        protected void onStart() {
+            super.onStart();
+            setName("HeadlessTick-" + sessionId);
+            ThreadLocalUI.set(ui);
+        }
+    }, null, false);
 
     private static int sessionCounter = 0;
 
@@ -160,6 +174,27 @@ public class SessionContext {
             return gui.biw.hasRunningBots();
         }
         return false;
+    }
+
+    /**
+     * Check if this session has a PvP alarm the user should be told about.
+     * Includes alarms latched while this session was in the background, so a hostile that walked
+     * past a headless character still leaves a visible trace in the session list.
+     */
+    public boolean hasAlarm() {
+        NGameUI gui = getGameUI();
+        return gui != null && gui.alarmWdg != null && gui.alarmWdg.hasAlarm();
+    }
+
+    /**
+     * Clear a latched alarm. Called when the user switches to this session - looking at it is
+     * the acknowledgement.
+     */
+    public void acknowledgeAlarm() {
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.alarmWdg != null) {
+            gui.alarmWdg.acknowledgeAlarm();
+        }
     }
 
     /**

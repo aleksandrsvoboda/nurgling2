@@ -27,6 +27,24 @@ public class SessionManager {
     /** All sessions, keyed by session ID */
     private final Map<String, SessionContext> sessions = new LinkedHashMap<>();
 
+    /**
+     * Lock-free index for {@link #findBySession}. Written only under sessionsLock alongside
+     * {@code sessions}, but readable without it: gob ticks resolve their owning session from inside
+     * a gob monitor, and taking sessionsLock there would invert the lock order against session
+     * switching, which holds sessionsLock while touching session state.
+     */
+    private final ConcurrentHashMap<Session, SessionContext> sessionsBySession = new ConcurrentHashMap<>();
+
+    /** Keep the lock-free index in step with {@code sessions}. Call under sessionsLock. */
+    private void indexSessions() {
+        sessionsBySession.clear();
+        for (SessionContext ctx : sessions.values()) {
+            if (ctx.session != null) {
+                sessionsBySession.put(ctx.session, ctx);
+            }
+        }
+    }
+
     /** The currently active (visual) session */
     private volatile SessionContext activeSession;
 
@@ -101,6 +119,7 @@ public class SessionManager {
 
         synchronized (sessionsLock) {
             sessions.put(ctx.sessionId, ctx);
+            indexSessions();
 
             if (activeSession == null) {
                 // First session - make it active
@@ -137,6 +156,7 @@ public class SessionManager {
             }
 
             sessions.put(ctx.sessionId, ctx);
+            indexSessions();
             activeSession = ctx;
         }
 
@@ -160,6 +180,7 @@ public class SessionManager {
             if (ctx == null) {
                 return;
             }
+            indexSessions();
 
             wasActive = (ctx == activeSession);
             if (wasActive) {
@@ -399,6 +420,7 @@ public class SessionManager {
             if (ctx == null) {
                 return;
             }
+            indexSessions();
             if (ctx == activeSession) {
                 activeSession = null;
             }
@@ -473,14 +495,9 @@ public class SessionManager {
      * Used during session switching to find existing sessions.
      */
     public SessionContext findBySession(Session sess) {
-        synchronized (sessionsLock) {
-            for (SessionContext ctx : sessions.values()) {
-                if (ctx.session == sess) {
-                    return ctx;
-                }
-            }
-        }
-        return null;
+        // Deliberately lock-free - see sessionsBySession. Called from gob ticks while holding a
+        // gob monitor, where taking sessionsLock would risk inverting the lock order.
+        return (sess == null) ? null : sessionsBySession.get(sess);
     }
 
     /**
@@ -518,6 +535,7 @@ public class SessionManager {
         synchronized (sessionsLock) {
             toClose = new ArrayList<>(sessions.values());
             sessions.clear();
+            indexSessions();
             activeSession = null;
         }
 
@@ -530,6 +548,12 @@ public class SessionManager {
     // Notification helpers
 
     private void notifyActiveSessionChanged(SessionContext oldSession, SessionContext newSession) {
+        // Switching to a session acknowledges any alarm it latched while in the background -
+        // the user is now looking at it. A still-live alarm keeps showing on its own.
+        if (newSession != null) {
+            newSession.acknowledgeAlarm();
+        }
+
         List<SessionChangeListener> listenersCopy;
         synchronized (listeners) {
             listenersCopy = new ArrayList<>(listeners);
