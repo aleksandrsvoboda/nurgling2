@@ -5,6 +5,7 @@ import haven.Composite;
 import haven.res.ui.obj.buddy.Buddy;
 import nurgling.NAlarmManager;
 import nurgling.NConfig;
+import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.LocalizedResourceTimer;
@@ -24,8 +25,18 @@ import static haven.Text.sans;
 
 public class NAlarmWdg extends Widget
 {
-    final public static ArrayList<Long> borkas = new ArrayList();
+    /**
+     * Hostile/unknown player gob ids seen by THIS session.
+     * Session-scoped on purpose: a gob id belonging to another session never resolves in this
+     * session's OCache, so a shared list would have every widget pruning every other session's
+     * detections before they can be confirmed.
+     */
+    final public ArrayList<Long> borkas = new ArrayList<>();
     final ArrayList<Long> alarms = new ArrayList<>();
+    /** Published for cross-thread readers (session tab bar draws on the render thread). */
+    private volatile boolean alarmActive = false;
+    /** Raised when this session alarms while it is not the one on screen; cleared on acknowledge. */
+    private volatile boolean alarmLatched = false;
     final ArrayList<String> resourceTimerAlarms = new ArrayList<>(); // Resource timer IDs in alarm state
     final ArrayList<String> resourceTimerWarnings = new ArrayList<>(); // Resource timer IDs in warning state (10min left)
     private static final Text.Furnace active_title = new PUtils.BlurFurn(new Text.Foundry(sans, 15, Color.WHITE).aa(true), 2, 1, new Color(36, 25, 25));
@@ -140,7 +151,9 @@ public class NAlarmWdg extends Widget
                                 addAlarm(id);
                             } else if (!shouldAlarm && isAlarmed) {
                                 // Remove alarm if settings changed or group changed
-                                alarms.remove(id);
+                                synchronized (alarms) {
+                                    alarms.remove(id);
+                                }
                                 // Arrow will auto-remove via tick() when not in alarm
                             }
                             
@@ -177,13 +190,13 @@ public class NAlarmWdg extends Widget
                 }
             }
             forRemove.clear();
-            for (Long id : alarms) {
-                if (Finder.findGob(id) == null) {
-                    forRemove.add(id);
+            synchronized (alarms) {
+                for (Long id : alarms) {
+                    if (Finder.findGob(id) == null) {
+                        forRemove.add(id);
+                    }
                 }
-            }
-            for (Long id : forRemove) {
-                alarms.remove(id);
+                alarms.removeAll(forRemove);
             }
             
             // Check resource timers for alarms and warnings
@@ -196,38 +209,101 @@ public class NAlarmWdg extends Widget
             } else {
                 numberAlarm = null;
             }
+
+            publishAlarmState();
         }
+    }
+
+    /**
+     * Publish PvP alarm state for readers outside this widget's thread.
+     * Latches only when this session is not the one currently on screen - an alarm on the visible
+     * session needs no latch, because the user is already looking at it.
+     */
+    private void publishAlarmState() {
+        boolean active = !alarms.isEmpty();
+        alarmActive = active;
+        if (active && !isOnScreen()) {
+            alarmLatched = true;
+        }
+    }
+
+    private boolean isOnScreen() {
+        return ui != null && nurgling.sessions.SessionManager.getInstance().getActiveUI() == ui;
+    }
+
+    /**
+     * Whether this session should be flagged as alarming - either a live PvP alarm, or a latched
+     * one the user has not looked at yet.
+     */
+    public boolean hasAlarm() {
+        // Evaluated on read rather than trusting the latch alone: a tick can decide "not on screen"
+        // moments before a switch lands and latch onto the session the user just moved to. Being
+        // the session on screen IS the acknowledgement, so clear it here. A still-live threat keeps
+        // the highlight up through alarmActive.
+        if (alarmLatched && isOnScreen()) {
+            alarmLatched = false;
+        }
+        return alarmActive || alarmLatched;
+    }
+
+    /** Clear the latch. Called when the user switches to this session. */
+    public void acknowledgeAlarm() {
+        alarmLatched = false;
+    }
+
+    /** Whether this session currently tracks any hostile/unknown player. */
+    public boolean hasBorkas() {
+        synchronized (borkas) {
+            return !borkas.isEmpty();
+        }
+    }
+
+    /**
+     * Resolve the alarm widget of the session a gob actually belongs to.
+     * Gob ticks can run on pool threads with no session binding, where NUtils.getGameUI() would
+     * resolve to whichever session happens to be on screen.
+     */
+    public static NAlarmWdg forGob(Gob gob) {
+        if (gob == null || gob.glob == null || gob.glob.sess == null)
+            return null;
+        nurgling.sessions.SessionContext ctx =
+                nurgling.sessions.SessionManager.getInstance().findBySession(gob.glob.sess);
+        if (ctx == null)
+            return null;
+        NGameUI gui = ctx.getGameUI();
+        return (gui == null) ? null : gui.alarmWdg;
     }
     
     /**
      * Update map loaded state - checks if all 9 grids are fully loaded
      */
     private void updateMapLoadedState() {
-        if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null || 
-            NUtils.getGameUI().map.glob == null || NUtils.getGameUI().map.glob.map == null) {
+        NGameUI gui = ownGui();
+        if (gui == null || gui.map == null ||
+            gui.map.glob == null || gui.map.glob.map == null) {
             isMapFullyLoaded = false;
             return;
         }
-        
-        Gob player = NUtils.player();
+
+        Gob player = gui.map.player();
         if (player == null || player.rc == null) {
             isMapFullyLoaded = false;
             return;
         }
-        
+
         try {
             // Get player's grid coordinate
             Coord tc = player.rc.div(MCache.tilesz).floor();
-            Coord gc = tc.div(NUtils.getGameUI().map.glob.map.cmaps);
-            
+            Coord gc = tc.div(gui.map.glob.map.cmaps);
+
             // Check if we have exactly 9 grids loaded
-            if (NUtils.getGameUI().map.glob.map.grids.size() != 9) {
+            if (gui.map.glob.map.grids.size() != 9) {
                 isMapFullyLoaded = false;
                 return;
             }
-            
+
             // Check if all 9 grids are centered around player's grid
-            for (Coord gridCoord : NUtils.getGameUI().map.glob.map.grids.keySet()) {
+            for (Coord gridCoord : gui.map.glob.map.grids.keySet()) {
                 Coord pos = gridCoord.sub(gc.sub(1, 1));
                 if (pos.x < 0 || pos.x >= 3 || pos.y < 0 || pos.y >= 3) {
                     isMapFullyLoaded = false;
@@ -241,40 +317,53 @@ public class NAlarmWdg extends Widget
         }
     }
 
-    public static boolean isInAlarm(Long id)
+    /**
+     * Whether the given gob is currently alarmed in the session that owns it.
+     * Takes the gob rather than a bare id so the owning session can be resolved without relying
+     * on the calling thread's binding.
+     */
+    public static boolean isInAlarm(Gob gob)
     {
-        if(NUtils.getGameUI()==null)
+        if(gob == null)
             return false;
-        if(NUtils.getGameUI().alarmWdg.alarms.contains(id))
-        {
-            Gob gob = Finder.findGob(id);
-            if(gob == null)
+        NAlarmWdg wdg = forGob(gob);
+        if(wdg == null)
+            return false;
+        return wdg.alarmedFor(gob);
+    }
+
+    private boolean alarmedFor(Gob gob)
+    {
+        synchronized (alarms) {
+            if(!alarms.contains(gob.id))
                 return false;
-            Buddy buddy = gob.getattr(Buddy.class);
-            
-            // Get kin properties for this character
-            NKinProp kinProp = (buddy == null || buddy.b == null) ? NKinProp.get(0) : NKinProp.get(buddy.b.group);
-            
-            // Arrow should only exist if arrow setting is enabled
-            if (!kinProp.arrow) {
-                return false;
-            }
-            
-            if (buddy == null) {
-                // Unknown player - should be in alarm (white group)
-                return true;
-            } else if (buddy.b != null) {
-                // Known player - check if WHITE or RED
-                Color groupColor = BuddyWnd.gc[buddy.b.group];
-                return (groupColor.equals(Color.WHITE) || groupColor.equals(Color.RED));
-            }
+        }
+
+        Buddy buddy = gob.getattr(Buddy.class);
+
+        // Get kin properties for this character
+        NKinProp kinProp = (buddy == null || buddy.b == null) ? NKinProp.get(0) : NKinProp.get(buddy.b.group);
+
+        // Arrow should only exist if arrow setting is enabled
+        if (!kinProp.arrow) {
+            return false;
+        }
+
+        if (buddy == null) {
+            // Unknown player - should be in alarm (white group)
+            return true;
+        } else if (buddy.b != null) {
+            // Known player - check if WHITE or RED
+            Color groupColor = BuddyWnd.gc[buddy.b.group];
+            return (groupColor.equals(Color.WHITE) || groupColor.equals(Color.RED));
         }
         return false;
     }
 
-    public static void addBorka(long id) {
+    public void addBorka(long id) {
         synchronized (borkas) {
-            borkas.add(id);
+            if (!borkas.contains(id))
+                borkas.add(id);
         }
     }
 
@@ -293,49 +382,61 @@ public class NAlarmWdg extends Widget
     }
     
     /**
-     * Check if auto hearth or auto logout should be triggered
+     * Check if auto hearth or auto logout should be triggered.
+     * Acts on this widget's own session, not whichever one happens to be on screen.
      */
     private void checkAutoActions() {
         // Skip auto actions if AuxIterProc bot is running
         if (!TESTAuxIterProc.stop.get()) {
             return;
         }
-        
+
+        NGameUI gui = ownGui();
+        if (gui == null || gui.map == null) {
+            return;
+        }
+
         // Check player pose to avoid re-triggering while already logging out or teleporting
-        Gob player = NUtils.player();
+        Gob player = gui.map.player();
         if (player == null) {
             return;
         }
-        
+
         String pose = player.pose();
         if (pose != null && (pose.equals("pointhome") || pose.equals("logout"))) {
             // Player is already teleporting or logging out - don't trigger again
             return;
         }
-        
+
         boolean autoLogout = (Boolean) NConfig.get(NConfig.Key.autoLogoutOnUnknown);
         boolean autoHearth = (Boolean) NConfig.get(NConfig.Key.autoHearthOnUnknown);
-        
+
         if (autoLogout) {
             // Logout takes priority over hearth
-            NUtils.getGameUI().msg("Enemy spotted! Logging out!", Color.WHITE);
-            NUtils.getGameUI().act("lo");
+            gui.msg("Enemy spotted! Logging out!", Color.WHITE);
+            gui.act("lo");
         } else if (autoHearth) {
             // Try to use hearth secret
-            NUtils.getGameUI().msg("Enemy spotted! Using hearth secret!", Color.WHITE);
-            NUtils.getGameUI().act("travel", "hearth");
+            gui.msg("Enemy spotted! Using hearth secret!", Color.WHITE);
+            gui.act("travel", "hearth");
         }
+    }
+
+    /** The game UI this widget belongs to, independent of the calling thread's binding. */
+    private NGameUI ownGui() {
+        return (ui instanceof nurgling.NUI) ? ((nurgling.NUI) ui).gui : NUtils.getGameUI();
     }
     
     /**
      * Check all resource timers and update alarm/warning states
      */
     private void checkResourceTimers() {
-        if (NUtils.getGameUI() == null || NUtils.getGameUI().localizedResourceTimerService == null) {
+        NGameUI gui = ownGui();
+        if (gui == null || gui.localizedResourceTimerService == null) {
             return;
         }
-        
-        java.util.Collection<LocalizedResourceTimer> allTimers = NUtils.getGameUI().localizedResourceTimerService.getAllTimers();
+
+        java.util.Collection<LocalizedResourceTimer> allTimers = gui.localizedResourceTimerService.getAllTimers();
         
         // Clear old resource timer alarms/warnings for timers that no longer exist
         resourceTimerAlarms.removeIf(timerId -> 

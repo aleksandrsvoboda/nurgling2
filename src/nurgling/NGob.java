@@ -188,6 +188,19 @@ public class NGob
         }
     }
 
+    /**
+     * The game UI of the session a gob actually belongs to.
+     * Gob ticks run on pool threads that carry no session binding, so resolving through
+     * NUtils.getGameUI() would silently target whichever session is currently rendered.
+     */
+    private static NGameUI ownerGui(Gob gob)
+    {
+        if (gob == null || gob.glob == null || gob.glob.sess == null)
+            return null;
+        SessionContext ctx = SessionManager.getInstance().findBySession(gob.glob.sess);
+        return (ctx == null) ? null : ctx.getGameUI();
+    }
+
     private static class DelayedOverlayTask
     {
         final Predicate<Gob> condition;
@@ -829,10 +842,17 @@ public class NGob
                                 {
                                     String posename = gob.pose();
                                     // Only add if not mannequin, not skeleton, and not the player
-                                    if (!(posename.contains("manneq") || posename.contains("skel")) && NUtils.playerID() != gob.id)
-                                    {
-                                        NAlarmWdg.addBorka(gob.id);
-                                    }
+                                    if (posename.contains("manneq") || posename.contains("skel"))
+                                        return;
+                                    // Resolve the session that owns this gob. This runs from Gob.ctick(),
+                                    // which for headless sessions executes on a pool thread with no UI
+                                    // binding - NUtils would resolve to whichever session is on screen.
+                                    NGameUI owner = ownerGui(gob);
+                                    if (owner == null || owner.map == null || owner.alarmWdg == null)
+                                        return;
+                                    if (owner.map.plgob == gob.id)
+                                        return;
+                                    owner.alarmWdg.addBorka(gob.id);
                                 }
                         ));
                     }
