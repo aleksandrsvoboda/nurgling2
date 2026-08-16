@@ -131,7 +131,7 @@ public class NFlowerMenu extends FlowerMenu
             }
         }
         if(option != null && NUtils.getUI().core.getLastActions()!=null && NUtils.getUI().core.getLastActions().item!=null && option.name.contains("Prospect")) {
-            NProspecting.item(NUtils.getUI().core.getLastActions().item);
+            NProspecting.item(ui, NUtils.getUI().core.getLastActions().item);
         }
         NUtils.getUI().core.resetLastAction();
     }
