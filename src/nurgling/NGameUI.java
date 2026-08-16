@@ -63,6 +63,9 @@ public class NGameUI extends GameUI
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
 
+    /** Prospecting results waiting to be paired up with their window; see NProspecting. */
+    public final NProspecting.Pending prospecting = new NProspecting.Pending();
+
     // Local storage for ring settings
     public IconRingConfig iconRingConfig;
     private boolean ringSettingsApplied = false;
