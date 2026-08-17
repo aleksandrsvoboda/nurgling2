@@ -87,6 +87,16 @@ public class LightObject implements Action {
         }
     }
 
+    /**
+     * Fire bit for a workstation type, or 0 when the type is unknown. Exposed so callers outside this
+     * package can resolve the flag per gob instead of assuming one flag fits a mixed batch - an Ore
+     * Smelter burns on bit 2 while a Stack Furnace burns on bit 4.
+     */
+    public static int fireFlag(String gobName) {
+        LightConfig config = getConfig(gobName);
+        return (config == null) ? 0 : config.fireFlag;
+    }
+
     public static LightConfig getConfig(String gobName) {
         if (gobName.contains("gfx/terobjs/pow")) {
             return new LightConfig("Fire Place", 4, 1, 11);
@@ -99,7 +109,12 @@ public class LightObject implements Action {
         } else if (gobName.contains("gfx/terobjs/smokeshed")) {
             return new LightConfig("Smoke Shed", 16, 0, -1);
         } else if (gobName.contains("gfx/terobjs/primsmelter")) {
-            return new LightConfig("Stack Furnace", 2, 0, -1);
+            /* A stack furnace burns in two distinct states, drawn by mutually exclusive meshes in the
+             * ref=4 group, so "lit" is a mask of both rather than either bit alone. Confirmed against live
+             * markers: 65633 cold, 65635 lit but idle (bit 1), 65637 lit and smelting (bit 2), 65621
+             * smelting with the bellows boost. Testing bit 2 alone misses a lit empty furnace and relights
+             * it; testing bit 1 alone misses it once smelting starts. */
+            return new LightConfig("Stack Furnace", 6, 0, -1);
         } else if (gobName.contains("gfx/terobjs/smelter")) {
             return new LightConfig("Ore Smelter", 2, 0, -1);
         } else if (gobName.contains("gfx/terobjs/kiln")) {
@@ -225,6 +240,10 @@ public class LightObject implements Action {
             new PathFinder(t).run(gui);
             NUtils.activateItem(t);
             waitForProgress(gui);
+            /* The fire bit arrives in its own server message, which can trail the progress bar by a tick or
+             * two. Checking immediately leaves a gob that is now lit still sitting in `remaining`, and a
+             * later priority - branches, typically - then lights it a second time. */
+            NUtils.getUI().core.addTask(new WaitGobModelAttr(t, config.fireFlag, 2000));
             if (isLit(t, config))
                 remaining.remove(t);
         }

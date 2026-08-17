@@ -2000,15 +2000,13 @@ public class NInventory extends Inventory
             String containerHash = parentGob.ngob.hash;
             
             // Clear pending cache removals - container closed, so items weren't consumed
-            int pendingCount = pendingCacheRemovals.size();
             pendingCacheRemovals.clear();
             
             if ((Boolean) NConfig.get(NConfig.Key.ndbenable)) {
-                System.out.println("NInventory.reqdestroy: Syncing " + iis.size() + " items for container " + containerHash + " (cleared " + pendingCount + " pending)");
                 ui.core.writeItemInfoForContainer(iis, containerHash);
             }
         }
-        // For non-indexable containers, just clear without logging
+        // For non-indexable containers, just clear
         pendingCacheRemovals.clear();
 
         // Close Study Desk Planner if this is a study desk inventory
