@@ -1553,6 +1553,15 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return false;
         }
         
+        // Alt+MMB drops a map marker at the clicked spot, named after the gob under
+        // the cursor (if any).
+        if (ev.b == 2 && ui.modmeta && !ui.modctrl && !ui.modshift) {
+            NGameUI gui = NUtils.getGameUI();
+            if ((gui != null) && (gui.mapfile != null))
+                gui.mapfile.quickmark(ev.c);
+            return true;
+        }
+
         // Ctrl+MMB to toggle ring setting for clicked object
         if (ev.b == 2 && ui.modctrl) { // Middle mouse button + Ctrl
             new Click(ev.c, ev.b) {
