@@ -3130,7 +3130,7 @@ public class VSpec {
         NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/fairyshroom\",\"name\":\"Fairy Shroom\"}"));
         NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/driftkelp\",\"name\":\"Driftkelp\"}"));
         NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/guano\",\"name\":\"Bat Guano\"}"));
-        NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/heartwoodleaf\",\"name\":\"Heartwood Leaves\"}"));
+        NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/leaf-heartwood\",\"name\":\"Heartwood Leaves\"}"));
         categories.put("Natural Resources", NaturalResources);
 
         ArrayList<JSONObject> Misc = new ArrayList<>();
