@@ -3,6 +3,7 @@ package nurgling.navigation;
 import haven.*;
 import nurgling.*;
 import nurgling.actions.Action;
+import nurgling.actions.GoTo;
 import nurgling.actions.PathFinder;
 import nurgling.actions.Results;
 import nurgling.areas.NArea;
@@ -34,6 +35,17 @@ public class ChunkNavExecutor implements Action {
 
     // Track chunks where portal traversal failed - avoid them when replanning
     private final Set<Long> failedPortalChunks = new HashSet<>();
+
+    // A gate this executor opened and hasn't closed yet, if any, and the direction we were
+    // heading through it (from the player toward the gate) at the moment we opened it.
+    private Gob pendingCloseGate = null;
+    private Coord2d pendingCloseGateApproachDir = null;
+
+    // Gates we've already confirmed crossing (opened, walked a real distance through, and
+    // closed behind us). Once a gate is in here we never touch it again - re-detecting it as
+    // "blocking" from the far side (which just happens because we're still within its
+    // detection radius, closed again) would otherwise send us hopping right back through it.
+    private final Set<Long> crossedGateIds = new HashSet<>();
 
     /**
      * Configuration for incremental walking toward a target.
@@ -154,6 +166,27 @@ public class ChunkNavExecutor implements Action {
             }
 
             if (segment.type == ChunkPath.SegmentType.PORTAL) {
+                // Final check before crossing - covers the case where followSegmentTiles
+                // bailed out early (e.g. an empty segment, so its own per-iteration gate
+                // check never ran) or the portal was already visible/reachable from range
+                // before the gate ever came within openNearbyGateIfNeeded's detection
+                // radius. Close unconditionally (not distance-gated) since we're about to
+                // cross into a new grid - this is the last chance to shut it while still
+                // in the correct coordinate space.
+                Gob playerBeforePortal = gui.map.player();
+                if (playerBeforePortal != null) {
+                    openNearbyGateIfNeeded(gui, playerBeforePortal);
+                }
+                if (pendingCloseGate != null) {
+                    Gob playerNearGate = gui.map.player();
+                    if (playerNearGate != null) {
+                        playerNearGate = ensureNearGate(gui, playerNearGate, pendingCloseGate);
+                    }
+                    if (playerNearGate != null) {
+                        closeGate(gui, pendingCloseGate);
+                    }
+                }
+
                 tickPortalTracker();
 
                 Results portalResult;
@@ -664,6 +697,7 @@ public class ChunkNavExecutor implements Action {
 
     private SegmentWalkResult followSegmentTiles(ChunkPath.PathSegment segment, NGameUI gui, long targetGridId) throws InterruptedException {
         if (segment.isEmpty()) {
+            System.out.println("ChunkNav: segment " + segment.gridId + " has no steps - skipping local walk (gate check won't run)");
             return SegmentWalkResult.success();
         }
 
@@ -713,27 +747,57 @@ public class ChunkNavExecutor implements Action {
             player = gui.map.player();
             if (player == null) return SegmentWalkResult.fail();
 
+            // A gate directly in the way needs an explicit open. PathFinder/NPFMap only
+            // auto-treat an unbarred gate as passable (NGob#getCA), relying on the client's
+            // normal behavior of opening it as you walk through - a barred gate reports as
+            // genuinely blocked and every PathFinder attempt through it fails outright
+            // (and pops up a "Can't find path" error each time - see Results.ERROR).
+            // Opening it here, before pathing, avoids spamming those failures; close
+            // whichever gate we're tracking once we've walked clear of it.
+            closePendingGateIfClear(gui, player);
+            openNearbyGateIfNeeded(gui, player);
+
             // For PORTAL segments, check if portal gob is now visible
             if (isPortalSegment) {
                 Gob visiblePortal = findVisiblePortalForTargetGrid(gui, segment.gridId, targetGridId);
                 if (visiblePortal != null) {
+                    System.out.println("ChunkNav: portal " + (visiblePortal.ngob != null ? visiblePortal.ngob.name : "?") +
+                            " already visible/reachable - pathing to it directly");
                     // For buildings, navigate to door access point instead of gob center
                     Coord2d accessPoint = getPortalAccessPoint(visiblePortal);
                     if (accessPoint != null) {
                         PathFinder accessPf = new PathFinder(accessPoint);
                         Results accessResult = accessPf.run(gui);
-                        if (accessResult.IsSuccess()) {
+                        Gob playerAfterAccessPf = gui.map.player();
+                        double distToAccess = playerAfterAccessPf != null ?
+                                playerAfterAccessPf.rc.dist(accessPoint) : Double.MAX_VALUE;
+                        System.out.println("ChunkNav: path to portal access point " +
+                                (accessResult.IsSuccess() ? "succeeded" : "FAILED") +
+                                ", now " + String.format("%.1f", distToAccess) + " units from it");
+                        if (accessResult.IsSuccess() && distToAccess < MCache.tilesz.x * 2) {
                             return SegmentWalkResult.successWithPortal(visiblePortal);
                         }
-                        // Failed to reach access point, continue with coordinate-based walk
+                        // Failed, or "succeeded" without really getting close - fall through
+                        // to the coordinate-based waypoint walk instead.
                     } else {
                         // Non-building portal - pathfind directly to gob
                         PathFinder portalPf = new PathFinder(visiblePortal);
                         Results portalResult = portalPf.run(gui);
-                        if (portalResult.IsSuccess()) {
+                        Gob playerAfterPortalPf = gui.map.player();
+                        double distToPortal = playerAfterPortalPf != null ?
+                                playerAfterPortalPf.rc.dist(visiblePortal.rc) : Double.MAX_VALUE;
+                        System.out.println("ChunkNav: path directly to portal " +
+                                (portalResult.IsSuccess() ? "succeeded" : "FAILED") +
+                                ", now " + String.format("%.1f", distToPortal) + " units from it" +
+                                (playerAfterPortalPf != null ? " (at " + playerAfterPortalPf.rc + ")" : ""));
+                        // PathFinder can report success without actually having moved close
+                        // to the target (its coarse pf-grid treats "same cell" as "arrived") -
+                        // don't trust the flag alone, verify we're actually near the portal.
+                        if (portalResult.IsSuccess() && distToPortal < MCache.tilesz.x * 2) {
                             return SegmentWalkResult.successWithPortal(visiblePortal);
                         }
-                        // PathFinder failed, continue with coordinate-based walk
+                        // Failed, or "succeeded" without really getting close - fall through
+                        // to the coordinate-based waypoint walk instead.
                     }
                 }
             }
@@ -854,6 +918,148 @@ public class ChunkNavExecutor implements Action {
         }
 
         return SegmentWalkResult.success();
+    }
+
+    /**
+     * Open a gate standing right next to the player, if one is there, not already open, and
+     * we're not already tracking one to close. Gates aren't recorded as portals
+     * (PortalTraversalTracker treats them as passthrough openings, not teleporting portals
+     * like doors/stairs), so nothing else along this local walk ever clicks one - they're
+     * expected to open themselves as PathFinder walks through, which only works while the
+     * gate is unbarred; a barred one needs this explicit open.
+     * <p>
+     * After opening, forces a real, confirmed step through it via {@link GoTo} (which waits
+     * on actual IsMoving/MovingCompleted tasks) rather than trusting a {@link PathFinder}
+     * Results.SUCCESS - PathFinder can report "arrived" without any real movement at all
+     * when the start and end tiles round to the same coarse pf-grid cell, which is exactly
+     * what happens in a gap this tight between the gate and the cell's portal. That's what
+     * was causing the gate to open and close back-to-back with the player never moving.
+     * Closes immediately once real movement past the gate is confirmed; otherwise leaves it
+     * tracked in {@link #pendingCloseGate} for {@link #closePendingGateIfClear} to catch later.
+     */
+    private void openNearbyGateIfNeeded(NGameUI gui, Gob player) throws InterruptedException {
+        if (pendingCloseGate != null) {
+            return;
+        }
+        Gob gate = Finder.findGob(player.rc, new NAlias(GateDetector.GATE_NAMES), null, MCache.tilesz.x * 3);
+        if (gate == null || GateDetector.isDoorOpen(gate)) {
+            return;
+        }
+        if (crossedGateIds.contains(gate.id)) {
+            // We already confirmed walking through this one - it reads as "blocking" again
+            // only because we're still within range of it (now closed, on the far side).
+            // Don't hop back through it.
+            return;
+        }
+
+        player = ensureNearGate(gui, player, gate);
+        if (player == null) {
+            return;
+        }
+
+        Coord2d approachDir = gate.rc.sub(player.rc).norm();
+
+        System.out.println("ChunkNav: gate " + gate.ngob.name + " blocking route (dist=" +
+                String.format("%.1f", player.rc.dist(gate.rc)) + ") - right-clicking to open");
+        NUtils.rclickGob(gate);
+        boolean opened = waitForGateState(gate, true, 3000);
+        System.out.println("ChunkNav: gate open " + (opened ? "confirmed" : "NOT confirmed (still closed after 3s)"));
+        if (!opened) {
+            return;
+        }
+
+        Coord2d beforeHop = player.rc;
+        Coord2d hopTarget = gate.rc.add(approachDir.mul(MCache.tilesz.x * 2));
+        System.out.println("ChunkNav: stepping through gate toward " + hopTarget);
+        Results hopResult = new GoTo(hopTarget).run(gui);
+        Gob playerAfterHop = gui.map.player();
+        double moved = playerAfterHop != null ? playerAfterHop.rc.dist(beforeHop) : 0;
+        System.out.println("ChunkNav: step through gate " + (hopResult.IsSuccess() ? "reported success" : "reported FAILED") +
+                ", actually moved " + String.format("%.1f", moved) + " units" +
+                (playerAfterHop != null ? " (now at " + playerAfterHop.rc + ")" : ""));
+
+        if (moved > MCache.tilesz.x * 0.5) {
+            closeGate(gui, gate);
+        } else {
+            System.out.println("ChunkNav: gate left open - couldn't confirm we walked clear of it yet");
+            pendingCloseGate = gate;
+            pendingCloseGateApproachDir = approachDir;
+        }
+    }
+
+    /**
+     * Close {@link #pendingCloseGate} once the player has actually walked past it - not just
+     * some distance away from it, since standing off to the side (or having barely moved at
+     * all) can be just as far from the gate's center as standing on the far side of it.
+     * Instead, project the player's offset from the gate onto the direction we were heading
+     * through it when we opened it ({@link #pendingCloseGateApproachDir}): a positive result
+     * past a small margin means we're now beyond the gate in that direction, i.e. through it.
+     * {@link #closeGate} called directly is the unconditional version used right before
+     * crossing a portal, where there's no more "later" to wait for.
+     */
+    private void closePendingGateIfClear(NGameUI gui, Gob player) throws InterruptedException {
+        if (pendingCloseGate == null) {
+            return;
+        }
+        if (pendingCloseGateApproachDir != null) {
+            double along = player.rc.sub(pendingCloseGate.rc).dot(pendingCloseGateApproachDir);
+            if (along < MCache.tilesz.x * 0.5) {
+                return;
+            }
+        }
+        closeGate(gui, pendingCloseGate);
+    }
+
+    /**
+     * Walk the player to within interact range of a gate if they aren't already there.
+     * The right-click {@link NUtils#rclickGob} sends is a direct interact attempt, not the
+     * normal click-to-walk-then-interact sequence a real player click does - it needs to be
+     * sent from right next to the gate or the server just silently ignores it.
+     *
+     * @return the player's (possibly updated) Gob, or null if it's gone missing
+     */
+    private Gob ensureNearGate(NGameUI gui, Gob player, Gob gate) throws InterruptedException {
+        double dist = player.rc.dist(gate.rc);
+        if (dist <= MCache.tilesz.x * 1.2) {
+            return player;
+        }
+        System.out.println("ChunkNav: gate " + gate.ngob.name + " is " + String.format("%.1f", dist) +
+                " away - walking closer before interacting");
+        Results approach = new PathFinder(gate).run(gui);
+        System.out.println("ChunkNav: approach to gate " + (approach.IsSuccess() ? "succeeded" : "FAILED") +
+                " (now at " + gui.map.player().rc + ")");
+        return gui.map.player();
+    }
+
+    private void closeGate(NGameUI gui, Gob gate) throws InterruptedException {
+        System.out.println("ChunkNav: closing gate " + gate.ngob.name);
+        NUtils.rclickGob(gate);
+        boolean closed = waitForGateState(gate, false, 3000);
+        System.out.println("ChunkNav: gate close " + (closed ? "confirmed" : "NOT confirmed (still open after 3s)"));
+        // Once we've closed it behind us we're done with it for good - never reopen it
+        // again even if we're later re-detected as "near" it (e.g. from the far side).
+        crossedGateIds.add(gate.id);
+        if (gate == pendingCloseGate) {
+            pendingCloseGate = null;
+            pendingCloseGateApproachDir = null;
+        }
+    }
+
+    /**
+     * Poll a gate's open/closed state for up to {@code timeoutMs}, rather than blocking on
+     * the core task queue indefinitely (WaitGobModelAttrChange has no timeout at all) -
+     * given we're not certain the right-click actually registers, we'd rather find out and
+     * log it than risk the bot hanging forever on a gate that never changed state.
+     */
+    private boolean waitForGateState(Gob gate, boolean wantOpen, long timeoutMs) throws InterruptedException {
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen) {
+                return true;
+            }
+            Thread.sleep(100);
+        }
+        return gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen;
     }
 
     /**
