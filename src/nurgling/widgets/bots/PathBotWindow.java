@@ -110,6 +110,9 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         // Preset selection
         prev = add(new Label(presetLabel), prev.pos("bl").add(UI.scale(0, 10)));
 
+        // Prop must be loaded before presets can be listed - it's otherwise only loaded at the
+        // end of the subclass constructor (initializeFromConfig), too late for the dropdown below.
+        loadPropAndGetCurrentPreset();
         loadAvailablePresets();
 
         Widget presetRow = add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
