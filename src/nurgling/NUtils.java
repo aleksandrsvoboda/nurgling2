@@ -188,6 +188,47 @@ public class NUtils
         return stam.a;
     }
 
+    /**
+     * Current soft hitpoints as a fraction of max (0.0-1.0), or -1 if the meter isn't up yet.
+     * Unlike {@link #getCurrentHP()}/{@link #getMaxHP()}, this reads the same always-live bar
+     * fill value {@link #getEnergy()}/{@link #getStamina()} do, not the tip/tooltip text - use
+     * this for "is the player hurt at all" checks that must not silently go stale.
+     */
+    public static double getHPFraction()
+    {
+        IMeter.Meter hp = getGameUI().getmeter ( "hp", 0 );
+        if(hp == null)
+            return -1;
+        return hp.a;
+    }
+
+    /**
+     * Current soft hitpoints, or -1 if the "hp" meter hasn't sent a tip value yet.
+     * <p>
+     * WARNING: this is parsed from the meter's tooltip text, which is only known to update
+     * when something requests/hovers the tooltip - it is NOT guaranteed to be live during an
+     * unattended bot run the way {@link #getHPFraction()} is. Confirmed unreliable in
+     * practice (2026-08-18): a bot relying solely on this for a "not at full HP" safety check
+     * never triggered while the character was repeatedly knocked out overnight. Prefer
+     * {@link #getHPFraction()} for anything safety-critical; use this only for cases that
+     * genuinely need the raw number and can tolerate it sometimes being stale/unavailable.
+     */
+    public static int getCurrentHP()
+    {
+        IMeter hp = getGameUI().getIMeter("hp");
+        return hp == null ? -1 : hp.curHealth;
+    }
+
+    /**
+     * Max soft hitpoints, or -1 if the "hp" meter hasn't sent a tip value yet.
+     * See the reliability warning on {@link #getCurrentHP()} - the same applies here.
+     */
+    public static int getMaxHP()
+    {
+        IMeter hp = getGameUI().getIMeter("hp");
+        return hp == null ? -1 : hp.maxHealth;
+    }
+
     public static NEquipory getEquipment(){
         if ( getGameUI()!=null && getGameUI().equwnd != null ) {
             for ( Widget w = getGameUI().equwnd.lchild ; w != null ; w = w.prev ) {

@@ -34,6 +34,10 @@ import java.util.*;
 public class IMeter extends LayerMeter {
 	public String name;
 	Tex text = null;
+	// Raw current/max values parsed from the "Health:cur/max" tip the server sends for the
+	// "hp" meter - the meter's fraction (Meter.a) alone can't tell soft hitpoints apart from
+	// a reduced max (e.g. from wounds), so bots that need the actual numbers read these.
+	public int curHealth = -1, maxHealth = -1;
     public static final Coord off = UI.scale(24, 4);
     public static final Coord fsz = UI.scale(190, 48);
     public static final Coord ssz = UI.scale(145, 48);
@@ -125,7 +129,17 @@ public class IMeter extends LayerMeter {
 						text = NStyle.meter.render(val.substring(val.indexOf(":")+1)).tex();
 						break;
 					case "Health":
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1).replace("/", " / ")).tex();
+						String hval = val.substring(val.indexOf(":")+1);
+						text = NStyle.meter.render(hval.replace("/", " / ")).tex();
+						try {
+							int slash = hval.indexOf("/");
+							if(slash > 0) {
+								curHealth = Integer.parseInt(hval.substring(0, slash).trim());
+								maxHealth = Integer.parseInt(hval.substring(slash+1).trim());
+							}
+						} catch(NumberFormatException e) {
+							// Leave curHealth/maxHealth as they were
+						}
 						break;
 					case "Energy":
 						text = NStyle.meter.render(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1)).tex();

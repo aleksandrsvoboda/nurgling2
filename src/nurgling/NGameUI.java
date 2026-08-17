@@ -641,6 +641,25 @@ public class NGameUI extends GameUI
         return null;
     }
 
+    public IMeter getIMeter(String name) {
+        synchronized (meters) {
+            try {
+                for (Widget meter : new ArrayList<>(meters)) {
+                    if (meter instanceof IMeter) {
+                        IMeter im = (IMeter) meter;
+                        Resource res = im.bg.get();
+                        if (res != null && res.basename().equals(name)) {
+                            return im;
+                        }
+                    }
+                }
+            } catch (IndexOutOfBoundsException | ConcurrentModificationException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     public double getBarrelContent()
     {
         return getBarrelContent(new NAlias(""));
