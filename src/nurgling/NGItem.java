@@ -220,9 +220,10 @@ public class NGItem extends GItem
                     }
                 }
             }
-            if (lastQuestUpdate < NQuestInfo.lastUpdate.get()) {
-                isQuested = NUtils.getGameUI().questinfo.isQuestedItem(this);
-                lastQuestUpdate = NQuestInfo.lastUpdate.get();
+            NGameUI qgui = NUtils.getGameUI();
+            if (qgui != null && qgui.questinfo != null && lastQuestUpdate < qgui.questinfo.lastUpdate.get()) {
+                isQuested = qgui.questinfo.isQuestedItem(this);
+                lastQuestUpdate = qgui.questinfo.lastUpdate.get();
             }
         }
     }
