@@ -109,7 +109,7 @@ public class CheckWater implements Action {
             BufferedImage iconImage = getWaterIcon(waterType);
             
             // Add mark via service (handles persistence)
-            gui.labeledMarkService.addLabeledMark(label, waterType, segmentId, tileCoords, iconImage);
+            gui.labeledMarkService.addLabeledMark(label, waterType, quality, segmentId, tileCoords, iconImage);
         } catch(Exception e) {
             // Silently ignore errors
         }

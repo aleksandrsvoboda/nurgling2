@@ -81,7 +81,7 @@ public class CheckClay implements Action {
             String label = String.format("q%.0f", quality);
             
             // Add mark via service (handles persistence)
-            gui.labeledMarkService.addLabeledMark(label, itemName, segmentId, tileCoords, itemImg);
+            gui.labeledMarkService.addLabeledMark(label, itemName, quality, segmentId, tileCoords, itemImg);
         } catch(Exception e) {
             // Silently ignore errors
         }

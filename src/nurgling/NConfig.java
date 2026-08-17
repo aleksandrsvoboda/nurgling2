@@ -220,6 +220,10 @@ public class NConfig
         // Bot path display
         showBotPathOnMinimap,
         showBotPathOnGround,
+        // Map tools panel
+        showTreeIcons,
+        showFishIcons,
+        prospectMarks,
         // Localization
         language
     }
@@ -285,6 +289,9 @@ public class NConfig
         conf.put(Key.discordWebhookUrl, "");
         conf.put(Key.showGrid, false);
         conf.put(Key.showView, false);
+        conf.put(Key.showTreeIcons, true);
+        conf.put(Key.showFishIcons, true);
+        conf.put(Key.prospectMarks, new ProspectMarkSettings());
         conf.put(Key.disableWinAnim, true);
         conf.put(Key.disableMenugridKeys, false);
         conf.put(Key.baseurl, "https://raw.githubusercontent.com/aleksandrsvoboda/nurgling-release/stable/ver");
@@ -1143,6 +1150,9 @@ public class NConfig
                                     break;
                                 case "ItemQualityOverlaySettings":
                                     conf.put(Key.valueOf(entry.getKey()), new ItemQualityOverlaySettings(hobj));
+                                    break;
+                                case "ProspectMarkSettings":
+                                    conf.put(Key.valueOf(entry.getKey()), new ProspectMarkSettings(hobj));
                                     break;
                                 case "Color":
                                     try {

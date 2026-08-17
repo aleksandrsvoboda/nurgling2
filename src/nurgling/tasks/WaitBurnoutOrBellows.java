@@ -48,29 +48,50 @@ public class WaitBurnoutOrBellows extends NTask
     @Override
     public boolean check()
     {
-        /* A lapsed boost is actionable immediately, so it is tested first. */
+        boolean anyBurning = false;
+
+        /* A lapsed boost is actionable immediately, so furnaces are tested first.
+         *
+         * A stack furnace counts as burning only while its bellows subsystem is active - exactly one of
+         * IDLE/BOOST is set throughout a real burn and both clear once the fuel is spent. The SMELTING
+         * mesh bit alone is not enough: a burnt-out furnace that still holds its metal reads 65540
+         * (SMELTING set, every framework/bellows bit clear), because that mesh doubles as the "metal
+         * inside" indicator. Testing the BURNING mask on its own mistook 65540 for "burning but boost
+         * lapsed" and sent the bot to pump a dead furnace forever instead of unloading it. */
         for (String hash : furnaces)
         {
             Gob gob = Finder.findGob(hash);
             if (gob == null || gob.ngob == null)
                 continue;
             long attr = gob.ngob.getModelAttribute();
-            if ((attr & WorkBellows.BURNING) != 0 && (attr & WorkBellows.BOOST) == 0)
+            boolean lit = (attr & WorkBellows.BURNING) != 0;
+            boolean bellowsActive = (attr & (WorkBellows.IDLE | WorkBellows.BOOST)) != 0;
+            if (lit && bellowsActive)
             {
-                needsPump = true;
-                return true;
+                anyBurning = true;
+                if ((attr & WorkBellows.BOOST) == 0)
+                {
+                    needsPump = true;
+                    return true;
+                }
             }
         }
 
+        /* Everything else (ore smelters, ...) has no bellows, so the plain fire flag is authoritative. */
         for (String hash : lighted)
         {
+            if (furnaces.contains(hash))
+                continue;
             Gob gob = Finder.findGob(hash);
             if (gob == null || gob.ngob == null || gob.ngob.name == null)
                 continue;
             int flag = LightObject.fireFlag(gob.ngob.name);
             if (flag != 0 && (gob.ngob.getModelAttribute() & flag) != 0)
-                return false;
+                anyBurning = true;
         }
+
+        if (anyBurning)
+            return false;
 
         needsPump = false;
         return true;

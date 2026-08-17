@@ -34,9 +34,41 @@ NMiniMap extends MiniMap {
     // Cache for tree icon textures to avoid reloading every frame
     private final java.util.HashMap<String, TexI> treeIconCache = new java.util.HashMap<>();
 
-    // Visibility flags for tree and fish icons
-    public boolean showTreeIcons = true;
-    public boolean showFishIcons = true;
+    /* Visibility of tree and fish icons, and of prospected sample marks, lives in NConfig so
+     * that every minimap (corner and map window) shows the same thing and the choice survives
+     * relogging. The Map Tools panel and the map-window toolbar buttons are two views of these. */
+    public static boolean showTreeIcons() {
+        Object val = NConfig.get(NConfig.Key.showTreeIcons);
+        return !(val instanceof Boolean) || (Boolean) val;
+    }
+
+    public static void showTreeIcons(boolean val) {
+        NConfig.set(NConfig.Key.showTreeIcons, val);
+    }
+
+    public static boolean showFishIcons() {
+        Object val = NConfig.get(NConfig.Key.showFishIcons);
+        return !(val instanceof Boolean) || (Boolean) val;
+    }
+
+    public static void showFishIcons(boolean val) {
+        NConfig.set(NConfig.Key.showFishIcons, val);
+    }
+
+    public static nurgling.conf.ProspectMarkSettings prospectSettings() {
+        Object val = NConfig.get(NConfig.Key.prospectMarks);
+        if(val instanceof nurgling.conf.ProspectMarkSettings)
+            return (nurgling.conf.ProspectMarkSettings) val;
+        return null;
+    }
+
+    /** Whether a prospected sample mark passes the current kind/threshold filter. */
+    public static boolean markVisible(LabeledMinimapMark mark) {
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        if(settings == null)
+            return true;
+        return settings.shows(mark.kind, mark.quality);
+    }
 
     // Cached waypoint number labels to avoid per-frame Text.render() allocations
     private static Text[] waypointNumCache = new Text[128];
@@ -972,13 +1004,18 @@ NMiniMap extends MiniMap {
         if(gui == null || gui.labeledMarkService == null) return;
         
         java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
-        
+
         Coord hsz = sz.div(2);
-        
+        /* Looked up once per frame rather than per mark; NConfig.get is not free. */
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+
         for(LabeledMinimapMark mark : marks) {
+            if(settings != null && !settings.shows(mark.kind, mark.quality))
+                continue;
+
             // Calculate screen position
             Coord screenPos = mark.tileCoords.sub(dloc.tc).div(scalef()).add(hsz);
-            
+
             // Only draw if on screen
             if(screenPos.x >= 0 && screenPos.x <= sz.x &&
                screenPos.y >= 0 && screenPos.y <= sz.y) {
@@ -1286,7 +1323,7 @@ NMiniMap extends MiniMap {
 
             // Check for tree location tooltip first (check in screen space)
             NGameUI gui = NUtils.getGameUI();
-            if(gui != null && gui.treeLocationService != null && showTreeIcons) {
+            if(gui != null && gui.treeLocationService != null && showTreeIcons()) {
                 // Check if markers are hidden (respect "Hide Markers" button)
                 MapWnd mapwnd = gui.mapfile;
                 boolean markersHidden = (mapwnd != null && Utils.eq(mapwnd.markcfg, MapWnd.MarkerConfig.hideall));
@@ -1325,7 +1362,7 @@ NMiniMap extends MiniMap {
             }
 
             // Check for fish location tooltip (check in screen space)
-            if(gui != null && gui.fishLocationService != null && showFishIcons) {
+            if(gui != null && gui.fishLocationService != null && showFishIcons()) {
                 // Check if markers are hidden (respect "Hide Markers" button)
                 MapWnd mapwnd = gui.mapfile;
                 boolean markersHidden = (mapwnd != null && Utils.eq(mapwnd.markcfg, MapWnd.MarkerConfig.hideall));
@@ -1532,7 +1569,7 @@ NMiniMap extends MiniMap {
         if(sessloc == null || dloc == null) return;
 
         // Check if fish icons are hidden by checkbox
-        if(!showFishIcons) return;
+        if(!showFishIcons()) return;
 
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.fishLocationService == null) return;
@@ -1611,7 +1648,7 @@ NMiniMap extends MiniMap {
         if(sessloc == null || dloc == null) return;
 
         // Check if tree icons are hidden by checkbox
-        if(!showTreeIcons) return;
+        if(!showTreeIcons()) return;
 
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.treeLocationService == null) return;
@@ -1722,8 +1759,14 @@ NMiniMap extends MiniMap {
         
         Coord hsz = sz.div(2);
         int threshold = UI.scale(12); // Click radius
-        
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+
         for(LabeledMinimapMark mark : marks) {
+            /* A filtered-out mark is not drawn, so it must not be clickable either -
+             * otherwise it keeps an invisible hitbox that swallows right-clicks. */
+            if(settings != null && !settings.shows(mark.kind, mark.quality))
+                continue;
+
             // Calculate screen position for this mark
             Coord markScreenPos = mark.tileCoords.sub(dloc.tc).div(scalef()).add(hsz);
             
@@ -1895,7 +1938,7 @@ NMiniMap extends MiniMap {
         }
         
         // Handle right-click release on tree location - open details window
-        if(ev.b == 3 && dloc != null && sessloc != null && showTreeIcons) { // Button 3 is right-clicked
+        if(ev.b == 3 && dloc != null && sessloc != null && showTreeIcons()) { // Button 3 is right-clicked
             NGameUI gui = NUtils.getGameUI();
             if(gui != null && gui.treeLocationService != null) {
                 // Check for tree location at click position (in screen space)
@@ -1927,7 +1970,7 @@ NMiniMap extends MiniMap {
         }
 
         // Handle right-click release on fish location - open details window
-        if(ev.b == 3 && dloc != null && sessloc != null && showFishIcons) { // Button 3 is right-clicked
+        if(ev.b == 3 && dloc != null && sessloc != null && showFishIcons()) { // Button 3 is right-clicked
             NGameUI gui = NUtils.getGameUI();
             if(gui != null && gui.fishLocationService != null) {
                 // Check for fish location at click position (in screen space)

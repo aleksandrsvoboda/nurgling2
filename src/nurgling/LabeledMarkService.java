@@ -80,7 +80,7 @@ public class LabeledMarkService implements ProfileAwareService {
      * Add a labeled mark (e.g., water or soil quality).
      * Removes any existing mark at the same location.
      */
-    public void addLabeledMark(String label, String resourceType, long segmentId, 
+    public void addLabeledMark(String label, String resourceType, double quality, long segmentId,
                                Coord tileCoords, BufferedImage iconImage) {
         lock.writeLock().lock();
         try {
@@ -88,9 +88,9 @@ public class LabeledMarkService implements ProfileAwareService {
             final Coord tc = tileCoords;
             final long segId = segmentId;
             labeledMarks.entrySet().removeIf(e -> e.getValue().isNear(segId, tc, 2));
-            
+
             // Create and add new mark
-            LabeledMinimapMark mark = new LabeledMinimapMark(label, resourceType, segmentId, tileCoords, iconImage);
+            LabeledMinimapMark mark = new LabeledMinimapMark(label, resourceType, quality, segmentId, tileCoords, iconImage);
             labeledMarks.put(mark.getLocationId(), mark);
             saveLabeledMarks();
         } finally {
