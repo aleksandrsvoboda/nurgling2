@@ -246,7 +246,7 @@ public class FightWnd extends Widget {
 	    }
 
 	    public boolean iteminteract(Coord cc, Coord ul) {
-		FightWnd.this.wdgmsg("itemact", item.id, ui.modflags());
+		itemact(item);
 		return(true);
 	    }
 	}
@@ -643,6 +643,12 @@ public class FightWnd extends Widget {
 		    }
 	}), p.pos("bl").adds(0, 2));
 	pack();
+    }
+
+    /* Used by the held item being interacted with a move, e.g. writing a
+     * move onto a parchment. */
+    public void itemact(Action act) {
+	wdgmsg("itemact", act.id, ui.modflags());
     }
 
     public Action findact(int resid) {
