@@ -2818,6 +2818,7 @@ public class VSpec {
         seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-maple\",\"name\":\"Maple Samara\"}"));
         seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-willow\",\"name\":\"Willow Catkin\"}"));
         seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-yew\",\"name\":\"Yew Cones\"}"));
+        seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-juniper\",\"name\":\"Juniper Berries\"}"));
         categories.put("Seed of Tree or Bush", seedsAndBerries);
 
         ArrayList<JSONObject> mantle = new ArrayList<>();
