@@ -42,6 +42,8 @@ public class StackSupporter {
         customStackSizes.put("Heartwood Leaves", 4);
         customStackSizes.put("Oyster", 4);
         customStackSizes.put("Petrified Seashell", 3);
+        customStackSizes.put("Dead Wood Scorpion", 4);
+        customStackSizes.put("Odd Honeycomb", 3);
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
@@ -139,6 +141,13 @@ public class StackSupporter {
                 || catExceptions.contains(name)) {
                 return false;
             } else {
+                // An explicit custom stack size is itself a declaration that the item stacks.
+                // Some such items (e.g. Standing Grass, whose only category "Weavable Grass" is
+                // not in categorySize) would otherwise be reported unstackable and never stacked,
+                // making their customStackSizes entry dead. Honor the custom size directly here.
+                if (customStackSizes.containsKey(name)) {
+                    return true;
+                }
                 ArrayList<String> categories = VSpec.getCategory(name);
                 for (String cat : categories) {
                     if (categorySize.containsKey(cat)) {
