@@ -1159,27 +1159,34 @@ public class NGob
 //                }
 //            }
 
-            int nlu = NQuestInfo.lastUpdate.get();
-            if (nlu > lastUpdate)
+            // Quest highlighting is per-session: resolve the gob's OWNING session rather than
+            // NUtils.getGameUI() (the on-screen session), because gob ticks run on pool threads
+            // with no UI binding. Reading a shared/active questinfo would highlight one character's
+            // quest targets in every session.
+            NGameUI questOwner = ownerGui(parent);
+            if (questOwner != null && questOwner.questinfo != null)
             {
-
-
-                NQuestInfo.MarkerInfo markerInfo;
-                if ((markerInfo = NQuestInfo.getMarkerInfo(parent)) != null)
+                NQuestInfo qi = questOwner.questinfo;
+                int nlu = qi.lastUpdate.get();
+                if (nlu > lastUpdate)
                 {
-                    parent.addcustomol(new NQuestGiver(parent, markerInfo));
-                }
-                if (cachedQuestNotified)
-                {
-                    if (NQuestInfo.isForageTarget(name))
+                    NQuestInfo.MarkerInfo markerInfo;
+                    if ((markerInfo = qi.getMarkerInfo(questOwner, parent)) != null)
                     {
-                        parent.addcustomol(new NQuestTarget(parent, false));
-                    } else if (NQuestInfo.isHuntingTarget(name))
-                    {
-                        parent.addcustomol(new NQuestTarget(parent, true));
+                        parent.addcustomol(new NQuestGiver(parent, markerInfo));
                     }
+                    if (cachedQuestNotified)
+                    {
+                        if (qi.isForageTarget(name))
+                        {
+                            parent.addcustomol(new NQuestTarget(parent, false, qi));
+                        } else if (qi.isHuntingTarget(name))
+                        {
+                            parent.addcustomol(new NQuestTarget(parent, true, qi));
+                        }
+                    }
+                    lastUpdate = nlu;
                 }
-                lastUpdate = nlu;
             }
             if (cachedLpassistent)
             {

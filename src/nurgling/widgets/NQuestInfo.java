@@ -53,7 +53,10 @@ public class NQuestInfo extends Widget
     HashMap<String,QuestGiver> qgconds = new HashMap<String,QuestGiver>();
     HashMap<Condition.State,Targets> taskconds = new HashMap<Condition.State,Targets>();
     private Tex glowon = null;
-    public static final AtomicInteger lastUpdate = new AtomicInteger(0);
+    // Per-session: each character's quest log drives its own highlight state. Making this (and
+    // huntingT/forageT/markers below) static would let one session's quests clobber another's,
+    // since update() clears and repopulates these every time any session's quest log changes.
+    public final AtomicInteger lastUpdate = new AtomicInteger(0);
     private final Set<String> items = new HashSet<>();
     class Targets
     {
@@ -69,7 +72,7 @@ public class NQuestInfo extends Widget
         int uncompleted = 0;
     }
 
-    public static boolean isHuntingTarget(String target)
+    public boolean isHuntingTarget(String target)
     {
         if(target!=null)
             for(String ht:huntingT)
@@ -82,7 +85,7 @@ public class NQuestInfo extends Widget
         return false;
     }
 
-    public static boolean isForageTarget(String target)
+    public boolean isForageTarget(String target)
     {
         if(target!=null)
             for(String ht:forageT)
@@ -353,8 +356,8 @@ public class NQuestInfo extends Widget
 
     AtomicBoolean needUpdate = new AtomicBoolean(false);
 
-    public static final HashSet<String> huntingT = new HashSet<>();
-    public static final HashSet<String> forageT = new HashSet<>();
+    public final HashSet<String> huntingT = new HashSet<>();
+    public final HashSet<String> forageT = new HashSet<>();
 
     @Override
     public void tick(double dt) {
@@ -689,7 +692,7 @@ public class NQuestInfo extends Widget
         }
     }
 
-    final static HashSet<MarkerInfo> markers = new HashSet<>();
+    final HashSet<MarkerInfo> markers = new HashSet<>();
     public void addMarkerCoord(Coord2d tmp, String nm, long seg) {
         synchronized (markers) {
             for (MarkerInfo mi : markers) {
@@ -704,9 +707,8 @@ public class NQuestInfo extends Widget
         lastUpdate.set(lastUpdate.get()+1);
     }
 
-    public static MarkerInfo getMarkerInfo(Gob gob)
+    public MarkerInfo getMarkerInfo(NGameUI gui, Gob gob)
     {
-        NGameUI gui = NUtils.getGameUI();
         if(gui != null && gui.mapfile != null) {
             synchronized (markers) {
                 for (MarkerInfo mi : markers) {
