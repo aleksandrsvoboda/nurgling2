@@ -1,6 +1,7 @@
 package nurgling.widgets;
 
 import haven.*;
+import nurgling.conf.ProspectKind;
 import org.json.JSONObject;
 
 import javax.imageio.ImageIO;
@@ -19,6 +20,8 @@ public class LabeledMinimapMark {
     private final String locationId;     // Unique ID for this mark
     public final String label;           // The text label (e.g., "q20", "q95")
     public final String resourceType;    // Resource type (e.g., "Water", "Clay", "Soil")
+    public final double quality;         // Exact sampled quality (the label is rounded)
+    public final ProspectKind kind;      // Category used by the map-tools visibility filter
     public final long segmentId;
     public final Coord tileCoords;        // Tile coordinates within the segment
     public final BufferedImage iconImage; // The icon to display
@@ -40,15 +43,18 @@ public class LabeledMinimapMark {
      * 
      * @param label The text to display under the icon (e.g., "q20")
      * @param resourceType The type of resource (e.g., "Water", "Clay")
+     * @param quality The exact sampled quality (the label only carries a rounded value)
      * @param segmentId The map segment ID
      * @param tileCoords The tile coordinates within the segment
      * @param iconImage The icon image to display
      * @param labelColor Optional color for the label (null = white)
      */
-    public LabeledMinimapMark(String label, String resourceType, long segmentId, Coord tileCoords, 
+    public LabeledMinimapMark(String label, String resourceType, double quality, long segmentId, Coord tileCoords,
                               BufferedImage iconImage, Color labelColor) {
         this.label = label;
         this.resourceType = resourceType != null ? resourceType : "Unknown";
+        this.quality = quality;
+        this.kind = ProspectKind.of(this.resourceType);
         this.segmentId = segmentId;
         this.tileCoords = tileCoords;
         this.iconImage = iconImage;
@@ -66,9 +72,9 @@ public class LabeledMinimapMark {
     /**
      * Create a labeled minimap mark with default white label color.
      */
-    public LabeledMinimapMark(String label, String resourceType, long segmentId, Coord tileCoords, 
+    public LabeledMinimapMark(String label, String resourceType, double quality, long segmentId, Coord tileCoords,
                               BufferedImage iconImage) {
-        this(label, resourceType, segmentId, tileCoords, iconImage, null);
+        this(label, resourceType, quality, segmentId, tileCoords, iconImage, null);
     }
     
     /**
@@ -78,6 +84,9 @@ public class LabeledMinimapMark {
         this.locationId = json.getString("locationId");
         this.label = json.getString("label");
         this.resourceType = json.optString("resourceType", "Unknown");
+        /* Marks written before quality was stored only carry the rounded value in the label. */
+        this.quality = json.has("quality") ? json.getDouble("quality") : parseLabelQuality(this.label);
+        this.kind = ProspectKind.of(this.resourceType);
         this.segmentId = json.getLong("segmentId");
         this.tileCoords = new Coord(json.getInt("tileX"), json.getInt("tileY"));
         this.timestamp = json.getLong("timestamp");
@@ -117,6 +126,7 @@ public class LabeledMinimapMark {
         json.put("locationId", locationId);
         json.put("label", label);
         json.put("resourceType", resourceType);
+        json.put("quality", quality);
         json.put("segmentId", segmentId);
         json.put("tileX", tileCoords.x);
         json.put("tileY", tileCoords.y);
@@ -138,6 +148,30 @@ public class LabeledMinimapMark {
         return json;
     }
     
+    /**
+     * Recover a quality from a legacy label such as "q40". Returns 0 when the label
+     * carries no number, which makes the mark visible at any threshold of 0.
+     */
+    private static double parseLabelQuality(String label) {
+        if(label == null)
+            return 0;
+        StringBuilder digits = new StringBuilder();
+        for(int i = 0; i < label.length(); i++) {
+            char c = label.charAt(i);
+            if((c >= '0' && c <= '9') || (c == '.' && digits.indexOf(".") < 0))
+                digits.append(c);
+            else if(digits.length() > 0)
+                break;
+        }
+        if(digits.length() == 0)
+            return 0;
+        try {
+            return Double.parseDouble(digits.toString());
+        } catch(NumberFormatException e) {
+            return 0;
+        }
+    }
+
     private static String generateLocationId(long segmentId, Coord tileCoords, String label) {
         return String.format("labeled_%d_%d_%d_%s", segmentId, tileCoords.x, tileCoords.y,
                            label.replaceAll("[^a-zA-Z0-9]", "_"));

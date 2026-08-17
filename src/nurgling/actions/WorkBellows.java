@@ -100,7 +100,11 @@ public class WorkBellows implements Action
             long attr = gob.ngob.getModelAttribute();
             if ((attr & BURNING) == 0)
                 continue;
-            if ((attr & BOOST) != 0)
+            /* Pump only a furnace whose bellows is in its idle-but-running state. IDLE clears both when
+             * the boost is already active and when the fuel is spent (the 65540 metal-still-inside state,
+             * which keeps the SMELTING mesh bit but drops every bellows bit), so testing IDLE rather than
+             * "BOOST not set" stops the bot pumping a burnt-out furnace. */
+            if ((attr & IDLE) == 0)
                 continue;
 
             /* Working the bellows costs a large amount of stamina, so this is checked per furnace

@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.i18n.L10n;
 
 import java.util.Map;
 
@@ -14,7 +15,7 @@ public class NMapWnd extends MapWnd {
     public Resource.Image searchRes = null;
     MapToggleButton treeBtn;
     MapToggleButton fishBtn;
-    MapToggleButton oresBtn;
+    MapToggleButton mapToolsBtn;
     MapToggleButton vectorClearBtn;
     TextEntry markerSearchField;
     private static final int btnw = UI.scale(95);
@@ -47,22 +48,22 @@ public class NMapWnd extends MapWnd {
         int btnSpacing = UI.scale(5);
         Coord btnPos = view.c.add(view.sz.x - UI.scale(35), UI.scale(15));
         
-        // Ores button (rightmost) - opens Terrain Search Window (no icon toggle)
-        oresBtn = add(new MapToggleButton("ores", "Ores Search", this::openOresSearch), btnPos);
-        oresBtn.a = false; // Always show as unpressed (no toggle state)
-        oresBtn.click(this::openOresSearch); // Left click opens window
-        
-        // Fish button (middle)
-        btnPos = btnPos.sub(oresBtn.sz.x + btnSpacing, 0);
-        fishBtn = add(new MapToggleButton("fish", "Toggle fish icons (Right-click: Fish Search)", this::openFishSearch), btnPos);
-        fishBtn.a = getFishIconsState(); // Set initial state
-        fishBtn.changed(val -> setFishIconsState(val));
-        
+        // Map tools button (rightmost) - opens the Map Tools panel (no icon toggle)
+        mapToolsBtn = add(new MapToggleButton("maptools", L10n.get("maptools.button_tip"), MapToolsWindow::toggle), btnPos);
+        mapToolsBtn.a = false; // Always show as unpressed (no toggle state)
+        mapToolsBtn.click(MapToolsWindow::toggle); // Left click opens the panel
+
+        // Fish button (middle) - shares its state with the Map Tools panel through NConfig
+        btnPos = btnPos.sub(mapToolsBtn.sz.x + btnSpacing, 0);
+        fishBtn = add(new MapToggleButton("fish", "Toggle fish icons (Right-click: Fish Search)", MapToolsWindow::openFishSearch), btnPos);
+        fishBtn.state(() -> NMiniMap.showFishIcons());
+        fishBtn.set(val -> NMiniMap.showFishIcons(val));
+
         // Tree button
         btnPos = btnPos.sub(fishBtn.sz.x + btnSpacing, 0);
-        treeBtn = add(new MapToggleButton("tree", "Toggle tree icons (Right-click: Tree Search)", this::openTreeSearch), btnPos);
-        treeBtn.a = getTreeIconsState(); // Set initial state
-        treeBtn.changed(val -> setTreeIconsState(val));
+        treeBtn = add(new MapToggleButton("tree", "Toggle tree icons (Right-click: Tree Search)", MapToolsWindow::openTreeSearch), btnPos);
+        treeBtn.state(() -> NMiniMap.showTreeIcons());
+        treeBtn.set(val -> NMiniMap.showTreeIcons(val));
 
         // Vector clear button (leftmost)
         btnPos = btnPos.sub(treeBtn.sz.x + btnSpacing, 0);
@@ -87,90 +88,6 @@ public class NMapWnd extends MapWnd {
                 return super.keydown(ev);
             }
         }, view.pos("br").sub(UI.scale(205), UI.scale(5)));
-    }
-
-    private boolean getTreeIconsState() {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null && gui.mmap instanceof NMiniMap)
-            return ((NMiniMap) gui.mmap).showTreeIcons;
-        return true;
-    }
-
-    private void setTreeIconsState(boolean val) {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null && gui.mmap instanceof NMiniMap)
-            ((NMiniMap) gui.mmap).showTreeIcons = val;
-        if(view instanceof NMiniMap)
-            ((NMiniMap) view).showTreeIcons = val;
-    }
-
-    private boolean getFishIconsState() {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null && gui.mmap instanceof NMiniMap)
-            return ((NMiniMap) gui.mmap).showFishIcons;
-        return true;
-    }
-
-    private void setFishIconsState(boolean val) {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null && gui.mmap instanceof NMiniMap)
-            ((NMiniMap) gui.mmap).showFishIcons = val;
-        if(view instanceof NMiniMap)
-            ((NMiniMap) view).showFishIcons = val;
-    }
-
-    private void openTreeSearch() {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null) {
-            if(gui.treeSearchWindow != null) {
-                if(gui.treeSearchWindow.visible()) {
-                    gui.treeSearchWindow.hide();
-                } else {
-                    gui.treeSearchWindow.show();
-                    gui.treeSearchWindow.raise();
-                }
-            } else {
-                gui.treeSearchWindow = new TreeSearchWindow(gui);
-                gui.add(gui.treeSearchWindow, new Coord(100, 100));
-                gui.treeSearchWindow.show();
-            }
-        }
-    }
-
-    private void openFishSearch() {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null) {
-            if(gui.fishSearchWindow != null) {
-                if(gui.fishSearchWindow.visible()) {
-                    gui.fishSearchWindow.hide();
-                } else {
-                    gui.fishSearchWindow.show();
-                    gui.fishSearchWindow.raise();
-                }
-            } else {
-                gui.fishSearchWindow = new FishSearchWindow(gui);
-                gui.add(gui.fishSearchWindow, new Coord(100, 100));
-                gui.fishSearchWindow.show();
-            }
-        }
-    }
-
-    private void openOresSearch() {
-        NGameUI gui = (NGameUI) NUtils.getGameUI();
-        if(gui != null) {
-            if(gui.terrainSearchWindow != null) {
-                if(gui.terrainSearchWindow.visible()) {
-                    gui.terrainSearchWindow.hide();
-                } else {
-                    gui.terrainSearchWindow.show();
-                    gui.terrainSearchWindow.raise();
-                }
-            } else {
-                gui.terrainSearchWindow = new TerrainSearchWindow();
-                gui.add(gui.terrainSearchWindow, new Coord(100, 100));
-                gui.terrainSearchWindow.show();
-            }
-        }
     }
 
     private void clearVectors() {
@@ -216,12 +133,12 @@ public class NMapWnd extends MapWnd {
         super.resize(sz);
         
         // Position buttons in top-right corner (15px right, 10px down from original position)
-        if(oresBtn != null && fishBtn != null && treeBtn != null && vectorClearBtn != null) {
+        if(mapToolsBtn != null && fishBtn != null && treeBtn != null && vectorClearBtn != null) {
             int btnSpacing = UI.scale(5);
             Coord btnPos = view.c.add(view.sz.x - UI.scale(35), UI.scale(15));
 
-            oresBtn.c = btnPos;
-            btnPos = btnPos.sub(oresBtn.sz.x + btnSpacing, 0);
+            mapToolsBtn.c = btnPos;
+            btnPos = btnPos.sub(mapToolsBtn.sz.x + btnSpacing, 0);
             fishBtn.c = btnPos;
             btnPos = btnPos.sub(fishBtn.sz.x + btnSpacing, 0);
             treeBtn.c = btnPos;
