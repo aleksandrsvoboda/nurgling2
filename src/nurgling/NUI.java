@@ -413,27 +413,17 @@ public class NUI extends UI
     public volatile String province = null;
     public volatile String realm = null;
 
-    private boolean loggedProvince = false;
 
     @Override
     public void newwidgetp(int id, String type, int parent, Object[] pargs, Object... cargs) throws InterruptedException
     {
         super.newwidgetp(id, type, parent, pargs, cargs);
         if (type.startsWith("ui/province"))
-            setProvince(id, cargs);
+            setProvince(cargs);
     }
 
-    private void setProvince(int id, Object[] cargs)
+    private void setProvince(Object[] cargs)
     {
-        if (!loggedProvince)
-        {
-            loggedProvince = true;
-            StringBuilder buf = new StringBuilder("[NUI] ui/provinces cargs[" + cargs.length + "]:");
-            for (int i = 0; i < cargs.length; i++)
-                buf.append(" #").append(i).append('=').append(cargs[i])
-                   .append('(').append(cargs[i] == null ? "null" : cargs[i].getClass().getSimpleName()).append(')');
-            System.out.println(buf);
-        }
         /* Index layout: [province, ?, ?, realm] in a realm, [province, ?, ?]
          * outside one.
          *
@@ -447,8 +437,6 @@ public class NUI extends UI
             province = prov;
         if (rlm != null)
             realm = rlm;
-        System.out.println("[NUI] province=" + province + " realm=" + realm + " on ui@"
-                           + Integer.toHexString(System.identityHashCode(this)));
     }
 
     @Override
