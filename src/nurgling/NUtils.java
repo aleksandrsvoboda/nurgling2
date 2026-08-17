@@ -207,6 +207,19 @@ public class NUtils
         getGameUI().map.wdgmsg("click", Coord.z, gob.rc.floor(posres),3, 0, 0, (int) gob.id, gob.rc.floor(posres), 0, -1);
     }
 
+    /**
+     * As above, but also names which mesh of the model was hit.
+     *
+     * <p>A real click fills this in from the mesh the ray struck (see Gob.GobClick.clickargs); every bot
+     * helper here sends -1, meaning "unspecified". For a building whose parts do different things, that is
+     * likely how the server tells them apart - mc cannot be, since it is a terrain point measured through
+     * the model and therefore shifts with the camera angle.
+     */
+    public static void rclickGobAt(Gob gob, Coord2d localOffset, int meshid) {
+        Coord2d target = gob.rc.add(localOffset.rot(gob.a));
+        getGameUI().map.wdgmsg("click", Coord.z, target.floor(posres), 3, 0, 0, (int) gob.id, gob.rc.floor(posres), 0, meshid);
+    }
+
     public static void lclick(Coord2d pos) {
         getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),1, 0);
     }
