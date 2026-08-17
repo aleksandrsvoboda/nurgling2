@@ -1003,38 +1003,45 @@ NMiniMap extends MiniMap {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.labeledMarkService == null) return;
         
-        java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
-
-        Coord hsz = sz.div(2);
         /* Looked up once per frame rather than per mark; NConfig.get is not free. */
         nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        if(settings != null && !settings.master)
+            return;
+
+        java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
+        if(marks.isEmpty())
+            return;
+
+        Coord hsz = sz.div(2);
+        float scale = scalef();
 
         for(LabeledMinimapMark mark : marks) {
             if(settings != null && !settings.shows(mark.kind, mark.quality))
                 continue;
 
-            // Calculate screen position
-            Coord screenPos = mark.tileCoords.sub(dloc.tc).div(scalef()).add(hsz);
+            /* Screen position, computed without allocating: a well-explored world holds
+             * thousands of samples and only a few are ever on screen. */
+            int px = (int)Math.round((mark.tileCoords.x - dloc.tc.x) / (double)scale) + hsz.x;
+            int py = (int)Math.round((mark.tileCoords.y - dloc.tc.y) / (double)scale) + hsz.y;
+            if(px < 0 || px > sz.x || py < 0 || py > sz.y)
+                continue;
 
-            // Only draw if on screen
-            if(screenPos.x >= 0 && screenPos.x <= sz.x &&
-               screenPos.y >= 0 && screenPos.y <= sz.y) {
-                
-                // Draw icon if available
-                TexI iconTex = mark.getIconTex();
-                if(iconTex != null) {
-                    int dsz = Math.max(iconTex.sz().y, iconTex.sz().x);
-                    int targetSize = UI.scale(18);
-                    g.aimage(iconTex, screenPos, 0.5, 0.5, 
-                        UI.scale(targetSize * iconTex.sz().x / dsz, targetSize * iconTex.sz().y / dsz));
-                }
-                
-                // Draw label under the icon (like quest giver names)
-                Text labelText = mark.getLabelText();
-                if(labelText != null) {
-                    Coord textPos = screenPos.add(0, UI.scale(10));
-                    g.aimage(labelText.tex(), textPos, 0.5, 0);
-                }
+            Coord screenPos = new Coord(px, py);
+
+            // Draw icon if available
+            TexI iconTex = mark.getIconTex();
+            if(iconTex != null) {
+                int dsz = Math.max(iconTex.sz().y, iconTex.sz().x);
+                int targetSize = UI.scale(18);
+                g.aimage(iconTex, screenPos, 0.5, 0.5,
+                    UI.scale(targetSize * iconTex.sz().x / dsz, targetSize * iconTex.sz().y / dsz));
+            }
+
+            // Draw label under the icon (like quest giver names)
+            Text labelText = mark.getLabelText();
+            if(labelText != null) {
+                Coord textPos = screenPos.add(0, UI.scale(10));
+                g.aimage(labelText.tex(), textPos, 0.5, 0);
             }
         }
     }
