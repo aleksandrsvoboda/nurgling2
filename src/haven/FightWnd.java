@@ -645,8 +645,6 @@ public class FightWnd extends Widget {
 	pack();
     }
 
-    /* Used by the held item being interacted with a move, e.g. writing a
-     * move onto a parchment. */
     public void itemact(Action act) {
 	wdgmsg("itemact", act.id, ui.modflags());
     }
