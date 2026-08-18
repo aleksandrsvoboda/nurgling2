@@ -80,6 +80,7 @@ public class Window extends Widget {
     private UI.Grab dm = null;
     private Coord doff;
     public boolean large = false;
+    private String posmem = null;
 
     public void disable()
     {
@@ -550,6 +551,22 @@ public class Window extends Widget {
 	doff = off;
     }
 
+    public Window posmem(String id) {
+	this.posmem = id;
+	return(this);
+    }
+
+    public Coord restorepos(Coord def) {
+	if(posmem == null)
+	    return(def);
+	return(Utils.getprefc("wndc-" + posmem, def));
+    }
+
+    private void savepos() {
+	if(posmem != null)
+	    Utils.setprefc("wndc-" + posmem, this.c);
+    }
+
     public boolean checkhit(Coord c) {
 	return((deco == null) || deco.checkhit(c));
     }
@@ -585,6 +602,7 @@ public class Window extends Widget {
 	if(dm != null) {
 	    dm.remove();
 	    dm = null;
+	    savepos();
 	    return(true);
 	}
     return(super.mouseup(ev));
