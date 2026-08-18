@@ -1268,6 +1268,9 @@ public class NConfig
         }
 
         conf.put(Key.showCSprite,conf.get(Key.nextshowCSprite));
+        // Flat surface applies live now (see nurgling.tools.FlatWorld), which keeps both keys
+        // equal, so this only still does anything for a config where an older build staged a
+        // change that its restart never picked up.
         conf.put(Key.flatsurface,conf.get(Key.nextflatsurface));
 
         // Publish only now that conf is fully populated, so no other thread can
