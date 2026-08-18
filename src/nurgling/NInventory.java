@@ -886,18 +886,41 @@ public class NInventory extends Inventory
         searchVisible = show;
         if (searchwdg != null) {
             searchwdg.visible = show;
-            if (!show) {
-                // Close history list and clear search
-                if (searchwdg.list != null && searchwdg.list.a) {
-                    searchwdg.list.set(false);
-                }
-                if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
-                    NUtils.getGameUI().itemsForSearch.install("");
-                }
+            if (show) {
+                focusSearch();
+            } else {
+                wipeSearch();
             }
             resizeSearchToFit();
             parent.pack();
             positionTitleBarButtons();
+        }
+    }
+
+    private void focusSearch() {
+        if (searchwdg == null || searchwdg.searchF == null)
+            return;
+        Widget fp = searchwdg.searchF.parent;
+        if (fp != null)
+            fp.setfocus(searchwdg.searchF);
+    }
+
+    public void wipeSearch() {
+        if (searchwdg == null)
+            return;
+        if (searchwdg.list != null && searchwdg.list.a) {
+            searchwdg.list.set(false);
+        }
+        if (searchwdg.searchF != null) {
+            searchwdg.searchF.settext("");
+        }
+        if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
+            NUtils.getGameUI().itemsForSearch.install("");
+        }
+        // Drop keyboard focus so typing goes back to the game instead of the
+        // search field.
+        if (searchwdg.parent != null) {
+            searchwdg.parent.delfocusable(searchwdg);
         }
     }
 
