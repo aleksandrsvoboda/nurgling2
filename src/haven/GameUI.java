@@ -762,7 +762,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    NMenuGridWdg mwdg = new NMenuGridWdg();
 		menu = mwdg.setMenuGrid((MenuGrid)child);
 		add(new NDraggableWidget(mwdg,"menugrid",new Coord(mwdg.sz).add(NDraggableWidget.delta)));
-	    fitwdg(srchwnd = GameUI.this.add(new MenuSearch.Main(menu), Utils.getprefc("wndc-srch", UI.scale(200, 200))));
+	    MenuSearch.Main srch = new MenuSearch.Main(menu);
+	    srch.posmem("srch");
+	    fitwdg(srchwnd = GameUI.this.add(srch, srch.restorepos(UI.scale(200, 200))));
 	    srchwnd.reqclose(srchwnd::hide).hide();
 	} else if(place == "fight") {
 	   add(new NDraggableWidget( fv = (Fightview)child,"Fightview",UI.scale(230,380)));

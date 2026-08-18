@@ -517,10 +517,14 @@ public class NGameUI extends GameUI
         String place = ((String) args[0]).intern();
         if (place == "craft") {
             if (craftwnd == null) {
-                craftwnd = add(new NCraftWindow(), new Coord(400, 200));
+                NCraftWindow cwnd = new NCraftWindow();
+                cwnd.posmem("craft");
+                craftwnd = add(cwnd, cwnd.restorepos(new Coord(400, 200)));
+                fitwdg(craftwnd);
             }
             craftwnd.add(child);
             craftwnd.pack();
+            fitwdg(craftwnd);
             craftwnd.raise();
             craftwnd.show();
         }
