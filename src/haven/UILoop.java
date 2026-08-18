@@ -190,6 +190,13 @@ public abstract class UILoop implements Console.Directory {
 	if(tex != null) {
 	    Coord sz = tex.sz();
 	    Coord pos = ui.mc.sub(sz).sub(curshotspot);
+	    Coord lim = (ui.root == null) ? null : ui.root.sz;
+	    if(lim != null) {
+		if(pos.x + sz.x > lim.x)
+		    pos.x = lim.x - sz.x;
+		if(pos.y + sz.y > lim.y)
+		    pos.y = lim.y - sz.y;
+	    }
 	    if(pos.x < 0)
 		pos.x = 0;
 	    if(pos.y < 0)
