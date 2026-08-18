@@ -220,6 +220,8 @@ public class NConfig
         // Bot path display
         showBotPathOnMinimap,
         showBotPathOnGround,
+        // Movement waypoints (alt+click) drawn in the 3D world
+        showWaypointsInWorld,
         // Map tools panel
         showTreeIcons,
         showFishIcons,
@@ -596,6 +598,7 @@ public class NConfig
         // Bot path display
         conf.put(Key.showBotPathOnMinimap, false);
         conf.put(Key.showBotPathOnGround, false);
+        conf.put(Key.showWaypointsInWorld, true);
     }
 
 

@@ -382,67 +382,132 @@ NMiniMap extends MiniMap {
     protected void drawQueuedWaypoints(GOut g) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.waypointMovementService == null) return;
+        if(sessloc == null || dloc == null) return;
 
-        synchronized(gui.waypointMovementService.movementQueue) {
-            if((gui.waypointMovementService.movementQueue.isEmpty() &&
-                gui.waypointMovementService.currentTarget == null) || sessloc == null || dloc == null)
-                return;
+        java.util.List<nurgling.WaypointMovementService.Waypoint> allWaypoints =
+                gui.waypointMovementService.snapshot();
+        if(allWaypoints.isEmpty()) return;
 
-            java.util.List<Location> allWaypoints = new java.util.ArrayList<>();
-            if(gui.waypointMovementService.currentTarget != null)
-                allWaypoints.add(gui.waypointMovementService.currentTarget);
-            allWaypoints.addAll(gui.waypointMovementService.movementQueue);
-
-            // Get player's current position on the map for drawing the line
-            Coord playerScreenPos = null;
-            try {
-                if(ui != null && ui.gui != null && ui.gui.map != null) {
-                    Coord2d playerWorld = new Coord2d(ui.gui.map.getcc());
-                    playerScreenPos = p2c(playerWorld);
-                }
-            } catch(Loading l) {
-                // Fall back to sessloc if player position not available
-                playerScreenPos = xlate(sessloc);
+        // Get player's current position on the map for drawing the line
+        Coord playerScreenPos = null;
+        try {
+            if(ui != null && ui.gui != null && ui.gui.map != null) {
+                Coord2d playerWorld = new Coord2d(ui.gui.map.getcc());
+                playerScreenPos = p2c(playerWorld);
             }
-
-            // Draw lines connecting waypoints, starting from player position
-            g.chcolor(0, 255, 255, 200); // Cyan color for waypoint paths
-            Coord prevC = playerScreenPos;
-            for(Location waypoint : allWaypoints) {
-                if(waypoint.seg.id != sessloc.seg.id)
-                    continue;
-
-                Coord waypointC = xlate(waypoint);
-
-                if(prevC != null && waypointC != null) {
-                    g.line(prevC, waypointC, 2);
-                }
-                prevC = waypointC;
-            }
-
-            // Draw markers at each waypoint
-            int num = 1;
-            for(Location waypoint : allWaypoints) {
-                if(waypoint.seg.id != sessloc.seg.id)
-                    continue;
-
-                Coord c = xlate(waypoint);
-                if(c != null) {
-                    // Draw circle
-                    g.chcolor(255, 255, 0, 220); // Yellow marker
-                    int radius = UI.scale(5);
-                    g.fellipse(c, new Coord(radius, radius));
-
-                    // Draw number
-                    g.chcolor(0, 0, 0, 255);
-                    Text numText = Text.render(String.valueOf(num));
-                    g.aimage(numText.tex(), c, 0.5, 0.5);
-                    numText.dispose();
-                }
-                num++;
-            }
-            g.chcolor();
+        } catch(Loading l) {
+            // Fall back to sessloc if player position not available
+            playerScreenPos = xlate(sessloc);
         }
+
+        // Draw lines connecting waypoints, starting from player position
+        g.chcolor(0, 255, 255, 200); // Cyan color for waypoint paths
+        Coord prevC = playerScreenPos;
+        for(nurgling.WaypointMovementService.Waypoint waypoint : allWaypoints) {
+            if(waypoint.loc.seg.id != sessloc.seg.id)
+                continue;
+
+            Coord waypointC = xlate(waypoint.loc);
+            if(prevC != null && waypointC != null)
+                g.line(prevC, waypointC, 2);
+            prevC = waypointC;
+        }
+
+        // Draw markers at each waypoint. The one being dragged (or hovered) is
+        // drawn bigger and white so it is obvious which node the cursor grabs.
+        for(int i = 0; i < allWaypoints.size(); i++) {
+            nurgling.WaypointMovementService.Waypoint waypoint = allWaypoints.get(i);
+            if(waypoint.loc.seg.id != sessloc.seg.id)
+                continue;
+
+            Coord c = xlate(waypoint.loc);
+            if(c == null)
+                continue;
+
+            boolean hot = (waypoint.id == wpDragId) || (waypoint.id == wpHoverId);
+            int radius = UI.scale(hot ? 7 : 5);
+
+            // Outline
+            g.chcolor(0, 0, 0, 200);
+            g.fellipse(c, new Coord(radius + 1, radius + 1));
+            // Body
+            if(hot)
+                g.chcolor(255, 255, 255, 240);
+            else
+                g.chcolor(255, 255, 0, 220);
+            g.fellipse(c, new Coord(radius, radius));
+
+            // Number
+            g.chcolor(0, 0, 0, 255);
+            g.aimage(getWaypointLabel(i + 1).tex(), c, 0.5, 0.5);
+        }
+        g.chcolor();
+    }
+
+    /* Waypoint dragging ------------------------------------------------------
+     * Queued waypoints (alt+click) can be picked up with the left mouse button
+     * and dragged to a new spot. Dragging the waypoint the character is walking
+     * to re-issues the move command, so he turns around and follows it live. */
+    private UI.Grab wpGrab = null;
+    private long wpDragId = -1;
+    private long wpHoverId = -1;
+
+    /** True while the user is dragging a queued waypoint on this minimap. */
+    public boolean isDraggingWaypoint() {
+        return(wpGrab != null);
+    }
+
+    /** Id of the queued waypoint under the given widget-local point, or -1. */
+    protected long waypointAt(Coord c) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null) return -1;
+        if(sessloc == null || dloc == null) return -1;
+
+        java.util.List<nurgling.WaypointMovementService.Waypoint> wps = gui.waypointMovementService.snapshot();
+        long best = -1;
+        double bestDist = UI.scale(9);
+        for(nurgling.WaypointMovementService.Waypoint wp : wps) {
+            if(wp.loc.seg.id != sessloc.seg.id)
+                continue;
+            Coord sc = xlate(wp.loc);
+            if(sc == null)
+                continue;
+            double d = sc.dist(c);
+            if(d <= bestDist) {
+                bestDist = d;
+                best = wp.id;
+            }
+        }
+        return best;
+    }
+
+    /** Begin dragging the waypoint under c, if any. */
+    protected boolean startWaypointDrag(Coord c) {
+        long id = waypointAt(c);
+        if(id < 0)
+            return false;
+        wpDragId = id;
+        wpGrab = ui.grabmouse(this);
+        return true;
+    }
+
+    private void dragWaypointTo(Coord c, boolean commit) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null || sessloc == null)
+            return;
+        Location loc = xlate(c);
+        if(loc == null || loc.seg.id != sessloc.seg.id)
+            return;
+        if(!gui.waypointMovementService.setWaypoint(wpDragId, loc, sessloc, commit))
+            endWaypointDrag();
+    }
+
+    private void endWaypointDrag() {
+        if(wpGrab != null) {
+            wpGrab.remove();
+            wpGrab = null;
+        }
+        wpDragId = -1;
     }
 
     // Clip a line to a rectangle boundary using Liang-Barsky algorithm
@@ -1062,6 +1127,12 @@ NMiniMap extends MiniMap {
 
     @Override
     public void mousemove(MouseMoveEvent ev) {
+        if(wpGrab != null) {
+            // Dragging a queued waypoint - don't pan the map along with it.
+            dragWaypointTo(ev.c, false);
+            return;
+        }
+        wpHoverId = waypointAt(ev.c);
         super.mousemove(ev);
         // Base class drag uses private d2lscale which doesn't match our zoom - recompute with scalef()
         if(drag != null && dragging) {
@@ -1816,6 +1887,10 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        // Pick up a queued waypoint under the cursor instead of panning/walking.
+        if(ev.b == 1 && startWaypointDrag(ev.c))
+            return true;
+
         // Handle left-click for forager path recording - prevent player movement
         if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && dloc != null && sessloc != null) {
             NGameUI gui = NUtils.getGameUI();
@@ -1861,6 +1936,14 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if(wpGrab != null) {
+            if(ev.b == 1) {
+                dragWaypointTo(ev.c, true);
+                endWaypointDrag();
+            }
+            return true;
+        }
+
         // Handle left-click for forager path recording (without modifiers)
         if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && dloc != null && sessloc != null) {
             NGameUI gui = NUtils.getGameUI();

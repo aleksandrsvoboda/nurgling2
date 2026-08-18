@@ -19,6 +19,7 @@ public class Navigation extends Panel {
         boolean useGlobalPf;
         boolean waypointRetryOnStuck;
         boolean showPathLine;
+        boolean showWaypointsInWorld;
         int pathLineWidth = 4;
         Color pathLineColor = new Color(255, 255, 0);
         boolean showSpeedometer;
@@ -35,6 +36,7 @@ public class Navigation extends Panel {
     private CheckBox useGlobalPf;
     private CheckBox waypointRetryOnStuck;
     private CheckBox showPathLine;
+    private CheckBox showWaypointsInWorld;
     private NColorWidget pathLineColorWidget;
     private HSlider pathLineWidthSlider;
     private Label pathLineWidthLabel;
@@ -111,6 +113,13 @@ public class Navigation extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
 
+        prev = showWaypointsInWorld = content.add(new CheckBox(L10n.get("nav.show_waypoints_world")) {
+            public void set(boolean val) {
+                tempSettings.showWaypointsInWorld = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 5));
+
         // Path line color
         prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(10, 5));
         pathLineColorWidget.color = tempSettings.pathLineColor;
@@ -158,6 +167,7 @@ public class Navigation extends Panel {
         tempSettings.useGlobalPf = (Boolean) NConfig.get(NConfig.Key.useGlobalPf);
         tempSettings.waypointRetryOnStuck = (Boolean) NConfig.get(NConfig.Key.waypointRetryOnStuck);
         tempSettings.showPathLine = (Boolean) NConfig.get(NConfig.Key.showPathLine);
+        tempSettings.showWaypointsInWorld = (Boolean) NConfig.get(NConfig.Key.showWaypointsInWorld);
         tempSettings.showSpeedometer = (Boolean) NConfig.get(NConfig.Key.showSpeedometer);
 
         // Load path line settings
@@ -172,6 +182,7 @@ public class Navigation extends Panel {
         useGlobalPf.a = tempSettings.useGlobalPf;
         waypointRetryOnStuck.a = tempSettings.waypointRetryOnStuck;
         showPathLine.a = tempSettings.showPathLine;
+        showWaypointsInWorld.a = tempSettings.showWaypointsInWorld;
         pathLineColorWidget.color = tempSettings.pathLineColor;
         pathLineWidthSlider.val = tempSettings.pathLineWidth;
         pathLineWidthLabel.settext(L10n.get("nav.path_line_thickness") + " " + tempSettings.pathLineWidth);
@@ -206,6 +217,7 @@ public class Navigation extends Panel {
         NConfig.set(NConfig.Key.useGlobalPf, tempSettings.useGlobalPf);
         NConfig.set(NConfig.Key.waypointRetryOnStuck, tempSettings.waypointRetryOnStuck);
         NConfig.set(NConfig.Key.showPathLine, tempSettings.showPathLine);
+        NConfig.set(NConfig.Key.showWaypointsInWorld, tempSettings.showWaypointsInWorld);
         NConfig.set(NConfig.Key.showSpeedometer, tempSettings.showSpeedometer);
 
         // Save path line settings
