@@ -222,6 +222,8 @@ public class NConfig
         showBotPathOnGround,
         // Movement waypoints (alt+click) drawn in the 3D world
         showWaypointsInWorld,
+        waypointColorActive,
+        waypointColorQueued,
         // Map tools panel
         showTreeIcons,
         showFishIcons,

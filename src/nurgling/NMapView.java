@@ -44,7 +44,7 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.Supplier;
 
-public class NMapView extends MapView
+public class NMapView extends MapView implements Widget.CursorQuery.Handler
 {
     public static final KeyBinding kb_quickaction = KeyBinding.get("quickaction", KeyMatch.forcode(KeyEvent.VK_Q, 0));
     public static final KeyBinding kb_quickignaction = KeyBinding.get("quickignaction", KeyMatch.forcode(KeyEvent.VK_Q, 1));
@@ -278,8 +278,6 @@ public class NMapView extends MapView
         // Draw bot path on ground
         drawBotPathOnGround(g);
 
-        // Draw the alt+click movement waypoints on the ground
-        drawWaypointsOnGround(g);
     }
 
     private void drawBotPathOnGround(GOut g) {
@@ -351,135 +349,42 @@ public class NMapView extends MapView
 
 
     /* ---- Movement waypoints on the ground --------------------------------
-     * The alt+click waypoint queue (WaypointMovementService) used to live only
-     * on the minimap. Draw the same queue in the world, and let its nodes be
-     * picked up and dragged straight from there. */
+     * The alt+click waypoint queue is drawn by NWaypointOverlay, which lives in the
+     * render tree so the path and its rings are real 3D geometry (occluded by hills
+     * and buildings, with a faint always-visible ghost pass). This class keeps the
+     * pointer state - what is hovered, what is being dragged and where the drag
+     * started - and feeds it to the overlay. */
 
-    /** Screen position of a queued waypoint as of the last frame. */
-    private static class WpNode {
-        final long id;
-        final Coord sc;
-
-        WpNode(long id, Coord sc) {
-            this.id = id;
-            this.sc = sc;
-        }
-    }
-
-    private volatile java.util.List<WpNode> wpScreenPos = java.util.Collections.emptyList();
+    private nurgling.overlays.NWaypointOverlay wpOverlay = null;
+    private RenderTree.Slot wpOverlaySlot = null;
     private UI.Grab wpGrab = null;
     private long wpDragId = -1;
+    private long wpHoverId = -1;
+    private Coord2d wpDragOrigin = null;
     private volatile boolean wpDragPending = false;
 
-    private void drawWaypointsOnGround(GOut g) {
-        java.util.List<WpNode> screen = java.util.Collections.emptyList();
-        try {
-            if(!(Boolean) NConfig.get(NConfig.Key.showWaypointsInWorld))
-                return;
-            NGameUI gui = NUtils.getGameUI();
-            if(gui == null || gui.waypointMovementService == null)
-                return;
-            java.util.List<WaypointMovementService.Waypoint> wps = gui.waypointMovementService.snapshot();
-            if(wps.isEmpty())
-                return;
-            haven.MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
-            if(sessloc == null)
-                return;
+    public long wpDragId() {return(wpDragId);}
+    public long wpHoverId() {return(wpHoverId);}
+    public Coord2d wpDragOrigin() {return(wpDragOrigin);}
 
-            java.util.ArrayList<WpNode> pts = new java.util.ArrayList<>(wps.size());
-            for(WaypointMovementService.Waypoint wp : wps) {
-                Coord sc = null;
-                if(wp.loc.seg.id == sessloc.seg.id) {
-                    Coord2d world = wp.loc.tc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz);
-                    Coord3f s3 = groundxf(world);
-                    if(s3 != null)
-                        sc = s3.round2();
-                }
-                pts.add(new WpNode(wp.id, sc));
-            }
-            screen = pts;
-
-            // Line from the player to the first waypoint, then waypoint to waypoint
-            Coord prev = null;
-            try {
-                Gob player = player();
-                if(player != null) {
-                    Coord3f ps = groundxf(player.getc());
-                    if(ps != null)
-                        prev = ps.round2();
-                }
-            } catch(Loading l) {
-                prev = null;
-            }
-            for(WpNode node : pts) {
-                if(node.sc == null)
-                    continue;
-                if(prev != null) {
-                    g.chcolor(0, 0, 0, 180);
-                    g.line(prev, node.sc, 4);
-                    g.chcolor(0, 255, 255, 200);
-                    g.line(prev, node.sc, 2);
-                }
-                prev = node.sc;
-            }
-
-            // Nodes: the active target (index 0) is cyan, the rest yellow,
-            // the one being dragged is white.
-            for(int i = 0; i < pts.size(); i++) {
-                Coord sc = pts.get(i).sc;
-                if(sc == null)
-                    continue;
-                boolean hot = (pts.get(i).id == wpDragId);
-                int r = UI.scale(hot ? 9 : 7);
-                g.chcolor(0, 0, 0, 200);
-                g.fellipse(sc, new Coord(r, r));
-                if(hot)
-                    g.chcolor(255, 255, 255, 240);
-                else if(i == 0)
-                    g.chcolor(0, 255, 255, 230);
-                else
-                    g.chcolor(255, 255, 0, 220);
-                g.fellipse(sc, new Coord(r - 1, r - 1));
-                g.chcolor(0, 0, 0, 255);
-                g.aimage(nurgling.widgets.NMiniMap.getWaypointLabel(i + 1).tex(), sc, 0.5, 0.5);
-            }
-        } catch(Loading l) {
-            // Map/player not ready yet - just skip this frame
-        } finally {
-            wpScreenPos = screen;
-            g.chcolor();
+    /** Create the overlay once the render tree is up, then let it refresh its geometry. */
+    private void tickWaypointOverlay() {
+        if(wpOverlay == null) {
+            if(basic == null)
+                return;
+            wpOverlay = new nurgling.overlays.NWaypointOverlay(this);
+            wpOverlaySlot = basic.add(wpOverlay);
         }
-    }
-
-    /**
-     * World position -> screen position, placed on the terrain surface rather than at
-     * the player's own elevation (screenxf(Coord2d) uses the latter, which makes markers
-     * float or sink on slopes). Returns null when the point is behind the camera, where
-     * the unclipped projection would otherwise mirror it onto the screen.
-     */
-    private Coord3f groundxf(Coord2d mc) {
-        float z;
-        try {
-            z = (float) glob.map.getcz(mc);
-        } catch(Loading l) {
-            z = getcc().z;
-        }
-        return groundxf(new Coord3f((float) mc.x, (float) mc.y, z));
-    }
-
-    private Coord3f groundxf(Coord3f mc) {
-        HomoCoord4f hc = clipxf(mc, false);
-        if(hc.w <= 0)
-            return null;
-        return hc.toview(Area.sized(this.sz));
+        wpOverlay.update();
     }
 
     /** Id of the waypoint whose ground node contains the given screen point, or -1. */
     private long worldWaypointAt(Coord c) {
-        java.util.List<WpNode> pts = wpScreenPos;
+        if(wpOverlay == null)
+            return(-1);
         long best = -1;
-        double bestDist = UI.scale(12);
-        for(WpNode node : pts) {
+        double bestDist = UI.scale(14);
+        for(nurgling.overlays.NWaypointOverlay.WNode node : wpOverlay.screenNodes()) {
             if(node.sc == null)
                 continue;
             double d = node.sc.dist(c);
@@ -488,7 +393,18 @@ public class NMapView extends MapView
                 best = node.id;
             }
         }
-        return best;
+        return(best);
+    }
+
+    /** World position of a queued waypoint, or null if it is not currently resolvable. */
+    private Coord2d waypointWorldPos(long id) {
+        if(wpOverlay == null)
+            return(null);
+        for(nurgling.overlays.NWaypointOverlay.WNode node : wpOverlay.screenNodes()) {
+            if(node.id == id)
+                return(node.wc);
+        }
+        return(null);
     }
 
     /**
@@ -528,8 +444,18 @@ public class NMapView extends MapView
             wpGrab = null;
         }
         wpDragId = -1;
+        wpDragOrigin = null;
         wpDragPending = false;
     }
+
+    /** Hand cursor over a draggable waypoint node, and while one is being dragged. */
+    public boolean getcurs(Widget.CursorQuery ev) {
+        if((wpGrab != null) || (worldWaypointAt(ev.c) >= 0))
+            return(ev.set(wpcurs));
+        return(false);
+    }
+
+    private static final Resource wpcurs = Resource.local().loadwait("gfx/hud/curs/hand");
 
     public void initDummys()
     {
@@ -1131,6 +1057,9 @@ public class NMapView extends MapView
             markerLineOverlay.tick();
         }
 
+        // Refresh the movement-waypoint geometry
+        tickWaypointOverlay();
+
         // Reconcile per-grid wall overlays against currently loaded grids
         updateGridWalls();
 
@@ -1319,6 +1248,7 @@ public class NMapView extends MapView
         if(ev.b == 1 && wpGrab == null) {
             long wpid = worldWaypointAt(ev.c);
             if(wpid >= 0) {
+                wpDragOrigin = waypointWorldPos(wpid);
                 wpDragId = wpid;
                 wpDragPending = false;
                 wpGrab = ui.grabmouse(this);
@@ -1566,6 +1496,7 @@ public class NMapView extends MapView
             dragWorldWaypoint(ev.c, false);
             return;
         }
+        wpHoverId = worldWaypointAt(ev.c);
         super.mousemove(ev);
     }
     

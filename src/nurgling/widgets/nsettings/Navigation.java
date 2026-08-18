@@ -20,6 +20,8 @@ public class Navigation extends Panel {
         boolean waypointRetryOnStuck;
         boolean showPathLine;
         boolean showWaypointsInWorld;
+        Color waypointColorActive = new Color(0, 224, 224);
+        Color waypointColorQueued = new Color(255, 212, 0);
         int pathLineWidth = 4;
         Color pathLineColor = new Color(255, 255, 0);
         boolean showSpeedometer;
@@ -37,6 +39,8 @@ public class Navigation extends Panel {
     private CheckBox waypointRetryOnStuck;
     private CheckBox showPathLine;
     private CheckBox showWaypointsInWorld;
+    private NColorWidget wpActiveColorWidget;
+    private NColorWidget wpQueuedColorWidget;
     private NColorWidget pathLineColorWidget;
     private HSlider pathLineWidthSlider;
     private Label pathLineWidthLabel;
@@ -120,6 +124,12 @@ public class Navigation extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
 
+        // Waypoint colours - shared by the world view, the map window and the minimap
+        prev = wpActiveColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_active")), prev.pos("bl").adds(10, 5));
+        wpActiveColorWidget.color = tempSettings.waypointColorActive;
+        prev = wpQueuedColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_queued")), prev.pos("bl").adds(0, 5));
+        wpQueuedColorWidget.color = tempSettings.waypointColorQueued;
+
         // Path line color
         prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(10, 5));
         pathLineColorWidget.color = tempSettings.pathLineColor;
@@ -168,6 +178,8 @@ public class Navigation extends Panel {
         tempSettings.waypointRetryOnStuck = (Boolean) NConfig.get(NConfig.Key.waypointRetryOnStuck);
         tempSettings.showPathLine = (Boolean) NConfig.get(NConfig.Key.showPathLine);
         tempSettings.showWaypointsInWorld = (Boolean) NConfig.get(NConfig.Key.showWaypointsInWorld);
+        tempSettings.waypointColorActive = NConfig.getColor(NConfig.Key.waypointColorActive, new Color(0, 224, 224));
+        tempSettings.waypointColorQueued = NConfig.getColor(NConfig.Key.waypointColorQueued, new Color(255, 212, 0));
         tempSettings.showSpeedometer = (Boolean) NConfig.get(NConfig.Key.showSpeedometer);
 
         // Load path line settings
@@ -183,6 +195,8 @@ public class Navigation extends Panel {
         waypointRetryOnStuck.a = tempSettings.waypointRetryOnStuck;
         showPathLine.a = tempSettings.showPathLine;
         showWaypointsInWorld.a = tempSettings.showWaypointsInWorld;
+        wpActiveColorWidget.color = tempSettings.waypointColorActive;
+        wpQueuedColorWidget.color = tempSettings.waypointColorQueued;
         pathLineColorWidget.color = tempSettings.pathLineColor;
         pathLineWidthSlider.val = tempSettings.pathLineWidth;
         pathLineWidthLabel.settext(L10n.get("nav.path_line_thickness") + " " + tempSettings.pathLineWidth);
@@ -218,6 +232,8 @@ public class Navigation extends Panel {
         NConfig.set(NConfig.Key.waypointRetryOnStuck, tempSettings.waypointRetryOnStuck);
         NConfig.set(NConfig.Key.showPathLine, tempSettings.showPathLine);
         NConfig.set(NConfig.Key.showWaypointsInWorld, tempSettings.showWaypointsInWorld);
+        NConfig.setColor(NConfig.Key.waypointColorActive, wpActiveColorWidget.color);
+        NConfig.setColor(NConfig.Key.waypointColorQueued, wpQueuedColorWidget.color);
         NConfig.set(NConfig.Key.showSpeedometer, tempSettings.showSpeedometer);
 
         // Save path line settings
