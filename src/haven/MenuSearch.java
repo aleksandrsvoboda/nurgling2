@@ -207,6 +207,21 @@ public abstract class MenuSearch extends Window {
 	this("Action search", menu);
     }
 
+    public void hide() {
+	super.hide();
+	clearsearch();
+    }
+
+    protected void clearsearch() {
+	if(sbox == null)
+	    return;
+	rls.change(null);
+	if(sbox.text().isEmpty())
+	    refilter();
+	else
+	    sbox.settext(""); /* triggers changed() -> refilter() */
+    }
+
     protected void refilter() {
 	List<Result> found = Fuzzy.fuzzyFilterAndSort(sbox.text().toLowerCase(), this.cur);
 	this.filtered = found;

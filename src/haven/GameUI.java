@@ -799,6 +799,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 					return super.keydown(ev);
 				}
 			}
+
+			@Override
+			public void hide() {
+				super.hide();
+				if(maininv instanceof nurgling.NInventory)
+					((nurgling.NInventory)maininv).wipeSearch();
+			}
 		};
 	    invwnd.add(maininv = (Inventory)child, Coord.z);
 	    invwnd.pack();
