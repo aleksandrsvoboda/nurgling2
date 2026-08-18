@@ -44,7 +44,7 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.Supplier;
 
-public class NMapView extends MapView
+public class NMapView extends MapView implements Widget.CursorQuery.Handler
 {
     public static final KeyBinding kb_quickaction = KeyBinding.get("quickaction", KeyMatch.forcode(KeyEvent.VK_Q, 0));
     public static final KeyBinding kb_quickignaction = KeyBinding.get("quickignaction", KeyMatch.forcode(KeyEvent.VK_Q, 1));
@@ -277,6 +277,7 @@ public class NMapView extends MapView
 
         // Draw bot path on ground
         drawBotPathOnGround(g);
+
     }
 
     private void drawBotPathOnGround(GOut g) {
@@ -346,6 +347,115 @@ public class NMapView extends MapView
     }
 
 
+
+    /* ---- Movement waypoints on the ground --------------------------------
+     * The alt+click waypoint queue is drawn by NWaypointOverlay, which lives in the
+     * render tree so the path and its rings are real 3D geometry (occluded by hills
+     * and buildings, with a faint always-visible ghost pass). This class keeps the
+     * pointer state - what is hovered, what is being dragged and where the drag
+     * started - and feeds it to the overlay. */
+
+    private nurgling.overlays.NWaypointOverlay wpOverlay = null;
+    private RenderTree.Slot wpOverlaySlot = null;
+    private UI.Grab wpGrab = null;
+    private long wpDragId = -1;
+    private long wpHoverId = -1;
+    private Coord2d wpDragOrigin = null;
+    private volatile boolean wpDragPending = false;
+
+    public long wpDragId() {return(wpDragId);}
+    public long wpHoverId() {return(wpHoverId);}
+    public Coord2d wpDragOrigin() {return(wpDragOrigin);}
+
+    /** Create the overlay once the render tree is up, then let it refresh its geometry. */
+    private void tickWaypointOverlay() {
+        if(wpOverlay == null) {
+            if(basic == null)
+                return;
+            wpOverlay = new nurgling.overlays.NWaypointOverlay(this);
+            wpOverlaySlot = basic.add(wpOverlay);
+        }
+        wpOverlay.update();
+    }
+
+    /** Id of the waypoint whose ground node contains the given screen point, or -1. */
+    private long worldWaypointAt(Coord c) {
+        if(wpOverlay == null)
+            return(-1);
+        long best = -1;
+        double bestDist = UI.scale(14);
+        for(nurgling.overlays.NWaypointOverlay.WNode node : wpOverlay.screenNodes()) {
+            if(node.sc == null)
+                continue;
+            double d = node.sc.dist(c);
+            if(d <= bestDist) {
+                bestDist = d;
+                best = node.id;
+            }
+        }
+        return(best);
+    }
+
+    /** World position of a queued waypoint, or null if it is not currently resolvable. */
+    private Coord2d waypointWorldPos(long id) {
+        if(wpOverlay == null)
+            return(null);
+        for(nurgling.overlays.NWaypointOverlay.WNode node : wpOverlay.screenNodes()) {
+            if(node.id == id)
+                return(node.wc);
+        }
+        return(null);
+    }
+
+    /**
+     * Move the dragged waypoint to whatever ground the cursor is over. The map hit
+     * test is asynchronous, so intermediate drag samples are skipped while one is
+     * still in flight; commit=true (mouse release) always issues a fresh one.
+     */
+    private void dragWorldWaypoint(Coord c, boolean commit) {
+        final long id = wpDragId;
+        if(id < 0)
+            return;
+        if(wpDragPending && !commit)
+            return;
+        wpDragPending = true;
+        new Maptest(c) {
+            public void hit(Coord pc, Coord2d mc) {
+                wpDragPending = false;
+                NGameUI gui = NUtils.getGameUI();
+                if(gui == null || gui.waypointMovementService == null)
+                    return;
+                haven.MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
+                if(sessloc == null)
+                    return;
+                Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
+                gui.waypointMovementService.setWaypoint(id, new haven.MiniMap.Location(sessloc.seg, tc), sessloc, commit);
+            }
+
+            public void nohit(Coord pc) {
+                wpDragPending = false;
+            }
+        }.run();
+    }
+
+    private void endWorldWaypointDrag() {
+        if(wpGrab != null) {
+            wpGrab.remove();
+            wpGrab = null;
+        }
+        wpDragId = -1;
+        wpDragOrigin = null;
+        wpDragPending = false;
+    }
+
+    /** Hand cursor over a draggable waypoint node, and while one is being dragged. */
+    public boolean getcurs(Widget.CursorQuery ev) {
+        if((wpGrab != null) || (worldWaypointAt(ev.c) >= 0))
+            return(ev.set(wpcurs));
+        return(false);
+    }
+
+    private static final Resource wpcurs = Resource.local().loadwait("gfx/hud/curs/hand");
 
     public void initDummys()
     {
@@ -947,6 +1057,9 @@ public class NMapView extends MapView
             markerLineOverlay.tick();
         }
 
+        // Refresh the movement-waypoint geometry
+        tickWaypointOverlay();
+
         // Reconcile per-grid wall overlays against currently loaded grids
         updateGridWalls();
 
@@ -1129,6 +1242,18 @@ public class NMapView extends MapView
         // Block all clicks in DRAG mode to prevent character movement during UI adjustment
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
+        }
+
+        // Grab a movement waypoint drawn on the ground instead of walking there.
+        if(ev.b == 1 && wpGrab == null) {
+            long wpid = worldWaypointAt(ev.c);
+            if(wpid >= 0) {
+                wpDragOrigin = waypointWorldPos(wpid);
+                wpDragId = wpid;
+                wpDragPending = false;
+                wpGrab = ui.grabmouse(this);
+                return true;
+            }
         }
 
         // Base planner interactions — only active while the window is open.
@@ -1366,11 +1491,24 @@ public class NMapView extends MapView
     @Override
     public void mousemove(MouseMoveEvent ev) {
         lastCoord = ev.c;
+        if(wpGrab != null) {
+            // Dragging a ground waypoint - don't let the camera/placement follow.
+            dragWorldWaypoint(ev.c, false);
+            return;
+        }
+        wpHoverId = worldWaypointAt(ev.c);
         super.mousemove(ev);
     }
     
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if(wpGrab != null) {
+            if(ev.b == 1) {
+                dragWorldWaypoint(ev.c, true);
+                endWorldWaypointDrag();
+            }
+            return true;
+        }
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
         }

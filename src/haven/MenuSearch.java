@@ -212,6 +212,16 @@ public abstract class MenuSearch extends Window {
 	clearsearch();
     }
 
+    public void show() {
+	super.show();
+	focussbox();
+    }
+
+    public void focussbox() {
+	if(sbox != null)
+	    setfocus(sbox);
+    }
+
     protected void clearsearch() {
 	if(sbox == null)
 	    return;

@@ -59,7 +59,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private Window invwnd;
     public Window equwnd;
     private Window makewnd;
-    private Window srchwnd;
+    private MenuSearch srchwnd;
     public Window iconwnd;
     private Coord makewndc = Utils.getprefc("makewndc", new Coord(400, 200));
     public Inventory maininv;
@@ -337,6 +337,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			this.setfocus(srchwnd);
 		    else
 			togglewnd(srchwnd);
+		    if(srchwnd.visible())
+			srchwnd.focussbox();
 		}
 	    }, bg.c);
     }
