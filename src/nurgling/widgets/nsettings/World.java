@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.*;
 import nurgling.i18n.L10n;
 import nurgling.overlays.NModelBox;
+import nurgling.tools.FlatWorld;
 import nurgling.tools.GobHide;
 import nurgling.widgets.NColorWidget;
 import java.awt.Color;
@@ -214,10 +215,16 @@ public class World extends Panel {
         boundingBoxes.a = tempSettings.showBB;
     }
 
+    /** Re-reads the flat world setting after its hotkey changed it while this panel was open. */
+    public void syncFlatSurface() {
+        tempSettings.flatSurface = FlatWorld.isEnabled();
+        flatSurface.a = tempSettings.flatSurface;
+    }
+
     @Override
     public void load() {
         // Load current settings into temporary structure
-        tempSettings.flatSurface = (Boolean) NConfig.get(NConfig.Key.nextflatsurface);
+        tempSettings.flatSurface = FlatWorld.isEnabled();
         tempSettings.decorativeObjects = (Boolean) NConfig.get(NConfig.Key.nextshowCSprite);
         tempSettings.hideEarthworm = (Boolean) NConfig.get(NConfig.Key.hideEarthworm);
         tempSettings.showBB = (Boolean) NConfig.get(NConfig.Key.showBB);
@@ -267,7 +274,8 @@ public class World extends Panel {
     @Override
     public void save() {
         // Save temporary settings to config
-        NConfig.set(NConfig.Key.nextflatsurface, tempSettings.flatSurface);
+        // Applies immediately - FlatWorld rebuilds the terrain rather than waiting for a restart.
+        FlatWorld.set(tempSettings.flatSurface);
         NConfig.set(NConfig.Key.nextshowCSprite, tempSettings.decorativeObjects);
 
         NConfig.set(NConfig.Key.showBB, tempSettings.showBB);

@@ -843,6 +843,7 @@ public class OptWnd extends Window {
 		y = addbtn(cont, L10n.get("opt.keybind.toggle_bb"), NMapView.kb_togglebb, y);
 		y = addbtn(cont, L10n.get("opt.keybind.cycle_bb_mode"), NMapView.kb_cyclebbmode, y);
 		y = addbtn(cont, L10n.get("opt.keybind.clear_dmg"), NMapView.kb_cleardmg, y);
+		y = addbtn(cont, L10n.get("opt.keybind.flat_world"), NMapView.kb_flatworld, y);
 
 		y = cont.adda(new Label(L10n.get("opt.keybind.belt")), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 		for(int i = 0 ; i < (Integer)NConfig.get(NConfig.Key.numbelts); i++)

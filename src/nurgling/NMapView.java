@@ -70,6 +70,7 @@ public class NMapView extends MapView
         return KeyBinding.get("togglenature", KeyMatch.forcode(KeyEvent.VK_H, KeyMatch.C));
     }
     public static final KeyBinding kb_cleardmg = KeyBinding.get("cleardmg", KeyMatch.forcode(KeyEvent.VK_D, KeyMatch.C | KeyMatch.S));
+    public static final KeyBinding kb_flatworld = KeyBinding.get("flatworld", KeyMatch.forcode(KeyEvent.VK_F, KeyMatch.C | KeyMatch.S));
     public static final int MINING_OVERLAY = - 1;
     public NGlobalCoord lastGC = null;
 
@@ -1473,12 +1474,9 @@ public class NMapView extends MapView
             NUtils.getGameUI().msg("Bounding Boxes: " + (!val ? "enabled" : "disabled"));
             // The World panel stages this value on open and writes it back on Save, so an open
             // panel would otherwise revert what this hotkey just did.
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null
-                    && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                if (panel.settingsWindow != null && panel.settingsWindow.world != null)
-                    panel.settingsWindow.world.syncShowBB();
-            }
+            nurgling.widgets.nsettings.World world = openWorldPanel();
+            if (world != null)
+                world.syncShowBB();
         }
         if(kb_cyclebbmode.key().match(ev)) {
             String currentMode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
@@ -1533,6 +1531,16 @@ public class NMapView extends MapView
             NUtils.getGameUI().msg("Damage overlays cleared");
             return true;
         }
+        if(kb_flatworld.key().match(ev)) {
+            nurgling.tools.FlatWorld.toggle();
+            NUtils.getGameUI().msg("Flat world: " + (nurgling.tools.FlatWorld.isEnabled() ? "enabled" : "disabled"));
+            // Same reason as the bounding box hotkey: an open World panel holds a staged copy of
+            // this value and would write it back over us on Save.
+            nurgling.widgets.nsettings.World world = openWorldPanel();
+            if (world != null)
+                world.syncFlatSurface();
+            return true;
+        }
         if(kb_togglenature.key().match(ev)) {
             // GobHide.setEnabled owns the sweep and the minimap button state; settings panels
             // re-read config in load() when they are opened, so nothing needs pushing to them.
@@ -1545,6 +1553,17 @@ public class NMapView extends MapView
         }
 
         return super.keydown(ev);
+    }
+
+    /** The World settings panel, if the user happens to have it open, otherwise null. */
+    private static nurgling.widgets.nsettings.World openWorldPanel() {
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null || gui.opts == null || !(gui.opts.nqolwnd instanceof OptWnd.NSettingsPanel))
+            return null;
+        OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) gui.opts.nqolwnd;
+        if (panel.settingsWindow == null)
+            return null;
+        return panel.settingsWindow.world;
     }
 
     /**
