@@ -212,9 +212,6 @@ public abstract class MenuSearch extends Window {
 	clearsearch();
     }
 
-    /* The search box is the only thing here worth typing into, so it takes the
-     * keyboard focus every time the window is brought up. This also undoes the
-     * defocus that picking a result with the mouse leaves behind. */
     public void show() {
 	super.show();
 	focussbox();
