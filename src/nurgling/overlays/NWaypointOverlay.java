@@ -7,6 +7,7 @@ import nurgling.NGameUI;
 import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.WaypointMovementService;
+import nurgling.tools.FlatWorld;
 import nurgling.widgets.NMiniMap;
 
 import java.awt.Color;
@@ -22,7 +23,10 @@ import java.util.List;
  * The character walks to a waypoint by straight-line click-walk - the server does no
  * routing - so the path drawn here is deliberately straight in X/Y. The only bend it
  * ever shows comes from elevation: the same straight segment is sampled at ground
- * height every tile, so it lies on the terrain instead of floating across it.
+ * height every tile, so it lies on the terrain instead of floating across it. With flat
+ * world enabled the terrain has no relief to follow, so the path lies flat as well -
+ * MCache.getcz() still reports true heights there, so the flag has to be honoured here
+ * the same way NPathVisualizer honours it.
  *
  * Geometry (ribbon + waypoint rings) is real 3D in the render tree, drawn twice: once
  * depth-tested, so hills and buildings hide it, and once faintly with no depth test, so
@@ -78,6 +82,8 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         }
     }
 
+    /** Flat-world state of the frame/rebuild currently being processed. */
+    private boolean flat = false;
     private long lastSig = Long.MIN_VALUE;
     private Coord2d lastPlayer = null;
     private double lastBuild = 0;
@@ -255,12 +261,22 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         }
     }
 
+    /** Ground height at a world point - always zero while the world is drawn flat. */
     private double cz(double x, double y, double fallback) {
+        if(flat)
+            return(0);
         try {
             return(mv.glob.map.getcz(x, y));
         } catch(Loading l) {
             return(fallback);
         }
+    }
+
+    /** Height to fall back on where the terrain has not been paged in yet. */
+    private double baseZ() {
+        if(flat)
+            return(0);
+        return(mv.getcc().z);
     }
 
     private static double[] p(double x, double y, double z) {
@@ -275,7 +291,8 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         double len = a.dist(b);
         if(len < 0.5)
             return;
-        int steps = Math.min(MAX_SAMPLES, Math.max(1, (int)Math.ceil(len / SAMPLE)));
+        // Flat world has no relief to trace, so one quad spans the whole leg.
+        int steps = flat ? 1 : Math.min(MAX_SAMPLES, Math.max(1, (int)Math.ceil(len / SAMPLE)));
         Coord2d dir = b.sub(a).div(len);
         Coord2d perp = new Coord2d(-dir.y, dir.x);
 
@@ -335,6 +352,8 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         h = h * 31 + mv.wpDragId();
         h = h * 31 + activeColor().getRGB();
         h = h * 31 + queuedColor().getRGB();
+        // Toggling flat world changes every vertex, so it has to force a rebuild.
+        h = h * 31 + (flat ? 1 : 0);
         return(h);
     }
 
@@ -344,6 +363,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
      * queue signature; the player's own leg is refreshed on a short throttle instead.
      */
     public void update() {
+        flat = FlatWorld.isEnabled();
         List<WNode> nodes = resolve();
         if(nodes.isEmpty()) {
             if(lastSig != Long.MIN_VALUE) {
@@ -365,7 +385,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
 
         double baseZ;
         try {
-            baseZ = mv.getcc().z;
+            baseZ = baseZ();
         } catch(Loading l) {
             return;
         }
@@ -427,6 +447,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
     }
 
     private void draw2d(GOut g, Pipe state) {
+        flat = FlatWorld.isEnabled();
         List<WNode> nodes = resolve();
         if(nodes.isEmpty()) {
             screen = Collections.emptyList();
@@ -435,7 +456,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         Area va = Area.sized(g.sz());
         double baseZ;
         try {
-            baseZ = mv.getcc().z;
+            baseZ = baseZ();
         } catch(Loading l) {
             screen = Collections.emptyList();
             return;
