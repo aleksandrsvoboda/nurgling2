@@ -658,8 +658,23 @@ public abstract class GItem extends AWidget implements ItemInfo.SpriteOwner, GSp
 		    }
 		}
 		chstate("hover");
-		move(hover.parentpos(parent, hover.sz.sub(overlap).sub(HoverDeco.hovermarg)));
+		move(hoverpos(hover));
 	    }
+	}
+
+	private Coord hoverpos(Widget hover) {
+	    Coord anchor = hover.parentpos(parent);
+	    Coord tc = anchor.add(hover.sz).sub(overlap).sub(HoverDeco.hovermarg);
+	    Coord lim = parent.sz;
+	    if(tc.y + sz.y > lim.y) {
+		int up = anchor.y + overlap.y + HoverDeco.hovermarg.y - sz.y;
+		tc.y = (up >= 0) ? up : Math.max(0, lim.y - sz.y);
+	    }
+	    if(tc.x + sz.x > lim.x) {
+		int left = anchor.x + overlap.x + HoverDeco.hovermarg.x - sz.x;
+		tc.x = (left >= 0) ? left : Math.max(0, lim.x - sz.x);
+	    }
+	    return(tc);
 	}
 
 	private void ckunhover() {

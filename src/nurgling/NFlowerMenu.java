@@ -69,11 +69,15 @@ public class NFlowerMenu extends FlowerMenu
         {
             nopts[i].resize(len, bl.sz().y);
         }
+        int visibleHeight = Math.min(opts.length, MAX_VISIBLE_ITEMS) * itemHeight;
         if(opts.length > MAX_VISIBLE_ITEMS)
         {
-            int visibleHeight = MAX_VISIBLE_ITEMS * itemHeight;
             sb = add(new Scrollbar(visibleHeight, 0, opts.length - MAX_VISIBLE_ITEMS), new Coord(len, 0));
             resize(len + sb.sz.x, visibleHeight);
+        }
+        else
+        {
+            resize(len, visibleHeight);
         }
     }
 
@@ -197,8 +201,23 @@ public class NFlowerMenu extends FlowerMenu
     {
         if (c.equals(-1, -1))
             c = parent.ui.lcc;
+        c = fitonscreen(c);
         mg = ui.grabmouse(this);
         kg = ui.grabkeys(this);
+    }
+
+    private Coord fitonscreen(Coord c)
+    {
+        if(parent == null || ui == null || ui.root == null)
+            return c;
+        Coord po = parent.parentpos(ui.root);
+        Coord lim = ui.root.sz;
+        int x = po.x + c.x, y = po.y + c.y;
+        if(x + sz.x > lim.x)
+            x = lim.x - sz.x;
+        if(y + sz.y > lim.y)
+            y = lim.y - sz.y;
+        return new Coord(Math.max(0, x), Math.max(0, y)).sub(po);
     }
 
     @Override
