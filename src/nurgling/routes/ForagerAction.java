@@ -7,6 +7,7 @@ public class ForagerAction {
     public enum ActionType {
         PICK,
         FLOWER_ACTION,
+        RIGHT_CLICK,
         CHAT_NOTIFY
     }
     

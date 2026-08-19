@@ -7,6 +7,7 @@ import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
 import nurgling.routes.ForagerPath;
 import nurgling.widgets.ActionConfigWindow;
+import nurgling.widgets.settings.NAreaDropbox;
 
 import java.util.Collections;
 
@@ -17,6 +18,7 @@ public class Forager extends PathBotWindow {
     private IButton addActionButton = null;
     private IButton removeActionButton = null;
 
+    NAreaDropbox startArea = null;
     Dropbox<String> onPlayerAction = null;
     Dropbox<String> onAnimalAction = null;
     Dropbox<String> afterFinishAction = null;
@@ -102,6 +104,18 @@ public class Forager extends PathBotWindow {
         removeActionButton.settip(L10n.get("forager.remove_action_tip"));
 
         prev = actionsRow;
+
+        // Start area - ChunkNav-travelled to before the recorded path, so the bot can be
+        // started from anywhere (e.g. indoors) rather than requiring a separate go-to first.
+        prev = add(new Label(L10n.get("forager.start_area")), prev.pos("bl").add(UI.scale(0, 10)));
+        prev = add(startArea = new NAreaDropbox(UI.scale(150)) {
+            @Override
+            public boolean mousedown(MouseDownEvent ev) {
+                // Pick up any areas created/renamed since this window opened.
+                reloadAreas();
+                return super.mousedown(ev);
+            }
+        }, prev.pos("bl").add(UI.scale(0, 5)));
 
         // Player detection reaction
         prev = add(new Label(L10n.get("forager.on_player")), prev.pos("bl").add(UI.scale(0, 10)));
@@ -275,6 +289,7 @@ public class Forager extends PathBotWindow {
         // Save safety settings to the old preset before switching
         NForagerProp.PresetData preset = prop.presets.get(presetName);
         if (preset != null) {
+            preset.startAreaId = startArea.getSelectedAreaId();
             if (onPlayerAction.sel != null)
                 preset.onPlayerAction = onPlayerAction.sel;
             if (onAnimalAction.sel != null)
@@ -292,6 +307,8 @@ public class Forager extends PathBotWindow {
     protected void onStartBot() {
         NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
         if (preset != null) {
+            preset.startAreaId = startArea.getSelectedAreaId();
+
             if (onPlayerAction.sel != null)
                 preset.onPlayerAction = onPlayerAction.sel;
             else
@@ -320,6 +337,9 @@ public class Forager extends PathBotWindow {
     // ========== Forager-specific methods ==========
 
     private void updateSafetyDropboxes(NForagerProp.PresetData preset) {
+        startArea.reloadAreas();
+        startArea.setSelectedAreaId(preset.startAreaId);
+
         for (int i = 0; i < PLAYER_ACTIONS.length; i++) {
             if (PLAYER_ACTIONS[i].equals(preset.onPlayerAction)) {
                 onPlayerAction.change(PLAYER_ACTIONS[i]);

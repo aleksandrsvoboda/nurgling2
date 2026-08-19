@@ -24,7 +24,16 @@ public class NForagerProp implements JConf {
         public String pathFile = "";
         public transient ForagerPath foragerPath = null;
         public ArrayList<ForagerAction> actions = new ArrayList<>();
-        
+
+        // NArea.id of an area to ChunkNav-travel to before starting the recorded path, or -1
+        // for none. The path's own waypoints are stored as persistent map-segment + tile
+        // coordinates (see ForagerWaypoint) which only resolve to a world position while
+        // already standing in that same segment - if the bot is started from elsewhere (e.g.
+        // indoors), that resolution fails outright. Setting a start area here lets the bot
+        // reach the right segment first via chunk navigation, then fall back to the existing
+        // local walk to the path's actual first waypoint.
+        public int startAreaId = -1;
+
         public String onPlayerAction = "nothing";
         public String onAnimalAction = "logout";
         public String afterFinishAction = "nothing";
@@ -69,6 +78,8 @@ public class NForagerProp implements JConf {
                     }
                 }
                 
+                if (entry.getValue().get("startAreaId") != null)
+                    pd.startAreaId = ((Number) entry.getValue().get("startAreaId")).intValue();
                 if (entry.getValue().get("onPlayerAction") != null)
                     pd.onPlayerAction = (String) entry.getValue().get("onPlayerAction");
                 if (entry.getValue().get("onAnimalAction") != null)
@@ -132,7 +143,8 @@ public class NForagerProp implements JConf {
                 actionsJson.put(action.toJson());
             }
             presetJson.put("actions", actionsJson);
-            
+
+            presetJson.put("startAreaId", entry.getValue().startAreaId);
             presetJson.put("onPlayerAction", entry.getValue().onPlayerAction);
             presetJson.put("onAnimalAction", entry.getValue().onAnimalAction);
             presetJson.put("afterFinishAction", entry.getValue().afterFinishAction);

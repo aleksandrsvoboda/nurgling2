@@ -234,6 +234,7 @@ NMiniMap extends MiniMap {
         drawTreeLocations(g);
         drawQueuedWaypoints(g);  // Draw waypoint visualization
         drawForagerRecordingPath(g);  // Draw forager path being recorded
+        drawBotDetourTrail(g);   // Draw Forager's live off-path gob-collection detour trail
         drawMarkerLine(g);       // Draw line to selected marker
     }
 
@@ -270,6 +271,48 @@ NMiniMap extends MiniMap {
                 }
             } catch(Loading l) {}
         }
+    }
+
+    /**
+     * Draws Forager's live off-path detour trail (breadcrumb hops taken chasing nearby gobs
+     * away from the recorded path) in yellow - the recorded path itself draws in green (see
+     * {@link #drawForagerRecordingPath}) so the two read as visually distinct. The trail is
+     * stored as live world {@link Coord2d}s (session-relative, same space as gob.rc/player.rc),
+     * not the persistent segment-tile coordinates {@link nurgling.routes.ForagerWaypoint} uses -
+     * converted to an absolute segment tile coord the same way {@code ForagerWaypoint.toWorldCoord}
+     * does, just inverted: {@code tc = sessloc.tc + floor(worldPos / tilesz)}.
+     */
+    protected void drawBotDetourTrail(GOut g) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.activeBotDetourTrail == null || sessloc == null || dloc == null) return;
+
+        java.util.List<Coord2d> trail = new java.util.ArrayList<>(gui.activeBotDetourTrail);
+        Gob player = NUtils.player();
+        if(player != null) trail.add(player.rc);
+        if(trail.size() < 2) return;
+
+        Coord hsz = sz.div(2);
+        java.util.List<Coord> screenPoints = new java.util.ArrayList<>();
+        for(Coord2d worldPos : trail) {
+            Coord tc = sessloc.tc.add(worldPos.floor(MCache.tilesz));
+            screenPoints.add(tc.sub(dloc.tc).div(scalef()).add(hsz));
+        }
+
+        g.chcolor(255, 220, 0, 200);
+        for(int i = 0; i < screenPoints.size() - 1; i++) {
+            Coord a = screenPoints.get(i);
+            Coord b = screenPoints.get(i + 1);
+            if(a.x >= 0 && a.x < sz.x && a.y >= 0 && a.y < sz.y &&
+               b.x >= 0 && b.x < sz.x && b.y >= 0 && b.y < sz.y) {
+                g.line(a, b, 2);
+            }
+        }
+        for(Coord c : screenPoints) {
+            if(c.x >= 0 && c.x < sz.x && c.y >= 0 && c.y < sz.y) {
+                g.fellipse(c, new Coord(UI.scale(4), UI.scale(4)));
+            }
+        }
+        g.chcolor();
     }
 
     // Draw forager path being recorded or loaded

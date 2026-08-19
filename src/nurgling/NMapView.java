@@ -276,6 +276,55 @@ public class NMapView extends MapView
 
         // Draw bot path on ground
         drawBotPathOnGround(g);
+        drawBotDetourTrailOnGround(g);
+    }
+
+    /**
+     * Draws Forager's live off-path detour trail (the breadcrumb hops it's taken chasing
+     * nearby gobs away from the recorded path) in yellow, same style as the recorded path's
+     * green line/nodes, so the two are visually distinct at a glance. Includes the player's
+     * current position as the trail's leading edge so the most recent hop is visible too.
+     */
+    private void drawBotDetourTrailOnGround(GOut g) {
+        if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
+            return;
+        try {
+            NGameUI gui = NUtils.getGameUI();
+            if(gui == null || gui.activeBotDetourTrail == null) return;
+
+            java.util.List<Coord2d> trail = new java.util.ArrayList<>(gui.activeBotDetourTrail);
+            Gob player = player();
+            if(player != null) trail.add(player.rc);
+            if(trail.size() < 2) return;
+
+            java.util.List<Coord> screenPoints = new java.util.ArrayList<>();
+            for(Coord2d worldPos : trail) {
+                Coord3f sc = screenxf(worldPos);
+                if(sc == null) continue;
+                screenPoints.add(sc.round2());
+            }
+            if(screenPoints.size() < 2) return;
+
+            for(int i = 0; i < screenPoints.size() - 1; i++) {
+                Coord a = screenPoints.get(i);
+                Coord b = screenPoints.get(i + 1);
+                g.chcolor(0, 0, 0, 180);
+                g.line(a, b, 4);
+                g.chcolor(255, 220, 0, 200);
+                g.line(a, b, 2);
+            }
+
+            for(Coord sc : screenPoints) {
+                int r = UI.scale(5);
+                g.chcolor(0, 0, 0, 200);
+                g.fellipse(sc, new Coord(r, r));
+                g.chcolor(255, 220, 0, 220);
+                g.fellipse(sc, new Coord(r - 1, r - 1));
+            }
+            g.chcolor();
+        } catch(Exception e) {
+            // Ignore rendering errors
+        }
     }
 
     private void drawBotPathOnGround(GOut g) {

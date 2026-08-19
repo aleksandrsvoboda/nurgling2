@@ -62,6 +62,10 @@ public class NGameUI extends GameUI
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
+    // Live breadcrumb trail for Forager's off-path gob-collection detours (world Coord2d,
+    // most-recent-last), null when no detour is in progress. Same list instance is mutated
+    // live by the bot thread as it hops between gobs, so rendering always sees current state.
+    public java.util.List<haven.Coord2d> activeBotDetourTrail = null;
 
     // Local storage for ring settings
     public IconRingConfig iconRingConfig;

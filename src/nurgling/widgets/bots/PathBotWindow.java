@@ -448,7 +448,6 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
             saveProp();
 
             updateSectionsInfo();
-            startButton.disable(path.getSectionCount() == 0);
 
         } catch (Exception e) {
             NUtils.getGameUI().error("Failed to load path: " + e.getMessage());
@@ -464,7 +463,16 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         if (path != null) {
             sectionsLabel.settext(String.format("Path: %s (%d waypoints, %d sections)",
                 path.name, path.waypoints.size(), path.getSectionCount()));
-            startButton.disable(path.getSectionCount() == 0);
+            // Section count (path.getSectionCount()) is NOT a reliable "is this path valid"
+            // signal here - sections are generated from the player's CURRENT map segment at
+            // load time (ForagerWaypoint/sessloc are segment-relative), so a perfectly good
+            // path loaded while standing on a different segment (e.g. indoors, or via a
+            // configured start area meant to travel there first) legitimately comes back with
+            // 0 sections despite having real waypoints. Gate on waypoint count instead - a
+            // structural property of the path file, independent of where the player is right
+            // now. The bot itself regenerates sections once it's actually on the right segment
+            // (see Forager.java's run()).
+            startButton.disable(path.waypoints == null || path.waypoints.size() < 2);
             return;
         }
         sectionsLabel.settext("No path loaded");
@@ -475,7 +483,11 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         String currentPreset = getCurrentPresetName();
         ForagerPath path = getPresetForagerPath(currentPreset);
 
-        if (path == null || path.getSectionCount() == 0) {
+        // Same reasoning as updateSectionsInfo() - path.getSectionCount() reflects sections
+        // generated from wherever the player happened to be standing at load time, not
+        // whether the path itself is valid. Gate on waypoint count instead; the bot
+        // regenerates sections for real once it's actually on the right segment.
+        if (path == null || path.waypoints == null || path.waypoints.size() < 2) {
             NUtils.getGameUI().error("No valid path loaded");
             return;
         }
