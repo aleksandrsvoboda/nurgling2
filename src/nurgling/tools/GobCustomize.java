@@ -4,9 +4,12 @@ import haven.Gob;
 import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.gattrr.NGobCustomScale;
+import nurgling.gattrr.NGobCustomTint;
+import nurgling.overlays.NGobConfigMarker;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,42 +21,83 @@ import java.util.concurrent.ConcurrentHashMap;
  * the Ctrl+RMB "Configure" window.
  *
  * <p>Settings are keyed by {@link nurgling.NGob#name}, the gob's resource path, so configuring
- * one oak configures every oak. Only values that differ from the default are stored, which keeps
- * the config file proportional to what the user actually changed rather than to the number of
- * resources in the game.
+ * one oak configures every oak. Only resources that differ from the defaults are stored, which
+ * keeps the config file proportional to what the user actually changed rather than to the number
+ * of resources in the game.
  *
- * <p>The authoritative copy lives in memory ({@link #scales}) rather than in the config map.
+ * <p>The authoritative copy lives in memory ({@link #conf}) rather than in the config map.
  * Dragging a slider has to repaint the world on every pixel, and {@link nurgling.NCore} flushes a
  * dirty config to disk on the very next tick - so writing through to {@code NConfig} per drag step
- * would mean a file write per frame. {@link #preview} therefore only touches memory, and
+ * would mean a file write per frame. {@link #update} therefore only touches memory, and
  * {@link #commit} publishes the finished value.
  */
 public class GobCustomize {
-    /** Option name inside a resource's settings object, as stored in the config file. */
+    /* Option names as they appear in the config file. */
     private static final String KEY_SCALE = "scale";
+    private static final String KEY_TINT = "tint";
+    private static final String KEY_TINT_COLOR = "tintColor";
+    private static final String KEY_MARKER = "marker";
 
     public static final int SCALE_MIN = 10;
     public static final int SCALE_MAX = 300;
     public static final int SCALE_DEFAULT = 100;
 
-    /** res name -> size percentage. Absent means "default size"; never holds SCALE_DEFAULT. */
-    private static volatile Map<String, Integer> scales = null;
+    /** Starting colour for a highlight the user has not picked one for yet. */
+    public static final Color DEFAULT_TINT = new Color(255, 64, 64, 200);
 
-    private static Map<String, Integer> scales() {
-        Map<String, Integer> cur = scales;
+    /**
+     * One resource's settings. Immutable: {@link #apply} reads these from whichever thread
+     * resolved the gob's resource, while the window edits them from the UI thread, so changes are
+     * published by replacing the map entry rather than by mutating a shared object.
+     */
+    public static final class Settings {
+        public final int scale;
+        public final boolean tint;
+        public final Color tintColor;
+        public final boolean marker;
+
+        public Settings(int scale, boolean tint, Color tintColor, boolean marker) {
+            this.scale = scale;
+            this.tint = tint;
+            this.tintColor = (tintColor == null) ? DEFAULT_TINT : tintColor;
+            this.marker = marker;
+        }
+
+        /**
+         * A picked colour counts as non-default even with the highlight switched off, so the
+         * choice is remembered - and, more importantly, so the window's colour poll does not see
+         * its own write vanish and re-fire on every tick.
+         */
+        public boolean isDefault() {
+            return (scale == SCALE_DEFAULT) && !tint && !marker && tintColor.equals(DEFAULT_TINT);
+        }
+
+        public Settings withScale(int v) {return new Settings(clampScale(v), tint, tintColor, marker);}
+        public Settings withTint(boolean v) {return new Settings(scale, v, tintColor, marker);}
+        public Settings withTintColor(Color v) {return new Settings(scale, tint, v, marker);}
+        public Settings withMarker(boolean v) {return new Settings(scale, tint, tintColor, v);}
+    }
+
+    public static final Settings DEFAULTS = new Settings(SCALE_DEFAULT, false, DEFAULT_TINT, false);
+
+    /** res name -> settings. A resource at its defaults is absent rather than present-and-default. */
+    private static volatile Map<String, Settings> conf = null;
+
+    private static Map<String, Settings> conf() {
+        Map<String, Settings> cur = conf;
         if (cur == null) {
             synchronized (GobCustomize.class) {
-                cur = scales;
+                cur = conf;
                 if (cur == null)
-                    scales = cur = load();
+                    conf = cur = load();
             }
         }
         return cur;
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Integer> load() {
-        Map<String, Integer> res = new ConcurrentHashMap<>();
+    private static Map<String, Settings> load() {
+        Map<String, Settings> res = new ConcurrentHashMap<>();
         // getGlobal, not get: this is read once and cached, and must not depend on which
         // session's config the calling thread happens to resolve to.
         Object o = NConfig.getGlobal(NConfig.Key.gobConf);
@@ -62,92 +106,160 @@ public class GobCustomize {
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) o).entrySet()) {
             if (!(entry.getValue() instanceof Map))
                 continue;
-            Object v = ((Map<String, Object>) entry.getValue()).get(KEY_SCALE);
-            if (!(v instanceof Number))
-                continue;
-            int pct = clampScale(((Number) v).intValue());
-            if (pct != SCALE_DEFAULT)
-                res.put(entry.getKey(), pct);
+            Map<String, Object> opts = (Map<String, Object>) entry.getValue();
+            Settings s = new Settings(
+                    intOpt(opts.get(KEY_SCALE), SCALE_DEFAULT),
+                    boolOpt(opts.get(KEY_TINT)),
+                    colorOpt(opts.get(KEY_TINT_COLOR)),
+                    boolOpt(opts.get(KEY_MARKER)));
+            if (!s.isDefault())
+                res.put(entry.getKey(), s);
         }
         return res;
+    }
+
+    private static int intOpt(Object v, int def) {
+        return (v instanceof Number) ? clampScale(((Number) v).intValue()) : def;
+    }
+
+    private static boolean boolOpt(Object v) {
+        return (v instanceof Boolean) && (Boolean) v;
+    }
+
+    /** Colours are stored as a packed ARGB int, which survives the JSON round-trip unambiguously. */
+    private static Color colorOpt(Object v) {
+        if (!(v instanceof Number))
+            return DEFAULT_TINT;
+        return new Color(((Number) v).intValue(), true);
     }
 
     public static int clampScale(int pct) {
         return Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct));
     }
 
-    /** Configured size for a resource, as a percentage. {@link #SCALE_DEFAULT} when untouched. */
-    public static int scalePercent(String res) {
+    /** Settings for a resource; {@link #DEFAULTS} when the user has never touched it. */
+    public static Settings settings(String res) {
         if (res == null)
-            return SCALE_DEFAULT;
-        Integer v = scales().get(res);
-        return (v == null) ? SCALE_DEFAULT : v;
+            return DEFAULTS;
+        Settings s = conf().get(res);
+        return (s == null) ? DEFAULTS : s;
     }
 
-    /** True when this resource has any non-default setting worth persisting. */
-    public static boolean isConfigured(String res) {
-        return (res != null) && scales().containsKey(res);
+    public static int scalePercent(String res) {
+        return settings(res).scale;
     }
 
     /**
-     * Applies a size to every gob of the type immediately, without saving. Used while a slider is
-     * being dragged so the change is visible as it happens; {@link #commit} makes it permanent.
+     * Publishes new settings for a resource and shows them immediately, without saving. Used while
+     * a slider is being dragged or a colour is being picked; {@link #commit} makes it permanent.
      */
-    public static void preview(String res, int pct) {
-        if (res == null)
+    public static void update(String res, Settings s) {
+        if (res == null || s == null)
             return;
-        pct = clampScale(pct);
-        if (pct == SCALE_DEFAULT)
-            scales().remove(res);
+        Settings prev = settings(res);
+        if (s.isDefault())
+            conf().remove(res);
         else
-            scales().put(res, pct);
-        applyAll(res);
+            conf().put(res, s);
+        // Only push what actually moved. Dragging the size slider fires this ~60 times a second,
+        // and re-adding the marker overlay each time would race its own deferred add.
+        applyAll(res, prev.scale != s.scale,
+                (prev.tint != s.tint) || !prev.tintColor.equals(s.tintColor),
+                prev.marker != s.marker);
     }
 
     /** Writes the current in-memory settings to the config file. */
     public static void commit() {
         Map<String, Object> out = new HashMap<>();
-        for (Map.Entry<String, Integer> entry : scales().entrySet()) {
+        for (Map.Entry<String, Settings> entry : conf().entrySet()) {
+            Settings s = entry.getValue();
             Map<String, Object> opts = new HashMap<>();
-            opts.put(KEY_SCALE, entry.getValue());
-            out.put(entry.getKey(), opts);
+            if (s.scale != SCALE_DEFAULT)
+                opts.put(KEY_SCALE, s.scale);
+            if (s.tint)
+                opts.put(KEY_TINT, true);
+            if (!s.tintColor.equals(DEFAULT_TINT))
+                opts.put(KEY_TINT_COLOR, s.tintColor.getRGB());
+            if (s.marker)
+                opts.put(KEY_MARKER, true);
+            if (!opts.isEmpty())
+                out.put(entry.getKey(), opts);
         }
         NConfig.set(NConfig.Key.gobConf, out);
         NConfig.needUpdate();
     }
 
     /** Convenience for callers that change a setting outside a drag. */
-    public static void setScalePercent(String res, int pct) {
-        preview(res, pct);
+    public static void set(String res, Settings s) {
+        update(res, s);
         commit();
     }
 
     /**
-     * Brings one gob's scale attribute in line with its type's setting. Cheap and idempotent, so
-     * it is safe to call from {@link nurgling.NGob} whenever a gob's resource name is resolved.
+     * Brings one gob in line with its type's settings. Cheap and idempotent, so it is safe to call
+     * from {@link nurgling.NGob} whenever a gob's resource name is resolved.
      */
     public static void apply(Gob gob) {
+        apply(gob, true, true, true);
+    }
+
+    private static void apply(Gob gob, boolean doScale, boolean doTint, boolean doMarker) {
         if (gob == null || gob.ngob == null)
             return;
-        int pct = scalePercent(gob.ngob.name);
-        NGobCustomScale cur = gob.getattr(NGobCustomScale.class);
-        if (pct == SCALE_DEFAULT) {
-            if (cur != null)
-                gob.delattr(NGobCustomScale.class);
-        } else {
-            float s = pct / 100.0f;
-            if (cur == null || cur.scale != s)
-                gob.setattr(new NGobCustomScale(gob, s));
+        String res = gob.ngob.name;
+        Settings s = settings(res);
+
+        if (doScale) {
+            NGobCustomScale scale = gob.getattr(NGobCustomScale.class);
+            if (s.scale == SCALE_DEFAULT) {
+                if (scale != null)
+                    gob.delattr(NGobCustomScale.class);
+            } else {
+                float f = s.scale / 100.0f;
+                if (scale == null || scale.scale != f)
+                    gob.setattr(new NGobCustomScale(gob, f));
+            }
         }
+
+        if (doTint) {
+            NGobCustomTint tint = gob.getattr(NGobCustomTint.class);
+            if (!s.tint) {
+                if (tint != null)
+                    gob.delattr(NGobCustomTint.class);
+            } else if (tint == null || !tint.color.equals(s.tintColor)) {
+                gob.setattr(new NGobCustomTint(gob, s.tintColor));
+            }
+        }
+
+        // Only ever added here - a marker whose setting goes away takes itself off, see
+        // NGobConfigMarker.
+        if (doMarker && s.marker && !hasMarker(gob))
+            gob.addol(new Gob.Overlay(gob, new NGobConfigMarker(gob, res)), true);
     }
 
     /**
-     * Re-applies the setting for one resource across every open session, so the world updates
+     * Null-safe counterpart to {@link Gob#findol(Class)}: an overlay built from a
+     * {@link haven.Sprite.Mill} has no sprite until it initialises, and that is not this one.
+     */
+    private static boolean hasMarker(Gob gob) {
+        for (Gob.Overlay ol : gob.ols) {
+            if (ol.spr instanceof NGobConfigMarker)
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Re-applies the settings for one resource across every open session, so the world updates
      * while the window is still open. Follows {@link GobHide#applyAll}: snapshot the object cache
      * under its monitor, then act outside it.
      */
     public static void applyAll(String res) {
-        if (res == null)
+        applyAll(res, true, true, true);
+    }
+
+    private static void applyAll(String res, boolean doScale, boolean doTint, boolean doMarker) {
+        if (res == null || !(doScale || doTint || doMarker))
             return;
         for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
             NGameUI gui = ctx.getGameUI();
@@ -161,7 +273,7 @@ public class GobCustomize {
                 }
             }
             for (Gob gob : gobs)
-                apply(gob);
+                apply(gob, doScale, doTint, doMarker);
         }
     }
 }

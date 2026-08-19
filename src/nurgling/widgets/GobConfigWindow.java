@@ -24,24 +24,27 @@ public class GobConfigWindow extends Window {
     private final String res;
     private final HSlider scale;
     private final Label scaleval;
+    private final CheckBox tint;
+    private final NColorWidget tintColor;
+    private final CheckBox marker;
 
     public GobConfigWindow(String res) {
-        super(UI.scale(new Coord(300, 92)), L10n.get("gobconf.title") + ": " + prettyName(res));
+        super(UI.scale(new Coord(300, 160)), L10n.get("gobconf.title") + ": " + prettyName(res));
         this.res = res;
+        GobCustomize.Settings s = GobCustomize.settings(res);
 
-        Widget prev = add(new Label(shortenPath(res), pathf), UI.scale(new Coord(0, 0)));
+        Widget prev = add(new Label(shortenPath(res), pathf), Coord.z);
 
+        /* Display size. */
         prev = add(new Label(L10n.get("gobconf.size")), prev.pos("bl").adds(0, 8));
-
-        scaleval = new Label(GobCustomize.scalePercent(res) + "%");
-        scale = new HSlider(UI.scale(190), GobCustomize.SCALE_MIN, GobCustomize.SCALE_MAX,
-                GobCustomize.scalePercent(res)) {
+        scaleval = new Label(s.scale + "%");
+        scale = new HSlider(UI.scale(190), GobCustomize.SCALE_MIN, GobCustomize.SCALE_MAX, s.scale) {
             @Override
             public void changed() {
                 // Live while dragging: memory only, so a drag does not write the config file
                 // once per frame (NCore flushes a dirty config on the very next tick).
                 scaleval.settext(this.val + "%");
-                GobCustomize.preview(GobConfigWindow.this.res, this.val);
+                GobCustomize.update(GobConfigWindow.this.res, current().withScale(this.val));
             }
 
             @Override
@@ -52,16 +55,64 @@ public class GobConfigWindow extends Window {
         addhl(prev.pos("bl").adds(0, 4), WIDTH, scale, scaleval);
         prev = scale;
 
+        /* Colour highlight. */
+        tint = new CheckBox(L10n.get("gobconf.tint")) {
+            @Override
+            public void changed(boolean val) {
+                GobCustomize.set(GobConfigWindow.this.res, current().withTint(val));
+            }
+        };
+        tint.a = s.tint;
+        prev = add(tint, prev.pos("bl").adds(0, 12));
+
+        tintColor = add(new NColorWidget(L10n.get("gobconf.tint_color")) {
+            @Override
+            public void tick(double dt) {
+                super.tick(dt);
+                // The picker runs a Swing dialog on its own thread and just assigns `color`,
+                // so polling is the only way to notice the user chose something.
+                if (!color.equals(GobCustomize.settings(GobConfigWindow.this.res).tintColor))
+                    GobCustomize.set(GobConfigWindow.this.res, current().withTintColor(color));
+            }
+        }, prev.pos("bl").adds(12, 4));
+        tintColor.color = s.tintColor;
+        tintColor.cb.colorChooser.setColor(s.tintColor);
+        prev = tintColor;
+
+        /* Search-style marker above the object. */
+        marker = new CheckBox(L10n.get("gobconf.marker")) {
+            @Override
+            public void changed(boolean val) {
+                GobCustomize.set(GobConfigWindow.this.res, current().withMarker(val));
+            }
+        };
+        marker.a = s.marker;
+        prev = add(marker, prev.pos("bl").adds(-12, 8));
+
         add(new Button(UI.scale(90), L10n.get("gobconf.reset")) {
             @Override
             public void click() {
-                scale.val = GobCustomize.SCALE_DEFAULT;
-                scaleval.settext(GobCustomize.SCALE_DEFAULT + "%");
-                GobCustomize.setScalePercent(GobConfigWindow.this.res, GobCustomize.SCALE_DEFAULT);
+                GobCustomize.set(GobConfigWindow.this.res, GobCustomize.DEFAULTS);
+                sync();
             }
-        }, prev.pos("bl").adds(0, 10));
+        }, prev.pos("bl").adds(0, 12));
 
         pack();
+    }
+
+    private GobCustomize.Settings current() {
+        return GobCustomize.settings(res);
+    }
+
+    /** Pulls the controls back in line with the stored settings after a wholesale change. */
+    private void sync() {
+        GobCustomize.Settings s = current();
+        scale.val = s.scale;
+        scaleval.settext(s.scale + "%");
+        tint.a = s.tint;
+        marker.a = s.marker;
+        tintColor.color = s.tintColor;
+        tintColor.cb.colorChooser.setColor(s.tintColor);
     }
 
     public String res() {
