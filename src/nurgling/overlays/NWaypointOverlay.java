@@ -43,6 +43,9 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
     private static final double RING_IN = 4.4, RING_OUT = 6.0, Z_RING = 0.45;
     private static final int RING_SEG = 24;
     private static final double STEM_H = 7.0;       // world height of the label stem
+    /** How many out-of-view waypoints get an edge arrow; a long path would otherwise
+     *  ring the whole viewport with numbers. */
+    private static final int MAX_EDGE_ARROWS = 3;
 
     private static final float[] CASING = {0.02f, 0.05f, 0.05f, 0.85f};
 
@@ -462,17 +465,23 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
             return;
         }
 
+        List<WNode> offscreen = null;
         for(WNode n : nodes) {
             double z = cz(n.wc.x, n.wc.y, baseZ);
             n.sc = proj(state, va, n.wc, z + Z_RING);
             Coord top = proj(state, va, n.wc, z + STEM_H);
 
-            if(n.sc == null || top == null) {
-                drawOffscreen(g, n);
-                continue;
-            }
-            if(!n.sc.isect(Coord.z, g.sz()) && !top.isect(Coord.z, g.sz())) {
-                drawOffscreen(g, n);
+            boolean out = (n.sc == null) || (top == null) ||
+                    (!n.sc.isect(Coord.z, g.sz()) && !top.isect(Coord.z, g.sz()));
+            if(out) {
+                // Out of view: not clickable, and only the first few get an edge arrow
+                // - see drawEdgeArrows. Nodes come in queue order, so keeping the head
+                // of the list keeps the lowest-numbered ones.
+                n.sc = null;
+                if(offscreen == null)
+                    offscreen = new ArrayList<>(MAX_EDGE_ARROWS);
+                if(offscreen.size() < MAX_EDGE_ARROWS)
+                    offscreen.add(n);
                 continue;
             }
 
@@ -492,9 +501,23 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
                 eta(g, top, n);
         }
 
+        if(offscreen != null)
+            drawEdgeArrows(g, offscreen);
+
         dragGhost(g, state, va, nodes, baseZ);
         screen = nodes;
         g.chcolor();
+    }
+
+    /**
+     * Edge arrows for the first {@link #MAX_EDGE_ARROWS} out-of-view waypoints, in queue
+     * order - the next ones the character will walk to. Paths run to hundreds of
+     * waypoints, and pointing at all of them turns the viewport border into a wall of
+     * numbers.
+     */
+    private void drawEdgeArrows(GOut g, List<WNode> off) {
+        for(WNode n : off)
+            drawOffscreen(g, n);
     }
 
     /** Numbered plate on top of the stem. */
@@ -619,9 +642,8 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         g.chcolor();
     }
 
-    /** Numbered arrow at the screen edge for a waypoint that is out of view. */
+    /** Numbered arrow at the screen edge for one waypoint that is out of view. */
     private void drawOffscreen(GOut g, WNode n) {
-        n.sc = null;
         double a;
         try {
             a = mv.screenangle(n.wc, true);
