@@ -8,6 +8,7 @@ import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
+import nurgling.areas.NGlobalCoord;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -40,15 +41,21 @@ import java.util.ArrayList;
  *   <li><b>Branches never batch</b> — a firebrand is single-use, so the branch tier re-crafts per gob.</li>
  *   <li><b>Torch stays equipped</b> — a lit torch is only lit while equipped/in-hand; the apply loop
  *       never routes it through inventory (that extinguishes it).</li>
- *   <li><b>Context menu unchanged</b> — the single-{@link Gob} constructor keeps today's behavior and
- *       does <i>not</i> fetch a candelabrum from its designated area; only the list constructor (used
- *       by bots) enables the area fetch, matching the old {@code LightGob} capability.</li>
+ *   <li><b>Bots come back</b> — the list constructor bookmarks where the caller was standing and
+ *       walks back there once the implement has been released, so a bot does not idle on a shared
+ *       torchpost/candelabrum and stays within loading range of the workstations it just lit (a
+ *       burnout wait cannot see unloaded gobs).</li>
+ *   <li><b>Context menu unchanged</b> — the single-{@link Gob} constructor keeps today's behavior: it
+ *       does <i>not</i> fetch a candelabrum from its designated area and does <i>not</i> walk back
+ *       afterwards; only the list constructor (used by bots) enables the area fetch, matching the old
+ *       {@code LightGob} capability.</li>
  * </ul>
  */
 public class LightObject implements Action {
 
     private final ArrayList<Gob> targets;
     private final boolean allowCandelabrumAreaFetch;
+    private final boolean returnToOrigin;
 
     private static final Coord TORCH_SIZE = new Coord(1, 1);
 
@@ -62,6 +69,7 @@ public class LightObject implements Action {
         this.targets = new ArrayList<>();
         this.targets.add(target);
         this.allowCandelabrumAreaFetch = false;
+        this.returnToOrigin = false;
     }
 
     /** Batch constructor used by bots (via {@code LightGob}). Enables candelabrum-area fetch so it is a
@@ -69,6 +77,7 @@ public class LightObject implements Action {
     public LightObject(ArrayList<Gob> targets) {
         this.targets = new ArrayList<>(targets);
         this.allowCandelabrumAreaFetch = true;
+        this.returnToOrigin = true;
     }
 
     // --- Config system ---
@@ -136,6 +145,22 @@ public class LightObject implements Action {
         if (targets.isEmpty())
             return Results.SUCCESS();
 
+        // The lighting tiers end wherever the implement lives - on a torchpost, beside the
+        // candelabrum that was just put back - and a bot's next step is usually a burnout wait, so
+        // it would idle there. That parks it on a shared implement other characters need, and it
+        // breaks the wait itself: WaitForBurnout resolves its workstations through
+        // Finder.findGob(hash), which only sees the loaded object cache, so once the workstations
+        // unload a null gob reads as "not burning" and the wait returns at once. Come back to where
+        // the caller was standing.
+        NGlobalCoord origin = returnToOrigin ? NUtils.bookmarkHere() : null;
+        // Deliberately not a finally block: an InterruptedException means the bot is being stopped
+        // and must propagate without first walking anywhere.
+        Results res = light(gui);
+        goBack(origin);
+        return res;
+    }
+
+    private Results light(NGameUI gui) throws InterruptedException {
         // --- Precheck all targets up front (fail-closed on fuel) ---
         ArrayList<Gob> remaining = new ArrayList<>();
         for (Gob t : targets) {
@@ -190,6 +215,31 @@ public class LightObject implements Action {
             tryCandelabrumFromArea(gui, remaining);
 
         return remaining.isEmpty() ? Results.SUCCESS() : Results.FAIL();
+    }
+
+    /**
+     * Walk back to where the caller was standing before the implement was fetched.
+     *
+     * NContext.navigateToAreaIfNeeded cannot be used for this: it ends in
+     * NUtils.navigateToArea(area, false), which deliberately does not move at all when the target is
+     * already within local pathfinding range - which is the usual case for a torchpost next to the
+     * workstations. The bookmark walks for real and stays valid across chunk-nav hops.
+     */
+    private void goBack(NGlobalCoord origin) throws InterruptedException {
+        if (origin == null)
+            return;
+        // Something still lifted means the release phase did not finish; walking off would carry
+        // the implement away from its home.
+        if (Finder.findLiftedbyPlayer() != null)
+            return;
+        // A null coord means the origin grid is no longer loaded - that is the long candelabrum-area
+        // trip, where navigateTo's chunk-nav fallback is exactly what is needed. Only skip the walk
+        // when the origin is loaded and we are already standing on it.
+        Coord2d target = origin.getCurrentCoord();
+        Gob player = NUtils.player();
+        if (target != null && player != null && player.rc.dist(target) <= MCache.tilesz.x)
+            return;
+        NUtils.navigateTo(origin);
     }
 
     private boolean isLit(Gob gob, LightConfig config) {
