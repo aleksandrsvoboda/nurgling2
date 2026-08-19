@@ -76,7 +76,9 @@ public class BoneAshAction implements Action {
                     if (!space.isEmpty())
                         forFuel.add(container);
                 }
-                new FuelToContainers(forFuel).run(gui);
+                Results fuelRes = new FuelToContainers(forFuel).run(gui);
+                if (!fuelRes.IsSuccess())
+                    return fuelRes;
 
                 flighted.clear();
                 for (Container cont : forFuel) {
