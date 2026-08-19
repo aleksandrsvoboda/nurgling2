@@ -166,6 +166,8 @@ public class TransferItems2 implements Action
                     ttc.run(gui);
                 }
                 if (output instanceof NContext.Barrel) {
+                    if (getItemsExactMatch(itemTransfer.itemName, itemTransfer.quality).isEmpty())
+                        break;
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),
                         itemTransfer.itemName).run(gui);
                 }
