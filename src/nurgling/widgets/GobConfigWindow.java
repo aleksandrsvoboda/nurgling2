@@ -27,9 +27,11 @@ public class GobConfigWindow extends Window {
     private final CheckBox tint;
     private final NColorWidget tintColor;
     private final CheckBox marker;
+    private final CheckBox label;
+    private final TextEntry labelText;
 
     public GobConfigWindow(String res) {
-        super(UI.scale(new Coord(300, 160)), L10n.get("gobconf.title") + ": " + prettyName(res));
+        super(UI.scale(new Coord(300, 200)), L10n.get("gobconf.title") + ": " + prettyName(res));
         this.res = res;
         GobCustomize.Settings s = GobCustomize.settings(res);
 
@@ -89,13 +91,47 @@ public class GobConfigWindow extends Window {
         marker.a = s.marker;
         prev = add(marker, prev.pos("bl").adds(-12, 8));
 
+        /* Caption drawn under the object. */
+        label = new CheckBox(L10n.get("gobconf.label")) {
+            @Override
+            public void changed(boolean val) {
+                GobCustomize.set(GobConfigWindow.this.res, current().withLabel(val));
+            }
+        };
+        label.a = s.label;
+        prev = add(label, prev.pos("bl").adds(0, 8));
+
+        labelText = add(new TextEntry(WIDTH - UI.scale(12), s.labelText) {
+            @Override
+            protected void changed() {
+                super.changed();
+                // Live as it is typed; the caption sprite reads the text back every frame.
+                // Saved on Enter, on losing focus and when the window closes, rather than per
+                // keystroke - a commit rewrites the whole config file.
+                GobCustomize.update(GobConfigWindow.this.res, current().withLabelText(text()));
+            }
+
+            @Override
+            public void activate(String text) {
+                super.activate(text);
+                GobCustomize.commit();
+            }
+
+            @Override
+            public void lostfocus() {
+                super.lostfocus();
+                GobCustomize.commit();
+            }
+        }, prev.pos("bl").adds(12, 4));
+        prev = labelText;
+
         add(new Button(UI.scale(90), L10n.get("gobconf.reset")) {
             @Override
             public void click() {
                 GobCustomize.set(GobConfigWindow.this.res, GobCustomize.DEFAULTS);
                 sync();
             }
-        }, prev.pos("bl").adds(0, 12));
+        }, prev.pos("bl").adds(-12, 12));
 
         pack();
     }
@@ -113,6 +149,8 @@ public class GobConfigWindow extends Window {
         marker.a = s.marker;
         tintColor.color = s.tintColor;
         tintColor.cb.colorChooser.setColor(s.tintColor);
+        label.a = s.label;
+        labelText.settext(s.labelText);
     }
 
     public String res() {

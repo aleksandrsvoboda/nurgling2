@@ -5,6 +5,7 @@ import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.gattrr.NGobCustomScale;
 import nurgling.gattrr.NGobCustomTint;
+import nurgling.overlays.NGobConfigLabel;
 import nurgling.overlays.NGobConfigMarker;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
@@ -37,6 +38,8 @@ public class GobCustomize {
     private static final String KEY_TINT = "tint";
     private static final String KEY_TINT_COLOR = "tintColor";
     private static final String KEY_MARKER = "marker";
+    private static final String KEY_LABEL = "label";
+    private static final String KEY_LABEL_TEXT = "labelText";
 
     public static final int SCALE_MIN = 10;
     public static final int SCALE_MAX = 300;
@@ -55,12 +58,17 @@ public class GobCustomize {
         public final boolean tint;
         public final Color tintColor;
         public final boolean marker;
+        public final boolean label;
+        public final String labelText;
 
-        public Settings(int scale, boolean tint, Color tintColor, boolean marker) {
+        public Settings(int scale, boolean tint, Color tintColor, boolean marker,
+                        boolean label, String labelText) {
             this.scale = scale;
             this.tint = tint;
             this.tintColor = (tintColor == null) ? DEFAULT_TINT : tintColor;
             this.marker = marker;
+            this.label = label;
+            this.labelText = (labelText == null) ? "" : labelText;
         }
 
         /**
@@ -69,16 +77,25 @@ public class GobCustomize {
          * its own write vanish and re-fire on every tick.
          */
         public boolean isDefault() {
-            return (scale == SCALE_DEFAULT) && !tint && !marker && tintColor.equals(DEFAULT_TINT);
+            return (scale == SCALE_DEFAULT) && !tint && !marker && !label
+                    && tintColor.equals(DEFAULT_TINT) && labelText.isEmpty();
         }
 
-        public Settings withScale(int v) {return new Settings(clampScale(v), tint, tintColor, marker);}
-        public Settings withTint(boolean v) {return new Settings(scale, v, tintColor, marker);}
-        public Settings withTintColor(Color v) {return new Settings(scale, tint, v, marker);}
-        public Settings withMarker(boolean v) {return new Settings(scale, tint, tintColor, v);}
+        /** True when there is actually a caption to draw - the option on and some text to show. */
+        public boolean hasLabel() {
+            return label && !labelText.isEmpty();
+        }
+
+        public Settings withScale(int v) {return new Settings(clampScale(v), tint, tintColor, marker, label, labelText);}
+        public Settings withTint(boolean v) {return new Settings(scale, v, tintColor, marker, label, labelText);}
+        public Settings withTintColor(Color v) {return new Settings(scale, tint, v, marker, label, labelText);}
+        public Settings withMarker(boolean v) {return new Settings(scale, tint, tintColor, v, label, labelText);}
+        public Settings withLabel(boolean v) {return new Settings(scale, tint, tintColor, marker, v, labelText);}
+        public Settings withLabelText(String v) {return new Settings(scale, tint, tintColor, marker, label, v);}
     }
 
-    public static final Settings DEFAULTS = new Settings(SCALE_DEFAULT, false, DEFAULT_TINT, false);
+    public static final Settings DEFAULTS =
+            new Settings(SCALE_DEFAULT, false, DEFAULT_TINT, false, false, "");
 
     /** res name -> settings. A resource at its defaults is absent rather than present-and-default. */
     private static volatile Map<String, Settings> conf = null;
@@ -111,7 +128,9 @@ public class GobCustomize {
                     intOpt(opts.get(KEY_SCALE), SCALE_DEFAULT),
                     boolOpt(opts.get(KEY_TINT)),
                     colorOpt(opts.get(KEY_TINT_COLOR)),
-                    boolOpt(opts.get(KEY_MARKER)));
+                    boolOpt(opts.get(KEY_MARKER)),
+                    boolOpt(opts.get(KEY_LABEL)),
+                    strOpt(opts.get(KEY_LABEL_TEXT)));
             if (!s.isDefault())
                 res.put(entry.getKey(), s);
         }
@@ -124,6 +143,10 @@ public class GobCustomize {
 
     private static boolean boolOpt(Object v) {
         return (v instanceof Boolean) && (Boolean) v;
+    }
+
+    private static String strOpt(Object v) {
+        return (v instanceof String) ? (String) v : "";
     }
 
     /** Colours are stored as a packed ARGB int, which survives the JSON round-trip unambiguously. */
@@ -165,7 +188,8 @@ public class GobCustomize {
         // and re-adding the marker overlay each time would race its own deferred add.
         applyAll(res, prev.scale != s.scale,
                 (prev.tint != s.tint) || !prev.tintColor.equals(s.tintColor),
-                prev.marker != s.marker);
+                prev.marker != s.marker,
+                prev.hasLabel() != s.hasLabel());
     }
 
     /** Writes the current in-memory settings to the config file. */
@@ -182,6 +206,10 @@ public class GobCustomize {
                 opts.put(KEY_TINT_COLOR, s.tintColor.getRGB());
             if (s.marker)
                 opts.put(KEY_MARKER, true);
+            if (s.label)
+                opts.put(KEY_LABEL, true);
+            if (!s.labelText.isEmpty())
+                opts.put(KEY_LABEL_TEXT, s.labelText);
             if (!opts.isEmpty())
                 out.put(entry.getKey(), opts);
         }
@@ -200,10 +228,10 @@ public class GobCustomize {
      * from {@link nurgling.NGob} whenever a gob's resource name is resolved.
      */
     public static void apply(Gob gob) {
-        apply(gob, true, true, true);
+        apply(gob, true, true, true, true);
     }
 
-    private static void apply(Gob gob, boolean doScale, boolean doTint, boolean doMarker) {
+    private static void apply(Gob gob, boolean doScale, boolean doTint, boolean doMarker, boolean doLabel) {
         if (gob == null || gob.ngob == null)
             return;
         String res = gob.ngob.name;
@@ -233,17 +261,21 @@ public class GobCustomize {
 
         // Only ever added here - a marker whose setting goes away takes itself off, see
         // NGobConfigMarker.
-        if (doMarker && s.marker && !hasMarker(gob))
+        if (doMarker && s.marker && !hasol(gob, NGobConfigMarker.class))
             gob.addol(new Gob.Overlay(gob, new NGobConfigMarker(gob, res)), true);
+
+        // Same deal: the caption reads its text live and drops itself when there is none left.
+        if (doLabel && s.hasLabel() && !hasol(gob, NGobConfigLabel.class))
+            gob.addol(new Gob.Overlay(gob, new NGobConfigLabel(gob, res)), true);
     }
 
     /**
      * Null-safe counterpart to {@link Gob#findol(Class)}: an overlay built from a
      * {@link haven.Sprite.Mill} has no sprite until it initialises, and that is not this one.
      */
-    private static boolean hasMarker(Gob gob) {
+    private static boolean hasol(Gob gob, Class<? extends haven.Sprite> cl) {
         for (Gob.Overlay ol : gob.ols) {
-            if (ol.spr instanceof NGobConfigMarker)
+            if (cl.isInstance(ol.spr))
                 return true;
         }
         return false;
@@ -255,11 +287,12 @@ public class GobCustomize {
      * under its monitor, then act outside it.
      */
     public static void applyAll(String res) {
-        applyAll(res, true, true, true);
+        applyAll(res, true, true, true, true);
     }
 
-    private static void applyAll(String res, boolean doScale, boolean doTint, boolean doMarker) {
-        if (res == null || !(doScale || doTint || doMarker))
+    private static void applyAll(String res, boolean doScale, boolean doTint, boolean doMarker,
+                                 boolean doLabel) {
+        if (res == null || !(doScale || doTint || doMarker || doLabel))
             return;
         for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
             NGameUI gui = ctx.getGameUI();
@@ -273,7 +306,7 @@ public class GobCustomize {
                 }
             }
             for (Gob gob : gobs)
-                apply(gob, doScale, doTint, doMarker);
+                apply(gob, doScale, doTint, doMarker, doLabel);
         }
     }
 }
