@@ -60,8 +60,13 @@ public class NGobContextMenu extends Widget {
 
     private void choose(Petal petal) {
         if (petal != null) {
-            Action action = petal.contextAction.create(gob);
-            BotExecutor.runAsync(petal.contextAction.label(), action);
+            if (petal.contextAction.isUiAction()) {
+                // Interface-only entry: it belongs on the UI thread, not the bot executor.
+                petal.contextAction.performUi(gob);
+            } else {
+                Action action = petal.contextAction.create(gob);
+                BotExecutor.runAsync(petal.contextAction.label(), action);
+            }
         }
         ui.destroy(this);
     }
