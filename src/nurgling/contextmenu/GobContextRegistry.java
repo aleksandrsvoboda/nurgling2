@@ -38,5 +38,7 @@ public class GobContextRegistry {
         register(new ChipStoneAreaAction());
         register(new ShearWoolAreaAction());
         register(new LightAction());
+        // Registered last so the generic entry sits below the object-specific ones.
+        register(new ConfigureGobAction());
     }
 }

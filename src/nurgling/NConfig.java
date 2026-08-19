@@ -55,6 +55,8 @@ public class NConfig
         hideNature,
         hideEarthworm,
         hideConf,
+        /** Per-resource display settings from the gob "Configure" window; see nurgling.tools.GobCustomize. */
+        gobConf,
         hideBoxFillColor,
         hideBoxEdgeColor,
         hideBoxLineWidth,
@@ -280,6 +282,7 @@ public class NConfig
         conf.put(Key.showCSprite, true);
         conf.put(Key.hideEarthworm, true);  // true = show earthworms (checkbox unchecked by default)
         conf.put(Key.hideConf, nurgling.tools.GobHide.defaults());
+        conf.put(Key.gobConf, new HashMap<String, Object>());
         // Hidden-object boxes are styled independently of the general showBB boxes; these defaults
         // match the old shared values so upgrading users see no visual change.
         conf.put(Key.hideBoxFillColor, new Color(227, 28, 1, 195));
