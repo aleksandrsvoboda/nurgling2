@@ -224,6 +224,7 @@ public class NConfig
         showBotPathOnGround,
         // Movement waypoints (alt+click) drawn in the 3D world
         showWaypointsInWorld,
+        pingSound,
         waypointColorActive,
         waypointColorQueued,
         // Map tools panel
@@ -604,6 +605,7 @@ public class NConfig
         conf.put(Key.showBotPathOnMinimap, false);
         conf.put(Key.showBotPathOnGround, false);
         conf.put(Key.showWaypointsInWorld, true);
+        conf.put(Key.pingSound, true);
     }
 
 

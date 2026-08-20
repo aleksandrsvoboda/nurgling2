@@ -29,17 +29,31 @@ import java.util.List;
  * start failing and later succeed as the player walks toward the pinged spot.
  */
 public class PingService {
-    /** How long a ping stays up, in seconds. Matches the other chat overlays. */
-    public static final double DURATION = 12.0;
+    /** How long a ping stays up, in seconds. */
+    public static final double DURATION = 20.0;
+    /**
+     * Fraction of the lifetime a ping stays at full brightness before it starts fading.
+     * A ping that dims linearly from the moment it lands spends most of its life as a
+     * faint smudge; holding and then dropping keeps it readable and makes the ending read
+     * as deliberate rather than as the effect running out of steam.
+     */
+    private static final double HOLD = 0.7;
     /** Pings kept per sender, so nobody can bury the map by spamming. */
     private static final int MAX_PER_SENDER = 3;
     /** Seconds between retries of a resolution that has not succeeded yet. */
     private static final double RETRY = 0.5;
     /** Colour for a ping with no sender colour to go on. */
     public static final Color DEFAULT_COLOR = new Color(125, 211, 252);
+    /** Sender key the chat layer uses for our own lines. */
+    public static final String SELF = "self";
+    /** Cue played when someone else pings; the game's own minimap-marker bell. */
+    private static final String CUE_RES = "sfx/hud/mmap/bell1";
+    /** Minimum seconds between cues, matching GobIcon's notification limiter. */
+    private static final double CUE_INTERVAL = 0.5;
 
     private final NGameUI gui;
     private final List<Ping> pings = new ArrayList<>();
+    private double lastCue = Double.NEGATIVE_INFINITY;
 
     public PingService(NGameUI gui) {
         this.gui = gui;
@@ -78,6 +92,21 @@ public class PingService {
             return(Math.min(1.0, (Utils.rtime() - start) / DURATION));
         }
 
+        /** Seconds since the ping landed. Animation phases key off this, not off the wall
+         *  clock, so every ping starts its rings from the centre however long it has run. */
+        public double since() {
+            return(Utils.rtime() - start);
+        }
+
+        /** Overall opacity: full for the first {@link #HOLD} of the life, then eased out. */
+        public double alpha() {
+            double age = age();
+            if(age <= HOLD)
+                return(1.0);
+            double u = (age - HOLD) / (1.0 - HOLD);
+            return(Math.pow(1.0 - u, 1.5));
+        }
+
         boolean expired() {
             return(Utils.rtime() - start >= DURATION);
         }
@@ -90,6 +119,8 @@ public class PingService {
      */
     public void add(long gridId, Coord local, Color col, String sender) {
         Ping p = new Ping(gridId, local, col, sender);
+        if(!SELF.equals(sender))
+            cue();
         synchronized(pings) {
             if(sender != null) {
                 // Walk newest-first and drop everything past the cap, so the newest ping
@@ -125,6 +156,38 @@ public class PingService {
         synchronized(pings) {
             pings.clear();
         }
+    }
+
+    /**
+     * Short cue when someone else pings. A ping is a notification, and one that arrives
+     * while the player is looking at their inventory may as well not have happened.
+     * Loaded and played the way GobIcon plays its marker notifications: off the loader
+     * thread, and a resource that will not load is dropped rather than raised, because a
+     * missing sound must never cost anyone a ping.
+     */
+    private void cue() {
+        if(!Boolean.TRUE.equals(NConfig.get(NConfig.Key.pingSound)))
+            return;
+        // Several people pinging the same spot at once should be one bell, not a peal.
+        double now = Utils.rtime();
+        if(now - lastCue < CUE_INTERVAL)
+            return;
+        lastCue = now;
+        UI ui = gui.ui;
+        if(ui == null)
+            return;
+        Indir<Resource> resid = Resource.local().load(CUE_RES);
+        ui.sess.glob.loader.defer(() -> {
+            Resource res;
+            try {
+                res = resid.get();
+            } catch(Loading l) {
+                throw(l);
+            } catch(RuntimeException e) {
+                return;
+            }
+            ui.sfx(Audio.fromres(res));
+        }, null);
     }
 
     /** Fill in whichever of the two positions is still missing, on a retry throttle. */

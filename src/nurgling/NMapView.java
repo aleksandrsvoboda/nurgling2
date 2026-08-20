@@ -367,7 +367,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     public long wpHoverId() {return(wpHoverId);}
     public Coord2d wpDragOrigin() {return(wpDragOrigin);}
 
-    /** Draws chat map pings (@Point). Purely a 2D pass, so it needs no per-frame update. */
+    /** Draws chat map pings (@Point): ground glow in the render tree, rings in the 2D pass. */
     private nurgling.overlays.NPointPingOverlay pingOverlay = null;
     private RenderTree.Slot pingOverlaySlot = null;
 
@@ -384,6 +384,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             pingOverlaySlot = basic.add(pingOverlay);
         }
         wpOverlay.update();
+        pingOverlay.update();
     }
 
     /** Id of the waypoint whose ground node contains the given screen point, or -1. */
