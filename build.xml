@@ -97,7 +97,10 @@
 
     <target name="extlib/jogl-arm" depends="extlib/jogl">
         <mkdir dir="lib/ext/jogl" />
-        <get dest="lib/ext/jogl/" verbose="true">
+        <!-- skipexisting: the URLs are version-pinned, so a file already
+             present is already the right one. Without this, every build hits
+             jogamp.org and dies on a transient network failure. -->
+        <get dest="lib/ext/jogl/" verbose="true" skipexisting="true">
             <url url="https://jogamp.org/deployment/v2.5.0/jar/jogl-all.jar" />
             <url url="https://jogamp.org/deployment/v2.5.0/jar/jogl-all-natives-macosx-universal.jar" />
             <url url="https://jogamp.org/deployment/v2.5.0/jar/gluegen-rt.jar" />
