@@ -118,27 +118,33 @@ public class Navigation extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
 
-        // Visual indicators section
-        prev = content.add(new Label("● " + L10n.get("nav.section.visual")), prev.pos("bl").adds(0, 15));
-        
+        // Visual indicators section.
+        // Rows are positioned with an explicit x rather than by nudging the previous row's
+        // offset: relative +10/-10 hops silently drift as rows are inserted, which is how
+        // the colour pickers ended up out of line with each other.
+        final int colBase = contentMargin;
+        final int colSub = contentMargin + UI.scale(12);
+
+        prev = content.add(new Label("● " + L10n.get("nav.section.visual")), new Coord(colBase, prev.pos("bl").y + UI.scale(15)));
+
         prev = showPathLine = content.add(new CheckBox(L10n.get("nav.show_path_line")) {
             public void set(boolean val) {
                 tempSettings.showPathLine = val;
                 a = val;
             }
-        }, prev.pos("bl").adds(0, 5));
+        }, new Coord(colBase, prev.pos("bl").y + UI.scale(5)));
 
         prev = showWaypointsInWorld = content.add(new CheckBox(L10n.get("nav.show_waypoints_world")) {
             public void set(boolean val) {
                 tempSettings.showWaypointsInWorld = val;
                 a = val;
             }
-        }, prev.pos("bl").adds(0, 5));
+        }, new Coord(colBase, prev.pos("bl").y + UI.scale(5)));
 
         // Waypoint colours - shared by the world view, the map window and the minimap
-        prev = wpActiveColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_active")), prev.pos("bl").adds(10, 5));
+        prev = wpActiveColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_active")), new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
         wpActiveColorWidget.color = tempSettings.waypointColorActive;
-        prev = wpQueuedColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_queued")), prev.pos("bl").adds(0, 5));
+        prev = wpQueuedColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_queued")), new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
         wpQueuedColorWidget.color = tempSettings.waypointColorQueued;
 
         prev = showStorageTrail = content.add(new CheckBox(L10n.get("nav.show_storage_trail")) {
@@ -146,47 +152,46 @@ public class Navigation extends Panel {
                 tempSettings.showStorageTrail = val;
                 a = val;
             }
-        }, prev.pos("bl").adds(-10, 10));
+        }, new Coord(colBase, prev.pos("bl").y + UI.scale(10)));
         showStorageTrail.settip(L10n.get("nav.show_storage_trail_tip"));
 
-        prev = storageTrailColorWidget = content.add(new NColorWidget(L10n.get("nav.storage_trail_color")), prev.pos("bl").adds(10, 5));
+        prev = storageTrailColorWidget = content.add(new NColorWidget(L10n.get("nav.storage_trail_color")), new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
         storageTrailColorWidget.color = tempSettings.storageTrailColor;
 
-        prev = storageTrailMaxLabel = content.add(new Label(L10n.get("nav.storage_trail_max") + " 3"), prev.pos("bl").adds(0, 5));
+        prev = storageTrailMaxLabel = content.add(new Label(L10n.get("nav.storage_trail_max") + " 3"), new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
         prev = storageTrailMaxSlider = content.add(new HSlider(UI.scale(100), 1, 5, tempSettings.storageTrailMax) {
             public void changed() {
                 tempSettings.storageTrailMax = val;
                 storageTrailMaxLabel.settext(L10n.get("nav.storage_trail_max") + " " + val);
             }
-        }, prev.pos("bl").adds(0, 5));
+        }, new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
 
         prev = recipeSearchAsItemSearch = content.add(new CheckBox(L10n.get("nav.recipe_search_as_item_search")) {
             public void set(boolean val) {
                 tempSettings.recipeSearchAsItemSearch = val;
                 a = val;
             }
-        }, prev.pos("bl").adds(-10, 5));
+        }, new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
         recipeSearchAsItemSearch.settip(L10n.get("nav.recipe_search_as_item_search_tip"));
 
-        // Path line color
-        prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(0, 10));
+        // Path line appearance
+        prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), new Coord(colSub, prev.pos("bl").y + UI.scale(10)));
         pathLineColorWidget.color = tempSettings.pathLineColor;
 
-        // Path line thickness
-        prev = pathLineWidthLabel = content.add(new Label(L10n.get("nav.path_line_thickness") + " 4"), prev.pos("bl").adds(0, 5));
+        prev = pathLineWidthLabel = content.add(new Label(L10n.get("nav.path_line_thickness") + " 4"), new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
         prev = pathLineWidthSlider = content.add(new HSlider(UI.scale(100), 1, 10, tempSettings.pathLineWidth) {
             public void changed() {
                 tempSettings.pathLineWidth = val;
                 pathLineWidthLabel.settext(L10n.get("nav.path_line_thickness") + " " + val);
             }
-        }, prev.pos("bl").adds(0, 5));
+        }, new Coord(colSub, prev.pos("bl").y + UI.scale(5)));
 
         prev = showSpeedometer = content.add(new CheckBox(L10n.get("nav.show_speedometer")) {
             public void set(boolean val) {
                 tempSettings.showSpeedometer = val;
                 a = val;
             }
-        }, prev.pos("bl").adds(0, 5));
+        }, new Coord(colBase, prev.pos("bl").y + UI.scale(10)));
 
         // Tools section
         prev = content.add(new Label("● Tools"), prev.pos("bl").adds(0, 15));
