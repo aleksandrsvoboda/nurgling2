@@ -18,11 +18,18 @@ public class NColorWidget extends Widget
 
     public Color color = Color.BLACK;
 
+    /** Where the swatch sits when the label is short enough, so rows line up in a column. */
+    private static final int SWATCH_X = UI.scale(80);
+    private static final int LABEL_GAP = UI.scale(6);
+
     public NColorWidget(String text){
         cb = new NColorButton();
         label = new Label(text + ":");
         add(label, UI.scale(0,8));
-        add(cb, UI.scale(80,0));
+        // A fixed swatch position draws the swatch straight over any label wider than it.
+        // Longer labels push it right instead; shorter ones keep the shared column, and
+        // callers that pass no label at all are unaffected.
+        add(cb, new Coord(Math.max(SWATCH_X, label.sz.x + LABEL_GAP), 0));
         pack();
     }
     public class NColorButton extends Button {
