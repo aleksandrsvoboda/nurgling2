@@ -271,7 +271,7 @@ public class StorageTrailService {
 
     private int maxTrails() {
         Object v = NConfig.get(NConfig.Key.storageTrailMax);
-        int n = (v instanceof Number) ? ((Number) v).intValue() : 1;
+        int n = (v instanceof Number) ? ((Number) v).intValue() : 3;
         return Math.max(1, Math.min(MAX_TRAILS_CAP, n));
     }
 
