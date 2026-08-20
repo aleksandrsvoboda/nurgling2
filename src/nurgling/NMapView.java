@@ -1049,6 +1049,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     boolean botsInit = false;
     private static final long BOT_DELAY_MS = 15 * 1000;
+    private static final String AUTORUNNER_BOT_NAME = "AutorunnerScenario";
 
     @Override
     public void tick(double dt)
@@ -1153,9 +1154,13 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                         System.err.println("[NMapView] ERROR in bot thread: " + e.getMessage());
                         e.printStackTrace();
                     } finally {
+                        // This thread bypasses BotExecutor, so unregister explicitly.
+                        boundUI.core.watchdog.unregister(Thread.currentThread(),
+                                nurgling.watchdog.BotState.FINISHED, null);
                         ThreadLocalUI.clear();
                     }
-                });
+                }, AUTORUNNER_BOT_NAME);
+                nurgling.sessions.BotExecutor.register(boundUI, t, AUTORUNNER_BOT_NAME);
                 boundGui.biw.addObserve(t);
                 t.start();
             }
