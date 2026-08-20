@@ -25,6 +25,11 @@ public class Navigation extends Panel {
         int pathLineWidth = 4;
         Color pathLineColor = new Color(255, 255, 0);
         boolean showSpeedometer;
+
+        // Trail to containers matching the item search
+        boolean showStorageTrail;
+        Color storageTrailColor = new Color(126, 232, 143);
+        int storageTrailMax = 1;
     }
 
     private final NavigationSettings tempSettings = new NavigationSettings();
@@ -45,6 +50,10 @@ public class Navigation extends Panel {
     private HSlider pathLineWidthSlider;
     private Label pathLineWidthLabel;
     private CheckBox showSpeedometer;
+    private CheckBox showStorageTrail;
+    private NColorWidget storageTrailColorWidget;
+    private Label storageTrailMaxLabel;
+    private HSlider storageTrailMaxSlider;
     
     private Scrollport scrollport;
     private Widget content;
@@ -130,8 +139,27 @@ public class Navigation extends Panel {
         prev = wpQueuedColorWidget = content.add(new NColorWidget(L10n.get("nav.waypoint_color_queued")), prev.pos("bl").adds(0, 5));
         wpQueuedColorWidget.color = tempSettings.waypointColorQueued;
 
+        prev = showStorageTrail = content.add(new CheckBox(L10n.get("nav.show_storage_trail")) {
+            public void set(boolean val) {
+                tempSettings.showStorageTrail = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(-10, 10));
+        showStorageTrail.settip(L10n.get("nav.show_storage_trail_tip"));
+
+        prev = storageTrailColorWidget = content.add(new NColorWidget(L10n.get("nav.storage_trail_color")), prev.pos("bl").adds(10, 5));
+        storageTrailColorWidget.color = tempSettings.storageTrailColor;
+
+        prev = storageTrailMaxLabel = content.add(new Label(L10n.get("nav.storage_trail_max") + " 1"), prev.pos("bl").adds(0, 5));
+        prev = storageTrailMaxSlider = content.add(new HSlider(UI.scale(100), 1, 5, tempSettings.storageTrailMax) {
+            public void changed() {
+                tempSettings.storageTrailMax = val;
+                storageTrailMaxLabel.settext(L10n.get("nav.storage_trail_max") + " " + val);
+            }
+        }, prev.pos("bl").adds(0, 5));
+
         // Path line color
-        prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(10, 5));
+        prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(-10, 10));
         pathLineColorWidget.color = tempSettings.pathLineColor;
 
         // Path line thickness
@@ -181,6 +209,11 @@ public class Navigation extends Panel {
         tempSettings.waypointColorActive = NConfig.getColor(NConfig.Key.waypointColorActive, new Color(0, 224, 224));
         tempSettings.waypointColorQueued = NConfig.getColor(NConfig.Key.waypointColorQueued, new Color(255, 212, 0));
         tempSettings.showSpeedometer = (Boolean) NConfig.get(NConfig.Key.showSpeedometer);
+        Object storageTrailObj = NConfig.get(NConfig.Key.showStorageTrail);
+        tempSettings.showStorageTrail = !(storageTrailObj instanceof Boolean) || (Boolean) storageTrailObj;
+        tempSettings.storageTrailColor = NConfig.getColor(NConfig.Key.storageTrailColor, new Color(126, 232, 143));
+        Object storageTrailMaxObj = NConfig.get(NConfig.Key.storageTrailMax);
+        tempSettings.storageTrailMax = (storageTrailMaxObj instanceof Number) ? ((Number) storageTrailMaxObj).intValue() : 1;
 
         // Load path line settings
         Object pathLineWidthObj = NConfig.get(NConfig.Key.pathLineWidth);
@@ -197,6 +230,10 @@ public class Navigation extends Panel {
         showWaypointsInWorld.a = tempSettings.showWaypointsInWorld;
         wpActiveColorWidget.color = tempSettings.waypointColorActive;
         wpQueuedColorWidget.color = tempSettings.waypointColorQueued;
+        showStorageTrail.a = tempSettings.showStorageTrail;
+        storageTrailColorWidget.color = tempSettings.storageTrailColor;
+        storageTrailMaxSlider.val = tempSettings.storageTrailMax;
+        storageTrailMaxLabel.settext(L10n.get("nav.storage_trail_max") + " " + tempSettings.storageTrailMax);
         pathLineColorWidget.color = tempSettings.pathLineColor;
         pathLineWidthSlider.val = tempSettings.pathLineWidth;
         pathLineWidthLabel.settext(L10n.get("nav.path_line_thickness") + " " + tempSettings.pathLineWidth);
@@ -235,6 +272,11 @@ public class Navigation extends Panel {
         NConfig.setColor(NConfig.Key.waypointColorActive, wpActiveColorWidget.color);
         NConfig.setColor(NConfig.Key.waypointColorQueued, wpQueuedColorWidget.color);
         NConfig.set(NConfig.Key.showSpeedometer, tempSettings.showSpeedometer);
+
+        // Save storage trail settings
+        NConfig.set(NConfig.Key.showStorageTrail, tempSettings.showStorageTrail);
+        NConfig.set(NConfig.Key.storageTrailMax, tempSettings.storageTrailMax);
+        NConfig.setColor(NConfig.Key.storageTrailColor, storageTrailColorWidget.color);
 
         // Save path line settings
         tempSettings.pathLineColor = pathLineColorWidget.color;

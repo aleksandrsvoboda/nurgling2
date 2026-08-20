@@ -7,13 +7,10 @@ import nurgling.NGameUI;
 import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.WaypointMovementService;
-import nurgling.tools.FlatWorld;
 import nurgling.widgets.NMiniMap;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,53 +20,18 @@ import java.util.List;
  * The character walks to a waypoint by straight-line click-walk - the server does no
  * routing - so the path drawn here is deliberately straight in X/Y. The only bend it
  * ever shows comes from elevation: the same straight segment is sampled at ground
- * height every tile, so it lies on the terrain instead of floating across it. With flat
- * world enabled the terrain has no relief to follow, so the path lies flat as well -
- * MCache.getcz() still reports true heights there, so the flag has to be honoured here
- * the same way NPathVisualizer honours it.
+ * height every tile, so it lies on the terrain instead of floating across it.
  *
- * Geometry (ribbon + waypoint rings) is real 3D in the render tree, drawn twice: once
- * depth-tested, so hills and buildings hide it, and once faintly with no depth test, so
- * a hidden path is still findable. Labels, the active-node pulse and the drag ghost are
- * drawn in the 2D pass on top (PView.Render2D), the same way area labels work.
+ * The ribbon and ring geometry, the terrain sampling and the screen-edge arrows all
+ * live in {@link NGroundPathOverlay}; this class supplies the queue and everything
+ * specific to it. Labels, the active-node pulse and the drag ghost are drawn in the 2D
+ * pass on top (PView.Render2D), the same way area labels work.
  */
-public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
-    /* --- world-space geometry constants (game units; one tile is 11) --- */
-    private static final double SAMPLE = 11.0;      // ribbon sample spacing
-    private static final int MAX_SAMPLES = 96;      // cap for very long legs
-    private static final double RIB_CORE = 0.60;    // half-width of the coloured core
-    private static final double RIB_CASE = 1.25;    // half-width of the dark casing
-    private static final double Z_CASE = 0.35, Z_CORE = 0.45;
-    private static final double RING_IN = 4.4, RING_OUT = 6.0, Z_RING = 0.45;
-    private static final int RING_SEG = 24;
+public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render2D {
     private static final double STEM_H = 7.0;       // world height of the label stem
     /** How many out-of-view waypoints get an edge arrow; a long path would otherwise
      *  ring the whole viewport with numbers. */
     private static final int MAX_EDGE_ARROWS = 3;
-
-    private static final float[] CASING = {0.02f, 0.05f, 0.05f, 0.85f};
-
-    private static final VertexArray.Layout LAYOUT = new VertexArray.Layout(
-            new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0, 28),
-            new VertexArray.Layout.Input(VertexColor.color, new VectorFormat(4, NumberFormat.FLOAT32), 0, 12, 28));
-
-    private static final Pipe.Op BASE = Pipe.Op.compose(
-            new States.Facecull(States.Facecull.Mode.NONE),
-            Clickable.No,
-            VertexColor.instance);
-    private static final Pipe.Op MAT_SOLID = Pipe.Op.compose(
-            Rendered.postpfx,
-            new BaseColor(Color.WHITE));
-    private static final Pipe.Op MAT_GHOST = Pipe.Op.compose(
-            Rendered.last,
-            States.Depthtest.none,
-            States.maskdepth,
-            new BaseColor(new Color(255, 255, 255, 60)));
-
-    private final NMapView mv;
-    private final Part solid = new Part();
-    private final Part ghost = new Part();
-    private final Collection<RenderTree.Slot> slots = new ArrayList<>(1);
 
     /** One queued waypoint, resolved to world coordinates. */
     public static class WNode {
@@ -85,8 +47,6 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         }
     }
 
-    /** Flat-world state of the frame/rebuild currently being processed. */
-    private boolean flat = false;
     private long lastSig = Long.MIN_VALUE;
     private Coord2d lastPlayer = null;
     private double lastBuild = 0;
@@ -100,63 +60,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
     private Text dragTex = null;
 
     public NWaypointOverlay(NMapView mv) {
-        this.mv = mv;
-    }
-
-    /* ------------------------------------------------------------------ *
-     *  Render tree plumbing
-     * ------------------------------------------------------------------ */
-
-    private static class Part implements RenderTree.Node, Rendered {
-        private final Collection<RenderTree.Slot> slots = new ArrayList<>(1);
-        private volatile Model model = null;
-
-        void set(Model m) {
-            this.model = m;
-            Collection<RenderTree.Slot> cur;
-            synchronized(slots) {
-                cur = new ArrayList<>(slots);
-            }
-            for(RenderTree.Slot s : cur) {
-                try {
-                    s.update();
-                } catch(RenderTree.SlotRemoved ignored) {
-                }
-            }
-        }
-
-        public void added(RenderTree.Slot slot) {
-            synchronized(slots) {
-                slots.add(slot);
-            }
-        }
-
-        public void removed(RenderTree.Slot slot) {
-            synchronized(slots) {
-                slots.remove(slot);
-            }
-        }
-
-        public void draw(Pipe context, Render out) {
-            Model m = this.model;
-            if(m != null)
-                out.draw(context, m);
-        }
-    }
-
-    public void added(RenderTree.Slot slot) {
-        slot.ostate(BASE);
-        slot.add(solid, MAT_SOLID);
-        slot.add(ghost, MAT_GHOST);
-        synchronized(slots) {
-            slots.add(slot);
-        }
-    }
-
-    public void removed(RenderTree.Slot slot) {
-        synchronized(slots) {
-            slots.remove(slot);
-        }
+        super(mv);
     }
 
     /* ------------------------------------------------------------------ *
@@ -177,10 +81,6 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
 
     public static Color dragColor() {
         return(Color.WHITE);
-    }
-
-    private static float[] rgba(Color c, double alpha) {
-        return(new float[]{c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, (float)alpha});
     }
 
     /** Colour of a node given its position in the queue and the current pointer state. */
@@ -219,130 +119,9 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         return(ret);
     }
 
-    private Coord2d playerPos() {
-        Gob pl = mv.player();
-        if(pl == null)
-            return(null);
-        return(pl.rc);
-    }
-
     /* ------------------------------------------------------------------ *
      *  Geometry
      * ------------------------------------------------------------------ */
-
-    /** Growable interleaved position+colour vertex buffer. */
-    private static class Buf {
-        float[] d = new float[8192];
-        int n = 0;
-
-        void v(double x, double y, double z, float[] col) {
-            if(n + 7 > d.length)
-                d = Arrays.copyOf(d, d.length * 2);
-            // Model space negates y, matching the rest of the client's world geometry.
-            d[n++] = (float)x;
-            d[n++] = (float)-y;
-            d[n++] = (float)z;
-            d[n++] = col[0];
-            d[n++] = col[1];
-            d[n++] = col[2];
-            d[n++] = col[3];
-        }
-
-        void tri(double[] a, double[] b, double[] c, float[] col) {
-            v(a[0], a[1], a[2], col);
-            v(b[0], b[1], b[2], col);
-            v(c[0], c[1], c[2], col);
-        }
-
-        void quad(double[] a, double[] b, double[] c, double[] d, float[] col) {
-            tri(a, b, c, col);
-            tri(a, c, d, col);
-        }
-
-        float[] fit() {
-            return(Arrays.copyOf(d, n));
-        }
-    }
-
-    /** Ground height at a world point - always zero while the world is drawn flat. */
-    private double cz(double x, double y, double fallback) {
-        if(flat)
-            return(0);
-        try {
-            return(mv.glob.map.getcz(x, y));
-        } catch(Loading l) {
-            return(fallback);
-        }
-    }
-
-    /** Height to fall back on where the terrain has not been paged in yet. */
-    private double baseZ() {
-        if(flat)
-            return(0);
-        return(mv.getcc().z);
-    }
-
-    private static double[] p(double x, double y, double z) {
-        return(new double[]{x, y, z});
-    }
-
-    /**
-     * One leg of the walk. Straight in X/Y - exactly the line the character runs -
-     * sampled at ground height so it lies on the terrain.
-     */
-    private void ribbon(Buf buf, Coord2d a, Coord2d b, float[] core, double baseZ) {
-        double len = a.dist(b);
-        if(len < 0.5)
-            return;
-        // Flat world has no relief to trace, so one quad spans the whole leg.
-        int steps = flat ? 1 : Math.min(MAX_SAMPLES, Math.max(1, (int)Math.ceil(len / SAMPLE)));
-        Coord2d dir = b.sub(a).div(len);
-        Coord2d perp = new Coord2d(-dir.y, dir.x);
-
-        double[] pcl = null, pcr = null, pkl = null, pkr = null;
-        for(int i = 0; i <= steps; i++) {
-            double t = (double)i / steps;
-            Coord2d pt = a.add(b.sub(a).mul(t));
-            double z = cz(pt.x, pt.y, baseZ);
-            // Sample at the ribbon's own edges: on a slope the centreline height would
-            // leave the downhill edge buried in the ground.
-            double lx = pt.x + perp.x * RIB_CASE, ly = pt.y + perp.y * RIB_CASE;
-            double rx = pt.x - perp.x * RIB_CASE, ry = pt.y - perp.y * RIB_CASE;
-            double zl = cz(lx, ly, z), zr = cz(rx, ry, z);
-
-            double[] kl = p(lx, ly, zl + Z_CASE);
-            double[] kr = p(rx, ry, zr + Z_CASE);
-            double[] cl = p(pt.x + perp.x * RIB_CORE, pt.y + perp.y * RIB_CORE, zl + Z_CORE);
-            double[] cr = p(pt.x - perp.x * RIB_CORE, pt.y - perp.y * RIB_CORE, zr + Z_CORE);
-
-            if(pkl != null) {
-                buf.quad(pkl, kl, kr, pkr, CASING);
-                buf.quad(pcl, cl, cr, pcr, core);
-            }
-            pkl = kl; pkr = kr; pcl = cl; pcr = cr;
-        }
-    }
-
-    /** Ground ring with a translucent fill at a waypoint. */
-    private void ring(Buf buf, Coord2d c, float[] edge, float[] fill, double baseZ) {
-        double[][] in = new double[RING_SEG][];
-        double[][] out = new double[RING_SEG][];
-        double cztr = cz(c.x, c.y, baseZ);
-        for(int i = 0; i < RING_SEG; i++) {
-            double ang = (2 * Math.PI * i) / RING_SEG;
-            double dx = Math.cos(ang), dy = Math.sin(ang);
-            double ix = c.x + dx * RING_IN, iy = c.y + dy * RING_IN;
-            double ox = c.x + dx * RING_OUT, oy = c.y + dy * RING_OUT;
-            in[i] = p(ix, iy, cz(ix, iy, cztr) + Z_RING);
-            out[i] = p(ox, oy, cz(ox, oy, cztr) + Z_RING);
-        }
-        double[] mid = p(c.x, c.y, cztr + Z_RING);
-        for(int i = 0; i < RING_SEG; i++) {
-            int j = (i + 1) % RING_SEG;
-            buf.quad(in[i], out[i], out[j], in[j], edge);
-            buf.tri(mid, in[i], in[j], fill);
-        }
-    }
 
     private long signature(List<WNode> nodes) {
         long h = 1125899906842597L;
@@ -366,12 +145,11 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
      * queue signature; the player's own leg is refreshed on a short throttle instead.
      */
     public void update() {
-        flat = FlatWorld.isEnabled();
+        updateFlat();
         List<WNode> nodes = resolve();
         if(nodes.isEmpty()) {
             if(lastSig != Long.MIN_VALUE) {
-                solid.set(null);
-                ghost.set(null);
+                clearGeometry();
                 lastSig = Long.MIN_VALUE;
                 lastPlayer = null;
                 screen = Collections.emptyList();
@@ -407,17 +185,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
             prev = n.wc;
         }
 
-        if(buf.n == 0) {
-            solid.set(null);
-            ghost.set(null);
-        } else {
-            float[] data = buf.fit();
-            VertexArray va = new VertexArray(LAYOUT,
-                    new VertexArray.Buffer(data.length * 4, DataBuffer.Usage.STATIC, DataBuffer.Filler.of(data)));
-            Model model = new Model(Model.Mode.TRIANGLES, va, null);
-            solid.set(model);
-            ghost.set(model);
-        }
+        setGeometry(buf);
         lastSig = sig;
         lastPlayer = pl;
         lastBuild = now;
@@ -432,13 +200,6 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         return(screen);
     }
 
-    private static Coord proj(Pipe state, Area va, Coord2d wc, double z) {
-        HomoCoord4f hc = Homo3D.obj2clip(new Coord3f((float)wc.x, (float)-wc.y, (float)z), state);
-        if(hc.w <= 0)
-            return(null);
-        return(hc.toview(va).round2());
-    }
-
     public void draw(GOut g, Pipe state) {
         // The 2D pass runs on the UI thread; a Loading escaping here would take the
         // whole frame down, so anything not yet paged in just skips a frame.
@@ -450,7 +211,7 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
     }
 
     private void draw2d(GOut g, Pipe state) {
-        flat = FlatWorld.isEnabled();
+        updateFlat();
         List<WNode> nodes = resolve();
         if(nodes.isEmpty()) {
             screen = Collections.emptyList();
@@ -516,8 +277,12 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
      * numbers.
      */
     private void drawEdgeArrows(GOut g, List<WNode> off) {
-        for(WNode n : off)
-            drawOffscreen(g, n);
+        for(WNode n : off) {
+            Color col = nodeColor(n.num - 1, n.id);
+            Coord head = edgeArrow(g, n.wc, col);
+            if(head != null)
+                plate(g, head, n.num, col);
+        }
     }
 
     /** Numbered plate on top of the stem. */
@@ -582,23 +347,6 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
         g.chcolor();
     }
 
-    /**
-     * Draw a world-space circle as a projected polyline. step=1 gives a solid ring,
-     * step=2 a dashed one.
-     */
-    private void circle(GOut g, Pipe state, Area va, Coord2d c, double r, double z, double w, int step) {
-        final int n = 24;
-        Coord[] pts = new Coord[n + 1];
-        for(int i = 0; i <= n; i++) {
-            double ang = (2 * Math.PI * i) / n;
-            pts[i] = proj(state, va, new Coord2d(c.x + Math.cos(ang) * r, c.y + Math.sin(ang) * r), z);
-        }
-        for(int i = 0; i < n; i += step) {
-            if(pts[i] != null && pts[i + 1] != null)
-                g.line(pts[i], pts[i + 1], w);
-        }
-    }
-
     /** Where the waypoint was picked up from, while it is being dragged. */
     private void dragGhost(GOut g, Pipe state, Area va, List<WNode> nodes, double baseZ) {
         long id = mv.wpDragId();
@@ -639,43 +387,6 @@ public class NWaypointOverlay implements RenderTree.Node, PView.Render2D {
             g.chcolor();
             g.aimage(t, mid, 0.5, 0.5);
         }
-        g.chcolor();
-    }
-
-    /** Numbered arrow at the screen edge for one waypoint that is out of view. */
-    private void drawOffscreen(GOut g, WNode n) {
-        double a;
-        try {
-            a = mv.screenangle(n.wc, true);
-        } catch(Loading l) {
-            return;
-        }
-        if(Double.isNaN(a))
-            return;
-        Coord sz = g.sz();
-        Coord hsz = sz.div(2);
-        double ca = -Coord.z.angle(hsz);
-        Coord ac;
-        if((a > ca) && (a < -ca))
-            ac = new Coord(sz.x, hsz.y - (int)(Math.tan(a) * hsz.x));
-        else if((a > -ca) && (a < Math.PI + ca))
-            ac = new Coord(hsz.x - (int)(Math.tan(a - Math.PI / 2) * hsz.y), 0);
-        else if((a > -Math.PI - ca) && (a < ca))
-            ac = new Coord(hsz.x + (int)(Math.tan(a + Math.PI / 2) * hsz.y), sz.y);
-        else
-            ac = new Coord(0, hsz.y + (int)(Math.tan(a) * hsz.x));
-
-        Coord bc = ac.add(Coord.sc(a, -UI.scale(18)));
-        Color col = nodeColor(n.num - 1, n.id);
-        g.chcolor(0, 0, 0, 180);
-        g.line(bc, bc.add(Coord.sc(a, -UI.scale(22))), 5);
-        g.line(bc, bc.add(Coord.sc(a + Math.PI / 4, -UI.scale(9))), 5);
-        g.line(bc, bc.add(Coord.sc(a - Math.PI / 4, -UI.scale(9))), 5);
-        g.chcolor(col);
-        g.line(bc, bc.add(Coord.sc(a, -UI.scale(22))), 2);
-        g.line(bc, bc.add(Coord.sc(a + Math.PI / 4, -UI.scale(9))), 2);
-        g.line(bc, bc.add(Coord.sc(a - Math.PI / 4, -UI.scale(9))), 2);
-        plate(g, bc.add(Coord.sc(a, -UI.scale(34))), n.num, col);
         g.chcolor();
     }
 }

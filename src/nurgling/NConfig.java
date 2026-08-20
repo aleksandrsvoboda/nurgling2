@@ -227,6 +227,10 @@ public class NConfig
         pingSound,
         waypointColorActive,
         waypointColorQueued,
+        // Ground trail to containers matching the item search
+        showStorageTrail,
+        storageTrailColor,
+        storageTrailMax,
         // Map tools panel
         showTreeIcons,
         showFishIcons,
@@ -606,6 +610,10 @@ public class NConfig
         conf.put(Key.showBotPathOnGround, false);
         conf.put(Key.showWaypointsInWorld, true);
         conf.put(Key.pingSound, true);
+
+        // Ground trail to containers matching the item search
+        conf.put(Key.showStorageTrail, true);
+        conf.put(Key.storageTrailMax, 1);
     }
 
 

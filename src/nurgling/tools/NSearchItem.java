@@ -60,9 +60,7 @@ public class NSearchItem
         name = "";
         if((Boolean) NConfig.get(NConfig.Key.ndbenable))
         {
-            synchronized (NGlobalSearchItems.containerHashes) {
-                NGlobalSearchItems.containerHashes.clear();
-            }
+            NGlobalSearchItems.clearResults();
         }
     }
     public void install(String value)

@@ -150,7 +150,6 @@ public class ItemWatcher implements Runnable {
     private void deleteAllContainerItems(nurgling.db.DatabaseAdapter adapter) throws SQLException {
         String deleteSql = "DELETE FROM storageitems WHERE container = ?";
         adapter.executeUpdate(deleteSql, containerHash);
-        System.out.println("ItemWatcher: Deleted ALL items for container " + containerHash);
     }
     
     private void deleteItems(nurgling.db.DatabaseAdapter adapter) throws SQLException {
