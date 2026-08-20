@@ -41,13 +41,33 @@ public class NStorageTrailOverlay extends NGroundPathOverlay implements PView.Re
         this.service = service;
     }
 
+    private static final Color DEFAULT_COLOR = new Color(126, 232, 143);
+    /** Hue step between trails. The golden angle keeps five rotations well separated;
+     *  even fractions would put the last one back on top of the first. */
+    private static final float HUE_STEP = 0.381966f;
+
     public static Color trailColor() {
-        return(NConfig.getColor(NConfig.Key.storageTrailColor, new Color(126, 232, 143)));
+        return(NConfig.getColor(NConfig.Key.storageTrailColor, DEFAULT_COLOR));
     }
 
-    /** Trails past the first are dimmed, so the nearest one still reads as the answer. */
+    /**
+     * Colour of the nth trail. Several trails at once are only readable if they are told
+     * apart by hue rather than by brightness, so the configured colour is rotated around
+     * the wheel - and floored in saturation and value, because a rotated pastel would come
+     * out too washed to follow across grass.
+     */
+    public static Color trailColor(int idx) {
+        Color base = trailColor();
+        if(idx <= 0)
+            return(base);
+        float[] hsb = Color.RGBtoHSB(base.getRed(), base.getGreen(), base.getBlue(), null);
+        float hue = (hsb[0] + (idx * HUE_STEP)) % 1f;
+        return(Color.getHSBColor(hue, Math.max(0.55f, hsb[1]), Math.max(0.80f, hsb[2])));
+    }
+
+    /** The nearest trail is drawn slightly stronger, so ranking still reads at a glance. */
     private static double alphaFor(int idx) {
-        return(idx == 0 ? 0.95 : 0.45);
+        return(idx == 0 ? 0.95 : 0.80);
     }
 
     /* ------------------------------------------------------------------ *
@@ -98,10 +118,10 @@ public class NStorageTrailOverlay extends NGroundPathOverlay implements PView.Re
             return;
         }
 
-        Color col = trailColor();
         Buf buf = new Buf();
         for(int i = 0; i < trails.size(); i++) {
             StorageTrailService.Trail t = trails.get(i);
+            Color col = trailColor(i);
             double a = alphaFor(i);
             float[] core = rgba(col, a);
             List<Coord2d> pts = t.points;
@@ -141,9 +161,9 @@ public class NStorageTrailOverlay extends NGroundPathOverlay implements PView.Re
             return;
         }
 
-        Color col = trailColor();
         for(int i = 0; i < trails.size(); i++) {
             StorageTrailService.Trail t = trails.get(i);
+            Color col = trailColor(i);
             Coord2d wc = t.terminus;
             double z = cz(wc.x, wc.y, baseZ);
             Coord sc = proj(state, va, wc, z + Z_RING);

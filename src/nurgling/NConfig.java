@@ -613,7 +613,7 @@ public class NConfig
 
         // Ground trail to containers matching the item search
         conf.put(Key.showStorageTrail, true);
-        conf.put(Key.storageTrailMax, 1);
+        conf.put(Key.storageTrailMax, 3);
     }
 
 

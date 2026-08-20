@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -103,6 +105,8 @@ public class StorageTrailService {
     private final AtomicBoolean planning = new AtomicBoolean(false);
 
     private final Map<String, Entry> entries = new LinkedHashMap<>();
+    /** Containers deleted from the database, waiting to be dropped on the next tick. */
+    private final Set<String> pendingForget = ConcurrentHashMap.newKeySet();
     private long lastSearchVersion = -1;
     private long lastPlayerGrid = Long.MIN_VALUE;
     private double lastReplan = 0;
@@ -117,6 +121,62 @@ public class StorageTrailService {
     /** Latest resolved trails. Never null; safe to read from the render thread. */
     public List<Trail> trails() {
         return trails;
+    }
+
+    /**
+     * Hash of a trailed container whose recorded position is within {@code radius} of this
+     * world point, nearest first, or null if there is none.
+     *
+     * Deliberately limited to containers a trail is currently pointing at. The database
+     * keeps rows for containers that no longer exist, and this is how one gets removed -
+     * so the only things reachable this way are the ones the client is actively sending
+     * the player to, which cannot delete a container nobody was looking for.
+     *
+     * Cheap enough to call from a click handler: it walks at most MAX_TRAILS_CAP entries
+     * and touches no database.
+     */
+    public String containerAt(Coord2d wc, double radius) {
+        if (wc == null || entries.isEmpty())
+            return null;
+        MCache mcache;
+        try {
+            mcache = mv.glob.map;
+        } catch (Loading l) {
+            return null;
+        }
+        if (mcache == null)
+            return null;
+
+        Map<Long, Coord> origins = new HashMap<>();
+        String best = null;
+        double bestDist = radius;
+        for (Entry e : entries.values()) {
+            Coord origin = originOf(mcache, origins, e.hit.gridId);
+            if (origin == null)
+                continue;   // container's grid is not loaded, so it is not what was clicked
+            Coord2d pos = containerWorld(origin, e.hit.coord);
+            if (pos == null)
+                continue;
+            double d = pos.dist(wc);
+            if (d <= bestDist) {
+                bestDist = d;
+                best = e.hit.hash;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Drop a container from the live candidate set. Called after its row is deleted, so the
+     * trail goes away instead of lingering until the next search refresh.
+     *
+     * Called from the thread that ran the delete, not the render thread, so the removal is
+     * queued rather than applied here - `entries` is an ordered map that tick() iterates,
+     * and ordering carries the trail ranking, so it cannot simply be made concurrent.
+     */
+    public void forget(String hash) {
+        if (hash != null)
+            pendingForget.add(hash);
     }
 
     public void shutdown() {
@@ -134,7 +194,17 @@ public class StorageTrailService {
                 entries.clear();
                 trails = Collections.emptyList();
             }
+            pendingForget.clear();
             return;
+        }
+
+        boolean forgotten = false;
+        if (!pendingForget.isEmpty()) {
+            for (String hash : pendingForget) {
+                if (entries.remove(hash) != null)
+                    forgotten = true;
+            }
+            pendingForget.clear();
         }
 
         long playerGrid = playerGridId();
@@ -167,7 +237,7 @@ public class StorageTrailService {
         // frame; the geometry it feeds is rebuilt on its own throttle anyway.
         Coord2d plrc = playerRc();
         boolean moved = (plrc != null) && ((lastResolvePos == null) || (lastResolvePos.dist(plrc) > 2.0));
-        if (moved || (now - lastResolve) > 0.25 || trails.isEmpty()) {
+        if (forgotten || moved || (now - lastResolve) > 0.25 || trails.isEmpty()) {
             lastResolve = now;
             lastResolvePos = plrc;
             trails = resolveAll();

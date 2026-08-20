@@ -29,7 +29,7 @@ public class Navigation extends Panel {
         // Trail to containers matching the item search
         boolean showStorageTrail;
         Color storageTrailColor = new Color(126, 232, 143);
-        int storageTrailMax = 1;
+        int storageTrailMax = 3;
     }
 
     private final NavigationSettings tempSettings = new NavigationSettings();
@@ -150,7 +150,7 @@ public class Navigation extends Panel {
         prev = storageTrailColorWidget = content.add(new NColorWidget(L10n.get("nav.storage_trail_color")), prev.pos("bl").adds(10, 5));
         storageTrailColorWidget.color = tempSettings.storageTrailColor;
 
-        prev = storageTrailMaxLabel = content.add(new Label(L10n.get("nav.storage_trail_max") + " 1"), prev.pos("bl").adds(0, 5));
+        prev = storageTrailMaxLabel = content.add(new Label(L10n.get("nav.storage_trail_max") + " 3"), prev.pos("bl").adds(0, 5));
         prev = storageTrailMaxSlider = content.add(new HSlider(UI.scale(100), 1, 5, tempSettings.storageTrailMax) {
             public void changed() {
                 tempSettings.storageTrailMax = val;
@@ -213,7 +213,7 @@ public class Navigation extends Panel {
         tempSettings.showStorageTrail = !(storageTrailObj instanceof Boolean) || (Boolean) storageTrailObj;
         tempSettings.storageTrailColor = NConfig.getColor(NConfig.Key.storageTrailColor, new Color(126, 232, 143));
         Object storageTrailMaxObj = NConfig.get(NConfig.Key.storageTrailMax);
-        tempSettings.storageTrailMax = (storageTrailMaxObj instanceof Number) ? ((Number) storageTrailMaxObj).intValue() : 1;
+        tempSettings.storageTrailMax = (storageTrailMaxObj instanceof Number) ? ((Number) storageTrailMaxObj).intValue() : 3;
 
         // Load path line settings
         Object pathLineWidthObj = NConfig.get(NConfig.Key.pathLineWidth);
