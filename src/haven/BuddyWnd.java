@@ -42,7 +42,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
     private BuddyList bl;
     private TextEntry pname, charpass, opass;
     private FlowerMenu menu;
-    private BuddyInfo info = null;
+    protected BuddyInfo info = null;
     private Widget infof;
     public int serial = 0;
     public static final int width = UI.scale(263);
@@ -312,8 +312,8 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	}
     }
 
-    private class BuddyInfo extends Widget {
-	private final Buddy buddy;
+    public class BuddyInfo extends Widget {
+	public final Buddy buddy;
 	private final Avaview ava;
 	private final TextEntry nick;
 	private final GroupSelector grp;
@@ -321,7 +321,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	private Label atimel = null;
 	private Button[] opts = {};
 
-	private BuddyInfo(Coord sz, Buddy buddy) {
+	public BuddyInfo(Coord sz, Buddy buddy) {
 	    super(sz);
 	    this.buddy = buddy;
 	    this.ava = adda(new Avaview(Avaview.dasz, -1, "avacam"), sz.x / 2, margin2, 0.5, 0);
@@ -392,6 +392,11 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	    setatime();
 	    setopts();
 	}
+    }
+
+    /** Extension point: nurgling's NBuddyWnd returns a subclass that adds the kin note box. */
+    protected BuddyInfo makeinfo(Coord sz, Buddy buddy) {
+	return(new BuddyInfo(sz, buddy));
     }
 
     private class BuddyList extends SSearchBox<Buddy, Widget> {
@@ -660,7 +665,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 		    pack();
 		}
 		if(b != null) {
-		    info = add(new BuddyInfo(new Coord(UI.scale(225), sz.y - offset - Window.wbox.bisz().y), b), width + margin3, offset);
+		    info = add(makeinfo(new Coord(UI.scale(225), sz.y - offset - Window.wbox.bisz().y), b), width + margin3, offset);
 		    infof = Frame.around(this, Collections.singletonList(info));
 		}
 		pack();
