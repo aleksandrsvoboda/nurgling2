@@ -50,6 +50,7 @@ public class NGameUI extends GameUI
     private LocalizedResourceTimerDialog localizedResourceTimerDialog = null;
     public LocalizedResourceTimerService localizedResourceTimerService;
     public WaypointMovementService waypointMovementService;
+    public PingService pingService;
     public FishLocationService fishLocationService;
     public FishSearchWindow fishSearchWindow = null;
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
@@ -199,6 +200,7 @@ public class NGameUI extends GameUI
         // Position BotsInterruptWidget (observer with gears) in center of screen
         add(biw = new BotsInterruptWidget(), new Coord(sz.x/2 - biw.sz.x/2, sz.y/2 - biw.sz.y/2));
         waypointMovementService = new WaypointMovementService(this);
+        pingService = new PingService(this);
         fishLocationService = new FishLocationService(this, genus);
         treeLocationService = new TreeLocationService(this, genus);
         labeledMarkService = new LabeledMarkService(this, genus);

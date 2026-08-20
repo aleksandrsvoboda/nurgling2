@@ -367,15 +367,24 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     public long wpHoverId() {return(wpHoverId);}
     public Coord2d wpDragOrigin() {return(wpDragOrigin);}
 
-    /** Create the overlay once the render tree is up, then let it refresh its geometry. */
-    private void tickWaypointOverlay() {
+    /** Draws chat map pings (@Point): ground glow in the render tree, rings in the 2D pass. */
+    private nurgling.overlays.NPointPingOverlay pingOverlay = null;
+    private RenderTree.Slot pingOverlaySlot = null;
+
+    /** Create the overlays once the render tree is up, then let them refresh their geometry. */
+    private void tickWorldOverlays() {
+        if(basic == null)
+            return;
         if(wpOverlay == null) {
-            if(basic == null)
-                return;
             wpOverlay = new nurgling.overlays.NWaypointOverlay(this);
             wpOverlaySlot = basic.add(wpOverlay);
         }
+        if(pingOverlay == null) {
+            pingOverlay = new nurgling.overlays.NPointPingOverlay(this);
+            pingOverlaySlot = basic.add(pingOverlay);
+        }
         wpOverlay.update();
+        pingOverlay.update();
     }
 
     /** Id of the waypoint whose ground node contains the given screen point, or -1. */
@@ -1058,7 +1067,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }
 
         // Refresh the movement-waypoint geometry
-        tickWaypointOverlay();
+        tickWorldOverlays();
 
         // Reconcile per-grid wall overlays against currently loaded grids
         updateGridWalls();
@@ -1997,25 +2006,55 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 minGridObj.id, minLocal.x, minLocal.y,
                 maxGridObj.id, maxLocal.x, maxLocal.y);
             
-            // Send to chat
-            GameUI gui = NUtils.getGameUI();
-            if(gui != null && gui.chat != null) {
-                ChatUI.Channel chat = gui.chat.sel;
-                if(chat instanceof ChatUI.EntryChannel) {
-                    // If realm chat is open, send to location chat instead
-                    if(chat.getClass().getName().contains("Realm")) {
-                        ChatUI.Channel locationChat = gui.chat.findLocationChat();
-                        if(locationChat instanceof ChatUI.EntryChannel) {
-                            ((ChatUI.EntryChannel)locationChat).send(areaStr);
-                        }
-                    } else {
-                        ((ChatUI.EntryChannel)chat).send(areaStr);
-                    }
-                }
-            }
+            sendToSelectedChat(areaStr);
         } catch(Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Post a line to the chat channel the player currently has selected, which is what
+     * decides who sees a ping. Realm chat is redirected to the location channel, because
+     * a ping is addressed to the people around you, never to a whole realm.
+     */
+    public static boolean sendToSelectedChat(String line) {
+        GameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.chat == null)
+            return false;
+        ChatUI.Channel chat = gui.chat.sel;
+        if(!(chat instanceof ChatUI.EntryChannel))
+            return false;
+        if(chat.getClass().getName().contains("Realm"))
+            chat = gui.chat.findLocationChat();
+        if(!(chat instanceof ChatUI.EntryChannel))
+            return false;
+        ((ChatUI.EntryChannel)chat).send(line);
+        return true;
+    }
+
+    /**
+     * Broadcast a map ping for one tile, addressed by server grid id plus the tile's
+     * offset inside that grid - see {@link nurgling.PingService} for why that is the only
+     * coordinate the receiving clients can make sense of.
+     */
+    public static boolean sendPingToChat(long gridId, Coord local) {
+        return sendToSelectedChat(String.format("@Point(%d:%d,%d)", gridId, local.x, local.y));
+    }
+
+    /**
+     * Ping the tile under a world position, the counterpart of the alt-click object ping
+     * in MapView. Returns false when the grid is not loaded, which should not happen for
+     * a spot the player just clicked on but leaves the click to fall through if it does.
+     */
+    public boolean sendPointPing(Coord2d mc) {
+        Coord tc = mc.floor(MCache.tilesz);
+        MCache.Grid grid;
+        synchronized(glob.map.grids) {
+            grid = glob.map.grids.get(tc.div(MCache.cmaps));
+        }
+        if(grid == null)
+            return false;
+        return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
     public Collection<String> areas(){

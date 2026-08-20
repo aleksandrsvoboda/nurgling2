@@ -12,6 +12,7 @@ public class MapSettings extends Panel {
         boolean showThingwallNames;
         boolean showPartyMemberNames;
         boolean trackingVectors;
+        boolean pingSound;
     }
 
     private final MapSettingsData tempSettings = new MapSettingsData();
@@ -21,6 +22,7 @@ public class MapSettings extends Panel {
     private CheckBox showThingwallNames;
     private CheckBox showPartyMemberNames;
     private CheckBox trackingVectors;
+    private CheckBox pingSound;
     
     private Scrollport scrollport;
     private Widget content;
@@ -80,6 +82,16 @@ public class MapSettings extends Panel {
             }
         }, prev.pos("bl").adds(0, 10));
         
+        // Map pings section
+        prev = content.add(new Label("\u25CF " + L10n.get("map.section.pings")), prev.pos("bl").adds(0, 15));
+
+        prev = pingSound = content.add(new CheckBox(L10n.get("map.ping_sound")) {
+            public void set(boolean val) {
+                tempSettings.pingSound = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 10));
+
         // Pack content and update scrollbar
         content.pack();
         scrollport.cont.update();
@@ -94,12 +106,14 @@ public class MapSettings extends Panel {
         tempSettings.showThingwallNames = getBool(NConfig.Key.showThingwallNames);
         tempSettings.showPartyMemberNames = getBool(NConfig.Key.showPartyMemberNames);
         tempSettings.trackingVectors = getBool(NConfig.Key.trackingVectors);
+        tempSettings.pingSound = getBool(NConfig.Key.pingSound);
 
         // Update UI components
         showQuestGiverNames.a = tempSettings.showQuestGiverNames;
         showThingwallNames.a = tempSettings.showThingwallNames;
         showPartyMemberNames.a = tempSettings.showPartyMemberNames;
         trackingVectors.a = tempSettings.trackingVectors;
+        pingSound.a = tempSettings.pingSound;
     }
 
     @Override
@@ -109,6 +123,7 @@ public class MapSettings extends Panel {
         NConfig.set(NConfig.Key.showThingwallNames, tempSettings.showThingwallNames);
         NConfig.set(NConfig.Key.showPartyMemberNames, tempSettings.showPartyMemberNames);
         NConfig.set(NConfig.Key.trackingVectors, tempSettings.trackingVectors);
+        NConfig.set(NConfig.Key.pingSound, tempSettings.pingSound);
         NConfig.needUpdate();
     }
     

@@ -267,6 +267,167 @@ NMiniMap extends MiniMap {
         drawQueuedWaypoints(g);  // Draw waypoint visualization
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawMarkerLine(g);       // Draw line to selected marker
+        drawPings(g);            // Draw chat map pings on top of everything else
+    }
+
+    /**
+     * Chat map pings (@Point). Drawn here rather than in a dedicated widget so the corner
+     * minimap and the full map window both get them - MapWnd's view subclasses this class.
+     * A ping in another segment simply has nowhere to go on this map and is skipped.
+     */
+    private void drawPings(GOut g) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.pingService == null)
+            return;
+        java.util.List<PingService.Ping> pings = gui.pingService.snapshot();
+        if(pings.isEmpty())
+            return;
+        // Anchor the tethers on the character, the same way drawQueuedWaypoints anchors
+        // its legs. Note this is NOT xlate(sessloc): sessloc is the segment tile of the
+        // session's coordinate origin, so every tether would converge on one arbitrary
+        // fixed point rather than on the player.
+        Coord playerC = null;
+        try {
+            if(ui != null && ui.gui != null && ui.gui.map != null)
+                playerC = p2c(new Coord2d(ui.gui.map.getcc()));
+        } catch(Loading l) {
+            playerC = null;
+        }
+
+        for(PingService.Ping p : pings) {
+            MiniMap.Location loc = p.loc();
+            if(loc == null)
+                continue;
+            Coord c = xlate(loc);
+            if(c == null)
+                continue;
+            double alpha = p.alpha();
+            if(alpha <= 0)
+                continue;
+            Color col = p.col;
+            boolean onmap = c.isect(Coord.z, sz);
+            Coord anchor = onmap ? c : clampToEdge(c);
+
+            // Tether from the character to the ping - including our own pings, so a ping
+            // we just sent reads the same as everyone else's. A ping near the edge of a
+            // zoomed-in map otherwise gives no sense of which way it is; the dashes crawl
+            // toward it so the direction reads without having to compare two dots.
+            if(playerC != null) {
+                double phase = Utils.rtime() * UI.scale(14);
+                // Dark casing first: the map underneath ranges from dark forest to bright
+                // snow, and a single thin coloured line disappears against half of it.
+                g.chcolor(6, 18, 12, (int)(140 * alpha));
+                dashLine(g, playerC, anchor, phase, 4);
+                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(190 * alpha));
+                dashLine(g, playerC, anchor, phase, 2);
+            }
+
+            if(!onmap) {
+                drawPingEdgeArrow(g, anchor, c, col, alpha, p.since());
+                continue;
+            }
+
+            // Two expanding rings, staggered, each stroked twice so a 2 px outline reads
+            // as a band rather than a hairline. Phase keys off the ping's own age so it
+            // always starts at the marker.
+            double life = p.since();
+            for(int i = 0; i < 2; i++) {
+                double t = (life - (i * (PING_PERIOD / 2))) / PING_PERIOD;
+                if(t < 0)
+                    continue;
+                t = t % 1.0;
+                int a = (int)(210 * alpha * Math.pow(1 - t, 1.7));
+                if(a < 8)
+                    continue;
+                double u = 1 - t;
+                int r = (int)(UI.scale(4) + ((1 - (u * u * u)) * UI.scale(15)));
+                g.chcolor(6, 18, 12, (int)(a * 0.5));
+                ringOutline(g, c, r, 4);
+                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
+                ringOutline(g, c, r, 2);
+            }
+
+            // One-shot arrival burst, matching the world overlay.
+            if(life < PING_BURST) {
+                double t = life / PING_BURST;
+                int a = (int)(230 * Math.pow(1 - t, 1.4));
+                if(a >= 8) {
+                    double u = 1 - t;
+                    g.chcolor(255, 255, 255, a);
+                    ringOutline(g, c, (int)(UI.scale(4) + ((1 - (u * u * u)) * UI.scale(22))), 2);
+                }
+            }
+
+            // Marker: dark plate, colour body, hot core, breathing on the ring clock.
+            double pulse = 1.0 + (0.20 * Math.sin(2 * Math.PI * life / PING_PERIOD));
+            int r = (int)(UI.scale(5) * pulse);
+            g.chcolor(6, 18, 12, (int)(220 * alpha));
+            g.fellipse(c, new Coord(r + UI.scale(2), r + UI.scale(2)));
+            g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+            g.fellipse(c, new Coord(r, r));
+            g.chcolor(255, 255, 255, (int)(230 * alpha));
+            g.fellipse(c, new Coord(Math.max(1, r - UI.scale(2)), Math.max(1, r - UI.scale(2))));
+        }
+        g.chcolor();
+    }
+
+    private static final double PING_PERIOD = 1.5;
+    private static final double PING_BURST = 0.55;
+
+    /** Where the ray from the map centre to an off-map point leaves the widget. */
+    private Coord clampToEdge(Coord c) {
+        Coord mid = sz.div(2);
+        int dx = c.x - mid.x, dy = c.y - mid.y;
+        if((dx == 0) && (dy == 0))
+            return(mid);
+        double hx = (sz.x / 2.0) - UI.scale(10), hy = (sz.y / 2.0) - UI.scale(10);
+        double sc = Math.min((dx != 0) ? (hx / Math.abs(dx)) : Double.MAX_VALUE,
+                             (dy != 0) ? (hy / Math.abs(dy)) : Double.MAX_VALUE);
+        return(mid.add((int)Math.round(dx * sc), (int)Math.round(dy * sc)));
+    }
+
+    /**
+     * Arrow pinned to the map border for a ping that is off the visible map. Without this
+     * an off-map ping was simply not drawn at all, which on a zoomed-in minimap is most of
+     * them - the ping existed but the player had no way to know.
+     */
+    private void drawPingEdgeArrow(GOut g, Coord at, Coord target, Color col, double alpha, double life) {
+        Coord mid = sz.div(2);
+        double ang = Math.atan2(target.y - mid.y, target.x - mid.x);
+        double pulse = 1.0 + (0.28 * Math.sin(2 * Math.PI * (life % PING_PERIOD) / PING_PERIOD));
+        int len = (int)(UI.scale(9) * pulse);
+        Coord tip = at.add(Coord.sc(ang, len));
+        Coord w1 = at.add(Coord.sc(ang + 2.5, len));
+        Coord w2 = at.add(Coord.sc(ang - 2.5, len));
+        g.chcolor(6, 18, 12, (int)(220 * alpha));
+        g.line(w1, tip, 5);
+        g.line(w2, tip, 5);
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+        g.line(w1, tip, 2);
+        g.line(w2, tip, 2);
+    }
+
+    /**
+     * Broadcast a ping for the map position under a click. The map window can be scrolled
+     * far outside the loaded grids, so the grid id comes from the map file's segment index
+     * rather than from MCache. The file lock is only tried, never waited on - this runs on
+     * the UI thread, and a missed ping costs nothing but another click.
+     */
+    private boolean sendPointPing(Coord sc) {
+        MiniMap.Location loc = xlate(sc);
+        if(loc == null)
+            return false;
+        if(!file.lock.readLock().tryLock())
+            return false;
+        Long gridId;
+        try {
+            gridId = loc.seg.map.get(loc.tc.div(cmaps));
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        if(gridId == null)
+            return false;
+        return NMapView.sendPingToChat(gridId, loc.tc.mod(cmaps));
     }
 
     @Override
@@ -1996,6 +2157,16 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        // Alt+Shift+LMB pings the clicked spot to the selected chat channel. Plain
+        // alt+LMB cannot be used here the way it is in the world view, because on the
+        // maps it already means "walk here next" - it queues a movement waypoint
+        // (NMapWnd.mouseup, NMiniMapWnd.clickloc). Checked first so the ping never
+        // doubles as a walk or a waypoint grab.
+        if(ev.b == 1 && ui.modmeta && ui.modshift && !ui.modctrl) {
+            if(sendPointPing(ev.c))
+                return true;
+        }
+
         // Pick up a queued waypoint under the cursor instead of panning/walking.
         if(ev.b == 1 && startWaypointDrag(ev.c))
             return true;
