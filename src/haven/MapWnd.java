@@ -184,7 +184,9 @@ public class MapWnd extends Window implements Console.Directory {
 		}
 	    }
 	    /* XXX: Shift-clicks that do not drag should be propagated to the map. */
-	    if((ev.b == 1) && (checkhit(c) || ui.modshift)) {
+	    /* Alt+shift is excluded: it is the map ping (NMiniMap.sendPointPing), and this
+	     * blanket shift grab would otherwise eat it before the view ever sees it. */
+	    if((ev.b == 1) && (checkhit(c) || (ui.modshift && !ui.modmeta))) {
 		MapWnd.this.drag(parentpos(MapWnd.this, c));
 		return(true);
 	    }
