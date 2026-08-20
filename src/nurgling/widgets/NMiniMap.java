@@ -313,8 +313,13 @@ NMiniMap extends MiniMap {
             // zoomed-in map otherwise gives no sense of which way it is; the dashes crawl
             // toward it so the direction reads without having to compare two dots.
             if(playerC != null) {
-                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(70 * alpha));
-                dashLine(g, playerC, anchor, Utils.rtime() * UI.scale(14), 1);
+                double phase = Utils.rtime() * UI.scale(14);
+                // Dark casing first: the map underneath ranges from dark forest to bright
+                // snow, and a single thin coloured line disappears against half of it.
+                g.chcolor(6, 18, 12, (int)(140 * alpha));
+                dashLine(g, playerC, anchor, phase, 4);
+                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(190 * alpha));
+                dashLine(g, playerC, anchor, phase, 2);
             }
 
             if(!onmap) {
