@@ -30,6 +30,7 @@ public class Navigation extends Panel {
         boolean showStorageTrail;
         Color storageTrailColor = new Color(126, 232, 143);
         int storageTrailMax = 3;
+        boolean recipeSearchAsItemSearch;
     }
 
     private final NavigationSettings tempSettings = new NavigationSettings();
@@ -54,6 +55,7 @@ public class Navigation extends Panel {
     private NColorWidget storageTrailColorWidget;
     private Label storageTrailMaxLabel;
     private HSlider storageTrailMaxSlider;
+    private CheckBox recipeSearchAsItemSearch;
     
     private Scrollport scrollport;
     private Widget content;
@@ -158,8 +160,16 @@ public class Navigation extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
 
+        prev = recipeSearchAsItemSearch = content.add(new CheckBox(L10n.get("nav.recipe_search_as_item_search")) {
+            public void set(boolean val) {
+                tempSettings.recipeSearchAsItemSearch = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(-10, 5));
+        recipeSearchAsItemSearch.settip(L10n.get("nav.recipe_search_as_item_search_tip"));
+
         // Path line color
-        prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(-10, 10));
+        prev = pathLineColorWidget = content.add(new NColorWidget(L10n.get("nav.path_line_color")), prev.pos("bl").adds(0, 10));
         pathLineColorWidget.color = tempSettings.pathLineColor;
 
         // Path line thickness
@@ -214,6 +224,8 @@ public class Navigation extends Panel {
         tempSettings.storageTrailColor = NConfig.getColor(NConfig.Key.storageTrailColor, new Color(126, 232, 143));
         Object storageTrailMaxObj = NConfig.get(NConfig.Key.storageTrailMax);
         tempSettings.storageTrailMax = (storageTrailMaxObj instanceof Number) ? ((Number) storageTrailMaxObj).intValue() : 3;
+        Object recipeSearchObj = NConfig.get(NConfig.Key.recipeSearchAsItemSearch);
+        tempSettings.recipeSearchAsItemSearch = (recipeSearchObj instanceof Boolean) && (Boolean) recipeSearchObj;
 
         // Load path line settings
         Object pathLineWidthObj = NConfig.get(NConfig.Key.pathLineWidth);
@@ -234,6 +246,7 @@ public class Navigation extends Panel {
         storageTrailColorWidget.color = tempSettings.storageTrailColor;
         storageTrailMaxSlider.val = tempSettings.storageTrailMax;
         storageTrailMaxLabel.settext(L10n.get("nav.storage_trail_max") + " " + tempSettings.storageTrailMax);
+        recipeSearchAsItemSearch.a = tempSettings.recipeSearchAsItemSearch;
         pathLineColorWidget.color = tempSettings.pathLineColor;
         pathLineWidthSlider.val = tempSettings.pathLineWidth;
         pathLineWidthLabel.settext(L10n.get("nav.path_line_thickness") + " " + tempSettings.pathLineWidth);
@@ -277,6 +290,7 @@ public class Navigation extends Panel {
         NConfig.set(NConfig.Key.showStorageTrail, tempSettings.showStorageTrail);
         NConfig.set(NConfig.Key.storageTrailMax, tempSettings.storageTrailMax);
         NConfig.setColor(NConfig.Key.storageTrailColor, storageTrailColorWidget.color);
+        NConfig.set(NConfig.Key.recipeSearchAsItemSearch, tempSettings.recipeSearchAsItemSearch);
 
         // Save path line settings
         tempSettings.pathLineColor = pathLineColorWidget.color;

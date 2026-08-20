@@ -528,63 +528,112 @@ public class ChunkNavManager {
     }
 
     /**
-     * BFS from the player's chunk through connectedChunks and portal links to the nearest
-     * chunk in the target set. Returns hop count, or -1 if none is reachable.
+     * Hop count from the player's chunk to every chunk reachable from it.
+     *
+     * Callers that need to rank many candidates at once must use this rather than calling
+     * {@link #chunkHopsTo} per candidate: that runs a whole BFS each time, so scoring N
+     * containers costs N graph traversals on the calling thread. This pays for one.
+     *
+     * Returns null when the player's own chunk is not recorded yet - just entered,
+     * teleported, or inside the record throttle window. That is not "nothing is reachable";
+     * it means the question cannot be answered, and callers should stay lenient, because
+     * the planner records visible grids before searching and can still find a path.
      */
-    private int chunkHopsToAny(Set<Long> targetChunks) {
-        if (targetChunks == null || targetChunks.isEmpty()) return -1;
+    public Map<Long, Integer> chunkHopsFromPlayer() {
+        if (!enabled || !initialized) return null;
+        long start = playerChunkId();
+        if (start == -1 || graph.getChunk(start) == null) return null;
 
+        Map<Long, Integer> hops = new HashMap<>();
+        Queue<Long> queue = new LinkedList<>();
+        hops.put(start, 0);
+        queue.add(start);
+
+        while (!queue.isEmpty()) {
+            long current = queue.poll();
+            int next = hops.get(current) + 1;
+            ChunkNavData chunk = graph.getChunk(current);
+            if (chunk == null) continue;
+
+            for (long connected : chunk.connectedChunks) {
+                if (hops.containsKey(connected)) continue;
+                hops.put(connected, next);
+                queue.add(connected);
+            }
+            for (ChunkPortal portal : chunk.portals) {
+                long target = portal.connectsToGridId;
+                if (target == -1 || hops.containsKey(target)) continue;
+                if (graph.getChunk(target) != null) {
+                    hops.put(target, next);
+                    queue.add(target);
+                }
+            }
+        }
+        return hops;
+    }
+
+    /** Grid the player is standing on, or -1 when it cannot be resolved. */
+    private long playerChunkId() {
         try {
             Gob player = NUtils.player();
             if (player == null) return -1;
             NGameUI gui = NUtils.getGameUI();
             if (gui == null || gui.map == null || gui.map.glob == null) return -1;
             MCache mcache = gui.map.glob.map;
-            Coord playerTile = player.rc.floor(MCache.tilesz);
-            MCache.Grid playerGrid = mcache.getgridt(playerTile);
-            if (playerGrid == null) return -1;
-            long playerChunkId = playerGrid.id;
-            if (targetChunks.contains(playerChunkId)) return 0;
-            // Player's chunk isn't recorded yet (just entered, teleported, or within the
-            // record throttle window). Don't prune here - fall through to the full pathfinder,
-            // which calls forceRecordVisibleGrids() before searching and can still find a path.
-            if (graph.getChunk(playerChunkId) == null) return 0;
-
-            Set<Long> visited = new HashSet<>();
-            Queue<Long> queue = new LinkedList<>();
-            queue.add(playerChunkId);
-            visited.add(playerChunkId);
-            int hops = 0;
-
-            while (!queue.isEmpty()) {
-                int levelSize = queue.size();
-                hops++;
-                for (int i = 0; i < levelSize; i++) {
-                    long current = queue.poll();
-                    ChunkNavData chunk = graph.getChunk(current);
-                    if (chunk == null) continue;
-
-                    for (long connected : chunk.connectedChunks) {
-                        if (visited.contains(connected)) continue;
-                        if (targetChunks.contains(connected)) return hops;
-                        visited.add(connected);
-                        queue.add(connected);
-                    }
-                    for (ChunkPortal portal : chunk.portals) {
-                        long target = portal.connectsToGridId;
-                        if (target == -1 || visited.contains(target)) continue;
-                        if (targetChunks.contains(target)) return hops;
-                        if (graph.getChunk(target) != null) {
-                            visited.add(target);
-                            queue.add(target);
-                        }
-                    }
-                }
-            }
-            return -1;
+            MCache.Grid playerGrid = mcache.getgridt(player.rc.floor(MCache.tilesz));
+            return (playerGrid == null) ? -1 : playerGrid.id;
         } catch (Exception e) {
             return -1;
         }
+    }
+
+    /**
+     * BFS from the player's chunk through connectedChunks and portal links to the nearest
+     * chunk in the target set. Returns hop count, or -1 if none is reachable.
+     */
+    private int chunkHopsToAny(Set<Long> targetChunks) {
+        if (targetChunks == null || targetChunks.isEmpty()) return -1;
+
+        long playerChunkId = playerChunkId();
+        if (playerChunkId == -1) return -1;
+        if (targetChunks.contains(playerChunkId)) return 0;
+        // Player's chunk isn't recorded yet (just entered, teleported, or within the
+        // record throttle window). Don't prune here - fall through to the full pathfinder,
+        // which calls forceRecordVisibleGrids() before searching and can still find a path.
+        if (graph.getChunk(playerChunkId) == null) return 0;
+
+        Set<Long> visited = new HashSet<>();
+        Queue<Long> queue = new LinkedList<>();
+        queue.add(playerChunkId);
+        visited.add(playerChunkId);
+        int hops = 0;
+
+        while (!queue.isEmpty()) {
+            int levelSize = queue.size();
+            hops++;
+            for (int i = 0; i < levelSize; i++) {
+                long current = queue.poll();
+                ChunkNavData chunk = graph.getChunk(current);
+                if (chunk == null) continue;
+
+                for (long connected : chunk.connectedChunks) {
+                    if (visited.contains(connected)) continue;
+                    if (targetChunks.contains(connected)) return hops;
+                    visited.add(connected);
+                    queue.add(connected);
+                }
+                for (ChunkPortal portal : chunk.portals) {
+                    long target = portal.connectsToGridId;
+                    if (target == -1 || visited.contains(target)) continue;
+                    if (targetChunks.contains(target)) return hops;
+                    if (graph.getChunk(target) != null) {
+                        visited.add(target);
+                        queue.add(target);
+                    }
+                }
+            }
+        }
+        return -1;
     }
 
     /**

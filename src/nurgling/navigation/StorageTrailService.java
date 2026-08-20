@@ -293,15 +293,28 @@ public class StorageTrailService {
         if (hits.isEmpty())
             return;
 
+        // One BFS for the whole candidate set. A short query like "t" matches on substring,
+        // so this can be handed hundreds of containers; scoring each with its own traversal
+        // would put that many graph walks in a single frame.
+        Map<Long, Integer> hops = nav.chunkHopsFromPlayer();
+
         List<Object[]> ranked = new ArrayList<>(hits.size());
         for (NGlobalSearchItems.ContainerHit hit : hits) {
             Coord tile = tileOf(hit.coord);
             if (tile == null)
                 continue;
-            int hops = nav.chunkHopsTo(hit.gridId);
-            if (hops < 0)
-                continue;   // no chunk-level route - a plan would fail too
-            ranked.add(new Object[]{hops, hit, tile});
+            int hop;
+            if (hops == null) {
+                // Player's chunk is not recorded yet, so reachability is unknown rather than
+                // false. Keep every candidate and let the planner decide.
+                hop = 0;
+            } else {
+                Integer h = hops.get(hit.gridId);
+                if (h == null)
+                    continue;   // no chunk-level route - a plan would fail too
+                hop = h;
+            }
+            ranked.add(new Object[]{hop, hit, tile});
         }
         ranked.sort((a, b) -> Integer.compare((Integer) a[0], (Integer) b[0]));
 
