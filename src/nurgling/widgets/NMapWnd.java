@@ -196,8 +196,9 @@ public class NMapWnd extends MapWnd {
                     }
                 }
                 
-                // alt+left-click for waypoint queueing
-                if(ev.b == 1 && ui.modmeta) {
+                // alt+left-click for waypoint queueing; shift is excluded because
+                // alt+shift+left-click is the map ping (NMiniMap.sendPointPing)
+                if(ev.b == 1 && ui.modmeta && !ui.modshift) {
                     if(handleWaypointClick(viewCoord)) {
                         return true; // Consume the event
                     }

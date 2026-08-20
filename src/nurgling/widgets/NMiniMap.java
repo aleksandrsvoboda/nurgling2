@@ -267,6 +267,66 @@ NMiniMap extends MiniMap {
         drawQueuedWaypoints(g);  // Draw waypoint visualization
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawMarkerLine(g);       // Draw line to selected marker
+        drawPings(g);            // Draw chat map pings on top of everything else
+    }
+
+    /**
+     * Chat map pings (@Point). Drawn here rather than in a dedicated widget so the corner
+     * minimap and the full map window both get them - MapWnd's view subclasses this class.
+     * A ping in another segment simply has nowhere to go on this map and is skipped.
+     */
+    private void drawPings(GOut g) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.pingService == null)
+            return;
+        for(PingService.Ping p : gui.pingService.snapshot()) {
+            MiniMap.Location loc = p.loc();
+            if(loc == null)
+                continue;
+            Coord c = xlate(loc);
+            if(c == null || !c.isect(Coord.z, sz))
+                continue;
+            double fade = 1.0 - p.age();
+            if(fade <= 0)
+                continue;
+            Color col = p.col;
+
+            // Expanding ring on the same 1.4 s clock as the world overlay's rings.
+            double t = (Utils.rtime() % 1.4) / 1.4;
+            int a = (int)(200 * fade * (1 - t));
+            if(a > 8) {
+                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
+                ringOutline(g, c, (int)(UI.scale(4) + (t * UI.scale(13))), 2);
+            }
+            g.chcolor(0, 0, 0, (int)(210 * fade));
+            g.fellipse(c, new Coord(UI.scale(4), UI.scale(4)));
+            g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * fade));
+            g.fellipse(c, new Coord(UI.scale(3), UI.scale(3)));
+        }
+        g.chcolor();
+    }
+
+    /**
+     * Broadcast a ping for the map position under a click. The map window can be scrolled
+     * far outside the loaded grids, so the grid id comes from the map file's segment index
+     * rather than from MCache. The file lock is only tried, never waited on - this runs on
+     * the UI thread, and a missed ping costs nothing but another click.
+     */
+    private boolean sendPointPing(Coord sc) {
+        MiniMap.Location loc = xlate(sc);
+        if(loc == null)
+            return false;
+        if(!file.lock.readLock().tryLock())
+            return false;
+        Long gridId;
+        try {
+            gridId = loc.seg.map.get(loc.tc.div(cmaps));
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        if(gridId == null)
+            return false;
+        return NMapView.sendPingToChat(gridId, loc.tc.mod(cmaps));
     }
 
     @Override
@@ -1996,6 +2056,16 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        // Alt+Shift+LMB pings the clicked spot to the selected chat channel. Plain
+        // alt+LMB cannot be used here the way it is in the world view, because on the
+        // maps it already means "walk here next" - it queues a movement waypoint
+        // (NMapWnd.mouseup, NMiniMapWnd.clickloc). Checked first so the ping never
+        // doubles as a walk or a waypoint grab.
+        if(ev.b == 1 && ui.modmeta && ui.modshift && !ui.modctrl) {
+            if(sendPointPing(ev.c))
+                return true;
+        }
+
         // Pick up a queued waypoint under the cursor instead of panning/walking.
         if(ev.b == 1 && startWaypointDrag(ev.c))
             return true;
