@@ -400,10 +400,10 @@ public class NPointPingOverlay implements RenderTree.Node, PView.Render2D {
                 continue;
             double w = 1.0 + ((1 - t) * 3.0);
             Coord[] pts = ringPoints(state, va, wc, R_START + (R_GROW * easeOut(t)), z);
-            stroke(g, pts, w + 3.5, 6, 18, 12, (int)(a * 0.55));
-            stroke(g, pts, w, col.getRed(), col.getGreen(), col.getBlue(), a);
+            band(g, pts, w + 3.5, 6, 18, 12, (int)(a * 0.55));
+            band(g, pts, w, col.getRed(), col.getGreen(), col.getBlue(), a);
             if(w > 2.2)
-                stroke(g, pts, Math.max(1, w - 2), core.getRed(), core.getGreen(), core.getBlue(), (int)(a * 0.8));
+                band(g, pts, Math.max(1, w - 2), core.getRed(), core.getGreen(), core.getBlue(), (int)(a * 0.8));
         }
 
         // One-shot arrival burst: a fast, wide, near-white ring that says "this just
@@ -414,8 +414,8 @@ public class NPointPingOverlay implements RenderTree.Node, PView.Render2D {
             int a = (int)(230 * Math.pow(1 - t, 1.4));
             if(a >= 8) {
                 Coord[] pts = ringPoints(state, va, wc, R_START + ((R_GROW * 1.45) * easeOut(t)), z);
-                stroke(g, pts, 5.5, 8, 20, 14, (int)(a * 0.5));
-                stroke(g, pts, 3.0, 255, 255, 255, a);
+                band(g, pts, 5.5, 8, 20, 14, (int)(a * 0.5));
+                band(g, pts, 3.0, 255, 255, 255, a);
             }
         }
     }
@@ -430,15 +430,16 @@ public class NPointPingOverlay implements RenderTree.Node, PView.Render2D {
     private void beacon(GOut g, PingService.Ping p, Coord foot, Coord head, double alpha) {
         Color col = p.col;
         // Segment the shaft and drop the alpha with height: a gradient instead of a stick.
-        final int seg = 7;
+        // Drawn as tapered quads rather than lines - see band() for why that matters.
+        final int seg = 4;
         for(int i = 0; i < seg; i++) {
             Coord a = lerp(foot, head, (double)i / seg);
             Coord b = lerp(foot, head, (double)(i + 1) / seg);
-            double f = 1.0 - ((double)i / seg);
-            g.chcolor(6, 18, 12, (int)(140 * alpha * f));
-            g.line(a, b, 4);
-            g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(235 * alpha * f * f));
-            g.line(a, b, 2);
+            double f0 = 1.0 - ((double)i / seg), f1 = 1.0 - ((double)(i + 1) / seg);
+            quad(g, a, b, 4 * (0.6 + (0.4 * f0)), 4 * (0.6 + (0.4 * f1)),
+                 6, 18, 12, (int)(140 * alpha * f0));
+            quad(g, a, b, 2 * (0.6 + (0.4 * f0)), 2 * (0.6 + (0.4 * f1)),
+                 col.getRed(), col.getGreen(), col.getBlue(), (int)(235 * alpha * f0 * f0));
         }
 
         // Head: a plate that pulses on the ring clock, with a hot centre.
@@ -550,22 +551,97 @@ public class NPointPingOverlay implements RenderTree.Node, PView.Render2D {
      * layered look for nothing.
      */
     private Coord[] ringPoints(Pipe state, Area va, Coord2d c, double r, double z) {
+        // Ground height is sampled every HSTEP vertices and interpolated between, not
+        // sampled per vertex. getcz() is a bilinear blend of four tile heights, each
+        // needing a grid lookup, so per-vertex sampling meant well over a hundred of them
+        // per ring per frame for detail no one can see - terrain varies over whole tiles,
+        // while the ring has two vertices per tile at this radius.
+        final int HSTEP = 4;
+        double[] hs = new double[RING_SEG + 1];
+        for(int i = 0; i <= RING_SEG; i += HSTEP) {
+            double ang = (2 * Math.PI * i) / RING_SEG;
+            hs[i] = cz(c.x + (Math.cos(ang) * r), c.y + (Math.sin(ang) * r), z);
+        }
         Coord[] pts = new Coord[RING_SEG + 1];
         for(int i = 0; i <= RING_SEG; i++) {
+            int lo = (i / HSTEP) * HSTEP;
+            int hi = Math.min(RING_SEG, lo + HSTEP);
+            double f = (hi == lo) ? 0 : ((double)(i - lo) / (hi - lo));
+            double h = hs[lo] + ((hs[hi] - hs[lo]) * f);
             double ang = (2 * Math.PI * i) / RING_SEG;
-            double x = c.x + (Math.cos(ang) * r), y = c.y + (Math.sin(ang) * r);
-            pts[i] = proj(state, va, new Coord2d(x, y), cz(x, y, z) + Z_RING);
+            pts[i] = proj(state, va, new Coord2d(c.x + (Math.cos(ang) * r), c.y + (Math.sin(ang) * r)), h + Z_RING);
         }
         return(pts);
     }
 
-    private void stroke(GOut g, Coord[] pts, double w, int r, int gr, int b, int a) {
+    /**
+     * Stroke a projected polyline as a screen-space band - <em>one</em> draw call per run
+     * of visible points.
+     *
+     * <p>This exists because {@link GOut#line} is far more expensive than it looks: every
+     * call allocates a {@code States.LineWidth}, a VertexArray, a buffer and a Model, and
+     * issues its own draw with a pipeline state change. Stroking a 32-segment ring three
+     * times over meant ~96 draw calls per ring, ~300 per ping per frame, which is enough
+     * to be felt as a frame-rate drop with a few pings up. Building the band as a triangle
+     * strip collapses each layer to a single draw, and as a bonus gives real geometric
+     * thickness instead of relying on GL line width, which drivers honour inconsistently.
+     */
+    private void band(GOut g, Coord[] pts, double w, int r, int gr, int b, int a) {
         if(a < 4)
             return;
         g.chcolor(r, gr, b, a);
-        for(int i = 0; i < pts.length - 1; i++) {
-            if((pts[i] != null) && (pts[i + 1] != null))
-                g.line(pts[i], pts[i + 1], w);
+        // Points behind the camera come back null, so the loop emits one strip per
+        // contiguous visible run rather than stitching across the gap.
+        int i = 0;
+        while(i < pts.length) {
+            int s = i;
+            while((s < pts.length) && (pts[s] == null))
+                s++;
+            int e = s;
+            while((e < pts.length) && (pts[e] != null))
+                e++;
+            if(e - s >= 2)
+                emitBand(g, pts, s, e, (float)(w / 2));
+            i = Math.max(e, s + 1);
         }
+    }
+
+    private void emitBand(GOut g, Coord[] pts, int s, int e, float h) {
+        float[] data = new float[(e - s) * 4];
+        int p = 0;
+        for(int i = s; i < e; i++) {
+            Coord a = pts[Math.max(s, i - 1)], b = pts[Math.min(e - 1, i + 1)];
+            float tx = b.x - a.x, ty = b.y - a.y;
+            float len = (float)Math.sqrt((tx * tx) + (ty * ty));
+            float nx = 0, ny = 0;
+            if(len > 1e-4f) {
+                nx = -ty / len;
+                ny = tx / len;
+            }
+            float px = pts[i].x + g.tx.x, py = pts[i].y + g.tx.y;
+            data[p++] = px - (nx * h); data[p++] = py - (ny * h);
+            data[p++] = px + (nx * h); data[p++] = py + (ny * h);
+        }
+        g.drawp(Model.Mode.TRIANGLE_STRIP, data);
+    }
+
+    /** Tapered quad between two screen points; one draw call, no line-width state change. */
+    private void quad(GOut g, Coord a, Coord b, double wa, double wb, int r, int gr, int bl, int al) {
+        if(al < 4)
+            return;
+        float dx = b.x - a.x, dy = b.y - a.y;
+        float len = (float)Math.sqrt((dx * dx) + (dy * dy));
+        if(len < 1e-4f)
+            return;
+        float nx = -dy / len, ny = dx / len;
+        float ax = a.x + g.tx.x, ay = a.y + g.tx.y;
+        float bx = b.x + g.tx.x, by = b.y + g.tx.y;
+        float ha = (float)(wa / 2), hb = (float)(wb / 2);
+        g.chcolor(r, gr, bl, al);
+        g.drawp(Model.Mode.TRIANGLE_STRIP, new float[]{
+                ax - (nx * ha), ay - (ny * ha),
+                ax + (nx * ha), ay + (ny * ha),
+                bx - (nx * hb), by - (ny * hb),
+                bx + (nx * hb), by + (ny * hb)});
     }
 }

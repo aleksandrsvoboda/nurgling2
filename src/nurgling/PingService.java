@@ -40,6 +40,12 @@ public class PingService {
     private static final double HOLD = 0.7;
     /** Pings kept per sender, so nobody can bury the map by spamming. */
     private static final int MAX_PER_SENDER = 3;
+    /**
+     * Hard ceiling across all senders. The per-sender cap alone does not bound the work,
+     * because a crowded area chat has many senders; this keeps the world overlay's cost
+     * bounded no matter how busy the channel gets.
+     */
+    private static final int MAX_LIVE = 8;
     /** Seconds between retries of a resolution that has not succeeded yet. */
     private static final double RETRY = 0.5;
     /** Colour for a ping with no sender colour to go on. */
@@ -132,6 +138,8 @@ public class PingService {
                 }
             }
             pings.add(p);
+            while(pings.size() > MAX_LIVE)
+                pings.remove(0);
         }
     }
 
