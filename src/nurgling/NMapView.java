@@ -371,6 +371,30 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.overlays.NPointPingOverlay pingOverlay = null;
     private RenderTree.Slot pingOverlaySlot = null;
 
+    /* ---- Trail to searched-for storage -----------------------------------
+     * The item search knows which containers hold what, and the containers table stores
+     * the grid and in-grid offset of each one, so a match can be routed to even when its
+     * gob is nowhere near loaded. The service owns the routing and caching; the overlay
+     * just draws what it resolves. */
+    private nurgling.navigation.StorageTrailService storageTrail = null;
+    private nurgling.overlays.NStorageTrailOverlay storageTrailOverlay = null;
+    private RenderTree.Slot storageTrailSlot = null;
+
+    public nurgling.navigation.StorageTrailService getStorageTrailService() {
+        return(storageTrail);
+    }
+
+    @Override
+    public void dispose() {
+        // The trail service owns a planning thread; without this it would outlive the
+        // session that bound it and keep planning against a UI nobody is looking at.
+        if(storageTrail != null) {
+            storageTrail.shutdown();
+            storageTrail = null;
+        }
+        super.dispose();
+    }
+
     /** Create the overlays once the render tree is up, then let them refresh their geometry. */
     private void tickWorldOverlays() {
         if(basic == null)
@@ -383,8 +407,15 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             pingOverlay = new nurgling.overlays.NPointPingOverlay(this);
             pingOverlaySlot = basic.add(pingOverlay);
         }
+        if(storageTrailOverlay == null) {
+            storageTrail = new nurgling.navigation.StorageTrailService(this);
+            storageTrailOverlay = new nurgling.overlays.NStorageTrailOverlay(this, storageTrail);
+            storageTrailSlot = basic.add(storageTrailOverlay);
+        }
         wpOverlay.update();
         pingOverlay.update();
+        storageTrail.tick();
+        storageTrailOverlay.update();
     }
 
     /** Id of the waypoint whose ground node contains the given screen point, or -1. */

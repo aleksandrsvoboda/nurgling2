@@ -529,7 +529,6 @@ public class NInventory extends Inventory
                     // Remove from cache (iis) using direct reference
                     if (iis.remove(pr.itemInfo)) {
                         removedCount++;
-                        System.out.println("NInventory.tick: Removed consumed item: " + pr.itemInfo.name);
                     }
                     it.remove();
                 }
