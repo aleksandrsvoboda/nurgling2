@@ -10,6 +10,9 @@ import nurgling.tools.NParser;
 import nurgling.widgets.NEquipory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class CoracleBot implements Action {
 
@@ -17,6 +20,31 @@ public class CoracleBot implements Action {
     private static final double PICKUP_RANGE = 55.0;
     private static final double MOUNT_RANGE = 66.0;
     private static final Coord CORACLE_INV_SIZE = new Coord(4, 3);
+
+    // Open water too deep to launch into or to pick the coracle back up from.
+    // Matched exactly: substring matching on "deep" also hits the unrelated
+    // land tiles gfx/tiles/deeptangle and gfx/tiles/deepcave.
+    private static final Set<String> DEEP_WATER_TILES = new HashSet<>(Arrays.asList(
+            "gfx/tiles/deep",      // Deep Water
+            "gfx/tiles/odeep",     // Deep Ocean
+            "gfx/tiles/odeeper"    // High Seas
+    ));
+
+    // Shallow open water the coracle can be launched into.
+    private static final Set<String> SHALLOW_WATER_TILES = new HashSet<>(Arrays.asList(
+            "gfx/tiles/water",     // Shallow Water
+            "gfx/tiles/owater"     // Shallow Ocean
+    ));
+
+    // Wetland biomes the coracle can be launched into. Each biome ships as a
+    // pair - the biome tile plus a "<biome>water" pool tile - so match by
+    // prefix: bog/bogwater, fen/fenwater, swamp/swampwater, marsh/marshwater.
+    private static final String[] WETLAND_TILE_PREFIXES = {
+            "gfx/tiles/bog",
+            "gfx/tiles/fen",
+            "gfx/tiles/swamp",
+            "gfx/tiles/marsh"
+    };
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -98,11 +126,13 @@ public class CoracleBot implements Action {
         WItem coracleItem = findCoracleItem(gui);
 
         if (coracleItem != null) {
-            if (!isOnValidWaterTile(gui))
-                return Results.ERROR("Must be in Shallow Water or Bog to drop Coracle.");
+            String tileName = tileNameAt(gui, playerTile());
 
-            if (isOnDeepWater(gui))
+            if (isDeepWaterTile(tileName))
                 return Results.ERROR("Can't drop Coracle in Deep Water!");
+
+            if (!isBoatableTile(tileName))
+                return Results.ERROR("Must be in Shallow Water or a wetland to drop Coracle (tile: " + tileName + ").");
 
             NUtils.drop(coracleItem);
 
@@ -161,9 +191,17 @@ public class CoracleBot implements Action {
         return null;
     }
 
-    private boolean isSurroundedByDeepWater(NGameUI gui) {
+    private Coord playerTile() {
+        return NUtils.player().rc.div(MCache.tilesz).floor();
+    }
+
+    private String tileNameAt(NGameUI gui, Coord tile) {
         MCache map = gui.ui.sess.glob.map;
-        Coord playerTile = NUtils.player().rc.div(MCache.tilesz).floor();
+        return map.tilesetname(map.gettile(tile));
+    }
+
+    private boolean isSurroundedByDeepWater(NGameUI gui) {
+        Coord playerTile = playerTile();
 
         int[][] offsets = {
             {-1, -1}, {0, -1}, {1, -1},
@@ -173,29 +211,31 @@ public class CoracleBot implements Action {
 
         for (int[] offset : offsets) {
             Coord checkTile = playerTile.add(new Coord(offset[0], offset[1]));
-            String tileName = map.tilesetname(map.gettile(checkTile));
-            if (tileName == null || !tileName.contains("deep"))
+            if (!isDeepWaterTile(tileNameAt(gui, checkTile)))
                 return false;
         }
         return true;
     }
 
-    private boolean isOnDeepWater(NGameUI gui) {
-        MCache map = gui.ui.sess.glob.map;
-        Coord playerTile = NUtils.player().rc.div(MCache.tilesz).floor();
-        String tileName = map.tilesetname(map.gettile(playerTile));
-        return tileName != null && tileName.contains("deep");
+    private static boolean isDeepWaterTile(String tileName) {
+        return tileName != null && DEEP_WATER_TILES.contains(tileName);
     }
 
-    private boolean isOnValidWaterTile(NGameUI gui) {
-        MCache map = gui.ui.sess.glob.map;
-        Coord playerTile = NUtils.player().rc.div(MCache.tilesz).floor();
-        String tileName = map.tilesetname(map.gettile(playerTile));
-        if (tileName == null) return false;
-
-        return tileName.contains("water") ||
-               tileName.contains("bog") ||
-               tileName.contains("fen") ||
-               tileName.contains("swamp");
+    /**
+     * Whether a coracle can be launched on this tile: shallow open water, or
+     * any wetland biome. Deep water is excluded and reported separately.
+     */
+    private static boolean isBoatableTile(String tileName) {
+        if (tileName == null || DEEP_WATER_TILES.contains(tileName))
+            return false;
+        if (SHALLOW_WATER_TILES.contains(tileName))
+            return true;
+        for (String prefix : WETLAND_TILE_PREFIXES) {
+            if (tileName.startsWith(prefix))
+                return true;
+        }
+        // Wetland biomes added later still ship their pools as "<biome>water",
+        // so accept those even when the biome itself isn't listed above.
+        return tileName.startsWith("gfx/tiles/") && tileName.endsWith("water");
     }
 }
