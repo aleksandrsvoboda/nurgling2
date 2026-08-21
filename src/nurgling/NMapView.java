@@ -1026,6 +1026,27 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
 
 
+    /**
+     * Highest area id the DB has handed out for this profile, tombstones
+     * included, or 0 when the DB is off / not yet polled.
+     */
+    public static int maxKnownDbAreaId()
+    {
+        try
+        {
+            if(nurgling.NCore.databaseManager == null || !nurgling.NCore.databaseManager.isReady())
+                return 0;
+            String profile = NUtils.getGameUI().getGenus();
+            if(profile == null || profile.isEmpty())
+                profile = "global";
+            return nurgling.NCore.databaseManager.getAreaService().getMaxKnownAreaId(profile);
+        }
+        catch(Exception e)
+        {
+            return 0;
+        }
+    }
+
     public String addArea(NArea.Space result)
     {
         String key;
@@ -1040,6 +1061,15 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                     id = area.id + 1;
                 }
                 names.add(area.name);
+            }
+            // Deleted areas leave a tombstone row in the DB under their old id.
+            // Numbering only from the live areas hands a new area the id of a
+            // deleted one, and the sync poll then sees it as tombstoned and
+            // removes it again - so skip past every id the DB has ever used.
+            int dbId = maxKnownDbAreaId();
+            if(dbId >= id)
+            {
+                id = dbId + 1;
             }
             key = ("New Area" + String.valueOf(glob.map.areas.size()));
             while(names.contains(key))

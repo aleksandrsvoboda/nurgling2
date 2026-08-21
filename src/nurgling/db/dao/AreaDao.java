@@ -341,6 +341,22 @@ public class AreaDao {
     }
 
     /**
+     * Highest area id ever used for a profile, tombstones included. New areas
+     * must be numbered above this: a tombstoned row keeps its id forever (until
+     * purged), and reusing it makes the sync poll see the new area as an
+     * already-deleted one and drop it locally.
+     */
+    public int getMaxAreaId(DatabaseAdapter adapter, String profile) throws SQLException {
+        String sql = "SELECT MAX(id) as max_id FROM areas WHERE profile = ?";
+        try (ResultSet rs = adapter.executeQuery(sql, profile)) {
+            if (rs.next()) {
+                return rs.getInt("max_id");
+            }
+        }
+        return 0;
+    }
+
+    /**
      * Version state of every area for a profile (live + tombstoned). Used by
      * the sync poll to spot rows that changed state.
      */

@@ -49,6 +49,13 @@ public class AreaService {
      */
     private final java.util.Set<String> bulkLoadedSessions =
         java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    /**
+     * Highest area id seen in the DB per profile, tombstones included. Kept up
+     * to date by the bulk load and every delta poll so area creation can pick
+     * an id that no tombstone still occupies (see {@link #getMaxKnownAreaId}).
+     */
+    private final java.util.concurrent.ConcurrentHashMap<String, Integer> maxKnownAreaId =
+        new java.util.concurrent.ConcurrentHashMap<>();
 
     public interface AreaSyncCallback {
         /**
@@ -66,6 +73,27 @@ public class AreaService {
     public AreaService(DatabaseManager databaseManager) {
         this.databaseManager = databaseManager;
         this.areaDao = new AreaDao();
+    }
+
+    // -------------------- Area id allocation --------------------
+
+    /**
+     * Highest area id known to exist in the DB for this profile, tombstoned
+     * rows included, or 0 if nothing has been observed yet. Callers allocating
+     * a new area id must go above this as well as above their local maximum:
+     * a tombstone row survives the delete, so an id taken from the live areas
+     * alone can land on one the sync will immediately report as deleted.
+     */
+    public int getMaxKnownAreaId(String profile) {
+        if (profile == null) return 0;
+        Integer known = maxKnownAreaId.get(profile);
+        return known == null ? 0 : known;
+    }
+
+    /** Raise the cached maximum; never lowers it. */
+    private void observeAreaId(String profile, int id) {
+        if (profile == null) return;
+        maxKnownAreaId.merge(profile, id, Math::max);
     }
 
     // -------------------- Save (push) path --------------------
@@ -385,6 +413,10 @@ public class AreaService {
      */
     private void runBulkLoad(String profile, String sessionId) throws SQLException {
         long t0 = System.currentTimeMillis();
+        // Tombstones are not part of loadAreas(), so seed the id watermark from
+        // the table itself before the first area can be created.
+        observeAreaId(profile, databaseManager.executeOperation(
+            adapter -> areaDao.getMaxAreaId(adapter, profile)));
         Map<Integer, NArea> all = loadAreas(profile);
         System.out.println("Area sync: bulk-loaded " + all.size() + " areas in "
             + (System.currentTimeMillis() - t0) + "ms (session=" + sessionId + ")");
@@ -458,10 +490,17 @@ public class AreaService {
         for (Map.Entry<Integer, AreaDao.AreaVersionInfo> entry : dbVersions.entrySet()) {
             int areaId = entry.getKey();
             AreaDao.AreaVersionInfo info = entry.getValue();
+            observeAreaId(profile, areaId);
             NArea local = localAreas.get(areaId);
             int localVersion = local != null ? local.version : 0;
 
             if (info.tombstoned) {
+                // A local area that has never been written to the DB
+                // (baselineVersion == 0) cannot be the row this tombstone
+                // refers to - it just collided on id. Deleting it here is what
+                // made freshly created areas vanish, so leave it alone and let
+                // the save path resurrect the row.
+                if (local != null && local.baselineVersion <= 0) continue;
                 // Notify callback that this area is gone (it'll dedupe).
                 if (local != null && syncCallback != null) {
                     AreaSyncEvents.publish(new AreaSyncEvent(
