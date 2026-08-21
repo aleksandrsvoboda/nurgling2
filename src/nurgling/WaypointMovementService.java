@@ -49,6 +49,9 @@ public class WaypointMovementService {
     private static final double DRAG_CMD_INTERVAL = 0.2;
     private double lastDragCommandTime = 0;
 
+    /** True while the player steers by hand (hold-to-move); the queue stands still meanwhile. */
+    private boolean steerPaused = false;
+
     public WaypointMovementService(NGameUI gui) {
         this.gui = gui;
     }
@@ -135,11 +138,33 @@ public class WaypointMovementService {
     }
 
     /**
+     * Pause the queue while the player steers manually with the left button held down.
+     *
+     * Without this the two fight: the character walks away from waypoint 0, the stuck
+     * detector fires and drags him back mid-steer. Unpausing re-commands the head of the
+     * queue, so he returns to the route he was walking before the manual detour.
+     */
+    public void setSteerPaused(boolean paused) {
+        synchronized(waypoints) {
+            if(steerPaused == paused)
+                return;
+            steerPaused = paused;
+            if(!paused) {
+                commanded = false;
+                lastPlayerPos = null;
+                lastMovementTime = Utils.rtime();
+            }
+        }
+    }
+
+    /**
      * Process the movement queue - should be called from tick().
      * Advances to next waypoint when current one is reached.
      */
     public void processMovementQueue(MapFile file, MiniMap.Location sessloc) {
         synchronized(waypoints) {
+            if(steerPaused)
+                return;
             MiniMap.Location target = waypoints.isEmpty() ? null : waypoints.get(0).loc;
             if((target != null) && commanded && (sessloc != null) && (target.seg.id == sessloc.seg.id)) {
                 try {
