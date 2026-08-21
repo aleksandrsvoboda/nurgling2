@@ -1,7 +1,9 @@
 package nurgling.tools;
 
 import haven.Coord;
+import haven.WItem;
 import haven.Window;
+import nurgling.NGItem;
 import nurgling.NInventory;
 import nurgling.NUtils;
 
@@ -197,6 +199,43 @@ public class StackSupporter {
             if (!categoryContent.isEmpty()) {
                 NAlias same = new NAlias(categoryContent);
                 if (!inv.getItems(same).isEmpty())
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Exact-name variant of {@link #isSameExist}. Only counts a sibling as present when an
+     * inventory item's name equals it outright.
+     *
+     * isSameExist() resolves siblings through NAlias, which matches by substring, so any item
+     * whose name contains a sibling's name reports a collision with itself - "Pumpkin Flesh"
+     * and "Pumpkin" share the "Crops - other" category, so a pure load of flesh always looked
+     * like a mixed one. Callers that know the exact item name they are moving should use this.
+     */
+    public static boolean isSameExistExact(String name, NInventory inv) throws InterruptedException {
+        if (name == null) {
+            return false;
+        }
+
+        ArrayList<String> categories = VSpec.getCategory(name);
+        if (categories.contains("Hide Fresh"))
+            categories.add("Prepared Animal Hide");
+        else if (categories.contains("Prepared Animal Hide"))
+            categories.add("Hide Fresh");
+
+        for (String cat : categories) {
+            ArrayList<String> categoryContent = new ArrayList<>(VSpec.getCategoryContent(cat));
+            categoryContent.remove(name);
+            if (categoryContent.isEmpty())
+                continue;
+
+            // getItems() still pre-filters by substring - it is the only lookup available - so
+            // re-check each hit by exact name before treating it as a real sibling.
+            NAlias same = new NAlias(categoryContent);
+            for (WItem item : inv.getItems(same)) {
+                if (same.matchesExact(((NGItem) item.item).name()))
                     return true;
             }
         }
