@@ -930,7 +930,6 @@ public class NUtils
         for (String pathElement: pathElements) {
             path = path.resolve(pathElement);
         }
-        System.out.println("generated path for" + path);
         return path;
     }
 
