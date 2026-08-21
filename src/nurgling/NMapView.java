@@ -367,6 +367,98 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     public long wpHoverId() {return(wpHoverId);}
     public Coord2d wpDragOrigin() {return(wpDragOrigin);}
 
+    /* ---- Press-and-hold steering ------------------------------------------
+     * With the hold-to-move setting on, keeping the left button down re-sends the
+     * ground under the pointer as a move command, so the character follows the
+     * cursor instead of stopping at the one spot that was clicked. The press itself
+     * stays the ordinary click it has always been - this only adds what happens
+     * while the button is still down. */
+
+    private final nurgling.HoldToMove holdMove = new nurgling.HoldToMove();
+    private UI.Grab holdGrab = null;
+
+    /** Can a plain left press start hold-to-move right now? Everything else owns the button first. */
+    private boolean canHoldSteer() {
+        return(nurgling.HoldToMove.enabled() && (holdGrab == null) && (wpGrab == null)
+               && (placing == null) && (selection == null)
+               && !isAreaSelectionMode.get() && !isGobSelectionMode.get()
+               && !zoneMeasureMode && !zoneClearMode && !isRecordingRoutePoint);
+    }
+
+    private void armHoldSteer(Coord c) {
+        // Until the click test comes back, assume the press landed on an object: re-sampling
+        // would cancel the interaction it just started. Bare ground clears the flag, which is
+        // what lets the character keep walking while the pointer is held still.
+        holdMove.arm(c, true);
+        holdGrab = ui.grabmouse(this);
+        new Hittest(c) {
+            protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+                if(inf == null)
+                    holdMove.allowIdleSteer();
+            }
+        }.run();
+    }
+
+    /**
+     * Re-target the character at the ground under the given screen point. The map hit test
+     * is asynchronous, so only one sample is in flight at a time; the rest of the pacing
+     * (rate limit, minimum distance) lives in HoldToMove.
+     */
+    private void steerHold(Coord c) {
+        if((ui.modflags() != 0) || !holdMove.due())
+            return;
+        // The grab keeps delivering pointer positions after the cursor has left the view;
+        // clamping keeps steering towards that edge instead of hit-testing off-screen.
+        Coord cc = new Coord(Utils.clip(c.x, 0, sz.x - 1), Utils.clip(c.y, 0, sz.y - 1));
+        holdMove.begin();
+        new Maptest(cc) {
+            public void hit(Coord pc, Coord2d mc) {
+                holdMove.done();
+                if((holdGrab == null) || !holdMove.steering())
+                    return;
+                if(!holdMove.accept(mc, MCache.tilesz.x / 2))
+                    return;
+                NGameUI gui = NUtils.getGameUI();
+                if((gui != null) && (gui.waypointMovementService != null))
+                    gui.waypointMovementService.setSteerPaused(true);
+                try {
+                    clickDestination = new Coord3f((float)mc.x, (float)mc.y, glob.map.getzp(mc).z);
+                } catch(Loading l) {
+                    // Height not loaded yet - the path line just skips this sample.
+                }
+                wdgmsg("click", pc, mc.floor(OCache.posres), 1, 0);
+            }
+
+            public void nohit(Coord pc) {
+                holdMove.done();
+            }
+        }.run();
+    }
+
+    /**
+     * Keep steering while the button is held even when the pointer stays put: the camera
+     * follows the character, so the ground under a still cursor keeps moving.
+     */
+    private void tickHoldSteer() {
+        if((holdGrab == null) || !holdMove.steering())
+            return;
+        steerHold(ui.mc.sub(rootpos()));
+    }
+
+    private void endHoldSteer() {
+        boolean steered = holdMove.steered();
+        if(holdGrab != null) {
+            holdGrab.remove();
+            holdGrab = null;
+        }
+        holdMove.disarm();
+        if(steered) {
+            NGameUI gui = NUtils.getGameUI();
+            if((gui != null) && (gui.waypointMovementService != null))
+                gui.waypointMovementService.setSteerPaused(false);
+        }
+    }
+
     /** Draws chat map pings (@Point): ground glow in the render tree, rings in the 2D pass. */
     private nurgling.overlays.NPointPingOverlay pingOverlay = null;
     private RenderTree.Slot pingOverlaySlot = null;
@@ -386,6 +478,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     public void dispose() {
+        if(holdGrab != null) {
+            holdGrab.remove();
+            holdGrab = null;
+            holdMove.disarm();
+        }
         // The trail service owns a planning thread; without this it would outlive the
         // session that bound it and keep planning against a UI nobody is looking at.
         if(storageTrail != null) {
@@ -1130,6 +1227,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         // Refresh the movement-waypoint geometry
         tickWorldOverlays();
 
+        // Keep following the pointer while the left button is held
+        tickHoldSteer();
+
         // Reconcile per-grid wall overlays against currently loaded grids
         updateGridWalls();
 
@@ -1517,6 +1617,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return true;
         }
 
+        // Press-and-hold steering arms last, so every other meaning of the left button
+        // keeps priority. The event is not consumed - the press stays a normal click.
+        if(ev.b == 1 && (ui.modflags() == 0) && canHoldSteer())
+            armHoldSteer(ev.c);
+
         return super.mousedown(ev);
     }
 
@@ -1566,12 +1671,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             dragWorldWaypoint(ev.c, false);
             return;
         }
+        if(holdGrab != null) {
+            holdMove.pointer(ev.c);
+            steerHold(ev.c);
+        }
         wpHoverId = worldWaypointAt(ev.c);
         super.mousemove(ev);
     }
     
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if((holdGrab != null) && (ev.b == 1))
+            endHoldSteer();
         if(wpGrab != null) {
             if(ev.b == 1) {
                 dragWorldWaypoint(ev.c, true);

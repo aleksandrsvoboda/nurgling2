@@ -18,6 +18,7 @@ public class Navigation extends Panel {
         // Navigation settings
         boolean useGlobalPf;
         boolean waypointRetryOnStuck;
+        boolean holdToMove;
         boolean showPathLine;
         boolean showWaypointsInWorld;
         Color waypointColorActive = new Color(0, 224, 224);
@@ -43,6 +44,7 @@ public class Navigation extends Panel {
     // Navigation checkboxes
     private CheckBox useGlobalPf;
     private CheckBox waypointRetryOnStuck;
+    private CheckBox holdToMove;
     private CheckBox showPathLine;
     private CheckBox showWaypointsInWorld;
     private NColorWidget wpActiveColorWidget;
@@ -117,6 +119,14 @@ public class Navigation extends Panel {
                 a = val;
             }
         }, prev.pos("bl").adds(0, 5));
+
+        prev = holdToMove = content.add(new CheckBox(L10n.get("nav.hold_to_move")) {
+            public void set(boolean val) {
+                tempSettings.holdToMove = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 5));
+        holdToMove.settip(L10n.get("nav.hold_to_move_tip"));
 
         // Visual indicators section.
         // Rows are positioned with an explicit x rather than by nudging the previous row's
@@ -219,6 +229,8 @@ public class Navigation extends Panel {
         // Load navigation settings
         tempSettings.useGlobalPf = (Boolean) NConfig.get(NConfig.Key.useGlobalPf);
         tempSettings.waypointRetryOnStuck = (Boolean) NConfig.get(NConfig.Key.waypointRetryOnStuck);
+        Object holdToMoveObj = NConfig.get(NConfig.Key.holdToMove);
+        tempSettings.holdToMove = (holdToMoveObj instanceof Boolean) && (Boolean) holdToMoveObj;
         tempSettings.showPathLine = (Boolean) NConfig.get(NConfig.Key.showPathLine);
         tempSettings.showWaypointsInWorld = (Boolean) NConfig.get(NConfig.Key.showWaypointsInWorld);
         tempSettings.waypointColorActive = NConfig.getColor(NConfig.Key.waypointColorActive, new Color(0, 224, 224));
@@ -243,6 +255,7 @@ public class Navigation extends Panel {
         alarmDelayFramesEntry.settext(String.valueOf(((Number) NConfig.get(NConfig.Key.alarmDelayFrames)).intValue()));
         useGlobalPf.a = tempSettings.useGlobalPf;
         waypointRetryOnStuck.a = tempSettings.waypointRetryOnStuck;
+        holdToMove.a = tempSettings.holdToMove;
         showPathLine.a = tempSettings.showPathLine;
         showWaypointsInWorld.a = tempSettings.showWaypointsInWorld;
         wpActiveColorWidget.color = tempSettings.waypointColorActive;
@@ -285,6 +298,7 @@ public class Navigation extends Panel {
         // Save navigation settings
         NConfig.set(NConfig.Key.useGlobalPf, tempSettings.useGlobalPf);
         NConfig.set(NConfig.Key.waypointRetryOnStuck, tempSettings.waypointRetryOnStuck);
+        NConfig.set(NConfig.Key.holdToMove, tempSettings.holdToMove);
         NConfig.set(NConfig.Key.showPathLine, tempSettings.showPathLine);
         NConfig.set(NConfig.Key.showWaypointsInWorld, tempSettings.showWaypointsInWorld);
         NConfig.setColor(NConfig.Key.waypointColorActive, wpActiveColorWidget.color);

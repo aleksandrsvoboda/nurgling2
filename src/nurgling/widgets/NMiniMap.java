@@ -780,6 +780,71 @@ NMiniMap extends MiniMap {
         wpDragOrigin = null;
     }
 
+    /* Press-and-hold steering -------------------------------------------------
+     * With the hold-to-move setting on, keeping the left button down on the map keeps
+     * re-sending the spot under the pointer as a move command. Only on maps where the
+     * left button is not the pan handle (the corner minimap); on the big map window
+     * dragging still scrolls the map. */
+    private final HoldToMove holdMove = new HoldToMove();
+    private UI.Grab holdGrab = null;
+
+    /** Arm hold-to-move on a plain left press, if this map allows it. */
+    protected void startHoldSteer(Coord c) {
+        if(!HoldToMove.enabled() || (holdGrab != null) || (wpGrab != null) || dragp(1))
+            return;
+        if((sessloc == null) || (dloc == null))
+            return;
+        // A press on an icon walks to that object; re-sampling would cancel it, so
+        // steering there waits until the pointer actually moves.
+        holdMove.arm(c, iconat(c) != null);
+        holdGrab = ui.grabmouse(this);
+    }
+
+    private void steerHold(Coord c) {
+        if((ui.modflags() != 0) || !holdMove.due())
+            return;
+        NGameUI gui = NUtils.getGameUI();
+        if((gui == null) || (gui.map == null) || (sessloc == null))
+            return;
+        // Dragging past the edge keeps steering towards that edge rather than stopping dead.
+        Coord cc = new Coord(Utils.clip(c.x, 0, sz.x - 1), Utils.clip(c.y, 0, sz.y - 1));
+        Location loc;
+        try {
+            loc = xlate(cc);
+        } catch(Loading l) {
+            return;
+        }
+        if((loc == null) || (loc.seg.id != sessloc.seg.id))
+            return;
+        if(!holdMove.accept(new Coord2d(loc.tc), 1.0))
+            return;
+        if(gui.waypointMovementService != null)
+            gui.waypointMovementService.setSteerPaused(true);
+        mvclick(gui.map, null, loc, null, 1);
+    }
+
+    @Override
+    public void destroy() {
+        // Never leave the movement queue paused because the map went away mid-steer.
+        if(holdGrab != null)
+            endHoldSteer();
+        super.destroy();
+    }
+
+    private void endHoldSteer() {
+        boolean steered = holdMove.steered();
+        if(holdGrab != null) {
+            holdGrab.remove();
+            holdGrab = null;
+        }
+        holdMove.disarm();
+        if(steered) {
+            NGameUI gui = NUtils.getGameUI();
+            if((gui != null) && (gui.waypointMovementService != null))
+                gui.waypointMovementService.setSteerPaused(false);
+        }
+    }
+
     // Clip a line to a rectangle boundary using Liang-Barsky algorithm
     private Coord2d[] clipLineToRect(Coord2d p1, Coord2d p2, Coord2d rectSize) {
         double x1 = p1.x, y1 = p1.y;
@@ -958,6 +1023,11 @@ NMiniMap extends MiniMap {
         super.tick(dt);
         if(ui.gui.map==null)
             return;
+
+        // Keep following the pointer while the left button is held: the map scrolls with
+        // the character, so the spot under a still cursor keeps moving.
+        if((holdGrab != null) && holdMove.steering())
+            steerHold(ui.mc.sub(rootpos()));
 
         NGameUI gui = NUtils.getGameUI();
         
@@ -1401,6 +1471,10 @@ NMiniMap extends MiniMap {
             // Dragging a queued waypoint - don't pan the map along with it.
             dragWaypointTo(ev.c, false);
             return;
+        }
+        if(holdGrab != null) {
+            holdMove.pointer(ev.c);
+            steerHold(ev.c);
         }
         wpHoverId = waypointAt(ev.c);
         super.mousemove(ev);
@@ -2211,11 +2285,19 @@ NMiniMap extends MiniMap {
                 return true;
             }
         }
+
+        // Press-and-hold steering arms last, so every other meaning of the left button
+        // keeps priority. The event is not consumed - the press still walks as before.
+        if(ev.b == 1 && ui.modflags() == 0)
+            startHoldSteer(ev.c);
+
         return super.mousedown(ev);
     }
 
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if((holdGrab != null) && (ev.b == 1))
+            endHoldSteer();
         if(wpGrab != null) {
             if(ev.b == 1) {
                 dragWaypointTo(ev.c, true);
