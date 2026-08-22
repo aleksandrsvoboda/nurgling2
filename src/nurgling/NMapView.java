@@ -471,6 +471,13 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.navigation.StorageTrailService storageTrail = null;
     private nurgling.overlays.NStorageTrailOverlay storageTrailOverlay = null;
     private RenderTree.Slot storageTrailSlot = null;
+    /**
+     * Set once this view has been disposed. On logout, character switch or session close an
+     * ancestor is destroy()ed, which rdispose()s its children without unlinking them, so this
+     * widget can still be ticked after its services are gone. Volatile because in multi-session
+     * the tick and the teardown need not be on the same thread.
+     */
+    private volatile boolean disposed = false;
 
     public nurgling.navigation.StorageTrailService getStorageTrailService() {
         return(storageTrail);
@@ -478,6 +485,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     public void dispose() {
+        disposed = true;
         if(holdGrab != null) {
             holdGrab.remove();
             holdGrab = null;
@@ -494,7 +502,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /** Create the overlays once the render tree is up, then let them refresh their geometry. */
     private void tickWorldOverlays() {
-        if(basic == null)
+        /* Never rebuild the overlays after disposal: the trail service owns a planning thread, so
+         * recreating it here would leak one per logout on top of the NPE it used to throw. */
+        if(disposed || (basic == null))
             return;
         if(wpOverlay == null) {
             wpOverlay = new nurgling.overlays.NWaypointOverlay(this);
