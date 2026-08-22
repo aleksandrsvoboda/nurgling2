@@ -529,7 +529,6 @@ public class NInventory extends Inventory
                     // Remove from cache (iis) using direct reference
                     if (iis.remove(pr.itemInfo)) {
                         removedCount++;
-                        System.out.println("NInventory.tick: Removed consumed item: " + pr.itemInfo.name);
                     }
                     it.remove();
                 }
@@ -886,18 +885,41 @@ public class NInventory extends Inventory
         searchVisible = show;
         if (searchwdg != null) {
             searchwdg.visible = show;
-            if (!show) {
-                // Close history list and clear search
-                if (searchwdg.list != null && searchwdg.list.a) {
-                    searchwdg.list.set(false);
-                }
-                if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
-                    NUtils.getGameUI().itemsForSearch.install("");
-                }
+            if (show) {
+                focusSearch();
+            } else {
+                wipeSearch();
             }
             resizeSearchToFit();
             parent.pack();
             positionTitleBarButtons();
+        }
+    }
+
+    private void focusSearch() {
+        if (searchwdg == null || searchwdg.searchF == null)
+            return;
+        Widget fp = searchwdg.searchF.parent;
+        if (fp != null)
+            fp.setfocus(searchwdg.searchF);
+    }
+
+    public void wipeSearch() {
+        if (searchwdg == null)
+            return;
+        if (searchwdg.list != null && searchwdg.list.a) {
+            searchwdg.list.set(false);
+        }
+        if (searchwdg.searchF != null) {
+            searchwdg.searchF.settext("");
+        }
+        if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null) {
+            NUtils.getGameUI().itemsForSearch.install("");
+        }
+        // Drop keyboard focus so typing goes back to the game instead of the
+        // search field.
+        if (searchwdg.parent != null) {
+            searchwdg.parent.delfocusable(searchwdg);
         }
     }
 
@@ -2000,15 +2022,13 @@ public class NInventory extends Inventory
             String containerHash = parentGob.ngob.hash;
             
             // Clear pending cache removals - container closed, so items weren't consumed
-            int pendingCount = pendingCacheRemovals.size();
             pendingCacheRemovals.clear();
             
             if ((Boolean) NConfig.get(NConfig.Key.ndbenable)) {
-                System.out.println("NInventory.reqdestroy: Syncing " + iis.size() + " items for container " + containerHash + " (cleared " + pendingCount + " pending)");
                 ui.core.writeItemInfoForContainer(iis, containerHash);
             }
         }
-        // For non-indexable containers, just clear without logging
+        // For non-indexable containers, just clear
         pendingCacheRemovals.clear();
 
         // Close Study Desk Planner if this is a study desk inventory

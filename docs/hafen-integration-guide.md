@@ -357,9 +357,9 @@ For the next hafen integration:
 
 ---
 
-**Last Updated:** 2026-07-24
-**Last Integration:** hafen-integration-2026-07-polity (merge commit 57b811005, branch off master)
-**Hafen Commits Integrated:** 26 commits (merge-base 592d4d5ac → hafen/master 9bba2bb9d)
+**Last Updated:** 2026-08-20
+**Last Integration:** hafen-integration-2026-08 (merge commit 800f98930, branch off master)
+**Hafen Commits Integrated:** 32 commits (merge-base 9bba2bb9d → hafen/master f4b86b855)
 
 > Note: The Feb 2026 reference above (57d9570b2 / d58dcb242) is historical and is
 > NOT in the current master's ancestry — a later, undocumented integration brought
@@ -612,3 +612,93 @@ probe threw `NoSuchMethodError` and the fallback label rendered.
   message), that the name shows as a label with one village and a dropdown with two
   or more, that switching villages swaps the panel, and that the Realm tab still
   works. Not pushed.
+
+### August 2026 integration (32 commits — DPI/monitors, indirect toolkit, console) — SMALL
+
+Merge-base `9bba2bb9d` → hafen/master `f4b86b855`. Merge commit `800f98930`, branch
+`hafen-integration-2026-08` (off master; origin/master and master were level).
+Only **2 conflicts**. No `Session.PVER` change (still 31), so no nurgling
+wire-format reimplementation was at risk this round.
+
+**This one was driven by a symptom: the Kith & Kin Village tab showed only "Banish".**
+Same family of bug as July's "Please update your client!" — the visible widget is
+server-distributed resource code, not ours. `ui/vlg` (`Village`) keeps its three
+action buttons ("Leave the Village", "Oath of Allegiance", "Revoke the Privilege")
+in a container `actcnt` that it **hides whenever a member widget is attached**:
+
+```java
+public void addchild(Widget child, Object... args) {   // res/ui/vlg
+    if(p.equals("m")) { mw = child; add(child, 0, my); actcnt.hide(); pack(); return; }
+public void cdestroy(Widget w) {
+    if(w == mw) actcnt.show();
+```
+
+"Banish" lives in the *other* resource, `ui/vmemb` (`VillageMember`), which is that
+member widget. So "only Banish" means *a member is selected and cannot be
+deselected* — the client had no way to send a bare `sel` with no id, because
+`SListWidget.ItemWidget.mousedown` unconditionally did `list.change(item)`. One
+click on a villager hid the actions panel for the rest of the login session.
+
+Fixed upstream by exactly two of the merged commits:
+- `0585af16b` — `ItemWidget` gains overridable `clicked(MouseDownEvent)` + `toggle()`,
+  and `mousedown` now only acts on `ev.b == 1` (other buttons propagate).
+- `900478c23` — `Polity.MemberList.makeitem` overrides `clicked()` to send
+  `list.change(null)` (→ `wdgmsg("sel")`) when you click the already-selected member.
+
+⚠ Nothing in *our* source ever mentioned those three button labels — grepping `src/`
+finds nothing. Reuse July's technique: dump the resource out of the client's disk
+cache (`grep -rla "res/ui/vlg" "$APPDATA/Haven and Hearth/data"`, then `strings`) to
+read the server-side widget's real logic before assuming a nurgling regression.
+
+- **Conflicts (2):**
+  - `UI.java` — hafen deleted `private static final double scalef` (scaling is now
+    lazily initialized through a `scalef()` accessor + `static { }` block removal, so
+    `Toolkit.instance()` isn't forced early). The conflict was only that nurgling's
+    `gui`/`core` fields sit in the same field block. Kept `gui`/`core`, dropped `scalef`.
+  - `GameUI.java` — hafen converted every `Console.Command` anonymous class to a
+    lambda. Took hafen's lambda form; kept nurgling's deletion of the `belt` command
+    (nurgling swaps in its own belt widget and has no `beltwdg` field). Note hafen
+    now writes `GameUI.this.chrid` — required, since a lambda's `this` differs.
+- **Auto-merged, verified by hand:**
+  - `ModSprite` — hafen split `Poser` into `Poser`(order −1000) + `Poser.Applier`
+    (order 1010) and moved `RenderLinks` from order 2000 to 0. Nurgling's two deltas
+    (customMask forcing in `Meshes.operate()`, `NurglingVarMatOverride` registered in
+    `$res.operate()`) are in untouched regions and survived. **Ordering still holds:**
+    `VarMats`(100) → `NurglingVarMatOverride`(150), and `Meshes` was always order 0,
+    so container status colors are unaffected. RenderLinks dropping to 0 only means
+    its parts are now also visible to the 150-order override — harmless.
+  - `Console` — `public Map findcmds()` on `Console`/`UI.ConsoleHost` was **removed**
+    in favour of a short-circuiting `findcmd(String)`. Nurgling only implements
+    `Console.Directory.findcmds()` (`NCornerMiniMap`), which is unchanged. The
+    `Utils` static block of debug commands moved into `Console` itself.
+  - `SListWidget.ItemWidget.mousedown` now returns `false` for non-left buttons
+    instead of swallowing them. Audited nurgling's ~20 `ItemWidget` subclasses that
+    override `mousedown`: all either gate on `ev.b == 1` or just delegate.
+  - `UILoop.basestate()` now preps `wnd.fbstate()` instead of a hardcoded
+    `FragColor`+`DepthBuffer`. `DummyToolkit.DummyWindow.of()` returns `Pipe.Op.nil`,
+    so nurgling's `NHeadlessLoop` now starts from an empty pipe. Headless never drove
+    real GL (`HeadlessEnvironment` is a stub), so this should be inert — but it is the
+    one behavioural change worth watching if headless bots misbehave.
+  - `Client` (`window` console command, `tk.sharedenvs()`), `Providers.findfirst`,
+    `MapView`/`MapWnd`/`RootWidget`/`Audio`/`Config`/`HeadlessClient` (lambda
+    conversion only), `build.xml` (hafen dropped the steamworks fileset from the
+    `jars` target; nurgling's own `bin` target keeps its copy).
+- **Not touched upstream this round:** `GameUI.Zergwnd` (so `NZergwnd` needed no
+  mirroring), `Makewindow`, `MenuSearch`, `Session`, `Material`, `Bootstrap`.
+- **⚠ Expect a visible UI-scale change.** `UI.loadscale()` now prefers
+  `Monitor.scaling()`, then `userdpi()/96`, then `density()/100`, replacing the old
+  `rint(density/5)*0.05` heuristic; `f4b86b855` also fixes how the Win32 scaling
+  factor is read. If the client comes up at a different size, that is upstream
+  intent, not a merge error — `Config`'s `uiscale` pref still overrides it.
+- **Build note (separate commit `2ebadb16b`, not part of the merge):** the nurgling
+  `extlib/jogl-arm` target unconditionally `<get>`s four version-pinned jogamp.org
+  URLs, so every `ant bin` needs jogamp.org reachable. It was not reachable from the
+  Windows JDK here (TLS "Connection reset"), which failed the build *after* a
+  successful compile. Added `skipexisting="true"` — the URLs pin an exact version, so
+  a present file is already the right one, and `ant clean` still forces a refetch.
+- **Status:** `ant clean`-equivalent full rebuild succeeds (5402 classes, `bin/hafen.jar`
+  built); ancestry verified (`git merge-base --is-ancestor hafen/master HEAD` → 0).
+  **Runtime testing pending** — primarily: open Kith & Kin → Village, click a member
+  (panel shows name/group/Banish), click the same member again to deselect, and
+  confirm "Actions:" plus the three buttons come back. Also worth a look: UI scaling
+  on startup, and any list-widget right-click behaviour. Not pushed.

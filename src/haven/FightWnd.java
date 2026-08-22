@@ -246,7 +246,7 @@ public class FightWnd extends Widget {
 	    }
 
 	    public boolean iteminteract(Coord cc, Coord ul) {
-		FightWnd.this.wdgmsg("itemact", item.id, ui.modflags());
+		itemact(item);
 		return(true);
 	    }
 	}
@@ -643,6 +643,10 @@ public class FightWnd extends Widget {
 		    }
 	}), p.pos("bl").adds(0, 2));
 	pack();
+    }
+
+    public void itemact(Action act) {
+	wdgmsg("itemact", act.id, ui.modflags());
     }
 
     public Action findact(int resid) {

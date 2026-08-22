@@ -2192,28 +2192,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		else
 			clickedGob = null;
 		
-		// Send gob ID to chat on meta-click
-		if(ui.modmeta && clickb == 1 && clickedGob != null) {
-			try {
-				GameUI gui = nurgling.NUtils.getGameUI();
-				if(gui != null && gui.chat != null ) {
-					ChatUI.Channel chat = gui.chat.sel;
-					if(chat instanceof ChatUI.EntryChannel) {
-						// If realm chat is open, send to location chat instead
-						if(chat.getClass().getName().contains("Realm")) {
-							ChatUI.Channel locationChat = gui.chat.findLocationChat();
-							if(locationChat instanceof ChatUI.EntryChannel) {
-								((ChatUI.EntryChannel)locationChat).send(String.format("@%d", clickedGob.gob.id));
-								return;
-							}
-						} else {
-							((ChatUI.EntryChannel)chat).send(String.format("@%d", clickedGob.gob.id));
-							return;
-						}
-					}
-				}
-			} catch(Exception e) {
-				// Ignore errors
+		// Alt-click pings the selected chat channel: the object under the cursor if the
+		// click landed on one, otherwise the bare spot of ground. Both are consumed, so
+		// the ping never doubles as a walk or an interaction. Shift is allowed so that
+		// alt+shift+click - which is what pings on the minimap and map window, where
+		// plain alt+click already queues movement - also works out here. Ctrl is not,
+		// because alt+ctrl+drag is the area ping.
+		if(ui.modmeta && !ui.modctrl && clickb == 1) {
+			if(clickedGob != null) {
+				if(nurgling.NMapView.sendToSelectedChat(String.format("@%d", clickedGob.gob.id)))
+					return;
+			} else if(MapView.this instanceof nurgling.NMapView) {
+				if(((nurgling.NMapView)MapView.this).sendPointPing(mc))
+					return;
 			}
 		}
 		
@@ -2556,60 +2547,48 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();
     {
-	cmdmap.put("cam", new Console.Command() {
-		public void run(Console cons, String[] args) throws Exception {
-		    if(args.length >= 2) {
-			Class<? extends Camera> ct = camtypes.get(args[1]);
-			String[] cargs = Utils.splice(args, 2);
-			if(ct != null) {
-				camera = makecam(ct, cargs);
-				Utils.setpref("defcam", args[1]);
-				Utils.setprefb("camargs", Utils.serialize(cargs));
-			} else {
-			    throw(new Exception("no such camera: " + args[1]));
-			}
-		    }
+	cmdmap.put("cam", (cons, args) -> {
+	    if(args.length >= 2) {
+		Class<? extends Camera> ct = camtypes.get(args[1]);
+		String[] cargs = Utils.splice(args, 2);
+		if(ct != null) {
+		    camera = makecam(ct, cargs);
+		    Utils.setpref("defcam", args[1]);
+		    Utils.setprefb("camargs", Utils.serialize(cargs));
+		} else {
+		    throw(new Exception("no such camera: " + args[1]));
 		}
-	    });
-	cmdmap.put("whyload", new Console.Command() {
-		public void run(Console cons, String[] args) throws Exception {
-		    Loading l = lastload;
-		    if(l == null)
-			throw(new Exception("Not loading"));
-		    l.printStackTrace(cons.out);
-		}
-	    });
+	    }
+	});
+	cmdmap.put("whyload", (cons, args) -> {
+	    Loading l = lastload;
+	    if(l == null)
+		throw(new Exception("Not loading"));
+	    l.printStackTrace(cons.out);
+	});
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);
     }
 
     static {
-	Console.setscmd("placegrid", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((plobpgran = Double.parseDouble(args[1])) < 0)
-			plobpgran = 0;
-		    Utils.setprefd("plobpgran", plobpgran);
-		}
-	    });
-	Console.setscmd("placeangle", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((plobagran = Double.parseDouble(args[1])) < 2)
-			plobagran = 2;
-		    Utils.setprefd("plobagran", plobagran);
-		}
-	    });
-	Console.setscmd("clickfuzz", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((gobclfuzz = Integer.parseInt(args[1])) < 0)
-			gobclfuzz = 0;
-		}
-	    });
-	Console.setscmd("clickdb", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    clickdb = Utils.parsebool(args[1], false);
-		}
-	    });
+	Console.setscmd("placegrid", (cons, args) -> {
+	    if((plobpgran = Double.parseDouble(args[1])) < 0)
+		plobpgran = 0;
+	    Utils.setprefd("plobpgran", plobpgran);
+	});
+	Console.setscmd("placeangle", (cons, args) -> {
+	    if((plobagran = Double.parseDouble(args[1])) < 2)
+		plobagran = 2;
+	    Utils.setprefd("plobagran", plobagran);
+	});
+	Console.setscmd("clickfuzz", (cons, args) -> {
+	    if((gobclfuzz = Integer.parseInt(args[1])) < 0)
+		gobclfuzz = 0;
+	});
+	Console.setscmd("clickdb", (cons, args) -> {
+	    clickdb = Utils.parsebool(args[1], false);
+	});
     }
 
 	public class NOrthoCam extends SOrthoCam {

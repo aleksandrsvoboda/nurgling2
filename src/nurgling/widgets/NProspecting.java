@@ -8,14 +8,16 @@ import nurgling.NGameUI;
 import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.i18n.L10n;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
 import nurgling.tools.DirectionalVector;
 
 import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayDeque;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,11 +25,26 @@ import static haven.MCache.tilesz;
 import static java.lang.Math.*;
 
 public class NProspecting extends Window {
-    private static final Queue<Dowse> EFFECTS = new ConcurrentLinkedQueue<>();
-    public static final Queue<NProspecting> WINDOWS = new ConcurrentLinkedQueue<>();
-    public static final Queue<Quality> QUALITIES = new ConcurrentLinkedQueue<>();
+    private static final int MAXPEND = 8;
     private static final Pattern detect = Pattern.compile("There appears to be (.*) directly below.");
+
+    /** The three pieces of a prospecting result arrive independently: the quality from the
+     *  flower-menu action, the window from the server, and the dowse effect as a gob overlay on
+     *  the loader thread. They are queued here until they can be paired up.
+     *
+     *  This is held by NGameUI rather than statically, so that a window belonging to one session
+     *  can never be handed an effect produced by another one - drawing it means calling into that
+     *  session's map view - and so that the queues die with the session they belong to. */
+    public static final class Pending {
+        private final Queue<NProspecting> windows = new ArrayDeque<>();
+        private final Queue<Dowse> effects = new ArrayDeque<>();
+        private final Queue<Quality> qualities = new ArrayDeque<>();
+    }
+
+    private Pending pend;
+    private final Object slotlock = new Object();
     private RenderTree.Slot slot;
+    private boolean disposed = false;
     private Coord2d pc;
     private String detected;
     private final Button mark;
@@ -45,20 +62,46 @@ public class NProspecting extends Window {
         super.pack();
     }
 
+    /* Cleanup lives in dispose() rather than destroy(): when an ancestor widget goes away
+     * (logout, character switch, session close) the children only get rdispose()'d, so a
+     * destroy()-based cleanup would leave this window registered with a dead map view behind
+     * it. */
     @Override
-    public void destroy() {
-        synchronized (WINDOWS) {WINDOWS.remove(this);}
-        if(slot != null) {slot.remove();}
-        super.destroy();
+    public void dispose() {
+        Pending p = pend;
+        if(p != null) {
+            synchronized (p) {p.windows.remove(this);}
+        }
+        RenderTree.Slot old;
+        synchronized (slotlock) {
+            disposed = true;
+            old = slot;
+            slot = null;
+        }
+        if(old != null) {
+            try {
+                old.remove();
+            } catch(RenderTree.SlotRemoved e) {
+                /* The whole render tree is already gone. */
+            }
+        }
+        super.dispose();
     }
 
     @Override
     protected void attach(UI ui) {
         super.attach(ui);
-        synchronized (WINDOWS) {WINDOWS.add(this);}
-        Gob player = ui.gui.map.player();
-        pc = player == null ? null : player.rc;
-        attachEffect();
+        Pending p = (ui.gui == null) ? null : ui.gui.prospecting;
+        if(p != null) {
+            pend = p;
+            synchronized (p) {
+                p.windows.add(this);
+                trim(p.windows);
+            }
+        }
+        Gob player = ((ui.gui == null) || (ui.gui.map == null)) ? null : ui.gui.map.player();
+        pc = (player == null) ? null : player.rc;
+        if(p != null) {attachEffect(p);}
     }
 
     private void mark() {
@@ -72,30 +115,68 @@ public class NProspecting extends Window {
 //        }
     }
 
-    private void fx(Dowse fx) {
-        slot = ui.gui.map.drawadd(fx);
+    /**
+     * Attaches the effect to this window's map view.
+     * @return false if the window can no longer draw, in which case the caller must try another one.
+     */
+    private boolean fx(Dowse fx) {
+        NGameUI gui = (ui == null) ? null : ui.gui;
+        if((gui == null) || (gui.map == null)) {return false;}
+        synchronized (slotlock) {
+            if(disposed) {return false;}
+            RenderTree.Slot nslot;
+            try {
+                nslot = gui.map.drawadd(fx);
+            } catch(RenderTree.SlotRemoved e) {
+                /* The map view was disposed while the effect was in flight from the loader
+                 * thread. Nothing to draw on anymore. */
+                return false;
+            }
+            if(slot != null) {slot.remove();}
+            slot = nslot;
+        }
+        return true;
     }
 
-    private static void attachEffect() {
-        synchronized (WINDOWS) {
-            if(!WINDOWS.isEmpty() && !EFFECTS.isEmpty()) {
-                WINDOWS.remove().fx(EFFECTS.remove());
+    private static void trim(Queue<?> queue) {
+        while(queue.size() > MAXPEND) {queue.remove();}
+    }
+
+    private static void attachEffect(Pending p) {
+        synchronized (p) {
+            while(!p.windows.isEmpty() && !p.effects.isEmpty()) {
+                if(p.windows.remove().fx(p.effects.peek())) {
+                    p.effects.remove();
+                    return;
+                }
+                /* That window is gone; keep the effect and try the next one. */
             }
         }
     }
 
     public static void overlay(Gob gob, Gob.Overlay overlay) {
-        if(!QUALITIES.isEmpty()) {
-
-            double a1 = getFieldValueDouble(overlay.spr, "a1");
-            double a2 = getFieldValueDouble(overlay.spr, "a2");
-
-            EFFECTS.add(new Dowse(gob, a1, a2, QUALITIES.remove()));
-            attachEffect();
-
-            // Add directional vectors for cone edges
-            addConeVectors(gob, a1, a2);
+        /* The gob's own session, not the rendered one: this runs on the loader thread, which
+         * carries no session binding. */
+        NGameUI gui = ownerGui(gob);
+        if(gui == null) {return;}
+        Pending p = gui.prospecting;
+        Quality q;
+        synchronized (p) {
+            if(p.qualities.isEmpty()) {return;}
+            q = p.qualities.remove();
         }
+
+        double a1 = getFieldValueDouble(overlay.spr, "a1");
+        double a2 = getFieldValueDouble(overlay.spr, "a2");
+
+        synchronized (p) {
+            p.effects.add(new Dowse(gob, a1, a2, q));
+            trim(p.effects);
+        }
+        attachEffect(p);
+
+        // Add directional vectors for cone edges
+        addConeVectors(gob, a1, a2);
     }
 
     /**
@@ -112,8 +193,10 @@ public class NProspecting extends Window {
                 return;
             }
 
-            NGameUI gui = NUtils.getGameUI();
-            if (gui == null || gui.map == null || !(gui.map instanceof NMapView)) {
+            /* The gob's own session, not the rendered one: this runs on the loader thread,
+             * which carries no session binding. */
+            NGameUI gui = ownerGui(gob);
+            if (gui == null || !(gui.map instanceof NMapView)) {
                 return;
             }
             if (gui.mmap == null || gui.mmap.sessloc == null) {
@@ -163,9 +246,17 @@ public class NProspecting extends Window {
             // Defer window creation to UI thread to avoid deadlock
             gui.ui.loader.defer(() -> TrackingVectorWindow.showWindow(), null);
 
-        } catch (Exception e) {
-            // Silently ignore errors
+        } catch (RuntimeException e) {
+            /* This runs on the loader thread, where an escaping exception kills the thread. */
+            new Warning(e, "failed to add prospecting cone vectors").issue();
         }
+    }
+
+    /** The game UI of the session the gob actually belongs to. */
+    private static NGameUI ownerGui(Gob gob) {
+        if((gob == null) || (gob.glob == null) || (gob.glob.sess == null)) {return null;}
+        SessionContext ctx = SessionManager.getInstance().findBySession(gob.glob.sess);
+        return (ctx == null) ? null : ctx.getGameUI();
     }
 
     public static double getFieldValueDouble(Object obj, String name) {
@@ -195,13 +286,16 @@ public class NProspecting extends Window {
         }
     }
 
-    public static void item(WItem item) {
-        if(item != null) {
-            for(ItemInfo itemInfo: item.item.info)
+    public static void item(UI ui, WItem item) {
+        if((ui == null) || (ui.gui == null) || (item == null)) {return;}
+        Pending p = ui.gui.prospecting;
+        for(ItemInfo itemInfo: item.item.info)
+        {
+            if(itemInfo instanceof Quality)
             {
-                if(itemInfo instanceof Quality)
-                {
-                    QUALITIES.add((Quality)itemInfo);
+                synchronized (p) {
+                    p.qualities.add((Quality)itemInfo);
+                    trim(p.qualities);
                 }
             }
         }

@@ -7,6 +7,7 @@ import nurgling.NCore;
 import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUI;
+import nurgling.NUtils;
 import nurgling.conf.FontSettings;
 import nurgling.conf.NDragProp;
 
@@ -34,6 +35,8 @@ public class SessionTabBar extends Widget {
     /** Status icon size (outside session button, on right) */
     public static final int STATUS_ICON_SIZE = UI.scale(18);
     public static final int STATUS_ICON_MARGIN = UI.scale(3);
+    /** Where the bar sits before the user ever moves it - a small inset from the top-left corner. */
+    public static final Coord DEFAULT_POS = UI.scale(new Coord(10, 10));
 
     /** Colors for different states */
     private static final Color BUTTON_BG = new Color(0x25, 0x2B, 0x29, 0xE5);  // #252B29E5
@@ -46,6 +49,12 @@ public class SessionTabBar extends Widget {
     private static final Color IDLE_TEXT = new Color(150, 150, 150);           // Gray
     private static final Color COMBAT_BORDER = new Color(0xFF, 0x64, 0x64);    // #FF6464
     private static final Color COMBAT_TEXT = new Color(0xFF, 0x64, 0x64);      // #FF6464
+    /** Alarm outranks every other state - it is the one thing the user can otherwise miss. */
+    private static final Color ALARM_BORDER = new Color(0xFF, 0x3B, 0x3B);     // #FF3B3B
+    private static final Color ALARM_BORDER_ALT = new Color(0xFF, 0xF0, 0xA0); // #FFF0A0
+    private static final Color ALARM_TEXT = new Color(0xFF, 0x3B, 0x3B);       // #FF3B3B
+    /** Ticks per half-cycle of the alarm border pulse (~1.5Hz at 60fps). */
+    private static final int ALARM_PULSE_TICKS = 20;
     private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
     private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
     private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
@@ -191,7 +200,7 @@ public class SessionTabBar extends Widget {
      * Load widget position from preferences.
      */
     private void loadPosition() {
-        String posStr = Utils.getpref("sessionbar-pos", "100,100");
+        String posStr = Utils.getpref("sessionbar-pos", DEFAULT_POS.x + "," + DEFAULT_POS.y);
         try {
             String[] parts = posStr.split(",");
             if (parts.length == 2) {
@@ -200,7 +209,7 @@ public class SessionTabBar extends Widget {
                 this.c = new Coord(x, y);
             }
         } catch (Exception e) {
-            this.c = new Coord(100, 100);
+            this.c = DEFAULT_POS;
         }
     }
 
@@ -209,6 +218,41 @@ public class SessionTabBar extends Widget {
      */
     private void savePosition() {
         Utils.setpref("sessionbar-pos", c.x + "," + c.y);
+    }
+
+    /**
+     * Clamp the widget into the current window.
+     * The saved position is absolute and outlives the resolution it was saved at, so a bar parked
+     * near the right edge of a wide monitor lands completely off screen on a narrower one - and
+     * there is no way to drag back something you cannot see.
+     *
+     * Clamps against the full widget size rather than a token sliver, so a bar pushed in from the
+     * edge ends up wholly visible instead of hugging the border. If the bar is larger than the
+     * window it pins to the top-left, which is the only position that keeps it reachable.
+     */
+    private void clampToScreen() {
+        if (parent == null || dm != null) // don't fight a drag in progress
+            return;
+        int maxX = Math.max(0, parent.sz.x - sz.x);
+        int maxY = Math.max(0, parent.sz.y - sz.y);
+        int x = Math.min(Math.max(c.x, 0), maxX);
+        int y = Math.min(Math.max(c.y, 0), maxY);
+        if (x != c.x || y != c.y) {
+            this.c = new Coord(x, y);
+            savePosition();
+        }
+    }
+
+    @Override
+    protected void added() {
+        super.added();
+        clampToScreen();
+    }
+
+    @Override
+    public void presize() {
+        super.presize();
+        clampToScreen();
     }
 
     /**
@@ -269,6 +313,9 @@ public class SessionTabBar extends Widget {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
 
         updateSize();
+        // Only authoritative once updateSize() has run - sz changes with session count and with
+        // drag mode, so a clamp done at added()/presize() time can be based on a stale size.
+        clampToScreen();
 
         // Draw overall background and border in drag mode
         if (dragMode) {
@@ -369,14 +416,22 @@ public class SessionTabBar extends Widget {
     private void drawSessionButton(GOut g, int x, int y, SessionContext ctx, boolean hovered,
                                     boolean isActive, boolean closeHovered, boolean canClose) {
         // Determine state colors
+        boolean alarmed = ctx.hasAlarm();
         boolean inCombat = ctx.isInCombat();
         boolean runningBot = ctx.isRunningBot();
 
-        // Choose colors based on state priority: Combat > Bot > Active > Idle
+        // Choose colors based on state priority: Alarm > Combat > Bot > Active > Idle
+        // Alarm sits above Active on purpose, so the session being approached is still marked
+        // when it is the one already on screen.
         Color borderColor;
         Color textColor;
 
-        if (inCombat) {
+        if (alarmed) {
+            // Pulse between the two alarm colors so it reads even at a glance
+            boolean pulseHigh = ((NUtils.getTickId() / ALARM_PULSE_TICKS) % 2) == 0;
+            borderColor = pulseHigh ? ALARM_BORDER : ALARM_BORDER_ALT;
+            textColor = ALARM_TEXT;
+        } else if (inCombat) {
             borderColor = COMBAT_BORDER;
             textColor = COMBAT_TEXT;
         } else if (runningBot) {

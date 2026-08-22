@@ -25,10 +25,13 @@ public class NQuestTarget extends Sprite implements RenderTree.Node
 
     boolean isHunting;
 
-    public NQuestTarget(Owner owner, boolean isHunting)
+    final NQuestInfo qi;
+
+    public NQuestTarget(Owner owner, boolean isHunting, NQuestInfo qi)
     {
         super(owner, null);
         this.isHunting = isHunting;
+        this.qi = qi;
         сt = (isHunting) ? new TexI(Resource.loadimg("marks/hunttarget")).st() : new TexI(Resource.loadimg("marks/picktarget")).st();
         gob = (Gob) owner;
         name = gob.ngob.name;
@@ -64,11 +67,11 @@ public class NQuestTarget extends Sprite implements RenderTree.Node
     {
         if(isHunting)
         {
-            return !NQuestInfo.isHuntingTarget(name);
+            return !qi.isHuntingTarget(name);
         }
         else
         {
-            return !NQuestInfo.isForageTarget(name);
+            return !qi.isForageTarget(name);
         }
     }
 

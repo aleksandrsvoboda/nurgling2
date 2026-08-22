@@ -43,7 +43,7 @@ public class Img extends Widget {
     private static final String CHARSEL_VERIFY_RES = "gfx/ccver";
     private static final String CHARSEL_SUB_RES = "gfx/ccsub";
     private static Tex charselBgWorld16 = null;
-    private static Tex charselBgWorld161 = null;
+    private static Tex charselBgWorld162 = null;
     private static Tex verifyTex = null;
     private static Tex subTex = null;
     
@@ -53,19 +53,20 @@ public class Img extends Widget {
 	return charselBgWorld16;
     }
     
-    private static Tex getCharselBgWorld161() {
-	if(charselBgWorld161 == null)
-	    charselBgWorld161 = Resource.loadtex("nurgling/hud/world161");
-	return charselBgWorld161;
+    private static Tex getCharselBgWorld162() {
+	if(charselBgWorld162 == null)
+	    charselBgWorld162 = Resource.loadtex("nurgling/hud/world162");
+	return charselBgWorld162;
     }
     
     /** Get background texture based on selected world */
     public static Tex getCharselBg() {
 	// Check selected world from NConfig
 	String selectedWorld = (String) nurgling.NConfig.get(nurgling.NConfig.Key.selectedWorld);
-	// Use world161 background only for "World 16.1" (contains "16.1")
-	if(selectedWorld != null && selectedWorld.contains("16.1")) {
-	    return getCharselBgWorld161();
+	// The current newest world (internally "16.2") is reported by the server
+	// with the disc label "World 16.1"; accept either label for its background.
+	if(selectedWorld != null && (selectedWorld.contains("16.1") || selectedWorld.contains("16.2"))) {
+	    return getCharselBgWorld162();
 	}
 	// Use world16 for everything else (All, null, World 16, etc.)
 	return getCharselBgWorld16();

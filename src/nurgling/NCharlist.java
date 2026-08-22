@@ -2,6 +2,9 @@ package nurgling;
 
 import haven.*;
 import haven.Charlist;
+import nurgling.conf.NCharTags;
+import nurgling.widgets.NCharTagStrip;
+import nurgling.widgets.NCharTagsWnd;
 
 import java.util.*;
 
@@ -117,6 +120,42 @@ public class NCharlist extends Charlist {
             return chars;
         }
         return filteredChars;
+    }
+
+    /**
+     * The list rebuilds its Charbox widgets as it scrolls, so the tag decoration is attached
+     * from here rather than at creation time. Charbox is public and its draw() calls
+     * super.draw(), so a child widget hung on it renders and dies with it - which keeps this
+     * feature entirely out of the haven package.
+     */
+    private void decorate() {
+        String acc = NCharTags.account(ui);
+        for (Widget w = list.child; w != null; w = w.next) {
+            if (!(w instanceof Charbox))
+                continue;
+            Charbox cb = (Charbox) w;
+            boolean has = false;
+            for (Widget c = cb.child; c != null; c = c.next) {
+                if (c instanceof NCharTagStrip) {
+                    has = true;
+                    break;
+                }
+            }
+            if (!has)
+                cb.add(new NCharTagStrip(cb, acc), Coord.z);
+        }
+    }
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        decorate();
+    }
+
+    @Override
+    public void destroy() {
+        NCharTagsWnd.close();
+        super.destroy();
     }
 
     public static void play() {

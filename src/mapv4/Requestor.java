@@ -237,8 +237,11 @@ public class Requestor implements Action {
                             data.put(String.valueOf(player.id), prop);
 
                             List<Long> borkas;
-                            synchronized (NAlarmWdg.borkas) {
-								borkas = new ArrayList<>(NAlarmWdg.borkas);
+                            NAlarmWdg alarmWdg = gui.alarmWdg;
+                            if (alarmWdg == null) {
+                                borkas = java.util.Collections.emptyList();
+                            } else synchronized (alarmWdg.borkas) {
+                                borkas = new ArrayList<>(alarmWdg.borkas);
                             }
                             for(Long id: borkas)
                             {

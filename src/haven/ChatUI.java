@@ -135,10 +135,25 @@ public class ChatUI extends Widget
 	public boolean closable() { return cb != null; }
 	private double dy;
 
-	public boolean process(String msg) {
-			// Check for @ID pattern (gob highlight)
-			Pattern highlight = Pattern.compile("^@(-?\\d+)$");
-			Matcher matcher = highlight.matcher(msg);
+	/* Lines beginning with @ are nurgling-to-nurgling pings rather than speech: they
+	 * carry an object id, an area or a single point, and are drawn as an overlay instead
+	 * of being printed. There is no server support for any of this - the line travels as
+	 * ordinary chat, so the audience is whoever is in the channel, and peers on other
+	 * clients just see the raw text. */
+	private static final Pattern gobpat = Pattern.compile("^@(-?\\d+)$");
+	private static final Pattern areapat = Pattern.compile("^@Area\\((.+)\\)$");
+	private static final Pattern pointpat = Pattern.compile("^@Point\\((-?\\d+):(\\d+),(\\d+)\\)$");
+
+	/**
+	 * Intercept an incoming chat line. {@code col} is the colour the line would have been
+	 * rendered in, which is how a ping ends up tinted with its sender's chat colour, and
+	 * {@code sender} is an opaque per-sender key used only to cap ping spam - "self" for
+	 * our own lines, so that spamming the gesture cannot bury our own map either.
+	 * Returns false when the line was a ping and must not be printed.
+	 */
+	public boolean process(String msg, Color col, String sender) {
+			// @<gobid> - highlight one object
+			Matcher matcher = gobpat.matcher(msg);
 			if (matcher.matches()) {
 				try {
 					long gobId = Long.parseLong(matcher.group(1));
@@ -147,13 +162,29 @@ public class ChatUI extends Widget
 						gob.addcustomol(new nurgling.overlays.NChatHighlightOverlay(gob));
 						return false;
 					}
-				} catch (Exception ignored) {
+				} catch (NumberFormatException ignored) {
 				}
 			}
 
-			// Check for @Area pattern (area highlight)
-			Pattern areaPattern = Pattern.compile("^@Area\\((.+)\\)$");
-			Matcher areaMatcher = areaPattern.matcher(msg);
+			// @Point(gridId:x,y) - ping a single tile; see nurgling.PingService
+			Matcher pointMatcher = pointpat.matcher(msg);
+			if (pointMatcher.matches()) {
+				try {
+					long gridId = Long.parseLong(pointMatcher.group(1));
+					int lx = Integer.parseInt(pointMatcher.group(2));
+					int ly = Integer.parseInt(pointMatcher.group(3));
+					nurgling.NGameUI gui = nurgling.NUtils.getGameUI();
+					if ((lx >= 0) && (lx < MCache.cmaps.x) && (ly >= 0) && (ly < MCache.cmaps.y) &&
+					    (gui != null) && (gui.pingService != null)) {
+						gui.pingService.add(gridId, new Coord(lx, ly), col, sender);
+						return false;
+					}
+				} catch (NumberFormatException ignored) {
+				}
+			}
+
+			// @Area(grid:x,y;grid:x,y) - ping a rectangle
+			Matcher areaMatcher = areapat.matcher(msg);
 			if (areaMatcher.matches()) {
 				try {
 					String areaData = areaMatcher.group(1);
@@ -936,10 +967,10 @@ public class ChatUI extends Widget
 	public void uimsg(String msg, Object... args) {
 	    if((msg == "msg") || (msg == "log")) {
 		String line = (String)args[0];
-		if (process(line)) {
 		Color col = null;
 		if(args.length > 1) col = (Color)args[1];
 		if(col == null) col = Color.WHITE;
+		if (process(line, col, "chan")) {
 		int urgency = (args.length > 2) ? Utils.iv(args[2]) : 0;
 		Message cmsg = new SimpleMessage(line, col);
 		append(cmsg, urgency);
@@ -1049,11 +1080,12 @@ public class ChatUI extends Widget
 	    if(msg == "msg") {
 		Number from = (Number)args[0];
 		String line = (String)args[1];
-		if(process(line)) {
+		Color col = (from == null) ? Color.WHITE : fromcolor(from.intValue());
+		if(process(line, col, (from == null) ? "self" : ("u" + from.intValue()))) {
 		if(from == null) {
 		    append(new MyMessage(line), -1);
 		} else {
-		    Message cmsg = new NamedMessage(from.intValue(), line, fromcolor(from.intValue()));
+		    Message cmsg = new NamedMessage(from.intValue(), line, col);
 		    append(cmsg, urgency);
 		}
 		}
@@ -1087,17 +1119,18 @@ public class ChatUI extends Widget
 		Number from = (Number)args[0];
 		long gobid = Utils.uiv(args[1]);
 		String line = (String)args[2];
-		if(process(line)) {
 		Color col = Color.WHITE;
 		synchronized(ui.sess.glob.party.memb) {
 		    Party.Member pm = ui.sess.glob.party.memb.get(gobid);
 		    if(pm != null)
 			col = pm.col;
 		}
+		Color shown = Utils.blendcol(col, Color.WHITE, 0.5);
+		if(process(line, (from == null) ? Color.WHITE : shown, (from == null) ? "self" : ("g" + gobid))) {
 		if(from == null) {
 		    append(new MyMessage(line), -1);
 		} else {
-		    Message cmsg = new NamedMessage(from.intValue(), line, Utils.blendcol(col, Color.WHITE, 0.5));
+		    Message cmsg = new NamedMessage(from.intValue(), line, shown);
 		    append(cmsg, urgency);
 		}
 		}
@@ -1151,14 +1184,18 @@ public class ChatUI extends Widget
 
 	public void uimsg(String msg, Object... args) {
 	    if(msg == "msg") {
-		if (process(msg)) {
 		String t = (String)args[0];
 		String line = (String)args[1];
-		if(t.equals("in")) {
-		    Message cmsg = new InMessage(line);
-		    append(cmsg, 3);
-		} else if(t.equals("out")) {
-		    append(new OutMessage(line), -1);
+		boolean in = t.equals("in");
+		/* Only the other party's lines carry a sender; our own echo back as "out". */
+		if(process(line, in ? new Color(255, 128, 128) : new Color(128, 128, 255),
+			   in ? ("p" + other) : "self")) {
+		    if(in) {
+			Message cmsg = new InMessage(line);
+			append(cmsg, 3);
+		    } else if(t.equals("out")) {
+			append(new OutMessage(line), -1);
+		    }
 		}
 	    } else if(msg == "err") {
 		String err = (String)args[0];
@@ -1166,7 +1203,6 @@ public class ChatUI extends Widget
 		append(cmsg, 3);
 	    } else if(msg == "muted") {
 		this.muted = Utils.bv(args[0]);
-        }
 	    } else {
 		super.uimsg(msg, args);
 	    }

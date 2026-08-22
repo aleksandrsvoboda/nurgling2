@@ -10,7 +10,6 @@ import nurgling.conf.NBoughBeeProp;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.NAlarmWdg;
 
 import java.util.ArrayList;
 
@@ -66,8 +65,8 @@ public class BoughBee implements Action {
                 @Override
                 public boolean check() {
                     try {
-                        // Check for dangerous players
-                        if (!NAlarmWdg.borkas.isEmpty()) {
+                        // Check for dangerous players (this session's own detections)
+                        if (finalGui.alarmWdg != null && finalGui.alarmWdg.hasBorkas()) {
                             if (!finalProp.onPlayerAction.equals("nothing")) {
                                 performSafetyAction(finalGui, finalProp.onPlayerAction);
                                 return true;
@@ -106,7 +105,7 @@ public class BoughBee implements Action {
             });
 
             // Check if we exited due to safety action
-            if (!NAlarmWdg.borkas.isEmpty() && !finalProp.onPlayerAction.equals("nothing")) {
+            if (finalGui.alarmWdg != null && finalGui.alarmWdg.hasBorkas() && !finalProp.onPlayerAction.equals("nothing")) {
                 return Results.SUCCESS();
             }
             for (String animalPattern : dangerousAnimals) {

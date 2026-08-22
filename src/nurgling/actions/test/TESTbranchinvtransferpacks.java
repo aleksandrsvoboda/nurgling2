@@ -25,14 +25,17 @@ public class TESTbranchinvtransferpacks extends Test
     @Override
     public void body(NGameUI gui) throws InterruptedException
     {
-        for(String target : NQuestInfo.huntingT)
+        if(gui.questinfo != null)
         {
-            gui.msg(target);
-        }
+            for(String target : gui.questinfo.huntingT)
+            {
+                gui.msg(target);
+            }
 
-        for(String target : NQuestInfo.forageT)
-        {
-            gui.msg(target);
+            for(String target : gui.questinfo.forageT)
+            {
+                gui.msg(target);
+            }
         }
 //        new OpenTargetContainer(container, TestUtils.findGob("chest")).run(gui);
 //        new SimpleTransferToContainer(gui.getInventory(container), gui.getInventory().getItems(branch), 10).run(gui);

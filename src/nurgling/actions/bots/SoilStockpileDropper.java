@@ -46,9 +46,10 @@ public class SoilStockpileDropper implements Action {
             }
 
             // Take from stockpile
+            int before = gui.getInventory().getItems().size();
             ((NUI) gui.ui).enableMonitor(gui.maininv);
             pile.transfer(toTake);
-            WaitItemFromPile wifp = new WaitItemFromPile(toTake);
+            WaitItemFromPile wifp = new WaitItemFromPile(gui.getInventory(), before, toTake);
             NUtils.getUI().core.addTask(wifp);
             wifp.getResult();
             ((NUI) gui.ui).disableMonitor();

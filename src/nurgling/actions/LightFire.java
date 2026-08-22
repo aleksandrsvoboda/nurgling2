@@ -199,20 +199,37 @@ public class LightFire implements Action {
         // Find fuel area with branches
         NArea branchArea = NContext.findSpec(Specialisation.SpecName.fuel.toString(),"Branch");
 
-        if (branchArea == null) {
-            gui.error("Cannot find area with branches for fire lighting");
-            return Results.ERROR("No branch area found");
+        // Last resort when no branch area is available (never defined, or its grids are not loaded):
+        // fall back to the branches we are already carrying. Every "Light fire" craft eats 2 branches,
+        // so the carried stock alone decides the budget: 2 branches -> 1 attempt, 4 -> 2, 6 -> 3, ...
+        boolean inventoryOnly = (branchArea == null);
+        int maxAttempts = MAX_ATTEMPTS;
+        if (inventoryOnly) {
+            maxAttempts = countBranches(gui) / 2;
+            if (maxAttempts < 1) {
+                gui.error("No area with branches and less than 2 branches in inventory");
+                return Results.ERROR("No branches available for fire lighting");
+            }
         }
-        
+
         // Store initial state of the object to light
         long initialState = firedGob.ngob.getModelAttribute();
-        
+
         int attempts = 0;
-        while (attempts < MAX_ATTEMPTS) {
+        while (attempts < maxAttempts) {
             attempts++;
 
-            if(NUtils.getGameUI().getInventory().getItems("Branch").size()<2)
+            // Re-read the live count every attempt: crafting without the branches actually present
+            // would block forever on the progress waits below.
+            if(countBranches(gui) < 2)
             {
+                if (inventoryOnly)
+                {
+                    // Nothing left to craft with, and no stockpile to refill from.
+                    gui.error("Ran out of branches while lighting fire");
+                    return Results.ERROR("Out of branches after " + (attempts - 1) + " attempts");
+                }
+
                 // Find stockpile with branches in the area
                 Gob branchPile = Finder.findGob(branchArea, new NAlias("stockpile-branch", "stockpile"));
                 if (branchPile == null)
@@ -311,7 +328,15 @@ public class LightFire implements Action {
         }
         
         // Failed after max attempts
-        return Results.ERROR("Failed to light fire after " + MAX_ATTEMPTS + " attempts");
+        return Results.ERROR("Failed to light fire after " + attempts + " attempts");
+    }
+
+    /**
+     * Number of branches carried in the inventory. Branches do not stack, so the widget count is the
+     * amount.
+     */
+    private int countBranches(NGameUI gui) throws InterruptedException {
+        return gui.getInventory().getItems("Branch").size();
     }
 
     private void craftLightFire(NGameUI gui) throws InterruptedException {

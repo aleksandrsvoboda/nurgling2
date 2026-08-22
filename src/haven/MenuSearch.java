@@ -32,6 +32,8 @@ import haven.MenuGrid.Pagina;
 import haven.UI.Grab;
 import haven.MenuGrid.Interaction;
 import haven.MenuGrid.PagButton;
+import nurgling.NConfig;
+import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
@@ -188,6 +190,7 @@ public abstract class MenuSearch extends Window {
 	sbox = add(new TextEntry(UI.scale(250), "") {
 		protected void changed() {
 		    refilter();
+		    syncItemSearch(text());
 		}
 
 		public void activate(String text) {
@@ -205,6 +208,68 @@ public abstract class MenuSearch extends Window {
 
     public MenuSearch(MenuGrid menu) {
 	this("Action search", menu);
+    }
+
+    public void hide() {
+	super.hide();
+	clearsearch();
+    }
+
+    public void show() {
+	super.show();
+	focussbox();
+    }
+
+    public void focussbox() {
+	if(sbox != null)
+	    setfocus(sbox);
+    }
+
+    protected void clearsearch() {
+	if(sbox == null)
+	    return;
+	rls.change(null);
+	if(sbox.text().isEmpty())
+	    refilter();
+	else
+	    sbox.settext(""); /* triggers changed() -> refilter() */
+    }
+
+    /**
+     * Optionally drive the global item search from this box as well.
+     *
+     * The two searches are unrelated in kind - this one fuzzy-matches recipes and bots
+     * locally, the item search asks the container database where a thing is stored and puts
+     * trails on the ground - but they take the same sort of word, so one box can feed both
+     * when the option is on.
+     *
+     * The item search is global, shared with the inventory search bar, and outlives this
+     * window. That is why it is torn down again whenever this box empties: hiding the window
+     * blanks the box, which lands here, so the trails last exactly as long as the window is
+     * open. Leave it open to keep them while walking.
+     */
+    private boolean drivingItemSearch = false;
+
+    private void syncItemSearch(String text) {
+	NGameUI gui = NUtils.getGameUI();
+	if(gui == null || gui.itemsForSearch == null)
+	    return;
+	Object opt = NConfig.get(NConfig.Key.recipeSearchAsItemSearch);
+	if(!(opt instanceof Boolean) || !(Boolean)opt) {
+	    // Switched off while a search of ours was live - drop it rather than leaving
+	    // trails on the ground that nothing can now clear.
+	    if(drivingItemSearch) {
+		drivingItemSearch = false;
+		gui.itemsForSearch.install("");
+	    }
+	    return;
+	}
+	// Never installed anything, and there is nothing to install: stay out of it entirely,
+	// so merely opening and closing this window cannot wipe an inventory-bar search.
+	if(text.isEmpty() && !drivingItemSearch)
+	    return;
+	drivingItemSearch = !text.isEmpty();
+	gui.itemsForSearch.install(text);
     }
 
     protected void refilter() {

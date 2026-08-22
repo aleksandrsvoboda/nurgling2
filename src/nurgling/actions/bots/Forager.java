@@ -11,7 +11,6 @@ import nurgling.conf.NForagerProp;
 import nurgling.routes.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
-import nurgling.widgets.NAlarmWdg;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -746,28 +745,34 @@ public class Forager implements Action {
         // getting robbed by a stranger with zero response - not something a preset should be
         // able to leave silently disabled.
         //
-        // NAlarmWdg.borkas (populated by NGob.java for every rendered player-character gob)
+        // gui.alarmWdg.borkas (populated by NGob.java for every rendered player-character gob)
         // is every player nearby, not just unknown ones - a green/known-ally walking past
         // isn't a threat. Filter to the same "unknown or hostile" definition the alarm/arrow
         // system uses: no buddy-list entry at all, or a buddy in the white (unclassified) or
         // red (hostile) kin group.
-        synchronized (NAlarmWdg.borkas) {
-            for (Long id : NAlarmWdg.borkas) {
-                Gob otherPlayer = Finder.findGob(id);
-                if (otherPlayer == null) {
-                    continue;
-                }
-                Buddy buddy = otherPlayer.getattr(Buddy.class);
-                boolean unknownOrHostile;
-                if (buddy == null || buddy.b == null) {
-                    unknownOrHostile = true;
-                } else {
-                    Color groupColor = BuddyWnd.gc[buddy.b.group];
-                    unknownOrHostile = groupColor.equals(Color.WHITE) || groupColor.equals(Color.RED);
-                }
-                if (unknownOrHostile) {
-                    gui.msg("Forager: unknown/hostile player nearby - traveling to hearth");
-                    return "travel hearth";
+        //
+        // borkas is a per-session instance field on NAlarmWdg (not static) - each client
+        // session tracks its own nearby players, so this must go through gui.alarmWdg rather
+        // than a shared static list that would leak detections across sessions.
+        if (gui.alarmWdg != null) {
+            synchronized (gui.alarmWdg.borkas) {
+                for (Long id : gui.alarmWdg.borkas) {
+                    Gob otherPlayer = Finder.findGob(id);
+                    if (otherPlayer == null) {
+                        continue;
+                    }
+                    Buddy buddy = otherPlayer.getattr(Buddy.class);
+                    boolean unknownOrHostile;
+                    if (buddy == null || buddy.b == null) {
+                        unknownOrHostile = true;
+                    } else {
+                        Color groupColor = BuddyWnd.gc[buddy.b.group];
+                        unknownOrHostile = groupColor.equals(Color.WHITE) || groupColor.equals(Color.RED);
+                    }
+                    if (unknownOrHostile) {
+                        gui.msg("Forager: unknown/hostile player nearby - traveling to hearth");
+                        return "travel hearth";
+                    }
                 }
             }
         }

@@ -34,9 +34,41 @@ NMiniMap extends MiniMap {
     // Cache for tree icon textures to avoid reloading every frame
     private final java.util.HashMap<String, TexI> treeIconCache = new java.util.HashMap<>();
 
-    // Visibility flags for tree and fish icons
-    public boolean showTreeIcons = true;
-    public boolean showFishIcons = true;
+    /* Visibility of tree and fish icons, and of prospected sample marks, lives in NConfig so
+     * that every minimap (corner and map window) shows the same thing and the choice survives
+     * relogging. The Map Tools panel and the map-window toolbar buttons are two views of these. */
+    public static boolean showTreeIcons() {
+        Object val = NConfig.get(NConfig.Key.showTreeIcons);
+        return !(val instanceof Boolean) || (Boolean) val;
+    }
+
+    public static void showTreeIcons(boolean val) {
+        NConfig.set(NConfig.Key.showTreeIcons, val);
+    }
+
+    public static boolean showFishIcons() {
+        Object val = NConfig.get(NConfig.Key.showFishIcons);
+        return !(val instanceof Boolean) || (Boolean) val;
+    }
+
+    public static void showFishIcons(boolean val) {
+        NConfig.set(NConfig.Key.showFishIcons, val);
+    }
+
+    public static nurgling.conf.ProspectMarkSettings prospectSettings() {
+        Object val = NConfig.get(NConfig.Key.prospectMarks);
+        if(val instanceof nurgling.conf.ProspectMarkSettings)
+            return (nurgling.conf.ProspectMarkSettings) val;
+        return null;
+    }
+
+    /** Whether a prospected sample mark passes the current kind/threshold filter. */
+    public static boolean markVisible(LabeledMinimapMark mark) {
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        if(settings == null)
+            return true;
+        return settings.shows(mark.kind, mark.quality);
+    }
 
     // Cached waypoint number labels to avoid per-frame Text.render() allocations
     private static Text[] waypointNumCache = new Text[128];
@@ -236,6 +268,167 @@ NMiniMap extends MiniMap {
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawBotDetourTrail(g);   // Draw Forager's live off-path gob-collection detour trail
         drawMarkerLine(g);       // Draw line to selected marker
+        drawPings(g);            // Draw chat map pings on top of everything else
+    }
+
+    /**
+     * Chat map pings (@Point). Drawn here rather than in a dedicated widget so the corner
+     * minimap and the full map window both get them - MapWnd's view subclasses this class.
+     * A ping in another segment simply has nowhere to go on this map and is skipped.
+     */
+    private void drawPings(GOut g) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.pingService == null)
+            return;
+        java.util.List<PingService.Ping> pings = gui.pingService.snapshot();
+        if(pings.isEmpty())
+            return;
+        // Anchor the tethers on the character, the same way drawQueuedWaypoints anchors
+        // its legs. Note this is NOT xlate(sessloc): sessloc is the segment tile of the
+        // session's coordinate origin, so every tether would converge on one arbitrary
+        // fixed point rather than on the player.
+        Coord playerC = null;
+        try {
+            if(ui != null && ui.gui != null && ui.gui.map != null)
+                playerC = p2c(new Coord2d(ui.gui.map.getcc()));
+        } catch(Loading l) {
+            playerC = null;
+        }
+
+        for(PingService.Ping p : pings) {
+            MiniMap.Location loc = p.loc();
+            if(loc == null)
+                continue;
+            Coord c = xlate(loc);
+            if(c == null)
+                continue;
+            double alpha = p.alpha();
+            if(alpha <= 0)
+                continue;
+            Color col = p.col;
+            boolean onmap = c.isect(Coord.z, sz);
+            Coord anchor = onmap ? c : clampToEdge(c);
+
+            // Tether from the character to the ping - including our own pings, so a ping
+            // we just sent reads the same as everyone else's. A ping near the edge of a
+            // zoomed-in map otherwise gives no sense of which way it is; the dashes crawl
+            // toward it so the direction reads without having to compare two dots.
+            if(playerC != null) {
+                double phase = Utils.rtime() * UI.scale(14);
+                // Dark casing first: the map underneath ranges from dark forest to bright
+                // snow, and a single thin coloured line disappears against half of it.
+                g.chcolor(6, 18, 12, (int)(140 * alpha));
+                dashLine(g, playerC, anchor, phase, 4);
+                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(190 * alpha));
+                dashLine(g, playerC, anchor, phase, 2);
+            }
+
+            if(!onmap) {
+                drawPingEdgeArrow(g, anchor, c, col, alpha, p.since());
+                continue;
+            }
+
+            // Two expanding rings, staggered, each stroked twice so a 2 px outline reads
+            // as a band rather than a hairline. Phase keys off the ping's own age so it
+            // always starts at the marker.
+            double life = p.since();
+            for(int i = 0; i < 2; i++) {
+                double t = (life - (i * (PING_PERIOD / 2))) / PING_PERIOD;
+                if(t < 0)
+                    continue;
+                t = t % 1.0;
+                int a = (int)(210 * alpha * Math.pow(1 - t, 1.7));
+                if(a < 8)
+                    continue;
+                double u = 1 - t;
+                int r = (int)(UI.scale(4) + ((1 - (u * u * u)) * UI.scale(15)));
+                g.chcolor(6, 18, 12, (int)(a * 0.5));
+                ringOutline(g, c, r, 4);
+                g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
+                ringOutline(g, c, r, 2);
+            }
+
+            // One-shot arrival burst, matching the world overlay.
+            if(life < PING_BURST) {
+                double t = life / PING_BURST;
+                int a = (int)(230 * Math.pow(1 - t, 1.4));
+                if(a >= 8) {
+                    double u = 1 - t;
+                    g.chcolor(255, 255, 255, a);
+                    ringOutline(g, c, (int)(UI.scale(4) + ((1 - (u * u * u)) * UI.scale(22))), 2);
+                }
+            }
+
+            // Marker: dark plate, colour body, hot core, breathing on the ring clock.
+            double pulse = 1.0 + (0.20 * Math.sin(2 * Math.PI * life / PING_PERIOD));
+            int r = (int)(UI.scale(5) * pulse);
+            g.chcolor(6, 18, 12, (int)(220 * alpha));
+            g.fellipse(c, new Coord(r + UI.scale(2), r + UI.scale(2)));
+            g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+            g.fellipse(c, new Coord(r, r));
+            g.chcolor(255, 255, 255, (int)(230 * alpha));
+            g.fellipse(c, new Coord(Math.max(1, r - UI.scale(2)), Math.max(1, r - UI.scale(2))));
+        }
+        g.chcolor();
+    }
+
+    private static final double PING_PERIOD = 1.5;
+    private static final double PING_BURST = 0.55;
+
+    /** Where the ray from the map centre to an off-map point leaves the widget. */
+    private Coord clampToEdge(Coord c) {
+        Coord mid = sz.div(2);
+        int dx = c.x - mid.x, dy = c.y - mid.y;
+        if((dx == 0) && (dy == 0))
+            return(mid);
+        double hx = (sz.x / 2.0) - UI.scale(10), hy = (sz.y / 2.0) - UI.scale(10);
+        double sc = Math.min((dx != 0) ? (hx / Math.abs(dx)) : Double.MAX_VALUE,
+                             (dy != 0) ? (hy / Math.abs(dy)) : Double.MAX_VALUE);
+        return(mid.add((int)Math.round(dx * sc), (int)Math.round(dy * sc)));
+    }
+
+    /**
+     * Arrow pinned to the map border for a ping that is off the visible map. Without this
+     * an off-map ping was simply not drawn at all, which on a zoomed-in minimap is most of
+     * them - the ping existed but the player had no way to know.
+     */
+    private void drawPingEdgeArrow(GOut g, Coord at, Coord target, Color col, double alpha, double life) {
+        Coord mid = sz.div(2);
+        double ang = Math.atan2(target.y - mid.y, target.x - mid.x);
+        double pulse = 1.0 + (0.28 * Math.sin(2 * Math.PI * (life % PING_PERIOD) / PING_PERIOD));
+        int len = (int)(UI.scale(9) * pulse);
+        Coord tip = at.add(Coord.sc(ang, len));
+        Coord w1 = at.add(Coord.sc(ang + 2.5, len));
+        Coord w2 = at.add(Coord.sc(ang - 2.5, len));
+        g.chcolor(6, 18, 12, (int)(220 * alpha));
+        g.line(w1, tip, 5);
+        g.line(w2, tip, 5);
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+        g.line(w1, tip, 2);
+        g.line(w2, tip, 2);
+    }
+
+    /**
+     * Broadcast a ping for the map position under a click. The map window can be scrolled
+     * far outside the loaded grids, so the grid id comes from the map file's segment index
+     * rather than from MCache. The file lock is only tried, never waited on - this runs on
+     * the UI thread, and a missed ping costs nothing but another click.
+     */
+    private boolean sendPointPing(Coord sc) {
+        MiniMap.Location loc = xlate(sc);
+        if(loc == null)
+            return false;
+        if(!file.lock.readLock().tryLock())
+            return false;
+        Long gridId;
+        try {
+            gridId = loc.seg.map.get(loc.tc.div(cmaps));
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        if(gridId == null)
+            return false;
+        return NMapView.sendPingToChat(gridId, loc.tc.mod(cmaps));
     }
 
     @Override
@@ -393,66 +586,305 @@ NMiniMap extends MiniMap {
     protected void drawQueuedWaypoints(GOut g) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.waypointMovementService == null) return;
+        if(sessloc == null || dloc == null) return;
 
-        synchronized(gui.waypointMovementService.movementQueue) {
-            if((gui.waypointMovementService.movementQueue.isEmpty() &&
-                gui.waypointMovementService.currentTarget == null) || sessloc == null || dloc == null)
-                return;
+        java.util.List<nurgling.WaypointMovementService.Waypoint> allWaypoints =
+                gui.waypointMovementService.snapshot();
+        if(allWaypoints.isEmpty()) return;
 
-            java.util.List<Location> allWaypoints = new java.util.ArrayList<>();
-            if(gui.waypointMovementService.currentTarget != null)
-                allWaypoints.add(gui.waypointMovementService.currentTarget);
-            allWaypoints.addAll(gui.waypointMovementService.movementQueue);
+        // Get player's current position on the map for drawing the line
+        Coord playerScreenPos = null;
+        try {
+            if(ui != null && ui.gui != null && ui.gui.map != null) {
+                Coord2d playerWorld = new Coord2d(ui.gui.map.getcc());
+                playerScreenPos = p2c(playerWorld);
+            }
+        } catch(Loading l) {
+            // Fall back to sessloc if player position not available
+            playerScreenPos = xlate(sessloc);
+        }
 
-            // Get player's current position on the map for drawing the line
-            Coord playerScreenPos = null;
-            try {
-                if(ui != null && ui.gui != null && ui.gui.map != null) {
-                    Coord2d playerWorld = new Coord2d(ui.gui.map.getcc());
-                    playerScreenPos = p2c(playerWorld);
+        // Legs, as dashes crawling toward the next waypoint so direction is readable
+        double phase = Utils.rtime() * UI.scale(16);
+        Coord prevC = playerScreenPos;
+        for(int i = 0; i < allWaypoints.size(); i++) {
+            nurgling.WaypointMovementService.Waypoint waypoint = allWaypoints.get(i);
+            if(waypoint.loc.seg.id != sessloc.seg.id)
+                continue;
+
+            Coord waypointC = xlate(waypoint.loc);
+            if(prevC != null && waypointC != null) {
+                Color lc = (i == 0) ? nurgling.overlays.NWaypointOverlay.activeColor()
+                                    : nurgling.overlays.NWaypointOverlay.queuedColor();
+                g.chcolor(lc.getRed(), lc.getGreen(), lc.getBlue(), 200);
+                dashLine(g, prevC, waypointC, phase, 2);
+            }
+            prevC = waypointC;
+        }
+
+        // Nodes. The active one is bigger and pulses; the one being dragged or hovered
+        // turns white so it is obvious which node the cursor has hold of.
+        for(int i = 0; i < allWaypoints.size(); i++) {
+            nurgling.WaypointMovementService.Waypoint waypoint = allWaypoints.get(i);
+            if(waypoint.loc.seg.id != sessloc.seg.id)
+                continue;
+
+            Coord c = xlate(waypoint.loc);
+            if(c == null || c.x < -UI.scale(12) || c.y < -UI.scale(12) ||
+               c.x > sz.x + UI.scale(12) || c.y > sz.y + UI.scale(12))
+                continue;
+
+            boolean active = (i == 0);
+            Color col = waypointColor(i, waypoint.id);
+
+            if(active) {
+                // expanding ping on the waypoint being run to
+                double t = (Utils.rtime() % 1.3) / 1.3;
+                int a = (int)(150 * (1 - t));
+                if(a > 8) {
+                    g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
+                    ringOutline(g, c, (int)(UI.scale(6) + t * UI.scale(10)), 2);
                 }
-            } catch(Loading l) {
-                // Fall back to sessloc if player position not available
-                playerScreenPos = xlate(sessloc);
             }
 
-            // Draw lines connecting waypoints, starting from player position
-            g.chcolor(0, 255, 255, 200); // Cyan color for waypoint paths
-            Coord prevC = playerScreenPos;
-            for(Location waypoint : allWaypoints) {
-                if(waypoint.seg.id != sessloc.seg.id)
-                    continue;
+            int radius = UI.scale(active ? 7 : 5);
+            // Plate
+            g.chcolor(0, 0, 0, 210);
+            g.fellipse(c, new Coord(radius + 1, radius + 1));
+            g.chcolor(col);
+            g.fellipse(c, new Coord(radius, radius));
+            // Number
+            g.chcolor(10, 14, 16, 255);
+            g.aimage(getWaypointLabel(i + 1).tex(), c, 0.5, 0.5);
+        }
+        drawWaypointDragGhost(g);
+        g.chcolor();
+    }
 
-                Coord waypointC = xlate(waypoint);
+    /** Where a dragged waypoint was picked up from, plus a tether to where it is now. */
+    private void drawWaypointDragGhost(GOut g) {
+        if(wpGrab == null || wpDragOrigin == null || sessloc == null || dloc == null)
+            return;
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null)
+            return;
+        if(wpDragOrigin.seg.id != sessloc.seg.id)
+            return;
 
-                if(prevC != null && waypointC != null) {
-                    g.line(prevC, waypointC, 2);
-                }
-                prevC = waypointC;
+        Coord org = xlate(wpDragOrigin);
+        Coord cur = null;
+        Location curLoc = null;
+        for(nurgling.WaypointMovementService.Waypoint wp : gui.waypointMovementService.snapshot()) {
+            if(wp.id == wpDragId && wp.loc.seg.id == sessloc.seg.id) {
+                curLoc = wp.loc;
+                cur = xlate(wp.loc);
             }
+        }
+        if(org == null)
+            return;
 
-            // Draw markers at each waypoint
-            int num = 1;
-            for(Location waypoint : allWaypoints) {
-                if(waypoint.seg.id != sessloc.seg.id)
-                    continue;
+        g.chcolor(255, 255, 255, 120);
+        ringOutline(g, org, UI.scale(6), 1);
+        if(cur != null && curLoc != null) {
+            dashLine(g, org, cur, 0, 1);
+            int tiles = (int)Math.round(wpDragOrigin.tc.dist(curLoc.tc));
+            Text t = Text.render(tiles + " tiles");
+            Coord mid = org.add(cur).div(2);
+            g.chcolor(10, 14, 16, 190);
+            g.frect(mid.sub(t.sz().x / 2 + UI.scale(2), t.sz().y / 2), t.sz().add(UI.scale(4), 0));
+            g.chcolor(235, 240, 245, 255);
+            g.aimage(t.tex(), mid, 0.5, 0.5);
+            t.dispose();
+        }
+        g.chcolor();
+    }
 
-                Coord c = xlate(waypoint);
-                if(c != null) {
-                    // Draw circle
-                    g.chcolor(255, 255, 0, 220); // Yellow marker
-                    int radius = UI.scale(5);
-                    g.fellipse(c, new Coord(radius, radius));
+    /** Circle outline; GOut only offers filled ellipses. */
+    private void ringOutline(GOut g, Coord c, int r, double w) {
+        final int n = 20;
+        Coord prev = null;
+        for(int i = 0; i <= n; i++) {
+            double ang = (2 * Math.PI * i) / n;
+            Coord pt = c.add((int)Math.round(Math.cos(ang) * r), (int)Math.round(Math.sin(ang) * r));
+            if(prev != null)
+                g.line(prev, pt, w);
+            prev = pt;
+        }
+    }
 
-                    // Draw number
-                    g.chcolor(0, 0, 0, 255);
-                    Text numText = Text.render(String.valueOf(num));
-                    g.aimage(numText.tex(), c, 0.5, 0.5);
-                    numText.dispose();
-                }
-                num++;
+    /** Colour of a queued waypoint, shared with the world overlay. */
+    private Color waypointColor(int idx, long id) {
+        if(id == wpDragId)
+            return(nurgling.overlays.NWaypointOverlay.dragColor());
+        if(id == wpHoverId)
+            return(nurgling.overlays.NWaypointOverlay.hoverColor());
+        return((idx == 0) ? nurgling.overlays.NWaypointOverlay.activeColor()
+                          : nurgling.overlays.NWaypointOverlay.queuedColor());
+    }
+
+    /**
+     * Dashed line clipped to the widget, with the dash pattern offset by {@code phase}
+     * so the dashes crawl from a toward b.
+     */
+    private void dashLine(GOut g, Coord a, Coord b, double phase, double w) {
+        Coord2d[] cl = clipLineToRect(new Coord2d(a), new Coord2d(b), new Coord2d(sz));
+        if(cl == null)
+            return;
+        Coord2d p1 = cl[0], p2 = cl[1];
+        double len = p1.dist(p2);
+        if(len < 1)
+            return;
+        Coord2d dir = p2.sub(p1).div(len);
+        double dash = UI.scale(7), gap = UI.scale(5), period = dash + gap;
+        // Dashes are laid out from the true start of the leg, so clipping doesn't make
+        // them jump when the minimap scrolls.
+        double skip = new Coord2d(a).dist(p1);
+        for(double t = -((phase + skip) % period); t < len; t += period) {
+            double s0 = Math.max(0, t), s1 = Math.min(len, t + dash);
+            if(s1 <= s0)
+                continue;
+            g.line(p1.add(dir.mul(s0)).round(), p1.add(dir.mul(s1)).round(), w);
+        }
+    }
+
+    /* Waypoint dragging ------------------------------------------------------
+     * Queued waypoints (alt+click) can be picked up with the left mouse button
+     * and dragged to a new spot. Dragging the waypoint the character is walking
+     * to re-issues the move command, so he turns around and follows it live. */
+    private UI.Grab wpGrab = null;
+    private long wpDragId = -1;
+    private long wpHoverId = -1;
+    private Location wpDragOrigin = null;
+
+    /** True while the user is dragging a queued waypoint on this minimap. */
+    public boolean isDraggingWaypoint() {
+        return(wpGrab != null);
+    }
+
+    /** Id of the queued waypoint under the given widget-local point, or -1. */
+    protected long waypointAt(Coord c) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null) return -1;
+        if(sessloc == null || dloc == null) return -1;
+
+        java.util.List<nurgling.WaypointMovementService.Waypoint> wps = gui.waypointMovementService.snapshot();
+        long best = -1;
+        double bestDist = UI.scale(9);
+        for(nurgling.WaypointMovementService.Waypoint wp : wps) {
+            if(wp.loc.seg.id != sessloc.seg.id)
+                continue;
+            Coord sc = xlate(wp.loc);
+            if(sc == null)
+                continue;
+            double d = sc.dist(c);
+            if(d <= bestDist) {
+                bestDist = d;
+                best = wp.id;
             }
-            g.chcolor();
+        }
+        return best;
+    }
+
+    /** Begin dragging the waypoint under c, if any. */
+    protected boolean startWaypointDrag(Coord c) {
+        long id = waypointAt(c);
+        if(id < 0)
+            return false;
+        NGameUI gui = NUtils.getGameUI();
+        wpDragOrigin = null;
+        if(gui != null && gui.waypointMovementService != null) {
+            for(nurgling.WaypointMovementService.Waypoint wp : gui.waypointMovementService.snapshot()) {
+                if(wp.id == id)
+                    wpDragOrigin = wp.loc;
+            }
+        }
+        wpDragId = id;
+        wpGrab = ui.grabmouse(this);
+        return true;
+    }
+
+    private void dragWaypointTo(Coord c, boolean commit) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null || sessloc == null)
+            return;
+        Location loc = xlate(c);
+        if(loc == null || loc.seg.id != sessloc.seg.id)
+            return;
+        if(!gui.waypointMovementService.setWaypoint(wpDragId, loc, sessloc, commit))
+            endWaypointDrag();
+    }
+
+    private void endWaypointDrag() {
+        if(wpGrab != null) {
+            wpGrab.remove();
+            wpGrab = null;
+        }
+        wpDragId = -1;
+        wpDragOrigin = null;
+    }
+
+    /* Press-and-hold steering -------------------------------------------------
+     * With the hold-to-move setting on, keeping the left button down on the map keeps
+     * re-sending the spot under the pointer as a move command. Only on maps where the
+     * left button is not the pan handle (the corner minimap); on the big map window
+     * dragging still scrolls the map. */
+    private final HoldToMove holdMove = new HoldToMove();
+    private UI.Grab holdGrab = null;
+
+    /** Arm hold-to-move on a plain left press, if this map allows it. */
+    protected void startHoldSteer(Coord c) {
+        if(!HoldToMove.enabled() || (holdGrab != null) || (wpGrab != null) || dragp(1))
+            return;
+        if((sessloc == null) || (dloc == null))
+            return;
+        // A press on an icon walks to that object; re-sampling would cancel it, so
+        // steering there waits until the pointer actually moves.
+        holdMove.arm(c, iconat(c) != null);
+        holdGrab = ui.grabmouse(this);
+    }
+
+    private void steerHold(Coord c) {
+        if((ui.modflags() != 0) || !holdMove.due())
+            return;
+        NGameUI gui = NUtils.getGameUI();
+        if((gui == null) || (gui.map == null) || (sessloc == null))
+            return;
+        // Dragging past the edge keeps steering towards that edge rather than stopping dead.
+        Coord cc = new Coord(Utils.clip(c.x, 0, sz.x - 1), Utils.clip(c.y, 0, sz.y - 1));
+        Location loc;
+        try {
+            loc = xlate(cc);
+        } catch(Loading l) {
+            return;
+        }
+        if((loc == null) || (loc.seg.id != sessloc.seg.id))
+            return;
+        if(!holdMove.accept(new Coord2d(loc.tc), 1.0))
+            return;
+        if(gui.waypointMovementService != null)
+            gui.waypointMovementService.setSteerPaused(true);
+        mvclick(gui.map, null, loc, null, 1);
+    }
+
+    @Override
+    public void destroy() {
+        // Never leave the movement queue paused because the map went away mid-steer.
+        if(holdGrab != null)
+            endHoldSteer();
+        super.destroy();
+    }
+
+    private void endHoldSteer() {
+        boolean steered = holdMove.steered();
+        if(holdGrab != null) {
+            holdGrab.remove();
+            holdGrab = null;
+        }
+        holdMove.disarm();
+        if(steered) {
+            NGameUI gui = NUtils.getGameUI();
+            if((gui != null) && (gui.waypointMovementService != null))
+                gui.waypointMovementService.setSteerPaused(false);
         }
     }
 
@@ -634,6 +1066,11 @@ NMiniMap extends MiniMap {
         super.tick(dt);
         if(ui.gui.map==null)
             return;
+
+        // Keep following the pointer while the left button is held: the map scrolls with
+        // the character, so the spot under a still cursor keeps moving.
+        if((holdGrab != null) && holdMove.steering())
+            steerHold(ui.mc.sub(rootpos()));
 
         NGameUI gui = NUtils.getGameUI();
         
@@ -1014,33 +1451,45 @@ NMiniMap extends MiniMap {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.labeledMarkService == null) return;
         
+        /* Looked up once per frame rather than per mark; NConfig.get is not free. */
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        if(settings != null && !settings.master)
+            return;
+
         java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
-        
+        if(marks.isEmpty())
+            return;
+
         Coord hsz = sz.div(2);
-        
+        float scale = scalef();
+
         for(LabeledMinimapMark mark : marks) {
-            // Calculate screen position
-            Coord screenPos = mark.tileCoords.sub(dloc.tc).div(scalef()).add(hsz);
-            
-            // Only draw if on screen
-            if(screenPos.x >= 0 && screenPos.x <= sz.x &&
-               screenPos.y >= 0 && screenPos.y <= sz.y) {
-                
-                // Draw icon if available
-                TexI iconTex = mark.getIconTex();
-                if(iconTex != null) {
-                    int dsz = Math.max(iconTex.sz().y, iconTex.sz().x);
-                    int targetSize = UI.scale(18);
-                    g.aimage(iconTex, screenPos, 0.5, 0.5, 
-                        UI.scale(targetSize * iconTex.sz().x / dsz, targetSize * iconTex.sz().y / dsz));
-                }
-                
-                // Draw label under the icon (like quest giver names)
-                Text labelText = mark.getLabelText();
-                if(labelText != null) {
-                    Coord textPos = screenPos.add(0, UI.scale(10));
-                    g.aimage(labelText.tex(), textPos, 0.5, 0);
-                }
+            if(settings != null && !settings.shows(mark.kind, mark.quality))
+                continue;
+
+            /* Screen position, computed without allocating: a well-explored world holds
+             * thousands of samples and only a few are ever on screen. */
+            int px = (int)Math.round((mark.tileCoords.x - dloc.tc.x) / (double)scale) + hsz.x;
+            int py = (int)Math.round((mark.tileCoords.y - dloc.tc.y) / (double)scale) + hsz.y;
+            if(px < 0 || px > sz.x || py < 0 || py > sz.y)
+                continue;
+
+            Coord screenPos = new Coord(px, py);
+
+            // Draw icon if available
+            TexI iconTex = mark.getIconTex();
+            if(iconTex != null) {
+                int dsz = Math.max(iconTex.sz().y, iconTex.sz().x);
+                int targetSize = UI.scale(18);
+                g.aimage(iconTex, screenPos, 0.5, 0.5,
+                    UI.scale(targetSize * iconTex.sz().x / dsz, targetSize * iconTex.sz().y / dsz));
+            }
+
+            // Draw label under the icon (like quest giver names)
+            Text labelText = mark.getLabelText();
+            if(labelText != null) {
+                Coord textPos = screenPos.add(0, UI.scale(10));
+                g.aimage(labelText.tex(), textPos, 0.5, 0);
             }
         }
     }
@@ -1061,6 +1510,16 @@ NMiniMap extends MiniMap {
 
     @Override
     public void mousemove(MouseMoveEvent ev) {
+        if(wpGrab != null) {
+            // Dragging a queued waypoint - don't pan the map along with it.
+            dragWaypointTo(ev.c, false);
+            return;
+        }
+        if(holdGrab != null) {
+            holdMove.pointer(ev.c);
+            steerHold(ev.c);
+        }
+        wpHoverId = waypointAt(ev.c);
         super.mousemove(ev);
         // Base class drag uses private d2lscale which doesn't match our zoom - recompute with scalef()
         if(drag != null && dragging) {
@@ -1329,7 +1788,7 @@ NMiniMap extends MiniMap {
 
             // Check for tree location tooltip first (check in screen space)
             NGameUI gui = NUtils.getGameUI();
-            if(gui != null && gui.treeLocationService != null && showTreeIcons) {
+            if(gui != null && gui.treeLocationService != null && showTreeIcons()) {
                 // Check if markers are hidden (respect "Hide Markers" button)
                 MapWnd mapwnd = gui.mapfile;
                 boolean markersHidden = (mapwnd != null && Utils.eq(mapwnd.markcfg, MapWnd.MarkerConfig.hideall));
@@ -1368,7 +1827,7 @@ NMiniMap extends MiniMap {
             }
 
             // Check for fish location tooltip (check in screen space)
-            if(gui != null && gui.fishLocationService != null && showFishIcons) {
+            if(gui != null && gui.fishLocationService != null && showFishIcons()) {
                 // Check if markers are hidden (respect "Hide Markers" button)
                 MapWnd mapwnd = gui.mapfile;
                 boolean markersHidden = (mapwnd != null && Utils.eq(mapwnd.markcfg, MapWnd.MarkerConfig.hideall));
@@ -1575,7 +2034,7 @@ NMiniMap extends MiniMap {
         if(sessloc == null || dloc == null) return;
 
         // Check if fish icons are hidden by checkbox
-        if(!showFishIcons) return;
+        if(!showFishIcons()) return;
 
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.fishLocationService == null) return;
@@ -1654,7 +2113,7 @@ NMiniMap extends MiniMap {
         if(sessloc == null || dloc == null) return;
 
         // Check if tree icons are hidden by checkbox
-        if(!showTreeIcons) return;
+        if(!showTreeIcons()) return;
 
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.treeLocationService == null) return;
@@ -1765,8 +2224,14 @@ NMiniMap extends MiniMap {
         
         Coord hsz = sz.div(2);
         int threshold = UI.scale(12); // Click radius
-        
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+
         for(LabeledMinimapMark mark : marks) {
+            /* A filtered-out mark is not drawn, so it must not be clickable either -
+             * otherwise it keeps an invisible hitbox that swallows right-clicks. */
+            if(settings != null && !settings.shows(mark.kind, mark.quality))
+                continue;
+
             // Calculate screen position for this mark
             Coord markScreenPos = mark.tileCoords.sub(dloc.tc).div(scalef()).add(hsz);
             
@@ -1809,6 +2274,20 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        // Alt+Shift+LMB pings the clicked spot to the selected chat channel. Plain
+        // alt+LMB cannot be used here the way it is in the world view, because on the
+        // maps it already means "walk here next" - it queues a movement waypoint
+        // (NMapWnd.mouseup, NMiniMapWnd.clickloc). Checked first so the ping never
+        // doubles as a walk or a waypoint grab.
+        if(ev.b == 1 && ui.modmeta && ui.modshift && !ui.modctrl) {
+            if(sendPointPing(ev.c))
+                return true;
+        }
+
+        // Pick up a queued waypoint under the cursor instead of panning/walking.
+        if(ev.b == 1 && startWaypointDrag(ev.c))
+            return true;
+
         // Handle left-click for forager path recording - prevent player movement
         if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && dloc != null && sessloc != null) {
             NGameUI gui = NUtils.getGameUI();
@@ -1849,11 +2328,27 @@ NMiniMap extends MiniMap {
                 return true;
             }
         }
+
+        // Press-and-hold steering arms last, so every other meaning of the left button
+        // keeps priority. The event is not consumed - the press still walks as before.
+        if(ev.b == 1 && ui.modflags() == 0)
+            startHoldSteer(ev.c);
+
         return super.mousedown(ev);
     }
 
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if((holdGrab != null) && (ev.b == 1))
+            endHoldSteer();
+        if(wpGrab != null) {
+            if(ev.b == 1) {
+                dragWaypointTo(ev.c, true);
+                endWaypointDrag();
+            }
+            return true;
+        }
+
         // Handle left-click for forager path recording (without modifiers)
         if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && dloc != null && sessloc != null) {
             NGameUI gui = NUtils.getGameUI();
@@ -1938,7 +2433,7 @@ NMiniMap extends MiniMap {
         }
         
         // Handle right-click release on tree location - open details window
-        if(ev.b == 3 && dloc != null && sessloc != null && showTreeIcons) { // Button 3 is right-clicked
+        if(ev.b == 3 && dloc != null && sessloc != null && showTreeIcons()) { // Button 3 is right-clicked
             NGameUI gui = NUtils.getGameUI();
             if(gui != null && gui.treeLocationService != null) {
                 // Check for tree location at click position (in screen space)
@@ -1970,7 +2465,7 @@ NMiniMap extends MiniMap {
         }
 
         // Handle right-click release on fish location - open details window
-        if(ev.b == 3 && dloc != null && sessloc != null && showFishIcons) { // Button 3 is right-clicked
+        if(ev.b == 3 && dloc != null && sessloc != null && showFishIcons()) { // Button 3 is right-clicked
             NGameUI gui = NUtils.getGameUI();
             if(gui != null && gui.fishLocationService != null) {
                 // Check for fish location at click position (in screen space)

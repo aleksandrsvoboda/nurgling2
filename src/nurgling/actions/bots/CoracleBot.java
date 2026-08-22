@@ -196,6 +196,7 @@ public class CoracleBot implements Action {
         return tileName.contains("water") ||
                tileName.contains("bog") ||
                tileName.contains("fen") ||
-               tileName.contains("swamp");
+               tileName.contains("swamp") ||
+               tileName.contains("marsh");
     }
 }

@@ -55,6 +55,8 @@ public class NConfig
         hideNature,
         hideEarthworm,
         hideConf,
+        /** Per-resource display settings from the gob "Configure" window; see nurgling.tools.GobCustomize. */
+        gobConf,
         hideBoxFillColor,
         hideBoxEdgeColor,
         hideBoxLineWidth,
@@ -130,6 +132,7 @@ public class NConfig
         skipPluckingCocksInKFC,
         studyDeskLayout,
         waypointRetryOnStuck,
+        holdToMove,
         verboseCal,
         pluginsAllowUnsigned,  // Dev only: load external plugin jars without signature verification
         pluginsDir,            // Optional override for the plugin drop-folder (default: "plugins")
@@ -175,6 +178,7 @@ public class NConfig
         alarmDelayFrames,
         alwaysObfuscate,
         boughbeeprop,
+        questtrackerprop,
         foragerprop,
         trufflepigprop,
         buttonStyle,
@@ -220,6 +224,20 @@ public class NConfig
         // Bot path display
         showBotPathOnMinimap,
         showBotPathOnGround,
+        // Movement waypoints (alt+click) drawn in the 3D world
+        showWaypointsInWorld,
+        pingSound,
+        waypointColorActive,
+        waypointColorQueued,
+        // Ground trail to containers matching the item search
+        showStorageTrail,
+        storageTrailColor,
+        storageTrailMax,
+        recipeSearchAsItemSearch,
+        // Map tools panel
+        showTreeIcons,
+        showFishIcons,
+        prospectMarks,
         // Localization
         language
     }
@@ -272,6 +290,7 @@ public class NConfig
         conf.put(Key.showCSprite, true);
         conf.put(Key.hideEarthworm, true);  // true = show earthworms (checkbox unchecked by default)
         conf.put(Key.hideConf, nurgling.tools.GobHide.defaults());
+        conf.put(Key.gobConf, new HashMap<String, Object>());
         // Hidden-object boxes are styled independently of the general showBB boxes; these defaults
         // match the old shared values so upgrading users see no visual change.
         conf.put(Key.hideBoxFillColor, new Color(227, 28, 1, 195));
@@ -285,6 +304,9 @@ public class NConfig
         conf.put(Key.discordWebhookUrl, "");
         conf.put(Key.showGrid, false);
         conf.put(Key.showView, false);
+        conf.put(Key.showTreeIcons, true);
+        conf.put(Key.showFishIcons, true);
+        conf.put(Key.prospectMarks, new ProspectMarkSettings());
         conf.put(Key.disableWinAnim, true);
         conf.put(Key.disableMenugridKeys, false);
         conf.put(Key.baseurl, "https://raw.githubusercontent.com/aleksandrsvoboda/nurgling-release/stable/ver");
@@ -359,6 +381,7 @@ public class NConfig
         conf.put(Key.validateAllCropsBeforeHarvest, false);
         conf.put(Key.studyDeskLayout, "");
         conf.put(Key.waypointRetryOnStuck, true);
+        conf.put(Key.holdToMove, false);
         conf.put(Key.verboseCal, false);
         conf.put(Key.highlightRockTiles, true);
         conf.put(Key.showSpeedometer, false);
@@ -589,6 +612,13 @@ public class NConfig
         // Bot path display
         conf.put(Key.showBotPathOnMinimap, false);
         conf.put(Key.showBotPathOnGround, false);
+        conf.put(Key.showWaypointsInWorld, true);
+        conf.put(Key.pingSound, true);
+
+        // Ground trail to containers matching the item search
+        conf.put(Key.showStorageTrail, true);
+        conf.put(Key.storageTrailMax, 3);
+        conf.put(Key.recipeSearchAsItemSearch, false);
     }
 
 
@@ -1030,6 +1060,9 @@ public class NConfig
                             case "NBoughBeeProp":
                                 res.add(new NBoughBeeProp(obj));
                                 break;
+                            case "NQuestTrackerProp":
+                                res.add(new NQuestTrackerProp(obj));
+                                break;
                             case "NForagerProp":
                                 res.add(new NForagerProp(obj));
                                 break;
@@ -1143,6 +1176,9 @@ public class NConfig
                                     break;
                                 case "ItemQualityOverlaySettings":
                                     conf.put(Key.valueOf(entry.getKey()), new ItemQualityOverlaySettings(hobj));
+                                    break;
+                                case "ProspectMarkSettings":
+                                    conf.put(Key.valueOf(entry.getKey()), new ProspectMarkSettings(hobj));
                                     break;
                                 case "Color":
                                     try {
@@ -1258,6 +1294,9 @@ public class NConfig
         }
 
         conf.put(Key.showCSprite,conf.get(Key.nextshowCSprite));
+        // Flat surface applies live now (see nurgling.tools.FlatWorld), which keeps both keys
+        // equal, so this only still does anything for a config where an older build staged a
+        // change that its restart never picked up.
         conf.put(Key.flatsurface,conf.get(Key.nextflatsurface));
 
         // Publish only now that conf is fully populated, so no other thread can
@@ -1575,8 +1614,10 @@ public class NConfig
                     newArea.id = existingArea.id;
                     mapView.glob.map.areas.put(newArea.id, newArea);
                 } else {
-                    // Add as new area with new id
-                    int maxId = 0;
+                    // Add as new area with new id. Stay above the DB's own
+                    // watermark too - tombstoned rows keep their ids and the
+                    // sync would delete an imported area that reused one.
+                    int maxId = NMapView.maxKnownDbAreaId();
                     for (NArea area : mapView.glob.map.areas.values()) {
                         if (area.id > maxId) {
                             maxId = area.id;

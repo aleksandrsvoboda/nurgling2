@@ -111,7 +111,7 @@ public class TransferToPiles implements Action{
         ArrayList<WItem> witems;
         NUtils.addTask(new WaitStockpile(true));
         int fullSize = gui.getInventory().getItems().size();
-        if(th>1 || StackSupporter.isSameExist(items, gui.getInventory())) {
+        if(th>1 || sameCategoryItemPresent(gui)) {
             for (int i = 0; i < target_size; i++) {
                 {
                     witems = getMatchingItems(gui);
@@ -142,6 +142,22 @@ public class TransferToPiles implements Action{
         NUtils.getUI().core.addTask(new WaitTargetSize(NUtils.getGameUI().getInventory(), fullSize - target_size));
     }
 
+
+    /**
+     * Whether the inventory also holds other items of this item's stacking category. The batched
+     * Stockpile.put() lets the server choose which items leave the inventory, so a mixed load has
+     * to be moved one item at a time instead.
+     *
+     * When the caller pinned an exact name, resolve the check by exact name too - the NAlias-based
+     * isSameExist() matches siblings by substring and so reports a collision for any item whose
+     * name contains a sibling's name, even when the load is pure.
+     */
+    private boolean sameCategoryItemPresent(NGameUI gui) throws InterruptedException {
+        if (exactName == null) {
+            return StackSupporter.isSameExist(items, gui.getInventory());
+        }
+        return StackSupporter.isSameExistExact(exactName, gui.getInventory());
+    }
 
     NAlias getStockpileName(NAlias items) {
         if (NParser.checkName(items.getDefault(), new NAlias("Soil"))) {

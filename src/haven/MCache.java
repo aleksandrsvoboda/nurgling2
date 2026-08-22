@@ -1107,6 +1107,19 @@ public class MCache implements MapSource {
 	}
     }
 
+    /* Rebuilds every loaded cut from the map data already held, without asking the server for
+     * anything. For render settings that change how existing tiles are meshed rather than what
+     * those tiles are. The sequence bumps make gob placers (which key on chseq) and cut overlays
+     * (which key on olseq) recompute their heights against the new meshes. */
+    public void invalidateAll() {
+	synchronized(grids) {
+	    for(Grid g : grids.values())
+		g.invalidate();
+	}
+	olseq++;
+	chseq++;
+    }
+
     public void invalblob(Message msg) {
 	int type = msg.uint8();
 	if(type == 0) {

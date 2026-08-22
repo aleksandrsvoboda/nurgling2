@@ -2818,6 +2818,7 @@ public class VSpec {
         seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-maple\",\"name\":\"Maple Samara\"}"));
         seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-willow\",\"name\":\"Willow Catkin\"}"));
         seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-yew\",\"name\":\"Yew Cones\"}"));
+        seedsAndBerries.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-juniper\",\"name\":\"Juniper Berries\"}"));
         categories.put("Seed of Tree or Bush", seedsAndBerries);
 
         ArrayList<JSONObject> mantle = new ArrayList<>();
@@ -3129,7 +3130,7 @@ public class VSpec {
         NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/fairyshroom\",\"name\":\"Fairy Shroom\"}"));
         NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/driftkelp\",\"name\":\"Driftkelp\"}"));
         NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/guano\",\"name\":\"Bat Guano\"}"));
-        NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/heartwoodleaf\",\"name\":\"Heartwood Leaves\"}"));
+        NaturalResources.add(new JSONObject("{\"static\":\"gfx/invobjs/leaf-heartwood\",\"name\":\"Heartwood Leaves\"}"));
         categories.put("Natural Resources", NaturalResources);
 
         ArrayList<JSONObject> Misc = new ArrayList<>();

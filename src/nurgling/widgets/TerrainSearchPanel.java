@@ -7,25 +7,28 @@ import nurgling.i18n.L10n;
 import java.awt.Color;
 import java.util.*;
 
-public class TerrainSearchWindow extends Window {
-    private static final int WINDOW_WIDTH = UI.scale(450);
-    private static final int WINDOW_HEIGHT = UI.scale(500);
+/**
+ * Terrain / ore tile-highlight search. Lives as a tab inside {@link MapToolsWindow}.
+ */
+public class TerrainSearchPanel extends Widget {
+    private static final int PANEL_WIDTH = UI.scale(450);
+    private static final int PANEL_HEIGHT = UI.scale(500);
     
     private TextEntry terrainSearchField;
     private CategoryList categoryList;
     private PresetList presetList;
     private TerrainCategory selectedCategory = null;
     
-    public TerrainSearchWindow() {
-        super(new Coord(WINDOW_WIDTH, WINDOW_HEIGHT), L10n.get("terrain.title"));
-        
+    public TerrainSearchPanel() {
+        super(new Coord(PANEL_WIDTH, PANEL_HEIGHT));
+
         int y = 0;
         int margin = UI.scale(5);
         
         // Terrain search label and field
         add(new Label(L10n.get("terrain.search")), margin, y);
         y += UI.scale(20);
-        terrainSearchField = add(new TextEntry(WINDOW_WIDTH - margin * 2, "") {
+        terrainSearchField = add(new TextEntry(PANEL_WIDTH - margin * 2, "") {
             @Override
             public void changed() {
                 super.changed();
@@ -48,7 +51,7 @@ public class TerrainSearchWindow extends Window {
         y += UI.scale(20);
         
         // Create split view: categories on left, presets on right
-        int listWidth = (WINDOW_WIDTH - margin * 3) / 2;
+        int listWidth = (PANEL_WIDTH - margin * 3) / 2;
         int itemHeight = UI.scale(20);
         int visibleItems = 15;  // Number of visible items in list
         int listHeight = visibleItems * itemHeight;
@@ -72,7 +75,7 @@ public class TerrainSearchWindow extends Window {
             public void click() {
                 clearSearch();
             }
-        }, WINDOW_WIDTH - UI.scale(90), y);
+        }, PANEL_WIDTH - UI.scale(90), y);
         
         pack();
     }
@@ -226,12 +229,6 @@ public class TerrainSearchWindow extends Window {
         if(selectedCategory != null) {
             presetList.updatePresets(selectedCategory);
         }
-    }
-
-    @Override
-    public void resize(Coord sz)
-    {
-        super.resize(sz);
     }
 
     private void selectAllInCategory() {
@@ -582,15 +579,6 @@ public class TerrainSearchWindow extends Window {
         public TerrainPreset(String displayName, String searchPattern) {
             this.displayName = displayName;
             this.searchPattern = searchPattern;
-        }
-    }
-    
-    @Override
-    public void wdgmsg(Widget sender, String msg, Object... args) {
-        if(msg.equals("close")) {
-            hide();
-        } else {
-            super.wdgmsg(sender, msg, args);
         }
     }
 }

@@ -313,12 +313,19 @@ public class NModelBox extends Sprite implements RenderTree.Node {
     float currentGobScale = 1f;
 
     /**
-     * Gobs shrunk for display (e.g. hide stockpiles) scale their whole render subtree,
-     * hitbox included. Undo that here so the box keeps showing the real footprint.
+     * Gobs resized for display (hide stockpiles, or any type resized through the Configure
+     * window) scale their whole render subtree, hitbox included. Undo that here so the box keeps
+     * showing the real footprint. The two scales compose, so both are folded in.
      */
     private float gobScale() {
+        float scale = 1f;
         nurgling.gattrr.NHideStockpileScale s = gob.getattr(nurgling.gattrr.NHideStockpileScale.class);
-        return (s != null && s.scale > 0) ? s.scale : 1f;
+        if (s != null && s.scale > 0)
+            scale *= s.scale;
+        nurgling.gattrr.NGobCustomScale c = gob.getattr(nurgling.gattrr.NGobCustomScale.class);
+        if (c != null && c.scale > 0)
+            scale *= c.scale;
+        return scale;
     }
 
     private Pipe.Op withScale(Pipe.Op mat, float scale) {

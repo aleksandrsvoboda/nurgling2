@@ -92,7 +92,9 @@ public class NDirArrow extends Sprite implements RenderTree.Node, PView.Render2D
 
     @Override
     public boolean tick(double dt) {
-        return !NAlarmWdg.isInAlarm(target.id);
+        // Resolved from the target gob, not the calling thread: overlay ticks run inside
+        // Gob.ctick(), which for headless sessions has no UI binding.
+        return !NAlarmWdg.isInAlarm(target);
     }
 
     public void gtick(Render g) {

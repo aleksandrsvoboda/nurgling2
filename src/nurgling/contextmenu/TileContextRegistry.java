@@ -23,5 +23,6 @@ public class TileContextRegistry {
 
     static {
         register(new FillFromWaterTileAction());
+        register(new DeleteStorageContainerAction());
     }
 }

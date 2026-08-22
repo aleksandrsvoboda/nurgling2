@@ -50,6 +50,7 @@ public class NGameUI extends GameUI
     private LocalizedResourceTimerDialog localizedResourceTimerDialog = null;
     public LocalizedResourceTimerService localizedResourceTimerService;
     public WaypointMovementService waypointMovementService;
+    public PingService pingService;
     public FishLocationService fishLocationService;
     public FishSearchWindow fishSearchWindow = null;
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
@@ -57,7 +58,7 @@ public class NGameUI extends GameUI
     public TreeSearchWindow treeSearchWindow = null;
     public final Map<String, TreeLocationDetailsWindow> openTreeDetailWindows = new HashMap<>();
     public LabeledMarkService labeledMarkService;
-    public TerrainSearchWindow terrainSearchWindow = null;
+    public MapToolsWindow mapToolsWindow = null;
     public StudyDeskPlannerWidget studyDeskPlanner = null;
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
@@ -66,6 +67,9 @@ public class NGameUI extends GameUI
     // most-recent-last), null when no detour is in progress. Same list instance is mutated
     // live by the bot thread as it hops between gobs, so rendering always sees current state.
     public java.util.List<haven.Coord2d> activeBotDetourTrail = null;
+
+    /** Prospecting results waiting to be paired up with their window; see NProspecting. */
+    public final NProspecting.Pending prospecting = new NProspecting.Pending();
 
     // Local storage for ring settings
     public IconRingConfig iconRingConfig;
@@ -83,7 +87,6 @@ public class NGameUI extends GameUI
     private static final Map<String, Float> WORLD_SPEED_MAP = new HashMap<>();
 
     private void initWorldSpeedMap() {
-        WORLD_SPEED_MAP.put("b7c199a4557503a8", 4.93f); // W16.1
         WORLD_SPEED_MAP.put("c646473983afec09", DEFAULT_WORLD_SPEED); // W16
     }
 
@@ -184,7 +187,12 @@ public class NGameUI extends GameUI
         }
 
 
-        add(new NDraggableWidget(questinfo = new NQuestInfo(), "quests", questinfo.sz.add(NDraggableWidget.delta)));
+        // Resizable, like the minimap and chat: the tracker scrolls its own content, so the
+        // player sets the panel size instead of the quest log deciding it.
+        NResizableWidget questwdg = new NResizableWidget(
+            questinfo = new NQuestInfo(), "quests", questinfo.sz.add(NDraggableWidget.delta));
+        questwdg.minSize = new Coord(200, 110);
+        add(questwdg);
         add(new NDraggableWidget(recentActionsPanel = new NRecentActionsPanel(), "recentactions", recentActionsPanel.sz.add(NDraggableWidget.delta)));
         // Add drink meter widget to show water/tea capacity (uses IMeter.fsz to match other meters)
         drinkMeter = new DrinkMeter();
@@ -201,6 +209,7 @@ public class NGameUI extends GameUI
         // Position BotsInterruptWidget (observer with gears) in center of screen
         add(biw = new BotsInterruptWidget(), new Coord(sz.x/2 - biw.sz.x/2, sz.y/2 - biw.sz.y/2));
         waypointMovementService = new WaypointMovementService(this);
+        pingService = new PingService(this);
         fishLocationService = new FishLocationService(this, genus);
         treeLocationService = new TreeLocationService(this, genus);
         labeledMarkService = new LabeledMarkService(this, genus);
@@ -519,10 +528,14 @@ public class NGameUI extends GameUI
         String place = ((String) args[0]).intern();
         if (place == "craft") {
             if (craftwnd == null) {
-                craftwnd = add(new NCraftWindow(), new Coord(400, 200));
+                NCraftWindow cwnd = new NCraftWindow();
+                cwnd.posmem("craft");
+                craftwnd = add(cwnd, cwnd.restorepos(new Coord(400, 200)));
+                fitwdg(craftwnd);
             }
             craftwnd.add(child);
             craftwnd.pack();
+            fitwdg(craftwnd);
             craftwnd.raise();
             craftwnd.show();
         }

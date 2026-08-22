@@ -44,7 +44,7 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.Supplier;
 
-public class NMapView extends MapView
+public class NMapView extends MapView implements Widget.CursorQuery.Handler
 {
     public static final KeyBinding kb_quickaction = KeyBinding.get("quickaction", KeyMatch.forcode(KeyEvent.VK_Q, 0));
     public static final KeyBinding kb_quickignaction = KeyBinding.get("quickignaction", KeyMatch.forcode(KeyEvent.VK_Q, 1));
@@ -70,6 +70,7 @@ public class NMapView extends MapView
         return KeyBinding.get("togglenature", KeyMatch.forcode(KeyEvent.VK_H, KeyMatch.C));
     }
     public static final KeyBinding kb_cleardmg = KeyBinding.get("cleardmg", KeyMatch.forcode(KeyEvent.VK_D, KeyMatch.C | KeyMatch.S));
+    public static final KeyBinding kb_flatworld = KeyBinding.get("flatworld", KeyMatch.forcode(KeyEvent.VK_F, KeyMatch.C | KeyMatch.S));
     public static final int MINING_OVERLAY = - 1;
     public NGlobalCoord lastGC = null;
 
@@ -394,6 +395,252 @@ public class NMapView extends MapView
     }
 
 
+
+    /* ---- Movement waypoints on the ground --------------------------------
+     * The alt+click waypoint queue is drawn by NWaypointOverlay, which lives in the
+     * render tree so the path and its rings are real 3D geometry (occluded by hills
+     * and buildings, with a faint always-visible ghost pass). This class keeps the
+     * pointer state - what is hovered, what is being dragged and where the drag
+     * started - and feeds it to the overlay. */
+
+    private nurgling.overlays.NWaypointOverlay wpOverlay = null;
+    private RenderTree.Slot wpOverlaySlot = null;
+    private UI.Grab wpGrab = null;
+    private long wpDragId = -1;
+    private long wpHoverId = -1;
+    private Coord2d wpDragOrigin = null;
+    private volatile boolean wpDragPending = false;
+
+    public long wpDragId() {return(wpDragId);}
+    public long wpHoverId() {return(wpHoverId);}
+    public Coord2d wpDragOrigin() {return(wpDragOrigin);}
+
+    /* ---- Press-and-hold steering ------------------------------------------
+     * With the hold-to-move setting on, keeping the left button down re-sends the
+     * ground under the pointer as a move command, so the character follows the
+     * cursor instead of stopping at the one spot that was clicked. The press itself
+     * stays the ordinary click it has always been - this only adds what happens
+     * while the button is still down. */
+
+    private final nurgling.HoldToMove holdMove = new nurgling.HoldToMove();
+    private UI.Grab holdGrab = null;
+
+    /** Can a plain left press start hold-to-move right now? Everything else owns the button first. */
+    private boolean canHoldSteer() {
+        return(nurgling.HoldToMove.enabled() && (holdGrab == null) && (wpGrab == null)
+               && (placing == null) && (selection == null)
+               && !isAreaSelectionMode.get() && !isGobSelectionMode.get()
+               && !zoneMeasureMode && !zoneClearMode && !isRecordingRoutePoint);
+    }
+
+    private void armHoldSteer(Coord c) {
+        // Until the click test comes back, assume the press landed on an object: re-sampling
+        // would cancel the interaction it just started. Bare ground clears the flag, which is
+        // what lets the character keep walking while the pointer is held still.
+        holdMove.arm(c, true);
+        holdGrab = ui.grabmouse(this);
+        new Hittest(c) {
+            protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+                if(inf == null)
+                    holdMove.allowIdleSteer();
+            }
+        }.run();
+    }
+
+    /**
+     * Re-target the character at the ground under the given screen point. The map hit test
+     * is asynchronous, so only one sample is in flight at a time; the rest of the pacing
+     * (rate limit, minimum distance) lives in HoldToMove.
+     */
+    private void steerHold(Coord c) {
+        if((ui.modflags() != 0) || !holdMove.due())
+            return;
+        // The grab keeps delivering pointer positions after the cursor has left the view;
+        // clamping keeps steering towards that edge instead of hit-testing off-screen.
+        Coord cc = new Coord(Utils.clip(c.x, 0, sz.x - 1), Utils.clip(c.y, 0, sz.y - 1));
+        holdMove.begin();
+        new Maptest(cc) {
+            public void hit(Coord pc, Coord2d mc) {
+                holdMove.done();
+                if((holdGrab == null) || !holdMove.steering())
+                    return;
+                if(!holdMove.accept(mc, MCache.tilesz.x / 2))
+                    return;
+                NGameUI gui = NUtils.getGameUI();
+                if((gui != null) && (gui.waypointMovementService != null))
+                    gui.waypointMovementService.setSteerPaused(true);
+                try {
+                    clickDestination = new Coord3f((float)mc.x, (float)mc.y, glob.map.getzp(mc).z);
+                } catch(Loading l) {
+                    // Height not loaded yet - the path line just skips this sample.
+                }
+                wdgmsg("click", pc, mc.floor(OCache.posres), 1, 0);
+            }
+
+            public void nohit(Coord pc) {
+                holdMove.done();
+            }
+        }.run();
+    }
+
+    /**
+     * Keep steering while the button is held even when the pointer stays put: the camera
+     * follows the character, so the ground under a still cursor keeps moving.
+     */
+    private void tickHoldSteer() {
+        if((holdGrab == null) || !holdMove.steering())
+            return;
+        steerHold(ui.mc.sub(rootpos()));
+    }
+
+    private void endHoldSteer() {
+        boolean steered = holdMove.steered();
+        if(holdGrab != null) {
+            holdGrab.remove();
+            holdGrab = null;
+        }
+        holdMove.disarm();
+        if(steered) {
+            NGameUI gui = NUtils.getGameUI();
+            if((gui != null) && (gui.waypointMovementService != null))
+                gui.waypointMovementService.setSteerPaused(false);
+        }
+    }
+
+    /** Draws chat map pings (@Point): ground glow in the render tree, rings in the 2D pass. */
+    private nurgling.overlays.NPointPingOverlay pingOverlay = null;
+    private RenderTree.Slot pingOverlaySlot = null;
+
+    /* ---- Trail to searched-for storage -----------------------------------
+     * The item search knows which containers hold what, and the containers table stores
+     * the grid and in-grid offset of each one, so a match can be routed to even when its
+     * gob is nowhere near loaded. The service owns the routing and caching; the overlay
+     * just draws what it resolves. */
+    private nurgling.navigation.StorageTrailService storageTrail = null;
+    private nurgling.overlays.NStorageTrailOverlay storageTrailOverlay = null;
+    private RenderTree.Slot storageTrailSlot = null;
+
+    public nurgling.navigation.StorageTrailService getStorageTrailService() {
+        return(storageTrail);
+    }
+
+    @Override
+    public void dispose() {
+        if(holdGrab != null) {
+            holdGrab.remove();
+            holdGrab = null;
+            holdMove.disarm();
+        }
+        // The trail service owns a planning thread; without this it would outlive the
+        // session that bound it and keep planning against a UI nobody is looking at.
+        if(storageTrail != null) {
+            storageTrail.shutdown();
+            storageTrail = null;
+        }
+        super.dispose();
+    }
+
+    /** Create the overlays once the render tree is up, then let them refresh their geometry. */
+    private void tickWorldOverlays() {
+        if(basic == null)
+            return;
+        if(wpOverlay == null) {
+            wpOverlay = new nurgling.overlays.NWaypointOverlay(this);
+            wpOverlaySlot = basic.add(wpOverlay);
+        }
+        if(pingOverlay == null) {
+            pingOverlay = new nurgling.overlays.NPointPingOverlay(this);
+            pingOverlaySlot = basic.add(pingOverlay);
+        }
+        if(storageTrailOverlay == null) {
+            storageTrail = new nurgling.navigation.StorageTrailService(this);
+            storageTrailOverlay = new nurgling.overlays.NStorageTrailOverlay(this, storageTrail);
+            storageTrailSlot = basic.add(storageTrailOverlay);
+        }
+        wpOverlay.update();
+        pingOverlay.update();
+        storageTrail.tick();
+        storageTrailOverlay.update();
+    }
+
+    /** Id of the waypoint whose ground node contains the given screen point, or -1. */
+    private long worldWaypointAt(Coord c) {
+        if(wpOverlay == null)
+            return(-1);
+        long best = -1;
+        double bestDist = UI.scale(14);
+        for(nurgling.overlays.NWaypointOverlay.WNode node : wpOverlay.screenNodes()) {
+            if(node.sc == null)
+                continue;
+            double d = node.sc.dist(c);
+            if(d <= bestDist) {
+                bestDist = d;
+                best = node.id;
+            }
+        }
+        return(best);
+    }
+
+    /** World position of a queued waypoint, or null if it is not currently resolvable. */
+    private Coord2d waypointWorldPos(long id) {
+        if(wpOverlay == null)
+            return(null);
+        for(nurgling.overlays.NWaypointOverlay.WNode node : wpOverlay.screenNodes()) {
+            if(node.id == id)
+                return(node.wc);
+        }
+        return(null);
+    }
+
+    /**
+     * Move the dragged waypoint to whatever ground the cursor is over. The map hit
+     * test is asynchronous, so intermediate drag samples are skipped while one is
+     * still in flight; commit=true (mouse release) always issues a fresh one.
+     */
+    private void dragWorldWaypoint(Coord c, boolean commit) {
+        final long id = wpDragId;
+        if(id < 0)
+            return;
+        if(wpDragPending && !commit)
+            return;
+        wpDragPending = true;
+        new Maptest(c) {
+            public void hit(Coord pc, Coord2d mc) {
+                wpDragPending = false;
+                NGameUI gui = NUtils.getGameUI();
+                if(gui == null || gui.waypointMovementService == null)
+                    return;
+                haven.MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
+                if(sessloc == null)
+                    return;
+                Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
+                gui.waypointMovementService.setWaypoint(id, new haven.MiniMap.Location(sessloc.seg, tc), sessloc, commit);
+            }
+
+            public void nohit(Coord pc) {
+                wpDragPending = false;
+            }
+        }.run();
+    }
+
+    private void endWorldWaypointDrag() {
+        if(wpGrab != null) {
+            wpGrab.remove();
+            wpGrab = null;
+        }
+        wpDragId = -1;
+        wpDragOrigin = null;
+        wpDragPending = false;
+    }
+
+    /** Hand cursor over a draggable waypoint node, and while one is being dragged. */
+    public boolean getcurs(Widget.CursorQuery ev) {
+        if((wpGrab != null) || (worldWaypointAt(ev.c) >= 0))
+            return(ev.set(wpcurs));
+        return(false);
+    }
+
+    private static final Resource wpcurs = Resource.local().loadwait("gfx/hud/curs/hand");
 
     public void initDummys()
     {
@@ -924,6 +1171,27 @@ public class NMapView extends MapView
     }
 
 
+    /**
+     * Highest area id the DB has handed out for this profile, tombstones
+     * included, or 0 when the DB is off / not yet polled.
+     */
+    public static int maxKnownDbAreaId()
+    {
+        try
+        {
+            if(nurgling.NCore.databaseManager == null || !nurgling.NCore.databaseManager.isReady())
+                return 0;
+            String profile = NUtils.getGameUI().getGenus();
+            if(profile == null || profile.isEmpty())
+                profile = "global";
+            return nurgling.NCore.databaseManager.getAreaService().getMaxKnownAreaId(profile);
+        }
+        catch(Exception e)
+        {
+            return 0;
+        }
+    }
+
     public String addArea(NArea.Space result)
     {
         String key;
@@ -938,6 +1206,15 @@ public class NMapView extends MapView
                     id = area.id + 1;
                 }
                 names.add(area.name);
+            }
+            // Deleted areas leave a tombstone row in the DB under their old id.
+            // Numbering only from the live areas hands a new area the id of a
+            // deleted one, and the sync poll then sees it as tombstoned and
+            // removes it again - so skip past every id the DB has ever used.
+            int dbId = maxKnownDbAreaId();
+            if(dbId >= id)
+            {
+                id = dbId + 1;
             }
             key = ("New Area" + String.valueOf(glob.map.areas.size()));
             while(names.contains(key))
@@ -994,6 +1271,12 @@ public class NMapView extends MapView
         if(markerLineOverlay != null) {
             markerLineOverlay.tick();
         }
+
+        // Refresh the movement-waypoint geometry
+        tickWorldOverlays();
+
+        // Keep following the pointer while the left button is held
+        tickHoldSteer();
 
         // Reconcile per-grid wall overlays against currently loaded grids
         updateGridWalls();
@@ -1177,6 +1460,18 @@ public class NMapView extends MapView
         // Block all clicks in DRAG mode to prevent character movement during UI adjustment
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
+        }
+
+        // Grab a movement waypoint drawn on the ground instead of walking there.
+        if(ev.b == 1 && wpGrab == null) {
+            long wpid = worldWaypointAt(ev.c);
+            if(wpid >= 0) {
+                wpDragOrigin = waypointWorldPos(wpid);
+                wpDragId = wpid;
+                wpDragPending = false;
+                wpGrab = ui.grabmouse(this);
+                return true;
+            }
         }
 
         // Base planner interactions — only active while the window is open.
@@ -1379,6 +1674,11 @@ public class NMapView extends MapView
             return true;
         }
 
+        // Press-and-hold steering arms last, so every other meaning of the left button
+        // keeps priority. The event is not consumed - the press stays a normal click.
+        if(ev.b == 1 && (ui.modflags() == 0) && canHoldSteer())
+            armHoldSteer(ev.c);
+
         return super.mousedown(ev);
     }
 
@@ -1423,11 +1723,30 @@ public class NMapView extends MapView
     @Override
     public void mousemove(MouseMoveEvent ev) {
         lastCoord = ev.c;
+        if(wpGrab != null) {
+            // Dragging a ground waypoint - don't let the camera/placement follow.
+            dragWorldWaypoint(ev.c, false);
+            return;
+        }
+        if(holdGrab != null) {
+            holdMove.pointer(ev.c);
+            steerHold(ev.c);
+        }
+        wpHoverId = worldWaypointAt(ev.c);
         super.mousemove(ev);
     }
     
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if((holdGrab != null) && (ev.b == 1))
+            endHoldSteer();
+        if(wpGrab != null) {
+            if(ev.b == 1) {
+                dragWorldWaypoint(ev.c, true);
+                endWorldWaypointDrag();
+            }
+            return true;
+        }
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
         }
@@ -1531,12 +1850,9 @@ public class NMapView extends MapView
             NUtils.getGameUI().msg("Bounding Boxes: " + (!val ? "enabled" : "disabled"));
             // The World panel stages this value on open and writes it back on Save, so an open
             // panel would otherwise revert what this hotkey just did.
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().opts != null
-                    && NUtils.getGameUI().opts.nqolwnd instanceof OptWnd.NSettingsPanel) {
-                OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) NUtils.getGameUI().opts.nqolwnd;
-                if (panel.settingsWindow != null && panel.settingsWindow.world != null)
-                    panel.settingsWindow.world.syncShowBB();
-            }
+            nurgling.widgets.nsettings.World world = openWorldPanel();
+            if (world != null)
+                world.syncShowBB();
         }
         if(kb_cyclebbmode.key().match(ev)) {
             String currentMode = (String) NConfig.get(NConfig.Key.bbDisplayMode);
@@ -1591,6 +1907,16 @@ public class NMapView extends MapView
             NUtils.getGameUI().msg("Damage overlays cleared");
             return true;
         }
+        if(kb_flatworld.key().match(ev)) {
+            nurgling.tools.FlatWorld.toggle();
+            NUtils.getGameUI().msg("Flat world: " + (nurgling.tools.FlatWorld.isEnabled() ? "enabled" : "disabled"));
+            // Same reason as the bounding box hotkey: an open World panel holds a staged copy of
+            // this value and would write it back over us on Save.
+            nurgling.widgets.nsettings.World world = openWorldPanel();
+            if (world != null)
+                world.syncFlatSurface();
+            return true;
+        }
         if(kb_togglenature.key().match(ev)) {
             // GobHide.setEnabled owns the sweep and the minimap button state; settings panels
             // re-read config in load() when they are opened, so nothing needs pushing to them.
@@ -1603,6 +1929,17 @@ public class NMapView extends MapView
         }
 
         return super.keydown(ev);
+    }
+
+    /** The World settings panel, if the user happens to have it open, otherwise null. */
+    private static nurgling.widgets.nsettings.World openWorldPanel() {
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null || gui.opts == null || !(gui.opts.nqolwnd instanceof OptWnd.NSettingsPanel))
+            return null;
+        OptWnd.NSettingsPanel panel = (OptWnd.NSettingsPanel) gui.opts.nqolwnd;
+        if (panel.settingsWindow == null)
+            return null;
+        return panel.settingsWindow.world;
     }
 
     /**
@@ -1898,25 +2235,55 @@ public class NMapView extends MapView
                 minGridObj.id, minLocal.x, minLocal.y,
                 maxGridObj.id, maxLocal.x, maxLocal.y);
             
-            // Send to chat
-            GameUI gui = NUtils.getGameUI();
-            if(gui != null && gui.chat != null) {
-                ChatUI.Channel chat = gui.chat.sel;
-                if(chat instanceof ChatUI.EntryChannel) {
-                    // If realm chat is open, send to location chat instead
-                    if(chat.getClass().getName().contains("Realm")) {
-                        ChatUI.Channel locationChat = gui.chat.findLocationChat();
-                        if(locationChat instanceof ChatUI.EntryChannel) {
-                            ((ChatUI.EntryChannel)locationChat).send(areaStr);
-                        }
-                    } else {
-                        ((ChatUI.EntryChannel)chat).send(areaStr);
-                    }
-                }
-            }
+            sendToSelectedChat(areaStr);
         } catch(Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Post a line to the chat channel the player currently has selected, which is what
+     * decides who sees a ping. Realm chat is redirected to the location channel, because
+     * a ping is addressed to the people around you, never to a whole realm.
+     */
+    public static boolean sendToSelectedChat(String line) {
+        GameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.chat == null)
+            return false;
+        ChatUI.Channel chat = gui.chat.sel;
+        if(!(chat instanceof ChatUI.EntryChannel))
+            return false;
+        if(chat.getClass().getName().contains("Realm"))
+            chat = gui.chat.findLocationChat();
+        if(!(chat instanceof ChatUI.EntryChannel))
+            return false;
+        ((ChatUI.EntryChannel)chat).send(line);
+        return true;
+    }
+
+    /**
+     * Broadcast a map ping for one tile, addressed by server grid id plus the tile's
+     * offset inside that grid - see {@link nurgling.PingService} for why that is the only
+     * coordinate the receiving clients can make sense of.
+     */
+    public static boolean sendPingToChat(long gridId, Coord local) {
+        return sendToSelectedChat(String.format("@Point(%d:%d,%d)", gridId, local.x, local.y));
+    }
+
+    /**
+     * Ping the tile under a world position, the counterpart of the alt-click object ping
+     * in MapView. Returns false when the grid is not loaded, which should not happen for
+     * a spot the player just clicked on but leaves the click to fall through if it does.
+     */
+    public boolean sendPointPing(Coord2d mc) {
+        Coord tc = mc.floor(MCache.tilesz);
+        MCache.Grid grid;
+        synchronized(glob.map.grids) {
+            grid = glob.map.grids.get(tc.div(MCache.cmaps));
+        }
+        if(grid == null)
+            return false;
+        return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
     public Collection<String> areas(){

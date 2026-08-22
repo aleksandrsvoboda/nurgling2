@@ -184,7 +184,9 @@ public class MapWnd extends Window implements Console.Directory {
 		}
 	    }
 	    /* XXX: Shift-clicks that do not drag should be propagated to the map. */
-	    if((ev.b == 1) && (checkhit(c) || ui.modshift)) {
+	    /* Alt+shift is excluded: it is the map ping (NMiniMap.sendPointPing), and this
+	     * blanket shift grab would otherwise eat it before the view ever sees it. */
+	    if((ev.b == 1) && (checkhit(c) || (ui.modshift && !ui.modmeta))) {
 		MapWnd.this.drag(parentpos(MapWnd.this, c));
 		return(true);
 	    }
@@ -1206,27 +1208,23 @@ public class MapWnd extends Window implements Console.Directory {
     public void importmap() {
 	FilePicker dialog = ui.wnd.toolkit().picker().make(FilePicker.Mode.OPEN, ui.wnd);
 	dialog.filter("Exported Haven map data", "hmap");
-	dialog.show().map(Promise.cnonnull(this::exportmap)).report(ui);
+	dialog.show().map(Promise.cnonnull(this::importmap)).report(ui);
     }
 
     private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();
     {
-	cmdmap.put("exportmap", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if(args.length > 1)
-			exportmap(Utils.path(args[1]));
-		    else
-			exportmap();
-		}
-	    });
-	cmdmap.put("importmap", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if(args.length > 1)
-			importmap(Utils.path(args[1]));
-		    else
-			importmap();
-		}
-	    });
+	cmdmap.put("exportmap", (cons, args) -> {
+	    if(args.length > 1)
+		exportmap(Utils.path(args[1]));
+	    else
+		exportmap();
+	});
+	cmdmap.put("importmap", (cons, args) -> {
+	    if(args.length > 1)
+		importmap(Utils.path(args[1]));
+	    else
+		importmap();
+	});
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);

@@ -29,6 +29,7 @@ package haven.resutil;
 import haven.*;
 import haven.render.*;
 import nurgling.*;
+import nurgling.tools.GobCustomize;
 
 import java.util.*;
 
@@ -36,12 +37,20 @@ public class CSprite extends Sprite {
     private final Coord3f cc;
     private final List<RenderTree.Node> parts = new ArrayList<>();
     private final Random rnd;
-    
+    private final Gob gob;
+    private final Collection<RenderTree.Slot> slots = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private float cscale;
+    private int cseq;
+    private String cname;
+
     public CSprite(Owner owner, Resource res) {
 	super(owner, res);
 	rnd = owner.context(RandomSource.class).mkrandoom();
-	Gob gob = owner.context(Gob.class);
+	this.gob = owner.context(Gob.class);
 	cc = gob.getrc();
+	cseq = GobCustomize.seq();
+	cname = (gob.ngob == null) ? null : gob.ngob.name;
+	cscale = GobCustomize.scaleOf(gob);
     }
 
     public void addpart(Location loc, Pipe.Op mat, RenderTree.Node part) {
@@ -66,9 +75,36 @@ public class CSprite extends Sprite {
 	addpart(xo, yo, (float)(rnd.nextFloat() * Math.PI * 2), mat, part);
     }
 
+    private Pipe.Op state() {
+	Pipe.Op back = Location.goback("gobx");
+	return((cscale == 1f) ? back : Pipe.Op.compose(back, Location.scale(cscale)));
+    }
+
     public void added(RenderTree.Slot slot) {
-	slot.ostate(Location.goback("gobx"));
+	slot.ostate(state());
 	for(RenderTree.Node p : parts)
 	    slot.add(p);
+	slots.add(slot);
+    }
+
+    public void removed(RenderTree.Slot slot) {
+	slots.remove(slot);
+    }
+
+    public boolean tick(double dt) {
+	int seq = GobCustomize.seq();
+	String name = (gob.ngob == null) ? null : gob.ngob.name;
+	if((seq != cseq) || (name != cname)) {
+	    cseq = seq;
+	    cname = name;
+	    float scale = GobCustomize.scaleOf(gob);
+	    if(scale != cscale) {
+		cscale = scale;
+		Pipe.Op st = state();
+		for(RenderTree.Slot slot : slots)
+		    slot.ostate(st);
+	    }
+	}
+	return(super.tick(dt));
     }
 }

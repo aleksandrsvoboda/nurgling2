@@ -51,6 +51,12 @@ public class NFightWnd extends FightWnd {
 	DropWidget(Coord sz) { super(sz); }
     }
 
+    /* Move-list row: must be a DTarget so that interacting with a held item
+     * (right-click with e.g. a parchment in hand) reaches the move. */
+    private static abstract class MoveItemWidget extends Widget implements DTarget {
+	MoveItemWidget(Coord sz) { super(sz); }
+    }
+
     private BufferedImage renderMoveInfo(Action act, int width) {
 	Resource res = act.res.get();
 	Coord imgSz = UI.scale(new Coord(76, 76));
@@ -153,7 +159,7 @@ public class NFightWnd extends FightWnd {
 	    @Override
 	    protected Widget makeitem(Action act, int idx, Coord sz) {
 		Actions al = this;
-		return new Widget(sz) {
+		return new MoveItemWidget(sz) {
 		    private UI.Grab mgrab;
 		    private Coord dp;
 		    private final Label use;
@@ -192,6 +198,10 @@ public class NFightWnd extends FightWnd {
 			    return true;
 			}
 			return super.mouseup(ev);
+		    }
+		    public boolean iteminteract(Coord cc, Coord ul) {
+			itemact(act);
+			return true;
 		    }
 		};
 	    }
