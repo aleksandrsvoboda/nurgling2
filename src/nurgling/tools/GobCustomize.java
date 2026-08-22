@@ -100,6 +100,12 @@ public class GobCustomize {
     /** res name -> settings. A resource at its defaults is absent rather than present-and-default. */
     private static volatile Map<String, Settings> conf = null;
 
+    private static volatile int seq = 0;
+
+    public static int seq() {
+        return seq;
+    }
+
     private static Map<String, Settings> conf() {
         Map<String, Settings> cur = conf;
         if (cur == null) {
@@ -172,6 +178,12 @@ public class GobCustomize {
         return settings(res).scale;
     }
 
+    public static float scaleOf(Gob gob) {
+        if (gob == null || gob.ngob == null)
+            return 1.0f;
+        return scalePercent(gob.ngob.name) / 100.0f;
+    }
+
     /**
      * Publishes new settings for a resource and shows them immediately, without saving. Used while
      * a slider is being dragged or a colour is being picked; {@link #commit} makes it permanent.
@@ -184,6 +196,7 @@ public class GobCustomize {
             conf().remove(res);
         else
             conf().put(res, s);
+        seq++;
         // Only push what actually moved. Dragging the size slider fires this ~60 times a second,
         // and re-adding the marker overlay each time would race its own deferred add.
         applyAll(res, prev.scale != s.scale,
