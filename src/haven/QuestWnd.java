@@ -246,7 +246,7 @@ public class QuestWnd extends Widget {
 
 	    public void uimsg(String msg, Object... args) {
 		if(msg == "conds") {
-			NUtils.setQuestConds(id,args);
+			NUtils.setQuestConds((nurgling.NGameUI)getparent(GameUI.class), id, args);
 		    int a = 0;
 		    List<Condition> ncond = new ArrayList<Condition>(args.length);
 		    while(a < args.length) {
@@ -690,6 +690,11 @@ public class QuestWnd extends Widget {
 	}
     }
 
+    /** The session this quest log belongs to, or null before it is parented. */
+    private nurgling.NGameUI gui() {
+	return((nurgling.NGameUI)getparent(GameUI.class));
+    }
+
     public void uimsg(String nm, Object... args) {
 	if(nm == "quests") {
 	    for(int i = 0; i < args.length;) {
@@ -716,7 +721,7 @@ public class QuestWnd extends Widget {
 			if(((fst == Quest.QST_PEND) || (fst == Quest.QST_DISABLED)) &&
 			   !((st == Quest.QST_PEND) || (st == Quest.QST_DISABLED))) {
 			    q.done(getparent(GameUI.class));
-			    NUtils.removeQuest(id);
+			    NUtils.removeQuest(gui(), id);
 			}
 		    }
 		    QuestList nl = ((q.done == Quest.QST_PEND) || (q.done == Quest.QST_DISABLED)) ? cqst : dqst;
@@ -726,14 +731,14 @@ public class QuestWnd extends Widget {
 			nl.add(q);
 			if(nl!=dqst)
 			{
-			    NUtils.addQuest(id);
+			    NUtils.addQuest(gui(), id);
 			}
 		    }
 		    nl.loading = true;
 		} else {
 		    cqst.remove(id);
 		    dqst.remove(id);
-		    NUtils.removeQuest(id);
+		    NUtils.removeQuest(gui(), id);
 		}
 	    }
 	} else {

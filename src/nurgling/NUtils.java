@@ -469,27 +469,25 @@ public class NUtils
         addTask(new nurgling.tasks.WaitKeyPress(KeyEvent.VK_N));
     }
 
-    public static void setQuestConds(int id, Object... args)
+    /**
+     * Quest hooks take the owning game UI explicitly: quest widgets belong to one session, and
+     * routing them through getGameUI() sent a background character's quests to whichever
+     * session happened to be on screen.
+     */
+    public static void setQuestConds(NGameUI gui, int id, Object... args)
     {
-        NGameUI gui = getGameUI();
-        if(gui!=null)
-        {
+        if(gui != null && gui.questinfo != null)
             gui.questinfo.updateConds(id, args);
-        }
     }
 
-    public static void removeQuest(int id) {
-        NGameUI gui = getGameUI();
-        if(gui!=null) {
+    public static void removeQuest(NGameUI gui, int id) {
+        if(gui != null && gui.questinfo != null)
             gui.questinfo.removeQuest(id);
-        }
     }
 
-    public static void addQuest(int id) {
-        NGameUI gui = getGameUI();
-        if(gui!=null) {
+    public static void addQuest(NGameUI gui, int id) {
+        if(gui != null && gui.questinfo != null)
             gui.questinfo.addQuest(id);
-        }
     }
 
     public static float getDeltaZ() {

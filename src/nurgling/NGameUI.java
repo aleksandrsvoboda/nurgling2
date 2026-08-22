@@ -183,7 +183,12 @@ public class NGameUI extends GameUI
         }
 
 
-        add(new NDraggableWidget(questinfo = new NQuestInfo(), "quests", questinfo.sz.add(NDraggableWidget.delta)));
+        // Resizable, like the minimap and chat: the tracker scrolls its own content, so the
+        // player sets the panel size instead of the quest log deciding it.
+        NResizableWidget questwdg = new NResizableWidget(
+            questinfo = new NQuestInfo(), "quests", questinfo.sz.add(NDraggableWidget.delta));
+        questwdg.minSize = new Coord(200, 110);
+        add(questwdg);
         add(new NDraggableWidget(recentActionsPanel = new NRecentActionsPanel(), "recentactions", recentActionsPanel.sz.add(NDraggableWidget.delta)));
         // Add drink meter widget to show water/tea capacity (uses IMeter.fsz to match other meters)
         drinkMeter = new DrinkMeter();
