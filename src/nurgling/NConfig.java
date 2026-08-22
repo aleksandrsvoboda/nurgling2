@@ -112,7 +112,7 @@ public class NConfig
         smokeprop,
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
-        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, dbGrantRole, dbStatsOverlay, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
+        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, dbGrantRole, dbStatsOverlay, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
@@ -337,6 +337,7 @@ public class NConfig
         conf.put(Key.simpleInspect, false);
         conf.put(Key.ndbenable, false);
         conf.put(Key.shareHearthSecret, true);
+        conf.put(Key.autoHearthSecret, true);
         conf.put(Key.dbGrantRole, "PUBLIC");
         conf.put(Key.dbStatsOverlay, false);
         conf.put(Key.harvestautorefill, false);
