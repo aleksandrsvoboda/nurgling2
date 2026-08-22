@@ -21,10 +21,13 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 9;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 10;
 
     /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_KIN_SECRETS = 9;
+
+    /** Version of the migration that creates fish_locations; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_FISH_LOCATIONS = 10;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -453,6 +456,44 @@ public class MigrationManager {
                         ")");
                     safeCreateIndex(adapter, "CREATE INDEX idx_ks_profile ON kin_secrets (profile)");
                     System.out.println("Created kin_secrets table");
+                }
+            }
+        });
+
+        /* Optional: fish_locations backs only the saved-fish-spot feature, which falls back to its JSON
+         * file when the table is missing. A role without CREATE on the schema must not lose area,
+         * planning and recipe sync over it. */
+        migrations.add(new Migration(10, "Create fish_locations table for shared fish spots", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (!adapter.tableExists("fish_locations")) {
+                    createTable(adapter, "fish_locations",
+                        "CREATE TABLE fish_locations (" +
+                        "id VARCHAR(64) PRIMARY KEY, " +
+                        "grid_id BIGINT NOT NULL, " +
+                        "ox INTEGER NOT NULL, " +
+                        "oy INTEGER NOT NULL, " +
+                        "fish_name VARCHAR(255) NOT NULL, " +
+                        "fish_res VARCHAR(512), " +
+                        "percentage VARCHAR(32), " +
+                        "game_time VARCHAR(32), " +
+                        "moon_phase VARCHAR(64), " +
+                        "rod VARCHAR(255), " +
+                        "hook VARCHAR(255), " +
+                        "line VARCHAR(255), " +
+                        "bait VARCHAR(255), " +
+                        "caught_at BIGINT, " +
+                        "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                        "version INTEGER NOT NULL DEFAULT 1, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "last_touched_by VARCHAR(255), " +
+                        "last_touched_at TIMESTAMP, " +
+                        "deleted_at TIMESTAMP" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_fl_profile ON fish_locations (profile)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_fl_deleted ON fish_locations (deleted_at)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_fl_grid ON fish_locations (profile, grid_id)");
+                    System.out.println("Created fish_locations table");
                 }
             }
         });
