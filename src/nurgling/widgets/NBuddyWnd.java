@@ -43,8 +43,14 @@ public class NBuddyWnd extends BuddyWnd
     private Label pullStatus;
     /** Secrets still to be replayed, as {their character, secret}. Filled off the UI thread. */
     private final ConcurrentLinkedQueue<String[]> pullQueue = new ConcurrentLinkedQueue<>();
-    /** Sends of this pull that have not been written to the applied cache yet. */
-    private final Map<String, String> pullSentSecrets = new LinkedHashMap<>();
+    /**
+     * What the database returned, as {their character, secret}, waiting to be turned into a send
+     * queue. The database thread cannot do that itself: deciding what to send means reading the
+     * kin list, which belongs to the UI thread.
+     */
+    private volatile List<String[]> pullRows = null;
+    /** Shift-click: send to everyone in the database, current kin included. */
+    private volatile boolean pullForce = false;
     private volatile boolean pullLoading = false;
     /** True from the moment the database answers until the completion report is shown. */
     private volatile boolean pullRunning = false;
@@ -52,12 +58,6 @@ public class NBuddyWnd extends BuddyWnd
     private int pullSent = 0;
     private int pullAdded = 0;
     private int pullRecoloured = 0;
-    /**
-     * Every character the database knows about, handed over by the pull for the one-off recolour
-     * pass. Not filtered by the applied cache: kin that are already there are exactly the ones
-     * this pass exists for.
-     */
-    private volatile Set<String> pendingGreen = null;
     private double lastSend = 0;
     /** Latest status text; applied to the label from tick() so only the UI thread touches it. */
     private volatile String statusText = "";
@@ -77,7 +77,6 @@ public class NBuddyWnd extends BuddyWnd
     private volatile String lastPublished = null;
     private double lastPublishTry = 0;
 
-    private NKinSecretCache secrets = null;
 
     private NKinNotes notes = null;
     /** Last string actually rendered per kin, so the per-tick refresh stops re-rasterising
@@ -158,19 +157,6 @@ public class NBuddyWnd extends BuddyWnd
         return((gui == null) ? null : gui.chrid);
     }
 
-    /** Per-world record of which secrets this client has already replayed. */
-    private NKinSecretCache secrets()
-    {
-        if(secrets == null)
-        {
-            String genus = genus();
-            if(genus == null)
-                return(null);
-            secrets = NKinSecretCache.get(genus);
-        }
-        return(secrets);
-    }
-
     private void status(String text)
     {
         statusText = (text == null) ? "" : text;
@@ -239,33 +225,24 @@ public class NBuddyWnd extends BuddyWnd
            });
     }
 
-    /** Runs on a database thread: builds the send list, never touches a widget. */
+    /** Runs on a database thread: keeps the rows, decides nothing. */
     private void onPullLoaded(List<KinSecretDao.KinSecret> rows, String mine, boolean force)
     {
-        NKinSecretCache cache = secrets();
-        Set<String> known = new HashSet<>();
-        int queued = 0;
+        List<String[]> keep = new ArrayList<>();
         for(KinSecretDao.KinSecret ks : rows)
         {
             if((ks.charName == null) || ks.charName.isEmpty())
                 continue;
             if(ks.charName.equals(mine))
                 continue;
-            known.add(ks.charName);
-            if(!force && (cache != null) && cache.isApplied(mine, ks.charName, ks.secret))
-                continue;
-            pullQueue.add(new String[]{ks.charName, ks.secret});
-            queued++;
+            keep.add(new String[]{ks.charName, ks.secret});
         }
-        System.out.println("[KinSecrets] pull read " + rows.size() + " row(s); " + known.size()
-            + " other character(s): " + known + "; " + queued + " to send, "
-            + (known.size() - queued) + " suppressed by the applied cache");
-        pendingGreen = known;
-        pullTotal = queued;
+        System.out.println("[KinSecrets] pull read " + rows.size() + " row(s), "
+            + keep.size() + " other character(s)");
+        pullForce = force;
+        pullRows = keep;
         pullRunning = true;
         pullLoading = false;
-        if(queued > 0)
-            status(L10n.get("kin.pull_progress", 0, queued));
     }
 
     /** True while incoming kin should be attributed to the pull we are running. */
@@ -275,47 +252,63 @@ public class NBuddyWnd extends BuddyWnd
     }
 
     /**
-     * Colour kin that the database knows about but this pull will not add, because they are kin
-     * already.
+     * Turn the database rows into work, on the UI thread because it needs the kin list.
      * <p>
-     * Hearth-secret kinship is mutual, so a character accumulates kin it never asked for: when a
-     * friend pulls, both sides become kin and this side's entry is left in the default group. Those
-     * are exactly the people this feature is about, so a pull recolours them too rather than only
-     * the ones it added itself.
+     * The rule is presence, not history: send to every character the database knows that is not
+     * currently kin, and recolour the ones that are. An earlier version remembered what it had
+     * already sent and skipped those, which quietly broke the obvious case - delete a kin, pull
+     * again, and nothing happened, because the record said the secret had been sent once. What
+     * matters is whether the kinship exists now, and the kin list answers that directly.
      * <p>
-     * Matching is by name, which is the only handle the kin list has - the info panel carries an
-     * avatar and a last-seen time, never the underlying character name. A kin whose name was
-     * changed, locally or by a presentation name, therefore will not match.
+     * Matching is by name, the only handle the kin list has: the info panel carries an avatar and
+     * a last-seen time, never the underlying character name. A kin shown under a presentation
+     * name or a local nickname will not match, so their secret is re-sent on every pull. That is
+     * harmless - they are already kin, so the server has nothing to do - and it is the safe way
+     * to be wrong, because the alternative was failing to add someone who really was missing.
      */
-    private void greenexisting()
+    private void preparepull()
     {
-        Set<String> known = pendingGreen;
-        if(known == null)
+        List<String[]> rows = pullRows;
+        if(rows == null)
             return;
-        pendingGreen = null;
-        Set<String> unmatched = new HashSet<>(known);
-        List<String> kin = new ArrayList<>();
+        pullRows = null;
+
+        Set<String> known = new HashSet<>();
+        for(String[] r : rows)
+            known.add(r[0]);
+
+        Set<String> kin = new HashSet<>();
         for(Buddy b : this)
         {
             kin.add(b.name);
-            unmatched.remove(b.name);
             if((b.group != GREEN_GROUP) && known.contains(b.name))
             {
                 b.chgrp(GREEN_GROUP);
                 pullRecoloured++;
             }
         }
-        /* The unmatched list is the one that matters when a pull "does nothing": those characters
-         * are in the database but no kin entry carries that name, which is what a presentation
-         * name or a local nickname looks like from here. */
-        System.out.println("[KinSecrets] recolour: " + pullRecoloured + " kin turned green; "
-            + kin.size() + " kin in list " + kin + "; database names with no matching kin " + unmatched);
+
+        List<String> missing = new ArrayList<>();
+        for(String[] r : rows)
+        {
+            if(!pullForce && kin.contains(r[0]))
+                continue;
+            pullQueue.add(r);
+            missing.add(r[0]);
+        }
+        pullTotal = pullQueue.size();
+
+        System.out.println("[KinSecrets] " + kin.size() + " kin in list " + kin
+            + "; recoloured " + pullRecoloured + "; sending to " + pullTotal + " not currently kin "
+            + missing + (pullForce ? " (forced: current kin included)" : ""));
+        if(pullTotal > 0)
+            status(L10n.get("kin.pull_progress", 0, pullTotal));
     }
 
-    /** Recolour pass, paced drain of the send queue, and the completion report. */
+    /** Prepare, paced drain of the send queue, and the completion report. */
     private void tickpull(double now)
     {
-        greenexisting();
+        preparepull();
         if(!pullQueue.isEmpty() && ((now - lastSend) >= SEND_INTERVAL))
         {
             String[] entry = pullQueue.poll();
@@ -323,36 +316,25 @@ public class NBuddyWnd extends BuddyWnd
             {
                 lastSend = now;
                 pullSent++;
-                pullSentSecrets.put(entry[0], entry[1]);
                 wdgmsg("bypwd", entry[1]);
                 status(L10n.get("kin.pull_progress", pullSent, pullTotal));
             }
         }
         /* Nothing sent means nothing can still be on its way, so a pull that only recoloured
          * reports at once instead of sitting through the grace period. */
-        if(pullRunning && pullQueue.isEmpty() && (pendingGreen == null)
+        if(pullRunning && (pullRows == null) && pullQueue.isEmpty()
            && ((pullSent == 0) || ((now - lastSend) > SEND_GRACE)))
         {
-            flushapplied();
             if((pullAdded == 0) && (pullRecoloured == 0))
                 status(L10n.get("kin.pull_uptodate"));
             else
                 status(L10n.get("kin.pull_done", pullAdded, pullRecoloured));
+            System.out.println("[KinSecrets] pull done: " + pullAdded + " added, "
+                + pullRecoloured + " recoloured");
             pullRunning = false;
             pullTotal = 0;
             pullSent = 0;
         }
-    }
-
-    /** Write the whole pull to the applied cache in one go rather than once per send. */
-    private void flushapplied()
-    {
-        if(pullSentSecrets.isEmpty())
-            return;
-        NKinSecretCache cache = secrets();
-        if(cache != null)
-            cache.markAllApplied(myChar(), pullSentSecrets);
-        pullSentSecrets.clear();
     }
 
     // ------------------------------------------------------------- publish
@@ -420,7 +402,8 @@ public class NBuddyWnd extends BuddyWnd
      * A character without one is invisible to every other client's pull - silently, since nothing
      * distinguishes it from a character nobody has met. Generating one closes that hole, but it
      * does change server-side state unasked, so it happens only when the player is actually
-     * sharing secrets to a database, and never for a character whose secret they cleared by hand.
+     * sharing secrets to a database. Clearing a secret by hand holds for the rest of the session;
+     * turning it off for good is what the autoHearthSecret option is for.
      * <p>
      * Two ways to conclude there is no secret: the server states an empty one, which is
      * definitive and acted on immediately, or it states nothing at all within
@@ -444,14 +427,6 @@ public class NBuddyWnd extends BuddyWnd
         String mine = myChar();
         if((mine == null) || mine.isEmpty())
             return;
-        NKinSecretCache cache = secrets();
-        if((cache != null) && cache.isAutogenSuppressed(mine))
-        {
-            autogenDone = true;
-            System.out.println("[KinSecrets] char=" + mine + " has no hearth secret, but it was"
-                + " cleared deliberately; leaving it alone");
-            return;
-        }
         autogenDone = true;
         System.out.println("[KinSecrets] char=" + mine + " has no hearth secret; generating one");
         /* setpwd sends it to the server, fills the text box, and queues the publish. Running
@@ -476,22 +451,18 @@ public class NBuddyWnd extends BuddyWnd
     public void setpwd(String pass)
     {
         super.setpwd(pass);
-        String mine = myChar();
-        NKinSecretCache cache = secrets();
         if((pass == null) || pass.isEmpty())
         {
-            /* Clear is the only unambiguous "this character should have no secret", so it both
-             * stops generation now and survives to the next login. */
+            /* Clearing holds for this session, so the button visibly works instead of being undone
+             * on the next tick. It is deliberately not persisted: the only durable way to say a
+             * character should have no secret is the autoHearthSecret option, because a remembered
+             * per-character opt-out is invisible and silently keeps the feature off forever. */
             autogenDone = true;
             haveSecret = false;
-            if(cache != null)
-                cache.suppressAutogen(mine);
         }
         else
         {
             haveSecret = true;
-            if(cache != null)
-                cache.allowAutogen(mine);
         }
         queuePublish(pass);
     }
@@ -760,13 +731,6 @@ public class NBuddyWnd extends BuddyWnd
                     b.chgrp(GREEN_GROUP);
             }
         }
-    }
-
-    @Override
-    public void destroy()
-    {
-        flushapplied();
-        super.destroy();
     }
 
 }
