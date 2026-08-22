@@ -29,6 +29,15 @@ public class NBuddyWnd extends BuddyWnd
     private static final double SEND_GRACE = 10.0;
     /** Seconds between attempts to hand a pending secret to a database that is not up yet. */
     private static final double PUBLISH_RETRY = 3.0;
+    /**
+     * How long to wait for the server to state this character's hearth secret before concluding
+     * there is none. Only used when no "pwd" message arrives at all; an explicit empty one is
+     * acted on at once.
+     */
+    private static final double AUTOGEN_GRACE = 10.0;
+    private static final String PWCHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    /** A hearth secret is a credential: worth a real CSPRNG rather than Math.random()'s LCG. */
+    private static final java.security.SecureRandom PWRNG = new java.security.SecureRandom();
 
     private Button pullBtn;
     private Label pullStatus;
@@ -53,6 +62,15 @@ public class NBuddyWnd extends BuddyWnd
     /** Latest status text; applied to the label from tick() so only the UI thread touches it. */
     private volatile String statusText = "";
     private String shownStatus = null;
+
+    /** When this widget was built, i.e. roughly when the server started stating its contents. */
+    private final double created = Utils.rtime();
+    /** Set once the server has told us this character's secret, whatever its value. */
+    private boolean sawPwd = false;
+    /** Set once a non-empty secret is known, from the server or from the player. */
+    private boolean haveSecret = false;
+    /** Generation is attempted at most once per widget, whatever the outcome. */
+    private boolean autogenDone = false;
 
     /** Secret that still has to reach the database. Empty string means "delete my row". */
     private volatile String pendingPublish = null;
@@ -175,7 +193,10 @@ public class NBuddyWnd extends BuddyWnd
     private void startPull(boolean force)
     {
         if(pullLoading || pullRunning)
+        {
+            System.out.println("[KinSecrets] pull ignored, one is already running");
             return;
+        }
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable))
         {
             status(L10n.get("kin.pull_db_off"));
@@ -191,6 +212,7 @@ public class NBuddyWnd extends BuddyWnd
         KinSecretService svc = kinsvc();
         if(svc == null)
         {
+            System.out.println("[KinSecrets] pull aborted: no kin secret service");
             /* A connected database with no service means its table could not be created - a
              * missing DDL grant, usually - which is a different problem from the database being
              * switched off, and needs a different fix. */
@@ -205,12 +227,14 @@ public class NBuddyWnd extends BuddyWnd
         pullAdded = 0;
         pullRecoloured = 0;
         status(L10n.get("kin.pull_loading"));
+        System.out.println("[KinSecrets] pull starting: char=" + mine + " profile=" + profile
+            + (force ? " (forced, ignoring applied cache)" : ""));
         svc.loadAsync(profile)
            .thenAccept(rows -> onPullLoaded(rows, mine, force))
            .exceptionally(e -> {
                pullLoading = false;
                status(L10n.get("kin.pull_failed"));
-               System.out.println("[NBuddyWnd] kin secret pull failed: " + e.getMessage());
+               System.out.println("[KinSecrets] pull FAILED: " + e.getMessage());
                return(null);
            });
     }
@@ -233,6 +257,9 @@ public class NBuddyWnd extends BuddyWnd
             pullQueue.add(new String[]{ks.charName, ks.secret});
             queued++;
         }
+        System.out.println("[KinSecrets] pull read " + rows.size() + " row(s); " + known.size()
+            + " other character(s): " + known + "; " + queued + " to send, "
+            + (known.size() - queued) + " suppressed by the applied cache");
         pendingGreen = known;
         pullTotal = queued;
         pullRunning = true;
@@ -266,14 +293,23 @@ public class NBuddyWnd extends BuddyWnd
         if(known == null)
             return;
         pendingGreen = null;
+        Set<String> unmatched = new HashSet<>(known);
+        List<String> kin = new ArrayList<>();
         for(Buddy b : this)
         {
+            kin.add(b.name);
+            unmatched.remove(b.name);
             if((b.group != GREEN_GROUP) && known.contains(b.name))
             {
                 b.chgrp(GREEN_GROUP);
                 pullRecoloured++;
             }
         }
+        /* The unmatched list is the one that matters when a pull "does nothing": those characters
+         * are in the database but no kin entry carries that name, which is what a presentation
+         * name or a local nickname looks like from here. */
+        System.out.println("[KinSecrets] recolour: " + pullRecoloured + " kin turned green; "
+            + kin.size() + " kin in list " + kin + "; database names with no matching kin " + unmatched);
     }
 
     /** Recolour pass, paced drain of the send queue, and the completion report. */
@@ -358,19 +394,105 @@ public class NBuddyWnd extends BuddyWnd
             return;
         pendingPublish = null;
         lastPublished = secret;
+        /* The secret itself is never logged. */
+        System.out.println("[KinSecrets] publishing " + (secret.isEmpty() ? "(cleared)" : "secret")
+            + " for char=" + mine + " profile=" + profile);
         (secret.isEmpty() ? svc.deleteAsync(profile, mine) : svc.publishAsync(profile, mine, secret))
-            .exceptionally(e -> {
-                System.out.println("[NBuddyWnd] failed to publish hearth secret: " + e.getMessage());
-                lastPublished = null;
-                pendingPublish = secret;
-                return(null);
+            .whenComplete((v, e) -> {
+                if(e == null)
+                {
+                    System.out.println("[KinSecrets] publish ok for char=" + mine);
+                }
+                else
+                {
+                    System.out.println("[KinSecrets] publish FAILED for char=" + mine + ": " + e.getMessage());
+                    lastPublished = null;
+                    pendingPublish = secret;
+                }
             });
+    }
+
+    // ---------------------------------------------------------- autogenerate
+
+    /**
+     * Give this character a hearth secret if it has none.
+     * <p>
+     * A character without one is invisible to every other client's pull - silently, since nothing
+     * distinguishes it from a character nobody has met. Generating one closes that hole, but it
+     * does change server-side state unasked, so it happens only when the player is actually
+     * sharing secrets to a database, and never for a character whose secret they cleared by hand.
+     * <p>
+     * Two ways to conclude there is no secret: the server states an empty one, which is
+     * definitive and acted on immediately, or it states nothing at all within
+     * {@link #AUTOGEN_GRACE}. The latter is the fallback for a server that simply omits the
+     * message when there is nothing to report.
+     */
+    private void tickautogen(double now)
+    {
+        if(autogenDone || haveSecret)
+            return;
+        if(!sawPwd && ((now - created) < AUTOGEN_GRACE))
+            return;
+        if(!(Boolean) NConfig.get(NConfig.Key.autoHearthSecret))
+            return;
+        /* Do not touch the character unless the secret is going somewhere useful. Checked every
+         * tick rather than once, so switching the database on mid-session takes effect without
+         * relogging - the same way a pending publish waits for it. */
+        if(!(Boolean) NConfig.get(NConfig.Key.shareHearthSecret)
+           || !(Boolean) NConfig.get(NConfig.Key.ndbenable))
+            return;
+        String mine = myChar();
+        if((mine == null) || mine.isEmpty())
+            return;
+        NKinSecretCache cache = secrets();
+        if((cache != null) && cache.isAutogenSuppressed(mine))
+        {
+            autogenDone = true;
+            System.out.println("[KinSecrets] char=" + mine + " has no hearth secret, but it was"
+                + " cleared deliberately; leaving it alone");
+            return;
+        }
+        autogenDone = true;
+        System.out.println("[KinSecrets] char=" + mine + " has no hearth secret; generating one");
+        /* setpwd sends it to the server, fills the text box, and queues the publish. Running
+         * before tickpublish means the generated secret replaces the pending delete that the
+         * empty "pwd" queued, so the row is written once instead of deleted and re-added. */
+        setpwd(randomsecret());
+        GameUI gui = getparent(GameUI.class);
+        if(gui != null)
+            gui.msg(L10n.get("kin.autogen_msg"), java.awt.Color.YELLOW);
+        status(L10n.get("kin.autogen_status"));
+    }
+
+    private static String randomsecret()
+    {
+        StringBuilder buf = new StringBuilder(8);
+        for(int i = 0; i < 8; i++)
+            buf.append(PWCHARS.charAt(PWRNG.nextInt(PWCHARS.length())));
+        return(buf.toString());
     }
 
     @Override
     public void setpwd(String pass)
     {
         super.setpwd(pass);
+        String mine = myChar();
+        NKinSecretCache cache = secrets();
+        if((pass == null) || pass.isEmpty())
+        {
+            /* Clear is the only unambiguous "this character should have no secret", so it both
+             * stops generation now and survives to the next login. */
+            autogenDone = true;
+            haveSecret = false;
+            if(cache != null)
+                cache.suppressAutogen(mine);
+        }
+        else
+        {
+            haveSecret = true;
+            if(cache != null)
+                cache.allowAutogen(mine);
+        }
         queuePublish(pass);
     }
 
@@ -536,6 +658,7 @@ public class NBuddyWnd extends BuddyWnd
         double now = Utils.rtime();
         /* Publishing and the pull drain run whether or not the window is on screen: the player
          * may well close it right after pressing the button. */
+        tickautogen(now);
         tickpublish(now);
         tickpull(now);
         if(!statusText.equals(shownStatus))
@@ -618,7 +741,11 @@ public class NBuddyWnd extends BuddyWnd
         {
             /* The server states this character's current secret when the widget is created, which
              * covers characters whose secret was set long before this feature existed. */
-            queuePublish(((args.length > 0) && (args[0] instanceof String)) ? (String) args[0] : "");
+            String cur = ((args.length > 0) && (args[0] instanceof String)) ? (String) args[0] : "";
+            sawPwd = true;
+            if(!cur.isEmpty())
+                haveSecret = true;
+            queuePublish(cur);
         }
         else if(msg.equals("add") && pullActive())
         {
@@ -628,6 +755,7 @@ public class NBuddyWnd extends BuddyWnd
             if(b != null)
             {
                 pullAdded++;
+                System.out.println("[KinSecrets] pull added kin '" + b.name + "' (id " + b.id + ")");
                 if(b.group != GREEN_GROUP)
                     b.chgrp(GREEN_GROUP);
             }

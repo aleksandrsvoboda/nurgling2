@@ -3,11 +3,14 @@ package nurgling.conf;
 import nurgling.NConfig;
 import nurgling.profiles.ConfigFactory;
 import nurgling.tools.NFileUtils;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Record of which shared hearth secrets have already been replayed to the game server.
@@ -26,6 +29,12 @@ public class NKinSecretCache {
     private final String path;
     /** my character -> (their character -> secret already sent) */
     private final Map<String, Map<String, String>> applied = new HashMap<>();
+    /**
+     * My characters that must not have a hearth secret generated for them. Set when the player
+     * clears their secret by hand: that is the one unambiguous statement that this character is
+     * meant to have none, and it has to outlive the session or the next login would undo it.
+     */
+    private final Set<String> noautogen = new HashSet<>();
 
     /** One instance per world, shared by every session on it. */
     public static synchronized NKinSecretCache get(String genus) {
@@ -64,9 +73,18 @@ public class NKinSecretCache {
                 if (!row.isEmpty())
                     applied.put(mine, row);
             }
+            JSONArray no = root.optJSONArray("noautogen");
+            if (no != null) {
+                for (int i = 0; i < no.length(); i++) {
+                    String name = no.optString(i, "");
+                    if (!name.isEmpty())
+                        noautogen.add(name);
+                }
+            }
         } catch (org.json.JSONException e) {
             System.err.println("[NKinSecretCache] corrupt " + FILE + ", starting empty: " + e.getMessage());
             applied.clear();
+            noautogen.clear();
         }
     }
 
@@ -77,6 +95,7 @@ public class NKinSecretCache {
         JSONObject root = new JSONObject();
         root.put("version", 1);
         root.put("applied", chars);
+        root.put("noautogen", new JSONArray(noautogen));
         try {
             NFileUtils.writeAtomically(path, root.toString());
         } catch (IOException e) {
@@ -126,6 +145,23 @@ public class NKinSecretCache {
     /** Forget everything this character has sent, so the next pull re-sends the whole list. */
     public synchronized void forget(String myChar) {
         if (applied.remove(key(myChar)) != null)
+            save();
+    }
+
+    /** True if this character opted out of having a hearth secret generated for it. */
+    public synchronized boolean isAutogenSuppressed(String myChar) {
+        return (noautogen.contains(key(myChar)));
+    }
+
+    /** Record that this character is meant to have no hearth secret. */
+    public synchronized void suppressAutogen(String myChar) {
+        if (noautogen.add(key(myChar)))
+            save();
+    }
+
+    /** Undo the opt-out, for when the player sets a secret by hand after having cleared one. */
+    public synchronized void allowAutogen(String myChar) {
+        if (noautogen.remove(key(myChar)))
             save();
     }
 
