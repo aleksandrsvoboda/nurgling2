@@ -37,9 +37,18 @@ public class NBuddyWnd extends BuddyWnd
     /** Sends of this pull that have not been written to the applied cache yet. */
     private final Map<String, String> pullSentSecrets = new LinkedHashMap<>();
     private volatile boolean pullLoading = false;
+    /** True from the moment the database answers until the completion report is shown. */
+    private volatile boolean pullRunning = false;
     private volatile int pullTotal = 0;
     private int pullSent = 0;
     private int pullAdded = 0;
+    private int pullRecoloured = 0;
+    /**
+     * Every character the database knows about, handed over by the pull for the one-off recolour
+     * pass. Not filtered by the applied cache: kin that are already there are exactly the ones
+     * this pass exists for.
+     */
+    private volatile Set<String> pendingGreen = null;
     private double lastSend = 0;
     /** Latest status text; applied to the label from tick() so only the UI thread touches it. */
     private volatile String statusText = "";
@@ -165,9 +174,7 @@ public class NBuddyWnd extends BuddyWnd
      */
     private void startPull(boolean force)
     {
-        /* pullTotal stays set through the grace period after the last send, so this also stops a
-         * second click from wiping the tally before the report is shown. */
-        if(pullLoading || (pullTotal > 0) || !pullQueue.isEmpty())
+        if(pullLoading || pullRunning)
             return;
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable))
         {
@@ -196,6 +203,7 @@ public class NBuddyWnd extends BuddyWnd
         pullTotal = 0;
         pullSent = 0;
         pullAdded = 0;
+        pullRecoloured = 0;
         status(L10n.get("kin.pull_loading"));
         svc.loadAsync(profile)
            .thenAccept(rows -> onPullLoaded(rows, mine, force))
@@ -211,6 +219,7 @@ public class NBuddyWnd extends BuddyWnd
     private void onPullLoaded(List<KinSecretDao.KinSecret> rows, String mine, boolean force)
     {
         NKinSecretCache cache = secrets();
+        Set<String> known = new HashSet<>();
         int queued = 0;
         for(KinSecretDao.KinSecret ks : rows)
         {
@@ -218,28 +227,59 @@ public class NBuddyWnd extends BuddyWnd
                 continue;
             if(ks.charName.equals(mine))
                 continue;
+            known.add(ks.charName);
             if(!force && (cache != null) && cache.isApplied(mine, ks.charName, ks.secret))
                 continue;
             pullQueue.add(new String[]{ks.charName, ks.secret});
             queued++;
         }
+        pendingGreen = known;
         pullTotal = queued;
+        pullRunning = true;
         pullLoading = false;
-        if(queued == 0)
-            status(L10n.get("kin.pull_uptodate"));
-        else
+        if(queued > 0)
             status(L10n.get("kin.pull_progress", 0, queued));
     }
 
     /** True while incoming kin should be attributed to the pull we are running. */
     private boolean pullActive()
     {
-        return((pullTotal > 0) && (lastSend > 0) && ((Utils.rtime() - lastSend) < SEND_GRACE));
+        return(pullRunning && (lastSend > 0) && ((Utils.rtime() - lastSend) < SEND_GRACE));
     }
 
-    /** Paced drain of the send queue, plus the completion report. */
+    /**
+     * Colour kin that the database knows about but this pull will not add, because they are kin
+     * already.
+     * <p>
+     * Hearth-secret kinship is mutual, so a character accumulates kin it never asked for: when a
+     * friend pulls, both sides become kin and this side's entry is left in the default group. Those
+     * are exactly the people this feature is about, so a pull recolours them too rather than only
+     * the ones it added itself.
+     * <p>
+     * Matching is by name, which is the only handle the kin list has - the info panel carries an
+     * avatar and a last-seen time, never the underlying character name. A kin whose name was
+     * changed, locally or by a presentation name, therefore will not match.
+     */
+    private void greenexisting()
+    {
+        Set<String> known = pendingGreen;
+        if(known == null)
+            return;
+        pendingGreen = null;
+        for(Buddy b : this)
+        {
+            if((b.group != GREEN_GROUP) && known.contains(b.name))
+            {
+                b.chgrp(GREEN_GROUP);
+                pullRecoloured++;
+            }
+        }
+    }
+
+    /** Recolour pass, paced drain of the send queue, and the completion report. */
     private void tickpull(double now)
     {
+        greenexisting();
         if(!pullQueue.isEmpty() && ((now - lastSend) >= SEND_INTERVAL))
         {
             String[] entry = pullQueue.poll();
@@ -252,10 +292,17 @@ public class NBuddyWnd extends BuddyWnd
                 status(L10n.get("kin.pull_progress", pullSent, pullTotal));
             }
         }
-        if((pullTotal > 0) && pullQueue.isEmpty() && ((now - lastSend) > SEND_GRACE))
+        /* Nothing sent means nothing can still be on its way, so a pull that only recoloured
+         * reports at once instead of sitting through the grace period. */
+        if(pullRunning && pullQueue.isEmpty() && (pendingGreen == null)
+           && ((pullSent == 0) || ((now - lastSend) > SEND_GRACE)))
         {
             flushapplied();
-            status(L10n.get("kin.pull_done", pullAdded));
+            if((pullAdded == 0) && (pullRecoloured == 0))
+                status(L10n.get("kin.pull_uptodate"));
+            else
+                status(L10n.get("kin.pull_done", pullAdded, pullRecoloured));
+            pullRunning = false;
             pullTotal = 0;
             pullSent = 0;
         }
