@@ -17,6 +17,17 @@ public class NStyle {
     public static final Color titleBg  = new Color(0x1C, 0x25, 0x26); // title bar bg
     public static final Color separator = new Color(40, 52, 54);      // #283436
 
+    // === Quest tracker ===
+    public static final Color questCredo     = new Color(126, 198, 194); // credo group title
+    public static final Color questGiver     = new Color(217, 127, 59);  // quest giver with own quests
+    public static final Color questGiverIdle = new Color(147, 131, 131); // giver only referenced by others
+    public static final Color questWorld     = new Color(143, 169, 217); // world/chapter quest title
+    public static final Color questReady     = new Color(122, 209, 122); // has a quest ready to hand in
+    public static final Color questCond      = new Color(222, 205, 171); // objective line
+    public static final Color questCondDone  = new Color(122, 175, 122); // satisfied objective
+    public static final Color questDim       = new Color(143, 163, 164); // counters, chevrons, hints
+    public static final Color questHover     = new Color(255, 255, 255, 26);
+
     /**
      * Resolves the window content-area background color, honoring the user's
      * runtime solid-background / opacity / color settings when running under NUI.

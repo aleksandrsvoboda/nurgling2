@@ -178,6 +178,7 @@ public class NConfig
         alarmDelayFrames,
         alwaysObfuscate,
         boughbeeprop,
+        questtrackerprop,
         foragerprop,
         trufflepigprop,
         buttonStyle,
@@ -1058,6 +1059,9 @@ public class NConfig
                                 break;
                             case "NBoughBeeProp":
                                 res.add(new NBoughBeeProp(obj));
+                                break;
+                            case "NQuestTrackerProp":
+                                res.add(new NQuestTrackerProp(obj));
                                 break;
                             case "NForagerProp":
                                 res.add(new NForagerProp(obj));
