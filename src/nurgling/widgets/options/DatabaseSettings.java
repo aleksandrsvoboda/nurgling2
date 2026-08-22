@@ -25,12 +25,14 @@ public class DatabaseSettings extends Panel {
     private Label hostLabel, userLabel, passLabel, fileLabel;
     private Button initDbButton;
     private CheckBox enableCheckbox;
+    private CheckBox shareHsCheckbox;
     private Dropbox<String> dbType;
     private final int labelWidth = UI.scale(80); // РЁРёСЂРёРЅР° Р»РµР№Р±Р»РѕРІ
     private final int entryX = UI.scale(110);    // X-РєРѕРѕСЂРґРёРЅР°С‚Р° РґР»СЏ TextEntry (was 90, increased for better space)
     private final int margin = UI.scale(10);
 
     private boolean enabled;
+    private boolean shareHs;
     private String dbTypeStr;
     private String host, user, pass, dbPath;
 
@@ -46,7 +48,17 @@ public class DatabaseSettings extends Panel {
                 updateWidgetsVisibility();
             }
         }, new Coord(margin, y));
-        y += enableCheckbox.sz.y + UI.scale(8);
+        y += enableCheckbox.sz.y + UI.scale(5);
+
+        // Publish this character's hearth secret to the shared database
+        prev = shareHsCheckbox = add(new CheckBox(L10n.get("database.share_hearth_secret")) {
+            public void set(boolean val) {
+                a = val;
+                shareHs = val;
+            }
+        }, new Coord(margin, y));
+        shareHsCheckbox.tooltip = Text.render(L10n.get("database.share_hearth_secret_tip")).tex();
+        y += shareHsCheckbox.sz.y + UI.scale(8);
 
         // Р—Р°РіРѕР»РѕРІРѕРє СЂР°Р·РґРµР»Р°
         prev = add(new Label(L10n.get("database.settings")), new Coord(margin, y));
@@ -179,6 +191,8 @@ public class DatabaseSettings extends Panel {
     public void load() {
         enabled = getBool(NConfig.Key.ndbenable);
         enableCheckbox.a = enabled;
+        shareHs = getBool(NConfig.Key.shareHearthSecret);
+        shareHsCheckbox.a = shareHs;
 
         boolean isPostgres = getBool(NConfig.Key.postgres);
         dbTypeStr = isPostgres ? "PostgreSQL" : "SQLite";
@@ -202,6 +216,7 @@ public class DatabaseSettings extends Panel {
         boolean wasEnabled = (Boolean) NConfig.get(NConfig.Key.ndbenable);
         
         NConfig.set(NConfig.Key.ndbenable, enabled);
+        NConfig.set(NConfig.Key.shareHearthSecret, shareHs);
         boolean isPostgres = "PostgreSQL".equals(dbTypeStr);
         NConfig.set(NConfig.Key.postgres, isPostgres);
         NConfig.set(NConfig.Key.sqlite, !isPostgres);

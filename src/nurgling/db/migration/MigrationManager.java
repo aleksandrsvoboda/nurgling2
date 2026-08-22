@@ -7,7 +7,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Database migration manager that handles schema updates
@@ -19,7 +21,10 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 8;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 9;
+
+    /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_KIN_SECRETS = 9;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -40,7 +45,15 @@ public class MigrationManager {
         this.adapter = adapter;
     }
 
-    public void runMigrations() throws SQLException {
+    /**
+     * Apply every migration the database is behind on.
+     *
+     * @return the optional migrations that could not be applied, as version -> reason. An empty
+     *         map means the schema is fully up to date. Migrations that are not
+     *         {@link Migration#optional} still throw, because the core schema has to be right
+     *         before anything writes to it.
+     */
+    public Map<Integer, String> runMigrations() throws SQLException {
         boolean versionTableExists = checkVersionTableExists();
         int currentVersion = 0;
 
@@ -52,6 +65,7 @@ public class MigrationManager {
             throw new SchemaTooNewException(CLIENT_MAX_SCHEMA_VERSION, currentVersion);
         }
 
+        Map<Integer, String> skipped = new LinkedHashMap<>();
         List<Migration> migrations = getMigrations();
         System.out.println("Current schema version: " + currentVersion + ", available migrations: " + migrations.size());
         for (Migration migration : migrations) {
@@ -72,10 +86,23 @@ public class MigrationManager {
                 } catch (SQLException e) {
                     connection.rollback();
                     System.err.println("Migration " + migration.version + " failed: " + e.getMessage());
-                    throw e;
+                    if (!migration.optional) {
+                        throw e;
+                    }
+                    /* An optional migration only backs one feature, so the rest of the client keeps
+                     * working without it. Its version is deliberately NOT recorded, so it is retried
+                     * on the next start once whatever blocked it (usually a missing DDL grant) is
+                     * fixed. That is also why nothing after it may run: recording a later version
+                     * would bury this one for good. */
+                    skipped.put(migration.version, e.getMessage());
+                    System.err.println("Migration " + migration.version + " is optional; continuing without it"
+                        + ((migrations.indexOf(migration) < migrations.size() - 1)
+                           ? " (later migrations deferred until it succeeds)" : ""));
+                    break;
                 }
             }
         }
+        return skipped;
     }
 
     private boolean checkVersionTableExists() {
@@ -103,6 +130,7 @@ public class MigrationManager {
         Statement stmt = connection.createStatement();
         stmt.executeUpdate(createTableQuery);
         stmt.close();
+        grantDml(adapter, "schema_version");
         System.out.println("Created schema_version table");
     }
 
@@ -139,7 +167,7 @@ public class MigrationManager {
                     String createFavoriteRecipes = "CREATE TABLE favorite_recipes (" +
                                                   "recipe_hash VARCHAR(64) PRIMARY KEY REFERENCES recipes (recipe_hash) ON DELETE CASCADE" +
                                                   ")";
-                    adapter.executeUpdate(createFavoriteRecipes);
+                    createTable(adapter, "favorite_recipes", createFavoriteRecipes);
                     System.out.println("Created favorite_recipes table");
                 }
 
@@ -225,7 +253,7 @@ public class MigrationManager {
                             "profile VARCHAR(255) DEFAULT 'global', " +  // profile/genus for filtering
                             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                             ")";
-                    adapter.executeUpdate(createAreasSql);
+                    createTable(adapter, "areas", createAreasSql);
                     System.out.println("Created areas table");
 
                     // Create index for faster profile-based queries
@@ -282,7 +310,7 @@ public class MigrationManager {
                             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                             "PRIMARY KEY (id, profile)" +
                             ")";
-                    adapter.executeUpdate(createRoutesSql);
+                    createTable(adapter, "routes", createRoutesSql);
                     System.out.println("Created routes table");
 
                     String createIndexSql = "CREATE INDEX idx_routes_profile ON routes (profile)";
@@ -345,7 +373,7 @@ public class MigrationManager {
                 // per-user preference stored alongside the DB in
                 // planning_view.nurgling.json.
                 if (!adapter.tableExists("planning_folders")) {
-                    adapter.executeUpdate(
+                    createTable(adapter, "planning_folders",
                         "CREATE TABLE planning_folders (" +
                         "id VARCHAR(36) PRIMARY KEY, " +
                         "name VARCHAR(255) NOT NULL, " +
@@ -363,7 +391,7 @@ public class MigrationManager {
                 }
 
                 if (!adapter.tableExists("planning_layers")) {
-                    adapter.executeUpdate(
+                    createTable(adapter, "planning_layers",
                         "CREATE TABLE planning_layers (" +
                         "id VARCHAR(36) PRIMARY KEY, " +
                         "parent_folder_id VARCHAR(36), " +
@@ -383,7 +411,7 @@ public class MigrationManager {
                 }
 
                 if (!adapter.tableExists("planning_ghosts")) {
-                    adapter.executeUpdate(
+                    createTable(adapter, "planning_ghosts",
                         "CREATE TABLE planning_ghosts (" +
                         "id VARCHAR(36) PRIMARY KEY, " +
                         "layer_id VARCHAR(36) NOT NULL, " +
@@ -408,7 +436,102 @@ public class MigrationManager {
             }
         });
 
+        /* Optional: kin_secrets backs only the Kith & Kin "pull from database" button. A role
+         * without CREATE on the schema (the Postgres 15 default for a non-owner) must not lose
+         * area, planning and recipe sync over it. */
+        migrations.add(new Migration(9, "Create kin_secrets table for shared hearth secrets", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (!adapter.tableExists("kin_secrets")) {
+                    createTable(adapter, "kin_secrets",
+                        "CREATE TABLE kin_secrets (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "char_name VARCHAR(255) NOT NULL, " +
+                        "secret VARCHAR(255) NOT NULL, " +
+                        "updated_at TIMESTAMP, " +
+                        "PRIMARY KEY (profile, char_name)" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_ks_profile ON kin_secrets (profile)");
+                    System.out.println("Created kin_secrets table");
+                }
+            }
+        });
+
         return migrations;
+    }
+
+    /**
+     * Create a table and immediately hand out DML on it.
+     * <p>
+     * PostgreSQL grants nothing on a new table to anyone but its owner, so a table created by the
+     * one client whose role has DDL rights would stay unusable - in fact invisible, since
+     * information_schema filters by privilege - to every other role sharing the database. Granting
+     * at creation time is what lets a single privileged launch set the schema up for the whole
+     * village instead of someone having to run SQL by hand after every schema change.
+     */
+    private static void createTable(DatabaseAdapter adapter, String table, String ddl) throws SQLException {
+        adapter.executeUpdate(ddl);
+        grantDml(adapter, table);
+    }
+
+    /**
+     * Role that gets DML on tables this client creates. Defaults to PUBLIC, i.e. every role that
+     * can connect to this database, which is what a shared village database wants. Set
+     * {@code dbGrantRole} in the config to a group role instead if the database also carries roles
+     * that must not get write access.
+     */
+    private static String grantee() {
+        Object cfg = null;
+        try {
+            cfg = nurgling.NConfig.get(nurgling.NConfig.Key.dbGrantRole);
+        } catch (Exception | LinkageError ignore) {
+            /* Reading a preference must never be what breaks a migration; fall back to the default. */
+        }
+        String role = (cfg == null) ? "" : String.valueOf(cfg).trim();
+        if (role.isEmpty() || role.equalsIgnoreCase("PUBLIC")) {
+            return "PUBLIC";
+        }
+        /* The value is an identifier spliced into DDL, so it cannot go through a parameter. Only
+         * a plain unquoted identifier is accepted; anything else is refused rather than escaped. */
+        if (!role.matches("[A-Za-z_][A-Za-z0-9_$]*")) {
+            System.err.println("[MigrationManager] dbGrantRole '" + role
+                + "' is not a plain identifier; skipping grants");
+            return null;
+        }
+        return role;
+    }
+
+    /**
+     * Grant DML on one table. Wrapped in a savepoint because a failed statement aborts the whole
+     * PostgreSQL transaction, which would take the migration's own version bump down with it - and
+     * a missing grant is worth a warning, not a failed migration. No-op outside PostgreSQL, which
+     * is the only back end here that has grants at all.
+     */
+    private static void grantDml(DatabaseAdapter adapter, String table) {
+        if (!(adapter instanceof nurgling.db.PostgresAdapter)) {
+            return;
+        }
+        String role = grantee();
+        if (role == null) {
+            return;
+        }
+        Connection conn = adapter.getConnection();
+        java.sql.Savepoint sp = null;
+        try {
+            sp = conn.setSavepoint("nurgling_grant");
+            adapter.executeUpdate("GRANT SELECT, INSERT, UPDATE, DELETE ON " + table + " TO " + role);
+            conn.releaseSavepoint(sp);
+            System.out.println("Granted DML on " + table + " to " + role);
+        } catch (SQLException e) {
+            if (sp != null) {
+                try {
+                    conn.rollback(sp);
+                } catch (SQLException ignore) {
+                }
+            }
+            System.err.println("[MigrationManager] could not grant on " + table + " to " + role
+                + " (" + e.getMessage() + "); other roles may need the grant applied by hand");
+        }
     }
 
     private static void safeCreateIndex(DatabaseAdapter adapter, String sql) throws SQLException {
@@ -533,10 +656,21 @@ public class MigrationManager {
     public abstract static class Migration {
         final int version;
         final String description;
+        /**
+         * True for a migration that only backs one optional feature. If it fails, the client still
+         * initialises and everything else keeps syncing; the feature reports itself unavailable.
+         * A migration that touches the core schema must stay required.
+         */
+        final boolean optional;
 
         Migration(int version, String description) {
+            this(version, description, false);
+        }
+
+        Migration(int version, String description, boolean optional) {
             this.version = version;
             this.description = description;
+            this.optional = optional;
         }
 
         abstract void run(DatabaseAdapter adapter) throws SQLException;

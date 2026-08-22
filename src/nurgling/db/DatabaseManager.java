@@ -27,6 +27,13 @@ public class DatabaseManager {
     private StorageItemService storageItemService;
     private AreaService areaService;
     private nurgling.db.service.PlanningService planningService;
+    private KinSecretService kinSecretService;
+
+    /**
+     * Optional migrations the database refused, as version -> reason. Their features report
+     * themselves unavailable; everything else initialises normally.
+     */
+    private volatile java.util.Map<Integer, String> skippedMigrations = java.util.Collections.emptyMap();
 
     // Task queue for retry logic
     private final BlockingQueue<QueuedTask<?>> taskQueue = new LinkedBlockingQueue<>(1000);
@@ -275,7 +282,7 @@ public class DatabaseManager {
 
                 try {
                     // Run migrations FIRST using this connection
-                    runMigrations(conn);
+                    this.skippedMigrations = runMigrations(conn);
 
                     // Initialize services after migrations
                     initializeServices();
@@ -283,6 +290,7 @@ public class DatabaseManager {
                     initialized = true;
                     System.out.println("DatabaseManager initialized successfully with " +
                                      DatabaseAdapterFactory.getDatabaseType());
+                    reportSkippedMigrations();
                 } catch (nurgling.db.migration.MigrationManager.SchemaTooNewException stne) {
                     // Schema mismatch - leave manager uninitialized so sync skips itself.
                     // Surface the error to any active game UI.
@@ -308,27 +316,53 @@ public class DatabaseManager {
      * Initialize service layer
      */
     private void initializeServices() {
+        // Services whose table could not be created are left null; callers treat that as
+        // "feature unavailable" rather than "database down".
         this.recipeService = new RecipeService(this);
         this.favoriteRecipeService = new FavoriteRecipeService(this);
         this.containerService = new ContainerService(this);
         this.storageItemService = new StorageItemService(this);
         this.areaService = new AreaService(this);
         this.planningService = new nurgling.db.service.PlanningService(this);
+        this.kinSecretService =
+            skippedMigrations.containsKey(nurgling.db.migration.MigrationManager.MIGRATION_KIN_SECRETS)
+                ? null : new KinSecretService(this);
+    }
+
+    /** Tell the player once which feature the database would not let this client set up. */
+    private void reportSkippedMigrations() {
+        for (java.util.Map.Entry<Integer, String> e : skippedMigrations.entrySet()) {
+            String feature = (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_KIN_SECRETS)
+                ? "Kin secret sync" : ("Schema update " + e.getKey());
+            System.err.println("[DatabaseManager] " + feature + " unavailable: " + e.getValue());
+            try {
+                if (nurgling.NUtils.getGameUI() != null) {
+                    nurgling.NUtils.getGameUI().msg(feature + " unavailable: " + e.getValue(),
+                        java.awt.Color.ORANGE);
+                }
+            } catch (Exception ignore) {}
+        }
+    }
+
+    /** Optional migrations this database refused, as version -> reason. Empty when all applied. */
+    public java.util.Map<Integer, String> getSkippedMigrations() {
+        return skippedMigrations;
     }
 
     /**
      * Run database migrations using the provided connection
      */
-    private void runMigrations(Connection conn) throws SQLException {
+    private java.util.Map<Integer, String> runMigrations(Connection conn) throws SQLException {
         System.out.println("DatabaseManager: Starting migration check...");
         try {
             // Create adapter for this specific connection
             DatabaseAdapter migrationAdapter = DatabaseAdapterFactory.createAdapter(conn);
             System.out.println("DatabaseManager: Running migrations...");
             nurgling.db.migration.MigrationManager migrationManager = new nurgling.db.migration.MigrationManager(conn, migrationAdapter);
-            migrationManager.runMigrations();
+            java.util.Map<Integer, String> skipped = migrationManager.runMigrations();
             conn.commit();
             System.out.println("DatabaseManager: Migrations completed");
+            return skipped;
         } catch (nurgling.db.migration.MigrationManager.SchemaTooNewException stne) {
             // Hard stop: do not initialize services, do not allow sync.
             System.err.println("ABORT: " + stne.getMessage());
@@ -537,6 +571,13 @@ public class DatabaseManager {
     }
 
     /**
+     * Get kin secret service (shared hearth secrets).
+     */
+    public KinSecretService getKinSecretService() {
+        return kinSecretService;
+    }
+
+    /**
      * Reconnect to database
      */
     public synchronized void reconnect() {
@@ -550,6 +591,8 @@ public class DatabaseManager {
         }
         adapter = null;
         initialized = false;
+        skippedMigrations = java.util.Collections.emptyMap();
+        kinSecretService = null;
         
         // Create new executor and reinitialize
         this.executorService = Executors.newFixedThreadPool(threadPoolSize, r -> {
