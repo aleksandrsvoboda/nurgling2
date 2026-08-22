@@ -100,11 +100,6 @@ public class GobCustomize {
     /** res name -> settings. A resource at its defaults is absent rather than present-and-default. */
     private static volatile Map<String, Settings> conf = null;
 
-    /**
-     * Bumped whenever any resource's settings change. Sprites that have to poll for their own
-     * size - see {@link haven.resutil.CSprite} - compare this instead of looking their resource
-     * up every tick, which matters when a barley field puts a few thousand of them on screen.
-     */
     private static volatile int seq = 0;
 
     public static int seq() {
@@ -183,11 +178,6 @@ public class GobCustomize {
         return settings(res).scale;
     }
 
-    /**
-     * The configured size of a gob's type as a plain factor, 1 when it has not been resized.
-     * For sprites that have to apply the size themselves rather than let
-     * {@link nurgling.gattrr.NGobCustomScale} do it.
-     */
     public static float scaleOf(Gob gob) {
         if (gob == null || gob.ngob == null)
             return 1.0f;
