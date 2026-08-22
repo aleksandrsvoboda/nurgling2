@@ -7,6 +7,7 @@ import haven.WItem;
 import nurgling.*;
 import nurgling.actions.*;
 import nurgling.areas.NContext;
+import nurgling.tasks.ISRemoved;
 import nurgling.tasks.WaitItems;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
@@ -23,6 +24,9 @@ public class RabbitMaster implements Action {
     private static final NAlias HUTCH_RES = new NAlias("gfx/terobjs/rabbithutch");
     private static final NAlias BUCK_ALIAS = new NAlias("Rabbit Buck");
     private static final NAlias DOE_ALIAS = new NAlias("Rabbit Doe");
+    private static final NAlias DEAD_RABBIT_ALIAS = new NAlias("Dead Rabbit");
+    private static final NAlias RABBIT_CARCASS_ALIAS = new NAlias("Rabbit Carcass");
+    private static final NAlias CLEAN_RABBIT_CARCASS_ALIAS = new NAlias("Clean Rabbit Carcass");
     private static final String BUNNY_NAME = "Bunny Rabbit";
     private static final NAlias BUNNY_ALIAS = new NAlias(BUNNY_NAME);
 
@@ -210,8 +214,9 @@ public class RabbitMaster implements Action {
                 if (wi == null) {
                     break;
                 }
+                int oldDeadRabbitSize = invHolder[0].getItems(DEAD_RABBIT_ALIAS).size();
                 new SelectFlowerAction("Wring neck", wi).run(gui);
-                NUtils.addTask(new WaitItems(invHolder[0], new NAlias("Dead Rabbit"), 1));
+                NUtils.addTask(new WaitItems(invHolder[0], DEAD_RABBIT_ALIAS, oldDeadRabbitSize + 1));
 
                 if (gui.getInventory().getFreeSpace() < 2) {
                     freeInv.run(gui);
@@ -220,19 +225,10 @@ public class RabbitMaster implements Action {
                     openContainer(gui, h.container);
                     invHolder[0] = gui.getInventory(HUTCH_NAME);
                 }
-                wi = invHolder[0].getItem(new NAlias("Dead Rabbit"));
-                int oldFurSize = gui.getInventory().getItems(new NAlias("Fresh Rabbit Fur")).size();
+                wi = invHolder[0].getItem(DEAD_RABBIT_ALIAS);
+                int oldCarcassSize = invHolder[0].getItems(RABBIT_CARCASS_ALIAS).size();
                 new SelectFlowerAction("Flay", wi).run(gui);
-                NUtils.addTask(new NTask() {
-                    @Override
-                    public boolean check() {
-                        try {
-                            return gui.getInventory().getItems(new NAlias("Fresh Rabbit Fur")).size() > oldFurSize;
-                        } catch (InterruptedException e) {
-                            return false;
-                        }
-                    }
-                });
+                NUtils.addTask(new WaitItems(invHolder[0], RABBIT_CARCASS_ALIAS, oldCarcassSize + 1));
 
                 if (gui.getInventory().getFreeSpace() < 1) {
                     freeInv.run(gui);
@@ -241,19 +237,10 @@ public class RabbitMaster implements Action {
                     openContainer(gui, h.container);
                     invHolder[0] = gui.getInventory(HUTCH_NAME);
                 }
-                wi = invHolder[0].getItem(new NAlias("Rabbit Carcass"));
-                int oldEntrailsSize = gui.getInventory().getItems(new NAlias("Entrails")).size();
+                wi = invHolder[0].getItem(RABBIT_CARCASS_ALIAS);
+                int oldCleanCarcassSize = invHolder[0].getItems(CLEAN_RABBIT_CARCASS_ALIAS).size();
                 new SelectFlowerAction("Clean", wi).run(gui);
-                NUtils.addTask(new NTask() {
-                    @Override
-                    public boolean check() {
-                        try {
-                            return gui.getInventory().getItems(new NAlias("Entrails")).size() > oldEntrailsSize;
-                        } catch (InterruptedException e) {
-                            return false;
-                        }
-                    }
-                });
+                NUtils.addTask(new WaitItems(invHolder[0], CLEAN_RABBIT_CARCASS_ALIAS, oldCleanCarcassSize + 1));
 
                 if (gui.getInventory().getFreeSpace() < 5) {
                     freeInv.run(gui);
@@ -262,21 +249,10 @@ public class RabbitMaster implements Action {
                     openContainer(gui, h.container);
                     invHolder[0] = gui.getInventory(HUTCH_NAME);
                 }
-                wi = invHolder[0].getItem(new NAlias("Clean Rabbit Carcass"));
-                int oldMeatSize = gui.getInventory().getItems(new NAlias("Raw Rabbit")).size();
-                int oldBoneSize = gui.getInventory().getItems(new NAlias("Bone Material")).size();
+                wi = invHolder[0].getItem(CLEAN_RABBIT_CARCASS_ALIAS);
+                int cleanCarcassWidgetId = wi.item.wdgid();
                 new SelectFlowerAction("Butcher", wi).run(gui);
-                NUtils.addTask(new NTask() {
-                    @Override
-                    public boolean check() {
-                        try {
-                            return gui.getInventory().getItems(new NAlias("Raw Rabbit")).size() > oldMeatSize
-                                && gui.getInventory().getItems(new NAlias("Bone Material")).size() > oldBoneSize;
-                        } catch (InterruptedException e) {
-                            return false;
-                        }
-                    }
-                });
+                NUtils.addTask(new ISRemoved(cleanCarcassWidgetId));
             }
 
             closeContainer(gui, h.container);
