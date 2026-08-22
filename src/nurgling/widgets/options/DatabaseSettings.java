@@ -24,6 +24,7 @@ public class DatabaseSettings extends Panel {
     private TextEntry filePathEntry;
     private Label hostLabel, userLabel, passLabel, fileLabel;
     private Button initDbButton;
+    private Button seedFishButton;
     private CheckBox enableCheckbox;
     private CheckBox shareHsCheckbox;
     private Dropbox<String> dbType;
@@ -183,6 +184,20 @@ public class DatabaseSettings extends Panel {
             }
         }, new Coord(margin, firstSettingY + filePathEntry.sz.y + UI.scale(5)));
 
+        y += UI.scale(10);
+
+        /* The one bridge between the JSON file and the database. Fish locations are file OR database -
+         * nothing crosses automatically - so this is how spots saved before the database existed get
+         * carried over. Idempotent, because a row id is derived from the spot's position and fish. */
+        seedFishButton = add(new Button(UI.scale(200), L10n.get("database.seed_fish")) {
+            @Override
+            public void click() {
+                super.click();
+                seedFishLocations();
+            }
+        }, new Coord(margin, y));
+        seedFishButton.tooltip = Text.render(L10n.get("database.seed_fish_tip")).tex();
+
         load();
         updateWidgetsVisibility();
     }
@@ -237,6 +252,11 @@ public class DatabaseSettings extends Panel {
             }
             // Reload areas from database
             reloadAreasFromDatabase();
+            // Fish locations have their own sync worker; make it re-read on its next tick too.
+            if (nurgling.NCore.databaseManager != null
+                && nurgling.NCore.databaseManager.getFishLocationService() != null) {
+                nurgling.NCore.databaseManager.getFishLocationService().requestReload();
+            }
         } else if (wasEnabled) {
             // DB was enabled but now disabled - reload areas from file
             reloadAreasFromFile();
@@ -365,5 +385,49 @@ public class DatabaseSettings extends Panel {
     }
     private String asString(Object v) {
         return v == null ? "" : v.toString();
+    }
+
+    /**
+     * Import this world's fish location file into the database.
+     *
+     * <p>Reads the file rather than the in-memory map: in database mode that map already holds database
+     * rows, and the point of the action is to bring across what the file still has.
+     */
+    private void seedFishLocations() {
+        nurgling.NGameUI gui = nurgling.NUtils.getGameUI();
+        if (gui == null || gui.fishLocationService == null) return;
+
+        if (!getBool(NConfig.Key.ndbenable) || nurgling.NCore.databaseManager == null
+            || !nurgling.NCore.databaseManager.isReady()) {
+            gui.msg(L10n.get("database.seed_fish_need_db"), Color.YELLOW);
+            return;
+        }
+
+        nurgling.db.service.FishLocationSeeder seeder =
+            nurgling.NCore.databaseManager.getFishLocationSeeder();
+        if (seeder == null) {
+            // The optional migration that creates the table was refused on this database.
+            gui.msg(L10n.get("database.seed_fish_unavailable"), Color.ORANGE);
+            return;
+        }
+
+        final String dataFile = gui.fishLocationService.getDataFile();
+        final String profile = gui.fishLocationService.profile();
+
+        seeder.seedAsync(gui, dataFile, profile)
+            .thenAccept(r -> {
+                gui.msg(L10n.get("database.seed_fish_result",
+                    r.inserted, r.alreadyPresent, r.refreshed, r.unresolvable, r.skippedDeleted),
+                    Color.GREEN);
+                // Pull the new rows into the live map instead of waiting for them to trickle in.
+                if (nurgling.NCore.databaseManager != null
+                    && nurgling.NCore.databaseManager.getFishLocationService() != null) {
+                    nurgling.NCore.databaseManager.getFishLocationService().requestReload();
+                }
+            })
+            .exceptionally(e -> {
+                gui.msg(L10n.get("database.seed_fish_failed", String.valueOf(e.getMessage())), Color.RED);
+                return null;
+            });
     }
 }

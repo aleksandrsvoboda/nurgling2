@@ -261,8 +261,17 @@ public class NCore extends Widget
                     // Start area and route sync after database is initialized
                     startAreaSync();
                     startPlanningSync();
+                    startFishSync();
                 }
             }
+        }
+
+        /* The database may not have been ready at the moment it was constructed (a slow or briefly
+         * unreachable server), in which case the start above was a no-op. Retry until it takes; the
+         * started flag makes this free once sync is running. */
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !fishSyncStarted)
+        {
+            startFishSync();
         }
 
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null)
@@ -271,6 +280,7 @@ public class NCore extends Widget
                 if (databaseManager != null) {
                     stopAreaSync();
                     stopPlanningSync();
+                    stopFishSync();
                     databaseManager.shutdown();
                     databaseManager = null;
                 }
@@ -838,6 +848,7 @@ public class NCore extends Widget
 
     private static volatile boolean areaSyncStarted = false;
     private static volatile boolean planningSyncStarted = false;
+    private static volatile boolean fishSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;
 
     /**
@@ -989,6 +1000,28 @@ public class NCore extends Widget
             databaseManager.getAreaService().stopSync();
         }
         areaSyncStarted = false;
+    }
+
+    /**
+     * Start fish location DB sync. Nothing is pushed on the toggle: fish spots are file OR database,
+     * and carrying the file's contents over is the explicit seed action in Database settings.
+     */
+    private void startFishSync() {
+        if (fishSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            return;
+        }
+        nurgling.db.service.FishLocationDbService svc = databaseManager.getFishLocationService();
+        if (svc == null) return;   // optional migration was refused; fish stay on their file
+
+        svc.startSync(4);
+        fishSyncStarted = true;
+    }
+
+    private void stopFishSync() {
+        if (databaseManager != null && databaseManager.getFishLocationService() != null) {
+            databaseManager.getFishLocationService().stopSync();
+        }
+        fishSyncStarted = false;
     }
 
     /**

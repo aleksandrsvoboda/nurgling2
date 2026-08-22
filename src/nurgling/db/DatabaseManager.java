@@ -28,6 +28,8 @@ public class DatabaseManager {
     private AreaService areaService;
     private nurgling.db.service.PlanningService planningService;
     private KinSecretService kinSecretService;
+    private nurgling.db.service.FishLocationDbService fishLocationService;
+    private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
 
     /**
      * Optional migrations the database refused, as version -> reason. Their features report
@@ -327,13 +329,46 @@ public class DatabaseManager {
         this.kinSecretService =
             skippedMigrations.containsKey(nurgling.db.migration.MigrationManager.MIGRATION_KIN_SECRETS)
                 ? null : new KinSecretService(this);
+        /* Ask the database whether the table is really there rather than trusting the skipped map.
+         * Two ways it can be absent while nothing is reported as skipped:
+         *   - an earlier OPTIONAL migration failed, which breaks the migration loop, so migration 10
+         *     is deferred and never appears in skippedMigrations at all;
+         *   - on PostgreSQL the table exists but this role has no privileges on it, in which case
+         *     information_schema hides it and every query would fail anyway.
+         * Both must degrade to "fish stay on their JSON file", never to "fish silently disappear". */
+        boolean fishOk = tableUsable("fish_locations");
+        this.fishLocationService = fishOk ? new nurgling.db.service.FishLocationDbService(this) : null;
+        this.fishLocationSeeder = fishOk ? new nurgling.db.service.FishLocationSeeder(this) : null;
+        if (!fishOk) {
+            System.err.println("[DatabaseManager] fish_locations unavailable; "
+                + "fish locations stay on their JSON file");
+        }
+    }
+
+    /**
+     * Whether a table is present AND reachable by this connection's role. Any failure answers "no":
+     * a feature that cannot verify its own table must not be wired up.
+     */
+    private boolean tableUsable(String table) {
+        try {
+            return adapter != null && adapter.tableExists(table);
+        } catch (SQLException e) {
+            System.err.println("[DatabaseManager] cannot check for table " + table + ": " + e.getMessage());
+            return false;
+        }
     }
 
     /** Tell the player once which feature the database would not let this client set up. */
     private void reportSkippedMigrations() {
         for (java.util.Map.Entry<Integer, String> e : skippedMigrations.entrySet()) {
-            String feature = (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_KIN_SECRETS)
-                ? "Kin secret sync" : ("Schema update " + e.getKey());
+            String feature;
+            if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_KIN_SECRETS) {
+                feature = "Kin secret sync";
+            } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_FISH_LOCATIONS) {
+                feature = "Fish location sync";
+            } else {
+                feature = "Schema update " + e.getKey();
+            }
             System.err.println("[DatabaseManager] " + feature + " unavailable: " + e.getValue());
             try {
                 if (nurgling.NUtils.getGameUI() != null) {
@@ -575,6 +610,21 @@ public class DatabaseManager {
      */
     public KinSecretService getKinSecretService() {
         return kinSecretService;
+    }
+
+    /**
+     * Get fish location service (shared fish spots). Null when the optional migration that creates the
+     * table was refused, in which case fish locations stay on their JSON file.
+     */
+    public nurgling.db.service.FishLocationDbService getFishLocationService() {
+        return fishLocationService;
+    }
+
+    /**
+     * Get the file-to-database importer for fish locations (the manual seed action).
+     */
+    public nurgling.db.service.FishLocationSeeder getFishLocationSeeder() {
+        return fishLocationSeeder;
     }
 
     /**
