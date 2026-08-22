@@ -370,7 +370,10 @@ public class DatabaseSettings extends Panel {
 
         // РџРµСЂРµСѓРїР°РєРѕРІС‹РІР°РµРј РІРёРґР¶РµС‚
         pack();
-        sz.y = UI.scale(200);
+        /* pack() sizes to VISIBLE children only, so the panel would shrink whenever a mode hides half
+         * its widgets - hence the fixed floor. It has to stay a floor, though: assigning the height
+         * outright clips anything sitting below it, which is what hid the seed button. */
+        sz.y = Math.max(sz.y, UI.scale(200));
     }
 
     private LinkedList<String> getDbTypes() {
