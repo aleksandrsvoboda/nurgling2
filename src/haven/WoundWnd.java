@@ -130,7 +130,9 @@ public class WoundWnd extends Widget {
 
     public static class WoundBox extends ImageInfoBox implements Wound.Info {
 	public final int id;
-	private List<ItemInfo> info;
+	/* Nurgling: protected so overriding renderinfo() implementations (NWoundBox) can arm the
+	 * tick() re-render guard below; leaving it private makes the box re-render every frame. */
+	protected List<ItemInfo> info;
 
 	public WoundBox(int id) {
 	    super(Coord.z);
