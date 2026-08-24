@@ -30,6 +30,7 @@ public class DatabaseManager {
     private KinSecretService kinSecretService;
     private nurgling.db.service.FishLocationDbService fishLocationService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
+    private nurgling.db.service.MapDbService mapDbService;
 
     /**
      * Optional migrations the database refused, as version -> reason. Their features report
@@ -343,6 +344,18 @@ public class DatabaseManager {
             System.err.println("[DatabaseManager] fish_locations unavailable; "
                 + "fish locations stay on their JSON file");
         }
+        /* Checked the same way as fish_locations, and for the same two reasons: an earlier optional
+         * migration failing defers this one without ever listing it as skipped, and on PostgreSQL a
+         * table this role has no privileges on is hidden rather than reported. Either way the map
+         * window keeps its file-based Export/Import and only the database buttons go quiet. */
+        boolean mapOk = tableUsable("map_grids")
+            && tableUsable("map_grid_placements")
+            && tableUsable("map_markers");
+        this.mapDbService = mapOk ? new nurgling.db.service.MapDbService(this) : null;
+        if (!mapOk) {
+            System.err.println("[DatabaseManager] shared map tables unavailable; "
+                + "map sharing stays on Export.../Import... files");
+        }
     }
 
     /**
@@ -366,6 +379,8 @@ public class DatabaseManager {
                 feature = "Kin secret sync";
             } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_FISH_LOCATIONS) {
                 feature = "Fish location sync";
+            } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_MAP_DATA) {
+                feature = "Map sharing";
             } else {
                 feature = "Schema update " + e.getKey();
             }
@@ -628,6 +643,15 @@ public class DatabaseManager {
     }
 
     /**
+     * Get the shared map service. Null when the optional migration that creates the map tables was
+     * refused, or when this role cannot see them; callers treat that as "map sharing unavailable"
+     * and leave the file-based Export/Import alone.
+     */
+    public nurgling.db.service.MapDbService getMapDbService() {
+        return mapDbService;
+    }
+
+    /**
      * Reconnect to database
      */
     public synchronized void reconnect() {
@@ -643,6 +667,7 @@ public class DatabaseManager {
         initialized = false;
         skippedMigrations = java.util.Collections.emptyMap();
         kinSecretService = null;
+        mapDbService = null;
         
         // Create new executor and reinitialize
         this.executorService = Executors.newFixedThreadPool(threadPoolSize, r -> {
