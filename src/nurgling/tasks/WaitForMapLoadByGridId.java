@@ -35,18 +35,16 @@ public class WaitForMapLoadByGridId extends NTask {
             return true;
         }
 
-        for (MCache.Grid grid : gui.map.glob.map.grids.values()) {
-            if (grid.id == gridId) {
-                for (MCache.Grid.Cut cut : grid.cuts) {
-                    if (!cut.mesh.isReady() || !cut.fo.isReady()) {
-                        return false; // Not all cuts ready yet
-                    }
-                }
-                return true; // All cuts ready
+        MCache.Grid grid = gui.map.glob.map.findGrid(gridId);
+        if (grid == null) {
+            // Grid not loaded yet
+            return false;
+        }
+        for (MCache.Grid.Cut cut : grid.cuts) {
+            if (!cut.mesh.isReady() || !cut.fo.isReady()) {
+                return false; // Not all cuts ready yet
             }
         }
-
-        // Grid not loaded yet
-        return false;
+        return true; // All cuts ready
     }
 }
