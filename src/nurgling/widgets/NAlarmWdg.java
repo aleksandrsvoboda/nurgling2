@@ -296,18 +296,20 @@ public class NAlarmWdg extends Widget
             Coord tc = player.rc.div(MCache.tilesz).floor();
             Coord gc = tc.div(gui.map.glob.map.cmaps);
 
-            // Check if we have exactly 9 grids loaded
-            if (gui.map.glob.map.grids.size() != 9) {
-                isMapFullyLoaded = false;
-                return;
-            }
-
-            // Check if all 9 grids are centered around player's grid
-            for (Coord gridCoord : gui.map.glob.map.grids.keySet()) {
-                Coord pos = gridCoord.sub(gc.sub(1, 1));
-                if (pos.x < 0 || pos.x >= 3 || pos.y < 0 || pos.y >= 3) {
+            synchronized (gui.map.glob.map.grids) {
+                // Check if we have exactly 9 grids loaded
+                if (gui.map.glob.map.grids.size() != 9) {
                     isMapFullyLoaded = false;
                     return;
+                }
+
+                // Check if all 9 grids are centered around player's grid
+                for (Coord gridCoord : gui.map.glob.map.grids.keySet()) {
+                    Coord pos = gridCoord.sub(gc.sub(1, 1));
+                    if (pos.x < 0 || pos.x >= 3 || pos.y < 0 || pos.y >= 3) {
+                        isMapFullyLoaded = false;
+                        return;
+                    }
                 }
             }
             
