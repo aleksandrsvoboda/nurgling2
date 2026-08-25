@@ -21,13 +21,16 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 10;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 11;
 
     /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_KIN_SECRETS = 9;
 
     /** Version of the migration that creates fish_locations; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_FISH_LOCATIONS = 10;
+
+    /** Version of the migration that creates the shared map tables; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_MAP_DATA = 11;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -494,6 +497,73 @@ public class MigrationManager {
                     safeCreateIndex(adapter, "CREATE INDEX idx_fl_deleted ON fish_locations (deleted_at)");
                     safeCreateIndex(adapter, "CREATE INDEX idx_fl_grid ON fish_locations (profile, grid_id)");
                     System.out.println("Created fish_locations table");
+                }
+            }
+        });
+
+        /* Optional: the map_* tables back only the map window's "to database" / "from database"
+         * buttons, which report themselves unavailable and leave the file-based Export/Import
+         * working. A role without CREATE on the schema must not lose area, planning and recipe
+         * sync over them. */
+        migrations.add(new Migration(11, "Create map_grids/map_grid_placements/map_markers for shared maps", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                /* Postgres spells a byte array BYTEA; SQLite would give that name NUMERIC affinity
+                 * and try to coerce the payload, so it gets BLOB instead. */
+                String blob = (adapter instanceof nurgling.db.PostgresAdapter) ? "BYTEA" : "BLOB";
+
+                if (!adapter.tableExists("map_grids")) {
+                    /* Keyed by the server-assigned grid id, so the same physical chunk of world is
+                     * one row no matter how many villagers walked it. mtime is what decides whose
+                     * copy survives; see MapDataDao.upsertGrids. */
+                    createTable(adapter, "map_grids",
+                        "CREATE TABLE map_grids (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "gid BIGINT NOT NULL, " +
+                        "mtime BIGINT NOT NULL, " +
+                        "payload " + blob + " NOT NULL, " +
+                        "uploader VARCHAR(255), " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "PRIMARY KEY (profile, gid)" +
+                        ")");
+                    System.out.println("Created map_grids table");
+                }
+
+                if (!adapter.tableExists("map_grid_placements")) {
+                    /* Where one player's map puts a grid. Segment layout is per-player, so this is
+                     * per-uploader - but it is a couple of dozen bytes a row, unlike the payload. */
+                    createTable(adapter, "map_grid_placements",
+                        "CREATE TABLE map_grid_placements (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "uploader VARCHAR(255) NOT NULL, " +
+                        "gid BIGINT NOT NULL, " +
+                        "segid BIGINT NOT NULL, " +
+                        "sc_x INTEGER NOT NULL, " +
+                        "sc_y INTEGER NOT NULL, " +
+                        /* segid is part of the key because a grid legitimately appears in more
+                         * than one of a player's segments - MapFile's own export emits one chunk
+                         * per (segment, grid) pair, and dropping the extras would lose the very
+                         * links the importer uses to merge two segments together. */
+                        "PRIMARY KEY (profile, uploader, gid, segid)" +
+                        ")");
+                    safeCreateIndex(adapter,
+                        "CREATE INDEX idx_mgp_seg ON map_grid_placements (profile, uploader, segid)");
+                    System.out.println("Created map_grid_placements table");
+                }
+
+                if (!adapter.tableExists("map_markers")) {
+                    createTable(adapter, "map_markers",
+                        "CREATE TABLE map_markers (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "uploader VARCHAR(255) NOT NULL, " +
+                        "mkey VARCHAR(128) NOT NULL, " +
+                        "segid BIGINT NOT NULL, " +
+                        "payload " + blob + " NOT NULL, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "PRIMARY KEY (profile, uploader, mkey)" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_mm_profile ON map_markers (profile)");
+                    System.out.println("Created map_markers table");
                 }
             }
         });

@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.tools.MapDbTransfer;
 import nurgling.i18n.L10n;
 
 import java.util.Map;
@@ -18,7 +19,10 @@ public class NMapWnd extends MapWnd {
     MapToggleButton mapToolsBtn;
     MapToggleButton vectorClearBtn;
     TextEntry markerSearchField;
+    Button dbExportBtn;
+    Button dbImportBtn;
     private static final int btnw = UI.scale(95);
+    private static final int dbbtnw = UI.scale(110);
 
     public class MapToggleButton extends ICheckBox {
         private final Runnable rightClickAction;
@@ -88,6 +92,59 @@ public class NMapWnd extends MapWnd {
                 return super.keydown(ev);
             }
         }, view.pos("br").sub(UI.scale(205), UI.scale(5)));
+
+        /* The stock Export.../Import... buttons in the marker panel move a .hmap file; these move
+         * the same data through the village database. Hidden unless a shared PostgreSQL is
+         * configured, because there is nothing to share with otherwise. */
+        add(dbExportBtn = new Button(dbbtnw, L10n.get("mapdb.btn_export"), false) {
+            @Override
+            public void click() {
+                /* The window's own session, not whichever one happens to be in front: a second
+                 * client in the same process must not upload this map under its name. */
+                MapDbTransfer.export(getparent(GameUI.class), file);
+            }
+        });
+        dbExportBtn.settip(L10n.get("mapdb.btn_export_tip"));
+        add(dbImportBtn = new Button(dbbtnw, L10n.get("mapdb.btn_import"), false) {
+            @Override
+            public void click() {
+                MapDbTransfer.importFrom(getparent(GameUI.class), file);
+            }
+        });
+        dbImportBtn.settip(L10n.get("mapdb.btn_import_tip"));
+        placeDbButtons();
+    }
+
+    /** Bottom-right of the map view, stacked above the marker search field. */
+    private void placeDbButtons() {
+        if((dbExportBtn == null) || (dbImportBtn == null))
+            return;
+        int spacing = UI.scale(5);
+        int y = view.c.y + view.sz.y - UI.scale(25) - dbExportBtn.sz.y - spacing;
+        int x = view.c.x + view.sz.x - UI.scale(5) - (dbbtnw * 2) - spacing;
+        /* A window narrow enough to leave no room would otherwise push them off the left edge. */
+        dbExportBtn.c = new Coord(Math.max(view.c.x, x), y);
+        dbImportBtn.c = new Coord(Math.max(view.c.x, x) + dbbtnw + spacing, y);
+    }
+
+    private double dbBtnCheck = 0;
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        /* Database settings can be switched at runtime, so visibility is re-checked rather than
+         * fixed at construction - but twice a second is plenty for a settings change. */
+        if(dbExportBtn != null) {
+            dbBtnCheck -= dt;
+            if(dbBtnCheck <= 0) {
+                dbBtnCheck = 0.5;
+                boolean on = MapDbTransfer.configured();
+                if(dbExportBtn.visible() != on) {
+                    dbExportBtn.show(on);
+                    dbImportBtn.show(on);
+                }
+            }
+        }
     }
 
     private void clearVectors() {
@@ -149,6 +206,8 @@ public class NMapWnd extends MapWnd {
         // Keep marker search field at bottom-right
         if(markerSearchField != null)
             markerSearchField.c = view.c.add(view.sz.x - UI.scale(205), view.sz.y - UI.scale(25));
+
+        placeDbButtons();
     }
     
     @Override

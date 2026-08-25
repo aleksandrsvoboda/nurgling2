@@ -102,6 +102,10 @@ public abstract class DatabaseAdapter {
                 stmt.setBoolean(i + 1, (Boolean) param);
             } else if (param instanceof String) {
                 stmt.setString(i + 1, (String) param);
+            } else if (param instanceof byte[]) {
+                /* setObject would reach bytea on PostgreSQL but is not dependable for a blob on
+                 * every driver; be explicit so map payloads round-trip on both back ends. */
+                stmt.setBytes(i + 1, (byte[]) param);
             } else {
                 stmt.setObject(i + 1, param);
             }

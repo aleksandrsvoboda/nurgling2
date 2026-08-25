@@ -27,6 +27,7 @@ public class DatabaseSettings extends Panel {
     private Button seedFishButton;
     private CheckBox enableCheckbox;
     private CheckBox shareHsCheckbox;
+    private CheckBox shareMapMarksCheckbox;
     private Dropbox<String> dbType;
     private final int labelWidth = UI.scale(80); // РЁРёСЂРёРЅР° Р»РµР№Р±Р»РѕРІ
     private final int entryX = UI.scale(110);    // X-РєРѕРѕСЂРґРёРЅР°С‚Р° РґР»СЏ TextEntry (was 90, increased for better space)
@@ -34,6 +35,7 @@ public class DatabaseSettings extends Panel {
 
     private boolean enabled;
     private boolean shareHs;
+    private boolean shareMapMarks;
     private String dbTypeStr;
     private String host, user, pass, dbPath;
 
@@ -59,7 +61,17 @@ public class DatabaseSettings extends Panel {
             }
         }, new Coord(margin, y));
         shareHsCheckbox.tooltip = Text.render(L10n.get("database.share_hearth_secret_tip")).tex();
-        y += shareHsCheckbox.sz.y + UI.scale(8);
+        y += shareHsCheckbox.sz.y + UI.scale(5);
+
+        // Whether the map window's database buttons carry markers as well as terrain
+        prev = shareMapMarksCheckbox = add(new CheckBox(L10n.get("database.share_map_markers")) {
+            public void set(boolean val) {
+                a = val;
+                shareMapMarks = val;
+            }
+        }, new Coord(margin, y));
+        shareMapMarksCheckbox.tooltip = Text.render(L10n.get("database.share_map_markers_tip")).tex();
+        y += shareMapMarksCheckbox.sz.y + UI.scale(8);
 
         // Р—Р°РіРѕР»РѕРІРѕРє СЂР°Р·РґРµР»Р°
         prev = add(new Label(L10n.get("database.settings")), new Coord(margin, y));
@@ -208,6 +220,8 @@ public class DatabaseSettings extends Panel {
         enableCheckbox.a = enabled;
         shareHs = getBool(NConfig.Key.shareHearthSecret);
         shareHsCheckbox.a = shareHs;
+        shareMapMarks = getBool(NConfig.Key.mapShareMarkers);
+        shareMapMarksCheckbox.a = shareMapMarks;
 
         boolean isPostgres = getBool(NConfig.Key.postgres);
         dbTypeStr = isPostgres ? "PostgreSQL" : "SQLite";
@@ -232,6 +246,7 @@ public class DatabaseSettings extends Panel {
         
         NConfig.set(NConfig.Key.ndbenable, enabled);
         NConfig.set(NConfig.Key.shareHearthSecret, shareHs);
+        NConfig.set(NConfig.Key.mapShareMarkers, shareMapMarks);
         boolean isPostgres = "PostgreSQL".equals(dbTypeStr);
         NConfig.set(NConfig.Key.postgres, isPostgres);
         NConfig.set(NConfig.Key.sqlite, !isPostgres);
