@@ -269,7 +269,10 @@ public class Graph implements Runnable
                         Coord2d center = fsdir.div(2).add(first);
                         int hlen = (int) Math.ceil(fsdir.len() / 2);
                         //TODO remake with beam box
-                        NHitBox hb = new NHitBox(new Coord(-hlen,-2 ), new Coord(hlen, 2));
+                        // Forced, so the width is exactly the agent's radius rather than
+                        // NHitBox's +/-3 floor -- which is the baseline this now generalises.
+                        NHitBox hb = new NHitBox(new Coord2d(-hlen, -map.agentRadius),
+                                                 new Coord2d(hlen, map.agentRadius), true);
                         ArrayList<Coord> data;
                         if ((data = map.checkCA(new CellsArray(hb, fsdir.curAngle(), center))).isEmpty()) {
                             for_remove.add(path.get(i + shift - 1));

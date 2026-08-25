@@ -19,10 +19,34 @@ public class NPFMap
     // 1 hitbox
     // 0 have path
     // 2 unpathable tiles
+    // 3 dilated: free, but too close to an obstacle for the agent's footprint
     // 4 pf been here
     // 7 approach point (marked blue)
     // 8 pf line
     // 9 pf turn
+
+    /**
+     * Half-width the planner assumes for whoever is walking, in world units.
+     *
+     * <p>Defaults to 3, which is what the rest of the pf stack has always implicitly assumed:
+     * {@link nurgling.NHitBox} clamps every hitbox out to at least +/-3, and the corridor beam in
+     * {@code Graph.getPath} is 3 wide. Towing raises it, which is what makes the search and the
+     * smoother agree that a gap the character fits through is not necessarily one the cart does.
+     */
+    public double agentRadius = PLAYER_RADIUS;
+
+    public static final double PLAYER_RADIUS = 3.0;
+
+    /**
+     * Radius to plan with while towing a cart. The cart's obstacle is a square of +/-5.892, and it
+     * rotates about its own centre as it re-aims at the character, so the safe figure is the
+     * circumscribed radius 5.892*sqrt(2). It does not swing around the character -- a towed cart
+     * parks until pulled -- so this is the whole of the extra clearance, with no turn disc.
+     */
+    public static final double TOWED_CART_RADIUS = 8.33;
+
+    /** The vehicle this character is towing, excluded from the obstacle set. -1 when not towing. */
+    public long towedId = -1;
     public Coord begin;
     Coord end;
     int dsize;
@@ -282,12 +306,24 @@ public class NPFMap
                 currentTransport = fl.tgt;
             }
         }
-        synchronized (NUtils.getGameUI().ui.sess.glob.oc)
+        OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
+        synchronized (oc)
         {
+            // A cart under tow trails 9-29 units behind and carries no Following attr, so the
+            // skip in addGob never fires for it: without this it is rasterised as an obstacle
+            // attached to the planner, and was measured covering the player's own start cell in
+            // 13 of 65 samples.
+            long towed = -1;
+            NCore core = (NUtils.getUI() == null) ? null : NUtils.getUI().core;
+            if (core != null)
+                towed = core.towedVehicle.resolve(oc, NUtils.playerID());
+            towedId = towed;
+            if (towed >= 0)
+                agentRadius = TOWED_CART_RADIUS;
 
-            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc)
+            for (Gob gob : oc)
             {
-                if(gob.id!=currentTransport)
+                if(gob.id!=currentTransport && gob.id!=towed)
                     addGob(gob);
             }
         }
@@ -413,6 +449,51 @@ public class NPFMap
 
             }, new Coord(UI.scale(100), UI.scale(100)));
             NUtils.getUI().bind(wnd, 7002);
+        }
+    }
+
+    /**
+     * Widen obstacles by the amount the agent is bigger than the pathfinder's baseline.
+     *
+     * <p>The grid search treats the walker as a point, and every obstacle is already pre-inflated
+     * to the baseline {@link #PLAYER_RADIUS}. Towing a cart makes the moving footprint larger, so
+     * the difference has to be added here or the search will happily thread a gap the cart cannot
+     * take.
+     *
+     * <p>Call this <em>after</em> approach points have been chosen. Dilation deliberately leaves
+     * alone: cells already marked as approach points (7), which are the goal and would otherwise
+     * be swallowed; and the start and its immediate neighbours, since the character demonstrably
+     * got there with the cart in tow, so that ground is passable by construction.
+     *
+     * @param start the player's cell, in grid coordinates local to this map
+     */
+    public void dilateForAgent(Coord start) {
+        int r = (int) Math.ceil((agentRadius - PLAYER_RADIUS) / MCache.tilehsz.x);
+        if (r <= 0)
+            return;
+
+        boolean[][] seed = new boolean[size][size];
+        for (int i = 0; i < size; i++)
+            for (int j = 0; j < size; j++)
+                seed[i][j] = (cells[i][j].val == 1 || cells[i][j].val == 2);
+
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (!seed[i][j])
+                    continue;
+                for (int di = -r; di <= r; di++) {
+                    for (int dj = -r; dj <= r; dj++) {
+                        int ii = i + di, jj = j + dj;
+                        if (ii < 0 || jj < 0 || ii >= size || jj >= size)
+                            continue;
+                        if (cells[ii][jj].val != 0)
+                            continue;
+                        if (start != null && Math.abs(ii - start.x) <= 1 && Math.abs(jj - start.y) <= 1)
+                            continue;
+                        cells[ii][jj].val = 3;
+                    }
+                }
+            }
         }
     }
 

@@ -151,7 +151,8 @@ public class DynamicPf implements Action
                 Coord2d fsdir = second.sub(first);
                 Coord2d center = fsdir.div(2).add(first);
                 int hlen = (int) Math.ceil(fsdir.len() / 2);
-                NHitBox hb = new NHitBox(new Coord(-1, -hlen), new Coord(1, hlen));
+                double half = (wpf.pfMap != null) ? wpf.pfMap.agentRadius : NPFMap.PLAYER_RADIUS;
+                NHitBox hb = new NHitBox(new Coord2d(-hlen, -half), new Coord2d(hlen, half), true);
 
                 if (wpf.pfMap.checkCA(new CellsArray(hb, fsdir.curAngle(), center)).isEmpty()) {
                     for_remove.add(path.get(shift - 1));

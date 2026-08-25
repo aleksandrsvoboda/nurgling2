@@ -75,8 +75,17 @@ public class PathFinder implements Action {
         this.mode = mode;
     }
 
+    /** Consecutive replans that leave the character where it was before we give up. */
+    private static final int MAX_STUCK_REPLANS = 4;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        // Without this the loop below is unbounded: a leg that cannot be walked replans from the
+        // identical position, produces the identical path, and spins until the bot is stopped by
+        // hand. Towing makes that easy to hit, but it was always reachable.
+        Coord2d lastStuckAt = null;
+        int stuckReplans = 0;
+
         while (true) {
             LinkedList<Graph.Vertex> path = construct();
 
@@ -100,7 +109,16 @@ public class PathFinder implements Action {
                     }
 
                     if (!(new GoTo(targetCoord).run(gui)).IsSuccess()) {
-                        this.begin = gui.map.player().rc;
+                        Coord2d now = gui.map.player().rc;
+                        if (lastStuckAt != null && lastStuckAt.dist(now) < pfmdelta) {
+                            if (++stuckReplans >= MAX_STUCK_REPLANS)
+                                return Results.ERROR("Path blocked: no progress after "
+                                        + stuckReplans + " replans");
+                        } else {
+                            stuckReplans = 0;
+                        }
+                        lastStuckAt = now;
+                        this.begin = now;
                         needRestart = true;
                         break;
                     }
@@ -155,6 +173,9 @@ public class PathFinder implements Action {
 //                dn = true; //start == end
                 return null;
             }
+
+            // After fixStartEnd, so approach points are already marked and survive the pass.
+            pfmap.dilateForAgent(start_pos);
 
             if (dca != null)
                 pfmap.setCellArray(dca);
