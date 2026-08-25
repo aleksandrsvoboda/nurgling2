@@ -415,18 +415,25 @@ NMiniMap extends MiniMap {
      */
     private boolean sendPointPing(Coord sc) {
         MiniMap.Location loc = xlate(sc);
-        if(loc == null)
+        if(loc == null) {
+            System.out.println("[ping] map click at " + sc + ": no map location there");
             return false;
-        if(!file.lock.readLock().tryLock())
+        }
+        if(!file.lock.readLock().tryLock()) {
+            System.out.println("[ping] map click: the map file was busy, click again");
             return false;
+        }
         Long gridId;
         try {
             gridId = loc.seg.map.get(loc.tc.div(cmaps));
         } finally {
             file.lock.readLock().unlock();
         }
-        if(gridId == null)
+        if(gridId == null) {
+            System.out.println("[ping] map click at tile " + loc.tc
+                + ": this segment has no grid at " + loc.tc.div(cmaps));
             return false;
+        }
         return NMapView.sendPingToChat(gridId, loc.tc.mod(cmaps));
     }
 
@@ -2241,8 +2248,10 @@ NMiniMap extends MiniMap {
                 return true;
         }
 
-        // Pick up a queued waypoint under the cursor instead of panning/walking.
-        if(ev.b == 1 && startWaypointDrag(ev.c))
+        // Pick up a queued waypoint under the cursor instead of panning/walking. Plain left
+        // button only: alt+LMB is "queue a waypoint here" (NMiniMapWnd.clickloc, NMapWnd.mouseup)
+        // and would otherwise be swallowed whenever the cursor sat near a node already queued.
+        if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && startWaypointDrag(ev.c))
             return true;
 
         // Handle left-click for forager path recording - prevent player movement

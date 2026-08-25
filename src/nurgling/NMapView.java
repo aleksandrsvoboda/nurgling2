@@ -1424,8 +1424,14 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return true;
         }
 
-        // Grab a movement waypoint drawn on the ground instead of walking there.
-        if(ev.b == 1 && wpGrab == null) {
+        /* Grab a movement waypoint drawn on the ground instead of walking there.
+         *
+         * Plain left button only. Alt+LMB means "queue a waypoint here" and alt+shift+LMB is the
+         * map ping; both are decided much further down, in MapView.Click.hit. Grabbing here on a
+         * modified click steals them whenever the cursor happens to be within a node's grab radius
+         * - which, while laying a path out, it very often is, because the node you just placed is
+         * right where you are still clicking. Same rule as the minimap (NMiniMap.mousedown). */
+        if(ev.b == 1 && wpGrab == null && !ui.modmeta && !ui.modshift && !ui.modctrl) {
             long wpid = worldWaypointAt(ev.c);
             if(wpid >= 0) {
                 wpDragOrigin = waypointWorldPos(wpid);
@@ -2201,15 +2207,25 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
      */
     public static boolean sendToSelectedChat(String line) {
         GameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.chat == null)
+        if(gui == null || gui.chat == null) {
+            System.out.println("[ping] not sent: no chat widget");
             return false;
+        }
         ChatUI.Channel chat = gui.chat.sel;
-        if(!(chat instanceof ChatUI.EntryChannel))
+        if(!(chat instanceof ChatUI.EntryChannel)) {
+            /* A ping travels as an ordinary chat line, so with no channel selected there is
+             * nowhere to send it and the gesture does nothing at all - which from the player's
+             * side is indistinguishable from the feature being broken. */
+            System.out.println("[ping] not sent: no chat channel selected (sel = "
+                + ((chat == null) ? "null" : chat.getClass().getName()) + ")");
             return false;
+        }
         if(chat.getClass().getName().contains("Realm"))
             chat = gui.chat.findLocationChat();
-        if(!(chat instanceof ChatUI.EntryChannel))
+        if(!(chat instanceof ChatUI.EntryChannel)) {
+            System.out.println("[ping] not sent: realm chat selected and no location chat to fall back to");
             return false;
+        }
         ((ChatUI.EntryChannel)chat).send(line);
         return true;
     }
@@ -2234,18 +2250,34 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         synchronized(glob.map.grids) {
             grid = glob.map.grids.get(tc.div(MCache.cmaps));
         }
-        if(grid == null)
+        if(grid == null) {
+            System.out.println("[ping] world click at tile " + tc + ": grid "
+                + tc.div(MCache.cmaps) + " is not loaded");
             return false;
+        }
         return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
+    /**
+     * Queue a waypoint at a world position - the world's half of alt+LMB, matching what
+     * NMiniMapWnd.clickloc and NMapWnd.handleWaypointClick do from a map.
+     *
+     * <p>Returning false leaves the click to fall through and walk normally. It says which guard
+     * refused, because from the player's side the only symptom is "alt-click did nothing" and the
+     * three reasons are indistinguishable.
+     */
     public boolean addWaypointAt(Coord2d mc) {
         NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
+        if(gui == null || gui.waypointMovementService == null || gui.mmap == null) {
+            System.out.println("[NMapView] alt-click waypoint ignored: no "
+                + ((gui == null) ? "gui" : (gui.waypointMovementService == null) ? "waypoint service" : "minimap"));
             return false;
+        }
         haven.MiniMap.Location sessloc = gui.mmap.sessloc;
-        if(sessloc == null)
+        if(sessloc == null) {
+            System.out.println("[NMapView] alt-click waypoint ignored: the minimap has no session location yet");
             return false;
+        }
         Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
         gui.waypointMovementService.addWaypoint(new haven.MiniMap.Location(sessloc.seg, tc), sessloc);
         return true;
