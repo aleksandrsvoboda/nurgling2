@@ -415,25 +415,18 @@ NMiniMap extends MiniMap {
      */
     private boolean sendPointPing(Coord sc) {
         MiniMap.Location loc = xlate(sc);
-        if(loc == null) {
-            System.out.println("[ping] map click at " + sc + ": no map location there");
+        if(loc == null)
             return false;
-        }
-        if(!file.lock.readLock().tryLock()) {
-            System.out.println("[ping] map click: the map file was busy, click again");
+        if(!file.lock.readLock().tryLock())
             return false;
-        }
         Long gridId;
         try {
             gridId = loc.seg.map.get(loc.tc.div(cmaps));
         } finally {
             file.lock.readLock().unlock();
         }
-        if(gridId == null) {
-            System.out.println("[ping] map click at tile " + loc.tc
-                + ": this segment has no grid at " + loc.tc.div(cmaps));
+        if(gridId == null)
             return false;
-        }
         return NMapView.sendPingToChat(gridId, loc.tc.mod(cmaps));
     }
 

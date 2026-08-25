@@ -335,7 +335,6 @@ public class MapDbTransfer {
     private static void runExport(GameUI gui, MapFile file, MapDbService svc, String profile,
                                   String me, boolean marks, Progress prog)
             throws SQLException, InterruptedException {
-        long started = System.currentTimeMillis();
         prog.set(L10n.get("mapdb.export_reading"));
         MessageBuf out = new MessageBuf();
         file.export(out, MapFile.ExportFilter.all, prog);
@@ -385,12 +384,6 @@ public class MapDbTransfer {
         List<MapStreamCodec.MarkChunk> sendmarks = marks ? markChunks : List.of();
         svc.publishLayout(profile, me, layout, sendmarks);
 
-        /* Enough to tell a slow database from a slow map read when someone reports "the export
-         * takes forever", and the numbers the scale test in docs/map-db-sync-testing.md records. */
-        System.out.printf("[MapDbTransfer] export: %d grids, %d placements, %d markers, "
-                          + "%d KB of stream, in %.1fs%n",
-                          uploaded[0], layout.size(), sendmarks.size(), raw.length / 1024,
-                          (System.currentTimeMillis() - started) / 1000.0);
         gui.msg(L10n.get("mapdb.export_done", uploaded[0], sendmarks.size()), Color.WHITE);
     }
 
@@ -416,14 +409,8 @@ public class MapDbTransfer {
         Progress prog = new Progress(L10n.get("mapdb.import_title"));
         Thread th = new HackThread(() -> {
             try {
-                long started = System.currentTimeMillis();
                 prog.set(L10n.get("mapdb.import_manifest"));
-                MapMerge.Report rep = MapMerge.run(file, source(svc, profile, me), marks, prog);
-                System.out.printf("[MapDbTransfer] import: %s, %d grids, %d markers, "
-                                  + "%d players, %d skipped, in %.1fs%n",
-                                  rep.status, rep.grids, rep.markers, rep.players, rep.notes.size(),
-                                  (System.currentTimeMillis() - started) / 1000.0);
-                report(gui, rep);
+                report(gui, MapMerge.run(file, source(svc, profile, me), marks, prog));
             } catch (InterruptedException e) {
                 cancelled(gui);
             } catch (SQLException e) {

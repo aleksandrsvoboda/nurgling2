@@ -179,9 +179,6 @@ public class ChatUI extends Widget
 						gui.pingService.add(gridId, new Coord(lx, ly), col, sender);
 						return false;
 					}
-					System.out.println("[ping] received " + msg + " but could not use it: "
-						+ ((gui == null) ? "no gui" : (gui.pingService == null) ? "no ping service"
-						   : "tile offset out of range"));
 				} catch (NumberFormatException ignored) {
 				}
 			}
