@@ -2,6 +2,7 @@ package nurgling.actions.bots;
 
 import haven.Coord2d;
 import haven.Gob;
+import haven.Pair;
 import haven.Resource;
 import haven.UI;
 import nurgling.NGameUI;
@@ -10,6 +11,7 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NCarrierProp;
+import nurgling.navigation.AreaNavigationHelper;
 import nurgling.tasks.WaitCheckable;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -188,14 +190,37 @@ public class CartCarrier implements Action {
         for (int attempt = 0; attempt < HAUL_ATTEMPTS; attempt++) {
             if (!tie(gui, cartId))
                 return false;
-            NUtils.navigateToArea(area, true);
 
+            Coord2d destination = destinationIn(area);
+            if (destination == null) {
+                gui.msg("CartCarrier: cannot reach that zone from here.");
+                return false;
+            }
+            // Deliberately CartPathFinder rather than NUtils.navigateToArea: the ordinary
+            // navigation stack knows nothing about cart clearance, and its long-distance half
+            // replays chunk graphs that were recorded on foot.
+            new CartPathFinder(destination, cartId).run(gui);
+
+            // Success is "the cart is still with us", not "we are inside the zone bounds":
+            // the haul target is a zone corner, and demanding checkHit on arrival would fail
+            // on a boundary rounding and send us round the retry loop for nothing.
             Gob cart = Finder.findGob(cartId);
             if (cart != null && VehicleMarker.isTowed(cart))
                 return true;
             gui.msg("CartCarrier: cart came off on the way, going back for it.");
         }
         return false;
+    }
+
+    /** A point inside the zone to haul to: nearest reachable corner, else its centre. */
+    private Coord2d destinationIn(NArea area) throws InterruptedException {
+        Coord2d corner = AreaNavigationHelper.findNearestReachableCorner(area);
+        if (corner != null)
+            return corner;
+        Pair<Coord2d, Coord2d> rc = area.getRCArea();
+        if (rc == null)
+            return null;
+        return new Coord2d((rc.a.x + rc.b.x) / 2, (rc.a.y + rc.b.y) / 2);
     }
 
     private boolean tie(NGameUI gui, long cartId) throws InterruptedException {

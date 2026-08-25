@@ -75,17 +75,35 @@ public class PathFinder implements Action {
         this.mode = mode;
     }
 
-    /** Consecutive replans that leave the character where it was before we give up. */
-    private static final int MAX_STUCK_REPLANS = 4;
+    /* ---------------------------------------------------------------------------------------
+     * Extension points. Every one of these is a no-op here, chosen so that the base class keeps
+     * exactly the behaviour it had before they existed. They exist so a specialised pathfinder
+     * -- CartPathFinder is the only one today -- can adjust the search without this class, NPFMap,
+     * Graph or GoTo having to know anything about it.
+     * --------------------------------------------------------------------------------------- */
+
+    /**
+     * Called once the grid is built and the start and approach cells have been resolved, before
+     * the search runs. Somewhere to adjust the map for an agent that is not a bare character.
+     */
+    protected void onMapReady(NPFMap map, Coord start) {
+    }
+
+    /** How a single leg of the computed path is walked. */
+    protected Results walkTo(NGameUI gui, Coord2d target) throws InterruptedException {
+        return new GoTo(target).run(gui);
+    }
+
+    /**
+     * A leg failed and the path is about to be replanned from {@code at}. Return false to abandon
+     * the route instead. The base class always retries, which is what it has always done.
+     */
+    protected boolean onLegFailed(NGameUI gui, Coord2d at) throws InterruptedException {
+        return true;
+    }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        // Without this the loop below is unbounded: a leg that cannot be walked replans from the
-        // identical position, produces the identical path, and spins until the bot is stopped by
-        // hand. Towing makes that easy to hit, but it was always reachable.
-        Coord2d lastStuckAt = null;
-        int stuckReplans = 0;
-
         while (true) {
             LinkedList<Graph.Vertex> path = construct();
 
@@ -108,17 +126,11 @@ public class PathFinder implements Action {
                         }
                     }
 
-                    if (!(new GoTo(targetCoord).run(gui)).IsSuccess()) {
-                        Coord2d now = gui.map.player().rc;
-                        if (lastStuckAt != null && lastStuckAt.dist(now) < pfmdelta) {
-                            if (++stuckReplans >= MAX_STUCK_REPLANS)
-                                return Results.ERROR("Path blocked: no progress after "
-                                        + stuckReplans + " replans");
-                        } else {
-                            stuckReplans = 0;
-                        }
-                        lastStuckAt = now;
-                        this.begin = now;
+                    if (!walkTo(gui, targetCoord).IsSuccess()) {
+                        Coord2d at = gui.map.player().rc;
+                        if (!onLegFailed(gui, at))
+                            return Results.ERROR("Can't walk path");
+                        this.begin = at;
                         needRestart = true;
                         break;
                     }
@@ -174,8 +186,7 @@ public class PathFinder implements Action {
                 return null;
             }
 
-            // After fixStartEnd, so approach points are already marked and survive the pass.
-            pfmap.dilateForAgent(start_pos);
+            onMapReady(pfmap, start_pos);
 
             if (dca != null)
                 pfmap.setCellArray(dca);

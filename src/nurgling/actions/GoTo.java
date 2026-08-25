@@ -60,21 +60,8 @@ public class GoTo implements Action
             }
         }
         else {
-            long towed = (NUtils.getUI() != null && NUtils.getUI().core != null)
-                    ? NUtils.getUI().core.towedVehicle.id() : -1;
             NUtils.getUI().core.addTask(new IsMoving(targetCoord));
-            if (towed >= 0) {
-                // Towing: end the leg as soon as the vehicle comes off, and stop walking rather
-                // than carrying on to the waypoint and leaving it further behind.
-                MovingCompletedTowed mct = new MovingCompletedTowed(towed);
-                NUtils.getUI().core.addTask(mct);
-                if (mct.untied()) {
-                    NUtils.lclick(NUtils.player().rc);
-                    return Results.FAIL();
-                }
-            } else {
-                NUtils.getUI().core.addTask(new MovingCompleted(targetCoord));
-            }
+            NUtils.getUI().core.addTask(new MovingCompleted(targetCoord));
         }
         if(NUtils.getGameUI().map.player().rc.dist(targetCoord) > 2*pfmdelta)
             return Results.FAIL();

@@ -160,9 +160,6 @@ public class NCore extends Widget
 
     private BotmodSettings bms;
 
-    /** Which vehicle this character is towing, if any. Per-session: see TowedVehicle. */
-    public final nurgling.tools.TowedVehicle towedVehicle = new nurgling.tools.TowedVehicle();
-
     private final LinkedList<NTask> for_remove = new LinkedList<>();
     private final ConcurrentLinkedQueue<NTask> tasks = new ConcurrentLinkedQueue<>();
 
