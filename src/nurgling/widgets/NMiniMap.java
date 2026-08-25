@@ -2232,10 +2232,10 @@ NMiniMap extends MiniMap {
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         // Alt+Shift+LMB pings the clicked spot to the selected chat channel. Plain
-        // alt+LMB cannot be used here the way it is in the world view, because on the
-        // maps it already means "walk here next" - it queues a movement waypoint
-        // (NMapWnd.mouseup, NMiniMapWnd.clickloc). Checked first so the ping never
-        // doubles as a walk or a waypoint grab.
+        // alt+LMB is left for waypoint queueing - it means "walk here next" here, on the
+        // map window and in the world alike (NMapWnd.mouseup, NMiniMapWnd.clickloc,
+        // NMapView.addWaypointAt). Checked first so the ping never doubles as a walk or a
+        // waypoint grab.
         if(ev.b == 1 && ui.modmeta && ui.modshift && !ui.modctrl) {
             if(sendPointPing(ev.c))
                 return true;

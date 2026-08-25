@@ -2239,6 +2239,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
+    public boolean addWaypointAt(Coord2d mc) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
+            return false;
+        haven.MiniMap.Location sessloc = gui.mmap.sessloc;
+        if(sessloc == null)
+            return false;
+        Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
+        gui.waypointMovementService.addWaypoint(new haven.MiniMap.Location(sessloc.seg, tc), sessloc);
+        return true;
+    }
+
     public Collection<String> areas(){
         LinkedList<String> areasNames = new LinkedList<>();
         for(NArea area : glob.map.areas.values())
