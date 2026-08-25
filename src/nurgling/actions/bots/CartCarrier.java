@@ -40,6 +40,16 @@ public class CartCarrier implements Action {
     /** How many times to go back for a cart that untied en route before giving up. */
     private static final int HAUL_ATTEMPTS = 3;
 
+    /**
+     * Whether to park the cart while loading at the input zone.
+     *
+     * <p>Parking avoids dragging the cart around behind the character as they shuttle objects,
+     * which is the snag-prone situation. Leaving it tied trades that risk for two fewer
+     * tie/untie round trips per cycle. Flip to try the other behaviour; the unload side is
+     * unaffected and still parks.
+     */
+    private static final boolean PARK_WHILE_LOADING = false;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NCarrierProp prop;
@@ -82,7 +92,7 @@ public class CartCarrier implements Action {
             // Fetch the cart to the input zone and park it there.
             if (!haul(gui, cartId, inArea))
                 return Results.ERROR("Could not get the cart to the input zone");
-            if (!park(gui, cartId))
+            if (PARK_WHILE_LOADING && !park(gui, cartId))
                 return Results.ERROR("Could not untie the cart at the input zone");
 
             int loaded = load(gui, inArea, target, cartId);
