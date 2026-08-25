@@ -264,6 +264,30 @@ public class MapDbTransfer {
         }
     }
 
+    /**
+     * Report a failure - unless it is really the player's own Cancel coming back at us.
+     *
+     * <p>An interrupt does not always arrive as an {@code InterruptedException}. MapFile reads and
+     * writes grids through NIO channels, and a channel interrupted mid-operation closes itself and
+     * throws {@code ClosedByInterruptException}, which reaches here wrapped in an unchecked
+     * {@code StreamMessage.IOError}. Telling a player who pressed Cancel that their export failed
+     * would be both alarming and untrue.
+     */
+    private static void fail(GameUI gui, String key, Throwable e) {
+        if (MapMerge.cancelled(e)) {
+            cancelled(gui);
+            return;
+        }
+        System.err.println("[MapDbTransfer] " + key + ": " + e);
+        e.printStackTrace();
+        gui.error(L10n.get(key, String.valueOf(e.getMessage())));
+    }
+
+    private static void cancelled(GameUI gui) {
+        Thread.currentThread().interrupt();
+        gui.msg(L10n.get("mapdb.cancelled"), Color.ORANGE);
+    }
+
     /** Take the single-transfer lock, reporting to the player if one is already running. */
     private static boolean claim(GameUI gui) {
         if (!busy.compareAndSet(false, true)) {
@@ -295,14 +319,11 @@ public class MapDbTransfer {
                  * harmless: grids are keyed globally and merged by mtime, so a cancelled upload is
                  * simply a smaller upload. The layout is written last and in one transaction, so it
                  * is never left half replaced. */
-                Thread.currentThread().interrupt();
+                cancelled(gui);
             } catch (SQLException e) {
-                System.err.println("[MapDbTransfer] export failed: " + e.getMessage());
-                gui.error(L10n.get("mapdb.export_failed", String.valueOf(e.getMessage())));
+                fail(gui, "mapdb.export_failed", e);
             } catch (RuntimeException e) {
-                System.err.println("[MapDbTransfer] export failed: " + e);
-                e.printStackTrace();
-                gui.error(L10n.get("mapdb.export_failed", String.valueOf(e.getMessage())));
+                fail(gui, "mapdb.export_failed", e);
             } finally {
                 busy.set(false);
             }
@@ -404,14 +425,11 @@ public class MapDbTransfer {
                                   (System.currentTimeMillis() - started) / 1000.0);
                 report(gui, rep);
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                cancelled(gui);
             } catch (SQLException e) {
-                System.err.println("[MapDbTransfer] import failed: " + e.getMessage());
-                gui.error(L10n.get("mapdb.import_failed", String.valueOf(e.getMessage())));
+                fail(gui, "mapdb.import_failed", e);
             } catch (RuntimeException e) {
-                System.err.println("[MapDbTransfer] import failed: " + e);
-                e.printStackTrace();
-                gui.error(L10n.get("mapdb.import_failed", String.valueOf(e.getMessage())));
+                fail(gui, "mapdb.import_failed", e);
             } finally {
                 busy.set(false);
             }

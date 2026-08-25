@@ -5,6 +5,9 @@ import haven.MessageBuf;
 import haven.Utils;
 import nurgling.db.dao.MapDataDao;
 
+import java.io.InterruptedIOException;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.FileLockInterruptionException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -187,12 +190,49 @@ public class MapMerge {
         try {
             file.reimport(new MessageBuf(stream), MapFile.ImportFilter.readonly);
         } catch (RuntimeException e) {
+            if (cancelled(e))
+                throw asInterrupt(e);
             notes.add(uploader + ": layout disagrees with this map, skipped entirely ("
                       + e.getMessage() + ")");
             return false;
         }
-        file.reimport(new MessageBuf(stream), filter(local, plan.forced, counts, uploader, notes));
+        try {
+            file.reimport(new MessageBuf(stream), filter(local, plan.forced, counts, uploader, notes));
+        } catch (RuntimeException e) {
+            if (cancelled(e))
+                throw asInterrupt(e);
+            throw e;
+        }
         return true;
+    }
+
+    /**
+     * Whether a failure is really this thread's own interrupt coming back at us.
+     *
+     * <p>MapFile stores grids through an NIO channel, and a channel interrupted mid-write closes
+     * itself and throws {@link ClosedByInterruptException} - wrapped, by the time it gets here, in
+     * an unchecked {@code StreamMessage.IOError}. Pressing Cancel during the write phase would
+     * otherwise be reported as "import failed", or worse, mistaken by the caller above for the
+     * uploader's layout disagreeing with this map.
+     *
+     * <p>Nothing is corrupted by it: the cache writes to a temporary file and moves it into place at
+     * the end, so an interrupted write leaves the previous grid untouched and an orphaned temp file
+     * behind. Whatever landed before the interrupt is whole, and running the import again finishes
+     * the job.
+     */
+    public static boolean cancelled(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if ((c instanceof ClosedByInterruptException) || (c instanceof FileLockInterruptionException)
+                || (c instanceof InterruptedIOException) || (c instanceof InterruptedException))
+                return true;
+        }
+        return Thread.currentThread().isInterrupted();
+    }
+
+    private static InterruptedException asInterrupt(Throwable cause) {
+        InterruptedException ret = new InterruptedException("cancelled during " + cause);
+        ret.initCause(cause);
+        return ret;
     }
 
     private static void note(List<String> notes, String uploader, List<String> skipped) {

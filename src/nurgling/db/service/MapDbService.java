@@ -38,10 +38,10 @@ public class MapDbService {
                                  List<MapStreamCodec.GridChunk> batch) throws SQLException {
         if (batch.isEmpty())
             return;
-        databaseManager.executeOperation(adapter -> {
+        retrying("grid batch", () -> databaseManager.executeOperation(adapter -> {
             dao.upsertGrids(adapter, profile, uploader, batch);
             return (Void) null;
-        });
+        }));
     }
 
     /**
@@ -54,12 +54,74 @@ public class MapDbService {
     public void publishLayout(String profile, String uploader,
                               List<MapDataDao.Placement> placements,
                               List<MapStreamCodec.MarkChunk> marks) throws SQLException {
-        databaseManager.executeOperation(adapter -> {
+        retrying("layout", () -> databaseManager.executeOperation(adapter -> {
             dao.replacePlacements(adapter, profile, uploader, placements);
             dao.replaceMarkers(adapter, profile, uploader,
                                (marks == null) ? List.of() : marks);
             return (Void) null;
-        });
+        }));
+    }
+
+    // ------------------------------------------------------------------ contention
+
+    /** PostgreSQL {@code deadlock_detected} and {@code serialization_failure}. */
+    private static final String DEADLOCK = "40P01";
+    private static final String SERIALIZATION = "40001";
+    private static final int ATTEMPTS = 4;
+
+    private interface Write {
+        void run() throws SQLException;
+    }
+
+    /**
+     * Retry a write that lost a contention race.
+     *
+     * <p>The DAO orders its rows so that two exporters cannot deadlock on the grid table in the
+     * first place, and that is the actual fix - this is the belt to its braces. Index-level and
+     * speculative-insertion waits are not something a client can order its way out of with the same
+     * certainty, and an export that has already spent a minute uploading should not be thrown away
+     * over a lock cycle the database resolved by picking a victim.
+     *
+     * <p>Safe to repeat: a grid batch is an upsert guarded by mtime, and a layout replace rewrites
+     * one uploader's rows wholesale. Doing either twice reaches the same state as doing it once.
+     */
+    private static void retrying(String what, Write write) throws SQLException {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                write.run();
+                return;
+            } catch (SQLException e) {
+                if (!contention(e) || (attempt >= ATTEMPTS))
+                    throw e;
+                System.err.println("[MapDbService] " + what + " lost a lock race, retry "
+                    + attempt + "/" + (ATTEMPTS - 1));
+            }
+        }
+    }
+
+    /**
+     * Whether a failure was contention rather than a real problem.
+     *
+     * <p>The whole chain is searched, not just the top exception: a failed batch surfaces as a
+     * {@code BatchUpdateException} whose own SQL state says nothing useful, with the state that
+     * matters hanging off {@code getNextException}.
+     */
+    private static boolean contention(SQLException top) {
+        for (SQLException e = top; e != null; e = e.getNextException()) {
+            String state = e.getSQLState();
+            if (DEADLOCK.equals(state) || SERIALIZATION.equals(state))
+                return true;
+            for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
+                if ((c instanceof SQLException) && contention1((SQLException) c))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean contention1(SQLException e) {
+        String state = e.getSQLState();
+        return DEADLOCK.equals(state) || SERIALIZATION.equals(state);
     }
 
     // ------------------------------------------------------------------ import

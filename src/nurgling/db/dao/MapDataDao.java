@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +87,15 @@ public class MapDataDao {
      * <p>The {@code WHERE} on the conflict clause is the whole freshness policy: an older snapshot
      * of a grid - a villager who mapped the area before it was built on, say - is accepted as a row
      * only if nobody has a newer one, and is otherwise discarded by the database itself.
+     *
+     * <p><b>Rows go out in ascending gid order, and that is load-bearing.</b> Two villagers exporting
+     * at the same time both write the grids they have in common, and each takes a row lock as it
+     * inserts. {@code MapFile.export} walks a {@code HashSet} of segments and a hash map of grids, so
+     * the order differs from client to client - and two transactions that lock the same rows in
+     * different orders deadlock, which PostgreSQL resolves by killing one of the exports outright.
+     * Sorting makes every writer take its locks in one global order, and a cycle cannot form: a
+     * transaction waiting on gid <i>g</i> holds only gids below <i>g</i>, so it can never be waited
+     * on by the transaction holding <i>g</i>.
      */
     public void upsertGrids(DatabaseAdapter adapter, String profile, String uploader,
                             List<MapStreamCodec.GridChunk> grids) throws SQLException {
@@ -99,8 +109,12 @@ public class MapDataDao {
             + "WHERE EXCLUDED.mtime > map_grids.mtime";
         long now = System.currentTimeMillis();
         Timestamp stamp = new Timestamp(now);
-        List<Object[]> batch = new ArrayList<>(grids.size());
-        for (MapStreamCodec.GridChunk g : grids) {
+        /* Copied before sorting: the caller reuses its buffer, and reordering it underneath would be
+         * a surprising thing for a DAO to do. */
+        List<MapStreamCodec.GridChunk> ordered = new ArrayList<>(grids);
+        ordered.sort(Comparator.comparingLong(g -> g.gid));
+        List<Object[]> batch = new ArrayList<>(ordered.size());
+        for (MapStreamCodec.GridChunk g : ordered) {
             long mtime = Math.min(g.mtime, now + FUTURE_SLACK);
             batch.add(new Object[]{profile, g.gid, mtime, g.packed, uploader, stamp});
         }
@@ -126,8 +140,13 @@ public class MapDataDao {
         String sql = "INSERT INTO map_grid_placements (profile, uploader, gid, segid, sc_x, sc_y) "
             + "VALUES (?, ?, ?, ?, ?, ?) "
             + "ON CONFLICT (profile, uploader, gid, segid) DO NOTHING";
+        /* Ordered by the conflict key, for the reason spelled out on upsertGrids: one character
+         * exported from two clients at once would otherwise be two transactions locking the same
+         * rows in whatever order the map happened to iterate in. */
+        List<Placement> ordered = new ArrayList<>(placements);
+        ordered.sort(Comparator.comparingLong((Placement p) -> p.gid).thenComparingLong(p -> p.segid));
         List<Object[]> batch = new ArrayList<>(BATCH);
-        for (Placement p : placements) {
+        for (Placement p : ordered) {
             batch.add(new Object[]{profile, uploader, p.gid, p.segid, p.sc.x, p.sc.y});
             if (batch.size() >= BATCH) {
                 adapter.executeBatch(sql, batch);
@@ -148,9 +167,14 @@ public class MapDataDao {
             + "ON CONFLICT (profile, uploader, mkey) DO UPDATE SET "
             + "segid = EXCLUDED.segid, payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at";
         Timestamp now = new Timestamp(System.currentTimeMillis());
+        /* Ordered by the conflict key, as above. */
+        List<Object[]> rows = new ArrayList<>(marks.size());
+        for (MapStreamCodec.MarkChunk m : marks)
+            rows.add(new Object[]{profile, uploader, markerKey(m), m.segid, m.payload, now});
+        rows.sort(Comparator.comparing(r -> (String) r[2]));
         List<Object[]> batch = new ArrayList<>(BATCH);
-        for (MapStreamCodec.MarkChunk m : marks) {
-            batch.add(new Object[]{profile, uploader, markerKey(m), m.segid, m.payload, now});
+        for (Object[] row : rows) {
+            batch.add(row);
             if (batch.size() >= BATCH) {
                 adapter.executeBatch(sql, batch);
                 batch.clear();
