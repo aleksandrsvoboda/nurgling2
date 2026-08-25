@@ -27,13 +27,19 @@ public class MapDbService {
     // ------------------------------------------------------------------ export
 
     /**
-     * Store grid payloads. Runs as its own transaction: grids are keyed globally and merged by
-     * mtime, so a partial write is simply less of an upload, never an inconsistent one.
+     * Store one batch of grid payloads, as its own transaction.
+     *
+     * <p>Batch rather than whole map so that the caller can upload as it splits its export and
+     * never hold the map twice over, and so that Cancel means something: the batches are what the
+     * interrupt check sits between. Grids are keyed globally and merged by mtime, so stopping part
+     * way leaves a smaller upload, never an inconsistent one.
      */
-    public void publishGrids(String profile, String uploader, List<MapStreamCodec.GridChunk> grids)
-            throws SQLException {
+    public void publishGridBatch(String profile, String uploader,
+                                 List<MapStreamCodec.GridChunk> batch) throws SQLException {
+        if (batch.isEmpty())
+            return;
         databaseManager.executeOperation(adapter -> {
-            dao.upsertGrids(adapter, profile, uploader, grids);
+            dao.upsertGrids(adapter, profile, uploader, batch);
             return (Void) null;
         });
     }
@@ -46,10 +52,10 @@ public class MapDbService {
      * is precisely what makes an import fail.
      */
     public void publishLayout(String profile, String uploader,
-                              List<MapStreamCodec.GridChunk> grids,
+                              List<MapDataDao.Placement> placements,
                               List<MapStreamCodec.MarkChunk> marks) throws SQLException {
         databaseManager.executeOperation(adapter -> {
-            dao.replacePlacements(adapter, profile, uploader, grids);
+            dao.replacePlacements(adapter, profile, uploader, placements);
             dao.replaceMarkers(adapter, profile, uploader,
                                (marks == null) ? List.of() : marks);
             return (Void) null;
@@ -68,7 +74,7 @@ public class MapDbService {
         return databaseManager.executeOperation(adapter -> dao.loadUploaders(adapter, profile, exclude));
     }
 
-    /** One player's placement set. */
+    /** One player's placement set, ordered by segment. */
     public List<MapDataDao.Placement> placements(String profile, String uploader) throws SQLException {
         return databaseManager.executeOperation(adapter -> dao.loadPlacements(adapter, profile, uploader));
     }

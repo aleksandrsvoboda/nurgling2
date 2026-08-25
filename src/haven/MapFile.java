@@ -909,6 +909,34 @@ public class MapFile {
 		return(null);
 	    }
 	}
+
+	/* Reads nothing but the (id, mtime) header of a stored grid. ZMessage inflates lazily, so
+	 * this touches a single decompression block rather than the entire grid; comparing tens of
+	 * thousands of grids by age is otherwise dominated by decompressing tile and height data
+	 * that the caller never looks at. Null means "no usable grid stored under this id". */
+	public static Long loadmtime(MapFile file, long id) {
+	    InputStream fp;
+	    try {
+		fp = file.sfetch("grid-%x", id);
+	    } catch(IOException e) {
+		return(null);
+	    }
+	    try(StreamMessage data = new StreamMessage(fp)) {
+		int ver = data.uint8();
+		if((ver < 1) || (ver > 5))
+		    return(null);
+		ZMessage z = new ZMessage(data);
+		if(z.int64() != id)
+		    return(null);
+		/* Version 1 stored no mtime, and Grid.load substitutes the current time for it. */
+		return((ver >= 2) ? z.int64() : System.currentTimeMillis());
+	    } catch(Message.BinError e) {
+		return(null);
+	    } catch(RuntimeException e) {
+		warn(e, "error when reading mtime of grid %x: %s", id, e);
+		return(null);
+	    }
+	}
     }
 
     public static class ZoomGrid extends DataGrid {

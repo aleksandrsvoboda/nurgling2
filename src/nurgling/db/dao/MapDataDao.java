@@ -19,18 +19,32 @@ import java.util.Map;
  *
  * <p>Grid content and grid placement are deliberately kept apart. The content of a grid is the same
  * for everyone who has walked it, so {@code map_grids} is keyed by the server-assigned grid id and
- * holds one ~2 KB payload per physical chunk of world however many villagers uploaded it. Where
- * that grid sits is a property of one player's segment layout, so {@code map_grid_placements} is
- * per uploader - but only a couple of dozen bytes per row.
+ * holds one payload per physical chunk of world however many villagers uploaded it. Where that grid
+ * sits is a property of one player's segment layout, so {@code map_grid_placements} is per uploader
+ * - but only a couple of dozen bytes per row.
  *
  * <p>Freshness is settled in SQL: a grid row is only overwritten by an upload with a strictly newer
  * {@code mtime}. That means an export never has to work out what the database already knows, and
  * two villagers exporting in either order converge on the same result.
+ *
+ * <p>Payloads arrive here already deflated by {@link MapStreamCodec#pack} - a raw chunk is about
+ * 21 KB and up to 50 KB, so packing is the difference between a village map costing tens of
+ * megabytes and costing hundreds.
  */
 public class MapDataDao {
 
-    /** Rows per batch. Payloads are ~2 KB, so a whole map in one batch would be tens of megabytes. */
+    /**
+     * Rows per batch. Packed payloads run a few kilobytes each, so a batch is single-digit
+     * megabytes; a whole map in one batch would not be.
+     */
     public static final int BATCH = 200;
+
+    /**
+     * A grid claiming to be from further ahead than this is not evidence of anything. The upsert
+     * lets the newest {@code mtime} win permanently, so without a bound one bad row would own a
+     * grid for the rest of the world's life.
+     */
+    private static final long FUTURE_SLACK = 24L * 60 * 60 * 1000;
 
     /**
      * How one uploader's map places a grid. A grid may have more than one placement: MapFile emits
@@ -63,7 +77,11 @@ public class MapDataDao {
     // ------------------------------------------------------------------ export
 
     /**
-     * Store grid payloads, keeping whichever copy is newer.
+     * Store one batch of grid payloads, keeping whichever copy is newer.
+     *
+     * <p>One batch, not a whole map: the caller splits its export chunk by chunk and calls this as
+     * each batch fills, so neither side ever holds the entire map. Grids are independent and keyed
+     * globally, so batches landing as separate transactions only ever means a smaller upload.
      *
      * <p>The {@code WHERE} on the conflict clause is the whole freshness policy: an older snapshot
      * of a grid - a villager who mapped the area before it was built on, say - is accepted as a row
@@ -71,23 +89,22 @@ public class MapDataDao {
      */
     public void upsertGrids(DatabaseAdapter adapter, String profile, String uploader,
                             List<MapStreamCodec.GridChunk> grids) throws SQLException {
+        if (grids.isEmpty())
+            return;
         String sql = "INSERT INTO map_grids (profile, gid, mtime, payload, uploader, updated_at) "
             + "VALUES (?, ?, ?, ?, ?, ?) "
             + "ON CONFLICT (profile, gid) DO UPDATE SET "
             + "mtime = EXCLUDED.mtime, payload = EXCLUDED.payload, "
             + "uploader = EXCLUDED.uploader, updated_at = EXCLUDED.updated_at "
             + "WHERE EXCLUDED.mtime > map_grids.mtime";
-        Timestamp now = new Timestamp(System.currentTimeMillis());
-        List<Object[]> batch = new ArrayList<>(BATCH);
+        long now = System.currentTimeMillis();
+        Timestamp stamp = new Timestamp(now);
+        List<Object[]> batch = new ArrayList<>(grids.size());
         for (MapStreamCodec.GridChunk g : grids) {
-            batch.add(new Object[]{profile, g.gid, g.mtime, g.payload, uploader, now});
-            if (batch.size() >= BATCH) {
-                adapter.executeBatch(sql, batch);
-                batch.clear();
-            }
+            long mtime = Math.min(g.mtime, now + FUTURE_SLACK);
+            batch.add(new Object[]{profile, g.gid, mtime, g.packed, uploader, stamp});
         }
-        if (!batch.isEmpty())
-            adapter.executeBatch(sql, batch);
+        adapter.executeBatch(sql, batch);
     }
 
     /**
@@ -100,7 +117,7 @@ public class MapDataDao {
      * stored rows are always a single coherent snapshot of one moment.
      */
     public void replacePlacements(DatabaseAdapter adapter, String profile, String uploader,
-                                  List<MapStreamCodec.GridChunk> grids) throws SQLException {
+                                  List<Placement> placements) throws SQLException {
         adapter.executeUpdate("DELETE FROM map_grid_placements WHERE profile = ? AND uploader = ?",
                               profile, uploader);
         /* One grid can sit in two of a player's segments, so (gid, segid) is the identity here.
@@ -110,8 +127,8 @@ public class MapDataDao {
             + "VALUES (?, ?, ?, ?, ?, ?) "
             + "ON CONFLICT (profile, uploader, gid, segid) DO NOTHING";
         List<Object[]> batch = new ArrayList<>(BATCH);
-        for (MapStreamCodec.GridChunk g : grids) {
-            batch.add(new Object[]{profile, uploader, g.gid, g.segid, g.sc.x, g.sc.y});
+        for (Placement p : placements) {
+            batch.add(new Object[]{profile, uploader, p.gid, p.segid, p.sc.x, p.sc.y});
             if (batch.size() >= BATCH) {
                 adapter.executeBatch(sql, batch);
                 batch.clear();
@@ -174,14 +191,27 @@ public class MapDataDao {
      * <p>Payloads are left behind on purpose. This is the cheap half of the import: a manifest of
      * twenty thousand grids is a few hundred kilobytes, and it is what decides which of the
      * expensive rows are worth fetching at all.
+     *
+     * <p>Rows dated implausibly far ahead are dropped rather than trusted. Freshness is decided by
+     * comparing against them, so a row from the future would win every comparison for good.
      */
     public Map<Long, Long> loadGridManifest(DatabaseAdapter adapter, String profile) throws SQLException {
         Map<Long, Long> ret = new HashMap<>();
+        long limit = System.currentTimeMillis() + FUTURE_SLACK;
+        int dropped = 0;
         try (ResultSet rs = adapter.executeQuery(
                 "SELECT gid, mtime FROM map_grids WHERE profile = ?", profile)) {
-            while (rs.next())
-                ret.put(rs.getLong("gid"), rs.getLong("mtime"));
+            while (rs.next()) {
+                long mtime = rs.getLong("mtime");
+                if (mtime > limit) {
+                    dropped++;
+                    continue;
+                }
+                ret.put(rs.getLong("gid"), mtime);
+            }
         }
+        if (dropped > 0)
+            System.err.println("[MapDataDao] ignored " + dropped + " shared grids dated in the future");
         return ret;
     }
 
@@ -202,12 +232,18 @@ public class MapDataDao {
         return ret;
     }
 
-    /** One uploader's full placement set for a world. */
+    /**
+     * One uploader's full placement set for a world, in a stable order.
+     *
+     * <p>The order matters downstream: chunks have to reach the importer grouped by segment, or its
+     * merge branch trips its own {@code curseg} assertion when two segments interleave.
+     */
     public List<Placement> loadPlacements(DatabaseAdapter adapter, String profile, String uploader)
             throws SQLException {
         List<Placement> ret = new ArrayList<>();
         try (ResultSet rs = adapter.executeQuery(
-                "SELECT gid, segid, sc_x, sc_y FROM map_grid_placements WHERE profile = ? AND uploader = ?",
+                "SELECT gid, segid, sc_x, sc_y FROM map_grid_placements "
+                + "WHERE profile = ? AND uploader = ? ORDER BY segid, gid",
                 profile, uploader)) {
             while (rs.next())
                 ret.add(new Placement(rs.getLong("gid"), rs.getLong("segid"),

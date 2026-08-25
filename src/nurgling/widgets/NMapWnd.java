@@ -96,20 +96,22 @@ public class NMapWnd extends MapWnd {
         /* The stock Export.../Import... buttons in the marker panel move a .hmap file; these move
          * the same data through the village database. Hidden unless a shared PostgreSQL is
          * configured, because there is nothing to share with otherwise. */
-        add(dbExportBtn = new Button(dbbtnw, "Export to DB", false) {
+        add(dbExportBtn = new Button(dbbtnw, L10n.get("mapdb.btn_export"), false) {
             @Override
             public void click() {
-                MapDbTransfer.export(NUtils.getGameUI(), file);
+                /* The window's own session, not whichever one happens to be in front: a second
+                 * client in the same process must not upload this map under its name. */
+                MapDbTransfer.export(getparent(GameUI.class), file);
             }
         });
-        dbExportBtn.settip("Upload your explored map to the shared database");
-        add(dbImportBtn = new Button(dbbtnw, "Import from DB", false) {
+        dbExportBtn.settip(L10n.get("mapdb.btn_export_tip"));
+        add(dbImportBtn = new Button(dbbtnw, L10n.get("mapdb.btn_import"), false) {
             @Override
             public void click() {
-                MapDbTransfer.importFrom(NUtils.getGameUI(), file);
+                MapDbTransfer.importFrom(getparent(GameUI.class), file);
             }
         });
-        dbImportBtn.settip("Merge in the maps every other player has uploaded");
+        dbImportBtn.settip(L10n.get("mapdb.btn_import_tip"));
         placeDbButtons();
     }
 
@@ -120,8 +122,9 @@ public class NMapWnd extends MapWnd {
         int spacing = UI.scale(5);
         int y = view.c.y + view.sz.y - UI.scale(25) - dbExportBtn.sz.y - spacing;
         int x = view.c.x + view.sz.x - UI.scale(5) - (dbbtnw * 2) - spacing;
-        dbExportBtn.c = new Coord(x, y);
-        dbImportBtn.c = new Coord(x + dbbtnw + spacing, y);
+        /* A window narrow enough to leave no room would otherwise push them off the left edge. */
+        dbExportBtn.c = new Coord(Math.max(view.c.x, x), y);
+        dbImportBtn.c = new Coord(Math.max(view.c.x, x) + dbbtnw + spacing, y);
     }
 
     private double dbBtnCheck = 0;

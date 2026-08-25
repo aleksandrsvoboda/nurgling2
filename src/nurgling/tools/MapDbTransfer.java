@@ -5,6 +5,7 @@ import haven.Coord;
 import haven.GOut;
 import haven.GameUI;
 import haven.HackThread;
+import haven.Label;
 import haven.MapFile;
 import haven.MessageBuf;
 import haven.UI;
@@ -13,20 +14,21 @@ import haven.Window;
 import nurgling.NConfig;
 import nurgling.NCore;
 import nurgling.NGameUI;
-import nurgling.NUtils;
 import nurgling.db.DatabaseManager;
+import nurgling.db.MapMerge;
 import nurgling.db.MapStreamCodec;
 import nurgling.db.dao.MapDataDao;
 import nurgling.db.service.MapDbService;
+import nurgling.i18n.L10n;
 
 import java.awt.Color;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Moves the explored map between this client and the village database.
@@ -42,14 +44,28 @@ import java.util.Set;
  * the stored layout is always one coherent snapshot instead of a mixture of moments that MapFile's
  * importer would reject.
  *
- * <p>Merging is left entirely to {@link MapFile#reimport}: the payloads stored in the database are
- * the same opaque chunks {@link MapFile#export} produces, so all the difficult work of lining up
- * two players' segments happens in the code that already does it correctly for file import.
+ * <p>This class is the wiring: settings, identity, threads, windows, and the adapter that hands
+ * {@link MapDbService} to the merge as a {@link MapMerge.Source}. The merge itself lives in
+ * {@link MapMerge} and the decisions it makes in {@link nurgling.db.MapImportPlanner}, both of which
+ * run without a database or a UI and are tested that way.
+ *
+ * <h2>Working set</h2>
+ *
+ * <p>Neither direction holds a whole map's worth of grid data. The export splits its stream chunk by
+ * chunk and uploads a batch at a time; the import keeps only packed payloads, one uploader's worth,
+ * and inflates them one at a time while assembling. What is unavoidably held is the export stream
+ * itself, which is the compressed form and an order of magnitude smaller.
  */
 public class MapDbTransfer {
 
-    /** Grid ids fetched per database round trip; matches the DAO's batching. */
+    /** Grid chunks uploaded per database round trip; matches the DAO's batching. */
     private static final int PAGE = MapDataDao.BATCH;
+
+    /**
+     * One transfer at a time. Two of them share a {@link MapFile} and would interleave writes into
+     * it, and a second import would plan against a map the first is still changing.
+     */
+    private static final AtomicBoolean busy = new AtomicBoolean(false);
 
     private MapDbTransfer() {}
 
@@ -92,26 +108,26 @@ public class MapDbTransfer {
             return null;
         Object enabled = NConfig.get(NConfig.Key.ndbenable);
         if (!(enabled instanceof Boolean) || !(Boolean) enabled) {
-            gui.msg("Map sharing: database sync is switched off in settings.", Color.ORANGE);
+            gui.msg(L10n.get("mapdb.err_disabled"), Color.ORANGE);
             return null;
         }
         Object pg = NConfig.get(NConfig.Key.postgres);
         if (!(pg instanceof Boolean) || !(Boolean) pg) {
             /* A local SQLite file has nobody to share with, so offering the buttons there would be
              * a promise the storage cannot keep. */
-            gui.msg("Map sharing needs a shared PostgreSQL database.", Color.ORANGE);
+            gui.msg(L10n.get("mapdb.err_needs_postgres"), Color.ORANGE);
             return null;
         }
         MapDbService svc = service();
         if (svc == null) {
             DatabaseManager dbm = NCore.databaseManager;
             gui.msg(((dbm != null) && dbm.isReady())
-                    ? "Map sharing unavailable: the map tables are missing or not readable by this user."
-                    : "Map sharing unavailable: not connected to the database.", Color.ORANGE);
+                    ? L10n.get("mapdb.err_no_tables")
+                    : L10n.get("mapdb.err_not_connected"), Color.ORANGE);
             return null;
         }
         if (profile(gui) == null) {
-            gui.msg("Map sharing: no world identity yet, try again once logged in.", Color.ORANGE);
+            gui.msg(L10n.get("mapdb.err_no_world"), Color.ORANGE);
             return null;
         }
         return svc;
@@ -125,23 +141,38 @@ public class MapDbTransfer {
         return ((genus == null) || genus.isEmpty()) ? null : genus;
     }
 
-    /** Who an upload is attributed to, and whose rows an import skips. */
+    /**
+     * Who an upload is attributed to, and whose rows an import skips.
+     *
+     * <p>Taken from the window's own session rather than from any global "current" one, so that a
+     * second client running in the same process cannot upload one character's map under another
+     * character's name.
+     *
+     * <p>The account name alone is not enough: {@code GameUI.mapfilename} lets a character keep a
+     * mapfile of its own, and two such characters on one account would otherwise delete each
+     * other's placement rows on every export. Whatever distinguishes their map files distinguishes
+     * their uploads too.
+     */
     private static String uploader(GameUI gui) {
+        String name = null;
         try {
-            if ((NUtils.getUI() != null) && (NUtils.getUI().sess != null)
-                && (NUtils.getUI().sess.user != null)) {
-                String name = NUtils.getUI().sess.user.name;
-                if ((name != null) && !name.isEmpty())
-                    return name;
-            }
+            if ((gui != null) && (gui.ui != null) && (gui.ui.sess != null)
+                && (gui.ui.sess.user != null))
+                name = gui.ui.sess.user.name;
         } catch (RuntimeException ignore) {
         }
-        if ((gui != null) && (gui.chrid != null) && !gui.chrid.isEmpty())
-            return gui.chrid;
-        return "unknown";
+        if ((name == null) || name.isEmpty())
+            name = ((gui != null) && (gui.chrid != null) && !gui.chrid.isEmpty()) ? gui.chrid : "unknown";
+        String own = "";
+        try {
+            if ((gui != null) && (gui.chrid != null))
+                own = Utils.getpref("mapfile/" + gui.chrid, "");
+        } catch (RuntimeException ignore) {
+        }
+        return ((own == null) || own.isEmpty()) ? name : (name + "/" + own);
     }
 
-    // ------------------------------------------------------------------ progress window
+    // ------------------------------------------------------------------ windows
 
     /**
      * Progress window for both directions.
@@ -150,13 +181,14 @@ public class MapDbTransfer {
      * export does not - talking to the database, comparing manifests - and needs to say which one
      * it is in. It still doubles as the {@link MapFile.ExportStatus} the export itself reports to.
      */
-    public static class Progress extends Window implements MapFile.ExportStatus {
+    public static class Progress extends Window implements MapFile.ExportStatus, MapMerge.Reporter {
         private Thread th;
-        private volatile String text = "Starting";
+        private volatile String text = "";
 
         public Progress(String title) {
             super(UI.scale(new Coord(360, 65)), title, true);
-            adda(new Button(UI.scale(100), "Cancel", false, this::cancel), csz().x / 2, UI.scale(40), 0.5, 0.0);
+            adda(new Button(UI.scale(100), L10n.get("common.cancel"), false, this::cancel),
+                 csz().x / 2, UI.scale(40), 0.5, 0.0);
         }
 
         public void run(Thread th) {
@@ -190,6 +222,55 @@ public class MapDbTransfer {
         public void mark(int cm, int nm) {
             this.text = String.format("Reading marker %,d/%,d", cm, nm);
         }
+
+        public void phase(String what) {
+            set(what);
+        }
+
+        public void merging(String uploader) {
+            set(L10n.get("mapdb.import_merging", uploader));
+        }
+
+        public void fetching(String uploader, int done, int total) {
+            set(L10n.get("mapdb.import_fetching", uploader, done, total));
+        }
+    }
+
+    /**
+     * Asks before an import.
+     *
+     * <p>An import rewrites the local mapfile - new segments, merged segments, and the anchor grids
+     * the merge needs - and there is no undo for any of it. The stock Import... at least makes the
+     * player pick a file; a bare button deserves the same moment of thought.
+     */
+    private static class Confirm extends Window {
+        Confirm(Runnable go) {
+            super(UI.scale(new Coord(370, 105)), L10n.get("mapdb.confirm_title"), true);
+            add(new Label(L10n.get("mapdb.confirm_line1")), UI.scale(new Coord(10, 5)));
+            add(new Label(L10n.get("mapdb.confirm_line2")), UI.scale(new Coord(10, 27)));
+            adda(new Button(UI.scale(110), L10n.get("mapdb.confirm_go"), false, () -> {
+                destroy();
+                go.run();
+            }), UI.scale(new Coord(100, 62)), 0.5, 0.0);
+            adda(new Button(UI.scale(110), L10n.get("common.cancel"), false, this::destroy),
+                 UI.scale(new Coord(240, 62)), 0.5, 0.0);
+        }
+
+        public void wdgmsg(String msg, Object... args) {
+            if (msg.equals("close"))
+                destroy();
+            else
+                super.wdgmsg(msg, args);
+        }
+    }
+
+    /** Take the single-transfer lock, reporting to the player if one is already running. */
+    private static boolean claim(GameUI gui) {
+        if (!busy.compareAndSet(false, true)) {
+            gui.msg(L10n.get("mapdb.err_busy"), Color.ORANGE);
+            return false;
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------ export
@@ -199,333 +280,190 @@ public class MapDbTransfer {
         MapDbService svc = begin(gui);
         if (svc == null)
             return;
+        if (!claim(gui))
+            return;
         String profile = profile(gui);
         String me = uploader(gui);
         boolean marks = shareMarkers();
 
-        Progress prog = new Progress("Exporting map to database");
+        Progress prog = new Progress(L10n.get("mapdb.export_title"));
         Thread th = new HackThread(() -> {
             try {
-                prog.set("Reading local map...");
-                MessageBuf buf = new MessageBuf();
-                file.export(buf, MapFile.ExportFilter.all, prog);
-
-                prog.set("Indexing map data...");
-                MapStreamCodec.Split split = MapStreamCodec.split(buf.fin());
-
-                Utils.checkirq();
-                prog.set(String.format("Uploading %,d grids...", split.grids.size()));
-                svc.publishGrids(profile, me, split.grids);
-
-                Utils.checkirq();
-                prog.set("Uploading map layout...");
-                List<MapStreamCodec.MarkChunk> sendmarks = marks ? split.marks : List.of();
-                svc.publishLayout(profile, me, split.grids, sendmarks);
-
-                gui.msg(String.format("Map exported: %,d grids, %,d markers.",
-                                      split.grids.size(), sendmarks.size()), Color.WHITE);
+                runExport(gui, file, svc, profile, me, marks, prog);
             } catch (InterruptedException e) {
-                /* The player pressed Cancel. Grids already written stay written, which is harmless:
-                 * they are keyed globally and merged by mtime, so a partial upload is just a
-                 * smaller upload. */
+                /* The player pressed Cancel. Batches already committed stay committed, which is
+                 * harmless: grids are keyed globally and merged by mtime, so a cancelled upload is
+                 * simply a smaller upload. The layout is written last and in one transaction, so it
+                 * is never left half replaced. */
                 Thread.currentThread().interrupt();
             } catch (SQLException e) {
                 System.err.println("[MapDbTransfer] export failed: " + e.getMessage());
-                gui.error("Map export failed: " + e.getMessage());
+                gui.error(L10n.get("mapdb.export_failed", String.valueOf(e.getMessage())));
             } catch (RuntimeException e) {
                 System.err.println("[MapDbTransfer] export failed: " + e);
                 e.printStackTrace();
-                gui.error("Map export failed: " + e.getMessage());
+                gui.error(L10n.get("mapdb.export_failed", String.valueOf(e.getMessage())));
+            } finally {
+                busy.set(false);
             }
         }, "Map database exporter");
         prog.run(th);
         gui.adda(prog, gui.sz.div(2), 0.5, 1.0);
     }
 
+    private static void runExport(GameUI gui, MapFile file, MapDbService svc, String profile,
+                                  String me, boolean marks, Progress prog)
+            throws SQLException, InterruptedException {
+        long started = System.currentTimeMillis();
+        prog.set(L10n.get("mapdb.export_reading"));
+        MessageBuf out = new MessageBuf();
+        file.export(out, MapFile.ExportFilter.all, prog);
+        byte[] raw = out.fin();
+
+        prog.set(L10n.get("mapdb.export_uploading", 0));
+
+        /* Placements are what the layout transaction needs and they are tiny; payloads go out in
+         * batches and are dropped as they go, so the map is never all in memory at once. A grid can
+         * appear in more than one of the player's segments - MapFile emits a chunk per pair - and
+         * those repeats are placements, not further copies of the same ~21 KB of terrain, so the
+         * payload is uploaded once. */
+        List<MapDataDao.Placement> layout = new ArrayList<>();
+        List<MapStreamCodec.MarkChunk> markChunks = new ArrayList<>();
+        Set<Long> sent = new HashSet<>();
+        List<MapStreamCodec.GridChunk> batch = new ArrayList<>(PAGE);
+        int[] uploaded = {0};
+
+        MapStreamCodec.split(raw, new MapStreamCodec.Sink<SQLException>() {
+            public void grid(MapStreamCodec.GridChunk g) throws SQLException, InterruptedException {
+                layout.add(new MapDataDao.Placement(g.gid, g.segid, g.sc));
+                if (!sent.add(g.gid))
+                    return;
+                batch.add(g);
+                if (batch.size() >= PAGE) {
+                    Utils.checkirq();
+                    svc.publishGridBatch(profile, me, batch);
+                    uploaded[0] += batch.size();
+                    batch.clear();
+                    prog.set(L10n.get("mapdb.export_uploading", uploaded[0]));
+                }
+            }
+
+            public void mark(MapStreamCodec.MarkChunk m) {
+                markChunks.add(m);
+            }
+        });
+        if (!batch.isEmpty()) {
+            Utils.checkirq();
+            svc.publishGridBatch(profile, me, batch);
+            uploaded[0] += batch.size();
+            batch.clear();
+        }
+
+        Utils.checkirq();
+        prog.set(L10n.get("mapdb.export_layout"));
+        List<MapStreamCodec.MarkChunk> sendmarks = marks ? markChunks : List.of();
+        svc.publishLayout(profile, me, layout, sendmarks);
+
+        /* Enough to tell a slow database from a slow map read when someone reports "the export
+         * takes forever", and the numbers the scale test in docs/map-db-sync-testing.md records. */
+        System.out.printf("[MapDbTransfer] export: %d grids, %d placements, %d markers, "
+                          + "%d KB of stream, in %.1fs%n",
+                          uploaded[0], layout.size(), sendmarks.size(), raw.length / 1024,
+                          (System.currentTimeMillis() - started) / 1000.0);
+        gui.msg(L10n.get("mapdb.export_done", uploaded[0], sendmarks.size()), Color.WHITE);
+    }
+
     // ------------------------------------------------------------------ import
 
     /** Pull in everything every other player has uploaded for this world. */
     public static void importFrom(GameUI gui, MapFile file) {
+        if (begin(gui) == null)
+            return;
+        gui.adda(new Confirm(() -> startImport(gui, file)), gui.sz.div(2), 0.5, 0.5);
+    }
+
+    private static void startImport(GameUI gui, MapFile file) {
         MapDbService svc = begin(gui);
         if (svc == null)
+            return;
+        if (!claim(gui))
             return;
         String profile = profile(gui);
         String me = uploader(gui);
         boolean marks = shareMarkers();
 
-        Progress prog = new Progress("Importing map from database");
+        Progress prog = new Progress(L10n.get("mapdb.import_title"));
         Thread th = new HackThread(() -> {
             try {
-                runImport(gui, file, svc, profile, me, marks, prog);
+                long started = System.currentTimeMillis();
+                prog.set(L10n.get("mapdb.import_manifest"));
+                MapMerge.Report rep = MapMerge.run(file, source(svc, profile, me), marks, prog);
+                System.out.printf("[MapDbTransfer] import: %s, %d grids, %d markers, "
+                                  + "%d players, %d skipped, in %.1fs%n",
+                                  rep.status, rep.grids, rep.markers, rep.players, rep.notes.size(),
+                                  (System.currentTimeMillis() - started) / 1000.0);
+                report(gui, rep);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (SQLException e) {
                 System.err.println("[MapDbTransfer] import failed: " + e.getMessage());
-                gui.error("Map import failed: " + e.getMessage());
+                gui.error(L10n.get("mapdb.import_failed", String.valueOf(e.getMessage())));
             } catch (RuntimeException e) {
                 System.err.println("[MapDbTransfer] import failed: " + e);
                 e.printStackTrace();
-                gui.error("Map import failed: " + e.getMessage());
+                gui.error(L10n.get("mapdb.import_failed", String.valueOf(e.getMessage())));
+            } finally {
+                busy.set(false);
             }
         }, "Map database importer");
         prog.run(th);
         gui.adda(prog, gui.sz.div(2), 0.5, 1.0);
     }
 
-    private static void runImport(GameUI gui, MapFile file, MapDbService svc, String profile,
-                                  String me, boolean marks, Progress prog)
-            throws SQLException, InterruptedException {
-        prog.set("Reading database manifest...");
-        Map<Long, Long> manifest = svc.manifest(profile);
-        if (manifest.isEmpty()) {
-            gui.msg("Map import: nothing shared for this world yet.", Color.ORANGE);
+    private static void report(GameUI gui, MapMerge.Report rep) {
+        for (String n : rep.notes)
+            System.out.println("[MapDbTransfer] " + n);
+        switch (rep.status) {
+        case NOTHING_SHARED:
+            gui.msg(L10n.get("mapdb.import_nothing"), Color.ORANGE);
             return;
-        }
-
-        /* What this client already knows, as gid -> mtime. Built once and then kept current as
-         * grids are accepted, so the same grid is not reconsidered for every uploader whose map
-         * also contains it. */
-        Map<Long, Long> localMtimes = new HashMap<>();
-        List<Long> want = new ArrayList<>();
-        int seen = 0;
-        for (Map.Entry<Long, Long> e : manifest.entrySet()) {
-            Utils.checkirq();
-            long gid = e.getKey();
-            Long local = localMtime(file, gid);
-            if (local == null) {
-                want.add(gid);
-            } else {
-                localMtimes.put(gid, local);
-                if (e.getValue() > local)
-                    want.add(gid);
-            }
-            if ((++seen % 250) == 0)
-                prog.set(String.format("Comparing with local map: %,d/%,d", seen, manifest.size()));
-        }
-
-        /* Deliberately no early exit when no grid needs fetching: another player may have added
-         * markers to land this client already has, and those still have to come across. Their
-         * segments arrive through the anchor mechanism in addAnchors, one grid apiece. */
-
-        /* Only the grids that survived the comparison are worth their ~2 KB of transfer. */
-        Map<Long, byte[]> blobs = new HashMap<>();
-        for (int off = 0; off < want.size(); off += PAGE) {
-            Utils.checkirq();
-            int end = Math.min(off + PAGE, want.size());
-            blobs.putAll(svc.payloads(profile, want.subList(off, end)));
-            prog.set(String.format("Fetching grids: %,d/%,d", end, want.size()));
-        }
-
-        List<String> uploaders = svc.uploaders(profile, me);
-        if (uploaders.isEmpty()) {
-            gui.msg("Map import: no other players have exported to this world.", Color.ORANGE);
+        case NO_OTHERS:
+            gui.msg(L10n.get("mapdb.import_no_others"), Color.ORANGE);
             return;
+        default:
+            break;
         }
-
-        /* [0] grids accepted, [1] markers accepted - counted by the filter, so these are what
-         * actually landed rather than what was offered. */
-        int[] counts = {0, 0};
-        int players = 0;
-        for (String up : uploaders) {
-            Utils.checkirq();
-            prog.set("Merging map from " + up + "...");
-            mergeOne(file, svc, profile, up, marks, manifest, blobs, localMtimes, counts, prog);
-            players++;
+        if (rep.changedNothing()) {
+            gui.msg(L10n.get("mapdb.import_uptodate"), Color.WHITE);
+        } else {
+            gui.msg(L10n.get("mapdb.import_done", rep.grids, rep.markers, rep.players), Color.WHITE);
         }
-
-        if ((counts[0] == 0) && (counts[1] == 0)) {
-            gui.msg("Map import: your map is already up to date.", Color.WHITE);
-            return;
-        }
-        gui.msg(String.format("Map imported: %,d new grids and %,d markers from %,d player%s.",
-                              counts[0], counts[1], players, (players == 1) ? "" : "s"), Color.WHITE);
+        if (!rep.notes.isEmpty())
+            gui.msg(L10n.get("mapdb.import_partial", rep.notes.size()), Color.ORANGE);
     }
 
-    /** Replay one player's map into this one. */
-    private static void mergeOne(MapFile file, MapDbService svc, String profile, String uploader,
-                                boolean marks, Map<Long, Long> manifest, Map<Long, byte[]> blobs,
-                                Map<Long, Long> localMtimes, int[] counts, Progress prog)
-            throws SQLException, InterruptedException {
-        List<MapDataDao.Placement> placements = svc.placements(profile, uploader);
-        if (placements.isEmpty())
-            return;
-
-        /* Their grids, restamped into their own coordinates. A payload uploaded by a third player
-         * carries that player's segment in its header, which would mean nothing here. */
-        List<byte[]> gridPayloads = new ArrayList<>();
-        Set<Long> covered = new HashSet<>();
-        Map<Long, List<MapDataDao.Placement>> bySeg = new HashMap<>();
-        for (MapDataDao.Placement p : placements) {
-            bySeg.computeIfAbsent(p.segid, k -> new ArrayList<>()).add(p);
-            byte[] blob = blobs.get(p.gid);
-            if (blob == null)
-                continue;
-            byte[] chunk = MapStreamCodec.rekey(blob, p.segid, p.sc);
-            if (chunk == null)
-                continue;
-            gridPayloads.add(chunk);
-            /* A segment counts as anchored only if one of its grids will actually be accepted.
-             * Emitting a chunk is not enough: the importer sets the offset a marker is placed by
-             * inside the branch the filter guards, so a segment whose grids are all rejected as
-             * stale - which is the normal case once an earlier player in this same import already
-             * supplied them - still needs an anchor forced through. */
-            if (accepts(manifest, localMtimes, p.gid))
-                covered.add(p.segid);
-        }
-
-        List<MapDataDao.MarkerRow> markerRows = marks ? svc.markers(profile, uploader) : List.of();
-
-        /* A marker is dropped unless a grid of its segment was accepted earlier in the same stream:
-         * that is what establishes the offset the importer places it by. When the comparison above
-         * decided this client already has every grid of a segment, the segment needs an anchor - one
-         * grid replayed purely to register the offset. */
-        Set<Long> forced = new HashSet<>();
-        Set<Long> anchorSegs = new HashSet<>();
-        for (MapDataDao.MarkerRow m : markerRows) {
-            if (!covered.contains(m.segid))
-                anchorSegs.add(m.segid);
-        }
-        if (!anchorSegs.isEmpty())
-            addAnchors(svc, profile, anchorSegs, bySeg, blobs, localMtimes, gridPayloads, covered, forced);
-
-        List<byte[]> markPayloads = new ArrayList<>();
-        for (MapDataDao.MarkerRow m : markerRows) {
-            if (covered.contains(m.segid))
-                markPayloads.add(m.payload);
-        }
-
-        if (gridPayloads.isEmpty() && markPayloads.isEmpty())
-            return;
-
-        byte[] stream = MapStreamCodec.assemble(gridPayloads, markPayloads);
-        file.reimport(new MessageBuf(stream), filter(localMtimes, forced, counts, uploader));
-    }
-
-    /** The filter's decision, predicted at assembly time. Must stay in step with {@link #filter}. */
-    private static boolean accepts(Map<Long, Long> manifest, Map<Long, Long> localMtimes, long gid) {
-        Long db = manifest.get(gid);
-        if (db == null)
-            return false;
-        Long local = localMtimes.get(gid);
-        return (local == null) || (db > local);
-    }
-
-    /**
-     * Give every segment that only contributes markers one grid to anchor it.
-     *
-     * <p>An anchor is preferred among grids this client does not have, because those are accepted
-     * on their own merits and overwrite nothing. Only when a segment is entirely known locally does
-     * one grid have to be forced through, and then the newest available copy is chosen so that the
-     * forced write is the least likely to be a step backwards.
-     */
-    private static void addAnchors(MapDbService svc, String profile, Set<Long> segs,
-                                   Map<Long, List<MapDataDao.Placement>> bySeg,
-                                   Map<Long, byte[]> blobs, Map<Long, Long> localMtimes,
-                                   List<byte[]> gridPayloads, Set<Long> covered, Set<Long> forced)
-            throws SQLException, InterruptedException {
-        List<MapDataDao.Placement> chosen = new ArrayList<>();
-        for (long seg : segs) {
-            List<MapDataDao.Placement> cands = bySeg.get(seg);
-            if ((cands == null) || cands.isEmpty())
-                continue;
-            MapDataDao.Placement pick = null;
-            for (MapDataDao.Placement p : cands) {
-                if (!localMtimes.containsKey(p.gid)) {
-                    pick = p;
-                    break;
-                }
-            }
-            if (pick == null)
-                pick = cands.get(0);
-            chosen.add(pick);
-        }
-
-        List<Long> missing = new ArrayList<>();
-        for (MapDataDao.Placement p : chosen) {
-            if (!blobs.containsKey(p.gid))
-                missing.add(p.gid);
-        }
-        for (int off = 0; off < missing.size(); off += PAGE) {
-            Utils.checkirq();
-            blobs.putAll(svc.payloads(profile, missing.subList(off, Math.min(off + PAGE, missing.size()))));
-        }
-
-        for (MapDataDao.Placement p : chosen) {
-            byte[] blob = blobs.get(p.gid);
-            if (blob == null)
-                continue;
-            byte[] chunk = MapStreamCodec.rekey(blob, p.segid, p.sc);
-            if (chunk == null)
-                continue;
-            gridPayloads.add(chunk);
-            covered.add(p.segid);
-            if (localMtimes.containsKey(p.gid))
-                forced.add(p.gid);
-        }
-    }
-
-    /**
-     * Accept a grid only when it is genuinely newer than the local copy.
-     *
-     * <p>This matters more than it looks. {@code Importer.importgrid} saves whatever it is given
-     * without comparing timestamps, so replaying an older snapshot of a grid - a villager who
-     * mapped an area before it was built on - would quietly undo newer terrain. Filtering here is
-     * safe because the importer records the segment offset before ever consulting the filter, which
-     * is exactly how the stock validation pass works.
-     */
-    private static MapFile.ImportFilter filter(Map<Long, Long> localMtimes, Set<Long> forced,
-                                               int[] counts, String uploader) {
-        return new MapFile.ImportFilter() {
-            public boolean includegrid(MapFile.ImportedGrid grid, boolean hasprev) {
-                if (forced.contains(grid.gid)) {
-                    /* Forced anchors are written whatever their age, so record the mtime that is
-                     * now genuinely on disk rather than leaving a stale higher one behind. */
-                    localMtimes.put(grid.gid, grid.mtime);
-                    return true;
-                }
-                Long local = localMtimes.get(grid.gid);
-                if ((local != null) && (grid.mtime <= local))
-                    return false;
-                /* Remember it as ours now, so the next player's map does not offer it again. */
-                localMtimes.put(grid.gid, grid.mtime);
-                counts[0]++;
-                return true;
+    /** Binds one world and one asking player to the service, for the merge to read through. */
+    private static MapMerge.Source source(MapDbService svc, String profile, String me) {
+        return new MapMerge.Source() {
+            public Map<Long, Long> manifest() throws SQLException {
+                return svc.manifest(profile);
             }
 
-            public boolean includemark(MapFile.Marker mark, MapFile.Marker prev) {
-                if (prev != null)
-                    return false;
-                counts[1]++;
-                return true;
+            public List<String> uploaders() throws SQLException {
+                return svc.uploaders(profile, me);
             }
 
-            /**
-             * One bad chunk must not abandon the rest of the merge. The likeliest cause is
-             * "Inconsistent grid locations detected", which means one player's stored layout
-             * disagrees with this map about where a segment sits; skipping that chunk and carrying
-             * on leaves both maps intact.
-             */
-            public void handleerror(RuntimeException exc, String ctx) {
-                System.err.println("[MapDbTransfer] skipped a " + ctx + " from " + uploader
-                    + ": " + exc.getMessage());
+            public List<MapDataDao.Placement> placements(String uploader) throws SQLException {
+                return svc.placements(profile, uploader);
+            }
+
+            public List<MapDataDao.MarkerRow> markers(String uploader) throws SQLException {
+                return svc.markers(profile, uploader);
+            }
+
+            public Map<Long, byte[]> payloads(List<Long> gids) throws SQLException {
+                return svc.payloads(profile, gids);
             }
         };
-    }
-
-    /** Local mtime for a grid, or null when this client does not have it. */
-    private static Long localMtime(MapFile file, long gid) {
-        MapFile.GridInfo info;
-        file.lock.readLock().lock();
-        try {
-            info = file.gridinfo.get(gid);
-        } catch (RuntimeException e) {
-            return null;
-        } finally {
-            file.lock.readLock().unlock();
-        }
-        if (info == null)
-            return null;
-        MapFile.Grid local = MapFile.Grid.load(file, gid);
-        return (local == null) ? null : local.mtime;
     }
 }
