@@ -452,7 +452,7 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/bear/bear", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/bear/polarbear", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/adder/adder", 100));
-        arearadprop.add(new NAreaRad("gfx/kritter/wildgoat/wildgoat", 100));
+        arearadprop.add(new NAreaRad("gfx/kritter/goat/wildgoat", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/badger/badger", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/lynx/lynx", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/mammoth/mammoth", 100));
@@ -1293,6 +1293,26 @@ public class NConfig
                     savedRads.add(new NAreaRad(entry[0], Integer.parseInt(entry[1])));
                     isUpd = true;
                 }
+            }
+
+            // Migration: the wildgoat entry shipped with a resource path that no gob ever has
+            // ("gfx/kritter/wildgoat/wildgoat"); the real one is "gfx/kritter/goat/wildgoat".
+            // Rename in place so the user's own vis/radius choices survive.
+            for (Iterator<NAreaRad> i = savedRads.iterator(); i.hasNext(); ) {
+                NAreaRad r = i.next();
+                if (r.name.equals("gfx/kritter/wildgoat/wildgoat")) {
+                    if (existingNames.contains("gfx/kritter/goat/wildgoat")) {
+                        i.remove();
+                    } else {
+                        r.name = "gfx/kritter/goat/wildgoat";
+                        existingNames.add(r.name);
+                    }
+                    isUpd = true;
+                }
+            }
+            if (!existingNames.contains("gfx/kritter/goat/wildgoat")) {
+                savedRads.add(new NAreaRad("gfx/kritter/goat/wildgoat", 100));
+                isUpd = true;
             }
         }
 
