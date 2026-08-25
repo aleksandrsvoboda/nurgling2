@@ -204,7 +204,30 @@ public class NUtils
     }
 
     public static void rclickGob(Gob gob) {
+        traceVehicleClick(gob);
         getGameUI().map.wdgmsg("click", Coord.z, gob.rc.floor(posres),3, 0, 0, (int) gob.id, gob.rc.floor(posres), 0, -1);
+    }
+
+    /** TEMPORARY DIAGNOSTIC -- remove once the cart click sequence is understood. */
+    private static void traceVehicleClick(Gob gob) {
+        try {
+            if (gob == null || gob.ngob == null || gob.ngob.name == null
+                    || !gob.ngob.name.contains("vehicle"))
+                return;
+            long marker = gob.ngob.getModelAttribute();
+            StringBuilder who = new StringBuilder();
+            StackTraceElement[] st = Thread.currentThread().getStackTrace();
+            for (int i = 2; i < st.length && who.length() < 200; i++) {
+                String cn = st[i].getClassName();
+                if (cn.startsWith("nurgling") && !cn.endsWith("NUtils"))
+                    who.append(cn.substring(cn.lastIndexOf('.') + 1)).append('.')
+                       .append(st[i].getMethodName()).append(':').append(st[i].getLineNumber())
+                       .append("  ");
+            }
+            System.out.println("[CARTCLICK] marker=" + marker + " (=" + (marker & 0xFF)
+                    + ", towed=" + ((marker & 2) != 0) + ")  <- " + who);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     /**

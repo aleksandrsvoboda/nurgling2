@@ -142,8 +142,18 @@ public class CartPathFinder extends PathFinder {
         return true;
     }
 
+    /**
+     * Whether the haul is still viable.
+     *
+     * <p>Only a positive "parked" counts as having lost the cart. A gob that is momentarily not in
+     * the object cache, or whose marker has not resolved yet, is not evidence of anything — and
+     * treating it as evidence aborts the leg, which sends the caller round its retry loop and back
+     * to clicking the cart.
+     */
     private boolean stillTowing() {
         Gob cart = Finder.findGob(cartId);
-        return cart != null && VehicleMarker.isTowed(cart);
+        if (cart == null)
+            return true;
+        return VehicleMarker.towState(cart) != VehicleMarker.Tow.PARKED;
     }
 }

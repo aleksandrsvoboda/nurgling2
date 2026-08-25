@@ -9,8 +9,7 @@ import nurgling.tools.VehicleMarker;
 /**
  * Unties a towed vehicle, leaving it parked where it stands.
  *
- * <p>Counterpart to {@link TakeVehicle}. Also clears this session's towed-vehicle record, so the
- * pathfinder goes back to treating the vehicle as the obstacle it now is.
+ * <p>Counterpart to {@link TakeVehicle}.
  */
 public class ReleaseVehicle implements Action {
     private final Gob vehicle;
@@ -24,23 +23,15 @@ public class ReleaseVehicle implements Action {
         if (vehicle == null)
             return Results.ERROR("ReleaseVehicle: no vehicle");
 
-        if (!VehicleMarker.isTowed(vehicle)) {
-            forget();
+        // Only a positive TOWED gets a click: on UNKNOWN we would be toggling blind.
+        if (VehicleMarker.towState(vehicle) != VehicleMarker.Tow.TOWED)
             return Results.SUCCESS();
-        }
 
         WaitVehicleReleased released = new WaitVehicleReleased(vehicle);
         NUtils.rclickGob(vehicle);
         NUtils.addTask(released);
 
-        if (!released.released())
-            return Results.FAIL();
-        forget();
-        return Results.SUCCESS();
+        return released.released() ? Results.SUCCESS() : Results.FAIL();
     }
 
-    private static void forget() {
-        if (NUtils.getUI() != null && NUtils.getUI().core != null)
-            NUtils.getUI().core.towedVehicle.release();
-    }
 }

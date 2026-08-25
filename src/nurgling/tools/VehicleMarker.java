@@ -62,7 +62,30 @@ public class VehicleMarker {
         return marker != UNKNOWN;
     }
 
-    /** Whether the vehicle is currently tied to and following a character. Verified for carts. */
+    /**
+     * Tow state as three values, because "parked" and "we cannot read the marker yet" must not be
+     * confused.
+     *
+     * <p>{@code modelAttribute} starts at -1 and is only filled in when the gob's {@code ResDrawable}
+     * arrives, so there is a window — after a gob is created, or its drawable reloads — where the
+     * marker is simply unknown. Collapsing that into "not towed" is actively dangerous: right-click
+     * is a toggle, so acting on it makes the bot click a cart it has already tied and untie it.
+     */
+    public enum Tow { TOWED, PARKED, UNKNOWN }
+
+    public static Tow towState(Gob vehicle) {
+        long marker = markerOf(vehicle);
+        if (!known(marker))
+            return Tow.UNKNOWN;
+        return ((marker & MASK_TOWED) != 0) ? Tow.TOWED : Tow.PARKED;
+    }
+
+    /**
+     * True only when the vehicle is definitely under tow.
+     *
+     * <p>Beware: false covers both "parked" and "unknown". Anything that acts on the negative —
+     * clicking, or deciding the cart came off — must use {@link #towState} instead.
+     */
     public static boolean isTowed(Gob vehicle) {
         long marker = markerOf(vehicle);
         return known(marker) && (marker & MASK_TOWED) != 0;

@@ -11,7 +11,6 @@ import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NCarrierProp;
-import nurgling.navigation.AreaNavigationHelper;
 import nurgling.tasks.WaitCheckable;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -41,6 +40,16 @@ public class CartCarrier implements Action {
     private static final int SLOTS = VehicleMarker.CART_CARGO_SLOTS;
     /** How many times to go back for a cart that untied en route before giving up. */
     private static final int HAUL_ATTEMPTS = 3;
+    /** Distance from the aimed-at point that still counts as having arrived, in world units. */
+    private static final double ARRIVAL_SLACK = 12.0;
+    /** Length of a single haul leg. Local pathfinding plans within roughly +/-450 units. */
+    private static final double HOP_LENGTH = 150.0;
+    /** Movement below this counts as no progress. */
+    private static final double MIN_PROGRESS = 5.0;
+    private static final int MAX_STALLED_HOPS = 4;
+    private static final int MAX_HOPS = 80;
+    /** Beyond this, reachability of a point cannot be tested -- it is not in planning range. */
+    private static final double PLANNING_RANGE = 300.0;
 
     /**
      * Whether to park the cart while loading at the input zone.
@@ -181,46 +190,159 @@ public class CartCarrier implements Action {
      * catch every case, and losing the load silently is the failure worth spending a check on.
      */
     private boolean haul(NGameUI gui, long cartId, NArea area) throws InterruptedException {
-        // Nothing to fetch if the cart is already standing in the destination zone.
-        Gob standing = Finder.findGob(cartId);
-        if (standing != null && !VehicleMarker.isTowed(standing) && area.checkHit(standing.rc)
-                && area.checkHit(NUtils.player().rc))
-            return true;
-
         for (int attempt = 0; attempt < HAUL_ATTEMPTS; attempt++) {
+            Gob cart = Finder.findGob(cartId);
+            if (cart == null) {
+                gui.msg("CartCarrier: lost sight of the cart.");
+                return false;
+            }
+
+            // Already standing in the zone with the cart to hand: nothing to haul. Covers both
+            // "towed and we walked here" and "parked here already", the latter being the normal
+            // state of the input zone at the start of a cycle.
+            if (atArea(area, ARRIVAL_SLACK)
+                    && (VehicleMarker.towState(cart) == VehicleMarker.Tow.TOWED || area.checkHit(cart.rc)))
+                return true;
+
             if (!tie(gui, cartId))
                 return false;
 
-            Coord2d destination = destinationIn(area);
-            if (destination == null) {
-                gui.msg("CartCarrier: cannot reach that zone from here.");
-                return false;
-            }
-            // Deliberately CartPathFinder rather than NUtils.navigateToArea: the ordinary
-            // navigation stack knows nothing about cart clearance, and its long-distance half
-            // replays chunk graphs that were recorded on foot.
-            new CartPathFinder(destination, cartId).run(gui);
+            // Global navigation first: it already knows about distance, chunk graphs and portals,
+            // and reimplementing that is a bad trade. Its internal PathFinders are not cart-aware
+            // since the isolation refactor, so the cart gets no extra clearance on these legs --
+            // an untie is recoverable (we re-tie below), a bot that cannot travel is not.
+            // Trust navigateToArea's verdict: it returns true once the zone is within local
+            // pathfinding range, which is its definition of "close enough to work here".
+            boolean walked = NUtils.navigateToArea(area, true) || atArea(area, ARRIVAL_SLACK);
 
-            // Success is "the cart is still with us", not "we are inside the zone bounds":
-            // the haul target is a zone corner, and demanding checkHit on arrival would fail
-            // on a boundary rounding and send us round the retry loop for nothing.
-            Gob cart = Finder.findGob(cartId);
-            if (cart != null && VehicleMarker.isTowed(cart))
+            if (!walked) {
+                // Only if global navigation cannot get there at all.
+                gui.msg("CartCarrier: global navigation could not reach the zone, walking it manually.");
+                walked = towCartTo(gui, cartId, area);
+            }
+
+            cart = Finder.findGob(cartId);
+            if (cart != null && VehicleMarker.towState(cart) == VehicleMarker.Tow.PARKED) {
+                gui.msg("CartCarrier: cart came off on the way, going back for it.");
+                continue;
+            }
+            if (walked)
                 return true;
-            gui.msg("CartCarrier: cart came off on the way, going back for it.");
+            gui.msg("CartCarrier: could not get the cart to the zone.");
+            return false;
         }
         return false;
     }
 
-    /** A point inside the zone to haul to: nearest reachable corner, else its centre. */
-    private Coord2d destinationIn(NArea area) throws InterruptedException {
-        Coord2d corner = AreaNavigationHelper.findNearestReachableCorner(area);
-        if (corner != null)
-            return corner;
+    /**
+     * Tow the cart into a zone of any distance, in hops that each fit inside local pathfinding.
+     *
+     * <p>{@code PathFinder} can only plan inside the streamed area around the character — roughly
+     * ±450 world units — so a single request to a zone 800 units away simply fails. The haul is
+     * therefore walked as a series of short cart-aware legs. Each leg is an ordinary
+     * {@link CartPathFinder} run, so obstacles are still routed around and the cart still gets its
+     * clearance; only the distance is chopped up.
+     *
+     * <p>The aiming point is re-chosen every leg rather than fixed at the start. Reachability is
+     * not a question that can be answered about somewhere 800 units away — nothing out there is in
+     * planning range — so committing to one corner up front means discovering only on arrival that
+     * it was inside a wall, with no way to pick another.
+     */
+    private boolean towCartTo(NGameUI gui, long cartId, NArea area) throws InterruptedException {
+        int stalls = 0;
+        for (int hop = 0; hop < MAX_HOPS; hop++) {
+            Coord2d from = NUtils.player().rc;
+            if (atArea(area, ARRIVAL_SLACK))
+                return true;
+
+            Coord2d target = approachTarget(area, from);
+            if (target == null) {
+                gui.msg("CartCarrier: cannot work out where in that zone to go.");
+                return false;
+            }
+            double remaining = from.dist(target);
+            if (remaining <= ARRIVAL_SLACK)
+                return true;
+
+            // Each stall halves the stride: a full-length leg can aim past something the local
+            // window has no route around, where a shorter one on the same bearing plans fine.
+            double reach = Math.min(remaining, HOP_LENGTH / (1 << stalls));
+            Coord2d step = (remaining <= reach)
+                    ? target
+                    : from.add(target.sub(from).norm().mul(reach));
+
+            new CartPathFinder(step, cartId).run(gui);
+            double moved = NUtils.player().rc.dist(from);
+
+            // Judged by movement rather than by the return value: a leg that lands short of its
+            // waypoint still made progress, and one that reports success without moving has not.
+            if (moved < MIN_PROGRESS) {
+                if (++stalls >= MAX_STALLED_HOPS) {
+                    gui.msg("CartCarrier: stuck " + String.format("%.0f", remaining)
+                            + " units short of the zone.");
+                    return false;
+                }
+                continue;
+            }
+            stalls = 0;
+        }
+        gui.msg("CartCarrier: gave up hauling after " + MAX_HOPS + " legs.");
+        return false;
+    }
+
+    /**
+     * Are we at the zone, allowing a tile of slack?
+     *
+     * <p>Not {@code checkHit} alone. Global navigation delivers you to the nearest <em>corner</em>,
+     * which sits on the boundary, so an exact containment test on the resulting position routinely
+     * says no when you are plainly standing there. Gating on it made a successful trip read as a
+     * failure, and made the "already here" shortcut never fire.
+     */
+    private static boolean atArea(NArea area, double slack) {
+        Gob player = NUtils.player();
+        if (player == null)
+            return false;
+        if (area.checkHit(player.rc))
+            return true;
+        Pair<Coord2d, Coord2d> rc = area.getRCArea();
+        if (rc == null)
+            return false;
+        double minX = Math.min(rc.a.x, rc.b.x), maxX = Math.max(rc.a.x, rc.b.x);
+        double minY = Math.min(rc.a.y, rc.b.y), maxY = Math.max(rc.a.y, rc.b.y);
+        double dx = Math.max(Math.max(minX - player.rc.x, player.rc.x - maxX), 0);
+        double dy = Math.max(Math.max(minY - player.rc.y, player.rc.y - maxY), 0);
+        return Math.hypot(dx, dy) <= slack;
+    }
+
+    /**
+     * Where in the zone to aim for, from where we are standing now.
+     *
+     * <p>Far away, every candidate is equally untestable, so just head for the nearest one. Once
+     * the zone is inside planning range the question becomes answerable, so prefer a point we can
+     * actually plan a route to — which is what stops the haul dying 110 units short against a
+     * corner that happens to sit inside a wall.
+     */
+    private Coord2d approachTarget(NArea area, Coord2d from) throws InterruptedException {
         Pair<Coord2d, Coord2d> rc = area.getRCArea();
         if (rc == null)
             return null;
-        return new Coord2d((rc.a.x + rc.b.x) / 2, (rc.a.y + rc.b.y) / 2);
+
+        ArrayList<Coord2d> candidates = new ArrayList<>();
+        candidates.add(new Coord2d((rc.a.x + rc.b.x) / 2, (rc.a.y + rc.b.y) / 2));
+        candidates.add(new Coord2d(rc.a.x, rc.a.y));
+        candidates.add(new Coord2d(rc.b.x, rc.a.y));
+        candidates.add(new Coord2d(rc.a.x, rc.b.y));
+        candidates.add(new Coord2d(rc.b.x, rc.b.y));
+        candidates.sort((a, b) -> Double.compare(a.dist(from), b.dist(from)));
+
+        if (candidates.get(0).dist(from) > PLANNING_RANGE)
+            return candidates.get(0);
+
+        for (Coord2d candidate : candidates) {
+            if (PathFinder.isAvailable(candidate))
+                return candidate;
+        }
+        return candidates.get(0);
     }
 
     private boolean tie(NGameUI gui, long cartId) throws InterruptedException {
@@ -246,7 +368,7 @@ public class CartCarrier implements Action {
         Gob cart = Finder.findGob(cartId);
         if (cart == null)
             return false;
-        if (!VehicleMarker.isTowed(cart))
+        if (VehicleMarker.towState(cart) != VehicleMarker.Tow.TOWED)
             return true;
         if (new ReleaseVehicle(cart).run(gui).IsSuccess())
             return true;

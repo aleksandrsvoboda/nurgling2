@@ -13,7 +13,6 @@ import nurgling.tools.VehicleMarker;
  */
 public class WaitVehicleReleased extends NTask {
     private final long gobid;
-    private final long before;
     private boolean released = false;
 
     private static final int GIVE_UP_AFTER = 150;
@@ -21,7 +20,6 @@ public class WaitVehicleReleased extends NTask {
 
     public WaitVehicleReleased(Gob vehicle) {
         this.gobid = (vehicle == null) ? -1 : vehicle.id;
-        this.before = VehicleMarker.markerOf(vehicle);
         // Counts itself out rather than tripping NTask's timeout, which would log
         // "Incorrect final of task" for an ordinary retryable miss.
         this.infinite = true;
@@ -39,7 +37,8 @@ public class WaitVehicleReleased extends NTask {
         long now = VehicleMarker.markerOf(vehicle);
         if (!VehicleMarker.known(now))
             return false;
-        if ((now & VehicleMarker.MASK_TOWED) == 0 || now != before) {
+        // Tow bit clear, specifically. "Changed" would also fire on cargo coming off.
+        if ((now & VehicleMarker.MASK_TOWED) == 0) {
             released = true;
             return true;
         }

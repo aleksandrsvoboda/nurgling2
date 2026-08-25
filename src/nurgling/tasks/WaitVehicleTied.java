@@ -8,10 +8,10 @@ import nurgling.tools.VehicleMarker;
 /**
  * Waits for a right-clicked vehicle to actually come under tow.
  *
- * <p>The authoritative signal is the vehicle's model marker changing: a cart flips from
- * {@code parked} to {@code towed} in the low bits of its sdt the moment it ties on. Watching for a
- * <em>change</em> rather than a specific value keeps this correct for plows and wheelbarrows too,
- * whose bit layout has not been measured.
+ * <p>The authoritative signal is the vehicle's model marker: bit 1 is set the moment it ties on.
+ * This waits for that bit specifically rather than for the marker to change at all — a right-click
+ * toggles the tow and, on a loaded cart, can pull cargo off instead, so "something changed" is
+ * equally consistent with success and with having just undone it.
  *
  * <p>The character's {@code borka/carry} pose is kept as a second, independent signal. It is not
  * redundant: a cart never produces that pose at all (measured across a full towing session), so
@@ -24,8 +24,7 @@ import nurgling.tools.VehicleMarker;
  */
 public class WaitVehicleTied extends NTask {
     private final long gobid;
-    private final long before;
-    private boolean markerChanged = false;
+    private boolean byMarker = false;
     private boolean carryPose = false;
 
     private static final int GIVE_UP_AFTER = 150;
@@ -33,7 +32,6 @@ public class WaitVehicleTied extends NTask {
 
     public WaitVehicleTied(Gob vehicle) {
         this.gobid = (vehicle == null) ? -1 : vehicle.id;
-        this.before = VehicleMarker.markerOf(vehicle);
         this.infinite = true;
     }
 
@@ -47,10 +45,13 @@ public class WaitVehicleTied extends NTask {
         Gob vehicle = Finder.findGob(gobid);
         if (vehicle != null) {
             long now = VehicleMarker.markerOf(vehicle);
-            // known(), not >= 0: markers past 127 arrive sign-extended negative, so a loaded
-            // cart (253 parked / 254 towed) would otherwise never register as having changed.
-            if (VehicleMarker.known(now) && now != before) {
-                markerChanged = true;
+            // The tow bit must be SET. Merely "the marker changed" is not good enough: right-click
+            // is a toggle, and on a loaded cart it can also pull cargo off, so a change is equally
+            // consistent with having just untied the thing. Treating that as success made
+            // TakeVehicle report a tie it had actually just undone, and the bot walked off alone.
+            // known() first: markers past 127 arrive sign-extended negative (253 parked, 254 towed).
+            if (VehicleMarker.known(now) && (now & VehicleMarker.MASK_TOWED) != 0) {
+                byMarker = true;
                 return true;
             }
         }
@@ -66,16 +67,8 @@ public class WaitVehicleTied extends NTask {
 
     /** True when either signal fired; false means the wait ran out and the vehicle is not tied. */
     public boolean tied() {
-        return markerChanged || carryPose;
+        return byMarker || carryPose;
     }
 
-    /** Which signal settled it -- useful when confirming the marker layout for a new vehicle type. */
-    public boolean byMarker() {
-        return markerChanged;
-    }
 
-    /** The marker this started from, for diagnostics when a tie does not take. */
-    public long before() {
-        return before;
-    }
 }

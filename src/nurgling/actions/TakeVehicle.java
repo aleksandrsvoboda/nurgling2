@@ -26,10 +26,8 @@ public class TakeVehicle implements Action {
             return Results.ERROR("TakeVehicle: no vehicle found");
 
         // Already under tow. Only trusted for carts -- see VehicleMarker.
-        if(isCart(vehicle) && VehicleMarker.isTowed(vehicle)) {
-            claim(vehicle);
+        if(isCart(vehicle) && VehicleMarker.isTowed(vehicle))
             return Results.SUCCESS();
-        }
 
         if(!hasCarryPose())
             NUtils.addTask(new WaitPose(NUtils.player(), "idle"));
@@ -42,27 +40,27 @@ public class TakeVehicle implements Action {
         // Retried: a click issued while the server still considers the character busy with the
         // previous action is simply ignored, which is easy to hit right after loading the vehicle.
         for(int attempt = 0; attempt < CLICK_ATTEMPTS; attempt++) {
+            // Re-check before every click, and only click on a POSITIVE "parked". Right-click is a
+            // toggle, so clicking on an unreadable marker is how a successful tie gets undone.
+            VehicleMarker.Tow state = VehicleMarker.towState(vehicle);
+            if(state == VehicleMarker.Tow.TOWED)
+                return Results.SUCCESS();
+            if(state == VehicleMarker.Tow.UNKNOWN) {
+                // Marker not resolved yet -- wait for it rather than guessing.
+                NUtils.addTask(new WaitVehicleTied(vehicle));
+                continue;
+            }
+
             WaitVehicleTied tied = new WaitVehicleTied(vehicle);
             NUtils.rclickGob(vehicle);
             NUtils.addTask(tied);
-            if(tied.tied()) {
-                claim(vehicle);
+            if(tied.tied())
                 return Results.SUCCESS();
-            }
         }
 
         return Results.FAIL();
     }
 
-    /**
-     * Tell this session's pathfinder that the vehicle is ours, so it stops treating it as an
-     * obstacle. Registering here covers the gap between tying and first moving, during which the
-     * vehicle emits no Homing for the tracker to pick up on its own.
-     */
-    private static void claim(Gob vehicle) {
-        if(NUtils.getUI() != null && NUtils.getUI().core != null)
-            NUtils.getUI().core.towedVehicle.adopt(vehicle);
-    }
 
     private static boolean isCart(Gob vehicle) {
         return vehicle.ngob != null && NParser.checkName(vehicle.ngob.name, CART);
