@@ -2241,8 +2241,10 @@ NMiniMap extends MiniMap {
                 return true;
         }
 
-        // Pick up a queued waypoint under the cursor instead of panning/walking.
-        if(ev.b == 1 && startWaypointDrag(ev.c))
+        // Pick up a queued waypoint under the cursor instead of panning/walking. Plain left
+        // button only: alt+LMB is "queue a waypoint here" (NMiniMapWnd.clickloc, NMapWnd.mouseup)
+        // and would otherwise be swallowed whenever the cursor sat near a node already queued.
+        if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && startWaypointDrag(ev.c))
             return true;
 
         // Handle left-click for forager path recording - prevent player movement

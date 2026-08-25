@@ -1424,8 +1424,14 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return true;
         }
 
-        // Grab a movement waypoint drawn on the ground instead of walking there.
-        if(ev.b == 1 && wpGrab == null) {
+        /* Grab a movement waypoint drawn on the ground instead of walking there.
+         *
+         * Plain left button only. Alt+LMB means "queue a waypoint here" and alt+shift+LMB is the
+         * map ping; both are decided much further down, in MapView.Click.hit. Grabbing here on a
+         * modified click steals them whenever the cursor happens to be within a node's grab radius
+         * - which, while laying a path out, it very often is, because the node you just placed is
+         * right where you are still clicking. Same rule as the minimap (NMiniMap.mousedown). */
+        if(ev.b == 1 && wpGrab == null && !ui.modmeta && !ui.modshift && !ui.modctrl) {
             long wpid = worldWaypointAt(ev.c);
             if(wpid >= 0) {
                 wpDragOrigin = waypointWorldPos(wpid);
@@ -2204,6 +2210,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if(gui == null || gui.chat == null)
             return false;
         ChatUI.Channel chat = gui.chat.sel;
+        /* A ping travels as an ordinary chat line, so with no channel selected there is nowhere
+         * to send it and the gesture quietly does nothing. */
         if(!(chat instanceof ChatUI.EntryChannel))
             return false;
         if(chat.getClass().getName().contains("Realm"))
@@ -2239,6 +2247,12 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
+    /**
+     * Queue a waypoint at a world position - the world's half of alt+LMB, matching what
+     * NMiniMapWnd.clickloc and NMapWnd.handleWaypointClick do from a map.
+     *
+     * <p>Returning false leaves the click to fall through and walk normally.
+     */
     public boolean addWaypointAt(Coord2d mc) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
