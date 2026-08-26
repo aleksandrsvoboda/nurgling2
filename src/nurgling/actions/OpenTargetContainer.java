@@ -50,6 +50,18 @@ public class OpenTargetContainer implements Action
                     new SelectFlowerAction("Open", gob, true).run(gui);
                 gui.ui.core.addTask(new FindNInventory(name));
                 break;
+            case "Study Desk":
+            case "Fine Study Desk":
+            case "Grand Study Desk":
+                /* A study desk owned by the current character opens directly on a plain
+                 * click, same as any other container. One owned by someone else instead
+                 * pops a flower menu ("Open" / "Take possession"), since the server now
+                 * lets any character place items into any desk without taking ownership.
+                 * Selecting "Open" (petalIgnored) handles both cases without ever taking
+                 * possession, and is a no-op when no menu appeared at all. */
+                new SelectFlowerAction("Open", gob, true).run(gui);
+                gui.ui.core.addTask(new FindNInventory(name));
+                break;
             default:
                 gui.ui.core.addTask(new FindNInventory(name));
         }
