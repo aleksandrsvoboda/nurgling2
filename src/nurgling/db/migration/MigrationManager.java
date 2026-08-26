@@ -35,6 +35,32 @@ public class MigrationManager {
     /** Version of the migration that creates peer_positions; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_PEER_POSITIONS = 12;
 
+    /** Group role holding read/write on everything. Villagers are members of it. */
+    public static final String ROLE_MEMBER = "nurgling_member";
+
+    /** Group role holding read-only, for an ally you share a map with but not your areas. */
+    public static final String ROLE_GUEST = "nurgling_guest";
+
+    /** Whichever grantee is right for a table created outside the migration list. */
+    public static final String ROLE_MEMBER_OR_PUBLIC = "PUBLIC";
+
+    /**
+     * A required migration was refused for lack of rights.
+     *
+     * <p>Separated from every other migration failure because it has a completely different fix and
+     * a completely different audience: it means a villager updated their client before the host did,
+     * so the schema change is waiting for someone who is not them. Reporting it as a generic
+     * migration error leaves them staring at a dead sync with no idea it is not their problem.
+     */
+    public static class MigrationPermissionException extends SQLException {
+        public final int version;
+
+        public MigrationPermissionException(int version, SQLException cause) {
+            super("Migration " + version + " needs privileges this account does not have", "42501", cause);
+            this.version = version;
+        }
+    }
+
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
         public final int dbVersion;
@@ -96,6 +122,9 @@ public class MigrationManager {
                     connection.rollback();
                     System.err.println("Migration " + migration.version + " failed: " + e.getMessage());
                     if (!migration.optional) {
+                        if ("42501".equals(e.getSQLState())) {
+                            throw new MigrationPermissionException(migration.version, e);
+                        }
                         throw e;
                     }
                     /* An optional migration only backs one feature, so the rest of the client keeps
@@ -168,9 +197,17 @@ public class MigrationManager {
     private List<Migration> getMigrations() {
         List<Migration> migrations = new ArrayList<>();
 
-        migrations.add(new Migration(1, "Initial migration: create favorite_recipes table and add UNIQUE constraints") {
+        migrations.add(new Migration(1, "Initial migration: create base tables, favorite_recipes, and UNIQUE constraints") {
             @Override
             public void run(DatabaseAdapter adapter) throws SQLException {
+                /* Must come first. The ALTER TABLEs below assume ingredients and feps exist, and on
+                 * an empty database they do not: PostgreSQL raises 42P01, which is not the "already
+                 * exists" code this migration forgives, so it rethrows - and migration 1 is not
+                 * optional, so the whole DatabaseManager fails to initialise. That made
+                 * etc/db/init.sql an undocumented prerequisite that only the compose entrypoint ever
+                 * applied, so pointing the client at any other PostgreSQL simply did not work. */
+                ensureBaseTables(adapter);
+
                 // Create favorite_recipes table if it doesn't exist
                 if (!adapter.tableExists("favorite_recipes")) {
                     String createFavoriteRecipes = "CREATE TABLE favorite_recipes (" +
@@ -631,6 +668,209 @@ public class MigrationManager {
         });
 
         return migrations;
+    }
+
+    /**
+     * Create the five tables that used to arrive only via {@code etc/db/init.sql}.
+     *
+     * <p>No-op on any database that already has them, which is every village created before this
+     * change. Routed through {@link #createTable} so a fresh database gets the grants too - the
+     * init.sql copies never had any, which is the reason no account except the owner could read
+     * them.
+     */
+    private static void ensureBaseTables(DatabaseAdapter adapter) throws SQLException {
+        boolean pg = adapter instanceof nurgling.db.PostgresAdapter;
+        String serialPk = pg ? "id SERIAL PRIMARY KEY, " : "id INTEGER PRIMARY KEY AUTOINCREMENT, ";
+        /* SQLite cannot add a constraint after the fact - ensureSqliteUniqueConstraints rebuilds the
+         * whole table to do it - so create it inline there and let PostgreSQL use its own ALTER
+         * path below, which already knows how to skip a constraint that exists. */
+        String inlineUnique = pg ? "" : ", UNIQUE (recipe_hash, name)";
+
+        if (!adapter.tableExists("recipes")) {
+            createTable(adapter, "recipes",
+                "CREATE TABLE recipes (" +
+                "recipe_hash VARCHAR(64) PRIMARY KEY, " +
+                "item_name VARCHAR(255) NOT NULL, " +
+                "resource_name VARCHAR(255) NOT NULL, " +
+                "hunger FLOAT NOT NULL, " +
+                "energy INT NOT NULL)");
+            System.out.println("Created recipes table");
+        }
+        if (!adapter.tableExists("ingredients")) {
+            createTable(adapter, "ingredients",
+                "CREATE TABLE ingredients (" + serialPk +
+                "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
+                "name VARCHAR(255) NOT NULL, " +
+                "percentage FLOAT NOT NULL, " +
+                "resource_name VARCHAR(512)" + inlineUnique + ")");
+            System.out.println("Created ingredients table");
+        }
+        if (!adapter.tableExists("feps")) {
+            createTable(adapter, "feps",
+                "CREATE TABLE feps (" + serialPk +
+                "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
+                "name VARCHAR(255) NOT NULL, " +
+                "value FLOAT NOT NULL, " +
+                "weight FLOAT NOT NULL" + inlineUnique + ")");
+            System.out.println("Created feps table");
+        }
+        if (!adapter.tableExists("containers")) {
+            createTable(adapter, "containers",
+                "CREATE TABLE containers (" +
+                "hash VARCHAR(64) PRIMARY KEY, " +
+                "grid_id BIGINT, " +
+                "coord VARCHAR(255))");
+            System.out.println("Created containers table");
+        }
+        if (!adapter.tableExists("storageitems")) {
+            createTable(adapter, "storageitems",
+                "CREATE TABLE storageitems (" +
+                "item_hash VARCHAR(64) PRIMARY KEY, " +
+                "name VARCHAR(255) NOT NULL, " +
+                "quality DOUBLE PRECISION, " +
+                "coordinates VARCHAR(255), " +
+                "container VARCHAR(64) NOT NULL)");
+            System.out.println("Created storageitems table");
+        }
+    }
+
+    /**
+     * Hand out the privileges every other account on this database needs, and arrange for future
+     * tables to get them without anyone remembering to ask.
+     *
+     * <p>Three gaps this closes, all of which forced villages onto a single shared superuser:
+     * <ul>
+     *   <li>Tables that came from {@code init.sql} were granted to nobody at all.</li>
+     *   <li>Sequences were never granted anywhere, so inserting a recipe ingredient failed even
+     *       where the table grant had landed - {@code SERIAL} needs {@code USAGE} on its
+     *       sequence, and PUBLIC does not get that by default.</li>
+     *   <li>Grants only ever happened inside {@code CREATE TABLE}, so a role created afterwards, or
+     *       a change of grantee, applied to nothing.</li>
+     * </ul>
+     *
+     * <p>Idempotent, touches no data and disconnects nobody, so it is safe to run on every admin
+     * connect while people are playing. A client whose role may not grant simply logs and moves on.
+     */
+    public static void repairPermissions(DatabaseAdapter adapter) {
+        if (!(adapter instanceof nurgling.db.PostgresAdapter)) {
+            return;
+        }
+        String role = grantee();
+        if (role == null) {
+            return;
+        }
+        Connection conn = adapter.getConnection();
+        boolean tables = guarded(conn, adapter,
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + role);
+        if (!tables) {
+            /* Every villager runs this on every connect, and only the owner's role can grant. One
+             * line beats four identical ones, and it is not an error - it just is not this client's
+             * job. */
+            System.out.println("[MigrationManager] not permitted to repair permissions here; "
+                + "the account that owns the database does this on its next connect");
+            return;
+        }
+        boolean seqs = guarded(conn, adapter,
+            "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + role);
+
+        /* Default privileges attach to the role that CREATES an object, so the role named here has
+         * to be whoever will actually run the next migration - not a fixed name. An upgraded village
+         * migrates as "postgres"; a village set up from scratch will not. Naming the wrong one is a
+         * silent no-op that only shows up releases later, as a new table no villager can read. */
+        String owner = currentUser(adapter);
+        if (owner != null) {
+            String forRole = "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner) + " IN SCHEMA public ";
+            guarded(conn, adapter, forRole + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + role);
+            guarded(conn, adapter, forRole + "GRANT USAGE, SELECT ON SEQUENCES TO " + role);
+        }
+
+        if (tables && seqs) {
+            System.out.println("[MigrationManager] permissions repaired: " + role
+                + " has DML on all tables and sequences"
+                + (owner == null ? "" : ", defaults set for " + owner));
+        }
+
+        /* The group roles only exist once somebody has used the Villagers panel. Granting to them
+         * here rather than at creation time is what lets a role added next month get the same rights
+         * as one added today without anyone re-running anything. */
+        if (roleExists(adapter, ROLE_MEMBER)) {
+            guarded(conn, adapter,
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + ROLE_MEMBER);
+            guarded(conn, adapter,
+                "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + ROLE_MEMBER);
+            if (owner != null) {
+                String forRole = "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner) + " IN SCHEMA public ";
+                guarded(conn, adapter, forRole + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + ROLE_MEMBER);
+                guarded(conn, adapter, forRole + "GRANT USAGE, SELECT ON SEQUENCES TO " + ROLE_MEMBER);
+            }
+        }
+        if (roleExists(adapter, ROLE_GUEST)) {
+            guarded(conn, adapter,
+                "GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + ROLE_GUEST);
+            /* A guest still has to be able to publish where they are, or they show on nobody's map
+             * while seeing everyone else on theirs. */
+            guarded(conn, adapter,
+                "GRANT INSERT, UPDATE, DELETE ON peer_positions TO " + ROLE_GUEST);
+            if (owner != null) {
+                guarded(conn, adapter, "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner)
+                    + " IN SCHEMA public GRANT SELECT ON TABLES TO " + ROLE_GUEST);
+            }
+        }
+    }
+
+    /** Whether a role is present on this server. */
+    public static boolean roleExists(DatabaseAdapter adapter, String role) {
+        try (ResultSet rs = adapter.executeQuery("SELECT 1 FROM pg_roles WHERE rolname = ?", role)) {
+            return rs.next();
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    /** The role this connection is authenticated as, or null if it cannot be read. */
+    private static String currentUser(DatabaseAdapter adapter) {
+        try (ResultSet rs = adapter.executeQuery("SELECT current_user")) {
+            if (rs.next()) {
+                String u = rs.getString(1);
+                if (u != null && !u.isEmpty()) {
+                    return u;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[MigrationManager] could not read current_user: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Run one statement that is allowed to fail.
+     *
+     * <p>Wrapped in a savepoint because a failed statement aborts the entire PostgreSQL
+     * transaction - without one, a client that merely lacks the right to grant would roll back the
+     * migration that just succeeded.
+     */
+    private static boolean guarded(Connection conn, DatabaseAdapter adapter, String sql) {
+        java.sql.Savepoint sp = null;
+        try {
+            sp = conn.setSavepoint("nurgling_perm");
+            adapter.executeUpdate(sql);
+            conn.releaseSavepoint(sp);
+            return true;
+        } catch (SQLException e) {
+            if (sp != null) {
+                try {
+                    conn.rollback(sp);
+                } catch (SQLException ignore) {
+                }
+            }
+            System.err.println("[MigrationManager] skipped (" + e.getMessage() + "): " + sql);
+            return false;
+        }
+    }
+
+    /** Quote a role name for use in DDL, where it cannot go through a bound parameter. */
+    private static String quoteIdent(String ident) {
+        return "\"" + ident.replace("\"", "\"\"") + "\"";
     }
 
     /**

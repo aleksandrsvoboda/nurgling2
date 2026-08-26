@@ -25,6 +25,7 @@ public class SimpleConnectionPool {
     private final String jdbcUrl;
     private final String user;
     private final String password;
+    private volatile SQLException lastError;
 
     private static final long BORROW_TIMEOUT_MS = 5000; // 5 seconds timeout for borrowing
     private static final int VALIDATION_TIMEOUT_SECONDS = 2;
@@ -44,11 +45,10 @@ public class SimpleConnectionPool {
         this.isPostgres = (Boolean) NConfig.get(NConfig.Key.postgres);
 
         if (isPostgres) {
-            // Increased timeouts: connectTimeout=10s, socketTimeout=60s for slow operations
-            this.jdbcUrl = "jdbc:postgresql://" + NConfig.get(NConfig.Key.serverNode)
-                         + "/nurgling_db?connectTimeout=10&socketTimeout=60";
-            this.user = (String) NConfig.get(NConfig.Key.serverUser);
-            this.password = (String) NConfig.get(NConfig.Key.serverPass);
+            DbSettings settings = DbSettings.fromConfig();
+            this.jdbcUrl = settings.jdbcUrl();
+            this.user = settings.user;
+            this.password = settings.password;
         } else {
             this.jdbcUrl = "jdbc:sqlite:" + NConfig.get(NConfig.Key.dbFilePath);
             this.user = null;
@@ -172,9 +172,17 @@ public class SimpleConnectionPool {
             conn.setAutoCommit(false);
             return conn;
         } catch (SQLException e) {
+            /* Kept rather than only logged: this is where every connection failure actually
+             * surfaces, and the settings panel has no other way to learn why it has no database. */
+            this.lastError = e;
             System.err.println("Failed to create database connection: " + e.getMessage());
             return null;
         }
+    }
+
+    /** Why the last connection attempt failed, or null if none has. */
+    public SQLException getLastError() {
+        return lastError;
     }
 
     /**
