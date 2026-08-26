@@ -6,6 +6,7 @@ import nurgling.NUtils;
 import nurgling.tools.MapDbTransfer;
 import nurgling.i18n.L10n;
 
+import java.awt.Color;
 import java.util.Map;
 
 import static haven.MCache.tilesz;
@@ -21,6 +22,7 @@ public class NMapWnd extends MapWnd {
     TextEntry markerSearchField;
     Button dbExportBtn;
     Button dbImportBtn;
+    PeerRoster peerRoster;
     private static final int btnw = UI.scale(95);
     private static final int dbbtnw = UI.scale(110);
 
@@ -112,7 +114,226 @@ public class NMapWnd extends MapWnd {
             }
         });
         dbImportBtn.settip(L10n.get("mapdb.btn_import_tip"));
+        /* Same width as the two database buttons side by side, so the right-hand edge of the map
+         * reads as one column rather than three things that happen to be near each other. */
+        add(peerRoster = new PeerRoster((dbbtnw * 2) + UI.scale(5)));
         placeDbButtons();
+    }
+
+    /**
+     * Live roster of everyone publishing to the shared database, sitting in the map window above the
+     * database buttons. Left-clicking a name pans the map to that character.
+     *
+     * <p>Deliberately part of the map rather than a window of its own: the answer to "where is
+     * Bjorn" is a place on this map, and a separate window would mean reading a name in one place
+     * and hunting for the marker in another. It is also only here - the corner minimap has neither
+     * the room for it nor a way to pan.
+     *
+     * <p>Collapses to its header, and disappears entirely when nobody is online, so an empty village
+     * costs no map area at all.
+     */
+    public class PeerRoster extends Widget {
+        private static final int MAXROWS = 8;
+        private final int rowh = UI.scale(15);
+        private final int headh = UI.scale(16);
+        private final Text.Foundry fnd = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
+        private final java.util.List<Row> rows = new java.util.ArrayList<>();
+        private final RosterBox box;
+        private boolean collapsed = false;
+        private double refresh = 0;
+        private Text head = null;
+        private int headn = -1;
+
+        /** One rendered row. Text is built on the refresh tick, never per frame. */
+        private final class Row {
+            final nurgling.PeerPosition kp;
+            final Text name, status;
+            final Color col;
+            final boolean placed;
+
+            Row(nurgling.PeerPosition kp, Text name, Text status, Color col, boolean placed) {
+                this.kp = kp; this.name = name; this.status = status;
+                this.col = col; this.placed = placed;
+            }
+        }
+
+        private class RosterBox extends Listbox<Row> {
+            RosterBox(int w, int h) {
+                super(w, h, rowh);
+            }
+
+            protected Row listitem(int i) {return(rows.get(i));}
+
+            protected int listitems() {return(rows.size());}
+
+            protected void drawbg(GOut g) {
+                g.chcolor(0, 0, 0, 148);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
+
+            protected void drawsel(GOut g) {
+                g.chcolor(255, 255, 255, 28);
+                g.frect(Coord.z, g.sz());
+                g.chcolor();
+            }
+
+            protected void drawitem(GOut g, Row row, int idx) {
+                // Banded rows: at this size a flat panel of names is genuinely hard to track across.
+                if((idx % 2) == 1) {
+                    g.chcolor(255, 255, 255, 12);
+                    g.frect(Coord.z, g.sz());
+                    g.chcolor();
+                }
+                int mid = g.sz().y / 2;
+                g.chcolor(row.col.getRed(), row.col.getGreen(), row.col.getBlue(),
+                          row.placed ? 255 : 120);
+                g.fellipse(new Coord(UI.scale(7), mid), new Coord(UI.scale(3), UI.scale(3)));
+                g.chcolor();
+                g.aimage(row.name.tex(), new Coord(UI.scale(14), mid), 0, 0.5);
+                if(row.status != null)
+                    g.aimage(row.status.tex(), new Coord(g.sz().x - UI.scale(4), mid), 1, 0.5);
+            }
+
+            public void change(Row row) {
+                super.change(row);
+                if(row == null)
+                    return;
+                MiniMap.Location loc = row.kp.ref.loc();
+                if(loc == null) {
+                    /* Online, but in land this client has never walked or imported. Saying so is the
+                     * useful answer - and names the fix - where a dead click would just look broken. */
+                    GameUI gui = getparent(GameUI.class);
+                    if(gui != null)
+                        gui.msg(row.kp.charName + " is somewhere your map does not cover yet - "
+                                + "import the shared map to place them.");
+                    return;
+                }
+                view.center(new MiniMap.SpecLocator(loc.seg.id, loc.tc));
+            }
+        }
+
+        PeerRoster(int w) {
+            super(new Coord(w, UI.scale(16)));
+            box = add(new RosterBox(w, MAXROWS), new Coord(0, headh));
+            relayout();
+        }
+
+        public void tick(double dt) {
+            super.tick(dt);
+            /* Twice a second. The sync worker only refreshes the underlying data every three, and
+             * re-rendering eight rows of text per frame to show the same numbers would be waste. */
+            refresh -= dt;
+            if(refresh <= 0) {
+                refresh = 0.5;
+                rebuild();
+            }
+        }
+
+        private void rebuild() {
+            NGameUI gui = (NGameUI)getparent(GameUI.class);
+            rows.clear();
+            if(gui != null && gui.peerPositionService != null
+               && (Boolean)nurgling.NConfig.get(nurgling.NConfig.Key.showPeerPositions)) {
+                java.util.List<nurgling.PeerPosition> live = gui.peerPositionService.snapshot();
+                live.sort((a, b) -> a.charName.compareToIgnoreCase(b.charName));
+                Coord ptc = playerTile();
+                for(nurgling.PeerPosition kp : live) {
+                    if(!kp.online())
+                        continue;
+                    boolean placed = kp.ref.loc() != null;
+                    Color col = NMiniMap.peercol(gui, kp.charName);
+                    rows.add(new Row(kp,
+                                     fnd.render(kp.charName, placed ? Color.WHITE : new Color(158, 158, 158)),
+                                     fnd.render(status(kp, ptc, placed), new Color(168, 168, 168)),
+                                     col, placed));
+                }
+            }
+            if(rows.size() != headn) {
+                headn = rows.size();
+                head = fnd.render(L10n.get("mapdb.roster_title") + " (" + headn + ")", Color.WHITE);
+            }
+            relayout();
+        }
+
+        /** Right-hand column: how far, or why there is no distance to give. */
+        private String status(nurgling.PeerPosition kp, Coord ptc, boolean placed) {
+            if(!placed)
+                return(L10n.get("mapdb.roster_unmapped"));
+            MiniMap.Location loc = kp.ref.loc();
+            MiniMap.Location sessloc = view.sessloc;
+            if((ptc == null) || (sessloc == null) || (loc.seg.id != sessloc.seg.id))
+                return(L10n.get("mapdb.roster_elsewhere"));
+            long d = Math.round(ptc.dist(loc.tc));
+            return((d >= 1000) ? String.format("%.1fk", d / 1000.0) : Long.toString(d));
+        }
+
+        private Coord playerTile() {
+            try {
+                MiniMap.Location sessloc = view.sessloc;
+                GameUI gui = getparent(GameUI.class);
+                if((sessloc != null) && (gui != null) && (gui.map != null))
+                    return(new Coord2d(gui.map.getcc()).floor(tilesz).add(sessloc.tc));
+            } catch(Loading l) {
+            }
+            return(null);
+        }
+
+        private void relayout() {
+            int n = Math.min(rows.size(), MAXROWS);
+            /* Nobody online, no panel - not even a header saying zero. Visibility follows the row
+             * count alone rather than also being driven from tick(): with no shared database the
+             * sync worker never delivers anyone, so the list is empty and this hides itself. One
+             * rule, rather than two that can disagree about who is in charge. */
+            show(n > 0);
+            boolean showbox = !collapsed && (n > 0);
+            box.show(showbox);
+            if(showbox) {
+                box.h = n;
+                box.resize(new Coord(box.sz.x, n * rowh));
+                /* The scrollbar was sized at construction and does not follow a resize on its own,
+                 * so a shrunk list would otherwise keep a full-height bar hanging past its rows. */
+                box.sb.resize(new Coord(box.sb.sz.x, n * rowh));
+            }
+            resize(new Coord(sz.x, headh + (showbox ? (n * rowh) : 0)));
+            placeDbButtons();
+        }
+
+        public void draw(GOut g) {
+            g.chcolor(0, 0, 0, 178);
+            g.frect(Coord.z, new Coord(sz.x, headh));
+            g.chcolor(255, 255, 255, 28);
+            g.frect(Coord.z, new Coord(sz.x, UI.scale(1)));
+            g.chcolor();
+            if(head != null)
+                g.aimage(head.tex(), new Coord(UI.scale(6), headh / 2), 0, 0.5);
+            // Collapse chevron, pointing the way the panel will go.
+            int cx = sz.x - UI.scale(9), cy = headh / 2, a = UI.scale(3);
+            g.chcolor(210, 210, 210, 220);
+            if(collapsed) {
+                g.line(new Coord(cx - a, cy - a), new Coord(cx, cy + a), 1);
+                g.line(new Coord(cx + a, cy - a), new Coord(cx, cy + a), 1);
+            } else {
+                g.line(new Coord(cx - a, cy + a), new Coord(cx, cy - a), 1);
+                g.line(new Coord(cx + a, cy + a), new Coord(cx, cy - a), 1);
+            }
+            g.chcolor();
+            super.draw(g);
+        }
+
+        public boolean mousedown(MouseDownEvent ev) {
+            if((ev.b == 1) && (ev.c.y < headh)) {
+                collapsed = !collapsed;
+                relayout();
+                return(true);
+            }
+            return(super.mousedown(ev));
+        }
+
+        /** Height this panel wants right now, used to stack it above the database buttons. */
+        int wanted() {
+            return(sz.y);
+        }
     }
 
     /** Bottom-right of the map view, stacked above the marker search field. */
@@ -123,8 +344,13 @@ public class NMapWnd extends MapWnd {
         int y = view.c.y + view.sz.y - UI.scale(25) - dbExportBtn.sz.y - spacing;
         int x = view.c.x + view.sz.x - UI.scale(5) - (dbbtnw * 2) - spacing;
         /* A window narrow enough to leave no room would otherwise push them off the left edge. */
-        dbExportBtn.c = new Coord(Math.max(view.c.x, x), y);
-        dbImportBtn.c = new Coord(Math.max(view.c.x, x) + dbbtnw + spacing, y);
+        int lx = Math.max(view.c.x, x);
+        dbExportBtn.c = new Coord(lx, y);
+        dbImportBtn.c = new Coord(lx + dbbtnw + spacing, y);
+        /* Stacked directly on top of the buttons and growing upward, so the list expanding never
+         * moves the buttons under the player's cursor. */
+        if(peerRoster != null)
+            peerRoster.c = new Coord(lx, y - spacing - peerRoster.wanted());
     }
 
     private double dbBtnCheck = 0;

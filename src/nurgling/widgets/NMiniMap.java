@@ -461,7 +461,7 @@ NMiniMap extends MiniMap {
     private static final Text.Foundry peerfnd = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
 
     /** Neutral colour for a published character who is not on this client's kin list. */
-    private static final Color PEER_DEFAULT = new Color(190, 190, 190);
+    public static final Color PEER_DEFAULT = new Color(190, 190, 190);
 
     /**
      * Kin-group colour for a character name, or a neutral grey when they are not kinned here.
@@ -470,7 +470,7 @@ NMiniMap extends MiniMap {
      * is decided by who shares this database, and only the colour is decided by the in-game Kin list.
      * Hiding someone who has not been added in-game yet would read as the feature being broken.
      */
-    private static Color peercol(NGameUI gui, String name) {
+    public static Color peercol(NGameUI gui, String name) {
         try {
             BuddyWnd bw = gui.buddies;
             if(bw != null && name != null) {
