@@ -216,6 +216,37 @@ public class Text implements Disposable {
 	    return(render(text, defcol));
 	}
 
+	/* Draws the glyphs four times in the stroke colour, offset by a pixel in each
+	 * direction, then once on top in the fill colour. Gives a hard 1px outline
+	 * rather than the soft halo BlurFurn produces, which is what the combat HUD
+	 * needs to stay legible over arbitrary terrain. */
+	public Line renderstroked(String text, Color c, Color stroke) {
+	    Coord sz = strsize(text);
+	    if(sz.x < 1)
+		sz = sz.add(1, 0);
+	    sz = sz.add(2, 2);
+	    BufferedImage img = TexI.mkbuf(sz);
+	    Graphics g = img.createGraphics();
+	    if(aa)
+		Utils.AA(g);
+	    g.setFont(font);
+	    FontMetrics m = g.getFontMetrics();
+	    int base = m.getLeading() + m.getAscent();
+	    g.setColor(stroke);
+	    g.drawString(text, 0, base);
+	    g.drawString(text, 2, base);
+	    g.drawString(text, 1, base - 1);
+	    g.drawString(text, 1, base + 1);
+	    g.setColor(c);
+	    g.drawString(text, 1, base);
+	    g.dispose();
+	    return(new Line(text, img, m));
+	}
+
+	public Line renderstroked(String text, Color c) {
+	    return(renderstroked(text, c, Utils.contrast(c)));
+	}
+
 	public Line ellipsize(String text, int w, String e) {
 	    Line full = render(text);
 	    if(full.sz().x <= w)
@@ -416,5 +447,31 @@ public class Text implements Disposable {
 		javax.imageio.ImageIO.write(t.img, "PNG", out);
 	    }
 	}
+    }
+
+    public static final Foundry num12boldFnd = new Foundry(sans.deriveFont(Font.BOLD), 12).aa(true);
+
+    public static Line renderstroked(String text, Color c, Color s, Foundry fnd) {
+	return(fnd.renderstroked(text, c, s));
+    }
+
+    public static Line renderstroked(String text, Color c, Color s) {
+	return(renderstroked(text, c, s, std));
+    }
+
+    public static Line renderstroked(String text, Color c, Foundry fnd) {
+	return(renderstroked(text, c, Utils.contrast(c), fnd));
+    }
+
+    public static Line renderstroked(String text, Color c) {
+	return(renderstroked(text, c, Utils.contrast(c)));
+    }
+
+    public static Line renderstroked(String text, Foundry fnd) {
+	return(renderstroked(text, Color.WHITE, Color.BLACK, fnd));
+    }
+
+    public static Line renderstroked(String text) {
+	return(renderstroked(text, Color.WHITE, Color.BLACK));
     }
 }
