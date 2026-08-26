@@ -257,6 +257,7 @@ NMiniMap extends MiniMap {
         if(dataLevel <= 1)
             drawicons(g);
         drawparty(g);
+        drawPeers(g);            // Players sharing this database, at any distance
 
         drawtempmarks(g);
         drawLabeledMarks(g);
@@ -268,6 +269,107 @@ NMiniMap extends MiniMap {
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawMarkerLine(g);       // Draw line to selected marker
         drawPings(g);            // Draw chat map pings on top of everything else
+    }
+
+    /**
+     * Players whose position came from the shared database - which is to say players at any distance
+     * at all, kinned or not.
+     *
+     * <p>Membership is by database access, not by the in-game Kin list: anyone publishing to this
+     * database is drawn. Kin group only decides the colour.
+     *
+     * <p>The client's own two mechanisms both stop short: {@code drawicons} needs the game server to
+     * still be sending you the Gob, and {@code drawparty} needs an actual party. This draws everyone
+     * the shared database knows about, using the same arrow as {@code drawparty} so a marker reads
+     * as "a player" without anything new to learn.
+     *
+     * <p>Lives here rather than in a dedicated widget for the same reason as {@link #drawPings}: the
+     * map window's view subclasses this class, so the corner minimap and the map window both get it
+     * from one call.
+     */
+    private void drawPeers(GOut g) {
+        if(sessloc == null || dloc == null)
+            return;
+        if(!(Boolean)NConfig.get(NConfig.Key.showPeerPositions))
+            return;
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.peerPositionService == null)
+            return;
+        java.util.List<PeerPosition> peers = gui.peerPositionService.snapshot();
+        if(peers.isEmpty())
+            return;
+
+        /* Names are only legible at high detail, and a crowded village at world zoom would be a wall
+         * of overlapping text. The arrows stay at every zoom. */
+        boolean names = getDataLevel() <= 1;
+
+        for(PeerPosition kp : peers) {
+            MiniMap.Location loc = kp.ref.loc();
+            if(loc == null)
+                continue;    // their grid is in no segment we have; nothing to draw against
+            Coord c = xlate(loc);
+            if(c == null)
+                continue;    // resolved, but into a segment this map is not showing
+            double alpha = kp.alpha();
+            Color col = peercol(gui, kp.charName);
+            boolean onmap = c.isect(Coord.z, sz);
+
+            if(!onmap) {
+                /* Off-map players get the same border arrow pings use. On a zoomed-in minimap that is
+                 * most of them, and drawing nothing would hide the answer to "which way is Bjorn". */
+                drawPingEdgeArrow(g, clampToEdge(c), c, col, alpha * 0.8, 0.0);
+                continue;
+            }
+
+            // Same marker as drawparty, tinted by kin group where there is one, with a dark casing
+            // so it stays readable over both snow and dark forest.
+            g.chcolor(0, 0, 0, (int)(140 * alpha));
+            g.rotimage(plp, c.add(UI.scale(1, 1)), plp.sz().div(2), -kp.angle - (Math.PI / 2));
+            g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+            g.rotimage(plp, c, plp.sz().div(2), -kp.angle - (Math.PI / 2));
+            g.chcolor();
+
+            if(names) {
+                String label = kp.stale() ? (kp.charName + " \u00b7 " + kp.agestr()) : kp.charName;
+                Text txt = peerfnd.render(label, col);
+                Coord tp = c.add(0, UI.scale(9));
+                g.chcolor(0, 0, 0, (int)(150 * alpha));
+                g.frect(tp.sub(txt.sz().x / 2 + UI.scale(2), 0), txt.sz().add(UI.scale(4), UI.scale(1)));
+                g.chcolor(255, 255, 255, (int)(255 * alpha));
+                g.aimage(txt.tex(), tp, 0.5, 0);
+                g.chcolor();
+            }
+        }
+    }
+
+    /** Foundry for name labels; rendering one per player per frame would be needless garbage. */
+    private static final Text.Foundry peerfnd = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
+
+    /** Neutral colour for a published character who is not on this client's kin list. */
+    private static final Color PEER_DEFAULT = new Color(190, 190, 190);
+
+    /**
+     * Kin-group colour for a character name, or a neutral grey when they are not kinned here.
+     *
+     * <p>Colouring rather than filtering is the whole distinction between the two ideas: who is drawn
+     * is decided by who shares this database, and only the colour is decided by the in-game Kin list.
+     * Hiding someone who has not been added in-game yet would read as the feature being broken.
+     */
+    private static Color peercol(NGameUI gui, String name) {
+        try {
+            BuddyWnd bw = gui.buddies;
+            if(bw != null && name != null) {
+                for(BuddyWnd.Buddy b : bw) {
+                    if(name.equals(b.name))
+                        return((b.group >= 0 && b.group < BuddyWnd.gc.length)
+                               ? BuddyWnd.gc[b.group] : PEER_DEFAULT);
+                }
+            }
+        } catch(RuntimeException ignore) {
+            /* The kin list is a live widget being mutated by the server; failing to read it must
+             * cost a colour, never the marker. */
+        }
+        return(PEER_DEFAULT);
     }
 
     /**
