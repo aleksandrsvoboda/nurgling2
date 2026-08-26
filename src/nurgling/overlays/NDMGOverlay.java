@@ -7,6 +7,8 @@ import nurgling.NUtils;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public class NDMGOverlay extends Sprite implements PView.Render2D {
 
@@ -26,12 +28,22 @@ public class NDMGOverlay extends Sprite implements PView.Render2D {
                 }
             }
         }
+        synchronized (live) {
+            live.clear();
+        }
     }
+
+    /* Gob.addcustomol() defers the actual add to a loader thread, so findol() cannot
+     * see a freshly created overlay yet. A single hit sends its hard- and soft-health
+     * scores together and both land inside that window, so without a registry of
+     * in-flight overlays each score would build its own sprite and the two would draw
+     * on top of each other at the same point above the gob. Weak keys so a gob leaving
+     * view takes its entry with it. */
+    private static final Map<Gob, NDMGOverlay> live = new WeakHashMap<>();
     public static final Text.Foundry fnd = new Text.Foundry(Text.sans, 12);
     Color[] colt = new Color[]{Color.RED, Color.YELLOW, Color.GREEN};
     TexI[] dmgt = new TexI[3];
     int[] dmg = new int[3];
-    BufferedImage curOl = null;
 
     public NDMGOverlay(Owner owner) {
         super(owner, null);
@@ -48,30 +60,30 @@ public class NDMGOverlay extends Sprite implements PView.Render2D {
     }
 
     public static void IsDMG(int col, int num, Gob owner) {
-        if (col == 64527 || col == 36751 || col == 61455) {
-            NDMGOverlay ol;
+        int type;
+        if (col == 64527) {
+            type = 1;
+        } else if (col == 36751) {
+            type = 2;
+        } else if (col == 61455) {
+            type = 0;
+        } else {
+            return;
+        }
+        NDMGOverlay ol;
+        synchronized (live) {
             Gob.Overlay gol = owner.findol(NDMGOverlay.class);
-            if(gol != null) {
-                ol = (NDMGOverlay)gol.spr;
-            }
-            else
-            {
+            ol = (gol != null) ? (NDMGOverlay) gol.spr : live.get(owner);
+            if (ol == null) {
                 ol = new NDMGOverlay(owner);
-                ((Gob)owner).addcustomol(ol);
-            }
-            if (col == 64527) {
-                ol.updDmg(num,1);
-            }
-            else if (col == 36751) {
-                ol.updDmg(num,2);
-            }
-            else {
-                ol.updDmg(num,0);
+                live.put(owner, ol);
+                owner.addcustomol(ol);
             }
         }
+        ol.updDmg(num, type);
     }
 
-    public void updDmg(int dmg, int type) {
+    public synchronized void updDmg(int dmg, int type) {
         this.dmg[type] += dmg;
         dmgt[type] = new TexI(Utils.outline2(fnd.render(Integer.toString(this.dmg[type]), colt[type]).img, Utils.contrast(colt[type])));
         int w = 0;
@@ -79,7 +91,7 @@ public class NDMGOverlay extends Sprite implements PView.Render2D {
         for(int i = 0; i < 3; i++) {
             if (dmgt[i] != null) {
                 w += dmgt[i].sz().x + UI.scale(2);
-                h = dmgt[i].sz().y + UI.scale(2);
+                h = Math.max(h, dmgt[i].sz().y + UI.scale(2));
             }
         }
         BufferedImage ret = TexI.mkbuf(new Coord(w, h));
@@ -92,19 +104,38 @@ public class NDMGOverlay extends Sprite implements PView.Render2D {
             }
         }
         g.dispose();
-        curOl = ret;
+        pending = ret;
     }
 
+    /* Set on the thread that parses the score message, picked up and uploaded once by
+     * the render thread. Converting on every frame instead meant a fresh texture upload
+     * per damaged gob per frame. */
+    private volatile BufferedImage pending = null;
+    private TexI curOl = null;
+
+    /* Dark enough to read a thin stroked digit against grass, snow or firelight. */
+    private static final Color backing = new Color(0, 0, 0, 187);
+    private static final Coord bpad = UI.scale(new Coord(3, 1));
+
     public void draw(GOut g, Pipe state) {
-        Coord sc = Homo3D.obj2view(Coord3f.zu.add(0,0, 16), state, Area.sized(Coord.z, g.sz())).round2();
-        if(sc == null || curOl == null) {
-            return;
+        BufferedImage upd = pending;
+        if(upd != null) {
+            pending = null;
+            if(curOl != null)
+                curOl.dispose();
+            curOl = new TexI(upd);
         }
-        g.chcolor(new Color(0, 0, 0, 64));
-        Coord start = new Coord(curOl.getWidth(),curOl.getHeight()).div(2);
-        g.frect2(sc.sub(start), sc.add(new Coord(curOl.getWidth(),curOl.getHeight())).sub(start));
+        if(curOl == null)
+            return;
+        Coord sc = Homo3D.obj2view(Coord3f.zu.add(0, 0, 16), state, Area.sized(Coord.z, g.sz())).round2();
+        if(sc == null)
+            return;
+        Coord sz = curOl.sz();
+        Coord ul = sc.sub(sz.div(2));
+        g.chcolor(backing);
+        g.frect2(ul.sub(bpad), ul.add(sz).add(bpad));
         g.chcolor();
-        g.image(curOl,sc.add(UI.scale(1,0)).sub(start));
+        g.image(curOl, ul);
     }
 
     @Override

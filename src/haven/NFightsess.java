@@ -98,8 +98,13 @@ public class NFightsess extends Fightsess {
         /* Size from the tile height alone, so 7, 62 and 100 all render at the same
          * height instead of the number visibly shrinking as an opening climbs past
          * 9 and 99. A bold sans cap height runs near 0.72em, so the first guess lands
-         * close and the corrections only trim. */
-        int boxh = tile.y - UI.scale(6);
+         * close and the corrections only trim.
+         *
+         * The fractions leave a margin of tile colour showing all round the number -
+         * the colour is what identifies the opening, so the digits must not crowd it
+         * out. Sizing off the glyph outline means the stroke is the only thing between
+         * the digits and the margin, so these read tighter than they look. */
+        int boxh = (int)Math.round(tile.y * 0.66);
         float size = Math.max(1f, boxh * 1.4f);
         Font font = Text.sans.deriveFont(Font.BOLD, size);
         Rectangle ink = font.createGlyphVector(frc, str).getPixelBounds(null, 0, 0);
@@ -118,7 +123,7 @@ public class NFightsess extends Fightsess {
 
         /* Longer numbers are condensed rather than scaled down - keeping full height
          * is what makes the value readable at a glance mid-fight. */
-        int boxw = tile.x - UI.scale(2) - (pad * 2);
+        int boxw = (int)Math.round(tile.x * 0.78) - (pad * 2);
         if((ink.width > boxw) && (ink.width > 0)) {
             font = font.deriveFont(AffineTransform.getScaleInstance(boxw / (double)ink.width, 1.0));
             ink = font.createGlyphVector(frc, str).getPixelBounds(null, 0, 0);
