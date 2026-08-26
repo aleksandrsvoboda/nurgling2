@@ -7,6 +7,12 @@ import nurgling.widgets.NEquipory;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.font.FontRenderContext;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.util.*;
 
 /**
@@ -62,6 +68,81 @@ public class NFightsess extends Fightsess {
             texcache.put(key, t);
         }
         return(t);
+    }
+
+    private static final Map<String, Tex> valuecache = new HashMap<>();
+
+    /**
+     * The opening percentage, sized to fill its tile.
+     *
+     * A Text.Line carries the font's leading and descent as transparent padding, so
+     * scaling one to a box leaves the digits looking roughly a third too small. Laying
+     * the glyphs out from their own outline instead means the box is the digits, and
+     * the number reads at a glance from across the screen.
+     */
+    private static Tex openingValueTex(int pct, Coord tile) {
+        String key = pct + "@" + tile.x + "x" + tile.y;
+        Tex t = valuecache.get(key);
+        if(t == null) {
+            t = renderFitted(Integer.toString(pct), tile);
+            valuecache.put(key, t);
+        }
+        return(t);
+    }
+
+    private static Tex renderFitted(String str, Coord tile) {
+        BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg = probe.createGraphics();
+        FontRenderContext frc = pg.getFontRenderContext();
+
+        /* Size from the tile height alone, so 7, 62 and 100 all render at the same
+         * height instead of the number visibly shrinking as an opening climbs past
+         * 9 and 99. A bold sans cap height runs near 0.72em, so the first guess lands
+         * close and the corrections only trim. */
+        int boxh = tile.y - UI.scale(6);
+        float size = Math.max(1f, boxh * 1.4f);
+        Font font = Text.sans.deriveFont(Font.BOLD, size);
+        Rectangle ink = font.createGlyphVector(frc, str).getPixelBounds(null, 0, 0);
+        for(int i = 0; (i < 3) && (ink.height > 0); i++) {
+            double fit = boxh / (double)ink.height;
+            if((fit > 0.99) && (fit < 1.01))
+                break;
+            size = Math.max(1f, (float)(size * fit));
+            font = Text.sans.deriveFont(Font.BOLD, size);
+            ink = font.createGlyphVector(frc, str).getPixelBounds(null, 0, 0);
+        }
+
+        /* Outline thickness tracks the glyph so the number stays readable over every
+         * opening colour without swallowing the digits at small UI scales. */
+        int pad = Math.min(UI.scale(2), Math.max(UI.scale(1), Math.round(size / 14f)));
+
+        /* Longer numbers are condensed rather than scaled down - keeping full height
+         * is what makes the value readable at a glance mid-fight. */
+        int boxw = tile.x - UI.scale(2) - (pad * 2);
+        if((ink.width > boxw) && (ink.width > 0)) {
+            font = font.deriveFont(AffineTransform.getScaleInstance(boxw / (double)ink.width, 1.0));
+            ink = font.createGlyphVector(frc, str).getPixelBounds(null, 0, 0);
+        }
+        pg.dispose();
+
+        Coord sz = new Coord(Math.max(1, ink.width) + (pad * 2), Math.max(1, ink.height) + (pad * 2));
+        BufferedImage img = TexI.mkbuf(sz);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setFont(font);
+        int ox = pad - ink.x, oy = pad - ink.y;
+        g.setColor(Color.BLACK);
+        for(int dx = -pad; dx <= pad; dx += pad) {
+            for(int dy = -pad; dy <= pad; dy += pad) {
+                if((dx != 0) || (dy != 0))
+                    g.drawString(str, ox + dx, oy + dy);
+            }
+        }
+        g.setColor(Color.WHITE);
+        g.drawString(str, ox, oy);
+        g.dispose();
+        return(new TexI(img));
     }
 
     /** Enemy opening percentages indexed by NCombatData colour slot; drives damage prediction. */
@@ -339,13 +420,19 @@ public class NFightsess extends Fightsess {
                 }
 
                 Color oc = NCombatData.openingColor(name);
+                /* A flat colour tile has nothing else in it, so the percentage takes the
+                 * whole square. A letter glyph or a stance icon already fills the tile,
+                 * so there the number stays a small corner label. */
+                boolean bare = false;
                 if(oc != null) {
                     g.chcolor(oc);
                     Tex letter = letters ? NCombatData.letterTex(name) : null;
-                    if(letter != null)
+                    if(letter != null) {
                         g.image(letter, pos, isz);
-                    else
+                    } else {
                         g.frect(pos, isz);
+                        bare = true;
+                    }
                     g.chcolor(Color.WHITE);
                 } else {
                     if(enemy && name.equals("paginae/atk/combmed") && (pct > 70))
@@ -355,8 +442,11 @@ public class NFightsess extends Fightsess {
                 }
 
                 if(pct > 0) {
-                    g.aimage(stroked(Integer.toString(pct), Color.WHITE, openingFoundry, false),
-                             pos.add(isz).sub(1, 1), 1, 1);
+                    if(bare)
+                        g.aimage(openingValueTex(pct, isz), pos.add(isz.div(2)), 0.5, 0.5);
+                    else
+                        g.aimage(stroked(Integer.toString(pct), Color.WHITE, openingFoundry, false),
+                                 pos.add(isz).sub(1, 1), 1, 1);
                 }
             } catch(Loading ignored) {
             }
