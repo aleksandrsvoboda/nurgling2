@@ -257,6 +257,7 @@ NMiniMap extends MiniMap {
         if(dataLevel <= 1)
             drawicons(g);
         drawparty(g);
+        drawKin(g);              // Kin published to the shared database, at any distance
 
         drawtempmarks(g);
         drawLabeledMarks(g);
@@ -268,6 +269,103 @@ NMiniMap extends MiniMap {
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawMarkerLine(g);       // Draw line to selected marker
         drawPings(g);            // Draw chat map pings on top of everything else
+    }
+
+    /**
+     * Kin whose position came from the shared database, which is to say kin at any distance at all.
+     *
+     * <p>The client's own two mechanisms both stop short: {@code drawicons} needs the game server to
+     * still be sending you the Gob, and {@code drawparty} needs an actual party. This draws everyone
+     * the village database knows about, using the same arrow as {@code drawparty} so a marker reads
+     * as "a player" without anything new to learn.
+     *
+     * <p>Lives here rather than in a dedicated widget for the same reason as {@link #drawPings}: the
+     * map window's view subclasses this class, so the corner minimap and the map window both get it
+     * from one call.
+     */
+    private void drawKin(GOut g) {
+        if(sessloc == null || dloc == null)
+            return;
+        if(!(Boolean)NConfig.get(NConfig.Key.showKinPositions))
+            return;
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.kinPositionService == null)
+            return;
+        java.util.List<KinPosition> kin = gui.kinPositionService.snapshot();
+        if(kin.isEmpty())
+            return;
+
+        /* Names are only legible at high detail, and a crowded village at world zoom would be a wall
+         * of overlapping text. The arrows stay at every zoom. */
+        boolean names = getDataLevel() <= 1;
+
+        for(KinPosition kp : kin) {
+            MiniMap.Location loc = kp.ref.loc();
+            if(loc == null)
+                continue;    // their grid is in no segment we have; nothing to draw against
+            Coord c = xlate(loc);
+            if(c == null)
+                continue;    // resolved, but into a segment this map is not showing
+            double alpha = kp.alpha();
+            Color col = kincol(gui, kp.charName);
+            boolean onmap = c.isect(Coord.z, sz);
+
+            if(!onmap) {
+                /* Off-map kin get the same border arrow pings use. On a zoomed-in minimap that is
+                 * most of them, and drawing nothing would hide the answer to "which way is Bjorn". */
+                drawPingEdgeArrow(g, clampToEdge(c), c, col, alpha * 0.8, 0.0);
+                continue;
+            }
+
+            // Same marker as drawparty, tinted per kin group, with a dark casing so it stays
+            // readable over both snow and dark forest.
+            g.chcolor(0, 0, 0, (int)(140 * alpha));
+            g.rotimage(plp, c.add(UI.scale(1, 1)), plp.sz().div(2), -kp.angle - (Math.PI / 2));
+            g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+            g.rotimage(plp, c, plp.sz().div(2), -kp.angle - (Math.PI / 2));
+            g.chcolor();
+
+            if(names) {
+                String label = kp.stale() ? (kp.charName + " \u00b7 " + kp.agestr()) : kp.charName;
+                Text txt = kinfnd.render(label, col);
+                Coord tp = c.add(0, UI.scale(9));
+                g.chcolor(0, 0, 0, (int)(150 * alpha));
+                g.frect(tp.sub(txt.sz().x / 2 + UI.scale(2), 0), txt.sz().add(UI.scale(4), UI.scale(1)));
+                g.chcolor(255, 255, 255, (int)(255 * alpha));
+                g.aimage(txt.tex(), tp, 0.5, 0);
+                g.chcolor();
+            }
+        }
+    }
+
+    /** Foundry for kin labels; rendering one per frame per kin would be needless garbage. */
+    private static final Text.Foundry kinfnd = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
+
+    /** Neutral colour for a published character who is not on this client's kin list. */
+    private static final Color KIN_DEFAULT = new Color(190, 190, 190);
+
+    /**
+     * Kin-group colour for a character name, or a neutral grey when they are not kinned here.
+     *
+     * <p>Colouring rather than filtering is deliberate: anyone writing to the village database is
+     * already trusted, and hiding a villager who simply has not been added in-game yet would read as
+     * the feature being broken.
+     */
+    private static Color kincol(NGameUI gui, String name) {
+        try {
+            BuddyWnd bw = gui.buddies;
+            if(bw != null && name != null) {
+                for(BuddyWnd.Buddy b : bw) {
+                    if(name.equals(b.name))
+                        return((b.group >= 0 && b.group < BuddyWnd.gc.length)
+                               ? BuddyWnd.gc[b.group] : KIN_DEFAULT);
+                }
+            }
+        } catch(RuntimeException ignore) {
+            /* The kin list is a live widget being mutated by the server; failing to read it must
+             * cost a colour, never the marker. */
+        }
+        return(KIN_DEFAULT);
     }
 
     /**

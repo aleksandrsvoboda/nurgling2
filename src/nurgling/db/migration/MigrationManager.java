@@ -21,7 +21,7 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 11;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 12;
 
     /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_KIN_SECRETS = 9;
@@ -31,6 +31,9 @@ public class MigrationManager {
 
     /** Version of the migration that creates the shared map tables; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_MAP_DATA = 11;
+
+    /** Version of the migration that creates kin_positions; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_KIN_POSITIONS = 12;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -565,6 +568,65 @@ public class MigrationManager {
                     safeCreateIndex(adapter, "CREATE INDEX idx_mm_profile ON map_markers (profile)");
                     System.out.println("Created map_markers table");
                 }
+            }
+        });
+
+        /* Optional: kin_positions backs only the live kin markers on the map. A role without CREATE
+         * on the schema must not lose area, planning and recipe sync over it - the map simply stops
+         * showing where kin are. */
+        migrations.add(new Migration(12, "Create kin_positions table for live kin map positions", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (adapter.tableExists("kin_positions")) {
+                    return;
+                }
+                boolean pg = (adapter instanceof nurgling.db.PostgresAdapter);
+
+                /* This table is written far harder than anything else in the schema: one row per
+                 * character, every row rewritten every few seconds, forever. Three storage choices
+                 * follow from that, and all three are about keeping a table of a few dozen rows from
+                 * behaving like a busy one.
+                 *
+                 * UNLOGGED: positions are disposable. If the server restarts and the table comes back
+                 * empty it refills within one sync tick, so there is nothing worth paying a WAL write
+                 * and an fsync per update for.
+                 *
+                 * fillfactor 70: Postgres updates a row by writing a new version and marking the old
+                 * one dead. If the new version fits on the same page it can be a HOT update - the
+                 * indexes are left alone and dead versions are reclaimed by opportunistic pruning,
+                 * usually without autovacuum having to run at all. Packing pages full (the default
+                 * 100) leaves no room for that and forces every update onto a fresh page.
+                 *
+                 * autovacuum thresholds: scaled off row count, a 50-row table would need to double
+                 * before autovacuum looked at it, so a flat threshold is what actually triggers. */
+                String storage = pg
+                    ? " WITH (fillfactor = 70, autovacuum_vacuum_scale_factor = 0,"
+                      + " autovacuum_vacuum_threshold = 200)"
+                    : "";
+
+                createTable(adapter, "kin_positions",
+                    "CREATE " + (pg ? "UNLOGGED " : "") + "TABLE kin_positions (" +
+                    "profile VARCHAR(255) NOT NULL, " +
+                    "char_name VARCHAR(255) NOT NULL, " +
+                    /* Server-assigned grid id plus the tile offset inside it - the only position two
+                     * clients can both make sense of. See nurgling.tools.GridLocator. */
+                    "gid BIGINT NOT NULL, " +
+                    "ox INTEGER NOT NULL, " +
+                    "oy INTEGER NOT NULL, " +
+                    "angle REAL, " +
+                    /* Always written as CURRENT_TIMESTAMP, never from a client clock: staleness is
+                     * compared against the database's own clock so a player whose machine clock has
+                     * drifted does not appear permanently stale, or permanently fresh, to everyone. */
+                    "updated_at TIMESTAMP NOT NULL, " +
+                    "PRIMARY KEY (profile, char_name)" +
+                    ")" + storage);
+
+                /* Deliberately no index on updated_at. It changes on every single write, and a HOT
+                 * update is only possible when no indexed column changed - indexing it would disable
+                 * the fast path this table is tuned for and bloat the index instead. Nothing needs it:
+                 * a profile holds a few dozen rows, so the read filters by age in the query's output
+                 * rather than seeking on it. The primary key never changes, so it stays HOT-friendly. */
+                System.out.println("Created kin_positions table");
             }
         });
 

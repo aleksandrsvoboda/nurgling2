@@ -16,17 +16,9 @@ import java.util.List;
  * client's map file, while the grid id is assigned by the server and reads the same for
  * everyone.
  *
- * <p>Resolution therefore happens on the receiving side and can fail in two ways that
- * both have to be tolerated rather than treated as errors:
- * <ul>
- *   <li>the grid is not loaded in {@link MCache}, so there is no world position to draw
- *       at. The ping still shows on the minimap and in the map window.</li>
- *   <li>the grid is not in the segment the player is standing in, so it has to come out
- *       of the map file. That touches disk, so it runs on the loader thread instead of
- *       the UI thread.</li>
- * </ul>
- * Either resolution is retried until it succeeds or the ping expires, because both can
- * start failing and later succeed as the player walks toward the pinged spot.
+ * <p>Resolution happens on the receiving side and is shared with every other feature that
+ * moves positions between players; see {@link nurgling.tools.GridLocator} for why it can
+ * fail, why failure is not an error, and why it is retried.
  */
 public class PingService {
     /** How long a ping stays up, in seconds. */
@@ -46,8 +38,6 @@ public class PingService {
      * bounded no matter how busy the channel gets.
      */
     private static final int MAX_LIVE = 8;
-    /** Seconds between retries of a resolution that has not succeeded yet. */
-    private static final double RETRY = 0.5;
     /** Colour for a ping with no sender colour to go on. */
     public static final Color DEFAULT_COLOR = new Color(125, 211, 252);
     /** Sender key the chat layer uses for our own lines. */
@@ -74,24 +64,21 @@ public class PingService {
         public final String sender;
         public final double start;
 
-        /** Session world position, or null while the grid is not loaded here. */
-        private volatile Coord2d wc = null;
-        /** Position in the local map file, or null while it is still being looked up. */
-        private volatile MiniMap.Location loc = null;
-        private double lastTry = Double.NEGATIVE_INFINITY;
-        private volatile boolean filePending = false;
+        /** Where this tile is, once this client has managed to work it out. */
+        final nurgling.tools.GridLocator.Ref ref;
 
         Ping(long gridId, Coord local, Color col, String sender) {
             this.gridId = gridId;
             this.local = local;
+            this.ref = new nurgling.tools.GridLocator.Ref(gridId, local);
             this.col = (col == null) ? DEFAULT_COLOR : col;
             this.sender = sender;
             this.start = Utils.rtime();
         }
 
-        public Coord2d wc() {return(wc);}
+        public Coord2d wc() {return(ref.wc());}
 
-        public MiniMap.Location loc() {return(loc);}
+        public MiniMap.Location loc() {return(ref.loc());}
 
         /** 0 when the ping arrived, 1 when it expires. */
         public double age() {
@@ -156,7 +143,7 @@ public class PingService {
             ret = new ArrayList<>(pings);
         }
         for(Ping p : ret)
-            resolve(p);
+            nurgling.tools.GridLocator.resolve(gui, p.ref);
         return(ret);
     }
 
@@ -195,62 +182,6 @@ public class PingService {
                 return;
             }
             ui.sfx(Audio.fromres(res));
-        }, null);
-    }
-
-    /** Fill in whichever of the two positions is still missing, on a retry throttle. */
-    private void resolve(Ping p) {
-        if((p.wc != null) && (p.loc != null))
-            return;
-        double now = Utils.rtime();
-        if(now - p.lastTry < RETRY)
-            return;
-        p.lastTry = now;
-
-        if(p.wc == null)
-            p.wc = gui.ui.sess.glob.map.gridToScene(p.local, p.gridId);
-
-        if(p.loc == null) {
-            // Fast path: the grid is in the segment the player is standing in, which the
-            // map file has already loaded in full, so this is a plain in-memory lookup.
-            MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
-            if(sessloc != null) {
-                Coord sgc = sessloc.seg.map.reverse().get(p.gridId);
-                if(sgc != null)
-                    p.loc = new MiniMap.Location(sessloc.seg, sgc.mul(MCache.cmaps).add(p.local));
-            }
-            if((p.loc == null) && !p.filePending)
-                deferFileLookup(p);
-        }
-    }
-
-    /**
-     * Slow path for a ping in some other segment: ask the map file which segment the grid
-     * belongs to. That reads from disk, so it goes to the loader rather than blocking the
-     * frame. Runs at most once per ping - a grid the map file has never heard of will not
-     * turn up on a retry either.
-     */
-    private void deferFileLookup(Ping p) {
-        MiniMap mmap = gui.mmap;
-        if(mmap == null)
-            return;
-        MapFile file = mmap.file;
-        if(file == null)
-            return;
-        p.filePending = true;
-        gui.ui.sess.glob.loader.defer(() -> {
-            file.lock.readLock().lock();
-            try {
-                MapFile.GridInfo info = file.gridinfo.get(p.gridId);
-                if(info == null)
-                    return;
-                MapFile.Segment seg = file.segments.get(info.seg);
-                if(seg == null)
-                    return;
-                p.loc = new MiniMap.Location(seg, info.sc.mul(MCache.cmaps).add(p.local));
-            } finally {
-                file.lock.readLock().unlock();
-            }
         }, null);
     }
 }

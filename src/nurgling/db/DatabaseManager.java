@@ -29,6 +29,7 @@ public class DatabaseManager {
     private nurgling.db.service.PlanningService planningService;
     private KinSecretService kinSecretService;
     private nurgling.db.service.FishLocationDbService fishLocationService;
+    private nurgling.db.service.KinPositionDbService kinPositionService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
 
@@ -348,6 +349,16 @@ public class DatabaseManager {
          * migration failing defers this one without ever listing it as skipped, and on PostgreSQL a
          * table this role has no privileges on is hidden rather than reported. Either way the map
          * window keeps its file-based Export/Import and only the database buttons go quiet. */
+        /* Checked like the others: an earlier optional migration failing defers this one without
+         * listing it as skipped, and on PostgreSQL a table this role cannot touch is hidden rather
+         * than reported. Either way the map simply stops showing kin. */
+        boolean kinPosOk = tableUsable("kin_positions");
+        this.kinPositionService = kinPosOk ? new nurgling.db.service.KinPositionDbService(this) : null;
+        if (!kinPosOk) {
+            System.err.println("[DatabaseManager] kin_positions unavailable; "
+                + "live kin positions will not be shown");
+        }
+
         boolean mapOk = tableUsable("map_grids")
             && tableUsable("map_grid_placements")
             && tableUsable("map_markers");
@@ -381,6 +392,8 @@ public class DatabaseManager {
                 feature = "Fish location sync";
             } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_MAP_DATA) {
                 feature = "Map sharing";
+            } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_KIN_POSITIONS) {
+                feature = "Kin position sharing";
             } else {
                 feature = "Schema update " + e.getKey();
             }
@@ -631,6 +644,10 @@ public class DatabaseManager {
      * Get fish location service (shared fish spots). Null when the optional migration that creates the
      * table was refused, in which case fish locations stay on their JSON file.
      */
+    public nurgling.db.service.KinPositionDbService getKinPositionService() {
+        return kinPositionService;
+    }
+
     public nurgling.db.service.FishLocationDbService getFishLocationService() {
         return fishLocationService;
     }

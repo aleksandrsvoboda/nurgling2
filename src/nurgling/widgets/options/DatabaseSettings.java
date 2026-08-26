@@ -28,6 +28,8 @@ public class DatabaseSettings extends Panel {
     private CheckBox enableCheckbox;
     private CheckBox shareHsCheckbox;
     private CheckBox shareMapMarksCheckbox;
+    private CheckBox shareKinPosCheckbox;
+    private CheckBox showKinPosCheckbox;
     private Dropbox<String> dbType;
     private final int labelWidth = UI.scale(80); // РЁРёСЂРёРЅР° Р»РµР№Р±Р»РѕРІ
     private final int entryX = UI.scale(110);    // X-РєРѕРѕСЂРґРёРЅР°С‚Р° РґР»СЏ TextEntry (was 90, increased for better space)
@@ -36,6 +38,8 @@ public class DatabaseSettings extends Panel {
     private boolean enabled;
     private boolean shareHs;
     private boolean shareMapMarks;
+    private boolean shareKinPos;
+    private boolean showKinPos;
     private String dbTypeStr;
     private String host, user, pass, dbPath;
 
@@ -71,7 +75,27 @@ public class DatabaseSettings extends Panel {
             }
         }, new Coord(margin, y));
         shareMapMarksCheckbox.tooltip = Text.render(L10n.get("database.share_map_markers_tip")).tex();
-        y += shareMapMarksCheckbox.sz.y + UI.scale(8);
+        y += shareMapMarksCheckbox.sz.y + UI.scale(5);
+
+        // Publish this character's position so kin can see it on their map, at any distance
+        prev = shareKinPosCheckbox = add(new CheckBox(L10n.get("database.share_kin_position")) {
+            public void set(boolean val) {
+                a = val;
+                shareKinPos = val;
+            }
+        }, new Coord(margin, y));
+        shareKinPosCheckbox.tooltip = Text.render(L10n.get("database.share_kin_position_tip")).tex();
+        y += shareKinPosCheckbox.sz.y + UI.scale(5);
+
+        // Whether other people's published positions are drawn on this client's maps
+        prev = showKinPosCheckbox = add(new CheckBox(L10n.get("database.show_kin_positions")) {
+            public void set(boolean val) {
+                a = val;
+                showKinPos = val;
+            }
+        }, new Coord(margin, y));
+        showKinPosCheckbox.tooltip = Text.render(L10n.get("database.show_kin_positions_tip")).tex();
+        y += showKinPosCheckbox.sz.y + UI.scale(8);
 
         // Р—Р°РіРѕР»РѕРІРѕРє СЂР°Р·РґРµР»Р°
         prev = add(new Label(L10n.get("database.settings")), new Coord(margin, y));
@@ -222,6 +246,10 @@ public class DatabaseSettings extends Panel {
         shareHsCheckbox.a = shareHs;
         shareMapMarks = getBool(NConfig.Key.mapShareMarkers);
         shareMapMarksCheckbox.a = shareMapMarks;
+        shareKinPos = getBool(NConfig.Key.shareKinPosition);
+        shareKinPosCheckbox.a = shareKinPos;
+        showKinPos = getBool(NConfig.Key.showKinPositions);
+        showKinPosCheckbox.a = showKinPos;
 
         boolean isPostgres = getBool(NConfig.Key.postgres);
         dbTypeStr = isPostgres ? "PostgreSQL" : "SQLite";
@@ -247,6 +275,17 @@ public class DatabaseSettings extends Panel {
         NConfig.set(NConfig.Key.ndbenable, enabled);
         NConfig.set(NConfig.Key.shareHearthSecret, shareHs);
         NConfig.set(NConfig.Key.mapShareMarkers, shareMapMarks);
+
+        /* Turning sharing off has to take the row out of the database, not merely stop refreshing
+         * it: otherwise this character keeps showing on everyone's map until it ages out, which is
+         * exactly the surprise an opt-out is there to prevent. */
+        boolean wasSharingKin = (Boolean) NConfig.get(NConfig.Key.shareKinPosition);
+        NConfig.set(NConfig.Key.shareKinPosition, shareKinPos);
+        NConfig.set(NConfig.Key.showKinPositions, showKinPos);
+        if (wasSharingKin && !shareKinPos && nurgling.NCore.databaseManager != null
+            && nurgling.NCore.databaseManager.getKinPositionService() != null) {
+            nurgling.NCore.databaseManager.getKinPositionService().withdrawOptedOut();
+        }
         boolean isPostgres = "PostgreSQL".equals(dbTypeStr);
         NConfig.set(NConfig.Key.postgres, isPostgres);
         NConfig.set(NConfig.Key.sqlite, !isPostgres);
