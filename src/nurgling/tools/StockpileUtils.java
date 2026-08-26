@@ -3,9 +3,76 @@ package nurgling.tools;
 import haven.Coord;
 import haven.Gob;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class StockpileUtils {
+    public static final String STOCKPILE_CAP = "Stockpile";
+    public static final String SACK_CAP = "Sack";
+
+    /**
+     * Substring of a gob resource name -> caption of the window that holds its ISBox.
+     * Matching is done by substring because the resource name changes with the content
+     * (stockpile-board, stockpile-hide, ...) and with the fill level (producesack-closed0..4).
+     */
+    private static final Map<String, String> isboxcaps = new LinkedHashMap<>();
+    static {
+        isboxcaps.put("stockpile", STOCKPILE_CAP);
+        isboxcaps.put("producesack", SACK_CAP);
+    }
+
+    private static final NAlias isboxNames = new NAlias(new ArrayList<>(isboxcaps.keySet()));
+
+    /**
+     * Resource names of ISBox storages that are known to hold nothing. A produce sack keeps
+     * existing when emptied, switching from producesack-closed0..4 to producesack-ter, and
+     * right-clicking it in that state picks the sack itself up as an item instead of opening it.
+     */
+    private static final NAlias emptyNames = new NAlias("producesack-ter");
+
+    /**
+     * Caption of the ISBox window for the given gob, or null if the gob is not an ISBox storage.
+     */
+    public static String capFor(Gob gob) {
+        if (gob == null || gob.ngob == null || gob.ngob.name == null)
+            return null;
+        return capFor(gob.ngob.name);
+    }
+
+    public static String capFor(String resName) {
+        if (resName == null)
+            return null;
+        String lower = resName.toLowerCase();
+        for (Map.Entry<String, String> e : isboxcaps.entrySet()) {
+            if (lower.contains(e.getKey()))
+                return e.getValue();
+        }
+        return null;
+    }
+
+    /**
+     * True if the window caption belongs to a known ISBox storage.
+     */
+    public static boolean isISBoxCap(String cap) {
+        return cap != null && isboxcaps.containsValue(cap);
+    }
+
+    /**
+     * Alias matching every known ISBox storage gob, for Finder.findGobs.
+     */
+    public static NAlias isboxNames() {
+        return isboxNames;
+    }
+
+    /**
+     * True if the gob is an ISBox storage that is known to be empty and must not be right-clicked.
+     */
+    public static boolean isEmptyStorage(Gob gob) {
+        return gob != null && gob.ngob != null && NParser.checkName(gob.ngob.name, emptyNames);
+    }
+
     public static HashMap<String, Coord> itemMaxSize = new HashMap<>();
     static {
         itemMaxSize.put("gfx/terobjs/stockpile-hide", new Coord(2,2));
