@@ -186,6 +186,21 @@ public class NConfig
         showThingwallNames,
         showPartyMemberNames,
         trackingVectors,
+        // Combat HUD (FightBuffsInfo / FightActions panels)
+        combatShowOpeningsAsLetters,
+        combatShowHotkeys,
+        combatShowDamagePrediction,
+        combatSingleRowMoves,
+        combatShowEstimatedAgility,
+        combatShowHealthBar,
+        combatShowStaminaBar,
+        combatIncludeHHPText,
+        combatColorOffbalance,
+        combatColorReeling,
+        combatColorCornered,
+        combatColorDizzy,
+        combatColorMyIP,
+        combatColorEnemyIP,
         randomAreaColor,
         treeScaleDisableZoomHide,
         treeScaleMinThreshold,
@@ -539,6 +554,22 @@ public class NConfig
         // Map tracking vectors
         conf.put(Key.trackingVectors, false);
         
+        // Combat HUD
+        conf.put(Key.combatShowOpeningsAsLetters, false);
+        conf.put(Key.combatShowHotkeys, true);
+        conf.put(Key.combatShowDamagePrediction, true);
+        conf.put(Key.combatSingleRowMoves, false);
+        conf.put(Key.combatShowEstimatedAgility, true);
+        conf.put(Key.combatShowHealthBar, true);
+        conf.put(Key.combatShowStaminaBar, true);
+        conf.put(Key.combatIncludeHHPText, false);
+        conf.put(Key.combatColorOffbalance, nurgling.conf.NCombatData.DEF_GREEN);
+        conf.put(Key.combatColorReeling, nurgling.conf.NCombatData.DEF_YELLOW);
+        conf.put(Key.combatColorCornered, nurgling.conf.NCombatData.DEF_RED);
+        conf.put(Key.combatColorDizzy, nurgling.conf.NCombatData.DEF_BLUE);
+        conf.put(Key.combatColorMyIP, nurgling.conf.NCombatData.DEF_MYIP);
+        conf.put(Key.combatColorEnemyIP, nurgling.conf.NCombatData.DEF_ENEMYIP);
+
         // Random area color on creation
         conf.put(Key.randomAreaColor, false);
         

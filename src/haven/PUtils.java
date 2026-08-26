@@ -374,6 +374,28 @@ public class PUtils {
 	public Coord broff() {return(Coord.z);}
     }
 
+    /* One-shot version of what BlurFurn does per-Forge: lay a tight dark halo behind an
+     * already-rendered Text so it survives being drawn over the map. */
+    public static BufferedImage strokeImg(BufferedImage img, int grad, int brad, Color col) {
+	return(rasterimg(blurmask2(img.getRaster(), grad, brad, col)));
+    }
+
+    public static BufferedImage strokeImg(Text text, Color col) {
+	return(strokeImg(text.img, UI.scale(1), UI.scale(1), col));
+    }
+
+    public static BufferedImage strokeImg(Text text) {
+	return(strokeImg(text, Color.BLACK));
+    }
+
+    public static TexI strokeTex(Text text) {
+	return(new TexI(strokeImg(text)));
+    }
+
+    public static TexI strokeTex(Text text, Color col) {
+	return(new TexI(strokeImg(text, col)));
+    }
+
     public static void dumpband(Raster img, int band) {
 	int w = img.getWidth(), h = img.getHeight();
 	for(int y = 0; y < h; y++) {
