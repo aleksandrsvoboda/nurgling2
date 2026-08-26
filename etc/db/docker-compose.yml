@@ -1,22 +1,28 @@
+# Village database for Nurgling.
+#
+# This file deliberately does nothing but run an empty PostgreSQL with one admin role.
+# Tables, indexes and grants are created by the client on first connect, so this file does
+# not change when the schema does - a server set up once keeps working across client updates.
+#
+# Copy .env.example to .env, put a generated password in it, then: docker compose up -d
+# See README.md in this directory.
 services:
   postgres:
-    image: postgres:14-alpine
+    image: postgres:17-alpine
     container_name: nurgling_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: nurgling_db
+    # Without this the village goes offline on every reboot until somebody notices.
+    restart: unless-stopped
+    env_file: .env
     ports:
-      - "5436:5432"
+      - "${PGPORT:-5436}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # Монтирование SQL-скрипта
-    networks:
-      - postgres
+    # Lets `docker compose ps` and any setup script tell "still starting" from "failed".
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
-
-networks:
-  postgres:
-    driver: bridge
