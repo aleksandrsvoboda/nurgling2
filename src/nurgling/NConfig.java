@@ -112,7 +112,7 @@ public class NConfig
         smokeprop,
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
-        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
+        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, dbHost, dbPort, dbName, dbSsl, dbVillage, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
@@ -374,6 +374,14 @@ public class NConfig
         conf.put(Key.serverNode, "");
         conf.put(Key.serverPass, "");
         conf.put(Key.serverUser, "");
+        /* Host, port, database and encryption replace the old combined serverNode string. They are
+         * left blank on purpose: DbSettings falls back to serverNode while they are, which is what
+         * keeps every existing village connecting after an update. */
+        conf.put(Key.dbHost, "");
+        conf.put(Key.dbPort, nurgling.db.DbSettings.DEFAULT_PORT);
+        conf.put(Key.dbName, nurgling.db.DbSettings.DEFAULT_DATABASE);
+        conf.put(Key.dbSsl, nurgling.db.DbSettings.SSL_PREFER);
+        conf.put(Key.dbVillage, "");
         conf.put(Key.exploredAreaEnable, false);
         conf.put(Key.chunkNavOverlay, false);
         conf.put(Key.player_box, false);

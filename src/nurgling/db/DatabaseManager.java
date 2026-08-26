@@ -20,6 +20,14 @@ public class DatabaseManager {
     private volatile boolean initialized = false;
     private volatile boolean shutdown = false;
 
+    /* What the settings panel shows on its status line. Populated on connect, because the panel has
+     * no other way to learn any of it: connection failures used to reach the user as nothing at all,
+     * and whether a session is actually encrypted is only knowable from the server's own view. */
+    private volatile String connUser = "";
+    private volatile String connServerVersion = "";
+    private volatile boolean connSslInUse = false;
+    private volatile String connError = "";
+
     // Service layer
     private RecipeService recipeService;
     private FavoriteRecipeService favoriteRecipeService;
@@ -32,6 +40,7 @@ public class DatabaseManager {
     private nurgling.db.service.PeerPositionDbService peerPositionService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
+    private nurgling.db.service.VillagerService villagerService;
 
     /**
      * Optional migrations the database refused, as version -> reason. Their features report
@@ -288,16 +297,33 @@ public class DatabaseManager {
                     // Run migrations FIRST using this connection
                     this.skippedMigrations = runMigrations(conn);
 
+                    ConnectionDoctor.Result info = ConnectionDoctor.inspect(conn);
+                    this.connUser = info.serverUser;
+                    this.connServerVersion = info.serverVersion;
+                    this.connSslInUse = info.sslInUse;
+                    this.connError = "";
+
                     // Initialize services after migrations
                     initializeServices();
 
                     initialized = true;
+                    /* After initialized = true, because the write goes through the normal task path.
+                     * This is what fills the Villagers panel's "last seen" column, which is the only
+                     * signal a host has that everyone has moved off a shared login. */
+                    if (DatabaseAdapterFactory.isPostgres() && villagerService != null) {
+                        villagerService.ensureBookkeepingAsync();
+                    }
                     System.out.println("DatabaseManager initialized successfully with " +
                                      DatabaseAdapterFactory.getDatabaseType());
                     reportSkippedMigrations();
+                } catch (nurgling.db.migration.MigrationManager.MigrationPermissionException mpe) {
+                    /* Not this player's fault and not fixable by them: say who has to act. */
+                    this.connError = nurgling.i18n.L10n.get("db.err.migration_permission");
+                    System.err.println("[DatabaseManager] " + this.connError + " (" + mpe.getMessage() + ")");
                 } catch (nurgling.db.migration.MigrationManager.SchemaTooNewException stne) {
                     // Schema mismatch - leave manager uninitialized so sync skips itself.
                     // Surface the error to any active game UI.
+                    this.connError = nurgling.i18n.L10n.get("db.err.schema_too_new");
                     try {
                         if (nurgling.NUtils.getGameUI() != null) {
                             nurgling.NUtils.getGameUI().msg("Area sync disabled: " + stne.getMessage(),
@@ -308,12 +334,48 @@ public class DatabaseManager {
                     connectionPoolManager.returnConnection(conn);
                 }
             } else {
-                System.err.println("Failed to initialize DatabaseManager: cannot get database connection");
+                /* The pool keeps the SQLException it swallowed; turn it into the one sentence the
+                 * settings panel can show instead of leaving the user with a silent non-sync. */
+                java.sql.SQLException cause = connectionPoolManager.getLastError();
+                this.connError = (cause == null)
+                    ? nurgling.i18n.L10n.get("db.err.unknown", "no connection")
+                    : ConnectionDoctor.diagnose(cause, DbSettings.fromConfig()).message;
+                System.err.println("Failed to initialize DatabaseManager: " + this.connError);
             }
         } catch (Exception e) {
+            this.connError = ConnectionDoctor.diagnose(e, DbSettings.fromConfig()).message;
             System.err.println("Failed to initialize DatabaseManager: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    public nurgling.db.service.VillagerService getVillagerService() {
+        return villagerService;
+    }
+
+    /** Role this client is authenticated as, empty when not connected. */
+    public String getConnectedUser() {
+        return connUser;
+    }
+
+    /** Server banner, e.g. "PostgreSQL 17.2". Empty when not connected. */
+    public String getServerVersion() {
+        return connServerVersion;
+    }
+
+    /**
+     * Whether the session actually negotiated TLS.
+     *
+     * <p>Not the same as having asked for it: {@code sslmode=prefer} falls back to plaintext without
+     * complaint when the server has no certificate, which is what every village runs today.
+     */
+    public boolean isSslInUse() {
+        return connSslInUse;
+    }
+
+    /** Why the last connect attempt failed, already localized. Empty when connected. */
+    public String getConnectionError() {
+        return connError;
     }
 
     /**
@@ -322,6 +384,10 @@ public class DatabaseManager {
     private void initializeServices() {
         // Services whose table could not be created are left null; callers treat that as
         // "feature unavailable" rather than "database down".
+        /* Always present: managing accounts must keep working on a database whose owner has not
+         * applied the optional villagers migration, and the panel that uses it is the very place a
+         * host goes to fix a half-set-up village. The service degrades internally instead. */
+        this.villagerService = new nurgling.db.service.VillagerService(this);
         this.recipeService = new RecipeService(this);
         this.favoriteRecipeService = new FavoriteRecipeService(this);
         this.containerService = new ContainerService(this);
@@ -423,6 +489,10 @@ public class DatabaseManager {
             System.out.println("DatabaseManager: Running migrations...");
             nurgling.db.migration.MigrationManager migrationManager = new nurgling.db.migration.MigrationManager(conn, migrationAdapter);
             java.util.Map<Integer, String> skipped = migrationManager.runMigrations();
+            /* Runs on every connect, not only when a migration fired: an existing village is already
+             * at the latest version yet still has the ungranted init.sql tables and the ungranted
+             * sequences. Idempotent, and it degrades to a log line when this role may not grant. */
+            nurgling.db.migration.MigrationManager.repairPermissions(migrationAdapter);
             conn.commit();
             System.out.println("DatabaseManager: Migrations completed");
             return skipped;
@@ -683,6 +753,12 @@ public class DatabaseManager {
         adapter = null;
         initialized = false;
         skippedMigrations = java.util.Collections.emptyMap();
+        /* Cleared so the settings panel cannot keep showing the previous server's identity, or an
+         * error from settings that have since been corrected. */
+        connUser = "";
+        connServerVersion = "";
+        connSslInUse = false;
+        connError = "";
         kinSecretService = null;
         mapDbService = null;
         
