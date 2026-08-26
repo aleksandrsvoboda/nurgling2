@@ -39,7 +39,6 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     public static final Tex ameter = Resource.loadtex("gfx/hud/buffs/cframe-m");
 	public static final Coord imgoff = UI.scale(3, 3);
     public static final int ameterx1 = UI.scale(3), ameterx2 = UI.scale(35); /* XXX: Detect? */
-    /* Footprint of the activity meter strip inside cframe; the combat HUD draws its own. */
     public static final Coord ametersz = UI.scale(new Coord(32, 3));
     public static final int textw = UI.scale(200);
     public Indir<Resource> res;

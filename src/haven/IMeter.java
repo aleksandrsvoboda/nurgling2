@@ -35,10 +35,6 @@ public class IMeter extends LayerMeter {
 	public String name;
 	Tex text = null;
 
-	/* Health readout scraped from the server's tooltip, for the combat HUD's own
-	 * health bar. "Health: 642/700/1000" is SHP/HHP/MHP; sparring adds a fourth
-	 * value. The bar needs the soft-health share separately from the hard-health
-	 * fraction the Meter itself carries. */
 	public static String characterCurrentHealth = "";
 	public static double characterSoftHealthPercent = 0;
 	public static boolean sparring = false;
