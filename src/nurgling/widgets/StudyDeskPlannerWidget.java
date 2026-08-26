@@ -82,7 +82,9 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
             if (newLabel != null && !newLabel.trim().isEmpty()) {
                 label = newLabel.trim();
                 updateTitle();
-                StudyDeskConfig.putDesk(studyDeskHash, label, buildLayoutMap());
+                // Renaming must not silently persist whatever is currently on the grid -
+                // only the label changes here; Save is still what commits layout edits.
+                StudyDeskConfig.renameDesk(studyDeskHash, label);
             }
         });
         NUtils.getGameUI().add(inputWindow, UI.scale(200, 200));

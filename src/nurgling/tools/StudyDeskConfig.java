@@ -127,6 +127,30 @@ public class StudyDeskConfig {
     }
 
     /**
+     * Update just a desk's label, leaving its saved layout untouched (an empty layout is
+     * created if this desk has never been saved before). Unlike {@link #putDesk}, this never
+     * writes whatever is currently on-screen in the planner, so renaming can't silently
+     * persist an in-progress, not-yet-saved layout edit.
+     */
+    @SuppressWarnings("unchecked")
+    public static void renameDesk(String hash, String label) {
+        Map<String, Object> desks = allDesks();
+
+        Map<String, Object> deskEntry;
+        Object existing = desks.get(hash);
+        if (existing instanceof Map) {
+            deskEntry = new HashMap<>((Map<String, Object>) existing);
+        } else {
+            deskEntry = new HashMap<>();
+            deskEntry.put(LAYOUT_KEY, new HashMap<>());
+        }
+        deskEntry.put(LABEL_KEY, label);
+
+        desks.put(hash, deskEntry);
+        saveDesks(desks);
+    }
+
+    /**
      * Persist the full flat desk map back to config.
      */
     public static void saveDesks(Map<String, Object> desks) {

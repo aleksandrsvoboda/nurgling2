@@ -55,6 +55,7 @@ public class StudyDeskFiller implements Action {
         for (Map.Entry<String, Object> entry : desks.entrySet()) {
             String hash = entry.getKey();
             if (!(entry.getValue() instanceof Map)) {
+                gui.msg("WARNING: Desk entry " + hash + " is malformed, skipping.", Color.ORANGE);
                 continue;
             }
             @SuppressWarnings("unchecked")
@@ -76,10 +77,17 @@ public class StudyDeskFiller implements Action {
             }
 
             desksFound++;
-            DeskFillOutcome outcome = fillOneDesk(gui, label, studyDesk, plannedLayout);
-            if (outcome.missingCount == 0 && outcome.conflictCount == 0) {
-                desksPerfect++;
-            } else {
+            try {
+                DeskFillOutcome outcome = fillOneDesk(gui, label, studyDesk, plannedLayout);
+                if (!outcome.failed && outcome.missingCount == 0 && outcome.conflictCount == 0) {
+                    desksPerfect++;
+                } else {
+                    desksWithIssues++;
+                }
+            } catch (RuntimeException e) {
+                // A single malformed/corrupted desk plan (bad position keys, bad size data, ...)
+                // must not take down the rest of the batch - report it and keep going.
+                gui.msg("ERROR: " + label + " failed unexpectedly (" + e + "), skipping.", Color.RED);
                 desksWithIssues++;
             }
         }
@@ -108,6 +116,7 @@ public class StudyDeskFiller implements Action {
     }
 
     private static class DeskFillOutcome {
+        boolean failed = false;
         int missingCount;
         int conflictCount;
     }
@@ -129,6 +138,7 @@ public class StudyDeskFiller implements Action {
         NInventory studyDeskInv = gui.getInventory(deskCap);
         if (studyDeskInv == null) {
             gui.msg("ERROR: Could not access inventory for " + label + "!", Color.RED);
+            outcome.failed = true;
             return outcome;
         }
 
