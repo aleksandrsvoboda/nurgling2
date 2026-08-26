@@ -297,6 +297,7 @@ public class HashDirCache implements ResCache {
 		public void close() throws IOException {
 		    st.close();
 		    Utils.ioretry(() -> {
+			    IOException delfail = null;
 			    if(Config.windows) {
 				/* Apparently, even though NIO opens files with
 				 * FILE_SHARE_DELETE on Win32, Windows *still* doesn't allow
@@ -306,13 +307,19 @@ public class HashDirCache implements ResCache {
 				    Files.delete(path);
 				} catch(NoSuchFileException e) {
 				} catch(IOException e) {
-				    new Warning(e, "weird deletion failure on " + path).issue();
+				    delfail = e;
 				}
 			    }
 			    try {
-				return(Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE));
-			    } catch(AtomicMoveNotSupportedException e) {
-				return(Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING));
+				try {
+				    return(Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE));
+				} catch(AtomicMoveNotSupportedException e) {
+				    return(Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING));
+				}
+			    } catch(IOException e) {
+				if(delfail != null)
+				    e.addSuppressed(delfail);
+				throw(e);
 			    }
 			});
 		    cleaner.closed = true;

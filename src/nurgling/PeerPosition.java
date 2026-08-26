@@ -32,6 +32,8 @@ public class PeerPosition {
     private static final long FADE_MS = 300_000;
     /** Past this the character is treated as gone rather than stale, and is not drawn. */
     public static final long DROP_MS = 900_000;
+    /** Age past which a character is no longer counted as online. */
+    private static final long ONLINE_MS = 120_000;
     /** Alpha a fully faded marker settles at. */
     private static final double FLOOR = 0.35;
 
@@ -65,6 +67,17 @@ public class PeerPosition {
      */
     public long age() {
         return(baseAge + (long)((Utils.rtime() - fetched) * 1000.0));
+    }
+
+    /**
+     * Whether this character should be listed as online.
+     *
+     * <p>Generous next to the 30 s heartbeat: a tick delayed by a slow database round trip must not
+     * blink someone out of the roster and back in. Anything older than this is someone who stopped
+     * publishing rather than someone standing still.
+     */
+    public boolean online() {
+        return(age() < ONLINE_MS);
     }
 
     public boolean expired() {
