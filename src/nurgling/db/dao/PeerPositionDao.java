@@ -10,7 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Data access for live kin positions.
+ * Data access for live player positions.
+ *
+ * <p>The set of characters here is everyone publishing to this database, which is deliberately not
+ * the same as anyone's in-game Kin list: holding the database credentials is what grants membership.
  *
  * <p>One row per character per world, keyed on (profile, char_name), so a walking player rewrites
  * their own row rather than adding to a log. The table therefore holds as many rows as the village
@@ -21,7 +24,7 @@ import java.util.List;
  * marker is drawn live, faded, or not at all, and comparing two clients' wall clocks would make that
  * decision wrong for anyone whose machine has drifted.
  */
-public class KinPositionDao {
+public class PeerPositionDao {
 
     /** One character's published position, as stored. */
     public static final class Row {
@@ -69,13 +72,13 @@ public class KinPositionDao {
         }
         String sql;
         if (adapter instanceof PostgresAdapter) {
-            sql = "INSERT INTO kin_positions (profile, char_name, gid, ox, oy, angle, updated_at) "
+            sql = "INSERT INTO peer_positions (profile, char_name, gid, ox, oy, angle, updated_at) "
                 + "VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
                 + "ON CONFLICT (profile, char_name) DO UPDATE SET "
                 + "gid = EXCLUDED.gid, ox = EXCLUDED.ox, oy = EXCLUDED.oy, "
                 + "angle = EXCLUDED.angle, updated_at = CURRENT_TIMESTAMP";
         } else {
-            sql = "INSERT OR REPLACE INTO kin_positions "
+            sql = "INSERT OR REPLACE INTO peer_positions "
                 + "(profile, char_name, gid, ox, oy, angle, updated_at) "
                 + "VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)";
         }
@@ -97,7 +100,7 @@ public class KinPositionDao {
     public List<Row> loadByProfile(DatabaseAdapter adapter, String profile) throws SQLException {
         List<Row> ret = new ArrayList<>();
         String sql = "SELECT char_name, gid, ox, oy, angle, updated_at, "
-                   + "CURRENT_TIMESTAMP AS db_now FROM kin_positions WHERE profile = ?";
+                   + "CURRENT_TIMESTAMP AS db_now FROM peer_positions WHERE profile = ?";
         try (ResultSet rs = adapter.executeQuery(sql, profile)) {
             while (rs.next()) {
                 Timestamp updated = rs.getTimestamp("updated_at");
@@ -117,7 +120,7 @@ public class KinPositionDao {
 
     /** Withdraw one character's position, on logout or when sharing is switched off. */
     public void delete(DatabaseAdapter adapter, String profile, String charName) throws SQLException {
-        adapter.executeUpdate("DELETE FROM kin_positions WHERE profile = ? AND char_name = ?",
+        adapter.executeUpdate("DELETE FROM peer_positions WHERE profile = ? AND char_name = ?",
                               profile, charName);
     }
 }

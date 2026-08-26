@@ -4,14 +4,18 @@ import haven.*;
 import nurgling.tools.GridLocator;
 
 /**
- * One kin's last published position, as this client currently understands it.
+ * One other player's last published position, as this client currently understands it.
+ *
+ * <p>"Peer" here means any character publishing to the same database, which is not the same set as
+ * the in-game Kin list - sharing is scoped by who has the database credentials, not by who has been
+ * kinned. Kin membership only decides what colour the marker is drawn in.
  *
  * <p>The position itself is a {@link GridLocator.Ref} - a server grid id and a tile offset - which
  * resolves lazily and may never resolve at all if this client has neither walked nor imported that
- * part of the world. That is a normal state, not an error: the kin is simply somewhere we cannot
+ * part of the world. That is a normal state, not an error: they are simply somewhere we cannot
  * draw yet.
  */
-public class KinPosition {
+public class PeerPosition {
     public final String charName;
     public final GridLocator.Ref ref;
     /** Facing, for the arrow. */
@@ -31,7 +35,7 @@ public class KinPosition {
     /** Alpha a fully faded marker settles at. */
     private static final double FLOOR = 0.35;
 
-    public KinPosition(String charName, long gid, Coord local, double angle, long ageMillis) {
+    public PeerPosition(String charName, long gid, Coord local, double angle, long ageMillis) {
         this.charName = charName;
         this.ref = new GridLocator.Ref(gid, local);
         this.angle = angle;
@@ -42,7 +46,7 @@ public class KinPosition {
     /**
      * Take a newer reading of a character who has not moved.
      *
-     * <p>Needed because a stationary kin is deliberately <i>not</i> replaced with a fresh record -
+     * <p>Needed because a stationary player is deliberately <i>not</i> replaced with a fresh record -
      * that would throw away the segment position already resolved for them and make the marker blink
      * once per poll. Without refreshing the age here, though, someone standing still would keep
      * ageing locally while their heartbeat kept the database row current, and would eventually fade
@@ -70,7 +74,7 @@ public class KinPosition {
     /**
      * Drawing strength. Full for the first minute, easing to a floor by five, and never quite to
      * nothing: a marker that says "here four minutes ago" is useful, and one that has silently
-     * vanished is indistinguishable from a kin who logged out.
+     * vanished is indistinguishable from someone who logged out.
      */
     public double alpha() {
         long age = age();

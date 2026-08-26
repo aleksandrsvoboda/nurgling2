@@ -112,7 +112,7 @@ public class NConfig
         smokeprop,
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
-        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, shareKinPosition, showKinPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
+        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
@@ -352,11 +352,11 @@ public class NConfig
         conf.put(Key.simpleInspect, false);
         conf.put(Key.ndbenable, false);
         conf.put(Key.shareHearthSecret, true);
-        /* Live kin markers are on out of the box: a village database is already a trust
-         * boundary, and the feature is worthless unless most of the village is publishing.
-         * Both halves are separately switchable in Database settings. */
-        conf.put(Key.shareKinPosition, true);
-        conf.put(Key.showKinPositions, true);
+        /* Live position markers are on out of the box: everyone sharing a database has already
+         * been let in, and the feature is worthless unless most of them are publishing. Both halves
+         * are separately switchable in Database settings. */
+        conf.put(Key.sharePosition, true);
+        conf.put(Key.showPeerPositions, true);
         conf.put(Key.autoHearthSecret, true);
         conf.put(Key.dbGrantRole, "PUBLIC");
         conf.put(Key.dbStatsOverlay, false);

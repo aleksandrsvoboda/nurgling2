@@ -52,7 +52,7 @@ public class NGameUI extends GameUI
     public WaypointMovementService waypointMovementService;
     public PingService pingService;
     public FishLocationService fishLocationService;
-    public KinPositionService kinPositionService;
+    public PeerPositionService peerPositionService;
     public FishSearchWindow fishSearchWindow = null;
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
     public TreeLocationService treeLocationService;
@@ -208,7 +208,7 @@ public class NGameUI extends GameUI
         waypointMovementService = new WaypointMovementService(this);
         pingService = new PingService(this);
         fishLocationService = new FishLocationService(this, genus);
-        kinPositionService = new KinPositionService(this);
+        peerPositionService = new PeerPositionService(this);
         treeLocationService = new TreeLocationService(this, genus);
         labeledMarkService = new LabeledMarkService(this, genus);
         // These widgets depend on areas which is created in GameUI constructor
@@ -312,13 +312,13 @@ public class NGameUI extends GameUI
             labeledMarkService.dispose();
         /* Take this character's published position out on the way down. It would age out on its own
          * within the quarter hour, but "logged out" and "standing still" are exactly the two states
-         * kin markers exist to tell apart, so leaving a ghost behind is worth one delete. */
-        if(kinPositionService != null && nurgling.NCore.databaseManager != null
-           && nurgling.NCore.databaseManager.getKinPositionService() != null) {
+         * these markers exist to tell apart, so leaving a ghost behind is worth one delete. */
+        if(peerPositionService != null && nurgling.NCore.databaseManager != null
+           && nurgling.NCore.databaseManager.getPeerPositionService() != null) {
             String profile = getGenus();
-            nurgling.NCore.databaseManager.getKinPositionService()
+            nurgling.NCore.databaseManager.getPeerPositionService()
                 .withdraw((profile == null || profile.isEmpty()) ? "global" : profile, chrid);
-            kinPositionService.clear();
+            peerPositionService.clear();
         }
         if(nurgling.NUtils.getUI().core!=null)
             NUtils.getUI().core.dispose();

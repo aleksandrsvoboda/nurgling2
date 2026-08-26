@@ -9,7 +9,7 @@ import nurgling.NGameUI;
  * <p>That pair is the only coordinate two clients agree on: {@code gob.rc} is local to a session and
  * the minimap's segment tiles are local to one client's map file, while the grid id is assigned by
  * the server and reads the same for everyone. Anything shared between players - a chat ping, a saved
- * fish spot, a kin's position - therefore travels as (gid, local) and is resolved on arrival.
+ * fish spot, another player's position - therefore travels as (gid, local) and is resolved on arrival.
  *
  * <p>There are two independent answers, and a caller may want either:
  * <ul>
@@ -104,7 +104,7 @@ public class GridLocator {
      * That reads from disk, so it goes to the loader rather than blocking the frame.
      *
      * <p>A lookup that finds nothing re-arms itself on the {@link #FILE_RETRY} timer rather than
-     * giving up. Long-lived refs - a kin standing still for an hour - would otherwise be stuck with
+     * giving up. Long-lived refs - a player standing still for an hour - would otherwise be stuck with
      * the answer from their first poll and would never appear even after the segment they are in
      * arrives in a map import.
      */

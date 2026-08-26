@@ -32,8 +32,8 @@ public class MigrationManager {
     /** Version of the migration that creates the shared map tables; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_MAP_DATA = 11;
 
-    /** Version of the migration that creates kin_positions; optional, see {@link Migration#optional}. */
-    public static final int MIGRATION_KIN_POSITIONS = 12;
+    /** Version of the migration that creates peer_positions; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_PEER_POSITIONS = 12;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -571,13 +571,13 @@ public class MigrationManager {
             }
         });
 
-        /* Optional: kin_positions backs only the live kin markers on the map. A role without CREATE
-         * on the schema must not lose area, planning and recipe sync over it - the map simply stops
-         * showing where kin are. */
-        migrations.add(new Migration(12, "Create kin_positions table for live kin map positions", true) {
+        /* Optional: peer_positions backs only the live player markers on the map. A role without
+         * CREATE on the schema must not lose area, planning and recipe sync over it - the map simply
+         * stops showing where everyone is. */
+        migrations.add(new Migration(12, "Create peer_positions table for live player map positions", true) {
             @Override
             public void run(DatabaseAdapter adapter) throws SQLException {
-                if (adapter.tableExists("kin_positions")) {
+                if (adapter.tableExists("peer_positions")) {
                     return;
                 }
                 boolean pg = (adapter instanceof nurgling.db.PostgresAdapter);
@@ -604,8 +604,8 @@ public class MigrationManager {
                       + " autovacuum_vacuum_threshold = 200)"
                     : "";
 
-                createTable(adapter, "kin_positions",
-                    "CREATE " + (pg ? "UNLOGGED " : "") + "TABLE kin_positions (" +
+                createTable(adapter, "peer_positions",
+                    "CREATE " + (pg ? "UNLOGGED " : "") + "TABLE peer_positions (" +
                     "profile VARCHAR(255) NOT NULL, " +
                     "char_name VARCHAR(255) NOT NULL, " +
                     /* Server-assigned grid id plus the tile offset inside it - the only position two
@@ -626,7 +626,7 @@ public class MigrationManager {
                  * the fast path this table is tuned for and bloat the index instead. Nothing needs it:
                  * a profile holds a few dozen rows, so the read filters by age in the query's output
                  * rather than seeking on it. The primary key never changes, so it stays HOT-friendly. */
-                System.out.println("Created kin_positions table");
+                System.out.println("Created peer_positions table");
             }
         });
 

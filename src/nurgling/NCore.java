@@ -262,7 +262,7 @@ public class NCore extends Widget
                     startAreaSync();
                     startPlanningSync();
                     startFishSync();
-                    startKinPositionSync();
+                    startPeerPositionSync();
                 }
             }
         }
@@ -274,9 +274,9 @@ public class NCore extends Widget
         {
             startFishSync();
         }
-        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !kinPositionSyncStarted)
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !peerPositionSyncStarted)
         {
-            startKinPositionSync();
+            startPeerPositionSync();
         }
 
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null)
@@ -286,7 +286,7 @@ public class NCore extends Widget
                     stopAreaSync();
                     stopPlanningSync();
                     stopFishSync();
-                    stopKinPositionSync();
+                    stopPeerPositionSync();
                     databaseManager.shutdown();
                     databaseManager = null;
                 }
@@ -856,7 +856,7 @@ public class NCore extends Widget
     private static volatile boolean planningSyncStarted = false;
     private static volatile boolean fishSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;
-    private static volatile boolean kinPositionSyncStarted = false;
+    private static volatile boolean peerPositionSyncStarted = false;
 
     /**
      * Start periodic area sync from database
@@ -1025,11 +1025,11 @@ public class NCore extends Widget
     }
 
     /**
-     * Start live kin position sync. Unlike the other workers this one both publishes and reads on
-     * every tick, and it groups by world rather than by session - see KinPositionDbService.
+     * Start live player position sync. Unlike the other workers this one both publishes and reads
+     * on every tick, and it groups by world rather than by session - see PeerPositionDbService.
      */
-    private void startKinPositionSync() {
-        if (kinPositionSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+    private void startPeerPositionSync() {
+        if (peerPositionSyncStarted || databaseManager == null || !databaseManager.isReady()) {
             return;
         }
         /* Every session ticks this on its own UI thread against one shared service and one static
@@ -1037,28 +1037,28 @@ public class NCore extends Widget
          * startSync would call stopSync, which waits up to five seconds for the worker to die -
          * on a UI thread. Re-check inside, since the winner sets the flag. */
         synchronized (dbLock) {
-            if (kinPositionSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            if (peerPositionSyncStarted || databaseManager == null || !databaseManager.isReady()) {
                 return;
             }
-            nurgling.db.service.KinPositionDbService svc = databaseManager.getKinPositionService();
-            if (svc == null) return;   // optional migration was refused; the map just shows no kin
+            nurgling.db.service.PeerPositionDbService svc = databaseManager.getPeerPositionService();
+            if (svc == null) return;   // optional migration was refused; the map just shows nobody
 
             svc.startSync(3);
-            kinPositionSyncStarted = true;
+            peerPositionSyncStarted = true;
         }
     }
 
-    private void stopKinPositionSync() {
-        if (databaseManager != null && databaseManager.getKinPositionService() != null) {
+    private void stopPeerPositionSync() {
+        if (databaseManager != null && databaseManager.getPeerPositionService() != null) {
             /* Take our rows out on the way down rather than leaving them to age out, so shutting the
              * database off actually stops broadcasting instead of merely stopping updates. */
             try {
-                databaseManager.getKinPositionService().withdrawOptedOut();
+                databaseManager.getPeerPositionService().withdrawOptedOut();
             } catch (RuntimeException ignore) {
             }
-            databaseManager.getKinPositionService().stopSync();
+            databaseManager.getPeerPositionService().stopSync();
         }
-        kinPositionSyncStarted = false;
+        peerPositionSyncStarted = false;
     }
 
     private void stopFishSync() {
