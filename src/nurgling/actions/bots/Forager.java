@@ -294,7 +294,7 @@ public class Forager implements Action {
         double nearestDist = Double.MAX_VALUE;
         for (ForagerAction action : actions) {
             if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
-            for (Gob gob : Finder.findGobs(from, new NAlias(action.targetObjectPattern), null, radius)) {
+            for (Gob gob : Finder.findGobs(from, action.toNAlias(), null, radius)) {
                 if (processedGobs.contains(gob.id)) continue;
                 double dist = from.dist(gob.rc);
                 if (dist < nearestDist) {
@@ -539,7 +539,7 @@ public class Forager implements Action {
         for (ForagerAction action : actions) {
             if (action.actionType != ForagerAction.ActionType.CHAT_NOTIFY) continue;
 
-            ArrayList<Gob> gobs = Finder.findGobs(section.getCenterPoint(), new NAlias(action.targetObjectPattern), null, MAX_HOP_DISTANCE);
+            ArrayList<Gob> gobs = Finder.findGobs(section.getCenterPoint(), action.toNAlias(), null, MAX_HOP_DISTANCE);
             gobs.removeIf(gob -> processedGobs.contains(gob.id));
             if (gobs.isEmpty()) continue;
 
@@ -680,9 +680,9 @@ public class Forager implements Action {
      * watcher's only job is to detect and interrupt; {@link #run} performs the actual action
      * after the interrupt has stopped the bot thread's own movement.
      * <p>
-     * Each animal's trigger distance is three times its configured danger radius (Options >
+     * Each animal's trigger distance is 1.5x its configured danger radius (Options >
      * Ring Settings) - the same per-species distances used for the on-screen warning circles,
-     * just with extra margin since this is meant to pull the character out before real
+     * just with a bit of extra margin since this is meant to pull the character out before real
      * danger, not after. Only animal detection is still gated by {@code onAnimalAction}
      * (including "nothing") - an animal might just be passing through. Low energy, low/
      * reduced soft hitpoints, and an unknown/hostile player are all unconditional and always
@@ -794,7 +794,7 @@ public class Forager implements Action {
                 if (rad.name.equals("gfx/kritter/rat/rat")) {
                     continue;
                 }
-                double triggerDist = rad.radius * 3.0;
+                double triggerDist = rad.radius * 1.5;
                 Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, triggerDist);
                 if (animal != null) {
                     return preset.onAnimalAction;

@@ -19,6 +19,14 @@ public class NForagerProp implements JConf {
     private final String chrid;
     public String currentPreset = "Default";
     public HashMap<String, PresetData> presets = new HashMap<>();
+
+    // Actions profiles: named, independently-saved pickup-action lists (see
+    // ForagerPickupContainer), decoupled from a single bundled PresetData so the same actions
+    // set can be reused across different routes/guarding profiles. Additive alongside `presets`
+    // for now - existing presets keep working unchanged until the bot-start flow is migrated to
+    // pick an actions profile, a route, and a guarding profile independently.
+    public String currentActionsProfile = "Default";
+    public HashMap<String, ArrayList<ForagerAction>> actionsProfiles = new HashMap<>();
     
     public static class PresetData {
         public String pathFile = "";
@@ -52,6 +60,7 @@ public class NForagerProp implements JConf {
         this.username = username;
         this.chrid = chrid;
         presets.put("Default", new PresetData());
+        actionsProfiles.put("Default", new ArrayList<>());
     }
     
     @SuppressWarnings("unchecked")
@@ -100,8 +109,27 @@ public class NForagerProp implements JConf {
         if (presets.isEmpty()) {
             presets.put("Default", new PresetData());
         }
+
+        if (values.get("currentActionsProfile") != null)
+            currentActionsProfile = (String) values.get("currentActionsProfile");
+
+        actionsProfiles = new HashMap<>();
+        if (values.get("actionsProfiles") != null) {
+            HashMap<String, ArrayList<HashMap<String, Object>>> profilesMap =
+                (HashMap<String, ArrayList<HashMap<String, Object>>>) values.get("actionsProfiles");
+            for (Map.Entry<String, ArrayList<HashMap<String, Object>>> entry : profilesMap.entrySet()) {
+                ArrayList<ForagerAction> profileActions = new ArrayList<>();
+                for (HashMap<String, Object> actionMap : entry.getValue()) {
+                    profileActions.add(new ForagerAction(actionMap));
+                }
+                actionsProfiles.put(entry.getKey(), profileActions);
+            }
+        }
+        if (actionsProfiles.isEmpty()) {
+            actionsProfiles.put("Default", new ArrayList<>());
+        }
     }
-    
+
     public static void set(NForagerProp prop) {
         @SuppressWarnings("unchecked")
         ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
@@ -155,7 +183,18 @@ public class NForagerProp implements JConf {
             presetsJson.put(entry.getKey(), presetJson);
         }
         jforager.put("presets", presetsJson);
-        
+
+        jforager.put("currentActionsProfile", currentActionsProfile);
+        JSONObject actionsProfilesJson = new JSONObject();
+        for (Map.Entry<String, ArrayList<ForagerAction>> entry : actionsProfiles.entrySet()) {
+            JSONArray actionsJson = new JSONArray();
+            for (ForagerAction action : entry.getValue()) {
+                actionsJson.put(action.toJson());
+            }
+            actionsProfilesJson.put(entry.getKey(), actionsJson);
+        }
+        jforager.put("actionsProfiles", actionsProfilesJson);
+
         return jforager;
     }
     

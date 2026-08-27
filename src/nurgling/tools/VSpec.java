@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class VSpec {
     public static HashMap<String, ArrayList<JSONObject>> categories = new HashMap<>();
@@ -3280,6 +3281,32 @@ public class VSpec {
             result.add(res.getString("name"));
         }
         return result;
+    }
+
+    // Reverse index over `object` (gob resource path -> item names it produces), item name ->
+    // every gob resource path that produces it. Built lazily for the same reason iconPathByName
+    // is: `object` is populated by static initializers earlier in this class.
+    private static HashMap<String, ArrayList<String>> gobsByItemName;
+
+    /**
+     * Every gob resource path (e.g. "gfx/terobjs/trees/chestnuttree") known to produce the given
+     * item name (e.g. "Chestnut"), per the {@link #object} table. Returns an empty list if the
+     * item isn't linked to any gob there - callers should fall back to matching the item's own
+     * name directly against a gob name for items (like herbs) where the two already coincide.
+     */
+    public static ArrayList<String> getGobsForItem(String itemName) {
+        if (itemName == null) return new ArrayList<>();
+        if (gobsByItemName == null) {
+            HashMap<String, ArrayList<String>> index = new HashMap<>();
+            for (Map.Entry<String, ArrayList<String>> entry : object.entrySet()) {
+                for (String producedItem : entry.getValue()) {
+                    index.computeIfAbsent(producedItem, k -> new ArrayList<>()).add(entry.getKey());
+                }
+            }
+            gobsByItemName = index;
+        }
+        ArrayList<String> gobs = gobsByItemName.get(itemName);
+        return gobs != null ? new ArrayList<>(gobs) : new ArrayList<>();
     }
 
     /**

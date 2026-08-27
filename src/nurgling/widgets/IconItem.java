@@ -17,6 +17,10 @@ public class IconItem extends Widget
     private static final String KEY_MARK_BARTER = "iconitem.mark_barter";
     private static final String KEY_MARK_BARREL = "iconitem.mark_barrel";
     private static final String KEY_UNMARK = "iconitem.unmark";
+    private static final String KEY_CLEAR_TAG = "iconitem.clear_tag";
+    // Not an L10n key - tag option labels come from TaggableItemContainer.tagOptions() and are
+    // already display text, so they're distinguished in menuKeyMap by this literal prefix instead.
+    private static final String TAG_KEY_PREFIX = "tag:";
     public static final TexI frame = new TexI(Resource.loadimg("nurgling/hud/iconframe"));
     public static final TexI framet = new TexI(Resource.loadimg("nurgling/hud/iconframet"));
     public static final TexI bm = new TexI(Resource.loadimg("nurgling/hud/bartermark"));
@@ -32,9 +36,19 @@ public class IconItem extends Widget
     Coord basec = null;
     NArea.Ingredient.Type type = NArea.Ingredient.Type.CONTAINER;
 
+    // Generic per-item tag (e.g. Forager's "Pick Fruit"/"Pick Nuts"), independent of the
+    // NArea.Ingredient.Type marking above - see TaggableItemContainer.
+    String customTag = null;
+    private TexI customTagTex = null;
+
     int val;
 
     String name;
+
+    void setCustomTag(String tag) {
+        this.customTag = tag;
+        this.customTagTex = (tag == null || tag.isEmpty()) ? null : new TexI(NStyle.iiqual.render(tag).img);
+    }
 
     public IconItem(String name, BufferedImage img, Widget parent)
     {
@@ -89,6 +103,10 @@ public class IconItem extends Widget
             if(type == NArea.Ingredient.Type.BARREL)
             {
                 g.image(barm, UI.scale(16,16), UI.scale(16, 16));
+            }
+            if(customTagTex != null)
+            {
+                g.image(customTagTex, Coord.z);
             }
         }
     }
@@ -151,7 +169,20 @@ public class IconItem extends Widget
                     addMenuOption(optList, KEY_UNMARK);
                 }
             }
-            
+
+            if(parent instanceof TaggableItemContainer) {
+                TaggableItemContainer tc = (TaggableItemContainer) parent;
+                for(String tagOpt : tc.tagOptions(name)) {
+                    optList.add(tagOpt);
+                    menuKeyMap.put(tagOpt, TAG_KEY_PREFIX + tagOpt);
+                }
+                if(customTag != null) {
+                    String clearLabel = L10n.get(KEY_CLEAR_TAG);
+                    optList.add(clearLabel);
+                    menuKeyMap.put(clearLabel, KEY_CLEAR_TAG);
+                }
+            }
+
             String[] opts = optList.toArray(new String[0]);
             menu = new NFlowerMenu(opts) {
 
@@ -203,6 +234,17 @@ public class IconItem extends Widget
                         else if(key.equals(KEY_UNMARK))
                         {
                             ((IngredientContainer)IconItem.this.parent).setType(IconItem.this.name, NArea.Ingredient.Type.CONTAINER);
+                        }
+                        else if(key.equals(KEY_CLEAR_TAG))
+                        {
+                            IconItem.this.setCustomTag(null);
+                            ((TaggableItemContainer)IconItem.this.parent).setTag(IconItem.this.name, null);
+                        }
+                        else if(key.startsWith(TAG_KEY_PREFIX))
+                        {
+                            String tagValue = key.substring(TAG_KEY_PREFIX.length());
+                            IconItem.this.setCustomTag(tagValue);
+                            ((TaggableItemContainer)IconItem.this.parent).setTag(IconItem.this.name, tagValue);
                         }
                     }
                     uimsg("cancel");
