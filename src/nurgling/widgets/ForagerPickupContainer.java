@@ -118,19 +118,24 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
      * {@link ForagerAction#toNAlias()} matches on ANY of these against the gob's name.
      */
     private static String herbPatternCandidates(String itemName) {
-        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
-        candidates.add(itemName);
+        // Matching is already case-insensitive (NAlias lowercases everything internally), but
+        // gob resource paths are always lowercase - keep the saved pattern looking like one
+        // instead of a mix of cases, so it reads sensibly if the user reviews/edits it later.
+        String lower = itemName.toLowerCase();
 
-        String noSpaces = itemName.replace(" ", "");
+        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
+        candidates.add(lower);
+
+        String noSpaces = lower.replace(" ", "");
         candidates.add(noSpaces);
 
         if (noSpaces.length() > 1 && noSpaces.endsWith("s")) {
             candidates.add(noSpaces.substring(0, noSpaces.length() - 1));
         }
 
-        // Last word alone (e.g. "Caps" out of "Liberty Caps") - and its singular - as a narrower
+        // Last word alone (e.g. "caps" out of "liberty caps") - and its singular - as a narrower
         // fallback in case the full concatenated name still doesn't match anything.
-        String[] words = itemName.trim().split("\\s+");
+        String[] words = lower.trim().split("\\s+");
         String lastWord = words[words.length - 1];
         candidates.add(lastWord);
         if (lastWord.length() > 1 && lastWord.endsWith("s")) {
