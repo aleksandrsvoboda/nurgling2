@@ -250,11 +250,51 @@ public class NHitBox
 
     public static NHitBox fromObstacle(Coord2d[][] p, boolean force)
     {
-        if(p.length == 1 && p[0].length == 4)
+        if(p != null && p.length == 1 && p[0] != null && p[0].length == 4)
         {
-            return new NHitBox(p[0][0].floor(),p[0][2].ceil(), force);
+            // min/max over every vertex rather than reading p[0][0] as upper-left and p[0][2] as
+            // bottom-right. That indexing only holds for lib/obst's type 3, which happens to emit
+            // (l,u) (r,u) (r,b) (l,b); types 0 and 2 carry arbitrary polygons and a quad wound the
+            // other way used to come out inverted.
+            Coord2d[] b = PolyRects.bounds(p[0]);
+            return new NHitBox(b[0].floor(), b[1].ceil(), force);
         }
+        // Anything else stays null on purpose. Collapsing several polygons into their union would
+        // fill in exactly the gaps this class now exists to preserve, so an object that needs its
+        // real shape earns a place on compoundNames instead - see HitBoxProbe for the geometry.
         return null;
+    }
+
+    /**
+     * Which obstacle layer to trust when a resource ships more than one.
+     *
+     * <p>{@code Resource.Obstacle} is an {@code IDLayer<String>}, and hafen's own placement code
+     * ({@code Gob.BasePlace}, {@code LinePlace}, {@code PlanePlace}) always asks for id {@code ""},
+     * so that is the physical footprint. Anything else is a secondary definition - a build
+     * clearance, say - and must not be mistaken for it. Ties keep the later layer, which is what
+     * the plain "last one wins" scan used to do.
+     */
+    public static Resource.Obstacle pickObstacle(Collection<Resource.Layer> layers)
+    {
+        Resource.Obstacle best = null;
+        for(Resource.Layer lay : layers)
+        {
+            if(!(lay instanceof Resource.Obstacle))
+                continue;
+            Resource.Obstacle cand = (Resource.Obstacle) lay;
+            if(best == null || obstacleRank(cand.id) <= obstacleRank(best.id))
+                best = cand;
+        }
+        return best;
+    }
+
+    private static int obstacleRank(String id)
+    {
+        if(id == null || id.isEmpty())
+            return 0;
+        if(id.equals("build"))
+            return 2;
+        return 1;
     }
 
     /**

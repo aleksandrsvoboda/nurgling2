@@ -741,36 +741,8 @@ public class NGob
                         } else
                         {
                             String builtName = ((Session.CachedRes.Ref) consobj.built.res).res.name;
-                            NHitBox compound = null;
-                            for (Resource.Layer lay : ((Session.CachedRes.Ref) consobj.built.res).res.getLayers())
-                            {
-                                if (lay instanceof Resource.Neg)
-                                {
-                                    if (name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS))
-                                    {
-                                        hitBox = new NHitBox(((Resource.Neg) lay).ac, ((Resource.Neg) lay).bc, true);
-                                    } else
-                                    {
-                                        hitBox = new NHitBox(((Resource.Neg) lay).ac, ((Resource.Neg) lay).bc);
-                                    }
-                                } else if (lay instanceof Resource.Obstacle)
-                                {
-                                    if (name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS))
-                                    {
-                                        hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, true, builtName);
-                                    } else
-                                    {
-                                        hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, false, builtName);
-                                    }
-                                    if (hitBox != null && hitBox.isCompound())
-                                        compound = hitBox;
-                                }
-                            }
-                            // Layer order decides who wins above, and it is not the same for every
-                            // resource. A footprint that was deliberately kept multi-part must not
-                            // lose its gaps to whichever coarse layer happens to come last.
-                            if (compound != null)
-                                hitBox = compound;
+                            Collection<Resource.Layer> blayers = ((Session.CachedRes.Ref) consobj.built.res).res.getLayers();
+                            hitBox = fromLayers(blayers, builtName, hitBox);
                         }
                     } else
                     {
@@ -806,36 +778,7 @@ public class NGob
                     }
                 } else
                 {
-                    NHitBox compound = null;
-                    for (Resource.Layer lay : drawable.getres().getLayers())
-                    {
-                        if (lay instanceof Resource.Neg)
-                        {
-                            if (name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS))
-                            {
-                                hitBox = new NHitBox(((Resource.Neg) lay).ac, ((Resource.Neg) lay).bc, true);
-                            } else
-                            {
-                                hitBox = new NHitBox(((Resource.Neg) lay).ac, ((Resource.Neg) lay).bc);
-                            }
-                        } else if (lay instanceof Resource.Obstacle)
-                        {
-                            if (name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS))
-                            {
-                                hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, true, name);
-                            } else
-                            {
-                                hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, false, name);
-                            }
-                            if (hitBox != null && hitBox.isCompound())
-                                compound = hitBox;
-                        }
-                    }
-                    // Layer order decides who wins above, and it is not the same for every
-                    // resource. A footprint that was deliberately kept multi-part must not lose
-                    // its gaps to whichever coarse layer happens to come last.
-                    if (compound != null)
-                        hitBox = compound;
+                    hitBox = fromLayers(drawable.getres().getLayers(), name, hitBox);
                 }
                 if (name != null)
                 {
@@ -1032,6 +975,42 @@ public class NGob
         }
     }
 
+
+    /**
+     * Resolve a hitbox from a resource's collision layers.
+     *
+     * <p>Layers are scanned in file order, as before, so whichever of {@code neg} / {@code obst}
+     * comes last still wins. Two things changed:
+     * <ul>
+     *   <li>a resource carrying several {@code obst} layers no longer just takes the last one -
+     *       {@link NHitBox#pickObstacle} picks the physical one by id;</li>
+     *   <li>an obstacle layer this client cannot reduce to a box yields {@code null}, and that
+     *       {@code null} no longer overwrites a perfectly good box computed from another layer.
+     *       Objects with a {@code neg} layer and a multi-polygon {@code obst} used to end up with
+     *       no hitbox at all and were invisible to pathfinding.</li>
+     * </ul>
+     */
+    private NHitBox fromLayers(Collection<Resource.Layer> layers, String resName, NHitBox current)
+    {
+        boolean force = name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS);
+        Resource.Obstacle chosen = NHitBox.pickObstacle(layers);
+        NHitBox compound = null;
+        for (Resource.Layer lay : layers)
+        {
+            NHitBox box = null;
+            if (lay instanceof Resource.Neg)
+                box = new NHitBox(((Resource.Neg) lay).ac, ((Resource.Neg) lay).bc, force);
+            else if (lay == chosen)
+                box = NHitBox.fromObstacle(chosen.p, force, resName);
+            if (box != null)
+                current = box;
+            if (box != null && box.isCompound())
+                compound = box;
+        }
+        // A footprint deliberately kept multi-part outranks last-layer-wins: a coarse neg box
+        // sitting after the obstacle layer would otherwise fill the gaps straight back in.
+        return (compound != null) ? compound : current;
+    }
 
     private void setDynamic()
     {

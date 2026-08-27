@@ -46,18 +46,21 @@ public class NModelBox extends Sprite implements RenderTree.Node {
                 return null;
 
             ArrayList<Polygon> polygons = new ArrayList<>();
+            // inv() is a half-turn about the object's origin, and it belongs here only when
+            // NHitBoxD would also apply its asymmetric half-turn - otherwise the drawn box and the
+            // box the bots collide against disagree. That rule keys on x alone, so a box like the
+            // smelter's (x symmetric, y running -20..11) used to be drawn mirrored in y, at
+            // -11..20, while collision stayed put. For a compound footprint the decision belongs
+            // to the union, exactly as in NHitShapeD: flipping each part on its own would draw the
+            // pieces in each other's places.
+            boolean flip = (hitBox.begin.x != -hitBox.end.x);
             NHitBox[] parts = hitBox.parts();
             if (parts == null)
             {
-                polygons.add(quad(hitBox, true));
+                polygons.add(quad(hitBox, flip));
             }
             else
             {
-                // The unconditional inv() below is a half-turn about the object's origin, matching
-                // the extra 180 degrees NHitBoxD gives asymmetric boxes. For a compound footprint
-                // that decision belongs to the union, exactly as it does in NHitShapeD: flipping
-                // each part on its own would draw the pieces in each other's places.
-                boolean flip = (hitBox.begin.x != -hitBox.end.x);
                 for (NHitBox part : parts)
                     polygons.add(quad(part, flip));
             }

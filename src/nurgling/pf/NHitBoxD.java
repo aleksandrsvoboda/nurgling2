@@ -118,7 +118,11 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
             quarterTurns += 2;
         angle = quarterTurns * Math.PI / 2.0;
 
-        switch (quarterTurns % 4) {
+        // floorMod, not %: Java's remainder follows the sign of the dividend, so a negative
+        // quarter-turn count (a negative angle, or any angle the asymmetric half-turn pushes below
+        // zero) used to match no case at all and leave c[] null - which then NPE'd inside the next
+        // contains()/intersects(). -1 and 3 are the same rotation; treat them that way.
+        switch (Math.floorMod(quarterTurns, 4)) {
             case 0:
                 c[0] = this.ul.add(rc);
                 c[1] = Coord2d.of(this.br.x, this.ul.y).add(rc);
