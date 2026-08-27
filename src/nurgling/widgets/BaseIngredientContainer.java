@@ -49,6 +49,20 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         this.sb.c = new Coord(UI.scale(180),0);
     }
 
+    // The two other consumers (IngredientContainer/FoodContainer) always use the default
+    // 205x400 size the constructor sets up above, so the scrollbar's position/length were never
+    // exercised past that - a caller that resizes to something else (e.g. ForagerPickupContainer,
+    // widened to fit its grid) needs the scrollbar to follow, or it's left sitting at the old
+    // right edge and the old length, out of sync with the actual visible area.
+    @Override
+    public void resize(Coord sz) {
+        super.resize(sz);
+        if (sb != null) {
+            sb.c = new Coord(sz.x - sb.sz.x, 0);
+            sb.resize(sz.y);
+        }
+    }
+
     @Override
     public void draw(GOut g) {
         g.chcolor(bg);

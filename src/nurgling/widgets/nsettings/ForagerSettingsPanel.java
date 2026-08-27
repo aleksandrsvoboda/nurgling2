@@ -94,10 +94,10 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_profile_tip"));
 
-        prev = cont.add(pickupContainer = new ForagerPickupContainer(), profileRow.pos("bl").add(UI.scale(0, 10)));
+        pickupContainer = new ForagerPickupContainer();
         pickupContainer.resize(UI.scale(new Coord(400, 320)));
 
-        Widget pickupButtonsRow = cont.add(new Widget(new Coord(UI.scale(300), UI.scale(24))), prev.pos("bl").add(UI.scale(0, 5)));
+        Widget pickupButtonsRow = cont.add(new Widget(new Coord(UI.scale(300), UI.scale(24))), profileRow.pos("bl").add(UI.scale(0, 10)));
         pickupButtonsRow.add(new IButton(
                 Resource.loadsimg("nurgling/hud/buttons/add/u"),
                 Resource.loadsimg("nurgling/hud/buttons/add/d"),
@@ -117,6 +117,8 @@ public class ForagerSettingsPanel extends Panel {
                 pickupContainer.openCatalogue();
             }
         }, new Coord(UI.scale(30), 0)).settip(L10n.get("forager.pickup.catalogue"));
+
+        cont.add(pickupContainer, pickupButtonsRow.pos("bl").add(UI.scale(0, 5)));
     }
 
     @Override
