@@ -15,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.LinkedList;
 
 public class DatabaseSettings extends Panel {
@@ -180,52 +179,18 @@ public class DatabaseSettings extends Panel {
                     }
 
                     try {
-                        // РЎРѕР·РґР°РµРј РЅРѕРІСѓСЋ Р±Р°Р·Сѓ РґР°РЅРЅС‹С…
+                        /* Only the file has to exist. Every table it needs is created by the
+                         * migration pass on first connect, exactly as it is for PostgreSQL - the
+                         * schema is defined in MigrationManager and nowhere else, so this cannot
+                         * drift out of step with it the way the old copy here did. */
                         Files.deleteIfExists(Paths.get(dbPathLocal));
                         Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPathLocal);
-
-                        // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј С‚Р°Р±Р»РёС†С‹
-                        try (Statement stmt = conn.createStatement()) {
-                            stmt.executeUpdate("CREATE TABLE recipes (" +
-                                    "recipe_hash VARCHAR(64) PRIMARY KEY, " +
-                                    "item_name VARCHAR(255) NOT NULL, " +
-                                    "resource_name VARCHAR(255) NOT NULL, " +
-                                    "hunger FLOAT NOT NULL, " +
-                                    "energy INT NOT NULL)");
-
-                            stmt.executeUpdate("CREATE TABLE ingredients (" +
-                                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                                    "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
-                                    "name VARCHAR(255) NOT NULL, " +
-                                    "percentage FLOAT NOT NULL, " +
-                                    "resource_name VARCHAR(512))");
-
-                            stmt.executeUpdate("CREATE TABLE feps (" +
-                                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                                    "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
-                                    "name VARCHAR(255) NOT NULL, " +
-                                    "value FLOAT NOT NULL, " +
-                                    "weight FLOAT NOT NULL)");
-
-                            stmt.executeUpdate("CREATE TABLE containers (" +
-                                    "hash VARCHAR(64) PRIMARY KEY, " +
-                                    "grid_id BIGINT, " +
-                                    "coord VARCHAR(255))");
-
-                            stmt.executeUpdate("CREATE TABLE storageitems (" +
-                                    "item_hash VARCHAR(64) PRIMARY KEY, " +
-                                    "name VARCHAR(255) NOT NULL, " +
-                                    "quality DOUBLE PRECISION, " +
-                                    "coordinates VARCHAR(255), " +
-                                    "container VARCHAR(64) NOT NULL)");
-                        }
-
                         conn.close();
 
-                        // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїСѓС‚СЊ РІ С‚РµРєСЃС‚РѕРІРѕРµ РїРѕР»Рµ
                         filePathEntry.settext(dbPathLocal);
                         dbPath = dbPathLocal;
-                        NUtils.getGameUI().msg("Database successfully created and initialized", Color.YELLOW);
+                        NUtils.getGameUI().msg("Database file created; tables are set up on connect",
+                            Color.YELLOW);
                     } catch (Exception e) {
                         NUtils.getGameUI().msg("Failed to create database: " + e.getMessage(), Color.RED);
                         e.printStackTrace();

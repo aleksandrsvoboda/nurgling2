@@ -168,9 +168,17 @@ public class MigrationManager {
     private List<Migration> getMigrations() {
         List<Migration> migrations = new ArrayList<>();
 
-        migrations.add(new Migration(1, "Initial migration: create favorite_recipes table and add UNIQUE constraints") {
+        migrations.add(new Migration(1, "Initial migration: create base tables, favorite_recipes and UNIQUE constraints") {
             @Override
             public void run(DatabaseAdapter adapter) throws SQLException {
+                /* Must come first. The ALTER TABLEs further down assume ingredients and feps exist,
+                 * and on an empty database they do not: PostgreSQL raises 42P01, which is not the
+                 * "already exists" code this migration forgives, so it rethrows - and migration 1 is
+                 * not optional, so the whole DatabaseManager fails to initialise. That is what made
+                 * etc/db/init.sql a hidden prerequisite only the compose entrypoint ever applied,
+                 * and why pointing the client at a freshly installed PostgreSQL never worked. */
+                ensureBaseTables(adapter);
+
                 // Create favorite_recipes table if it doesn't exist
                 if (!adapter.tableExists("favorite_recipes")) {
                     String createFavoriteRecipes = "CREATE TABLE favorite_recipes (" +
@@ -631,6 +639,81 @@ public class MigrationManager {
         });
 
         return migrations;
+    }
+
+    /**
+     * The tables that used to arrive only through {@code etc/db/init.sql}, as name to DDL.
+     *
+     * <p>Ordered: {@code ingredients} and {@code feps} carry a foreign key onto {@code recipes}, so
+     * it has to exist first.
+     *
+     * @param postgres false for SQLite, whose autoincrement spelling differs and which cannot add a
+     *                 constraint after the fact - so its UNIQUE goes inline here instead
+     */
+    public static java.util.LinkedHashMap<String, String> baseTableDdl(boolean postgres) {
+        String serialPk = postgres ? "id SERIAL PRIMARY KEY, "
+                                   : "id INTEGER PRIMARY KEY AUTOINCREMENT, ";
+        String inlineUnique = postgres ? "" : ", UNIQUE (recipe_hash, name)";
+
+        java.util.LinkedHashMap<String, String> ddl = new java.util.LinkedHashMap<>();
+        ddl.put("recipes",
+            "CREATE TABLE recipes (" +
+            "recipe_hash VARCHAR(64) PRIMARY KEY, " +
+            "item_name VARCHAR(255) NOT NULL, " +
+            "resource_name VARCHAR(255) NOT NULL, " +
+            "hunger FLOAT NOT NULL, " +
+            "energy INT NOT NULL)");
+        ddl.put("ingredients",
+            "CREATE TABLE ingredients (" + serialPk +
+            "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
+            "name VARCHAR(255) NOT NULL, " +
+            "percentage FLOAT NOT NULL, " +
+            "resource_name VARCHAR(512)" + inlineUnique + ")");
+        ddl.put("feps",
+            "CREATE TABLE feps (" + serialPk +
+            "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
+            "name VARCHAR(255) NOT NULL, " +
+            "value FLOAT NOT NULL, " +
+            "weight FLOAT NOT NULL" + inlineUnique + ")");
+        ddl.put("containers",
+            "CREATE TABLE containers (" +
+            "hash VARCHAR(64) PRIMARY KEY, " +
+            "grid_id BIGINT, " +
+            "coord VARCHAR(255))");
+        ddl.put("storageitems",
+            "CREATE TABLE storageitems (" +
+            "item_hash VARCHAR(64) PRIMARY KEY, " +
+            "name VARCHAR(255) NOT NULL, " +
+            "quality DOUBLE PRECISION, " +
+            "coordinates VARCHAR(255), " +
+            "container VARCHAR(64) NOT NULL)");
+        return ddl;
+    }
+
+    /**
+     * Create the base tables when they are missing.
+     *
+     * <p>A no-op on every database that already has them, which is every village made before this
+     * change. Routed through {@link #createTable} so a fresh database gets the grants as well - the
+     * {@code init.sql} copies never had any, which is why no account but the owner could read them.
+     */
+    private static void ensureBaseTables(DatabaseAdapter adapter) throws SQLException {
+        boolean postgres = adapter instanceof nurgling.db.PostgresAdapter;
+        for (java.util.Map.Entry<String, String> e : baseTableDdl(postgres).entrySet()) {
+            if (!adapter.tableExists(e.getKey())) {
+                createTable(adapter, e.getKey(), e.getValue());
+                System.out.println("Created " + e.getKey() + " table");
+            }
+        }
+    }
+
+    /** Every table this client expects to find once setup has finished. */
+    public static java.util.List<String> expectedTables() {
+        java.util.List<String> names = new java.util.ArrayList<>(baseTableDdl(true).keySet());
+        java.util.Collections.addAll(names,
+            "favorite_recipes", "areas", "routes",
+            "planning_folders", "planning_layers", "planning_ghosts");
+        return names;
     }
 
     /** Group role holding read/write on everything. Villagers are members of it. */
