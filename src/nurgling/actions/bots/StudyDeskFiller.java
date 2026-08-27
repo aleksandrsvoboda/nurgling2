@@ -35,10 +35,10 @@ public class StudyDeskFiller implements Action {
 
     private final boolean fillAll;
 
-    public StudyDeskFiller() {
-        this.fillAll = true;
-    }
-
+    // BotDescriptor.instantiate() always finds and prefers this constructor via reflection (it
+    // only falls back to a no-arg one on NoSuchMethodException) - a no-arg constructor here would
+    // never actually be called, so there's deliberately only this one; settings=null (or missing
+    // "fillAll") defaults to true, same as the old always-fill-everything behavior.
     public StudyDeskFiller(Map<String, Object> settings) {
         Object v = settings != null ? settings.get("fillAll") : null;
         this.fillAll = !(v instanceof Boolean) || (Boolean) v;

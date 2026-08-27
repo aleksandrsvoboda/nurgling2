@@ -106,42 +106,61 @@ public class StudyDeskConfig {
      * @param owner the saving character's chrid, claiming this desk as theirs (see
      *              {@link #findOwnedDeskHash}), or null to leave ownership as it already was.
      */
+    @SuppressWarnings("unchecked")
     public static void putDesk(String hash, String label, Map<String, Object> layout, String owner) {
         Map<String, Object> desks = allDesks();
         Object existing = desks.get(hash);
-        Map<String, Object> existingEntry = (existing instanceof Map) ? (Map<String, Object>) existing : null;
 
         Map<String, Object> deskEntry = new HashMap<>();
-        String resolvedLabel = label;
-        if (resolvedLabel == null && existingEntry != null) {
-            Object existingLabel = existingEntry.get(LABEL_KEY);
-            if (existingLabel instanceof String) {
-                resolvedLabel = (String) existingLabel;
-            }
-        }
+        String resolvedLabel = orExisting(existing, LABEL_KEY, label);
         if (resolvedLabel != null) {
             deskEntry.put(LABEL_KEY, resolvedLabel);
         }
         deskEntry.put(LAYOUT_KEY, layout);
-
-        String resolvedOwner = owner;
-        if (resolvedOwner == null && existingEntry != null) {
-            Object existingOwner = existingEntry.get(OWNER_KEY);
-            if (existingOwner instanceof String) {
-                resolvedOwner = (String) existingOwner;
-            }
-        }
+        String resolvedOwner = orExisting(existing, OWNER_KEY, owner);
         if (resolvedOwner != null) {
             deskEntry.put(OWNER_KEY, resolvedOwner);
         }
-
         desks.put(hash, deskEntry);
+
+        // A character owns at most one desk at a time - claiming this one clears their tag from
+        // any other desk they'd previously claimed, so findOwnedDeskHash() always has exactly one
+        // unambiguous answer instead of an arbitrary pick among several (HashMap iteration order).
+        if (owner != null) {
+            for (Map.Entry<String, Object> entry : desks.entrySet()) {
+                if (entry.getKey().equals(hash) || !(entry.getValue() instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> other = (Map<String, Object>) entry.getValue();
+                if (owner.equals(other.get(OWNER_KEY))) {
+                    other.remove(OWNER_KEY);
+                }
+            }
+        }
+
         saveDesks(desks);
+    }
+
+    /** {@code key}'s value from {@code existing} if {@code provided} is null, else {@code provided}. */
+    @SuppressWarnings("unchecked")
+    private static String orExisting(Object existing, String key, String provided) {
+        if (provided != null) {
+            return provided;
+        }
+        if (existing instanceof Map) {
+            Object v = ((Map<String, Object>) existing).get(key);
+            if (v instanceof String) {
+                return (String) v;
+            }
+        }
+        return null;
     }
 
     /**
      * The hash of the desk the given character last saved a plan for (see {@link #putDesk}), or
      * null if they don't own one. Used by "Fill Study Desk" to target their own desk specifically.
+     * At most one desk can carry a given owner at a time (putDesk clears it from any other), so
+     * this always has exactly one unambiguous answer.
      */
     @SuppressWarnings("unchecked")
     public static String findOwnedDeskHash(String chrid) {
