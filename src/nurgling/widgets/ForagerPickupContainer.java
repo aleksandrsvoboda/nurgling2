@@ -38,6 +38,9 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     static {
         CATEGORY_DEFAULT_ACTION.put("Nuts", "Pick Nuts");
         CATEGORY_DEFAULT_ACTION.put("Fruit", "Pick Fruit");
+        // Confirmed against the real flower menu, unlike the two guesses above - CollectBark
+        // (an existing, working bot) uses this exact string with the existing tree/bush gobs.
+        CATEGORY_DEFAULT_ACTION.put("Bark", "Take bark");
     }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`

@@ -32,7 +32,7 @@ public class NForagerProp implements JConf {
     // right-click tag menu (see ForagerPickupContainer/IconItem's "+ New Action..." option) -
     // not per-profile, since the whole point is that a label typed once for one item is
     // immediately available for every other item afterward, not re-typed each time.
-    public ArrayList<String> actionTags = new ArrayList<>(java.util.Arrays.asList("Pick Fruit", "Pick Nuts"));
+    public ArrayList<String> actionTags = new ArrayList<>(java.util.Arrays.asList("Pick Fruit", "Pick Nuts", "Take bark"));
 
     public static class PresetData {
         public String pathFile = "";
@@ -229,7 +229,7 @@ public class NForagerProp implements JConf {
     /** Every flower-menu action label offered in a pickup item's right-click tag menu so far. */
     public static ArrayList<String> getActionTags() {
         NForagerProp prop = get(NUtils.getUI().sessInfo);
-        return prop != null ? prop.actionTags : new ArrayList<>(java.util.Arrays.asList("Pick Fruit", "Pick Nuts"));
+        return prop != null ? prop.actionTags : new ArrayList<>(java.util.Arrays.asList("Pick Fruit", "Pick Nuts", "Take bark"));
     }
 
     /** Adds a new action label to the shared vocabulary (no-op if already present) and persists. */
