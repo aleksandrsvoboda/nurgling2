@@ -60,7 +60,7 @@ public class NQuestWnd extends QuestWnd {
 	Tabs lists = new Tabs(Coord.of(listX, contentY), Coord.z, this);
 	Tabs.Tab cqst = lists.add();
 	{
-	    this.cqst = cqst.add(new QuestList(new Coord(LIST_W, LIST_H), QUEST_ITEM_H) {
+	    this.cqst = cqst.add(new QuestList(new Coord(LIST_W, LIST_H), QUEST_ITEM_H, true) {
 		@Override
 		protected void drawslot(GOut g, Quest q, int idx, Area area) {
 		    g.chcolor(((idx % 2) == 0) ? NStyle.rowEven : NStyle.rowOdd);
@@ -73,7 +73,7 @@ public class NQuestWnd extends QuestWnd {
 	}
 	Tabs.Tab dqst = lists.add();
 	{
-	    this.dqst = dqst.add(new QuestList(new Coord(LIST_W, LIST_H), QUEST_ITEM_H) {
+	    this.dqst = dqst.add(new QuestList(new Coord(LIST_W, LIST_H), QUEST_ITEM_H, false) {
 		@Override
 		protected void drawslot(GOut g, Quest q, int idx, Area area) {
 		    g.chcolor(((idx % 2) == 0) ? NStyle.rowEven : NStyle.rowOdd);
