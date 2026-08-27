@@ -633,6 +633,148 @@ public class MigrationManager {
         return migrations;
     }
 
+    /** Group role holding read/write on everything. Villagers are members of it. */
+    public static final String ROLE_MEMBER = "nurgling_member";
+
+    /** Group role holding read-only, for an ally you share a map with but not your areas. */
+    public static final String ROLE_GUEST = "nurgling_guest";
+
+    /** Grantee for a table created outside the migration list. */
+    public static final String ROLE_MEMBER_OR_PUBLIC = "PUBLIC";
+
+    /**
+     * Hand out the privileges every other account on this database needs, and arrange for future
+     * tables to get them without anyone remembering to ask.
+     *
+     * <p>Three gaps this closes, all of which force a village onto one shared superuser:
+     * <ul>
+     *   <li>The five tables that come from {@code etc/db/init.sql} are granted to nobody at all -
+     *       they are owned by whoever ran the compose file, and PostgreSQL gives a new table nothing
+     *       to anyone else. {@code information_schema} even hides them, so a second account cannot
+     *       see that they exist.</li>
+     *   <li>No sequence is granted anywhere. {@code ingredients} and {@code feps} use
+     *       {@code SERIAL}, so inserting a recipe needs {@code USAGE} on their sequences, and PUBLIC
+     *       does not get that by default.</li>
+     *   <li>Grants only ever happen inside {@code CREATE TABLE}, so a role created afterwards - which
+     *       is every villager added from the panel - is covered by nothing.</li>
+     * </ul>
+     *
+     * <p>Without this, adding a villager produces a client that syncs areas, routes and the map and
+     * then fails silently on containers, storage items and recipes. Partial success that looks like
+     * success is worse than a clean failure, so this runs on every connect.
+     *
+     * <p>Idempotent, touches no row and disconnects nobody, so it is safe while people are playing.
+     * A client whose role may not grant logs one line and moves on.
+     */
+    public static void repairPermissions(DatabaseAdapter adapter) {
+        if (!(adapter instanceof nurgling.db.PostgresAdapter)) {
+            return;
+        }
+        String role = grantee();
+        if (role == null) {
+            return;
+        }
+        Connection conn = adapter.getConnection();
+        if (!guarded(conn, adapter,
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + role)) {
+            /* Every villager runs this on every connect and only the owner can grant. One line
+             * beats four identical ones, and it is not an error - just not this client's job. */
+            System.out.println("[MigrationManager] not permitted to repair permissions here; "
+                + "the account that owns the database does this on its next connect");
+            return;
+        }
+        guarded(conn, adapter,
+            "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + role);
+
+        /* Default privileges attach to the role that CREATES an object, so the role named here has
+         * to be whoever will run the next migration - never a fixed name. An existing village
+         * migrates as "postgres"; naming anything else is a silent no-op that only shows up
+         * releases later, as a new table no villager can read. */
+        String owner = currentUser(adapter);
+        if (owner != null) {
+            String forRole = "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner) + " IN SCHEMA public ";
+            guarded(conn, adapter, forRole + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + role);
+            guarded(conn, adapter, forRole + "GRANT USAGE, SELECT ON SEQUENCES TO " + role);
+        }
+
+        /* The group roles only exist once somebody has used the Villagers panel. Granting here
+         * rather than at creation time is what lets a role added next month get the same rights as
+         * one added today, without anyone re-running anything. */
+        if (roleExists(adapter, ROLE_MEMBER)) {
+            guarded(conn, adapter,
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + ROLE_MEMBER);
+            guarded(conn, adapter,
+                "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + ROLE_MEMBER);
+            if (owner != null) {
+                String forRole = "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner) + " IN SCHEMA public ";
+                guarded(conn, adapter, forRole + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + ROLE_MEMBER);
+                guarded(conn, adapter, forRole + "GRANT USAGE, SELECT ON SEQUENCES TO " + ROLE_MEMBER);
+            }
+        }
+        if (roleExists(adapter, ROLE_GUEST)) {
+            guarded(conn, adapter, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + ROLE_GUEST);
+            if (owner != null) {
+                guarded(conn, adapter, "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner)
+                    + " IN SCHEMA public GRANT SELECT ON TABLES TO " + ROLE_GUEST);
+            }
+        }
+    }
+
+    /** Whether a role is present on this server. */
+    public static boolean roleExists(DatabaseAdapter adapter, String role) {
+        try (ResultSet rs = adapter.executeQuery("SELECT 1 FROM pg_roles WHERE rolname = ?", role)) {
+            return rs.next();
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    /** The role this connection is authenticated as, or null if it cannot be read. */
+    private static String currentUser(DatabaseAdapter adapter) {
+        try (ResultSet rs = adapter.executeQuery("SELECT current_user")) {
+            if (rs.next()) {
+                String u = rs.getString(1);
+                if (u != null && !u.isEmpty()) {
+                    return u;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[MigrationManager] could not read current_user: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Run one statement that is allowed to fail.
+     *
+     * <p>Wrapped in a savepoint because a failed statement aborts the whole PostgreSQL transaction:
+     * without one, a client that merely lacks the right to grant would roll back the migration that
+     * had just succeeded.
+     */
+    private static boolean guarded(Connection conn, DatabaseAdapter adapter, String sql) {
+        java.sql.Savepoint sp = null;
+        try {
+            sp = conn.setSavepoint("nurgling_perm");
+            adapter.executeUpdate(sql);
+            conn.releaseSavepoint(sp);
+            return true;
+        } catch (SQLException e) {
+            if (sp != null) {
+                try {
+                    conn.rollback(sp);
+                } catch (SQLException ignore) {
+                }
+            }
+            System.err.println("[MigrationManager] skipped (" + e.getMessage() + "): " + sql);
+            return false;
+        }
+    }
+
+    /** Quote a role name for DDL, where it cannot go through a bound parameter. */
+    public static String quoteIdent(String ident) {
+        return "\"" + ident.replace("\"", "\"\"") + "\"";
+    }
+
     /**
      * Create a table and immediately hand out DML on it.
      * <p>

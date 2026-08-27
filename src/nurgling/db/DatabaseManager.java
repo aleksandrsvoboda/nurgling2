@@ -32,6 +32,7 @@ public class DatabaseManager {
     private nurgling.db.service.PeerPositionDbService peerPositionService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
+    private nurgling.db.service.VillagerService villagerService;
 
     /**
      * Optional migrations the database refused, as version -> reason. Their features report
@@ -292,6 +293,12 @@ public class DatabaseManager {
                     initializeServices();
 
                     initialized = true;
+                    /* After initialized = true, because this goes through the normal task path. It
+                     * fills the Villagers panel's "last seen" column, which is what tells a host
+                     * whether an account is still in use before they delete it. */
+                    if (DatabaseAdapterFactory.isPostgres() && villagerService != null) {
+                        villagerService.ensureBookkeepingAsync();
+                    }
                     System.out.println("DatabaseManager initialized successfully with " +
                                      DatabaseAdapterFactory.getDatabaseType());
                     reportSkippedMigrations();
@@ -322,6 +329,10 @@ public class DatabaseManager {
     private void initializeServices() {
         // Services whose table could not be created are left null; callers treat that as
         // "feature unavailable" rather than "database down".
+        /* Always present: managing accounts has to keep working on a database that is only half
+         * set up, and the panel that uses it is exactly where a host goes to fix that. The service
+         * degrades internally when its bookkeeping table is absent. */
+        this.villagerService = new nurgling.db.service.VillagerService(this);
         this.recipeService = new RecipeService(this);
         this.favoriteRecipeService = new FavoriteRecipeService(this);
         this.containerService = new ContainerService(this);
@@ -407,6 +418,10 @@ public class DatabaseManager {
         }
     }
 
+    public nurgling.db.service.VillagerService getVillagerService() {
+        return villagerService;
+    }
+
     /** Optional migrations this database refused, as version -> reason. Empty when all applied. */
     public java.util.Map<Integer, String> getSkippedMigrations() {
         return skippedMigrations;
@@ -423,6 +438,11 @@ public class DatabaseManager {
             System.out.println("DatabaseManager: Running migrations...");
             nurgling.db.migration.MigrationManager migrationManager = new nurgling.db.migration.MigrationManager(conn, migrationAdapter);
             java.util.Map<Integer, String> skipped = migrationManager.runMigrations();
+            /* Runs on every connect, not only when a migration fires: an existing village is already
+             * at the latest version and still has the ungranted init.sql tables and the ungranted
+             * sequences, which is what stops any account but the owner from working. Idempotent, and
+             * it degrades to a log line when this role may not grant. */
+            nurgling.db.migration.MigrationManager.repairPermissions(migrationAdapter);
             conn.commit();
             System.out.println("DatabaseManager: Migrations completed");
             return skipped;

@@ -24,6 +24,12 @@ public class DatabaseSettings extends Panel {
     private TextEntry filePathEntry;
     private Label hostLabel, userLabel, passLabel, fileLabel;
     private Button initDbButton;
+    private Label portLabel;
+    private TextEntry portEntry;
+    private Label connLabel;
+    private TextEntry connEntry;
+    private Button connApply;
+    private Button villagersButton;
     private Button seedFishButton;
     private CheckBox enableCheckbox;
     private CheckBox shareHsCheckbox;
@@ -135,6 +141,14 @@ public class DatabaseSettings extends Panel {
         hostEntry = add(new TextEntry(UI.scale(150), ""), new Coord(entryX, firstSettingY));
         y += hostEntry.sz.y + UI.scale(5);
 
+        /* Its own box rather than hidden inside the host string. It is still stored as one value -
+         * splitting the storage would need a default for the port, and a default is what quietly
+         * moves a village off the port it has always used. */
+        portLabel = add(new Label(L10n.get("database.port")), new Coord(margin, y));
+        portEntry = add(new TextEntry(UI.scale(70), ""), new Coord(entryX, y));
+        portEntry.tooltip = Text.render(L10n.get("database.port_tip")).tex();
+        y += portEntry.sz.y + UI.scale(5);
+
         userLabel = add(new Label(L10n.get("database.username")), new Coord(margin, y));
         usernameEntry = add(new TextEntry(UI.scale(150), ""), new Coord(entryX, y));
         y += usernameEntry.sz.y + UI.scale(5);
@@ -233,6 +247,31 @@ public class DatabaseSettings extends Panel {
             }
         }, new Coord(margin, y));
         seedFishButton.tooltip = Text.render(L10n.get("database.seed_fish_tip")).tex();
+        y += seedFishButton.sz.y + UI.scale(12);
+
+        /* One field instead of three. The host field above is spliced straight into the JDBC URL,
+         * so it silently needs "host:port" - a connection string carries the port with it, which is
+         * the part that otherwise gets lost between the admin's chat message and this panel. */
+        connLabel = add(new Label(L10n.get("database.connstring")), new Coord(margin, y + UI.scale(3)));
+        connEntry = add(new TextEntry(UI.scale(250), ""), new Coord(UI.scale(130), y));
+        connApply = add(new Button(UI.scale(90), L10n.get("database.connstring_apply")) {
+            @Override
+            public void click() {
+                super.click();
+                applyConnectionString();
+            }
+        }, new Coord(UI.scale(390), y));
+        connApply.tooltip = Text.render(L10n.get("database.connstring_tip")).tex();
+        y += connEntry.sz.y + UI.scale(10);
+
+        villagersButton = add(new Button(UI.scale(200), L10n.get("database.villagers")) {
+            @Override
+            public void click() {
+                super.click();
+                openVillagers();
+            }
+        }, new Coord(margin, y));
+        villagersButton.tooltip = Text.render(L10n.get("database.villagers_tip")).tex();
 
         load();
         updateWidgetsVisibility();
@@ -256,11 +295,13 @@ public class DatabaseSettings extends Panel {
         dbType.change(dbTypeStr);
 
         host = asString(NConfig.get(NConfig.Key.serverNode));
+        String[] hp = nurgling.db.ConnectionString.splitNode(host);
         user = asString(NConfig.get(NConfig.Key.serverUser));
         pass = asString(NConfig.get(NConfig.Key.serverPass));
         dbPath = asString(NConfig.get(NConfig.Key.dbFilePath));
 
-        hostEntry.settext(host);
+        hostEntry.settext(hp[0]);
+        portEntry.settext(hp[1]);
         usernameEntry.settext(user);
         passwordEntry.settext(pass);
         filePathEntry.settext(dbPath);
@@ -291,7 +332,8 @@ public class DatabaseSettings extends Panel {
         NConfig.set(NConfig.Key.sqlite, !isPostgres);
 
         if (isPostgres) {
-            NConfig.set(NConfig.Key.serverNode, hostEntry.text());
+            NConfig.set(NConfig.Key.serverNode,
+                nurgling.db.ConnectionString.joinNode(hostEntry.text(), portEntry.text()));
             NConfig.set(NConfig.Key.serverUser, usernameEntry.text());
             NConfig.set(NConfig.Key.serverPass, passwordEntry.text());
         } else {
@@ -411,6 +453,8 @@ public class DatabaseSettings extends Panel {
             // РЈРїСЂР°РІР»СЏРµРј РІРёРґРёРјРѕСЃС‚СЊСЋ РІСЃРµС… СЌР»РµРјРµРЅС‚РѕРІ РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ РІРєР»СЋС‡РµРЅРёСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…
             hostLabel.visible = isPostgres;
             hostEntry.visible = isPostgres;
+            portLabel.visible = isPostgres;
+            portEntry.visible = isPostgres;
             userLabel.visible = isPostgres;
             usernameEntry.visible = isPostgres;
             passLabel.visible = isPostgres;
@@ -419,6 +463,11 @@ public class DatabaseSettings extends Panel {
             fileLabel.visible = isSQLite;
             filePathEntry.visible = isSQLite;
             initDbButton.visible = isSQLite;
+
+            connLabel.visible = isPostgres;
+            connEntry.visible = isPostgres;
+            connApply.visible = isPostgres;
+            villagersButton.visible = isPostgres;
             // Don't reconnect here - it's just visibility update, not settings change
         }
 
@@ -428,6 +477,66 @@ public class DatabaseSettings extends Panel {
          * its widgets - hence the fixed floor. It has to stay a floor, though: assigning the height
          * outright clips anything sitting below it, which is what hid the seed button. */
         sz.y = Math.max(sz.y, UI.scale(200));
+    }
+
+    /**
+     * Fill the connection fields from a pasted {@code postgresql://} string, then save.
+     *
+     * <p>Saving straight away rather than leaving it for the OK button: pasting a connection string
+     * is a complete instruction, and the panel's own save path is what reconnects and reloads areas.
+     */
+    private void applyConnectionString() {
+        try {
+            nurgling.db.ConnectionString cs =
+                nurgling.db.ConnectionString.parse(connEntry.text());
+            String[] parts = nurgling.db.ConnectionString.splitNode(cs.node);
+            hostEntry.settext(parts[0]);
+            portEntry.settext(parts[1]);
+            usernameEntry.settext(cs.user);
+            passwordEntry.settext(cs.password);
+            connEntry.settext("");
+
+            /* The database name is a constant in the JDBC URL, so a string naming a different one
+             * would connect somewhere the user did not ask for. Say so rather than ignore it. */
+            if (!cs.database.isEmpty()
+                && !cs.database.equals(nurgling.db.ConnectionString.DEFAULT_DATABASE)) {
+                msg(L10n.get("database.connstring_dbname",
+                    cs.database, nurgling.db.ConnectionString.DEFAULT_DATABASE), Color.ORANGE);
+            }
+            save();
+            msg(L10n.get("database.connstring_applied", cs.user, cs.node), Color.GREEN);
+        } catch (nurgling.db.ConnectionString.FormatException e) {
+            msg(e.getMessage(), Color.ORANGE);
+        }
+    }
+
+    private void openVillagers() {
+        nurgling.NGameUI gui = NUtils.getGameUI();
+        if (gui == null) {
+            return;
+        }
+        /* Reuse whatever is already on screen: the window hides rather than destroys on close, so
+         * constructing one per press would stack them up invisibly. */
+        for (Widget w = gui.child; w != null; w = w.next) {
+            if (w instanceof nurgling.widgets.db.VillagersWindow) {
+                w.show();
+                w.raise();
+                return;
+            }
+        }
+        nurgling.widgets.db.VillagersWindow win = new nurgling.widgets.db.VillagersWindow();
+        gui.add(win, new Coord(UI.scale(120), UI.scale(80)));
+        win.show();
+    }
+
+    /** Settings can be opened before login, where there is no game UI to talk to. */
+    private static void msg(String text, Color color) {
+        nurgling.NGameUI gui = NUtils.getGameUI();
+        if (gui != null) {
+            gui.msg(text, color);
+        } else {
+            System.out.println("[DatabaseSettings] " + text);
+        }
     }
 
     private LinkedList<String> getDbTypes() {
