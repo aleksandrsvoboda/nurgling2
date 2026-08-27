@@ -37,11 +37,18 @@ public class ForagerSettingsPanel extends Panel {
         Scrollport scroll = add(new Scrollport(UI.scale(new Coord(560, 530))), UI.scale(10, 40));
         Widget cont = scroll.cont;
 
-        Widget prev = cont.add(new Label(L10n.get("forager.settings.actions_help"), UI.scale(400)), Coord.z);
+        // Each of this panel's logically-separate groups (Actions here; Routes/Guarding in later
+        // phases) gets its own collapsible section, so the page stays navigable once all three
+        // exist rather than always showing everything at once.
+        CollapsibleSection actionsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.actions_section"), UI.scale(540), true), Coord.z);
+        actionsSection.setOnToggle(scroll.cont::update);
+        Widget sec = actionsSection.content;
 
-        prev = cont.add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
+        Widget prev = sec.add(new Label(L10n.get("forager.settings.actions_help"), UI.scale(400)), Coord.z);
 
-        Widget profileRow = cont.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
+        prev = sec.add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
+
+        Widget profileRow = sec.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
         profileRow.add(actionsProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
             private List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
@@ -97,7 +104,7 @@ public class ForagerSettingsPanel extends Panel {
         pickupContainer = new ForagerPickupContainer();
         pickupContainer.resize(UI.scale(new Coord(400, 320)));
 
-        Widget pickupButtonsRow = cont.add(new Widget(new Coord(UI.scale(300), UI.scale(24))), profileRow.pos("bl").add(UI.scale(0, 10)));
+        Widget pickupButtonsRow = sec.add(new Widget(new Coord(UI.scale(300), UI.scale(24))), profileRow.pos("bl").add(UI.scale(0, 10)));
         pickupButtonsRow.add(new IButton(
                 Resource.loadsimg("nurgling/hud/buttons/add/u"),
                 Resource.loadsimg("nurgling/hud/buttons/add/d"),
@@ -118,7 +125,9 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(30), 0)).settip(L10n.get("forager.pickup.catalogue"));
 
-        cont.add(pickupContainer, pickupButtonsRow.pos("bl").add(UI.scale(0, 5)));
+        sec.add(pickupContainer, pickupButtonsRow.pos("bl").add(UI.scale(0, 5)));
+
+        actionsSection.pack();
     }
 
     @Override
