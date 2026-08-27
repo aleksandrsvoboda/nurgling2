@@ -265,16 +265,23 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
         action.sourceItemName = itemName;
         actions.add(action);
-        // BaseIngredientContainer.addIcon() always goes through ItemTex.create(), which can't
-        // produce this placeholder - add the icon item directly instead, mirroring addIcon()'s
-        // own bookkeeping (items/icons lists, grid position, scroll bounds).
-        items.add(new Ingredient(itemName, placeholder));
-        IconItem it = add(new IconItem(itemName, placeholder, this), gridPos(items.size() - 1));
+        addPlaceholderIcon(itemName, placeholder, action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+        notifyChanged();
+    }
+
+    // BaseIngredientContainer.addIcon() always goes through ItemTex.create(), which can't produce
+    // a placeholder image - this adds the icon item directly instead, mirroring addIcon()'s own
+    // bookkeeping (items/icons lists, grid position, scroll bounds). Shared by addResolvedPlaceholder
+    // (a fresh entry, which also owns creating+registering the ForagerAction itself) and load()
+    // (redrawing an entry whose ForagerAction already exists).
+    private IconItem addPlaceholderIcon(String name, BufferedImage img, boolean isFlowerAction) {
+        items.add(new Ingredient(name, img));
+        IconItem it = add(new IconItem(name, img, this), gridPos(items.size() - 1));
         it.basec = new Coord(it.c);
-        it.setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+        it.setFlowerAction(isFlowerAction);
         icons.add(it);
         updateScrollRange();
-        notifyChanged();
+        return it;
     }
 
     /** Simple hash-colored square, same approach CheeseOrdersPanel uses for unresolvable names. */
@@ -355,20 +362,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             }
             boolean isFlowerAction = action.actionType == ForagerAction.ActionType.FLOWER_ACTION;
             if (img == null) {
-                addResolvedIconOnly(action.sourceItemName, placeholderIcon(action.sourceItemName), isFlowerAction);
+                addPlaceholderIcon(action.sourceItemName, placeholderIcon(action.sourceItemName), isFlowerAction);
             } else {
                 addIcon(iconRes);
             }
         }
-    }
-
-    private void addResolvedIconOnly(String name, BufferedImage img, boolean isFlowerAction) {
-        items.add(new Ingredient(name, img));
-        IconItem it = add(new IconItem(name, img, this), gridPos(items.size() - 1));
-        it.basec = new Coord(it.c);
-        it.setFlowerAction(isFlowerAction);
-        icons.add(it);
-        updateScrollRange();
     }
 
     /**
