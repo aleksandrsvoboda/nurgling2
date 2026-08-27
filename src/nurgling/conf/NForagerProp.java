@@ -146,22 +146,30 @@ public class NForagerProp implements JConf {
         }
     }
 
+    // Find-remove-add is a read-modify-write sequence, not one atomic operation - NConfig.get()/
+    // set() each synchronize their own single map access, but not the sequence as a whole. Used
+    // to only ever be called from the UI thread (Settings save, the bot-launch window), where
+    // that was harmless; the bot's own thread now also calls this (see Forager.confirmActionName,
+    // persisting a confirmed flower-menu guess mid-run), so two real threads can now race here for
+    // the same character - synchronize the whole sequence to close that.
     public static void set(NForagerProp prop) {
-        @SuppressWarnings("unchecked")
-        ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
-        if (foragerProps != null) {
-            for (Iterator<NForagerProp> i = foragerProps.iterator(); i.hasNext(); ) {
-                NForagerProp oldprop = i.next();
-                if (oldprop.username.equals(prop.username) && oldprop.chrid.equals(prop.chrid)) {
-                    i.remove();
-                    break;
+        synchronized (NForagerProp.class) {
+            @SuppressWarnings("unchecked")
+            ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
+            if (foragerProps != null) {
+                for (Iterator<NForagerProp> i = foragerProps.iterator(); i.hasNext(); ) {
+                    NForagerProp oldprop = i.next();
+                    if (oldprop.username.equals(prop.username) && oldprop.chrid.equals(prop.chrid)) {
+                        i.remove();
+                        break;
+                    }
                 }
+            } else {
+                foragerProps = new ArrayList<>();
             }
-        } else {
-            foragerProps = new ArrayList<>();
+            foragerProps.add(prop);
+            NConfig.set(NConfig.Key.foragerprop, foragerProps);
         }
-        foragerProps.add(prop);
-        NConfig.set(NConfig.Key.foragerprop, foragerProps);
     }
     
     @Override
