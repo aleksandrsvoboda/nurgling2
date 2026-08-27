@@ -38,6 +38,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // CollectBark (an existing, working bot) uses this exact string with the same tree/bush
         // gobs - confirmed correct, unlike everything actionNameCandidates() below only guesses.
         VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
+        VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
     }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
