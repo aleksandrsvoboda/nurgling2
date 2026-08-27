@@ -24,14 +24,22 @@ public class PeerPositionService {
     /**
      * Republish even when standing still, so a receiver can tell "AFK in the barn" from "logged
      * out". Without it a stationary character's row would age out and they would vanish.
+     *
+     * <p>This is what {@link PeerPosition#DROP_MS} is measured against, and the two have to be read
+     * together: the drop threshold is four of these, so a live player survives three lost writes.
+     * Raising this without raising the drop is what would make standing still look like logging out.
+     *
+     * <p>Cheap to beat this often - one row rewritten per character per fifteen seconds, on a table
+     * built for exactly that (see migration 12: unlogged, fillfactor 70, no index on updated_at, so
+     * every one of these is a HOT update that never touches an index).
      */
-    private static final double HEARTBEAT = 30.0;
+    private static final double HEARTBEAT = 15.0;
 
     private final NGameUI gui;
     private final Map<String, PeerPosition> peers = new ConcurrentHashMap<>();
 
     /* Last thing we published, so a walking character writes on tile changes and a stationary one
-     * writes twice a minute instead of every tick. */
+     * writes once a heartbeat instead of every tick. */
     private long lastGid = -1;
     private Coord lastLocal = null;
     private double lastPush = Double.NEGATIVE_INFINITY;

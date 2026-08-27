@@ -311,8 +311,9 @@ public class NGameUI extends GameUI
         if(labeledMarkService != null)
             labeledMarkService.dispose();
         /* Take this character's published position out on the way down. It would age out on its own
-         * within the quarter hour, but "logged out" and "standing still" are exactly the two states
-         * these markers exist to tell apart, so leaving a ghost behind is worth one delete. */
+         * within the minute, but that minute is a minute of showing someone who has left, and
+         * "logged out" and "standing still" are exactly the two states these markers exist to tell
+         * apart, so it is worth one delete to make the marker go the instant the player does. */
         if(peerPositionService != null && nurgling.NCore.databaseManager != null
            && nurgling.NCore.databaseManager.getPeerPositionService() != null) {
             String profile = getGenus();

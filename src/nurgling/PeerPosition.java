@@ -26,14 +26,26 @@ public class PeerPosition {
     /** Local timestamp of that read, used only as a monotonic delta to advance the age between polls. */
     private volatile double fetched;
 
-    /** Under this, a marker is drawn at full strength. */
-    private static final long FRESH_MS = 60_000;
-    /** Age at which fading bottoms out; a marker stays legible past here, just visibly old. */
-    private static final long FADE_MS = 300_000;
-    /** Past this the character is treated as gone rather than stale, and is not drawn. */
-    public static final long DROP_MS = 900_000;
-    /** Age past which a character is no longer counted as online. */
-    private static final long ONLINE_MS = 120_000;
+    /**
+     * Past this the character is treated as logged out rather than stale, and is not drawn.
+     *
+     * <p>Sized against the heartbeat, not against how long a position stays interesting. A client
+     * that is online and standing still rewrites its row every {@code PeerPositionService.HEARTBEAT}
+     * seconds, so this is how many missed heartbeats it takes to be declared gone - currently four,
+     * which absorbs a slow database round trip or a loading screen without blinking a live player off
+     * the map, and still calls a logged-out one within the minute.
+     *
+     * <p>There is no longer-lived "here five minutes ago" tier. A stale position is not the useful
+     * half-truth it looks like: the two states these markers exist to tell apart are "AFK in the
+     * barn" and "logged out", and anything that keeps drawing someone who left makes exactly that
+     * distinction unreadable.
+     */
+    public static final long DROP_MS = 60_000;
+    /** Under this, a marker is drawn at full strength - comfortably more than one heartbeat. */
+    private static final long FRESH_MS = 20_000;
+    /** Age at which fading bottoms out. Fading runs right up to the drop, so a marker visibly dims
+     *  on the way out rather than vanishing from full strength. */
+    private static final long FADE_MS = DROP_MS;
     /** Alpha a fully faded marker settles at. */
     private static final double FLOOR = 0.35;
 
@@ -72,12 +84,14 @@ public class PeerPosition {
     /**
      * Whether this character should be listed as online.
      *
-     * <p>Generous next to the 30 s heartbeat: a tick delayed by a slow database round trip must not
-     * blink someone out of the roster and back in. Anything older than this is someone who stopped
-     * publishing rather than someone standing still.
+     * <p>The same test as {@link #expired()}, deliberately. It used to be a separate, tighter
+     * threshold because a position was drawn for a quarter of an hour and only the first two minutes
+     * of that meant "online"; now that a marker is dropped as soon as the heartbeat stops, anything
+     * still drawn is by definition someone still publishing, and the roster and the map must not be
+     * able to disagree about who that is.
      */
     public boolean online() {
-        return(age() < ONLINE_MS);
+        return(!expired());
     }
 
     public boolean expired() {
@@ -85,9 +99,10 @@ public class PeerPosition {
     }
 
     /**
-     * Drawing strength. Full for the first minute, easing to a floor by five, and never quite to
-     * nothing: a marker that says "here four minutes ago" is useful, and one that has silently
-     * vanished is indistinguishable from someone who logged out.
+     * Drawing strength. Full while the heartbeat is arriving, then easing off as it stops. The dim
+     * marker in the last few seconds is the only warning that someone is about to disappear, so it
+     * eases to a floor rather than to nothing - a marker that fades to invisible and one that is
+     * removed look the same, and the removal is the thing worth seeing.
      */
     public double alpha() {
         long age = age();
@@ -104,9 +119,16 @@ public class PeerPosition {
         return(age() > FRESH_MS);
     }
 
-    /** Compact age for a label - "4m", "2h". Only meaningful when {@link #stale()}. */
+    /**
+     * Compact age for a label - "34s", "4m". Only meaningful when {@link #stale()}.
+     *
+     * <p>Seconds matter now: nothing is drawn past a minute, so rounding down to whole minutes would
+     * label every stale marker "0m".
+     */
     public String agestr() {
         long s = age() / 1000;
+        if(s < 60)
+            return(s + "s");
         if(s < 3600)
             return((s / 60) + "m");
         return((s / 3600) + "h");
