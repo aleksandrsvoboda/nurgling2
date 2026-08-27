@@ -243,6 +243,19 @@ public class NForagerProp implements JConf {
         }
     }
 
+    /**
+     * Removes an action label from the shared vocabulary. Doesn't touch any pickup entry that
+     * already has it applied (their own tag/actionName fields are independent data) - this only
+     * stops it being offered as a menu option going forward.
+     */
+    public static void removeActionTag(String tag) {
+        NForagerProp prop = get(NUtils.getUI().sessInfo);
+        if (prop == null) return;
+        if (prop.actionTags.remove(tag)) {
+            set(prop);
+        }
+    }
+
     public static NForagerProp get(NUI.NSessInfo sessInfo) {
         if (sessInfo == null || NUtils.getGameUI() == null || NUtils.getGameUI().getCharInfo() == null)
             return null;

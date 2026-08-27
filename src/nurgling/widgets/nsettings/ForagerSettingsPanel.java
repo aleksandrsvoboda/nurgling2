@@ -6,6 +6,7 @@ import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
 import nurgling.widgets.ForagerPickupContainer;
+import nurgling.widgets.ManageActionTagsWindow;
 import nurgling.widgets.TextInputWindow;
 
 import java.util.ArrayList;
@@ -107,6 +108,17 @@ public class ForagerSettingsPanel extends Panel {
                 pickupContainer.openCatalogue();
             }
         }, new Coord(UI.scale(30), 0)).settip(L10n.get("forager.pickup.catalogue"));
+
+        pickupButtonsRow.add(new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/settings/u"),
+                Resource.loadsimg("nurgling/hud/buttons/settings/d"),
+                Resource.loadsimg("nurgling/hud/buttons/settings/h")) {
+            @Override
+            public void click() {
+                super.click();
+                NUtils.getGameUI().add(new ManageActionTagsWindow(), UI.scale(220, 220));
+            }
+        }, new Coord(UI.scale(60), 0)).settip(L10n.get("forager.settings.manage_actions_tip"));
     }
 
     @Override
