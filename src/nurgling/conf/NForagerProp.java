@@ -126,7 +126,23 @@ public class NForagerProp implements JConf {
             }
         }
         if (actionsProfiles.isEmpty()) {
-            actionsProfiles.put("Default", new ArrayList<>());
+            // Legacy config (predates actionsProfiles, or a not-yet-migrated in-development
+            // save from earlier in this same refactor): carry over whatever was already picked
+            // up per-preset via the old `actions` field, one profile per preset name, rather
+            // than silently presenting an empty pickup list. Falls back to one bare "Default"
+            // only if there was nothing to carry over.
+            for (Map.Entry<String, PresetData> entry : presets.entrySet()) {
+                if (!entry.getValue().actions.isEmpty()) {
+                    actionsProfiles.put(entry.getKey(), new ArrayList<>(entry.getValue().actions));
+                }
+            }
+            if (actionsProfiles.isEmpty()) {
+                actionsProfiles.put("Default", new ArrayList<>());
+            }
+            if (!actionsProfiles.containsKey(currentActionsProfile)) {
+                currentActionsProfile = actionsProfiles.containsKey(currentPreset)
+                        ? currentPreset : actionsProfiles.keySet().iterator().next();
+            }
         }
     }
 
