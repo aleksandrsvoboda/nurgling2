@@ -282,6 +282,24 @@ public class DatabaseManager {
 
             // Get a connection to create adapter and run migrations
             Connection conn = connectionPoolManager.getConnection();
+
+            if (conn == null && DatabaseAdapterFactory.isPostgres()) {
+                /* The most likely reason a first-time setup gets nowhere: the server is running and
+                 * the credentials are right, but nobody ever created the database - its name is a
+                 * constant in the URL, so only the bundled compose file creates it as a side effect.
+                 * Decided from the failure the pool already recorded, so an unreachable server costs
+                 * nothing extra on this path - which runs on the UI thread. */
+                DatabaseBootstrap boot =
+                    DatabaseBootstrap.createIfMissing(connectionPoolManager.getLastError());
+                if (boot.result == DatabaseBootstrap.Result.CREATED) {
+                    notifyPlayer("Created database " + ConnectionString.DEFAULT_DATABASE
+                        + " and setting it up", java.awt.Color.YELLOW);
+                    conn = connectionPoolManager.getConnection();
+                } else if (boot.result == DatabaseBootstrap.Result.FAILED) {
+                    notifyPlayer("Database unavailable: " + boot.detail, java.awt.Color.ORANGE);
+                }
+            }
+
             if (conn != null) {
                 this.adapter = DatabaseAdapterFactory.createAdapter(conn);
 
@@ -293,6 +311,7 @@ public class DatabaseManager {
                     initializeServices();
 
                     initialized = true;
+                    reportReady();
                     /* After initialized = true, because this goes through the normal task path. It
                      * fills the Villagers panel's "last seen" column, which is what tells a host
                      * whether an account is still in use before they delete it. */
@@ -318,6 +337,15 @@ public class DatabaseManager {
                 System.err.println("Failed to initialize DatabaseManager: cannot get database connection");
             }
         } catch (Exception e) {
+            /* The remaining way a first-time setup dies: the account can reach the database but may
+             * not create anything in it, because somebody else owns it. That reads as an ordinary
+             * migration failure in the log, and as nothing at all in the game. */
+            if (e instanceof SQLException && "42501".equals(((SQLException) e).getSQLState())) {
+                notifyPlayer("This account cannot create tables in "
+                    + ConnectionString.DEFAULT_DATABASE
+                    + ". Give it ownership of the database, or connect as the account that owns it.",
+                    java.awt.Color.ORANGE);
+            }
             System.err.println("Failed to initialize DatabaseManager: " + e.getMessage());
             e.printStackTrace();
         }
@@ -390,6 +418,57 @@ public class DatabaseManager {
         } catch (SQLException e) {
             System.err.println("[DatabaseManager] cannot check for table " + table + ": " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Say, once, that setup finished - and name anything that did not get made.
+     *
+     * <p>Until now the whole of setup reported itself only to stderr, so "it silently does not sync"
+     * and "it worked" looked identical from inside the game.
+     */
+    private void reportReady() {
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        int present = 0;
+        for (String table : nurgling.db.migration.MigrationManager.expectedTables()) {
+            if (tableUsable(table)) {
+                present++;
+            } else {
+                missing.add(table);
+            }
+        }
+
+        if (missing.isEmpty()) {
+            String line = "Database ready - schema v" + schemaVersion()
+                        + ", " + present + " core tables";
+            System.out.println("[DatabaseManager] " + line);
+            notifyPlayer(line, java.awt.Color.GREEN);
+        } else {
+            /* Present-but-unreadable looks exactly like absent from here, because PostgreSQL hides a
+             * table this role has no privileges on. Both need the same thing said. */
+            String line = "Database set up, but " + missing.size() + " table(s) are missing or not"
+                        + " readable by this account: " + String.join(", ", missing);
+            System.err.println("[DatabaseManager] " + line);
+            notifyPlayer(line, java.awt.Color.ORANGE);
+        }
+    }
+
+    private int schemaVersion() {
+        try (java.sql.ResultSet rs = adapter.executeQuery("SELECT MAX(version) FROM schema_version")) {
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) {
+            return 0;
+        }
+    }
+
+    /** Post a line to the game window when there is one; the console always gets it either way. */
+    private static void notifyPlayer(String text, java.awt.Color color) {
+        try {
+            if (nurgling.NUtils.getGameUI() != null) {
+                nurgling.NUtils.getGameUI().msg(text, color);
+            }
+        } catch (Exception ignore) {
+            // Reporting must never be what breaks startup.
         }
     }
 

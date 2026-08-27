@@ -74,6 +74,11 @@ public class ConnectionPoolManager {
         }
     }
 
+    /** Why the last connection attempt failed, or null if none has. */
+    public java.sql.SQLException getLastError() {
+        return (connectionPool == null) ? null : connectionPool.getLastError();
+    }
+
     /**
      * Check if the database is ready to accept connections.
      *
