@@ -42,22 +42,41 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
         public static NBoundingBox getBoundingBox(NHitBox hitBox)
         {
-            if (hitBox != null)
-            {
-                ArrayList<Polygon> polygons = new ArrayList<>();
-                Coord2d[] polyVertexes = new Coord2d[4];
-                polyVertexes[0] = hitBox.begin.inv();
-                polyVertexes[1] = new Coord2d(hitBox.end.x, hitBox.begin.y).inv();
-                polyVertexes[2] = hitBox.end.inv();
-                polyVertexes[3] = new Coord2d(hitBox.begin.x, hitBox.end.y).inv();
-                polygons.add(new Polygon(polyVertexes));
+            if (hitBox == null)
+                return null;
 
-                return new NBoundingBox(polygons, true);
+            ArrayList<Polygon> polygons = new ArrayList<>();
+            NHitBox[] parts = hitBox.parts();
+            if (parts == null)
+            {
+                polygons.add(quad(hitBox, true));
             }
             else
             {
-                return null;
+                // The unconditional inv() below is a half-turn about the object's origin, matching
+                // the extra 180 degrees NHitBoxD gives asymmetric boxes. For a compound footprint
+                // that decision belongs to the union, exactly as it does in NHitShapeD: flipping
+                // each part on its own would draw the pieces in each other's places.
+                boolean flip = (hitBox.begin.x != -hitBox.end.x);
+                for (NHitBox part : parts)
+                    polygons.add(quad(part, flip));
             }
+            return new NBoundingBox(polygons, true);
+        }
+
+        private static Polygon quad(NHitBox box, boolean flip)
+        {
+            Coord2d[] v = new Coord2d[4];
+            v[0] = box.begin;
+            v[1] = new Coord2d(box.end.x, box.begin.y);
+            v[2] = box.end;
+            v[3] = new Coord2d(box.begin.x, box.end.y);
+            if (flip)
+            {
+                for (int i = 0; i < 4; i++)
+                    v[i] = v[i].inv();
+            }
+            return new Polygon(v);
         }
     }
 

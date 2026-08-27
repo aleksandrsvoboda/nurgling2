@@ -1,6 +1,7 @@
 package nurgling;
 
 import haven.*;
+import nurgling.pf.PolyRects;
 
 import java.util.*;
 
@@ -8,6 +9,19 @@ public class NHitBox
 {
     public Coord2d begin;
     public Coord2d end;
+
+    /**
+     * The sub-rectangles of a compound footprint, in the same object-local space as
+     * {@link #begin}/{@link #end}, or {@code null} for a plain single-rectangle box.
+     *
+     * <p>Some objects - the timber tunnel, arches, anything with a doorway - block only part of
+     * their bounding box and are walkable in between. {@link #begin}/{@link #end} stay the union of
+     * every part, so any consumer that has not been taught about parts keeps working and simply
+     * treats the object as solid, which is the conservative answer. Consumers that care go through
+     * {@link nurgling.pf.NHitShapeD} (analytic) or {@link nurgling.pf.CellsArray} (raster).
+     */
+    private final NHitBox[] parts;
+
     public NHitBox(Coord begin, Coord end, boolean force)
     {
         this(new Coord2d(begin),new Coord2d(end), force);
@@ -25,15 +39,67 @@ public class NHitBox
 
     public NHitBox(Coord2d begin, Coord2d end, boolean force)
     {
+        this(begin, end, force, null);
+    }
+
+    private NHitBox(Coord2d begin, Coord2d end, boolean force, NHitBox[] parts)
+    {
         if(force)
         {
             this.begin = new Coord2d(begin.x,begin.y);
             this.end = new Coord2d(end.x, end.y);
         }
         else {
+            // A floor on the size of the object as a whole, not an inflation of each piece.
+            // Parts are usually small enough to trip it, so applying it per part would grow each
+            // one to 6x6 about the gob's origin and swallow the gap between them.
             this.begin = new Coord2d(Math.min(begin.x, -3), Math.min(begin.y, -3));
             this.end = new Coord2d(Math.max(end.x, 3), Math.max(end.y, 3));
         }
+        this.parts = (parts != null && parts.length > 1) ? parts : null;
+    }
+
+    /** True when this footprint is made of several disjoint rectangles with gaps between them. */
+    public boolean isCompound()
+    {
+        return parts != null;
+    }
+
+    /**
+     * The sub-rectangles of a compound footprint, or {@code null} for a plain box. Callers that
+     * only need "the whole thing" should keep using {@link #begin}/{@link #end}.
+     */
+    public NHitBox[] parts()
+    {
+        return parts;
+    }
+
+    /**
+     * Build a footprint out of {@code {ul, br}} rectangle pairs. The union carries the usual
+     * minimum-size clamp unless {@code force}; the parts are used as given.
+     */
+    public static NHitBox compound(List<Coord2d[]> rects, boolean force)
+    {
+        if (rects == null || rects.isEmpty())
+            return null;
+        NHitBox[] parts = new NHitBox[rects.size()];
+        double minx = Double.MAX_VALUE, miny = Double.MAX_VALUE;
+        double maxx = -Double.MAX_VALUE, maxy = -Double.MAX_VALUE;
+        for (int i = 0; i < rects.size(); i++)
+        {
+            Coord2d[] r = rects.get(i);
+            // Rounded outward, matching what the single-rectangle path has always done.
+            Coord2d ul = new Coord2d(Math.floor(Math.min(r[0].x, r[1].x)), Math.floor(Math.min(r[0].y, r[1].y)));
+            Coord2d br = new Coord2d(Math.ceil(Math.max(r[0].x, r[1].x)), Math.ceil(Math.max(r[0].y, r[1].y)));
+            parts[i] = new NHitBox(ul, br, true);
+            minx = Math.min(minx, ul.x);
+            miny = Math.min(miny, ul.y);
+            maxx = Math.max(maxx, br.x);
+            maxy = Math.max(maxy, br.y);
+        }
+        if (parts.length == 1)
+            return new NHitBox(parts[0].begin, parts[0].end, force);
+        return new NHitBox(new Coord2d(minx, miny), new Coord2d(maxx, maxy), force, parts);
     }
 
     private final static HashMap<String, NHitBox> custom = new HashMap<String, NHitBox>()
@@ -151,6 +217,32 @@ public class NHitBox
             put("gfx/terobjs/grandstudydesk", new NHitBox(new Coord2d(-6.2,-11.75),new Coord2d(7.45,11.75)));
         }
     };
+    /**
+     * Resource names that are allowed to keep the multi-rectangle footprint their obstacle data
+     * actually describes, instead of being collapsed to one box.
+     *
+     * <p>This is deliberately a hardcoded opt-in list rather than a blanket rule. The obstacle
+     * layer is multi-polygon for plenty of objects where the extra detail is noise, and letting
+     * every one of them turn compound would change pathfinding across the whole world at once. An
+     * object earns a place here only once its geometry has been checked in game - see
+     * {@link nurgling.tools.HitBoxProbe}, which prints the real polygons and the resulting cell
+     * raster for whatever is under the cursor.
+     *
+     * <p>Nothing is invented here: the geometry still comes from the resource itself. The name only
+     * decides whether the gap survives. To override the geometry by hand instead, put a
+     * {@link #compound(List, boolean)} box straight into {@link #custom} - that takes priority.
+     */
+    private final static Set<String> compoundNames = new HashSet<>(Arrays.asList(
+            // Two legs with a walkable middle.
+            "gfx/terobjs/timbertunnel"
+    ));
+
+    /** Whether {@code name} is on the hardcoded multi-part opt-in list. */
+    public static boolean isCompoundName(String name)
+    {
+        return name != null && compoundNames.contains(name);
+    }
+
     public static NHitBox fromObstacle(Coord2d[][] p)
     {
         return fromObstacle(p ,false);
@@ -163,6 +255,21 @@ public class NHitBox
             return new NHitBox(p[0][0].floor(),p[0][2].ceil(), force);
         }
         return null;
+    }
+
+    /**
+     * As {@link #fromObstacle(Coord2d[][], boolean)}, but resources on the {@link #compoundNames}
+     * list keep their gaps. Every other name takes the unchanged single-rectangle path.
+     */
+    public static NHitBox fromObstacle(Coord2d[][] p, boolean force, String resName)
+    {
+        if(isCompoundName(resName))
+        {
+            List<Coord2d[]> rects = PolyRects.decompose(p);
+            if(!rects.isEmpty())
+                return compound(rects, force);
+        }
+        return fromObstacle(p, force);
     }
 
     public static NHitBox findCustom(String name)
@@ -188,12 +295,29 @@ public class NHitBox
     }
 
     public NHitBox rotate(){
-        return new NHitBox(new Coord((int) begin.y, (int) begin.x),new Coord((int) end.y, (int) end.x), true);
+        NHitBox[] rp = null;
+        if(parts != null)
+        {
+            rp = new NHitBox[parts.length];
+            for(int i = 0; i < parts.length; i++)
+                rp[i] = parts[i].rotate();
+        }
+        return new NHitBox(new Coord2d((int) begin.y, (int) begin.x),new Coord2d((int) end.y, (int) end.x), true, rp);
     }
 
     @Override
     public String toString()
     {
-        return "([" + String.valueOf(begin.x) + "," + String.valueOf(begin.y) + "],[" + String.valueOf(end.x) + "," + String.valueOf(end.y) + "])";
+        StringBuilder sb = new StringBuilder();
+        sb.append("([").append(begin.x).append(",").append(begin.y).append("],[")
+                .append(end.x).append(",").append(end.y).append("])");
+        if(parts != null)
+        {
+            sb.append(" x").append(parts.length).append("{");
+            for(int i = 0; i < parts.length; i++)
+                sb.append(i > 0 ? " " : "").append(parts[i].toString());
+            sb.append("}");
+        }
+        return sb.toString();
     }
 }

@@ -57,11 +57,23 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle) {
-        // TODO assymetric hitbox?
+        this(ul, br, r, angle, (ul.x != -br.x));
+    }
+
+    /**
+     * As above, but with the {@link #asymmetric} half-turn decided by the caller.
+     *
+     * <p>A box that is not centred on x gets rotated an extra 180 degrees, which is how asymmetric
+     * models are made to face the right way. That rule has to be applied to a footprint as a whole:
+     * a compound footprint's individual parts are almost always off-centre and would each flip on
+     * their own, swapping the pieces around while the union - being symmetric - stayed put. So
+     * {@link NHitShapeD} decides once from the union and passes the answer down to every part.
+     */
+    public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle, boolean asymmetric) {
         double kPi = ((2 * angle) / Math.PI);
         this.ul = Coord2d.of(Math.min(ul.x, br.x), Math.min(ul.y, br.y));
         this.br = Coord2d.of(Math.max(ul.x, br.x), Math.max(ul.y, br.y));
-        asymmetric = (ul.x != -br.x)/* || (ul.y != -br.y)*/;
+        this.asymmetric = asymmetric;
 
         if (((kPi < 0) ? ((kPi % 1.0) + 1.0) : (kPi % 1.0)) > 0.0001)
             move(r, angle);

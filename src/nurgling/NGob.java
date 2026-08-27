@@ -740,6 +740,8 @@ public class NGob
                             hitBox = custom;
                         } else
                         {
+                            String builtName = ((Session.CachedRes.Ref) consobj.built.res).res.name;
+                            NHitBox compound = null;
                             for (Resource.Layer lay : ((Session.CachedRes.Ref) consobj.built.res).res.getLayers())
                             {
                                 if (lay instanceof Resource.Neg)
@@ -755,13 +757,20 @@ public class NGob
                                 {
                                     if (name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS))
                                     {
-                                        hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, true);
+                                        hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, true, builtName);
                                     } else
                                     {
-                                        hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p);
+                                        hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, false, builtName);
                                     }
+                                    if (hitBox != null && hitBox.isCompound())
+                                        compound = hitBox;
                                 }
                             }
+                            // Layer order decides who wins above, and it is not the same for every
+                            // resource. A footprint that was deliberately kept multi-part must not
+                            // lose its gaps to whichever coarse layer happens to come last.
+                            if (compound != null)
+                                hitBox = compound;
                         }
                     } else
                     {
@@ -797,6 +806,7 @@ public class NGob
                     }
                 } else
                 {
+                    NHitBox compound = null;
                     for (Resource.Layer lay : drawable.getres().getLayers())
                     {
                         if (lay instanceof Resource.Neg)
@@ -812,13 +822,20 @@ public class NGob
                         {
                             if (name != null && NParser.checkName(name, WALL_TRELLIS_ALIAS))
                             {
-                                hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, true);
+                                hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, true, name);
                             } else
                             {
-                                hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p);
+                                hitBox = NHitBox.fromObstacle(((Resource.Obstacle) lay).p, false, name);
                             }
+                            if (hitBox != null && hitBox.isCompound())
+                                compound = hitBox;
                         }
                     }
+                    // Layer order decides who wins above, and it is not the same for every
+                    // resource. A footprint that was deliberately kept multi-part must not lose
+                    // its gaps to whichever coarse layer happens to come last.
+                    if (compound != null)
+                        hitBox = compound;
                 }
                 if (name != null)
                 {

@@ -426,52 +426,55 @@ public class ChunkNavRecorder {
                     continue;
                 }
 
-                // Compute hitbox in world space with rotation
-                nurgling.pf.NHitBoxD worldHitBox = new nurgling.pf.NHitBoxD(
-                    snap.hitBox.begin, snap.hitBox.end, snap.rc, snap.angle
+                // Compute hitbox in world space with rotation. A compound footprint contributes
+                // one blocked region per part, so the walkable gap between them stays walkable.
+                nurgling.pf.NHitShapeD worldShape = nurgling.pf.NHitShapeD.of(
+                    snap.hitBox, snap.rc, snap.angle
                 );
 
-                // Get circumscribed bounding box (axis-aligned after rotation)
-                Coord2d hitUL = worldHitBox.getCircumscribedUL();
-                Coord2d hitBR = worldHitBox.getCircumscribedBR();
+                for (nurgling.pf.NHitBoxD worldHitBox : worldShape.parts) {
+                    // Get circumscribed bounding box (axis-aligned after rotation)
+                    Coord2d hitUL = worldHitBox.getCircumscribedUL();
+                    Coord2d hitBR = worldHitBox.getCircumscribedBR();
 
-                // Convert to cell coordinates - use floor for UL and ceil for BR
-                // to ensure we include ALL cells that the hitbox touches, even partially
-                // (Utils.toPfGrid uses round() which can miss edge cells)
-                Coord cellUL = new Coord(
-                    (int) Math.floor(hitUL.x / MCache.tilehsz.x),
-                    (int) Math.floor(hitUL.y / MCache.tilehsz.y)
-                );
-                Coord cellBR = new Coord(
-                    (int) Math.ceil(hitBR.x / MCache.tilehsz.x),
-                    (int) Math.ceil(hitBR.y / MCache.tilehsz.y)
-                );
+                    // Convert to cell coordinates - use floor for UL and ceil for BR
+                    // to ensure we include ALL cells that the hitbox touches, even partially
+                    // (Utils.toPfGrid uses round() which can miss edge cells)
+                    Coord cellUL = new Coord(
+                        (int) Math.floor(hitUL.x / MCache.tilehsz.x),
+                        (int) Math.floor(hitUL.y / MCache.tilehsz.y)
+                    );
+                    Coord cellBR = new Coord(
+                        (int) Math.ceil(hitBR.x / MCache.tilehsz.x),
+                        (int) Math.ceil(hitBR.y / MCache.tilehsz.y)
+                    );
 
-                // For each cell in the bounding box, do AABB intersection test
-                // We use direct AABB overlap on circumscribed bounds because the standard
-                // intersects() method uses point-containment which can miss thin edge overlaps
-                for (int px = cellUL.x; px <= cellBR.x; px++) {
-                    for (int py = cellUL.y; py <= cellBR.y; py++) {
-                        // Cell bounds in world coordinates
-                        // Cell at (px, py) covers world coords (px * 5.5, py * 5.5) to ((px+1) * 5.5, (py+1) * 5.5)
-                        double cellWorldMinX = px * MCache.tilehsz.x;
-                        double cellWorldMinY = py * MCache.tilehsz.y;
-                        double cellWorldMaxX = (px + 1) * MCache.tilehsz.x;
-                        double cellWorldMaxY = (py + 1) * MCache.tilehsz.y;
+                    // For each cell in the bounding box, do AABB intersection test
+                    // We use direct AABB overlap on circumscribed bounds because the standard
+                    // intersects() method uses point-containment which can miss thin edge overlaps
+                    for (int px = cellUL.x; px <= cellBR.x; px++) {
+                        for (int py = cellUL.y; py <= cellBR.y; py++) {
+                            // Cell bounds in world coordinates
+                            // Cell at (px, py) covers world coords (px * 5.5, py * 5.5) to ((px+1) * 5.5, (py+1) * 5.5)
+                            double cellWorldMinX = px * MCache.tilehsz.x;
+                            double cellWorldMinY = py * MCache.tilehsz.y;
+                            double cellWorldMaxX = (px + 1) * MCache.tilehsz.x;
+                            double cellWorldMaxY = (py + 1) * MCache.tilehsz.y;
 
-                        // Direct AABB overlap test with the rotated hitbox's circumscribed bounds
-                        // This is conservative: it may mark extra cells but won't miss any
-                        boolean overlaps = (cellWorldMaxX >= hitUL.x) && (cellWorldMinX <= hitBR.x) &&
-                                          (cellWorldMaxY >= hitUL.y) && (cellWorldMinY <= hitBR.y);
+                            // Direct AABB overlap test with the rotated hitbox's circumscribed bounds
+                            // This is conservative: it may mark extra cells but won't miss any
+                            boolean overlaps = (cellWorldMaxX >= hitUL.x) && (cellWorldMinX <= hitBR.x) &&
+                                              (cellWorldMaxY >= hitUL.y) && (cellWorldMinY <= hitBR.y);
 
-                        if (overlaps) {
-                            int localX = px - gridCellOrigin.x;
-                            int localY = py - gridCellOrigin.y;
+                            if (overlaps) {
+                                int localX = px - gridCellOrigin.x;
+                                int localY = py - gridCellOrigin.y;
 
-                            if (localX >= 0 && localX < CELLS_PER_EDGE &&
-                                localY >= 0 && localY < CELLS_PER_EDGE) {
-                                long cellKey = ((long) localX << 32) | (localY & 0xFFFFFFFFL);
-                                blockedCells.add(cellKey);
+                                if (localX >= 0 && localX < CELLS_PER_EDGE &&
+                                    localY >= 0 && localY < CELLS_PER_EDGE) {
+                                    long cellKey = ((long) localX << 32) | (localY & 0xFFFFFFFFL);
+                                    blockedCells.add(cellKey);
+                                }
                             }
                         }
                     }
