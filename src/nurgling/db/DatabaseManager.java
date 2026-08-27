@@ -40,6 +40,12 @@ public class DatabaseManager {
      */
     private volatile java.util.Map<Integer, String> skippedMigrations = java.util.Collections.emptyMap();
 
+    /* Which tables this role can actually see, and the schema version, read once per connect.
+     * information_schema already filters by privilege, so membership here means the same thing the
+     * old per-table probe meant - at one round trip for all of them instead of one each. */
+    private volatile java.util.Set<String> visibleTables = java.util.Collections.emptySet();
+    private volatile int schemaVersionSeen = -1;
+
     // Task queue for retry logic
     private final BlockingQueue<QueuedTask<?>> taskQueue = new LinkedBlockingQueue<>(1000);
     private ScheduledExecutorService queueProcessor;
@@ -307,6 +313,9 @@ public class DatabaseManager {
                     // Run migrations FIRST using this connection
                     this.skippedMigrations = runMigrations(conn);
 
+                    // One query up front; everything below reads it instead of asking per table.
+                    loadSchemaSnapshot();
+
                     // Initialize services after migrations
                     initializeServices();
 
@@ -315,8 +324,14 @@ public class DatabaseManager {
                     /* After initialized = true, because this goes through the normal task path. It
                      * fills the Villagers panel's "last seen" column, which is what tells a host
                      * whether an account is still in use before they delete it. */
-                    if (DatabaseAdapterFactory.isPostgres() && villagerService != null) {
-                        villagerService.ensureBookkeepingAsync();
+                    if (DatabaseAdapterFactory.isPostgres()) {
+                        /* Both off the UI thread. They still run on every connect - an existing
+                         * village is at the latest version yet still has the ungranted init.sql
+                         * tables and sequences - just not while the player waits. */
+                        repairPermissionsAsync();
+                        if (villagerService != null) {
+                            villagerService.ensureBookkeepingAsync();
+                        }
                     }
                     System.out.println("DatabaseManager initialized successfully with " +
                                      DatabaseAdapterFactory.getDatabaseType());
@@ -412,13 +427,36 @@ public class DatabaseManager {
      * Whether a table is present AND reachable by this connection's role. Any failure answers "no":
      * a feature that cannot verify its own table must not be wired up.
      */
-    private boolean tableUsable(String table) {
-        try {
-            return adapter != null && adapter.tableExists(table);
+    /**
+     * Read the whole schema in one go.
+     *
+     * <p>Called on the UI thread, so the count of round trips is what the player feels: this used to
+     * be six separate probes, which is nothing locally and over a second against a server 180ms
+     * away.
+     */
+    private void loadSchemaSnapshot() {
+        java.util.Set<String> tables = new java.util.HashSet<>();
+        int version = -1;
+        try (java.sql.ResultSet rs = adapter.executeQuery(
+                "SELECT (SELECT COALESCE(MAX(version), 0) FROM schema_version) AS ver,"
+              + "       (SELECT string_agg(table_name, ',') FROM information_schema.tables"
+              + "        WHERE table_schema = 'public') AS tabs")) {
+            if (rs.next()) {
+                version = rs.getInt(1);
+                String tabs = rs.getString(2);
+                if (tabs != null) {
+                    java.util.Collections.addAll(tables, tabs.split(","));
+                }
+            }
         } catch (SQLException e) {
-            System.err.println("[DatabaseManager] cannot check for table " + table + ": " + e.getMessage());
-            return false;
+            System.err.println("[DatabaseManager] could not read the schema: " + e.getMessage());
         }
+        this.visibleTables = tables;
+        this.schemaVersionSeen = version;
+    }
+
+    private boolean tableUsable(String table) {
+        return visibleTables.contains(table);
     }
 
     /**
@@ -429,18 +467,15 @@ public class DatabaseManager {
      */
     private void reportReady() {
         java.util.List<String> missing = new java.util.ArrayList<>();
-        int present = 0;
         for (String table : nurgling.db.migration.MigrationManager.expectedTables()) {
-            if (tableUsable(table)) {
-                present++;
-            } else {
+            if (!visibleTables.contains(table)) {
                 missing.add(table);
             }
         }
 
         if (missing.isEmpty()) {
-            String line = "Database ready - schema v" + schemaVersion()
-                        + ", " + present + " core tables";
+            String line = "Database ready - schema v" + schemaVersionSeen
+                        + ", " + visibleTables.size() + " tables";
             System.out.println("[DatabaseManager] " + line);
             notifyPlayer(line, java.awt.Color.GREEN);
         } else {
@@ -453,12 +488,20 @@ public class DatabaseManager {
         }
     }
 
-    private int schemaVersion() {
-        try (java.sql.ResultSet rs = adapter.executeQuery("SELECT MAX(version) FROM schema_version")) {
-            return rs.next() ? rs.getInt(1) : 0;
-        } catch (SQLException e) {
-            return 0;
-        }
+    /**
+     * Bring grants up to date without making the player wait for it.
+     *
+     * <p>Fifteen round trips - every {@code guarded()} statement is a savepoint, the statement, and a
+     * release - which is nothing locally and nearly three seconds against a server 180ms away. It
+     * fixes privileges for <em>other</em> accounts, so nothing in this session needs it to have
+     * finished, and tables created during migration are granted inline by {@code createTable}
+     * regardless.
+     */
+    private void repairPermissionsAsync() {
+        executeWithRetry(adapter -> {
+            nurgling.db.migration.MigrationManager.repairPermissions(adapter);
+            return (Void) null;
+        }, "repair permissions");
     }
 
     /** Post a line to the game window when there is one; the console always gets it either way. */
@@ -517,11 +560,6 @@ public class DatabaseManager {
             System.out.println("DatabaseManager: Running migrations...");
             nurgling.db.migration.MigrationManager migrationManager = new nurgling.db.migration.MigrationManager(conn, migrationAdapter);
             java.util.Map<Integer, String> skipped = migrationManager.runMigrations();
-            /* Runs on every connect, not only when a migration fires: an existing village is already
-             * at the latest version and still has the ungranted init.sql tables and the ungranted
-             * sequences, which is what stops any account but the owner from working. Idempotent, and
-             * it degrades to a log line when this role may not grant. */
-            nurgling.db.migration.MigrationManager.repairPermissions(migrationAdapter);
             conn.commit();
             System.out.println("DatabaseManager: Migrations completed");
             return skipped;
