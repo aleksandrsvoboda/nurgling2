@@ -24,8 +24,19 @@ public class NCatSelection extends Window {
     private CategoryList categoryList;
     private ElementList elementList;
 
+    // Null (the original behavior): each row/category shows the two Area-Settings-specific
+    // "add to Take/Put" buttons, wired directly to NUtils.getGameUI().areas.in_items/out_items.
+    // Non-null: rows show a single generic "Add" button that calls this instead, so any other
+    // caller (e.g. Forager's pickup list) can reuse this same searchable catalogue.
+    private final Consumer<Element> onSelect;
+
     public NCatSelection() {
+        this(null);
+    }
+
+    public NCatSelection(Consumer<Element> onSelect) {
         super(UI.scale(new Coord(600, 400)), L10n.get("category.window_title"));
+        this.onSelect = onSelect;
         add(new Label(L10n.get("category.label")),UI.scale(5,5));
         // Инициализация категорий и элементов из VSpec
         Set<String> categoryNames = VSpec.categories.keySet();
@@ -198,8 +209,25 @@ public class NCatSelection extends Window {
         public CategoryWidget(Category category) {
             this.category = category;
             int desiredHeight = UI.scale(24);
-            // Инициализация кнопки для добавления в IN
             add(label = new Label(category.getName()), UI.scale(5, desiredHeight/2 - UI.scale(6)));
+
+            if (onSelect != null) {
+                IButton addAll = add(new IButton(NStyle.toTake[0].back,NStyle.toTake[1].back,NStyle.toTake[2].back){
+                    @Override
+                    public void click() {
+                        for (JSONObject obj : VSpec.categories.get(category.getName())) {
+                            onSelect.accept(new Element(obj.getString("name"), obj));
+                        }
+                    }
+                }, UI.scale(145, desiredHeight/2 - NStyle.toTake[0].sz().y/2));
+                addAll.tooltip = Text.render(L10n.get("category.add_all")).tex();
+                addToInputButton = addAll;
+                addToOutputButton = null;
+                pack();
+                return;
+            }
+
+            // Инициализация кнопки для добавления в IN
             addToInputButton = add(new IButton(NStyle.toTake[0].back,NStyle.toTake[1].back,NStyle.toTake[2].back){
                 @Override
                 public void click() {
@@ -322,8 +350,24 @@ public class NCatSelection extends Window {
         public ElementWidget(Element element) {
             this.element = element;
             int desiredHeight = UI.scale(32);
-            // Инициализация кнопки для добавления в IN
             add(label = new Label(element.getName(), fnd), UI.scale(70, desiredHeight/2 - UI.scale(11)));
+
+            if (onSelect != null) {
+                IButton addBtn = add(new IButton(NStyle.toTake[0].back,NStyle.toTake[1].back,NStyle.toTake[2].back){
+                    @Override
+                    public void click() {
+                        onSelect.accept(element);
+                    }
+                }, UI.scale(64 + 230, desiredHeight/2 - NStyle.toTake[0].sz().y/2));
+                addBtn.tooltip = Text.render(L10n.get("category.add")).tex();
+                addToInputButton = addBtn;
+                addToOutputButton = null;
+                pack();
+                sz.y = desiredHeight;
+                return;
+            }
+
+            // Инициализация кнопки для добавления в IN
             addToInputButton = add(new IButton(NStyle.toTake[0].back,NStyle.toTake[1].back,NStyle.toTake[2].back){
                 @Override
                 public void click() {

@@ -166,6 +166,25 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return super.drop(ev);
     }
 
+    /**
+     * Opens the same searchable item catalogue Area Settings uses (browse by VSpec category, or
+     * search by name across all of them) for adding something without needing the real item in
+     * hand - reuses {@link NCatSelection}, generalized (see its {@code onSelect} constructor)
+     * rather than duplicated, since it's already exactly this feature for a different container.
+     */
+    public void openCatalogue() {
+        NCatSelection cat = new NCatSelection(this::addFromCatalogue);
+        NUtils.getGameUI().add(cat, UI.scale(200, 150));
+        cat.show();
+    }
+
+    private void addFromCatalogue(NCatSelection.Element element) {
+        String name = element.getName();
+        JSONObject iconRes = new JSONObject(element.getRes().toString());
+        iconRes.put("name", name);
+        addResolved(name, iconRes, resolve(name));
+    }
+
     /** Opens a small prompt to add an entry with no real item to drag in. */
     public void promptAddCustom() {
         TextInputWindow inputWindow = new TextInputWindow(
