@@ -4,20 +4,17 @@ import haven.*;
 import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
-import nurgling.routes.ForagerAction;
 import nurgling.routes.ForagerPath;
-import nurgling.widgets.ActionConfigWindow;
-import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.settings.NAreaDropbox;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.TreeSet;
 
 public class Forager extends PathBotWindow {
 
-    // Custom UI elements
-    private ForagerPickupContainer pickupContainer = null;
-    private IButton addCustomButton = null;
-    private IButton advancedActionButton = null;
+    // Actions Profile selection only - editing lives in Forager Settings (Settings > Bots).
+    private Dropbox<String> actionsProfileDropbox = null;
 
     NAreaDropbox startArea = null;
     Dropbox<String> onPlayerAction = null;
@@ -41,42 +38,31 @@ public class Forager extends PathBotWindow {
         // Build common UI (preset, path, record, sections)
         prev = buildCommonUI(L10n.get("forager.settings"), L10n.get("forager.preset"), L10n.get("forager.path"));
 
-        // Actions: drag an item in to have Forager pick it up, or use the buttons below for
-        // anything with no real item to drag (custom name) or needing full manual control
-        // (pattern/action type/action name, including chat-notify entries).
-        prev = add(new Label(L10n.get("forager.actions")), prev.pos("bl").add(UI.scale(0, 10)));
-
-        prev = add(pickupContainer = new ForagerPickupContainer(), prev.pos("bl").add(UI.scale(0, 5)));
-        pickupContainer.onChange = this::saveProp;
-        pickupContainer.resize(UI.scale(new Coord(205, 150)));
-
-        Widget actionsButtonsRow = add(new Widget(new Coord(UI.scale(270), UI.scale(24))), prev.pos("bl").add(UI.scale(0, 5)));
-
-        actionsButtonsRow.add(addCustomButton = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/add/u"),
-            Resource.loadsimg("nurgling/hud/buttons/add/d"),
-            Resource.loadsimg("nurgling/hud/buttons/add/h")) {
-            @Override
-            public void click() {
-                super.click();
-                pickupContainer.promptAddCustom();
+        // Actions Profile: which one to run with. Editing what's in it (drag items, custom
+        // entries, manual patterns) happens in Forager Settings (Settings > Bots > Forager),
+        // not here - this window only selects.
+        prev = add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 10)));
+        prev = add(actionsProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
+            private java.util.List<String> names() {
+                return (prop != null && prop.actionsProfiles != null)
+                        ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
             }
-        }, new Coord(0, 0));
-        addCustomButton.settip(L10n.get("forager.pickup.add_custom"));
 
-        actionsButtonsRow.add(advancedActionButton = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/settings/u"),
-            Resource.loadsimg("nurgling/hud/buttons/settings/d"),
-            Resource.loadsimg("nurgling/hud/buttons/settings/h")) {
             @Override
-            public void click() {
-                super.click();
-                addAction();
+            protected String listitem(int i) {
+                return names().get(i);
             }
-        }, new Coord(UI.scale(30), 0));
-        advancedActionButton.settip(L10n.get("forager.add_action_tip"));
 
-        prev = actionsButtonsRow;
+            @Override
+            protected int listitems() {
+                return names().size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+        }, prev.pos("bl").add(UI.scale(0, 5)));
 
         // Start area - ChunkNav-travelled to before the recorded path, so the bot can be
         // started from anywhere (e.g. indoors) rather than requiring a separate go-to first.
@@ -250,10 +236,17 @@ public class Forager extends PathBotWindow {
         NForagerProp.PresetData preset = prop.presets.get(presetName);
         if (preset != null) {
             updateSafetyDropboxes(preset);
-            if (pickupContainer != null) {
-                pickupContainer.load(preset.actions);
-            }
         }
+
+        // Actions Profile selection is prop-level (shared across presets), not per-preset.
+        if (prop.actionsProfiles == null || prop.actionsProfiles.isEmpty()) {
+            prop.actionsProfiles = new java.util.HashMap<>();
+            prop.actionsProfiles.put("Default", new ArrayList<>());
+        }
+        if (prop.currentActionsProfile == null || !prop.actionsProfiles.containsKey(prop.currentActionsProfile)) {
+            prop.currentActionsProfile = prop.actionsProfiles.keySet().iterator().next();
+        }
+        actionsProfileDropbox.change(prop.currentActionsProfile);
     }
 
     @Override
@@ -273,10 +266,16 @@ public class Forager extends PathBotWindow {
             preset.ignoreBats = ignoreBatsCheckbox.a;
             preset.waterMode = waterModeCheckbox.a;
         }
+        if (actionsProfileDropbox.sel != null) {
+            prop.currentActionsProfile = actionsProfileDropbox.sel;
+        }
     }
 
     @Override
     protected void onStartBot() {
+        if (actionsProfileDropbox.sel != null) {
+            prop.currentActionsProfile = actionsProfileDropbox.sel;
+        }
         NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
         if (preset != null) {
             preset.startAreaId = startArea.getSelectedAreaId();
@@ -342,19 +341,5 @@ public class Forager extends PathBotWindow {
 
         ignoreBatsCheckbox.a = preset.ignoreBats;
         waterModeCheckbox.a = preset.waterMode;
-    }
-
-    private void addAction() {
-        ActionConfigWindow configWindow = new ActionConfigWindow(action -> {
-            if (action != null && prop != null) {
-                NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
-                if (preset != null) {
-                    pickupContainer.addManual(action);
-                    NForagerProp.set(prop);
-                }
-            }
-        });
-        NUtils.getGameUI().add(configWindow, UI.scale(200, 200));
-        configWindow.show();
     }
 }

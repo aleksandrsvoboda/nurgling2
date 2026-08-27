@@ -96,6 +96,16 @@ public class Forager implements Action {
             return Results.ERROR("No path configured");
         }
 
+        // Actions are now edited as an independently-selected Actions Profile (Forager Settings
+        // > Actions), not the preset's own (now-legacy) `actions` field - overwrite it in place
+        // so every downstream helper that already reads preset.actions keeps working unchanged.
+        if (prop.actionsProfiles != null && prop.currentActionsProfile != null) {
+            ArrayList<ForagerAction> profileActions = prop.actionsProfiles.get(prop.currentActionsProfile);
+            if (profileActions != null) {
+                preset.actions = profileActions;
+            }
+        }
+
         ForagerPath path = preset.foragerPath;
 
         if (path.waypoints == null || path.waypoints.size() < 2) {
