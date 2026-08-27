@@ -11,6 +11,11 @@ public class SelectFlowerAction implements Action
     String opt;
     java.util.List<String> optCandidates = null;
 
+    // Which candidate actually matched a real petal, set by run() when optCandidates was used -
+    // lets a caller with several untested guesses (e.g. Forager) learn and remember which one
+    // was real. Null until run() completes, and stays null for the single-known-string form.
+    private String matchedOpt = null;
+
     Object target;
     Sprite spr = null;
     Boolean petalIgnored = false;
@@ -84,7 +89,13 @@ public class SelectFlowerAction implements Action
                 return Results.FAIL();
             else
                 return Results.SUCCESS();
-        boolean chosen = (optCandidates != null) ? fm.chooseOpt(optCandidates) : fm.chooseOpt(opt);
+        boolean chosen;
+        if (optCandidates != null) {
+            matchedOpt = fm.chooseOpt(optCandidates);
+            chosen = matchedOpt != null;
+        } else {
+            chosen = fm.chooseOpt(opt);
+        }
         if(chosen)
         {
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
@@ -98,5 +109,10 @@ public class SelectFlowerAction implements Action
             return Results.FAIL();
         }
 
+    }
+
+    /** Which candidate actually matched, after a successful run() with the candidates-list form. */
+    public String getMatchedOpt() {
+        return matchedOpt;
     }
 }

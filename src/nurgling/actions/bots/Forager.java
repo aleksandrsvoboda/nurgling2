@@ -32,6 +32,11 @@ public class Forager implements Action {
     // detectThreat()'s javadoc for why the watcher only detects and never acts.
     private volatile String pendingSafetyAction = null;
 
+    // Set once run() has resolved it, so performGobAction() can persist a confirmed flower-menu
+    // action back onto the live ForagerAction without needing it threaded through every method
+    // signature in between.
+    private NForagerProp forageProp = null;
+
     public Forager() {
         // Default constructor - will show UI
     }
@@ -95,6 +100,8 @@ public class Forager implements Action {
         if (preset == null || preset.foragerPath == null) {
             return Results.ERROR("No path configured");
         }
+
+        forageProp = prop;
 
         // Actions are now edited as an independently-selected Actions Profile (Forager Settings
         // > Actions), not the preset's own (now-legacy) `actions` field - overwrite it in place
@@ -506,7 +513,9 @@ public class Forager implements Action {
                 PathFinder pfFlower = new PathFinder(gob);
                 pfFlower.waterMode = preset.waterMode;
                 pfFlower.run(gui);
-                new SelectFlowerAction(action.toActionNameCandidates(), gob).run(gui);
+                SelectFlowerAction flowerAction = new SelectFlowerAction(action.toActionNameCandidates(), gob);
+                flowerAction.run(gui);
+                confirmActionName(action, flowerAction.getMatchedOpt());
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitPose(NUtils.player(), "gfx/borka/idle"));
                 processedGobs.add(gob.id);
                 break;
@@ -537,6 +546,22 @@ public class Forager implements Action {
                 // CHAT_NOTIFY never reaches here - findNearestActionableGob excludes it.
                 break;
         }
+    }
+
+    /**
+     * Once a real flower menu confirms which of an untested "Pick X"/"Take X" candidate list
+     * (see ForagerPickupContainer.actionNameCandidates) was actually correct, narrows this action
+     * down to just that one string and persists it - so this pickup entry never needs to re-try
+     * the whole guess list again, on this run or any future one. No-op if there was only ever one
+     * candidate to begin with (matched already equals actionName - nothing to narrow) or nothing
+     * matched (matched is null).
+     */
+    private void confirmActionName(ForagerAction action, String matched) {
+        if (matched == null || matched.equals(action.actionName) || forageProp == null) {
+            return;
+        }
+        action.actionName = matched;
+        NForagerProp.set(forageProp);
     }
 
     /**
