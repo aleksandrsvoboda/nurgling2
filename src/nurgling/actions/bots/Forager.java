@@ -506,7 +506,7 @@ public class Forager implements Action {
                 PathFinder pfFlower = new PathFinder(gob);
                 pfFlower.waterMode = preset.waterMode;
                 pfFlower.run(gui);
-                new SelectFlowerAction(action.actionName, gob).run(gui);
+                new SelectFlowerAction(action.toActionNameCandidates(), gob).run(gui);
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitPose(NUtils.player(), "gfx/borka/idle"));
                 processedGobs.add(gob.id);
                 break;

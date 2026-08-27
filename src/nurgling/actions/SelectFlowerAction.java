@@ -9,6 +9,7 @@ import nurgling.tasks.*;
 public class SelectFlowerAction implements Action
 {
     String opt;
+    java.util.List<String> optCandidates = null;
 
     Object target;
     Sprite spr = null;
@@ -24,6 +25,16 @@ public class SelectFlowerAction implements Action
     public SelectFlowerAction(String opt, Gob gob)
     {
         this.opt = opt;
+        this.target = gob;
+    }
+
+    /**
+     * As SelectFlowerAction(String, Gob), but tries several candidate flower-menu option strings
+     * in priority order rather than one exact known string - see NFlowerMenu.chooseOpt(List).
+     */
+    public SelectFlowerAction(java.util.List<String> optCandidates, Gob gob)
+    {
+        this.optCandidates = optCandidates;
         this.target = gob;
     }
 
@@ -73,7 +84,8 @@ public class SelectFlowerAction implements Action
                 return Results.FAIL();
             else
                 return Results.SUCCESS();
-        if(fm.chooseOpt(opt))
+        boolean chosen = (optCandidates != null) ? fm.chooseOpt(optCandidates) : fm.chooseOpt(opt);
+        if(chosen)
         {
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
             return Results.SUCCESS();
@@ -82,7 +94,7 @@ public class SelectFlowerAction implements Action
         {
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
             if(!ignoreErrors)
-                return Results.ERROR("NO OPT:" + opt);
+                return Results.ERROR("NO OPT:" + (optCandidates != null ? String.join(",", optCandidates) : opt));
             return Results.FAIL();
         }
 

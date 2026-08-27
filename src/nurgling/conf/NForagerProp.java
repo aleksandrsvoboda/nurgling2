@@ -28,12 +28,6 @@ public class NForagerProp implements JConf {
     public String currentActionsProfile = "Default";
     public HashMap<String, ArrayList<ForagerAction>> actionsProfiles = new HashMap<>();
 
-    // Growing, shared vocabulary of flower-menu action labels offered in every pickup item's
-    // right-click tag menu (see ForagerPickupContainer/IconItem's "+ New Action..." option) -
-    // not per-profile, since the whole point is that a label typed once for one item is
-    // immediately available for every other item afterward, not re-typed each time.
-    public ArrayList<String> actionTags = new ArrayList<>(java.util.Arrays.asList("Pick Fruit", "Pick Nuts", "Take bark"));
-
     public static class PresetData {
         public String pathFile = "";
         public transient ForagerPath foragerPath = null;
@@ -150,10 +144,6 @@ public class NForagerProp implements JConf {
                         ? currentPreset : actionsProfiles.keySet().iterator().next();
             }
         }
-
-        if (values.get("actionTags") != null) {
-            actionTags = new ArrayList<>((ArrayList<String>) values.get("actionTags"));
-        }
     }
 
     public static void set(NForagerProp prop) {
@@ -221,39 +211,7 @@ public class NForagerProp implements JConf {
         }
         jforager.put("actionsProfiles", actionsProfilesJson);
 
-        jforager.put("actionTags", new JSONArray(actionTags));
-
         return jforager;
-    }
-
-    /** Every flower-menu action label offered in a pickup item's right-click tag menu so far. */
-    public static ArrayList<String> getActionTags() {
-        NForagerProp prop = get(NUtils.getUI().sessInfo);
-        return prop != null ? prop.actionTags : new ArrayList<>(java.util.Arrays.asList("Pick Fruit", "Pick Nuts", "Take bark"));
-    }
-
-    /** Adds a new action label to the shared vocabulary (no-op if already present) and persists. */
-    public static void addActionTag(String tag) {
-        NForagerProp prop = get(NUtils.getUI().sessInfo);
-        if (prop == null || tag == null || tag.trim().isEmpty()) return;
-        String trimmed = tag.trim();
-        if (!prop.actionTags.contains(trimmed)) {
-            prop.actionTags.add(trimmed);
-            set(prop);
-        }
-    }
-
-    /**
-     * Removes an action label from the shared vocabulary. Doesn't touch any pickup entry that
-     * already has it applied (their own tag/actionName fields are independent data) - this only
-     * stops it being offered as a menu option going forward.
-     */
-    public static void removeActionTag(String tag) {
-        NForagerProp prop = get(NUtils.getUI().sessInfo);
-        if (prop == null) return;
-        if (prop.actionTags.remove(tag)) {
-            set(prop);
-        }
     }
 
     public static NForagerProp get(NUI.NSessInfo sessInfo) {

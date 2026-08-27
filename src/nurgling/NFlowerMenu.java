@@ -301,4 +301,24 @@ public class NFlowerMenu extends FlowerMenu
         wdgmsg("cl", -1);
         return false;
     }
+
+    /**
+     * As chooseOpt(String), but tries several candidate option strings in priority order and
+     * picks the first one that's actually a real petal in this menu - used where the exact
+     * flower-menu text isn't known for certain (e.g. Forager's best-guessed "Pick X"/"Take X"
+     * candidates), same principle as matching a gob by several candidate name patterns.
+     */
+    public boolean chooseOpt(List<String> candidates)
+    {
+        for (String candidate : candidates) {
+            for (NPetal petal : nopts) {
+                if (petal.name.equals(candidate)) {
+                    nchoose(petal);
+                    return true;
+                }
+            }
+        }
+        wdgmsg("cl", -1);
+        return false;
+    }
 }

@@ -4,7 +4,6 @@ import haven.*;
 import haven.res.lib.itemtex.ItemTex;
 import nurgling.NGItem;
 import nurgling.NUtils;
-import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
 import nurgling.tools.VSpec;
@@ -14,6 +13,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -21,26 +21,23 @@ import java.util.Map;
  * Drag-and-drop "what should Forager pick up" editor for one Actions profile. Each icon is one
  * {@link ForagerAction}: dropping a real item resolves its target gob pattern via {@link VSpec}
  * (a reverse item-&gt;gob lookup for things like tree/bush produce, falling back to matching the
- * item's own name directly for herbs, where item and gob names already coincide) and guesses a
- * default pick action from the item's VSpec category; "Add custom" covers anything with no real
- * item to drag, resolving an icon the same way {@code CheeseOrdersPanel} does for its schedule's
- * custom-named steps. Every field (pattern/action type/action name) stays directly editable
- * afterward via the per-item tag menu or the profile's advanced view - this widget only sets
+ * item's own name directly for herbs, where item and gob names already coincide) and, for a
+ * gob-linked item, a best-guess set of candidate flower-menu action strings tried in order at
+ * runtime (see {@link #actionNameCandidates}) rather than one fixed guess. "Add custom" covers
+ * anything with no real item to drag, resolving an icon the same way {@code CheeseOrdersPanel}
+ * does for its schedule's custom-named steps. Every field (pattern/action type/action name) stays
+ * directly editable afterward via the per-item right-click "Edit Pattern" - this widget only sets
  * reasonable defaults, it never limits what can be expressed.
  */
 public class ForagerPickupContainer extends BaseIngredientContainer implements TaggableItemContainer {
 
-    /** category name (VSpec.categories key) -> default flower-menu action label for that pick. */
-    // NOTE: these labels must match the actual in-game flower-menu option text exactly (case
-    // included) - "Pick Fruit"/"Pick Nuts" is a best guess at standard Haven capitalization,
-    // not yet confirmed against a live flower menu. Verify in-game and correct if needed.
-    private static final Map<String, String> CATEGORY_DEFAULT_ACTION = new LinkedHashMap<>();
+    /** category name (VSpec.categories key) -> a flower-menu action string confirmed against the
+     *  real menu (not a guess) - included ahead of any generated candidate for that category. */
+    private static final Map<String, String> VERIFIED_CATEGORY_ACTION = new LinkedHashMap<>();
     static {
-        CATEGORY_DEFAULT_ACTION.put("Nuts", "Pick Nuts");
-        CATEGORY_DEFAULT_ACTION.put("Fruit", "Pick Fruit");
-        // Confirmed against the real flower menu, unlike the two guesses above - CollectBark
-        // (an existing, working bot) uses this exact string with the existing tree/bush gobs.
-        CATEGORY_DEFAULT_ACTION.put("Bark", "Take bark");
+        // CollectBark (an existing, working bot) uses this exact string with the same tree/bush
+        // gobs - confirmed correct, unlike everything actionNameCandidates() below only guesses.
+        VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
     }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
@@ -93,16 +90,46 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             return new Resolution(herbPatternCandidates(itemName), ForagerAction.ActionType.PICK, null);
         }
         String pattern = String.join(",", gobs);
+        return new Resolution(pattern, ForagerAction.ActionType.FLOWER_ACTION, actionNameCandidates(itemName));
+    }
 
-        for (Map.Entry<String, String> cat : CATEGORY_DEFAULT_ACTION.entrySet()) {
-            List<String> content = VSpec.getCategoryContent(cat.getKey());
-            if (content.contains(itemName)) {
-                return new Resolution(pattern, ForagerAction.ActionType.FLOWER_ACTION, cat.getValue());
+    /**
+     * Best-guess, ordered set of candidate flower-menu option strings for a gob-linked item, most
+     * specific first: any string already confirmed correct for one of this item's VSpec categories
+     * (see {@link #VERIFIED_CATEGORY_ACTION}), then "Pick "/"Take " + the item's own name (and its
+     * other singular/plural form, since the source item name isn't necessarily how the flower menu
+     * phrases it - e.g. "Chestnut" the item vs. potentially "Chestnuts" on the tree), then the same
+     * two prefixes against each VSpec category the item falls into (e.g. "Nuts" for a nut). Tried
+     * in this order at runtime (see {@link ForagerAction#toActionNameCandidates}) against the gob's
+     * real flower menu - same principle as matching several candidate gob-name patterns for an item
+     * with no VSpec link at all. Not a substitute for a confirmed answer: right-click "Edit Pattern"
+     * always lets this be replaced with one exact known-good string once confirmed in-game.
+     */
+    private static String actionNameCandidates(String itemName) {
+        List<String> categories = VSpec.getCategory(itemName);
+
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        for (String cat : categories) {
+            String verified = VERIFIED_CATEGORY_ACTION.get(cat);
+            if (verified != null) {
+                candidates.add(verified);
             }
         }
-        // Linked to a gob but no known category default - still a flower-menu pick (it's not a
-        // herb), just with no guessed label; the user picks one via the tag menu.
-        return new Resolution(pattern, ForagerAction.ActionType.FLOWER_ACTION, null);
+
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        names.add(itemName);
+        if (itemName.length() > 1 && itemName.endsWith("s")) {
+            names.add(itemName.substring(0, itemName.length() - 1));
+        } else {
+            names.add(itemName + "s");
+        }
+        names.addAll(categories);
+
+        for (String name : names) {
+            candidates.add("Pick " + name);
+            candidates.add("Take " + name);
+        }
+        return String.join(",", candidates);
     }
 
     /**
@@ -146,12 +173,6 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         action.sourceItemName = itemName;
         if (iconRes != null && iconRes.has("static")) {
             action.sourceItemResource = iconRes.getString("static");
-        }
-        // A guessed category default (e.g. "Pick Nuts") is a real action tag, not just an
-        // actionName string - keep the two in sync so the icon's flower badge/tag menu reflect it
-        // immediately, the same as if the user had picked it manually via the right-click menu.
-        if (res.actionType == ForagerAction.ActionType.FLOWER_ACTION && res.actionName != null) {
-            action.tag = res.actionName;
         }
         actions.add(action);
         addIcon(iconRes);
@@ -222,9 +243,6 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     private void addResolvedPlaceholder(String itemName, JSONObject iconRes, Resolution res, BufferedImage placeholder) {
         ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
         action.sourceItemName = itemName;
-        if (res.actionType == ForagerAction.ActionType.FLOWER_ACTION && res.actionName != null) {
-            action.tag = res.actionName;
-        }
         actions.add(action);
         // BaseIngredientContainer.addIcon() always goes through ItemTex.create(), which can't
         // produce this placeholder - add the icon item directly instead, mirroring addIcon()'s
@@ -233,9 +251,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         IconItem it = add(new IconItem(itemName, placeholder, this),
                 UI.scale(new Coord(35 * ((items.size() - 1) % 5), 51 * ((items.size() - 1) / 5))).add(new Coord(5, 5)));
         it.basec = new Coord(it.c);
-        if (action.tag != null) {
-            it.setCustomTag(action.tag);
-        }
+        it.setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
         icons.add(it);
         maxy = UI.scale(51) * ((items.size() - 1) / 5 - 5);
         cury = Math.min(cury, Math.max(maxy, 0));
@@ -262,12 +278,12 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     @Override
     public void addIcon(JSONObject res) {
         super.addIcon(res);
-        // Restore this entry's tag (if any) onto the icon just added.
+        // Flag the flower badge on the icon just added, per this entry's action type.
         if (!icons.isEmpty() && res != null && res.has("name")) {
             String name = res.getString("name");
             for (ForagerAction action : actions) {
-                if (name.equals(action.sourceItemName) && action.tag != null) {
-                    icons.get(icons.size() - 1).setCustomTag(action.tag);
+                if (name.equals(action.sourceItemName)) {
+                    icons.get(icons.size() - 1).setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
                     break;
                 }
             }
@@ -293,10 +309,10 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     /**
      * Redraws from (and starts aliasing) a preset's live action list, so every mutation this
-     * widget makes afterward - drop, delete, tag, add custom - is reflected directly in the
-     * caller's list with no separate save/sync step needed. Entries with no sourceItemName
-     * (e.g. advanced/manual entries added outside this widget) are left in the list untouched
-     * but simply aren't rendered as icons here.
+     * widget makes afterward - drop, delete, add custom - is reflected directly in the caller's
+     * list with no separate save/sync step needed. Entries with no sourceItemName (e.g. advanced/
+     * manual entries added outside this widget) are left in the list untouched but simply aren't
+     * rendered as icons here.
      */
     public void load(ArrayList<ForagerAction> liveActions) {
         this.actions = liveActions;
@@ -318,22 +334,21 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
                 iconRes.put("static", action.sourceItemResource);
                 img = ItemTex.create(iconRes);
             }
+            boolean isFlowerAction = action.actionType == ForagerAction.ActionType.FLOWER_ACTION;
             if (img == null) {
-                addResolvedIconOnly(action.sourceItemName, placeholderIcon(action.sourceItemName), action.tag);
+                addResolvedIconOnly(action.sourceItemName, placeholderIcon(action.sourceItemName), isFlowerAction);
             } else {
                 addIcon(iconRes);
             }
         }
     }
 
-    private void addResolvedIconOnly(String name, BufferedImage img, String tag) {
+    private void addResolvedIconOnly(String name, BufferedImage img, boolean isFlowerAction) {
         items.add(new Ingredient(name, img));
         IconItem it = add(new IconItem(name, img, this),
                 UI.scale(new Coord(35 * ((items.size() - 1) % 5), 51 * ((items.size() - 1) / 5))).add(new Coord(5, 5)));
         it.basec = new Coord(it.c);
-        if (tag != null) {
-            it.setCustomTag(tag);
-        }
+        it.setFlowerAction(isFlowerAction);
         icons.add(it);
         maxy = UI.scale(51) * ((items.size() - 1) / 5 - 5);
         cury = Math.min(cury, Math.max(maxy, 0));
@@ -366,48 +381,17 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             if (updated != null) {
                 updated.sourceItemName = old.sourceItemName;
                 updated.sourceItemResource = old.sourceItemResource;
-                updated.tag = old.tag;
                 actions.set(foundIdx, updated);
+                for (IconItem it : icons) {
+                    if (itemName.equals(it.name)) {
+                        it.setFlowerAction(updated.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+                        break;
+                    }
+                }
                 notifyChanged();
             }
         });
         NUtils.getGameUI().add(win, UI.scale(200, 200));
         win.show();
-    }
-
-    @Override
-    public List<String> tagOptions(String itemName) {
-        return NForagerProp.getActionTags();
-    }
-
-    @Override
-    public void setTag(String itemName, String tag) {
-        for (ForagerAction action : actions) {
-            if (itemName.equals(action.sourceItemName)) {
-                action.tag = tag;
-                if (tag == null) {
-                    // Cleared - fall back to the originally-guessed default rather than leaving
-                    // a blank action name behind.
-                    Resolution res = resolve(itemName);
-                    action.actionType = res.actionType;
-                    action.actionName = res.actionName;
-                } else {
-                    action.actionType = ForagerAction.ActionType.FLOWER_ACTION;
-                    action.actionName = tag;
-                }
-                notifyChanged();
-                break;
-            }
-        }
-    }
-
-    @Override
-    public String getTag(String itemName) {
-        for (ForagerAction action : actions) {
-            if (itemName.equals(action.sourceItemName)) {
-                return action.tag;
-            }
-        }
-        return null;
     }
 }

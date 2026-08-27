@@ -31,7 +31,6 @@ public class ForagerAction {
     // icon list from a saved profile without needing to re-derive which item an entry came from.
     public String sourceItemName;
     public String sourceItemResource;
-    public String tag;
 
     public ForagerAction(String targetObjectPattern, ActionType actionType, String actionName,
                          NotifyTarget notifyTarget, String chatChannelName) {
@@ -68,9 +67,6 @@ public class ForagerAction {
         if (json.has("sourceItemResource")) {
             this.sourceItemResource = json.getString("sourceItemResource");
         }
-        if (json.has("tag")) {
-            this.tag = json.getString("tag");
-        }
     }
 
     public ForagerAction(java.util.HashMap<String, Object> map) {
@@ -90,9 +86,6 @@ public class ForagerAction {
         }
         if (map.containsKey("sourceItemResource")) {
             this.sourceItemResource = (String) map.get("sourceItemResource");
-        }
-        if (map.containsKey("tag")) {
-            this.tag = (String) map.get("tag");
         }
     }
 
@@ -115,12 +108,9 @@ public class ForagerAction {
         if (sourceItemResource != null) {
             json.put("sourceItemResource", sourceItemResource);
         }
-        if (tag != null) {
-            json.put("tag", tag);
-        }
         return json;
     }
-    
+
     /**
      * {@link #targetObjectPattern} as an NAlias, matching on every comma-separated name in it
      * (a plain single name, the common case, just becomes a single-key NAlias as before). Lets
@@ -128,11 +118,26 @@ public class ForagerAction {
      * couple of near-identical tree variants sharing one item) match all of them.
      */
     public NAlias toNAlias() {
-        String[] parts = targetObjectPattern.split(",");
+        return new NAlias(splitPattern(targetObjectPattern));
+    }
+
+    /**
+     * {@link #actionName} as an ordered list of candidate flower-menu option strings, matching on
+     * every comma-separated candidate in priority order (a plain single confirmed string, e.g.
+     * one the user typed via Edit Pattern, just becomes a list of one). Lets an auto-guessed entry
+     * (several plausible "Pick X"/"Take X" phrasings - see ForagerPickupContainer) try each in
+     * turn against the real flower menu rather than committing to one guess up front.
+     */
+    public java.util.List<String> toActionNameCandidates() {
+        return java.util.Arrays.asList(splitPattern(actionName));
+    }
+
+    private static String[] splitPattern(String pattern) {
+        String[] parts = pattern.split(",");
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].trim();
         }
-        return new NAlias(parts);
+        return parts;
     }
 
     @Override

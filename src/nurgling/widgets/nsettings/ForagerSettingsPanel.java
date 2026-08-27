@@ -6,7 +6,6 @@ import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
 import nurgling.widgets.ForagerPickupContainer;
-import nurgling.widgets.ManageActionTagsWindow;
 import nurgling.widgets.TextInputWindow;
 
 import java.util.ArrayList;
@@ -16,10 +15,11 @@ import java.util.TreeSet;
 
 /**
  * "Forager Settings" panel under Settings &gt; Bots. Owns editing of Forager's Actions Profiles
- * (named, independently-saved pickup-action lists - see {@link ForagerPickupContainer}); the
- * Forager bot-launch window only *selects* one of these to run with, it no longer edits them.
- * Routes and Guarding profiles are planned to join this same panel in later phases of the same
- * refactor.
+ * (named, independently-saved pickup-action lists - see {@link ForagerPickupContainer}, which
+ * resolves each dropped/typed item's gob pattern and best-guesses its flower-menu action rather
+ * than requiring one picked from a fixed list); the Forager bot-launch window only *selects* one
+ * of these to run with, it no longer edits them. Routes and Guarding profiles are planned to join
+ * this same panel in later phases of the same refactor.
  */
 public class ForagerSettingsPanel extends Panel {
 
@@ -110,17 +110,6 @@ public class ForagerSettingsPanel extends Panel {
                 pickupContainer.openCatalogue();
             }
         }, new Coord(UI.scale(30), 0)).settip(L10n.get("forager.pickup.catalogue"));
-
-        pickupButtonsRow.add(new IButton(
-                Resource.loadsimg("nurgling/hud/buttons/settings/u"),
-                Resource.loadsimg("nurgling/hud/buttons/settings/d"),
-                Resource.loadsimg("nurgling/hud/buttons/settings/h")) {
-            @Override
-            public void click() {
-                super.click();
-                NUtils.getGameUI().add(new ManageActionTagsWindow(), UI.scale(220, 220));
-            }
-        }, new Coord(UI.scale(60), 0)).settip(L10n.get("forager.settings.manage_actions_tip"));
     }
 
     @Override
