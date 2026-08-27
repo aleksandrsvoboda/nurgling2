@@ -252,6 +252,14 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         addResolved(typedName, iconRes, res);
     }
 
+    // 400px wide (see ForagerSettingsPanel) - default gridColumns()=5 (tuned for the 205px-wide
+    // area/food containers) would waste most of that. 10 columns * 35px + margin comfortably
+    // fits within 400px alongside the scrollbar.
+    @Override
+    protected int gridColumns() {
+        return 10;
+    }
+
     private void addResolvedPlaceholder(String itemName, JSONObject iconRes, Resolution res, BufferedImage placeholder) {
         ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
         action.sourceItemName = itemName;
@@ -260,13 +268,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // produce this placeholder - add the icon item directly instead, mirroring addIcon()'s
         // own bookkeeping (items/icons lists, grid position, scroll bounds).
         items.add(new Ingredient(itemName, placeholder));
-        IconItem it = add(new IconItem(itemName, placeholder, this),
-                UI.scale(new Coord(35 * ((items.size() - 1) % 5), 51 * ((items.size() - 1) / 5))).add(new Coord(5, 5)));
+        IconItem it = add(new IconItem(itemName, placeholder, this), gridPos(items.size() - 1));
         it.basec = new Coord(it.c);
         it.setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
         icons.add(it);
-        maxy = UI.scale(51) * ((items.size() - 1) / 5 - 5);
-        cury = Math.min(cury, Math.max(maxy, 0));
+        updateScrollRange();
         notifyChanged();
     }
 
@@ -357,13 +363,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     private void addResolvedIconOnly(String name, BufferedImage img, boolean isFlowerAction) {
         items.add(new Ingredient(name, img));
-        IconItem it = add(new IconItem(name, img, this),
-                UI.scale(new Coord(35 * ((items.size() - 1) % 5), 51 * ((items.size() - 1) / 5))).add(new Coord(5, 5)));
+        IconItem it = add(new IconItem(name, img, this), gridPos(items.size() - 1));
         it.basec = new Coord(it.c);
         it.setFlowerAction(isFlowerAction);
         icons.add(it);
-        maxy = UI.scale(51) * ((items.size() - 1) / 5 - 5);
-        cury = Math.min(cury, Math.max(maxy, 0));
+        updateScrollRange();
     }
 
     /**

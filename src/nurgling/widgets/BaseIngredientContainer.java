@@ -98,15 +98,39 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         }
     }
 
+    // Icons per row. 5 fits this class's own default 205px width (its two other consumers,
+    // IngredientContainer/FoodContainer, never resize it); a wider consumer (e.g.
+    // ForagerPickupContainer) overrides this rather than the grid silently staying 5-wide and
+    // wasting the extra width it asked for.
+    protected int gridColumns() {
+        return 5;
+    }
+
+    protected Coord gridPos(int index) {
+        int cols = gridColumns();
+        return UI.scale(new Coord(35*(index%cols), 51*(index/cols))).add(new Coord(5,5));
+    }
+
+    // Recomputes how far scrolling is allowed to go from the current item count and the
+    // container's actual visible height, rather than a fixed row-count threshold baked in for
+    // one specific size - correct regardless of gridColumns() or whatever size this widget has
+    // actually been resized to.
+    protected void updateScrollRange() {
+        int cols = gridColumns();
+        int totalRows = (items.size() + cols - 1) / cols;
+        int visibleRows = Math.max(1, (sz.y - UI.scale(10)) / UI.scale(51));
+        maxy = UI.scale(51) * Math.max(0, totalRows - visibleRows);
+        cury = Math.min(cury, Math.max(maxy, 0));
+    }
+
     public void addIcon(JSONObject res) {
         if(res != null && res.get("name") != null) {
             Ingredient ing;
             items.add(ing = new Ingredient((String)res.get("name"), ItemTex.create(res)));
-            IconItem it = add(new IconItem(ing.name, ing.image, this), UI.scale(new Coord(35*((items.size()-1)%5),51*((items.size()-1)/5))).add(new Coord(5,5)));
+            IconItem it = add(new IconItem(ing.name, ing.image, this), gridPos(items.size()-1));
             it.basec = new Coord(it.c);
             icons.add(it);
-            maxy = UI.scale(51)*((items.size()-1)/5 - 5);
-            cury = Math.min(cury, Math.max(maxy, 0));
+            updateScrollRange();
         }
     }
 
