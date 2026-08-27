@@ -7,7 +7,8 @@ import haven.Text;
 import haven.UI;
 import haven.Widget;
 import nurgling.NCore;
-import nurgling.db.service.DbSizeService;
+import nurgling.NUtils;
+import nurgling.db.service.DbStorageService;
 import nurgling.i18n.L10n;
 
 import java.awt.Color;
@@ -49,22 +50,37 @@ public class DbSizeView extends Widget {
 
     private final int nameW = UI.scale(120);
     private final int sizeW = UI.scale(64);
-    /** Never shorter than the text it has to hold: the font is the player's to choose. */
-    private final int rowH = Math.max(UI.scale(14), Text.std.height());
+    private final int clearW = UI.scale(56);
     private final int barH = UI.scale(8);
     private final int gap = UI.scale(6);
+    /**
+     * Never shorter than what a row has to hold. The font is the player's to choose and a Button
+     * picks its own height from its width, so neither can be assumed - and the column is reserved
+     * on every row, not just the one with a button, so the sizes stay in a straight line.
+     */
+    private final int rowH;
 
     private final Button refresh;
+    private final Button clearMap;
     private final Text title;
     private final int barTop;
 
+    /** Row the Clear button belongs to, and what the dialog will say it costs. -1 when absent. */
+    private int mapRow = -1;
+    private String mapSize = "";
+    private ClearMapConfirm confirm = null;
+
     /* Handed over from a database thread; consumed and cleared in tick(). */
-    private volatile DbSizeService.DbSize incoming = null;
+    private volatile DbStorageService.DbSize incoming = null;
     private volatile String incomingProblem = null;
 
-    private DbSizeService.DbSize shown = null;
+    /* Set from a database thread when a clear finishes; acted on in tick(). */
+    private volatile Integer cleared = null;
+
+    private DbStorageService.DbSize shown = null;
     private String problem = null;
     private boolean measuring = false;
+    private boolean clearing = false;
     /** When the shown measurement was taken, so re-opening the panel does not re-scan. */
     private long measuredAt = 0;
 
@@ -99,6 +115,19 @@ public class DbSizeView extends Widget {
         }, new Coord(width - UI.scale(80), 0));
         refresh.tooltip = Text.render(L10n.get("database.size.refresh_tip")).tex();
 
+        /* One button, moved onto whichever row the shared map turns out to occupy. Everything else
+         * in this schema is names and numbers - there is nothing to reclaim by emptying it, so
+         * there is nothing to put a button beside. */
+        clearMap = add(new Button(clearW, L10n.get("database.clearmap.button")) {
+            public void click() {
+                super.click();
+                askClearMap();
+            }
+        }, Coord.z);
+        clearMap.tooltip = Text.render(L10n.get("database.clearmap.tip")).tex();
+        clearMap.visible = false;
+
+        rowH = Math.max(Math.max(UI.scale(14), Text.std.height()), clearMap.sz.y);
         barTop = Math.max(refresh.sz.y, Text.std.height()) + UI.scale(6);
         resize(new Coord(width, barTop + rowH));
     }
@@ -131,7 +160,7 @@ public class DbSizeView extends Widget {
         if (measuring)
             return;
         if (NCore.databaseManager == null || !NCore.databaseManager.isReady()
-            || NCore.databaseManager.getDbSizeService() == null) {
+            || NCore.databaseManager.getDbStorageService() == null) {
             shown = null;
             rows.clear();
             totalText = null;
@@ -143,7 +172,7 @@ public class DbSizeView extends Widget {
         measuring = true;
         problem = null;
         try {
-            NCore.databaseManager.getDbSizeService().measureAsync(deepScan)
+            NCore.databaseManager.getDbStorageService().measureAsync(deepScan)
                 .thenAccept(size -> incoming = size)
                 .exceptionally(e -> {
                     incomingProblem = L10n.get("database.size.failed", rootMessage(e));
@@ -161,7 +190,7 @@ public class DbSizeView extends Widget {
     public void tick(double dt) {
         super.tick(dt);
 
-        DbSizeService.DbSize size = incoming;
+        DbStorageService.DbSize size = incoming;
         if (size != null) {
             incoming = null;
             measuring = false;
@@ -170,19 +199,37 @@ public class DbSizeView extends Widget {
             rebuild(size);
         }
 
+        Integer grids = cleared;
+        if (grids != null) {
+            cleared = null;
+            clearing = false;
+            /* Re-measure rather than assume: the point of the button is the number going down, and
+             * the player should watch it do so instead of being told that it did. Keep whatever
+             * detail was on screen - on SQLite the file has just been vacuumed down to almost
+             * nothing, so re-reading it costs nothing either. */
+            boolean hadBreakdown = (shown != null) && shown.hasBreakdown();
+            invalidate();
+            measure(hadBreakdown);
+            if (NUtils.getGameUI() != null) {
+                NUtils.getGameUI().msg(L10n.get("database.clearmap.done", grids), Color.GREEN);
+            }
+        }
+
         String p = incomingProblem;
         if (p != null) {
             incomingProblem = null;
             measuring = false;
+            clearing = false;
             problem = p;
         }
     }
 
     /** Turn a measurement into the lines and bars actually drawn, once, off the drawing path. */
-    private void rebuild(DbSizeService.DbSize size) {
+    private void rebuild(DbStorageService.DbSize size) {
         rows.clear();
+        mapRow = -1;
 
-        totalText = Text.render(DbSizeService.humanBytes(size.total), TOTAL);
+        totalText = Text.render(DbStorageService.humanBytes(size.total), TOTAL);
 
         String detail;
         if (size.hasBreakdown()) {
@@ -196,19 +243,24 @@ public class DbSizeView extends Widget {
          * under the Refresh button. */
         int detailRoom = refresh.c.x - gap
                        - (title.sz().x + gap) - (totalText.sz().x + gap);
+        detailRoom = Math.max(detailRoom, 0);
         detailText = Text.render(clip(detail, detailRoom), DIM);
 
         if (size.hasBreakdown() && size.total > 0) {
             long tableSum = 0;
             long smallSum = 0;
-            List<DbSizeService.Entry> small = new ArrayList<>();
+            List<DbStorageService.Entry> small = new ArrayList<>();
 
-            for (DbSizeService.Entry e : size.tables) {
+            for (DbStorageService.Entry e : size.tables) {
                 tableSum += e.bytes;
                 if (e.bytes < SMALL_TABLE_BYTES) {
                     small.add(e);
                     smallSum += e.bytes;
                 } else {
+                    if (e.name.equals("map_grids")) {
+                        mapRow = rows.size();
+                        mapSize = DbStorageService.humanBytes(e.bytes);
+                    }
                     rows.add(bar(e.name, e.bytes, size.total, LABEL, false));
                 }
             }
@@ -216,7 +268,7 @@ public class DbSizeView extends Widget {
             /* One of them is not a fold - it is the same row with its name taken away, which is
              * strictly worse. Two or more is where the summary starts earning its line. */
             if (small.size() == 1) {
-                DbSizeService.Entry e = small.get(0);
+                DbStorageService.Entry e = small.get(0);
                 rows.add(bar(e.name, e.bytes, size.total, LABEL, false));
             } else if (!small.isEmpty()) {
                 rows.add(bar(L10n.get("database.size.small", small.size()),
@@ -232,14 +284,63 @@ public class DbSizeView extends Widget {
             }
         }
 
+        /* Below a megabyte the map is folded away with everything else, and there is nothing worth
+         * reclaiming - so the button follows the row rather than existing on its own. */
+        clearMap.visible = (mapRow >= 0) && size.canClearMap;
+        if (mapRow >= 0) {
+            clearMap.move(new Coord(sz.x - clearW,
+                barTop + mapRow * rowH + (rowH - clearMap.sz.y) / 2));
+        }
+
         /* Grow to what there is to show. The panel's scroll content re-packs itself around this,
          * which is what puts the new rows within reach of the scrollbar. */
         resize(new Coord(sz.x, barTop + Math.max(1, rows.size()) * rowH));
     }
 
+    /**
+     * Put the question before the deletion.
+     *
+     * <p>One window at a time: a second press should bring the existing one forward rather than
+     * stack another confirmation for the same act on top of it.
+     */
+    private void askClearMap() {
+        if (confirm != null && confirm.parent != null) {
+            confirm.raise();
+            return;
+        }
+        confirm = new ClearMapConfirm(mapSize, this::clearSharedMap);
+        Widget host = (NUtils.getGameUI() != null) ? NUtils.getGameUI() : ui.root;
+        host.add(confirm, new Coord(UI.scale(160), UI.scale(140)));
+    }
+
+    private void clearSharedMap() {
+        if (NCore.databaseManager == null || !NCore.databaseManager.isReady()
+            || NCore.databaseManager.getDbStorageService() == null) {
+            problem = L10n.get("database.size.notconnected");
+            return;
+        }
+        clearing = true;
+        problem = null;
+        try {
+            NCore.databaseManager.getDbStorageService().clearSharedMapAsync()
+                .thenAccept(grids -> cleared = grids)
+                .exceptionally(e -> {
+                    /* Privileges can be taken away between the measurement that decided to show
+                     * the button and the press of it. Say which of the two it was. */
+                    incomingProblem = DbStorageService.isPermissionDenied(e)
+                        ? L10n.get("database.clearmap.denied")
+                        : L10n.get("database.clearmap.failed", rootMessage(e));
+                    return null;
+                });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            clearing = false;
+            problem = L10n.get("database.size.notconnected");
+        }
+    }
+
     private Row bar(String name, long bytes, long total, Color color, boolean summary) {
         return new Row(Text.render(clip(name, nameW), color),
-                       Text.render(DbSizeService.humanBytes(bytes), color),
+                       Text.render(DbStorageService.humanBytes(bytes), color),
                        (double) bytes / total, summary);
     }
 
@@ -258,6 +359,10 @@ public class DbSizeView extends Widget {
             g.chcolor(PROBLEM);
             g.text(problem, new Coord(x, ty));
             g.chcolor();
+        } else if (clearing) {
+            g.chcolor(DIM);
+            g.text(L10n.get("database.clearmap.working"), new Coord(x, ty));
+            g.chcolor();
         } else if (measuring && shown == null) {
             g.chcolor(DIM);
             g.text(L10n.get("database.size.measuring"), new Coord(x, ty));
@@ -271,7 +376,10 @@ public class DbSizeView extends Widget {
 
         int y = barTop;
         int barX = nameW + UI.scale(4);
-        int barW = sz.x - barX - sizeW - UI.scale(6);
+        /* The column is held open on every row, whether or not that row has a button, so the
+         * figures stay in one line down the section. */
+        int rightEdge = sz.x - clearW - gap;
+        int barW = rightEdge - sizeW - UI.scale(6) - barX;
         for (Row row : rows) {
             g.image(row.name.tex(), new Coord(0, y + (rowH - row.name.sz().y) / 2));
 
@@ -286,7 +394,7 @@ public class DbSizeView extends Widget {
             g.chcolor();
 
             g.image(row.size.tex(),
-                new Coord(sz.x - row.size.sz().x, y + (rowH - row.size.sz().y) / 2));
+                new Coord(rightEdge - row.size.sz().x, y + (rowH - row.size.sz().y) / 2));
             y += rowH;
         }
     }
