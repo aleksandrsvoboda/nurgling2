@@ -1307,6 +1307,14 @@ public class NConfig
     @SuppressWarnings("unchecked")
     private ArrayList<Object> prepareArray(ArrayList<Object> objs)
     {
+        // write()'s own comment already admits the guarantee it documents (never iterate the
+        // map while another thread mutates it) only covers whole-value replacement via set() -
+        // a caller that fetches a list value via get() and then mutates it in place (add/remove)
+        // isn't guarded against at all, and this recurses into nested lists too. Snapshot
+        // defensively before inspecting/iterating rather than risk a ConcurrentModificationException
+        // (or a stale-size IndexOutOfBounds between size() and get(0)) crashing the UI thread over
+        // what is, at worst, one incomplete write of this one value - the next tick retries anyway.
+        objs = snapshotList(objs);
         if (objs.size() > 0)
         {
             ArrayList<Object> res = new ArrayList<>();
@@ -1331,6 +1339,18 @@ public class NConfig
             return res;
         }
         return objs;
+    }
+
+    private static ArrayList<Object> snapshotList(ArrayList<Object> objs) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                return new ArrayList<>(objs);
+            } catch (ConcurrentModificationException ignored) {
+                // Another thread structurally changed it mid-copy - retry a couple times before
+                // giving up on this value for this write cycle.
+            }
+        }
+        return new ArrayList<>();
     }
 
     @SuppressWarnings("unchecked")
