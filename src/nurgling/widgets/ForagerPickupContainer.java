@@ -47,14 +47,25 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         TAG_OPTIONS.add("Pick Nuts");
     }
 
-    private final ArrayList<ForagerAction> actions = new ArrayList<>();
+    // Aliases whatever list load() was last given (typically a preset's own live `actions`
+    // field) rather than holding a private copy, so every mutation here (drop/delete/tag/add
+    // custom) is immediately reflected in the caller's list with no separate sync-back step.
+    private ArrayList<ForagerAction> actions = new ArrayList<>();
+
+    /** Notified after any edit (drop, delete, tag change, add custom/manual) so the owner can
+     *  persist config immediately, matching how every other per-item edit in this codebase
+     *  (IngredientContainer, FoodContainer) saves right away rather than batching to a Save
+     *  button. Optional - fine to leave unset if the caller persists on its own schedule. */
+    public Runnable onChange = null;
+
+    private void notifyChanged() {
+        if (onChange != null) {
+            onChange.run();
+        }
+    }
 
     public ForagerPickupContainer() {
         super("forager_pickup");
-    }
-
-    public ArrayList<ForagerAction> getActions() {
-        return new ArrayList<>(actions);
     }
 
     /** Resolved default for a dropped/typed item: its gob pattern, and a guessed action. */
@@ -98,6 +109,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         }
         actions.add(action);
         addIcon(iconRes);
+        notifyChanged();
     }
 
     @Override
@@ -156,6 +168,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         icons.add(it);
         maxy = UI.scale(51) * ((items.size() - 1) / 5 - 5);
         cury = Math.min(cury, Math.max(maxy, 0));
+        notifyChanged();
     }
 
     /** Simple hash-colored square, same approach CheeseOrdersPanel uses for unresolvable names. */
@@ -194,29 +207,39 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     public void delete(String name) {
         actions.removeIf(a -> name.equals(a.sourceItemName));
         super.delete(name);
+        notifyChanged();
     }
 
     @Override
     public void deleteAll() {
-        actions.clear();
+        // Only clear entries this widget actually renders - a shared list may also hold
+        // advanced/manual entries (e.g. CHAT_NOTIFY) added outside this widget, which must
+        // survive a "clear icons" here.
+        actions.removeIf(a -> a.sourceItemName != null);
         super.deleteAll();
+        notifyChanged();
     }
 
-    /** Redraws from a saved profile's action list. */
-    public void load(List<ForagerAction> savedActions) {
-        actions.clear();
+    /**
+     * Redraws from (and starts aliasing) a preset's live action list, so every mutation this
+     * widget makes afterward - drop, delete, tag, add custom - is reflected directly in the
+     * caller's list with no separate save/sync step needed. Entries with no sourceItemName
+     * (e.g. advanced/manual entries added outside this widget) are left in the list untouched
+     * but simply aren't rendered as icons here.
+     */
+    public void load(ArrayList<ForagerAction> liveActions) {
+        this.actions = liveActions;
         for (IconItem it : icons) {
             it.destroy();
         }
         icons.clear();
         items.clear();
 
-        for (ForagerAction action : savedActions) {
+        for (ForagerAction action : liveActions) {
             if (action.sourceItemName == null) {
                 // Not created via this widget (e.g. a legacy free-text entry) - not shown here.
                 continue;
             }
-            actions.add(action);
             JSONObject iconRes = new JSONObject();
             iconRes.put("name", action.sourceItemName);
             BufferedImage img = null;
@@ -245,6 +268,41 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         cury = Math.min(cury, Math.max(maxy, 0));
     }
 
+    /**
+     * Adds an action configured through the full manual editor (pattern/action type/action name,
+     * including CHAT_NOTIFY - see ActionConfigWindow), for anything the drag/drop + "add custom"
+     * flow can't cleanly express. Rendered as an icon here too when possible, using the pattern
+     * itself as the display name and resolving an icon the same way "add custom" does; falls
+     * back to being tracked without an icon (still fully functional for the bot, just not shown
+     * in this grid) if the pattern doesn't resolve to anything renderable and isn't a CHAT_NOTIFY.
+     */
+    public void addManual(ForagerAction action) {
+        if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) {
+            actions.add(action);
+            notifyChanged();
+            return;
+        }
+        String displayName = action.targetObjectPattern.split(",")[0].trim();
+        action.sourceItemName = displayName;
+        String iconPath = VSpec.getIconPath(displayName);
+        JSONObject iconRes = new JSONObject();
+        iconRes.put("name", displayName);
+        BufferedImage img = null;
+        if (iconPath != null) {
+            iconRes.put("static", iconPath);
+            action.sourceItemResource = iconPath;
+            img = ItemTex.create(iconRes);
+        }
+        actions.add(action);
+        if (img != null) {
+            addIcon(iconRes);
+            notifyChanged();
+        } else {
+            // addResolvedIconOnly() already notifies.
+            addResolvedIconOnly(displayName, placeholderIcon(displayName), action.tag);
+        }
+    }
+
     @Override
     public List<String> tagOptions(String itemName) {
         return TAG_OPTIONS;
@@ -265,6 +323,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
                     action.actionType = ForagerAction.ActionType.FLOWER_ACTION;
                     action.actionName = tag;
                 }
+                notifyChanged();
                 break;
             }
         }

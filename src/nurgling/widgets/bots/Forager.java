@@ -7,6 +7,7 @@ import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
 import nurgling.routes.ForagerPath;
 import nurgling.widgets.ActionConfigWindow;
+import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.settings.NAreaDropbox;
 
 import java.util.Collections;
@@ -14,9 +15,9 @@ import java.util.Collections;
 public class Forager extends PathBotWindow {
 
     // Custom UI elements
-    private Listbox<ForagerAction> actionsList = null;
-    private IButton addActionButton = null;
-    private IButton removeActionButton = null;
+    private ForagerPickupContainer pickupContainer = null;
+    private IButton addCustomButton = null;
+    private IButton advancedActionButton = null;
 
     NAreaDropbox startArea = null;
     Dropbox<String> onPlayerAction = null;
@@ -40,70 +41,42 @@ public class Forager extends PathBotWindow {
         // Build common UI (preset, path, record, sections)
         prev = buildCommonUI(L10n.get("forager.settings"), L10n.get("forager.preset"), L10n.get("forager.path"));
 
-        // Actions list
+        // Actions: drag an item in to have Forager pick it up, or use the buttons below for
+        // anything with no real item to drag (custom name) or needing full manual control
+        // (pattern/action type/action name, including chat-notify entries).
         prev = add(new Label(L10n.get("forager.actions")), prev.pos("bl").add(UI.scale(0, 10)));
 
-        Widget actionsRow = add(new Widget(new Coord(UI.scale(270), UI.scale(120))), prev.pos("bl").add(UI.scale(0, 5)));
+        prev = add(pickupContainer = new ForagerPickupContainer(), prev.pos("bl").add(UI.scale(0, 5)));
+        pickupContainer.onChange = this::saveProp;
+        pickupContainer.resize(UI.scale(new Coord(205, 150)));
 
-        actionsRow.add(actionsList = new Listbox<ForagerAction>(UI.scale(230), 6, UI.scale(20)) {
-            @Override
-            protected ForagerAction listitem(int i) {
-                if (prop != null) {
-                    NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
-                    if (preset != null && i < preset.actions.size()) {
-                        return preset.actions.get(i);
-                    }
-                }
-                return null;
-            }
+        Widget actionsButtonsRow = add(new Widget(new Coord(UI.scale(270), UI.scale(24))), prev.pos("bl").add(UI.scale(0, 5)));
 
-            @Override
-            protected int listitems() {
-                if (prop != null) {
-                    NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
-                    if (preset != null) {
-                        return preset.actions.size();
-                    }
-                }
-                return 0;
-            }
-
-            @Override
-            protected void drawitem(GOut g, ForagerAction item, int i) {
-                if (item != null) {
-                    String text = item.targetObjectPattern + " - " + item.actionType.name();
-                    g.text(text, Coord.z);
-                }
-            }
-        }, new Coord(0, 0));
-
-        Widget actionsButtonsCol = actionsRow.add(new Widget(new Coord(UI.scale(30), UI.scale(120))), new Coord(UI.scale(245), 0));
-
-        actionsButtonsCol.add(addActionButton = new IButton(
+        actionsButtonsRow.add(addCustomButton = new IButton(
             Resource.loadsimg("nurgling/hud/buttons/add/u"),
             Resource.loadsimg("nurgling/hud/buttons/add/d"),
             Resource.loadsimg("nurgling/hud/buttons/add/h")) {
             @Override
             public void click() {
                 super.click();
-                addAction();
+                pickupContainer.promptAddCustom();
             }
         }, new Coord(0, 0));
-        addActionButton.settip(L10n.get("forager.add_action_tip"));
+        addCustomButton.settip(L10n.get("forager.pickup.add_custom"));
 
-        actionsButtonsCol.add(removeActionButton = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/remove/u"),
-            Resource.loadsimg("nurgling/hud/buttons/remove/d"),
-            Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
+        actionsButtonsRow.add(advancedActionButton = new IButton(
+            Resource.loadsimg("nurgling/hud/buttons/settings/u"),
+            Resource.loadsimg("nurgling/hud/buttons/settings/d"),
+            Resource.loadsimg("nurgling/hud/buttons/settings/h")) {
             @Override
             public void click() {
                 super.click();
-                removeAction();
+                addAction();
             }
-        }, new Coord(0, UI.scale(30)));
-        removeActionButton.settip(L10n.get("forager.remove_action_tip"));
+        }, new Coord(UI.scale(30), 0));
+        advancedActionButton.settip(L10n.get("forager.add_action_tip"));
 
-        prev = actionsRow;
+        prev = actionsButtonsRow;
 
         // Start area - ChunkNav-travelled to before the recorded path, so the bot can be
         // started from anywhere (e.g. indoors) rather than requiring a separate go-to first.
@@ -277,10 +250,9 @@ public class Forager extends PathBotWindow {
         NForagerProp.PresetData preset = prop.presets.get(presetName);
         if (preset != null) {
             updateSafetyDropboxes(preset);
-        }
-        // Refresh actions list
-        if (actionsList != null) {
-            actionsList.change(null);
+            if (pickupContainer != null) {
+                pickupContainer.load(preset.actions);
+            }
         }
     }
 
@@ -374,30 +346,15 @@ public class Forager extends PathBotWindow {
 
     private void addAction() {
         ActionConfigWindow configWindow = new ActionConfigWindow(action -> {
-            if (action != null) {
-                prop = NForagerProp.get(NUtils.getUI().sessInfo);
+            if (action != null && prop != null) {
                 NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
                 if (preset != null) {
-                    preset.actions.add(action);
+                    pickupContainer.addManual(action);
                     NForagerProp.set(prop);
-                    actionsList.change(null);
                 }
             }
         });
         NUtils.getGameUI().add(configWindow, UI.scale(200, 200));
         configWindow.show();
-    }
-
-    private void removeAction() {
-        ForagerAction selected = actionsList.sel;
-        if (selected != null) {
-            prop = NForagerProp.get(NUtils.getUI().sessInfo);
-            NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
-            if (preset != null) {
-                preset.actions.remove(selected);
-                NForagerProp.set(prop);
-                actionsList.change(null);
-            }
-        }
     }
 }
