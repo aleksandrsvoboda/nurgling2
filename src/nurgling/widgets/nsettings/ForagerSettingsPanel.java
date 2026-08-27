@@ -30,7 +30,9 @@ public class ForagerSettingsPanel extends Panel {
     public ForagerSettingsPanel() {
         super(L10n.get("nsettings.item.forager"));
 
-        Widget prev = add(new Label(L10n.get("forager.settings.actions_profile")), UI.scale(10, 40));
+        Widget prev = add(new Label(L10n.get("forager.settings.actions_help"), UI.scale(400)), UI.scale(10, 40));
+
+        prev = add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
 
         Widget profileRow = add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
         profileRow.add(actionsProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
