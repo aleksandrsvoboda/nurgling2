@@ -150,7 +150,7 @@ public class HarvestState {
         return resName;
     }
 
-    public static boolean isTreeRes(String resname) {
+    private static boolean isTreeRes(String resname) {
         return resname != null && resname.startsWith("gfx/terobjs/trees")
             && !resname.endsWith("log") && !resname.endsWith("oldtrunk");
     }

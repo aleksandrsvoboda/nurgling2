@@ -49,6 +49,18 @@ public class LpExplorer {
         return isYesteryearVariant == HarvestState.isYesteryearSeason();
     }
 
+    // Whether a product's discovery is tracked per-resource or globally. Almost every product
+    // (seed/leaf/bough, and now bark too) is uniquely named per species, so per-resource tracking
+    // is exact for them - but several tree species share the exact identical bark item name
+    // ("Treebark", "Tough Bark"), and stripping it from one satisfies the same curiosity as
+    // stripping it from any other, confirmed in-game. Centralized here so every per-product check
+    // below agrees on which products get that exception, rather than each reimplementing it.
+    private static boolean isProductDiscovered(NCharacterInfo info, String gobResName, String product) {
+        return HarvestState.isBarkProductName(product)
+            ? info.IsLpExplorerContainsAnywhere(product)
+            : info.IsLpExplorerContains(gobResName, product);
+    }
+
     // Resources confirmed to have every product (including bark, for trees) already discovered -
     // checked before any of the per-tick scanning below (VSpec.object iteration, and for
     // trees/bushes the live bitmask decode too), so a fully-explored species stops paying that
@@ -115,12 +127,10 @@ public class LpExplorer {
         List<String> products = VSpec.object.get(gobResName);
         if (products != null) {
             for (String product : products) {
-                if (isCurrentSeasonProduct(gobResName, product) && !info.IsLpExplorerContains(gobResName, product))
+                if (isCurrentSeasonProduct(gobResName, product) && !isProductDiscovered(info, gobResName, product))
                     return false;
             }
         }
-        if (HarvestSpecs.TREE.matches(gobResName) && hasUndiscoveredBarkProduct(gobResName))
-            return false;
 
         known.add(gobResName);
         return true;
@@ -152,40 +162,34 @@ public class LpExplorer {
         if (!HarvestState.isMatureTreeOrBush(gob, d))
             return Collections.emptyList();
 
-        // Seed/leaf are gated by their own live bit; bough (a fixed per-species trait, already
-        // implied by the product simply existing in VSpec.object) and bark (assumed always
-        // available on a mature tree/bush) aren't bit-gated at all - matching TreeHarvestSpec/
-        // BushHarvestSpec's own per-category availability model, which this used to not follow
-        // (it previously hid every category, not just seed, whenever the seed bit was clear, and
-        // never considered bark at all since bark isn't a VSpec.object entry).
+        // Seed/leaf are gated by their own live bit; bough and bark (both fixed per-species
+        // traits, already implied by the product simply existing in VSpec.object) aren't
+        // bit-gated at all - matching TreeHarvestSpec/BushHarvestSpec's own per-category
+        // availability model.
         int sdt = Sprite.decnum(d.sdt.clone());
         boolean seedPresent = HarvestState.hasSeedBit(sdt);
         boolean leafPresent = HarvestState.hasLeafBit(sdt);
 
-        List<String> products = undiscoveredProductsMatching(gobResName, product -> {
+        return undiscoveredProductsMatching(gobResName, product -> {
             if (isLeafProduct(product)) return leafPresent;
             if (isBoughProduct(product)) return true;
+            if (HarvestState.isBarkProductName(product)) return true;
             return seedPresent;
         });
-
-        if (HarvestSpecs.TREE.matches(gobResName) && hasUndiscoveredBarkProduct(gobResName)) {
-            products = new ArrayList<>(products);
-            products.add(HarvestState.getBarkProductName(gobResName));
-        }
-        return products;
     }
 
-    /** Which harvest categories (seed/leaf/bough) still have an undiscovered product for a resource. */
+    /** Which harvest categories (seed/leaf/bough/bark) still have an undiscovered product for a resource. */
     public static class UndiscoveredCategories {
-        public final boolean seed, leaf, bough;
-        private UndiscoveredCategories(boolean seed, boolean leaf, boolean bough) {
+        public final boolean seed, leaf, bough, bark;
+        private UndiscoveredCategories(boolean seed, boolean leaf, boolean bough, boolean bark) {
             this.seed = seed;
             this.leaf = leaf;
             this.bough = bough;
+            this.bark = bark;
         }
     }
 
-    private static final UndiscoveredCategories NONE_UNDISCOVERED = new UndiscoveredCategories(false, false, false);
+    private static final UndiscoveredCategories NONE_UNDISCOVERED = new UndiscoveredCategories(false, false, false, false);
 
     // VSpec.object lists every trackable product for a resource with no category metadata at all
     // (e.g. figtree -> ["Fig Leaf", "Fig"]), so a blanket "is anything undiscovered" check can't
@@ -206,31 +210,16 @@ public class LpExplorer {
         if (info == null)
             return NONE_UNDISCOVERED;
 
-        boolean seed = false, leaf = false, bough = false;
+        boolean seed = false, leaf = false, bough = false, bark = false;
         for (String product : VSpec.object.get(gobResName)) {
-            if (!isCurrentSeasonProduct(gobResName, product) || info.IsLpExplorerContains(gobResName, product))
+            if (!isCurrentSeasonProduct(gobResName, product) || isProductDiscovered(info, gobResName, product))
                 continue;
             if (isLeafProduct(product)) leaf = true;
             else if (isBoughProduct(product)) bough = true;
+            else if (HarvestState.isBarkProductName(product)) bark = true;
             else seed = true;
         }
-        return new UndiscoveredCategories(seed, leaf, bough);
-    }
-
-    // Bark isn't listed in VSpec.object at all (unlike seed/leaf/bough, which are literal product
-    // entries there) - its item name is assumed from the species instead (see
-    // HarvestState.getBarkProductName()), so this checks discovery directly rather than filtering
-    // VSpec.object's product list like the other three hasUndiscovered*Product methods do.
-    public static boolean hasUndiscoveredBarkProduct(String gobResName) {
-        String barkProduct = HarvestState.getBarkProductName(gobResName);
-        NCharacterInfo info = charInfo();
-        if (barkProduct == null || info == null)
-            return false;
-        // Unlike seed/leaf/bough (uniquely named per species), several species share the exact
-        // same bark item name ("Treebark", "Tough Bark") - confirmed in-game that picking it from
-        // one species' tree also satisfies it for every other species sharing that name, so check
-        // discovery globally rather than against just this one resource.
-        return !info.IsLpExplorerContainsAnywhere(barkProduct);
+        return new UndiscoveredCategories(seed, leaf, bough, bark);
     }
 
     private static boolean isLeafProduct(String product) {
@@ -252,7 +241,7 @@ public class LpExplorer {
         for (String product : VSpec.object.get(gobResName)) {
             if (!category.test(product) || !isCurrentSeasonProduct(gobResName, product))
                 continue;
-            if (!info.IsLpExplorerContains(gobResName, product))
+            if (!isProductDiscovered(info, gobResName, product))
                 result.add(product);
         }
         return result;
@@ -334,7 +323,7 @@ public class LpExplorer {
         NCharacterInfo info = charInfo();
         if (info == null || gobResName == null || product == null)
             return false;
-        return isCurrentSeasonProduct(gobResName, product) && !info.IsLpExplorerContains(gobResName, product);
+        return isCurrentSeasonProduct(gobResName, product) && !isProductDiscovered(info, gobResName, product);
     }
 
     // Resolves one product's own icon: the matching harvest-category icon (seed/leaf/bough) for
@@ -367,8 +356,10 @@ public class LpExplorer {
     // lazily (VSpec's own static data is populated by class-init order this class shouldn't
     // assume has already run) and cached, mirroring VSpec.getIconPath's existing reverse-index
     // pattern. Confirmed exactly one resource per product name across the whole of VSpec.object
-    // (no two species share a seed/leaf/bough/board/block/ore name) except bark, which is handled
-    // separately below since it isn't a VSpec.object entry at all.
+    // (no two species share a seed/leaf/bough/board/block/ore name) except bark, which is
+    // deliberately shared by design (see isProductDiscovered) - excluded here rather than
+    // tripping the one-resource sanity check below, since checkLpExplorer() already resolves it
+    // to a stable synthetic key regardless of what (if anything) this index maps it to.
     private static Map<String, String> productToResource;
 
     private static synchronized Map<String, String> productToResource() {
@@ -376,6 +367,8 @@ public class LpExplorer {
             Map<String, String> index = new HashMap<>();
             for (Map.Entry<String, ArrayList<String>> e : VSpec.object.entrySet()) {
                 for (String product : e.getValue()) {
+                    if (HarvestState.isBarkProductName(product))
+                        continue;
                     String prev = index.putIfAbsent(product, e.getKey());
                     // The one-resource-per-product-name assumption this index rests on isn't
                     // enforced anywhere in VSpec, so say so loudly rather than silently filing
