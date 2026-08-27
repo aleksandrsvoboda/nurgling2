@@ -33,6 +33,7 @@ public class DatabaseManager {
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
     private nurgling.db.service.VillagerService villagerService;
+    private nurgling.db.service.DbStorageService dbStorageService;
 
     /**
      * Optional migrations the database refused, as version -> reason. Their features report
@@ -376,6 +377,9 @@ public class DatabaseManager {
          * set up, and the panel that uses it is exactly where a host goes to fix that. The service
          * degrades internally when its bookkeeping table is absent. */
         this.villagerService = new nurgling.db.service.VillagerService(this);
+        /* No table of its own and no privilege to check: it reads the catalogue, which every
+         * role can see. So it is never null while the database is up. */
+        this.dbStorageService = new nurgling.db.service.DbStorageService(this);
         this.recipeService = new RecipeService(this);
         this.favoriteRecipeService = new FavoriteRecipeService(this);
         this.containerService = new ContainerService(this);
@@ -542,6 +546,14 @@ public class DatabaseManager {
 
     public nurgling.db.service.VillagerService getVillagerService() {
         return villagerService;
+    }
+
+    /**
+     * How much disk this database is using, and which table is using it. Never null once the
+     * manager is initialised - it reads catalogue tables rather than any of the client's own.
+     */
+    public nurgling.db.service.DbStorageService getDbStorageService() {
+        return dbStorageService;
     }
 
     /** Optional migrations this database refused, as version -> reason. Empty when all applied. */
@@ -822,6 +834,7 @@ public class DatabaseManager {
         skippedMigrations = java.util.Collections.emptyMap();
         kinSecretService = null;
         mapDbService = null;
+        dbStorageService = null;
         
         // Create new executor and reinitialize
         this.executorService = Executors.newFixedThreadPool(threadPoolSize, r -> {

@@ -29,6 +29,12 @@ public class DatabaseSettings extends Panel {
     private TextEntry connEntry;
     private Button connApply;
     private Button villagersButton;
+    private DbSizeView sizeView;
+    private Scrollport scrollport;
+    private Widget content;
+    /* Where the disk-usage section sits in each mode: the widget above it differs, and a
+     * fixed position would leave a band of empty panel in whichever mode is not PostgreSQL. */
+    private int sizeYPostgres, sizeYSqlite;
     private Button seedFishButton;
     private CheckBox enableCheckbox;
     private CheckBox shareHsCheckbox;
@@ -52,8 +58,34 @@ public class DatabaseSettings extends Panel {
         super("");
         int y = margin;
 
+        /* Every other settings page with more than a screenful does this, and this one has more
+         * than a screenful now: the disk-usage section below used to be squeezed into whatever
+         * pixels the connection fields left over, which on a 19-table database meant one bar and a
+         * "18 more" row. Inside a scrollport it can be as tall as it has tables. */
+        scrollport = add(new Scrollport(new Coord(UI.scale(570), UI.scale(550))), Coord.z);
+        content = new Widget(new Coord(UI.scale(550), UI.scale(50))) {
+            @Override
+            public void pack() {
+                resize(contentsz());
+            }
+
+            /* A child that grows after the fact - which is what the disk-usage section does when a
+             * measurement lands, seconds after this page was opened - has to move the scrollbar
+             * with it, or the rows it just gained cannot be reached. */
+            @Override
+            public void cresize(Widget ch) {
+                pack();
+                scrollport.cont.update();
+            }
+        };
+        scrollport.cont.add(content, Coord.z);
+        /* Match the panel to the scrollport. Panel's own size is 580 tall, and nothing shrinks it
+         * to its contents any more - left at that it would reach down over the settings window's
+         * Save and Cancel buttons. */
+        resize(new Coord(UI.scale(570), UI.scale(550)));
+
         // Р§РµРєР±РѕРєСЃ РІРєР»СЋС‡РµРЅРёСЏ/РІС‹РєР»СЋС‡РµРЅРёСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…
-        prev = enableCheckbox = add(new CheckBox(L10n.get("database.enable")) {
+        prev = enableCheckbox = content.add(new CheckBox(L10n.get("database.enable")) {
             public void set(boolean val) {
                 a = val;
                 enabled = val;
@@ -63,7 +95,7 @@ public class DatabaseSettings extends Panel {
         y += enableCheckbox.sz.y + UI.scale(5);
 
         // Publish this character's hearth secret to the shared database
-        prev = shareHsCheckbox = add(new CheckBox(L10n.get("database.share_hearth_secret")) {
+        prev = shareHsCheckbox = content.add(new CheckBox(L10n.get("database.share_hearth_secret")) {
             public void set(boolean val) {
                 a = val;
                 shareHs = val;
@@ -73,7 +105,7 @@ public class DatabaseSettings extends Panel {
         y += shareHsCheckbox.sz.y + UI.scale(5);
 
         // Whether the map window's database buttons carry markers as well as terrain
-        prev = shareMapMarksCheckbox = add(new CheckBox(L10n.get("database.share_map_markers")) {
+        prev = shareMapMarksCheckbox = content.add(new CheckBox(L10n.get("database.share_map_markers")) {
             public void set(boolean val) {
                 a = val;
                 shareMapMarks = val;
@@ -83,7 +115,7 @@ public class DatabaseSettings extends Panel {
         y += shareMapMarksCheckbox.sz.y + UI.scale(5);
 
         // Publish this character's position so everyone on this database can see it, at any distance
-        prev = sharePosCheckbox = add(new CheckBox(L10n.get("database.share_position")) {
+        prev = sharePosCheckbox = content.add(new CheckBox(L10n.get("database.share_position")) {
             public void set(boolean val) {
                 a = val;
                 sharePos = val;
@@ -93,7 +125,7 @@ public class DatabaseSettings extends Panel {
         y += sharePosCheckbox.sz.y + UI.scale(5);
 
         // Whether other people's published positions are drawn on this client's maps
-        prev = showPeerPosCheckbox = add(new CheckBox(L10n.get("database.show_peer_positions")) {
+        prev = showPeerPosCheckbox = content.add(new CheckBox(L10n.get("database.show_peer_positions")) {
             public void set(boolean val) {
                 a = val;
                 showPeerPos = val;
@@ -103,12 +135,12 @@ public class DatabaseSettings extends Panel {
         y += showPeerPosCheckbox.sz.y + UI.scale(8);
 
         // Р—Р°РіРѕР»РѕРІРѕРє СЂР°Р·РґРµР»Р°
-        prev = add(new Label(L10n.get("database.settings")), new Coord(margin, y));
+        prev = content.add(new Label(L10n.get("database.settings")), new Coord(margin, y));
         y += prev.sz.y + UI.scale(5);
 
         // Р’С‹РїР°РґР°СЋС‰РёР№ СЃРїРёСЃРѕРє РґР»СЏ РІС‹Р±РѕСЂР° С‚РёРїР° Р±Р°Р·С‹ РґР°РЅРЅС‹С…
-        prev = add(new Label(L10n.get("database.type")), new Coord(margin, y));
-        dbType = add(new Dropbox<String>(UI.scale(150), 5, UI.scale(16)) {
+        prev = content.add(new Label(L10n.get("database.type")), new Coord(margin, y));
+        dbType = content.add(new Dropbox<String>(UI.scale(150), 5, UI.scale(16)) {
             @Override
             protected String listitem(int i) {
                 return new LinkedList<>(getDbTypes()).get(i);
@@ -136,34 +168,34 @@ public class DatabaseSettings extends Panel {
         int firstSettingY = y;
 
         // РЎРѕР·РґР°РµРј РІРёРґР¶РµС‚С‹ РґР»СЏ PostgreSQL
-        hostLabel = add(new Label(L10n.get("database.host")), new Coord(margin, firstSettingY));
-        hostEntry = add(new TextEntry(UI.scale(150), ""), new Coord(entryX, firstSettingY));
+        hostLabel = content.add(new Label(L10n.get("database.host")), new Coord(margin, firstSettingY));
+        hostEntry = content.add(new TextEntry(UI.scale(150), ""), new Coord(entryX, firstSettingY));
         y += hostEntry.sz.y + UI.scale(5);
 
         /* Its own box rather than hidden inside the host string. It is still stored as one value -
          * splitting the storage would need a default for the port, and a default is what quietly
          * moves a village off the port it has always used. */
-        portLabel = add(new Label(L10n.get("database.port")), new Coord(margin, y));
-        portEntry = add(new TextEntry(UI.scale(70), ""), new Coord(entryX, y));
+        portLabel = content.add(new Label(L10n.get("database.port")), new Coord(margin, y));
+        portEntry = content.add(new TextEntry(UI.scale(70), ""), new Coord(entryX, y));
         portEntry.tooltip = Text.render(L10n.get("database.port_tip")).tex();
         y += portEntry.sz.y + UI.scale(5);
 
-        userLabel = add(new Label(L10n.get("database.username")), new Coord(margin, y));
-        usernameEntry = add(new TextEntry(UI.scale(150), ""), new Coord(entryX, y));
+        userLabel = content.add(new Label(L10n.get("database.username")), new Coord(margin, y));
+        usernameEntry = content.add(new TextEntry(UI.scale(150), ""), new Coord(entryX, y));
         y += usernameEntry.sz.y + UI.scale(5);
 
-        passLabel = add(new Label(L10n.get("database.password")), new Coord(margin, y));
-        passwordEntry = add(new TextEntry(UI.scale(150), ""), new Coord(entryX, y));
+        passLabel = content.add(new Label(L10n.get("database.password")), new Coord(margin, y));
+        passwordEntry = content.add(new TextEntry(UI.scale(150), ""), new Coord(entryX, y));
         passwordEntry.pw = true;
         y += passwordEntry.sz.y + UI.scale(10);
 
         // РЎРѕР·РґР°РµРј РІРёРґР¶РµС‚С‹ РґР»СЏ SQLite
-        fileLabel = add(new Label(L10n.get("database.filepath")), new Coord(margin, firstSettingY));
-        filePathEntry = add(new TextEntry(UI.scale(150), ""), new Coord(entryX, firstSettingY));
+        fileLabel = content.add(new Label(L10n.get("database.filepath")), new Coord(margin, firstSettingY));
+        filePathEntry = content.add(new TextEntry(UI.scale(150), ""), new Coord(entryX, firstSettingY));
         y += filePathEntry.sz.y + UI.scale(5);
 
         // РљРЅРѕРїРєР° РёРЅРёС†РёР°Р»РёР·Р°С†РёРё РЅРѕРІРѕР№ Р±Р°Р·С‹ РґР°РЅРЅС‹С…
-        initDbButton = add(new Button(UI.scale(200), L10n.get("database.init_new")) {
+        initDbButton = content.add(new Button(UI.scale(200), L10n.get("database.init_new")) {
             @Override
             public void click() {
                 super.click();
@@ -204,7 +236,7 @@ public class DatabaseSettings extends Panel {
         /* The one bridge between the JSON file and the database. Fish locations are file OR database -
          * nothing crosses automatically - so this is how spots saved before the database existed get
          * carried over. Idempotent, because a row id is derived from the spot's position and fish. */
-        seedFishButton = add(new Button(UI.scale(200), L10n.get("database.seed_fish")) {
+        seedFishButton = content.add(new Button(UI.scale(200), L10n.get("database.seed_fish")) {
             @Override
             public void click() {
                 super.click();
@@ -217,9 +249,9 @@ public class DatabaseSettings extends Panel {
         /* One field instead of three. The host field above is spliced straight into the JDBC URL,
          * so it silently needs "host:port" - a connection string carries the port with it, which is
          * the part that otherwise gets lost between the admin's chat message and this panel. */
-        connLabel = add(new Label(L10n.get("database.connstring")), new Coord(margin, y + UI.scale(3)));
-        connEntry = add(new TextEntry(UI.scale(250), ""), new Coord(UI.scale(130), y));
-        connApply = add(new Button(UI.scale(90), L10n.get("database.connstring_apply")) {
+        connLabel = content.add(new Label(L10n.get("database.connstring")), new Coord(margin, y + UI.scale(3)));
+        connEntry = content.add(new TextEntry(UI.scale(250), ""), new Coord(UI.scale(130), y));
+        connApply = content.add(new Button(UI.scale(90), L10n.get("database.connstring_apply")) {
             @Override
             public void click() {
                 super.click();
@@ -229,7 +261,7 @@ public class DatabaseSettings extends Panel {
         connApply.tooltip = Text.render(L10n.get("database.connstring_tip")).tex();
         y += connEntry.sz.y + UI.scale(10);
 
-        villagersButton = add(new Button(UI.scale(200), L10n.get("database.villagers")) {
+        villagersButton = content.add(new Button(UI.scale(200), L10n.get("database.villagers")) {
             @Override
             public void click() {
                 super.click();
@@ -237,6 +269,10 @@ public class DatabaseSettings extends Panel {
             }
         }, new Coord(margin, y));
         villagersButton.tooltip = Text.render(L10n.get("database.villagers_tip")).tex();
+
+        sizeYPostgres = y + villagersButton.sz.y + UI.scale(12);
+        sizeYSqlite = seedFishButton.c.y + seedFishButton.sz.y + UI.scale(12);
+        sizeView = content.add(new DbSizeView(UI.scale(470)), new Coord(margin, sizeYPostgres));
 
         load();
         updateWidgetsVisibility();
@@ -272,6 +308,12 @@ public class DatabaseSettings extends Panel {
         filePathEntry.settext(dbPath);
 
         updateWidgetsVisibility();
+
+        /* The panel is shown again every time the player clicks another settings page and comes
+         * back, so this asks only when the last figure has gone stale. */
+        if (sizeView != null && enabled) {
+            sizeView.refreshIfStale();
+        }
     }
 
     @Override
@@ -321,6 +363,12 @@ public class DatabaseSettings extends Panel {
         } else if (wasEnabled) {
             // DB was enabled but now disabled - reload areas from file
             reloadAreasFromFile();
+        }
+
+        /* Pointed at a different database, or at none: whatever was measured describes the old
+         * one. Dropping it also makes the next open re-measure rather than show a stale figure. */
+        if (sizeView != null) {
+            sizeView.invalidate();
         }
 
         NConfig.needUpdate();
@@ -436,12 +484,18 @@ public class DatabaseSettings extends Panel {
             // Don't reconnect here - it's just visibility update, not settings change
         }
 
-        // РџРµСЂРµСѓРїР°РєРѕРІС‹РІР°РµРј РІРёРґР¶РµС‚
-        pack();
-        /* pack() sizes to VISIBLE children only, so the panel would shrink whenever a mode hides half
-         * its widgets - hence the fixed floor. It has to stay a floor, though: assigning the height
-         * outright clips anything sitting below it, which is what hid the seed button. */
-        sz.y = Math.max(sz.y, UI.scale(200));
+        if (sizeView != null) {
+            sizeView.visible = isEnabled;
+            sizeView.move(new Coord(margin, isPostgres ? sizeYPostgres : sizeYSqlite));
+        }
+
+        /* The panel itself keeps its fixed size - the scrollport fills it. Only the content
+         * inside is re-measured, because hiding half the fields in one mode genuinely does make it
+         * shorter, and the scrollbar has to follow. */
+        if (content != null) {
+            content.pack();
+            scrollport.cont.update();
+        }
     }
 
     /**
