@@ -40,6 +40,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
         VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
         VERIFIED_CATEGORY_ACTION.put("Tree Bough", "Take bough");
+        VERIFIED_CATEGORY_ACTION.put("Stone", "Chip stone");
     }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
