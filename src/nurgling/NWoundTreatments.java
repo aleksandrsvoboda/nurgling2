@@ -50,6 +50,7 @@ public class NWoundTreatments {
     private static final String SNAKEJUICE  = "gfx/invobjs/jar-snakejuice";
     private static final String YARROW      = "gfx/invobjs/herbs/yarrow";
     private static final String WAYBROAD    = "gfx/invobjs/herbs/waybroad";
+    private static final String TANSYEXTRACT = "gfx/invobjs/jar-tansyextract";
     private static final String SOAPBAR     = "gfx/invobjs/soapbar";
     private static final String HONEYWAYBAND = "gfx/invobjs/honeybroadaid";
 
@@ -79,7 +80,9 @@ public class NWoundTreatments {
 	put("crabcaressed",    t(SILKSUTURE));
 	put("cruelincision",   t(GAUZE), t(ROOTFILL, N_DEEPCUT), t(SILKSUTURE), t(STITCHPATCH), t(WOUNDGLUE));
 	put("deepcut",         t(GAUZE), t(HONEYWAYBAND), t(WAYBROAD), t(ROOTFILL), t(SILKSUTURE), t(POULTICE));
+	put("deepworm",        t(TANSYEXTRACT));
 	put("fellslash",       t(GAUZE), t(SILKSUTURE), t(WOUNDGLUE));
+	put("henpecked",       t(WAYBROAD));
 	put("infectedsore",    t(CAMOMILE), t(SOAPBAR));
 	put("jellysting",      t(GRAYGREASE));
 	put("leechburns",      t(TOADBUTTER, N_WART));
@@ -103,7 +106,6 @@ public class NWoundTreatments {
 	put("asphyxiation");
 	put("birdlung");
 	put("bumburn");
-	put("deepworm");
 	put("dragonbite");
 	put("hearthburn");
 	put("maddeningrash");

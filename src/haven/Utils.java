@@ -1094,7 +1094,6 @@ public class Utils {
 		    return(task.run());
 		} catch(RuntimeException | IOException exc) {
 		    if(last != null)
-			{
 			exc.addSuppressed(last);
 		    last = exc;
 		    if(r < retimes.length) {
@@ -1107,7 +1106,6 @@ public class Utils {
 		    } else {
 			throw(exc);
 		    }
-			}
 		}
 	    }
 	} finally {
