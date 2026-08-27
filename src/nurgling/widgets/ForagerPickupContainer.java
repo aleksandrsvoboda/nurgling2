@@ -126,8 +126,12 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         names.addAll(categories);
 
         for (String name : names) {
-            candidates.add("Pick " + name);
-            candidates.add("Take " + name);
+            // Flower-menu text only capitalizes the first word of the whole phrase (confirmed by
+            // the verified "Take bark" above) - the item/category name itself is never a proper
+            // noun here, so lowercase it rather than guessing "Take Walnut"/"Take Nuts".
+            String lower = name.toLowerCase();
+            candidates.add("Pick " + lower);
+            candidates.add("Take " + lower);
         }
         return String.join(",", candidates);
     }

@@ -30,11 +30,18 @@ public class ForagerSettingsPanel extends Panel {
     public ForagerSettingsPanel() {
         super(L10n.get("nsettings.item.forager"));
 
-        Widget prev = add(new Label(L10n.get("forager.settings.actions_help"), UI.scale(400)), UI.scale(10, 40));
+        // This panel's content (help text + profile row + pickup grid + its button row) already
+        // runs past the panel's own 580x580 budget, and later phases (Routes/Guarding) are meant
+        // to keep adding to it in the same place - a scrollable viewport rather than a fixed
+        // layout, so it degrades to "scroll" instead of "off the bottom of the window" as it grows.
+        Scrollport scroll = add(new Scrollport(UI.scale(new Coord(560, 530))), UI.scale(10, 40));
+        Widget cont = scroll.cont;
 
-        prev = add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
+        Widget prev = cont.add(new Label(L10n.get("forager.settings.actions_help"), UI.scale(400)), Coord.z);
 
-        Widget profileRow = add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
+        prev = cont.add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
+
+        Widget profileRow = cont.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
         profileRow.add(actionsProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
             private List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
@@ -87,10 +94,10 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_profile_tip"));
 
-        prev = add(pickupContainer = new ForagerPickupContainer(), profileRow.pos("bl").add(UI.scale(0, 10)));
+        prev = cont.add(pickupContainer = new ForagerPickupContainer(), profileRow.pos("bl").add(UI.scale(0, 10)));
         pickupContainer.resize(UI.scale(new Coord(400, 320)));
 
-        Widget pickupButtonsRow = add(new Widget(new Coord(UI.scale(300), UI.scale(24))), prev.pos("bl").add(UI.scale(0, 5)));
+        Widget pickupButtonsRow = cont.add(new Widget(new Coord(UI.scale(300), UI.scale(24))), prev.pos("bl").add(UI.scale(0, 5)));
         pickupButtonsRow.add(new IButton(
                 Resource.loadsimg("nurgling/hud/buttons/add/u"),
                 Resource.loadsimg("nurgling/hud/buttons/add/d"),
