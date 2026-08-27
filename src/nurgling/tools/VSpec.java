@@ -3251,9 +3251,12 @@ public class VSpec {
     // for O(1) lookups instead of rescanning every category's every entry on every call.
     private static HashMap<String, String> iconPathByName;
 
-    // Looks up the icon resource path already recorded for an exact item name in the stacking
+    // Looks up the icon resource path already recorded for an item name in the stacking
     // category data (e.g. "Cassiterite" -> "gfx/invobjs/cassiterite"). Returns null if the name
     // isn't in any category. General-purpose - not just for stacking despite where the data lives.
+    // Matches case-insensitively (index keys are lowercased at build time, query lowercased at
+    // lookup) since callers may not have the item's exact display-name casing on hand - e.g. a
+    // pattern typed or derived elsewhere in all-lowercase should still resolve.
     public static String getIconPath(String name) {
         if (name == null) return null;
         if (iconPathByName == null) {
@@ -3264,13 +3267,13 @@ public class VSpec {
                     // single "static" path - skip those rather than erroring, since callers here
                     // only ever want a single icon image.
                     if (entry.has("static") && entry.has("name")) {
-                        index.putIfAbsent(entry.getString("name"), entry.getString("static"));
+                        index.putIfAbsent(entry.getString("name").toLowerCase(), entry.getString("static"));
                     }
                 }
             }
             iconPathByName = index;
         }
-        return iconPathByName.get(name);
+        return iconPathByName.get(name.toLowerCase());
     }
 
     public static ArrayList<String> getCategoryContent(String name) {
