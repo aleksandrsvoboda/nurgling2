@@ -96,26 +96,31 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     }
 
     /**
-     * Best-guess, ordered set of candidate flower-menu option strings for a gob-linked item, most
-     * specific first: any string already confirmed correct for one of this item's VSpec categories
-     * (see {@link #VERIFIED_CATEGORY_ACTION}), then "Pick "/"Take " + the item's own name (and its
-     * other singular/plural form, since the source item name isn't necessarily how the flower menu
-     * phrases it - e.g. "Chestnut" the item vs. potentially "Chestnuts" on the tree), then the same
-     * two prefixes against each VSpec category the item falls into (e.g. "Nuts" for a nut). Tried
-     * in this order at runtime (see {@link ForagerAction#toActionNameCandidates}) against the gob's
-     * real flower menu - same principle as matching several candidate gob-name patterns for an item
-     * with no VSpec link at all. Not a substitute for a confirmed answer: right-click "Edit Pattern"
-     * always lets this be replaced with one exact known-good string once confirmed in-game.
+     * Candidate flower-menu option string(s) for a gob-linked item. If the item falls into a
+     * category with a string already confirmed correct (see {@link #VERIFIED_CATEGORY_ACTION}),
+     * that's used on its own - a known answer, not a guess, so there's no reason to also carry a
+     * pile of untested ones alongside it. Otherwise falls back to a best-guess, ordered set:
+     * "Pick "/"Take " + the item's own name (and its other singular/plural form, since the source
+     * item name isn't necessarily how the flower menu phrases it - e.g. "Chestnut" the item vs.
+     * potentially "Chestnuts" on the tree), then the same two prefixes against each VSpec category
+     * the item falls into (e.g. "Nuts" for a nut). Tried in order at runtime (see
+     * {@link ForagerAction#toActionNameCandidates}) against the gob's real flower menu - same
+     * principle as matching several candidate gob-name patterns for an item with no VSpec link at
+     * all. Not a substitute for a confirmed answer: right-click "Edit Pattern" always lets this be
+     * replaced with one exact known-good string once confirmed in-game.
      */
     private static String actionNameCandidates(String itemName) {
         List<String> categories = VSpec.getCategory(itemName);
 
-        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        LinkedHashSet<String> verified = new LinkedHashSet<>();
         for (String cat : categories) {
-            String verified = VERIFIED_CATEGORY_ACTION.get(cat);
-            if (verified != null) {
-                candidates.add(verified);
+            String action = VERIFIED_CATEGORY_ACTION.get(cat);
+            if (action != null) {
+                verified.add(action);
             }
+        }
+        if (!verified.isEmpty()) {
+            return String.join(",", verified);
         }
 
         LinkedHashSet<String> names = new LinkedHashSet<>();
@@ -127,10 +132,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         }
         names.addAll(categories);
 
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
         for (String name : names) {
             // Flower-menu text only capitalizes the first word of the whole phrase (confirmed by
-            // the verified "Take bark" above) - the item/category name itself is never a proper
-            // noun here, so lowercase it rather than guessing "Take Walnut"/"Take Nuts".
+            // the verified entries above) - the item/category name itself is never a proper noun
+            // here, so lowercase it rather than guessing "Take Walnut"/"Take Nuts".
             String lower = name.toLowerCase();
             candidates.add("Pick " + lower);
             candidates.add("Take " + lower);
