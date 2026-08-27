@@ -18,4 +18,12 @@ public interface TaggableItemContainer {
 
     /** The tag currently applied to the named item, or null if none/default. */
     String getTag(String itemName);
+
+    /**
+     * Opens whatever full manual editor this container uses to correct an item's underlying
+     * match pattern/action directly (e.g. when automatic resolution guessed wrong or couldn't
+     * resolve one at all). Optional - default no-op for containers with nothing to edit beyond
+     * the tag.
+     */
+    default void editItem(String itemName) {}
 }

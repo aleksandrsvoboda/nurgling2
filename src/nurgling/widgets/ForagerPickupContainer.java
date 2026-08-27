@@ -83,12 +83,20 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     private Resolution resolve(String itemName) {
         ArrayList<String> gobs = VSpec.getGobsForItem(itemName);
-        String pattern = gobs.isEmpty() ? itemName : String.join(",", gobs);
 
         if (gobs.isEmpty()) {
-            // No tree/bush link found - assume herb-style direct match, plain pick.
-            return new Resolution(pattern, ForagerAction.ActionType.PICK, null);
+            // No tree/bush link found - assume herb/mushroom-style direct match: matching is a
+            // plain substring check against the gob's resource path (e.g. "chantrelle" against
+            // "gfx/terobjs/herbs/chantrelle"), which a plural or multi-word display name breaks
+            // outright ("Chantrelles" is not a substring of ".../chantrelle" - the trailing "s"
+            // alone defeats it; "Liberty Caps" never will be either, since resource paths have
+            // no spaces). Try several normalized candidates alongside the literal name so a
+            // simple plural/spacing mismatch like that resolves on its own; anything resolvable
+            // only via an unrelated internal name (e.g. "Morels" -> the "lorchel" resource) still
+            // needs a manual fix via this item's right-click "Edit Pattern".
+            return new Resolution(herbPatternCandidates(itemName), ForagerAction.ActionType.PICK, null);
         }
+        String pattern = String.join(",", gobs);
 
         for (Map.Entry<String, String> cat : CATEGORY_DEFAULT_ACTION.entrySet()) {
             List<String> content = VSpec.getCategoryContent(cat.getKey());
@@ -99,6 +107,37 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // Linked to a gob but no known category default - still a flower-menu pick (it's not a
         // herb), just with no guessed label; the user picks one via the tag menu.
         return new Resolution(pattern, ForagerAction.ActionType.FLOWER_ACTION, null);
+    }
+
+    /**
+     * Builds a comma-separated set of candidate substrings to match against a gob's resource
+     * path for an item with no VSpec gob link, widest/most-specific first: the literal name, the
+     * name with spaces removed (multi-word display names never appear as-is in a resource path,
+     * which has none), and singular versions of both (strip one trailing "s") since resource
+     * paths are consistently singular even when the item name is plural. Duplicates are dropped;
+     * {@link ForagerAction#toNAlias()} matches on ANY of these against the gob's name.
+     */
+    private static String herbPatternCandidates(String itemName) {
+        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
+        candidates.add(itemName);
+
+        String noSpaces = itemName.replace(" ", "");
+        candidates.add(noSpaces);
+
+        if (noSpaces.length() > 1 && noSpaces.endsWith("s")) {
+            candidates.add(noSpaces.substring(0, noSpaces.length() - 1));
+        }
+
+        // Last word alone (e.g. "Caps" out of "Liberty Caps") - and its singular - as a narrower
+        // fallback in case the full concatenated name still doesn't match anything.
+        String[] words = itemName.trim().split("\\s+");
+        String lastWord = words[words.length - 1];
+        candidates.add(lastWord);
+        if (lastWord.length() > 1 && lastWord.endsWith("s")) {
+            candidates.add(lastWord.substring(0, lastWord.length() - 1));
+        }
+
+        return String.join(",", candidates);
     }
 
     private void addResolved(String itemName, JSONObject iconRes, Resolution res) {
@@ -301,6 +340,42 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             // addResolvedIconOnly() already notifies.
             addResolvedIconOnly(displayName, placeholderIcon(displayName), action.tag);
         }
+    }
+
+    /**
+     * Opens the full manual editor prefilled with this item's current pattern/action/action
+     * name, for correcting a wrong or unresolved automatic guess (e.g. a plural/spacing mismatch
+     * {@link #herbPatternCandidates} didn't cover, or a display name that shares no substring at
+     * all with its actual gob resource). The icon/name stay as they are - only the underlying
+     * match/action fields change.
+     */
+    @Override
+    public void editItem(String itemName) {
+        ForagerAction existing = null;
+        int idx = -1;
+        for (int i = 0; i < actions.size(); i++) {
+            if (itemName.equals(actions.get(i).sourceItemName)) {
+                existing = actions.get(i);
+                idx = i;
+                break;
+            }
+        }
+        if (existing == null) {
+            return;
+        }
+        final ForagerAction old = existing;
+        final int foundIdx = idx;
+        ActionConfigWindow win = new ActionConfigWindow(existing, updated -> {
+            if (updated != null) {
+                updated.sourceItemName = old.sourceItemName;
+                updated.sourceItemResource = old.sourceItemResource;
+                updated.tag = old.tag;
+                actions.set(foundIdx, updated);
+                notifyChanged();
+            }
+        });
+        NUtils.getGameUI().add(win, UI.scale(200, 200));
+        win.show();
     }
 
     @Override
