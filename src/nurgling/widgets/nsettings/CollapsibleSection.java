@@ -52,7 +52,13 @@ public class CollapsibleSection extends Widget {
     /** (Re)computes this section's height from its content's current natural size - call once
      *  after populating {@link #content} (or again if that content's size changes later). */
     public void pack() {
-        resize(new Coord(sz.x, HEADER_H + (expanded ? content.contentsz().y : 0)));
+        // content itself must be resized too, not just this wrapper - draw()'s default child
+        // traversal clips each child to its OWN size (see Widget.draw(GOut, boolean)), so a
+        // content widget left at its construction-time height of 0 clips away everything inside
+        // it (and blocks mouse hit-testing the same way) regardless of how big this wrapper is.
+        int contentHeight = content.contentsz().y;
+        content.resize(new Coord(content.sz.x, contentHeight));
+        resize(new Coord(sz.x, HEADER_H + (expanded ? contentHeight : 0)));
     }
 
     private void toggle() {
