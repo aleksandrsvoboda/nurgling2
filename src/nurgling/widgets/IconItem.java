@@ -19,6 +19,7 @@ public class IconItem extends Widget
     private static final String KEY_UNMARK = "iconitem.unmark";
     private static final String KEY_CLEAR_TAG = "iconitem.clear_tag";
     private static final String KEY_EDIT = "iconitem.edit";
+    private static final String KEY_NEW_ACTION = "iconitem.new_action";
     // Not an L10n key - tag option labels come from TaggableItemContainer.tagOptions() and are
     // already display text, so they're distinguished in menuKeyMap by this literal prefix instead.
     private static final String TAG_KEY_PREFIX = "tag:";
@@ -122,8 +123,19 @@ public class IconItem extends Widget
     public boolean mousedown(MouseDownEvent ev) {
         if(ev.b==3)
         {
+            // Actions/tags (Barter/Barrel/Unmark, or Forager's pick-action tags) - the "what
+            // role does this item play" choices.
             if(!noOpts)
-                opts(c);
+                opts(c, false);
+            return true;
+        }
+        else if(ev.b==1)
+        {
+            // Management (Threshold/Delete, or Forager's Edit Pattern) - kept separate from the
+            // actions above so picking a tag/mark and removing/fixing an entry aren't mixed into
+            // one long menu.
+            if(!noOpts)
+                opts(c, true);
             return true;
         }
         else
@@ -145,44 +157,44 @@ public class IconItem extends Widget
         return localized;
     }
 
-    public void opts( Coord c ) {
+    public void opts( Coord c, boolean managementSide ) {
         if(menu == null) {
             menuKeyMap.clear();
             ArrayList<String> optList = new ArrayList<>();
-            
-            if(type==NArea.Ingredient.Type.CONTAINER)
-            {
+
+            if(managementSide) {
+                // Left click: Threshold/Delete (and Forager's Edit Pattern) - entry upkeep,
+                // never the item's role/tag.
                 if (parent instanceof IngredientContainer || parent instanceof DropContainer)
                     addMenuOption(optList, KEY_THRESHOLD);
                 addMenuOption(optList, KEY_DELETE);
+                if (parent instanceof TaggableItemContainer) {
+                    addMenuOption(optList, KEY_EDIT);
+                }
+            } else {
+                // Right click: what role this item plays - Barter/Barrel/Unmark for area
+                // ingredients, or Forager's pick-action tags (plus a way to grow that list).
                 if (parent instanceof IngredientContainer) {
-                    addMenuOption(optList, KEY_MARK_BARTER);
-                    addMenuOption(optList, KEY_MARK_BARREL);
+                    if (type == NArea.Ingredient.Type.CONTAINER) {
+                        addMenuOption(optList, KEY_MARK_BARTER);
+                        addMenuOption(optList, KEY_MARK_BARREL);
+                    } else {
+                        addMenuOption(optList, KEY_UNMARK);
+                    }
                 }
-            }
-            else
-            {
-                if(parent instanceof IngredientContainer || parent instanceof DropContainer) {
-                    addMenuOption(optList, KEY_THRESHOLD);
+                if (parent instanceof TaggableItemContainer) {
+                    TaggableItemContainer tc = (TaggableItemContainer) parent;
+                    for (String tagOpt : tc.tagOptions(name)) {
+                        optList.add(tagOpt);
+                        menuKeyMap.put(tagOpt, TAG_KEY_PREFIX + tagOpt);
+                    }
+                    if (customTag != null) {
+                        String clearLabel = L10n.get(KEY_CLEAR_TAG);
+                        optList.add(clearLabel);
+                        menuKeyMap.put(clearLabel, KEY_CLEAR_TAG);
+                    }
+                    addMenuOption(optList, KEY_NEW_ACTION);
                 }
-                addMenuOption(optList, KEY_DELETE);
-                if(parent instanceof IngredientContainer) {
-                    addMenuOption(optList, KEY_UNMARK);
-                }
-            }
-
-            if(parent instanceof TaggableItemContainer) {
-                TaggableItemContainer tc = (TaggableItemContainer) parent;
-                for(String tagOpt : tc.tagOptions(name)) {
-                    optList.add(tagOpt);
-                    menuKeyMap.put(tagOpt, TAG_KEY_PREFIX + tagOpt);
-                }
-                if(customTag != null) {
-                    String clearLabel = L10n.get(KEY_CLEAR_TAG);
-                    optList.add(clearLabel);
-                    menuKeyMap.put(clearLabel, KEY_CLEAR_TAG);
-                }
-                addMenuOption(optList, KEY_EDIT);
             }
 
             String[] opts = optList.toArray(new String[0]);
@@ -251,6 +263,10 @@ public class IconItem extends Widget
                         else if(key.equals(KEY_EDIT))
                         {
                             ((TaggableItemContainer)IconItem.this.parent).editItem(IconItem.this.name);
+                        }
+                        else if(key.equals(KEY_NEW_ACTION))
+                        {
+                            ((TaggableItemContainer)IconItem.this.parent).promptNewTag(IconItem.this.name, IconItem.this::setCustomTag);
                         }
                     }
                     uimsg("cancel");

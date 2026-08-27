@@ -4,6 +4,7 @@ import haven.*;
 import haven.res.lib.itemtex.ItemTex;
 import nurgling.NGItem;
 import nurgling.NUtils;
+import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
 import nurgling.tools.VSpec;
@@ -37,14 +38,6 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     static {
         CATEGORY_DEFAULT_ACTION.put("Nuts", "Pick Nuts");
         CATEGORY_DEFAULT_ACTION.put("Fruit", "Pick Fruit");
-    }
-
-    /** Tags offered on every item, regardless of how its default action was resolved - kept
-     *  small and easy to grow, per the user's own "we can build the list of options later". */
-    private static final List<String> TAG_OPTIONS = new ArrayList<>();
-    static {
-        TAG_OPTIONS.add("Pick Fruit");
-        TAG_OPTIONS.add("Pick Nuts");
     }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
@@ -332,41 +325,6 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     }
 
     /**
-     * Adds an action configured through the full manual editor (pattern/action type/action name,
-     * including CHAT_NOTIFY - see ActionConfigWindow), for anything the drag/drop + "add custom"
-     * flow can't cleanly express. Rendered as an icon here too when possible, using the pattern
-     * itself as the display name and resolving an icon the same way "add custom" does; falls
-     * back to being tracked without an icon (still fully functional for the bot, just not shown
-     * in this grid) if the pattern doesn't resolve to anything renderable and isn't a CHAT_NOTIFY.
-     */
-    public void addManual(ForagerAction action) {
-        if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) {
-            actions.add(action);
-            notifyChanged();
-            return;
-        }
-        String displayName = action.targetObjectPattern.split(",")[0].trim();
-        action.sourceItemName = displayName;
-        String iconPath = VSpec.getIconPath(displayName);
-        JSONObject iconRes = new JSONObject();
-        iconRes.put("name", displayName);
-        BufferedImage img = null;
-        if (iconPath != null) {
-            iconRes.put("static", iconPath);
-            action.sourceItemResource = iconPath;
-            img = ItemTex.create(iconRes);
-        }
-        actions.add(action);
-        if (img != null) {
-            addIcon(iconRes);
-            notifyChanged();
-        } else {
-            // addResolvedIconOnly() already notifies.
-            addResolvedIconOnly(displayName, placeholderIcon(displayName), action.tag);
-        }
-    }
-
-    /**
      * Opens the full manual editor prefilled with this item's current pattern/action/action
      * name, for correcting a wrong or unresolved automatic guess (e.g. a plural/spacing mismatch
      * {@link #herbPatternCandidates} didn't cover, or a display name that shares no substring at
@@ -404,7 +362,28 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     @Override
     public List<String> tagOptions(String itemName) {
-        return TAG_OPTIONS;
+        return NForagerProp.getActionTags();
+    }
+
+    /**
+     * Prompts for a brand new action label (e.g. "Take Bark"), adds it to the shared, growing
+     * vocabulary every pickup item's tag menu draws from, and applies it to this item - the
+     * right-click menu's way of introducing a new flower-menu action without the old separate
+     * "Advanced" editor.
+     */
+    @Override
+    public void promptNewTag(String itemName, java.util.function.Consumer<String> onApplied) {
+        TextInputWindow win = new TextInputWindow(
+                L10n.get("forager.pickup.new_action_title"), L10n.get("forager.pickup.new_action_prompt"), typed -> {
+            if (typed != null && !typed.trim().isEmpty()) {
+                String tag = typed.trim();
+                NForagerProp.addActionTag(tag);
+                setTag(itemName, tag);
+                onApplied.accept(tag);
+            }
+        });
+        NUtils.getGameUI().add(win, UI.scale(200, 200));
+        win.show();
     }
 
     @Override

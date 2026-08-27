@@ -5,7 +5,6 @@ import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
-import nurgling.widgets.ActionConfigWindow;
 import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.TextInputWindow;
 
@@ -101,24 +100,13 @@ public class ForagerSettingsPanel extends Panel {
         }, new Coord(0, 0)).settip(L10n.get("forager.pickup.add_custom"));
 
         pickupButtonsRow.add(new IButton(
-                Resource.loadsimg("nurgling/hud/buttons/settings/u"),
-                Resource.loadsimg("nurgling/hud/buttons/settings/d"),
-                Resource.loadsimg("nurgling/hud/buttons/settings/h")) {
-            @Override
-            public void click() {
-                super.click();
-                addManualAction();
-            }
-        }, new Coord(UI.scale(30), 0)).settip(L10n.get("forager.add_action_tip"));
-
-        pickupButtonsRow.add(new IButton(
                 NStyle.catmenu[0].back, NStyle.catmenu[1].back, NStyle.catmenu[2].back) {
             @Override
             public void click() {
                 super.click();
                 pickupContainer.openCatalogue();
             }
-        }, new Coord(UI.scale(60), 0)).settip(L10n.get("forager.pickup.catalogue"));
+        }, new Coord(UI.scale(30), 0)).settip(L10n.get("forager.pickup.catalogue"));
     }
 
     @Override
@@ -169,16 +157,5 @@ public class ForagerSettingsPanel extends Panel {
         String next = prop.actionsProfiles.keySet().iterator().next();
         prop.currentActionsProfile = next;
         actionsProfileDropbox.change(next);
-    }
-
-    private void addManualAction() {
-        if (prop == null) return;
-        ActionConfigWindow configWindow = new ActionConfigWindow(action -> {
-            if (action != null) {
-                pickupContainer.addManual(action);
-            }
-        });
-        NUtils.getGameUI().add(configWindow, UI.scale(200, 200));
-        configWindow.show();
     }
 }
