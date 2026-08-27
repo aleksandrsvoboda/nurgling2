@@ -19,7 +19,6 @@ public class IconItem extends Widget
     private static final String KEY_UNMARK = "iconitem.unmark";
     private static final String KEY_CLEAR_TAG = "iconitem.clear_tag";
     private static final String KEY_EDIT = "iconitem.edit";
-    private static final String KEY_NEW_ACTION = "iconitem.new_action";
     // Not an L10n key - tag option labels come from TaggableItemContainer.tagOptions() and are
     // already display text, so they're distinguished in menuKeyMap by this literal prefix instead.
     private static final String TAG_KEY_PREFIX = "tag:";
@@ -193,7 +192,6 @@ public class IconItem extends Widget
                         optList.add(clearLabel);
                         menuKeyMap.put(clearLabel, KEY_CLEAR_TAG);
                     }
-                    addMenuOption(optList, KEY_NEW_ACTION);
                 }
             }
 
@@ -263,10 +261,6 @@ public class IconItem extends Widget
                         else if(key.equals(KEY_EDIT))
                         {
                             ((TaggableItemContainer)IconItem.this.parent).editItem(IconItem.this.name);
-                        }
-                        else if(key.equals(KEY_NEW_ACTION))
-                        {
-                            ((TaggableItemContainer)IconItem.this.parent).promptNewTag(IconItem.this.name, IconItem.this::setCustomTag);
                         }
                     }
                     uimsg("cancel");

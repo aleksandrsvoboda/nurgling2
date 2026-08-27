@@ -365,27 +365,6 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return NForagerProp.getActionTags();
     }
 
-    /**
-     * Prompts for a brand new action label (e.g. "Take Bark"), adds it to the shared, growing
-     * vocabulary every pickup item's tag menu draws from, and applies it to this item - the
-     * right-click menu's way of introducing a new flower-menu action without the old separate
-     * "Advanced" editor.
-     */
-    @Override
-    public void promptNewTag(String itemName, java.util.function.Consumer<String> onApplied) {
-        TextInputWindow win = new TextInputWindow(
-                L10n.get("forager.pickup.new_action_title"), L10n.get("forager.pickup.new_action_prompt"), typed -> {
-            if (typed != null && !typed.trim().isEmpty()) {
-                String tag = typed.trim();
-                NForagerProp.addActionTag(tag);
-                setTag(itemName, tag);
-                onApplied.accept(tag);
-            }
-        });
-        NUtils.getGameUI().add(win, UI.scale(200, 200));
-        win.show();
-    }
-
     @Override
     public void setTag(String itemName, String tag) {
         for (ForagerAction action : actions) {

@@ -1,7 +1,6 @@
 package nurgling.widgets;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Implemented by a {@link BaseIngredientContainer} that wants its own set of per-item right-click
@@ -27,13 +26,4 @@ public interface TaggableItemContainer {
      * the tag.
      */
     default void editItem(String itemName) {}
-
-    /**
-     * Prompts for a brand new action label, adds it to the shared/growable vocabulary
-     * {@link #tagOptions} draws from, and applies it to the named item - the right-click menu's
-     * way of growing that list instead of it being a fixed set. {@code onApplied} lets the
-     * calling IconItem update its own displayed tag once the new one is created; called with the
-     * new label, or not at all if the prompt was cancelled. Optional - default no-op.
-     */
-    default void promptNewTag(String itemName, Consumer<String> onApplied) {}
 }
