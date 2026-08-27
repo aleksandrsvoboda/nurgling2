@@ -2752,22 +2752,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         
         // Get the settings configuration
         NGameUI gui = NUtils.getGameUI();
-        if (gui == null || gui.iconconf == null || gui.iconRingConfig == null) return;
+        if (gui == null || gui.iconconf == null) return;
         
-        // Get icon instance and create setting ID
+        // Get icon instance
         GobIcon.Icon iconInstance = icon.icon();
-        GobIcon.Setting.ID settingId = new GobIcon.Setting.ID(iconInstance.res.name, iconInstance.id());
         
         // Get setting using the proper get() method that handles creation
         GobIcon.Setting setting = gui.iconconf.get(iconInstance);
         if (setting == null) return;
         
-        // Toggle the ring value
+        // Toggle the ring value and persist it, machine-globally, like every other icon setting
         setting.ring = !setting.ring;
-        
-        // Save to local config
-        String iconResName = iconInstance.res.name;
-        gui.iconRingConfig.setRing(iconResName, setting.ring);
+        gui.iconconf.dsave();
         
         // Update all gobs with this icon setting (add or remove rings)
         try {
@@ -2781,7 +2777,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                             GobIcon.Setting.ID gobSettingId = new GobIcon.Setting.ID(gobIconInstance.res.name, gobIconInstance.id());
                             
                             // Compare by ID instead of object reference
-                            if(gobSettingId.equals(settingId)) {
+                            if(gobSettingId.equals(setting.id)) {
                                 // Remove existing ring
                                 Gob.Overlay existingRing = gob.findol(NGobIconRing.class);
                                 if(existingRing != null) {
