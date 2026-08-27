@@ -103,31 +103,36 @@ public class StudyDeskConfig {
      * Save (or update) a single desk's label/layout, keeping every other desk untouched.
      * @param label new label, or null to keep whatever label is already saved for this desk
      * @param layout the planned layout map (position key -> item data), never null
-     * @param owner the saving character's chrid, or null to leave ownership unset - saving a
-     *              plan is treated as that character claiming the desk as theirs (see
-     *              {@link #findOwnedDeskHash}), since planning only makes sense for a desk
-     *              you actually use, not some arbitrary shared one.
+     * @param owner the saving character's chrid, claiming this desk as theirs (see
+     *              {@link #findOwnedDeskHash}), or null to leave ownership as it already was.
      */
     public static void putDesk(String hash, String label, Map<String, Object> layout, String owner) {
         Map<String, Object> desks = allDesks();
+        Object existing = desks.get(hash);
+        Map<String, Object> existingEntry = (existing instanceof Map) ? (Map<String, Object>) existing : null;
 
         Map<String, Object> deskEntry = new HashMap<>();
         String resolvedLabel = label;
-        if (resolvedLabel == null) {
-            Object existing = desks.get(hash);
-            if (existing instanceof Map) {
-                Object existingLabel = ((Map<String, Object>) existing).get(LABEL_KEY);
-                if (existingLabel instanceof String) {
-                    resolvedLabel = (String) existingLabel;
-                }
+        if (resolvedLabel == null && existingEntry != null) {
+            Object existingLabel = existingEntry.get(LABEL_KEY);
+            if (existingLabel instanceof String) {
+                resolvedLabel = (String) existingLabel;
             }
         }
         if (resolvedLabel != null) {
             deskEntry.put(LABEL_KEY, resolvedLabel);
         }
         deskEntry.put(LAYOUT_KEY, layout);
-        if (owner != null) {
-            deskEntry.put(OWNER_KEY, owner);
+
+        String resolvedOwner = owner;
+        if (resolvedOwner == null && existingEntry != null) {
+            Object existingOwner = existingEntry.get(OWNER_KEY);
+            if (existingOwner instanceof String) {
+                resolvedOwner = (String) existingOwner;
+            }
+        }
+        if (resolvedOwner != null) {
+            deskEntry.put(OWNER_KEY, resolvedOwner);
         }
 
         desks.put(hash, deskEntry);
@@ -135,11 +140,8 @@ public class StudyDeskConfig {
     }
 
     /**
-     * The hash of the desk the given character last saved a plan for, or null if they don't own
-     * (in this tracked sense - see {@link #putDesk}) any configured desk. Used by "Refill Study
-     * Desk" to target that character's own desk specifically, rather than every configured desk
-     * (which can belong to many other characters/alts sharing the same study area) or merely
-     * whichever configured desk happens to be nearest.
+     * The hash of the desk the given character last saved a plan for (see {@link #putDesk}), or
+     * null if they don't own one. Used by "Fill Study Desk" to target their own desk specifically.
      */
     @SuppressWarnings("unchecked")
     public static String findOwnedDeskHash(String chrid) {

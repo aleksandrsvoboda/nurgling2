@@ -453,9 +453,7 @@ public class StepSettingsPanel extends Widget {
             y += UI.scale(24);
 
             List<String> modes = Arrays.asList("All", "Just Owned");
-            // Unset (a step placed before this setting existed) defaults to "All" - this step's
-            // only-ever behavior before "Just Owned" existed, so an already-saved schedule's
-            // behavior doesn't silently change just from opening its settings.
+            // Unset (an older saved step) defaults to "All" - its only behavior before this existed.
             Object fillAllSetting = step.getSetting("fillAll");
             boolean fillAll = !(fillAllSetting instanceof Boolean) || (Boolean) fillAllSetting;
             String selectedMode = fillAll ? "All" : "Just Owned";

@@ -27,11 +27,9 @@ import java.awt.Color;
 import java.util.*;
 
 /**
- * Bot that fills study desks (global config, not tied to any one character) against their saved
- * layouts - either every configured desk, or just the one owned by the current character (see
- * StudyDeskConfig#findOwnedDeskHash), depending on the "fillAll" setting (see the two separate
- * {@code BotRegistry} entries this same class backs: "Refill All Study Desks" and "Refill Study
- * Desk"). Both share every step below - only which desks end up in the map built in step 1 differs.
+ * Bot that fills study desks (global config, not tied to any one character) - every configured
+ * desk, or just the one owned by the current character, depending on the "fillAll" setting (see
+ * the "Fill All Study Desks"/"Fill Study Desk" {@code BotRegistry} entries this class backs).
  */
 public class StudyDeskFiller implements Action {
 
@@ -66,12 +64,8 @@ public class StudyDeskFiller implements Action {
         if (fillAll) {
             desks = allDesks;
         } else {
-            // "Refill" - just the desk this character owns (the one they last saved a plan for,
-            // see StudyDeskConfig#findOwnedDeskHash - saving one is treated as claiming it), not
-            // every configured desk (which can belong to several other characters/alts sharing
-            // the same study area) and not merely whichever configured desk happens to be
-            // nearest right now (proximity isn't ownership - a shared study area can easily have
-            // someone else's desk sitting closer than your own).
+            // Just this character's own desk (see StudyDeskConfig#findOwnedDeskHash) - not
+            // proximity, since a shared study area can have someone else's desk sitting closer.
             NCharacterInfo charInfo = gui.getCharInfo();
             String ownedHash = charInfo != null ? StudyDeskConfig.findOwnedDeskHash(charInfo.chrid) : null;
             if (ownedHash == null || !allDesks.containsKey(ownedHash)) {

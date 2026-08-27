@@ -53,16 +53,8 @@ public class OpenTargetContainer implements Action
             case "Study Desk":
             case "Fine Study Desk":
             case "Grand Study Desk":
-                /* A study desk owned by the current character opens directly from the plain
-                 * click above - no flower menu appears. One owned by someone else instead
-                 * pops a flower menu ("Open" / "Take possession"), since the server now lets
-                 * any character place items into any desk without taking ownership. Only
-                 * look for that menu right after we've actually sent a fresh click - a
-                 * reused, already-open window (already != null, so no click was sent above)
-                 * never gets one, and there'd be nothing to wait for. Wait rather than click
-                 * again (unlike Cauldron below, which re-clicks): a second click here would
-                 * fire even for an owned desk that already opened directly, uselessly poking
-                 * the server every time this runs. */
+                // A non-owned desk pops an "Open"/"Take possession" flower menu instead of
+                // opening directly; only a fresh click (not a reused window) can trigger one.
                 if (already == null) {
                     NFlowerMenu deskMenu = NUtils.findFlowerMenu();
                     if (deskMenu != null) {

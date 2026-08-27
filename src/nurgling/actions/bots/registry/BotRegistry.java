@@ -239,11 +239,8 @@ public class BotRegistry {
         bots.add(new BotDescriptor("freeinv", BotDescriptor.BotType.UTILS, "Free inventory", "Free inventory with Area system.", true, true, FreeInvBot.class, "freeinv", false));
         bots.add(new BotDescriptor("travellerssack", BotDescriptor.BotType.UTILS, "Equip travellers sacks", "Equip travellers sacks.", false, true, EquipTravellersSacksFromBelt.class, "travellerssack", false));
         bots.add(new BotDescriptor("studytable", BotDescriptor.BotType.UTILS, "bot.studytable.title", "bot.studytable.desc", true, true, StudyDeskFiller.class, "studytable", false));
-        // Same class/logic as "studytable" above, just fed only the current character's own
-        // desk instead of every configured desk - see StudyDeskFiller's "fillAll" setting.
-        // allowedAsStepInScenario=false: schedules pick this via the "studytable" step's own
-        // All/Just Owned setting (see StepSettingsPanel) instead of a second step choice, so
-        // this stays a bot-menu-only quick-launch entry.
+        // Same class as "studytable" (fillAll=false) - allowedAsStepInScenario=false since
+        // schedules pick this via that step's own All/Just Owned setting instead (StepSettingsPanel).
         bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "test47", false, Map.of("fillAll", false)));
         bots.add(new BotDescriptor("swill_collector", BotDescriptor.BotType.UTILS, "Swill Collector", "Collects swill items from area and feeds to troughs/cisterns.", false, true, CollectSwillToTrough.class, "swillcollector", false));
         bots.add(new BotDescriptor("swill_to_trough", BotDescriptor.BotType.UTILS, "Swill To Trough", "Collects swill from area to selected trough (click to select).", false, true, CollectSwillInArea.class, "swillzone", false));
