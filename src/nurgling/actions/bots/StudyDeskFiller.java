@@ -26,16 +26,30 @@ import java.awt.Color;
 import java.util.*;
 
 /**
- * Bot that fills every planned study desk (global config, not tied to any one character)
- * against its saved layout.
+ * Bot that fills study desks (global config, not tied to any one character) against their saved
+ * layouts - either every configured desk, or just the one closest to the player, depending on
+ * the "fillAll" setting (see the two separate {@code BotRegistry} entries this same class backs:
+ * "Refill All Study Desks" and "Refill Study Desk"). Both share every step below - only which
+ * desks end up in the map built in step 1 differs.
  */
 public class StudyDeskFiller implements Action {
 
+    private final boolean fillAll;
+
+    public StudyDeskFiller() {
+        this.fillAll = true;
+    }
+
+    public StudyDeskFiller(Map<String, Object> settings) {
+        Object v = settings != null ? settings.get("fillAll") : null;
+        this.fillAll = !(v instanceof Boolean) || (Boolean) v;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        // Step 1: Load every configured desk plan
-        Map<String, Object> desks = StudyDeskConfig.allDesks();
-        if (desks.isEmpty()) {
+        // Step 1: Load which desk plan(s) to fill this run
+        Map<String, Object> allDesks = StudyDeskConfig.allDesks();
+        if (allDesks.isEmpty()) {
             gui.msg("ERROR: No study desk plans configured!", Color.RED);
             return Results.ERROR("No study desk plans configured");
         }
@@ -47,7 +61,23 @@ public class StudyDeskFiller implements Action {
             return Results.ERROR("No study desk area found! Please create one first");
         }
 
-        // Step 3: Visit every configured desk, skipping ones that can't currently be found
+        Map<String, Object> desks;
+        if (fillAll) {
+            desks = allDesks;
+        } else {
+            // "Refill" - just the configured desk closest to the player right now, so running
+            // it while standing at your own desk tops that one up without touring every other
+            // character's desk too (which, with several alts each having their own, can mean
+            // visiting far more desks than you actually wanted for one quick top-up).
+            Map.Entry<String, Object> nearest = findNearestConfiguredDesk(studyDeskArea, allDesks);
+            if (nearest == null) {
+                gui.msg("ERROR: No configured study desk found nearby.", Color.RED);
+                return Results.ERROR("No configured study desk found nearby");
+            }
+            desks = Collections.singletonMap(nearest.getKey(), nearest.getValue());
+        }
+
+        // Step 3: Visit every desk in the (possibly single-entry) map, skipping ones that can't currently be found
         int desksFound = 0;
         int desksPerfect = 0;
         int desksWithIssues = 0;
@@ -176,6 +206,39 @@ public class StudyDeskFiller implements Action {
     private NArea getStudyDeskArea(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
         return context.goToArea(Specialisation.SpecName.studyDesks);
+    }
+
+    /**
+     * The configured desk (any of the three study desk variants - the resource-path substring
+     * "studydesk" is common to all of them, see StudyDeskConfig#capFor) physically closest to the
+     * player right now, among those actually found within the study desk area. Null if none of
+     * the desks standing in that area have a saved plan at all.
+     */
+    private Map.Entry<String, Object> findNearestConfiguredDesk(NArea studyDeskArea, Map<String, Object> desks) throws InterruptedException {
+        ArrayList<Gob> candidates = Finder.findGobs(studyDeskArea, new NAlias("studydesk"));
+        Gob player = NUtils.player();
+        if (player == null) {
+            return null;
+        }
+
+        Gob nearestGob = null;
+        double nearestDist = Double.MAX_VALUE;
+        for (Gob candidate : candidates) {
+            if (candidate.ngob == null || candidate.ngob.hash == null || !desks.containsKey(candidate.ngob.hash)) {
+                continue;
+            }
+            double dist = candidate.rc.dist(player.rc);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestGob = candidate;
+            }
+        }
+
+        if (nearestGob == null) {
+            return null;
+        }
+        String hash = nearestGob.ngob.hash;
+        return new AbstractMap.SimpleEntry<>(hash, desks.get(hash));
     }
 
     /**
