@@ -451,7 +451,12 @@ public class StudyDeskPlannerWidget extends haven.Window implements DTarget {
             NUtils.getGameUI().msg(L10n.get("study.layout_saved"), Color.GREEN);
             return;
         }
-        StudyDeskConfig.putDesk(studyDeskHash, null, buildLayoutMap());
+        // Saving a plan claims this desk as the current character's own (see
+        // StudyDeskConfig#findOwnedDeskHash) - null charInfo (character not fully loaded yet)
+        // just means this save doesn't establish/update ownership, not an error worth surfacing.
+        NCharacterInfo charInfo = NUtils.getGameUI().getCharInfo();
+        String owner = charInfo != null ? charInfo.chrid : null;
+        StudyDeskConfig.putDesk(studyDeskHash, null, buildLayoutMap(), owner);
         NUtils.getGameUI().msg(L10n.get("study.layout_saved"), Color.GREEN);
     }
 

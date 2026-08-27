@@ -34,6 +34,7 @@ public class StudyDeskConfig {
     private static final String LABEL_KEY = "label";
     private static final String LAYOUT_KEY = "layout";
     private static final String GOB_HASH_KEY = "gobHash";
+    private static final String OWNER_KEY = "owner";
 
     /**
      * Load every configured desk, migrating legacy per-character config on the fly.
@@ -102,8 +103,12 @@ public class StudyDeskConfig {
      * Save (or update) a single desk's label/layout, keeping every other desk untouched.
      * @param label new label, or null to keep whatever label is already saved for this desk
      * @param layout the planned layout map (position key -> item data), never null
+     * @param owner the saving character's chrid, or null to leave ownership unset - saving a
+     *              plan is treated as that character claiming the desk as theirs (see
+     *              {@link #findOwnedDeskHash}), since planning only makes sense for a desk
+     *              you actually use, not some arbitrary shared one.
      */
-    public static void putDesk(String hash, String label, Map<String, Object> layout) {
+    public static void putDesk(String hash, String label, Map<String, Object> layout, String owner) {
         Map<String, Object> desks = allDesks();
 
         Map<String, Object> deskEntry = new HashMap<>();
@@ -121,9 +126,36 @@ public class StudyDeskConfig {
             deskEntry.put(LABEL_KEY, resolvedLabel);
         }
         deskEntry.put(LAYOUT_KEY, layout);
+        if (owner != null) {
+            deskEntry.put(OWNER_KEY, owner);
+        }
 
         desks.put(hash, deskEntry);
         saveDesks(desks);
+    }
+
+    /**
+     * The hash of the desk the given character last saved a plan for, or null if they don't own
+     * (in this tracked sense - see {@link #putDesk}) any configured desk. Used by "Refill Study
+     * Desk" to target that character's own desk specifically, rather than every configured desk
+     * (which can belong to many other characters/alts sharing the same study area) or merely
+     * whichever configured desk happens to be nearest.
+     */
+    @SuppressWarnings("unchecked")
+    public static String findOwnedDeskHash(String chrid) {
+        if (chrid == null) {
+            return null;
+        }
+        for (Map.Entry<String, Object> entry : allDesks().entrySet()) {
+            if (!(entry.getValue() instanceof Map)) {
+                continue;
+            }
+            Object owner = ((Map<String, Object>) entry.getValue()).get(OWNER_KEY);
+            if (chrid.equals(owner)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     /**

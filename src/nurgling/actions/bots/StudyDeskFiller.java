@@ -20,6 +20,7 @@ import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 import nurgling.tools.StudyDeskConfig;
+import nurgling.widgets.NCharacterInfo;
 import nurgling.widgets.Specialisation;
 
 import java.awt.Color;
@@ -27,10 +28,10 @@ import java.util.*;
 
 /**
  * Bot that fills study desks (global config, not tied to any one character) against their saved
- * layouts - either every configured desk, or just the one closest to the player, depending on
- * the "fillAll" setting (see the two separate {@code BotRegistry} entries this same class backs:
- * "Refill All Study Desks" and "Refill Study Desk"). Both share every step below - only which
- * desks end up in the map built in step 1 differs.
+ * layouts - either every configured desk, or just the one owned by the current character (see
+ * StudyDeskConfig#findOwnedDeskHash), depending on the "fillAll" setting (see the two separate
+ * {@code BotRegistry} entries this same class backs: "Refill All Study Desks" and "Refill Study
+ * Desk"). Both share every step below - only which desks end up in the map built in step 1 differs.
  */
 public class StudyDeskFiller implements Action {
 
@@ -65,16 +66,19 @@ public class StudyDeskFiller implements Action {
         if (fillAll) {
             desks = allDesks;
         } else {
-            // "Refill" - just the configured desk closest to the player right now, so running
-            // it while standing at your own desk tops that one up without touring every other
-            // character's desk too (which, with several alts each having their own, can mean
-            // visiting far more desks than you actually wanted for one quick top-up).
-            Map.Entry<String, Object> nearest = findNearestConfiguredDesk(studyDeskArea, allDesks);
-            if (nearest == null) {
-                gui.msg("ERROR: No configured study desk found nearby.", Color.RED);
-                return Results.ERROR("No configured study desk found nearby");
+            // "Refill" - just the desk this character owns (the one they last saved a plan for,
+            // see StudyDeskConfig#findOwnedDeskHash - saving one is treated as claiming it), not
+            // every configured desk (which can belong to several other characters/alts sharing
+            // the same study area) and not merely whichever configured desk happens to be
+            // nearest right now (proximity isn't ownership - a shared study area can easily have
+            // someone else's desk sitting closer than your own).
+            NCharacterInfo charInfo = gui.getCharInfo();
+            String ownedHash = charInfo != null ? StudyDeskConfig.findOwnedDeskHash(charInfo.chrid) : null;
+            if (ownedHash == null || !allDesks.containsKey(ownedHash)) {
+                gui.msg("ERROR: No study desk owned by this character is configured. Open your desk's planner and Save to claim it.", Color.RED);
+                return Results.ERROR("No owned study desk configured for this character");
             }
-            desks = Collections.singletonMap(nearest.getKey(), nearest.getValue());
+            desks = Collections.singletonMap(ownedHash, allDesks.get(ownedHash));
         }
 
         // Step 3: Visit every desk in the (possibly single-entry) map, skipping ones that can't currently be found
@@ -206,39 +210,6 @@ public class StudyDeskFiller implements Action {
     private NArea getStudyDeskArea(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
         return context.goToArea(Specialisation.SpecName.studyDesks);
-    }
-
-    /**
-     * The configured desk (any of the three study desk variants - the resource-path substring
-     * "studydesk" is common to all of them, see StudyDeskConfig#capFor) physically closest to the
-     * player right now, among those actually found within the study desk area. Null if none of
-     * the desks standing in that area have a saved plan at all.
-     */
-    private Map.Entry<String, Object> findNearestConfiguredDesk(NArea studyDeskArea, Map<String, Object> desks) throws InterruptedException {
-        ArrayList<Gob> candidates = Finder.findGobs(studyDeskArea, new NAlias("studydesk"));
-        Gob player = NUtils.player();
-        if (player == null) {
-            return null;
-        }
-
-        Gob nearestGob = null;
-        double nearestDist = Double.MAX_VALUE;
-        for (Gob candidate : candidates) {
-            if (candidate.ngob == null || candidate.ngob.hash == null || !desks.containsKey(candidate.ngob.hash)) {
-                continue;
-            }
-            double dist = candidate.rc.dist(player.rc);
-            if (dist < nearestDist) {
-                nearestDist = dist;
-                nearestGob = candidate;
-            }
-        }
-
-        if (nearestGob == null) {
-            return null;
-        }
-        String hash = nearestGob.ngob.hash;
-        return new AbstractMap.SimpleEntry<>(hash, desks.get(hash));
     }
 
     /**
