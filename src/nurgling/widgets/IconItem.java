@@ -6,6 +6,9 @@ import nurgling.areas.*;
 import nurgling.i18n.L10n;
 import org.json.JSONObject;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.*;
 import java.util.*;
 
@@ -26,6 +29,42 @@ public class IconItem extends Widget
     public static final TexI framet = new TexI(Resource.loadimg("nurgling/hud/iconframet"));
     public static final TexI bm = new TexI(Resource.loadimg("nurgling/hud/bartermark"));
     public static final TexI barm = new TexI(Resource.loadimg("nurgling/hud/barrelmark"));
+    // Small green flower badge shown when an item's tag implies a flower-menu action (see
+    // TaggableItemContainer) - drawn procedurally rather than as a game resource, since there's
+    // no existing small "flower" icon asset to reuse for this (NFlowerMenu's are petal/menu-
+    // background graphics, not a standalone marker).
+    public static final TexI flowerMark = createFlowerMark();
+
+    private static TexI createFlowerMark() {
+        int size = 32;
+        BufferedImage img = TexI.mkbuf(new Coord(size, size));
+        Graphics2D g2d = img.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int cx = size / 2, cy = size / 2;
+        int petalR = size / 4;
+        double dist = size / 4.0;
+        Color petal = new Color(70, 170, 70);
+        Color petalOutline = new Color(25, 100, 25);
+        for (int i = 0; i < 5; i++) {
+            double angle = Math.toRadians(90 + i * 72);
+            int px = (int) Math.round(cx + dist * Math.cos(angle));
+            int py = (int) Math.round(cy - dist * Math.sin(angle));
+            g2d.setColor(petal);
+            g2d.fillOval(px - petalR, py - petalR, petalR * 2, petalR * 2);
+            g2d.setColor(petalOutline);
+            g2d.drawOval(px - petalR, py - petalR, petalR * 2, petalR * 2);
+        }
+        int centerR = size / 6;
+        g2d.setColor(new Color(230, 200, 60));
+        g2d.fillOval(cx - centerR, cy - centerR, centerR * 2, centerR * 2);
+        g2d.setColor(new Color(150, 120, 30));
+        g2d.drawOval(cx - centerR, cy - centerR, centerR * 2, centerR * 2);
+
+        g2d.dispose();
+        return new TexI(img);
+    }
+
     public JSONObject src;
     TexI tex = null;
 
@@ -108,6 +147,9 @@ public class IconItem extends Widget
             if(customTagTex != null)
             {
                 g.image(customTagTex, Coord.z);
+                // A tag here always means a flower-menu action (see
+                // ForagerPickupContainer.setTag) - flag that at a glance.
+                g.image(flowerMark, UI.scale(16, 0), UI.scale(16, 16));
             }
         }
     }
