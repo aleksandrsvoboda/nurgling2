@@ -39,6 +39,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // gobs - confirmed correct, unlike everything actionNameCandidates() below only guesses.
         VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
         VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
+        VERIFIED_CATEGORY_ACTION.put("Tree Bough", "Take bough");
     }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
