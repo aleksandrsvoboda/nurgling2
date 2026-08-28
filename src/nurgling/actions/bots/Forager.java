@@ -392,8 +392,20 @@ public class Forager implements Action {
 
             int total = 0;
             int areasChecked = 0;
-            for (NArea area : gui.map.glob.map.areas.values()) {
-                if (area.isVisible() && area.containOut(action.sourceItemName)) {
+            // Enumerated the same way NContext.findOutGlobal/findOuts do (the mechanism
+            // TransferItems2/"Free Inventory" already relies on to find an item's Put area) -
+            // gui.map.nols (every area overlay the client knows about, id > 0) filtered by
+            // !isDisabled(), NOT gui.map.glob.map.areas.values() filtered by area.isVisible().
+            // isVisible() only returns true once the area's own grid is already loaded into
+            // MCache - i.e. only once the character is already near/inside it - which silently
+            // dropped every not-yet-loaded area from consideration here, defeating the whole
+            // point of traveling to check one. isDisabled() is a persisted "hidden" flag,
+            // unrelated to current load state.
+            for (Integer id : gui.map.nols.keySet()) {
+                if (id <= 0) continue;
+                NArea area = gui.map.glob.map.areas.get(id);
+                if (area == null || area.isDisabled()) continue;
+                if (area.containOut(action.sourceItemName)) {
                     areasChecked++;
                     total += AreaStock.countItemsInAreaContainers(gui, area, action.sourceItemResource);
                 }
