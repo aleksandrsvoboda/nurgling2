@@ -7,12 +7,14 @@ import haven.WItem;
 import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
+import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.CloseTargetContainer;
 import nurgling.actions.OpenTargetContainer;
 import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
+import nurgling.navigation.ChunkNavManager;
 
 import java.util.ArrayList;
 
@@ -75,6 +77,25 @@ public class AreaStock {
     }
 
     /**
+     * Travels to area, the same way {@link nurgling.actions.bots.GotoArea} does - a direct
+     * {@code ChunkNavManager.navigateToArea} call, which plans and walks a single real path
+     * (through buildings/portals included) rather than {@code NUtils.navigateToArea}'s
+     * corner-based ChunkNav fallback, which turned out unreliable for areas far from - or in a
+     * different indoor cell than - wherever the bot happened to start (it only worked when
+     * already near/inside the same cell as the area). Falls back to {@code NUtils.navigateToArea}
+     * only if ChunkNav itself isn't available/initialized yet.
+     */
+    private static boolean travelToArea(NGameUI gui, NArea area) throws InterruptedException {
+        if (gui.map instanceof NMapView) {
+            ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
+            if (chunkNav != null && chunkNav.isInitialized()) {
+                return chunkNav.navigateToArea(area, gui).IsSuccess();
+            }
+        }
+        return NUtils.navigateToArea(area, true);
+    }
+
+    /**
      * Travels to area (skips the visit entirely if it can't be reached), opens every container
      * found in it, tallies items whose resource matches itemResource across all of them, closes
      * each again (guaranteed once open succeeds, even if counting itself throws/is interrupted -
@@ -82,7 +103,7 @@ public class AreaStock {
      * mid-visit here). Returns the total found - 0 if the area is unreachable or has no containers.
      */
     public static int countItemsInAreaContainers(NGameUI gui, NArea area, String itemResource) throws InterruptedException {
-        if (!NUtils.navigateToArea(area, true)) {
+        if (!travelToArea(gui, area)) {
             return 0;
         }
 
