@@ -311,8 +311,8 @@ public class Forager implements Action {
         double nearestDist = Double.MAX_VALUE;
         for (ForagerAction action : actions) {
             if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
-            if (action.maintainQuantity >= 0 && action.sourceItemName != null
-                    && gui.getInventory().getItems(new NAlias(action.sourceItemName)).size() >= action.maintainQuantity) {
+            if (action.maintainQuantity >= 0 && action.sourceItemResource != null
+                    && countByResource(gui, action.sourceItemResource) >= action.maintainQuantity) {
                 continue;
             }
             for (Gob gob : Finder.findGobs(from, action.toNAlias(), null, radius)) {
@@ -326,6 +326,26 @@ public class Forager implements Action {
             }
         }
         return nearestGob != null ? new Pair<>(nearestGob, nearestAction) : null;
+    }
+
+    /**
+     * Counts inventory items whose underlying resource (e.g. "gfx/invobjs/chestnut") matches
+     * resource, for Maintain. Matching by resource rather than display name/NAlias is required
+     * here - a forageable item's display name can vary by growth/quality stage (e.g. "Unripe
+     * Chestnut" vs "Chestnut") while its resource stays constant, so a name-based count would
+     * under/over-count depending on what happened to be in the inventory at check time.
+     */
+    private int countByResource(NGameUI gui, String resource) throws InterruptedException {
+        int count = 0;
+        for (WItem w : gui.getInventory().getItems()) {
+            if (w.item instanceof NGItem) {
+                Indir<Resource> res = ((NGItem) w.item).res;
+                if (res != null && res.get() != null && resource.equals(res.get().name)) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     /**

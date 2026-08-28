@@ -198,6 +198,15 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         String name = item.name();
         JSONObject res = ItemTex.save(item.spr);
         res.put("name", name);
+        // Overrides whatever icon-layer resource ItemTex.save derived (which, for a Layered/
+        // composite sprite, may not even be set) with the item's own actual resource - this is
+        // what sourceItemResource needs to be for Maintain's inventory-count check to work, since
+        // an item's display name (e.g. "Unripe Chestnut" vs "Chestnut") varies by growth/quality
+        // stage while its underlying invobj resource doesn't. Icon rendering still prefers
+        // "layer" over "static" (see ItemTex.create), so this doesn't change how the icon looks.
+        if (item.res != null && item.res.get() != null) {
+            res.put("static", item.res.get().name);
+        }
         addResolved(name, res, resolve(name));
         return super.drop(ev);
     }
