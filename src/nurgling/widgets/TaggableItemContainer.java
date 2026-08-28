@@ -12,4 +12,15 @@ public interface TaggableItemContainer {
      * match pattern/action directly (e.g. when automatic resolution guessed wrong).
      */
     void editItem(String itemName);
+
+    /**
+     * Sets the target inventory quantity at which this container should stop acquiring more of
+     * the item (e.g. Forager should stop picking it up). -1 means no cap.
+     */
+    void setMaintainQuantity(String itemName, int quantity);
+
+    /**
+     * The currently saved maintain quantity for this item, or -1 if unset.
+     */
+    int getMaintainQuantity(String itemName);
 }

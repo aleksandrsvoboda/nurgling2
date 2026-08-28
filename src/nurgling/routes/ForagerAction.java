@@ -32,6 +32,10 @@ public class ForagerAction {
     public String sourceItemName;
     public String sourceItemResource;
 
+    // Stop foraging this item once its current inventory count reaches this; -1 = no cap.
+    // Same popup/badge mechanism as IconItem's Threshold option (see TaggableItemContainer).
+    public int maintainQuantity = -1;
+
     public ForagerAction(String targetObjectPattern, ActionType actionType, String actionName,
                          NotifyTarget notifyTarget, String chatChannelName) {
         this.targetObjectPattern = targetObjectPattern;
@@ -67,6 +71,9 @@ public class ForagerAction {
         if (json.has("sourceItemResource")) {
             this.sourceItemResource = json.getString("sourceItemResource");
         }
+        if (json.has("maintainQuantity")) {
+            this.maintainQuantity = json.getInt("maintainQuantity");
+        }
     }
 
     public ForagerAction(java.util.HashMap<String, Object> map) {
@@ -86,6 +93,9 @@ public class ForagerAction {
         }
         if (map.containsKey("sourceItemResource")) {
             this.sourceItemResource = (String) map.get("sourceItemResource");
+        }
+        if (map.containsKey("maintainQuantity")) {
+            this.maintainQuantity = ((Number) map.get("maintainQuantity")).intValue();
         }
     }
 
@@ -107,6 +117,9 @@ public class ForagerAction {
         }
         if (sourceItemResource != null) {
             json.put("sourceItemResource", sourceItemResource);
+        }
+        if (maintainQuantity >= 0) {
+            json.put("maintainQuantity", maintainQuantity);
         }
         return json;
     }

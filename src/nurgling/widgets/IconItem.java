@@ -21,6 +21,7 @@ public class IconItem extends Widget
     private static final String KEY_MARK_BARREL = "iconitem.mark_barrel";
     private static final String KEY_UNMARK = "iconitem.unmark";
     private static final String KEY_EDIT = "iconitem.edit";
+    private static final String KEY_MAINTAIN = "iconitem.maintain";
     public static final TexI frame = new TexI(Resource.loadimg("nurgling/hud/iconframe"));
     public static final TexI framet = new TexI(Resource.loadimg("nurgling/hud/iconframet"));
     public static final TexI bm = new TexI(Resource.loadimg("nurgling/hud/bartermark"));
@@ -188,6 +189,7 @@ public class IconItem extends Widget
             addMenuOption(optList, KEY_DELETE);
             if (parent instanceof TaggableItemContainer) {
                 addMenuOption(optList, KEY_EDIT);
+                addMenuOption(optList, KEY_MAINTAIN);
             }
             if (parent instanceof IngredientContainer) {
                 if (type == NArea.Ingredient.Type.CONTAINER) {
@@ -230,9 +232,28 @@ public class IconItem extends Widget
                                 pos = pos.add(par.c);
                                 par = par.parent;
                             }
-                            SetThreshold st = new SetThreshold(val);
+                            SetThreshold st = new SetThreshold(val, L10n.get("iconitem.threshold"), newVal -> {
+                                if (IconItem.this.parent instanceof IngredientContainer)
+                                    ((IngredientContainer) IconItem.this.parent).setThreshold(IconItem.this.name, newVal);
+                                else if (IconItem.this.parent instanceof DropContainer)
+                                    ((DropContainer) IconItem.this.parent).setThreshold(IconItem.this.name, newVal);
+                            });
                             ui.root.add(st, pos);
 
+                        }
+                        else if (key.equals(KEY_MAINTAIN))
+                        {
+                            Widget par = IconItem.this.parent;
+                            Coord pos = IconItem.this.c.add(UI.scale(32, 38));
+                            while (par != null && !(par instanceof GameUI))
+                            {
+                                pos = pos.add(par.c);
+                                par = par.parent;
+                            }
+                            TaggableItemContainer tc = (TaggableItemContainer) IconItem.this.parent;
+                            SetThreshold st = new SetThreshold(tc.getMaintainQuantity(IconItem.this.name), L10n.get("iconitem.maintain"),
+                                    newVal -> tc.setMaintainQuantity(IconItem.this.name, newVal));
+                            ui.root.add(st, pos);
                         }
                         else if(key.equals(KEY_DELETE))
                         {
@@ -278,9 +299,15 @@ public class IconItem extends Widget
 
     class SetThreshold extends Window
     {
-        public SetThreshold(int val)
+        // Generic "set a small number for this icon" popup - originally Threshold-only
+        // (Area Settings' Ingredient/DropContainer), now also backs Forager's Maintain option
+        // (TaggableItemContainer). title and onSet let each caller keep its own label and
+        // persistence target while sharing the popup and the icon's isThreshold/val/q badge
+        // state - an icon is never both an IngredientContainer entry and a TaggableItemContainer
+        // entry at once, so there's no display collision between the two uses.
+        public SetThreshold(int val, String title, java.util.function.IntConsumer onSet)
         {
-            super(UI.scale(140,25), L10n.get("iconitem.threshold"));
+            super(UI.scale(140,25), title);
             TextEntry te;
             prev = add(te = new TextEntry(UI.scale(80),String.valueOf(val)));
             add(new Button(UI.scale(50), L10n.get("iconitem.btn_set")){
@@ -293,18 +320,12 @@ public class IconItem extends Widget
                         IconItem.this.isThreshold = true;
                         IconItem.this.val = Integer.valueOf(te.text());
                         IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
-                        if(IconItem.this.parent instanceof IngredientContainer)
-                            ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,IconItem.this.val);
-                        else if(IconItem.this.parent instanceof DropContainer)
-                            ((DropContainer)IconItem.this.parent).setThreshold(IconItem.this.name,IconItem.this.val);
+                        onSet.accept(IconItem.this.val);
                     }
                     catch (NumberFormatException e)
                     {
                         IconItem.this.isThreshold = false;
-                        if(IconItem.this.parent instanceof IngredientContainer)
-                            ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
-                        else if(IconItem.this.parent instanceof DropContainer)
-                            ((DropContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
+                        onSet.accept(-1);
                     }
                     ui.destroy(SetThreshold.this);
 

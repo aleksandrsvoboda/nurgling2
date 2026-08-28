@@ -304,16 +304,50 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     @Override
     public void addIcon(JSONObject res) {
         super.addIcon(res);
-        // Flag the flower badge on the icon just added, per this entry's action type.
+        // Flag the flower badge and any saved Maintain cap on the icon just added, per this entry.
         if (!icons.isEmpty() && res != null && res.has("name")) {
             String name = res.getString("name");
             for (ForagerAction action : actions) {
                 if (name.equals(action.sourceItemName)) {
-                    icons.get(icons.size() - 1).setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+                    IconItem it = icons.get(icons.size() - 1);
+                    it.setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+                    restoreMaintainBadge(it, action);
                     break;
                 }
             }
         }
+    }
+
+    /** Restores the shared Threshold/Maintain badge (see IconItem.SetThreshold) onto a freshly
+     *  (re)drawn icon from its entry's saved cap, mirroring IngredientContainer's own restore of
+     *  a saved threshold onto a freshly-added icon. */
+    private static void restoreMaintainBadge(IconItem it, ForagerAction action) {
+        if (action.maintainQuantity >= 0) {
+            it.isThreshold = true;
+            it.val = action.maintainQuantity;
+            it.q = new TexI(nurgling.NStyle.iiqual.render(String.valueOf(action.maintainQuantity)).img);
+        }
+    }
+
+    @Override
+    public void setMaintainQuantity(String itemName, int quantity) {
+        for (ForagerAction action : actions) {
+            if (itemName.equals(action.sourceItemName)) {
+                action.maintainQuantity = quantity;
+                break;
+            }
+        }
+        notifyChanged();
+    }
+
+    @Override
+    public int getMaintainQuantity(String itemName) {
+        for (ForagerAction action : actions) {
+            if (itemName.equals(action.sourceItemName)) {
+                return action.maintainQuantity;
+            }
+        }
+        return -1;
     }
 
     @Override
@@ -362,7 +396,8 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             }
             boolean isFlowerAction = action.actionType == ForagerAction.ActionType.FLOWER_ACTION;
             if (img == null) {
-                addPlaceholderIcon(action.sourceItemName, placeholderIcon(action.sourceItemName), isFlowerAction);
+                IconItem it = addPlaceholderIcon(action.sourceItemName, placeholderIcon(action.sourceItemName), isFlowerAction);
+                restoreMaintainBadge(it, action);
             } else {
                 addIcon(iconRes);
             }
@@ -396,6 +431,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             if (updated != null) {
                 updated.sourceItemName = old.sourceItemName;
                 updated.sourceItemResource = old.sourceItemResource;
+                updated.maintainQuantity = old.maintainQuantity;
                 actions.set(foundIdx, updated);
                 for (IconItem it : icons) {
                     if (itemName.equals(it.name)) {

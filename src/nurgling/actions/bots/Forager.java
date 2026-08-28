@@ -206,7 +206,7 @@ public class Forager implements Action {
             // walk below still needs to depart from.
             Gob playerBeforeWalk = NUtils.player();
             if (playerBeforeWalk != null) {
-                Pair<Gob, ForagerAction> nearest = findNearestActionableGob(playerBeforeWalk.rc, preset.actions, SCAN_RADIUS);
+                Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, playerBeforeWalk.rc, preset.actions, SCAN_RADIUS);
                 if (nearest != null && playerBeforeWalk.rc.dist(nearest.a.rc) < playerBeforeWalk.rc.dist(sectionEnd)) {
                     collectNearbyActionableGobs(gui, preset);
                     if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
@@ -305,12 +305,16 @@ public class Forager implements Action {
      * not a per-gob walk-to-and-interact action, so it doesn't fit this "closest first" model
      * and keeps its own pass in {@link #processChatNotifyActions}.
      */
-    private Pair<Gob, ForagerAction> findNearestActionableGob(Coord2d from, java.util.List<ForagerAction> actions, double radius) throws InterruptedException {
+    private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius) throws InterruptedException {
         Gob nearestGob = null;
         ForagerAction nearestAction = null;
         double nearestDist = Double.MAX_VALUE;
         for (ForagerAction action : actions) {
             if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
+            if (action.maintainQuantity >= 0 && action.sourceItemName != null
+                    && gui.getInventory().getItems(new NAlias(action.sourceItemName)).size() >= action.maintainQuantity) {
+                continue;
+            }
             for (Gob gob : Finder.findGobs(from, action.toNAlias(), null, radius)) {
                 if (processedGobs.contains(gob.id)) continue;
                 double dist = from.dist(gob.rc);
@@ -387,7 +391,7 @@ public class Forager implements Action {
             Gob player = NUtils.player();
             if (player == null) return;
 
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(player.rc, preset.actions, SCAN_RADIUS);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS);
             if (nearest == null) return;
 
             if (player.rc.dist(nearest.a.rc) > MAX_HOP_DISTANCE) {
@@ -429,7 +433,7 @@ public class Forager implements Action {
             double remaining = player.rc.dist(target);
             if (remaining <= MAX_HOP_DISTANCE) return true;
 
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(player.rc, preset.actions, SCAN_RADIUS);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS);
             if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
                 breadcrumbs.add(player.rc);
                 performGobAction(gui, nearest.b, nearest.a, preset);
