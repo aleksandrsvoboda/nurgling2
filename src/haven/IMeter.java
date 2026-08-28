@@ -38,6 +38,9 @@ public class IMeter extends LayerMeter {
 	public static String characterCurrentHealth = "";
 	public static double characterSoftHealthPercent = 0;
 	public static boolean sparring = false;
+	public String currentHealth = "";
+	public double softHealthPercent = 0;
+	public boolean isSparring = false;
     public static final Coord off = UI.scale(24, 4);
     public static final Coord fsz = UI.scale(190, 48);
     public static final Coord ssz = UI.scale(145, 48);
@@ -142,18 +145,21 @@ public class IMeter extends LayerMeter {
 		super.uimsg(msg, args);
 	}
 
-	private static void parseHealth(String value) {
+	private void parseHealth(String value) {
 		String[] hps = value.replaceAll("\\(.+\\)", "").split("/");
 		if(hps.length < 3)
 			return;
 		try {
-			sparring = (hps.length == 4);
+			isSparring = (hps.length == 4);
 			double shp = Double.parseDouble(hps[0].trim());
 			double mhp = Double.parseDouble(hps[hps.length - 1].trim());
-			characterSoftHealthPercent = (shp > 0 && mhp > 0) ? (shp / (mhp / 100)) : 0;
-			characterCurrentHealth = hps[0].trim() + " / " + hps[hps.length - 1].trim();
+			softHealthPercent = (shp > 0 && mhp > 0) ? (shp / (mhp / 100)) : 0;
+			currentHealth = hps[0].trim() + " / " + hps[hps.length - 1].trim();
 		} catch(NumberFormatException e) {
-			characterSoftHealthPercent = 0;
+			softHealthPercent = 0;
 		}
+		sparring = isSparring;
+		characterSoftHealthPercent = softHealthPercent;
+		characterCurrentHealth = currentHealth;
 	}
 }

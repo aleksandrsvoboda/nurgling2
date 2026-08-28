@@ -2,6 +2,8 @@ package nurgling.conf;
 
 import haven.*;
 import nurgling.NConfig;
+import nurgling.NGItem;
+import nurgling.widgets.NEquipory;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -151,6 +153,109 @@ public class NCombatData {
         ATTACKS.put("sos",        new AttackInfo(new int[]{YELLOW, BLUE}, 1.0d));
         ATTACKS.put("takedown",   new AttackInfo(new int[]{YELLOW, RED}, 40));
         ATTACKS.put("uppercut",   new AttackInfo(new int[]{GREEN, BLUE}, 30));
+    }
+
+    /** Everything outside the move table that a damage estimate depends on. */
+    public static class Loadout {
+        /** Weapon damage normalised back to ql 10, or 0 when no weapon is held. */
+        public final int basedmg;
+        public final double weaponQl;
+        public final double strength;
+        /**
+         * False before the equipment has ever been read successfully. Distinguishing this
+         * from "no weapon" matters: for the first second of a session the equipment window
+         * does not exist yet, and reporting that as unarmed is simply wrong.
+         */
+        public final boolean known;
+
+        public Loadout(int basedmg, double weaponQl, double strength) {
+            this(basedmg, weaponQl, strength, true);
+        }
+
+        public Loadout(int basedmg, double weaponQl, double strength, boolean known) {
+            this.basedmg = basedmg;
+            this.weaponQl = weaponQl;
+            this.strength = strength;
+            this.known = known;
+        }
+
+        /** Placeholder used until the equipment has been read for the first time. */
+        public static final Loadout UNKNOWN = new Loadout(0, 10, 1, false);
+    }
+
+    /**
+     * Reads strength and the held weapon for one session. Resolved off the passed UI
+     * rather than the global accessor, so a second session's equipment never leaks into
+     * this session's numbers.
+     */
+    public static Loadout readLoadout(UI ui) {
+        double strength = 1;
+        try {
+            Glob.CAttr str = ui.sess.glob.getcattr("str");
+            if(str != null)
+                strength = Math.max(1, str.comp);
+        } catch(Loading ignored) {
+        }
+        NEquipory eq = equipory(ui);
+        if(eq == null)
+            return(null);
+        try {
+            for(NEquipory.Slots slot : new NEquipory.Slots[]{NEquipory.Slots.HAND_LEFT, NEquipory.Slots.HAND_RIGHT}) {
+                WItem wi = eq.quickslots[slot.idx];
+                if((wi == null) || (wi.item == null))
+                    continue;
+                int dmg = weaponDamage(wi.item.info);
+                if(dmg <= 0)
+                    continue;
+                double ql = 10;
+                if((wi.item instanceof NGItem) && (((NGItem)wi.item).quality != null))
+                    ql = Math.max(1, ((NGItem)wi.item).quality);
+                return(new Loadout((int)Math.ceil(dmg / Math.sqrt(ql / 10)), ql, strength));
+            }
+        } catch(Loading l) {
+            /* Item info still streaming. Reporting "unarmed" here would silently zero every
+             * weapon damage estimate, so report "unknown" and let the caller keep what it had. */
+            return(null);
+        }
+        return(new Loadout(0, 10, strength));
+    }
+
+    private static NEquipory equipory(UI ui) {
+        if((ui == null) || (ui.gui == null) || (ui.gui.equwnd == null))
+            return(null);
+        for(Widget w = ui.gui.equwnd.lchild; w != null; w = w.prev) {
+            if(w instanceof NEquipory)
+                return((NEquipory)w);
+        }
+        return(null);
+    }
+
+    /**
+     * Expected damage of a move against a set of opponent openings. Multi-colour moves
+     * combine their openings as the chance that at least one applies; the result is squared
+     * because damage scales with the square of the opening.
+     *
+     * @return the estimate, or -1 when the move is not a damaging attack.
+     */
+    public static int predictedDamage(String basename, int[] openings, Loadout lo) {
+        AttackInfo attack = ATTACKS.get(basename);
+        if((attack == null) || (openings == null) || (lo == null))
+            return(-1);
+        double opening;
+        if(attack.colors.length > 1) {
+            opening = 1;
+            for(int slot : attack.colors)
+                opening *= 1.0 - (openings[slot] / 100.0);
+            opening = 1.0 - opening;
+        } else {
+            opening = openings[attack.colors[0]] / 100.0;
+        }
+        double mul = opening * opening;
+        if(attack.mc) {
+            double wdmg = lo.basedmg * Math.sqrt(Math.sqrt(lo.weaponQl * lo.strength) / 10);
+            return((int)Math.ceil(wdmg * attack.dmgMul * mul));
+        }
+        return((int)Math.ceil(attack.dmg * Math.sqrt(lo.strength / 10) * mul));
     }
 
     /**

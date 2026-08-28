@@ -159,9 +159,7 @@ public class NFightsess extends Fightsess {
 
     /* Weapon loadout, refreshed on a timer because players swap weapons mid-fight. */
     private double loadoutChecked = 0;
-    private int basedmg = 0;
-    private double weaponQl = 10;
-    private double myStrength = 1;
+    private NCombatData.Loadout loadout = NCombatData.Loadout.UNKNOWN;
 
     public NFightsess(int nact) {
         super(nact);
@@ -229,47 +227,28 @@ public class NFightsess extends Fightsess {
         }
     }
 
+    /* Resolved off this widget's own UI rather than the global accessor, so a second
+     * session's equipment never leaks into this session's damage numbers. */
     private void updateLoadout() {
         double now = Utils.rtime();
         if(now - loadoutChecked < 1.0)
             return;
         loadoutChecked = now;
-        try {
-            Glob.CAttr str = ui.sess.glob.getcattr("str");
-            if(str != null)
-                myStrength = Math.max(1, str.comp);
-        } catch(Loading ignored) {
-        }
-        basedmg = 0;
-        NEquipory eq = equipory();
-        if(eq == null)
-            return;
-        for(NEquipory.Slots slot : new NEquipory.Slots[]{NEquipory.Slots.HAND_LEFT, NEquipory.Slots.HAND_RIGHT}) {
-            WItem wi = eq.quickslots[slot.idx];
-            if((wi == null) || (wi.item == null))
-                continue;
-            int dmg = NCombatData.weaponDamage(wi.item.info);
-            if(dmg <= 0)
-                continue;
-            double ql = 10;
-            if((wi.item instanceof NGItem) && (((NGItem)wi.item).quality != null))
-                ql = Math.max(1, ((NGItem)wi.item).quality);
-            weaponQl = ql;
-            basedmg = (int)Math.ceil(dmg / Math.sqrt(ql / 10));
-            return;
-        }
+        /* A null read means "not determinable right now", not "unarmed" - keep the last
+         * known weapon rather than briefly zeroing every damage estimate. */
+        NCombatData.Loadout read = NCombatData.readLoadout(ui);
+        if(read != null)
+            loadout = read;
     }
 
-    /* Resolved off this widget's own UI rather than the global accessor, so a second
-     * session's equipment never leaks into this session's damage numbers. */
-    private NEquipory equipory() {
-        if((ui == null) || (ui.gui == null) || (ui.gui.equwnd == null))
-            return(null);
-        for(Widget w = ui.gui.equwnd.lchild; w != null; w = w.prev) {
-            if(w instanceof NEquipory)
-                return((NEquipory)w);
-        }
-        return(null);
+    /** This session's opening percentages against the current target. */
+    public int[] openings() {
+        return(openingArr.clone());
+    }
+
+    /** This session's weapon/strength profile, as used for damage prediction. */
+    public NCombatData.Loadout loadout() {
+        return(loadout);
     }
 
     static int openingValue(Buff buff) {
@@ -391,9 +370,10 @@ public class NFightsess extends Fightsess {
             }
 
             if(flag(NConfig.Key.combatShowHealthBar, true)) {
+                IMeter hpm = gui.getimeter("hp");
                 IMeter.Meter hp = gui.getmeter("hp", 0);
-                if(hp != null)
-                    drawHealthBar(g, hp, new Coord(x - BARSZ.x / 2, y + UI.scale(44)));
+                if((hpm != null) && (hp != null))
+                    drawHealthBar(g, hpm, hp, new Coord(x - BARSZ.x / 2, y + UI.scale(44)));
             }
             if(flag(NConfig.Key.combatShowStaminaBar, true)) {
                 IMeter.Meter stam = gui.getmeter("stam", 0);
@@ -506,10 +486,12 @@ public class NFightsess extends Fightsess {
             }
         }
 
-        private void drawHealthBar(GOut g, IMeter.Meter m, Coord sc) {
+        /* Soft health and the sparring flag are read off this session's own meter widget,
+         * not IMeter's statics - those belong to whichever session updated last. */
+        private void drawHealthBar(GOut g, IMeter hpm, IMeter.Meter m, Coord sc) {
             int w1 = (int)Math.ceil(BARSZ.x * m.a);
-            int w2 = (int)Math.ceil(BARSZ.x * (IMeter.characterSoftHealthPercent / 100));
-            if(IMeter.sparring) {
+            int w2 = (int)Math.ceil(BARSZ.x * (hpm.softHealthPercent / 100));
+            if(hpm.isSparring) {
                 /* Sparring cannot cost hard health, so the bar shows soft health only. */
                 g.chcolor(hpBarGray);
                 g.frect(sc, BARSZ);
@@ -528,8 +510,8 @@ public class NFightsess extends Fightsess {
                 g.rect(sc, BARSZ);
             }
             g.chcolor(Color.WHITE);
-            String text = IMeter.characterCurrentHealth;
-            if(!IMeter.sparring && flag(NConfig.Key.combatIncludeHHPText, false))
+            String text = hpm.currentHealth;
+            if(!hpm.isSparring && flag(NConfig.Key.combatIncludeHHPText, false))
                 text += " (" + fmt1((int)(m.a * 100)) + "% HHP)";
             if(!text.isEmpty())
                 g.aimage(stroked(text, Color.WHITE, Text.num12boldFnd, false), sc.add(BARSZ.div(2)), 0.5, 0.5);
@@ -702,33 +684,9 @@ public class NFightsess extends Fightsess {
             }
         }
 
-        /**
-         * Expected damage of a move against the opponent's current openings. Multi-colour
-         * moves combine their openings as the chance that at least one applies; the result
-         * is squared because damage scales with the square of the opening.
-         */
         private String predictDamage(String basename) {
-            NCombatData.AttackInfo attack = NCombatData.ATTACKS.get(basename);
-            if(attack == null)
-                return(null);
-            double opening;
-            if(attack.colors.length > 1) {
-                opening = 1;
-                for(int slot : attack.colors)
-                    opening *= 1.0 - (openingArr[slot] / 100.0);
-                opening = 1.0 - opening;
-            } else {
-                opening = openingArr[attack.colors[0]] / 100.0;
-            }
-            double mul = opening * opening;
-            int dmg;
-            if(attack.mc) {
-                double wdmg = basedmg * Math.sqrt(Math.sqrt(weaponQl * myStrength) / 10);
-                dmg = (int)Math.ceil(wdmg * attack.dmgMul * mul);
-            } else {
-                dmg = (int)Math.ceil(attack.dmg * Math.sqrt(myStrength / 10) * mul);
-            }
-            return(Integer.toString(dmg));
+            int dmg = NCombatData.predictedDamage(basename, openingArr, loadout);
+            return((dmg < 0) ? null : Integer.toString(dmg));
         }
 
         @Override

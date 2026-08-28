@@ -625,6 +625,29 @@ public class NGameUI extends GameUI
         return null;
     }
 
+    /**
+     * The meter widget itself rather than its bars, so callers can read the per-session
+     * values parsed off its tooltip (soft health, sparring) instead of IMeter's statics,
+     * which belong to whichever session updated last.
+     */
+    public IMeter getimeter (String name ) {
+        synchronized (meters) {
+            try {
+                for (Widget meter : new ArrayList<>(meters)) {
+                    if (meter instanceof IMeter) {
+                        Resource res = ((IMeter) meter).bg.get();
+                        if (res != null && res.basename().equals(name)) {
+                            return (IMeter) meter;
+                        }
+                    }
+                }
+            } catch (IndexOutOfBoundsException | ConcurrentModificationException | Loading e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     public IMeter.Meter getmeter (
             String name,
             int midx
