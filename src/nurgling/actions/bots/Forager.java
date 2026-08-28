@@ -43,7 +43,10 @@ public class Forager implements Action {
     // Maintain-configured action's item are already sitting in its assigned Put area, resolved
     // once by resolveMaintainAreaStock() near the top of run(). findNearestActionableGob adds
     // the live carried-inventory count on top of this baseline on every scan - see its javadoc.
-    private Map<ForagerAction, Integer> maintainAreaStock = new HashMap<>();
+    // Keyed by sourceItemName (not the ForagerAction object itself) so a mid-run "Edit Pattern"
+    // save - which replaces the ForagerAction instance in preset.actions in place - can't orphan
+    // this baseline under a now-unreachable old key and silently reset it to 0.
+    private Map<String, Integer> maintainAreaStock = new HashMap<>();
 
     public Forager() {
         // Default constructor - will show UI
@@ -327,7 +330,7 @@ public class Forager implements Action {
         for (ForagerAction action : actions) {
             if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
             if (action.maintainQuantity >= 0) {
-                int areaStock = maintainAreaStock.getOrDefault(action, 0);
+                int areaStock = (action.sourceItemName != null) ? maintainAreaStock.getOrDefault(action.sourceItemName, 0) : 0;
                 int carried = (action.sourceItemResource != null) ? countByResource(gui, action.sourceItemResource) : 0;
                 if (areaStock + carried >= action.maintainQuantity) {
                     continue;
@@ -351,19 +354,12 @@ public class Forager implements Action {
      * resource, for Maintain. Matching by resource rather than display name/NAlias is required
      * here - a forageable item's display name can vary by growth/quality stage (e.g. "Unripe
      * Chestnut" vs "Chestnut") while its resource stays constant, so a name-based count would
-     * under/over-count depending on what happened to be in the inventory at check time.
+     * under/over-count depending on what happened to be in the inventory at check time. Delegates
+     * to AreaStock.countByResource (shared with the Put-area container count below) rather than
+     * keeping its own copy of the same filter loop.
      */
     private int countByResource(NGameUI gui, String resource) throws InterruptedException {
-        int count = 0;
-        for (WItem w : gui.getInventory().getItems()) {
-            if (w.item instanceof NGItem) {
-                Indir<Resource> res = ((NGItem) w.item).res;
-                if (res != null && res.get() != null && resource.equals(res.get().name)) {
-                    count++;
-                }
-            }
-        }
-        return count;
+        return AreaStock.countByResource(gui.getInventory(), resource);
     }
 
     /**
@@ -374,22 +370,43 @@ public class Forager implements Action {
      * has the item configured as "Put" (NArea.jout / containOut) rather than requiring one to be
      * picked, since Forager Settings has no area-picker UI - matching multiple areas is treated
      * as "all of them count towards the target," not an error.
+     * <p>
+     * Which area is the item's Put area has to be resolved by display name (containOut is keyed
+     * by whatever name was dragged into that area's own "out" IngredientContainer - the existing,
+     * shared area-config format this feature can't unilaterally redefine), but once inside that
+     * area, its containers' contents are counted by resource (countByResource) for the same
+     * display-name-varies-by-growth-stage reason the carried-inventory count uses it - an entry
+     * with no resolved sourceItemResource can't be reliably counted this way, so it contributes 0
+     * (degrades to the carried-only check, same as findNearestActionableGob already does for it).
+     * <p>
+     * Keyed by sourceItemName in the returned map (not the ForagerAction object) - see the
+     * maintainAreaStock field javadoc for why.
      */
-    private Map<ForagerAction, Integer> resolveMaintainAreaStock(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
-        Map<ForagerAction, Integer> stock = new HashMap<>();
+    private Map<String, Integer> resolveMaintainAreaStock(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
+        Map<String, Integer> stock = new HashMap<>();
         if (gui.map == null || gui.map.glob == null || gui.map.glob.map == null) {
             return stock;
         }
         for (ForagerAction action : preset.actions) {
-            if (action.maintainQuantity < 0 || action.sourceItemName == null) continue;
+            if (action.maintainQuantity < 0 || action.sourceItemName == null || action.sourceItemResource == null) continue;
 
             int total = 0;
+            int areasChecked = 0;
             for (NArea area : gui.map.glob.map.areas.values()) {
                 if (area.isVisible() && area.containOut(action.sourceItemName)) {
-                    total += AreaStock.countItemsInAreaContainers(gui, area, action.sourceItemName);
+                    areasChecked++;
+                    total += AreaStock.countItemsInAreaContainers(gui, area, action.sourceItemResource);
                 }
             }
-            stock.put(action, total);
+            // Silent when no Put area is configured for this item (the common case for a
+            // Maintain entry that only ever meant "cap my carried inventory") - matches
+            // MaintainStockBot's own "Checking .../Found ..." messages otherwise, so a run
+            // that's about to detour through one or more areas' containers isn't silent about it.
+            if (areasChecked > 0) {
+                gui.msg("Forager Maintain: \"" + action.sourceItemName + "\" - " + total +
+                        " already stored (target " + action.maintainQuantity + ")");
+            }
+            stock.put(action.sourceItemName, total);
         }
         return stock;
     }

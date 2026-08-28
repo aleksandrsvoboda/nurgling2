@@ -1,6 +1,10 @@
 package nurgling.tools;
 
 import haven.Gob;
+import haven.Indir;
+import haven.Resource;
+import haven.WItem;
+import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
@@ -51,11 +55,33 @@ public class AreaStock {
     }
 
     /**
-     * Travels to area (skips the visit entirely if it can't be reached), opens every container
-     * found in it, tallies items matching itemName across all of them, closes each again.
-     * Returns the total found - 0 if the area is unreachable or has no containers.
+     * Counts inv's items whose underlying resource (e.g. "gfx/invobjs/chestnut") matches
+     * resource - shared by Forager's carried-inventory count and its Put-area container count,
+     * both of which need to match this way rather than by display name/NAlias: a forageable
+     * item's display name can vary by growth/quality stage (e.g. "Unripe Chestnut" vs
+     * "Chestnut") while its resource stays constant (see ForagerAction.sourceItemResource).
      */
-    public static int countItemsInAreaContainers(NGameUI gui, NArea area, String itemName) throws InterruptedException {
+    public static int countByResource(NInventory inv, String resource) throws InterruptedException {
+        int count = 0;
+        for (WItem w : inv.getItems()) {
+            if (w.item instanceof NGItem) {
+                Indir<Resource> res = ((NGItem) w.item).res;
+                if (res != null && res.get() != null && resource.equals(res.get().name)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Travels to area (skips the visit entirely if it can't be reached), opens every container
+     * found in it, tallies items whose resource matches itemResource across all of them, closes
+     * each again (guaranteed once open succeeds, even if counting itself throws/is interrupted -
+     * this runs after Forager's threat watcher has started, so an interrupt genuinely can land
+     * mid-visit here). Returns the total found - 0 if the area is unreachable or has no containers.
+     */
+    public static int countItemsInAreaContainers(NGameUI gui, NArea area, String itemResource) throws InterruptedException {
         if (!NUtils.navigateToArea(area, true)) {
             return 0;
         }
@@ -66,7 +92,6 @@ public class AreaStock {
         }
 
         int count = 0;
-        NAlias itemAlias = new NAlias(itemName);
         for (Gob gob : containerGobs) {
             String containerCap = getContainerCap(gob);
             if (containerCap == null) {
@@ -77,13 +102,14 @@ public class AreaStock {
 
             new PathFinder(gob).run(gui);
             new OpenTargetContainer(container).run(gui);
-
-            NInventory inv = gui.getInventory(containerCap);
-            if (inv != null) {
-                count += inv.getItems(itemAlias).size();
+            try {
+                NInventory inv = gui.getInventory(containerCap);
+                if (inv != null) {
+                    count += countByResource(inv, itemResource);
+                }
+            } finally {
+                new CloseTargetContainer(container).run(gui);
             }
-
-            new CloseTargetContainer(container).run(gui);
         }
         return count;
     }
