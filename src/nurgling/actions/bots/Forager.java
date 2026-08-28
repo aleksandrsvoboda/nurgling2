@@ -9,11 +9,13 @@ import nurgling.conf.NAreaRad;
 import nurgling.conf.NDiscordNotification;
 import nurgling.conf.NForagerProp;
 import nurgling.routes.*;
+import nurgling.tools.AreaStock;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
@@ -36,6 +38,12 @@ public class Forager implements Action {
     // action back onto the live ForagerAction without needing it threaded through every method
     // signature in between.
     private NForagerProp forageProp = null;
+
+    // Per-run baseline for Maintain (see ForagerAction.maintainQuantity): how many of each
+    // Maintain-configured action's item are already sitting in its assigned Put area, resolved
+    // once by resolveMaintainAreaStock() near the top of run(). findNearestActionableGob adds
+    // the live carried-inventory count on top of this baseline on every scan - see its javadoc.
+    private Map<ForagerAction, Integer> maintainAreaStock = new HashMap<>();
 
     public Forager() {
         // Default constructor - will show UI
@@ -134,6 +142,13 @@ public class Forager implements Action {
         // animal wandering into range - or an unknown player appearing - mid-walk (not just
         // between sections/actions) still triggers the safety action immediately.
         threatWatcher = startThreatWatcher(gui, animalRads, preset, Thread.currentThread());
+
+        // Audit every Maintain-configured action's assigned "Put" area (NArea.jout) before doing
+        // anything else - same one-time-per-run, travel-and-count logic MaintainStockBot's own
+        // scheduler step already uses, so this run's pickup budget for that item accounts for
+        // what's already stored there, not just what's carried. See findNearestActionableGob's
+        // maintainQuantity check below, which reads this map.
+        maintainAreaStock = resolveMaintainAreaStock(gui, preset);
 
         // If configured, ChunkNav-travel to the preset's start area first - this is what
         // lets the bot be started from anywhere (indoors, a different map entirely) rather
@@ -311,9 +326,12 @@ public class Forager implements Action {
         double nearestDist = Double.MAX_VALUE;
         for (ForagerAction action : actions) {
             if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
-            if (action.maintainQuantity >= 0 && action.sourceItemResource != null
-                    && countByResource(gui, action.sourceItemResource) >= action.maintainQuantity) {
-                continue;
+            if (action.maintainQuantity >= 0) {
+                int areaStock = maintainAreaStock.getOrDefault(action, 0);
+                int carried = (action.sourceItemResource != null) ? countByResource(gui, action.sourceItemResource) : 0;
+                if (areaStock + carried >= action.maintainQuantity) {
+                    continue;
+                }
             }
             for (Gob gob : Finder.findGobs(from, action.toNAlias(), null, radius)) {
                 if (processedGobs.contains(gob.id)) continue;
@@ -346,6 +364,34 @@ public class Forager implements Action {
             }
         }
         return count;
+    }
+
+    /**
+     * Resolves each Maintain-configured action's area-stock baseline once, at the very start of
+     * a run - visiting an area's containers is real travel (see AreaStock.countItemsInAreaContainers),
+     * so this can't happen inside findNearestActionableGob's tight scan loops without turning
+     * every single gob check into a detour there and back. Sums across every visible area that
+     * has the item configured as "Put" (NArea.jout / containOut) rather than requiring one to be
+     * picked, since Forager Settings has no area-picker UI - matching multiple areas is treated
+     * as "all of them count towards the target," not an error.
+     */
+    private Map<ForagerAction, Integer> resolveMaintainAreaStock(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
+        Map<ForagerAction, Integer> stock = new HashMap<>();
+        if (gui.map == null || gui.map.glob == null || gui.map.glob.map == null) {
+            return stock;
+        }
+        for (ForagerAction action : preset.actions) {
+            if (action.maintainQuantity < 0 || action.sourceItemName == null) continue;
+
+            int total = 0;
+            for (NArea area : gui.map.glob.map.areas.values()) {
+                if (area.isVisible() && area.containOut(action.sourceItemName)) {
+                    total += AreaStock.countItemsInAreaContainers(gui, area, action.sourceItemName);
+                }
+            }
+            stock.put(action, total);
+        }
+        return stock;
     }
 
     /**

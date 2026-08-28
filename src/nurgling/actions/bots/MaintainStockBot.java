@@ -12,8 +12,8 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.scenarios.CraftPreset;
 import nurgling.scenarios.CraftPresetManager;
+import nurgling.tools.AreaStock;
 import nurgling.tools.Container;
-import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
@@ -94,7 +94,7 @@ public class MaintainStockBot implements Action {
         }
 
         // Find containers in area
-        ArrayList<Gob> containerGobs = findContainersInArea(area);
+        ArrayList<Gob> containerGobs = AreaStock.findContainersInArea(area);
         if (containerGobs.isEmpty()) {
             gui.msg("MaintainStock: No containers found in area, nothing to do");
             return Results.SUCCESS();
@@ -106,7 +106,7 @@ public class MaintainStockBot implements Action {
         NAlias itemAlias = new NAlias(outputItemName);
 
         for (Gob gob : containerGobs) {
-            String containerCap = getContainerCap(gob);
+            String containerCap = AreaStock.getContainerCap(gob);
             if (containerCap == null) {
                 continue;
             }
@@ -160,41 +160,4 @@ public class MaintainStockBot implements Action {
         return autocraft.run(gui);
     }
 
-    /**
-     * Find all container gobs in the given area.
-     */
-    private ArrayList<Gob> findContainersInArea(NArea area) throws InterruptedException {
-        ArrayList<Gob> containers = new ArrayList<>();
-
-        // Find standard containers
-        NAlias containerAlias = new NAlias(new ArrayList<>(NContext.contcaps.keySet()), new ArrayList<>());
-        containers.addAll(Finder.findGobs(area, containerAlias));
-
-        // Also find stockpiles
-        containers.addAll(Finder.findGobs(area, new NAlias("stockpile")));
-
-        return containers;
-    }
-
-    /**
-     * Get the window caption for a container gob.
-     */
-    private String getContainerCap(Gob gob) {
-        if (gob == null || gob.ngob == null || gob.ngob.name == null) {
-            return null;
-        }
-
-        // Check standard containers
-        String cap = NContext.contcaps.get(gob.ngob.name);
-        if (cap != null) {
-            return cap;
-        }
-
-        // Check for stockpile
-        if (gob.ngob.name.contains("stockpile")) {
-            return "Stockpile";
-        }
-
-        return null;
-    }
 }

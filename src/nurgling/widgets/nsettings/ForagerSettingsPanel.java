@@ -5,9 +5,16 @@ import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
+import nurgling.routes.ForagerAction;
 import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.TextInputWindow;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +55,7 @@ public class ForagerSettingsPanel extends Panel {
 
         prev = sec.add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
 
-        Widget profileRow = sec.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
+        Widget profileRow = sec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
         profileRow.add(actionsProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
             private List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
@@ -100,6 +107,24 @@ public class ForagerSettingsPanel extends Panel {
                 deleteProfile();
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_profile_tip"));
+
+        profileRow.add(new IButton(
+                NStyle.importb[0].back, NStyle.importb[1].back, NStyle.importb[2].back) {
+            @Override
+            public void click() {
+                super.click();
+                importProfile();
+            }
+        }, new Coord(UI.scale(275), 0)).settip(L10n.get("forager.settings.import_profile_tip"));
+
+        profileRow.add(new IButton(
+                NStyle.exportb[0].back, NStyle.exportb[1].back, NStyle.exportb[2].back) {
+            @Override
+            public void click() {
+                super.click();
+                exportProfile();
+            }
+        }, new Coord(UI.scale(305), 0)).settip(L10n.get("forager.settings.export_profile_tip"));
 
         pickupContainer = new ForagerPickupContainer();
         pickupContainer.resize(UI.scale(new Coord(400, 320)));
@@ -178,5 +203,78 @@ public class ForagerSettingsPanel extends Panel {
         String next = prop.actionsProfiles.keySet().iterator().next();
         prop.currentActionsProfile = next;
         actionsProfileDropbox.change(next);
+    }
+
+    /** Saves the currently selected profile to a JSON file, same {"name", data...} shape /
+     *  JFileChooser pattern as e.g. BlueprintWidget's save/load - much lighter than Area
+     *  Settings' export (which also carries grid/sync data this profile type has none of). */
+    private void exportProfile() {
+        if (prop == null || actionsProfileDropbox.sel == null) return;
+        String name = actionsProfileDropbox.sel;
+        ArrayList<ForagerAction> actions = prop.actionsProfiles.get(name);
+        if (actions == null) return;
+
+        java.awt.EventQueue.invokeLater(() -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setFileFilter(new FileNameExtensionFilter("Forager actions profile", "json"));
+            fc.setSelectedFile(new File(name + ".json"));
+            if (fc.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return;
+
+            File file = fc.getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(".json")) {
+                file = new File(file.getAbsolutePath() + ".json");
+            }
+            try {
+                JSONObject root = new JSONObject();
+                root.put("name", name);
+                JSONArray arr = new JSONArray();
+                for (ForagerAction action : actions) {
+                    arr.put(action.toJson());
+                }
+                root.put("actions", arr);
+                Files.write(file.toPath(), root.toString(2).getBytes());
+                NUtils.getGameUI().msg(L10n.get("forager.settings.export_success"));
+            } catch (Exception e) {
+                NUtils.getGameUI().error("Failed to export actions profile: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Loads a profile saved by {@link #exportProfile()} as a new profile (never overwrites an
+     *  existing one - appends " (2)", " (3)", ... on a name collision) and selects it. */
+    private void importProfile() {
+        if (prop == null) return;
+
+        java.awt.EventQueue.invokeLater(() -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setFileFilter(new FileNameExtensionFilter("Forager actions profile", "json"));
+            if (fc.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
+
+            File file = fc.getSelectedFile();
+            if (file == null) return;
+            try {
+                String content = new String(Files.readAllBytes(file.toPath()));
+                JSONObject root = new JSONObject(content);
+                JSONArray arr = root.getJSONArray("actions");
+                ArrayList<ForagerAction> actions = new ArrayList<>();
+                for (int i = 0; i < arr.length(); i++) {
+                    actions.add(new ForagerAction(arr.getJSONObject(i)));
+                }
+
+                String baseName = root.has("name") ? root.getString("name") : file.getName().replaceFirst("\\.json$", "");
+                String name = baseName;
+                int suffix = 2;
+                while (prop.actionsProfiles.containsKey(name)) {
+                    name = baseName + " (" + suffix + ")";
+                    suffix++;
+                }
+
+                prop.actionsProfiles.put(name, actions);
+                prop.currentActionsProfile = name;
+                actionsProfileDropbox.change(name);
+            } catch (Exception e) {
+                NUtils.getGameUI().error("Failed to import actions profile: " + e.getMessage());
+            }
+        });
     }
 }
