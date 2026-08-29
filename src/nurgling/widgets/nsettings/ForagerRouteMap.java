@@ -1,7 +1,6 @@
 package nurgling.widgets.nsettings;
 
 import haven.*;
-import haven.resutil.Ridges;
 import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUtils;
@@ -24,7 +23,7 @@ import java.util.Set;
  * lines - none of which help while confirming a route "sees everything" it should). Reuses
  * {@link NMiniMap}'s real terrain rendering ({@link #drawmap}) but skips every other layer
  * (icons/markers/player/grid/view-radius) via a custom {@link #drawparts} override, and adds its
- * own waypoint/cliff/view-zone/exclusion overlays and mouse handling on top.
+ * own waypoint/view-zone/exclusion overlays and mouse handling on top.
  * <p>
  * Interaction: plain left-click on empty space adds a waypoint at the end of the route;
  * left-click-and-drag an existing waypoint's node moves it; plain right-click one deletes it.
@@ -126,7 +125,6 @@ public class ForagerRouteMap extends NMiniMap {
     @Override
     public void drawparts(GOut g) {
         drawmap(g);
-        drawCliffs(g);
         drawWaypointViewZones(g);
         drawExclusion(g);
         drawRouteWaypoints(g);
@@ -475,90 +473,6 @@ public class ForagerRouteMap extends NMiniMap {
             hoverC = null;
         }
         return super.mousehover(ev, hovering);
-    }
-
-    private int tileScreenSize() {
-        float sf = scalef();
-        if (sf <= 0) return UI.scale(4);
-        return Math.max(UI.scale(2), Math.round(1f / sf));
-    }
-
-    // Cliff highlighting - purely visual/informational while laying out a route, not itself
-    // consumed by any bot logic (see ForagerPath.avoidCliffs: the future bot refactor is meant to
-    // check cliffs live against MCache while roaming, not from anything precomputed here - the
-    // bot has live map access at decision time, so there's no correctness reason to precompute
-    // or cache this). Ridges.brokenp needs the LIVE MCache, which is a different coordinate
-    // space/data source than this widget's persisted MapFile segment rendering - only resolvable
-    // while displaying the same segment the player is physically standing in right now (same
-    // constraint ForagerWaypoint.toWorldCoord already has). Outside that, this simply draws
-    // nothing rather than erroring - a graceful degrade, not a bug.
-    private void drawCliffs(GOut g) {
-        NGameUI gui = NUtils.getGameUI();
-        if (gui == null || gui.map == null || dloc == null || sessloc == null) return;
-        if (dloc.seg.id != sessloc.seg.id) return;
-
-        Coord hsz = sz.div(2);
-        float sf = scalef();
-        if (sf <= 0) return;
-
-        Coord ul = dloc.tc.sub(hsz.mul((double) sf));
-        Coord br = dloc.tc.add(hsz.mul((double) sf));
-
-        // Cap how many tiles get checked per frame - brokenp does neighbor/corner lookups per
-        // tile with no caching, and this widget can show a lot of tiles at once when zoomed out.
-        long tileCount = (long) (br.x - ul.x + 1) * (br.y - ul.y + 1);
-        if (tileCount > 40000) return;
-
-        MCache mcache = gui.map.glob.map;
-        int boxSz = tileScreenSize();
-        Coord boxHalf = new Coord(boxSz / 2, boxSz / 2);
-
-        // Collect broken tiles first, then expand to their 8 neighbors too (per the spec: "the
-        // cliffs and the tiles around it should be red") before drawing, so a neighbor of one
-        // broken tile that's also broken itself doesn't get double-processed/doesn't matter -
-        // it's a set, not a list.
-        Set<Coord> broken = new HashSet<>();
-        for (int y = ul.y; y <= br.y; y++) {
-            for (int x = ul.x; x <= br.x; x++) {
-                Coord locTc = new Coord(x, y);
-                Coord absTile = locToAbsoluteTile(locTc);
-                if (absTile == null) continue;
-                try {
-                    if (Ridges.brokenp(mcache, absTile)) {
-                        broken.add(locTc);
-                    }
-                } catch (Loading e) {
-                    // Tile itself, or a neighbor/corner brokenp reads, isn't loaded yet - skip.
-                }
-            }
-        }
-
-        Set<Coord> highlight = new HashSet<>(broken);
-        for (Coord tc : broken) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    highlight.add(tc.add(dx, dy));
-                }
-            }
-        }
-
-        g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
-        for (Coord locTc : highlight) {
-            Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
-            Coord[] clipped = clampRect(g, c.sub(boxHalf), c.sub(boxHalf).add(boxSz, boxSz));
-            if (clipped == null) continue;
-            g.frect(clipped[0], clipped[1].sub(clipped[0]));
-        }
-        g.chcolor();
-    }
-
-    /** Converts a segment-relative minimap tile coord to the absolute world-tile coord
-     *  MCache/Ridges.brokenp expect - only valid while dloc.seg matches the live sessloc.seg
-     *  (checked by the caller). Same session-relative-world-coord formula as
-     *  {@link ForagerWaypoint#toWorldCoord}, generalized to an arbitrary tile coord. */
-    private Coord locToAbsoluteTile(Coord locTc) {
-        Coord2d wc = locTc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz);
-        return wc.floor(MCache.tilesz);
     }
 
     private int waypointIndexAt(Coord c) {

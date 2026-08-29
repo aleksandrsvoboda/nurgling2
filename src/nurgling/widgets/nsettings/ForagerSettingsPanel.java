@@ -42,7 +42,6 @@ public class ForagerSettingsPanel extends Panel {
             "forager.settings.routes_help_paint",
             "forager.settings.routes_help_erase",
             "forager.settings.routes_help_pan_zoom",
-            "forager.settings.routes_help_cliffs",
     };
 
     private NForagerProp prop;
