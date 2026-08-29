@@ -33,6 +33,18 @@ public class ForagerSettingsPanel extends Panel {
 
     private static final String ROUTES_DIR = "forager_paths";
 
+    // Short, one-line-each instructions for the map editor below, in display order - replaces a
+    // single dense paragraph per direct feedback.
+    private static final String[] ROUTES_HELP_KEYS = {
+            "forager.settings.routes_help_add",
+            "forager.settings.routes_help_move",
+            "forager.settings.routes_help_delete",
+            "forager.settings.routes_help_paint",
+            "forager.settings.routes_help_erase",
+            "forager.settings.routes_help_pan_zoom",
+            "forager.settings.routes_help_cliffs",
+    };
+
     private NForagerProp prop;
     private final Dropbox<String> actionsProfileDropbox;
     private final ForagerPickupContainer pickupContainer;
@@ -196,7 +208,10 @@ public class ForagerSettingsPanel extends Panel {
         sections.add(routesSection);
         Widget rsec = routesContent = routesSection.content;
 
-        Widget rprev = rsec.add(new Label(L10n.get("forager.settings.routes_help"), UI.scale(500)), Coord.z);
+        Widget rprev = null;
+        for (String key : ROUTES_HELP_KEYS) {
+            rprev = rsec.add(new Label("• " + L10n.get(key)), rprev == null ? Coord.z : rprev.pos("bl").add(UI.scale(0, 3)));
+        }
 
         rprev = rsec.add(new Label(L10n.get("forager.settings.route")), rprev.pos("bl").add(UI.scale(0, 12)));
 
@@ -258,7 +273,7 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
 
-        Widget brushRow = rsec.add(new Widget(new Coord(UI.scale(220), UI.scale(20))), routeRow.pos("bl").add(UI.scale(0, 10)));
+        Widget brushRow = rsec.add(new Widget(new Coord(UI.scale(340), UI.scale(20))), routeRow.pos("bl").add(UI.scale(0, 10)));
         brushRow.add(new Label(L10n.get("forager.settings.brush_size")), new Coord(0, UI.scale(4)));
         brushSizeEntry = brushRow.add(new TextEntry(UI.scale(50), String.valueOf(ForagerRouteMap.DEFAULT_BRUSH_SIZE_TILES)) {
             @Override
@@ -266,7 +281,7 @@ public class ForagerSettingsPanel extends Panel {
                 super.done(buf);
                 applyBrushSize();
             }
-        }, new Coord(UI.scale(150), 0));
+        }, new Coord(UI.scale(270), 0));
 
         Widget cliffRow = rsec.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), brushRow.pos("bl").add(UI.scale(0, 8)));
         avoidCliffsCheck = cliffRow.add(new CheckBox(L10n.get("forager.settings.avoid_cliffs")) {
