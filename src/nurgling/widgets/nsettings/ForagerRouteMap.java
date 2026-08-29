@@ -123,6 +123,7 @@ public class ForagerRouteMap extends NMiniMap {
     private void drawRouteWaypoints(GOut g) {
         if (route == null || dloc == null || route.waypoints.isEmpty()) return;
         Coord hsz = sz.div(2);
+        int margin = UI.scale(12);
 
         double phase = Utils.rtime() * UI.scale(16);
         Coord prevC = null;
@@ -133,7 +134,12 @@ public class ForagerRouteMap extends NMiniMap {
                 continue;
             }
             Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
-            if (prevC != null) {
+            // dashLine/fellipse (unlike image()-based draws) don't respect the ancestor GOut
+            // clip chain, so - same as the view-zone/exclusion/cliff boxes - they need an
+            // explicit on-screen check derived from g's actual visible window, not just this
+            // widget's full declared size (which can be bigger than what's actually visible
+            // when this widget is partially scrolled out of the settings panel's Scrollport).
+            if (prevC != null && (onScreen(g, prevC, margin) || onScreen(g, c, margin))) {
                 Color lc = (i == 1) ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor();
                 g.chcolor(lc.getRed(), lc.getGreen(), lc.getBlue(), 200);
                 dashLine(g, prevC, c, phase, 2);
@@ -145,8 +151,7 @@ public class ForagerRouteMap extends NMiniMap {
             ForagerWaypoint wp = route.waypoints.get(i);
             if (wp.seg != dloc.seg.id) continue;
             Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
-            if (c.x < -UI.scale(12) || c.y < -UI.scale(12) || c.x > sz.x + UI.scale(12) || c.y > sz.y + UI.scale(12))
-                continue;
+            if (!onScreen(g, c, margin)) continue;
 
             boolean first = (i == 0);
             boolean dragging = (i == draggingWaypointIndex);
@@ -195,13 +200,12 @@ public class ForagerRouteMap extends NMiniMap {
         for (ForagerWaypoint wp : route.waypoints) {
             if (wp.seg != dloc.seg.id) continue;
 
-            // Only draw a waypoint's zone if the waypoint itself is on screen - same bounds
-            // check drawRouteWaypoints uses for the waypoint marker. Without this, a waypoint
-            // sitting just off-screen still had its zone square (much bigger than the marker)
-            // poking into view, visible even though "you can't see that waypoint on the map".
+            // Only draw a waypoint's zone if the waypoint itself is on screen - same check
+            // drawRouteWaypoints uses for the waypoint marker. Without this, a waypoint sitting
+            // just off-screen still had its zone square (much bigger than the marker) poking
+            // into view, visible even though "you can't see that waypoint on the map".
             Coord wpC = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
-            if (wpC.x < -UI.scale(12) || wpC.y < -UI.scale(12) || wpC.x > sz.x + UI.scale(12) || wpC.y > sz.y + UI.scale(12))
-                continue;
+            if (!onScreen(g, wpC, UI.scale(12))) continue;
 
             Coord2d worldC = wp.toWorldCoord(sessloc);
             if (worldC == null) continue;
@@ -237,6 +241,18 @@ public class ForagerRouteMap extends NMiniMap {
         Coord cbr = new Coord(Utils.clip(br.x, winUl.x, winBr.x), Utils.clip(br.y, winUl.y, winBr.y));
         if (cbr.x <= cul.x || cbr.y <= cul.y) return null;
         return new Coord[]{cul, cbr};
+    }
+
+    /** Whether point c (plus margin) falls within g's actual visible window - the same "derive
+     *  from g.ul/g.br/g.tx, not this widget's full declared sz" reasoning as clampRect, for
+     *  draw calls (fellipse/line-based dashLine, unlike image()) that skip entirely rather than
+     *  partially-clip, so route waypoint markers/legs don't bleed past a scrolled-off bottom
+     *  edge the same way the view-zone/exclusion/cliff boxes did before clampRect existed. */
+    private boolean onScreen(GOut g, Coord c, int margin) {
+        Coord winUl = g.ul.sub(g.tx);
+        Coord winBr = g.br.sub(g.tx);
+        return c.x >= winUl.x - margin && c.x <= winBr.x + margin
+                && c.y >= winUl.y - margin && c.y <= winBr.y + margin;
     }
 
     // Exclusion tiles - freeform brush-painted, not a fixed rectangle (see paintOrEraseAt).
