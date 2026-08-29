@@ -239,6 +239,9 @@ public class BotRegistry {
         bots.add(new BotDescriptor("freeinv", BotDescriptor.BotType.UTILS, "Free inventory", "Free inventory with Area system.", true, true, FreeInvBot.class, "freeinv", false));
         bots.add(new BotDescriptor("travellerssack", BotDescriptor.BotType.UTILS, "Equip travellers sacks", "Equip travellers sacks.", false, true, EquipTravellersSacksFromBelt.class, "travellerssack", false));
         bots.add(new BotDescriptor("studytable", BotDescriptor.BotType.UTILS, "bot.studytable.title", "bot.studytable.desc", true, true, StudyDeskFiller.class, "studytable", false));
+        // Same class as "studytable" (fillAll=false) - allowedAsStepInScenario=false since
+        // schedules pick this via that step's own All/Just Owned setting instead (StepSettingsPanel).
+        bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "test47", false, Map.of("fillAll", false)));
         bots.add(new BotDescriptor("swill_collector", BotDescriptor.BotType.UTILS, "Swill Collector", "Collects swill items from area and feeds to troughs/cisterns.", false, true, CollectSwillToTrough.class, "swillcollector", false));
         bots.add(new BotDescriptor("swill_to_trough", BotDescriptor.BotType.UTILS, "Swill To Trough", "Collects swill from area to selected trough (click to select).", false, true, CollectSwillInArea.class, "swillzone", false));
         bots.add(new BotDescriptor("qzone", BotDescriptor.BotType.UTILS, "Quality in Zone", "Scan the quality of all typical objects in the area.", false, true, InspectQualityBot.class, "qzone", false));

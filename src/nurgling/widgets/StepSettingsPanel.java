@@ -447,6 +447,43 @@ public class StepSettingsPanel extends Widget {
                 y += UI.scale(30);
             }
         }
+        if (desc.id.equals("studytable")) {
+            hasAnySetting = true;
+            add(new Label("Fill Mode:"), new Coord(UI.scale(8), y));
+            y += UI.scale(24);
+
+            List<String> modes = Arrays.asList("All", "Just Owned");
+            // Unset (an older saved step) defaults to "All" - its only behavior before this existed.
+            Object fillAllSetting = step.getSetting("fillAll");
+            boolean fillAll = !(fillAllSetting instanceof Boolean) || (Boolean) fillAllSetting;
+            String selectedMode = fillAll ? "All" : "Just Owned";
+
+            NDropbox<String> modeDropdown = new NDropbox<String>(
+                    UI.scale(160),
+                    modes.size(),
+                    UI.scale(22)
+            ) {
+                @Override
+                protected String listitem(int i) { return modes.get(i); }
+                @Override
+                protected int listitems() { return modes.size(); }
+                @Override
+                protected void drawitem(GOut g, String item, int i) {
+                    g.text(item, Coord.z);
+                }
+                @Override
+                public void change(String item) {
+                    super.change(item);
+                    if (item != null) {
+                        step.setSetting("fillAll", item.equals("All"));
+                    }
+                }
+            };
+            modeDropdown.change(selectedMode);
+
+            add(modeDropdown, new Coord(UI.scale(8), y));
+            y += UI.scale(40);
+        }
         if (!hasAnySetting) {
             add(new Label("No settings for this step."), new Coord(UI.scale(8), y));
         }
