@@ -700,7 +700,7 @@ NMiniMap extends MiniMap {
     }
 
     /** Circle outline; GOut only offers filled ellipses. */
-    private void ringOutline(GOut g, Coord c, int r, double w) {
+    protected void ringOutline(GOut g, Coord c, int r, double w) {
         final int n = 20;
         Coord prev = null;
         for(int i = 0; i <= n; i++) {
@@ -726,7 +726,7 @@ NMiniMap extends MiniMap {
      * Dashed line clipped to the widget, with the dash pattern offset by {@code phase}
      * so the dashes crawl from a toward b.
      */
-    private void dashLine(GOut g, Coord a, Coord b, double phase, double w) {
+    protected void dashLine(GOut g, Coord a, Coord b, double phase, double w) {
         Coord2d[] cl = clipLineToRect(new Coord2d(a), new Coord2d(b), new Coord2d(sz));
         if(cl == null)
             return;

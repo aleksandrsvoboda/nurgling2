@@ -4,9 +4,12 @@ import haven.*;
 import haven.resutil.Ridges;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.overlays.NWaypointOverlay;
 import nurgling.routes.ForagerPath;
 import nurgling.routes.ForagerWaypoint;
 import nurgling.widgets.NMiniMap;
+
+import java.awt.Color;
 
 /**
  * Small, dedicated terrain-only map for creating/editing a {@link ForagerPath} directly, rather
@@ -107,32 +110,61 @@ public class ForagerRouteMap extends NMiniMap {
         return Math.max(UI.scale(2), Math.round(1f / sf));
     }
 
+    // Deliberately the exact same rendering NMiniMap.drawQueuedWaypoints already uses for the
+    // real map's alt+left-click movement-queue waypoints (dashed crawling legs, circular numbered
+    // plates, a pulsing ring on the route's start point) - reused via NMiniMap's own dashLine/
+    // ringOutline/getWaypointLabel helpers (made protected for this) rather than reinvented, per
+    // direct instruction. Fixed pixel-size nodes (not tied to tile size like the cliff/zone boxes
+    // below) so they stay comfortably clickable regardless of zoom level - the tiny 1-tile boxes
+    // this replaced were the "hard to click and drag" complaint.
     private void drawRouteWaypoints(GOut g) {
-        if (dloc == null) return;
+        if (dloc == null || route.waypoints.isEmpty()) return;
         Coord hsz = sz.div(2);
-        int boxSz = tileScreenSize();
-        Coord boxHalf = new Coord(boxSz / 2, boxSz / 2);
 
-        g.chcolor(0, 0, 0, 160);
+        double phase = Utils.rtime() * UI.scale(16);
         Coord prevC = null;
-        for (ForagerWaypoint wp : route.waypoints) {
+        for (int i = 0; i < route.waypoints.size(); i++) {
+            ForagerWaypoint wp = route.waypoints.get(i);
             if (wp.seg != dloc.seg.id) {
                 prevC = null;
                 continue;
             }
             Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
             if (prevC != null) {
-                g.line(prevC, c, 1);
+                Color lc = (i == 1) ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor();
+                g.chcolor(lc.getRed(), lc.getGreen(), lc.getBlue(), 200);
+                dashLine(g, prevC, c, phase, 2);
             }
             prevC = c;
         }
 
-        g.chcolor(60, 120, 255, TILE_SQUARE_ALPHA);
-        for (ForagerWaypoint wp : route.waypoints) {
+        for (int i = 0; i < route.waypoints.size(); i++) {
+            ForagerWaypoint wp = route.waypoints.get(i);
             if (wp.seg != dloc.seg.id) continue;
             Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
-            if (c.x < -boxSz || c.x > sz.x + boxSz || c.y < -boxSz || c.y > sz.y + boxSz) continue;
-            g.frect(c.sub(boxHalf), new Coord(boxSz, boxSz));
+            if (c.x < -UI.scale(12) || c.y < -UI.scale(12) || c.x > sz.x + UI.scale(12) || c.y > sz.y + UI.scale(12))
+                continue;
+
+            boolean first = (i == 0);
+            boolean dragging = (i == draggingWaypointIndex);
+            Color col = dragging ? NWaypointOverlay.dragColor() : (first ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor());
+
+            if (first) {
+                double t = (Utils.rtime() % 1.3) / 1.3;
+                int a = (int) (150 * (1 - t));
+                if (a > 8) {
+                    g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
+                    ringOutline(g, c, (int) (UI.scale(6) + t * UI.scale(10)), 2);
+                }
+            }
+
+            int radius = UI.scale((first || dragging) ? 7 : 5);
+            g.chcolor(0, 0, 0, 210);
+            g.fellipse(c, new Coord(radius + 1, radius + 1));
+            g.chcolor(col);
+            g.fellipse(c, new Coord(radius, radius));
+            g.chcolor(10, 14, 16, 255);
+            g.aimage(getWaypointLabel(i + 1).tex(), c, 0.5, 0.5);
         }
         g.chcolor();
     }
