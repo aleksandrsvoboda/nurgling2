@@ -55,6 +55,14 @@ public class ForagerSettingsPanel extends Panel {
     private Widget routesContent;
     private Widget modeRow;
 
+    // Every top-level CollapsibleSection, in display order - collapsing/expanding one only
+    // toggles its own content's visibility (CollapsibleSection.content.visible) and shrinks/grows
+    // that section's own wrapper; nothing below automatically moves up/down to close the gap or
+    // avoid overlapping. relayoutSections() below does that explicitly, and must run after any
+    // section's toggle (not just a scroll-range refresh) or after any section's content changes
+    // height (e.g. ensureRouteMapBuilt() adding the map widget after construction).
+    private final List<CollapsibleSection> sections = new ArrayList<>();
+
     public ForagerSettingsPanel() {
         super(L10n.get("nsettings.item.forager"));
 
@@ -69,7 +77,8 @@ public class ForagerSettingsPanel extends Panel {
         // phases) gets its own collapsible section, so the page stays navigable once all three
         // exist rather than always showing everything at once.
         CollapsibleSection actionsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.actions_section"), UI.scale(540), true), Coord.z);
-        actionsSection.setOnToggle(scroll.cont::update);
+        actionsSection.setOnToggle(this::relayoutSections);
+        sections.add(actionsSection);
         Widget sec = actionsSection.content;
 
         Widget prev = sec.add(new Label(L10n.get("forager.settings.actions_help"), UI.scale(400)), Coord.z);
@@ -177,7 +186,8 @@ public class ForagerSettingsPanel extends Panel {
 
         // ---- Routes ----
         routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), true), actionsSection.pos("bl").add(UI.scale(0, 10)));
-        routesSection.setOnToggle(scroll.cont::update);
+        routesSection.setOnToggle(this::relayoutSections);
+        sections.add(routesSection);
         Widget rsec = routesContent = routesSection.content;
 
         Widget rprev = rsec.add(new Label(L10n.get("forager.settings.routes_help"), UI.scale(500)), Coord.z);
@@ -251,6 +261,22 @@ public class ForagerSettingsPanel extends Panel {
         // ForagerRouteMap itself (needs gui.mmap.file, not available yet here) is built lazily -
         // see ensureRouteMapBuilt(), called from load().
         routesSection.pack();
+
+        relayoutSections();
+    }
+
+    /** Repositions every top-level section directly below the current bottom edge of the one
+     *  before it, so collapsing/expanding a section (or a section's content changing height,
+     *  e.g. ensureRouteMapBuilt() adding the map widget after construction) actually moves
+     *  everything below it up or down to close/open the gap - CollapsibleSection.pack() alone
+     *  only resizes that one section's own wrapper, it has no idea what else is on the page. */
+    private void relayoutSections() {
+        Coord next = Coord.z;
+        for (CollapsibleSection s : sections) {
+            s.move(next);
+            next = s.pos("bl").add(UI.scale(0, 10));
+        }
+        scroll.cont.update();
     }
 
     /** Builds the embedded route-editing map (and the caps row positioned relative to it) the
@@ -270,7 +296,7 @@ public class ForagerSettingsPanel extends Panel {
         maxChainDistanceEntry = capsRow.add(new TextEntry(UI.scale(50), ""), new Coord(UI.scale(500), 0));
 
         routesSection.pack();
-        scroll.cont.update();
+        relayoutSections();
     }
 
     @Override
