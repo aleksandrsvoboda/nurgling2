@@ -269,7 +269,13 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(150), 0));
 
-        Widget cliffRow = rsec.add(new Widget(new Coord(UI.scale(340), UI.scale(20))), brushRow.pos("bl").add(UI.scale(0, 8)));
+        // Tall enough to fully contain the gear icon (bigger than a checkbox row) - mapAnchor
+        // below is keyed off this row's own bottom edge, so if the row were left at a plain
+        // checkbox height, the spinner would visually stick out past it and get drawn over by
+        // routeMap (added right after, at mapAnchor.pos("bl")), since sibling widgets draw in
+        // the order they were added.
+        int cliffRowHeight = Math.max(UI.scale(20), NStyle.gear[0].sz().y);
+        Widget cliffRow = rsec.add(new Widget(new Coord(UI.scale(340), cliffRowHeight)), brushRow.pos("bl").add(UI.scale(0, 8)));
         cliffExclusionCheck = cliffRow.add(new CheckBox(L10n.get("forager.settings.cliff_exclusion")) {
             @Override
             public void set(boolean val) {
@@ -285,7 +291,7 @@ public class ForagerSettingsPanel extends Panel {
         }, Coord.z);
         cliffExclusionCheck.settip(L10n.get("forager.settings.cliff_exclusion_tip"));
 
-        cliffScanSpinner = cliffRow.add(new CliffScanSpinner(), new Coord(UI.scale(190), -UI.scale(4)));
+        cliffScanSpinner = cliffRow.add(new CliffScanSpinner(), new Coord(UI.scale(190), 0));
 
         mapAnchor = cliffRow;
 

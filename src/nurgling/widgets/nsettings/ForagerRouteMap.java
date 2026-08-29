@@ -110,9 +110,12 @@ public class ForagerRouteMap extends NMiniMap {
     }
 
     /** Whether the currently-displayed segment still has a cliff-scan backlog in progress - used
-     *  by the panel to show/hide a spinner next to the Cliff exclusion checkbox. */
+     *  by the panel to show/hide a spinner next to the Cliff exclusion checkbox. Requires the
+     *  checkbox itself to be on, matching tick()'s own gate on actually running the scan - so the
+     *  spinner can't appear to be "still working" from a stale backlog count left over from
+     *  earlier, if the checkbox has since been unchecked. */
     public boolean isScanningCliffs() {
-        return dloc != null && CliffTileCache.isScanning(dloc.seg.id);
+        return dloc != null && route != null && route.cliffExclusionEnabled && CliffTileCache.isScanning(dloc.seg.id);
     }
 
     /** Stops further background cliff scanning for the currently-displayed segment (whatever's
@@ -175,7 +178,11 @@ public class ForagerRouteMap extends NMiniMap {
         cliffScanTimer += dt;
         if (cliffScanTimer < CLIFF_SCAN_INTERVAL) return;
         cliffScanTimer = 0;
-        if (dloc == null) return;
+        // Only scan while the route actually wants cliff data - not continuously in the
+        // background regardless of the checkbox. Grids already scanned stay cached in
+        // CliffTileCache regardless (scannedGridIds is permanent for the session), so toggling
+        // this on and off never re-does already-finished work, it only pauses/resumes new work.
+        if (dloc == null || route == null || !route.cliffExclusionEnabled) return;
         try {
             CliffTileCache.scanSegment(file, dloc.seg.id);
         } catch (Exception e) {
@@ -586,8 +593,6 @@ public class ForagerRouteMap extends NMiniMap {
         }
         buildRuns(highlight, cliffRuns);
         buildRuns(CliffTileCache.safeForSegment(seg), cliffSafeRuns);
-        System.err.println("ForagerRouteMap: rebuilt cliff runs for seg " + Long.toUnsignedString(seg, 16)
-                + " (version " + ver + ") - " + cliffRuns.size() + " cliff run(s), " + cliffSafeRuns.size() + " safe run(s)");
     }
 
     private void drawCliffs(GOut g) {
