@@ -128,18 +128,18 @@ public class ForagerRouteMap extends NMiniMap {
 
     // Not tied to draw() - runs whether or not this widget is currently visible/attached to a
     // shown panel (Widget.TickEvent reaches every attached widget regardless of the visible flag,
-    // only draw() is gated on it), and independent of this widget's own pan/zoom position, so the
-    // cliff cache keeps growing for as long as the game session runs, once Forager Settings has
-    // been opened at least once to construct this widget in the first place.
+    // only draw() is gated on it). CliffTileCache reads straight from the persisted MapFile (see
+    // its class javadoc), so this only needs to know which segment is currently displayed here -
+    // no live MCache/player-proximity dependency at all, which is what lets it cover a segment's
+    // entire explored history rather than requiring the player to physically revisit every spot.
     @Override
     public void tick(double dt) {
         super.tick(dt);
         cliffScanTimer += dt;
         if (cliffScanTimer < CLIFF_SCAN_INTERVAL) return;
         cliffScanTimer = 0;
-        NGameUI gui = NUtils.getGameUI();
-        if (gui == null || gui.map == null) return;
-        CliffTileCache.scanNewGrids(gui, file);
+        if (dloc == null) return;
+        CliffTileCache.scanSegment(file, dloc.seg.id);
     }
 
     // Terrain only, plus this widget's own overlays - deliberately skips drawmarkers/drawicons
