@@ -51,6 +51,7 @@ public class ForagerSettingsPanel extends Panel {
     // Constructing ForagerRouteMap (which needs gui.mmap.file) here would NPE on every login.
     private ForagerRouteMap routeMap;
     private TextEntry brushSizeEntry;
+    private CheckBox cliffExclusionCheck;
     private TextEntry maxChainsEntry;
     private TextEntry maxDistanceEntry;
     private TextEntry maxChainDistanceEntry;
@@ -276,7 +277,19 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(150), 0));
 
-        mapAnchor = brushRow;
+        Widget cliffRow = rsec.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), brushRow.pos("bl").add(UI.scale(0, 8)));
+        cliffExclusionCheck = cliffRow.add(new CheckBox(L10n.get("forager.settings.cliff_exclusion")) {
+            @Override
+            public void set(boolean val) {
+                a = val;
+                if (currentRoute != null) {
+                    currentRoute.cliffExclusionEnabled = val;
+                }
+            }
+        }, Coord.z);
+        cliffExclusionCheck.settip(L10n.get("forager.settings.cliff_exclusion_tip"));
+
+        mapAnchor = cliffRow;
 
         // ForagerRouteMap itself (needs gui.mmap.file, not available yet here) is built lazily -
         // see ensureRouteMapBuilt(), called from load().
@@ -398,6 +411,7 @@ public class ForagerSettingsPanel extends Panel {
         }
         currentRoute = loaded;
         routeMap.setRoute(currentRoute);
+        cliffExclusionCheck.a = currentRoute.cliffExclusionEnabled;
         maxChainsEntry.settext(currentRoute.maxChains < 0 ? "" : String.valueOf(currentRoute.maxChains));
         maxDistanceEntry.settext(currentRoute.maxDistance < 0 ? "" : String.valueOf(currentRoute.maxDistance));
         maxChainDistanceEntry.settext(currentRoute.maxChainDistance < 0 ? "" : String.valueOf(currentRoute.maxChainDistance));
@@ -415,6 +429,7 @@ public class ForagerSettingsPanel extends Panel {
     private void clearRouteUI() {
         currentRoute = null;
         routeMap.setRoute(null);
+        cliffExclusionCheck.a = false;
         maxChainsEntry.settext("");
         maxDistanceEntry.settext("");
         maxChainDistanceEntry.settext("");

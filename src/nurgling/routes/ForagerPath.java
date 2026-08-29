@@ -46,6 +46,14 @@ public class ForagerPath {
     public int maxDistance = -1;
     public int maxChainDistance = -1;
 
+    // When set, the map editor (ForagerRouteMap) automatically paints a radius around every
+    // cliff tile it detects while displaying this route into exclusionTiles, same as if the user
+    // had brushed it in by hand - it only ever adds tiles for whatever's currently visible/loaded
+    // in the editor (Ridges.brokenp needs the live map), so coverage builds up as the route is
+    // panned around with this enabled rather than happening all at once. Purely a UI-side
+    // convenience for populating exclusionTiles - not itself read by any bot logic.
+    public boolean cliffExclusionEnabled = false;
+
     public ForagerPath(String name) {
         this.name = name;
         this.waypoints = new ArrayList<>();
@@ -185,6 +193,7 @@ public class ForagerPath {
         if (json.has("maxChainDistance")) {
             this.maxChainDistance = json.getInt("maxChainDistance");
         }
+        this.cliffExclusionEnabled = json.optBoolean("cliffExclusionEnabled", false);
 
         // Always generate sections from waypoints (don't load from JSON)
         // Sections use world coordinates which are session-specific
@@ -227,6 +236,7 @@ public class ForagerPath {
         if (maxChainDistance >= 0) {
             json.put("maxChainDistance", maxChainDistance);
         }
+        json.put("cliffExclusionEnabled", cliffExclusionEnabled);
 
         // Don't save sections - they will be regenerated from waypoints
         // because they use world coordinates which are session-specific

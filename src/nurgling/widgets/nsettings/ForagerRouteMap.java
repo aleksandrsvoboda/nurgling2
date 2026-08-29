@@ -461,6 +461,8 @@ public class ForagerRouteMap extends NMiniMap {
             }
         }
 
+        applyCliffExclusion(broken, dloc.seg.id);
+
         g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
         for (Coord locTc : highlight) {
             Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
@@ -469,6 +471,38 @@ public class ForagerRouteMap extends NMiniMap {
             g.frect(clipped[0], clipped[1].sub(clipped[0]));
         }
         g.chcolor();
+    }
+
+    // 5-tile (Chebyshev) radius around every detected cliff tile, per the deferred cliff-pathing
+    // plan's original "hard-block cliff tiles+buffer" idea - implemented here instead as feeding
+    // the same general Exclusion mechanism the brush already paints, rather than a separate
+    // cliff-specific block list, since Forager's future refactor only needs to consult one set.
+    private static final int CLIFF_EXCLUSION_RADIUS = 5;
+
+    /** When route.cliffExclusionEnabled, paints a CLIFF_EXCLUSION_RADIUS-tile square around every
+     *  tile in `broken` (this frame's cliff scan, see drawCliffs) into the route's exclusion set -
+     *  same effect as brushing it in by hand. Only ever adds tiles for whatever's currently
+     *  visible/loaded (drawCliffs' own scan already limits `broken` to that), so coverage builds
+     *  up as the map is panned around with the toggle on rather than all at once. Skips tiles
+     *  already excluded so a steady-state view (nothing new to add) is just membership checks,
+     *  not a repaint - this runs every frame from drawCliffs. */
+    private void applyCliffExclusion(Set<Coord> broken, long seg) {
+        if (route == null || !route.cliffExclusionEnabled || broken.isEmpty()) return;
+        boolean changed = false;
+        for (Coord tc : broken) {
+            for (int dy = -CLIFF_EXCLUSION_RADIUS; dy <= CLIFF_EXCLUSION_RADIUS; dy++) {
+                for (int dx = -CLIFF_EXCLUSION_RADIUS; dx <= CLIFF_EXCLUSION_RADIUS; dx++) {
+                    Coord t = tc.add(dx, dy);
+                    if (!route.isExcluded(seg, t)) {
+                        route.paintExclusion(seg, t);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if (changed) {
+            invalidateExclusionCache();
+        }
     }
 
     /** Converts a segment-relative minimap tile coord to the absolute world-tile coord
