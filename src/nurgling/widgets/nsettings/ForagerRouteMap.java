@@ -181,6 +181,15 @@ public class ForagerRouteMap extends NMiniMap {
 
         for (ForagerWaypoint wp : route.waypoints) {
             if (wp.seg != dloc.seg.id) continue;
+
+            // Only draw a waypoint's zone if the waypoint itself is on screen - same bounds
+            // check drawRouteWaypoints uses for the waypoint marker. Without this, a waypoint
+            // sitting just off-screen still had its zone square (much bigger than the marker)
+            // poking into view, visible even though "you can't see that waypoint on the map".
+            Coord wpC = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            if (wpC.x < -UI.scale(12) || wpC.y < -UI.scale(12) || wpC.x > sz.x + UI.scale(12) || wpC.y > sz.y + UI.scale(12))
+                continue;
+
             Coord2d worldC = wp.toWorldCoord(sessloc);
             if (worldC == null) continue;
 
