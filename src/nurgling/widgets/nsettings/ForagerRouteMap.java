@@ -211,7 +211,7 @@ public class ForagerRouteMap extends NMiniMap {
             Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
             Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
 
-            Coord[] clipped = clampRect(screenUL, screenBR);
+            Coord[] clipped = clampRect(g, screenUL, screenBR);
             if (clipped == null) continue;
             g.chcolor(VIEWZONE_BG);
             g.frect(clipped[0], clipped[1].sub(clipped[0]));
@@ -221,14 +221,20 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    /** Intersects [ul, br) with this widget's own [0,0]-[sz.x,sz.y] bounds, or null if there's no
-     *  overlap. Needed because fill/outline primitives (frect/rect) don't get clipped by the
-     *  ancestor GOut chain the way image() draws do - without this, a rect far bigger than this
-     *  widget (the viewable-zone/brush boxes can be, at ~81 tiles) visibly bleeds into whatever's
-     *  drawn around it (e.g. the help text above the map). */
-    private Coord[] clampRect(Coord ul, Coord br) {
-        Coord cul = new Coord(Utils.clip(ul.x, 0, sz.x), Utils.clip(ul.y, 0, sz.y));
-        Coord cbr = new Coord(Utils.clip(br.x, 0, sz.x), Utils.clip(br.y, 0, sz.y));
+    /** Intersects [ul, br) with g's own current clip window (translated into this widget's local
+     *  coordinate space), or null if there's no overlap. Needed because fill/outline primitives
+     *  (frect/rect) don't get clipped by the ancestor GOut chain the way image() draws do -
+     *  without this, a rect far bigger than this widget (the viewable-zone/brush boxes can be,
+     *  at ~81 tiles) visibly bleeds into whatever's drawn around it. Deriving the window from g
+     *  (g.ul/g.br minus g.tx) rather than hardcoding [0,0]-[sz.x,sz.y] matters because this
+     *  widget itself can be partially scrolled out of the settings panel's own Scrollport - the
+     *  visible portion can be smaller than this widget's full declared size, especially at the
+     *  bottom edge. */
+    private Coord[] clampRect(GOut g, Coord ul, Coord br) {
+        Coord winUl = g.ul.sub(g.tx);
+        Coord winBr = g.br.sub(g.tx);
+        Coord cul = new Coord(Utils.clip(ul.x, winUl.x, winBr.x), Utils.clip(ul.y, winUl.y, winBr.y));
+        Coord cbr = new Coord(Utils.clip(br.x, winUl.x, winBr.x), Utils.clip(br.y, winUl.y, winBr.y));
         if (cbr.x <= cul.x || cbr.y <= cul.y) return null;
         return new Coord[]{cul, cbr};
     }
@@ -286,7 +292,7 @@ public class ForagerRouteMap extends NMiniMap {
         for (int[] run : exclusionRuns) {
             Coord ul = new Coord(run[1], run[0]).sub(dloc.tc).div(scalef()).add(hsz);
             Coord br = new Coord(run[2] + 1, run[0] + 1).sub(dloc.tc).div(scalef()).add(hsz);
-            Coord[] clipped = clampRect(ul, br);
+            Coord[] clipped = clampRect(g, ul, br);
             if (clipped == null) continue;
             g.frect(clipped[0], clipped[1].sub(clipped[0]));
         }
@@ -334,7 +340,7 @@ public class ForagerRouteMap extends NMiniMap {
         Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
         Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
 
-        Coord[] clipped = clampRect(screenUL, screenBR);
+        Coord[] clipped = clampRect(g, screenUL, screenBR);
         if (clipped == null) return;
 
         if (!shiftHeld) {
@@ -419,7 +425,9 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
         for (Coord locTc : highlight) {
             Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
-            g.frect(c.sub(boxHalf), new Coord(boxSz, boxSz));
+            Coord[] clipped = clampRect(g, c.sub(boxHalf), c.sub(boxHalf).add(boxSz, boxSz));
+            if (clipped == null) continue;
+            g.frect(clipped[0], clipped[1].sub(clipped[0]));
         }
         g.chcolor();
     }
