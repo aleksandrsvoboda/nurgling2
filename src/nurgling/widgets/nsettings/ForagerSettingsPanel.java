@@ -6,6 +6,7 @@ import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
 import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
+import nurgling.routes.ForagerPath;
 import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.TextInputWindow;
 import org.json.JSONArray;
@@ -30,9 +31,19 @@ import java.util.TreeSet;
  */
 public class ForagerSettingsPanel extends Panel {
 
+    private static final String ROUTES_DIR = "forager_paths";
+
     private NForagerProp prop;
     private final Dropbox<String> actionsProfileDropbox;
     private final ForagerPickupContainer pickupContainer;
+
+    private ForagerPath currentRoute;
+    private final List<String> routeNames = new ArrayList<>();
+    private final Dropbox<String> routeDropbox;
+    private final ForagerRouteMap routeMap;
+    private final TextEntry maxChainsEntry;
+    private final TextEntry maxDistanceEntry;
+    private final TextEntry maxChainDistanceEntry;
 
     public ForagerSettingsPanel() {
         super(L10n.get("nsettings.item.forager"));
@@ -153,6 +164,92 @@ public class ForagerSettingsPanel extends Panel {
         sec.add(pickupContainer, pickupButtonsRow.pos("bl").add(UI.scale(0, 5)));
 
         actionsSection.pack();
+
+        // ---- Routes ----
+        CollapsibleSection routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), true), actionsSection.pos("bl").add(UI.scale(0, 10)));
+        routesSection.setOnToggle(scroll.cont::update);
+        Widget rsec = routesSection.content;
+
+        Widget rprev = rsec.add(new Label(L10n.get("forager.settings.routes_help"), UI.scale(500)), Coord.z);
+
+        rprev = rsec.add(new Label(L10n.get("forager.settings.route")), rprev.pos("bl").add(UI.scale(0, 12)));
+
+        Widget routeRow = rsec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), rprev.pos("bl").add(UI.scale(0, 5)));
+        routeRow.add(routeDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
+            @Override
+            protected String listitem(int i) {
+                return routeNames.get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return routeNames.size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                if (item != null) {
+                    loadRoute(item);
+                }
+            }
+        }, new Coord(0, 0));
+
+        routeRow.add(new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/add/u"),
+                Resource.loadsimg("nurgling/hud/buttons/add/d"),
+                Resource.loadsimg("nurgling/hud/buttons/add/h")) {
+            @Override
+            public void click() {
+                super.click();
+                addRoute();
+            }
+        }, new Coord(UI.scale(210), 0)).settip(L10n.get("forager.settings.new_route_tip"));
+
+        routeRow.add(new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/remove/u"),
+                Resource.loadsimg("nurgling/hud/buttons/remove/d"),
+                Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
+            @Override
+            public void click() {
+                super.click();
+                deleteRoute();
+            }
+        }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
+
+        Widget modeRow = rsec.add(new Widget(new Coord(UI.scale(320), UI.scale(24))), routeRow.pos("bl").add(UI.scale(0, 10)));
+        modeRow.add(new Button(UI.scale(150), L10n.get("forager.settings.mode_edit_route")) {
+            @Override
+            public void click() {
+                super.click();
+                routeMap.setMode(ForagerRouteMap.Mode.EDIT_ROUTE);
+            }
+        }, new Coord(0, 0)).settip(L10n.get("forager.settings.mode_edit_route_tip"));
+        modeRow.add(new Button(UI.scale(160), L10n.get("forager.settings.mode_dont_forage")) {
+            @Override
+            public void click() {
+                super.click();
+                routeMap.setMode(ForagerRouteMap.Mode.DONT_FORAGE);
+            }
+        }, new Coord(UI.scale(155), 0)).settip(L10n.get("forager.settings.mode_dont_forage_tip"));
+
+        routeMap = new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file);
+        rsec.add(routeMap, modeRow.pos("bl").add(UI.scale(0, 5)));
+
+        Widget capsRow = rsec.add(new Widget(new Coord(UI.scale(520), UI.scale(24))), routeMap.pos("bl").add(UI.scale(0, 10)));
+        capsRow.add(new Label(L10n.get("forager.settings.max_chains")), new Coord(0, UI.scale(4)));
+        maxChainsEntry = capsRow.add(new TextEntry(UI.scale(50), ""), new Coord(UI.scale(80), 0));
+        capsRow.add(new Label(L10n.get("forager.settings.max_distance")), new Coord(UI.scale(160), UI.scale(4)));
+        maxDistanceEntry = capsRow.add(new TextEntry(UI.scale(50), ""), new Coord(UI.scale(280), 0));
+        capsRow.add(new Label(L10n.get("forager.settings.max_chain_distance")), new Coord(UI.scale(360), UI.scale(4)));
+        maxChainDistanceEntry = capsRow.add(new TextEntry(UI.scale(50), ""), new Coord(UI.scale(500), 0));
+
+        routesSection.pack();
     }
 
     @Override
@@ -169,12 +266,118 @@ public class ForagerSettingsPanel extends Panel {
 
         actionsProfileDropbox.change(prop.currentActionsProfile);
         pickupContainer.load(prop.actionsProfiles.get(prop.currentActionsProfile));
+
+        loadAvailableRoutes();
+        if (!routeNames.isEmpty()) {
+            routeDropbox.change(routeNames.get(0));
+        } else {
+            clearRouteUI();
+        }
     }
 
     @Override
     public void save() {
         if (prop != null) {
             NForagerProp.set(prop);
+        }
+        saveCurrentRoute();
+    }
+
+    private void loadAvailableRoutes() {
+        routeNames.clear();
+        File dir = NUtils.getDataFilePath(ROUTES_DIR).toFile();
+        if (dir.exists() && dir.isDirectory()) {
+            File[] files = dir.listFiles((d, n) -> n.endsWith(".json"));
+            if (files != null) {
+                for (File f : files) {
+                    routeNames.add(f.getName().replace(".json", ""));
+                }
+            }
+        }
+        Collections.sort(routeNames);
+    }
+
+    private void loadRoute(String name) {
+        ForagerPath loaded;
+        try {
+            loaded = ForagerPath.load(NUtils.getDataFile(ROUTES_DIR, name + ".json"));
+        } catch (Exception e) {
+            loaded = new ForagerPath(name);
+        }
+        currentRoute = loaded;
+        routeMap.setRoute(currentRoute);
+        maxChainsEntry.settext(currentRoute.maxChains < 0 ? "" : String.valueOf(currentRoute.maxChains));
+        maxDistanceEntry.settext(currentRoute.maxDistance < 0 ? "" : String.valueOf(currentRoute.maxDistance));
+        maxChainDistanceEntry.settext(currentRoute.maxChainDistance < 0 ? "" : String.valueOf(currentRoute.maxChainDistance));
+    }
+
+    private void clearRouteUI() {
+        currentRoute = null;
+        routeMap.setRoute(null);
+        maxChainsEntry.settext("");
+        maxDistanceEntry.settext("");
+        maxChainDistanceEntry.settext("");
+    }
+
+    private void saveCurrentRoute() {
+        if (currentRoute == null) return;
+        currentRoute.maxChains = parseIntOrNoCap(maxChainsEntry.text());
+        currentRoute.maxDistance = parseIntOrNoCap(maxDistanceEntry.text());
+        currentRoute.maxChainDistance = parseIntOrNoCap(maxChainDistanceEntry.text());
+        try {
+            currentRoute.save(NUtils.getDataFile(ROUTES_DIR));
+        } catch (Exception e) {
+            NUtils.getGameUI().error("Failed to save route: " + e.getMessage());
+        }
+    }
+
+    /** Blank or unparseable text -&gt; -1 (no cap), same sentinel convention as
+     *  NForagerProp.PresetData.startAreaId - matches the AutoLogoutSettings/StarvationAlertSettings
+     *  nsettings convention of a blank-initial-text TextEntry rather than a stringified "0"/"-1". */
+    private int parseIntOrNoCap(String text) {
+        try {
+            int v = Integer.parseInt(text.trim());
+            return Math.max(v, -1);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private void addRoute() {
+        TextInputWindow win = new TextInputWindow(
+                L10n.get("forager.settings.new_route_title"), L10n.get("forager.settings.new_route_prompt"), name -> {
+            if (name != null && !name.trim().isEmpty()) {
+                String trimmed = name.trim();
+                ForagerPath route = new ForagerPath(trimmed);
+                try {
+                    route.save(NUtils.getDataFile(ROUTES_DIR));
+                } catch (Exception e) {
+                    NUtils.getGameUI().error("Failed to create route: " + e.getMessage());
+                    return;
+                }
+                if (!routeNames.contains(trimmed)) {
+                    routeNames.add(trimmed);
+                    Collections.sort(routeNames);
+                }
+                routeDropbox.change(trimmed);
+            }
+        });
+        NUtils.getGameUI().add(win, UI.scale(250, 250));
+        win.show();
+    }
+
+    private void deleteRoute() {
+        if (routeDropbox.sel == null) return;
+        try {
+            Files.deleteIfExists(NUtils.getDataFilePath(ROUTES_DIR, routeDropbox.sel + ".json"));
+        } catch (Exception e) {
+            NUtils.getGameUI().error("Failed to delete route: " + e.getMessage());
+        }
+        routeNames.remove(routeDropbox.sel);
+        if (routeNames.isEmpty()) {
+            clearRouteUI();
+        } else {
+            routeDropbox.change(routeNames.get(0));
         }
     }
 
