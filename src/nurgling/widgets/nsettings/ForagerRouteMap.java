@@ -132,14 +132,34 @@ public class ForagerRouteMap extends NMiniMap {
     // its class javadoc), so this only needs to know which segment is currently displayed here -
     // no live MCache/player-proximity dependency at all, which is what lets it cover a segment's
     // entire explored history rather than requiring the player to physically revisit every spot.
+    //
+    // super.tick(dt) is NMiniMap's tick(), which (beyond the zoom-smoothing this widget does
+    // want) also unconditionally forwards to WaypointMovementService.processMovementQueue() -
+    // logic written for the real corner minimap's alt+left-click movement queue, not a secondary
+    // standalone editor widget, and which touches MapFile.gridinfo without holding file's lock.
+    // If that throws while a movement command happens to be active, it does so INSIDE
+    // super.tick(dt), silently skipping everything below every single tick with no visible
+    // crash (nothing else here depends on tick() succeeding - mouse-driven edits are handled by
+    // separate event dispatch). Isolating it so a failure there can never block our own cliff
+    // scan trigger.
     @Override
     public void tick(double dt) {
-        super.tick(dt);
+        try {
+            super.tick(dt);
+        } catch (Exception e) {
+            System.err.println("ForagerRouteMap: NMiniMap.tick() threw, cliff scan trigger below would otherwise never run:");
+            e.printStackTrace();
+        }
         cliffScanTimer += dt;
         if (cliffScanTimer < CLIFF_SCAN_INTERVAL) return;
         cliffScanTimer = 0;
         if (dloc == null) return;
-        CliffTileCache.scanSegment(file, dloc.seg.id);
+        try {
+            CliffTileCache.scanSegment(file, dloc.seg.id);
+        } catch (Exception e) {
+            System.err.println("ForagerRouteMap: CliffTileCache.scanSegment() threw:");
+            e.printStackTrace();
+        }
     }
 
     // Terrain only, plus this widget's own overlays - deliberately skips drawmarkers/drawicons
