@@ -349,6 +349,10 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     }
 
     protected void handlePresetChanged(String presetName) {
+        // Same Listbox.mousedown null-click case handlePathChanged guards against - see there.
+        if (presetName == null) {
+            return;
+        }
         // Let subclass save any additional settings for old preset
         String oldPreset = getCurrentPresetName();
         if (oldPreset != null && !oldPreset.equals(presetName)) {
@@ -379,7 +383,10 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     }
 
     protected void handlePathChanged(String pathName) {
-        if (pathName.equals(getNoPathsMessage())) {
+        // Listbox.mousedown calls change(null) when a left-click lands in the dropdown's list
+        // area but below/outside any actual item row (e.g. clicking empty space near the bottom
+        // of the popup) - a normal, always-possible interaction, not specific to this window.
+        if (pathName == null || pathName.equals(getNoPathsMessage())) {
             return;
         }
 
