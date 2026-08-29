@@ -40,6 +40,10 @@ public class ForagerSettingsPanel extends Panel {
     private ForagerPath currentRoute;
     private final List<String> routeNames = new ArrayList<>();
     private final Dropbox<String> routeDropbox;
+    // Set around load()'s own programmatic routeDropbox.change() call so that reload (including
+    // the Cancel button, which calls load() directly) discards pending route edits instead of
+    // auto-saving them - see routeDropbox's change() override.
+    private boolean suppressRouteAutoSave = false;
 
     // Built lazily on first load() (see ensureRouteMapBuilt()), not in the constructor - every
     // Panel in this settings window is constructed eagerly for the whole NSettingsWindow, itself
@@ -216,6 +220,16 @@ public class ForagerSettingsPanel extends Panel {
             public void change(String item) {
                 super.change(item);
                 if (item != null) {
+                    // Switching which route is being edited must not silently drop in-progress
+                    // edits (waypoints/exclusion brush/caps) to the one being switched away from -
+                    // only the panel's Save button persists "whatever currentRoute currently is",
+                    // and loadRoute() below replaces that reference with a fresh disk-load.
+                    // Suppressed during load()'s own programmatic selection (Cancel calls load(),
+                    // which must discard rather than save, matching every other panel's Cancel
+                    // semantics) and skipped entirely when nothing's actually changing.
+                    if (!suppressRouteAutoSave && currentRoute != null && !currentRoute.name.equals(item)) {
+                        saveCurrentRoute();
+                    }
                     loadRoute(item);
                 }
             }
@@ -332,10 +346,15 @@ public class ForagerSettingsPanel extends Panel {
         pickupContainer.load(prop.actionsProfiles.get(prop.currentActionsProfile));
 
         loadAvailableRoutes();
-        if (!routeNames.isEmpty()) {
-            routeDropbox.change(routeNames.get(0));
-        } else {
-            clearRouteUI();
+        suppressRouteAutoSave = true;
+        try {
+            if (!routeNames.isEmpty()) {
+                routeDropbox.change(routeNames.get(0));
+            } else {
+                clearRouteUI();
+            }
+        } finally {
+            suppressRouteAutoSave = false;
         }
     }
 
@@ -452,6 +471,9 @@ public class ForagerSettingsPanel extends Panel {
             NUtils.getGameUI().error("Failed to delete route: " + e.getMessage());
         }
         routeNames.remove(routeDropbox.sel);
+        // Null out before switching so the dropbox's auto-save-outgoing-route logic doesn't
+        // resurrect the file we just deleted.
+        currentRoute = null;
         if (routeNames.isEmpty()) {
             clearRouteUI();
         } else {
