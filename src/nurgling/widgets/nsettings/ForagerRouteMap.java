@@ -10,7 +10,10 @@ import nurgling.routes.ForagerWaypoint;
 import nurgling.widgets.NMiniMap;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -60,6 +63,7 @@ public class ForagerRouteMap extends NMiniMap {
     public void setRoute(ForagerPath route) {
         this.route = route;
         cancelDrags();
+        invalidateExclusionCache();
     }
 
     private void cancelDrags() {
@@ -208,20 +212,60 @@ public class ForagerRouteMap extends NMiniMap {
     }
 
     // Exclusion tiles - freeform brush-painted, not a fixed rectangle (see paintOrEraseAt).
+    //
+    // A single brush application covers ~viewZoneTileSize() tiles (thousands), and a drag stroke
+    // re-applies it on every mousemove - drawing one frect() per individual tile every frame
+    // (as this used to) meant tens of thousands of draw calls per frame after even a short
+    // stroke, which is what was tanking performance. Instead, cache the tile set merged into
+    // horizontal runs (rebuilt only when the set actually changes - see invalidateExclusionCache,
+    // called from paintOrEraseAt - not on every frame), and draw one frect() per run: a solid
+    // painted blob becomes one rect per row instead of one rect per tile.
+    private long exclusionCacheSeg = Long.MIN_VALUE;
+    private boolean exclusionDirty = true;
+    private final List<int[]> exclusionRuns = new ArrayList<>(); // {y, x1, x2} inclusive
+
+    private void invalidateExclusionCache() {
+        exclusionDirty = true;
+    }
+
+    private void rebuildExclusionRunsIfNeeded() {
+        if (dloc != null && !exclusionDirty && exclusionCacheSeg == dloc.seg.id) return;
+        exclusionRuns.clear();
+        if (route != null && dloc != null) {
+            Set<Coord> tiles = route.exclusionTiles.get(dloc.seg.id);
+            if (tiles != null && !tiles.isEmpty()) {
+                List<Coord> sorted = new ArrayList<>(tiles);
+                sorted.sort(Comparator.<Coord>comparingInt((Coord c) -> c.y).thenComparingInt(c -> c.x));
+                int i = 0;
+                while (i < sorted.size()) {
+                    Coord start = sorted.get(i);
+                    int endX = start.x;
+                    int j = i + 1;
+                    while (j < sorted.size() && sorted.get(j).y == start.y && sorted.get(j).x == endX + 1) {
+                        endX = sorted.get(j).x;
+                        j++;
+                    }
+                    exclusionRuns.add(new int[]{start.y, start.x, endX});
+                    i = j;
+                }
+            }
+            exclusionCacheSeg = dloc.seg.id;
+        }
+        exclusionDirty = false;
+    }
+
     private void drawExclusion(GOut g) {
         if (route == null || dloc == null) return;
-        Set<Coord> tiles = route.exclusionTiles.get(dloc.seg.id);
-        if (tiles == null || tiles.isEmpty()) return;
+        rebuildExclusionRunsIfNeeded();
+        if (exclusionRuns.isEmpty()) return;
 
         Coord hsz = sz.div(2);
-        int boxSz = tileScreenSize();
-        Coord boxHalf = new Coord(boxSz / 2, boxSz / 2);
-
         g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
-        for (Coord tc : tiles) {
-            Coord c = tc.sub(dloc.tc).div(scalef()).add(hsz);
-            if (c.x < -boxSz || c.x > sz.x + boxSz || c.y < -boxSz || c.y > sz.y + boxSz) continue;
-            g.frect(c.sub(boxHalf), new Coord(boxSz, boxSz));
+        for (int[] run : exclusionRuns) {
+            Coord ul = new Coord(run[1], run[0]).sub(dloc.tc).div(scalef()).add(hsz);
+            Coord br = new Coord(run[2] + 1, run[0] + 1).sub(dloc.tc).div(scalef()).add(hsz);
+            if (br.x < 0 || ul.x > sz.x || br.y < 0 || ul.y > sz.y) continue;
+            g.frect(ul, br.sub(ul));
         }
         g.chcolor();
     }
@@ -245,6 +289,7 @@ public class ForagerRouteMap extends NMiniMap {
                 }
             }
         }
+        invalidateExclusionCache();
     }
 
     /** Grey (red-tinted while Shift is held, i.e. the brush would erase) square tracking the
