@@ -46,13 +46,13 @@ public class ForagerPath {
     public int maxDistance = -1;
     public int maxChainDistance = -1;
 
-    // When set, the map editor (ForagerRouteMap) automatically paints a radius around every
-    // cliff tile it detects while displaying this route into exclusionTiles, same as if the user
-    // had brushed it in by hand - it only ever adds tiles for whatever's currently visible/loaded
-    // in the editor (Ridges.brokenp needs the live map), so coverage builds up as the route is
-    // panned around with this enabled rather than happening all at once. Purely a UI-side
-    // convenience for populating exclusionTiles - not itself read by any bot logic.
-    public boolean cliffExclusionEnabled = false;
+    // Placeholder flag for a future Forager bot-behavior refactor: when set, Forager should also
+    // avoid known cliffs (checked live against MCache while roaming - no precomputation needed,
+    // the bot already has live map access at decision time) in addition to exclusionTiles. Not
+    // yet read by any bot logic. Deliberately its own flag rather than folded into exclusionTiles
+    // itself, since cliff avoidance and manually-painted exclusion are conceptually independent
+    // toggles even though a future bot check would likely OR them together.
+    public boolean avoidCliffs = false;
 
     public ForagerPath(String name) {
         this.name = name;
@@ -193,7 +193,7 @@ public class ForagerPath {
         if (json.has("maxChainDistance")) {
             this.maxChainDistance = json.getInt("maxChainDistance");
         }
-        this.cliffExclusionEnabled = json.optBoolean("cliffExclusionEnabled", false);
+        this.avoidCliffs = json.optBoolean("avoidCliffs", false);
 
         // Always generate sections from waypoints (don't load from JSON)
         // Sections use world coordinates which are session-specific
@@ -236,7 +236,7 @@ public class ForagerPath {
         if (maxChainDistance >= 0) {
             json.put("maxChainDistance", maxChainDistance);
         }
-        json.put("cliffExclusionEnabled", cliffExclusionEnabled);
+        json.put("avoidCliffs", avoidCliffs);
 
         // Don't save sections - they will be regenerated from waypoints
         // because they use world coordinates which are session-specific
