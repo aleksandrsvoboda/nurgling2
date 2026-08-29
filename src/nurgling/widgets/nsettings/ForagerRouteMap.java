@@ -41,6 +41,16 @@ public class ForagerRouteMap extends NMiniMap {
 
     public ForagerRouteMap(Coord sz, MapFile file) {
         super(sz, file);
+        // Without an initial location, base MiniMap's dloc (what drawmap() actually renders)
+        // stays null forever - tick() only ever resolves it via center()/follow(), neither of
+        // which anything else here calls (unlike NCornerMiniMap, which does this same call in
+        // its own constructor). follow() just gives an initial player-centered view; the base
+        // class's own drag handling already flips follow=false the moment the user pans away
+        // (MiniMap.mousemove), so this doesn't fight free pan/zoom afterward.
+        NGameUI gui = NUtils.getGameUI();
+        if (gui != null && gui.map != null) {
+            follow(new MapLocator(gui.map));
+        }
     }
 
     public void setRoute(ForagerPath route) {
