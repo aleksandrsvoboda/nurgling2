@@ -257,6 +257,15 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
 
+        routeRow.add(new IButton(
+                NStyle.canceli[0].back, NStyle.canceli[1].back, NStyle.canceli[2].back) {
+            @Override
+            public void click() {
+                super.click();
+                resetCurrentRoute();
+            }
+        }, new Coord(UI.scale(270), 0)).settip(L10n.get("forager.settings.reset_route_tip"));
+
         Widget brushRow = rsec.add(new Widget(new Coord(UI.scale(220), UI.scale(20))), routeRow.pos("bl").add(UI.scale(0, 10)));
         brushRow.add(new Label(L10n.get("forager.settings.brush_size")), new Coord(0, UI.scale(4)));
         brushSizeEntry = brushRow.add(new TextEntry(UI.scale(50), String.valueOf(ForagerRouteMap.DEFAULT_BRUSH_SIZE_TILES)) {
@@ -392,6 +401,15 @@ public class ForagerSettingsPanel extends Panel {
         maxChainsEntry.settext(currentRoute.maxChains < 0 ? "" : String.valueOf(currentRoute.maxChains));
         maxDistanceEntry.settext(currentRoute.maxDistance < 0 ? "" : String.valueOf(currentRoute.maxDistance));
         maxChainDistanceEntry.settext(currentRoute.maxChainDistance < 0 ? "" : String.valueOf(currentRoute.maxChainDistance));
+    }
+
+    /** Discards any unsaved in-memory edits (waypoints, exclusion paint, caps) to the currently
+     *  selected route by reloading it fresh from disk. A scoped "Cancel" for just the route being
+     *  edited - the panel-wide Cancel button reloads the whole panel and resets route selection
+     *  back to the alphabetically-first route rather than the one actually being worked on. */
+    private void resetCurrentRoute() {
+        if (routeDropbox.sel == null) return;
+        loadRoute(routeDropbox.sel);
     }
 
     private void clearRouteUI() {
