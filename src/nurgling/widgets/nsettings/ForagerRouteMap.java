@@ -25,12 +25,12 @@ import java.util.Set;
  * own waypoint/cliff/view-zone/exclusion overlays and mouse handling on top.
  * <p>
  * Interaction: plain left-click on empty space adds a waypoint at the end of the route;
- * left-click-and-drag an existing waypoint's node moves it; Shift+left-click one deletes it.
- * Right-click-and-drag paints tiles into the route's Exclusion set (a brush, sized to match the
- * viewable-zone box - not a fixed rectangle, tiles accumulate as the button stays held);
- * Shift+right-click-and-drag erases them instead. A grey square tracks the mouse at all times to
- * show the brush footprint. Free pan (drag empty space) and zoom (scroll) both work normally,
- * same as any other minimap.
+ * left-click-and-drag an existing waypoint's node moves it; plain right-click one deletes it.
+ * Shift+left-click-and-drag paints tiles into the route's Exclusion set (a brush, sized to match
+ * the viewable-zone box - not a fixed rectangle, tiles accumulate as the button stays held);
+ * Shift+right-click-and-drag erases them instead. A grey square tracks the mouse at all times
+ * (only while actually over this widget) to show the brush footprint. Free pan (drag empty
+ * space) and zoom (scroll) both work normally, same as any other minimap.
  */
 public class ForagerRouteMap extends NMiniMap {
 
@@ -201,14 +201,27 @@ public class ForagerRouteMap extends NMiniMap {
             Coord br = ul.add(unscaledViewSize).add(1, 1);
             Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
             Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
-            Coord screenSize = screenBR.sub(screenUL);
 
+            Coord[] clipped = clampRect(screenUL, screenBR);
+            if (clipped == null) continue;
             g.chcolor(VIEWZONE_BG);
-            g.frect(screenUL, screenSize);
+            g.frect(clipped[0], clipped[1].sub(clipped[0]));
             g.chcolor(VIEWZONE_BORDER);
-            g.rect(screenUL, screenSize);
+            g.rect(clipped[0], clipped[1].sub(clipped[0]));
         }
         g.chcolor();
+    }
+
+    /** Intersects [ul, br) with this widget's own [0,0]-[sz.x,sz.y] bounds, or null if there's no
+     *  overlap. Needed because fill/outline primitives (frect/rect) don't get clipped by the
+     *  ancestor GOut chain the way image() draws do - without this, a rect far bigger than this
+     *  widget (the viewable-zone/brush boxes can be, at ~81 tiles) visibly bleeds into whatever's
+     *  drawn around it (e.g. the help text above the map). */
+    private Coord[] clampRect(Coord ul, Coord br) {
+        Coord cul = new Coord(Utils.clip(ul.x, 0, sz.x), Utils.clip(ul.y, 0, sz.y));
+        Coord cbr = new Coord(Utils.clip(br.x, 0, sz.x), Utils.clip(br.y, 0, sz.y));
+        if (cbr.x <= cul.x || cbr.y <= cul.y) return null;
+        return new Coord[]{cul, cbr};
     }
 
     // Exclusion tiles - freeform brush-painted, not a fixed rectangle (see paintOrEraseAt).
@@ -264,8 +277,9 @@ public class ForagerRouteMap extends NMiniMap {
         for (int[] run : exclusionRuns) {
             Coord ul = new Coord(run[1], run[0]).sub(dloc.tc).div(scalef()).add(hsz);
             Coord br = new Coord(run[2] + 1, run[0] + 1).sub(dloc.tc).div(scalef()).add(hsz);
-            if (br.x < 0 || ul.x > sz.x || br.y < 0 || ul.y > sz.y) continue;
-            g.frect(ul, br.sub(ul));
+            Coord[] clipped = clampRect(ul, br);
+            if (clipped == null) continue;
+            g.frect(clipped[0], clipped[1].sub(clipped[0]));
         }
         g.chcolor();
     }
@@ -307,14 +321,29 @@ public class ForagerRouteMap extends NMiniMap {
         Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
         Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
 
+        Coord[] clipped = clampRect(screenUL, screenBR);
+        if (clipped == null) return;
+
         boolean eraseHint = erasing || (ui != null && ui.modshift);
         if (eraseHint) {
             g.chcolor(220, 120, 120, 190);
         } else {
             g.chcolor(210, 210, 210, 170);
         }
-        g.rect(screenUL, screenBR.sub(screenUL));
+        g.rect(clipped[0], clipped[1].sub(clipped[0]));
         g.chcolor();
+    }
+
+    // Without this, hoverC keeps whatever value it last had from mousemove - once the mouse
+    // leaves this widget (moves elsewhere in the settings panel) mousemove simply stops firing,
+    // so the brush cursor stayed drawn at that stale last-known position forever instead of
+    // disappearing.
+    @Override
+    public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
+        if (!hovering) {
+            hoverC = null;
+        }
+        return super.mousehover(ev, hovering);
     }
 
     // Cliff highlighting (visual only for now - not yet consumed by pathfinding, see the
@@ -410,28 +439,29 @@ public class ForagerRouteMap extends NMiniMap {
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         if (route != null) {
-            if (ev.b == 1) {
-                int idx = waypointIndexAt(ev.c);
-                if (idx >= 0) {
-                    if (ui.modshift) {
-                        route.removeWaypointAt(idx);
-                        notifyChanged();
-                    } else {
-                        draggingWaypointIndex = idx;
-                        dragGrab = ui.grabmouse(this);
-                    }
-                    return true;
-                }
-            } else if (ev.b == 3) {
-                if (ui.modshift) {
-                    erasing = true;
-                } else {
-                    painting = true;
-                }
+            boolean shift = ui.modshift;
+            if (shift && (ev.b == 1 || ev.b == 3)) {
+                erasing = (ev.b == 3);
+                painting = (ev.b == 1);
                 dragGrab = ui.grabmouse(this);
                 paintOrEraseAt(ev.c, erasing);
                 notifyChanged();
                 return true;
+            }
+            if (ev.b == 1) {
+                int idx = waypointIndexAt(ev.c);
+                if (idx >= 0) {
+                    draggingWaypointIndex = idx;
+                    dragGrab = ui.grabmouse(this);
+                    return true;
+                }
+            } else if (ev.b == 3) {
+                int idx = waypointIndexAt(ev.c);
+                if (idx >= 0) {
+                    route.removeWaypointAt(idx);
+                    notifyChanged();
+                    return true;
+                }
             }
         }
         return super.mousedown(ev);
@@ -483,7 +513,7 @@ public class ForagerRouteMap extends NMiniMap {
     // left-click-to-add needs comes for free from that, no separate threshold logic needed here.
     @Override
     public boolean clickloc(Location loc, int button, boolean press) {
-        if (!press && button == 1 && route != null) {
+        if (!press && button == 1 && !ui.modshift && route != null) {
             route.addWaypoint(new ForagerWaypoint(loc));
             notifyChanged();
             return true;

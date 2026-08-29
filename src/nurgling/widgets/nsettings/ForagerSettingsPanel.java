@@ -286,6 +286,23 @@ public class ForagerSettingsPanel extends Panel {
         relayoutSections();
     }
 
+    // MouseWheelEvent dispatch tries each widget on the way DOWN to whatever's under the cursor,
+    // not the deepest one first - so the outer Scrollport (an ancestor of routeMap, several
+    // levels up) always got first refusal and unconditionally consumed every wheel event for
+    // page-scrolling, before routeMap (which wants it for zoom) ever saw it. This panel is
+    // itself an ancestor of that Scrollport, so intercepting here - forwarding straight to
+    // routeMap when the cursor is actually over it - runs before the Scrollport gets a turn.
+    @Override
+    public boolean mousewheel(MouseWheelEvent ev) {
+        if (routeMap != null) {
+            Coord rel = ev.c.sub(routeMap.parentpos(this));
+            if (rel.isect(Coord.z, routeMap.sz)) {
+                return routeMap.mousewheel(ev.derive(rel));
+            }
+        }
+        return super.mousewheel(ev);
+    }
+
     @Override
     public void load() {
         ensureRouteMapBuilt();
