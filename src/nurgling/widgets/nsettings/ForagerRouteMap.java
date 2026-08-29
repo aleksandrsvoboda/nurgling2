@@ -191,10 +191,26 @@ public class ForagerRouteMap extends NMiniMap {
         return _sgridsz.mul(9).div(MCache.tilesz.floor());
     }
 
+    /** Grid-snapped view-zone box (ul, br - in dloc-relative segment-tile space, br already
+     *  covers the far edge) for an arbitrary segment-tile point - same formula NMiniMap.drawview()
+     *  uses for the player, just parameterized so both a real waypoint (drawWaypointViewZones)
+     *  and the hover cursor preview (drawBrushCursor) snap to the exact same grid the real
+     *  view-zone box would land on, rather than the cursor following the mouse smoothly while
+     *  the real zone jumps in whole grid-cell steps - lining up several waypoints' zones edge to
+     *  edge is much easier when the preview already shows where they'll actually land. Returns
+     *  null if tc's segment doesn't match the live sessloc (nothing to resolve world coords
+     *  against). */
+    private Coord[] viewZoneBoxTiles(long seg, Coord tc) {
+        if (sessloc == null || seg != sessloc.seg.id) return null;
+        Coord2d worldC = tc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz);
+        Coord2d gridsz2d = new Coord2d(_sgridsz);
+        Coord ul = worldC.floor(gridsz2d).sub(4, 4).mul(gridsz2d).floor(MCache.tilesz).add(sessloc.tc);
+        Coord br = ul.add(viewZoneTileSize()).add(1, 1);
+        return new Coord[]{ul, br};
+    }
+
     private void drawWaypointViewZones(GOut g) {
         if (route == null || dloc == null || sessloc == null) return;
-        Coord2d gridsz2d = new Coord2d(_sgridsz);
-        Coord unscaledViewSize = viewZoneTileSize();
         Coord hsz = sz.div(2);
 
         for (ForagerWaypoint wp : route.waypoints) {
@@ -207,13 +223,10 @@ public class ForagerRouteMap extends NMiniMap {
             Coord wpC = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
             if (!onScreen(g, wpC, UI.scale(12))) continue;
 
-            Coord2d worldC = wp.toWorldCoord(sessloc);
-            if (worldC == null) continue;
-
-            Coord ul = worldC.floor(gridsz2d).sub(4, 4).mul(gridsz2d).floor(MCache.tilesz).add(sessloc.tc);
-            Coord br = ul.add(unscaledViewSize).add(1, 1);
-            Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
-            Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
+            Coord[] box = viewZoneBoxTiles(wp.seg, wp.tc);
+            if (box == null) continue;
+            Coord screenUL = box[0].sub(dloc.tc).div(scalef()).add(hsz);
+            Coord screenBR = box[1].sub(dloc.tc).div(scalef()).add(hsz);
 
             Coord[] clipped = clampRect(g, screenUL, screenBR);
             if (clipped == null) continue;
@@ -340,21 +353,31 @@ public class ForagerRouteMap extends NMiniMap {
     /** Square tracking the mouse - shown at all times while hovering the map, so the brush's
      *  reach is always legible before clicking. While Shift isn't held (i.e. clicking here would
      *  act on waypoints, not the Exclusion brush) it previews the viewable-zone box a waypoint
-     *  placed here would get (same size/blue as drawWaypointViewZones - not a brush at all).
-     *  While Shift is held it shrinks/grows to the actual, user-adjustable brush size, tinted
-     *  grey (about to paint) or red (about to erase, i.e. also holding right-click). */
+     *  placed here would get - grid-snapped exactly like the real thing (viewZoneBoxTiles), not
+     *  smoothly following the cursor, so lining up several waypoints' zones edge to edge is a
+     *  matter of watching the preview snap into place rather than guessing. While Shift is held
+     *  it switches to the actual, user-adjustable brush size (unsnapped - a brush paints wherever
+     *  you point it), tinted grey (about to paint) or red (about to erase, also holding right-click). */
     private void drawBrushCursor(GOut g) {
         if (hoverC == null || dloc == null || route == null) return;
         Location loc = xlate(hoverC);
         if (loc == null || loc.seg.id != dloc.seg.id) return;
 
         boolean shiftHeld = ui != null && ui.modshift;
-        Coord size = shiftHeld ? new Coord(brushSizeTiles, brushSizeTiles) : viewZoneTileSize();
         Coord hsz = sz.div(2);
-        Coord ul = loc.tc.sub(size.div(2));
-        Coord br = ul.add(size);
-        Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
-        Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
+        Coord screenUL, screenBR;
+        if (shiftHeld) {
+            Coord size = new Coord(brushSizeTiles, brushSizeTiles);
+            Coord ul = loc.tc.sub(size.div(2));
+            Coord br = ul.add(size);
+            screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
+            screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
+        } else {
+            Coord[] box = viewZoneBoxTiles(loc.seg.id, loc.tc);
+            if (box == null) return;
+            screenUL = box[0].sub(dloc.tc).div(scalef()).add(hsz);
+            screenBR = box[1].sub(dloc.tc).div(scalef()).add(hsz);
+        }
 
         Coord[] clipped = clampRect(g, screenUL, screenBR);
         if (clipped == null) return;
