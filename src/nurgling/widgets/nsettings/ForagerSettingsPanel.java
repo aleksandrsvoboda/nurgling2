@@ -40,10 +40,20 @@ public class ForagerSettingsPanel extends Panel {
     private ForagerPath currentRoute;
     private final List<String> routeNames = new ArrayList<>();
     private final Dropbox<String> routeDropbox;
-    private final ForagerRouteMap routeMap;
-    private final TextEntry maxChainsEntry;
-    private final TextEntry maxDistanceEntry;
-    private final TextEntry maxChainDistanceEntry;
+
+    // Built lazily on first load() (see ensureRouteMapBuilt()), not in the constructor - every
+    // Panel in this settings window is constructed eagerly for the whole NSettingsWindow, itself
+    // built inside GameUI's own constructor, well before NUtils.getGameUI()/gui.mmap exist yet.
+    // Constructing ForagerRouteMap (which needs gui.mmap.file) here would NPE on every login.
+    private ForagerRouteMap routeMap;
+    private TextEntry maxChainsEntry;
+    private TextEntry maxDistanceEntry;
+    private TextEntry maxChainDistanceEntry;
+
+    private Scrollport scroll;
+    private CollapsibleSection routesSection;
+    private Widget routesContent;
+    private Widget modeRow;
 
     public ForagerSettingsPanel() {
         super(L10n.get("nsettings.item.forager"));
@@ -52,7 +62,7 @@ public class ForagerSettingsPanel extends Panel {
         // runs past the panel's own 580x580 budget, and later phases (Routes/Guarding) are meant
         // to keep adding to it in the same place - a scrollable viewport rather than a fixed
         // layout, so it degrades to "scroll" instead of "off the bottom of the window" as it grows.
-        Scrollport scroll = add(new Scrollport(UI.scale(new Coord(560, 530))), UI.scale(10, 40));
+        scroll = add(new Scrollport(UI.scale(new Coord(560, 530))), UI.scale(10, 40));
         Widget cont = scroll.cont;
 
         // Each of this panel's logically-separate groups (Actions here; Routes/Guarding in later
@@ -166,9 +176,9 @@ public class ForagerSettingsPanel extends Panel {
         actionsSection.pack();
 
         // ---- Routes ----
-        CollapsibleSection routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), true), actionsSection.pos("bl").add(UI.scale(0, 10)));
+        routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), true), actionsSection.pos("bl").add(UI.scale(0, 10)));
         routesSection.setOnToggle(scroll.cont::update);
-        Widget rsec = routesSection.content;
+        Widget rsec = routesContent = routesSection.content;
 
         Widget rprev = rsec.add(new Label(L10n.get("forager.settings.routes_help"), UI.scale(500)), Coord.z);
 
@@ -222,26 +232,36 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
 
-        Widget modeRow = rsec.add(new Widget(new Coord(UI.scale(320), UI.scale(24))), routeRow.pos("bl").add(UI.scale(0, 10)));
+        modeRow = rsec.add(new Widget(new Coord(UI.scale(320), UI.scale(24))), routeRow.pos("bl").add(UI.scale(0, 10)));
         modeRow.add(new Button(UI.scale(150), L10n.get("forager.settings.mode_edit_route")) {
             @Override
             public void click() {
                 super.click();
-                routeMap.setMode(ForagerRouteMap.Mode.EDIT_ROUTE);
+                if (routeMap != null) routeMap.setMode(ForagerRouteMap.Mode.EDIT_ROUTE);
             }
         }, new Coord(0, 0)).settip(L10n.get("forager.settings.mode_edit_route_tip"));
         modeRow.add(new Button(UI.scale(160), L10n.get("forager.settings.mode_dont_forage")) {
             @Override
             public void click() {
                 super.click();
-                routeMap.setMode(ForagerRouteMap.Mode.DONT_FORAGE);
+                if (routeMap != null) routeMap.setMode(ForagerRouteMap.Mode.DONT_FORAGE);
             }
         }, new Coord(UI.scale(155), 0)).settip(L10n.get("forager.settings.mode_dont_forage_tip"));
 
-        routeMap = new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file);
-        rsec.add(routeMap, modeRow.pos("bl").add(UI.scale(0, 5)));
+        // ForagerRouteMap itself (needs gui.mmap.file, not available yet here) is built lazily -
+        // see ensureRouteMapBuilt(), called from load().
+        routesSection.pack();
+    }
 
-        Widget capsRow = rsec.add(new Widget(new Coord(UI.scale(520), UI.scale(24))), routeMap.pos("bl").add(UI.scale(0, 10)));
+    /** Builds the embedded route-editing map (and the caps row positioned relative to it) the
+     *  first time this panel is actually opened, not in the constructor - see the field javadoc
+     *  on {@link #routeMap} for why. Idempotent; safe to call on every load(). */
+    private void ensureRouteMapBuilt() {
+        if (routeMap != null) return;
+
+        routeMap = routesContent.add(new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file), modeRow.pos("bl").add(UI.scale(0, 5)));
+
+        Widget capsRow = routesContent.add(new Widget(new Coord(UI.scale(520), UI.scale(24))), routeMap.pos("bl").add(UI.scale(0, 10)));
         capsRow.add(new Label(L10n.get("forager.settings.max_chains")), new Coord(0, UI.scale(4)));
         maxChainsEntry = capsRow.add(new TextEntry(UI.scale(50), ""), new Coord(UI.scale(80), 0));
         capsRow.add(new Label(L10n.get("forager.settings.max_distance")), new Coord(UI.scale(160), UI.scale(4)));
@@ -250,10 +270,13 @@ public class ForagerSettingsPanel extends Panel {
         maxChainDistanceEntry = capsRow.add(new TextEntry(UI.scale(50), ""), new Coord(UI.scale(500), 0));
 
         routesSection.pack();
+        scroll.cont.update();
     }
 
     @Override
     public void load() {
+        ensureRouteMapBuilt();
+
         prop = NForagerProp.get(NUtils.getUI().sessInfo);
         if (prop == null) return;
 

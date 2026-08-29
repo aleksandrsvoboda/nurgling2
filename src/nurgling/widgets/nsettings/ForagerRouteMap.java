@@ -181,21 +181,38 @@ public class ForagerRouteMap extends NMiniMap {
         Coord boxHalf = new Coord(boxSz / 2, boxSz / 2);
 
         g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
+        // Collect broken tiles first, then expand to their 8 neighbors too (per the spec: "the
+        // cliffs and the tiles around it should be red") before drawing, so a neighbor of one
+        // broken tile that's also broken itself doesn't get double-processed/doesn't matter -
+        // it's a set, not a list.
+        java.util.Set<Coord> broken = new java.util.HashSet<>();
         for (int y = ul.y; y <= br.y; y++) {
             for (int x = ul.x; x <= br.x; x++) {
                 Coord locTc = new Coord(x, y);
                 Coord absTile = locToAbsoluteTile(locTc);
                 if (absTile == null) continue;
-                boolean broken;
                 try {
-                    broken = Ridges.brokenp(mcache, absTile);
+                    if (Ridges.brokenp(mcache, absTile)) {
+                        broken.add(locTc);
+                    }
                 } catch (Loading e) {
-                    continue;
+                    // Tile itself, or a neighbor/corner brokenp reads, isn't loaded yet - skip.
                 }
-                if (!broken) continue;
-                Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
-                g.frect(c.sub(boxHalf), new Coord(boxSz, boxSz));
             }
+        }
+
+        java.util.Set<Coord> highlight = new java.util.HashSet<>(broken);
+        for (Coord tc : broken) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    highlight.add(tc.add(dx, dy));
+                }
+            }
+        }
+
+        for (Coord locTc : highlight) {
+            Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
+            g.frect(c.sub(boxHalf), new Coord(boxSz, boxSz));
         }
         g.chcolor();
     }
