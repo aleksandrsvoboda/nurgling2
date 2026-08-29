@@ -258,15 +258,6 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
 
-        routeRow.add(new IButton(
-                NStyle.canceli[0].back, NStyle.canceli[1].back, NStyle.canceli[2].back) {
-            @Override
-            public void click() {
-                super.click();
-                resetCurrentRoute();
-            }
-        }, new Coord(UI.scale(270), 0)).settip(L10n.get("forager.settings.reset_route_tip"));
-
         Widget brushRow = rsec.add(new Widget(new Coord(UI.scale(220), UI.scale(20))), routeRow.pos("bl").add(UI.scale(0, 10)));
         brushRow.add(new Label(L10n.get("forager.settings.brush_size")), new Coord(0, UI.scale(4)));
         brushSizeEntry = brushRow.add(new TextEntry(UI.scale(50), String.valueOf(ForagerRouteMap.DEFAULT_BRUSH_SIZE_TILES)) {
@@ -284,6 +275,7 @@ public class ForagerSettingsPanel extends Panel {
                 a = val;
                 if (currentRoute != null) {
                     currentRoute.cliffExclusionEnabled = val;
+                    routeMap.markDirty();
                 }
             }
         }, Coord.z);
@@ -319,6 +311,7 @@ public class ForagerSettingsPanel extends Panel {
         if (routeMap != null) return;
 
         routeMap = routesContent.add(new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file), mapAnchor.pos("bl").add(UI.scale(0, 10)));
+        routeMap.onResetRequested = this::resetCurrentRoute;
         applyBrushSize();
 
         Widget capsRow = routesContent.add(new Widget(new Coord(UI.scale(520), UI.scale(24))), routeMap.pos("bl").add(UI.scale(0, 10)));
@@ -442,6 +435,7 @@ public class ForagerSettingsPanel extends Panel {
         currentRoute.maxChainDistance = parseIntOrNoCap(maxChainDistanceEntry.text());
         try {
             currentRoute.save(NUtils.getDataFile(ROUTES_DIR));
+            routeMap.markClean();
         } catch (Exception e) {
             NUtils.getGameUI().error("Failed to save route: " + e.getMessage());
         }

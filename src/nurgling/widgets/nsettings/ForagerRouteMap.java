@@ -3,10 +3,13 @@ package nurgling.widgets.nsettings;
 import haven.*;
 import haven.resutil.Ridges;
 import nurgling.NGameUI;
+import nurgling.NStyle;
 import nurgling.NUtils;
+import nurgling.i18n.L10n;
 import nurgling.overlays.NWaypointOverlay;
 import nurgling.routes.ForagerPath;
 import nurgling.routes.ForagerWaypoint;
+import nurgling.tools.CliffTileCache;
 import nurgling.widgets.NMiniMap;
 
 import java.awt.Color;
@@ -40,6 +43,16 @@ public class ForagerRouteMap extends NMiniMap {
      *  owning panel can mark its state dirty and know to persist on save. */
     public Runnable onChange = null;
 
+    /** Set by the owning panel - invoked when the on-map "discard unsaved changes" button (top
+     *  right corner, only shown while dirty) is clicked. */
+    public Runnable onResetRequested = null;
+
+    // Whether route has live edits (waypoint/exclusion/cliff-toggle) not yet reflected in the
+    // last load()/setRoute() baseline - drives the on-map reset button's visibility. Deliberately
+    // scoped to just this widget's own edits, not the caps text fields elsewhere in the panel
+    // (those already follow the panel-wide Save/Cancel convention).
+    private boolean dirty = false;
+
     private int draggingWaypointIndex = -1;
     private UI.Grab dragGrab = null;
     private boolean painting = false;
@@ -50,6 +63,14 @@ public class ForagerRouteMap extends NMiniMap {
     // Independent of viewZoneTileSize() - user-adjustable, only used while the Exclusion brush
     // is active (Shift held). The un-shifted cursor preview still uses viewZoneTileSize().
     private int brushSizeTiles = DEFAULT_BRUSH_SIZE_TILES;
+
+    // Throttle for CliffTileCache.scanNewGrids()/applyCliffExclusionFromCache() - see tick().
+    // Not tied to draw() at all (unlike the old per-frame viewport-limited cliff scan this
+    // replaced) so the cache keeps growing, and an enabled Cliff exclusion toggle keeps applying,
+    // regardless of whether this widget is currently visible/on-screen or panned to a particular
+    // spot.
+    private static final double CLIFF_SCAN_INTERVAL = 0.5;
+    private double cliffScanTimer = 0;
 
     public ForagerRouteMap(Coord sz, MapFile file) {
         super(sz, file);
@@ -65,10 +86,24 @@ public class ForagerRouteMap extends NMiniMap {
         }
     }
 
+    /** For edits the panel makes directly to the route model outside this widget (currently just
+     *  the Cliff exclusion checkbox) - same unsaved-changes bookkeeping as an in-map edit. */
+    public void markDirty() {
+        dirty = true;
+    }
+
     public void setRoute(ForagerPath route) {
         this.route = route;
         cancelDrags();
         invalidateExclusionCache();
+        dirty = false;
+    }
+
+    /** Called by the owning panel right after a successful save - clears the unsaved-changes
+     *  indicator without touching route/waypoints/exclusion state (unlike setRoute(), this isn't
+     *  a reload, currentRoute is still the same object, it's just no longer ahead of disk). */
+    public void markClean() {
+        dirty = false;
     }
 
     public void setBrushSizeTiles(int tiles) {
@@ -86,9 +121,28 @@ public class ForagerRouteMap extends NMiniMap {
     }
 
     private void notifyChanged() {
+        dirty = true;
         if (onChange != null) {
             onChange.run();
         }
+    }
+
+    // Not tied to draw() - runs whether or not this widget is currently visible/attached to a
+    // shown panel (Widget.TickEvent reaches every attached widget regardless of the visible flag,
+    // only draw() is gated on it), and independent of this widget's own pan/zoom position, so the
+    // cliff cache keeps growing - and an enabled Cliff exclusion toggle keeps applying from it -
+    // for as long as the game session runs, once Forager Settings has been opened at least once
+    // to construct this widget in the first place.
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        cliffScanTimer += dt;
+        if (cliffScanTimer < CLIFF_SCAN_INTERVAL) return;
+        cliffScanTimer = 0;
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null || gui.map == null) return;
+        CliffTileCache.scanNewGrids(gui, file);
+        applyCliffExclusionFromCache();
     }
 
     // Terrain only, plus this widget's own overlays - deliberately skips drawmarkers/drawicons
@@ -104,6 +158,7 @@ public class ForagerRouteMap extends NMiniMap {
         drawExclusion(g);
         drawRouteWaypoints(g);
         drawBrushCursor(g);
+        drawResetButton(g);
     }
 
     private static final int TILE_SQUARE_ALPHA = 110;
@@ -393,6 +448,41 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
+    // On-map "discard unsaved changes" button, top-right corner, only shown while dirty (per
+    // direct feedback - the previous version of this lived as a permanent IButton up in the
+    // panel's route row, which was both an odd place for it and always visible whether or not
+    // there was anything to discard). Manually drawn/hit-tested rather than a real child Widget
+    // because MiniMap.draw() deliberately never runs the normal child-draw traversal (only
+    // drawparts()) - same reason every other overlay in this widget (waypoints, brush cursor,
+    // exclusion tiles) is hand-drawn instead of being a child Widget.
+    private static final int RESET_BTN_MARGIN = 6;
+
+    private Coord resetButtonUL() {
+        Tex icon = NStyle.canceli[0];
+        return new Coord(sz.x - icon.sz().x - UI.scale(RESET_BTN_MARGIN), UI.scale(RESET_BTN_MARGIN));
+    }
+
+    private boolean resetButtonHit(Coord c) {
+        if (!dirty) return false;
+        Coord ul = resetButtonUL();
+        Coord br = ul.add(NStyle.canceli[0].sz());
+        return c.x >= ul.x && c.x < br.x && c.y >= ul.y && c.y < br.y;
+    }
+
+    private void drawResetButton(GOut g) {
+        if (!dirty) return;
+        boolean hovering = hoverC != null && resetButtonHit(hoverC);
+        g.image(NStyle.canceli[hovering ? 2 : 0], resetButtonUL());
+    }
+
+    @Override
+    public Object tooltip(Coord c, Widget prev) {
+        if (resetButtonHit(c)) {
+            return L10n.get("forager.settings.reset_route_tip");
+        }
+        return super.tooltip(c, prev);
+    }
+
     // Without this, hoverC keeps whatever value it last had from mousemove - once the mouse
     // leaves this widget (moves elsewhere in the settings panel) mousemove simply stops firing,
     // so the brush cursor stayed drawn at that stale last-known position forever instead of
@@ -461,8 +551,6 @@ public class ForagerRouteMap extends NMiniMap {
             }
         }
 
-        applyCliffExclusion(broken, dloc.seg.id);
-
         g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
         for (Coord locTc : highlight) {
             Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
@@ -479,29 +567,33 @@ public class ForagerRouteMap extends NMiniMap {
     // cliff-specific block list, since Forager's future refactor only needs to consult one set.
     private static final int CLIFF_EXCLUSION_RADIUS = 5;
 
-    /** When route.cliffExclusionEnabled, paints a CLIFF_EXCLUSION_RADIUS-tile square around every
-     *  tile in `broken` (this frame's cliff scan, see drawCliffs) into the route's exclusion set -
-     *  same effect as brushing it in by hand. Only ever adds tiles for whatever's currently
-     *  visible/loaded (drawCliffs' own scan already limits `broken` to that), so coverage builds
-     *  up as the map is panned around with the toggle on rather than all at once. Skips tiles
-     *  already excluded so a steady-state view (nothing new to add) is just membership checks,
-     *  not a repaint - this runs every frame from drawCliffs. */
-    private void applyCliffExclusion(Set<Coord> broken, long seg) {
-        if (route == null || !route.cliffExclusionEnabled || broken.isEmpty()) return;
+    /** While route.cliffExclusionEnabled, unions every cliff tile CliffTileCache currently knows
+     *  about - across every segment it's seen so far, not just whatever this widget happens to be
+     *  showing right now - into the route's exclusion set, radius CLIFF_EXCLUSION_RADIUS. Same
+     *  effect as brushing it in by hand, just automatic and not limited to "you have to pan the
+     *  little editor over the spot to make it notice." Already-excluded tiles are skipped, so once
+     *  caught up this is just membership checks - called from the throttled tick(), not every
+     *  frame, and the cache itself typically only grows a few tiles' worth of new grids at a time
+     *  under normal play anyway. */
+    private void applyCliffExclusionFromCache() {
+        if (route == null || !route.cliffExclusionEnabled) return;
         boolean changed = false;
-        for (Coord tc : broken) {
-            for (int dy = -CLIFF_EXCLUSION_RADIUS; dy <= CLIFF_EXCLUSION_RADIUS; dy++) {
-                for (int dx = -CLIFF_EXCLUSION_RADIUS; dx <= CLIFF_EXCLUSION_RADIUS; dx++) {
-                    Coord t = tc.add(dx, dy);
-                    if (!route.isExcluded(seg, t)) {
-                        route.paintExclusion(seg, t);
-                        changed = true;
+        for (long seg : CliffTileCache.knownSegments()) {
+            for (Coord tc : CliffTileCache.forSegment(seg)) {
+                for (int dy = -CLIFF_EXCLUSION_RADIUS; dy <= CLIFF_EXCLUSION_RADIUS; dy++) {
+                    for (int dx = -CLIFF_EXCLUSION_RADIUS; dx <= CLIFF_EXCLUSION_RADIUS; dx++) {
+                        Coord t = tc.add(dx, dy);
+                        if (!route.isExcluded(seg, t)) {
+                            route.paintExclusion(seg, t);
+                            changed = true;
+                        }
                     }
                 }
             }
         }
         if (changed) {
             invalidateExclusionCache();
+            dirty = true;
         }
     }
 
@@ -533,6 +625,12 @@ public class ForagerRouteMap extends NMiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        if (ev.b == 1 && resetButtonHit(ev.c)) {
+            if (onResetRequested != null) {
+                onResetRequested.run();
+            }
+            return true;
+        }
         if (route != null) {
             boolean shift = ui.modshift;
             if (shift && (ev.b == 1 || ev.b == 3)) {
