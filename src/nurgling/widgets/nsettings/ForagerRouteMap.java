@@ -46,6 +46,11 @@ public class ForagerRouteMap extends NMiniMap {
     private boolean erasing = false;
     private Coord hoverC = null;
 
+    public static final int DEFAULT_BRUSH_SIZE_TILES = 10;
+    // Independent of viewZoneTileSize() - user-adjustable, only used while the Exclusion brush
+    // is active (Shift held). The un-shifted cursor preview still uses viewZoneTileSize().
+    private int brushSizeTiles = DEFAULT_BRUSH_SIZE_TILES;
+
     public ForagerRouteMap(Coord sz, MapFile file) {
         super(sz, file);
         // Without an initial location, base MiniMap's dloc (what drawmap() actually renders)
@@ -64,6 +69,10 @@ public class ForagerRouteMap extends NMiniMap {
         this.route = route;
         cancelDrags();
         invalidateExclusionCache();
+    }
+
+    public void setBrushSizeTiles(int tiles) {
+        this.brushSizeTiles = Math.max(1, tiles);
     }
 
     private void cancelDrags() {
@@ -286,15 +295,15 @@ public class ForagerRouteMap extends NMiniMap {
 
     /** Paints (or, with erase=true, removes) every tile in the brush footprint (centered on the
      *  tile under screen point c) in the route's exclusion set for whichever segment that tile
-     *  resolves to. Sized to match the viewable-zone box (viewZoneTileSize()), per direct
-     *  instruction. */
+     *  resolves to. Sized to the user-adjustable brush size (setBrushSizeTiles), not the
+     *  viewable-zone box - those are independent now. */
     private void paintOrEraseAt(Coord c, boolean erase) {
         Location loc = xlate(c);
         if (loc == null || route == null) return;
-        Coord half = viewZoneTileSize().div(2);
+        int half = brushSizeTiles / 2;
         Set<Coord> tiles = erase ? route.exclusionTiles.get(loc.seg.id) : null;
-        for (int dy = -half.y; dy <= half.y; dy++) {
-            for (int dx = -half.x; dx <= half.x; dx++) {
+        for (int dy = -half; dy <= half; dy++) {
+            for (int dx = -half; dx <= half; dx++) {
                 Coord tc = loc.tc.add(dx, dy);
                 if (erase) {
                     if (tiles != null) tiles.remove(tc);
@@ -306,15 +315,19 @@ public class ForagerRouteMap extends NMiniMap {
         invalidateExclusionCache();
     }
 
-    /** Grey (red-tinted while Shift is held, i.e. the brush would erase) square tracking the
-     *  mouse, sized to match the brush footprint (viewZoneTileSize(), same as the viewable-zone
-     *  box) - shown at all times so the brush's reach is always legible before painting. */
+    /** Square tracking the mouse - shown at all times while hovering the map, so the brush's
+     *  reach is always legible before clicking. While Shift isn't held (i.e. clicking here would
+     *  act on waypoints, not the Exclusion brush) it previews the viewable-zone box a waypoint
+     *  placed here would get (same size/blue as drawWaypointViewZones - not a brush at all).
+     *  While Shift is held it shrinks/grows to the actual, user-adjustable brush size, tinted
+     *  grey (about to paint) or red (about to erase, i.e. also holding right-click). */
     private void drawBrushCursor(GOut g) {
         if (hoverC == null || dloc == null || route == null) return;
         Location loc = xlate(hoverC);
         if (loc == null || loc.seg.id != dloc.seg.id) return;
 
-        Coord size = viewZoneTileSize();
+        boolean shiftHeld = ui != null && ui.modshift;
+        Coord size = shiftHeld ? new Coord(brushSizeTiles, brushSizeTiles) : viewZoneTileSize();
         Coord hsz = sz.div(2);
         Coord ul = loc.tc.sub(size.div(2));
         Coord br = ul.add(size);
@@ -324,8 +337,9 @@ public class ForagerRouteMap extends NMiniMap {
         Coord[] clipped = clampRect(screenUL, screenBR);
         if (clipped == null) return;
 
-        boolean eraseHint = erasing || (ui != null && ui.modshift);
-        if (eraseHint) {
+        if (!shiftHeld) {
+            g.chcolor(VIEWZONE_BORDER);
+        } else if (erasing) {
             g.chcolor(220, 120, 120, 190);
         } else {
             g.chcolor(210, 210, 210, 170);

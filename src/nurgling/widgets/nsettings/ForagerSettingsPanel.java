@@ -46,6 +46,7 @@ public class ForagerSettingsPanel extends Panel {
     // built inside GameUI's own constructor, well before NUtils.getGameUI()/gui.mmap exist yet.
     // Constructing ForagerRouteMap (which needs gui.mmap.file) here would NPE on every login.
     private ForagerRouteMap routeMap;
+    private TextEntry brushSizeEntry;
     private TextEntry maxChainsEntry;
     private TextEntry maxDistanceEntry;
     private TextEntry maxChainDistanceEntry;
@@ -242,11 +243,20 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
 
-        mapAnchor = routeRow;
+        Widget brushRow = rsec.add(new Widget(new Coord(UI.scale(220), UI.scale(20))), routeRow.pos("bl").add(UI.scale(0, 10)));
+        brushRow.add(new Label(L10n.get("forager.settings.brush_size")), new Coord(0, UI.scale(4)));
+        brushSizeEntry = brushRow.add(new TextEntry(UI.scale(50), String.valueOf(ForagerRouteMap.DEFAULT_BRUSH_SIZE_TILES)) {
+            @Override
+            public void done(ReadLine buf) {
+                super.done(buf);
+                applyBrushSize();
+            }
+        }, new Coord(UI.scale(150), 0));
+
+        mapAnchor = brushRow;
 
         // ForagerRouteMap itself (needs gui.mmap.file, not available yet here) is built lazily -
-        // see ensureRouteMapBuilt(), called from load(). Its own Zone/Route/Exclude toggle
-        // buttons are overlaid directly on the map (see ForagerRouteMap), not a separate row here.
+        // see ensureRouteMapBuilt(), called from load().
         routesSection.pack();
 
         relayoutSections();
@@ -273,6 +283,7 @@ public class ForagerSettingsPanel extends Panel {
         if (routeMap != null) return;
 
         routeMap = routesContent.add(new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file), mapAnchor.pos("bl").add(UI.scale(0, 10)));
+        applyBrushSize();
 
         Widget capsRow = routesContent.add(new Widget(new Coord(UI.scale(520), UI.scale(24))), routeMap.pos("bl").add(UI.scale(0, 10)));
         capsRow.add(new Label(L10n.get("forager.settings.max_chains")), new Coord(0, UI.scale(4)));
@@ -394,6 +405,20 @@ public class ForagerSettingsPanel extends Panel {
         } catch (Exception e) {
             return -1;
         }
+    }
+
+    /** Pushes the brush-size field's value into routeMap - a pure editing-tool preference (not
+     *  route data, unlike max chains/distance below), so not persisted anywhere; falls back to
+     *  the default on blank/unparseable input rather than -1/no-cap (a brush needs a real size). */
+    private void applyBrushSize() {
+        if (routeMap == null) return;
+        int v;
+        try {
+            v = Integer.parseInt(brushSizeEntry.text().trim());
+        } catch (Exception e) {
+            v = ForagerRouteMap.DEFAULT_BRUSH_SIZE_TILES;
+        }
+        routeMap.setBrushSizeTiles(v);
     }
 
     private void addRoute() {
