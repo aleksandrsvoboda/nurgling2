@@ -86,13 +86,18 @@ public class CliffTileCache {
         if (file == null) return;
         try (Locked lk = new Locked(file.lock.readLock())) {
             MapFile.Segment seg = file.segments.get(segId);
-            if (seg == null) return;
+            if (seg == null) {
+                System.err.println("CliffTileCache: no persisted Segment for id " + Long.toUnsignedString(segId, 16));
+                return;
+            }
 
             Map<Coord, Long> gridCoords = new HashMap<>(seg.map);
             List<Coord> pending = new ArrayList<>();
             for (Map.Entry<Coord, Long> e : gridCoords.entrySet()) {
                 if (!scannedGridIds.contains(e.getValue())) pending.add(e.getKey());
             }
+            System.err.println("CliffTileCache: seg " + Long.toUnsignedString(segId, 16) + " has " + gridCoords.size()
+                    + " known grids, " + pending.size() + " pending scan");
             if (pending.isEmpty()) return;
 
             // The view must include every known grid, not just the pending ones - Ridges.brokenp
@@ -112,9 +117,11 @@ public class CliffTileCache {
             }
             if (any) {
                 version.merge(segId, 1, Integer::sum);
+                System.err.println("CliffTileCache: scanned " + n + " grid(s) for seg " + Long.toUnsignedString(segId, 16)
+                        + " - now " + forSegment(segId).size() + " cliff tile(s), " + safeForSegment(segId).size() + " safe tile(s)");
             }
         } catch (Loading l) {
-            // Some grid's persisted data isn't loaded into memory yet - retry next throttled call.
+            System.err.println("CliffTileCache: Loading during scan of seg " + Long.toUnsignedString(segId, 16) + " - " + l.getMessage());
         }
     }
 

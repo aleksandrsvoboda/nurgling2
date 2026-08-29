@@ -564,6 +564,8 @@ public class ForagerRouteMap extends NMiniMap {
         }
         buildRuns(highlight, cliffRuns);
         buildRuns(CliffTileCache.safeForSegment(seg), cliffSafeRuns);
+        System.err.println("ForagerRouteMap: rebuilt cliff runs for seg " + Long.toUnsignedString(seg, 16)
+                + " (version " + ver + ") - " + cliffRuns.size() + " cliff run(s), " + cliffSafeRuns.size() + " safe run(s)");
     }
 
     private void drawCliffs(GOut g) {
