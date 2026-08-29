@@ -53,7 +53,7 @@ public class ForagerSettingsPanel extends Panel {
     private Scrollport scroll;
     private CollapsibleSection routesSection;
     private Widget routesContent;
-    private Widget modeRow;
+    private Widget mapAnchor;
 
     // Every top-level CollapsibleSection, in display order - collapsing/expanding one only
     // toggles its own content's visibility (CollapsibleSection.content.visible) and shrinks/grows
@@ -242,24 +242,11 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_route_tip"));
 
-        modeRow = rsec.add(new Widget(new Coord(UI.scale(320), UI.scale(24))), routeRow.pos("bl").add(UI.scale(0, 10)));
-        modeRow.add(new Button(UI.scale(150), L10n.get("forager.settings.mode_edit_route")) {
-            @Override
-            public void click() {
-                super.click();
-                if (routeMap != null) routeMap.setMode(ForagerRouteMap.Mode.EDIT_ROUTE);
-            }
-        }, new Coord(0, 0)).settip(L10n.get("forager.settings.mode_edit_route_tip"));
-        modeRow.add(new Button(UI.scale(160), L10n.get("forager.settings.mode_dont_forage")) {
-            @Override
-            public void click() {
-                super.click();
-                if (routeMap != null) routeMap.setMode(ForagerRouteMap.Mode.DONT_FORAGE);
-            }
-        }, new Coord(UI.scale(155), 0)).settip(L10n.get("forager.settings.mode_dont_forage_tip"));
+        mapAnchor = routeRow;
 
         // ForagerRouteMap itself (needs gui.mmap.file, not available yet here) is built lazily -
-        // see ensureRouteMapBuilt(), called from load().
+        // see ensureRouteMapBuilt(), called from load(). Its own Zone/Route/Exclude toggle
+        // buttons are overlaid directly on the map (see ForagerRouteMap), not a separate row here.
         routesSection.pack();
 
         relayoutSections();
@@ -285,7 +272,7 @@ public class ForagerSettingsPanel extends Panel {
     private void ensureRouteMapBuilt() {
         if (routeMap != null) return;
 
-        routeMap = routesContent.add(new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file), modeRow.pos("bl").add(UI.scale(0, 5)));
+        routeMap = routesContent.add(new ForagerRouteMap(UI.scale(new Coord(520, 360)), NUtils.getGameUI().mmap.file), mapAnchor.pos("bl").add(UI.scale(0, 10)));
 
         Widget capsRow = routesContent.add(new Widget(new Coord(UI.scale(520), UI.scale(24))), routeMap.pos("bl").add(UI.scale(0, 10)));
         capsRow.add(new Label(L10n.get("forager.settings.max_chains")), new Coord(0, UI.scale(4)));

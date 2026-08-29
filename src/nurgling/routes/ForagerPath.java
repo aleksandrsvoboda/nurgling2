@@ -10,7 +10,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class ForagerPath {
 
@@ -20,43 +24,20 @@ public class ForagerPath {
     public List<ForagerWaypoint> waypoints;
     public List<ForagerSection> sections;
 
-    /** A rectangular, segment-tied region the bot should never chain-forage into. Purely
-     *  captured data for now - not yet read by any bot logic (see the Forager refactor plan). */
-    public static class NoForageZone {
-        public long seg;
-        public Coord ul;
-        public Coord br;
+    // Individual tiles painted with the map editor's "Exclusion" brush - the bot should never
+    // chain-forage into these. Purely captured data for now - not yet read by any bot logic (see
+    // the Forager refactor plan). Freeform (brush-painted), not a fixed rectangle, keyed by
+    // segment id since a route can span more than one.
+    public Map<Long, Set<Coord>> exclusionTiles;
 
-        public NoForageZone(long seg, Coord a, Coord b) {
-            this.seg = seg;
-            this.ul = new Coord(Math.min(a.x, b.x), Math.min(a.y, b.y));
-            this.br = new Coord(Math.max(a.x, b.x), Math.max(a.y, b.y));
-        }
-
-        public NoForageZone(JSONObject json) {
-            this.seg = json.getLong("seg");
-            JSONObject ulJson = json.getJSONObject("ul");
-            this.ul = new Coord(ulJson.getInt("x"), ulJson.getInt("y"));
-            JSONObject brJson = json.getJSONObject("br");
-            this.br = new Coord(brJson.getInt("x"), brJson.getInt("y"));
-        }
-
-        public JSONObject toJson() {
-            JSONObject json = new JSONObject();
-            json.put("seg", seg);
-            JSONObject ulJson = new JSONObject();
-            ulJson.put("x", ul.x);
-            ulJson.put("y", ul.y);
-            json.put("ul", ulJson);
-            JSONObject brJson = new JSONObject();
-            brJson.put("x", br.x);
-            brJson.put("y", br.y);
-            json.put("br", brJson);
-            return json;
-        }
+    public void paintExclusion(long seg, Coord tc) {
+        exclusionTiles.computeIfAbsent(seg, k -> new HashSet<>()).add(tc);
     }
 
-    public List<NoForageZone> noForageZones;
+    public boolean isExcluded(long seg, Coord tc) {
+        Set<Coord> tiles = exclusionTiles.get(seg);
+        return tiles != null && tiles.contains(tc);
+    }
 
     // Placeholder caps for a future Forager bot-behavior refactor (chain-foraging away from the
     // route) - not read by any bot logic yet. -1 = no cap, same sentinel convention as
@@ -69,7 +50,7 @@ public class ForagerPath {
         this.name = name;
         this.waypoints = new ArrayList<>();
         this.sections = new ArrayList<>();
-        this.noForageZones = new ArrayList<>();
+        this.exclusionTiles = new HashMap<>();
     }
 
     public void addWaypoint(ForagerWaypoint wp) {
@@ -169,7 +150,7 @@ public class ForagerPath {
         this.name = json.getString("name");
         this.waypoints = new ArrayList<>();
         this.sections = new ArrayList<>();
-        this.noForageZones = new ArrayList<>();
+        this.exclusionTiles = new HashMap<>();
 
         // Load waypoints (grid-based)
         if (json.has("waypoints")) {
@@ -180,10 +161,18 @@ public class ForagerPath {
             }
         }
 
-        if (json.has("noForageZones")) {
-            JSONArray zonesArray = json.getJSONArray("noForageZones");
-            for (int i = 0; i < zonesArray.length(); i++) {
-                noForageZones.add(new NoForageZone(zonesArray.getJSONObject(i)));
+        if (json.has("exclusionTiles")) {
+            JSONArray segArray = json.getJSONArray("exclusionTiles");
+            for (int i = 0; i < segArray.length(); i++) {
+                JSONObject segJson = segArray.getJSONObject(i);
+                long seg = segJson.getLong("seg");
+                Set<Coord> tiles = new HashSet<>();
+                JSONArray tilesArray = segJson.getJSONArray("tiles");
+                for (int j = 0; j < tilesArray.length(); j++) {
+                    JSONObject tJson = tilesArray.getJSONObject(j);
+                    tiles.add(new Coord(tJson.getInt("x"), tJson.getInt("y")));
+                }
+                exclusionTiles.put(seg, tiles);
             }
         }
 
@@ -213,11 +202,21 @@ public class ForagerPath {
         }
         json.put("waypoints", waypointsArray);
 
-        JSONArray zonesArray = new JSONArray();
-        for (NoForageZone zone : noForageZones) {
-            zonesArray.put(zone.toJson());
+        JSONArray segArray = new JSONArray();
+        for (Map.Entry<Long, Set<Coord>> entry : exclusionTiles.entrySet()) {
+            JSONObject segJson = new JSONObject();
+            segJson.put("seg", entry.getKey());
+            JSONArray tilesArray = new JSONArray();
+            for (Coord tc : entry.getValue()) {
+                JSONObject tJson = new JSONObject();
+                tJson.put("x", tc.x);
+                tJson.put("y", tc.y);
+                tilesArray.put(tJson);
+            }
+            segJson.put("tiles", tilesArray);
+            segArray.put(segJson);
         }
-        json.put("noForageZones", zonesArray);
+        json.put("exclusionTiles", segArray);
 
         if (maxChains >= 0) {
             json.put("maxChains", maxChains);
