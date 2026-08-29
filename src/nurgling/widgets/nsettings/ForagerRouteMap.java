@@ -1,7 +1,6 @@
 package nurgling.widgets.nsettings;
 
 import haven.*;
-import haven.resutil.Ridges;
 import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUtils;
@@ -130,9 +129,8 @@ public class ForagerRouteMap extends NMiniMap {
     // Not tied to draw() - runs whether or not this widget is currently visible/attached to a
     // shown panel (Widget.TickEvent reaches every attached widget regardless of the visible flag,
     // only draw() is gated on it), and independent of this widget's own pan/zoom position, so the
-    // cliff cache keeps growing - and an enabled Cliff exclusion toggle keeps applying from it -
-    // for as long as the game session runs, once Forager Settings has been opened at least once
-    // to construct this widget in the first place.
+    // cliff cache keeps growing for as long as the game session runs, once Forager Settings has
+    // been opened at least once to construct this widget in the first place.
     @Override
     public void tick(double dt) {
         super.tick(dt);
@@ -142,7 +140,6 @@ public class ForagerRouteMap extends NMiniMap {
         NGameUI gui = NUtils.getGameUI();
         if (gui == null || gui.map == null) return;
         CliffTileCache.scanNewGrids(gui, file);
-        applyCliffExclusionFromCache();
     }
 
     // Terrain only, plus this widget's own overlays - deliberately skips drawmarkers/drawicons
@@ -162,12 +159,6 @@ public class ForagerRouteMap extends NMiniMap {
     }
 
     private static final int TILE_SQUARE_ALPHA = 110;
-
-    private int tileScreenSize() {
-        float sf = scalef();
-        if (sf <= 0) return UI.scale(4);
-        return Math.max(UI.scale(2), Math.round(1f / sf));
-    }
 
     // Deliberately the exact same rendering NMiniMap.drawQueuedWaypoints already uses for the
     // real map's alt+left-click movement-queue waypoints (dashed crawling legs, circular numbered
@@ -345,21 +336,8 @@ public class ForagerRouteMap extends NMiniMap {
         exclusionRuns.clear();
         if (route != null && dloc != null) {
             Set<Coord> tiles = route.exclusionTiles.get(dloc.seg.id);
-            if (tiles != null && !tiles.isEmpty()) {
-                List<Coord> sorted = new ArrayList<>(tiles);
-                sorted.sort(Comparator.<Coord>comparingInt((Coord c) -> c.y).thenComparingInt(c -> c.x));
-                int i = 0;
-                while (i < sorted.size()) {
-                    Coord start = sorted.get(i);
-                    int endX = start.x;
-                    int j = i + 1;
-                    while (j < sorted.size() && sorted.get(j).y == start.y && sorted.get(j).x == endX + 1) {
-                        endX = sorted.get(j).x;
-                        j++;
-                    }
-                    exclusionRuns.add(new int[]{start.y, start.x, endX});
-                    i = j;
-                }
+            if (tiles != null) {
+                buildRuns(tiles, exclusionRuns);
             }
             exclusionCacheSeg = dloc.seg.id;
         }
@@ -370,17 +348,45 @@ public class ForagerRouteMap extends NMiniMap {
         if (route == null || dloc == null) return;
         rebuildExclusionRunsIfNeeded();
         if (exclusionRuns.isEmpty()) return;
-
-        Coord hsz = sz.div(2);
         g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
-        for (int[] run : exclusionRuns) {
+        drawRuns(g, exclusionRuns);
+        g.chcolor();
+    }
+
+    /** Merges a tile set into horizontal runs ({y, x1, x2}, x2 inclusive) for cheap batched
+     *  drawing - one frect() per contiguous row-run instead of one per tile. Shared by the
+     *  Exclusion overlay and the cliff/cliff-safe overlays below; expensive to build (a full sort)
+     *  for a large set, so callers must only call this when the underlying tile set has actually
+     *  changed, not every frame. */
+    private static void buildRuns(Set<Coord> tiles, List<int[]> out) {
+        out.clear();
+        if (tiles.isEmpty()) return;
+        List<Coord> sorted = new ArrayList<>(tiles);
+        sorted.sort(Comparator.<Coord>comparingInt((Coord c) -> c.y).thenComparingInt(c -> c.x));
+        int i = 0;
+        while (i < sorted.size()) {
+            Coord start = sorted.get(i);
+            int endX = start.x;
+            int j = i + 1;
+            while (j < sorted.size() && sorted.get(j).y == start.y && sorted.get(j).x == endX + 1) {
+                endX = sorted.get(j).x;
+                j++;
+            }
+            out.add(new int[]{start.y, start.x, endX});
+            i = j;
+        }
+    }
+
+    /** Draws a set of runs built by buildRuns(), in the caller's already-set draw color. */
+    private void drawRuns(GOut g, List<int[]> runs) {
+        Coord hsz = sz.div(2);
+        for (int[] run : runs) {
             Coord ul = new Coord(run[1], run[0]).sub(dloc.tc).div(scalef()).add(hsz);
             Coord br = new Coord(run[2] + 1, run[0] + 1).sub(dloc.tc).div(scalef()).add(hsz);
             Coord[] clipped = clampRect(g, ul, br);
             if (clipped == null) continue;
             g.frect(clipped[0], clipped[1].sub(clipped[0]));
         }
-        g.chcolor();
     }
 
     /** Paints (or, with erase=true, removes) every tile in the brush footprint (centered on the
@@ -495,115 +501,64 @@ public class ForagerRouteMap extends NMiniMap {
         return super.mousehover(ev, hovering);
     }
 
-    // Cliff highlighting (visual only for now - not yet consumed by pathfinding, see the
-    // deferred cliff-pathing plan). Ridges.brokenp needs the LIVE MCache, which is a different
-    // coordinate space/data source than this widget's persisted MapFile segment rendering - only
-    // resolvable while displaying the same segment the player is physically standing in right
-    // now (same constraint ForagerWaypoint.toWorldCoord already has). Outside that, this simply
-    // draws nothing rather than erroring - a graceful degrade, not a bug.
-    private void drawCliffs(GOut g) {
-        NGameUI gui = NUtils.getGameUI();
-        if (gui == null || gui.map == null || dloc == null || sessloc == null) return;
-        if (dloc.seg.id != sessloc.seg.id) return;
+    // Cliff (red) and cliff-confirmed-safe (green, only while route.cliffExclusionEnabled)
+    // overlays - both sourced from CliffTileCache, a session-wide cache kept up to date by
+    // tick() below, rather than a live per-frame Ridges.brokenp scan restricted to whatever
+    // happens to be on screen/loaded right now. This is what lets both show up for a whole
+    // segment at once (even zoomed out, and for any segment ever explored this session - not
+    // just wherever the player is physically standing). Anywhere neither color appears is simply
+    // unexplored territory the cache has no data for - deliberately not painted as anything in
+    // particular (there's no bounded way to paint "everywhere we haven't looked"), but meant to
+    // be read the same as excluded once Forager's own bot logic consumes this: see the Cliff
+    // exclusion checkbox's tooltip.
+    private static final Color CLIFF_COLOR = new Color(220, 30, 30, TILE_SQUARE_ALPHA);
+    private static final Color CLIFF_SAFE_COLOR = new Color(60, 190, 110, 55);
 
-        Coord hsz = sz.div(2);
-        float sf = scalef();
-        if (sf <= 0) return;
+    // Rebuilt into run-length-merged rects (see buildRuns) only when CliffTileCache's data for
+    // the displayed segment has actually changed since last built (tracked via
+    // CliffTileCache.getVersion()) - a well-explored segment's safe-tile set can be tens of
+    // thousands of tiles, far too many to sort/iterate fresh every single frame.
+    private long cliffCacheSeg = Long.MIN_VALUE;
+    private int cliffCacheVersion = -1;
+    private final List<int[]> cliffRuns = new ArrayList<>();
+    private final List<int[]> cliffSafeRuns = new ArrayList<>();
 
-        Coord ul = dloc.tc.sub(hsz.mul((double) sf));
-        Coord br = dloc.tc.add(hsz.mul((double) sf));
+    private void rebuildCliffRunsIfNeeded() {
+        if (dloc == null) return;
+        long seg = dloc.seg.id;
+        int ver = CliffTileCache.getVersion(seg);
+        if (seg == cliffCacheSeg && ver == cliffCacheVersion) return;
+        cliffCacheSeg = seg;
+        cliffCacheVersion = ver;
 
-        // Cap how many tiles get checked per frame - brokenp does neighbor/corner lookups per
-        // tile with no caching, and this widget can show a lot of tiles at once when zoomed out.
-        long tileCount = (long) (br.x - ul.x + 1) * (br.y - ul.y + 1);
-        if (tileCount > 40000) return;
-
-        MCache mcache = gui.map.glob.map;
-        int boxSz = tileScreenSize();
-        Coord boxHalf = new Coord(boxSz / 2, boxSz / 2);
-
-        // Collect broken tiles first, then expand to their 8 neighbors too (per the spec: "the
-        // cliffs and the tiles around it should be red") before drawing, so a neighbor of one
-        // broken tile that's also broken itself doesn't get double-processed/doesn't matter -
-        // it's a set, not a list.
-        Set<Coord> broken = new HashSet<>();
-        for (int y = ul.y; y <= br.y; y++) {
-            for (int x = ul.x; x <= br.x; x++) {
-                Coord locTc = new Coord(x, y);
-                Coord absTile = locToAbsoluteTile(locTc);
-                if (absTile == null) continue;
-                try {
-                    if (Ridges.brokenp(mcache, absTile)) {
-                        broken.add(locTc);
-                    }
-                } catch (Loading e) {
-                    // Tile itself, or a neighbor/corner brokenp reads, isn't loaded yet - skip.
-                }
-            }
-        }
-
-        Set<Coord> highlight = new HashSet<>(broken);
-        for (Coord tc : broken) {
+        // "The cliffs and the tiles around it should be red" - expand raw cliff tiles to their 8
+        // neighbors too, same as the old live-scan version did, before run-encoding.
+        Set<Coord> rawCliffs = CliffTileCache.forSegment(seg);
+        Set<Coord> highlight = new HashSet<>(rawCliffs);
+        for (Coord tc : rawCliffs) {
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dx = -1; dx <= 1; dx++) {
                     highlight.add(tc.add(dx, dy));
                 }
             }
         }
+        buildRuns(highlight, cliffRuns);
+        buildRuns(CliffTileCache.safeForSegment(seg), cliffSafeRuns);
+    }
 
-        g.chcolor(220, 30, 30, TILE_SQUARE_ALPHA);
-        for (Coord locTc : highlight) {
-            Coord c = locTc.sub(dloc.tc).div(sf).add(hsz);
-            Coord[] clipped = clampRect(g, c.sub(boxHalf), c.sub(boxHalf).add(boxSz, boxSz));
-            if (clipped == null) continue;
-            g.frect(clipped[0], clipped[1].sub(clipped[0]));
+    private void drawCliffs(GOut g) {
+        if (dloc == null) return;
+        rebuildCliffRunsIfNeeded();
+
+        if (route != null && route.cliffExclusionEnabled && !cliffSafeRuns.isEmpty()) {
+            g.chcolor(CLIFF_SAFE_COLOR);
+            drawRuns(g, cliffSafeRuns);
+        }
+        if (!cliffRuns.isEmpty()) {
+            g.chcolor(CLIFF_COLOR);
+            drawRuns(g, cliffRuns);
         }
         g.chcolor();
-    }
-
-    // 5-tile (Chebyshev) radius around every detected cliff tile, per the deferred cliff-pathing
-    // plan's original "hard-block cliff tiles+buffer" idea - implemented here instead as feeding
-    // the same general Exclusion mechanism the brush already paints, rather than a separate
-    // cliff-specific block list, since Forager's future refactor only needs to consult one set.
-    private static final int CLIFF_EXCLUSION_RADIUS = 5;
-
-    /** While route.cliffExclusionEnabled, unions every cliff tile CliffTileCache currently knows
-     *  about - across every segment it's seen so far, not just whatever this widget happens to be
-     *  showing right now - into the route's exclusion set, radius CLIFF_EXCLUSION_RADIUS. Same
-     *  effect as brushing it in by hand, just automatic and not limited to "you have to pan the
-     *  little editor over the spot to make it notice." Already-excluded tiles are skipped, so once
-     *  caught up this is just membership checks - called from the throttled tick(), not every
-     *  frame, and the cache itself typically only grows a few tiles' worth of new grids at a time
-     *  under normal play anyway. */
-    private void applyCliffExclusionFromCache() {
-        if (route == null || !route.cliffExclusionEnabled) return;
-        boolean changed = false;
-        for (long seg : CliffTileCache.knownSegments()) {
-            for (Coord tc : CliffTileCache.forSegment(seg)) {
-                for (int dy = -CLIFF_EXCLUSION_RADIUS; dy <= CLIFF_EXCLUSION_RADIUS; dy++) {
-                    for (int dx = -CLIFF_EXCLUSION_RADIUS; dx <= CLIFF_EXCLUSION_RADIUS; dx++) {
-                        Coord t = tc.add(dx, dy);
-                        if (!route.isExcluded(seg, t)) {
-                            route.paintExclusion(seg, t);
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        }
-        if (changed) {
-            invalidateExclusionCache();
-            dirty = true;
-        }
-    }
-
-    /** Converts a segment-relative minimap tile coord to the absolute world-tile coord
-     *  MCache/Ridges.brokenp expect - only valid while dloc.seg matches the live sessloc.seg
-     *  (checked by the caller). Same session-relative-world-coord formula as
-     *  {@link ForagerWaypoint#toWorldCoord}, generalized to an arbitrary tile coord. */
-    private Coord locToAbsoluteTile(Coord locTc) {
-        Coord2d wc = locTc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz);
-        return wc.floor(MCache.tilesz);
     }
 
     private int waypointIndexAt(Coord c) {
