@@ -1,6 +1,7 @@
 package nurgling.tools;
 
 import haven.Coord;
+import haven.Indir;
 import haven.Loading;
 import haven.Locked;
 import haven.MCache;
@@ -52,6 +53,18 @@ public class CliffTileCache {
     private static final Map<Long, Integer> version = new HashMap<>();
     private static final Set<Long> scannedGridIds = new HashSet<>();
 
+    // Segment.grid()/gridinfo are backed by WEAK-referenced caches (MapFile's own Cached/ByCoord
+    // wrappers) - if nothing keeps the Indir<Grid> a not-yet-resolved grid load returns alive
+    // between our throttled calls, it can be garbage collected before its async load ever
+    // finishes, silently restarting the whole load from scratch next call (and forever, if GC
+    // keeps winning that race - this was the actual cause of "always Loading, never scans
+    // anything": every call built a disposable MapFile.View, so nothing else in the client held
+    // these references alive long enough). Holding them here ourselves is enough - once retained,
+    // MapFile.View.addgrid()'s own seg.grid(gc) call finds this SAME cached entry (the weak
+    // reference map lookup succeeds because our reference keeps it live) instead of creating a
+    // fresh one, so repeated polling actually drives Defer's retry/reschedule machinery forward.
+    private static final Map<Long, Map<Coord, Indir<MapFile.Grid>>> gridRefs = new HashMap<>();
+
     private CliffTileCache() {}
 
     /** Segment-space tiles confirmed to be cliffs so far - never null, possibly empty. A live
@@ -86,42 +99,50 @@ public class CliffTileCache {
         if (file == null) return;
         try (Locked lk = new Locked(file.lock.readLock())) {
             MapFile.Segment seg = file.segments.get(segId);
-            if (seg == null) {
-                System.err.println("CliffTileCache: no persisted Segment for id " + Long.toUnsignedString(segId, 16));
-                return;
-            }
+            if (seg == null) return;
 
             Map<Coord, Long> gridCoords = new HashMap<>(seg.map);
-            List<Coord> pending = new ArrayList<>();
-            for (Map.Entry<Coord, Long> e : gridCoords.entrySet()) {
-                if (!scannedGridIds.contains(e.getValue())) pending.add(e.getKey());
-            }
-            System.err.println("CliffTileCache: seg " + Long.toUnsignedString(segId, 16) + " has " + gridCoords.size()
-                    + " known grids, " + pending.size() + " pending scan");
-            if (pending.isEmpty()) return;
 
-            // The view must include every known grid, not just the pending ones - Ridges.brokenp
-            // reads neighboring tiles at grid boundaries, which can land in an already-scanned
-            // neighbor; leaving it out of the view would misread those edge tiles as unmapped.
+            // Retain a reference to every known grid's loader before touching the view - see the
+            // gridRefs field javadoc for why this is what actually lets a slow/large backlog
+            // finish loading instead of restarting forever.
+            Map<Coord, Indir<MapFile.Grid>> refs = gridRefs.computeIfAbsent(segId, k -> new HashMap<>());
+            for (Coord gc : gridCoords.keySet()) {
+                refs.computeIfAbsent(gc, seg::grid);
+            }
+
+            // Add whatever's ready this call - NOT all-or-nothing. A tile whose own grid is
+            // missing from the view can't be scanned at all (skipped below); one whose grid IS
+            // present but reads a NEIGHBOR tile from a still-missing grid is handled defensively
+            // in scanGrid instead (View returns an "unmapped" sentinel there, not Loading).
             MapFile.View view = new MapFile.View(seg);
-            for (Coord gc : gridCoords.keySet()) view.addgrid(gc);
+            Set<Coord> added = new HashSet<>();
+            for (Coord gc : gridCoords.keySet()) {
+                try {
+                    view.addgrid(gc);
+                    added.add(gc);
+                } catch (Loading l) {
+                    // Not resolved yet - our retained reference above keeps it progressing in the
+                    // background regardless; it'll be picked up on a later call once ready.
+                }
+            }
             view.fin();
 
-            int n = Math.min(MAX_NEW_GRIDS_PER_SCAN, pending.size());
-            boolean any = false;
+            List<Coord> readyToScan = new ArrayList<>();
+            for (Coord gc : added) {
+                if (!scannedGridIds.contains(gridCoords.get(gc))) readyToScan.add(gc);
+            }
+            if (readyToScan.isEmpty()) return;
+
+            int n = Math.min(MAX_NEW_GRIDS_PER_SCAN, readyToScan.size());
             for (int i = 0; i < n; i++) {
-                Coord gc = pending.get(i);
+                Coord gc = readyToScan.get(i);
                 scanGrid(view, segId, gc);
                 scannedGridIds.add(gridCoords.get(gc));
-                any = true;
             }
-            if (any) {
-                version.merge(segId, 1, Integer::sum);
-                System.err.println("CliffTileCache: scanned " + n + " grid(s) for seg " + Long.toUnsignedString(segId, 16)
-                        + " - now " + forSegment(segId).size() + " cliff tile(s), " + safeForSegment(segId).size() + " safe tile(s)");
-            }
+            version.merge(segId, 1, Integer::sum);
         } catch (Loading l) {
-            System.err.println("CliffTileCache: Loading during scan of seg " + Long.toUnsignedString(segId, 16) + " - " + l.getMessage());
+            // Segment/grid-coordinate lookup itself hit something not ready - retry next call.
         }
     }
 
@@ -140,6 +161,12 @@ public class CliffTileCache {
                     // A neighboring tileset resource isn't loaded yet - skip just this tile; this
                     // grid stays marked scanned regardless, an acceptable rare partial miss rather
                     // than added complexity for a corner case.
+                } catch (RuntimeException e) {
+                    // Ridges.brokenp reads neighbor/corner tiles which can land in an adjacent
+                    // grid not yet added to this pass's view - View.gettile() returns an
+                    // "unmapped" sentinel rather than throwing Loading for that case, which then
+                    // faults inside tiler() lookup. Same graceful-degrade as the Loading case
+                    // above: skip just this one boundary tile.
                 }
             }
         }
