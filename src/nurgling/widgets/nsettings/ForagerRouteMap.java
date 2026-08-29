@@ -96,8 +96,14 @@ public class ForagerRouteMap extends NMiniMap {
         dirty = false;
     }
 
+    // paintOrEraseAt() does an O(size^2) tile loop on every mousemove while dragging - unbounded,
+    // a user-typed value here could stall the UI thread for as long as the brush is held (e.g.
+    // 1000 -> 1,000,000 Coord/HashSet ops per mousemove). 200 caps the worst case at 40,000
+    // tiles/call, the same per-frame budget this codebase already treats as acceptable elsewhere.
+    private static final int MAX_BRUSH_SIZE_TILES = 200;
+
     public void setBrushSizeTiles(int tiles) {
-        this.brushSizeTiles = Math.max(1, tiles);
+        this.brushSizeTiles = Utils.clip(tiles, 1, MAX_BRUSH_SIZE_TILES);
     }
 
     private void cancelDrags() {
@@ -370,13 +376,14 @@ public class ForagerRouteMap extends NMiniMap {
     private void paintOrEraseAt(Coord c, boolean erase) {
         Location loc = xlate(c);
         if (loc == null || route == null) return;
-        int half = brushSizeTiles / 2;
         Set<Coord> tiles = erase ? route.exclusionTiles.get(loc.seg.id) : null;
+        if (erase && tiles == null) return; // nothing painted here yet - skip the footprint loop entirely
+        int half = brushSizeTiles / 2;
         for (int dy = -half; dy <= half; dy++) {
             for (int dx = -half; dx <= half; dx++) {
                 Coord tc = loc.tc.add(dx, dy);
                 if (erase) {
-                    if (tiles != null) tiles.remove(tc);
+                    tiles.remove(tc); // non-null: guarded above
                 } else {
                     route.paintExclusion(loc.seg.id, tc);
                 }
