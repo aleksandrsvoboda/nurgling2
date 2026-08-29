@@ -52,6 +52,7 @@ public class ForagerSettingsPanel extends Panel {
     private ForagerRouteMap routeMap;
     private TextEntry brushSizeEntry;
     private CheckBox cliffExclusionCheck;
+    private CliffScanSpinner cliffScanSpinner;
     private TextEntry maxChainsEntry;
     private TextEntry maxDistanceEntry;
     private TextEntry maxChainDistanceEntry;
@@ -268,7 +269,7 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, new Coord(UI.scale(150), 0));
 
-        Widget cliffRow = rsec.add(new Widget(new Coord(UI.scale(300), UI.scale(20))), brushRow.pos("bl").add(UI.scale(0, 8)));
+        Widget cliffRow = rsec.add(new Widget(new Coord(UI.scale(340), UI.scale(20))), brushRow.pos("bl").add(UI.scale(0, 8)));
         cliffExclusionCheck = cliffRow.add(new CheckBox(L10n.get("forager.settings.cliff_exclusion")) {
             @Override
             public void set(boolean val) {
@@ -276,10 +277,15 @@ public class ForagerSettingsPanel extends Panel {
                 if (currentRoute != null) {
                     currentRoute.cliffExclusionEnabled = val;
                     routeMap.markDirty();
+                    if (val) {
+                        routeMap.resumeCliffScan();
+                    }
                 }
             }
         }, Coord.z);
         cliffExclusionCheck.settip(L10n.get("forager.settings.cliff_exclusion_tip"));
+
+        cliffScanSpinner = cliffRow.add(new CliffScanSpinner(), new Coord(UI.scale(190), -UI.scale(4)));
 
         mapAnchor = cliffRow;
 
@@ -606,5 +612,44 @@ public class ForagerSettingsPanel extends Panel {
                 NUtils.getGameUI().error("Failed to import actions profile: " + e.getMessage());
             }
         });
+    }
+
+    /** Spinning-cog "still working" indicator for the background cliff scan (see
+     *  CliffTileCache/ForagerRouteMap.tick()), same visual/cancel convention as
+     *  BotsInterruptWidget.Gear uses for running bots - a spinning NStyle.gear frame with an
+     *  NStyle.canceli button overlaid on top. Only visible while routeMap reports a scan actually
+     *  in progress for the currently-displayed segment; the cancel button pauses (not deletes)
+     *  that segment's backlog, resumable by unchecking then re-checking Cliff exclusion. */
+    private class CliffScanSpinner extends Widget {
+        final IButton cancelb;
+
+        CliffScanSpinner() {
+            sz = NStyle.gear[0].sz();
+            cancelb = add(new IButton(NStyle.canceli[0].back, NStyle.canceli[1].back, NStyle.canceli[2].back) {
+                @Override
+                public void click() {
+                    super.click();
+                    if (routeMap != null) {
+                        routeMap.cancelCliffScan();
+                    }
+                }
+            }, new Coord(sz.x / 2 - NStyle.canceli[0].sz().x / 2, sz.y / 2 - NStyle.canceli[0].sz().y / 2).add(UI.scale(1, -1)));
+            cancelb.settip(L10n.get("forager.settings.cliff_scan_cancel_tip"));
+            visible = false;
+        }
+
+        @Override
+        public void tick(double dt) {
+            super.tick(dt);
+            visible = routeMap != null && routeMap.isScanningCliffs();
+        }
+
+        @Override
+        public void draw(GOut g) {
+            if (!visible) return;
+            int id = (int) (NUtils.getTickId() / 5) % 12;
+            g.image(NStyle.gear[id], new Coord(sz.x / 2 - NStyle.gear[0].sz().x / 2, sz.y / 2 - NStyle.gear[0].sz().y / 2));
+            super.draw(g);
+        }
     }
 }

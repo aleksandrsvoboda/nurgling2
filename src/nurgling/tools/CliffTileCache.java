@@ -53,6 +53,12 @@ public class CliffTileCache {
     private static final Map<Long, Integer> version = new HashMap<>();
     private static final Set<Long> scannedGridIds = new HashSet<>();
 
+    // How many of a segment's known grids were still unscanned as of the last scanSegment() call -
+    // drives the "still working" spinner (isScanning) without needing to re-touch the MapFile
+    // just to answer that question.
+    private static final Map<Long, Integer> remainingBacklog = new HashMap<>();
+    private static final Set<Long> cancelledSegments = new HashSet<>();
+
     // Segment.grid()/gridinfo are backed by WEAK-referenced caches (MapFile's own Cached/ByCoord
     // wrappers) - if nothing keeps the Indir<Grid> a not-yet-resolved grid load returns alive
     // between our throttled calls, it can be garbage collected before its async load ever
@@ -90,18 +96,40 @@ public class CliffTileCache {
         return version.getOrDefault(seg, 0);
     }
 
+    /** Whether a segment still has known grids waiting to be scanned (and hasn't been cancelled) -
+     *  meant to drive a "still working" spinner. */
+    public static boolean isScanning(long seg) {
+        return !cancelledSegments.contains(seg) && remainingBacklog.getOrDefault(seg, 0) > 0;
+    }
+
+    /** Stops scanNewGrids() from doing any further work for this segment until resumeScan() is
+     *  called - whatever's already been scanned is kept, only the backlog is paused. */
+    public static void cancelScan(long seg) {
+        cancelledSegments.add(seg);
+    }
+
+    /** Lets a previously-cancelled segment resume scanning its remaining backlog. */
+    public static void resumeScan(long seg) {
+        cancelledSegments.remove(seg);
+    }
+
     /** Scans up to MAX_NEW_GRIDS_PER_SCAN not-yet-processed grids of the given segment, straight
      *  from the persisted MapFile - no live MCache/player proximity involved. Cheap once nothing
      *  new remains (a grid-count check under the lock). Safe to call every throttled tick; if any
      *  of the segment's grid data isn't in memory yet, this simply does nothing this call and
      *  retries next time (Loading), rather than partially applying a half-loaded scan. */
     public static void scanSegment(MapFile file, long segId) {
-        if (file == null) return;
+        if (file == null || cancelledSegments.contains(segId)) return;
         try (Locked lk = new Locked(file.lock.readLock())) {
             MapFile.Segment seg = file.segments.get(segId);
             if (seg == null) return;
 
             Map<Coord, Long> gridCoords = new HashMap<>(seg.map);
+            int remaining = 0;
+            for (long id : gridCoords.values()) {
+                if (!scannedGridIds.contains(id)) remaining++;
+            }
+            remainingBacklog.put(segId, remaining);
 
             // Retain a reference to every known grid's loader before touching the view - see the
             // gridRefs field javadoc for why this is what actually lets a slow/large backlog

@@ -109,6 +109,28 @@ public class ForagerRouteMap extends NMiniMap {
         this.brushSizeTiles = Math.max(1, tiles);
     }
 
+    /** Whether the currently-displayed segment still has a cliff-scan backlog in progress - used
+     *  by the panel to show/hide a spinner next to the Cliff exclusion checkbox. */
+    public boolean isScanningCliffs() {
+        return dloc != null && CliffTileCache.isScanning(dloc.seg.id);
+    }
+
+    /** Stops further background cliff scanning for the currently-displayed segment (whatever's
+     *  already been found is kept) - wired to the spinner's cancel button. */
+    public void cancelCliffScan() {
+        if (dloc != null) {
+            CliffTileCache.cancelScan(dloc.seg.id);
+        }
+    }
+
+    /** Lets a previously-cancelled scan resume - called when the Cliff exclusion checkbox is
+     *  turned back on. */
+    public void resumeCliffScan() {
+        if (dloc != null) {
+            CliffTileCache.resumeScan(dloc.seg.id);
+        }
+    }
+
     private void cancelDrags() {
         if (dragGrab != null) {
             dragGrab.remove();
