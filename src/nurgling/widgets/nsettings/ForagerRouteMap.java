@@ -4,7 +4,6 @@ import haven.*;
 import haven.resutil.Ridges;
 import nurgling.NGameUI;
 import nurgling.NUtils;
-import nurgling.i18n.L10n;
 import nurgling.overlays.NWaypointOverlay;
 import nurgling.routes.ForagerPath;
 import nurgling.routes.ForagerWaypoint;
@@ -24,33 +23,25 @@ import java.util.Set;
  * <p>
  * Interaction: plain left-click on empty space adds a waypoint at the end of the route;
  * left-click-and-drag an existing waypoint's node moves it; Shift+left-click one deletes it.
- * Right-click-and-drag paints tiles into the route's Exclusion set (a brush, not a fixed
- * rectangle - painted tiles accumulate as the button stays held). A grey square tracks the mouse
- * at all times to show the brush footprint. Free pan (drag empty space) and zoom (scroll) both
- * work normally, same as any other minimap. Three small buttons overlaid in the map's own
- * top-left corner (added as real child widgets, drawn via an explicit child-draw pass in
- * {@link #draw} since {@link MiniMap#draw} deliberately never calls it) independently toggle
- * whether the Viewable-zone/Route/Exclusion layers are drawn - they don't gate interaction.
+ * Right-click-and-drag paints tiles into the route's Exclusion set (a brush, sized to match the
+ * viewable-zone box - not a fixed rectangle, tiles accumulate as the button stays held);
+ * Shift+right-click-and-drag erases them instead. A grey square tracks the mouse at all times to
+ * show the brush footprint. Free pan (drag empty space) and zoom (scroll) both work normally,
+ * same as any other minimap.
  */
 public class ForagerRouteMap extends NMiniMap {
 
     private ForagerPath route;
 
-    /** Fired after any edit (add/move/delete waypoint, paint exclusion tiles) so the owning
-     *  panel can mark its state dirty and know to persist on save. */
+    /** Fired after any edit (add/move/delete waypoint, paint/erase exclusion tiles) so the
+     *  owning panel can mark its state dirty and know to persist on save. */
     public Runnable onChange = null;
-
-    private boolean showViewZones = true;
-    private boolean showRoute = true;
-    private boolean showExclusion = true;
 
     private int draggingWaypointIndex = -1;
     private UI.Grab dragGrab = null;
     private boolean painting = false;
+    private boolean erasing = false;
     private Coord hoverC = null;
-
-    // Tiles either side of the cursor tile a single brush application paints (3x3 total).
-    private static final int BRUSH_RADIUS = 1;
 
     public ForagerRouteMap(Coord sz, MapFile file) {
         super(sz, file);
@@ -63,40 +54,6 @@ public class ForagerRouteMap extends NMiniMap {
         NGameUI gui = NUtils.getGameUI();
         if (gui != null && gui.map != null) {
             follow(new MapLocator(gui.map));
-        }
-
-        int bw = UI.scale(78), gap = UI.scale(4);
-        add(new LayerButton(bw, L10n.get("forager.routemap.layer_zone"), () -> showViewZones, a -> showViewZones = a), new Coord(UI.scale(5), UI.scale(5)));
-        add(new LayerButton(bw, L10n.get("forager.routemap.layer_route"), () -> showRoute, a -> showRoute = a), new Coord(UI.scale(5) + bw + gap, UI.scale(5)));
-        add(new LayerButton(bw, L10n.get("forager.routemap.layer_exclude"), () -> showExclusion, a -> showExclusion = a), new Coord(UI.scale(5) + 2 * (bw + gap), UI.scale(5)));
-    }
-
-    /** A small toggle button overlaid directly on the map, matching the real map's own small
-     *  on-map buttons in spirit (position, not exact icon styling - no icon assets exist for
-     *  these three new toggles, so this is a plain labeled Button dimmed when off). */
-    private static class LayerButton extends Button {
-        private final java.util.function.Supplier<Boolean> get;
-        private final java.util.function.Consumer<Boolean> set;
-
-        LayerButton(int w, String label, java.util.function.Supplier<Boolean> get, java.util.function.Consumer<Boolean> set) {
-            super(w, label);
-            this.get = get;
-            this.set = set;
-        }
-
-        @Override
-        public void click() {
-            super.click();
-            set.accept(!get.get());
-        }
-
-        @Override
-        public void draw(GOut g) {
-            if (!get.get()) {
-                g.chcolor(255, 255, 255, 110);
-            }
-            super.draw(g);
-            g.chcolor();
         }
     }
 
@@ -112,21 +69,13 @@ public class ForagerRouteMap extends NMiniMap {
         }
         draggingWaypointIndex = -1;
         painting = false;
+        erasing = false;
     }
 
     private void notifyChanged() {
         if (onChange != null) {
             onChange.run();
         }
-    }
-
-    // MiniMap.draw() deliberately never calls the normal Widget child-draw traversal (it only
-    // ever calls drawparts()), so the three LayerButtons added above would otherwise never
-    // render - draw(g, true) below is Widget's own child-traversal method, invoked explicitly.
-    @Override
-    public void draw(GOut g) {
-        super.draw(g);
-        draw(g, true);
     }
 
     // Terrain only, plus this widget's own overlays - deliberately skips drawmarkers/drawicons
@@ -138,9 +87,9 @@ public class ForagerRouteMap extends NMiniMap {
     public void drawparts(GOut g) {
         drawmap(g);
         drawCliffs(g);
-        if (showViewZones) drawWaypointViewZones(g);
-        if (showExclusion) drawExclusion(g);
-        if (showRoute) drawRouteWaypoints(g);
+        drawWaypointViewZones(g);
+        drawExclusion(g);
+        drawRouteWaypoints(g);
         drawBrushCursor(g);
     }
 
@@ -217,10 +166,17 @@ public class ForagerRouteMap extends NMiniMap {
     private static final Color VIEWZONE_BG = new Color(25, 60, 170, 70);
     private static final Color VIEWZONE_BORDER = new Color(25, 60, 170, 180);
 
+    /** Tile footprint of the same "explored/render distance" box the real map draws around the
+     *  player (NMiniMap.drawview) - 9 small-grids square. Shared by the view-zone rendering below
+     *  and the Exclusion brush, which the user asked to be sized the same as the visible area. */
+    private Coord viewZoneTileSize() {
+        return _sgridsz.mul(9).div(MCache.tilesz.floor());
+    }
+
     private void drawWaypointViewZones(GOut g) {
         if (route == null || dloc == null || sessloc == null) return;
         Coord2d gridsz2d = new Coord2d(_sgridsz);
-        Coord unscaledViewSize = _sgridsz.mul(9).div(MCache.tilesz.floor());
+        Coord unscaledViewSize = viewZoneTileSize();
         Coord hsz = sz.div(2);
 
         for (ForagerWaypoint wp : route.waypoints) {
@@ -242,7 +198,7 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    // Exclusion tiles - freeform brush-painted, not a fixed rectangle (see paintExclusionAt).
+    // Exclusion tiles - freeform brush-painted, not a fixed rectangle (see paintOrEraseAt).
     private void drawExclusion(GOut g) {
         if (route == null || dloc == null) return;
         Set<Coord> tiles = route.exclusionTiles.get(dloc.seg.id);
@@ -261,32 +217,49 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    /** Paints every tile in the brush footprint (centered on the tile under screen point c) into
-     *  the route's exclusion set for whichever segment that tile resolves to. */
-    private void paintExclusionAt(Coord c) {
+    /** Paints (or, with erase=true, removes) every tile in the brush footprint (centered on the
+     *  tile under screen point c) in the route's exclusion set for whichever segment that tile
+     *  resolves to. Sized to match the viewable-zone box (viewZoneTileSize()), per direct
+     *  instruction. */
+    private void paintOrEraseAt(Coord c, boolean erase) {
         Location loc = xlate(c);
         if (loc == null || route == null) return;
-        for (int dy = -BRUSH_RADIUS; dy <= BRUSH_RADIUS; dy++) {
-            for (int dx = -BRUSH_RADIUS; dx <= BRUSH_RADIUS; dx++) {
-                route.paintExclusion(loc.seg.id, loc.tc.add(dx, dy));
+        Coord half = viewZoneTileSize().div(2);
+        Set<Coord> tiles = erase ? route.exclusionTiles.get(loc.seg.id) : null;
+        for (int dy = -half.y; dy <= half.y; dy++) {
+            for (int dx = -half.x; dx <= half.x; dx++) {
+                Coord tc = loc.tc.add(dx, dy);
+                if (erase) {
+                    if (tiles != null) tiles.remove(tc);
+                } else {
+                    route.paintExclusion(loc.seg.id, tc);
+                }
             }
         }
     }
 
-    /** Grey square tracking the mouse, sized to the brush footprint - shown regardless of which
-     *  layers are toggled on, so the brush's reach is always legible before painting. */
+    /** Grey (red-tinted while Shift is held, i.e. the brush would erase) square tracking the
+     *  mouse, sized to match the brush footprint (viewZoneTileSize(), same as the viewable-zone
+     *  box) - shown at all times so the brush's reach is always legible before painting. */
     private void drawBrushCursor(GOut g) {
         if (hoverC == null || dloc == null || route == null) return;
         Location loc = xlate(hoverC);
         if (loc == null || loc.seg.id != dloc.seg.id) return;
 
+        Coord size = viewZoneTileSize();
         Coord hsz = sz.div(2);
-        int tsz = tileScreenSize();
-        int side = tsz * (2 * BRUSH_RADIUS + 1);
-        Coord center = loc.tc.sub(dloc.tc).div(scalef()).add(hsz);
+        Coord ul = loc.tc.sub(size.div(2));
+        Coord br = ul.add(size);
+        Coord screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
+        Coord screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
 
-        g.chcolor(210, 210, 210, 170);
-        g.rect(center.sub(side / 2, side / 2), new Coord(side, side));
+        boolean eraseHint = erasing || (ui != null && ui.modshift);
+        if (eraseHint) {
+            g.chcolor(220, 120, 120, 190);
+        } else {
+            g.chcolor(210, 210, 210, 170);
+        }
+        g.rect(screenUL, screenBR.sub(screenUL));
         g.chcolor();
     }
 
@@ -396,9 +369,13 @@ public class ForagerRouteMap extends NMiniMap {
                     return true;
                 }
             } else if (ev.b == 3) {
-                painting = true;
+                if (ui.modshift) {
+                    erasing = true;
+                } else {
+                    painting = true;
+                }
                 dragGrab = ui.grabmouse(this);
-                paintExclusionAt(ev.c);
+                paintOrEraseAt(ev.c, erasing);
                 notifyChanged();
                 return true;
             }
@@ -416,8 +393,8 @@ public class ForagerRouteMap extends NMiniMap {
             }
             return;
         }
-        if (painting) {
-            paintExclusionAt(ev.c);
+        if (painting || erasing) {
+            paintOrEraseAt(ev.c, erasing);
             return;
         }
         super.mousemove(ev);
@@ -434,12 +411,14 @@ public class ForagerRouteMap extends NMiniMap {
             notifyChanged();
             return true;
         }
-        if (painting) {
+        if (painting || erasing) {
             if (dragGrab != null) {
                 dragGrab.remove();
                 dragGrab = null;
             }
             painting = false;
+            erasing = false;
+            notifyChanged();
             return true;
         }
         return super.mouseup(ev);
