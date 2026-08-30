@@ -963,7 +963,12 @@ public class Forager implements Action {
                 if (rad.name.equals("gfx/kritter/rat/rat")) {
                     continue;
                 }
-                double triggerDist = rad.radius * 1.5;
+                // Doubled from the usual 1.5x margin (-> 3x) as a stopgap: Ring Settings'
+                // configured radius isn't reliably saving right now (separate, not-yet-fixed
+                // issue - deliberately not addressed here per direct instruction), so animals
+                // are being detected with a smaller effective radius than intended. Revert this
+                // back to 1.5x once the underlying save bug is actually fixed.
+                double triggerDist = rad.radius * 1.5 * 2;
                 Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, triggerDist);
                 if (animal != null) {
                     return preset.onAnimalAction;
