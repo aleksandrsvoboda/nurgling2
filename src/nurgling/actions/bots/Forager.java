@@ -286,9 +286,31 @@ public class Forager implements Action {
                 // parallel with (and potentially cancelling) a multi-second travel-to-hearth
                 // channel, which looked like the bot's "running" indicator vanishing before
                 // the character actually got home.
-                performSafetyAction(gui, pendingSafetyAction);
-                gui.msg("Forager: stopped safely after safety action");
-                return Results.SUCCESS();
+                //
+                // Once the watcher has decided the run needs to end, that decision is final -
+                // the safety action itself (e.g. TravelToHearthFire's pose/grid-change waits)
+                // can still be interrupted again mid-sequence by something unrelated, and
+                // observed doing so: the character didn't finish teleporting home, stranded
+                // wherever it happened to be when the second interrupt landed. Retry the safety
+                // action itself (clearing the interrupt flag first, so the next attempt isn't
+                // immediately re-interrupted by the same stale signal) rather than letting that
+                // abort the response early - this is the character's actual way home, it must
+                // not give up partway.
+                InterruptedException last = null;
+                for (int attempt = 1; attempt <= 3; attempt++) {
+                    try {
+                        performSafetyAction(gui, pendingSafetyAction);
+                        gui.msg("Forager: stopped safely after safety action");
+                        return Results.SUCCESS();
+                    } catch (InterruptedException retry) {
+                        last = retry;
+                        Thread.interrupted();
+                        gui.msg("Forager: safety action interrupted mid-way, retrying (" + attempt + "/3)");
+                    }
+                }
+                gui.error("Forager: safety action repeatedly interrupted - check the character reached home safely");
+                return Results.ERROR("Safety action interrupted after 3 attempts: " +
+                        (last != null ? last.getMessage() : "unknown"));
             }
             throw e;
         } finally {
