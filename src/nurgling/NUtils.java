@@ -189,10 +189,14 @@ public class NUtils
     }
 
     /**
-     * Current soft hitpoints as a fraction of max (0.0-1.0), or -1 if the meter isn't up yet.
-     * Unlike {@link #getCurrentHP()}/{@link #getMaxHP()}, this reads the same always-live bar
-     * fill value {@link #getEnergy()}/{@link #getStamina()} do, not the tip/tooltip text - use
-     * this for "is the player hurt at all" checks that must not silently go stale.
+     * Current HARD hitpoints as a fraction of max (0.0-1.0), or -1 if the meter isn't up yet -
+     * confirmed via direct in-game testing (2026-08-30), NOT soft hitpoints despite the name
+     * (an earlier, incorrect assumption). The "hp" meter's segment 0 is the wound-reduced
+     * ceiling soft HP is capped at, as a fraction of the character's true (zero-wound) max; see
+     * {@link #getSoftHPFraction()} for the matching soft-HP-over-that-same-max segment. Unlike
+     * {@link #getCurrentHP()}/{@link #getMaxHP()}, this reads the same always-live bar fill
+     * value {@link #getEnergy()}/{@link #getStamina()} do, not the tip/tooltip text - use this
+     * for checks that must not silently go stale.
      */
     public static double getHPFraction()
     {
@@ -200,6 +204,25 @@ public class NUtils
         if(hp == null)
             return -1;
         return hp.a;
+    }
+
+    /**
+     * Current SOFT hitpoints as a fraction of the same max {@link #getHPFraction()} uses (i.e.
+     * NOT a fraction of hard HP) - the "hp" meter's segment 1, present alongside segment 0
+     * whenever the character has any active wound (confirmed via direct in-game testing,
+     * 2026-08-30: with the character at soft/hard/max hitpoints of roughly 62/74/100, segment 0
+     * read ~0.74 and segment 1 read ~0.62). When unwounded, the server may only send one
+     * segment at all (soft == hard == max, nothing to distinguish) - callers wanting "is soft HP
+     * at its current cap" should fall back to comparing against {@link #getHPFraction()} in that
+     * case, which this method does automatically. Always-live like {@link #getHPFraction()}, not
+     * tip/tooltip-derived.
+     */
+    public static double getSoftHPFraction()
+    {
+        IMeter.Meter soft = getGameUI().getmeter ( "hp", 1 );
+        if(soft == null)
+            return getHPFraction();
+        return soft.a;
     }
 
     /**
