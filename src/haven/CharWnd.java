@@ -186,7 +186,8 @@ public class CharWnd extends Window {
     public static class ImageInfoBox extends Widget {
 	private Tex img;
 	private Indir<Tex> loading;
-	private final Scrollbar sb;
+	/* Nurgling: protected so subclasses can map mouse coords back into the rendered image. */
+	protected final Scrollbar sb;
 
 	public ImageInfoBox(Coord sz) {
 	    super(sz);

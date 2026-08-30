@@ -1121,12 +1121,16 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     private GobIcon.Settings loadiconconf() {
 	String nm = iconconfname();
+	GobIcon.Settings ret = null;
 	try {
-	    return(GobIcon.Settings.load(ui, nm));
+	    ret = GobIcon.Settings.load(ui, nm);
 	} catch(Exception e) {
 	    new Warning(e, "could not load icon-conf").issue();
 	}
-	return(new GobIcon.Settings(ui, nm));
+	if(ret == null)
+	    ret = new GobIcon.Settings(ui, nm);
+	nurgling.conf.NGlobalIconSettings.apply(ret);
+	return(ret);
     }
 
     public class CornerMap extends MiniMap implements Console.Directory {

@@ -91,8 +91,8 @@ public class NGobIconRing extends Sprite implements RenderTree.Node
                     return true; // Remove if ring disabled
                 }
             }
-        } catch (Exception e) {
-            // If we can't check settings, keep the ring
+        } catch (Loading l) {
+            // Icon resource not resolved yet; keep the ring and re-check on a later tick.
         }
 
         return false; // Keep the ring
@@ -112,38 +112,15 @@ public class NGobIconRing extends Sprite implements RenderTree.Node
         }
 
         try {
-            nurgling.NGameUI gui = NUtils.getGameUI();
-            GobIcon.Settings settings = gui.iconconf;
+            GobIcon.Settings settings = NUtils.getGameUI().iconconf;
             if (settings == null) {
                 return false;
             }
 
             GobIcon.Setting setting = settings.get(icon.icon());
-            if (setting == null) {
-                return false;
-            }
-            
-            // Check setting.ring first
-            if (setting.ring) {
-                return true;
-            }
-            
-            // If setting.ring is false, check local config as fallback
-            // This handles the case where settings haven't been applied yet
-            if (gui.iconRingConfig != null) {
-                String iconResName = icon.icon().res.name;
-                boolean localRing = gui.iconRingConfig.getRing(iconResName);
-                
-                // Apply local setting to iconconf for next time
-                if (localRing && !setting.ring) {
-                    setting.ring = true;
-                }
-                
-                return localRing;
-            }
-            
-            return false;
-        } catch (Exception e) {
+            return setting != null && setting.ring;
+        } catch (Loading l) {
+            // Icon resource not resolved yet; the ring gets reconsidered on a later tick.
             return false;
         }
     }

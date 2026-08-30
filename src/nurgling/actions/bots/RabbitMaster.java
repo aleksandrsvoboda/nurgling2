@@ -6,6 +6,7 @@ import haven.Inventory;
 import haven.WItem;
 import nurgling.*;
 import nurgling.actions.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.WaitItems;
 import nurgling.tools.Container;
@@ -26,15 +27,43 @@ public class RabbitMaster implements Action {
     private static final String BUNNY_NAME = "Bunny Rabbit";
     private static final NAlias BUNNY_ALIAS = new NAlias(BUNNY_NAME);
 
+    NContext context;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         if (gui.getInventory().calcNumberFreeCoord(new Coord(2, 2)) == 0 || gui.getInventory().getFreeSpace() < 5) {
             return Results.ERROR("INVENTORY_FULL");
         }
-        List<Hutch> breeders = collectHutches(gui, Specialisation.SpecName.rabbit);
+        context = new NContext(gui);
+
+        // Validate required areas
+        ArrayList<NArea.Specialisation> req = new ArrayList<>();
+        req.add(new NArea.Specialisation(Specialisation.SpecName.rabbit.toString()));
+        req.add(new NArea.Specialisation(Specialisation.SpecName.rabbitIncubator.toString()));
+
+        ArrayList<NArea.Specialisation> opt = new ArrayList<>();
+        opt.add(new NArea.Specialisation(Specialisation.SpecName.swill.toString()));
+        opt.add(new NArea.Specialisation(Specialisation.SpecName.water.toString()));
+
+        if (!new Validator(req, opt).run(gui).IsSuccess()) {
+            return Results.FAIL();
+        }
+
+        // Resolve areas (local first, then global) without navigating — bot navigates explicitly below
+        NArea breederArea = context.findArea(Specialisation.SpecName.rabbit);
+        NArea incubatorArea = context.findArea(Specialisation.SpecName.rabbitIncubator);
+        NArea swillArea = context.findArea(Specialisation.SpecName.swill);
+        NArea waterArea = context.findArea(Specialisation.SpecName.water);
+
+        if (breederArea == null)
+            return Results.ERROR("NO_RABBIT_HUTCHES");
+        if (incubatorArea == null)
+            return Results.ERROR("NO_RABBIT_INCUBATORS");
+
+        List<Hutch> breeders = collectHutches(gui, breederArea);
         if (breeders.isEmpty())
             return Results.ERROR("NO_RABBIT_HUTCHES");
-        List<Hutch> incubators = collectHutches(gui, Specialisation.SpecName.rabbitIncubator);
+        List<Hutch> incubators = collectHutches(gui, incubatorArea);
         if (incubators.isEmpty())
             return Results.ERROR("NO_RABBIT_INCUBATORS");
 
@@ -44,8 +73,12 @@ public class RabbitMaster implements Action {
             )
             .collect(Collectors.toCollection(ArrayList::new));
 
-        new FillFluid(containers, NContext.findSpec(Specialisation.SpecName.swill.toString()).getRCArea(), new NAlias("swill"), 32).run(gui);
-        new FillFluid(containers, NContext.findSpec(Specialisation.SpecName.water.toString()).getRCArea(), new NAlias("water"), 4).run(gui);
+        if (swillArea != null) {
+            new FillFluid(containers, swillArea.getRCArea(), new NAlias("swill"), 32).run(gui);
+        }
+        if (waterArea != null) {
+            new FillFluid(containers, waterArea.getRCArea(), new NAlias("water"), 4).run(gui);
+        }
 
         redistributeDoes(gui, breeders, incubators);
         redistributeBucks(gui, breeders, incubators);
@@ -57,8 +90,9 @@ public class RabbitMaster implements Action {
         return Results.SUCCESS();
     }
 
-    private List<Hutch> collectHutches(NGameUI gui, Specialisation.SpecName spec) throws InterruptedException {
-        return Finder.findGobs(NContext.findSpec(spec.toString()), HUTCH_RES).stream()
+    private List<Hutch> collectHutches(NGameUI gui, NArea area) throws InterruptedException {
+        NUtils.navigateToArea(area);
+        return Finder.findGobs(area, HUTCH_RES).stream()
             .map(gob -> {
                 try {
                     return buildHutch(gui, gob);

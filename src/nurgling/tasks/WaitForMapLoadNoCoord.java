@@ -37,13 +37,12 @@ public class WaitForMapLoadNoCoord extends NTask  {
 
             long currentGridId = currentGrid.id;
 
-            for (MCache.Grid grid : gui.map.glob.map.grids.values()) {
-                if (grid.id == currentGridId) {
-                    for(MCache.Grid.Cut cut : grid.cuts) {
-                        canContinue = cut.mesh.isReady() && cut.fo.isReady();
-                    }
-                    return canContinue;
+            MCache.Grid grid = gui.map.glob.map.findGrid(currentGridId);
+            if (grid != null) {
+                for(MCache.Grid.Cut cut : grid.cuts) {
+                    canContinue = cut.mesh.isReady() && cut.fo.isReady();
                 }
+                return canContinue;
             }
 
             return true;

@@ -260,6 +260,13 @@ public class FishSearchWindow extends Window {
             gui.togglewnd(mapWnd);
         }
 
+        // A record only knows which segment it draws in once its grid id has been resolved against the
+        // map file; an unexplored grid never resolves, so there is nowhere to pan to.
+        if (!location.isResolved()) {
+            gui.msg("That location is not on your map yet", java.awt.Color.YELLOW);
+            return;
+        }
+
         // Get the segment for this fish location
         if (gui.mmap != null && gui.mmap.file != null) {
             try (Locked lk = new Locked(gui.mmap.file.lock.readLock())) {

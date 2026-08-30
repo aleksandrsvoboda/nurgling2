@@ -2191,19 +2191,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 		else
 			clickedGob = null;
-		
-		// Alt-click pings the selected chat channel: the object under the cursor if the
-		// click landed on one, otherwise the bare spot of ground. Both are consumed, so
-		// the ping never doubles as a walk or an interaction. Shift is allowed so that
-		// alt+shift+click - which is what pings on the minimap and map window, where
-		// plain alt+click already queues movement - also works out here. Ctrl is not,
-		// because alt+ctrl+drag is the area ping.
-		if(ui.modmeta && !ui.modctrl && clickb == 1) {
+
+		if(ui.modmeta && ui.modshift && !ui.modctrl && clickb == 1) {
 			if(clickedGob != null) {
 				if(nurgling.NMapView.sendToSelectedChat(String.format("@%d", clickedGob.gob.id)))
 					return;
 			} else if(MapView.this instanceof nurgling.NMapView) {
 				if(((nurgling.NMapView)MapView.this).sendPointPing(mc))
+					return;
+			}
+		}
+
+		if(ui.modmeta && !ui.modshift && !ui.modctrl && clickb == 1) {
+			if(MapView.this instanceof nurgling.NMapView) {
+				if(((nurgling.NMapView)MapView.this).addWaypointAt(mc))
 					return;
 			}
 		}

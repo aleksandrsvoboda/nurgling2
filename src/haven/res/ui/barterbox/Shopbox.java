@@ -45,7 +45,9 @@ public class Shopbox extends Widget implements ItemInfo.SpriteOwner, GSprite.Own
 	super(bg.sz());
 	if(this.admin = admin) {
 	    spipe = add(new Button(UI.scale(75), "Connect"), spipec);
+	    spipe.tint = new Color(255, 150, 150);
 	    bpipe = add(new Button(UI.scale(75), "Connect"), bpipec);
+	    bpipe.tint = new Color(150, 255, 150);
 	    cbtn = add(new Button(UI.scale(75), "Change"), cbtnc);
 	    pnume = adda(new TextEntry(UI.scale(50), ""), pricec.add(invsq.sz()).add(UI.scale(5, 0)), 0.0, 1.0);
 	    pnume.canactivate = true; pnume.dshow = true;

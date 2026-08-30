@@ -25,6 +25,7 @@ public class NCooldown
         data.put("paginae/atk/oppknock", 2.73);
         data.put("paginae/atk/lowblow", 3.00);
         data.put("paginae/atk/knockteeth", 2.13);
+        data.put("paginae/atk/kick", 2.7);
         data.put("paginae/atk/sideswipe", 1.53);
         data.put("paginae/atk/ravenbite", 2.4);
         data.put("paginae/atk/regain", 2.33);
@@ -49,6 +50,7 @@ public class NCooldown
         fixeddata.put("paginae/atk/parry", 0.66);
         fixeddata.put("paginae/atk/combmed", 0.66);
         fixeddata.put("paginae/atk/bloodlust", 0.66);
+        fixeddata.put("paginae/atk/dorg", 0.66);
         fixeddata.put("paginae/atk/chinup", 0.66);
         fixeddata.put("paginae/atk/shield", 0.66);
     }

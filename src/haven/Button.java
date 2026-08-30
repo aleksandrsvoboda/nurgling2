@@ -88,6 +88,7 @@ public class Button extends SIWidget {
     public Text text;
     public BufferedImage cont;
     public Runnable action = null;
+    public Color tint = null;
     static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
     static Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
     private boolean a = false, dis = false;
@@ -181,6 +182,8 @@ public class Button extends SIWidget {
 
 	if(dis)
 	    PUtils.monochromize(img, Color.LIGHT_GRAY);
+	if(tint != null)
+	    PUtils.colmul(img.getRaster(), tint);
     }
 	
     public void change(String text, Color col) {

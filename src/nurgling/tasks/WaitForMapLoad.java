@@ -19,7 +19,11 @@ public class WaitForMapLoad extends NTask {
     @Override
     public boolean check() {
         boolean canContinue = false;
-        for (MCache.Grid grid : new ArrayList<>(gui.map.glob.map.grids.values())) {
+        ArrayList<MCache.Grid> loaded;
+        synchronized (gui.map.glob.map.grids) {
+            loaded = new ArrayList<>(gui.map.glob.map.grids.values());
+        }
+        for (MCache.Grid grid : loaded) {
             if(this.coord.getGridId()==0)
                 return true;
             if (grid.id == this.coord.getGridId()) {

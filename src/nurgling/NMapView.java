@@ -519,6 +519,13 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.navigation.StorageTrailService storageTrail = null;
     private nurgling.overlays.NStorageTrailOverlay storageTrailOverlay = null;
     private RenderTree.Slot storageTrailSlot = null;
+    /**
+     * Set once this view has been disposed. On logout, character switch or session close an
+     * ancestor is destroy()ed, which rdispose()s its children without unlinking them, so this
+     * widget can still be ticked after its services are gone. Volatile because in multi-session
+     * the tick and the teardown need not be on the same thread.
+     */
+    private volatile boolean disposed = false;
 
     public nurgling.navigation.StorageTrailService getStorageTrailService() {
         return(storageTrail);
@@ -526,6 +533,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     public void dispose() {
+        disposed = true;
         if(holdGrab != null) {
             holdGrab.remove();
             holdGrab = null;
@@ -542,7 +550,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /** Create the overlays once the render tree is up, then let them refresh their geometry. */
     private void tickWorldOverlays() {
-        if(basic == null)
+        /* Never rebuild the overlays after disposal: the trail service owns a planning thread, so
+         * recreating it here would leak one per logout on top of the NPE it used to throw. */
+        if(disposed || (basic == null))
             return;
         if(wpOverlay == null) {
             wpOverlay = new nurgling.overlays.NWaypointOverlay(this);
@@ -1462,8 +1472,14 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return true;
         }
 
-        // Grab a movement waypoint drawn on the ground instead of walking there.
-        if(ev.b == 1 && wpGrab == null) {
+        /* Grab a movement waypoint drawn on the ground instead of walking there.
+         *
+         * Plain left button only. Alt+LMB means "queue a waypoint here" and alt+shift+LMB is the
+         * map ping; both are decided much further down, in MapView.Click.hit. Grabbing here on a
+         * modified click steals them whenever the cursor happens to be within a node's grab radius
+         * - which, while laying a path out, it very often is, because the node you just placed is
+         * right where you are still clicking. Same rule as the minimap (NMiniMap.mousedown). */
+        if(ev.b == 1 && wpGrab == null && !ui.modmeta && !ui.modshift && !ui.modctrl) {
             long wpid = worldWaypointAt(ev.c);
             if(wpid >= 0) {
                 wpDragOrigin = waypointWorldPos(wpid);
@@ -1586,7 +1602,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }
         
         // Shift+MMB drops a map marker at the clicked spot, named after the gob under
-        // the cursor (if any).
+        // the cursor (if any). Deliberately Shift, not upstream's Alt - see the
+        // Quickmark Alt+MMB feature history (PR #322 never got upstreamed as-is; this
+        // fork kept its own Shift-based binding).
         if (ev.b == 2 && ui.modshift && !ui.modctrl && !ui.modmeta) {
             NGameUI gui = NUtils.getGameUI();
             if ((gui != null) && (gui.mapfile != null))
@@ -2251,6 +2269,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if(gui == null || gui.chat == null)
             return false;
         ChatUI.Channel chat = gui.chat.sel;
+        /* A ping travels as an ordinary chat line, so with no channel selected there is nowhere
+         * to send it and the gesture quietly does nothing. */
         if(!(chat instanceof ChatUI.EntryChannel))
             return false;
         if(chat.getClass().getName().contains("Realm"))
@@ -2284,6 +2304,24 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if(grid == null)
             return false;
         return sendPingToChat(grid.id, tc.sub(grid.ul));
+    }
+
+    /**
+     * Queue a waypoint at a world position - the world's half of alt+LMB, matching what
+     * NMiniMapWnd.clickloc and NMapWnd.handleWaypointClick do from a map.
+     *
+     * <p>Returning false leaves the click to fall through and walk normally.
+     */
+    public boolean addWaypointAt(Coord2d mc) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
+            return false;
+        haven.MiniMap.Location sessloc = gui.mmap.sessloc;
+        if(sessloc == null)
+            return false;
+        Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
+        gui.waypointMovementService.addWaypoint(new haven.MiniMap.Location(sessloc.seg, tc), sessloc);
+        return true;
     }
 
     public Collection<String> areas(){
@@ -2773,22 +2811,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         
         // Get the settings configuration
         NGameUI gui = NUtils.getGameUI();
-        if (gui == null || gui.iconconf == null || gui.iconRingConfig == null) return;
+        if (gui == null || gui.iconconf == null) return;
         
-        // Get icon instance and create setting ID
+        // Get icon instance
         GobIcon.Icon iconInstance = icon.icon();
-        GobIcon.Setting.ID settingId = new GobIcon.Setting.ID(iconInstance.res.name, iconInstance.id());
         
         // Get setting using the proper get() method that handles creation
         GobIcon.Setting setting = gui.iconconf.get(iconInstance);
         if (setting == null) return;
         
-        // Toggle the ring value
+        // Toggle the ring value and persist it, machine-globally, like every other icon setting
         setting.ring = !setting.ring;
-        
-        // Save to local config
-        String iconResName = iconInstance.res.name;
-        gui.iconRingConfig.setRing(iconResName, setting.ring);
+        gui.iconconf.dsave();
         
         // Update all gobs with this icon setting (add or remove rings)
         try {
@@ -2802,7 +2836,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                             GobIcon.Setting.ID gobSettingId = new GobIcon.Setting.ID(gobIconInstance.res.name, gobIconInstance.id());
                             
                             // Compare by ID instead of object reference
-                            if(gobSettingId.equals(settingId)) {
+                            if(gobSettingId.equals(setting.id)) {
                                 // Remove existing ring
                                 Gob.Overlay existingRing = gob.findol(NGobIconRing.class);
                                 if(existingRing != null) {

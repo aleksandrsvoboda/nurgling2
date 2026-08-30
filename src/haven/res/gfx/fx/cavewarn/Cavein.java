@@ -13,7 +13,7 @@ import java.nio.*;
 import java.awt.Color;
 
 /* >spr: Cavein */
-@haven.FromResource(name = "gfx/fx/cavewarn", version = 8)
+@haven.FromResource(name = "gfx/fx/cavewarn", version = 9)
 public class Cavein extends Sprite implements Sprite.CDel {
     static final Pipe.Op mat = new Light.PhongLight(false,
 						    new Color(255, 255, 255), new Color(255, 255, 255),

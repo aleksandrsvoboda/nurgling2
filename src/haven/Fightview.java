@@ -377,46 +377,7 @@ public class Fightview extends Widget {
 			}
 		}
 	}
-		updateBuff(buffs,altbuffs);
-	if(current!=null)
-		updateBuff(current.buffs,altrelbuffs);
 	}
-
-	private void updateBuff(Bufflist bufflist, HashMap<Buff, NRelation.RelBuff> mapbuffs)
-	{
-		mapbuffs.clear();
-		for (Buff buff: bufflist.children(Buff.class))
-		{
-			if(buff.res instanceof Session.CachedRes.Ref)
-			{
-				Session.CachedRes.Ref ref = ((Session.CachedRes.Ref)buff.res);
-				String resnm = ref.resnm();
-				if(resnm!=null)
-				{
-					int val = (int) Math.min(10, buff.ameter() / 10);
-					if (resnm.equals("paginae/atk/cornered"))
-					{
-						mapbuffs.put(buff, new NRelation.RelBuff((TexI) NStyle.openings.render(String.valueOf(buff.ameter())).tex(), NRelation.corn.get(val)));
-					}
-					else if (resnm.equals("paginae/atk/dizzy"))
-					{
-						mapbuffs.put(buff, new NRelation.RelBuff((TexI) NStyle.openings.render(String.valueOf(buff.ameter())).tex(), NRelation.dizz.get(val)));
-					}
-					else if (resnm.equals("paginae/atk/reeling"))
-					{
-						mapbuffs.put(buff, new NRelation.RelBuff((TexI) NStyle.openings.render(String.valueOf(buff.ameter())).tex(), NRelation.reel.get(val)));
-					}
-					else if (resnm.equals("paginae/atk/offbalance"))
-					{
-						mapbuffs.put(buff, new NRelation.RelBuff((TexI) NStyle.openings.render(String.valueOf(buff.ameter())).tex(), NRelation.gren.get(val)));
-					}
-				}
-		}
-		}
-	}
-
-	public HashMap<Buff, NRelation.RelBuff> altbuffs = new HashMap<>();
-	public HashMap<Buff, NRelation.RelBuff> altrelbuffs = new HashMap<>();
 
     public static class Notfound extends RuntimeException {
         public final long id;

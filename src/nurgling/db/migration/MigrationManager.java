@@ -7,7 +7,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Database migration manager that handles schema updates
@@ -19,7 +21,19 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 8;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 12;
+
+    /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_KIN_SECRETS = 9;
+
+    /** Version of the migration that creates fish_locations; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_FISH_LOCATIONS = 10;
+
+    /** Version of the migration that creates the shared map tables; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_MAP_DATA = 11;
+
+    /** Version of the migration that creates peer_positions; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_PEER_POSITIONS = 12;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -40,7 +54,15 @@ public class MigrationManager {
         this.adapter = adapter;
     }
 
-    public void runMigrations() throws SQLException {
+    /**
+     * Apply every migration the database is behind on.
+     *
+     * @return the optional migrations that could not be applied, as version -> reason. An empty
+     *         map means the schema is fully up to date. Migrations that are not
+     *         {@link Migration#optional} still throw, because the core schema has to be right
+     *         before anything writes to it.
+     */
+    public Map<Integer, String> runMigrations() throws SQLException {
         boolean versionTableExists = checkVersionTableExists();
         int currentVersion = 0;
 
@@ -52,6 +74,7 @@ public class MigrationManager {
             throw new SchemaTooNewException(CLIENT_MAX_SCHEMA_VERSION, currentVersion);
         }
 
+        Map<Integer, String> skipped = new LinkedHashMap<>();
         List<Migration> migrations = getMigrations();
         System.out.println("Current schema version: " + currentVersion + ", available migrations: " + migrations.size());
         for (Migration migration : migrations) {
@@ -72,10 +95,23 @@ public class MigrationManager {
                 } catch (SQLException e) {
                     connection.rollback();
                     System.err.println("Migration " + migration.version + " failed: " + e.getMessage());
-                    throw e;
+                    if (!migration.optional) {
+                        throw e;
+                    }
+                    /* An optional migration only backs one feature, so the rest of the client keeps
+                     * working without it. Its version is deliberately NOT recorded, so it is retried
+                     * on the next start once whatever blocked it (usually a missing DDL grant) is
+                     * fixed. That is also why nothing after it may run: recording a later version
+                     * would bury this one for good. */
+                    skipped.put(migration.version, e.getMessage());
+                    System.err.println("Migration " + migration.version + " is optional; continuing without it"
+                        + ((migrations.indexOf(migration) < migrations.size() - 1)
+                           ? " (later migrations deferred until it succeeds)" : ""));
+                    break;
                 }
             }
         }
+        return skipped;
     }
 
     private boolean checkVersionTableExists() {
@@ -103,6 +139,7 @@ public class MigrationManager {
         Statement stmt = connection.createStatement();
         stmt.executeUpdate(createTableQuery);
         stmt.close();
+        grantDml(adapter, "schema_version");
         System.out.println("Created schema_version table");
     }
 
@@ -131,15 +168,23 @@ public class MigrationManager {
     private List<Migration> getMigrations() {
         List<Migration> migrations = new ArrayList<>();
 
-        migrations.add(new Migration(1, "Initial migration: create favorite_recipes table and add UNIQUE constraints") {
+        migrations.add(new Migration(1, "Initial migration: create base tables, favorite_recipes and UNIQUE constraints") {
             @Override
             public void run(DatabaseAdapter adapter) throws SQLException {
+                /* Must come first. The ALTER TABLEs further down assume ingredients and feps exist,
+                 * and on an empty database they do not: PostgreSQL raises 42P01, which is not the
+                 * "already exists" code this migration forgives, so it rethrows - and migration 1 is
+                 * not optional, so the whole DatabaseManager fails to initialise. That is what made
+                 * etc/db/init.sql a hidden prerequisite only the compose entrypoint ever applied,
+                 * and why pointing the client at a freshly installed PostgreSQL never worked. */
+                ensureBaseTables(adapter);
+
                 // Create favorite_recipes table if it doesn't exist
                 if (!adapter.tableExists("favorite_recipes")) {
                     String createFavoriteRecipes = "CREATE TABLE favorite_recipes (" +
                                                   "recipe_hash VARCHAR(64) PRIMARY KEY REFERENCES recipes (recipe_hash) ON DELETE CASCADE" +
                                                   ")";
-                    adapter.executeUpdate(createFavoriteRecipes);
+                    createTable(adapter, "favorite_recipes", createFavoriteRecipes);
                     System.out.println("Created favorite_recipes table");
                 }
 
@@ -225,7 +270,7 @@ public class MigrationManager {
                             "profile VARCHAR(255) DEFAULT 'global', " +  // profile/genus for filtering
                             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                             ")";
-                    adapter.executeUpdate(createAreasSql);
+                    createTable(adapter, "areas", createAreasSql);
                     System.out.println("Created areas table");
 
                     // Create index for faster profile-based queries
@@ -282,7 +327,7 @@ public class MigrationManager {
                             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                             "PRIMARY KEY (id, profile)" +
                             ")";
-                    adapter.executeUpdate(createRoutesSql);
+                    createTable(adapter, "routes", createRoutesSql);
                     System.out.println("Created routes table");
 
                     String createIndexSql = "CREATE INDEX idx_routes_profile ON routes (profile)";
@@ -345,7 +390,7 @@ public class MigrationManager {
                 // per-user preference stored alongside the DB in
                 // planning_view.nurgling.json.
                 if (!adapter.tableExists("planning_folders")) {
-                    adapter.executeUpdate(
+                    createTable(adapter, "planning_folders",
                         "CREATE TABLE planning_folders (" +
                         "id VARCHAR(36) PRIMARY KEY, " +
                         "name VARCHAR(255) NOT NULL, " +
@@ -363,7 +408,7 @@ public class MigrationManager {
                 }
 
                 if (!adapter.tableExists("planning_layers")) {
-                    adapter.executeUpdate(
+                    createTable(adapter, "planning_layers",
                         "CREATE TABLE planning_layers (" +
                         "id VARCHAR(36) PRIMARY KEY, " +
                         "parent_folder_id VARCHAR(36), " +
@@ -383,7 +428,7 @@ public class MigrationManager {
                 }
 
                 if (!adapter.tableExists("planning_ghosts")) {
-                    adapter.executeUpdate(
+                    createTable(adapter, "planning_ghosts",
                         "CREATE TABLE planning_ghosts (" +
                         "id VARCHAR(36) PRIMARY KEY, " +
                         "layer_id VARCHAR(36) NOT NULL, " +
@@ -408,7 +453,483 @@ public class MigrationManager {
             }
         });
 
+        /* Optional: kin_secrets backs only the Kith & Kin "pull from database" button. A role
+         * without CREATE on the schema (the Postgres 15 default for a non-owner) must not lose
+         * area, planning and recipe sync over it. */
+        migrations.add(new Migration(9, "Create kin_secrets table for shared hearth secrets", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (!adapter.tableExists("kin_secrets")) {
+                    createTable(adapter, "kin_secrets",
+                        "CREATE TABLE kin_secrets (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "char_name VARCHAR(255) NOT NULL, " +
+                        "secret VARCHAR(255) NOT NULL, " +
+                        "updated_at TIMESTAMP, " +
+                        "PRIMARY KEY (profile, char_name)" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_ks_profile ON kin_secrets (profile)");
+                    System.out.println("Created kin_secrets table");
+                }
+            }
+        });
+
+        /* Optional: fish_locations backs only the saved-fish-spot feature, which falls back to its JSON
+         * file when the table is missing. A role without CREATE on the schema must not lose area,
+         * planning and recipe sync over it. */
+        migrations.add(new Migration(10, "Create fish_locations table for shared fish spots", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (!adapter.tableExists("fish_locations")) {
+                    createTable(adapter, "fish_locations",
+                        "CREATE TABLE fish_locations (" +
+                        "id VARCHAR(64) PRIMARY KEY, " +
+                        "grid_id BIGINT NOT NULL, " +
+                        "ox INTEGER NOT NULL, " +
+                        "oy INTEGER NOT NULL, " +
+                        "fish_name VARCHAR(255) NOT NULL, " +
+                        "fish_res VARCHAR(512), " +
+                        "percentage VARCHAR(32), " +
+                        "game_time VARCHAR(32), " +
+                        "moon_phase VARCHAR(64), " +
+                        "rod VARCHAR(255), " +
+                        "hook VARCHAR(255), " +
+                        "line VARCHAR(255), " +
+                        "bait VARCHAR(255), " +
+                        "caught_at BIGINT, " +
+                        "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                        "version INTEGER NOT NULL DEFAULT 1, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "last_touched_by VARCHAR(255), " +
+                        "last_touched_at TIMESTAMP, " +
+                        "deleted_at TIMESTAMP" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_fl_profile ON fish_locations (profile)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_fl_deleted ON fish_locations (deleted_at)");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_fl_grid ON fish_locations (profile, grid_id)");
+                    System.out.println("Created fish_locations table");
+                }
+            }
+        });
+
+        /* Optional: the map_* tables back only the map window's "to database" / "from database"
+         * buttons, which report themselves unavailable and leave the file-based Export/Import
+         * working. A role without CREATE on the schema must not lose area, planning and recipe
+         * sync over them. */
+        migrations.add(new Migration(11, "Create map_grids/map_grid_placements/map_markers for shared maps", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                /* Postgres spells a byte array BYTEA; SQLite would give that name NUMERIC affinity
+                 * and try to coerce the payload, so it gets BLOB instead. */
+                String blob = (adapter instanceof nurgling.db.PostgresAdapter) ? "BYTEA" : "BLOB";
+
+                if (!adapter.tableExists("map_grids")) {
+                    /* Keyed by the server-assigned grid id, so the same physical chunk of world is
+                     * one row no matter how many villagers walked it. mtime is what decides whose
+                     * copy survives; see MapDataDao.upsertGrids. */
+                    createTable(adapter, "map_grids",
+                        "CREATE TABLE map_grids (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "gid BIGINT NOT NULL, " +
+                        "mtime BIGINT NOT NULL, " +
+                        "payload " + blob + " NOT NULL, " +
+                        "uploader VARCHAR(255), " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "PRIMARY KEY (profile, gid)" +
+                        ")");
+                    System.out.println("Created map_grids table");
+                }
+
+                if (!adapter.tableExists("map_grid_placements")) {
+                    /* Where one player's map puts a grid. Segment layout is per-player, so this is
+                     * per-uploader - but it is a couple of dozen bytes a row, unlike the payload. */
+                    createTable(adapter, "map_grid_placements",
+                        "CREATE TABLE map_grid_placements (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "uploader VARCHAR(255) NOT NULL, " +
+                        "gid BIGINT NOT NULL, " +
+                        "segid BIGINT NOT NULL, " +
+                        "sc_x INTEGER NOT NULL, " +
+                        "sc_y INTEGER NOT NULL, " +
+                        /* segid is part of the key because a grid legitimately appears in more
+                         * than one of a player's segments - MapFile's own export emits one chunk
+                         * per (segment, grid) pair, and dropping the extras would lose the very
+                         * links the importer uses to merge two segments together. */
+                        "PRIMARY KEY (profile, uploader, gid, segid)" +
+                        ")");
+                    safeCreateIndex(adapter,
+                        "CREATE INDEX idx_mgp_seg ON map_grid_placements (profile, uploader, segid)");
+                    System.out.println("Created map_grid_placements table");
+                }
+
+                if (!adapter.tableExists("map_markers")) {
+                    createTable(adapter, "map_markers",
+                        "CREATE TABLE map_markers (" +
+                        "profile VARCHAR(255) NOT NULL, " +
+                        "uploader VARCHAR(255) NOT NULL, " +
+                        "mkey VARCHAR(128) NOT NULL, " +
+                        "segid BIGINT NOT NULL, " +
+                        "payload " + blob + " NOT NULL, " +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "PRIMARY KEY (profile, uploader, mkey)" +
+                        ")");
+                    safeCreateIndex(adapter, "CREATE INDEX idx_mm_profile ON map_markers (profile)");
+                    System.out.println("Created map_markers table");
+                }
+            }
+        });
+
+        /* Optional: peer_positions backs only the live player markers on the map. A role without
+         * CREATE on the schema must not lose area, planning and recipe sync over it - the map simply
+         * stops showing where everyone is. */
+        migrations.add(new Migration(12, "Create peer_positions table for live player map positions", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (adapter.tableExists("peer_positions")) {
+                    return;
+                }
+                boolean pg = (adapter instanceof nurgling.db.PostgresAdapter);
+
+                /* This table is written far harder than anything else in the schema: one row per
+                 * character, every row rewritten every few seconds, forever. Three storage choices
+                 * follow from that, and all three are about keeping a table of a few dozen rows from
+                 * behaving like a busy one.
+                 *
+                 * UNLOGGED: positions are disposable. If the server restarts and the table comes back
+                 * empty it refills within one sync tick, so there is nothing worth paying a WAL write
+                 * and an fsync per update for.
+                 *
+                 * fillfactor 70: Postgres updates a row by writing a new version and marking the old
+                 * one dead. If the new version fits on the same page it can be a HOT update - the
+                 * indexes are left alone and dead versions are reclaimed by opportunistic pruning,
+                 * usually without autovacuum having to run at all. Packing pages full (the default
+                 * 100) leaves no room for that and forces every update onto a fresh page.
+                 *
+                 * autovacuum thresholds: scaled off row count, a 50-row table would need to double
+                 * before autovacuum looked at it, so a flat threshold is what actually triggers. */
+                String storage = pg
+                    ? " WITH (fillfactor = 70, autovacuum_vacuum_scale_factor = 0,"
+                      + " autovacuum_vacuum_threshold = 200)"
+                    : "";
+
+                createTable(adapter, "peer_positions",
+                    "CREATE " + (pg ? "UNLOGGED " : "") + "TABLE peer_positions (" +
+                    "profile VARCHAR(255) NOT NULL, " +
+                    "char_name VARCHAR(255) NOT NULL, " +
+                    /* Server-assigned grid id plus the tile offset inside it - the only position two
+                     * clients can both make sense of. See nurgling.tools.GridLocator. */
+                    "gid BIGINT NOT NULL, " +
+                    "ox INTEGER NOT NULL, " +
+                    "oy INTEGER NOT NULL, " +
+                    "angle REAL, " +
+                    /* Always written as CURRENT_TIMESTAMP, never from a client clock: staleness is
+                     * compared against the database's own clock so a player whose machine clock has
+                     * drifted does not appear permanently stale, or permanently fresh, to everyone. */
+                    "updated_at TIMESTAMP NOT NULL, " +
+                    "PRIMARY KEY (profile, char_name)" +
+                    ")" + storage);
+
+                /* Deliberately no index on updated_at. It changes on every single write, and a HOT
+                 * update is only possible when no indexed column changed - indexing it would disable
+                 * the fast path this table is tuned for and bloat the index instead. Nothing needs it:
+                 * a profile holds a few dozen rows, so the read filters by age in the query's output
+                 * rather than seeking on it. The primary key never changes, so it stays HOT-friendly. */
+                System.out.println("Created peer_positions table");
+            }
+        });
+
         return migrations;
+    }
+
+    /**
+     * The tables that used to arrive only through {@code etc/db/init.sql}, as name to DDL.
+     *
+     * <p>Ordered: {@code ingredients} and {@code feps} carry a foreign key onto {@code recipes}, so
+     * it has to exist first.
+     *
+     * @param postgres false for SQLite, whose autoincrement spelling differs and which cannot add a
+     *                 constraint after the fact - so its UNIQUE goes inline here instead
+     */
+    public static java.util.LinkedHashMap<String, String> baseTableDdl(boolean postgres) {
+        String serialPk = postgres ? "id SERIAL PRIMARY KEY, "
+                                   : "id INTEGER PRIMARY KEY AUTOINCREMENT, ";
+        String inlineUnique = postgres ? "" : ", UNIQUE (recipe_hash, name)";
+
+        java.util.LinkedHashMap<String, String> ddl = new java.util.LinkedHashMap<>();
+        ddl.put("recipes",
+            "CREATE TABLE recipes (" +
+            "recipe_hash VARCHAR(64) PRIMARY KEY, " +
+            "item_name VARCHAR(255) NOT NULL, " +
+            "resource_name VARCHAR(255) NOT NULL, " +
+            "hunger FLOAT NOT NULL, " +
+            "energy INT NOT NULL)");
+        ddl.put("ingredients",
+            "CREATE TABLE ingredients (" + serialPk +
+            "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
+            "name VARCHAR(255) NOT NULL, " +
+            "percentage FLOAT NOT NULL, " +
+            "resource_name VARCHAR(512)" + inlineUnique + ")");
+        ddl.put("feps",
+            "CREATE TABLE feps (" + serialPk +
+            "recipe_hash VARCHAR(64) REFERENCES recipes (recipe_hash) ON DELETE CASCADE, " +
+            "name VARCHAR(255) NOT NULL, " +
+            "value FLOAT NOT NULL, " +
+            "weight FLOAT NOT NULL" + inlineUnique + ")");
+        ddl.put("containers",
+            "CREATE TABLE containers (" +
+            "hash VARCHAR(64) PRIMARY KEY, " +
+            "grid_id BIGINT, " +
+            "coord VARCHAR(255))");
+        ddl.put("storageitems",
+            "CREATE TABLE storageitems (" +
+            "item_hash VARCHAR(64) PRIMARY KEY, " +
+            "name VARCHAR(255) NOT NULL, " +
+            "quality DOUBLE PRECISION, " +
+            "coordinates VARCHAR(255), " +
+            "container VARCHAR(64) NOT NULL)");
+        return ddl;
+    }
+
+    /**
+     * Create the base tables when they are missing.
+     *
+     * <p>A no-op on every database that already has them, which is every village made before this
+     * change. Routed through {@link #createTable} so a fresh database gets the grants as well - the
+     * {@code init.sql} copies never had any, which is why no account but the owner could read them.
+     */
+    private static void ensureBaseTables(DatabaseAdapter adapter) throws SQLException {
+        boolean postgres = adapter instanceof nurgling.db.PostgresAdapter;
+        for (java.util.Map.Entry<String, String> e : baseTableDdl(postgres).entrySet()) {
+            if (!adapter.tableExists(e.getKey())) {
+                createTable(adapter, e.getKey(), e.getValue());
+                System.out.println("Created " + e.getKey() + " table");
+            }
+        }
+    }
+
+    /** Every table this client expects to find once setup has finished. */
+    public static java.util.List<String> expectedTables() {
+        java.util.List<String> names = new java.util.ArrayList<>(baseTableDdl(true).keySet());
+        java.util.Collections.addAll(names,
+            "favorite_recipes", "areas", "routes",
+            "planning_folders", "planning_layers", "planning_ghosts");
+        return names;
+    }
+
+    /** Group role holding read/write on everything. Villagers are members of it. */
+    public static final String ROLE_MEMBER = "nurgling_member";
+
+    /** Group role holding read-only, for an ally you share a map with but not your areas. */
+    public static final String ROLE_GUEST = "nurgling_guest";
+
+    /** Grantee for a table created outside the migration list. */
+    public static final String ROLE_MEMBER_OR_PUBLIC = "PUBLIC";
+
+    /**
+     * Hand out the privileges every other account on this database needs, and arrange for future
+     * tables to get them without anyone remembering to ask.
+     *
+     * <p>Three gaps this closes, all of which force a village onto one shared superuser:
+     * <ul>
+     *   <li>The five tables that come from {@code etc/db/init.sql} are granted to nobody at all -
+     *       they are owned by whoever ran the compose file, and PostgreSQL gives a new table nothing
+     *       to anyone else. {@code information_schema} even hides them, so a second account cannot
+     *       see that they exist.</li>
+     *   <li>No sequence is granted anywhere. {@code ingredients} and {@code feps} use
+     *       {@code SERIAL}, so inserting a recipe needs {@code USAGE} on their sequences, and PUBLIC
+     *       does not get that by default.</li>
+     *   <li>Grants only ever happen inside {@code CREATE TABLE}, so a role created afterwards - which
+     *       is every villager added from the panel - is covered by nothing.</li>
+     * </ul>
+     *
+     * <p>Without this, adding a villager produces a client that syncs areas, routes and the map and
+     * then fails silently on containers, storage items and recipes. Partial success that looks like
+     * success is worse than a clean failure, so this runs on every connect.
+     *
+     * <p>Idempotent, touches no row and disconnects nobody, so it is safe while people are playing.
+     * A client whose role may not grant logs one line and moves on.
+     */
+    public static void repairPermissions(DatabaseAdapter adapter) {
+        if (!(adapter instanceof nurgling.db.PostgresAdapter)) {
+            return;
+        }
+        String role = grantee();
+        if (role == null) {
+            return;
+        }
+        Connection conn = adapter.getConnection();
+        if (!guarded(conn, adapter,
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + role)) {
+            /* Every villager runs this on every connect and only the owner can grant. One line
+             * beats four identical ones, and it is not an error - just not this client's job. */
+            System.out.println("[MigrationManager] not permitted to repair permissions here; "
+                + "the account that owns the database does this on its next connect");
+            return;
+        }
+        guarded(conn, adapter,
+            "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + role);
+
+        /* Default privileges attach to the role that CREATES an object, so the role named here has
+         * to be whoever will run the next migration - never a fixed name. An existing village
+         * migrates as "postgres"; naming anything else is a silent no-op that only shows up
+         * releases later, as a new table no villager can read. */
+        String owner = currentUser(adapter);
+        if (owner != null) {
+            String forRole = "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner) + " IN SCHEMA public ";
+            guarded(conn, adapter, forRole + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + role);
+            guarded(conn, adapter, forRole + "GRANT USAGE, SELECT ON SEQUENCES TO " + role);
+        }
+
+        /* The group roles only exist once somebody has used the Villagers panel. Granting here
+         * rather than at creation time is what lets a role added next month get the same rights as
+         * one added today, without anyone re-running anything. */
+        if (roleExists(adapter, ROLE_MEMBER)) {
+            guarded(conn, adapter,
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + ROLE_MEMBER);
+            guarded(conn, adapter,
+                "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + ROLE_MEMBER);
+            if (owner != null) {
+                String forRole = "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner) + " IN SCHEMA public ";
+                guarded(conn, adapter, forRole + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + ROLE_MEMBER);
+                guarded(conn, adapter, forRole + "GRANT USAGE, SELECT ON SEQUENCES TO " + ROLE_MEMBER);
+            }
+        }
+        if (roleExists(adapter, ROLE_GUEST)) {
+            guarded(conn, adapter, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + ROLE_GUEST);
+            if (owner != null) {
+                guarded(conn, adapter, "ALTER DEFAULT PRIVILEGES FOR ROLE " + quoteIdent(owner)
+                    + " IN SCHEMA public GRANT SELECT ON TABLES TO " + ROLE_GUEST);
+            }
+        }
+    }
+
+    /** Whether a role is present on this server. */
+    public static boolean roleExists(DatabaseAdapter adapter, String role) {
+        try (ResultSet rs = adapter.executeQuery("SELECT 1 FROM pg_roles WHERE rolname = ?", role)) {
+            return rs.next();
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    /** The role this connection is authenticated as, or null if it cannot be read. */
+    private static String currentUser(DatabaseAdapter adapter) {
+        try (ResultSet rs = adapter.executeQuery("SELECT current_user")) {
+            if (rs.next()) {
+                String u = rs.getString(1);
+                if (u != null && !u.isEmpty()) {
+                    return u;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[MigrationManager] could not read current_user: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Run one statement that is allowed to fail.
+     *
+     * <p>Wrapped in a savepoint because a failed statement aborts the whole PostgreSQL transaction:
+     * without one, a client that merely lacks the right to grant would roll back the migration that
+     * had just succeeded.
+     */
+    private static boolean guarded(Connection conn, DatabaseAdapter adapter, String sql) {
+        java.sql.Savepoint sp = null;
+        try {
+            sp = conn.setSavepoint("nurgling_perm");
+            adapter.executeUpdate(sql);
+            conn.releaseSavepoint(sp);
+            return true;
+        } catch (SQLException e) {
+            if (sp != null) {
+                try {
+                    conn.rollback(sp);
+                } catch (SQLException ignore) {
+                }
+            }
+            System.err.println("[MigrationManager] skipped (" + e.getMessage() + "): " + sql);
+            return false;
+        }
+    }
+
+    /** Quote a role name for DDL, where it cannot go through a bound parameter. */
+    public static String quoteIdent(String ident) {
+        return "\"" + ident.replace("\"", "\"\"") + "\"";
+    }
+
+    /**
+     * Create a table and immediately hand out DML on it.
+     * <p>
+     * PostgreSQL grants nothing on a new table to anyone but its owner, so a table created by the
+     * one client whose role has DDL rights would stay unusable - in fact invisible, since
+     * information_schema filters by privilege - to every other role sharing the database. Granting
+     * at creation time is what lets a single privileged launch set the schema up for the whole
+     * village instead of someone having to run SQL by hand after every schema change.
+     */
+    private static void createTable(DatabaseAdapter adapter, String table, String ddl) throws SQLException {
+        adapter.executeUpdate(ddl);
+        grantDml(adapter, table);
+    }
+
+    /**
+     * Role that gets DML on tables this client creates. Defaults to PUBLIC, i.e. every role that
+     * can connect to this database, which is what a shared village database wants. Set
+     * {@code dbGrantRole} in the config to a group role instead if the database also carries roles
+     * that must not get write access.
+     */
+    private static String grantee() {
+        Object cfg = null;
+        try {
+            cfg = nurgling.NConfig.get(nurgling.NConfig.Key.dbGrantRole);
+        } catch (Exception | LinkageError ignore) {
+            /* Reading a preference must never be what breaks a migration; fall back to the default. */
+        }
+        String role = (cfg == null) ? "" : String.valueOf(cfg).trim();
+        if (role.isEmpty() || role.equalsIgnoreCase("PUBLIC")) {
+            return "PUBLIC";
+        }
+        /* The value is an identifier spliced into DDL, so it cannot go through a parameter. Only
+         * a plain unquoted identifier is accepted; anything else is refused rather than escaped. */
+        if (!role.matches("[A-Za-z_][A-Za-z0-9_$]*")) {
+            System.err.println("[MigrationManager] dbGrantRole '" + role
+                + "' is not a plain identifier; skipping grants");
+            return null;
+        }
+        return role;
+    }
+
+    /**
+     * Grant DML on one table. Wrapped in a savepoint because a failed statement aborts the whole
+     * PostgreSQL transaction, which would take the migration's own version bump down with it - and
+     * a missing grant is worth a warning, not a failed migration. No-op outside PostgreSQL, which
+     * is the only back end here that has grants at all.
+     */
+    private static void grantDml(DatabaseAdapter adapter, String table) {
+        if (!(adapter instanceof nurgling.db.PostgresAdapter)) {
+            return;
+        }
+        String role = grantee();
+        if (role == null) {
+            return;
+        }
+        Connection conn = adapter.getConnection();
+        java.sql.Savepoint sp = null;
+        try {
+            sp = conn.setSavepoint("nurgling_grant");
+            adapter.executeUpdate("GRANT SELECT, INSERT, UPDATE, DELETE ON " + table + " TO " + role);
+            conn.releaseSavepoint(sp);
+            System.out.println("Granted DML on " + table + " to " + role);
+        } catch (SQLException e) {
+            if (sp != null) {
+                try {
+                    conn.rollback(sp);
+                } catch (SQLException ignore) {
+                }
+            }
+            System.err.println("[MigrationManager] could not grant on " + table + " to " + role
+                + " (" + e.getMessage() + "); other roles may need the grant applied by hand");
+        }
     }
 
     private static void safeCreateIndex(DatabaseAdapter adapter, String sql) throws SQLException {
@@ -533,10 +1054,21 @@ public class MigrationManager {
     public abstract static class Migration {
         final int version;
         final String description;
+        /**
+         * True for a migration that only backs one optional feature. If it fails, the client still
+         * initialises and everything else keeps syncing; the feature reports itself unavailable.
+         * A migration that touches the core schema must stay required.
+         */
+        final boolean optional;
 
         Migration(int version, String description) {
+            this(version, description, false);
+        }
+
+        Migration(int version, String description, boolean optional) {
             this.version = version;
             this.description = description;
+            this.optional = optional;
         }
 
         abstract void run(DatabaseAdapter adapter) throws SQLException;

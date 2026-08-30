@@ -39,6 +39,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     public static final Tex ameter = Resource.loadtex("gfx/hud/buffs/cframe-m");
 	public static final Coord imgoff = UI.scale(3, 3);
     public static final int ameterx1 = UI.scale(3), ameterx2 = UI.scale(35); /* XXX: Detect? */
+    public static final Coord ametersz = UI.scale(new Coord(32, 3));
     public static final int textw = UI.scale(200);
     public Indir<Resource> res;
     protected int a = 255;
@@ -116,7 +117,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	public Tip shortvar() {return(this);}
     }
 
-    private final AttrCache<Double> ameteri = new AttrCache<>(this::info, AttrCache.map1(AMeterInfo.class, minf -> minf::ameter));
+    public final AttrCache<Double> ameteri = new AttrCache<>(this::info, AttrCache.map1(AMeterInfo.class, minf -> minf::ameter));
     private final AttrCache<Tex> nmeteri = new AttrCache<>(this::info, AttrCache.map1s(GItem.NumberInfo.class, ninf -> new TexI(GItem.NumberInfo.numrender(ninf.itemnum(), ninf.numcolor()))));
     private final AttrCache<Double> cmeteri = new AttrCache<>(this::info, AttrCache.map1(GItem.MeterInfo.class, minf -> minf::meter));
 

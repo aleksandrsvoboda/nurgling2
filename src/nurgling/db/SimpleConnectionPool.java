@@ -25,6 +25,11 @@ public class SimpleConnectionPool {
     private final String jdbcUrl;
     private final String user;
     private final String password;
+    private volatile SQLException lastError;
+    /* Repeated identical failures are throttled: a pool that cannot connect is retried by every
+     * sync worker on every tick, which buries everything else in the log. */
+    private volatile String lastLoggedError;
+    private final AtomicInteger suppressedErrors = new AtomicInteger();
 
     private static final long BORROW_TIMEOUT_MS = 5000; // 5 seconds timeout for borrowing
     private static final int VALIDATION_TIMEOUT_SECONDS = 2;
@@ -44,9 +49,10 @@ public class SimpleConnectionPool {
         this.isPostgres = (Boolean) NConfig.get(NConfig.Key.postgres);
 
         if (isPostgres) {
-            // Increased timeouts: connectTimeout=10s, socketTimeout=60s for slow operations
-            this.jdbcUrl = "jdbc:postgresql://" + NConfig.get(NConfig.Key.serverNode)
-                         + "/nurgling_db?connectTimeout=10&socketTimeout=60";
+            // Built in one place so the pool and DatabaseBootstrap cannot disagree about
+            // which database they mean. Timeouts: connect 10s, socket 60s for slow operations.
+            this.jdbcUrl = DatabaseBootstrap.jdbcUrl(NConfig.get(NConfig.Key.serverNode),
+                                                     ConnectionString.DEFAULT_DATABASE);
             this.user = (String) NConfig.get(NConfig.Key.serverUser);
             this.password = (String) NConfig.get(NConfig.Key.serverPass);
         } else {
@@ -54,6 +60,10 @@ public class SimpleConnectionPool {
             this.user = null;
             this.password = null;
         }
+        /* Printed on every (re)connect because it is the one fact a "I changed the address and it
+         * did not take" report needs, and the one thing the log never showed. No credentials are in
+         * the URL - the driver is handed those separately. */
+        System.out.println("[ConnectionPool] connecting to " + jdbcUrl);
     }
 
     /**
@@ -172,9 +182,28 @@ public class SimpleConnectionPool {
             conn.setAutoCommit(false);
             return conn;
         } catch (SQLException e) {
-            System.err.println("Failed to create database connection: " + e.getMessage());
+            /* Kept, not just logged: this is the only place a connection failure is visible, and
+             * whether it says "no such database" decides whether we can fix it ourselves. */
+            this.lastError = e;
+            String message = String.valueOf(e.getMessage());
+            if (message.equals(lastLoggedError)) {
+                int n = suppressedErrors.incrementAndGet();
+                if (n % 20 == 0) {
+                    System.err.println("Failed to create database connection: " + message
+                        + " (repeated " + n + " times)");
+                }
+            } else {
+                lastLoggedError = message;
+                suppressedErrors.set(0);
+                System.err.println("Failed to create database connection: " + message);
+            }
             return null;
         }
+    }
+
+    /** Why the last connection attempt failed, or null if none has. */
+    public SQLException getLastError() {
+        return lastError;
     }
 
     /**

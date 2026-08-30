@@ -1189,27 +1189,35 @@ public class MCache implements MapSource {
 				if (frameCount++ >= MAX_FRAMES) {
 					return true;
 				}
-				if(NUtils.getGameUI().map.glob!=null && NUtils.getGameUI().map.glob.map.grids.size()==9)
+				MCache mc = (NUtils.getGameUI().map.glob != null) ? NUtils.getGameUI().map.glob.map : null;
+				if(mc != null)
 				{
-					if(NUtils.getGameUI().map.glob.map.grids.get(coord)==null)
-					{
-						return true;
+					synchronized(mc.grids) {
+						if(mc.grids.size() != 9)
+							return false;
+						if(mc.grids.get(coord) == null)
+							return true;
 					}
 					return NUtils.player()!=null;
 				}
 				return false;
 			}
 		});
-		if(!grids.containsKey(coord))
-			return null;
-		for(Coord gc : grids.keySet())
-		{
-			Coord pos = gc.sub(coord.sub(1,1));
-			if(pos.x<0||pos.x>=3||pos.y<0||pos.y>=3)
-			{
+		/* grids is a plain HashMap mutated by the session thread; constructSection
+		 * runs on the automapper's requestor thread, so the whole snapshot must be
+		 * taken under the same lock every other accessor uses. */
+		synchronized(grids) {
+			if(!grids.containsKey(coord))
 				return null;
+			for(Map.Entry<Coord, Grid> e : grids.entrySet())
+			{
+				Coord pos = e.getKey().sub(coord.sub(1,1));
+				if(pos.x<0||pos.x>=3||pos.y<0||pos.y>=3)
+				{
+					return null;
+				}
+				gridMap[pos.x][pos.y] = String.valueOf(e.getValue().id);
 			}
-			gridMap[pos.x][pos.y] = String.valueOf(grids.get(gc).id);
 		}
 		return gridMap;
 	}

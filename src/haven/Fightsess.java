@@ -187,33 +187,13 @@ public class Fightsess extends Widget {
 	for(Buff buff : fv.buffs.children(Buff.class))
 	{
 		Coord pos = buffc.add(-buff.c.x - Buff.cframe.sz().x - UI.scale(20), 0);
-		NRelation.RelBuff rb = fv.altbuffs.get(buff);
-		if(rb == null)
-		{
-			buff.draw(g.reclip(pos, buff.sz));
-		}
-		else
-		{
-			Coord bsz = buff.sz.sub(0,UI.scale(5));
-			g.reclip(pos, bsz).image(rb.bg, Coord.z,bsz);
-			g.reclip(pos, bsz).image(rb.text, bsz.div(2).sub(rb.text.sz().div(2)));
-		}
+		buff.draw(g.reclip(pos, buff.sz));
 	}
 	if(fv.current != null) {
 	    for(Buff buff : fv.current.buffs.children(Buff.class))
 		{
 			Coord pos = buffc.add(buff.c.x + UI.scale(20), 0);
-			NRelation.RelBuff rb = fv.altrelbuffs.get(buff);
-			if(rb == null)
-			{
-				buff.draw(g.reclip(pos, buff.sz));
-			}
-			else
-			{
-				Coord bsz = buff.sz.sub(0,UI.scale(5));
-				g.reclip(pos, bsz).image(rb.bg, Coord.z,bsz);
-				g.reclip(pos, bsz).image(rb.text, bsz.div(2).sub(rb.text.sz().div(2)));
-			}
+			buff.draw(g.reclip(pos, buff.sz));
 		}
 
 	    g.aimage(ip.get().tex(), pcc.add(-UI.scale(75), -guisz.y/4), 1, 0.5);

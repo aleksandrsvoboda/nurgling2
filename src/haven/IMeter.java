@@ -34,10 +34,19 @@ import java.util.*;
 public class IMeter extends LayerMeter {
 	public String name;
 	Tex text = null;
-	// Raw current/max values parsed from the "Health:cur/max" tip the server sends for the
+	// Raw current/max values parsed from the "Health:cur/hard/max" tip the server sends for the
 	// "hp" meter - the meter's fraction (Meter.a) alone can't tell soft hitpoints apart from
 	// a reduced max (e.g. from wounds), so bots that need the actual numbers read these.
+	// Populated by parseHealth() below, alongside upstream's own softHealthPercent/etc. fields
+	// (used by NFightsess's combat HUD) - both parsed from the same tip in one pass.
 	public int curHealth = -1, maxHealth = -1;
+
+	public static String characterCurrentHealth = "";
+	public static double characterSoftHealthPercent = 0;
+	public static boolean sparring = false;
+	public String currentHealth = "";
+	public double softHealthPercent = 0;
+	public boolean isSparring = false;
     public static final Coord off = UI.scale(24, 4);
     public static final Coord fsz = UI.scale(190, 48);
     public static final Coord ssz = UI.scale(145, 48);
@@ -129,17 +138,8 @@ public class IMeter extends LayerMeter {
 						text = NStyle.meter.render(val.substring(val.indexOf(":")+1)).tex();
 						break;
 					case "Health":
-						String hval = val.substring(val.indexOf(":")+1);
-						text = NStyle.meter.render(hval.replace("/", " / ")).tex();
-						try {
-							int slash = hval.indexOf("/");
-							if(slash > 0) {
-								curHealth = Integer.parseInt(hval.substring(0, slash).trim());
-								maxHealth = Integer.parseInt(hval.substring(slash+1).trim());
-							}
-						} catch(NumberFormatException e) {
-							// Leave curHealth/maxHealth as they were
-						}
+						parseHealth(val.substring(val.indexOf(":")+1));
+						text = NStyle.meter.render(val.substring(val.indexOf(":")+1).replace("/", " / ")).tex();
 						break;
 					case "Energy":
 						text = NStyle.meter.render(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1)).tex();
@@ -149,5 +149,29 @@ public class IMeter extends LayerMeter {
 			}
 		}
 		super.uimsg(msg, args);
+	}
+
+	private void parseHealth(String value) {
+		String[] hps = value.replaceAll("\\(.+\\)", "").split("/");
+		if(hps.length < 3)
+			return;
+		try {
+			isSparring = (hps.length == 4);
+			double shp = Double.parseDouble(hps[0].trim());
+			double mhp = Double.parseDouble(hps[hps.length - 1].trim());
+			softHealthPercent = (shp > 0 && mhp > 0) ? (shp / (mhp / 100)) : 0;
+			currentHealth = hps[0].trim() + " / " + hps[hps.length - 1].trim();
+			// curHealth/maxHealth (raw ints, not this method's own percent/string fields) -
+			// bots read these via NUtils.getCurrentHP()/getMaxHP(). The old single-slash split
+			// that used to populate them here couldn't parse this 3+-part wounded-state tip at
+			// all (silently left them stale) - this now shares the same split.
+			curHealth = (int) Math.round(shp);
+			maxHealth = (int) Math.round(mhp);
+		} catch(NumberFormatException e) {
+			softHealthPercent = 0;
+		}
+		sparring = isSparring;
+		characterSoftHealthPercent = softHealthPercent;
+		characterCurrentHealth = currentHealth;
 	}
 }

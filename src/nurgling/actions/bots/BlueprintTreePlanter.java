@@ -259,13 +259,7 @@ public class BlueprintTreePlanter implements Action {
             }
             
             // Find grid by ID
-            MCache.Grid grid = null;
-            for (MCache.Grid g : gui.map.glob.map.grids.values()) {
-                if (g.id == prop.gridId) {
-                    grid = g;
-                    break;
-                }
-            }
+            MCache.Grid grid = gui.map.glob.map.findGrid(prop.gridId);
             
             if (grid == null) {
                 return Results.FAIL(); // Grid not loaded

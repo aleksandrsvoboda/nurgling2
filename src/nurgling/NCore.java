@@ -29,8 +29,12 @@ public class NCore extends Widget
     public boolean debug = false;
     boolean isinspect = false;
     public NMappingClient mappingClient;
-    public AutoDrink autoDrink = null;
-    public AutoSaveTableware autoSaveTableware = null;
+    public volatile AutoDrink autoDrink = null;
+    public volatile AutoSaveTableware autoSaveTableware = null;
+    private volatile Thread autoDrinkThread = null;
+    private volatile Thread autoSaveTablewareThread = null;
+    private final Object autoHelperLock = new Object();
+    private boolean autoHelpersDisposed = false;
     public ScenarioManager scenarioManager = new ScenarioManager();
     public EquipmentPresetManager equipmentPresetManager = new EquipmentPresetManager();
     public nurgling.planning.PlanningLayerManager planningLayer = new nurgling.planning.PlanningLayerManager();
@@ -261,8 +265,22 @@ public class NCore extends Widget
                     // Start area and route sync after database is initialized
                     startAreaSync();
                     startPlanningSync();
+                    startFishSync();
+                    startPeerPositionSync();
                 }
             }
+        }
+
+        /* The database may not have been ready at the moment it was constructed (a slow or briefly
+         * unreachable server), in which case the start above was a no-op. Retry until it takes; the
+         * started flag makes this free once sync is running. */
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !fishSyncStarted)
+        {
+            startFishSync();
+        }
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !peerPositionSyncStarted)
+        {
+            startPeerPositionSync();
         }
 
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null)
@@ -271,26 +289,39 @@ public class NCore extends Widget
                 if (databaseManager != null) {
                     stopAreaSync();
                     stopPlanningSync();
+                    stopFishSync();
+                    stopPeerPositionSync();
                     databaseManager.shutdown();
                     databaseManager = null;
                 }
             }
         }
 
-        if(autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
+        NGameUI gui = NUtils.getGameUI();
+        if(gui != null && autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
         {
-            autoDrink = new AutoDrink();
-            BotExecutor.runTask("AutoDrink", () -> {
-                try {
-                    NGameUI gui = NUtils.getGameUI();
-                    if (gui != null) {
-                        autoDrink.run(gui);
-                    }
-                } catch (InterruptedException ignored) {
-                } finally {
-                    autoDrink = null;
+            synchronized (autoHelperLock) {
+                if (!autoHelpersDisposed && autoDrink == null) {
+                    AutoDrink action = new AutoDrink();
+                    autoDrink = action;
+                    autoDrinkThread = BotExecutor.runTask("AutoDrink", () -> {
+                        try {
+                            NGameUI taskgui = NUtils.getGameUI();
+                            if (taskgui != null) {
+                                action.run(taskgui);
+                            }
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            synchronized (autoHelperLock) {
+                                if (autoDrinkThread == Thread.currentThread())
+                                    autoDrinkThread = null;
+                                if (autoDrink == action)
+                                    autoDrink = null;
+                            }
+                        }
+                    });
                 }
-            });
+            }
         }
         else
         {
@@ -300,20 +331,30 @@ public class NCore extends Widget
             }
         }
 
-        if(autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
+        if(gui != null && autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
         {
-            autoSaveTableware = new AutoSaveTableware();
-            BotExecutor.runTask("AutoSaveTableware", () -> {
-                try {
-                    NGameUI gui = NUtils.getGameUI();
-                    if (gui != null) {
-                        autoSaveTableware.run(gui);
-                    }
-                } catch (InterruptedException ignored) {
-                } finally {
-                    autoSaveTableware = null;
+            synchronized (autoHelperLock) {
+                if (!autoHelpersDisposed && autoSaveTableware == null) {
+                    AutoSaveTableware action = new AutoSaveTableware();
+                    autoSaveTableware = action;
+                    autoSaveTablewareThread = BotExecutor.runTask("AutoSaveTableware", () -> {
+                        try {
+                            NGameUI taskgui = NUtils.getGameUI();
+                            if (taskgui != null) {
+                                action.run(taskgui);
+                            }
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            synchronized (autoHelperLock) {
+                                if (autoSaveTablewareThread == Thread.currentThread())
+                                    autoSaveTablewareThread = null;
+                                if (autoSaveTableware == action)
+                                    autoSaveTableware = null;
+                            }
+                        }
+                    });
                 }
-            });
+            }
         }
         else
         {
@@ -411,6 +452,26 @@ public class NCore extends Widget
         mappingClient.tick(dt);
     }
 
+    private void stopAutoHelpers() {
+        synchronized (autoHelperLock) {
+            autoHelpersDisposed = true;
+
+            AutoDrink drink = autoDrink;
+            if (drink != null)
+                drink.stop.set(true);
+            Thread drinkThread = autoDrinkThread;
+            if (drinkThread != null)
+                drinkThread.interrupt();
+
+            AutoSaveTableware tableware = autoSaveTableware;
+            if (tableware != null)
+                tableware.stop.set(true);
+            Thread tablewareThread = autoSaveTablewareThread;
+            if (tablewareThread != null)
+                tablewareThread.interrupt();
+        }
+    }
+
 
 
     public void addTask(final NTask task) throws InterruptedException
@@ -463,6 +524,7 @@ public class NCore extends Widget
 
     @Override
     public void dispose() {
+        stopAutoHelpers();
         mappingClient.done.set(true);
         // Don't shutdown databaseManager here - it's static and should persist across UI/session changes
         // It will be shutdown only when the application exits or database is disabled
@@ -624,7 +686,12 @@ public class NCore extends Widget
                 }
                 sentRecipeHashes.add(recipeHash);
 
-                // Save recipe using service (handles duplicates gracefully)
+                /* Null whenever the database failed to initialise - an unreachable server, or a
+                 * wrong password. Recipe capture is best-effort, so it steps aside rather than
+                 * throwing a stack trace for every item the player looks at. */
+                if (databaseManager.getRecipeService() == null) {
+                    return;
+                }
                 databaseManager.getRecipeService().saveRecipeAsync(recipe)
                     .exceptionally(ex -> {
                         System.err.println("Failed to save recipe: " + ex.getMessage());
@@ -852,7 +919,9 @@ public class NCore extends Widget
 
     private static volatile boolean areaSyncStarted = false;
     private static volatile boolean planningSyncStarted = false;
+    private static volatile boolean fishSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;
+    private static volatile boolean peerPositionSyncStarted = false;
 
     /**
      * Start periodic area sync from database
@@ -1003,6 +1072,65 @@ public class NCore extends Widget
             databaseManager.getAreaService().stopSync();
         }
         areaSyncStarted = false;
+    }
+
+    /**
+     * Start fish location DB sync. Nothing is pushed on the toggle: fish spots are file OR database,
+     * and carrying the file's contents over is the explicit seed action in Database settings.
+     */
+    private void startFishSync() {
+        if (fishSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            return;
+        }
+        nurgling.db.service.FishLocationDbService svc = databaseManager.getFishLocationService();
+        if (svc == null) return;   // optional migration was refused; fish stay on their file
+
+        svc.startSync(4);
+        fishSyncStarted = true;
+    }
+
+    /**
+     * Start live player position sync. Unlike the other workers this one both publishes and reads
+     * on every tick, and it groups by world rather than by session - see PeerPositionDbService.
+     */
+    private void startPeerPositionSync() {
+        if (peerPositionSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            return;
+        }
+        /* Every session ticks this on its own UI thread against one shared service and one static
+         * flag. Without the lock two sessions can both get past the check, and the loser's
+         * startSync would call stopSync, which waits up to five seconds for the worker to die -
+         * on a UI thread. Re-check inside, since the winner sets the flag. */
+        synchronized (dbLock) {
+            if (peerPositionSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+                return;
+            }
+            nurgling.db.service.PeerPositionDbService svc = databaseManager.getPeerPositionService();
+            if (svc == null) return;   // optional migration was refused; the map just shows nobody
+
+            svc.startSync(3);
+            peerPositionSyncStarted = true;
+        }
+    }
+
+    private void stopPeerPositionSync() {
+        if (databaseManager != null && databaseManager.getPeerPositionService() != null) {
+            /* Take our rows out on the way down rather than leaving them to age out, so shutting the
+             * database off actually stops broadcasting instead of merely stopping updates. */
+            try {
+                databaseManager.getPeerPositionService().withdrawOptedOut();
+            } catch (RuntimeException ignore) {
+            }
+            databaseManager.getPeerPositionService().stopSync();
+        }
+        peerPositionSyncStarted = false;
+    }
+
+    private void stopFishSync() {
+        if (databaseManager != null && databaseManager.getFishLocationService() != null) {
+            databaseManager.getFishLocationService().stopSync();
+        }
+        fishSyncStarted = false;
     }
 
     /**

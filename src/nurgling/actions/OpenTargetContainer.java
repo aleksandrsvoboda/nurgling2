@@ -50,6 +50,20 @@ public class OpenTargetContainer implements Action
                     new SelectFlowerAction("Open", gob, true).run(gui);
                 gui.ui.core.addTask(new FindNInventory(name));
                 break;
+            case "Study Desk":
+            case "Fine Study Desk":
+            case "Grand Study Desk":
+                // A non-owned desk pops an "Open"/"Take possession" flower menu instead of
+                // opening directly; only a fresh click (not a reused window) can trigger one.
+                if (already == null) {
+                    NFlowerMenu deskMenu = NUtils.findFlowerMenu();
+                    if (deskMenu != null) {
+                        deskMenu.chooseOpt("Open");
+                        gui.ui.core.addTask(new NFlowerMenuIsClosed());
+                    }
+                }
+                gui.ui.core.addTask(new FindNInventory(name));
+                break;
             default:
                 gui.ui.core.addTask(new FindNInventory(name));
         }

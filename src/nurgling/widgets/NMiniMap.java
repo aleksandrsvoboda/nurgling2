@@ -257,6 +257,7 @@ NMiniMap extends MiniMap {
         if(dataLevel <= 1)
             drawicons(g);
         drawparty(g);
+        drawPeers(g);            // Players sharing this database, at any distance
 
         drawtempmarks(g);
         drawLabeledMarks(g);
@@ -269,6 +270,222 @@ NMiniMap extends MiniMap {
         drawBotDetourTrail(g);   // Draw Forager's live off-path gob-collection detour trail
         drawMarkerLine(g);       // Draw line to selected marker
         drawPings(g);            // Draw chat map pings on top of everything else
+    }
+
+    /**
+     * Players whose position came from the shared database - which is to say players at any distance
+     * at all, kinned or not.
+     *
+     * <p>Membership is by database access, not by the in-game Kin list: anyone publishing to this
+     * database is drawn. Kin group only decides the colour.
+     *
+     * <p>The client's own two mechanisms both stop short: {@code drawicons} needs the game server to
+     * still be sending you the Gob, and {@code drawparty} needs an actual party. This draws everyone
+     * the shared database knows about, using the same arrow as {@code drawparty} so a marker reads
+     * as "a player" without anything new to learn.
+     *
+     * <p>Lives here rather than in a dedicated widget for the same reason as {@link #drawPings}: the
+     * map window's view subclasses this class, so the corner minimap and the map window both get it
+     * from one call.
+     */
+    private void drawPeers(GOut g) {
+        peerHits.clear();
+        if(sessloc == null || dloc == null)
+            return;
+        if(!(Boolean)NConfig.get(NConfig.Key.showPeerPositions))
+            return;
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.peerPositionService == null)
+            return;
+        java.util.List<PeerPosition> peers = gui.peerPositionService.snapshot();
+        if(peers.isEmpty())
+            return;
+
+        /* Names are only legible at high detail, and a crowded village at world zoom would be a wall
+         * of overlapping text. The markers stay at every zoom, and the tooltip works at every zoom,
+         * so nothing is actually lost by dropping the labels when they would not be readable. */
+        boolean names = getDataLevel() <= 1;
+        Coord playerTc = playerTile();
+
+        for(PeerPosition kp : peers) {
+            MiniMap.Location loc = kp.ref.loc();
+            if(loc == null)
+                continue;    // their grid is in no segment we have; nothing to draw against
+            Coord c = xlate(loc);
+            if(c == null)
+                continue;    // resolved, but into a segment this map is not showing
+            double alpha = kp.alpha();
+            Color col = peercol(gui, kp.charName);
+            String tip = peertip(kp, loc, playerTc);
+
+            if(!c.isect(Coord.z, sz)) {
+                Coord at = clampToEdge(c);
+                drawPeerEdgeMark(g, at, c, col, alpha);
+                peerHits.add(new PeerHit(at, EDGE_HIT, tip));
+                continue;
+            }
+
+            drawPeerMark(g, c, col, alpha, kp.angle);
+            peerHits.add(new PeerHit(c, MARK_HIT, tip));
+
+            if(names) {
+                String label = kp.stale() ? (kp.charName + " \u00b7 " + kp.agestr()) : kp.charName;
+                drawPeerLabel(g, c.add(0, UI.scale(9)), label, col, alpha);
+            }
+        }
+    }
+
+    /* Marker geometry. Kept together because the hit radii have to track the drawn sizes: a
+     * tooltip that does not line up with the thing it describes is worse than none. */
+    private static final int MARK_HIT = UI.scale(9);
+    private static final int EDGE_HIT = UI.scale(11);
+
+    /**
+     * On-map marker: the party arrow, over a soft halo in the same colour.
+     *
+     * <p>The halo is what makes this readable at a glance. The bare arrow is a small dark shape that
+     * disappears into forest and gets lost among gob icons; a diffuse disc behind it reads as "a
+     * person is here" from the corner of the eye and gives the colour enough area to actually be
+     * identifiable as a kin group rather than a tinted outline.
+     */
+    private void drawPeerMark(GOut g, Coord c, Color col, double alpha, double ang) {
+        double rot = -ang - (Math.PI / 2);
+        // Halo, dimmest and widest first, so the two passes build a gradient rather than a flat disc.
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(38 * alpha));
+        g.fellipse(c, new Coord(UI.scale(9), UI.scale(9)));
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(58 * alpha));
+        g.fellipse(c, new Coord(UI.scale(6), UI.scale(6)));
+        // Dark casing offset by a pixel: the map underneath ranges from dark forest to bright snow,
+        // and a single tinted arrow vanishes against one half of that range.
+        g.chcolor(0, 0, 0, (int)(150 * alpha));
+        g.rotimage(plp, c.add(UI.scale(1), UI.scale(1)), plp.sz().div(2), rot);
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(255 * alpha));
+        g.rotimage(plp, c, plp.sz().div(2), rot);
+        g.chcolor();
+    }
+
+    /**
+     * Off-map marker: a cone on the border pointing the way, on a round base.
+     *
+     * <p>Replaces the two-stroke chevron the pings use. A ping is transient and pulsing, so a thin
+     * animated mark suits it; these are persistent, and a solid badge stays legible without drawing
+     * the eye the way a pulse would. The cone is drawn as a pie slice - {@code fellipse} measures
+     * angles counter-clockwise with y up, so the screen angle is negated.
+     */
+    private void drawPeerEdgeMark(GOut g, Coord at, Coord target, Color col, double alpha) {
+        Coord mid = sz.div(2);
+        double t = -Math.atan2(target.y - mid.y, target.x - mid.x);
+        int cone = UI.scale(12), base = UI.scale(5), pad = UI.scale(2);
+        double half = 0.42;
+
+        g.chcolor(0, 0, 0, (int)(200 * alpha));
+        g.fellipse(at, new Coord(cone + pad, cone + pad), t - half - 0.12, t + half + 0.12);
+        g.fellipse(at, new Coord(base + pad, base + pad));
+
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(240 * alpha));
+        g.fellipse(at, new Coord(cone, cone), t - half, t + half);
+        g.fellipse(at, new Coord(base, base));
+
+        // Highlight in the middle of the base, so the badge reads as raised rather than as a blob.
+        g.chcolor(255, 255, 255, (int)(90 * alpha));
+        g.fellipse(at, new Coord(UI.scale(2), UI.scale(2)));
+        g.chcolor();
+    }
+
+    /** Name plate under an on-map marker: light text on a dark plate, so it works over any terrain. */
+    private void drawPeerLabel(GOut g, Coord tp, String label, Color col, double alpha) {
+        Text txt = peerfnd.render(label, col);
+        Coord ul = tp.sub(txt.sz().x / 2 + UI.scale(3), 0);
+        Coord psz = txt.sz().add(UI.scale(6), UI.scale(2));
+        g.chcolor(0, 0, 0, (int)(165 * alpha));
+        g.frect(ul, psz);
+        g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(70 * alpha));
+        g.frect(ul, new Coord(psz.x, UI.scale(1)));
+        g.chcolor(255, 255, 255, (int)(255 * alpha));
+        g.aimage(txt.tex(), tp.add(0, UI.scale(1)), 0.5, 0);
+        g.chcolor();
+    }
+
+    /** The player's own tile in segment coordinates, or null while it is not resolvable. */
+    private Coord playerTile() {
+        try {
+            if(ui != null && ui.gui != null && ui.gui.map != null && sessloc != null)
+                return(new Coord2d(ui.gui.map.getcc()).floor(tilesz).add(sessloc.tc));
+        } catch(Loading l) {
+        }
+        return(null);
+    }
+
+    /** Tooltip line for one player: who, how stale, and how far. */
+    private String peertip(PeerPosition kp, MiniMap.Location loc, Coord playerTc) {
+        StringBuilder sb = new StringBuilder(kp.charName);
+        if(kp.stale())
+            sb.append(" \u00b7 ").append(kp.agestr()).append(" ago");
+        /* Distance only when both ends are in the same segment - across segments the tile
+         * coordinates are not comparable and any number would be invented. */
+        if((playerTc != null) && (sessloc != null) && (loc.seg.id == sessloc.seg.id)) {
+            long d = Math.round(playerTc.dist(loc.tc));
+            sb.append(" \u00b7 ").append((d >= 1000) ? (String.format("%.1fk", d / 1000.0)) : Long.toString(d))
+              .append(" tiles");
+        }
+        return(sb.toString());
+    }
+
+    /** One drawn marker, kept so {@link #tooltip} can hit-test what the last frame actually drew. */
+    private static final class PeerHit {
+        final Coord c;
+        final int r;
+        final String label;
+
+        PeerHit(Coord c, int r, String label) {
+            this.c = c;
+            this.r = r;
+            this.label = label;
+        }
+    }
+
+    /* Rebuilt every frame by drawPeers. Both live on the UI thread, and the corner minimap and the
+     * map window each keep their own, so a hit is always tested against that widget's own geometry. */
+    private final java.util.List<PeerHit> peerHits = new java.util.ArrayList<>();
+
+    /** Name of the player under the cursor, or null. Positions come from the last frame drawn. */
+    private String peerAt(Coord c) {
+        for(int i = peerHits.size() - 1; i >= 0; i--) {
+            PeerHit h = peerHits.get(i);
+            if(c.dist(h.c) <= h.r)
+                return(h.label);
+        }
+        return(null);
+    }
+
+    /** Foundry for name labels; rendering one per player per frame would be needless garbage. */
+    private static final Text.Foundry peerfnd = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
+
+    /** Neutral colour for a published character who is not on this client's kin list. */
+    public static final Color PEER_DEFAULT = new Color(190, 190, 190);
+
+    /**
+     * Kin-group colour for a character name, or a neutral grey when they are not kinned here.
+     *
+     * <p>Colouring rather than filtering is the whole distinction between the two ideas: who is drawn
+     * is decided by who shares this database, and only the colour is decided by the in-game Kin list.
+     * Hiding someone who has not been added in-game yet would read as the feature being broken.
+     */
+    public static Color peercol(NGameUI gui, String name) {
+        try {
+            BuddyWnd bw = gui.buddies;
+            if(bw != null && name != null) {
+                for(BuddyWnd.Buddy b : bw) {
+                    if(name.equals(b.name))
+                        return((b.group >= 0 && b.group < BuddyWnd.gc.length)
+                               ? BuddyWnd.gc[b.group] : PEER_DEFAULT);
+                }
+            }
+        } catch(RuntimeException ignore) {
+            /* The kin list is a live widget being mutated by the server; failing to read it must
+             * cost a colour, never the marker. */
+        }
+        return(PEER_DEFAULT);
     }
 
     /**
@@ -1783,6 +2000,13 @@ NMiniMap extends MiniMap {
 
     @Override
     public Object tooltip(Coord c, Widget prev) {
+        /* Players first, and before the dloc/sessloc guard below: an edge marker is pinned to the
+         * widget border rather than to a map position, so it is hoverable even where the map itself
+         * has nothing to say. A moving person is also the thing a hover is most likely aimed at. */
+        String peer = peerAt(c);
+        if(peer != null)
+            return(Text.render(peer));
+
         if(dloc != null && sessloc != null) {
             Coord hsz = sz.div(2);
 
@@ -2275,17 +2499,19 @@ NMiniMap extends MiniMap {
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         // Alt+Shift+LMB pings the clicked spot to the selected chat channel. Plain
-        // alt+LMB cannot be used here the way it is in the world view, because on the
-        // maps it already means "walk here next" - it queues a movement waypoint
-        // (NMapWnd.mouseup, NMiniMapWnd.clickloc). Checked first so the ping never
-        // doubles as a walk or a waypoint grab.
+        // alt+LMB is left for waypoint queueing - it means "walk here next" here, on the
+        // map window and in the world alike (NMapWnd.mouseup, NMiniMapWnd.clickloc,
+        // NMapView.addWaypointAt). Checked first so the ping never doubles as a walk or a
+        // waypoint grab.
         if(ev.b == 1 && ui.modmeta && ui.modshift && !ui.modctrl) {
             if(sendPointPing(ev.c))
                 return true;
         }
 
-        // Pick up a queued waypoint under the cursor instead of panning/walking.
-        if(ev.b == 1 && startWaypointDrag(ev.c))
+        // Pick up a queued waypoint under the cursor instead of panning/walking. Plain left
+        // button only: alt+LMB is "queue a waypoint here" (NMiniMapWnd.clickloc, NMapWnd.mouseup)
+        // and would otherwise be swallowed whenever the cursor sat near a node already queued.
+        if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && startWaypointDrag(ev.c))
             return true;
 
         // Handle left-click for forager path recording - prevent player movement

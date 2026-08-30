@@ -112,7 +112,7 @@ public class NConfig
         smokeprop,
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
-        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, dbStatsOverlay, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
+        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
@@ -186,6 +186,21 @@ public class NConfig
         showThingwallNames,
         showPartyMemberNames,
         trackingVectors,
+        // Combat HUD (FightBuffsInfo / FightActions panels)
+        combatShowOpeningsAsLetters,
+        combatShowHotkeys,
+        combatShowDamagePrediction,
+        combatSingleRowMoves,
+        combatShowEstimatedAgility,
+        combatShowHealthBar,
+        combatShowStaminaBar,
+        combatIncludeHHPText,
+        combatColorOffbalance,
+        combatColorReeling,
+        combatColorCornered,
+        combatColorDizzy,
+        combatColorMyIP,
+        combatColorEnemyIP,
         randomAreaColor,
         treeScaleDisableZoomHide,
         treeScaleMinThreshold,
@@ -336,6 +351,14 @@ public class NConfig
         conf.put(Key.simplecrops, true);
         conf.put(Key.simpleInspect, false);
         conf.put(Key.ndbenable, false);
+        conf.put(Key.shareHearthSecret, true);
+        /* Live position markers are on out of the box: everyone sharing a database has already
+         * been let in, and the feature is worthless unless most of them are publishing. Both halves
+         * are separately switchable in Database settings. */
+        conf.put(Key.sharePosition, true);
+        conf.put(Key.showPeerPositions, true);
+        conf.put(Key.autoHearthSecret, true);
+        conf.put(Key.dbGrantRole, "PUBLIC");
         conf.put(Key.dbStatsOverlay, false);
         conf.put(Key.harvestautorefill, false);
         conf.put(Key.cleanupQContainers, false);
@@ -345,6 +368,7 @@ public class NConfig
         conf.put(Key.useHFinGlobalPF, false);
         conf.put(Key.sqlite, false);
         conf.put(Key.postgres, false);
+        conf.put(Key.mapShareMarkers, true);
         conf.put(Key.postgresMaxConnections, 5);
         conf.put(Key.dbFilePath, "");
         conf.put(Key.serverNode, "");
@@ -449,7 +473,7 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/bear/bear", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/bear/polarbear", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/adder/adder", 100));
-        arearadprop.add(new NAreaRad("gfx/kritter/wildgoat/wildgoat", 100));
+        arearadprop.add(new NAreaRad("gfx/kritter/goat/wildgoat", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/badger/badger", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/lynx/lynx", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/mammoth/mammoth", 100));
@@ -535,6 +559,22 @@ public class NConfig
         // Map tracking vectors
         conf.put(Key.trackingVectors, false);
         
+        // Combat HUD
+        conf.put(Key.combatShowOpeningsAsLetters, false);
+        conf.put(Key.combatShowHotkeys, true);
+        conf.put(Key.combatShowDamagePrediction, true);
+        conf.put(Key.combatSingleRowMoves, false);
+        conf.put(Key.combatShowEstimatedAgility, true);
+        conf.put(Key.combatShowHealthBar, true);
+        conf.put(Key.combatShowStaminaBar, true);
+        conf.put(Key.combatIncludeHHPText, false);
+        conf.put(Key.combatColorOffbalance, nurgling.conf.NCombatData.DEF_GREEN);
+        conf.put(Key.combatColorReeling, nurgling.conf.NCombatData.DEF_YELLOW);
+        conf.put(Key.combatColorCornered, nurgling.conf.NCombatData.DEF_RED);
+        conf.put(Key.combatColorDizzy, nurgling.conf.NCombatData.DEF_BLUE);
+        conf.put(Key.combatColorMyIP, nurgling.conf.NCombatData.DEF_MYIP);
+        conf.put(Key.combatColorEnemyIP, nurgling.conf.NCombatData.DEF_ENEMYIP);
+
         // Random area color on creation
         conf.put(Key.randomAreaColor, false);
         
@@ -1290,6 +1330,26 @@ public class NConfig
                     savedRads.add(new NAreaRad(entry[0], Integer.parseInt(entry[1])));
                     isUpd = true;
                 }
+            }
+
+            // Migration: the wildgoat entry shipped with a resource path that no gob ever has
+            // ("gfx/kritter/wildgoat/wildgoat"); the real one is "gfx/kritter/goat/wildgoat".
+            // Rename in place so the user's own vis/radius choices survive.
+            for (Iterator<NAreaRad> i = savedRads.iterator(); i.hasNext(); ) {
+                NAreaRad r = i.next();
+                if (r.name.equals("gfx/kritter/wildgoat/wildgoat")) {
+                    if (existingNames.contains("gfx/kritter/goat/wildgoat")) {
+                        i.remove();
+                    } else {
+                        r.name = "gfx/kritter/goat/wildgoat";
+                        existingNames.add(r.name);
+                    }
+                    isUpd = true;
+                }
+            }
+            if (!existingNames.contains("gfx/kritter/goat/wildgoat")) {
+                savedRads.add(new NAreaRad("gfx/kritter/goat/wildgoat", 100));
+                isUpd = true;
             }
         }
 

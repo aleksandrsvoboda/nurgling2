@@ -87,8 +87,17 @@ The following files typically have conflicts:
   - Example at commit 51a5a5f4e
 
 **src/haven/QuestWnd.java**
-- **Nurgling changes**: Usually minimal
-- **Resolution strategy**: Take hafen's version (--theirs)
+- **⚠ This entry used to say "usually minimal, take --theirs". That is no longer
+  true and following it will silently break the quest tracker.**
+- **Nurgling changes**: `$_` factory returns `nurgling.NQuestWnd`;
+  `Quest.DefaultBox` → `nurgling.NQuestBox`; `NUtils.setQuestConds` hook in
+  `Quest.Info.uimsg("conds")`; `NUtils.addQuest`/`removeQuest` hooks in the
+  `uimsg("quests")` loop; ctor split into an overridable `buildLayout()`
+  (so `questbox`/`cqst`/`dqst` are non-final); an extra
+  `QuestList(Coord, int itemh, boolean showcond)` ctor for NQuestWnd's row height.
+- **Resolution strategy**: Take hafen's version of any rewritten method, then
+  re-graft the hooks above onto the new control flow. See the Aug 2026 round 2
+  notes for a worked example.
 
 **src/haven/TexRender.java**
 - **Nurgling changes**: Usually minimal
@@ -121,8 +130,13 @@ After resolving conflicts, ensure these nurgling-specific files are included:
 ### Step 6: Build and Test
 
 ```bash
-# Build to check for compilation errors
-ant clean compile
+# Force a FULL recompile. Incremental javac misses subclass/override breakage
+# introduced by a merge, so never trust an incremental build here.
+#
+# Do NOT use `ant clean`: it wipes lib/ext, and the re-downloaded lwjgl-fat
+# crashes the client at startup. Delete the class output instead:
+rm -rf build/classes
+powershell.exe -Command "cd C:\\Users\\imbecil\\nurgling2; ant"
 
 # Common compilation errors after hafen integration:
 # - Session.CachedRes access issues → ensure CachedRes is public
@@ -357,9 +371,9 @@ For the next hafen integration:
 
 ---
 
-**Last Updated:** 2026-08-20
-**Last Integration:** hafen-integration-2026-08 (merge commit 800f98930, branch off master)
-**Hafen Commits Integrated:** 32 commits (merge-base 9bba2bb9d → hafen/master f4b86b855)
+**Last Updated:** 2026-08-26
+**Last Integration:** hafen-integration-2026-08b (merge commit 372bac1d0, branch off master)
+**Hafen Commits Integrated:** 57 commits (merge-base f4b86b855 → hafen/master bbfc4d728)
 
 > Note: The Feb 2026 reference above (57d9570b2 / d58dcb242) is historical and is
 > NOT in the current master's ancestry — a later, undocumented integration brought
@@ -702,3 +716,81 @@ read the server-side widget's real logic before assuming a nurgling regression.
   (panel shows name/group/Banish), click the same member again to deselect, and
   confirm "Actions:" plus the three buttons come back. Also worth a look: UI scaling
   on startup, and any list-widget right-click behaviour. Not pushed.
+
+### August 2026 round 2 (57 commits — new quest format / PVER 32, OSX toolkit) — SMALL
+
+Merge-base `f4b86b855` → hafen/master `bbfc4d728`. Merge commit `372bac1d0`, branch
+`hafen-integration-2026-08b` (off master; origin/master and master were level).
+Only **1 conflict** — but `Session.PVER` went **31 → 32**, so this round belongs to
+the June-`NMakewindow` family: a wire format changed under us.
+
+**Read the PVER line first.** 57 commits sounds large, but `git diff --stat` over
+`src/*.java` showed only **6 files**; the other ~4,000 lines are `opt/panama/**`
+(OSX Cocoa toolkit, Xkb key aliases, a Panama replacement for steamworks4j), which
+compiles only on JDK ≥ 22 and is inert for the main build. The whole risk surface
+of a round can be this small even when the commit count is not — and conversely,
+`PVER` moving means *something* reparses, so find what before trusting the size.
+
+- **Theme 1 — new quest wire format (the PVER bump).** The `quests` uimsg changed
+  from a flat, self-delimiting arg list to **one `OBJS` array per quest**, and each
+  quest gained two trailing ints `ncond` / `ndcond` (done/total conditions).
+  Deletion is now signalled by a payload holding *only* the id (`qd.length == a`)
+  rather than by a null resource. `Quest`'s ctor collapsed to `Quest(int id)` with
+  fields assigned afterwards. Pending-quest rows can now show an `n/m` counter.
+- **Conflict (1): `QuestWnd.java`.** Nurgling does **not** fork QuestWnd — it
+  subclasses (`NQuestWnd extends QuestWnd`) but *does* patch `haven/QuestWnd.java`
+  in place with quest-tracker hooks. Hafen rewrote the whole `uimsg` loop those
+  hooks lived in. Took hafen's loop wholesale and re-grafted all three hooks onto
+  the new control flow:
+  - `NUtils.removeQuest` → the new id-only removal branch (was: the `res == null` else-branch).
+  - `NUtils.addQuest` → inside `if(nl != cl)` when `nl != dqst` (unchanged shape).
+  - `NUtils.removeQuest` → next to `q.done(...)`, now guarded by hafen's
+    `(cl == cqst) && (nl == dqst)` instead of the old explicit PEND/DISABLED
+    state comparison. Same event, hafen just expresses it as a list transition.
+  The `setQuestConds` hook in `Quest.Info.uimsg("conds")` and the `NQuestBox` /
+  `NQuestWnd` factory swaps are in untouched regions and auto-merged.
+- **⚠ Silent break git could not flag — `QuestList.showcond`.** Hafen added
+  `public final boolean showcond` to `QuestList`, assigned only in its own
+  `QuestList(Coord, boolean)` ctor. Nurgling had added a *second* ctor,
+  `QuestList(Coord sz, int itemh)` (NQuestWnd needs a custom row height), which
+  now left a blank final unassigned. javac *did* catch this one — but only
+  because the field is final; had it been a plain field, nurgling's quest log
+  would have silently rendered `showcond == false` and quietly lost the new
+  feature. Threaded the flag through as `QuestList(Coord, int itemh, boolean
+  showcond)` and passed `true` from `NQuestWnd`'s current list / `false` from its
+  completed list, matching upstream's intent.
+  **Generalisable rule:** when upstream adds a field to a class nurgling has added
+  an overload/ctor to, check every nurgling ctor, not just the conflicted hunk.
+- **Theme 2 — physical keys (`Key.Loc`).** `Key` gained an **abstract**
+  `location()` plus a nested `Key.Loc` interface with an Xkb-style `Std` scancode
+  enum (`AD01`, `KPEN`, …, ids `"std:NAME"`). An abstract method added to a
+  widely-implemented interface is normally a compile break; here it is inert
+  because **every implementor is hafen-owned** and was updated in the same round:
+  `AWTToolkit.AWTKey`, `NEWTContext.NEWTKey`, and the panama `WGLContext.W32Key` /
+  `GLXContext.X11Key`. Verified `src/nurgling` neither implements nor references
+  `haven.iosys.tk.Key` (still true since July's rekey round). Nurgling's keybind
+  sites remain on the AWT-era compat API.
+- **Auto-merged, verified by hand:**
+  - `Client` — now sets `ui.lastevent = Utils.rtime()` on key events. Nurgling
+    writes `ui.lastevent` too, in `SessionContext`'s background tick loop, to keep
+    *demoted* sessions from being treated as idle. Different code paths
+    (foreground input vs. background tick), complementary, no interference.
+  - `Session` — PVER only; `injectMessage` / public `CachedRes` untouched.
+  - `AWTToolkit` / `NEWTContext` — additive `Key.Loc` plumbing only.
+- **Not touched upstream this round:** `Makewindow`/`NMakewindow`, `MenuSearch`,
+  `GameUI`, `GameUI.Zergwnd` (so `NZergwnd` needed no mirroring), `Material`,
+  `Bootstrap`, `ModSprite`/`StaticSprite`, `Polity`.
+- **Noted, not done (out of scope):** `QuestModel.pumpConds` sweeps `qsel` per quest
+  to harvest objective *text*, so the new `ncond`/`ndcond` counts do **not** replace
+  it. They could cheaply short-circuit the "is this quest's progress stale?" check,
+  since `ndcond` now arrives unsolicited with every quest update. Possible future
+  optimisation of the tracker's selection-stealing sweep.
+- **Status:** full rebuild succeeds (5528 classes, `bin/hafen.jar` built); ancestry
+  verified (`git merge-base --is-ancestor bbfc4d728 HEAD` → 0; `372bac1d0` is a
+  two-parent merge). **Runtime testing pending** — the quest path is what to
+  exercise, since the wire format moved: open the Quest Log and confirm current
+  quests list with an `n/m` counter on the right and completed quests without one;
+  accept a new quest (appears in Current, tracker panel picks it up); complete one
+  (moves to Completed, leaves the tracker); abandon/lose one (disappears from both).
+  Then confirm the nurgling quest tracker panel still shows objectives, givers and
+  targets. Not pushed.
