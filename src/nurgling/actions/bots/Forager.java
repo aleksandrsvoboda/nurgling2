@@ -785,13 +785,6 @@ public class Forager implements Action {
     // is too small to safely keep working, even at full.
     private static final int MIN_MAX_SOFT_HP = 80;
 
-    // HP-loss trigger requires BOTH of these, not HP alone - a single nettle sting/bee
-    // stitch dips HP but is harmless and shouldn't send the character home every time; it's
-    // only worth interrupting the run when the character is both hurt AND already getting low
-    // on energy (i.e. actually needs to head back soon regardless).
-    private static final double HP_TRIGGER_THRESHOLD = 0.5;
-    private static final double HP_TRIGGER_ENERGY_THRESHOLD = 0.8;
-
     // If the character hasn't moved more than this many world units in STUCK_TIMEOUT_MS,
     // treat it as stuck rather than let it retry indefinitely - the most common cause is
     // PathFinder repeatedly retrying a cliff climb (or snagging on an object right at a cliff
@@ -818,11 +811,12 @@ public class Forager implements Action {
      * Ring Settings) - the same per-species distances used for the on-screen warning circles,
      * just with a bit of extra margin since this is meant to pull the character out before real
      * danger, not after. Only animal detection is still gated by {@code onAnimalAction}
-     * (including "nothing") - an animal might just be passing through. Low energy, low/
-     * reduced soft hitpoints, and an unknown/hostile player are all unconditional and always
-     * resolve to "travel hearth" regardless of preset settings - none of them are something a
-     * preset should be able to configure away (an unknown player ignored because
-     * {@code onPlayerAction} defaulted to "nothing" is exactly how the character got robbed).
+     * (including "nothing") - an animal might just be passing through. Low energy, anything
+     * less than full soft hitpoints, too small a max soft-hitpoint pool, and an unknown/hostile
+     * player are all unconditional and always resolve to "travel hearth" regardless of preset
+     * settings - none of them are something a preset should be able to configure away (an
+     * unknown player ignored because {@code onPlayerAction} defaulted to "nothing" is exactly
+     * how the character got robbed).
      *
      * @return the safety action to perform ("logout"/"travel hearth"), or null if nothing was found
      */
@@ -846,21 +840,19 @@ public class Forager implements Action {
             return "travel hearth";
         }
 
-        // Primary HP check: the meter's fill fraction, not the tip-text-derived raw numbers
-        // (getCurrentHP/getMaxHP) - those depend on tooltip data that isn't guaranteed to
-        // update during an unattended run and were confirmed NOT to (2026-08-18: character
-        // was knocked out twice overnight while this bot kept running, because curHP/maxHP
-        // had silently stayed at -1 the whole time). getHPFraction() reads the same always-
-        // live bar value getEnergy()/getStamina() already rely on successfully.
-        //
-        // Requires energy also below HP_TRIGGER_ENERGY_THRESHOLD - a minor scrape (nettle
-        // burn, bee stitch) dips HP but is harmless on its own and shouldn't send the
-        // character home every time; only trip this when they're both hurt and already
-        // getting low on energy.
+        // Standalone check, same as the animal/player checks below - unconditional, no
+        // co-factor (unlike the old version of this check, which also required energy below
+        // 80% - direct request: any soft-hitpoint loss at all should send the character home,
+        // not just "hurt and already tired", so a run doesn't keep going while quietly getting
+        // chipped down by repeated small hits). The meter's fill fraction, not the tip-text-
+        // derived raw numbers (getCurrentHP/getMaxHP) - those depend on tooltip data that isn't
+        // guaranteed to update during an unattended run and were confirmed NOT to (2026-08-18:
+        // character was knocked out twice overnight while this bot kept running, because
+        // curHP/maxHP had silently stayed at -1 the whole time). getHPFraction() reads the same
+        // always-live bar value getEnergy()/getStamina() already rely on successfully.
         double hpFrac = NUtils.getHPFraction();
-        if (hpFrac >= 0 && hpFrac < HP_TRIGGER_THRESHOLD && energy >= 0 && energy < HP_TRIGGER_ENERGY_THRESHOLD) {
-            gui.msg("Forager: soft hitpoints at " + Math.round(hpFrac * 100) + "% and energy at " +
-                    Math.round(energy * 100) + "% - traveling to hearth");
+        if (hpFrac >= 0 && hpFrac < 1.0) {
+            gui.msg("Forager: soft hitpoints not full (" + Math.round(hpFrac * 100) + "%) - traveling to hearth");
             return "travel hearth";
         }
 
