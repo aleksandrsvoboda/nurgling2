@@ -803,9 +803,15 @@ public class Forager implements Action {
     // below.
     private static final double LOW_ENERGY_THRESHOLD = 0.22;
 
-    // Minimum acceptable max soft hitpoints - below this the character's health pool itself
-    // is too small to safely keep working, even at full.
+    // Minimum acceptable hard-HP ceiling (see detectThreat's javadoc on the 3 distinct HP
+    // numbers) - below this the character's wound-reduced health pool itself is too small to
+    // safely keep working, even fully healed up to that ceiling.
     private static final int MIN_MAX_SOFT_HP = 80;
+
+    // Reliable, always-live absolute-danger backstop on getHPFraction() (denominated by the
+    // theoretical max, not the current wound-reduced ceiling - see detectThreat's javadoc) -
+    // not "must be exactly full", just "this is a real amount of damage regardless of wounds".
+    private static final double LOW_HP_FRACTION_THRESHOLD = 0.5;
 
     // If the character hasn't moved more than this many world units in STUCK_TIMEOUT_MS,
     // treat it as stuck rather than let it retry indefinitely - the most common cause is
@@ -821,7 +827,19 @@ public class Forager implements Action {
     /**
      * Checks for unknown players, dangerous animals, low energy, or reduced/low soft
      * hitpoints, returning which safety action is needed - but, deliberately, never performs
-     * it. This runs on the watcher thread, in parallel with whatever the bot thread is doing;
+     * it.
+     * <p>
+     * There are 3 distinct HP numbers in this game: <b>soft HP</b> (the character's actual
+     * current health, what {@code getCurrentHP()} and {@code getHPFraction()}'s numerator both
+     * are), <b>hard HP</b> (a ceiling soft HP is capped at, lowered by open wounds until they
+     * heal - what {@code getMaxHP()} actually returns, despite the name), and <b>max HP</b> (the
+     * theoretical ceiling with zero wounds, i.e. hard HP's own ceiling - not directly exposed by
+     * any of these methods; {@code getHPFraction()}'s bar fraction is denominated by this one).
+     * "Full" health, in the sense that actually matters here, means soft == hard (as healed as
+     * current wounds allow), not soft == max (impossible while any wound persists) - see the
+     * two separate HP checks below for how this plays out.
+     * <p>
+     * This runs on the watcher thread, in parallel with whatever the bot thread is doing;
      * if it ran a multi-second action like "travel hearth" here, the bot thread would keep
      * walking/acting the whole time (it hasn't been told to stop yet), and that movement can
      * cancel the hearth-travel channel it's supposed to be waiting for - which looked like the
@@ -862,23 +880,41 @@ public class Forager implements Action {
             return "travel hearth";
         }
 
-        // Standalone check, same as the animal/player checks below - unconditional, no
-        // co-factor (unlike the old version of this check, which also required energy below
-        // 80% - direct request: any soft-hitpoint loss at all should send the character home,
-        // not just "hurt and already tired", so a run doesn't keep going while quietly getting
-        // chipped down by repeated small hits). The meter's fill fraction, not the tip-text-
-        // derived raw numbers (getCurrentHP/getMaxHP) - those depend on tooltip data that isn't
-        // guaranteed to update during an unattended run and were confirmed NOT to (2026-08-18:
-        // character was knocked out twice overnight while this bot kept running, because
-        // curHP/maxHP had silently stayed at -1 the whole time). getHPFraction() reads the same
-        // always-live bar value getEnergy()/getStamina() already rely on successfully.
+        // There are 3 distinct HP numbers in this game: soft HP (current, what getHPFraction()'s
+        // bar fraction and this check are about), hard HP (a ceiling soft HP is capped at,
+        // lowered by open wounds until they heal), and max HP (the theoretical ceiling with zero
+        // wounds - hard HP's own ceiling). getHPFraction()'s bar is denominated by MAX HP, not
+        // hard HP - so a character sitting at soft == hard (as fully healed as currently
+        // possible) still reads below 1.0 here for as long as any wound persists, even a
+        // trivial/healing one. "< 1.0" on this fraction is therefore "not at full theoretical
+        // health", not "not full" in the sense that matters (not as rested as your current
+        // wounds allow) - reads as a false trigger on an otherwise perfectly fine character.
+        // Kept as a reliable, always-live absolute-danger backstop instead, at a real danger
+        // threshold rather than "exactly full".
         double hpFrac = NUtils.getHPFraction();
-        if (hpFrac >= 0 && hpFrac < 1.0) {
-            gui.msg("Forager: soft hitpoints not full (" + Math.round(hpFrac * 100) + "%) - traveling to hearth");
+        if (hpFrac >= 0 && hpFrac < LOW_HP_FRACTION_THRESHOLD) {
+            gui.msg("Forager: soft hitpoints at " + Math.round(hpFrac * 100) + "% (below " +
+                    Math.round(LOW_HP_FRACTION_THRESHOLD * 100) + "%) - traveling to hearth");
             return "travel hearth";
         }
 
-        // Secondary check: max HP pool size. Best-effort only - falls back to skipped (not
+        // The actual "not full" check the game itself means: soft hitpoints below the CURRENT
+        // ceiling wounds allow (hard HP), not the theoretical max. getCurrentHP()/getMaxHP()
+        // read the same "Health:cur/max" tip - despite the name, that "max" IS the current,
+        // wound-reduced hard-HP ceiling (see IMeter.curHealth/maxHealth's own comment: this tip
+        // is exactly what lets you tell soft hitpoints apart from a wound-reduced max), so this
+        // comparison is genuinely current-vs-hard. Best-effort only, same reliability caveat as
+        // the max-soft-HP-pool check right below - skipped (not blocking) if the tip data isn't
+        // available yet this session, kept alongside (not instead of) the fraction backstop
+        // above so a run is never solely relying on tip data that might silently stay at -1.
+        int curHP = NUtils.getCurrentHP();
+        int hardHP = NUtils.getMaxHP();
+        if (curHP >= 0 && hardHP >= 0 && curHP < hardHP) {
+            gui.msg("Forager: soft hitpoints not full (" + curHP + "/" + hardHP + ") - traveling to hearth");
+            return "travel hearth";
+        }
+
+        // Secondary check: hard HP ceiling itself. Best-effort only - falls back to skipped (not
         // blocking) if the tip data isn't available, same caveat as above.
         int maxHP = NUtils.getMaxHP();
         if (maxHP >= 0 && maxHP <= MIN_MAX_SOFT_HP) {
