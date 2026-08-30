@@ -880,6 +880,28 @@ public class Forager implements Action {
             return "travel hearth";
         }
 
+        // TEMPORARY diagnostic - the last two HP-check redesigns were both wrong about what
+        // getHPFraction()/getCurrentHP()/getMaxHP() actually represent (56/74/100 reported
+        // still not triggering "not full"). Rather than guess a third time, dump exactly what
+        // the "hp" meter's raw segments and the tip-derived numbers are on every poll, so the
+        // next test tells us the real data shape instead of more speculation.
+        {
+            java.util.List<haven.IMeter.Meter> hpMeters = gui.getmeters("hp");
+            StringBuilder sb = new StringBuilder("Forager DEBUG hp meters: ");
+            if (hpMeters == null) {
+                sb.append("null");
+            } else {
+                sb.append("size=").append(hpMeters.size());
+                for (int i = 0; i < hpMeters.size(); i++) {
+                    sb.append(" [").append(i).append("]=").append(hpMeters.get(i).a);
+                }
+            }
+            sb.append(" | curHP=").append(NUtils.getCurrentHP())
+              .append(" maxHP=").append(NUtils.getMaxHP())
+              .append(" hpFrac=").append(NUtils.getHPFraction());
+            System.err.println(sb);
+        }
+
         // There are 3 distinct HP numbers in this game: soft HP (current, what getHPFraction()'s
         // bar fraction and this check are about), hard HP (a ceiling soft HP is capped at,
         // lowered by open wounds until they heal), and max HP (the theoretical ceiling with zero
