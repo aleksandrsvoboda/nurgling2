@@ -22,6 +22,7 @@ import nurgling.widgets.Specialisation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 
 public class DFrameFishAction implements Action {
 
@@ -85,12 +86,24 @@ public class DFrameFishAction implements Action {
             Coord fishSize = new Coord(1, 1); // размер по умолчанию
             
             while (hasEmptySlots(containers) && gui.getInventory().getNumberFreeCoord(new Coord(1,3))>0 && gui.getInventory().getNumberFreeCoord(new Coord(2,1))>0) {
-                // Проверяем, есть ли рыба в пайлах
+                // Проверяем, есть ли рыба в пайлах или контейнерах
                 ArrayList<Gob> piles = Finder.findGobs(fishArea, new NAlias("stockpile"));
-                if (piles.isEmpty()) {
+                HashSet<Long> pileIds = new HashSet<>();
+                for (Gob pile : piles) {
+                    pileIds.add(pile.id);
+                }
+
+                ArrayList<Gob> candidates = new ArrayList<>(piles);
+                for (Gob cg : Finder.findGobs(fishArea, new NAlias(new ArrayList<>(NContext.contcaps.keySet()), new ArrayList<>()))) {
+                    if (!cg.ngob.isContainerEmpty()) {
+                        candidates.add(cg);
+                    }
+                }
+
+                if (candidates.isEmpty()) {
                     break; // Нет рыбы - выходим
                 }
-                
+
                 // Освобождаем инвентарь если нужно
                 if (gui.getInventory().getFreeSpace() < 3) {
                     // Если есть филе, переносим на сушилки
@@ -102,17 +115,28 @@ public class DFrameFishAction implements Action {
                         break;
                     }
                 }
-                
-                piles.sort(NUtils.d_comp);
-                Gob pile = piles.get(0);
-                new PathFinder(pile).run(gui);
-                new OpenTargetContainer("Stockpile", pile).run(gui);
-                
-                while(Finder.findGob(pile.id)!=null && gui.getInventory().getNumberFreeCoord(new Coord(1,3))>0 && gui.getInventory().getNumberFreeCoord(new Coord(2,1))>0)
-                {
-                    new TakeItemsFromPile(pile, gui.getStockpile(), 1).run(gui);
+
+                candidates.sort(NUtils.d_comp);
+                Gob nearest = candidates.get(0);
+                if (pileIds.contains(nearest.id)) {
+                    new PathFinder(nearest).run(gui);
+                    new OpenTargetContainer("Stockpile", nearest).run(gui);
+
+                    while(Finder.findGob(nearest.id)!=null && gui.getInventory().getNumberFreeCoord(new Coord(1,3))>0 && gui.getInventory().getNumberFreeCoord(new Coord(2,1))>0)
+                    {
+                        new TakeItemsFromPile(nearest, gui.getStockpile(), 1).run(gui);
+                    }
+                    new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
+                } else {
+                    NAlias fishAlias = new NAlias(VSpec.getCategoryContent("Fish"));
+                    Container sourceCont = new Container(nearest, NContext.contcaps.get(nearest.ngob.name), null);
+                    new PathFinder(nearest).run(gui);
+                    new OpenTargetContainer(sourceCont).run(gui);
+                    TakeItemsFromContainer tifc = new TakeItemsFromContainer(sourceCont, new HashSet<>(fishAlias.keys), fishAlias);
+                    tifc.minSize = gui.getInventory().getFreeSpace();
+                    tifc.run(gui);
+                    new CloseTargetContainer(sourceCont).run(gui);
                 }
-                new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
                 
                 ArrayList<WItem> fishItems = gui.getInventory().getItems(new NAlias(VSpec.getCategoryContent("Fish")));
                 for (WItem fishItem : fishItems) {
