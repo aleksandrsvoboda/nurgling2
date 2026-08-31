@@ -1,0 +1,224 @@
+package nurgling.widgets;
+
+import haven.*;
+import nurgling.NStyle;
+import nurgling.actions.bots.registry.BotDescriptor;
+import nurgling.actions.bots.registry.BotRegistry;
+import nurgling.scenarios.BotStep;
+
+import java.awt.image.BufferedImage;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+/**
+ * Reusable add/remove/reorder editor for an ordered {@link BotStep} list - the same list-editing
+ * chrome {@code ScenarioPanel}'s "Steps" column uses (icon+label rows, move-up/down, remove,
+ * add-via-{@link ScenarioBotSelectionDialog}), extracted so it can be reused verbatim by any other
+ * editor of a BotStep list (e.g. a Forager waypoint's attached steps), not just Scenarios.
+ * <p>
+ * Takes a {@link Supplier} rather than a fixed list so the target list can change after
+ * construction (matching how ScenarioPanel keeps one persistent widget across many different
+ * edited Scenarios) - just have the supplier read whatever the caller's current target is.
+ */
+public class StepListWidget extends Widget {
+    private final Supplier<List<BotStep>> stepsSupplier;
+    private final Consumer<BotStep> onSelect;
+    private final Runnable onChanged;
+
+    private final SListBox<BotStep, Widget> listBox;
+    private BotStep selected = null;
+    private ScenarioBotSelectionDialog stepDialog = null;
+
+    /**
+     * @param sz            size of the list box itself (an "Add Step" button, if wanted, is the
+     *                       caller's own responsibility - wire it to {@link #showAddStepDialog()})
+     * @param stepsSupplier returns the current list to edit; may return null/empty if nothing is
+     *                       selected yet
+     * @param onSelect      called with the newly-selected step (or null when the selection is
+     *                       cleared, e.g. after removing the selected step)
+     * @param onChanged     called after any add/remove/reorder, so the caller can mark its own
+     *                       state dirty/persist
+     */
+    public StepListWidget(Coord sz, Supplier<List<BotStep>> stepsSupplier, Consumer<BotStep> onSelect, Runnable onChanged) {
+        super(sz);
+        this.stepsSupplier = stepsSupplier;
+        this.onSelect = onSelect;
+        this.onChanged = onChanged;
+
+        listBox = add(new SListBox<BotStep, Widget>(sz, UI.scale(32)) {
+            @Override
+            protected List<BotStep> items() {
+                List<BotStep> steps = stepsSupplier.get();
+                return steps != null ? steps : Collections.emptyList();
+            }
+
+            @Override
+            public void change(BotStep item) {
+                super.change(item);
+                selected = item;
+                if (onSelect != null) onSelect.accept(item);
+            }
+
+            @Override
+            protected Widget makeitem(BotStep step, int idx, Coord isz) {
+                return new ItemWidget<BotStep>(this, isz, step) {{
+                    String botId = step.getId();
+                    BotDescriptor desc = BotRegistry.byId(botId);
+                    Tex iconTex = null;
+                    if (desc != null) {
+                        botId = desc.getDisplayName();
+                        try {
+                            BufferedImage iconImg = Resource.loadsimg(desc.getUpIconPath());
+                            if (iconImg != null)
+                                iconTex = new TexI(iconImg);
+                        } catch (Exception e) {
+                            iconTex = null;
+                        }
+                    }
+
+                    // Mark ✪ for bots that have settings
+                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id));
+                    String marker = hasSettings ? " ✪" : "";
+                    Label label = new Label(botId + marker);
+
+                    int iconMargin = UI.scale(4);
+                    int iconSize = UI.scale(24);
+                    int labelX = iconTex != null ? iconSize + iconMargin * 2 : UI.scale(10);
+                    int labelY = (isz.y - label.sz.y) / 2;
+
+                    if (iconTex != null) {
+                        Tex finalIconTex = iconTex;
+                        add(new Widget(new Coord(iconSize, iconSize)) {
+                            @Override
+                            public void draw(GOut g) {
+                                g.image(finalIconTex, Coord.z, new Coord(iconSize, iconSize));
+                            }
+                        }, new Coord(iconMargin, (isz.y - iconSize) / 2));
+                    }
+
+                    add(label, new Coord(labelX, labelY));
+
+                    // Move Up button
+                    int upBtnX = isz.x - UI.scale(90);
+                    add(new IButton(NStyle.upSquareArrow[0].back, NStyle.upSquareArrow[1].back, NStyle.upSquareArrow[2].back) {
+                        @Override
+                        public void click() {
+                            moveStep(step, -1);
+                        }
+                    }, new Coord(upBtnX, (isz.y - UI.scale(22)) / 2));
+
+                    // Move Down button
+                    int downBtnX = isz.x - UI.scale(60);
+                    add(new IButton(NStyle.downSquareArrow[0].back, NStyle.downSquareArrow[1].back, NStyle.downSquareArrow[2].back) {
+                        @Override
+                        public void click() {
+                            moveStep(step, 1);
+                        }
+                    }, new Coord(downBtnX, (isz.y - UI.scale(22)) / 2));
+
+                    int removeBtnX = isz.x - UI.scale(30);
+                    add(new IButton(NStyle.crossSquare[0].back, NStyle.crossSquare[1].back, NStyle.crossSquare[2].back) {
+                        @Override
+                        public void click() {
+                            removeStep(step);
+                        }
+                    }, new Coord(removeBtnX, (isz.y - UI.scale(22)) / 2));
+                }
+                    @Override
+                    public void draw(GOut g) {
+                        if (list.sel == this.item) {
+                            g.chcolor(50, 80, 120, 120);
+                            g.frect(Coord.z, sz);
+                            g.chcolor();
+                        }
+                        super.draw(g);
+                    }
+
+                    @Override
+                    public boolean mousedown(MouseDownEvent ev) {
+                        if (super.mousedown(ev)) return true;
+                        if (ev.b == 1) {
+                            list.change(this.item);
+                            return true;
+                        }
+                        return false;
+                    }
+                };
+            }
+        }, Coord.z);
+    }
+
+    public BotStep selected() {
+        return selected;
+    }
+
+    public void refresh() {
+        listBox.update();
+        BotStep steps0 = null;
+        List<BotStep> steps = stepsSupplier.get();
+        if (steps != null && !steps.isEmpty()) {
+            steps0 = steps.get(0);
+        }
+        // Keep the current selection if it's still present; otherwise fall back to the first
+        // step (matching ScenarioPanel.showEditorPanel()'s original "select the first step, or
+        // clear the settings panel if there are none" behavior).
+        if (steps == null || !steps.contains(selected)) {
+            listBox.change(steps0);
+        }
+    }
+
+    /** Opens the same bot-picker dialog ScenarioPanel's "Add Step" button uses, appending the
+     *  chosen bot as a new step to the end of the current list. */
+    public void showAddStepDialog() {
+        closeAddStepDialog();
+        stepDialog = new ScenarioBotSelectionDialog(bot -> {
+            List<BotStep> steps = stepsSupplier.get();
+            if (steps != null && bot != null) {
+                steps.add(new BotStep(bot.id));
+                listBox.update();
+                if (onChanged != null) onChanged.run();
+            }
+            stepDialog = null;
+        });
+        ui.root.add(stepDialog, this.c.add(50, 50));
+    }
+
+    /** Closes the add-step dialog if open - callers should invoke this whenever they navigate
+     *  away from/save/discard whatever this widget is currently editing, mirroring how
+     *  ScenarioPanel used to tear its own stepDialog field down on load()/save(). */
+    public void closeAddStepDialog() {
+        if (stepDialog != null) {
+            stepDialog.reqdestroy();
+            stepDialog = null;
+        }
+    }
+
+    private void moveStep(BotStep step, int direction) {
+        List<BotStep> steps = stepsSupplier.get();
+        if (steps == null) return;
+        int idx = steps.indexOf(step);
+        int newIdx = idx + direction;
+        if (idx < 0 || newIdx < 0 || newIdx >= steps.size()) return;
+
+        Collections.swap(steps, idx, newIdx);
+        listBox.update();
+
+        selected = step;
+        if (onSelect != null) onSelect.accept(step);
+        if (onChanged != null) onChanged.run();
+    }
+
+    private void removeStep(BotStep step) {
+        List<BotStep> steps = stepsSupplier.get();
+        if (steps == null) return;
+        steps.remove(step);
+        listBox.update();
+        if (selected == step) {
+            selected = null;
+            if (onSelect != null) onSelect.accept(null);
+        }
+        if (onChanged != null) onChanged.run();
+    }
+}

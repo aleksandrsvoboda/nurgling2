@@ -30,7 +30,11 @@ public class CoracleBot implements Action {
             return mount(gui);
     }
 
-    private boolean isPlayerInCoracle(NGameUI gui) {
+    /** Whether the player is currently mounted on a coracle - public so callers like Forager can
+     *  derive an effective water-mode PathFinder setting from live mount state, rather than
+     *  relying solely on a route's static water-mode toggle (which can't represent "only the
+     *  water-crossing leg of this route is actually on a boat"). */
+    public static boolean isPlayerInCoracle(NGameUI gui) {
         Gob player = NUtils.player();
         if (player == null) return false;
 
@@ -142,6 +146,20 @@ public class CoracleBot implements Action {
         Results flowerResult = new SelectFlowerAction("Into the blue yonder!", coracleGob).run(gui);
         if (!flowerResult.IsSuccess())
             return Results.ERROR("Failed to board Coracle.");
+
+        // Boarding runs a progress bar (the "hourglass") for the whole mount animation - the
+        // flower click only starts it. Returning immediately here (as this used to) let a caller
+        // like Forager's waypoint-steps think the step was already done and move straight on to
+        // whatever's next while boarding was still in progress, interrupting it (reported live).
+        // Same two-phase wait WorkBellows already uses for a similar "one click starts a timed
+        // action" flower option: bounded wait for the bar to appear (a generous allowance, since
+        // the server may still be walking the character the last stretch onto the coracle), then
+        // bounded wait for it to finish.
+        WaitProgress started = new WaitProgress(WaitProgress.Phase.START, 10000);
+        NUtils.addTask(started);
+        if (!started.isTimedOut()) {
+            NUtils.addTask(new WaitProgress(WaitProgress.Phase.FINISH, 30000));
+        }
 
         return Results.SUCCESS();
     }

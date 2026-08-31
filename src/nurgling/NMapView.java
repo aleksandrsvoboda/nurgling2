@@ -26,6 +26,7 @@ import nurgling.overlays.map.*;
 import nurgling.navigation.ChunkNavData;
 import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPortal;
+import nurgling.navigation.MilestoneTracker;
 import nurgling.scenarios.Scenario;
 import nurgling.headless.Headless;
 import nurgling.tasks.WaitForMapGridLoad;
@@ -80,6 +81,14 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private UI.Grab dragGrab = null;
     // Chunk navigation manager - owned by NMapView, not a singleton
     private ChunkNavManager chunkNavManager;
+    // Milestone (signpost) travel recorder - always ticking, independent of ChunkNav. Recording
+    // is armed explicitly (Ctrl+right-click a milestone -> "Record Milestone", see
+    // nurgling.contextmenu.RecordMilestoneAction), not automatic.
+    private final MilestoneTracker milestoneTracker = new MilestoneTracker();
+
+    public MilestoneTracker getMilestoneTracker() {
+        return milestoneTracker;
+    }
 
     // Track areas that were deleted locally to prevent restoration during sync
     private final Set<Integer> locallyDeletedAreas = new HashSet<>();
@@ -1295,6 +1304,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if (chunkNavManager != null) {
             chunkNavManager.tick();
         }
+        milestoneTracker.tick();
         ArrayList<Long> forRemove = new ArrayList<>();
 //        for(Gob dummy : dummys.values())
 //        {
@@ -1601,11 +1611,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return false;
         }
         
-        // Shift+MMB drops a map marker at the clicked spot, named after the gob under
-        // the cursor (if any). Deliberately Shift, not upstream's Alt - see the
-        // Quickmark Alt+MMB feature history (PR #322 never got upstreamed as-is; this
-        // fork kept its own Shift-based binding).
-        if (ev.b == 2 && ui.modshift && !ui.modctrl && !ui.modmeta) {
+        // Alt+MMB drops a map marker at the clicked spot, named after the gob under
+        // the cursor (if any).
+        if (ev.b == 2 && ui.modmeta && !ui.modctrl && !ui.modshift) {
             NGameUI gui = NUtils.getGameUI();
             if ((gui != null) && (gui.mapfile != null))
                 gui.mapfile.quickmark(ev.c);

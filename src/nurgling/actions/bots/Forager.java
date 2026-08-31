@@ -11,6 +11,7 @@ import nurgling.conf.NForagerProp;
 import nurgling.routes.*;
 import nurgling.tools.AreaStock;
 import nurgling.tools.Finder;
+import nurgling.tools.MilestoneRegistry;
 import nurgling.tools.NAlias;
 
 import java.awt.Color;
@@ -199,8 +200,12 @@ public class Forager implements Action {
         }
 
         PathFinder pf = new PathFinder(startPos);
-        pf.waterMode = preset.waterMode;
+        pf.waterMode = effectiveWaterMode(gui, preset);
         pf.run(gui);
+
+        if (runWaypointSteps(gui, path.waypoints.get(0))) {
+            return Results.SUCCESS();
+        }
 
         // Check inventory before starting
         if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
@@ -214,7 +219,48 @@ public class Forager implements Action {
             ForagerSection section = path.getSection(i);
             if (section == null) continue;
 
+            // A section between two waypoints sharing the same milestoneHash represents a
+            // spliced-in signpost link (ForagerRouteMap.spliceMilestone()), not a walkable
+            // stretch - the two anchors are typically far apart or in a different area entirely,
+            // so PathFinder-ing straight to sectionEnd would be wrong (or impossible). Use the
+            // milestone instead of walking, then skip the rest of this section's normal
+            // detour/pathfind/collect logic - there is nothing to walk or scan along the way.
+            ForagerWaypoint fromWp = path.waypoints.get(i);
+            ForagerWaypoint toWp = path.waypoints.get(i + 1);
+            if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
+                // UseMilestone.run() already reports its own failure message via Results.ERROR().
+                Results milestoneResult = new UseMilestone(fromWp.milestoneHash).run(gui);
+                if (!milestoneResult.IsSuccess()) {
+                    return milestoneResult;
+                }
+                if (runWaypointSteps(gui, toWp)) {
+                    return Results.SUCCESS();
+                }
+                continue;
+            }
+
             Coord2d sectionEnd = section.endPoint;
+            // section.endPoint was baked in once, up front, by the single generateSections() call
+            // at the top of run() - relative to whatever sessloc was current *then*. A milestone
+            // crossing physically moves the player elsewhere in the segment mid-route (the
+            // teleport branch above), which can shift the live sessloc/Gob.rc anchor those
+            // world coordinates were computed against - so a post-milestone section's baked
+            // endPoint can end up reporting a wildly wrong distance even though the target
+            // waypoint itself is only a couple of tiles away (reported live: repeated "Can't
+            // find path" and eventually a pathfinder crash from a huge, bogus section distance,
+            // right after boarding a coracle just past a spliced milestone). Reresolve the
+            // target fresh from the waypoint's durable (segment, tile) location against the
+            // *current* sessloc every iteration - toWorldCoord() itself already returns null if
+            // the segment genuinely doesn't match, so this only ever corrects a stale anchor,
+            // never masks a real cross-segment error - and fall back to the precomputed value
+            // only if that fresh resolution isn't available.
+            MiniMap.Location currentSessloc = gui.mmap.sessloc;
+            if (currentSessloc != null) {
+                Coord2d freshEnd = toWp.toWorldCoord(currentSessloc);
+                if (freshEnd != null) {
+                    sectionEnd = freshEnd;
+                }
+            }
 
             // Before committing to the walk toward this section's target, check whether a
             // known actionable gob is already closer than the target itself - if so, detour
@@ -234,6 +280,38 @@ public class Forager implements Action {
                 }
             }
 
+            // Approaching a milestone anchor is handled entirely separately from the normal
+            // gob-target/tile-target logic below: gob-targeted PathFinder (which has hitbox-aware
+            // approach-point logic, normally used for exactly this kind of "walk up to a solid
+            // object" case) consistently failed live ("Can't find path", then the whole run
+            // aborting) even once pointed at the correct, unambiguous gob (found by durable hash,
+            // valid hitbox confirmed) - the exact cause wasn't pinned down, so rather than keep
+            // guessing at gob-targeted pathing, this sidesteps it completely: walk to a plain
+            // tile-target point a short distance from the milestone, back toward wherever the bot
+            // is currently coming from, which avoids ever pathing onto/through the milestone's own
+            // occupied tile or touching its hitbox at all.
+            if (toWp.milestoneHash != null) {
+                Gob milestoneGob = Finder.findGob(toWp.milestoneHash);
+                if (milestoneGob != null && playerBeforeWalk != null) {
+                    Coord2d away = playerBeforeWalk.rc.sub(milestoneGob.rc);
+                    double dist = away.dist(Coord2d.z);
+                    Coord2d approachPoint = (dist > 0.01)
+                            ? milestoneGob.rc.add(away.mul(MILESTONE_APPROACH_DIST / dist))
+                            : sectionEnd;
+                    PathFinder pfApproach = new PathFinder(approachPoint);
+                    pfApproach.waterMode = effectiveWaterMode(gui, preset);
+                    pfApproach.run(gui);
+                } else if (milestoneGob != null) {
+                    PathFinder pfApproach = new PathFinder(milestoneGob.rc);
+                    pfApproach.waterMode = effectiveWaterMode(gui, preset);
+                    pfApproach.run(gui);
+                }
+                if (runWaypointSteps(gui, toWp)) {
+                    return Results.SUCCESS();
+                }
+                continue;
+            }
+
             // Check if there are any target objects near the section endpoint (within 1 tile = 11 units)
             Gob targetGob = findGobNear(sectionEnd, 11.0);
 
@@ -241,14 +319,28 @@ public class Forager implements Action {
             {
                 // Go to the object if found within 1 tile
                 PathFinder pfGob = new PathFinder(targetGob);
-                pfGob.waterMode = preset.waterMode;
-                pfGob.run(gui);
+                pfGob.waterMode = effectiveWaterMode(gui, preset);
+                Results pfGobResult = pfGob.run(gui);
+                if (!pfGobResult.IsSuccess()) {
+                    gui.msg("Forager debug: section " + i + " failed pathing to gob - waterMode="
+                            + pfGob.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
+                }
             } else
             {
                 // Go to the endpoint if no objects found nearby
                 PathFinder pfEnd = new PathFinder(sectionEnd);
-                pfEnd.waterMode = preset.waterMode;
-                pfEnd.run(gui);
+                pfEnd.waterMode = effectiveWaterMode(gui, preset);
+                Results pfEndResult = pfEnd.run(gui);
+                if (!pfEndResult.IsSuccess()) {
+                    gui.msg("Forager debug: section " + i + " failed pathing to sectionEnd=" + sectionEnd
+                            + " - waterMode=" + pfEnd.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
+                }
+            }
+
+            // Section i's endpoint is waypoint i+1 - run any steps attached to it now, right at
+            // arrival, before this section's normal pickup pass continues the route.
+            if (runWaypointSteps(gui, path.waypoints.get(i + 1))) {
+                return Results.SUCCESS();
             }
 
             // Main collection pass for this section: repeatedly grab the nearest unprocessed
@@ -337,6 +429,27 @@ public class Forager implements Action {
     // scanning cost; it only controls how far out to look for something to walk to, not how
     // far any single walk actually is.
     private static final double SCAN_RADIUS = 100000.0;
+
+    // How close (world units, ~11/tile) to stop when approaching a milestone anchor waypoint -
+    // close enough for a reliable right-click (UseMilestone), without pathing onto/through the
+    // milestone's own occupied tile or touching its hitbox.
+    private static final double MILESTONE_APPROACH_DIST = 20.0;
+
+    /**
+     * The water-mode flag every PathFinder call in this class should actually use - the preset's
+     * own static waterMode toggle, OR-ed with "is the player currently mounted on a coracle right
+     * now." A single static per-route toggle can't represent a route that walks normally to reach
+     * a coracle, crosses water while riding it, then walks normally again after dismounting -
+     * setting the preset's waterMode on for the whole route to cover the water leg also forces
+     * every land leg's PathFinder to treat land tiles as blocked (NPFMap only allows water tiles
+     * when waterMode is set), breaking the walk to/from the coracle. Deriving it live from actual
+     * mount state means the preset's own toggle is only needed for a route with no coracle step
+     * at all (e.g. wading/swimming), and a coracle route just works without the user having to
+     * predict which parts of their route need it.
+     */
+    private boolean effectiveWaterMode(NGameUI gui, NForagerProp.PresetData preset) {
+        return preset.waterMode || CoracleBot.isPlayerInCoracle(gui);
+    }
 
     /**
      * Finds the nearest unprocessed gob matching any of the preset's PICK/FLOWER_ACTION/
@@ -560,7 +673,7 @@ public class Forager implements Action {
             Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
             breadcrumbs.add(player.rc);
             PathFinder hop = new PathFinder(waypoint);
-            hop.waterMode = preset.waterMode;
+            hop.waterMode = effectiveWaterMode(gui, preset);
             if (!hop.run(gui).IsSuccess()) return false;
         }
     }
@@ -607,7 +720,7 @@ public class Forager implements Action {
 
             Coord2d nextStop = breadcrumbs.get(breadcrumbs.size() - 1);
             PathFinder hop = new PathFinder(nextStop);
-            hop.waterMode = preset.waterMode;
+            hop.waterMode = effectiveWaterMode(gui, preset);
             hop.run(gui);
             breadcrumbs.remove(breadcrumbs.size() - 1);
         }
@@ -623,7 +736,7 @@ public class Forager implements Action {
         switch (action.actionType) {
             case PICK: {
                 PathFinder pfPick = new PathFinder(gob);
-                pfPick.waterMode = preset.waterMode;
+                pfPick.waterMode = effectiveWaterMode(gui, preset);
                 pfPick.run(gui);
                 new SelectFlowerAction("Pick", gob).run(gui);
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitGobRemoval(gob.id));
@@ -632,7 +745,7 @@ public class Forager implements Action {
             }
             case FLOWER_ACTION: {
                 PathFinder pfFlower = new PathFinder(gob);
-                pfFlower.waterMode = preset.waterMode;
+                pfFlower.waterMode = effectiveWaterMode(gui, preset);
                 pfFlower.run(gui);
                 SelectFlowerAction flowerAction = new SelectFlowerAction(action.toActionNameCandidates(), gob);
                 flowerAction.run(gui);
@@ -653,7 +766,7 @@ public class Forager implements Action {
                 NUtils.setSpeed(2);
                 try {
                     PathFinder pfRclick = new PathFinder(gob);
-                    pfRclick.waterMode = preset.waterMode;
+                    pfRclick.waterMode = effectiveWaterMode(gui, preset);
                     pfRclick.run(gui);
                     NUtils.rclickGob(gob);
                     NUtils.getUI().core.addTask(new nurgling.tasks.WaitTicks(30));
@@ -742,12 +855,45 @@ public class Forager implements Action {
     }
     
     
+    /** Runs a waypoint's attached scheduler-style steps (Ctrl+right-click on the Routes map to
+     *  edit) in full, before the caller continues the route as normal. On failure, dispatches
+     *  wp.onStepsFailAction via performSafetyAction() the same way onFullInventoryAction/
+     *  afterFinishAction already are - "nothing" logs and lets the run continue, "logout"/
+     *  "travel hearth" end it. Returns true if the caller should return Results.SUCCESS()
+     *  immediately (a terminal fail-action already fired), false to keep going. */
+    private boolean runWaypointSteps(NGameUI gui, ForagerWaypoint wp) throws InterruptedException {
+        if (wp.steps == null || wp.steps.isEmpty()) {
+            return false;
+        }
+        Results stepsResult = ScenarioRunner.runSteps(gui, wp.steps);
+        if (!stepsResult.IsSuccess()) {
+            String failAction = wp.onStepsFailAction != null ? wp.onStepsFailAction : "nothing";
+            gui.msg("Forager: waypoint steps failed (" + failAction + ")");
+            if (!failAction.equals("nothing")) {
+                performSafetyAction(gui, failAction);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void performSafetyAction(NGameUI gui, String action) throws InterruptedException {
         switch (action) {
             case "logout":
                 gui.act("lo");
                 break;
             case "travel hearth":
+                // Can't hearth-fire home while mounted on a coracle - the character has to
+                // physically dismount (right-click, "Pick up") first, same as CoracleBot's own
+                // dismount() step. CoracleBot.run() dispatches to mount() when NOT currently
+                // mounted, so this must stay gated behind isPlayerInCoracle() - calling it
+                // unconditionally here would instead try to board one. Best-effort: if pickup
+                // fails (e.g. surrounded by deep water, per CoracleBot's own check), still fall
+                // through to hearthing home anyway - this is an emergency escape action, and
+                // losing the coracle is far better than getting stuck next to danger over it.
+                if (CoracleBot.isPlayerInCoracle(gui)) {
+                    new CoracleBot().run(gui);
+                }
                 // gui.act("travel", "hearth") only sends the request and returns immediately -
                 // the character is still mid-channel/mid-teleport when this bot then reports
                 // done, so whatever runs next in a chain starts (and can cancel the travel by
@@ -963,12 +1109,12 @@ public class Forager implements Action {
                 if (rad.name.equals("gfx/kritter/rat/rat")) {
                     continue;
                 }
-                // Doubled from the usual 1.5x margin (-> 3x) as a stopgap: Ring Settings'
+                // Widened from the usual 1.5x margin to 2x as a stopgap: Ring Settings'
                 // configured radius isn't reliably saving right now (separate, not-yet-fixed
                 // issue - deliberately not addressed here per direct instruction), so animals
                 // are being detected with a smaller effective radius than intended. Revert this
                 // back to 1.5x once the underlying save bug is actually fixed.
-                double triggerDist = rad.radius * 1.5 * 2;
+                double triggerDist = rad.radius * 2;
                 Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, triggerDist);
                 if (animal != null) {
                     return preset.onAnimalAction;

@@ -228,8 +228,16 @@ public class NPFMap
                 Coord2d cc = player.rc;
                 Coord2d cmap = new Coord2d(MCache.cmaps);
                 Coord2d fixator = cc.floor(cmap).mul(cmap).add(cmap.div(2));
-                Coord2d ul = fixator.add(450,450);
-                Coord2d br = fixator.sub(450,450);
+                // The fixed 450 radius below only covers a target within visible range of the
+                // player - a legitimately longer but still-loaded-terrain target (e.g. crossing a
+                // wide body of water) then falls entirely outside this fallback grid, and since
+                // lastMul short-circuits PathFinder.construct()'s normal mul-growth retry loop,
+                // pathfinding just fails outright with no way to recover. Grow the radius to at
+                // least cover the actual src/tgt distance from the player (still floored at 450,
+                // the original fixed size) instead of ignoring it.
+                double radius = Math.max(450, Math.max(cc.dist(a), cc.dist(b)) + 50);
+                Coord2d ul = fixator.add(radius,radius);
+                Coord2d br = fixator.sub(radius,radius);
                 end = Utils.toPfGrid(ul);
                 begin = Utils.toPfGrid(br);
                 size = end.x-begin.x;
@@ -304,18 +312,63 @@ public class NPFMap
                     cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(-MCache.tileqsz.x,-MCache.tileqsz.y))).div(MCache.tilesz).floor());
                     cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(MCache.tileqsz.x,MCache.tileqsz.y))).div(MCache.tilesz).floor());
 
-                    for(Coord c : cand) {
-                        String name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
-                        if(!waterMode) {
+                    if (!waterMode) {
+                        for (Coord c : cand) {
+                            // A large grid (e.g. a long water crossing) can reach tiles whose grid
+                            // hasn't finished streaming in yet - gettile() throws Loading for
+                            // those instead of returning a name; that used to propagate all the
+                            // way up as an uncaught exception and kill the whole bot thread
+                            // (confirmed live: a stack trace through here). Treat "don't know
+                            // yet" the same as "no evidence this corner is bad terrain" rather
+                            // than crashing - a genuinely blocked cell still has 3 other corners,
+                            // and a cell that's blocked only because it's still loading will
+                            // simply get reclassified correctly next time this is rebuilt.
+                            String name;
+                            try {
+                                name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
+                            } catch (Loading l) {
+                                continue;
+                            }
                             if (name != null && (name.startsWith("gfx/tiles/cave") || name.startsWith("gfx/tiles/rocks") || name.equals("gfx/tiles/deep") || name.equals("gfx/tiles/odeep") || name.startsWith("gfx/tiles/nil"))) {
                                 cells[i][j].val = 2;
                             }
                         }
-                        else
-                        {
-                            if (name != null && !(name.startsWith("gfx/tiles/water") || name.startsWith("gfx/tiles/owater") || name.equals("gfx/tiles/deep") || name.equals("gfx/tiles/odeep"))) {
-                                cells[i][j].val = 2;
+                    } else {
+                        // A cell only needs ONE of its 4 sampled corners to be water to count as
+                        // passable here - blocking on ANY bad corner (as the land-mode branch
+                        // above does) makes narrow channels/shorelines effectively unpathable,
+                        // since a pf grid cell straddling the water's edge almost always samples
+                        // at least one land corner. That was the actual cause of "Can't find
+                        // path" firing immediately after boarding a coracle: the boarding spot
+                        // sits right at such an edge, so the player's own start cell got
+                        // misclassified as blocked with no gob there to route around, and
+                        // PathFinder.findFreeNear's start-position fixup came back empty.
+                        boolean anyWater = false;
+                        for (Coord c : cand) {
+                            // See the !waterMode branch above for why this is wrapped - an
+                            // unloaded corner is "unknown," not "confirmed not water," so it
+                            // just doesn't contribute either way rather than crashing the thread.
+                            String name;
+                            try {
+                                name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
+                            } catch (Loading l) {
+                                continue;
                             }
+                            // Water-mode needs to accept whatever a coracle can actually launch/
+                            // land on, not just open water - CoracleBot.isOnValidWaterTile() (the
+                            // code that decides where boarding/dropping is legal) already treats
+                            // bog/fen/swamp/marsh tiles as valid water for that purpose, but this
+                            // whitelist only recognized deep/open water tile names, so a route
+                            // crossing bog water got every one of those cells blocked outright.
+                            if (name != null && (name.startsWith("gfx/tiles/water") || name.startsWith("gfx/tiles/owater")
+                                    || name.equals("gfx/tiles/deep") || name.equals("gfx/tiles/odeep")
+                                    || name.contains("bog") || name.contains("fen") || name.contains("swamp") || name.contains("marsh"))) {
+                                anyWater = true;
+                                break;
+                            }
+                        }
+                        if (!anyWater) {
+                            cells[i][j].val = 2;
                         }
                     }
                 }

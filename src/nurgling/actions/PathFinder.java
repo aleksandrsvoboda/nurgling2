@@ -112,6 +112,23 @@ public class PathFinder implements Action {
 //                    if(start_pos == end_poses.get(0) && NUtils.player().rc.dist(Utils.pfGridToWorld(pfmap.cells[start_pos]))
                     return Results.SUCCESS();
                 }
+                if (waterMode && pfmap != null && start_pos != null && end_pos != null) {
+                    NPFMap.Cell[][] cells = pfmap.getCells();
+                    StringBuilder msg = new StringBuilder("Forager debug: water-mode path failed - size=" + pfmap.size + " lastMul=" + pfmap.lastMul + " ");
+                    if (start_pos.x >= 0 && start_pos.x < pfmap.size && start_pos.y >= 0 && start_pos.y < pfmap.size) {
+                        msg.append("start val=").append(cells[start_pos.x][start_pos.y].val)
+                           .append(" content=").append(cells[start_pos.x][start_pos.y].content).append(" ");
+                    } else {
+                        msg.append("start OOB(").append(start_pos).append(") ");
+                    }
+                    if (end_pos.x >= 0 && end_pos.x < pfmap.size && end_pos.y >= 0 && end_pos.y < pfmap.size) {
+                        msg.append("end val=").append(cells[end_pos.x][end_pos.y].val)
+                           .append(" content=").append(cells[end_pos.x][end_pos.y].content);
+                    } else {
+                        msg.append("end OOB(").append(end_pos).append(")");
+                    }
+                    NUtils.getGameUI().msg(msg.toString());
+                }
                 return
                         Results.ERROR("Can't find path");
 
@@ -489,12 +506,22 @@ public class PathFinder implements Action {
                                             pfmap.getCells()[test_coord.x][test_coord.y].val = 7;
                                             res.add(test_coord);
                                         } else if (pfmap.cells[npfpos.x][npfpos.y].content.size() > 1) {
+                                            // Multiple gobs' hitboxes overlap this tile (objects placed close
+                                            // together, e.g. a barrel nudged up against a cistern). Only claim
+                                            // test_coord as an approach point for OUR target if, after checking
+                                            // every gob sharing the tile, our target really is the nearest one -
+                                            // the winner must be decided after the full scan, not mid-scan,
+                                            // otherwise an earlier candidate can be accepted before a closer
+                                            // (different) gob is even considered.
                                             Coord2d test2d_coord = Utils.pfGridToWorld(pfmap.cells[test_coord.x][test_coord.y].pos);
                                             double dst = 9000, testdst;
                                             long res_id = -2;
                                             for (long id : pfmap.cells[npfpos.x][npfpos.y].content) {
                                                 if (id >= 0) {
-                                                    if ((testdst = Finder.findGob(id).rc.dist(test2d_coord)) < dst) {
+                                                    Gob candGob = Finder.findGob(id);
+                                                    if (candGob == null)
+                                                        continue;
+                                                    if ((testdst = candGob.rc.dist(test2d_coord)) < dst) {
                                                         res_id = id;
                                                         dst = testdst;
                                                     }
@@ -504,10 +531,10 @@ public class PathFinder implements Action {
                                                         dst = testdst;
                                                     }
                                                 }
-                                                if (res_id == target_id) {
-                                                    pfmap.getCells()[test_coord.x][test_coord.y].val = 7;
-                                                    res.add(test_coord);
-                                                }
+                                            }
+                                            if (res_id == target_id) {
+                                                pfmap.getCells()[test_coord.x][test_coord.y].val = 7;
+                                                res.add(test_coord);
                                             }
                                         }
                                     }

@@ -15,7 +15,15 @@ public class ScenarioRunner implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        for (BotStep step : scenario.getSteps()) {
+        return runSteps(gui, scenario.getSteps());
+    }
+
+    /** Sequentially runs an ordered list of {@link BotStep}s: resolve id -> BotDescriptor ->
+     *  Action, run it, abort on the first non-success result. Shared by scenario execution above
+     *  and by any other caller that just needs to run a plain step list (e.g. a Forager waypoint's
+     *  attached steps) without wrapping it in a full {@link nurgling.scenarios.Scenario}. */
+    public static Results runSteps(NGameUI gui, java.util.List<BotStep> steps) throws InterruptedException {
+        for (BotStep step : steps) {
             BotDescriptor desc = BotRegistry.byId(step.getId());
             Action bot = (desc != null) ? desc.instantiate(step.getSettings()) : null;
             if (bot == null) {

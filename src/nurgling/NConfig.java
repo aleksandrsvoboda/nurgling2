@@ -131,6 +131,8 @@ public class NConfig
         skipButcherInKFC,
         skipPluckingCocksInKFC,
         studyDeskLayout,
+        milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map
+        milestoneTracking,   // Whether MilestoneTracker passively records signpost/milestone travel
         waypointRetryOnStuck,
         holdToMove,
         verboseCal,
@@ -404,6 +406,8 @@ public class NConfig
         conf.put(Key.showTerrainName, false);
         conf.put(Key.validateAllCropsBeforeHarvest, false);
         conf.put(Key.studyDeskLayout, "");
+        conf.put(Key.milestones, "");
+        conf.put(Key.milestoneTracking, true);
         conf.put(Key.waypointRetryOnStuck, true);
         conf.put(Key.holdToMove, false);
         conf.put(Key.verboseCal, false);

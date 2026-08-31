@@ -8,13 +8,17 @@ import nurgling.i18n.L10n;
 import nurgling.overlays.NWaypointOverlay;
 import nurgling.routes.ForagerPath;
 import nurgling.routes.ForagerWaypoint;
+import nurgling.tools.MilestoneRegistry;
+import nurgling.widgets.MilestoneDestinationChooser;
 import nurgling.widgets.NMiniMap;
+import nurgling.widgets.WaypointStepsWindow;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -133,12 +137,18 @@ public class ForagerRouteMap extends NMiniMap {
         drawmap(g);
         drawWaypointViewZones(g);
         drawExclusion(g);
+        drawMilestones(g);
         drawRouteWaypoints(g);
         drawBrushCursor(g);
         drawResetButton(g);
     }
 
     private static final int TILE_SQUARE_ALPHA = 110;
+
+    // Marks a waypoint that has one or more attached steps (Ctrl+right-click to edit) - takes
+    // priority over the usual active/queued colors so a route's "special" stops are obvious at a
+    // glance, but still yields to the drag-in-progress color.
+    private static final Color STEPS_COLOR = new Color(40, 200, 90);
 
     // Deliberately the exact same rendering NMiniMap.drawQueuedWaypoints already uses for the
     // real map's alt+left-click movement-queue waypoints (dashed crawling legs, circular numbered
@@ -153,10 +163,12 @@ public class ForagerRouteMap extends NMiniMap {
 
         double phase = Utils.rtime() * UI.scale(16);
         Coord prevC = null;
+        ForagerWaypoint prevWp = null;
         for (int i = 0; i < route.waypoints.size(); i++) {
             ForagerWaypoint wp = route.waypoints.get(i);
             if (wp.seg != dloc.seg.id) {
                 prevC = null;
+                prevWp = null;
                 continue;
             }
             Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
@@ -166,11 +178,14 @@ public class ForagerRouteMap extends NMiniMap {
             // widget's full declared size (which can be bigger than what's actually visible
             // when this widget is partially scrolled out of the settings panel's Scrollport).
             if (prevC != null && (onScreen(g, prevC, margin) || onScreen(g, c, margin))) {
-                Color lc = (i == 1) ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor();
+                boolean milestoneLeg = wp.milestoneHash != null && wp.milestoneHash.equals(prevWp.milestoneHash);
+                Color lc = milestoneLeg ? MILESTONE_ACTIVE_LINK_COLOR
+                        : (i == 1) ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor();
                 g.chcolor(lc.getRed(), lc.getGreen(), lc.getBlue(), 200);
                 dashLine(g, prevC, c, phase, 2);
             }
             prevC = c;
+            prevWp = wp;
         }
 
         for (int i = 0; i < route.waypoints.size(); i++) {
@@ -181,7 +196,10 @@ public class ForagerRouteMap extends NMiniMap {
 
             boolean first = (i == 0);
             boolean dragging = (i == draggingWaypointIndex);
-            Color col = dragging ? NWaypointOverlay.dragColor() : (first ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor());
+            boolean hasSteps = wp.steps != null && !wp.steps.isEmpty();
+            Color col = dragging ? NWaypointOverlay.dragColor()
+                    : hasSteps ? STEPS_COLOR
+                    : (first ? NWaypointOverlay.activeColor() : NWaypointOverlay.queuedColor());
 
             if (first) {
                 double t = (Utils.rtime() % 1.3) / 1.3;
@@ -190,6 +208,11 @@ public class ForagerRouteMap extends NMiniMap {
                     g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
                     ringOutline(g, c, (int) (UI.scale(6) + t * UI.scale(10)), 2);
                 }
+            }
+
+            if (wp.milestoneHash != null) {
+                drawMilestoneIcon(g, c, dragging ? NWaypointOverlay.dragColor() : MILESTONE_ACTIVE_LINK_COLOR);
+                continue;
             }
 
             int radius = UI.scale((first || dragging) ? 7 : 5);
@@ -201,6 +224,149 @@ public class ForagerRouteMap extends NMiniMap {
             g.aimage(getWaypointLabel(i + 1).tex(), c, 0.5, 0.5);
         }
         g.chcolor();
+    }
+
+    private static final Color MILESTONE_COLOR = new Color(230, 200, 40);
+    private static final Color MILESTONE_LINK_COLOR = new Color(70, 130, 230);   // unspliced preview line
+    private static final Color MILESTONE_ACTIVE_LINK_COLOR = new Color(230, 200, 40); // spliced into the route
+    private static final int MILESTONE_ICON_RADIUS = 6;
+
+    private void drawMilestoneIcon(GOut g, Coord c, Color col) {
+        int r = UI.scale(MILESTONE_ICON_RADIUS);
+        g.chcolor(0, 0, 0, 210);
+        g.frect(c.sub(r + 1, r + 1), new Coord((r + 1) * 2, (r + 1) * 2));
+        g.chcolor(col);
+        g.frect(c.sub(r, r), new Coord(r * 2, r * 2));
+    }
+
+    /** Recorded milestones (MilestoneRegistry) not yet spliced into the current route: a static
+     *  marker at the milestone's own location, one at each recorded destination (whichever are
+     *  currently on screen), and a blue dashed line between a source/destination pair when both
+     *  are visible at once - purely informational until the source marker is left-clicked (see
+     *  unsplicedMilestoneSourceAt()/spliceMilestone()), at which point it becomes two real,
+     *  linked waypoints in the route and drawRouteWaypoints() takes over rendering it instead
+     *  (in the active yellow color) - so a spliced milestone's original entry is skipped here
+     *  entirely to avoid drawing it twice. */
+    private void drawMilestones(GOut g) {
+        if (dloc == null) return;
+        Coord hsz = sz.div(2);
+        int margin = UI.scale(12);
+
+        for (Map.Entry<String, Object> e : MilestoneRegistry.allMilestones().entrySet()) {
+            String hash = e.getKey();
+            if (isMilestoneSpliced(hash)) continue;
+            if (!(e.getValue() instanceof Map)) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) e.getValue();
+            MilestoneRegistry.Location srcLoc = MilestoneRegistry.getMilestoneLocation(entry);
+            if (srcLoc == null) continue;
+
+            Coord srcC = (srcLoc.seg == dloc.seg.id) ? srcLoc.tc.sub(dloc.tc).div(scalef()).add(hsz) : null;
+            boolean srcOnScreen = srcC != null && onScreen(g, srcC, margin);
+
+            for (Map<String, Object> dest : MilestoneRegistry.getDestinations(entry)) {
+                MilestoneRegistry.Location destLoc = MilestoneRegistry.getDestinationLocation(dest);
+                if (destLoc == null || destLoc.seg != dloc.seg.id) continue;
+                Coord destC = destLoc.tc.sub(dloc.tc).div(scalef()).add(hsz);
+                boolean destOnScreen = onScreen(g, destC, margin);
+
+                if (srcOnScreen && destOnScreen) {
+                    g.chcolor(MILESTONE_LINK_COLOR.getRed(), MILESTONE_LINK_COLOR.getGreen(),
+                            MILESTONE_LINK_COLOR.getBlue(), 200);
+                    dashLine(g, srcC, destC, 0, 2);
+                }
+                if (destOnScreen) {
+                    drawMilestoneIcon(g, destC, MILESTONE_COLOR);
+                }
+            }
+
+            if (srcOnScreen) {
+                drawMilestoneIcon(g, srcC, MILESTONE_COLOR);
+            }
+        }
+        g.chcolor();
+    }
+
+    /** True once a milestone has been spliced into the current route (see spliceMilestone()) -
+     *  both its anchor waypoints carry this hash. */
+    private boolean isMilestoneSpliced(String hash) {
+        if (route == null) return false;
+        for (ForagerWaypoint wp : route.waypoints) {
+            if (hash.equals(wp.milestoneHash)) return true;
+        }
+        return false;
+    }
+
+    /** Hit-test against an unspliced milestone's own (source) marker only - destinations aren't
+     *  independently clickable, and a milestone that's already spliced into the route is no
+     *  longer drawn by drawMilestones() at all (drawRouteWaypoints/waypointIndexAt own it then). */
+    private String unsplicedMilestoneSourceAt(Coord c) {
+        if (dloc == null) return null;
+        Coord hsz = sz.div(2);
+        double bestDist = UI.scale(MILESTONE_ICON_RADIUS + 3);
+        String best = null;
+        for (Map.Entry<String, Object> e : MilestoneRegistry.allMilestones().entrySet()) {
+            String hash = e.getKey();
+            if (isMilestoneSpliced(hash) || !(e.getValue() instanceof Map)) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) e.getValue();
+            MilestoneRegistry.Location loc = MilestoneRegistry.getMilestoneLocation(entry);
+            if (loc == null || loc.seg != dloc.seg.id) continue;
+            Coord sc = loc.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            double d = sc.dist(c);
+            if (d <= bestDist) {
+                bestDist = d;
+                best = hash;
+            }
+        }
+        return best;
+    }
+
+    /** Left-click on an unspliced milestone's source marker: splices it into the route as two
+     *  linked waypoints (the milestone's own location, then its destination) appended after
+     *  whatever the route's current last waypoint is - so any further waypoint the user adds
+     *  naturally continues from the destination side, matching normal append-at-end semantics.
+     *  A single-destination milestone splices immediately; a multi-destination one asks first. */
+    private void spliceMilestone(String hash) {
+        Map<String, Object> entry = MilestoneRegistry.getMilestone(hash);
+        if (entry == null || route == null) return;
+        List<Map<String, Object>> destinations = MilestoneRegistry.getDestinations(entry);
+        if (destinations.isEmpty()) return;
+
+        if (destinations.size() == 1) {
+            doSplice(hash, entry, destinations.get(0));
+            return;
+        }
+
+        MilestoneDestinationChooser chooser = new MilestoneDestinationChooser(hash, destinations,
+                (idx, dest) -> doSplice(hash, entry, dest));
+        NUtils.getGameUI().add(chooser, UI.scale(200, 200));
+        chooser.show();
+    }
+
+    private void doSplice(String hash, Map<String, Object> milestoneEntry, Map<String, Object> dest) {
+        MilestoneRegistry.Location srcLoc = MilestoneRegistry.getMilestoneLocation(milestoneEntry);
+        MilestoneRegistry.Location destLoc = MilestoneRegistry.getDestinationLocation(dest);
+        if (srcLoc == null || destLoc == null) return;
+
+        ForagerWaypoint srcWp = new ForagerWaypoint(srcLoc.seg, srcLoc.tc);
+        srcWp.milestoneHash = hash;
+        ForagerWaypoint destWp = new ForagerWaypoint(destLoc.seg, destLoc.tc);
+        destWp.milestoneHash = hash;
+
+        route.addWaypoint(srcWp);
+        route.addWaypoint(destWp);
+        notifyChanged();
+    }
+
+    /** Right-click on either anchor of a spliced milestone: removes *both* linked waypoints
+     *  (not just the one clicked) and reverts the milestone to its unspliced preview - the blue
+     *  dashed "not part of the route" rendering drawMilestones() already gives any milestone with
+     *  no matching waypoints in the route. Plain right-click-delete on a normal waypoint still
+     *  only removes that one waypoint, unchanged. */
+    private void unspliceMilestone(String hash) {
+        if (route == null) return;
+        route.waypoints.removeIf(wp -> hash.equals(wp.milestoneHash));
     }
 
     // Same box the real map draws around the player to show explored/render distance
@@ -499,6 +665,16 @@ public class ForagerRouteMap extends NMiniMap {
         return best;
     }
 
+    /** Ctrl+right-click on a waypoint - opens its attached-steps popout (WaypointStepsWindow),
+     *  editing the waypoint's steps list directly. Plain right-click (no Ctrl) still deletes,
+     *  handled separately below. */
+    private void openWaypointSteps(int idx) {
+        ForagerWaypoint wp = route.waypoints.get(idx);
+        WaypointStepsWindow win = new WaypointStepsWindow(wp, this::notifyChanged);
+        NUtils.getGameUI().add(win, UI.scale(200, 200));
+        win.show();
+    }
+
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         if (ev.b == 1 && resetButtonHit(ev.c)) {
@@ -517,9 +693,22 @@ public class ForagerRouteMap extends NMiniMap {
                 notifyChanged();
                 return true;
             }
-            if (ev.b == 1) {
+            if (ev.b == 3 && ui.modctrl) {
                 int idx = waypointIndexAt(ev.c);
                 if (idx >= 0) {
+                    openWaypointSteps(idx);
+                    return true;
+                }
+            }
+            if (ev.b == 1) {
+                String milestoneHash = unsplicedMilestoneSourceAt(ev.c);
+                if (milestoneHash != null) {
+                    spliceMilestone(milestoneHash);
+                    return true;
+                }
+                int idx = waypointIndexAt(ev.c);
+                // Milestone anchor waypoints are static, recorded locations - not user-repositionable.
+                if (idx >= 0 && route.waypoints.get(idx).milestoneHash == null) {
                     draggingWaypointIndex = idx;
                     dragGrab = ui.grabmouse(this);
                     return true;
@@ -527,7 +716,12 @@ public class ForagerRouteMap extends NMiniMap {
             } else if (ev.b == 3) {
                 int idx = waypointIndexAt(ev.c);
                 if (idx >= 0) {
-                    route.removeWaypointAt(idx);
+                    String hash = route.waypoints.get(idx).milestoneHash;
+                    if (hash != null) {
+                        unspliceMilestone(hash);
+                    } else {
+                        route.removeWaypointAt(idx);
+                    }
                     notifyChanged();
                     return true;
                 }
@@ -542,7 +736,14 @@ public class ForagerRouteMap extends NMiniMap {
         if (draggingWaypointIndex >= 0) {
             Location loc = xlate(ev.c);
             if (loc != null && route != null) {
-                route.waypoints.set(draggingWaypointIndex, new ForagerWaypoint(loc));
+                // Preserve the waypoint's attached steps/fail-action across the move - it's the
+                // same logical waypoint, just repositioned, not a fresh one.
+                ForagerWaypoint old = route.waypoints.get(draggingWaypointIndex);
+                ForagerWaypoint moved = new ForagerWaypoint(loc);
+                moved.steps = old.steps;
+                moved.onStepsFailAction = old.onStepsFailAction;
+                moved.milestoneHash = old.milestoneHash;
+                route.waypoints.set(draggingWaypointIndex, moved);
             }
             return;
         }
