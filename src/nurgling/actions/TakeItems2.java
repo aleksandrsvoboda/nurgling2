@@ -167,8 +167,13 @@ public class TakeItems2 implements Action
                 tifc.run(gui);
                 new CloseTargetContainer(cont).run(gui);
             }
-            if(!NUtils.getGameUI().getInventory().getItems(itemsAlias).isEmpty())
+            /* Keep visiting storages until the requested count is actually met - stopping at the
+             * first one holding anything would leave a near-empty pile satisfying the whole
+             * request and send the caller back for another full round trip per item. */
+            int got = NUtils.getGameUI().getInventory().getItems(itemsAlias).size();
+            if(got >= count)
                 return Results.SUCCESS();
+            left.set(count - got);
         }
         return Results.SUCCESS();
     }

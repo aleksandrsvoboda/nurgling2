@@ -3,6 +3,7 @@ package nurgling.tools;
 import haven.Coord;
 import haven.GAttrib;
 import haven.Gob;
+import haven.UI;
 import haven.WItem;
 import haven.res.ui.tt.wellmined.WellMined;
 import nurgling.*;
@@ -414,13 +415,30 @@ public class Container implements NContext.ObjectStorage {
     }
 
     /* Shared by the gathering bots (smelter/tanning tub/drying frame) so each doesn't need
-     * its own copy of "is this container physically full" for Space vs. Tetris containers. */
+     * its own copy of "is this container physically full" for Space vs. Tetris containers.
+     * DONE is read null-safely: callers seed TARGET_COORD at construction, which already makes
+     * isReady() true, so DONE is still unset for a container whose window never opened. */
     public boolean isFull() {
         Tetris tetris = getattr(Tetris.class);
         if (tetris != null)
-            return tetris.isReady() && (Boolean) tetris.getRes().get(Tetris.DONE);
+            return Boolean.TRUE.equals(tetris.getRes().get(Tetris.DONE));
         Space space = getattr(Space.class);
         return space != null && space.isReady() && space.getFreeSpace() == 0;
+    }
+
+    /* Whether anything currently held would actually fit one of this container's Tetris shapes.
+     * TransferToContainer matches items to holes by exact sprite size, so an item fitting none
+     * of them can never leave the inventory - a caller looping until the container fills needs
+     * this to know when to stop. Always true for non-Tetris containers. */
+    public boolean hasMatchingHole(NAlias alias, NGameUI gui) throws InterruptedException {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris == null)
+            return true;
+        for (WItem witem : gui.getInventory().getItems(alias)) {
+            if (witem.item.spr != null && tetris.calcNumberFreeCoord(Tetris.SRC, witem.item.spr.sz().div(UI.scale(32)).swapXY()) > 0)
+                return true;
+        }
+        return false;
     }
 
     /* How many items to ask a gather step for. For Tetris, calcNumberFreeCoord re-simulates
