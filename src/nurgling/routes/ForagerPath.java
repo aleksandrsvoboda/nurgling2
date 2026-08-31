@@ -54,6 +54,12 @@ public class ForagerPath {
     // toggles even though a future bot check would likely OR them together.
     public boolean avoidCliffs = false;
 
+    // How many extra tiles of margin to keep beyond a detected cliff/ridge tile itself when
+    // avoidCliffs is on - same "not yet read by any bot logic, UI only for now" status as
+    // avoidCliffs above. Plain tile count, no -1/no-cap sentinel (0 is itself a meaningful
+    // value here - "only the cliff tile itself, no extra margin" - unlike maxChains/etc. above).
+    public int cliffBufferTiles = 1;
+
     public ForagerPath(String name) {
         this.name = name;
         this.waypoints = new ArrayList<>();
@@ -194,6 +200,7 @@ public class ForagerPath {
             this.maxChainDistance = json.getInt("maxChainDistance");
         }
         this.avoidCliffs = json.optBoolean("avoidCliffs", false);
+        this.cliffBufferTiles = json.optInt("cliffBufferTiles", 1);
 
         // Always generate sections from waypoints (don't load from JSON)
         // Sections use world coordinates which are session-specific
@@ -237,6 +244,7 @@ public class ForagerPath {
             json.put("maxChainDistance", maxChainDistance);
         }
         json.put("avoidCliffs", avoidCliffs);
+        json.put("cliffBufferTiles", cliffBufferTiles);
 
         // Don't save sections - they will be regenerated from waypoints
         // because they use world coordinates which are session-specific
