@@ -1,0 +1,80 @@
+{
+  "_comment": [
+    "Ingredient-name resolution and slot grouping for the cookbook advisor.",
+    "",
+    "A cooked dish reports its ingredients by FLAVOUR SOURCE, not by the item that went into the",
+    "pot: an Autumn Steak made from Raw Wild Pork says 'Boar'. IngredientResolver derives almost",
+    "all of those links from VSpec automatically (name match, 'Raw X'/'X Meat'/'Filet of X'",
+    "patterns, the meat-<animal> icon layer, and 'Block of Xwood' for smoking woods) - measured at",
+    "190 of 199 ingredient names on a mature database. Only the leftovers belong in 'aliases'.",
+    "",
+    "Drop a file of the same shape next to the other nurgling json config to override this one."
+  ],
+
+  "aliases": {
+    "Bullfinch": ["Bullfinch Meat"],
+    "Cowsmilk": ["Milk", "Cow's Milk"],
+    "Aurochs Milk": ["Milk", "Aurochs Milk"],
+    "Goatmilk": ["Milk", "Goat's Milk"],
+    "Sheepmilk": ["Milk", "Sheep's Milk"]
+  },
+
+  "_aliasNote": [
+    "'Bullfinch' is here because VSpec's Poultry category has a typo: the entry whose icon layer is",
+    "gfx/invobjs/meat-bullfinch is named 'Mammoth Meat'. Without this override the automatic",
+    "meat-token rule resolves Bullfinch to Mammoth Meat. Fixing VSpec itself would also fix it, but",
+    "that map is shared with the crafting bots, so the narrower fix lives here."
+  ],
+
+  "slotPriority": [
+    "Edible Mushroom",
+    "Berry",
+    "Fruit",
+    "Dried Fruit",
+    "Fruit or Berry",
+    "Nuts",
+    "Cooked Egg",
+    "Egg",
+    "Flour",
+    "Cheese",
+    "Fish Roe",
+    "Fish Fresh Water",
+    "Fish Ocean",
+    "Fish Cave",
+    "Dried Fish",
+    "Fish",
+    "Poultry",
+    "Raw Meat",
+    "Spices",
+    "Salad Greens",
+    "Leaf",
+    "Flower",
+    "Seed of Tree or Bush",
+    "Tuber",
+    "Onion",
+    "Crops - other",
+    "Vegetable Oil",
+    "Sweetener",
+    "Block of Wood",
+    "Forageable"
+  ],
+
+  "slotGroups": {
+    "Meat": ["Raw Meat"],
+    "Poultry": ["Poultry"],
+    "Fish": ["Fish", "Fish Fresh Water", "Fish Ocean", "Fish Cave", "Dried Fish"],
+    "Roe": ["Fish Roe"],
+    "Mushroom": ["Edible Mushroom"],
+    "Fruit or Berry": ["Berry", "Fruit", "Fruit or Berry", "Dried Fruit"],
+    "Seasoning": ["Spices", "Leaf", "Flower", "Seed of Tree or Bush", "Salad Greens"],
+    "Nut": ["Nuts"],
+    "Egg": ["Egg", "Cooked Egg"],
+    "Flour": ["Flour"],
+    "Cheese": ["Cheese"],
+    "Vegetable": ["Tuber", "Onion", "Crops - other"],
+    "Sweetener": ["Sweetener"],
+    "Oil": ["Vegetable Oil"],
+    "Smoking Wood": ["Block of Wood"],
+    "Forage": ["Forageable"]
+  }
+}

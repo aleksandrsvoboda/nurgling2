@@ -11,6 +11,7 @@ import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.ReadJsonAction;
 import nurgling.sessions.BotExecutor;
+import nurgling.cookbook.CookbookIndex;
 import nurgling.cookbook.FavoriteRecipeManager;
 import nurgling.cookbook.Recipe;
 import nurgling.cookbook.connection.RecipeHashFetcher;
@@ -47,6 +48,15 @@ public class NCookBook extends Window {
     RecipeHashFetcher rhf = null;
     private FavoriteRecipeManager favoriteManager = null;
 
+    /**
+     * What the pantry can currently cook, and which variants are still untried. Rebuilt on the
+     * database worker whenever the window opens; the widget only ever reads the finished snapshot.
+     */
+    private CookbookIndex index = CookbookIndex.EMPTY;
+    private CookbookIndex.Builder indexBuilder = null;
+    private CheckBox cookableOnly;
+    private NVariantsWnd variantsWnd = null;
+
     private ICheckBox onetwo; // Добавляем поле для хранения кнопки onetwo
     private ICheckBox[] statButtons; // Массив для хранения кнопок статов
     private ICheckBox activeStatButton = null;
@@ -72,12 +82,15 @@ public class NCookBook extends Window {
     static int col4 = UI.scale(935);   // Total FEP (расширен)
     static int col5 = UI.scale(1015);  // Hunger (расширен)
     static int col6 = UI.scale(1095);  // Energy (расширен)
+    static int col7 = UI.scale(1275);  // Cookable
+    static int col8 = UI.scale(1335);  // Purity of the sorted attribute
+    static int col9 = UI.scale(1395);  // Not eaten since the last attribute gain
 
     public NCookBook() {
-        super(UI.scale(new Coord(1300, 550)), L10n.get("cookbook.window_title"));
+        super(UI.scale(new Coord(1450, 550)), L10n.get("cookbook.window_title"));
         statButtons = new ICheckBox[9];
 
-        searchF = add(new TextEntry(UI.scale(1290), "") {
+        searchF = add(new TextEntry(UI.scale(1440), "") {
             @Override
             public boolean keydown(KeyDownEvent e) {
                 boolean res = super.keydown(e);
@@ -104,6 +117,9 @@ public class NCookBook extends Window {
         add(new Label(L10n.get("cookbook.col_total_fep")), new Coord(col4, headerY));
         add(new Label(L10n.get("cookbook.col_hunger")), new Coord(col5, headerY));
         add(new Label(L10n.get("cookbook.col_energy")), new Coord(col6, headerY));
+        add(new Label("Cook"), new Coord(col7, headerY));
+        add(new Label("Pure"), new Coord(col8, headerY));
+        add(new Label("New"), new Coord(col9, headerY));
 
 
         // Кнопки сортировки
@@ -321,10 +337,23 @@ public class NCookBook extends Window {
             }
         }, new Coord(x_shift/2-UI.scale(32),searchF.pos("br").y+UI.scale(10)));
 
+        // Pantry-aware controls. "Have ingredients" is the filter the whole index exists for;
+        // "Variants" opens the per-slot coverage view.
+        cookableOnly = add(new CheckBox("Have ingredients") {
+            @Override
+            public void changed(boolean val) {
+                super.changed(val);
+                sortRecipes(currentSortType, currentSortDesc);
+            }
+        }, new Coord(x_shift + UI.scale(250), searchF.pos("br").y + UI.scale(14)));
+        cookableOnly.settip("Show only variants every ingredient of which is in a tracked container", true);
 
+        add(new haven.Button(UI.scale(110), "Variants...", this::openVariants),
+                new Coord(x_shift + UI.scale(430), searchF.pos("br").y + UI.scale(8)))
+                .settip("Ingredients you have never tried in each dish", true);
 
         // Список рецептов
-        prev = add(rl = new ReceiptsList(UI.scale(new Coord(1290,400))),UI.scale(0, headerY + UI.scale(30)));
+        prev = add(rl = new ReceiptsList(UI.scale(new Coord(1440,400))),UI.scale(0, headerY + UI.scale(30)));
 
         IButton imp = add(new IButton(Resource.loadsimg("nurgling/hud/buttons/cookbook/download/u"),
                         Resource.loadsimg("nurgling/hud/buttons/cookbook/download/d"),
@@ -377,7 +406,15 @@ public class NCookBook extends Window {
     private final ArrayList<RecieptItem> items = new ArrayList<>();
 
     private void sortRecipes(String fepType, boolean desc) {
-        sortedRecipes = new ArrayList<>(allRecipes);
+        // Filtering against a snapshot that has not been built yet would blank the list, so the
+        // toggle only bites once the index has actually arrived.
+        boolean onlyCookable = (cookableOnly != null) && cookableOnly.state() && !index.isEmpty();
+        sortedRecipes = new ArrayList<>(allRecipes.size());
+        for (Recipe r : allRecipes) {
+            if (onlyCookable && !index.isCookable(r.getHash()))
+                continue;
+            sortedRecipes.add(r);
+        }
         sortedRecipes.sort((r1, r2) -> {
             // First, sort by favorite status (favorites first)
             if (r1.isFavorite() != r2.isFavorite()) {
@@ -400,8 +437,19 @@ public class NCookBook extends Window {
 
         items.clear();
         for (int i = startIdx; i < endIdx; i++) {
-            items.add(new RecieptItem(sortedRecipes.get(i)));
+            items.add(new RecieptItem(sortedRecipes.get(i), index, currentSortType));
         }
+    }
+
+    private void openVariants() {
+        if (variantsWnd != null && variantsWnd.parent != null) {
+            variantsWnd.show();
+            variantsWnd.raise();
+        } else {
+            variantsWnd = new NVariantsWnd();
+            ui.gui.add(variantsWnd, UI.scale(120, 80));
+        }
+        variantsWnd.update(index);
     }
 
     @Override
@@ -412,6 +460,20 @@ public class NCookBook extends Window {
             rhf = null;
             sortRecipes(currentSortType, currentSortDesc);
             enable();
+        }
+        if (indexBuilder != null && indexBuilder.ready.get()) {
+            index = indexBuilder.result();
+            indexBuilder = null;
+            if (!index.unresolvedIngredients().isEmpty()) {
+                System.out.println("[cookbook] " + index.unresolvedIngredients().size()
+                        + " ingredient names could not be mapped to an item: "
+                        + index.unresolvedIngredients());
+            }
+            System.out.println("[cookbook] " + index.cookableCount() + " of " + index.recipeCount()
+                    + " variants cookable from " + index.pantry().distinctItems() + " stocked item types");
+            sortRecipes(currentSortType, currentSortDesc);
+            if (variantsWnd != null && variantsWnd.parent != null)
+                variantsWnd.update(index);
         }
     }
 
@@ -424,6 +486,8 @@ public class NCookBook extends Window {
             rhf = new RecipeHashFetcher(ui.core.databaseManager,
                     RecipeHashFetcher.genFep(currentSortType, currentSortDesc));
             ui.core.databaseManager.submitTask(rhf);
+            indexBuilder = new CookbookIndex.Builder(ui.core.databaseManager);
+            ui.core.databaseManager.submitTask(indexBuilder);
             disable();
         }
         return super.show(show);
@@ -440,6 +504,12 @@ public class NCookBook extends Window {
         
         static final TexI favoriteIcon = new TexI(Resource.loadimg("nurgling/hud/star"));
         Recipe recipe;
+
+        static final Color COOKABLE = new Color(120, 220, 120);
+        static final Color NOT_COOKABLE = new Color(150, 150, 150);
+        static final Color UNTASTED = new Color(255, 225, 120);
+        /** "Cook", "Pure" and "New", pre-rendered: draw() must not build images per frame. */
+        Tex cookTex, pureTex, newTex;
         @Override
         public void resize(Coord sz) {
             super.resize(sz);
@@ -536,7 +606,7 @@ public class NCookBook extends Window {
             }
         }
 
-        public RecieptItem(Recipe recipe) {
+        public RecieptItem(Recipe recipe, CookbookIndex index, String sortType) {
             this.recipe = recipe;
             recName = recipe.getName();
             this.text = add(new Label(recName),UI.scale(45,y_pos));
@@ -598,7 +668,70 @@ public class NCookBook extends Window {
 
             feps = new TexI(bi);
 
-            sz = UI.scale(1285,60);
+            applyPantry(index, sortType);
+
+            sz = UI.scale(1435,60);
+        }
+
+        /**
+         * Fill in the three pantry-aware cells and the per-ingredient tooltip. Everything is read
+         * from the finished snapshot - no database work happens here, and none may.
+         */
+        private void applyPantry(CookbookIndex index, String sortType) {
+            CookbookIndex.RecipeStatus status = (index == null) ? null : index.status(recipe.getHash());
+            boolean cookable = (status != null) && status.cookable;
+            cookTex = Text.std.render(cookable ? "yes" : "no",
+                    cookable ? COOKABLE : NOT_COOKABLE).tex();
+
+            Recipe.Fep fep = recipe.getFeps().get(sortType);
+            double purity = (fep == null) ? 0 : fep.weigth * 100;
+            pureTex = Text.std.render(Utils.odformat2(purity, 2) + "%",
+                    (purity >= 50) ? COOKABLE : NOT_COOKABLE).tex();
+
+            // A dish you have not eaten since your last attribute gain still carries the variety
+            // bonus, which is often worth more than the dish's own FEP.
+            if (isUntasted(recName))
+                newTex = Text.std.render("new", UNTASTED).tex();
+
+            settip(ingredientTip(status), true);
+        }
+
+        private static boolean isUntasted(String dishName) {
+            try {
+                NCharacterInfo ci = NUtils.getGameUI().getCharInfo();
+                if (ci == null)
+                    return false;
+                synchronized (ci.varity) {
+                    return !ci.varity.contains(dishName);
+                }
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }
+
+        private String ingredientTip(CookbookIndex.RecipeStatus status) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("$col[220,220,255]{").append(recName).append("}");
+            if (status == null || status.ingredients.isEmpty()) {
+                sb.append("\n$col[150,150,150]{no ingredients recorded}");
+                return sb.toString();
+            }
+            for (CookbookIndex.Held held : status.ingredients) {
+                sb.append("\n  ").append(held.ingredient).append(": ");
+                if (held.item != null) {
+                    sb.append("$col[120,220,120]{").append(held.item)
+                      .append(" x").append(held.count);
+                    // A third of stored items carry no quality at all and are recorded as -1.
+                    if (held.quality > 0)
+                        sb.append(" q").append(Utils.odformat2(held.quality, 2));
+                    sb.append("}");
+                } else if (!held.resolved) {
+                    sb.append("$col[255,180,80]{unknown item - needs an alias}");
+                } else {
+                    sb.append("$col[220,120,120]{none in stock}");
+                }
+            }
+            return sb.toString();
         }
 
         @Override
@@ -611,6 +744,12 @@ public class NCookBook extends Window {
             g.image(feps,UI.scale(180,5));
             g.image(ing,UI.scale(555,0));
             g.image(weightscale,new Coord(col6+UI.scale(50), UI.scale(12)));
+            if (cookTex != null)
+                g.image(cookTex, UI.scale(col7, y_pos));
+            if (pureTex != null)
+                g.image(pureTex, UI.scale(col8, y_pos));
+            if (newTex != null)
+                g.image(newTex, UI.scale(col9, y_pos));
             super.draw(g);
         }
 
@@ -725,7 +864,7 @@ public class NCookBook extends Window {
 
         @Override
         public void resize(Coord sz) {
-            super.resize(new Coord(UI.scale(1290, sz.y)));
+            super.resize(new Coord(UI.scale(1440, sz.y)));
         }
 
         protected Widget makeitem(RecieptItem item, int idx, Coord sz) {
