@@ -5,6 +5,7 @@ import haven.Coord2d;
 import haven.Gob;
 import haven.Pair;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
@@ -81,8 +82,22 @@ public class DFrameHidesAction implements Action {
 
 
             new FreeContainers(containers, new NAlias(new ArrayList<>(Arrays.asList("Fur", "Hide", "Scale", "Tail", "skin", "hide")), new ArrayList<>(Arrays.asList("Fresh", "Raw")))).run(gui);
+
+            // TakeItems2.takeAny already searches both piles and containers in the area (NContext.getSpecStorages); TransferToContainer already handles the frame's Tetris shapes.
+            for (Container cont : containers) {
+                while (!cont.isFull()) {
+                    if (gui.getInventory().getItems(raw).isEmpty()) {
+                        new TakeItems2(context, cont.freeSpace(), Specialisation.SpecName.rawhides, NInventory.QualityType.High).takeAny(raw, gui);
+                        if (gui.getInventory().getItems(raw).isEmpty())
+                            break;
+                    }
+                    context.goToArea(Specialisation.SpecName.dframe, "Hides");
+                    new TransferToContainer(cont, raw).run(gui);
+                    new CloseTargetContainer(cont).run(gui);
+                }
+            }
+
             NArea rawhidesArea = context.goToArea(Specialisation.SpecName.rawhides);
-            new FillContainersFromPiles(containers, rawhidesArea.getRCArea(), raw).run(gui);
             new TransferToPiles(rawhidesArea.getRCArea(), new NAlias("Fresh")).run(gui);
 
             return Results.SUCCESS();

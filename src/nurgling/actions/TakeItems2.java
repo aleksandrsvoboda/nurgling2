@@ -76,6 +76,15 @@ public class TakeItems2 implements Action
         this.qualityType = QualityType.High;
     }
 
+    /* For takeAny(NAlias, NGameUI) - no single exact item name is known up front. */
+    public TakeItems2(NContext context, int count, Specialisation.SpecName specName, QualityType qualityType)
+    {
+        this.cnt = context;
+        this.count = count;
+        this.specName = specName;
+        this.qualityType = qualityType;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
@@ -108,6 +117,55 @@ public class TakeItems2 implements Action
             {
                 left.set(count - NUtils.getGameUI().getInventory().getItems(new NAlias(item)).size());
             }
+        }
+        return Results.SUCCESS();
+    }
+
+    /* Like run(), but for callers that accept ANY of several item names rather than one exact
+     * one (e.g. any of a dozen ore types). Doing this one name at a time via run() would repeat
+     * a full pile+container scan of the area per name tried before the stocked one is found -
+     * here every storage is visited once, and a container is asked for all names in a single
+     * open/close pass (TakeItemsFromContainer already accepts a name set). itemsAlias is also
+     * passed through as the exclude-aware match pattern, so a caller's exclusions (e.g. "hide"
+     * but not "Fresh hide") are honoured here the same way they already are at deposit time. */
+    public Results takeAny(NAlias itemsAlias, NGameUI gui) throws InterruptedException
+    {
+        ArrayList<NContext.ObjectStorage> inputs;
+        if(specName == null) {
+            inputs = cnt.getInStorages(itemsAlias.getKeys().get(0));
+        } else {
+            inputs = cnt.getSpecStorages(this.specName, this.specSubtype);
+        }
+
+        if(inputs == null || inputs.isEmpty())
+            return Results.FAIL();
+
+        HashSet<String> names = new HashSet<>(itemsAlias.getKeys());
+        AtomicInteger left = new AtomicInteger(count);
+        for(NContext.ObjectStorage input: inputs)
+        {
+            if(input instanceof NContext.Barter)
+                takeFromBarter(left, gui, (NContext.Barter) input);
+            else if (input instanceof NContext.Pile)
+                takeFromPile(left, gui, (NContext.Pile) input);
+            else if (input instanceof Container)
+            {
+                Container cont = (Container) input;
+                Gob contgob = Finder.findGob(cont.gobHash);
+                if(contgob == null)
+                    continue;
+                if(!"Frame".equals(cont.cap) && contgob.ngob.isContainerEmpty())
+                    continue;
+                new PathFinder(contgob).run(gui);
+                new OpenTargetContainer(cont).run(gui);
+                TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont, names, itemsAlias, qualityType);
+                tifc.minSize = left.get();
+                tifc.exactMatch = this.exactMatch;
+                tifc.run(gui);
+                new CloseTargetContainer(cont).run(gui);
+            }
+            if(!NUtils.getGameUI().getInventory().getItems(itemsAlias).isEmpty())
+                return Results.SUCCESS();
         }
         return Results.SUCCESS();
     }

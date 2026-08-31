@@ -79,18 +79,8 @@ public class DFrameFishAction implements Action {
             
             // Основной цикл обработки рыбы
             NContext context = new NContext(gui);
-            Pair<Coord2d, Coord2d> fishArea = NContext.findSpec(Specialisation.SpecName.rawfish.toString()).getRCArea();
-            
-            // Получаем размер рыбы из пайла (как в FillContainersFromPiles)
-            Coord fishSize = new Coord(1, 1); // размер по умолчанию
-            
+
             while (hasEmptySlots(containers) && gui.getInventory().getNumberFreeCoord(new Coord(1,3))>0 && gui.getInventory().getNumberFreeCoord(new Coord(2,1))>0) {
-                // Проверяем, есть ли рыба в пайлах
-                ArrayList<Gob> piles = Finder.findGobs(fishArea, new NAlias("stockpile"));
-                if (piles.isEmpty()) {
-                    break; // Нет рыбы - выходим
-                }
-                
                 // Освобождаем инвентарь если нужно
                 if (gui.getInventory().getFreeSpace() < 3) {
                     // Если есть филе, переносим на сушилки
@@ -102,18 +92,14 @@ public class DFrameFishAction implements Action {
                         break;
                     }
                 }
-                
-                piles.sort(NUtils.d_comp);
-                Gob pile = piles.get(0);
-                new PathFinder(pile).run(gui);
-                new OpenTargetContainer("Stockpile", pile).run(gui);
-                
-                while(Finder.findGob(pile.id)!=null && gui.getInventory().getNumberFreeCoord(new Coord(1,3))>0 && gui.getInventory().getNumberFreeCoord(new Coord(2,1))>0)
-                {
-                    new TakeItemsFromPile(pile, gui.getStockpile(), 1).run(gui);
+
+                // TakeItems2 already searches both piles and containers in the area (NContext.getSpecStorages).
+                int before = gui.getInventory().getItems(fish).size();
+                new TakeItems2(context, "Fish", gui.getInventory().getFreeSpace(), Specialisation.SpecName.rawfish, NInventory.QualityType.High).run(gui);
+                if (gui.getInventory().getItems(fish).size() == before) {
+                    break;
                 }
-                new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
-                
+
                 ArrayList<WItem> fishItems = gui.getInventory().getItems(new NAlias(VSpec.getCategoryContent("Fish")));
                 for (WItem fishItem : fishItems) {
                     int oldFilletCount = gui.getInventory().getItems(rfillet).size();

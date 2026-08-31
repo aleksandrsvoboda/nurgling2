@@ -2,6 +2,7 @@ package nurgling.actions.bots;
 
 import haven.Gob;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
@@ -43,6 +44,7 @@ public class SmelterAction implements Action {
 
         if(new Validator(req, opt).run(gui).IsSuccess()) {
 
+            NContext context = new NContext(gui);
             NArea smelters = NContext.findSpec(Specialisation.SpecName.smelter.toString());
 
             ArrayList<Container> containers = new ArrayList<>();
@@ -126,7 +128,24 @@ public class SmelterAction implements Action {
                     new CollectQuickSilver(containers).run(gui);
                     NUtils.navigateToArea(smelters);
                     new DropTargets(containers, new NAlias("Slag")).run(gui);
-                    res = new FillContainersFromPiles(containers, NContext.findSpec(Specialisation.SpecName.ore.toString()).getRCArea(), ores).run(gui);
+
+                    // TakeItems2.takeAny already searches both piles and containers in the area (NContext.getSpecStorages).
+                    boolean oreExhausted = false;
+                    for (Container cont : containers) {
+                        while (!cont.isFull()) {
+                            if (gui.getInventory().getItems(ores).isEmpty()) {
+                                new TakeItems2(context, cont.freeSpace(), Specialisation.SpecName.ore, NInventory.QualityType.High).takeAny(ores, gui);
+                                if (gui.getInventory().getItems(ores).isEmpty()) {
+                                    oreExhausted = true;
+                                    break;
+                                }
+                            }
+                            context.goToArea(Specialisation.SpecName.smelter);
+                            new TransferToContainer(cont, ores).run(gui);
+                            new CloseTargetContainer(cont).run(gui);
+                        }
+                    }
+                    res = oreExhausted ? Results.ERROR("NO ORE") : Results.SUCCESS();
                     ArrayList<Container> forFuel = new ArrayList<>();
 
                     for (Container container : containers) {

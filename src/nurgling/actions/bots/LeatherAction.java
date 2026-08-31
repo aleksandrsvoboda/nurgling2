@@ -3,6 +3,7 @@ package nurgling.actions.bots;
 import haven.Coord;
 import haven.Gob;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
@@ -30,7 +31,7 @@ public class LeatherAction implements Action {
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
         if (new Validator(req, opt).run(gui).IsSuccess()) {
 
-
+            NContext context = new NContext(gui);
             ArrayList<Container> containers = new ArrayList<>();
             NArea ttubsarea = NContext.findSpec(Specialisation.SpecName.ttub.toString());
             for (Gob ttube : Finder.findGobs(ttubsarea,
@@ -53,7 +54,21 @@ public class LeatherAction implements Action {
 
             new FillFluid(containers, NContext.findSpec(Specialisation.SpecName.tanning.toString()).getRCArea(), new NAlias("tanfluid"), 2).run(gui);
             new FreeContainers(containers, new NAlias("Leather")).run(gui);
-            new FillContainersFromPiles(containers, NContext.findSpec(Specialisation.SpecName.readyHides.toString()).getRCArea(), notraw).run(gui);
+
+            // TakeItems2.takeAny already searches both piles and containers in the area (NContext.getSpecStorages); TransferToContainer already handles the tub's Tetris shapes.
+            for (Container cont : containers) {
+                while (!cont.isFull()) {
+                    if (gui.getInventory().getItems(notraw).isEmpty()) {
+                        new TakeItems2(context, cont.freeSpace(), Specialisation.SpecName.readyHides, NInventory.QualityType.High).takeAny(notraw, gui);
+                        if (gui.getInventory().getItems(notraw).isEmpty())
+                            break;
+                    }
+                    context.goToArea(Specialisation.SpecName.ttub);
+                    new TransferToContainer(cont, notraw).run(gui);
+                    new CloseTargetContainer(cont).run(gui);
+                }
+            }
+
             new TransferToPiles(NContext.findSpec(Specialisation.SpecName.readyHides.toString()).getRCArea(), notraw).run(gui);
 
             return Results.SUCCESS();

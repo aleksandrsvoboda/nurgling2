@@ -391,6 +391,36 @@ public class Container implements NContext.ObjectStorage {
         return(c.cast(attr));
     }
 
+    /* Shared by the gathering bots (smelter/tanning tub/drying frame) so each doesn't need
+     * its own copy of "is this container physically full" for Space vs. Tetris containers. */
+    public boolean isFull() {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris != null)
+            return tetris.isReady() && (Boolean) tetris.getRes().get(Tetris.DONE);
+        Space space = getattr(Space.class);
+        return space != null && space.isReady() && space.getFreeSpace() == 0;
+    }
+
+    /* How many items to ask a gather step for. For Tetris, calcNumberFreeCoord re-simulates
+     * placement into a fresh copy of the grid per shape and doesn't account for one shape's
+     * placement consuming cells another shape would also fit in, so summing across shapes
+     * over-counts real capacity - take the best single shape's count instead, which is safe
+     * to under-request (the caller just loops again) but never over-requests. */
+    public int freeSpace() {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris != null) {
+            if (!tetris.isReady())
+                return 1;
+            int best = 0;
+            for (Coord c : (ArrayList<Coord>) tetris.getRes().get(Tetris.TARGET_COORD)) {
+                best = Math.max(best, tetris.calcNumberFreeCoord(Tetris.SRC, c));
+            }
+            return Math.max(best, 1);
+        }
+        Space space = getattr(Space.class);
+        return space != null && space.isReady() ? space.getFreeSpace() : 1;
+    }
+
     private Class<? extends Updater> attrclass(Class<? extends Updater> cl) {
         while(true) {
             Class<?> p = cl.getSuperclass();
