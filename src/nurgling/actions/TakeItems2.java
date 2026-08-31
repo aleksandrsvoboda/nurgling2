@@ -17,6 +17,7 @@ import nurgling.tasks.WindowIsClosed;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.tools.StackSupporter;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
@@ -376,8 +377,23 @@ public class TakeItems2 implements Action
             return Results.FAIL();
         new PathFinder(gpile).run(gui);
         new OpenTargetContainer("Stockpile", gpile).run(gui);
-        TakeItemsFromPile tifp;
-        (tifp = new TakeItemsFromPile(gpile, gui.getStockpile(), left.get())).run(gui);
+        /* A stockpile hands over one item per "xfer2" and the server silently drops the ones
+         * that no longer fit, so asking for more than the inventory can hold ends the transfer
+         * short and leaves TakeItemsFromPile waiting on items that never arrive. Every other
+         * caller budgets against free space before asking; do the same here, stack-aware, since
+         * a stacking item packs getFullStackSize() into one cell.
+         *
+         * takeAny drives this with item null, and a stack size cannot be looked up without a
+         * name - StackSupporter.isStackable would dereference it. Budget by plain free cells
+         * then: under-asking only costs another pass, which takeAny already loops for, while
+         * over-asking is the failure this whole guard exists to prevent. Once takeAny has seen
+         * one of the items its measured footprint beats assuming 1x1. */
+        Coord shape = (observedShape != null) ? observedShape : new Coord(1, 1);
+        int room = (item == null)
+                ? Math.min(left.get(), gui.getInventory().getNumberFreeCoord(shape))
+                : StackSupporter.getOptimalItemCapacity(gui.getInventory(), item, shape, left.get());
+        if(room > 0)
+            new TakeItemsFromPile(gpile, gui.getStockpile(), room).run(gui);
         new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
         return Results.SUCCESS();
     }

@@ -41,9 +41,14 @@ public class TakeItemsFromPile implements Action
             box.transfer(count);
             WaitItemFromPile wifp = new WaitItemFromPile(gui.getInventory(), before, count);
             NUtils.getUI().core.addTask(wifp);
-            took += Math.max(0, wifp.getTotalItemCount());
+            int got = Math.max(0, wifp.getTotalItemCount());
+            took += got;
             ((NUI) gui.ui).disableMonitor();
             items.addAll(wifp.getResult());
+            /* A pass that delivered nothing means neither the pile nor the inventory can make
+             * progress, so asking again would only repeat the same empty transfer. */
+            if (got <= 0)
+                break;
         }
 
         return Results.SUCCESS();
