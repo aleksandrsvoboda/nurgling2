@@ -151,12 +151,15 @@ public class TakeItems2 implements Action
             else if (input instanceof Container)
             {
                 Container cont = (Container) input;
-                Gob contgob = Finder.findGob(cont.gobHash);
+                /* Bare Finder.findGob can miss a container sitting inside a house whose gob
+                 * hasn't streamed in yet - Container.pathTo falls back to ChunkNav via the
+                 * container's own area before giving up, so a source stored indoors is still
+                 * reached instead of silently skipped. */
+                Gob contgob = Container.pathTo(gui, cont);
                 if(contgob == null)
                     continue;
                 if(!"Frame".equals(cont.cap) && contgob.ngob.isContainerEmpty())
                     continue;
-                new PathFinder(contgob).run(gui);
                 new OpenTargetContainer(cont).run(gui);
                 TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont, names, itemsAlias, qualityType);
                 tifc.minSize = left.get();

@@ -6,6 +6,7 @@ import haven.Gob;
 import haven.WItem;
 import haven.res.ui.tt.wellmined.WellMined;
 import nurgling.*;
+import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 
@@ -27,6 +28,27 @@ public class Container implements NContext.ObjectStorage {
         this.gobHash = gob.ngob.hash;
         this.cap = cap;
         this.parent = area;
+    }
+
+    /* Local pf to the container's gob; falls back to ChunkNav via its area if the gob isn't
+     * currently reachable (e.g. it fell out of the loaded-object cache after a cell change,
+     * such as walking into a house). Returns null if still unreachable. */
+    public static Gob pathTo(NGameUI gui, Container container) throws InterruptedException {
+        Gob gob = Finder.findGob(container.gobHash);
+        if (gob == null || !PathFinder.isAvailable(gob)) {
+            if (container.parent == null) {
+                return null;
+            }
+            NUtils.navigateToArea(container.parent);
+            gob = Finder.findGob(container.gobHash);
+            if (gob == null || !PathFinder.isAvailable(gob)) {
+                return null;
+            }
+        }
+        PathFinder pf = new PathFinder(gob);
+        pf.isHardMode = true;
+        pf.run(gui);
+        return gob;
     }
 
     public Map<Class<? extends Updater>, Updater> updaters = new HashMap<Class<? extends Updater>, Updater>();
