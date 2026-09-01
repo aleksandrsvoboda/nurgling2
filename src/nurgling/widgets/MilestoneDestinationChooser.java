@@ -9,8 +9,9 @@ import java.util.function.BiConsumer;
 
 /**
  * Small popout listing a milestone's recorded destinations (label + "Add Waypoint" per row),
- * shown when right-clicking a multi-destination milestone icon on the Routes map - a
- * single-destination milestone skips this and adds its one waypoint directly.
+ * shown when left-clicking a multi-destination milestone icon on the Routes map (see
+ * ForagerRouteMap.spliceMilestone()) - a single-destination milestone skips this and splices its
+ * one waypoint pair directly.
  */
 public class MilestoneDestinationChooser extends Window {
 
