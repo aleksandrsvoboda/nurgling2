@@ -1,5 +1,6 @@
 package nurgling.actions;
 
+import haven.Coord;
 import haven.Gob;
 import haven.WItem;
 import nurgling.NGameUI;
@@ -9,11 +10,14 @@ import nurgling.areas.NContext;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.tools.StackSupporter;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Deposits items to containers in a specialized area.
@@ -33,6 +37,7 @@ public class DepositItemsToSpecArea implements Action {
     private final Specialisation.SpecName destinationSpec;
     private final int maxPerContainer;
     private Specialisation.SpecName originSpec = null;
+    private NAlias fetchAlias = null;
 
     private Map<Long, Integer> containerFreeSpaceMap = new HashMap<>();
 
@@ -49,6 +54,21 @@ public class DepositItemsToSpecArea implements Action {
         this.destinationSpec = destinationSpec;
         this.maxPerContainer = maxPerContainer;
         this.originSpec = originSpec;
+    }
+
+    /**
+     * Narrow what is fetched from the source, without narrowing what is counted toward
+     * maxPerContainer. Defaults to the item alias.
+     * <p>
+     * The two are not always the same. A container's target can be met by several item kinds
+     * while only some of them ever exist at the source: a silkmoth breeding cupboard's 16 slots
+     * hold cocoons OR the moths they hatch into, so moths must be COUNTED - they occupy a slot -
+     * but they only ever appear inside the breeding cupboards themselves. Leaving them in the
+     * fetch list sent the bot touring the whole feeding area for them on every single trip.
+     */
+    public DepositItemsToSpecArea setFetchAlias(NAlias fetchAlias) {
+        this.fetchAlias = fetchAlias;
+        return this;
     }
 
     @Override
@@ -129,6 +149,12 @@ public class DepositItemsToSpecArea implements Action {
 
         // Step 3-4: Fetch-Distribute Loop (multiple trips until done or source empty)
         int tripNumber = 0;
+        NAlias sourceAlias = (fetchAlias != null) ? fetchAlias : itemAlias;
+        /* Per item name, the source containers we have already emptied. Kept across trips so
+         * later trips do not walk back to storages with nothing left in them. Safe here because
+         * a deposit's source area is never its destination area, so nothing refills them
+         * while we run. One set per item: a cupboard out of cocoons may still be full of leaves. */
+        Map<String, Set<String>> depletedSources = new HashMap<>();
 
         while (!containersNeedingItems.isEmpty()) {
             tripNumber++;
@@ -151,18 +177,31 @@ public class DepositItemsToSpecArea implements Action {
             gui.msg("DepositItems: Trip #" + tripNumber + " - fetching up to " + totalStillNeeded + " items from source...");
 
             // Fetch items from source
-            for (String key : this.itemAlias.getKeys()) {
+            for (String key : sourceAlias.getKeys()) {
                 int currentInInventory = gui.getInventory().getItems(itemAlias).size();
                 int stillNeeded = totalStillNeeded - currentInInventory;
                 if (stillNeeded <= 0) break;
 
-                gui.msg("DepositItems: Taking " + stillNeeded + " of '" + key + "'");
-
-                if (this.originSpec != null) {
-                    new TakeItems2(context, key, stillNeeded, originSpec, NInventory.QualityType.High).run(gui);
-                } else {
-                    new TakeItems2(context, key, stillNeeded, NInventory.QualityType.High).run(gui);
+                /* Ask for one load, never the whole area's demand. TakeItems2 keeps walking
+                 * source storages until it holds `count` items, so a count the inventory can
+                 * never reach makes it tour every source container on every trip - with a full
+                 * inventory - before we ever get to unload. This is the same clamp
+                 * FillContainers2 already applies around its own TakeItems2 call. */
+                int room = StackSupporter.getOptimalItemCapacity(gui.getInventory(), key, new Coord(1, 1), stillNeeded);
+                if (room <= 0) {
+                    gui.msg("DepositItems: Inventory full, distributing before fetching more");
+                    break;
                 }
+
+                // TakeItems2 counts what is already held of this single key, so aim at that plus room.
+                int keyInInventory = gui.getInventory().getItems(new NAlias(key)).size();
+                gui.msg("DepositItems: Taking " + room + " of '" + key + "'");
+
+                TakeItems2 take = (this.originSpec != null)
+                        ? new TakeItems2(context, key, keyInInventory + room, originSpec, NInventory.QualityType.High)
+                        : new TakeItems2(context, key, keyInInventory + room, NInventory.QualityType.High);
+                take.depleted = depletedSources.computeIfAbsent(key, k -> new HashSet<>());
+                take.run(gui);
             }
 
             int itemsFetched = gui.getInventory().getItems(itemAlias).size();
@@ -177,6 +216,7 @@ public class DepositItemsToSpecArea implements Action {
             gui.msg("DepositItems: Trip #" + tripNumber + " - distributing to " + containersNeedingItems.size() + " containers...");
             ArrayList<Container> stillNeedingItems = new ArrayList<>();
             int fillIndex = 0;
+            int carriedBeforeDistribute = gui.getInventory().getItems(itemAlias).size();
 
             for (Container container : containersNeedingItems) {
                 fillIndex++;
@@ -229,6 +269,14 @@ public class DepositItemsToSpecArea implements Action {
             containersNeedingItems = stillNeedingItems;
 
             gui.msg("DepositItems: Trip #" + tripNumber + " complete. Containers still needing items: " + containersNeedingItems.size());
+
+            /* Nothing left the inventory this trip, yet we are still carrying items: the
+             * remaining containers cannot accept what we hold, so another trip would replay
+             * this one forever. */
+            if (gui.getInventory().getItems(itemAlias).size() >= carriedBeforeDistribute) {
+                gui.msg("DepositItems: Trip #" + tripNumber + " moved nothing, stopping");
+                break;
+            }
         }
 
         int remainingItems = gui.getInventory().getItems(itemAlias).size();

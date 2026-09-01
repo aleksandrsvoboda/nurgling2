@@ -23,6 +23,7 @@ import nurgling.widgets.Specialisation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TakeItems2 implements Action
@@ -78,6 +79,17 @@ public class TakeItems2 implements Action
             }
         }
     }
+    /**
+     * Optional, caller owned: hashes of source containers already seen to hold none of
+     * {@link #item}. A caller that runs TakeItems2 repeatedly for the same item - a
+     * fetch/distribute loop, say - shares one set across those runs so later passes do not
+     * walk back to and re-open storages they already emptied. Each set belongs to exactly one
+     * item name, since a container out of cocoons may still be full of leaves.
+     * <p>
+     * Only safe while nothing refills those containers mid-run, i.e. the source area is not
+     * also the destination area. Leave null to keep the old behaviour of re-checking everything.
+     */
+    public Set<String> depleted = null;
 
 
     public TakeItems2(NContext context, String item, int count)
@@ -152,6 +164,13 @@ public class TakeItems2 implements Action
             return Results.FAIL();
         for(NContext.ObjectStorage input: inputs)
         {
+            /* Stop touring source storages the moment nothing more can be carried. `count` is
+             * routinely a whole area's demand rather than one inventory load, and the
+             * ">= count" test below then never fires - so without this we walk to and open
+             * every remaining container with a full inventory before the caller ever gets a
+             * chance to unload. */
+            if(hasNoRoomLeft(gui))
+                break;
             if(input instanceof NContext.Barter)
                 takeFromBarter(left,gui, (NContext.Barter)input);
             else if (input instanceof NContext.Pile)
@@ -270,6 +289,22 @@ public class TakeItems2 implements Action
             left.set(count - got);
         }
         return Results.SUCCESS();
+    }
+
+    /**
+     * True when no more of {@link #item} can physically be carried: not one free cell for even
+     * the smallest item, and no partly filled stack of it left to top up. Deliberately
+     * conservative - it reports "full" only when the inventory is literally out of cells, so it
+     * can never cut a take short while room remains.
+     */
+    private boolean hasNoRoomLeft(NGameUI gui) throws InterruptedException
+    {
+        NInventory inv = gui.getInventory();
+        if(inv == null)
+            return false;
+        if(inv.getNumberFreeCoord(new Coord(1, 1)) > 0)
+            return false;
+        return inv.findNotFullStack(item) == null;
     }
 
     public Results takeFromBarter(AtomicInteger left, NGameUI gui, NContext.Barter barter) throws InterruptedException
@@ -400,6 +435,8 @@ public class TakeItems2 implements Action
 
     public Results takeFromContainer(AtomicInteger left, NGameUI gui, Container cont) throws InterruptedException
     {
+        if(depleted != null && cont.gobHash != null && depleted.contains(cont.gobHash))
+            return Results.SUCCESS();
         Gob contgob = Finder.findGob(cont.gobHash);
         if(contgob == null)
             return Results.FAIL();
@@ -412,7 +449,29 @@ public class TakeItems2 implements Action
         tifc.minSize = left.get();
         tifc.exactMatch = this.exactMatch;
         tifc.run(gui);
+        markDepletedIfEmpty(gui, cont);
         new CloseTargetContainer(cont).run(gui);
         return Results.SUCCESS();
+    }
+
+    /**
+     * Record - while the container is still open - that it holds none of {@link #item}, so a
+     * later pass of the same fetch loop can skip it without walking back. A plain NAlias match
+     * is a superset of what TakeItemsFromContainer would have taken (exactMatch and quality
+     * only narrow it further), so "none" here really does mean nothing is left worth a visit.
+     * <p>
+     * getInventory resolves by window caption and can hand back a different container of the
+     * same kind, so the reading is only trusted when the window is provably bound to this gob -
+     * the same guard {@link Container#update()} uses. Misjudging it would strand items.
+     */
+    private void markDepletedIfEmpty(NGameUI gui, Container cont) throws InterruptedException
+    {
+        if(depleted == null || cont.gobHash == null || cont.cap == null)
+            return;
+        NInventory inv = gui.getInventory(cont.cap);
+        if(inv == null || inv.parentGob == null || inv.parentGob.id != cont.gobid)
+            return;
+        if(inv.getItems(new NAlias(item)).isEmpty())
+            depleted.add(cont.gobHash);
     }
 }
