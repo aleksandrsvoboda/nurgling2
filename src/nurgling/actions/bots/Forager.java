@@ -146,6 +146,12 @@ public class Forager implements Action {
         }
 
         gui.activeBotPath = path;
+        // Index of the waypoint Forager is currently heading toward - starts at 0 (the initial
+        // walk to path.waypoints.get(0) below) and advances to i+1 at the top of each main-loop
+        // iteration (see below), so NWaypointOverlay can color it as the "active" node and
+        // everything before it as already-passed, independent of the movement-queue/Routes-
+        // editor convention of always treating index 0 as active.
+        gui.activeBotWaypointIndex = 0;
         Thread threatWatcher = null;
         try {
 
@@ -259,6 +265,10 @@ public class Forager implements Action {
             // detour/pathfind/collect logic - there is nothing to walk or scan along the way.
             ForagerWaypoint fromWp = path.waypoints.get(i);
             ForagerWaypoint toWp = path.waypoints.get(i + 1);
+            // We're now heading toward i+1 for the rest of this iteration (walk, arrival, steps,
+            // gob-collection/detours all included) - see the field's own javadoc on why this is
+            // set once per iteration rather than at each individual arrival point below.
+            gui.activeBotWaypointIndex = i + 1;
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
                 // UseMilestone.run() already reports its own failure message via Results.ERROR().
                 // toWp is passed as the expected destination so it can validate we actually landed
@@ -447,6 +457,7 @@ public class Forager implements Action {
             }
             gui.activeBotPath = null;
             gui.activeBotDetourTrail = null;
+            gui.activeBotWaypointIndex = -1;
         }
     }
 

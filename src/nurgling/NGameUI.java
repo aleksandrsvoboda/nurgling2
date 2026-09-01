@@ -63,6 +63,13 @@ public class NGameUI extends GameUI
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
+    // Index into activeBotPath.waypoints of whichever one Forager is currently heading toward -
+    // set/advanced by actions/bots/Forager.java's run loop, -1 when no bot is running. Lets
+    // NWaypointOverlay color the current target, already-passed, and not-yet-reached waypoints
+    // differently as a run progresses, instead of always treating index 0 as "active" (the
+    // convention Forager Settings' Routes editor and WaypointMovementService's queue still use,
+    // since neither has a moving "current position" concept).
+    public int activeBotWaypointIndex = -1;
     // Set/cleared by ForagerSettingsPanel while its Routes section is expanded - a separate,
     // independent context from activeBotPath (which means "a bot is running"). Lets NMapView
     // show the route currently being edited in Settings overlaid on the real 3D map, and lets
