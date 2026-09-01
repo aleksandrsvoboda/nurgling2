@@ -4,6 +4,13 @@ import haven.*;
 import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
+import nurgling.guarding.Guard;
+import nurgling.guarding.GuardEntry;
+import nurgling.guarding.GuardInput;
+import nurgling.guarding.GuardOutcome;
+import nurgling.guarding.GuardRegistry;
+import nurgling.guarding.GuardSpec;
+import nurgling.guarding.GuardingProfile;
 import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
 import nurgling.routes.ForagerPath;
@@ -19,24 +26,22 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * "Forager Settings" panel under Settings &gt; Bots. Owns editing of Forager's Actions Profiles
- * (named, independently-saved pickup-action lists - see {@link ForagerPickupContainer}, which
- * resolves each dropped/typed item's gob pattern and best-guesses its flower-menu action rather
- * than requiring one picked from a fixed list); the Forager bot-launch window only *selects* one
- * of these to run with, it no longer edits them. Routes profiles are edited the same way.
+ * "Forager Settings" panel under Settings &gt; Bots. Owns editing of Forager's Actions, Routes,
+ * and Guarding Profiles - the Forager bot-launch window only *selects* one of each to run with,
+ * it no longer edits any of them.
  * <p>
- * <b>Guarding section is a UI mockup only</b> - built ahead of the real data model per direct
- * request, so the layout/field set can be reviewed before wiring it up. It does not read or
- * write {@code NForagerProp}/a {@code GuardingProfile}, has no effect on the bot-launch window's
- * still-live safety dropdowns, and none of its values are consumed by {@code Forager}'s actual
- * watchdog ({@code detectThreat()}) - every field here just holds local in-memory UI state that
- * resets the next time this panel is constructed. Wiring it up (a real {@code GuardingProfile}
- * class, persistence, and hooking the watchdog's hardcoded thresholds/toggles to the selected
- * profile) is a separate, later pass.
+ * The Guarding section's check rows (Low energy, Low hitpoints, Stuck detection, Unknown
+ * player, Dangerous animal - split into Pre-flight/In-flight groups) are built generically from
+ * whatever's registered in {@link GuardRegistry}, not hand-coded per guard type - see
+ * {@link #buildGuardRow}. A new guard type registered there (id, label, its {@link GuardInput}s,
+ * and which phase(s) it applies to) shows up here automatically, already editable, with no
+ * further UI code needed.
  */
 public class ForagerSettingsPanel extends Panel {
 
@@ -83,6 +88,9 @@ public class ForagerSettingsPanel extends Panel {
     // the Cancel button, which calls load() directly) discards pending route edits instead of
     // auto-saving them - see routeDropbox's change() override.
     private boolean suppressRouteAutoSave = false;
+    // Same purpose as suppressRouteAutoSave above, for guardingProfileDropbox's own
+    // write-back-before-switch logic - set around load()'s programmatic selection.
+    private boolean suppressGuardingAutoSave = false;
 
     // Built lazily on first load() (see ensureRouteMapBuilt()), not in the constructor - every
     // Panel in this settings window is constructed eagerly for the whole NSettingsWindow, itself
@@ -96,43 +104,39 @@ public class ForagerSettingsPanel extends Panel {
     private TextEntry maxDistanceEntry;
     private TextEntry maxChainDistanceEntry;
 
-    // ---- Guarding (UI mockup only - see class javadoc) ----
+    // ---- Guarding ----
     // "break" simply stops the bot (Results.SUCCESS() and return, no travel/logout) - the
-    // reaction to actually take when a check fires; whether that check runs at all is now a
-    // separate per-row enabled CheckBox (see e.g. preflightEnergyEnabledCheck below) rather
-    // than a "nothing" pseudo-off entry here, per direct correction.
-    private static final String[] GUARD_ACTIONS = {"break", "logout", "travel hearth"};
+    // reaction to actually take when a check fires; whether that check runs at all is a
+    // separate per-row enabled CheckBox (see GuardRow/buildGuardRow below) rather than a
+    // "nothing" pseudo-off entry here.
+    private static final String[] GUARD_ACTIONS = GuardOutcome.ALL_IDS;
     private static final int CHECK_TOGGLE_X = 0;
     private static final int CHECK_LABEL_X = 24;
-    // Mock profile list - names only, no per-profile threshold/toggle storage yet, so switching
-    // the selection intentionally leaves every field below untouched.
-    private final List<String> guardingProfileNames = new ArrayList<>(Collections.singletonList("Default"));
+
+    private GuardingProfile currentGuardingProfile;
     private Dropbox<String> guardingProfileDropbox;
     private CheckBox waterModeCheck;
     private CheckBox ignoreBatsCheck;
-    // Pre-flight (checked once before departing) vs in-flight (checked continuously while
-    // running) - deliberately separate action+threshold pairs per direct request, since the
-    // same check (energy/HP) can reasonably want a different threshold depending on phase.
-    private CheckBox preflightEnergyEnabledCheck;
-    private Dropbox<String> preflightEnergyActionDropbox;
-    private TextEntry preflightEnergyThresholdEntry;
-    private CheckBox preflightHpEnabledCheck;
-    private Dropbox<String> preflightHpActionDropbox;
-    private TextEntry preflightHpThresholdEntry;
-    private CheckBox inflightEnergyEnabledCheck;
-    private Dropbox<String> inflightEnergyActionDropbox;
-    private TextEntry inflightEnergyThresholdEntry;
-    private CheckBox inflightHpEnabledCheck;
-    private Dropbox<String> inflightHpActionDropbox;
-    private TextEntry inflightHpThresholdEntry;
-    private CheckBox stuckEnabledCheck;
-    private Dropbox<String> stuckActionDropbox;
-    private TextEntry stuckDistanceEntry;
-    private TextEntry stuckTimeoutEntry;
-    private CheckBox unknownPlayerEnabledCheck;
-    private Dropbox<String> unknownPlayerActionDropbox;
-    private CheckBox animalEnabledCheck;
-    private Dropbox<String> onAnimalActionDropbox;
+
+    /** One built row's live widgets, keyed by GuardSpec.id in preflightRows/inflightRows below -
+     *  see buildGuardRow(). */
+    private static final class GuardRow {
+        final CheckBox enabled;
+        final List<TextEntry> inputs;
+        final Dropbox<String> outcome;
+
+        GuardRow(CheckBox enabled, List<TextEntry> inputs, Dropbox<String> outcome) {
+            this.enabled = enabled;
+            this.inputs = inputs;
+            this.outcome = outcome;
+        }
+    }
+
+    // Built once in the constructor, one row per GuardRegistry.preflightIds()/inflightIds() -
+    // see buildGuardRow(). Populated from/written back to currentGuardingProfile in
+    // loadGuardingProfile()/writeBackCurrentGuardingProfile().
+    private final Map<String, GuardRow> preflightRows = new LinkedHashMap<>();
+    private final Map<String, GuardRow> inflightRows = new LinkedHashMap<>();
 
     private Scrollport scroll;
     private CollapsibleSection routesSection;
@@ -389,7 +393,7 @@ public class ForagerSettingsPanel extends Panel {
         // see ensureRouteMapBuilt(), called from load().
         routesSection.pack();
 
-        // ---- Guarding (UI mockup only - see class javadoc) ----
+        // ---- Guarding ----
         CollapsibleSection guardingSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.guarding_section"), UI.scale(540), true), routesSection.pos("bl").add(UI.scale(0, 10)));
         guardingSection.setOnToggle(this::relayoutSections);
         sections.add(guardingSection);
@@ -400,22 +404,43 @@ public class ForagerSettingsPanel extends Panel {
         gprev = gsec.add(new Label(L10n.get("forager.settings.guarding_profile")), gprev.pos("bl").add(UI.scale(0, 12)));
         Widget guardingProfileRow = gsec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), gprev.pos("bl").add(UI.scale(0, 5)));
         guardingProfileRow.add(guardingProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
+            private List<String> names() {
+                return prop != null ? new ArrayList<>(new TreeSet<>(prop.guardingProfiles.keySet())) : Collections.emptyList();
+            }
+
             @Override
             protected String listitem(int i) {
-                return guardingProfileNames.get(i);
+                return names().get(i);
             }
 
             @Override
             protected int listitems() {
-                return guardingProfileNames.size();
+                return names().size();
             }
 
             @Override
             protected void drawitem(GOut g, String item, int i) {
                 g.text(item, Coord.z);
             }
+
+            @Override
+            public void change(String item) {
+                String previous = sel;
+                super.change(item);
+                if (item != null && prop != null) {
+                    // Switching profiles must not silently drop in-progress edits to the one
+                    // being switched away from - same principle routeDropbox already follows
+                    // for routes, since these widgets (unlike pickupContainer's live-mutated
+                    // list) only get read back into the model on an explicit write-back.
+                    if (!suppressGuardingAutoSave && previous != null && !previous.equals(item) && currentGuardingProfile != null) {
+                        writeBackCurrentGuardingProfile();
+                        prop.guardingProfiles.put(previous, currentGuardingProfile);
+                    }
+                    prop.currentGuardingProfile = item;
+                    loadGuardingProfile(item);
+                }
+            }
         }, new Coord(0, 0));
-        guardingProfileDropbox.change(guardingProfileNames.get(0));
 
         guardingProfileRow.add(new IButton(
                 Resource.loadsimg("nurgling/hud/buttons/add/u"),
@@ -446,87 +471,63 @@ public class ForagerSettingsPanel extends Panel {
         ignoreBatsCheck.a = true;
         ignoreBatsCheck.settip(L10n.get("forager.settings.ignore_bats_tip"));
 
-        // Each check row has its own enabled CheckBox (fully off when unchecked, per direct
-        // correction - a "nothing" pseudo-off entry in the action dropdown was removed) plus an
-        // action dropdown for what to do when it fires: "break" (just stops the bot),
+        // Every check row below is built generically from GuardRegistry (see buildGuardRow) -
+        // registering a new GuardSpec there is all a new guard type needs to appear here, no
+        // hand-written widget code required. Each row has its own enabled CheckBox (fully off
+        // when unchecked - there's no "nothing" pseudo-off entry in the action dropdown) plus
+        // an action dropdown for what to do when it fires: "break" (just stops the bot),
         // "logout", or "travel hearth". Split into Pre-flight (checked once before departing)
-        // and In-flight (checked continuously while running) per direct request: the same
-        // underlying check can reasonably want a different threshold depending on phase - a
-        // route that starts a little low on energy might be fine, an in-flight drop to that
-        // same level might not be. Every row uses the same rowItem()-vertically-centered,
-        // fixed-column layout (checkbox/description/value(s)/action dropdown) so the whole
-        // section reads as one consistent list instead of each row picking its own offsets.
+        // and In-flight (checked continuously while running): the same underlying check can
+        // reasonably want a different threshold depending on phase - a route that starts a
+        // little low on energy might be fine, an in-flight drop to that same level might not be.
         Widget preflightLabel = gsec.add(new Label(L10n.get("forager.settings.preflight_checks")), toggleRow.pos("bl").add(UI.scale(0, 14)));
+        Widget prevGuardRow = preflightLabel;
+        for (String id : GuardRegistry.preflightIds()) {
+            prevGuardRow = buildGuardRow(gsec, prevGuardRow, GuardRegistry.get(id), preflightRows);
+        }
 
-        Coord rowSz = new Coord(UI.scale(ROW_W), UI.scale(ROW_H));
-
-        Widget preflightEnergyRow = gsec.add(new Widget(rowSz), preflightLabel.pos("bl").add(UI.scale(0, 6)));
-        preflightEnergyEnabledCheck = rowItem(preflightEnergyRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        preflightEnergyEnabledCheck.a = true;
-        rowItem(preflightEnergyRow, new Label(L10n.get("forager.settings.low_energy_below")), UI.scale(CHECK_LABEL_X));
-        preflightEnergyThresholdEntry = rowItem(preflightEnergyRow, new TextEntry(UI.scale(ENTRY_W), "22"), UI.scale(ROW_VALUE1_X));
-        rowItem(preflightEnergyRow, new Label("%"), UI.scale(ROW_UNIT1_X));
-        preflightEnergyActionDropbox = rowItem(preflightEnergyRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
-
-        Widget preflightHpRow = gsec.add(new Widget(rowSz), preflightEnergyRow.pos("bl").add(UI.scale(0, 4)));
-        preflightHpEnabledCheck = rowItem(preflightHpRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        preflightHpEnabledCheck.a = true;
-        rowItem(preflightHpRow, new Label(L10n.get("forager.settings.low_hp_below")), UI.scale(CHECK_LABEL_X));
-        preflightHpThresholdEntry = rowItem(preflightHpRow, new TextEntry(UI.scale(ENTRY_W), "50"), UI.scale(ROW_VALUE1_X));
-        rowItem(preflightHpRow, new Label("%"), UI.scale(ROW_UNIT1_X));
-        preflightHpActionDropbox = rowItem(preflightHpRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
-
-        Widget inflightLabel = gsec.add(new Label(L10n.get("forager.settings.inflight_checks")), preflightHpRow.pos("bl").add(UI.scale(0, 14)));
-
-        Widget inflightEnergyRow = gsec.add(new Widget(rowSz), inflightLabel.pos("bl").add(UI.scale(0, 6)));
-        inflightEnergyEnabledCheck = rowItem(inflightEnergyRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        inflightEnergyEnabledCheck.a = true;
-        rowItem(inflightEnergyRow, new Label(L10n.get("forager.settings.low_energy_below")), UI.scale(CHECK_LABEL_X));
-        inflightEnergyThresholdEntry = rowItem(inflightEnergyRow, new TextEntry(UI.scale(ENTRY_W), "22"), UI.scale(ROW_VALUE1_X));
-        rowItem(inflightEnergyRow, new Label("%"), UI.scale(ROW_UNIT1_X));
-        inflightEnergyActionDropbox = rowItem(inflightEnergyRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
-
-        Widget inflightHpRow = gsec.add(new Widget(rowSz), inflightEnergyRow.pos("bl").add(UI.scale(0, 4)));
-        inflightHpEnabledCheck = rowItem(inflightHpRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        inflightHpEnabledCheck.a = true;
-        rowItem(inflightHpRow, new Label(L10n.get("forager.settings.low_hp_below")), UI.scale(CHECK_LABEL_X));
-        inflightHpThresholdEntry = rowItem(inflightHpRow, new TextEntry(UI.scale(ENTRY_W), "50"), UI.scale(ROW_VALUE1_X));
-        rowItem(inflightHpRow, new Label("%"), UI.scale(ROW_UNIT1_X));
-        inflightHpActionDropbox = rowItem(inflightHpRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
-
-        Widget stuckRow = gsec.add(new Widget(rowSz), inflightHpRow.pos("bl").add(UI.scale(0, 4)));
-        stuckEnabledCheck = rowItem(stuckRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        stuckEnabledCheck.a = true;
-        rowItem(stuckRow, new Label(L10n.get("forager.settings.stuck_moved_less_than")), UI.scale(CHECK_LABEL_X));
-        stuckDistanceEntry = rowItem(stuckRow, new TextEntry(UI.scale(ENTRY_W), "3"), UI.scale(ROW_VALUE1_X));
-        rowItem(stuckRow, new Label(L10n.get("forager.settings.stuck_tiles_in")), UI.scale(ROW_UNIT1_X));
-        stuckTimeoutEntry = rowItem(stuckRow, new TextEntry(UI.scale(ENTRY_W), "10"), UI.scale(ROW_VALUE2_X));
-        rowItem(stuckRow, new Label(L10n.get("forager.settings.stuck_seconds")), UI.scale(ROW_UNIT2_X));
-        stuckActionDropbox = rowItem(stuckRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
-
-        Widget unknownPlayerRow = gsec.add(new Widget(rowSz), stuckRow.pos("bl").add(UI.scale(0, 4)));
-        unknownPlayerEnabledCheck = rowItem(unknownPlayerRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        unknownPlayerEnabledCheck.a = true;
-        rowItem(unknownPlayerRow, new Label(L10n.get("forager.settings.unknown_player_nearby")), UI.scale(CHECK_LABEL_X));
-        unknownPlayerActionDropbox = rowItem(unknownPlayerRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
-
-        // Aggression Radii button sits in the same value column other rows use for their
-        // numeric entries, so the action dropdown stays aligned at the far right like every
-        // other row - same row as the animal check, per direct request. rowItem() (rather than
-        // a fixed y offset) is what actually fixes the button being "cut off"/misaligned - a
-        // Button renders taller than a Label/TextEntry/Dropbox, so it needs to be vertically
-        // centered against the row like everything else instead of pinned to the same y=0/y=4
-        // baseline that happened to work for the shorter widgets.
-        Widget animalRow = gsec.add(new Widget(rowSz), unknownPlayerRow.pos("bl").add(UI.scale(0, 4)));
-        animalEnabledCheck = rowItem(animalRow, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
-        animalEnabledCheck.a = true;
-        rowItem(animalRow, new Label(L10n.get("forager.settings.dangerous_animal_nearby")), UI.scale(CHECK_LABEL_X));
-        rowItem(animalRow, new Button(UI.scale(150), L10n.get("forager.settings.aggression_radii"), this::openRingSettings), UI.scale(ROW_VALUE1_X));
-        onAnimalActionDropbox = rowItem(animalRow, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
+        Widget inflightLabel = gsec.add(new Label(L10n.get("forager.settings.inflight_checks")), prevGuardRow.pos("bl").add(UI.scale(0, 14)));
+        prevGuardRow = inflightLabel;
+        for (String id : GuardRegistry.inflightIds()) {
+            prevGuardRow = buildGuardRow(gsec, prevGuardRow, GuardRegistry.get(id), inflightRows);
+        }
 
         guardingSection.pack();
 
         relayoutSections();
+    }
+
+    /** Builds one generic guard-check row (enabled checkbox, description, up to 2 input fields,
+     *  action dropdown) from a GuardSpec and records its live widgets in rowMap keyed by
+     *  spec.id, so load/save can populate/read it against a GuardEntry of the same id - this is
+     *  what makes the Guarding section grow automatically as GuardRegistry gains guard types,
+     *  with no per-type UI code. The "Aggression Radii..." link is the one special case (it
+     *  opens another settings panel, not a trigger input, so it doesn't fit GuardInput's
+     *  declarative model) - kept as an explicit id check rather than generalizing GuardInput to
+     *  cover arbitrary UI extras. */
+    private Widget buildGuardRow(Widget gsec, Widget prev, GuardSpec spec, Map<String, GuardRow> rowMap) {
+        Widget row = gsec.add(new Widget(new Coord(UI.scale(ROW_W), UI.scale(ROW_H))), prev.pos("bl").add(UI.scale(0, 4)));
+        CheckBox enabled = rowItem(row, new CheckBox(""), UI.scale(CHECK_TOGGLE_X));
+        rowItem(row, new Label(spec.label), UI.scale(CHECK_LABEL_X));
+
+        int[] valueXs = {ROW_VALUE1_X, ROW_VALUE2_X};
+        int[] unitXs = {ROW_UNIT1_X, ROW_UNIT2_X};
+        List<TextEntry> inputEntries = new ArrayList<>();
+        for (int i = 0; i < spec.inputs.size() && i < valueXs.length; i++) {
+            GuardInput input = spec.inputs.get(i);
+            TextEntry entry = rowItem(row, new TextEntry(UI.scale(ENTRY_W), String.valueOf((long) input.defaultValue)), UI.scale(valueXs[i]));
+            rowItem(row, new Label(input.suffixLabel), UI.scale(unitXs[i]));
+            inputEntries.add(entry);
+        }
+
+        if ("dangerous_animal".equals(spec.id)) {
+            rowItem(row, new Button(UI.scale(150), L10n.get("forager.settings.aggression_radii"), this::openRingSettings), UI.scale(ROW_VALUE1_X));
+        }
+
+        Dropbox<String> outcome = rowItem(row, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
+
+        rowMap.put(spec.id, new GuardRow(enabled, inputEntries, outcome));
+        return row;
     }
 
     /** Adds child to row, vertically centered against the row's own declared height regardless
@@ -625,6 +626,19 @@ public class ForagerSettingsPanel extends Panel {
         actionsProfileDropbox.change(prop.currentActionsProfile);
         pickupContainer.load(prop.actionsProfiles.get(prop.currentActionsProfile));
 
+        if (prop.guardingProfiles.isEmpty()) {
+            prop.guardingProfiles.put("Default", GuardingProfile.withDefaults());
+        }
+        if (prop.currentGuardingProfile == null || !prop.guardingProfiles.containsKey(prop.currentGuardingProfile)) {
+            prop.currentGuardingProfile = prop.guardingProfiles.keySet().iterator().next();
+        }
+        suppressGuardingAutoSave = true;
+        try {
+            guardingProfileDropbox.change(prop.currentGuardingProfile);
+        } finally {
+            suppressGuardingAutoSave = false;
+        }
+
         loadAvailableRoutes();
         suppressRouteAutoSave = true;
         try {
@@ -641,9 +655,83 @@ public class ForagerSettingsPanel extends Panel {
     @Override
     public void save() {
         if (prop != null) {
+            writeBackCurrentGuardingProfile();
+            if (currentGuardingProfile != null && guardingProfileDropbox.sel != null) {
+                prop.guardingProfiles.put(guardingProfileDropbox.sel, currentGuardingProfile);
+            }
             NForagerProp.set(prop);
         }
         saveCurrentRoute();
+    }
+
+    /** Populates every Guarding widget (water mode/ignore bats + every built guard row) from
+     *  the named profile, creating it with GuardingProfile.withDefaults() first if it doesn't
+     *  exist yet (defensive - prop.guardingProfiles should already contain every key the
+     *  dropdown can select). reconcileWithRegistry() keeps an older saved profile in sync with
+     *  whatever guard types are currently registered before the rows try to read it. */
+    private void loadGuardingProfile(String name) {
+        if (prop == null) return;
+        GuardingProfile profile = prop.guardingProfiles.get(name);
+        if (profile == null) {
+            profile = GuardingProfile.withDefaults();
+            prop.guardingProfiles.put(name, profile);
+        }
+        profile.reconcileWithRegistry();
+        currentGuardingProfile = profile;
+
+        waterModeCheck.a = profile.waterMode;
+        ignoreBatsCheck.a = profile.ignoreBats;
+
+        applyGuardEntriesToRows(profile.preflightGuards, preflightRows);
+        applyGuardEntriesToRows(profile.inflightGuards, inflightRows);
+    }
+
+    private void applyGuardEntriesToRows(List<GuardEntry> entries, Map<String, GuardRow> rowMap) {
+        for (GuardEntry entry : entries) {
+            GuardRow row = rowMap.get(entry.guardId);
+            GuardSpec spec = GuardRegistry.get(entry.guardId);
+            if (row == null || spec == null) continue;
+            row.enabled.a = entry.enabled;
+            for (int i = 0; i < spec.inputs.size() && i < row.inputs.size(); i++) {
+                GuardInput input = spec.inputs.get(i);
+                double v = entry.settings.getOrDefault(input.key, input.defaultValue);
+                row.inputs.get(i).settext(String.valueOf((long) v));
+            }
+            row.outcome.change(entry.outcomeId);
+        }
+    }
+
+    /** Reads every Guarding widget back into currentGuardingProfile - called before switching
+     *  the selected profile (so the one being switched away from doesn't silently lose
+     *  in-progress edits) and from save(). */
+    private void writeBackCurrentGuardingProfile() {
+        if (currentGuardingProfile == null) return;
+        currentGuardingProfile.waterMode = waterModeCheck.a;
+        currentGuardingProfile.ignoreBats = ignoreBatsCheck.a;
+        writeRowsToGuardEntries(currentGuardingProfile.preflightGuards, preflightRows);
+        writeRowsToGuardEntries(currentGuardingProfile.inflightGuards, inflightRows);
+    }
+
+    private void writeRowsToGuardEntries(List<GuardEntry> entries, Map<String, GuardRow> rowMap) {
+        for (GuardEntry entry : entries) {
+            GuardRow row = rowMap.get(entry.guardId);
+            GuardSpec spec = GuardRegistry.get(entry.guardId);
+            if (row == null || spec == null) continue;
+            entry.enabled = row.enabled.a;
+            entry.outcomeId = row.outcome.sel != null ? row.outcome.sel : "break";
+            for (int i = 0; i < spec.inputs.size() && i < row.inputs.size(); i++) {
+                GuardInput input = spec.inputs.get(i);
+                entry.settings.put(input.key, parseDoubleOrDefault(row.inputs.get(i).text(), input.defaultValue));
+            }
+        }
+    }
+
+    private double parseDoubleOrDefault(String text, double def) {
+        try {
+            return Double.parseDouble(text.trim());
+        } catch (Exception e) {
+            return def;
+        }
     }
 
     private void loadAvailableRoutes() {
@@ -816,17 +904,14 @@ public class ForagerSettingsPanel extends Panel {
         actionsProfileDropbox.change(next);
     }
 
-    /** Mock-only for now (see class javadoc) - just tracks profile names, no per-profile
-     *  threshold/toggle storage yet, so this never touches NForagerProp. */
     private void addGuardingProfile() {
+        if (prop == null) return;
         TextInputWindow win = new TextInputWindow(
                 L10n.get("forager.settings.new_guarding_profile_title"), L10n.get("forager.settings.new_guarding_profile_prompt"), name -> {
             if (name != null && !name.trim().isEmpty()) {
                 String trimmed = name.trim();
-                if (!guardingProfileNames.contains(trimmed)) {
-                    guardingProfileNames.add(trimmed);
-                    Collections.sort(guardingProfileNames);
-                }
+                prop.guardingProfiles.putIfAbsent(trimmed, GuardingProfile.withDefaults());
+                prop.currentGuardingProfile = trimmed;
                 guardingProfileDropbox.change(trimmed);
             }
         });
@@ -835,12 +920,16 @@ public class ForagerSettingsPanel extends Panel {
     }
 
     private void deleteGuardingProfile() {
-        if (guardingProfileDropbox.sel == null || guardingProfileNames.size() <= 1) {
-            // Always keep at least one profile to select, same rule as Actions profiles.
+        if (prop == null || guardingProfileDropbox.sel == null) return;
+        if (prop.guardingProfiles.size() <= 1) {
+            // Always keep at least one profile to select at bot start, same rule as Actions
+            // profiles.
             return;
         }
-        guardingProfileNames.remove(guardingProfileDropbox.sel);
-        guardingProfileDropbox.change(guardingProfileNames.get(0));
+        prop.guardingProfiles.remove(guardingProfileDropbox.sel);
+        String next = prop.guardingProfiles.keySet().iterator().next();
+        prop.currentGuardingProfile = next;
+        guardingProfileDropbox.change(next);
     }
 
     /** Opens the existing per-species aggression-radius editor in its own floating window

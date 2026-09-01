@@ -1,23 +1,22 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import haven.res.ui.obj.buddy.Buddy;
 import nurgling.*;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
-import nurgling.conf.NAreaRad;
 import nurgling.conf.NDiscordNotification;
 import nurgling.conf.NForagerProp;
+import nurgling.guarding.*;
 import nurgling.routes.*;
 import nurgling.tools.AreaStock;
 import nurgling.tools.Finder;
 import nurgling.tools.MilestoneRegistry;
 import nurgling.tools.NAlias;
 
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 public class Forager implements Action {
@@ -25,15 +24,21 @@ public class Forager implements Action {
     private HashSet<Long> processedGobs = new HashSet<>();
     private String presetName = null;
 
-    // Set by the threat watcher just before it interrupts the bot thread, so run() can tell
+    // Set by the guard watcher just before it interrupts the bot thread, so run() can tell
     // "the watcher stopped me on purpose" apart from a genuine external cancel (e.g. the user
     // clicking the bot's stop button) - which must still propagate as a real interrupt.
     private volatile boolean threatStopTriggered = false;
 
-    // The safety action the watcher detected a need for ("logout"/"travel hearth"), performed
-    // by the bot thread itself after it's been interrupted - not by the watcher thread. See
-    // detectThreat()'s javadoc for why the watcher only detects and never acts.
-    private volatile String pendingSafetyAction = null;
+    // The Guard whose trigger fired, set by the guard watcher (see startGuardWatcher) just
+    // before it interrupts the bot thread. Its outcome is performed by the bot thread itself
+    // after it's been interrupted - not by the watcher thread. See startGuardWatcher's javadoc
+    // for why.
+    private volatile Guard pendingGuard = null;
+
+    // Resolved once near the top of run() from prop.guardingProfiles/currentGuardingProfile -
+    // see resolveGuardingProfile(). Read by effectiveWaterMode() and used to build both the
+    // pre-flight and in-flight guard lists.
+    private GuardingProfile guardingProfile = null;
 
     // Set once run() has resolved it, so performGobAction() can persist a confirmed flower-menu
     // action back onto the live ForagerAction without needing it threaded through every method
@@ -135,17 +140,27 @@ public class Forager implements Action {
         Thread threatWatcher = null;
         try {
 
-        // Get dangerous animal patterns (and their configured danger radius) from NConfig
-        @SuppressWarnings("unchecked")
-        ArrayList<NAreaRad> animalRads = (ArrayList<NAreaRad>) NConfig.get(NConfig.Key.animalrad);
-        if (animalRads == null) {
-            animalRads = new ArrayList<>();
+        guardingProfile = resolveGuardingProfile(prop, preset);
+
+        // Pre-flight guards: checked once, synchronously, before any movement at all (not even
+        // the walk to the route's start position below) - if one fires, perform its outcome
+        // immediately and end the run without ever taking a step. Distinct from the in-flight
+        // guards below, which run continuously for as long as the bot is active - the same
+        // underlying check (e.g. energy/HP) can be configured with a different threshold/
+        // reaction for each phase (see GuardingProfile).
+        GuardContext preflightCtx = new GuardContext(gui, guardingProfile.ignoreBats);
+        for (Guard guard : buildGuards(guardingProfile.preflightGuards)) {
+            if (guard.trigger.check(preflightCtx)) {
+                gui.msg("Forager: pre-flight - " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
+                guard.outcome.perform(gui);
+                return Results.SUCCESS();
+            }
         }
 
         // Runs continuously in the background for as long as this bot is active, so an
         // animal wandering into range - or an unknown player appearing - mid-walk (not just
         // between sections/actions) still triggers the safety action immediately.
-        threatWatcher = startThreatWatcher(gui, animalRads, preset, Thread.currentThread());
+        threatWatcher = startGuardWatcher(gui, guardingProfile, Thread.currentThread());
 
         // Audit every Maintain-configured action's assigned "Put" area (NArea.jout) before doing
         // anything else - same one-time-per-run, travel-and-count logic MaintainStockBot's own
@@ -391,7 +406,9 @@ public class Forager implements Action {
                 InterruptedException last = null;
                 for (int attempt = 1; attempt <= 3; attempt++) {
                     try {
-                        performSafetyAction(gui, pendingSafetyAction);
+                        if (pendingGuard != null) {
+                            pendingGuard.outcome.perform(gui);
+                        }
                         gui.msg("Forager: stopped safely after safety action");
                         return Results.SUCCESS();
                     } catch (InterruptedException retry) {
@@ -446,9 +463,16 @@ public class Forager implements Action {
      * mount state means the preset's own toggle is only needed for a route with no coracle step
      * at all (e.g. wading/swimming), and a coracle route just works without the user having to
      * predict which parts of their route need it.
+     * <p>
+     * The base toggle itself now comes from the resolved GuardingProfile (see
+     * resolveGuardingProfile()) rather than the legacy preset.waterMode field, when one is
+     * available - falling back to preset.waterMode only if guardingProfile somehow isn't set
+     * (shouldn't happen in a normal run() call, but this is also reachable from other bots'
+     * direct construction of Forager-adjacent PathFinder calls in tests/tools).
      */
     private boolean effectiveWaterMode(NGameUI gui, NForagerProp.PresetData preset) {
-        return preset.waterMode || CoracleBot.isPlayerInCoracle(gui);
+        boolean baseWaterMode = guardingProfile != null ? guardingProfile.waterMode : preset.waterMode;
+        return baseWaterMode || CoracleBot.isPlayerInCoracle(gui);
     }
 
     /**
@@ -577,8 +601,8 @@ public class Forager implements Action {
      * If the loop itself is interrupted (the safety watchdog tripping), the return-walk is
      * skipped entirely rather than attempted in a finally block - adding movement right as an
      * interrupt is trying to stop the character is exactly what broke the hearth-travel
-     * safety action earlier this session (see {@link #detectThreat}'s javadoc); the same risk
-     * applies here.
+     * safety action earlier this session (see {@link #startGuardWatcher}'s javadoc); the same
+     * risk applies here.
      */
     private void collectNearbyActionableGobs(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
         ArrayList<Coord2d> breadcrumbs = new ArrayList<>();
@@ -910,25 +934,64 @@ public class Forager implements Action {
         }
     }
     
+    /** Resolves the currently-selected GuardingProfile from prop.guardingProfiles/
+     *  currentGuardingProfile, migrating/defaulting on the fly if that selection somehow isn't
+     *  valid (mirrors currentActionsProfile's own defensive fallback in ForagerSettingsPanel).
+     *  Falls back to a fresh GuardingProfile.withDefaults() rather than erroring - a Forager
+     *  run should never be blocked from starting just because its guarding config is missing
+     *  or stale. */
+    private GuardingProfile resolveGuardingProfile(NForagerProp prop, NForagerProp.PresetData preset) {
+        if (prop.guardingProfiles == null || prop.guardingProfiles.isEmpty()) {
+            return GuardingProfile.withDefaults();
+        }
+        GuardingProfile p = prop.guardingProfiles.get(prop.currentGuardingProfile);
+        if (p != null) {
+            return p;
+        }
+        return prop.guardingProfiles.values().iterator().next();
+    }
+
+    private List<Guard> buildGuards(List<GuardEntry> entries) {
+        List<Guard> guards = new ArrayList<>();
+        for (GuardEntry entry : entries) {
+            Guard guard = entry.toGuard();
+            if (guard != null) {
+                guards.add(guard);
+            }
+        }
+        return guards;
+    }
+
     /**
-     * Starts a background thread that polls for threats (unknown players, dangerous animals)
-     * for as long as the bot is running, independent of whatever the bot thread is doing at
-     * the time - including mid-walk to a single distant gob, which the bot's own inline
-     * checks (only run between sections/actions) would otherwise miss entirely. On detecting
-     * a threat it only records which safety action is needed and interrupts the bot thread -
-     * it does not perform the action itself. See {@link #detectThreat} for why.
+     * Starts a background thread that polls the selected GuardingProfile's in-flight guards
+     * (unknown players, dangerous animals, low energy/HP, stuck detection - see GuardRegistry)
+     * for as long as the bot is running, independent of whatever the bot thread is doing at the
+     * time - including mid-walk to a single distant gob, which the bot's own inline checks
+     * (only run between sections/actions) would otherwise miss entirely. On a guard firing it
+     * only records which one and interrupts the bot thread - it does not perform the outcome
+     * itself.
+     * <p>
+     * The outcome runs later, on the bot thread, only once it's actually been interrupted and
+     * stopped moving/pathing - not on this watcher thread. Running it here instead would let
+     * the bot thread keep walking/acting in parallel with (and potentially cancelling) a
+     * multi-second travel-to-hearth channel, which looked like the bot's "running" indicator
+     * vanishing before the character actually got home (see run()'s InterruptedException catch
+     * block, which retries the outcome up to 3 times for exactly this reason).
      */
-    private Thread startThreatWatcher(NGameUI gui, ArrayList<NAreaRad> animalRads,
-                                       NForagerProp.PresetData preset, Thread botThread) {
+    private Thread startGuardWatcher(NGameUI gui, GuardingProfile profile, Thread botThread) {
+        List<Guard> guards = buildGuards(profile.inflightGuards);
+        GuardContext ctx = new GuardContext(gui, profile.ignoreBats);
         Thread watcher = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    String action = detectThreat(gui, animalRads, preset);
-                    if (action != null) {
-                        pendingSafetyAction = action;
-                        threatStopTriggered = true;
-                        botThread.interrupt();
-                        return;
+                    for (Guard guard : guards) {
+                        if (guard.trigger.check(ctx)) {
+                            gui.msg("Forager: " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
+                            pendingGuard = guard;
+                            threatStopTriggered = true;
+                            botThread.interrupt();
+                            return;
+                        }
                     }
                     Thread.sleep(300);
                 } catch (InterruptedException e) {
@@ -938,193 +1001,11 @@ public class Forager implements Action {
                     // watcher for the rest of the bot's run.
                 }
             }
-        }, "ForagerThreatWatcher");
+        }, "ForagerGuardWatcher");
         watcher.setDaemon(true);
         watcher.start();
         return watcher;
     }
-
-    // Same low-energy threshold Validator.java uses to gate every other bot's pre-flight
-    // check (22% energy). Unconditional - fires regardless of HP or the co-factor thresholds
-    // below.
-    private static final double LOW_ENERGY_THRESHOLD = 0.22;
-
-    // Reliable, always-live threshold on getHPFraction() - confirmed (via direct in-game
-    // testing) to be the character's HARD HP as a fraction of their true max, not soft HP as
-    // I'd twice previously assumed - see detectThreat's javadoc. A hard-HP ceiling eroded this
-    // far below true max is dangerous on its own, regardless of how "full" the character
-    // currently is relative to that reduced ceiling.
-    private static final double LOW_HP_FRACTION_THRESHOLD = 0.5;
-
-    // If the character hasn't moved more than this many world units in STUCK_TIMEOUT_MS,
-    // treat it as stuck rather than let it retry indefinitely - the most common cause is
-    // PathFinder repeatedly retrying a cliff climb (or snagging on an object right at a cliff
-    // face) without ever giving up. All normal stationary moments (picking a flower, a brief
-    // gate wait) finish well under this. Tracked across detectThreat() calls, so state lives
-    // on the instance rather than as locals.
-    private static final double STUCK_DISTANCE_THRESHOLD = 3.0;
-    private static final long STUCK_TIMEOUT_MS = 10_000;
-    private Coord2d lastStuckCheckPos = null;
-    private long lastMovedTime = 0;
-
-    /**
-     * Checks for unknown players, dangerous animals, low energy, or reduced/low soft
-     * hitpoints, returning which safety action is needed - but, deliberately, never performs
-     * it.
-     * <p>
-     * There are 3 distinct HP numbers in this game: <b>soft HP</b> (the character's actual
-     * current health - {@code getCurrentHP()}), <b>hard HP</b> (a ceiling soft HP is capped at,
-     * lowered by open wounds until they heal), and <b>max HP</b> (the theoretical ceiling with
-     * zero wounds - {@code getMaxHP()}). Confirmed via direct in-game testing (two earlier
-     * guesses at this mapping were both wrong): {@code getHPFraction()} is hard HP as a fraction
-     * of max, NOT soft HP as its name suggests - it's the only one of the three backed by an
-     * always-live value, {@code getCurrentHP()}/{@code getMaxHP()} are both parsed from tooltip
-     * text and can silently stay stale/-1 for an entire unattended session if nothing ever
-     * hovers the HP bar (see the 2026-08-18 incident notes on their own javadoc). "Full" health,
-     * in the sense that actually matters here, means soft == hard (as healed as current wounds
-     * allow), not soft == max (impossible while any wound persists) - see the two separate HP
-     * checks below for how this plays out given only one of the three numbers is reliable.
-     * <p>
-     * This runs on the watcher thread, in parallel with whatever the bot thread is doing;
-     * if it ran a multi-second action like "travel hearth" here, the bot thread would keep
-     * walking/acting the whole time (it hasn't been told to stop yet), and that movement can
-     * cancel the hearth-travel channel it's supposed to be waiting for - which looked like the
-     * bot's "running" indicator disappearing before the character actually got home. The
-     * watcher's only job is to detect and interrupt; {@link #run} performs the actual action
-     * after the interrupt has stopped the bot thread's own movement.
-     * <p>
-     * Each animal's trigger distance is 1.5x its configured danger radius (Options >
-     * Ring Settings) - the same per-species distances used for the on-screen warning circles,
-     * just with a bit of extra margin since this is meant to pull the character out before real
-     * danger, not after. Only animal detection is still gated by {@code onAnimalAction}
-     * (including "nothing") - an animal might just be passing through. Low energy, anything
-     * less than full soft hitpoints, too small a max soft-hitpoint pool, and an unknown/hostile
-     * player are all unconditional and always resolve to "travel hearth" regardless of preset
-     * settings - none of them are something a preset should be able to configure away (an
-     * unknown player ignored because {@code onPlayerAction} defaulted to "nothing" is exactly
-     * how the character got robbed).
-     *
-     * @return the safety action to perform ("logout"/"travel hearth"), or null if nothing was found
-     */
-    private String detectThreat(NGameUI gui, ArrayList<NAreaRad> animalRads,
-                                 NForagerProp.PresetData preset) throws InterruptedException {
-        Gob playerForStuckCheck = NUtils.player();
-        if (playerForStuckCheck != null) {
-            if (lastStuckCheckPos == null || playerForStuckCheck.rc.dist(lastStuckCheckPos) > STUCK_DISTANCE_THRESHOLD) {
-                lastStuckCheckPos = playerForStuckCheck.rc;
-                lastMovedTime = System.currentTimeMillis();
-            } else if (System.currentTimeMillis() - lastMovedTime > STUCK_TIMEOUT_MS) {
-                gui.msg("Forager: stuck in place for over " + (STUCK_TIMEOUT_MS / 1000) + "s - traveling to hearth");
-                return "travel hearth";
-            }
-        }
-
-        double energy = NUtils.getEnergy();
-        if (energy >= 0 && energy < LOW_ENERGY_THRESHOLD) {
-            gui.msg("Forager: energy at " + Math.round(energy * 100) + "% (below " +
-                    Math.round(LOW_ENERGY_THRESHOLD * 100) + "%) - traveling to hearth");
-            return "travel hearth";
-        }
-
-        // Reliable, always-live: hard HP eroded this far below true max is dangerous on its
-        // own, regardless of how "full" the character currently is relative to that reduced
-        // ceiling (the check right below this one).
-        double hardFrac = NUtils.getHPFraction();
-        if (hardFrac >= 0 && hardFrac < LOW_HP_FRACTION_THRESHOLD) {
-            gui.msg("Forager: hard hitpoint ceiling at " + Math.round(hardFrac * 100) + "% of max (below " +
-                    Math.round(LOW_HP_FRACTION_THRESHOLD * 100) + "%) - traveling to hearth");
-            return "travel hearth";
-        }
-
-        // The actual "not full" check: soft (current) hitpoints below the hard-HP ceiling
-        // wounds currently allow. Both fractions are live "hp" meter bar segments (see
-        // NUtils.getSoftHPFraction()'s javadoc) sharing the same denominator (true max), so
-        // soft/hard = softFrac/hardFrac needs no tooltip data at all - deliberately not using
-        // getCurrentHP()/getMaxHP() for the trigger condition itself, only for the chat
-        // message's raw numbers when that tip data happens to be fresh (it can silently stay
-        // stale/-1 all session, see this method's own javadoc).
-        double softFrac = NUtils.getSoftHPFraction();
-        if (softFrac >= 0 && hardFrac > 0 && softFrac < hardFrac) {
-            int curHP = NUtils.getCurrentHP();
-            int maxHP = NUtils.getMaxHP();
-            String detail = (curHP >= 0 && maxHP >= 0)
-                    ? (curHP + "/" + Math.round(hardFrac * maxHP))
-                    : (Math.round(softFrac * 100) + "% of a possible " + Math.round(hardFrac * 100) + "%");
-            gui.msg("Forager: soft hitpoints not full (" + detail + ") - traveling to hearth");
-            return "travel hearth";
-        }
-
-        // Unknown/hostile player detection - unconditional, always "travel hearth" regardless
-        // of preset.onPlayerAction (including "nothing"), same reasoning as HP/energy above.
-        // This preset field defaults to "nothing", so relying on it left the character
-        // getting robbed by a stranger with zero response - not something a preset should be
-        // able to leave silently disabled.
-        //
-        // gui.alarmWdg.borkas (populated by NGob.java for every rendered player-character gob)
-        // is every player nearby, not just unknown ones - a green/known-ally walking past
-        // isn't a threat. Filter to the same "unknown or hostile" definition the alarm/arrow
-        // system uses: no buddy-list entry at all, or a buddy in the white (unclassified) or
-        // red (hostile) kin group.
-        //
-        // borkas is a per-session instance field on NAlarmWdg (not static) - each client
-        // session tracks its own nearby players, so this must go through gui.alarmWdg rather
-        // than a shared static list that would leak detections across sessions.
-        if (gui.alarmWdg != null) {
-            synchronized (gui.alarmWdg.borkas) {
-                for (Long id : gui.alarmWdg.borkas) {
-                    Gob otherPlayer = Finder.findGob(id);
-                    if (otherPlayer == null) {
-                        continue;
-                    }
-                    Buddy buddy = otherPlayer.getattr(Buddy.class);
-                    boolean unknownOrHostile;
-                    if (buddy == null || buddy.b == null) {
-                        unknownOrHostile = true;
-                    } else {
-                        Color groupColor = BuddyWnd.gc[buddy.b.group];
-                        unknownOrHostile = groupColor.equals(Color.WHITE) || groupColor.equals(Color.RED);
-                    }
-                    if (unknownOrHostile) {
-                        gui.msg("Forager: unknown/hostile player nearby - traveling to hearth");
-                        return "travel hearth";
-                    }
-                }
-            }
-        }
-
-        if (!preset.onAnimalAction.equals("nothing")) {
-            Gob player = NUtils.player();
-            if (player == null) {
-                return null;
-            }
-            for (NAreaRad rad : animalRads) {
-                if (preset.ignoreBats && rad.name.contains("bat")) {
-                    continue;
-                }
-                // Ring Settings (NConfig.Key.animalrad) is a general "draw an awareness ring
-                // around this critter" list, not a danger list - it includes plain Rat
-                // (gfx/kritter/rat/rat) right alongside the genuinely aggressive Cave Rat
-                // (gfx/kritter/rat/caverat). Plain Rat is harmless and shouldn't trip the
-                // safety stop just because it happens to also have a configured ring.
-                if (rad.name.equals("gfx/kritter/rat/rat")) {
-                    continue;
-                }
-                // Widened from the usual 1.5x margin to 2x as a stopgap: Ring Settings'
-                // configured radius isn't reliably saving right now (separate, not-yet-fixed
-                // issue - deliberately not addressed here per direct instruction), so animals
-                // are being detected with a smaller effective radius than intended. Revert this
-                // back to 1.5x once the underlying save bug is actually fixed.
-                double triggerDist = rad.radius * 2;
-                Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, triggerDist);
-                if (animal != null) {
-                    return preset.onAnimalAction;
-                }
-            }
-        }
-
-        return null;
-    }
-
     private Gob findGobNear(Coord2d pos, double radius) {
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
             for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {

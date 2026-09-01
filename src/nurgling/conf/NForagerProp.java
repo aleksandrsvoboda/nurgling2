@@ -3,6 +3,8 @@ package nurgling.conf;
 import nurgling.NConfig;
 import nurgling.NUI;
 import nurgling.NUtils;
+import nurgling.guarding.GuardEntry;
+import nurgling.guarding.GuardingProfile;
 import nurgling.routes.ForagerAction;
 import nurgling.routes.ForagerPath;
 import org.json.JSONArray;
@@ -11,6 +13,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class NForagerProp implements JConf {
@@ -27,6 +30,13 @@ public class NForagerProp implements JConf {
     // pick an actions profile, a route, and a guarding profile independently.
     public String currentActionsProfile = "Default";
     public HashMap<String, ArrayList<ForagerAction>> actionsProfiles = new HashMap<>();
+
+    // Guarding profiles: named, independently-saved safety-watchdog configurations (Forager
+    // Settings > Guarding), each a list of composable Guard entries (see
+    // nurgling.guarding.GuardingProfile) - decoupled from PresetData the same way
+    // actionsProfiles already is above.
+    public String currentGuardingProfile = "Default";
+    public HashMap<String, GuardingProfile> guardingProfiles = new HashMap<>();
 
     public static class PresetData {
         public String pathFile = "";
@@ -61,6 +71,7 @@ public class NForagerProp implements JConf {
         this.chrid = chrid;
         presets.put("Default", new PresetData());
         actionsProfiles.put("Default", new ArrayList<>());
+        guardingProfiles.put("Default", GuardingProfile.withDefaults());
     }
     
     @SuppressWarnings("unchecked")
@@ -144,6 +155,74 @@ public class NForagerProp implements JConf {
                         ? currentPreset : actionsProfiles.keySet().iterator().next();
             }
         }
+
+        if (values.get("currentGuardingProfile") != null)
+            currentGuardingProfile = (String) values.get("currentGuardingProfile");
+
+        guardingProfiles = new HashMap<>();
+        if (values.get("guardingProfiles") != null) {
+            HashMap<String, HashMap<String, Object>> profilesMap =
+                (HashMap<String, HashMap<String, Object>>) values.get("guardingProfiles");
+            for (Map.Entry<String, HashMap<String, Object>> entry : profilesMap.entrySet()) {
+                guardingProfiles.put(entry.getKey(), new GuardingProfile(entry.getValue()));
+            }
+        }
+        if (guardingProfiles.isEmpty()) {
+            // Legacy config predating guardingProfiles: migrate each existing preset's own
+            // onAnimalAction/ignoreBats/waterMode into its own named GuardingProfile, one per
+            // preset name (same shape actionsProfiles' own migration above already uses),
+            // rather than silently discarding those settings or presenting bare defaults. A
+            // preset's onAnimalAction=="nothing" used to mean the whole animal scan was
+            // skipped entirely (see the old detectThreat()'s `if
+            // (!preset.onAnimalAction.equals("nothing"))` guard) - the new model's equivalent
+            // of "skip this check" is disabling its guard outright, not picking an outcome that
+            // does nothing (that option no longer exists), so that maps to enabled=false here
+            // rather than outcomeId="break".
+            for (Map.Entry<String, PresetData> entry : presets.entrySet()) {
+                PresetData pd = entry.getValue();
+                GuardingProfile migrated = GuardingProfile.withDefaults();
+                migrated.waterMode = pd.waterMode;
+                migrated.ignoreBats = pd.ignoreBats;
+                for (GuardEntryPatch patch : new GuardEntryPatch[]{new GuardEntryPatch("dangerous_animal", pd.onAnimalAction)}) {
+                    patch.applyTo(migrated.inflightGuards);
+                }
+                guardingProfiles.put(entry.getKey(), migrated);
+            }
+            if (guardingProfiles.isEmpty()) {
+                guardingProfiles.put("Default", GuardingProfile.withDefaults());
+            }
+            if (!guardingProfiles.containsKey(currentGuardingProfile)) {
+                currentGuardingProfile = guardingProfiles.containsKey(currentPreset)
+                        ? currentPreset : guardingProfiles.keySet().iterator().next();
+            }
+        }
+    }
+
+    /** One-shot helper for the migration above: finds the named guard entry in a freshly
+     *  seeded GuardingProfile's list and applies an old preset's action string to it (mapping
+     *  "nothing" to disabling the guard, any other value to that outcome, enabled). */
+    private static final class GuardEntryPatch {
+        final String guardId;
+        final String oldAction;
+
+        GuardEntryPatch(String guardId, String oldAction) {
+            this.guardId = guardId;
+            this.oldAction = oldAction;
+        }
+
+        void applyTo(List<GuardEntry> list) {
+            for (GuardEntry e : list) {
+                if (guardId.equals(e.guardId)) {
+                    if ("nothing".equals(oldAction)) {
+                        e.enabled = false;
+                    } else {
+                        e.enabled = true;
+                        e.outcomeId = oldAction;
+                    }
+                    return;
+                }
+            }
+        }
     }
 
     // Find-remove-add is a read-modify-write sequence, not one atomic operation - NConfig.get()/
@@ -218,6 +297,13 @@ public class NForagerProp implements JConf {
             actionsProfilesJson.put(entry.getKey(), actionsJson);
         }
         jforager.put("actionsProfiles", actionsProfilesJson);
+
+        jforager.put("currentGuardingProfile", currentGuardingProfile);
+        JSONObject guardingProfilesJson = new JSONObject();
+        for (Map.Entry<String, GuardingProfile> entry : guardingProfiles.entrySet()) {
+            guardingProfilesJson.put(entry.getKey(), entry.getValue().toJson());
+        }
+        jforager.put("guardingProfiles", guardingProfilesJson);
 
         return jforager;
     }

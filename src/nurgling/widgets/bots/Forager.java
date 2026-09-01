@@ -16,6 +16,11 @@ public class Forager extends PathBotWindow {
     // Actions Profile selection only - editing lives in Forager Settings (Settings > Bots).
     private Dropbox<String> actionsProfileDropbox = null;
 
+    // Guarding Profile selection only - editing (which composable Guards run pre-flight/
+    // in-flight, their thresholds/reactions) lives in Forager Settings' Guarding section, same
+    // split as Actions Profile above.
+    private Dropbox<String> guardingProfileDropbox = null;
+
     NAreaDropbox startArea = null;
     Dropbox<String> onPlayerAction = null;
     Dropbox<String> onAnimalAction = null;
@@ -46,6 +51,32 @@ public class Forager extends PathBotWindow {
             private java.util.List<String> names() {
                 return (prop != null && prop.actionsProfiles != null)
                         ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
+            }
+
+            @Override
+            protected String listitem(int i) {
+                return names().get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return names().size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+        }, prev.pos("bl").add(UI.scale(0, 5)));
+
+        // Guarding Profile: which composable safety-watchdog configuration to run with (see
+        // nurgling.guarding). Editing happens in Forager Settings, not here - this window only
+        // selects, same as Actions Profile above.
+        prev = add(new Label(L10n.get("forager.settings.guarding_profile")), prev.pos("bl").add(UI.scale(0, 10)));
+        prev = add(guardingProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
+            private java.util.List<String> names() {
+                return (prop != null && prop.guardingProfiles != null)
+                        ? new ArrayList<>(new TreeSet<>(prop.guardingProfiles.keySet())) : Collections.emptyList();
             }
 
             @Override
@@ -247,6 +278,17 @@ public class Forager extends PathBotWindow {
             prop.currentActionsProfile = prop.actionsProfiles.keySet().iterator().next();
         }
         actionsProfileDropbox.change(prop.currentActionsProfile);
+
+        // Guarding Profile selection is prop-level (shared across presets), same as Actions
+        // Profile above.
+        if (prop.guardingProfiles == null || prop.guardingProfiles.isEmpty()) {
+            prop.guardingProfiles = new java.util.HashMap<>();
+            prop.guardingProfiles.put("Default", nurgling.guarding.GuardingProfile.withDefaults());
+        }
+        if (prop.currentGuardingProfile == null || !prop.guardingProfiles.containsKey(prop.currentGuardingProfile)) {
+            prop.currentGuardingProfile = prop.guardingProfiles.keySet().iterator().next();
+        }
+        guardingProfileDropbox.change(prop.currentGuardingProfile);
     }
 
     @Override
@@ -269,12 +311,18 @@ public class Forager extends PathBotWindow {
         if (actionsProfileDropbox.sel != null) {
             prop.currentActionsProfile = actionsProfileDropbox.sel;
         }
+        if (guardingProfileDropbox.sel != null) {
+            prop.currentGuardingProfile = guardingProfileDropbox.sel;
+        }
     }
 
     @Override
     protected void onStartBot() {
         if (actionsProfileDropbox.sel != null) {
             prop.currentActionsProfile = actionsProfileDropbox.sel;
+        }
+        if (guardingProfileDropbox.sel != null) {
+            prop.currentGuardingProfile = guardingProfileDropbox.sel;
         }
         NForagerProp.PresetData preset = prop.presets.get(prop.currentPreset);
         if (preset != null) {
