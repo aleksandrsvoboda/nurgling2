@@ -94,6 +94,25 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     /** Called before switching away from a preset. Subclasses can save additional settings. */
     protected void onPresetSaving(String presetName) {}
 
+    /** Whether this bot window shows the walk-and-record path-recording button. True by
+     *  default - most PathBotWindow subclasses have no other way to create/edit a route.
+     *  Override to return false for a bot whose routes are edited elsewhere (e.g. Forager, via
+     *  the embedded map editor in Forager Settings &gt; Routes) - the button there is a
+     *  redundant, easy-to-misclick alternative to that editor. */
+    protected boolean supportsRecording() {
+        return true;
+    }
+
+    /** Whether this bot window shows the new/delete-path (+/-) buttons next to the path
+     *  dropdown. True by default - most PathBotWindow subclasses have no other way to create
+     *  or delete a route. Override to return false for a bot whose routes are managed
+     *  elsewhere (e.g. Forager, via Forager Settings &gt; Routes' own add/delete route
+     *  buttons) - this window's dropdown still selects a route, it just no longer creates or
+     *  deletes one. */
+    protected boolean supportsPathManagement() {
+        return true;
+    }
+
     // ========== Constructor ==========
 
     public PathBotWindow(Coord sz, String title) {
@@ -208,54 +227,58 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
             }
         }, new Coord(0, 0));
 
-        pathRow.add(newPathButton = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/add/u"),
-            Resource.loadsimg("nurgling/hud/buttons/add/d"),
-            Resource.loadsimg("nurgling/hud/buttons/add/h")) {
-            @Override
-            public void click() {
-                super.click();
-                handleCreateNewPath();
-            }
-        }, new Coord(UI.scale(245), 0));
-        newPathButton.settip("Create new path");
+        if (supportsPathManagement()) {
+            pathRow.add(newPathButton = new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/add/u"),
+                Resource.loadsimg("nurgling/hud/buttons/add/d"),
+                Resource.loadsimg("nurgling/hud/buttons/add/h")) {
+                @Override
+                public void click() {
+                    super.click();
+                    handleCreateNewPath();
+                }
+            }, new Coord(UI.scale(245), 0));
+            newPathButton.settip("Create new path");
 
-        pathRow.add(deletePathButton = new IButton(
-            Resource.loadsimg("nurgling/hud/buttons/remove/u"),
-            Resource.loadsimg("nurgling/hud/buttons/remove/d"),
-            Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
-            @Override
-            public void click() {
-                super.click();
-                handleDeleteCurrentPath();
-            }
-        }, new Coord(UI.scale(270), 0));
-        deletePathButton.settip("Delete current path");
+            pathRow.add(deletePathButton = new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/remove/u"),
+                Resource.loadsimg("nurgling/hud/buttons/remove/d"),
+                Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
+                @Override
+                public void click() {
+                    super.click();
+                    handleDeleteCurrentPath();
+                }
+            }, new Coord(UI.scale(270), 0));
+            deletePathButton.settip("Delete current path");
+        }
 
         prev = pathRow;
 
-        // Record path button
-        Widget recordRow = add(new Widget(new Coord(UI.scale(270), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
-        recordRow.add(new Label("Record:"), new Coord(0, UI.scale(2)));
-        recordRow.add(recordPathButton = new ICheckBox(
-            "nurgling/hud/buttons/record_4states/",
-            "u",
-            "d",
-            "h",
-            "dh") {
-            @Override
-            public void changed(boolean val) {
-                super.changed(val);
-                if (val) {
-                    startRecording();
-                } else {
-                    stopRecording();
+        if (supportsRecording()) {
+            // Record path button
+            Widget recordRow = add(new Widget(new Coord(UI.scale(270), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
+            recordRow.add(new Label("Record:"), new Coord(0, UI.scale(2)));
+            recordRow.add(recordPathButton = new ICheckBox(
+                "nurgling/hud/buttons/record_4states/",
+                "u",
+                "d",
+                "h",
+                "dh") {
+                @Override
+                public void changed(boolean val) {
+                    super.changed(val);
+                    if (val) {
+                        startRecording();
+                    } else {
+                        stopRecording();
+                    }
                 }
-            }
-        }, new Coord(UI.scale(60), 0));
-        recordPathButton.settip("Record path waypoints");
+            }, new Coord(UI.scale(60), 0));
+            recordPathButton.settip("Record path waypoints");
 
-        prev = recordRow;
+            prev = recordRow;
+        }
 
         // Sections info
         prev = sectionsLabel = add(new Label("No path loaded"), prev.pos("bl").add(UI.scale(0, 10)));

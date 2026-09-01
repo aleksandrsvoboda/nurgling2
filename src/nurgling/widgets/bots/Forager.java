@@ -31,10 +31,24 @@ public class Forager extends PathBotWindow {
     public NForagerProp prop = null;
     private String lastPresetName = null;
 
+    // Routes are now created/edited/deleted via Forager Settings > Routes' own embedded map
+    // editor and add/delete buttons, not from this window - the walk-and-record button and the
+    // path dropdown's +/- buttons here would just be redundant, easy-to-misclick duplicates of
+    // that. This window's path dropdown still selects which route to run.
+    @Override
+    protected boolean supportsRecording() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsPathManagement() {
+        return false;
+    }
+
     public Forager() {
         super(new Coord(380, 300), L10n.get("forager.wnd_title"));
 
-        // Build common UI (preset, path, record, sections)
+        // Build common UI (preset, path, sections)
         prev = buildCommonUI(L10n.get("forager.settings"), L10n.get("forager.preset"), L10n.get("forager.path"));
 
         // Actions Profile: which one to run with. Editing what's in it (drag items, custom
