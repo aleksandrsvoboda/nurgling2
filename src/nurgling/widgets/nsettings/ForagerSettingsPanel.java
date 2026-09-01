@@ -959,13 +959,34 @@ public class ForagerSettingsPanel extends Panel {
 
     // tick() runs for every widget every frame regardless of visibility (Widget.TickEvent
     // propagates unconditionally, see haven.Widget.TickEvent.dispatch), so this must gate on
-    // `visible` itself - otherwise a hidden Forager Settings panel would keep fighting whichever
-    // other settings panel is actually showing over who owns activeRouteEditor.
+    // actual visibility itself - otherwise a hidden Forager Settings panel would keep fighting
+    // whichever other settings panel is actually showing over who owns activeRouteEditor.
+    //
+    // this.visible alone isn't enough: it doesn't cascade from an ancestor's hide() (each widget
+    // tracks its own flag independently in this framework), and not every way of closing the
+    // settings window bothers to hide every descendant explicitly - e.g. OptWnd's own close
+    // button/titlebar X (src/haven/OptWnd.java) just calls OptWnd.this.hide(), never touching
+    // NSettingsWindow or this panel at all. Reported live: the X close left waypoints rendered,
+    // while the panel's own "back" button (which does explicitly route through this panel/
+    // NSettingsWindow) correctly stopped them. Walking the parent chain catches every such path
+    // uniformly instead of needing each one hooked individually.
+    private boolean genuinelyVisible() {
+        for (Widget w = this; w != null; w = w.parent) {
+            if (!w.visible) return false;
+        }
+        return true;
+    }
+
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        if (visible) {
+        if (genuinelyVisible()) {
             updateActiveRouteEditor();
+        } else {
+            NGameUI gui = NUtils.getGameUI();
+            if (gui != null && gui.activeRouteEditor == routeMap) {
+                gui.activeRouteEditor = null;
+            }
         }
     }
 

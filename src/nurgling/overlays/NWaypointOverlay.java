@@ -57,6 +57,17 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
     // for repositioning a waypoint of a route the bot is actively walking). See resolve()/draggable().
     private volatile boolean draggable = true;
 
+    // Identity of whatever resolve() most recently drew from - the ForagerRouteMap instance, the
+    // running/recording bot's own ForagerPath instance, or QUEUE_SOURCE for the movement queue -
+    // set alongside draggable in resolve(), compared in update() against lastSourceKey (the
+    // source the currently-cached geometry was actually built from). A real source switch (e.g.
+    // Forager Settings' Routes editor turning on) always forces a rebuild this way, even in the
+    // extremely unlikely event the freshly-computed signature collides with the previous one -
+    // belt-and-suspenders alongside the signature check itself, not a replacement for it.
+    private static final Object QUEUE_SOURCE = new Object();
+    private volatile Object sourceKey = null;
+    private volatile Object lastSourceKey = null;
+
     // Cached ETA text so it is not re-rendered every frame.
     private static final Text.Foundry etaf = new Text.Foundry(Text.dfont, 11).aa(true);
     private String etaStr = null;
@@ -152,14 +163,19 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
      *  anyway). */
     private List<WNode> resolve() {
         NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.mmap == null)
+        if(gui == null || gui.mmap == null) {
+            sourceKey = null;
             return(Collections.emptyList());
+        }
         MiniMap.Location sessloc = gui.mmap.sessloc;
-        if(sessloc == null)
+        if(sessloc == null) {
+            sourceKey = null;
             return(Collections.emptyList());
+        }
 
         if(gui.activeRouteEditor != null) {
             draggable = true;
+            sourceKey = gui.activeRouteEditor;
             return resolveForagerPath(gui.activeRouteEditor.getRoute(), sessloc);
         }
 
@@ -167,18 +183,22 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             nurgling.routes.ForagerPath botPath = resolveBotOrRecordingPath(gui);
             if(botPath != null && !botPath.waypoints.isEmpty()) {
                 draggable = false;
+                sourceKey = botPath;
                 return resolveForagerPath(botPath, sessloc);
             }
         }
 
         draggable = true;
-        if(!(Boolean)NConfig.get(NConfig.Key.showWaypointsInWorld))
+        if(!(Boolean)NConfig.get(NConfig.Key.showWaypointsInWorld) || (gui.waypointMovementService == null)) {
+            sourceKey = null;
             return(Collections.emptyList());
-        if(gui.waypointMovementService == null)
-            return(Collections.emptyList());
+        }
         List<WaypointMovementService.Waypoint> wps = gui.waypointMovementService.snapshot();
-        if(wps.isEmpty())
+        if(wps.isEmpty()) {
+            sourceKey = null;
             return(Collections.emptyList());
+        }
+        sourceKey = QUEUE_SOURCE;
         List<WNode> ret = new ArrayList<>(wps.size());
         int num = 1;
         for(WaypointMovementService.Waypoint wp : wps) {
@@ -224,6 +244,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
                 lastPlayer = null;
                 screen = Collections.emptyList();
             }
+            lastSourceKey = sourceKey;
             return;
         }
 
@@ -231,7 +252,8 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         long sig = signature(nodes);
         double now = Utils.rtime();
         boolean moved = (pl != null) && ((lastPlayer == null) || (lastPlayer.dist(pl) > 3.0));
-        if((sig == lastSig) && !(moved && (now - lastBuild > 0.2)))
+        boolean sourceChanged = sourceKey != lastSourceKey;
+        if(!sourceChanged && (sig == lastSig) && !(moved && (now - lastBuild > 0.2)))
             return;
 
         double baseZ;
@@ -259,6 +281,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         lastSig = sig;
         lastPlayer = pl;
         lastBuild = now;
+        lastSourceKey = sourceKey;
     }
 
     /* ------------------------------------------------------------------ *
