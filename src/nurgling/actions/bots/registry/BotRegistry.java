@@ -249,8 +249,12 @@ public class BotRegistry {
         bots.add(new BotDescriptor("dropsoil", BotDescriptor.BotType.UTILS, "Drop Soil", "Drops soil from stockpile until there is 10 soil left in the stockpile..", false, true, SoilStockpileDropper.class, "dropsoil", false));
         bots.add(new BotDescriptor("measure_length", BotDescriptor.BotType.UTILS, "Zone Measure Tool", "Measure and mark zones on the ground. Select areas, view dimensions, and manage multiple selections.", false, true, ZoneMeasureTool.class, "measuring_length", false));
         bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true));
-        bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", true, true, CoracleBot.class, "coracle", false));
+        bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", true, true, CoracleBot.class, "coracle", false, Map.of(), true));
         bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", true, true, SkisBot.class, "skis", false));
+        // Forager-only (allowedAsStepInScenario=false, allowedAsForagerStep=true) - a gate along
+        // a route is a per-waypoint concern (see WaypointStepsWindow), not a general Scenario step.
+        // Icon path reuses "goto"'s icon as a placeholder until a dedicated gate icon exists.
+        bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens the nearest gate if closed, or closes it if open.", false, false, GateBot.class, "goto", false, Map.of(), true));
 
         // BUILD
         bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));

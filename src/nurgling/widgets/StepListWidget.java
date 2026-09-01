@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -26,6 +27,7 @@ public class StepListWidget extends Widget {
     private final Supplier<List<BotStep>> stepsSupplier;
     private final Consumer<BotStep> onSelect;
     private final Runnable onChanged;
+    private final Predicate<BotDescriptor> botFilter;
 
     private final SListBox<BotStep, Widget> listBox;
     private BotStep selected = null;
@@ -42,10 +44,17 @@ public class StepListWidget extends Widget {
      *                       state dirty/persist
      */
     public StepListWidget(Coord sz, Supplier<List<BotStep>> stepsSupplier, Consumer<BotStep> onSelect, Runnable onChanged) {
+        this(sz, stepsSupplier, onSelect, onChanged, b -> b.allowedAsStepInScenario);
+    }
+
+    /** @param botFilter which bots the "Add Step" picker offers - e.g. b -&gt; b.allowedAsForagerStep
+     *                    for a Forager waypoint's step list, instead of the Scenario default above. */
+    public StepListWidget(Coord sz, Supplier<List<BotStep>> stepsSupplier, Consumer<BotStep> onSelect, Runnable onChanged, Predicate<BotDescriptor> botFilter) {
         super(sz);
         this.stepsSupplier = stepsSupplier;
         this.onSelect = onSelect;
         this.onChanged = onChanged;
+        this.botFilter = botFilter;
 
         listBox = add(new SListBox<BotStep, Widget>(sz, UI.scale(32)) {
             @Override
@@ -79,7 +88,7 @@ public class StepListWidget extends Widget {
                     }
 
                     // Mark ✪ for bots that have settings
-                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id));
+                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id) || "gate".equals(desc.id));
                     String marker = hasSettings ? " ✪" : "";
                     Label label = new Label(botId + marker);
 
@@ -173,7 +182,7 @@ public class StepListWidget extends Widget {
      *  chosen bot as a new step to the end of the current list. */
     public void showAddStepDialog() {
         closeAddStepDialog();
-        stepDialog = new ScenarioBotSelectionDialog(bot -> {
+        stepDialog = new ScenarioBotSelectionDialog(botFilter, bot -> {
             List<BotStep> steps = stepsSupplier.get();
             if (steps != null && bot != null) {
                 steps.add(new BotStep(bot.id));

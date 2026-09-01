@@ -17,6 +17,10 @@ public class ScenarioBotSelectionDialog extends Window {
     public static final int COLS = 6;
 
     public ScenarioBotSelectionDialog(java.util.function.Consumer<BotDescriptor> onSelect) {
+        this(b -> b.allowedAsStepInScenario, onSelect);
+    }
+
+    public ScenarioBotSelectionDialog(java.util.function.Predicate<BotDescriptor> filter, java.util.function.Consumer<BotDescriptor> onSelect) {
         super(new Coord(ICON_SIZE * COLS + GRID_PADDING * 2, UI.scale(350)), L10n.get("botselect.title"));
 
         List<BotDescriptor.BotType> groupOrder = List.of(RESOURCES, UTILS, PRODUCTIONS, FARMING, FARMING_QUALITY, LIVESTOCK);
@@ -26,7 +30,7 @@ public class ScenarioBotSelectionDialog extends Window {
         int y = GRID_PADDING;
         for (BotDescriptor.BotType type : groupOrder) {
             List<BotDescriptor> group = BotRegistry.byType(type).stream()
-                    .filter(b -> b.allowedAsStepInScenario)
+                    .filter(filter)
                     .toList();
             if (group.isEmpty()) continue;
 

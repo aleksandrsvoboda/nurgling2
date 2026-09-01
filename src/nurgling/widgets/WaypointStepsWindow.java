@@ -46,7 +46,8 @@ public class WaypointStepsWindow extends Window {
                 listSz,
                 () -> waypoint.steps,
                 stepSettingsPanel::setStep,
-                this::fireChanged
+                this::fireChanged,
+                b -> b.allowedAsForagerStep
         ), prev.pos("bl").add(UI.scale(0, 10)));
 
         add(stepSettingsPanel, new Coord(stepList.c.x + listSz.x + UI.scale(10), stepList.c.y));
