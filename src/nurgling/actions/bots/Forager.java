@@ -360,9 +360,28 @@ public class Forager implements Action {
             // Check if there are any target objects near the section endpoint (within 1 tile = 11 units)
             Gob targetGob = findGobNear(sectionEnd, 11.0);
 
-            if (targetGob != null)
+            // Cover the ground toward this section's target in rescanning hops first (see
+            // walkSectionInHops' own javadoc) - this is what lets a gob revealed only partway
+            // through a long section still get detoured to, instead of only being caught by the
+            // checks immediately before departure or after arrival.
+            boolean reachedApproach = walkSectionInHops(gui, preset, targetGob != null ? targetGob.rc : sectionEnd);
+
+            if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
+                performSafetyAction(gui, preset.onFullInventoryAction);
+                return Results.SUCCESS();
+            }
+
+            if (!reachedApproach) {
+                if (!isInventoryFull(gui)) {
+                    gui.msg("Forager debug: section " + i + " failed pathing en route to "
+                            + (targetGob != null ? "gob" : "sectionEnd=" + sectionEnd)
+                            + " - waterMode=" + effectiveWaterMode(gui, preset) + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
+                    gui.activeBotFailedWaypoints.add(i + 1);
+                }
+            } else if (targetGob != null)
             {
-                // Go to the object if found within 1 tile
+                // Go to the object if found within 1 tile - walkSectionInHops only guarantees
+                // getting within MAX_HOP_DISTANCE, not hitbox-aware precise arrival.
                 PathFinder pfGob = new PathFinder(targetGob);
                 pfGob.waterMode = effectiveWaterMode(gui, preset);
                 Results pfGobResult = pfGob.run(gui);
@@ -739,6 +758,50 @@ public class Forager implements Action {
 
             Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
             breadcrumbs.add(player.rc);
+            PathFinder hop = new PathFinder(waypoint);
+            hop.waterMode = effectiveWaterMode(gui, preset);
+            if (!hop.run(gui).IsSuccess()) return false;
+        }
+    }
+
+    /**
+     * Walks the main route toward a section's own target (sectionEnd, or a gob found right at
+     * it) in the same rescanning-hop style as {@link #travelWithWaypoints}, instead of one
+     * uninterrupted PathFinder call straight there. A gob only becomes findable once its grid
+     * has actually loaded in - on a section longer than MAX_HOP_DISTANCE, a single long walk
+     * gave the pre-departure/post-arrival checks no chance to see anything that loaded in
+     * partway through, so it was silently skipped for that whole section (reported live: "we
+     * used to constantly be checking for gobs at any point during the walk... now we only do it
+     * when we reach the waypoints").
+     * <p>
+     * Unlike travelWithWaypoints, this deliberately does *not* set gui.activeBotDetourTarget
+     * (or track breadcrumbs) for a plain hop toward target - target here is the route's own
+     * next waypoint, already rendered as the active route node with its own live player leg;
+     * only an actual detour to a gob found along the way is a real detour worth its own blue
+     * node, so the field is set (and cleared right after) only for that branch.
+     * <p>
+     * Returns true once within MAX_HOP_DISTANCE of target, ready for the caller's own precise
+     * final approach; false if a hop failed or the inventory filled up mid-walk.
+     */
+    private boolean walkSectionInHops(NGameUI gui, NForagerProp.PresetData preset, Coord2d target) throws InterruptedException {
+        while (true) {
+            if (isInventoryFull(gui)) return false;
+
+            Gob player = NUtils.player();
+            if (player == null) return false;
+
+            double remaining = player.rc.dist(target);
+            if (remaining <= MAX_HOP_DISTANCE) return true;
+
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS);
+            if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
+                gui.activeBotDetourTarget = nearest.a.rc;
+                performGobAction(gui, nearest.b, nearest.a, preset);
+                gui.activeBotDetourTarget = null;
+                continue;
+            }
+
+            Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
             PathFinder hop = new PathFinder(waypoint);
             hop.waterMode = effectiveWaterMode(gui, preset);
             if (!hop.run(gui).IsSuccess()) return false;
