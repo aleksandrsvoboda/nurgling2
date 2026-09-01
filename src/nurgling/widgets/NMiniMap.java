@@ -725,11 +725,32 @@ NMiniMap extends MiniMap {
         g.chcolor();
     }
 
-    // Draw forager path being recorded or loaded
+    // Amber for a milestone-splice leg/anchor, matching ForagerRouteMap's own
+    // MILESTONE_ACTIVE_LINK_COLOR - not imported directly (that class is the Routes editor's
+    // embedded 2D map, this is the real minimap) to avoid coupling two otherwise-independent
+    // widgets over a single shared color constant.
+    private static final Color FORAGER_MILESTONE_LEG_COLOR = new Color(230, 200, 40);
+
+    /**
+     * Draws Forager's route (being edited, or actually running) on the real minimap - dashed
+     * crawling legs and pulsing numbered node plates, the same look
+     * {@link #drawQueuedWaypoints} already gives the movement-queue and
+     * {@code ForagerRouteMap.drawRouteWaypoints} already gives the Routes editor's own embedded
+     * 2D map - this used to be a plain green-line/yellow-dot renderer predating both of those,
+     * left behind when they were built (reported live: "the routes displayed on the map is not
+     * using the new rendered waypoints").
+     * <p>
+     * While a bot is actually running (recordingPath came from gui.activeBotPath, not a
+     * currently-open Routes editor window), reflects the same live progress the in-world
+     * NWaypointOverlay does - gui.activeBotWaypointIndex as the active/pulsing node,
+     * gui.activeBotFailedWaypoints in the failed color - so the two views agree. While only
+     * being edited (no bot running), falls back to ForagerRouteMap's own convention of treating
+     * index 1 as "active" (there's no live progress to reflect).
+     */
     protected void drawForagerRecordingPath(GOut g) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || sessloc == null || dloc == null) return;
-        
+
         // Find a PathRecordable window (Forager or TrufflePigHunter)
         nurgling.widgets.bots.PathRecordable pathWnd = null;
         for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
@@ -741,59 +762,85 @@ NMiniMap extends MiniMap {
 
         // Get current path: from bot settings window, or from active bot execution
         nurgling.routes.ForagerPath recordingPath = null;
+        boolean liveBot = false;
         if(pathWnd != null) {
             recordingPath = pathWnd.getCurrentLoadedPath();
         } else if((Boolean) nurgling.NConfig.get(nurgling.NConfig.Key.showBotPathOnMinimap) && gui.activeBotPath != null) {
             recordingPath = gui.activeBotPath;
+            liveBot = true;
         }
         if(recordingPath == null || recordingPath.waypoints.isEmpty()) {
             return;
         }
-        
+
+        int activeIdx = liveBot ? Math.max(0, gui.activeBotWaypointIndex) : 1;
+        java.util.Set<Integer> failedIdx = (liveBot && gui.activeBotFailedWaypoints != null)
+                ? gui.activeBotFailedWaypoints : java.util.Collections.emptySet();
+
         Coord hsz = sz.div(2);
-        
-        // Draw lines connecting waypoints
-        g.chcolor(0, 255, 0, 200); // Green color for recording path
+        double phase = Utils.rtime() * UI.scale(16);
+
+        // Legs, as dashes crawling toward the next waypoint - same treatment as
+        // drawQueuedWaypoints/ForagerRouteMap.drawRouteWaypoints.
         Coord prevC = null;
-        
-        for(nurgling.routes.ForagerWaypoint waypoint : recordingPath.waypoints) {
-            // Only draw waypoints in current segment
-            if(waypoint.seg != sessloc.seg.id) {
+        nurgling.routes.ForagerWaypoint prevWp = null;
+        for(int i = 0; i < recordingPath.waypoints.size(); i++) {
+            nurgling.routes.ForagerWaypoint wp = recordingPath.waypoints.get(i);
+            if(wp.seg != sessloc.seg.id) {
+                prevC = null;
+                prevWp = null;
                 continue;
             }
-            
-            // Convert tile coordinates to screen coordinates
-            Coord waypointC = waypoint.tc.sub(dloc.tc).div(scalef()).add(hsz);
-            
-            // Only draw if within bounds
-            if(waypointC.x >= 0 && waypointC.x < sz.x && waypointC.y >= 0 && waypointC.y < sz.y) {
-                if(prevC != null && prevC.x >= 0 && prevC.x < sz.x && prevC.y >= 0 && prevC.y < sz.y) {
-                    g.line(prevC, waypointC, 2);
+            Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            if(prevC != null) {
+                boolean milestoneLeg = wp.milestoneHash != null && prevWp != null
+                        && wp.milestoneHash.equals(prevWp.milestoneHash);
+                Color lc = failedIdx.contains(i) ? nurgling.overlays.NWaypointOverlay.failedColor()
+                        : milestoneLeg ? FORAGER_MILESTONE_LEG_COLOR
+                        : (i == activeIdx) ? nurgling.overlays.NWaypointOverlay.activeColor()
+                        : nurgling.overlays.NWaypointOverlay.queuedColor();
+                g.chcolor(lc.getRed(), lc.getGreen(), lc.getBlue(), 200);
+                dashLine(g, prevC, c, phase, 2);
+            }
+            prevC = c;
+            prevWp = wp;
+        }
+
+        // Nodes. The active one is bigger and pulses, matching drawQueuedWaypoints; a failed
+        // one (never reached, pathing gave up) draws dimmed in the failed color instead.
+        int num = 1;
+        for(int i = 0; i < recordingPath.waypoints.size(); i++) {
+            nurgling.routes.ForagerWaypoint wp = recordingPath.waypoints.get(i);
+            if(wp.seg != sessloc.seg.id) continue;
+
+            Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            if(c.x < -UI.scale(12) || c.y < -UI.scale(12) || c.x > sz.x + UI.scale(12) || c.y > sz.y + UI.scale(12)) {
+                num++;
+                continue;
+            }
+
+            boolean failed = failedIdx.contains(i);
+            boolean active = (i == activeIdx) && !failed;
+            Color col = failed ? nurgling.overlays.NWaypointOverlay.failedColor()
+                    : active ? nurgling.overlays.NWaypointOverlay.activeColor()
+                    : nurgling.overlays.NWaypointOverlay.queuedColor();
+
+            if(active) {
+                double t = (Utils.rtime() % 1.3) / 1.3;
+                int a = (int)(150 * (1 - t));
+                if(a > 8) {
+                    g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), a);
+                    ringOutline(g, c, (int)(UI.scale(6) + t * UI.scale(10)), 2);
                 }
             }
-            prevC = waypointC;
-        }
-        
-        // Draw markers at each waypoint
-        int num = 1;
-        for(nurgling.routes.ForagerWaypoint waypoint : recordingPath.waypoints) {
-            // Only draw waypoints in current segment
-            if(waypoint.seg != sessloc.seg.id) continue;
-            
-            // Convert tile coordinates to screen coordinates
-            Coord c = waypoint.tc.sub(dloc.tc).div(scalef()).add(hsz);
-            
-            // Only draw if within bounds
-            if(c.x >= 0 && c.x < sz.x && c.y >= 0 && c.y < sz.y) {
-                // Draw yellow circle
-                g.chcolor(255, 255, 0, 220); // Yellow marker
-                int radius = UI.scale(6); // Larger radius
-                g.fellipse(c, new Coord(radius, radius));
-                
-                // Draw black number
-                g.chcolor(0, 0, 0, 255); // Black text
-                g.aimage(getWaypointLabel(num).tex(), c, 0.5, 0.5);
-            }
+
+            int radius = UI.scale(active ? 7 : 5);
+            g.chcolor(0, 0, 0, failed ? 140 : 210);
+            g.fellipse(c, new Coord(radius + 1, radius + 1));
+            g.chcolor(col);
+            g.fellipse(c, new Coord(radius, radius));
+            g.chcolor(10, 14, 16, 255);
+            g.aimage(getWaypointLabel(num).tex(), c, 0.5, 0.5);
             num++;
         }
         g.chcolor();
