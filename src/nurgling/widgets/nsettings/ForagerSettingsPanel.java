@@ -156,6 +156,20 @@ public class ForagerSettingsPanel extends Panel {
     // Same purpose as suppressRouteAutoSave/suppressGuardingAutoSave above.
     private boolean suppressPresetAutoSave = false;
 
+    // Actions/Guarding each have two selectors that must never be allowed to show different
+    // profiles at once: the top section's own dropdown (which profile's contents are being
+    // edited right now) and the matching Presets-section dropdown (which profile the active
+    // preset actually runs with). Before this guard existed, they were independent - switching
+    // the active preset never updated the top dropdown, and editing either one didn't touch the
+    // other - so a user could edit "Default" in the Actions section while their preset's own
+    // actionsProfileName still pointed at a completely different profile, with no visible sign
+    // of the mismatch (reported live: preset said it was using the new profile, but the bot ran
+    // the old one). actionsProfileDropbox.change()/presetActionsDropbox.change() (and the
+    // guarding equivalents) now each push their selection into the other, guarded by these
+    // flags to stop the two calling each other forever.
+    private boolean suppressActionsSync = false;
+    private boolean suppressGuardingSync = false;
+
     private Scrollport scroll;
     private CollapsibleSection routesSection;
     private Widget routesContent;
@@ -218,6 +232,17 @@ public class ForagerSettingsPanel extends Panel {
                 if (item != null && prop != null) {
                     prop.currentActionsProfile = item;
                     pickupContainer.load(prop.actionsProfiles.get(item));
+                    // Keep the Presets section's own Actions Profile selector (and the active
+                    // preset's actual binding) in lockstep - see suppressActionsSync's javadoc.
+                    if (!suppressActionsSync && currentPresetData != null) {
+                        currentPresetData.actionsProfileName = item;
+                        suppressActionsSync = true;
+                        try {
+                            presetActionsDropbox.change(item);
+                        } finally {
+                            suppressActionsSync = false;
+                        }
+                    }
                 }
             }
         }, new Coord(0, 0));
@@ -456,6 +481,17 @@ public class ForagerSettingsPanel extends Panel {
                     }
                     prop.currentGuardingProfile = item;
                     loadGuardingProfile(item);
+                    // Keep the Presets section's own Guarding Profile selector (and the active
+                    // preset's actual binding) in lockstep - see suppressGuardingSync's javadoc.
+                    if (!suppressGuardingSync && currentPresetData != null) {
+                        currentPresetData.guardingProfileName = item;
+                        suppressGuardingSync = true;
+                        try {
+                            presetGuardingDropbox.change(item);
+                        } finally {
+                            suppressGuardingSync = false;
+                        }
+                    }
                 }
             }
         }, new Coord(0, 0));
@@ -598,6 +634,26 @@ public class ForagerSettingsPanel extends Panel {
             protected void drawitem(GOut g, String item, int i) {
                 g.text(item, Coord.z);
             }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                if (item != null && prop != null) {
+                    if (currentPresetData != null) {
+                        currentPresetData.actionsProfileName = item;
+                    }
+                    // Mirror into the Actions section's own selector - see
+                    // suppressActionsSync's javadoc.
+                    if (!suppressActionsSync) {
+                        suppressActionsSync = true;
+                        try {
+                            actionsProfileDropbox.change(item);
+                        } finally {
+                            suppressActionsSync = false;
+                        }
+                    }
+                }
+            }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.settings.preset_route")), prevField.pos("bl").add(UI.scale(0, 10)));
@@ -637,6 +693,26 @@ public class ForagerSettingsPanel extends Panel {
             @Override
             protected void drawitem(GOut g, String item, int i) {
                 g.text(item, Coord.z);
+            }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                if (item != null && prop != null) {
+                    if (currentPresetData != null) {
+                        currentPresetData.guardingProfileName = item;
+                    }
+                    // Mirror into the Guarding section's own selector - see
+                    // suppressGuardingSync's javadoc.
+                    if (!suppressGuardingSync) {
+                        suppressGuardingSync = true;
+                        try {
+                            guardingProfileDropbox.change(item);
+                        } finally {
+                            suppressGuardingSync = false;
+                        }
+                    }
+                }
             }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
@@ -796,6 +872,15 @@ public class ForagerSettingsPanel extends Panel {
 
         prop = NForagerProp.get(NUtils.getUI().sessInfo);
         if (prop == null) return;
+
+        // Reset before anything else touches actionsProfileDropbox/guardingProfileDropbox below -
+        // otherwise, on a second load() call (e.g. Cancel), the Actions/Guarding sync guards
+        // (currentPresetData != null) would still see the *previous* load's preset object and
+        // write this reload's in-progress currentActionsProfile/currentGuardingProfile into it,
+        // moments before it's discarded anyway. Harmless in practice (that object is about to be
+        // replaced by the fresh lookup below), but null keeps this load() deterministic instead
+        // of relying on that.
+        currentPresetData = null;
 
         if (prop.actionsProfiles.isEmpty()) {
             prop.actionsProfiles.put("Default", new ArrayList<>());
