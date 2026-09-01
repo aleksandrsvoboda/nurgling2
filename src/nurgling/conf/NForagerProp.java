@@ -52,15 +52,31 @@ public class NForagerProp implements JConf {
         // local walk to the path's actual first waypoint.
         public int startAreaId = -1;
 
+        // Legacy per-preset safety fields - superseded by guardingProfileName/GuardingProfile
+        // below (see nurgling.guarding). Kept only because the guardingProfiles migration in
+        // the deserializing constructor still reads them off an already-populated PresetData
+        // to seed a profile for an old config that predates guardingProfiles entirely; not
+        // read by any live bot logic any more.
         public String onPlayerAction = "nothing";
         public String onAnimalAction = "logout";
-        public String afterFinishAction = "nothing";
-        public String onFullInventoryAction = "nothing";
         public boolean ignoreBats = true;
         public boolean waterMode = false;
 
+        public String afterFinishAction = "nothing";
+        public String onFullInventoryAction = "nothing";
+
+        // Which Actions/Guarding Profile this preset runs with (null = not yet assigned; the
+        // deserializing constructor defaults every preset missing one to whatever
+        // currentActionsProfile/currentGuardingProfile already resolved to, so an old preset
+        // keeps behaving exactly as it did before presets could each pick their own). A preset
+        // is now the full "which route + which actions + which guarding, plus start
+        // area/finish reactions" bundle - editing lives in Forager Settings' Presets section,
+        // the bot-launch window only selects a preset by name.
+        public String actionsProfileName = null;
+        public String guardingProfileName = null;
+
         public PresetData() {}
-        
+
         public PresetData(String pathFile) {
             this.pathFile = pathFile;
         }
@@ -69,7 +85,10 @@ public class NForagerProp implements JConf {
     public NForagerProp(String username, String chrid) {
         this.username = username;
         this.chrid = chrid;
-        presets.put("Default", new PresetData());
+        PresetData defaultPreset = new PresetData();
+        defaultPreset.actionsProfileName = "Default";
+        defaultPreset.guardingProfileName = "Default";
+        presets.put("Default", defaultPreset);
         actionsProfiles.put("Default", new ArrayList<>());
         guardingProfiles.put("Default", GuardingProfile.withDefaults());
     }
@@ -112,6 +131,10 @@ public class NForagerProp implements JConf {
                     pd.ignoreBats = (Boolean) entry.getValue().get("ignoreBats");
                 if (entry.getValue().get("waterMode") != null)
                     pd.waterMode = (Boolean) entry.getValue().get("waterMode");
+                if (entry.getValue().get("actionsProfileName") != null)
+                    pd.actionsProfileName = (String) entry.getValue().get("actionsProfileName");
+                if (entry.getValue().get("guardingProfileName") != null)
+                    pd.guardingProfileName = (String) entry.getValue().get("guardingProfileName");
 
                 presets.put(entry.getKey(), pd);
             }
@@ -194,6 +217,21 @@ public class NForagerProp implements JConf {
             if (!guardingProfiles.containsKey(currentGuardingProfile)) {
                 currentGuardingProfile = guardingProfiles.containsKey(currentPreset)
                         ? currentPreset : guardingProfiles.keySet().iterator().next();
+            }
+        }
+
+        // Every preset now carries its own Actions/Guarding Profile selection (Presets phase)
+        // instead of the bot-launch window picking one prop-wide - default any preset that
+        // doesn't have one yet (every existing preset, on first load after this shipped) to
+        // whatever currentActionsProfile/currentGuardingProfile already resolved to above, so
+        // an old preset keeps running with exactly the profile it always did until the user
+        // deliberately changes it in Forager Settings > Presets.
+        for (PresetData pd : presets.values()) {
+            if (pd.actionsProfileName == null || !actionsProfiles.containsKey(pd.actionsProfileName)) {
+                pd.actionsProfileName = currentActionsProfile;
+            }
+            if (pd.guardingProfileName == null || !guardingProfiles.containsKey(pd.guardingProfileName)) {
+                pd.guardingProfileName = currentGuardingProfile;
             }
         }
     }
@@ -282,6 +320,10 @@ public class NForagerProp implements JConf {
             presetJson.put("onFullInventoryAction", entry.getValue().onFullInventoryAction);
             presetJson.put("ignoreBats", entry.getValue().ignoreBats);
             presetJson.put("waterMode", entry.getValue().waterMode);
+            if (entry.getValue().actionsProfileName != null)
+                presetJson.put("actionsProfileName", entry.getValue().actionsProfileName);
+            if (entry.getValue().guardingProfileName != null)
+                presetJson.put("guardingProfileName", entry.getValue().guardingProfileName);
 
             presetsJson.put(entry.getKey(), presetJson);
         }

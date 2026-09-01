@@ -17,6 +17,7 @@ import nurgling.routes.ForagerPath;
 import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.TextInputWindow;
 import nurgling.widgets.options.NRingSettings;
+import nurgling.widgets.settings.NAreaDropbox;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -137,6 +138,23 @@ public class ForagerSettingsPanel extends Panel {
     // loadGuardingProfile()/writeBackCurrentGuardingProfile().
     private final Map<String, GuardRow> preflightRows = new LinkedHashMap<>();
     private final Map<String, GuardRow> inflightRows = new LinkedHashMap<>();
+
+    // ---- Presets ----
+    // A preset now bundles which Actions Profile/Route/Guarding Profile to run together, plus
+    // the start area and finish/full-inventory reactions - the bot-launch window
+    // (widgets/bots/Forager.java) shrinks down to just selecting one of these by name; every
+    // other field that used to live there moved here.
+    private static final String[] PRESET_ACTIONS = {"nothing", "logout", "travel hearth"};
+    private NForagerProp.PresetData currentPresetData;
+    private Dropbox<String> presetDropbox;
+    private Dropbox<String> presetActionsDropbox;
+    private Dropbox<String> presetRouteDropbox;
+    private Dropbox<String> presetGuardingDropbox;
+    private NAreaDropbox presetStartArea;
+    private Dropbox<String> presetAfterFinishDropbox;
+    private Dropbox<String> presetOnFullInventoryDropbox;
+    // Same purpose as suppressRouteAutoSave/suppressGuardingAutoSave above.
+    private boolean suppressPresetAutoSave = false;
 
     private Scrollport scroll;
     private CollapsibleSection routesSection;
@@ -494,7 +512,170 @@ public class ForagerSettingsPanel extends Panel {
 
         guardingSection.pack();
 
+        // ---- Presets ----
+        CollapsibleSection presetsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.presets_section"), UI.scale(540), true), guardingSection.pos("bl").add(UI.scale(0, 10)));
+        presetsSection.setOnToggle(this::relayoutSections);
+        sections.add(presetsSection);
+        Widget psec = presetsSection.content;
+
+        Widget pprev = psec.add(new Label(L10n.get("forager.settings.presets_help"), UI.scale(400)), Coord.z);
+
+        pprev = psec.add(new Label(L10n.get("forager.settings.preset")), pprev.pos("bl").add(UI.scale(0, 12)));
+        Widget presetRow = psec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), pprev.pos("bl").add(UI.scale(0, 5)));
+        presetRow.add(presetDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
+            private List<String> names() {
+                return prop != null ? new ArrayList<>(new TreeSet<>(prop.presets.keySet())) : Collections.emptyList();
+            }
+
+            @Override
+            protected String listitem(int i) {
+                return names().get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return names().size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+
+            @Override
+            public void change(String item) {
+                String previous = sel;
+                super.change(item);
+                if (item != null && prop != null) {
+                    if (!suppressPresetAutoSave && previous != null && !previous.equals(item) && currentPresetData != null) {
+                        writeBackCurrentPreset();
+                    }
+                    prop.currentPreset = item;
+                    loadPreset(item);
+                }
+            }
+        }, new Coord(0, 0));
+
+        presetRow.add(new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/add/u"),
+                Resource.loadsimg("nurgling/hud/buttons/add/d"),
+                Resource.loadsimg("nurgling/hud/buttons/add/h")) {
+            @Override
+            public void click() {
+                super.click();
+                addPreset();
+            }
+        }, new Coord(UI.scale(210), 0)).settip(L10n.get("forager.settings.new_preset_tip"));
+
+        presetRow.add(new IButton(
+                Resource.loadsimg("nurgling/hud/buttons/remove/u"),
+                Resource.loadsimg("nurgling/hud/buttons/remove/d"),
+                Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
+            @Override
+            public void click() {
+                super.click();
+                deletePreset();
+            }
+        }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_preset_tip"));
+
+        Widget prevField = psec.add(new Label(L10n.get("forager.settings.preset_actions_profile")), presetRow.pos("bl").add(UI.scale(0, 12)));
+        prevField = psec.add(presetActionsDropbox = new Dropbox<String>(UI.scale(300), 8, UI.scale(16)) {
+            private List<String> names() {
+                return prop != null ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
+            }
+
+            @Override
+            protected String listitem(int i) {
+                return names().get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return names().size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+        }, prevField.pos("bl").add(UI.scale(0, 5)));
+
+        prevField = psec.add(new Label(L10n.get("forager.settings.preset_route")), prevField.pos("bl").add(UI.scale(0, 10)));
+        prevField = psec.add(presetRouteDropbox = new Dropbox<String>(UI.scale(300), 8, UI.scale(16)) {
+            @Override
+            protected String listitem(int i) {
+                return routeNames.get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return routeNames.size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+        }, prevField.pos("bl").add(UI.scale(0, 5)));
+
+        prevField = psec.add(new Label(L10n.get("forager.settings.preset_guarding_profile")), prevField.pos("bl").add(UI.scale(0, 10)));
+        prevField = psec.add(presetGuardingDropbox = new Dropbox<String>(UI.scale(300), 8, UI.scale(16)) {
+            private List<String> names() {
+                return prop != null ? new ArrayList<>(new TreeSet<>(prop.guardingProfiles.keySet())) : Collections.emptyList();
+            }
+
+            @Override
+            protected String listitem(int i) {
+                return names().get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return names().size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+        }, prevField.pos("bl").add(UI.scale(0, 5)));
+
+        prevField = psec.add(new Label(L10n.get("forager.start_area")), prevField.pos("bl").add(UI.scale(0, 10)));
+        prevField = psec.add(presetStartArea = new NAreaDropbox(UI.scale(200)), prevField.pos("bl").add(UI.scale(0, 5)));
+
+        prevField = psec.add(new Label(L10n.get("forager.after_finish")), prevField.pos("bl").add(UI.scale(0, 10)));
+        prevField = psec.add(presetAfterFinishDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
+
+        prevField = psec.add(new Label(L10n.get("forager.on_full_inv")), prevField.pos("bl").add(UI.scale(0, 10)));
+        psec.add(presetOnFullInventoryDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
+
+        presetsSection.pack();
+
         relayoutSections();
+    }
+
+    /** Shared builder for a plain fixed-option-list dropdown (nothing/logout/travel hearth) -
+     *  same option set, different meaning, from Guarding's break/logout/travel hearth dropdown
+     *  above (buildGuardActionDropbox), so kept separate rather than reusing that one. */
+    private Dropbox<String> buildSimpleDropbox(String[] items) {
+        Dropbox<String> db = new Dropbox<String>(UI.scale(150), items.length, UI.scale(16)) {
+            @Override
+            protected String listitem(int i) {
+                return items[i];
+            }
+
+            @Override
+            protected int listitems() {
+                return items.length;
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+        };
+        db.change(items[0]);
+        return db;
     }
 
     /** Builds one generic guard-check row (enabled checkbox, description, up to 2 input fields,
@@ -650,11 +831,33 @@ public class ForagerSettingsPanel extends Panel {
         } finally {
             suppressRouteAutoSave = false;
         }
+
+        // Presets loads last - loadPreset() needs routeNames already populated above to
+        // resolve a preset's stored pathFile back to a selectable bare route name.
+        if (prop.presets.isEmpty()) {
+            NForagerProp.PresetData defaultPreset = new NForagerProp.PresetData();
+            defaultPreset.actionsProfileName = prop.currentActionsProfile;
+            defaultPreset.guardingProfileName = prop.currentGuardingProfile;
+            prop.presets.put("Default", defaultPreset);
+        }
+        if (prop.currentPreset == null || !prop.presets.containsKey(prop.currentPreset)) {
+            prop.currentPreset = prop.presets.keySet().iterator().next();
+        }
+        suppressPresetAutoSave = true;
+        try {
+            presetDropbox.change(prop.currentPreset);
+        } finally {
+            suppressPresetAutoSave = false;
+        }
     }
 
     @Override
     public void save() {
         if (prop != null) {
+            writeBackCurrentPreset();
+            if (currentPresetData != null && presetDropbox.sel != null) {
+                prop.presets.put(presetDropbox.sel, currentPresetData);
+            }
             writeBackCurrentGuardingProfile();
             if (currentGuardingProfile != null && guardingProfileDropbox.sel != null) {
                 prop.guardingProfiles.put(guardingProfileDropbox.sel, currentGuardingProfile);
@@ -732,6 +935,113 @@ public class ForagerSettingsPanel extends Panel {
         } catch (Exception e) {
             return def;
         }
+    }
+
+    /** Populates every Presets widget from the named preset, creating it (with sensible
+     *  defaults) if it doesn't exist yet - mirrors loadGuardingProfile()'s shape. */
+    private void loadPreset(String name) {
+        if (prop == null) return;
+        NForagerProp.PresetData pd = prop.presets.get(name);
+        if (pd == null) {
+            pd = new NForagerProp.PresetData();
+            pd.actionsProfileName = prop.currentActionsProfile;
+            pd.guardingProfileName = prop.currentGuardingProfile;
+            prop.presets.put(name, pd);
+        }
+        currentPresetData = pd;
+
+        presetActionsDropbox.change(pd.actionsProfileName != null ? pd.actionsProfileName : prop.currentActionsProfile);
+
+        String routeName = routeFileToName(pd.pathFile);
+        if (routeName != null && routeNames.contains(routeName)) {
+            presetRouteDropbox.change(routeName);
+        } else if (!routeNames.isEmpty()) {
+            presetRouteDropbox.change(routeNames.get(0));
+        }
+
+        presetGuardingDropbox.change(pd.guardingProfileName != null ? pd.guardingProfileName : prop.currentGuardingProfile);
+
+        presetStartArea.reloadAreas();
+        presetStartArea.setSelectedAreaId(pd.startAreaId);
+
+        presetAfterFinishDropbox.change(pd.afterFinishAction != null ? pd.afterFinishAction : "nothing");
+        presetOnFullInventoryDropbox.change(pd.onFullInventoryAction != null ? pd.onFullInventoryAction : "nothing");
+    }
+
+    /** Reads every Presets widget back into currentPresetData - called before switching the
+     *  selected preset and from save(). */
+    private void writeBackCurrentPreset() {
+        if (currentPresetData == null) return;
+        if (presetActionsDropbox.sel != null) {
+            currentPresetData.actionsProfileName = presetActionsDropbox.sel;
+        }
+        if (presetRouteDropbox.sel != null) {
+            currentPresetData.pathFile = routeNameToFile(presetRouteDropbox.sel);
+            // Stale - the actual ForagerPath for whatever route was previously selected. The
+            // bot re-resolves foragerPath from pathFile itself (transient field, see
+            // actions/bots/Forager.java's run()), so this just avoids handing it a mismatched
+            // in-memory object for the route it no longer points at.
+            currentPresetData.foragerPath = null;
+        }
+        if (presetGuardingDropbox.sel != null) {
+            currentPresetData.guardingProfileName = presetGuardingDropbox.sel;
+        }
+        currentPresetData.startAreaId = presetStartArea.getSelectedAreaId();
+        if (presetAfterFinishDropbox.sel != null) {
+            currentPresetData.afterFinishAction = presetAfterFinishDropbox.sel;
+        }
+        if (presetOnFullInventoryDropbox.sel != null) {
+            currentPresetData.onFullInventoryAction = presetOnFullInventoryDropbox.sel;
+        }
+    }
+
+    /** PresetData.pathFile is a full file path (NUtils.getDataFile(ROUTES_DIR, name + ".json")),
+     *  matching the pre-existing convention the old bot-launch window's path dropdown already
+     *  used - routeNames/presetRouteDropbox work in bare names, same as the Routes section's own
+     *  route dropdown, so these two helpers convert between the two forms. */
+    private String routeFileToName(String pathFile) {
+        if (pathFile == null || pathFile.isEmpty()) return null;
+        String name = new File(pathFile).getName();
+        if (name.endsWith(".json")) {
+            name = name.substring(0, name.length() - 5);
+        }
+        return name;
+    }
+
+    private String routeNameToFile(String name) {
+        return NUtils.getDataFile(ROUTES_DIR, name + ".json");
+    }
+
+    private void addPreset() {
+        if (prop == null) return;
+        TextInputWindow win = new TextInputWindow(
+                L10n.get("forager.settings.new_preset_title"), L10n.get("forager.settings.new_preset_prompt"), name -> {
+            if (name != null && !name.trim().isEmpty()) {
+                String trimmed = name.trim();
+                if (!prop.presets.containsKey(trimmed)) {
+                    NForagerProp.PresetData pd = new NForagerProp.PresetData();
+                    pd.actionsProfileName = prop.currentActionsProfile;
+                    pd.guardingProfileName = prop.currentGuardingProfile;
+                    prop.presets.put(trimmed, pd);
+                }
+                prop.currentPreset = trimmed;
+                presetDropbox.change(trimmed);
+            }
+        });
+        NUtils.getGameUI().add(win, UI.scale(250, 250));
+        win.show();
+    }
+
+    private void deletePreset() {
+        if (prop == null || presetDropbox.sel == null) return;
+        if (prop.presets.size() <= 1) {
+            // Always keep at least one preset to select at bot start.
+            return;
+        }
+        prop.presets.remove(presetDropbox.sel);
+        String next = prop.presets.keySet().iterator().next();
+        prop.currentPreset = next;
+        presetDropbox.change(next);
     }
 
     private void loadAvailableRoutes() {

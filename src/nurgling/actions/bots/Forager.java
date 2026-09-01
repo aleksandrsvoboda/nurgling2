@@ -121,14 +121,19 @@ public class Forager implements Action {
         forageProp = prop;
 
         // Actions are now edited as an independently-selected Actions Profile (Forager Settings
-        // > Actions), not the preset's own (now-legacy) `actions` field - overwrite it so every
-        // downstream helper that already reads preset.actions keeps working unchanged. A
-        // defensive copy, not the live reference: ForagerPickupContainer.load() hands out this
-        // same List<ForagerAction> to the settings UI, which structurally mutates it in place
-        // (add/remove/drag) - aliasing it directly here would let a concurrent Settings edit to
-        // the same Actions Profile race this bot's own iteration over the list mid-run.
-        if (prop.actionsProfiles != null && prop.currentActionsProfile != null) {
-            ArrayList<ForagerAction> profileActions = prop.actionsProfiles.get(prop.currentActionsProfile);
+        // > Presets picks which one this preset runs with), not the preset's own (now-legacy)
+        // `actions` field - overwrite it so every downstream helper that already reads
+        // preset.actions keeps working unchanged. A defensive copy, not the live reference:
+        // ForagerPickupContainer.load() hands out this same List<ForagerAction> to the settings
+        // UI, which structurally mutates it in place (add/remove/drag) - aliasing it directly
+        // here would let a concurrent Settings edit to the same Actions Profile race this bot's
+        // own iteration over the list mid-run. preset.actionsProfileName falls back to the
+        // prop-level currentActionsProfile only defensively - every preset is migrated to carry
+        // its own selection on load (see NForagerProp's deserializing constructor), so this
+        // should always be non-null by the time a real preset reaches here.
+        String actionsProfileName = preset.actionsProfileName != null ? preset.actionsProfileName : prop.currentActionsProfile;
+        if (prop.actionsProfiles != null && actionsProfileName != null) {
+            ArrayList<ForagerAction> profileActions = prop.actionsProfiles.get(actionsProfileName);
             if (profileActions != null) {
                 preset.actions = new ArrayList<>(profileActions);
             }
@@ -925,17 +930,18 @@ public class Forager implements Action {
         }
     }
     
-    /** Resolves the currently-selected GuardingProfile from prop.guardingProfiles/
-     *  currentGuardingProfile, migrating/defaulting on the fly if that selection somehow isn't
-     *  valid (mirrors currentActionsProfile's own defensive fallback in ForagerSettingsPanel).
-     *  Falls back to a fresh GuardingProfile.withDefaults() rather than erroring - a Forager
-     *  run should never be blocked from starting just because its guarding config is missing
-     *  or stale. */
+    /** Resolves the preset's own selected GuardingProfile (Forager Settings > Presets), falling
+     *  back to the prop-level currentGuardingProfile only defensively (same reasoning as the
+     *  actionsProfileName fallback above - every preset is migrated to carry its own selection
+     *  on load, so this is a belt-and-suspenders case, not the normal path). Falls back to a
+     *  fresh GuardingProfile.withDefaults() rather than erroring - a Forager run should never be
+     *  blocked from starting just because its guarding config is missing or stale. */
     private GuardingProfile resolveGuardingProfile(NForagerProp prop, NForagerProp.PresetData preset) {
         if (prop.guardingProfiles == null || prop.guardingProfiles.isEmpty()) {
             return GuardingProfile.withDefaults();
         }
-        GuardingProfile p = prop.guardingProfiles.get(prop.currentGuardingProfile);
+        String name = preset.guardingProfileName != null ? preset.guardingProfileName : prop.currentGuardingProfile;
+        GuardingProfile p = prop.guardingProfiles.get(name);
         if (p != null) {
             return p;
         }
