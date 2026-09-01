@@ -344,12 +344,11 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         }
 
         Buf buf = new Buf();
-        // Starts null, not pl - the player's own leg must connect to whichever node is
-        // *currently* active, not unconditionally to the first node in the list. Once progress
-        // moves the active node past index 0, node 0 (and any other already-passed node) is
-        // stale history the player is no longer physically connected to; drawing a leg straight
-        // from the player back to it produced exactly that stray line (reported live: it stayed
-        // connected to the first waypoint, faded, even long after moving past it).
+        // Starts null, not pl - the route's own chain (drawn below, always queuedColor()) already
+        // covers node 0's leg-in-from-nothing case correctly by simply not drawing one, same as
+        // any other node with nothing before it. The player's own leg into the active node is a
+        // second, separate line (see inside the loop) - not a substitute for this chain, which
+        // stays intact end to end (dimmed where stale) regardless of where the player actually is.
         Coord2d prev = null;
         Kind prevKind = Kind.ROUTE;
         for(WNode n : nodes) {
@@ -370,16 +369,20 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             int idx = n.num - 1;
             Color col = nodeColor(idx, n.id);
             double mult = nodeAlphaMult(idx);
-            // The chain from the previous ROUTE node still draws normally (so the stale history
-            // between already-passed waypoints stays visible, dimmed) - but the leg leading into
-            // the active node specifically always originates from the player's actual current
-            // position instead, overriding whatever that chain would otherwise have supplied.
-            Coord2d legFrom = (idx == activeIdx && pl != null) ? pl : prev;
-            if(legFrom != null) {
-                // The leg keeps the queue colour even when its node is grabbed, so the
-                // path stays readable while a waypoint is being dragged.
-                Color legc = (idx == activeIdx) ? activeColor() : queuedColor();
-                ribbon(buf, legFrom, n.wc, rgba(legc, 0.95 * mult), baseZ);
+            if(prev != null) {
+                // Always the route's own colour (dimmed when stale) - this chain represents the
+                // route itself, not "where the player currently is", so it never turns active/blue
+                // even for the leg leading into the active node; that's the separate player leg
+                // just below instead. Keeps the route fully connected end to end regardless of
+                // where the player actually happens to be relative to it.
+                ribbon(buf, prev, n.wc, rgba(queuedColor(), 0.95 * mult), baseZ);
+            }
+            if(idx == activeIdx && pl != null) {
+                // Second, additional leg: live, always full-brightness, tracks the player's
+                // actual current position to wherever they're really heading - coexists with the
+                // route-chain leg above rather than replacing it (reported live: replacing it left
+                // a visible gap in the route chain right where the player currently is).
+                ribbon(buf, pl, n.wc, rgba(activeColor(), 0.95), baseZ);
             }
             ring(buf, n.wc, rgba(col, 0.95 * mult), rgba(col, 0.18 * mult), baseZ);
             prev = n.wc;
