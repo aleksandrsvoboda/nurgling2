@@ -152,6 +152,7 @@ public class Forager implements Action {
         // everything before it as already-passed, independent of the movement-queue/Routes-
         // editor convention of always treating index 0 as active.
         gui.activeBotWaypointIndex = 0;
+        gui.activeBotFailedWaypoints = new HashSet<>();
         Thread threatWatcher = null;
         try {
 
@@ -368,6 +369,7 @@ public class Forager implements Action {
                 if (!pfGobResult.IsSuccess()) {
                     gui.msg("Forager debug: section " + i + " failed pathing to gob - waterMode="
                             + pfGob.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
+                    gui.activeBotFailedWaypoints.add(i + 1);
                 }
             } else
             {
@@ -378,6 +380,7 @@ public class Forager implements Action {
                 if (!pfEndResult.IsSuccess()) {
                     gui.msg("Forager debug: section " + i + " failed pathing to sectionEnd=" + sectionEnd
                             + " - waterMode=" + pfEnd.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
+                    gui.activeBotFailedWaypoints.add(i + 1);
                 }
             }
 
@@ -457,7 +460,9 @@ public class Forager implements Action {
             }
             gui.activeBotPath = null;
             gui.activeBotDetourTrail = null;
+            gui.activeBotDetourTarget = null;
             gui.activeBotWaypointIndex = -1;
+            gui.activeBotFailedWaypoints = null;
         }
     }
 
@@ -646,9 +651,11 @@ public class Forager implements Action {
         } finally {
             if (interrupted) {
                 gui.activeBotDetourTrail = null;
+                gui.activeBotDetourTarget = null;
             } else {
                 returnToPathViaBreadcrumbs(gui, breadcrumbs, preset);
                 gui.activeBotDetourTrail = null;
+                gui.activeBotDetourTarget = null;
             }
         }
     }
@@ -676,7 +683,11 @@ public class Forager implements Action {
             if (player == null) return;
 
             Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS);
-            if (nearest == null) return;
+            if (nearest == null) {
+                gui.activeBotDetourTarget = null;
+                return;
+            }
+            gui.activeBotDetourTarget = nearest.a.rc;
 
             if (player.rc.dist(nearest.a.rc) > MAX_HOP_DISTANCE) {
                 // Too far for a single PathFinder call - hop towards it, opportunistically
@@ -719,10 +730,12 @@ public class Forager implements Action {
 
             Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS);
             if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
+                gui.activeBotDetourTarget = nearest.a.rc;
                 breadcrumbs.add(player.rc);
                 performGobAction(gui, nearest.b, nearest.a, preset);
                 continue;
             }
+            gui.activeBotDetourTarget = target;
 
             Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
             breadcrumbs.add(player.rc);
