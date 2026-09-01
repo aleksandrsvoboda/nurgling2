@@ -12,16 +12,30 @@ import java.util.ArrayList;
 
 public class NRingSettings extends Panel {
 
+    // NConfig.get() resolves to the calling UI's own per-session config copy (see
+    // NConfig.resolveConfig()) - a real, independent NConfig instance, separate from the
+    // per-genus profile config NCore's save loop actually checks/writes. Editing an NAreaRad
+    // in place only mutated that session copy's own list, which the profile instance never
+    // saw - needUpdate() alone (even fixed to mark the right *session* config dirty) can't fix
+    // that, since it's a completely different object holding a completely different list.
+    // Re-pushing this same list through NConfig.set() after every edit is what actually
+    // reaches the profile instance (and gets it marked dirty - see NConfig.set()'s own fix).
+    private final ArrayList<NAreaRad> radProps;
+
     public NRingSettings() {
         final int margin = UI.scale(10);
 
         prev = add(new Label(L10n.get("rings.settings_title")), new Coord(margin, margin));
-        ArrayList<NAreaRad> radProps = ((ArrayList<NAreaRad>) NConfig.get(NConfig.Key.animalrad));
+        radProps = ((ArrayList<NAreaRad>) NConfig.get(NConfig.Key.animalrad));
         for (NAreaRad prop : radProps)
         {
             prev = add(new ElementSettings(prop, UI.scale(320), UI.scale(22)), prev.pos("bl").adds(0, 5));
         }
         pack();
+    }
+
+    private void persistRadProps() {
+        NConfig.set(NConfig.Key.animalrad, radProps);
     }
 
     public class ElementSettings extends Widget {
@@ -49,7 +63,7 @@ public class NRingSettings extends Panel {
                 public void changed(boolean val) {
                     super.changed(val);
                     rad.vis = val;
-                    NConfig.needUpdate();
+                    persistRadProps();
                 }
             }, new Coord(checkX, (itemHeight - UI.scale(16)) / 2));
 
@@ -59,15 +73,14 @@ public class NRingSettings extends Panel {
                 @Override
                 public void done(ReadLine buf) {
                     super.done(buf);
-                    // The edit itself was already being applied and (as of the needUpdate()
-                    // session-scoping fix) actually saved - but with zero visible confirmation,
-                    // pressing Enter looked like it "did nothing" (reported live). A chat
-                    // message on success makes the accept visible; one on failure explains why
-                    // nothing changed instead of silently swallowing a bad value.
+                    // A chat message on success makes the accept visible (pressing Enter
+                    // previously gave zero feedback either way, reported live as "looks like
+                    // nothing happened"); one on failure explains why nothing changed instead
+                    // of silently swallowing a bad value.
                     try {
                         int newRadius = Integer.parseInt(buf.line().trim());
                         rad.radius = newRadius;
-                        NConfig.needUpdate();
+                        persistRadProps();
                         NUtils.getGameUI().msg("Ring settings: " + rad.name + " radius set to " + newRadius);
                     } catch (Exception e) {
                         NUtils.getGameUI().error("Ring settings: invalid radius \"" + buf.line() + "\"");

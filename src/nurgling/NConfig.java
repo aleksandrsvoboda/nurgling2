@@ -761,6 +761,16 @@ public class NConfig
                 synchronized (ctx.config.conf) {
                     ctx.config.conf.put(key, val);
                 }
+                // ctx.config is the per-genus PROFILE instance (ConfigFactory.getConfig() ->
+                // NConfig.getProfileInstance()) - a real, independent NConfig object, separate
+                // from both `current` (global) and ctx.ui.sessionConfig below. NCore.tick()'s
+                // save loop checks THIS instance's own isUpdated()/write() (its own dedicated
+                // per-genus file), not `current`'s - putting the value into its conf map
+                // without marking it dirty here meant it silently never got saved to that file
+                // at all: `current`.write() still fired and looked like a successful save, but
+                // to the wrong (global, not per-world/profile) file. Confirmed live - a Ring
+                // Settings edit showed a "saved" confirmation but reverted on client reload.
+                ctx.config.isUpd = true;
             }
             NConfig sc = (ctx.ui != null) ? ctx.ui.sessionConfig : null;
             if (sc != null)
@@ -768,6 +778,7 @@ public class NConfig
                 synchronized (sc.conf) {
                     sc.conf.put(key, val);
                 }
+                sc.isUpd = true;
             }
         }
     }
