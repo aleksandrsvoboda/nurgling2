@@ -9,6 +9,7 @@ import haven.Widget;
 import haven.Window;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.routes.ForagerWaypoint;
 import nurgling.tasks.WaitDuration;
 import nurgling.tasks.WaitForGridChangeOrTimeout;
 import nurgling.tasks.WaitTicks;
@@ -36,6 +37,13 @@ import java.util.Map;
  * multi-path milestone would need to know which path corresponds to the recorded destination,
  * and there's currently no way to tell them apart from outside the dialog (its buttons carry no
  * information beyond their label) - explicitly deferred, not guessed at.
+ * <p>
+ * After a confirmed grid change, validates that we actually landed near the route's own
+ * recorded destination waypoint (not just "some" grid change) - a milestone whose destinations
+ * changed since this route was spliced, or any other mismatch between the route and reality,
+ * would otherwise strand the bot somewhere unexpected. On a mismatch, travels home
+ * ({@link TravelToHearthFire}) instead of continuing on a route that no longer means what it
+ * used to.
  */
 public class UseMilestone implements Action {
 
@@ -65,10 +73,24 @@ public class UseMilestone implements Action {
     // has happened.
     private static final long PEEK_WAIT_MS = 7_000;
 
-    private final String milestoneHash;
+    // How far from the route's own recorded destination waypoint counts as "close enough" -
+    // Travel doesn't drop you on the exact recorded tile every time, so this needs slack, but a
+    // genuinely broken route (milestone re-recorded with different destinations since this route
+    // was spliced, wrong Travel button, etc.) should land far outside it. Untested guess, flagged
+    // for live tuning like other real-time thresholds in this codebase.
+    private static final double WRONG_LOCATION_TOLERANCE = MCache.tilesz.x * 30;
 
-    public UseMilestone(String milestoneHash) {
+    private final String milestoneHash;
+    // The route's own destination anchor for this splice (see ForagerRouteMap.doSplice()) -
+    // null only for a caller that doesn't want post-arrival validation. Compared against where we
+    // actually land, not MilestoneRegistry's current destinations - the route's own waypoint is
+    // what the user's route actually means, and MilestoneRegistry could have been re-recorded
+    // with different destinations since this route was spliced.
+    private final ForagerWaypoint expectedDestination;
+
+    public UseMilestone(String milestoneHash, ForagerWaypoint expectedDestination) {
         this.milestoneHash = milestoneHash;
+        this.expectedDestination = expectedDestination;
     }
 
     @Override
@@ -139,6 +161,19 @@ public class UseMilestone implements Action {
         }
 
         NUtils.getUI().core.addTask(new WaitDuration(POST_TRAVEL_SETTLE_MS));
+
+        if (expectedDestination != null) {
+            haven.MiniMap.Location sessloc = gui.mmap != null ? gui.mmap.sessloc : null;
+            Coord2d expectedWorld = sessloc != null ? expectedDestination.toWorldCoord(sessloc) : null;
+            Gob player = NUtils.player();
+            boolean wrongPlace = expectedWorld == null || player == null
+                    || player.rc.dist(expectedWorld) > WRONG_LOCATION_TOLERANCE;
+            if (wrongPlace) {
+                gui.msg("Forager: milestone travel didn't land near the route's recorded destination "
+                        + "- route may be broken. Teleporting home.");
+                return new TravelToHearthFire().run(gui);
+            }
+        }
 
         return Results.SUCCESS();
     }

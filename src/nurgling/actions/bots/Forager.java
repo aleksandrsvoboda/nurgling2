@@ -261,7 +261,9 @@ public class Forager implements Action {
             ForagerWaypoint toWp = path.waypoints.get(i + 1);
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
                 // UseMilestone.run() already reports its own failure message via Results.ERROR().
-                Results milestoneResult = new UseMilestone(fromWp.milestoneHash).run(gui);
+                // toWp is passed as the expected destination so it can validate we actually landed
+                // near it after traveling, and teleport home instead of continuing if not.
+                Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp).run(gui);
                 if (!milestoneResult.IsSuccess()) {
                     return milestoneResult;
                 }
