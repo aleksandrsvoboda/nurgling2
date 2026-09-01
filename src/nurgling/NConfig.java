@@ -775,6 +775,21 @@ public class NConfig
 
     public static void needUpdate()
     {
+        // get()/resolveConfig() hand callers the per-session config whenever one's bound
+        // (essentially always during actual gameplay - see resolveConfig()), not `current` - so
+        // a caller that reads a value via get(), mutates it in place (e.g. NRingSettings'
+        // NAreaRad entries), and then calls needUpdate() was marking a config instance that was
+        // never actually touched. Its own session config's isUpd flag stayed false, so NCore's
+        // tick-loop save check (config.isUpdated()/config.write()) never fired - the edit lived
+        // only in memory until the process exited, i.e. never reliably saved. Mark both the
+        // resolved (likely session) config and the global current - harmless if they're the
+        // same instance or if current didn't actually change (an extra no-op write), but now
+        // actually saves whichever one really did.
+        NConfig resolved = resolveConfig();
+        if (resolved != null)
+        {
+            resolved.isUpd = true;
+        }
         if (current != null)
         {
             current.isUpd = true;

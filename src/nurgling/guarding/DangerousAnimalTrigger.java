@@ -26,10 +26,11 @@ public class DangerousAnimalTrigger implements GuardTrigger {
             if (rad.name.equals("gfx/kritter/rat/rat")) {
                 continue;
             }
-            // Widened from the usual 1.5x margin to 2x as a stopgap: Ring Settings' configured
-            // radius isn't reliably saving right now (separate, not-yet-fixed issue) - revert
-            // this back to 1.5x once the underlying save bug is actually fixed.
-            double triggerDist = rad.radius * 2;
+            // 1.5x margin over the configured danger radius - pulls the character out before
+            // real danger, not after. Was temporarily widened to 2x as a stopgap while
+            // NConfig.needUpdate() had a session-scoping bug that meant a Ring Settings edit
+            // often didn't actually get saved (fixed - see NConfig.needUpdate()'s javadoc).
+            double triggerDist = rad.radius * 1.5;
             Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, triggerDist);
             if (animal != null) {
                 lastReason = "dangerous animal (" + rad.name + ") nearby";

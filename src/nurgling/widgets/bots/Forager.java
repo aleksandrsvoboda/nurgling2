@@ -22,15 +22,9 @@ public class Forager extends PathBotWindow {
     private Dropbox<String> guardingProfileDropbox = null;
 
     NAreaDropbox startArea = null;
-    Dropbox<String> onPlayerAction = null;
-    Dropbox<String> onAnimalAction = null;
     Dropbox<String> afterFinishAction = null;
     Dropbox<String> onFullInventoryAction = null;
-    CheckBox ignoreBatsCheckbox = null;
-    CheckBox waterModeCheckbox = null;
 
-    private static final String[] PLAYER_ACTIONS = {"nothing", "logout", "travel hearth"};
-    private static final String[] ANIMAL_ACTIONS = {"nothing", "logout", "travel hearth"};
     private static final String[] AFTER_FINISH_ACTIONS = {"nothing", "logout", "travel hearth"};
     private static final String[] FULL_INVENTORY_ACTIONS = {"nothing", "logout", "travel hearth"};
 
@@ -107,14 +101,6 @@ public class Forager extends PathBotWindow {
             }
         }, prev.pos("bl").add(UI.scale(0, 5)));
 
-        // Player detection reaction
-        prev = add(new Label(L10n.get("forager.on_player")), prev.pos("bl").add(UI.scale(0, 10)));
-        prev = add(onPlayerAction = createSimpleDropbox(PLAYER_ACTIONS), prev.pos("bl").add(UI.scale(0, 5)));
-
-        // Animal detection reaction
-        prev = add(new Label(L10n.get("forager.on_animal")), prev.pos("bl").add(UI.scale(0, 10)));
-        prev = add(onAnimalAction = createSimpleDropbox(ANIMAL_ACTIONS), prev.pos("bl").add(UI.scale(0, 5)));
-
         // After finish action
         prev = add(new Label(L10n.get("forager.after_finish")), prev.pos("bl").add(UI.scale(0, 10)));
         prev = add(afterFinishAction = createSimpleDropbox(AFTER_FINISH_ACTIONS), prev.pos("bl").add(UI.scale(0, 5)));
@@ -122,12 +108,6 @@ public class Forager extends PathBotWindow {
         // On full inventory action
         prev = add(new Label(L10n.get("forager.on_full_inv")), prev.pos("bl").add(UI.scale(0, 10)));
         prev = add(onFullInventoryAction = createSimpleDropbox(FULL_INVENTORY_ACTIONS), prev.pos("bl").add(UI.scale(0, 5)));
-
-        // Ignore bats checkbox
-        prev = add(ignoreBatsCheckbox = new CheckBox(L10n.get("forager.ignore_bats")), prev.pos("bl").add(UI.scale(0, 5)));
-
-        // Water mode checkbox
-        prev = add(waterModeCheckbox = new CheckBox(L10n.get("forager.water_mode")), prev.pos("bl").add(UI.scale(0, 5)));
 
         // Start button
         addStartButton();
@@ -297,16 +277,10 @@ public class Forager extends PathBotWindow {
         NForagerProp.PresetData preset = prop.presets.get(presetName);
         if (preset != null) {
             preset.startAreaId = startArea.getSelectedAreaId();
-            if (onPlayerAction.sel != null)
-                preset.onPlayerAction = onPlayerAction.sel;
-            if (onAnimalAction.sel != null)
-                preset.onAnimalAction = onAnimalAction.sel;
             if (afterFinishAction.sel != null)
                 preset.afterFinishAction = afterFinishAction.sel;
             if (onFullInventoryAction.sel != null)
                 preset.onFullInventoryAction = onFullInventoryAction.sel;
-            preset.ignoreBats = ignoreBatsCheckbox.a;
-            preset.waterMode = waterModeCheckbox.a;
         }
         if (actionsProfileDropbox.sel != null) {
             prop.currentActionsProfile = actionsProfileDropbox.sel;
@@ -328,16 +302,6 @@ public class Forager extends PathBotWindow {
         if (preset != null) {
             preset.startAreaId = startArea.getSelectedAreaId();
 
-            if (onPlayerAction.sel != null)
-                preset.onPlayerAction = onPlayerAction.sel;
-            else
-                preset.onPlayerAction = "nothing";
-
-            if (onAnimalAction.sel != null)
-                preset.onAnimalAction = onAnimalAction.sel;
-            else
-                preset.onAnimalAction = "logout";
-
             if (afterFinishAction.sel != null)
                 preset.afterFinishAction = afterFinishAction.sel;
             else
@@ -347,9 +311,6 @@ public class Forager extends PathBotWindow {
                 preset.onFullInventoryAction = onFullInventoryAction.sel;
             else
                 preset.onFullInventoryAction = "nothing";
-
-            preset.ignoreBats = ignoreBatsCheckbox.a;
-            preset.waterMode = waterModeCheckbox.a;
         }
     }
 
@@ -358,20 +319,6 @@ public class Forager extends PathBotWindow {
     private void updateSafetyDropboxes(NForagerProp.PresetData preset) {
         startArea.reloadAreas();
         startArea.setSelectedAreaId(preset.startAreaId);
-
-        for (int i = 0; i < PLAYER_ACTIONS.length; i++) {
-            if (PLAYER_ACTIONS[i].equals(preset.onPlayerAction)) {
-                onPlayerAction.change(PLAYER_ACTIONS[i]);
-                break;
-            }
-        }
-
-        for (int i = 0; i < ANIMAL_ACTIONS.length; i++) {
-            if (ANIMAL_ACTIONS[i].equals(preset.onAnimalAction)) {
-                onAnimalAction.change(ANIMAL_ACTIONS[i]);
-                break;
-            }
-        }
 
         for (int i = 0; i < AFTER_FINISH_ACTIONS.length; i++) {
             if (AFTER_FINISH_ACTIONS[i].equals(preset.afterFinishAction)) {
@@ -386,8 +333,5 @@ public class Forager extends PathBotWindow {
                 break;
             }
         }
-
-        ignoreBatsCheckbox.a = preset.ignoreBats;
-        waterModeCheckbox.a = preset.waterMode;
     }
 }
