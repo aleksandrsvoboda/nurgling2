@@ -1,6 +1,7 @@
 package nurgling.widgets.nsettings;
 
 import haven.*;
+import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.conf.NForagerProp;
@@ -317,7 +318,10 @@ public class ForagerSettingsPanel extends Panel {
 
         // ---- Routes ----
         routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), true), actionsSection.pos("bl").add(UI.scale(0, 10)));
-        routesSection.setOnToggle(this::relayoutSections);
+        routesSection.setOnToggle(() -> {
+            relayoutSections();
+            updateActiveRouteEditor();
+        });
         sections.add(routesSection);
         Widget rsec = routesContent = routesSection.content;
 
@@ -933,6 +937,30 @@ public class ForagerSettingsPanel extends Panel {
             presetDropbox.change(prop.currentPreset);
         } finally {
             suppressPresetAutoSave = false;
+        }
+
+        // Routes starts expanded by default and no toggle click will have fired yet on a first
+        // load(), so this needs its own explicit call here rather than relying solely on
+        // routesSection's onToggle above.
+        updateActiveRouteEditor();
+    }
+
+    /** Lets the real 3D map view (NMapView) show/edit whichever route this panel currently has
+     *  loaded, but only while the Routes section is actually expanded - see routesSection's
+     *  onToggle and hide() below for the other places this needs to be kept in sync. */
+    private void updateActiveRouteEditor() {
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null) return;
+        gui.activeRouteEditor = (routesSection != null && routesSection.isExpanded() && routeMap != null)
+                ? routeMap : null;
+    }
+
+    @Override
+    public void hide() {
+        super.hide();
+        NGameUI gui = NUtils.getGameUI();
+        if (gui != null) {
+            gui.activeRouteEditor = null;
         }
     }
 

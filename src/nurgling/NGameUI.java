@@ -63,6 +63,11 @@ public class NGameUI extends GameUI
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
+    // Set/cleared by ForagerSettingsPanel while its Routes section is expanded - a separate,
+    // independent context from activeBotPath (which means "a bot is running"). Lets NMapView
+    // show the route currently being edited in Settings overlaid on the real 3D map, and lets
+    // Alt+Left-click there add a waypoint to it instead of WaypointMovementService's queue.
+    public nurgling.widgets.nsettings.ForagerRouteMap activeRouteEditor = null;
     // Live breadcrumb trail for Forager's off-path gob-collection detours (world Coord2d,
     // most-recent-last), null when no detour is in progress. Same list instance is mutated
     // live by the bot thread as it hops between gobs, so rendering always sees current state.

@@ -338,20 +338,30 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
 
     private void drawBotPathOnGround(GOut g) {
-        if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
-            return;
         try {
             NGameUI gui = NUtils.getGameUI();
             if(gui == null) return;
 
-            // Get path from active bot execution or from open bot settings window
-            nurgling.routes.ForagerPath path = gui.activeBotPath;
-            if(path == null) {
-                // Check for open PathRecordable window
-                for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
-                    if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
-                        path = ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
-                        break;
+            nurgling.routes.ForagerPath path;
+            if(gui.activeRouteEditor != null) {
+                // Forager Settings' Routes editor is showing a route - always draw it, regardless
+                // of the general "watch my running/recording bot" toggle below. This is a
+                // deliberate, temporary editing aid the user turned on by opening Routes, not the
+                // always-on HUD overlay that toggle controls.
+                path = gui.activeRouteEditor.getRoute();
+            } else {
+                if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
+                    return;
+
+                // Get path from active bot execution or from open bot settings window
+                path = gui.activeBotPath;
+                if(path == null) {
+                    // Check for open PathRecordable window
+                    for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
+                        if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
+                            path = ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
+                            break;
+                        }
                     }
                 }
             }
@@ -2319,16 +2329,30 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
      * NMiniMapWnd.clickloc and NMapWnd.handleWaypointClick do from a map.
      *
      * <p>Returning false leaves the click to fall through and walk normally.
+     *
+     * <p>While Forager Settings' Routes section is showing a route (gui.activeRouteEditor),
+     * this adds a waypoint to that route instead of WaypointMovementService's queue - editing a
+     * route and queueing a movement don't both make sense from the same click, and route editing
+     * takes priority since it's the more deliberate, actively-open context.
      */
     public boolean addWaypointAt(Coord2d mc) {
         NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
+        if(gui == null || gui.mmap == null)
             return false;
         haven.MiniMap.Location sessloc = gui.mmap.sessloc;
         if(sessloc == null)
             return false;
         Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
-        gui.waypointMovementService.addWaypoint(new haven.MiniMap.Location(sessloc.seg, tc), sessloc);
+        haven.MiniMap.Location loc = new haven.MiniMap.Location(sessloc.seg, tc);
+
+        if(gui.activeRouteEditor != null) {
+            gui.activeRouteEditor.addWaypointFromWorld(loc);
+            return true;
+        }
+
+        if(gui.waypointMovementService == null)
+            return false;
+        gui.waypointMovementService.addWaypoint(loc, sessloc);
         return true;
     }
 

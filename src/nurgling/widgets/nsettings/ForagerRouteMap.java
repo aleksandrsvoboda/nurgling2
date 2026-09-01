@@ -93,6 +93,19 @@ public class ForagerRouteMap extends NMiniMap {
         dirty = false;
     }
 
+    public ForagerPath getRoute() {
+        return route;
+    }
+
+    /** Same add-a-waypoint behavior as a plain left-click on this widget (see {@link #clickloc}),
+     *  reachable from outside it - lets NMapView's Alt+Left-click hook add a waypoint here from a
+     *  real-world click while this route is the one active in Forager Settings' Routes editor. */
+    public void addWaypointFromWorld(MiniMap.Location loc) {
+        if (route == null) return;
+        route.addWaypoint(new ForagerWaypoint(loc));
+        notifyChanged();
+    }
+
     /** Called by the owning panel right after a successful save - clears the unsaved-changes
      *  indicator without touching route/waypoints/exclusion state (unlike setRoute(), this isn't
      *  a reload, currentRoute is still the same object, it's just no longer ahead of disk). */
