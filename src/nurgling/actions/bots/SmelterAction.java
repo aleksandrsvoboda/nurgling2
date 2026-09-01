@@ -150,9 +150,9 @@ public class SmelterAction implements Action {
                             if (totalNeeded == 0)
                                 break;
 
-                            int stillToFetch = totalNeeded - gui.getInventory().getItems(ores).size();
-                            if (stillToFetch > 0)
-                                new TakeItems2(context, stillToFetch, Specialisation.SpecName.ore, NInventory.QualityType.High).takeAny(ores, gui);
+                            // takeAny's count is an absolute inventory target, not a delta.
+                            if (totalNeeded > gui.getInventory().getItems(ores).size())
+                                new TakeItems2(context, totalNeeded, Specialisation.SpecName.ore, NInventory.QualityType.High).takeAny(ores, gui);
                             if (gui.getInventory().getItems(ores).isEmpty()) {
                                 oreExhausted = true;
                                 break;

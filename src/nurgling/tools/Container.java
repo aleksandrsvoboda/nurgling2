@@ -441,21 +441,46 @@ public class Container implements NContext.ObjectStorage {
         return false;
     }
 
-    /* How many items to ask a gather step for. For Tetris, calcNumberFreeCoord re-simulates
-     * placement into a fresh copy of the grid per shape and doesn't account for one shape's
-     * placement consuming cells another shape would also fit in, so summing across shapes
-     * over-counts real capacity - take the best single shape's count instead, which is safe
-     * to under-request (the caller just loops again) but never over-requests. */
+    /* Real capacity for a known item shape - far better than guessing across every target shape,
+     * so a caller that has seen what it is actually carrying can fill in one trip. */
+    public int freeSpace(Coord shape) {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris != null) {
+            if (tetris.getRes().get(Tetris.SRC) == null)
+                return 1;
+            return tetris.calcNumberFreeCoord(Tetris.SRC, shape);
+        }
+        return freeSpace();
+    }
+
+    /* Footprint of the first held item matching alias, or null if none - lets a gather loop
+     * discover the real item shape and then size the rest of its fetch against it. */
+    public static Coord heldShape(NAlias alias, NGameUI gui) throws InterruptedException {
+        for (WItem witem : gui.getInventory().getItems(alias)) {
+            if (witem.item.spr != null)
+                return witem.item.spr.sz().div(UI.scale(32)).swapXY();
+        }
+        return null;
+    }
+
+    /* Each calcNumberFreeCoord restarts from a fresh grid, so the smallest shape over-states
+     * capacity and asking for that many strands the surplus. Take the smallest non-zero count;
+     * skip non-fitting shapes so a container with room for small items only isn't reported as
+     * zero and left unfilled. Only a bootstrap - prefer freeSpace(Coord) once the shape is known. */
     public int freeSpace() {
         Tetris tetris = getattr(Tetris.class);
         if (tetris != null) {
-            if (!tetris.isReady())
+            /* Not isReady(): callers seed TARGET_COORD at construction, so it reads true before
+             * any update() and SRC can still be missing - which would score every shape 0. */
+            if (tetris.getRes().get(Tetris.SRC) == null)
                 return 1;
-            int best = 0;
+            int fits = 0;
             for (Coord c : (ArrayList<Coord>) tetris.getRes().get(Tetris.TARGET_COORD)) {
-                best = Math.max(best, tetris.calcNumberFreeCoord(Tetris.SRC, c));
+                int forShape = tetris.calcNumberFreeCoord(Tetris.SRC, c);
+                if (forShape > 0 && (fits == 0 || forShape < fits))
+                    fits = forShape;
             }
-            return Math.max(best, 1);
+            return fits;
         }
         Space space = getattr(Space.class);
         return space != null && space.isReady() ? space.getFreeSpace() : 1;

@@ -1,7 +1,9 @@
 package nurgling.actions.bots;
 
 import haven.Coord;
+import haven.Coord2d;
 import haven.Gob;
+import haven.Pair;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
@@ -38,7 +40,8 @@ public class LeatherAction implements Action {
             try {
                 NContext context = new NContext(gui);
                 ArrayList<Container> containers = new ArrayList<>();
-                NArea ttubsarea = NContext.findSpec(Specialisation.SpecName.ttub.toString());
+                // findSpec only locates an already-loaded area; it returns null from another cell.
+                NArea ttubsarea = context.goToArea(Specialisation.SpecName.ttub);
                 for (Gob ttube : Finder.findGobs(ttubsarea,
                         new NAlias("gfx/terobjs/ttub"))) {
                     Container cand = new Container(ttube , "Tub",ttubsarea );
@@ -57,7 +60,12 @@ public class LeatherAction implements Action {
                     containers.add(cand);
                 }
 
-                new FillFluid(containers, NContext.findSpec(Specialisation.SpecName.tanning.toString()).getRCArea(), new NAlias("tanfluid"), 2).run(gui);
+                /* Resolve the tanning area first, then come back: FillFluid reads every tub's gob
+                 * with no null check, and if resolving tanning walked us into another cell the
+                 * tubs would have unloaded. goToArea is a no-op when we're already in range. */
+                Pair<Coord2d, Coord2d> tanningArea = context.goToArea(Specialisation.SpecName.tanning).getRCArea();
+                context.goToArea(Specialisation.SpecName.ttub);
+                new FillFluid(containers, tanningArea, new NAlias("tanfluid"), 2).run(gui);
                 new FreeContainers(containers, new NAlias("Leather")).run(gui);
 
                 // TakeItems2.takeAny already searches both piles and containers in the area (NContext.getSpecStorages); TransferToContainer already handles the tub's Tetris shapes.
@@ -68,12 +76,23 @@ public class LeatherAction implements Action {
                     if (!cont.isFull())
                         stillNeeding.add(cont);
 
+                Coord hideShape = null;
                 while (!stillNeeding.isEmpty()) {
-                    int totalNeeded = 0;
-                    for (Container cont : stillNeeding)
-                        totalNeeded += cont.freeSpace();
+                    int totalNeeded = capacityFor(stillNeeding, hideShape);
+                    // takeAny's count is an absolute inventory target, not a delta.
                     if (totalNeeded > gui.getInventory().getItems(notraw).size())
-                        new TakeItems2(context, totalNeeded - gui.getInventory().getItems(notraw).size(), Specialisation.SpecName.readyHides, NInventory.QualityType.High).takeAny(notraw, gui);
+                        new TakeItems2(context, totalNeeded, Specialisation.SpecName.readyHides, NInventory.QualityType.High).takeAny(notraw, gui);
+                    /* Until a hide has been seen, capacity is a worst-case guess of one or two per
+                     * tub, which would mean a trip to storage per hide. Measure what we just picked
+                     * up and top up to the real capacity now, while still standing at the source. */
+                    if (hideShape == null) {
+                        hideShape = Container.heldShape(notraw, gui);
+                        if (hideShape != null) {
+                            int refined = capacityFor(stillNeeding, hideShape);
+                            if (refined > gui.getInventory().getItems(notraw).size())
+                                new TakeItems2(context, refined, Specialisation.SpecName.readyHides, NInventory.QualityType.High).takeAny(notraw, gui);
+                        }
+                    }
                     int held = gui.getInventory().getItems(notraw).size();
                     if (held == 0)
                         break;
@@ -99,7 +118,31 @@ public class LeatherAction implements Action {
                     stillNeeding = nextRound;
                 }
 
-                new TransferToPiles(NContext.findSpec(Specialisation.SpecName.readyHides.toString()).getRCArea(), notraw).run(gui);
+                // TransferToPiles drops hides on the ground when they live in a chest, so offer
+                // containers first and keep piles as the fallback.
+                if (!gui.getInventory().getItems(notraw).isEmpty()) {
+                    ArrayList<NContext.ObjectStorage> storages = context.getSpecStorages(Specialisation.SpecName.readyHides);
+                    if (storages != null) {
+                        for (NContext.ObjectStorage storage : storages) {
+                            if (gui.getInventory().getItems(notraw).isEmpty())
+                                break;
+                            if (storage instanceof Container) {
+                                Container back = (Container) storage;
+                                // pathTo first: TransferToContainer just fails if the gob isn't
+                                // streamed in, which would drop the hides to the pile fallback.
+                                if (Container.pathTo(gui, back) == null)
+                                    continue;
+                                new TransferToContainer(back, notraw).run(gui);
+                                new CloseTargetContainer(back).run(gui);
+                            }
+                        }
+                    }
+                }
+                if (!gui.getInventory().getItems(notraw).isEmpty()) {
+                    NArea readyHidesArea = context.goToArea(Specialisation.SpecName.readyHides);
+                    if (readyHidesArea != null)
+                        new TransferToPiles(readyHidesArea.getRCArea(), notraw).run(gui);
+                }
 
                 return Results.SUCCESS();
             } finally {
@@ -107,5 +150,12 @@ public class LeatherAction implements Action {
             }
         }
         return Results.FAIL();
+    }
+
+    private static int capacityFor(ArrayList<Container> conts, Coord shape) {
+        int total = 0;
+        for (Container cont : conts)
+            total += (shape != null) ? cont.freeSpace(shape) : cont.freeSpace();
+        return total;
     }
 }
