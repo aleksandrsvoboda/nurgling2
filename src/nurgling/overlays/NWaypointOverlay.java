@@ -432,14 +432,16 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
                 continue;
             }
             if(n.kind == Kind.DETOUR_TARGET) {
-                // Blue, mirroring the main route's own active-node treatment - "what is Forager
-                // actually grabbing right now". Chains from the last breadcrumb if there is one
-                // (prev), plus its own live leg from the player, same dual-leg shape the route's
-                // active waypoint uses and for the same reason (keep the breadcrumb chain intact
-                // while still showing exactly where the player is actually walking).
+                // Ring is blue, mirroring the main route's own active-node treatment - "what is
+                // Forager actually grabbing right now". The chain leg from the last breadcrumb
+                // (prev), if there is one, stays detourColor() (green) instead of blue - it's
+                // part of the breadcrumb trail's own chain, same as how the main route's chain
+                // never turns blue for the leg leading into its active node either (see below);
+                // only the live leg from the player is blue, "this is fine and good" per direct
+                // feedback on this exact split.
                 Color acol = activeColor();
                 if(prev != null)
-                    ribbon(buf, prev, n.wc, rgba(acol, 0.95), baseZ);
+                    ribbon(buf, prev, n.wc, rgba(detourColor(), 0.95), baseZ);
                 if(pl != null)
                     ribbon(buf, pl, n.wc, rgba(acol, 0.95), baseZ);
                 ring(buf, n.wc, rgba(acol, 0.95), rgba(acol, 0.18), baseZ);
