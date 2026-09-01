@@ -51,6 +51,11 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
     private Coord2d lastPlayer = null;
     private double lastBuild = 0;
     private volatile List<WNode> screen = Collections.emptyList();
+    // Whether the nodes resolve() most recently built may be picked up for a 3D-view drag - true
+    // for Forager route editing and the WaypointMovementService queue, false while merely
+    // displaying a running/recording bot's path (read-only; there's no sensible write-back target
+    // for repositioning a waypoint of a route the bot is actively walking). See resolve()/draggable().
+    private volatile boolean draggable = true;
 
     // Cached ETA text so it is not re-rendered every frame.
     private static final Text.Foundry etaf = new Text.Foundry(Text.dfont, 11).aa(true);
@@ -96,14 +101,55 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
      *  Queue resolution
      * ------------------------------------------------------------------ */
 
+    /** True if the nodes resolve() most recently built came from a source that supports being
+     *  dragged in the 3D view - see the {@link #draggable} field. */
+    public boolean draggable() {
+        return draggable;
+    }
+
+    /** Forager route/waypoint list -&gt; WNodes, shared by the route-editing and running/recording-
+     *  bot branches of resolve() below - both are just "some ForagerPath," differing only in
+     *  whether dragging one of its waypoints means anything (set by the caller via draggable). */
+    private List<WNode> resolveForagerPath(nurgling.routes.ForagerPath path, MiniMap.Location sessloc) {
+        if(path == null || path.waypoints.isEmpty())
+            return(Collections.emptyList());
+        List<WNode> ret = new ArrayList<>(path.waypoints.size());
+        int num = 1;
+        for(int i = 0; i < path.waypoints.size(); i++) {
+            nurgling.routes.ForagerWaypoint wp = path.waypoints.get(i);
+            if(wp.seg == sessloc.seg.id)
+                ret.add(new WNode(i, num, wp.tc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz)));
+            num++;
+        }
+        return(ret);
+    }
+
+    /** The path a running bot is currently executing, or one loaded/being recorded in an open
+     *  bot window - same two sources NMapView's old drawBotPathOnGround screen-space overlay
+     *  used to read before this class took over rendering both cases, in the same priority order. */
+    private nurgling.routes.ForagerPath resolveBotOrRecordingPath(NGameUI gui) {
+        nurgling.routes.ForagerPath path = gui.activeBotPath;
+        if(path != null)
+            return path;
+        for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
+            if(wdg instanceof nurgling.widgets.bots.PathRecordable)
+                return ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
+        }
+        return null;
+    }
+
     /** Current queue in world coordinates, or an empty list when there is nothing to draw.
-     *  While Forager Settings' Routes section is showing a route (gui.activeRouteEditor), draws
-     *  that route's waypoints instead of the movement queue - unconditionally, bypassing
-     *  showWaypointsInWorld below, since Routes editing is a deliberate, temporary context, not
-     *  the general "always show my queue" preference that toggle controls. A route waypoint's
-     *  own list index stands in for WaypointMovementService.Waypoint's stable id here - safe for
-     *  a single drag gesture since nothing else mutates this list concurrently, and this list is
-     *  only ever touched from the UI thread while Forager Settings is open. */
+     *  Tries, in order: (1) Forager Settings' Routes editor, if it's showing a route
+     *  (gui.activeRouteEditor) - unconditionally, bypassing showWaypointsInWorld below, since
+     *  Routes editing is a deliberate, temporary context, not the general "always show my queue"
+     *  preference that toggle controls; draggable. (2) a running or actively-recording bot's own
+     *  path, gated by showBotPathOnGround (its own pre-existing toggle, unchanged); read-only -
+     *  there's nothing sensible to write a drag back into while the bot is using this path itself.
+     *  (3) WaypointMovementService's alt-click queue, gated by showWaypointsInWorld; draggable.
+     *  A Forager route waypoint's own list index stands in for WaypointMovementService.Waypoint's
+     *  stable id in cases (1)/(2) - safe since nothing mutates either list concurrently with a
+     *  drag gesture (both are only ever touched from the UI thread, and (2)'s isn't draggable
+     *  anyway). */
     private List<WNode> resolve() {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.mmap == null)
@@ -113,20 +159,19 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             return(Collections.emptyList());
 
         if(gui.activeRouteEditor != null) {
-            nurgling.routes.ForagerPath route = gui.activeRouteEditor.getRoute();
-            if(route == null || route.waypoints.isEmpty())
-                return(Collections.emptyList());
-            List<WNode> ret = new ArrayList<>(route.waypoints.size());
-            int num = 1;
-            for(int i = 0; i < route.waypoints.size(); i++) {
-                nurgling.routes.ForagerWaypoint wp = route.waypoints.get(i);
-                if(wp.seg == sessloc.seg.id)
-                    ret.add(new WNode(i, num, wp.tc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz)));
-                num++;
-            }
-            return(ret);
+            draggable = true;
+            return resolveForagerPath(gui.activeRouteEditor.getRoute(), sessloc);
         }
 
+        if((Boolean)NConfig.get(NConfig.Key.showBotPathOnGround)) {
+            nurgling.routes.ForagerPath botPath = resolveBotOrRecordingPath(gui);
+            if(botPath != null && !botPath.waypoints.isEmpty()) {
+                draggable = false;
+                return resolveForagerPath(botPath, sessloc);
+            }
+        }
+
+        draggable = true;
         if(!(Boolean)NConfig.get(NConfig.Key.showWaypointsInWorld))
             return(Collections.emptyList());
         if(gui.waypointMovementService == null)
