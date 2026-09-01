@@ -344,7 +344,13 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         }
 
         Buf buf = new Buf();
-        Coord2d prev = pl;
+        // Starts null, not pl - the player's own leg must connect to whichever node is
+        // *currently* active, not unconditionally to the first node in the list. Once progress
+        // moves the active node past index 0, node 0 (and any other already-passed node) is
+        // stale history the player is no longer physically connected to; drawing a leg straight
+        // from the player back to it produced exactly that stray line (reported live: it stayed
+        // connected to the first waypoint, faded, even long after moving past it).
+        Coord2d prev = null;
         Kind prevKind = Kind.ROUTE;
         for(WNode n : nodes) {
             if(n.kind != prevKind) {
@@ -364,11 +370,16 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             int idx = n.num - 1;
             Color col = nodeColor(idx, n.id);
             double mult = nodeAlphaMult(idx);
-            if(prev != null) {
+            // The chain from the previous ROUTE node still draws normally (so the stale history
+            // between already-passed waypoints stays visible, dimmed) - but the leg leading into
+            // the active node specifically always originates from the player's actual current
+            // position instead, overriding whatever that chain would otherwise have supplied.
+            Coord2d legFrom = (idx == activeIdx && pl != null) ? pl : prev;
+            if(legFrom != null) {
                 // The leg keeps the queue colour even when its node is grabbed, so the
                 // path stays readable while a waypoint is being dragged.
                 Color legc = (idx == activeIdx) ? activeColor() : queuedColor();
-                ribbon(buf, prev, n.wc, rgba(legc, 0.95 * mult), baseZ);
+                ribbon(buf, legFrom, n.wc, rgba(legc, 0.95 * mult), baseZ);
             }
             ring(buf, n.wc, rgba(col, 0.95 * mult), rgba(col, 0.18 * mult), baseZ);
             prev = n.wc;
