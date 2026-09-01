@@ -96,15 +96,40 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
      *  Queue resolution
      * ------------------------------------------------------------------ */
 
-    /** Current queue in world coordinates, or an empty list when there is nothing to draw. */
+    /** Current queue in world coordinates, or an empty list when there is nothing to draw.
+     *  While Forager Settings' Routes section is showing a route (gui.activeRouteEditor), draws
+     *  that route's waypoints instead of the movement queue - unconditionally, bypassing
+     *  showWaypointsInWorld below, since Routes editing is a deliberate, temporary context, not
+     *  the general "always show my queue" preference that toggle controls. A route waypoint's
+     *  own list index stands in for WaypointMovementService.Waypoint's stable id here - safe for
+     *  a single drag gesture since nothing else mutates this list concurrently, and this list is
+     *  only ever touched from the UI thread while Forager Settings is open. */
     private List<WNode> resolve() {
-        if(!(Boolean)NConfig.get(NConfig.Key.showWaypointsInWorld))
-            return(Collections.emptyList());
         NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
+        if(gui == null || gui.mmap == null)
             return(Collections.emptyList());
         MiniMap.Location sessloc = gui.mmap.sessloc;
         if(sessloc == null)
+            return(Collections.emptyList());
+
+        if(gui.activeRouteEditor != null) {
+            nurgling.routes.ForagerPath route = gui.activeRouteEditor.getRoute();
+            if(route == null || route.waypoints.isEmpty())
+                return(Collections.emptyList());
+            List<WNode> ret = new ArrayList<>(route.waypoints.size());
+            int num = 1;
+            for(int i = 0; i < route.waypoints.size(); i++) {
+                nurgling.routes.ForagerWaypoint wp = route.waypoints.get(i);
+                if(wp.seg == sessloc.seg.id)
+                    ret.add(new WNode(i, num, wp.tc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz)));
+                num++;
+            }
+            return(ret);
+        }
+
+        if(!(Boolean)NConfig.get(NConfig.Key.showWaypointsInWorld))
+            return(Collections.emptyList());
+        if(gui.waypointMovementService == null)
             return(Collections.emptyList());
         List<WaypointMovementService.Waypoint> wps = gui.waypointMovementService.snapshot();
         if(wps.isEmpty())

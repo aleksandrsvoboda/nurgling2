@@ -338,30 +338,20 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
 
     private void drawBotPathOnGround(GOut g) {
+        if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
+            return;
         try {
             NGameUI gui = NUtils.getGameUI();
             if(gui == null) return;
 
-            nurgling.routes.ForagerPath path;
-            if(gui.activeRouteEditor != null) {
-                // Forager Settings' Routes editor is showing a route - always draw it, regardless
-                // of the general "watch my running/recording bot" toggle below. This is a
-                // deliberate, temporary editing aid the user turned on by opening Routes, not the
-                // always-on HUD overlay that toggle controls.
-                path = gui.activeRouteEditor.getRoute();
-            } else {
-                if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
-                    return;
-
-                // Get path from active bot execution or from open bot settings window
-                path = gui.activeBotPath;
-                if(path == null) {
-                    // Check for open PathRecordable window
-                    for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
-                        if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
-                            path = ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
-                            break;
-                        }
+            // Get path from active bot execution or from open bot settings window
+            nurgling.routes.ForagerPath path = gui.activeBotPath;
+            if(path == null) {
+                // Check for open PathRecordable window
+                for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
+                    if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
+                        path = ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
+                        break;
                     }
                 }
             }
@@ -592,6 +582,19 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         storageTrailOverlay.update();
     }
 
+    /** True if wpid (a route-waypoint list index, see NWaypointOverlay.resolve()) refers to a
+     *  Forager milestone-anchor waypoint while a route is the active editor - those are static,
+     *  recorded locations, not user-repositionable, matching ForagerRouteMap's own 2D-map
+     *  restriction on the same waypoints. Always false while no route is being edited. */
+    private boolean isForagerMilestoneAnchor(long wpid) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.activeRouteEditor == null)
+            return false;
+        nurgling.routes.ForagerPath route = gui.activeRouteEditor.getRoute();
+        return route != null && wpid >= 0 && (int) wpid < route.waypoints.size()
+                && route.waypoints.get((int) wpid).milestoneHash != null;
+    }
+
     /** Id of the waypoint whose ground node contains the given screen point, or -1. */
     private long worldWaypointAt(Coord c) {
         if(wpOverlay == null)
@@ -637,13 +640,20 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             public void hit(Coord pc, Coord2d mc) {
                 wpDragPending = false;
                 NGameUI gui = NUtils.getGameUI();
-                if(gui == null || gui.waypointMovementService == null)
+                if(gui == null)
                     return;
                 haven.MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
                 if(sessloc == null)
                     return;
                 Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
-                gui.waypointMovementService.setWaypoint(id, new haven.MiniMap.Location(sessloc.seg, tc), sessloc, commit);
+                haven.MiniMap.Location loc = new haven.MiniMap.Location(sessloc.seg, tc);
+                if(gui.activeRouteEditor != null) {
+                    gui.activeRouteEditor.moveWaypointFromWorld((int)id, loc, commit);
+                } else {
+                    if(gui.waypointMovementService == null)
+                        return;
+                    gui.waypointMovementService.setWaypoint(id, loc, sessloc, commit);
+                }
             }
 
             public void nohit(Coord pc) {
@@ -1501,7 +1511,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
          * right where you are still clicking. Same rule as the minimap (NMiniMap.mousedown). */
         if(ev.b == 1 && wpGrab == null && !ui.modmeta && !ui.modshift && !ui.modctrl) {
             long wpid = worldWaypointAt(ev.c);
-            if(wpid >= 0) {
+            if(wpid >= 0 && !isForagerMilestoneAnchor(wpid)) {
                 wpDragOrigin = waypointWorldPos(wpid);
                 wpDragId = wpid;
                 wpDragPending = false;

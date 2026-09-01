@@ -106,6 +106,20 @@ public class ForagerRouteMap extends NMiniMap {
         notifyChanged();
     }
 
+    /** Same in-place, metadata-preserving move as this widget's own 2D drag (see mousemove) -
+     *  called from NMapView when a Forager waypoint node is dragged in the real 3D view instead.
+     *  Milestone anchors aren't repositionable there either, matching the 2D restriction. */
+    public void moveWaypointFromWorld(int index, MiniMap.Location loc, boolean commit) {
+        if (route == null || index < 0 || index >= route.waypoints.size()) return;
+        ForagerWaypoint old = route.waypoints.get(index);
+        if (old.milestoneHash != null) return;
+        ForagerWaypoint moved = new ForagerWaypoint(loc);
+        moved.steps = old.steps;
+        moved.onStepsFailAction = old.onStepsFailAction;
+        route.waypoints.set(index, moved);
+        if (commit) notifyChanged();
+    }
+
     /** Called by the owning panel right after a successful save - clears the unsaved-changes
      *  indicator without touching route/waypoints/exclusion state (unlike setRoute(), this isn't
      *  a reload, currentRoute is still the same object, it's just no longer ahead of disk). */
