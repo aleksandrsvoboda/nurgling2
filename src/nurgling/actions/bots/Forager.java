@@ -7,6 +7,8 @@ import nurgling.areas.NArea;
 import nurgling.conf.NDiscordNotification;
 import nurgling.conf.NForagerProp;
 import nurgling.guarding.*;
+import nurgling.navigation.ChunkNavManager;
+import nurgling.navigation.ChunkPath;
 import nurgling.routes.*;
 import nurgling.tools.AreaStock;
 import nurgling.tools.Finder;
@@ -223,6 +225,27 @@ public class Forager implements Action {
         // segment (whether we just arrived via the start-area travel above, or were already
         // there) so the section count and geometry checked below are trustworthy.
         path.generateSections();
+        if (path.getSectionCount() == 0) {
+            // Crude last-resort fallback (ahead of a planned clean-room refactor of this whole
+            // area): a configured start area above is still the preferred way to bridge
+            // segments, but plenty of existing routes don't have one, and not every waypoint
+            // has a resolved gridId (see ForagerWaypoint.resolveGridId's own javadoc) - so this
+            // only ever runs once everything above has already failed to land on the right
+            // segment. Reuses the exact ChunkNav plan-by-gridId path NUtils.navigateTo() already
+            // relies on for bookmark navigation, just targeting the route's own first waypoint
+            // instead of a captured bookmark.
+            ForagerWaypoint firstWp = path.waypoints.get(0);
+            if (firstWp.gridId != -1 && firstWp.localTile != null && gui.map instanceof NMapView) {
+                ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
+                if (chunkNav != null && chunkNav.isInitialized()) {
+                    gui.msg("Forager: not on the route's segment - trying ChunkNav to its first waypoint");
+                    ChunkPath cp = chunkNav.planToGridCoord(firstWp.gridId, firstWp.localTile);
+                    if (cp != null && chunkNav.navigateWithPath(cp, null, gui).IsSuccess()) {
+                        path.generateSections();
+                    }
+                }
+            }
+        }
         if (path.getSectionCount() == 0) {
             return Results.ERROR("Forager: could not resolve path waypoints from the current location " +
                     "(wrong map/segment - configure a start area, or begin the bot from near the path)");
