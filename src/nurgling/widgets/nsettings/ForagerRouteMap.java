@@ -270,7 +270,14 @@ public class ForagerRouteMap extends NMiniMap {
                 Coord destC = destLoc.tc.sub(dloc.tc).div(scalef()).add(hsz);
                 boolean destOnScreen = onScreen(g, destC, margin);
 
-                if (srcOnScreen && destOnScreen) {
+                // Used to require BOTH ends on screen at once to draw the link at all, so it only
+                // ever appeared zoomed out (or panned) far enough to fit the whole thing in view.
+                // Same OR (not AND) leniency drawRouteWaypoints() already uses for route legs
+                // just below - dashLine() clips to this widget's own declared size, not to g's
+                // actual visible window within the settings panel's Scrollport (see that method's
+                // comment), so this still needs an onScreen check on at least one end rather than
+                // dropping it outright; it just no longer needs both.
+                if (srcC != null && (srcOnScreen || destOnScreen)) {
                     g.chcolor(MILESTONE_LINK_COLOR.getRed(), MILESTONE_LINK_COLOR.getGreen(),
                             MILESTONE_LINK_COLOR.getBlue(), 200);
                     dashLine(g, srcC, destC, 0, 2);
