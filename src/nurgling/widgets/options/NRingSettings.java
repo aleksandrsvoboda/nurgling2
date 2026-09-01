@@ -3,6 +3,7 @@ package nurgling.widgets.options;
 import haven.Label;
 import haven.*;
 import nurgling.NConfig;
+import nurgling.NUtils;
 import nurgling.conf.NAreaRad;
 import nurgling.i18n.L10n;
 import nurgling.widgets.nsettings.Panel;
@@ -58,10 +59,19 @@ public class NRingSettings extends Panel {
                 @Override
                 public void done(ReadLine buf) {
                     super.done(buf);
+                    // The edit itself was already being applied and (as of the needUpdate()
+                    // session-scoping fix) actually saved - but with zero visible confirmation,
+                    // pressing Enter looked like it "did nothing" (reported live). A chat
+                    // message on success makes the accept visible; one on failure explains why
+                    // nothing changed instead of silently swallowing a bad value.
                     try {
-                        rad.radius = Integer.parseInt(buf.line());
+                        int newRadius = Integer.parseInt(buf.line().trim());
+                        rad.radius = newRadius;
                         NConfig.needUpdate();
-                    } catch (Exception ignored) { }
+                        NUtils.getGameUI().msg("Ring settings: " + rad.name + " radius set to " + newRadius);
+                    } catch (Exception e) {
+                        NUtils.getGameUI().error("Ring settings: invalid radius \"" + buf.line() + "\"");
+                    }
                 }
             }, new Coord(entryX, (itemHeight - UI.scale(16)) / 2));
 
