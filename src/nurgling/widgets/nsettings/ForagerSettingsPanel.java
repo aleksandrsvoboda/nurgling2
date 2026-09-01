@@ -197,7 +197,7 @@ public class ForagerSettingsPanel extends Panel {
         // Each of this panel's logically-separate groups (Actions here; Routes/Guarding in later
         // phases) gets its own collapsible section, so the page stays navigable once all three
         // exist rather than always showing everything at once.
-        CollapsibleSection actionsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.actions_section"), UI.scale(540), true), Coord.z);
+        CollapsibleSection actionsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.actions_section"), UI.scale(540), false), Coord.z);
         actionsSection.setOnToggle(this::relayoutSections);
         sections.add(actionsSection);
         Widget sec = actionsSection.content;
@@ -317,7 +317,7 @@ public class ForagerSettingsPanel extends Panel {
         actionsSection.pack();
 
         // ---- Routes ----
-        routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), true), actionsSection.pos("bl").add(UI.scale(0, 10)));
+        routesSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.routes_section"), UI.scale(540), false), actionsSection.pos("bl").add(UI.scale(0, 10)));
         routesSection.setOnToggle(() -> {
             relayoutSections();
             updateActiveRouteEditor();
@@ -441,7 +441,7 @@ public class ForagerSettingsPanel extends Panel {
         routesSection.pack();
 
         // ---- Guarding ----
-        CollapsibleSection guardingSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.guarding_section"), UI.scale(540), true), routesSection.pos("bl").add(UI.scale(0, 10)));
+        CollapsibleSection guardingSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.guarding_section"), UI.scale(540), false), routesSection.pos("bl").add(UI.scale(0, 10)));
         guardingSection.setOnToggle(this::relayoutSections);
         sections.add(guardingSection);
         Widget gsec = guardingSection.content;
@@ -553,7 +553,7 @@ public class ForagerSettingsPanel extends Panel {
         guardingSection.pack();
 
         // ---- Presets ----
-        CollapsibleSection presetsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.presets_section"), UI.scale(540), true), guardingSection.pos("bl").add(UI.scale(0, 10)));
+        CollapsibleSection presetsSection = cont.add(new CollapsibleSection(L10n.get("forager.settings.presets_section"), UI.scale(540), false), guardingSection.pos("bl").add(UI.scale(0, 10)));
         presetsSection.setOnToggle(this::relayoutSections);
         sections.add(presetsSection);
         Widget psec = presetsSection.content;
@@ -939,20 +939,34 @@ public class ForagerSettingsPanel extends Panel {
             suppressPresetAutoSave = false;
         }
 
-        // Routes starts expanded by default and no toggle click will have fired yet on a first
-        // load(), so this needs its own explicit call here rather than relying solely on
-        // routesSection's onToggle above.
+        // Every section (including Routes) starts collapsed, so this normally just confirms
+        // activeRouteEditor is null on a first load() - kept for the reload case (e.g. Cancel)
+        // where Routes may already be expanded from before.
         updateActiveRouteEditor();
     }
 
     /** Lets the real 3D map view (NMapView) show/edit whichever route this panel currently has
      *  loaded, but only while the Routes section is actually expanded - see routesSection's
-     *  onToggle and hide() below for the other places this needs to be kept in sync. */
+     *  onToggle, load(), and hide() below for the moments this is pushed from. Also re-pulled
+     *  every tick() while this panel is visible (below) as a self-healing catch-all, rather than
+     *  relying on every one of those moments alone being reliably reached in every ordering. */
     private void updateActiveRouteEditor() {
         NGameUI gui = NUtils.getGameUI();
         if (gui == null) return;
         gui.activeRouteEditor = (routesSection != null && routesSection.isExpanded() && routeMap != null)
                 ? routeMap : null;
+    }
+
+    // tick() runs for every widget every frame regardless of visibility (Widget.TickEvent
+    // propagates unconditionally, see haven.Widget.TickEvent.dispatch), so this must gate on
+    // `visible` itself - otherwise a hidden Forager Settings panel would keep fighting whichever
+    // other settings panel is actually showing over who owns activeRouteEditor.
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        if (visible) {
+            updateActiveRouteEditor();
+        }
     }
 
     @Override
