@@ -121,12 +121,16 @@ public class Forager implements Action {
         forageProp = prop;
 
         // Actions are now edited as an independently-selected Actions Profile (Forager Settings
-        // > Actions), not the preset's own (now-legacy) `actions` field - overwrite it in place
-        // so every downstream helper that already reads preset.actions keeps working unchanged.
+        // > Actions), not the preset's own (now-legacy) `actions` field - overwrite it so every
+        // downstream helper that already reads preset.actions keeps working unchanged. A
+        // defensive copy, not the live reference: ForagerPickupContainer.load() hands out this
+        // same List<ForagerAction> to the settings UI, which structurally mutates it in place
+        // (add/remove/drag) - aliasing it directly here would let a concurrent Settings edit to
+        // the same Actions Profile race this bot's own iteration over the list mid-run.
         if (prop.actionsProfiles != null && prop.currentActionsProfile != null) {
             ArrayList<ForagerAction> profileActions = prop.actionsProfiles.get(prop.currentActionsProfile);
             if (profileActions != null) {
-                preset.actions = profileActions;
+                preset.actions = new ArrayList<>(profileActions);
             }
         }
 
@@ -150,10 +154,18 @@ public class Forager implements Action {
         // reaction for each phase (see GuardingProfile).
         GuardContext preflightCtx = new GuardContext(gui, guardingProfile.ignoreBats);
         for (Guard guard : buildGuards(guardingProfile.preflightGuards)) {
-            if (guard.trigger.check(preflightCtx)) {
-                gui.msg("Forager: pre-flight - " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
-                guard.outcome.perform(gui);
-                return Results.SUCCESS();
+            try {
+                if (guard.trigger.check(preflightCtx)) {
+                    gui.msg("Forager: pre-flight - " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
+                    guard.outcome.perform(gui);
+                    return Results.SUCCESS();
+                }
+            } catch (InterruptedException e) {
+                throw e;
+            } catch (Exception e) {
+                // Same reasoning as startGuardWatcher's identical guard: don't let one bad
+                // read (e.g. a gob disappearing mid-check) kill the whole run before it even
+                // starts - just skip this guard for this pre-flight pass.
             }
         }
 
@@ -901,36 +913,15 @@ public class Forager implements Action {
         return false;
     }
 
+    /** "nothing"/"logout"/"travel hearth" dispatch, still used by the non-Guard action strings
+     *  (onFullInventoryAction, afterFinishAction, waypoint onStepsFailAction) that predate the
+     *  Guard system and aren't configured per-guard. Delegates "logout"/"travel hearth" to
+     *  GuardOutcome instead of keeping a second, independent copy of that same dispatch (they
+     *  used to be duplicated verbatim, including the coracle-dismount-before-hearth workaround -
+     *  a fix applied to only one copy would have silently left the other stale). */
     private void performSafetyAction(NGameUI gui, String action) throws InterruptedException {
-        switch (action) {
-            case "logout":
-                gui.act("lo");
-                break;
-            case "travel hearth":
-                // Can't hearth-fire home while mounted on a coracle - the character has to
-                // physically dismount (right-click, "Pick up") first, same as CoracleBot's own
-                // dismount() step. CoracleBot.run() dispatches to mount() when NOT currently
-                // mounted, so this must stay gated behind isPlayerInCoracle() - calling it
-                // unconditionally here would instead try to board one. Best-effort: if pickup
-                // fails (e.g. surrounded by deep water, per CoracleBot's own check), still fall
-                // through to hearthing home anyway - this is an emergency escape action, and
-                // losing the coracle is far better than getting stuck next to danger over it.
-                if (CoracleBot.isPlayerInCoracle(gui)) {
-                    new CoracleBot().run(gui);
-                }
-                // gui.act("travel", "hearth") only sends the request and returns immediately -
-                // the character is still mid-channel/mid-teleport when this bot then reports
-                // done, so whatever runs next in a chain starts (and can cancel the travel by
-                // making the character move) before they've actually arrived home. Run the
-                // dedicated TravelToHearthFire bot instead - it waits through the full pose
-                // sequence and the resulting map load, so this doesn't return until the
-                // character is genuinely home.
-                new TravelToHearthFire().run(gui);
-                break;
-            case "nothing":
-            default:
-                // Do nothing
-                break;
+        if (!"nothing".equals(action)) {
+            GuardOutcome.fromId(action).perform(gui);
         }
     }
     
@@ -981,7 +972,19 @@ public class Forager implements Action {
     private Thread startGuardWatcher(NGameUI gui, GuardingProfile profile, Thread botThread) {
         List<Guard> guards = buildGuards(profile.inflightGuards);
         GuardContext ctx = new GuardContext(gui, profile.ignoreBats);
+        // BotExecutor is documented as "the ONLY place that calls ThreadLocalUI.set/clear" -
+        // this ad-hoc watcher thread is a real exception to that, and without its own binding,
+        // NConfig.get() calls made from it (e.g. GuardContext.animalRads(), reading the user's
+        // Ring Settings) fall back to the global config instead of this bot's own session/
+        // profile config - wrong data in a multi-session client. Capture the CALLING thread's
+        // bound NUI (this method only ever runs from the already-bound bot thread) and bind it
+        // on the watcher thread too, mirroring BotExecutor.runAsync's own pattern exactly.
+        NUI boundUI = NUtils.getUI();
         Thread watcher = new Thread(() -> {
+            if (boundUI != null) {
+                nurgling.sessions.ThreadLocalUI.set(boundUI);
+            }
+            try {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     for (Guard guard : guards) {
@@ -1001,11 +1004,17 @@ public class Forager implements Action {
                     // watcher for the rest of the bot's run.
                 }
             }
+            } finally {
+                if (boundUI != null) {
+                    nurgling.sessions.ThreadLocalUI.clear();
+                }
+            }
         }, "ForagerGuardWatcher");
         watcher.setDaemon(true);
         watcher.start();
         return watcher;
     }
+
     private Gob findGobNear(Coord2d pos, double radius) {
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
             for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {

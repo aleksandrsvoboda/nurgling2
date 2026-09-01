@@ -30,7 +30,16 @@ public final class GuardEntry {
         JSONObject settingsJson = json.optJSONObject("settings");
         if (settingsJson != null) {
             for (String key : settingsJson.keySet()) {
-                settings.put(key, settingsJson.optDouble(key));
+                // optDouble(key) alone returns NaN for a missing/non-numeric value - and since
+                // the key would then still be present in the map, fillDefaultSettings()'s
+                // putIfAbsent below could never replace that NaN with the guard's real default,
+                // silently breaking every comparison against it (NaN comparisons are always
+                // false in Java) for the rest of the run. Skip a NaN read entirely instead, so
+                // it's treated the same as a genuinely-missing key.
+                double v = settingsJson.optDouble(key);
+                if (!Double.isNaN(v)) {
+                    settings.put(key, v);
+                }
             }
         }
         fillDefaultSettings();

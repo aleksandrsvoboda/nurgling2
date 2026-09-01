@@ -792,14 +792,36 @@ public class NConfig
         // NAreaRad entries), and then calls needUpdate() was marking a config instance that was
         // never actually touched. Its own session config's isUpd flag stayed false, so NCore's
         // tick-loop save check (config.isUpdated()/config.write()) never fired - the edit lived
-        // only in memory until the process exited, i.e. never reliably saved. Mark both the
-        // resolved (likely session) config and the global current - harmless if they're the
-        // same instance or if current didn't actually change (an extra no-op write), but now
-        // actually saves whichever one really did.
+        // only in memory until the process exited, i.e. never reliably saved.
+        //
+        // Confirmed live for NRingSettings specifically (fixed there by switching to set()
+        // instead, which fans a single key/value out to every relevant instance - the real,
+        // already-correct persistence path). needUpdate() has no key/value to fan out the same
+        // way, only a generic "something changed" signal - so the best general fix, covering
+        // every other get()-then-mutate-in-place caller the same way (there are ~30 of them),
+        // is to mirror the resolved session config's *entire* map into the per-genus profile
+        // instance NCore's save loop actually checks (see set()'s own isUpd fix above for why
+        // that's a different object than both `resolved` and `current`), then mark it dirty too.
         NConfig resolved = resolveConfig();
         if (resolved != null)
         {
             resolved.isUpd = true;
+            String genus = resolved.getGenus();
+            if (genus != null && !genus.isEmpty())
+            {
+                NConfig profile = getProfileInstance(genus);
+                if (profile != null && profile != resolved)
+                {
+                    Map<Key, Object> snapshot;
+                    synchronized (resolved.conf) {
+                        snapshot = new HashMap<>(resolved.conf);
+                    }
+                    synchronized (profile.conf) {
+                        profile.conf.putAll(snapshot);
+                    }
+                    profile.isUpd = true;
+                }
+            }
         }
         if (current != null)
         {

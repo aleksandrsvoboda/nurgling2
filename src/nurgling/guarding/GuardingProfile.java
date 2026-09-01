@@ -95,23 +95,37 @@ public final class GuardingProfile {
      *  constructors above; safe to call again any time (e.g. right after GuardRegistry gains an
      *  entry mid-session, if that ever becomes possible). */
     public void reconcileWithRegistry() {
-        reconcileList(preflightGuards, GuardRegistry.preflightIds());
-        reconcileList(inflightGuards, GuardRegistry.inflightIds());
+        preflightGuards = reconcileList(preflightGuards, GuardRegistry.preflightIds());
+        inflightGuards = reconcileList(inflightGuards, GuardRegistry.inflightIds());
     }
 
-    private void reconcileList(List<GuardEntry> list, List<String> knownIds) {
-        list.removeIf(e -> e.guardId == null || !knownIds.contains(e.guardId));
+    /** Returns a fresh list rather than mutating the one passed in - a running Forager bot
+     *  (resolveGuardingProfile() in Forager.java) holds a live reference to this same
+     *  GuardingProfile and reads its preflightGuards/inflightGuards fields directly; a
+     *  ConcurrentModificationException is possible if Forager Settings reconciles this profile
+     *  (e.g. just by opening the panel while it's selected) while a bot using it is mid-iteration
+     *  over the *same* list object. Building a new list and reassigning the field means any
+     *  reader that already captured the old reference keeps working off a stable snapshot
+     *  instead of racing a structural edit to it. */
+    private List<GuardEntry> reconcileList(List<GuardEntry> list, List<String> knownIds) {
+        List<GuardEntry> result = new ArrayList<>();
+        for (GuardEntry e : list) {
+            if (e.guardId != null && knownIds.contains(e.guardId)) {
+                result.add(e);
+            }
+        }
         for (String id : knownIds) {
             boolean present = false;
-            for (GuardEntry e : list) {
+            for (GuardEntry e : result) {
                 if (id.equals(e.guardId)) {
                     present = true;
                     break;
                 }
             }
             if (!present) {
-                list.add(new GuardEntry(id, true, "travel hearth"));
+                result.add(new GuardEntry(id, true, "travel hearth"));
             }
         }
+        return result;
     }
 }
