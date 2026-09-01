@@ -2335,6 +2335,24 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
 
     /**
+     * Plain left-click on a milestone gob, while Forager Settings' Routes editor is showing a
+     * route - splices it into the route (opening a destination chooser first if it has more than
+     * one recorded), mirroring the embedded 2D Routes map's own left-click behavior for the same
+     * milestones. Returns false (falls through to normal click handling) whenever there's nothing
+     * to do: no route being edited, not a gob, no durable hash yet, not a recorded milestone, or
+     * already spliced into this route.
+     */
+    public boolean spliceMilestoneAt(Gob gob) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.activeRouteEditor == null || gob == null || gob.ngob == null)
+            return false;
+        String hash = gob.ngob.hash;
+        if(hash == null)
+            return false;
+        return gui.activeRouteEditor.spliceMilestoneFromWorld(hash);
+    }
+
+    /**
      * Queue a waypoint at a world position - the world's half of alt+LMB, matching what
      * NMiniMapWnd.clickloc and NMapWnd.handleWaypointClick do from a map.
      *

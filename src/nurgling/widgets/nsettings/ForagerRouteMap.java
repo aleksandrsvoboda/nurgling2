@@ -106,6 +106,19 @@ public class ForagerRouteMap extends NMiniMap {
         notifyChanged();
     }
 
+    /** Same left-click-to-splice behavior as this widget's own 2D-map hit-test path
+     *  (unsplicedMilestoneSourceAt()/spliceMilestone()) - reachable from NMapView for a
+     *  real-world milestone gob click while this route is the active editor (a single-destination
+     *  milestone splices immediately, a multi-destination one opens the same chooser dropdown).
+     *  Returns false (does nothing) if hash isn't a recorded, currently-unspliced milestone, so
+     *  the caller knows to let the click fall through to normal behavior instead. */
+    public boolean spliceMilestoneFromWorld(String hash) {
+        if (hash == null || route == null || isMilestoneSpliced(hash)) return false;
+        if (MilestoneRegistry.getMilestone(hash) == null) return false;
+        spliceMilestone(hash);
+        return true;
+    }
+
     /** Same in-place, metadata-preserving move as this widget's own 2D drag (see mousemove) -
      *  called from NMapView when a Forager waypoint node is dragged in the real 3D view instead.
      *  Milestone anchors aren't repositionable there either, matching the 2D restriction. */
