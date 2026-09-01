@@ -786,6 +786,7 @@ public class Forager implements Action {
             if (player == null) return;
 
             Coord2d nextStop = breadcrumbs.get(breadcrumbs.size() - 1);
+            gui.activeBotDetourTarget = nextStop;
             PathFinder hop = new PathFinder(nextStop);
             hop.waterMode = effectiveWaterMode(gui, preset);
             hop.run(gui);

@@ -231,8 +231,14 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         List<WNode> ret = new ArrayList<>();
         int id = -1;
         if(hasTrail) {
-            for(Coord2d p : trail)
-                ret.add(new WNode(id--, 0, p, Kind.DETOUR));
+            int n = trail.size();
+            // If the target is literally the most recent breadcrumb (e.g. returnToPathViaBreadcrumbs
+            // walking back to it), don't render that position twice - the DETOUR_TARGET node below
+            // already covers it, in its own distinct color.
+            if(target != null && trail.get(n - 1).equals(target))
+                n--;
+            for(int i = 0; i < n; i++)
+                ret.add(new WNode(id--, 0, trail.get(i), Kind.DETOUR));
         }
         if(target != null)
             ret.add(new WNode(id, 0, target, Kind.DETOUR_TARGET));
@@ -385,6 +391,19 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             return;
         }
 
+        // While a detour is in progress, the player isn't actually walking toward the main
+        // route's active waypoint at all - that leg (drawn below) would otherwise stretch a
+        // long, jarring line from wherever the player currently is (off chasing a gob) back to
+        // a route waypoint they're not really heading to right now. The DETOUR_TARGET node gets
+        // its own, more accurate version of this same leg instead (see below).
+        boolean detouring = false;
+        for(WNode n : nodes) {
+            if(n.kind == Kind.DETOUR_TARGET) {
+                detouring = true;
+                break;
+            }
+        }
+
         Buf buf = new Buf();
         // Starts null, not pl - the route's own chain (drawn below, always queuedColor()) already
         // covers node 0's leg-in-from-nothing case correctly by simply not drawing one, same as
@@ -441,11 +460,12 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
                 Color legc = failedIdx.contains(idx) ? failedColor() : queuedColor();
                 ribbon(buf, prev, n.wc, rgba(legc, 0.95 * mult), baseZ);
             }
-            if(idx == activeIdx && pl != null) {
+            if(idx == activeIdx && pl != null && !detouring) {
                 // Second, additional leg: live, always full-brightness, tracks the player's
                 // actual current position to wherever they're really heading - coexists with the
                 // route-chain leg above rather than replacing it (reported live: replacing it left
-                // a visible gap in the route chain right where the player currently is).
+                // a visible gap in the route chain right where the player currently is). Skipped
+                // entirely while detouring - see the `detouring` comment above.
                 ribbon(buf, pl, n.wc, rgba(activeColor(), 0.95), baseZ);
             }
             ring(buf, n.wc, rgba(col, 0.95 * mult), rgba(col, 0.18 * mult), baseZ);
