@@ -51,6 +51,40 @@ public class NWoundChecker {
     }
     
     /**
+     * Sum of damage across every currently active wound, regardless of type - unlike
+     * hasScrapesAndCutsAboveThreshold above, which only looks at one specific wound resource.
+     * Used for a general "too wounded, stop" check (e.g. swamp fever risk from accumulated
+     * untreated wounds) rather than reacting to any one wound type in particular.
+     * @return total damage summed across all wounds, or 0 if the wound window/list isn't
+     *         available (matches the other methods here: never throws, silent on failure)
+     */
+    public static int totalWoundDamage() {
+        int total = 0;
+        try {
+            CharWnd chrwdg = NUtils.getGameUI().chrwdg;
+            if (chrwdg == null || chrwdg.wound == null) {
+                return 0;
+            }
+
+            WoundWnd woundWnd = chrwdg.wound;
+            if (woundWnd.wounds == null) {
+                return 0;
+            }
+
+            for (WoundWnd.Wound wound : woundWnd.wounds.wounds) {
+                try {
+                    total += getWoundDamage(wound);
+                } catch (Loading l) {
+                    // Resource not loaded yet, skip
+                }
+            }
+        } catch (Exception e) {
+            // Silently ignore errors
+        }
+        return total;
+    }
+
+    /**
      * Extract damage value from wound's ItemInfo
      * Damage info is typically in the format: [resId, currentDamage, maxDamage, healRate]
      */

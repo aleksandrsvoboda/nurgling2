@@ -6,7 +6,7 @@ package nurgling.guarding;
  * generically, without Forager Settings needing hand-written UI per guard type.
  */
 public final class GuardInput {
-    public enum Kind { PERCENT, TILES, SECONDS }
+    public enum Kind { PERCENT, TILES, SECONDS, COUNT }
 
     public final String key;
     public final Kind kind;
