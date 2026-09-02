@@ -1,11 +1,14 @@
 package nurgling.actions;
 
+import haven.Coord;
 import haven.Gob;
+import haven.UI;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
 import haven.res.ui.barterbox.Shopbox;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.NInventory.QualityType;
 import nurgling.NUtils;
 import nurgling.areas.NContext;
@@ -30,6 +33,40 @@ public class TakeItems2 implements Action
     String specSubtype;
     QualityType qualityType;
     public boolean exactMatch = false;
+
+    /* Optional, for takeAny: the containers this fetch is meant to fill. Capacity for irregular
+     * (Tetris) destinations can't be known until the item's real footprint is seen, so with these
+     * set takeAny re-targets itself the moment it sees one instead of relying on a worst-case
+     * guess - which otherwise asks for one or two items and then has to come back for the rest. */
+    public ArrayList<Container> fillTargets = null;
+    private Coord observedShape = null;
+
+    /* Footprint of the first matching item takeAny saw, or null if it saw none. */
+    public Coord getObservedShape()
+    {
+        return observedShape;
+    }
+
+    private void observeShape(ArrayList<WItem> candidates)
+    {
+        if(observedShape != null)
+            return;
+        for(WItem witem: candidates)
+        {
+            if(witem.item.spr != null)
+            {
+                observedShape = witem.item.spr.sz().div(UI.scale(32)).swapXY();
+                if(fillTargets != null)
+                {
+                    int room = 0;
+                    for(Container target: fillTargets)
+                        room += target.freeSpace(observedShape);
+                    count = room;
+                }
+                return;
+            }
+        }
+    }
 
 
     public TakeItems2(NContext context, String item, int count)
@@ -88,6 +125,10 @@ public class TakeItems2 implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
+        // The takeAny constructor leaves item null - that instance must be driven through
+        // takeAny(alias, gui), which matches on the alias instead of one exact name.
+        if(item == null)
+            return Results.FAIL();
         AtomicInteger left = new AtomicInteger(count);
         ArrayList<NContext.ObjectStorage> inputs;
         if(specName == null) {
@@ -147,7 +188,23 @@ public class TakeItems2 implements Action
             if(input instanceof NContext.Barter)
                 takeFromBarter(left, gui, (NContext.Barter) input);
             else if (input instanceof NContext.Pile)
-                takeFromPile(left, gui, (NContext.Pile) input);
+            {
+                /* A pile's contents can't be measured until something has been taken, so the first
+                 * pass runs on the pre-observation guess; observing then re-targets count and the
+                 * next pass collects the rest. Without this the guess is all a pile ever yields,
+                 * and the caller comes back for one item at a time. */
+                while(true)
+                {
+                    int before = NUtils.getGameUI().getInventory().getItems(itemsAlias).size();
+                    if(before >= count)
+                        break;
+                    left.set(count - before);
+                    takeFromPile(left, gui, (NContext.Pile) input);
+                    observeShape(NUtils.getGameUI().getInventory().getItems(itemsAlias));
+                    if(NUtils.getGameUI().getInventory().getItems(itemsAlias).size() == before)
+                        break;
+                }
+            }
             else if (input instanceof Container)
             {
                 Container cont = (Container) input;
@@ -161,10 +218,25 @@ public class TakeItems2 implements Action
                 if(!"Frame".equals(cont.cap) && contgob.ngob.isContainerEmpty())
                     continue;
                 new OpenTargetContainer(cont).run(gui);
-                TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont, names, itemsAlias, qualityType);
-                tifc.minSize = left.get();
-                tifc.exactMatch = this.exactMatch;
-                tifc.run(gui);
+                NInventory cinv = gui.getInventory(cont.cap);
+                if(cinv != null)
+                    observeShape(cinv.getItems(itemsAlias));
+                /* TakeItemsFromContainer gives up early - on its own count, or as soon as one name
+                 * still holds more than it could take - so a single call leaves the other names
+                 * untouched. Keep pulling while the window is open rather than closing and coming
+                 * back, which is what made it reopen the same chest once per hide type. */
+                while(true)
+                {
+                    int before = NUtils.getGameUI().getInventory().getItems(itemsAlias).size();
+                    if(before >= count)
+                        break;
+                    TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont, names, itemsAlias, qualityType);
+                    tifc.minSize = count - before;
+                    tifc.exactMatch = this.exactMatch;
+                    tifc.run(gui);
+                    if(NUtils.getGameUI().getInventory().getItems(itemsAlias).size() == before)
+                        break;
+                }
                 new CloseTargetContainer(cont).run(gui);
             }
             /* Keep visiting storages until the requested count is actually met - stopping at the
@@ -180,6 +252,11 @@ public class TakeItems2 implements Action
 
     public Results takeFromBarter(AtomicInteger left, NGameUI gui, NContext.Barter barter) throws InterruptedException
     {
+        /* Buying needs the exact offer name, so bail before touching the chest when called from
+         * takeAny (item null) - otherwise the currency below is carried out and nothing matches
+         * it, leaving the branches stranded in the inventory. */
+        if(item == null)
+            return Results.FAIL();
         Gob gchest = Finder.findGob(barter.chest);
         Gob gbarter = Finder.findGob(barter.barter);
         if(gbarter==null || gchest==null)

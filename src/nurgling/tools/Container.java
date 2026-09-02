@@ -453,16 +453,6 @@ public class Container implements NContext.ObjectStorage {
         return freeSpace();
     }
 
-    /* Footprint of the first held item matching alias, or null if none - lets a gather loop
-     * discover the real item shape and then size the rest of its fetch against it. */
-    public static Coord heldShape(NAlias alias, NGameUI gui) throws InterruptedException {
-        for (WItem witem : gui.getInventory().getItems(alias)) {
-            if (witem.item.spr != null)
-                return witem.item.spr.sz().div(UI.scale(32)).swapXY();
-        }
-        return null;
-    }
-
     /* Each calcNumberFreeCoord restarts from a fresh grid, so the smallest shape over-states
      * capacity and asking for that many strands the surplus. Take the smallest non-zero count;
      * skip non-fitting shapes so a container with room for small items only isn't reported as

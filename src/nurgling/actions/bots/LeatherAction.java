@@ -79,19 +79,15 @@ public class LeatherAction implements Action {
                 Coord hideShape = null;
                 while (!stillNeeding.isEmpty()) {
                     int totalNeeded = capacityFor(stillNeeding, hideShape);
-                    // takeAny's count is an absolute inventory target, not a delta.
-                    if (totalNeeded > gui.getInventory().getItems(notraw).size())
-                        new TakeItems2(context, totalNeeded, Specialisation.SpecName.readyHides, NInventory.QualityType.High).takeAny(notraw, gui);
-                    /* Until a hide has been seen, capacity is a worst-case guess of one or two per
-                     * tub, which would mean a trip to storage per hide. Measure what we just picked
-                     * up and top up to the real capacity now, while still standing at the source. */
-                    if (hideShape == null) {
-                        hideShape = Container.heldShape(notraw, gui);
-                        if (hideShape != null) {
-                            int refined = capacityFor(stillNeeding, hideShape);
-                            if (refined > gui.getInventory().getItems(notraw).size())
-                                new TakeItems2(context, refined, Specialisation.SpecName.readyHides, NInventory.QualityType.High).takeAny(notraw, gui);
-                        }
+                    // takeAny's count is an absolute inventory target, not a delta. Handing it the
+                    // tubs lets it re-target once it sees a hide's real size, so the worst-case
+                    // guess above only ever applies before the first hide has been seen.
+                    if (totalNeeded > gui.getInventory().getItems(notraw).size()) {
+                        TakeItems2 fetch = new TakeItems2(context, totalNeeded, Specialisation.SpecName.readyHides, NInventory.QualityType.High);
+                        fetch.fillTargets = stillNeeding;
+                        fetch.takeAny(notraw, gui);
+                        if (hideShape == null)
+                            hideShape = fetch.getObservedShape();
                     }
                     int held = gui.getInventory().getItems(notraw).size();
                     if (held == 0)
