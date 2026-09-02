@@ -431,6 +431,7 @@ public class ForagerSettingsPanel extends Panel {
         maxChainsEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(80));
         rowItem(capsRow, new Label(L10n.get("forager.settings.max_distance")), UI.scale(160));
         maxDistanceEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(280));
+        maxDistanceEntry.settip(L10n.get("forager.settings.max_distance_tip"));
         rowItem(capsRow, new Label(L10n.get("forager.settings.max_chain_distance")), UI.scale(360));
         maxChainDistanceEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(500));
 
