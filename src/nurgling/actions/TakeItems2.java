@@ -41,6 +41,16 @@ public class TakeItems2 implements Action
     public ArrayList<Container> fillTargets = null;
     private Coord observedShape = null;
 
+    /* Whether another matching item could still be carried. A multi-cell item never stacks, so
+     * its real footprint is the honest test; for a 1x1 item the plain free-cell count is, and
+     * asking by footprint there would ignore the stacking that makes room beyond free cells. */
+    private boolean noRoomLeft(NGameUI gui) throws InterruptedException
+    {
+        if(observedShape != null && !observedShape.equals(1, 1))
+            return gui.getInventory().getNumberFreeCoord(observedShape) <= 0;
+        return gui.getInventory().getFreeSpace() <= 0;
+    }
+
     /* Footprint of the first matching item takeAny saw, or null if it saw none. */
     public Coord getObservedShape()
     {
@@ -185,6 +195,12 @@ public class TakeItems2 implements Action
         AtomicInteger left = new AtomicInteger(count);
         for(NContext.ObjectStorage input: inputs)
         {
+            /* count is an absolute inventory target and may legitimately exceed one load - fifty
+             * empty drying frames want far more hides than fit - so the tour has to end when the
+             * inventory is full, not when the target is met. Otherwise every remaining pile and
+             * chest in the area is still walked to and opened for nothing. */
+            if(noRoomLeft(gui))
+                return Results.SUCCESS();
             if(input instanceof NContext.Barter)
                 takeFromBarter(left, gui, (NContext.Barter) input);
             else if (input instanceof NContext.Pile)
@@ -199,9 +215,12 @@ public class TakeItems2 implements Action
                     if(before >= count)
                         break;
                     left.set(count - before);
-                    takeFromPile(left, gui, (NContext.Pile) input);
+                    if(!takeFromPile(left, gui, (NContext.Pile) input).IsSuccess())
+                        break;
                     observeShape(NUtils.getGameUI().getInventory().getItems(itemsAlias));
                     if(NUtils.getGameUI().getInventory().getItems(itemsAlias).size() == before)
+                        break;
+                    if(noRoomLeft(gui))
                         break;
                 }
             }
@@ -235,6 +254,8 @@ public class TakeItems2 implements Action
                     tifc.exactMatch = this.exactMatch;
                     tifc.run(gui);
                     if(NUtils.getGameUI().getInventory().getItems(itemsAlias).size() == before)
+                        break;
+                    if(noRoomLeft(gui))
                         break;
                 }
                 new CloseTargetContainer(cont).run(gui);
@@ -344,14 +365,20 @@ public class TakeItems2 implements Action
 
     public Results takeFromPile(AtomicInteger left, NGameUI gui, NContext.Pile pile) throws InterruptedException
     {
-        if(PathFinder.isAvailable(pile.pile))
-        {
-            new PathFinder(pile.pile).run(gui);
-            new OpenTargetContainer("Stockpile", pile.pile).run(gui);
-            TakeItemsFromPile tifp;
-            (tifp = new TakeItemsFromPile(pile.pile, gui.getStockpile(), left.get())).run(gui);
-            new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
-        }
+        /* The gob was captured when the area was scanned, but taking a stockpile's last item
+         * destroys it. The stale reference still carries an id and a position, so PathFinder
+         * plots a course to where the pile used to be and OpenTargetContainer then waits forever
+         * for a "Stockpile" window that will never arrive - or, when a neighbour's hitbox still
+         * blocks that cell, dies in fixStartEnd because the target id no longer resolves.
+         * Re-resolve on every visit and report a pile that is gone as "nothing taken". */
+        Gob gpile = (pile.pile == null) ? null : Finder.findGob(pile.pile.id);
+        if(gpile == null || !PathFinder.isAvailable(gpile))
+            return Results.FAIL();
+        new PathFinder(gpile).run(gui);
+        new OpenTargetContainer("Stockpile", gpile).run(gui);
+        TakeItemsFromPile tifp;
+        (tifp = new TakeItemsFromPile(gpile, gui.getStockpile(), left.get())).run(gui);
+        new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
         return Results.SUCCESS();
     }
 

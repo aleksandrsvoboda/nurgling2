@@ -275,6 +275,11 @@ public class PathFinder implements Action {
             if (end_pos.x < pfmap.size && end_pos.y < pfmap.size && end_pos.x >= 0 && end_pos.y >= 0) {
                 if (cells[end_pos.x][end_pos.y].val != 0) {
                     end_poses = findFreeNear(end_pos, false);
+                    /* null, not empty: the target gob is no longer in the object cache, so there
+                     * is nothing to stand next to. Callers already treat "no path" as a miss;
+                     * falling through instead NPEs below and kills the whole bot thread. */
+                    if (end_poses == null)
+                        return false;
                     if (dummy != null || (isHardMode && target_id != -2 && Finder.findGob(target_id) != null)) {
                         Coord2d tcoord = (dummy != null) ? dummy.rc : Finder.findGob(target_id).rc;
                         ArrayList<Coord> best_poses = new ArrayList<>();

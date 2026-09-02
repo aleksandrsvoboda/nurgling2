@@ -158,6 +158,7 @@ public class SmelterAction implements Action {
                                 break;
                             }
 
+                            int held = gui.getInventory().getItems(ores).size();
                             context.goToArea(Specialisation.SpecName.smelter);
                             ArrayList<Container> nextRound = new ArrayList<>();
                             for (Container cont : stillNeeding) {
@@ -172,6 +173,11 @@ public class SmelterAction implements Action {
                                 if (!cont.isFull())
                                     nextRound.add(cont);
                             }
+                            /* A whole pass that deposited nothing while still holding ore means
+                             * the round can only repeat itself - walking to the ore area and back
+                             * forever - so stop instead of spinning. */
+                            if (gui.getInventory().getItems(ores).size() == held)
+                                break;
                             stillNeeding = nextRound;
                         }
                         res = oreExhausted ? Results.ERROR("NO ORE") : Results.SUCCESS();
