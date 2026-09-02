@@ -9,6 +9,7 @@ import nurgling.areas.NContext;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,7 +32,12 @@ import java.util.Set;
  * good). That makes the order of the take pass irrelevant: every copy that clears the bar belongs
  * in the result, so callers can keep fetching greedily and still end up with the global best.
  * <p>
- * Stockpiles and barter stands are ignored - they offer no per-copy choice to rank.
+ * Stockpiles and barter stands are ignored - they offer no per-copy choice to rank, so an item
+ * fed purely from piles costs nothing here: the scan skips them without walking anywhere.
+ * <p>
+ * The source is selected exactly as {@link TakeItems2} selects it, by specialisation when one is
+ * given and by the item's global TAKE area otherwise, so the ranking always covers precisely the
+ * containers the take pass will visit.
  */
 public class FindQualityThreshold implements Action {
 
@@ -45,14 +51,28 @@ public class FindQualityThreshold implements Action {
     private final NContext context;
     private final String item;
     private final int count;
+    private final Specialisation.SpecName specName;
+    private final String specSubtype;
 
     private Float threshold = null;
     private final HashSet<String> withoutEligible = new HashSet<>();
 
     public FindQualityThreshold(NContext context, String item, int count) {
+        this(context, item, count, null, null);
+    }
+
+    /** Rank the containers of a specialisation area rather than the item's global TAKE area. */
+    public FindQualityThreshold(NContext context, String item, int count, Specialisation.SpecName specName) {
+        this(context, item, count, specName, null);
+    }
+
+    public FindQualityThreshold(NContext context, String item, int count,
+                                Specialisation.SpecName specName, String specSubtype) {
         this.context = context;
         this.item = item;
         this.count = count;
+        this.specName = specName;
+        this.specSubtype = specSubtype;
     }
 
     @Override
@@ -60,7 +80,9 @@ public class FindQualityThreshold implements Action {
         if (count <= 0)
             return Results.SUCCESS();
 
-        ArrayList<NContext.ObjectStorage> inputs = context.getInStorages(item);
+        ArrayList<NContext.ObjectStorage> inputs = (specName == null)
+                ? context.getInStorages(item)
+                : context.getSpecStorages(specName, specSubtype);
         if (inputs == null || inputs.isEmpty())
             return Results.FAIL();
 

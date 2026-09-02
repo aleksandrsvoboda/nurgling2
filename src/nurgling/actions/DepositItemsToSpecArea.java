@@ -156,6 +156,31 @@ public class DepositItemsToSpecArea implements Action {
          * while we run. One set per item: a cupboard out of cocoons may still be full of leaves. */
         Map<String, Set<String>> depletedSources = new HashMap<>();
 
+        /* Rank each source item across the WHOLE origin area once, so the fetch below takes the
+         * best copies rather than whichever container happens to be opened first - it matters most
+         * for silkworm cocoons, where the moths they hatch into set the quality of every egg, worm
+         * and cocoon after them. Same contract FillContainers2 relies on: the cut-off is the
+         * totalNeeded-th best quality, so every copy clearing it belongs in the result and the
+         * greedy per-container fetch stays globally correct without re-walking anything.
+         *
+         * Costs one pass over the source CONTAINERS, once per deposit. Pile-fed items (mulberry
+         * leaves) are unaffected - the scan skips stockpiles without visiting them, and a null
+         * cut-off then means "no filtering", exactly the old behaviour. */
+        Map<String, Float> minQualities = new HashMap<>();
+        for (String key : sourceAlias.getKeys()) {
+            FindQualityThreshold scan = (this.originSpec != null)
+                    ? new FindQualityThreshold(context, key, totalNeeded, originSpec)
+                    : new FindQualityThreshold(context, key, totalNeeded);
+            scan.run(gui);
+            Float cutoff = scan.getThreshold();
+            if (cutoff == null)
+                continue;
+            minQualities.put(key, cutoff);
+            // Containers proven to hold nothing that good are not worth walking to at all.
+            depletedSources.computeIfAbsent(key, k -> new HashSet<>()).addAll(scan.getWithoutEligible());
+            gui.msg("DepositItems: taking " + key + " of q" + String.format("%.1f", cutoff) + " and above");
+        }
+
         while (!containersNeedingItems.isEmpty()) {
             tripNumber++;
 
@@ -201,6 +226,7 @@ public class DepositItemsToSpecArea implements Action {
                         ? new TakeItems2(context, key, keyInInventory + room, originSpec, NInventory.QualityType.High)
                         : new TakeItems2(context, key, keyInInventory + room, NInventory.QualityType.High);
                 take.depleted = depletedSources.computeIfAbsent(key, k -> new HashSet<>());
+                take.minQuality = minQualities.get(key);
                 take.run(gui);
             }
 
