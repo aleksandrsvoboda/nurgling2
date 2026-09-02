@@ -203,45 +203,28 @@ public class Forager implements Action {
         // maintainQuantity check below, which reads this map.
         maintainAreaStock = resolveMaintainAreaStock(gui, preset);
 
-        // If configured, ChunkNav-travel to the preset's start area first - this is what
-        // lets the bot be started from anywhere (indoors, a different map entirely) rather
-        // than requiring the player to already be standing near the recorded path. The path's
-        // own waypoints are stored as persistent map-segment + tile coordinates
-        // (ForagerWaypoint), which only resolve to a world position while already in that
-        // exact segment - ChunkNav operates on a different (live, cross-cell) coordinate
-        // system entirely, so this area is the bridge between the two: once physically
-        // standing on/near it, the segment-based lookup below can resolve normally.
-        if (preset.startAreaId >= 0) {
-            NArea startArea = gui.map.glob.map.areas.get(preset.startAreaId);
-            if (startArea == null) {
-                return Results.ERROR("Forager: configured start area no longer exists");
-            }
-            gui.msg("Forager: traveling to start area \"" + startArea.name + "\"");
-            if (!NUtils.navigateToArea(startArea, true)) {
-                return Results.ERROR("Forager: failed to reach start area \"" + startArea.name + "\"");
-            }
-        }
-
         // ForagerSection geometry is expressed in world coordinates relative to sessloc,
         // which only make sense within the map segment sessloc anchors - so sections can only
         // be (re)computed correctly once actually standing on the path's segment. They were
         // already generated once, at load time (see ForagerPath's constructor calling
         // generateSections()), but that could easily have happened from an entirely different
-        // segment (e.g. this preset's window was opened while indoors, before the start-area
-        // travel above ever ran) - in which case that first pass produced zero sections, not
-        // an error, just quietly nothing. Regenerate now that we're actually on the right
-        // segment (whether we just arrived via the start-area travel above, or were already
-        // there) so the section count and geometry checked below are trustworthy.
+        // segment (e.g. this preset's window was opened while indoors) - in which case that
+        // first pass produced zero sections, not an error, just quietly nothing. Regenerate
+        // now, before the ChunkNav-bridging fallback below, in case we're already on the right
+        // segment (the common case) and don't need it at all.
         path.generateSections();
         if (path.getSectionCount() == 0) {
-            // Crude last-resort fallback (ahead of a planned clean-room refactor of this whole
-            // area): a configured start area above is still the preferred way to bridge
-            // segments, but plenty of existing routes don't have one, and not every waypoint
-            // has a resolved gridId (see ForagerWaypoint.resolveGridId's own javadoc) - so this
-            // only ever runs once everything above has already failed to land on the right
-            // segment. Reuses the exact ChunkNav plan-by-gridId path NUtils.navigateTo() already
-            // relies on for bookmark navigation, just targeting the route's own first waypoint
-            // instead of a captured bookmark.
+            // Not on the route's own segment (e.g. started indoors, or in a different building
+            // entirely) - bridge over via ChunkNav straight to the route's first waypoint. The
+            // path's own waypoints are stored as persistent map-segment + tile coordinates
+            // (ForagerWaypoint), which only resolve to a world position while already in that
+            // exact segment; ChunkNav operates on a different (live, cross-cell) coordinate
+            // system entirely, keyed to each waypoint's own gridId/localTile (resolved live at
+            // record time - see ForagerWaypoint.resolveGridId's own javadoc - so a route
+            // recorded before that existed, or a milestone-splice anchor, won't have one).
+            // Reuses the exact ChunkNav plan-by-gridId path NUtils.navigateTo() already relies
+            // on for bookmark navigation, just targeting the route's own first waypoint instead
+            // of a captured bookmark.
             ForagerWaypoint firstWp = path.waypoints.get(0);
             if (firstWp.gridId != -1 && firstWp.localTile != null && gui.map instanceof NMapView) {
                 ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
@@ -256,7 +239,8 @@ public class Forager implements Action {
         }
         if (path.getSectionCount() == 0) {
             return Results.ERROR("Forager: could not resolve path waypoints from the current location " +
-                    "(wrong map/segment - configure a start area, or begin the bot from near the path)");
+                    "(wrong map/segment - begin the bot from near the path, or re-record it so its " +
+                    "waypoints have a ChunkNav grid to bridge from)");
         }
 
         // Get first waypoint to navigate to start

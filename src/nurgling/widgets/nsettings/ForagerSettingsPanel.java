@@ -18,7 +18,6 @@ import nurgling.routes.ForagerPath;
 import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.TextInputWindow;
 import nurgling.widgets.options.NRingSettings;
-import nurgling.widgets.settings.NAreaDropbox;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -151,7 +150,6 @@ public class ForagerSettingsPanel extends Panel {
     private Dropbox<String> presetActionsDropbox;
     private Dropbox<String> presetRouteDropbox;
     private Dropbox<String> presetGuardingDropbox;
-    private NAreaDropbox presetStartArea;
     private Dropbox<String> presetAfterFinishDropbox;
     private Dropbox<String> presetOnFullInventoryDropbox;
     // Same purpose as suppressRouteAutoSave/suppressGuardingAutoSave above.
@@ -721,9 +719,6 @@ public class ForagerSettingsPanel extends Panel {
             }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
-        prevField = psec.add(new Label(L10n.get("forager.start_area")), prevField.pos("bl").add(UI.scale(0, 10)));
-        prevField = psec.add(presetStartArea = new NAreaDropbox(UI.scale(200)), prevField.pos("bl").add(UI.scale(0, 5)));
-
         prevField = psec.add(new Label(L10n.get("forager.after_finish")), prevField.pos("bl").add(UI.scale(0, 10)));
         prevField = psec.add(presetAfterFinishDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
 
@@ -1110,9 +1105,6 @@ public class ForagerSettingsPanel extends Panel {
 
         presetGuardingDropbox.change(pd.guardingProfileName != null ? pd.guardingProfileName : prop.currentGuardingProfile);
 
-        presetStartArea.reloadAreas();
-        presetStartArea.setSelectedAreaId(pd.startAreaId);
-
         presetAfterFinishDropbox.change(pd.afterFinishAction != null ? pd.afterFinishAction : "nothing");
         presetOnFullInventoryDropbox.change(pd.onFullInventoryAction != null ? pd.onFullInventoryAction : "nothing");
     }
@@ -1135,7 +1127,6 @@ public class ForagerSettingsPanel extends Panel {
         if (presetGuardingDropbox.sel != null) {
             currentPresetData.guardingProfileName = presetGuardingDropbox.sel;
         }
-        currentPresetData.startAreaId = presetStartArea.getSelectedAreaId();
         if (presetAfterFinishDropbox.sel != null) {
             currentPresetData.afterFinishAction = presetAfterFinishDropbox.sel;
         }
@@ -1256,9 +1247,9 @@ public class ForagerSettingsPanel extends Panel {
         }
     }
 
-    /** Blank or unparseable text -&gt; -1 (no cap), same sentinel convention as
-     *  NForagerProp.PresetData.startAreaId - matches the AutoLogoutSettings/StarvationAlertSettings
-     *  nsettings convention of a blank-initial-text TextEntry rather than a stringified "0"/"-1". */
+    /** Blank or unparseable text -&gt; -1 (no cap) - matches the AutoLogoutSettings/
+     *  StarvationAlertSettings nsettings convention of a blank-initial-text TextEntry rather
+     *  than a stringified "0"/"-1". */
     private int parseIntOrNoCap(String text) {
         try {
             int v = Integer.parseInt(text.trim());
