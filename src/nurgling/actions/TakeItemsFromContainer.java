@@ -25,6 +25,13 @@ public class TakeItemsFromContainer implements Action
     QualityType qualityType;
     public int minSize = Integer.MAX_VALUE;
     public boolean exactMatch = false;
+
+    /**
+     * Optional lower bound on quality: copies below it are left where they are. Set by callers
+     * that already ranked the whole source area (see {@link FindQualityThreshold}) so that taking
+     * greedily, container by container, still yields the globally best copies.
+     */
+    public Float minQuality = null;
     public TakeItemsFromContainer(Container cont, HashSet<String> names, NAlias pattern)
     {
         this.cont = cont;
@@ -102,7 +109,11 @@ public class TakeItemsFromContainer implements Action
 
                 for (int i = 0; i < temptr; i++) {
                     int left = target_size + oldSpace - gui.getInventory().getItems(name).size();
-                    TransferToContainer.transfer(items.get(i), gui.getInventory(), left);
+                    /* A quality-filtered take must move stack members one at a time. transfer()
+                     * otherwise hands over a whole source stack once we want at least as many as
+                     * it holds, and a stack mixes qualities - that would drag copies below the
+                     * bound along with the good one we actually picked. */
+                    TransferToContainer.transfer(items.get(i), gui.getInventory(), left, minQuality != null);
                     items = getItems(gui, name);
                     if(gui.getInventory().getItems(name).size()>=target_size+oldSpace)
                         break;
@@ -142,6 +153,14 @@ public class TakeItemsFromContainer implements Action
                 }
             }
             
+            if (minQuality != null) {
+                Float quality = ((NGItem) item1.item).quality;
+                if (quality == null || quality < minQuality - FindQualityThreshold.QEPS) {
+                    forRemove.add(item1);
+                    continue;
+                }
+            }
+
             if (pattern != null) {
                 if (!NParser.checkName(((NGItem) item1.item).name(), pattern)) {
                     forRemove.add(item1);

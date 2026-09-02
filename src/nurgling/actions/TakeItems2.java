@@ -7,6 +7,7 @@ import haven.WItem;
 import haven.Widget;
 import haven.Window;
 import haven.res.ui.barterbox.Shopbox;
+import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NInventory.QualityType;
@@ -90,6 +91,15 @@ public class TakeItems2 implements Action
      * also the destination area. Leave null to keep the old behaviour of re-checking everything.
      */
     public Set<String> depleted = null;
+
+    /**
+     * Optional lower bound on quality: copies below it are left in the source. Applies to
+     * containers only - stockpiles and barter stands offer no per-copy choice.
+     * <p>
+     * When set, {@link #depleted} means "nothing at or above this bound left", so one set must
+     * not be shared between runs using different bounds.
+     */
+    public Float minQuality = null;
 
 
     public TakeItems2(NContext context, String item, int count)
@@ -448,30 +458,40 @@ public class TakeItems2 implements Action
         TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont,new HashSet<>(Arrays.asList(item)), null, qualityType);
         tifc.minSize = left.get();
         tifc.exactMatch = this.exactMatch;
+        tifc.minQuality = this.minQuality;
         tifc.run(gui);
-        markDepletedIfEmpty(gui, cont);
+        markDepletedIfNothingLeft(gui, cont);
         new CloseTargetContainer(cont).run(gui);
         return Results.SUCCESS();
     }
 
     /**
-     * Record - while the container is still open - that it holds none of {@link #item}, so a
-     * later pass of the same fetch loop can skip it without walking back. A plain NAlias match
-     * is a superset of what TakeItemsFromContainer would have taken (exactMatch and quality
-     * only narrow it further), so "none" here really does mean nothing is left worth a visit.
+     * Record - while the container is still open - that it has nothing left for us, so a later
+     * pass of the same fetch loop can skip it without walking back. "Nothing" means nothing this
+     * run would take: normally no copy of {@link #item} at all, or, under a {@link #minQuality}
+     * bound, none good enough to clear it. A plain NAlias match is otherwise a superset of what
+     * TakeItemsFromContainer would take (exactMatch only narrows it further), so a container that
+     * looks empty here really is not worth another visit.
      * <p>
      * getInventory resolves by window caption and can hand back a different container of the
      * same kind, so the reading is only trusted when the window is provably bound to this gob -
      * the same guard {@link Container#update()} uses. Misjudging it would strand items.
      */
-    private void markDepletedIfEmpty(NGameUI gui, Container cont) throws InterruptedException
+    private void markDepletedIfNothingLeft(NGameUI gui, Container cont) throws InterruptedException
     {
         if(depleted == null || cont.gobHash == null || cont.cap == null)
             return;
         NInventory inv = gui.getInventory(cont.cap);
         if(inv == null || inv.parentGob == null || inv.parentGob.id != cont.gobid)
             return;
-        if(inv.getItems(new NAlias(item)).isEmpty())
-            depleted.add(cont.gobHash);
+        for(WItem witem: inv.getItems(new NAlias(item)))
+        {
+            if(minQuality == null)
+                return; // something is left and we would take it - still worth a visit
+            Float quality = ((NGItem) witem.item).quality;
+            if(quality != null && quality >= minQuality - FindQualityThreshold.QEPS)
+                return;
+        }
+        depleted.add(cont.gobHash);
     }
 }
