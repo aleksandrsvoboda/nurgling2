@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
+import nurgling.actions.bots.CollectFromTreesZone;
 import nurgling.actions.bots.WaitBot;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
@@ -482,6 +483,41 @@ public class StepSettingsPanel extends Widget {
             modeDropdown.change(selectedMode);
 
             add(modeDropdown, new Coord(UI.scale(8), y));
+            y += UI.scale(40);
+        }
+        if (desc.id.equals("treezone")) {
+            hasAnySetting = true;
+            add(new Label("Resource:"), new Coord(UI.scale(8), y));
+            y += UI.scale(24);
+
+            List<String> resources = Arrays.asList(CollectFromTreesZone.BOUGH, CollectFromTreesZone.BARK, CollectFromTreesZone.LEAF);
+            Object current = step.getSetting(CollectFromTreesZone.RESOURCE_SETTING);
+            String selectedResource = resources.contains(current) ? (String) current : CollectFromTreesZone.BOUGH;
+
+            NDropbox<String> resourceDropdown = new NDropbox<String>(
+                    UI.scale(160),
+                    resources.size(),
+                    UI.scale(22)
+            ) {
+                @Override
+                protected String listitem(int i) { return resources.get(i); }
+                @Override
+                protected int listitems() { return resources.size(); }
+                @Override
+                protected void drawitem(GOut g, String item, int i) {
+                    g.text(item, Coord.z);
+                }
+                @Override
+                public void change(String item) {
+                    super.change(item);
+                    if (item != null) {
+                        step.setSetting(CollectFromTreesZone.RESOURCE_SETTING, item);
+                    }
+                }
+            };
+            resourceDropdown.change(selectedResource);
+
+            add(resourceDropdown, new Coord(UI.scale(8), y));
             y += UI.scale(40);
         }
         if (!hasAnySetting) {
