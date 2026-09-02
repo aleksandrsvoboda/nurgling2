@@ -44,16 +44,6 @@ public class TakeItems2 implements Action
     public ArrayList<Container> fillTargets = null;
     private Coord observedShape = null;
 
-    /* Whether another matching item could still be carried. A multi-cell item never stacks, so
-     * its real footprint is the honest test; for a 1x1 item the plain free-cell count is, and
-     * asking by footprint there would ignore the stacking that makes room beyond free cells. */
-    private boolean noRoomLeft(NGameUI gui) throws InterruptedException
-    {
-        if(observedShape != null && !observedShape.equals(1, 1))
-            return gui.getInventory().getNumberFreeCoord(observedShape) <= 0;
-        return gui.getInventory().getFreeSpace() <= 0;
-    }
-
     /* Footprint of the first matching item takeAny saw, or null if it saw none. */
     public Coord getObservedShape()
     {
@@ -179,7 +169,7 @@ public class TakeItems2 implements Action
              * ">= count" test below then never fires - so without this we walk to and open
              * every remaining container with a full inventory before the caller ever gets a
              * chance to unload. */
-            if(hasNoRoomLeft(gui))
+            if(noRoomLeft(gui))
                 break;
             if(input instanceof NContext.Barter)
                 takeFromBarter(left,gui, (NContext.Barter)input);
@@ -302,19 +292,30 @@ public class TakeItems2 implements Action
     }
 
     /**
-     * True when no more of {@link #item} can physically be carried: not one free cell for even
-     * the smallest item, and no partly filled stack of it left to top up. Deliberately
-     * conservative - it reports "full" only when the inventory is literally out of cells, so it
-     * can never cut a take short while room remains.
+     * True when no more of what we are fetching can physically be carried. Both storage tours
+     * lean on this: `count` is routinely a whole area's demand rather than one inventory load,
+     * so the "got >= count" tests never fire, and without this we would walk to and open every
+     * remaining pile and container with a full inventory before the caller ever unloads.
+     * <p>
+     * Once {@link #takeAny} has measured an item wider or taller than one cell, that footprint
+     * is the honest test - such an item never stacks, and a free-cell count would claim room in
+     * a fragmented inventory that cannot actually take another one. Otherwise the test is "not
+     * one free cell, and no partly filled stack of {@link #item} left to top up", which is
+     * deliberately conservative: it reports full only when the inventory is literally out of
+     * cells, so it can never cut a take short while room remains. takeAny drives this with a
+     * null item, where no stack can be looked up by name; under-asking there only costs it
+     * another pass, which it already loops for.
      */
-    private boolean hasNoRoomLeft(NGameUI gui) throws InterruptedException
+    private boolean noRoomLeft(NGameUI gui) throws InterruptedException
     {
         NInventory inv = gui.getInventory();
         if(inv == null)
             return false;
+        if(observedShape != null && !observedShape.equals(1, 1))
+            return inv.getNumberFreeCoord(observedShape) <= 0;
         if(inv.getNumberFreeCoord(new Coord(1, 1)) > 0)
             return false;
-        return inv.findNotFullStack(item) == null;
+        return item == null || inv.findNotFullStack(item) == null;
     }
 
     public Results takeFromBarter(AtomicInteger left, NGameUI gui, NContext.Barter barter) throws InterruptedException
