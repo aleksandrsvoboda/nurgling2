@@ -7,6 +7,7 @@ import haven.WItem;
 import haven.Widget;
 import haven.Window;
 import haven.res.ui.barterbox.Shopbox;
+import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NInventory.QualityType;
@@ -17,11 +18,13 @@ import nurgling.tasks.WindowIsClosed;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.tools.StackSupporter;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TakeItems2 implements Action
@@ -40,16 +43,6 @@ public class TakeItems2 implements Action
      * guess - which otherwise asks for one or two items and then has to come back for the rest. */
     public ArrayList<Container> fillTargets = null;
     private Coord observedShape = null;
-
-    /* Whether another matching item could still be carried. A multi-cell item never stacks, so
-     * its real footprint is the honest test; for a 1x1 item the plain free-cell count is, and
-     * asking by footprint there would ignore the stacking that makes room beyond free cells. */
-    private boolean noRoomLeft(NGameUI gui) throws InterruptedException
-    {
-        if(observedShape != null && !observedShape.equals(1, 1))
-            return gui.getInventory().getNumberFreeCoord(observedShape) <= 0;
-        return gui.getInventory().getFreeSpace() <= 0;
-    }
 
     /* Footprint of the first matching item takeAny saw, or null if it saw none. */
     public Coord getObservedShape()
@@ -77,6 +70,26 @@ public class TakeItems2 implements Action
             }
         }
     }
+    /**
+     * Optional, caller owned: hashes of source containers already seen to hold none of
+     * {@link #item}. A caller that runs TakeItems2 repeatedly for the same item - a
+     * fetch/distribute loop, say - shares one set across those runs so later passes do not
+     * walk back to and re-open storages they already emptied. Each set belongs to exactly one
+     * item name, since a container out of cocoons may still be full of leaves.
+     * <p>
+     * Only safe while nothing refills those containers mid-run, i.e. the source area is not
+     * also the destination area. Leave null to keep the old behaviour of re-checking everything.
+     */
+    public Set<String> depleted = null;
+
+    /**
+     * Optional lower bound on quality: copies below it are left in the source. Applies to
+     * containers only - stockpiles and barter stands offer no per-copy choice.
+     * <p>
+     * When set, {@link #depleted} means "nothing at or above this bound left", so one set must
+     * not be shared between runs using different bounds.
+     */
+    public Float minQuality = null;
 
 
     public TakeItems2(NContext context, String item, int count)
@@ -151,6 +164,13 @@ public class TakeItems2 implements Action
             return Results.FAIL();
         for(NContext.ObjectStorage input: inputs)
         {
+            /* Stop touring source storages the moment nothing more can be carried. `count` is
+             * routinely a whole area's demand rather than one inventory load, and the
+             * ">= count" test below then never fires - so without this we walk to and open
+             * every remaining container with a full inventory before the caller ever gets a
+             * chance to unload. */
+            if(noRoomLeft(gui))
+                break;
             if(input instanceof NContext.Barter)
                 takeFromBarter(left,gui, (NContext.Barter)input);
             else if (input instanceof NContext.Pile)
@@ -271,6 +291,33 @@ public class TakeItems2 implements Action
         return Results.SUCCESS();
     }
 
+    /**
+     * True when no more of what we are fetching can physically be carried. Both storage tours
+     * lean on this: `count` is routinely a whole area's demand rather than one inventory load,
+     * so the "got >= count" tests never fire, and without this we would walk to and open every
+     * remaining pile and container with a full inventory before the caller ever unloads.
+     * <p>
+     * Once {@link #takeAny} has measured an item wider or taller than one cell, that footprint
+     * is the honest test - such an item never stacks, and a free-cell count would claim room in
+     * a fragmented inventory that cannot actually take another one. Otherwise the test is "not
+     * one free cell, and no partly filled stack of {@link #item} left to top up", which is
+     * deliberately conservative: it reports full only when the inventory is literally out of
+     * cells, so it can never cut a take short while room remains. takeAny drives this with a
+     * null item, where no stack can be looked up by name; under-asking there only costs it
+     * another pass, which it already loops for.
+     */
+    private boolean noRoomLeft(NGameUI gui) throws InterruptedException
+    {
+        NInventory inv = gui.getInventory();
+        if(inv == null)
+            return false;
+        if(observedShape != null && !observedShape.equals(1, 1))
+            return inv.getNumberFreeCoord(observedShape) <= 0;
+        if(inv.getNumberFreeCoord(new Coord(1, 1)) > 0)
+            return false;
+        return item == null || inv.findNotFullStack(item) == null;
+    }
+
     public Results takeFromBarter(AtomicInteger left, NGameUI gui, NContext.Barter barter) throws InterruptedException
     {
         /* Buying needs the exact offer name, so bail before touching the chest when called from
@@ -376,14 +423,31 @@ public class TakeItems2 implements Action
             return Results.FAIL();
         new PathFinder(gpile).run(gui);
         new OpenTargetContainer("Stockpile", gpile).run(gui);
-        TakeItemsFromPile tifp;
-        (tifp = new TakeItemsFromPile(gpile, gui.getStockpile(), left.get())).run(gui);
+        /* A stockpile hands over one item per "xfer2" and the server silently drops the ones
+         * that no longer fit, so asking for more than the inventory can hold ends the transfer
+         * short and leaves TakeItemsFromPile waiting on items that never arrive. Every other
+         * caller budgets against free space before asking; do the same here, stack-aware, since
+         * a stacking item packs getFullStackSize() into one cell.
+         *
+         * takeAny drives this with item null, and a stack size cannot be looked up without a
+         * name - StackSupporter.isStackable would dereference it. Budget by plain free cells
+         * then: under-asking only costs another pass, which takeAny already loops for, while
+         * over-asking is the failure this whole guard exists to prevent. Once takeAny has seen
+         * one of the items its measured footprint beats assuming 1x1. */
+        Coord shape = (observedShape != null) ? observedShape : new Coord(1, 1);
+        int room = (item == null)
+                ? Math.min(left.get(), gui.getInventory().getNumberFreeCoord(shape))
+                : StackSupporter.getOptimalItemCapacity(gui.getInventory(), item, shape, left.get());
+        if(room > 0)
+            new TakeItemsFromPile(gpile, gui.getStockpile(), room).run(gui);
         new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
         return Results.SUCCESS();
     }
 
     public Results takeFromContainer(AtomicInteger left, NGameUI gui, Container cont) throws InterruptedException
     {
+        if(depleted != null && cont.gobHash != null && depleted.contains(cont.gobHash))
+            return Results.SUCCESS();
         Gob contgob = Finder.findGob(cont.gobHash);
         if(contgob == null)
             return Results.FAIL();
@@ -395,8 +459,40 @@ public class TakeItems2 implements Action
         TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont,new HashSet<>(Arrays.asList(item)), null, qualityType);
         tifc.minSize = left.get();
         tifc.exactMatch = this.exactMatch;
+        tifc.minQuality = this.minQuality;
         tifc.run(gui);
+        markDepletedIfNothingLeft(gui, cont);
         new CloseTargetContainer(cont).run(gui);
         return Results.SUCCESS();
+    }
+
+    /**
+     * Record - while the container is still open - that it has nothing left for us, so a later
+     * pass of the same fetch loop can skip it without walking back. "Nothing" means nothing this
+     * run would take: normally no copy of {@link #item} at all, or, under a {@link #minQuality}
+     * bound, none good enough to clear it. A plain NAlias match is otherwise a superset of what
+     * TakeItemsFromContainer would take (exactMatch only narrows it further), so a container that
+     * looks empty here really is not worth another visit.
+     * <p>
+     * getInventory resolves by window caption and can hand back a different container of the
+     * same kind, so the reading is only trusted when the window is provably bound to this gob -
+     * the same guard {@link Container#update()} uses. Misjudging it would strand items.
+     */
+    private void markDepletedIfNothingLeft(NGameUI gui, Container cont) throws InterruptedException
+    {
+        if(depleted == null || cont.gobHash == null || cont.cap == null)
+            return;
+        NInventory inv = gui.getInventory(cont.cap);
+        if(inv == null || inv.parentGob == null || inv.parentGob.id != cont.gobid)
+            return;
+        for(WItem witem: inv.getItems(new NAlias(item)))
+        {
+            if(minQuality == null)
+                return; // something is left and we would take it - still worth a visit
+            Float quality = ((NGItem) witem.item).quality;
+            if(quality != null && quality >= minQuality - FindQualityThreshold.QEPS)
+                return;
+        }
+        depleted.add(cont.gobHash);
     }
 }
