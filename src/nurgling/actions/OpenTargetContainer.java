@@ -37,7 +37,9 @@ public class OpenTargetContainer implements Action
         switch (name)
         {
             case "Stockpile":
-                gui.ui.core.addTask(new FindNISBox(name));
+                /* Pass the gob: a stockpile is destroyed by having its last item taken, so the
+                 * window we are waiting for may never arrive, and the wait is infinite. */
+                gui.ui.core.addTask(new FindNISBox(name, gob));
                 break;
             case "Barter Stand":
                 gui.ui.core.addTask(new FindBarterStand());
