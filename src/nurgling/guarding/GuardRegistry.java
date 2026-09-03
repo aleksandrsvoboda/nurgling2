@@ -59,6 +59,11 @@ public final class GuardRegistry {
                         settings -> new LowHpTrigger(settings.getOrDefault("threshold", 50.0) / 100.0)),
                 true, true);
 
+        register(new GuardSpec("full_shp", "Soft hitpoints not full",
+                        Collections.emptyList(),
+                        settings -> new FullShpTrigger()),
+                true, true);
+
         register(new GuardSpec("wound_severity", "Swamp Fever Threshold",
                         Collections.singletonList(new GuardInput("threshold", GuardInput.Kind.COUNT, "dmg", 4)),
                         settings -> new WoundSeverityTrigger((int) (double) settings.getOrDefault("threshold", 4.0))),

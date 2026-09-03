@@ -4,12 +4,11 @@ import nurgling.NUtils;
 
 /**
  * Fires when the hard-HP ceiling ({@code NUtils.getHPFraction()}, confirmed live to be hard HP
- * as a fraction of true max, not soft HP despite the name) drops below a configured threshold,
- * OR the character isn't fully healed relative to whatever that ceiling currently allows
- * (soft &lt; hard). Both conditions are bundled into this one trigger since both independently
- * meant "not okay, go home" in the check this replaces (Forager's old unconditional
- * detectThreat()); split the "not fully healed" half into its own guard type later if it ever
- * needs its own threshold/enable/outcome separate from the ceiling check.
+ * as a fraction of true max, not soft HP despite the name) drops below a configured threshold.
+ * Whether soft HP is fully healed up to that ceiling is a separate, unconditional check - see
+ * {@link FullShpTrigger} - since bundling it in here fired this guard any time soft HP was even
+ * 1 point below the ceiling, with no way to configure or disable that half independently
+ * (reported live).
  */
 public class LowHpTrigger implements GuardTrigger {
     private final double threshold;
@@ -27,22 +26,6 @@ public class LowHpTrigger implements GuardTrigger {
                     + Math.round(threshold * 100) + "%)";
             return true;
         }
-
-        // Both fractions are live "hp" meter bar segments sharing the same denominator (true
-        // max), so soft/hard = softFrac/hardFrac needs no tooltip data at all - only the chat
-        // message's raw numbers below use getCurrentHP()/getMaxHP(), which can silently stay
-        // stale/-1 all session if nothing ever hovers the HP bar.
-        double softFrac = NUtils.getSoftHPFraction();
-        if (softFrac >= 0 && hardFrac > 0 && softFrac < hardFrac) {
-            int curHP = NUtils.getCurrentHP();
-            int maxHP = NUtils.getMaxHP();
-            lastReason = (curHP >= 0 && maxHP >= 0)
-                    ? ("soft hitpoints not full (" + curHP + "/" + Math.round(hardFrac * maxHP) + ")")
-                    : ("soft hitpoints not full (" + Math.round(softFrac * 100) + "% of a possible "
-                        + Math.round(hardFrac * 100) + "%)");
-            return true;
-        }
-
         return false;
     }
 
