@@ -208,13 +208,8 @@ public class CoracleBot implements Action {
     private boolean isOnValidWaterTile(NGameUI gui) {
         MCache map = gui.ui.sess.glob.map;
         Coord playerTile = NUtils.player().rc.div(MCache.tilesz).floor();
-        String tileName = map.tilesetname(map.gettile(playerTile));
-        if (tileName == null) return false;
-
-        return tileName.contains("water") ||
-               tileName.contains("bog") ||
-               tileName.contains("fen") ||
-               tileName.contains("swamp") ||
-               tileName.contains("marsh");
+        // Shared with NPFMap's own water-mode pf-grid classification (see its
+        // isValidWaterTileName javadoc) so the two can never diverge on what counts as water.
+        return nurgling.pf.NPFMap.isValidWaterTileName(map.tilesetname(map.gettile(playerTile)));
     }
 }

@@ -360,9 +360,7 @@ public class NPFMap
                             // bog/fen/swamp/marsh tiles as valid water for that purpose, but this
                             // whitelist only recognized deep/open water tile names, so a route
                             // crossing bog water got every one of those cells blocked outright.
-                            if (name != null && (name.startsWith("gfx/tiles/water") || name.startsWith("gfx/tiles/owater")
-                                    || name.equals("gfx/tiles/deep") || name.equals("gfx/tiles/odeep")
-                                    || name.contains("bog") || name.contains("fen") || name.contains("swamp") || name.contains("marsh"))) {
+                            if (isValidWaterTileName(name)) {
                                 anyWater = true;
                                 break;
                             }
@@ -374,6 +372,23 @@ public class NPFMap
                 }
             }
         }
+    }
+
+    /**
+     * Whether tileName is water a coracle can actually launch/land on or cross - not just open
+     * water; bog/fen/swamp/marsh count too (CoracleBot's boarding/dropping legality check treats
+     * them the same way - see its isOnValidWaterTile()). Shared between water-mode pf-grid
+     * classification here and CoracleBot's own check so the two can never diverge on what counts
+     * as valid water (they briefly did: this used to be a second, independently-hand-copied
+     * whitelist here that was missing deep/odeep coverage CoracleBot's own check didn't have
+     * either, in the opposite direction - each was right about something the other missed).
+     */
+    public static boolean isValidWaterTileName(String tileName) {
+        return tileName != null && (
+                tileName.startsWith("gfx/tiles/water") || tileName.startsWith("gfx/tiles/owater") ||
+                tileName.equals("gfx/tiles/deep") || tileName.equals("gfx/tiles/odeep") ||
+                tileName.contains("bog") || tileName.contains("fen") ||
+                tileName.contains("swamp") || tileName.contains("marsh"));
     }
 
     public ArrayList<Coord> checkCA(CellsArray ca) {
