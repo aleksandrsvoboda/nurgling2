@@ -66,7 +66,7 @@ public class IngredientContainer extends BaseIngredientContainer {
                         try {
                             int val = Integer.parseInt(te.text());
                             for (IconItem item : ic.icons) {
-                                item.isThreshold = true;
+                                item.hasBadge = true;
                                 item.val = val;
                                 item.q = new TexI(NStyle.iiqual.render(te.text()).img);
                                 ic.setThreshold(item.name, item.val);
@@ -110,7 +110,7 @@ public class IngredientContainer extends BaseIngredientContainer {
                                 ui.root.add(st, c);
                             } else if(option.name.equals(L10n.get(OPT_DELETE_THRESHOLDS))) {
                                 for (IconItem item : ic.icons) {
-                                    item.isThreshold = false;
+                                    item.hasBadge = false;
                                     item.val = 1;
                                     item.q = null;
                                     ic.delThreshold(item.name);
@@ -138,7 +138,7 @@ public class IngredientContainer extends BaseIngredientContainer {
         super.addIcon(res);
         if(res.has("th")) {
             IconItem it = icons.get(icons.size()-1);
-            it.isThreshold = true;
+            it.hasBadge = true;
             it.val = (Integer)res.get("th");
             it.q = new TexI(NStyle.iiqual.render(String.valueOf(it.val)).img);
         }

@@ -257,7 +257,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     /** Restores the shared Threshold/Maintain badge onto a freshly (re)drawn icon from its entry's saved cap. */
     private static void restoreMaintainBadge(IconItem it, ForagerAction action) {
         if (action.maintainQuantity >= 0) {
-            it.isThreshold = true;
+            it.hasBadge = true;
             it.val = action.maintainQuantity;
             it.q = new TexI(nurgling.NStyle.iiqual.render(String.valueOf(action.maintainQuantity)).img);
         }

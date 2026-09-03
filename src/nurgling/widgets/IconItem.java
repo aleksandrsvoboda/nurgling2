@@ -65,7 +65,9 @@ public class IconItem extends Widget
     TexI tip;
     TexI q;
     boolean noOpts = false;
-    boolean isThreshold = false;
+    // Shared Threshold/Maintain badge flag - the two features never coexist on the same icon
+    // (mutually exclusive by parent container type), so one flag/rendering covers both.
+    boolean hasBadge = false;
 
     Coord basec = null;
     NArea.Ingredient.Type type = NArea.Ingredient.Type.CONTAINER;
@@ -117,7 +119,7 @@ public class IconItem extends Widget
     {
         if (tex != null)
         {
-            if(isThreshold)
+            if(hasBadge)
             {
                 g.image(framet, Coord.z, UI.scale(32, 42));
                 g.image(q, new Coord(UI.scale(16)-q.sz().x/2,UI.scale(28)));
@@ -308,14 +310,14 @@ public class IconItem extends Widget
                     super.click();
                     try
                     {
-                        IconItem.this.isThreshold = true;
+                        IconItem.this.hasBadge = true;
                         IconItem.this.val = Integer.valueOf(te.text());
                         IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
                         onSet.accept(IconItem.this.val);
                     }
                     catch (NumberFormatException e)
                     {
-                        IconItem.this.isThreshold = false;
+                        IconItem.this.hasBadge = false;
                         onSet.accept(-1);
                     }
                     ui.destroy(SetThreshold.this);
