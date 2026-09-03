@@ -37,7 +37,7 @@ import java.util.TreeSet;
  * and Guarding Profiles - the Forager bot-launch window only *selects* one of each to run with,
  * it no longer edits any of them.
  * <p>
- * The Guarding section's check rows (Low energy, Low hitpoints, Stuck detection, Unknown
+ * The Guarding section's check rows (Low energy, Low HHP, Low SHP, Stuck detection, Unknown
  * player, Dangerous animal - split into Pre-flight/In-flight groups) are built generically from
  * whatever's registered in {@link GuardRegistry}, not hand-coded per guard type - see
  * {@link #buildGuardRow}. A new guard type registered there (id, label, its {@link GuardInput}s,

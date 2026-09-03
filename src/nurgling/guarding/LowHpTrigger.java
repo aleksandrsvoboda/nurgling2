@@ -3,12 +3,12 @@ package nurgling.guarding;
 import nurgling.NUtils;
 
 /**
- * Fires when the hard-HP ceiling ({@code NUtils.getHPFraction()}, confirmed live to be hard HP
- * as a fraction of true max, not soft HP despite the name) drops below a configured threshold.
- * Whether soft HP is fully healed up to that ceiling is a separate, unconditional check - see
- * {@link FullShpTrigger} - since bundling it in here fired this guard any time soft HP was even
- * 1 point below the ceiling, with no way to configure or disable that half independently
- * (reported live).
+ * Fires when hard HP - HHP, the ceiling soft HP can heal up to ({@code NUtils.getHPFraction()},
+ * confirmed live to be hard HP as a fraction of true max despite the method's name) - drops
+ * below a configured threshold. Whether soft HP (SHP) is itself fully healed up to that ceiling
+ * is a separate, unconditional-by-default check - see {@link LowShpTrigger} - since bundling it
+ * in here fired this guard any time SHP was even 1 point below the HHP ceiling, with no way to
+ * configure or disable that half independently (reported live).
  */
 public class LowHpTrigger implements GuardTrigger {
     private final double threshold;
@@ -22,7 +22,7 @@ public class LowHpTrigger implements GuardTrigger {
     public boolean check(GuardContext ctx) {
         double hardFrac = NUtils.getHPFraction();
         if (hardFrac >= 0 && hardFrac < threshold) {
-            lastReason = "hard hitpoint ceiling at " + Math.round(hardFrac * 100) + "% of max (below "
+            lastReason = "hard hitpoint (HHP) ceiling at " + Math.round(hardFrac * 100) + "% of max (below "
                     + Math.round(threshold * 100) + "%)";
             return true;
         }
