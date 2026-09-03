@@ -1,5 +1,7 @@
 package nurgling.guarding;
 
+import haven.MCache;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,8 +68,15 @@ public final class GuardRegistry {
                         Arrays.asList(
                                 new GuardInput("distance", GuardInput.Kind.TILES, "tiles in", 3),
                                 new GuardInput("timeout", GuardInput.Kind.SECONDS, "s", 10)),
+                        // distance is configured in tiles (GuardInput.Kind.TILES) but
+                        // StuckTrigger compares against Gob.rc, which is in world units - was
+                        // missing this conversion entirely, so a configured "3 tiles" threshold
+                        // was actually enforced as 3 world units (~0.27 tiles), meaning ordinary
+                        // walking jitter almost always exceeded it and the guard essentially
+                        // never fired. Same conversion DetourChainBudget already does correctly
+                        // for its own tiles-configured distance.
                         settings -> new StuckTrigger(
-                                settings.getOrDefault("distance", 3.0),
+                                settings.getOrDefault("distance", 3.0) * MCache.tilesz.x,
                                 (long) (settings.getOrDefault("timeout", 10.0) * 1000))),
                 false, true);
 

@@ -170,20 +170,33 @@ public class ChunkNavExecutor implements Action {
                 // bailed out early (e.g. an empty segment, so its own per-iteration gate
                 // check never ran) or the portal was already visible/reachable from range
                 // before the gate ever came within openNearbyGateIfNeeded's detection
-                // radius. Close unconditionally (not distance-gated) since we're about to
-                // cross into a new grid - this is the last chance to shut it while still
-                // in the correct coordinate space.
+                // radius. This is the last chance to shut it while still in the correct
+                // coordinate space - but NOT unconditionally: openNearbyGateIfNeeded above can
+                // itself freshly set pendingCloseGate (if it just opened the gate this same
+                // call and couldn't yet confirm the player actually walked clear of it), and
+                // closing right back over it here, before the player is really past it, would
+                // trap them on the near side right before the portal-crossing attempt below
+                // needs to walk through this same gate (reported live - exactly the "barred
+                // gate blocks every PathFinder attempt" failure this whole feature exists to
+                // avoid). Same approach-direction clearance check closePendingGateIfClear uses:
+                // only close if confirmed past it, otherwise leave it open rather than risk
+                // blocking our own imminent crossing.
                 Gob playerBeforePortal = gui.map.player();
                 if (playerBeforePortal != null) {
                     openNearbyGateIfNeeded(gui, playerBeforePortal);
                 }
                 if (pendingCloseGate != null) {
                     Gob playerNearGate = gui.map.player();
-                    if (playerNearGate != null) {
+                    boolean clearOfGate = pendingCloseGateApproachDir == null
+                            || (playerNearGate != null && playerNearGate.rc.sub(pendingCloseGate.rc)
+                                    .dot(pendingCloseGateApproachDir) >= MCache.tilesz.x * 0.5);
+                    if (clearOfGate && playerNearGate != null) {
                         playerNearGate = ensureNearGate(gui, playerNearGate, pendingCloseGate);
-                    }
-                    if (playerNearGate != null) {
-                        closeGate(gui, pendingCloseGate);
+                        if (playerNearGate != null) {
+                            closeGate(gui, pendingCloseGate);
+                        }
+                    } else {
+                        System.out.println("ChunkNav: leaving gate open before crossing - not yet confirmed we walked clear of it");
                     }
                 }
 
