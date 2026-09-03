@@ -43,6 +43,18 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         VERIFIED_CATEGORY_ACTION.put("Stone", "Chip stone");
     }
 
+    /** item display name (lowercased) -> a gob resource-name substring confirmed correct, not a
+     *  guess - for {@link #herbPatternCandidates} the same way {@link #VERIFIED_CATEGORY_ACTION}
+     *  is for {@link #actionNameCandidates}. Needed whenever the display name has no usable
+     *  textual relation to the actual resource name, so no amount of pluralization/spacing
+     *  normalization gets there on its own (e.g. "Lingonberries" never reduces to "lingon"). */
+    private static final Map<String, String> KNOWN_ITEM_PATTERN = new LinkedHashMap<>();
+    static {
+        KNOWN_ITEM_PATTERN.put("lingonberries", "lingon");
+        KNOWN_ITEM_PATTERN.put("yellowfeet", "yellowfoot");
+        KNOWN_ITEM_PATTERN.put("blueberries", "blueberry");
+    }
+
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
     // field) rather than holding a private copy, so every mutation here (drop/delete/tag/add
     // custom) is immediately reflected in the caller's list with no separate sync-back step.
@@ -158,6 +170,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // gob resource paths are always lowercase - keep the saved pattern looking like one
         // instead of a mix of cases, so it reads sensibly if the user reviews/edits it later.
         String lower = itemName.toLowerCase();
+
+        String known = KNOWN_ITEM_PATTERN.get(lower);
+        if (known != null) {
+            return known;
+        }
 
         java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
         candidates.add(lower);
