@@ -36,10 +36,10 @@ public class ForagerPath {
         return tiles != null && tiles.contains(tc);
     }
 
-    // Caps on chain-foraging away from the route, in tiles; -1 = no cap. See DetourChainBudget.
-    public int maxChains = -1;
+    // Caps on branching off the route to detour-forage, in tiles; -1 = no cap. See DetourBranchBudget.
+    public int maxBranches = -1;
     public int maxDistance = -1;
-    public int maxChainDistance = -1;
+    public int maxBranchDistance = -1;
 
     // When set, Forager also avoids known cliffs when picking a detour target.
     public boolean avoidCliffs = false;
@@ -176,14 +176,14 @@ public class ForagerPath {
             }
         }
 
-        if (json.has("maxChains")) {
-            this.maxChains = json.getInt("maxChains");
+        if (json.has("maxBranches")) {
+            this.maxBranches = json.getInt("maxBranches");
         }
         if (json.has("maxDistance")) {
             this.maxDistance = json.getInt("maxDistance");
         }
-        if (json.has("maxChainDistance")) {
-            this.maxChainDistance = json.getInt("maxChainDistance");
+        if (json.has("maxBranchDistance")) {
+            this.maxBranchDistance = json.getInt("maxBranchDistance");
         }
         this.avoidCliffs = json.optBoolean("avoidCliffs", false);
         this.cliffBufferTiles = json.optInt("cliffBufferTiles", 1);
@@ -220,14 +220,14 @@ public class ForagerPath {
         }
         json.put("exclusionTiles", segArray);
 
-        if (maxChains >= 0) {
-            json.put("maxChains", maxChains);
+        if (maxBranches >= 0) {
+            json.put("maxBranches", maxBranches);
         }
         if (maxDistance >= 0) {
             json.put("maxDistance", maxDistance);
         }
-        if (maxChainDistance >= 0) {
-            json.put("maxChainDistance", maxChainDistance);
+        if (maxBranchDistance >= 0) {
+            json.put("maxBranchDistance", maxBranchDistance);
         }
         json.put("avoidCliffs", avoidCliffs);
         json.put("cliffBufferTiles", cliffBufferTiles);

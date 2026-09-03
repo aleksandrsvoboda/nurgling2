@@ -10,16 +10,16 @@ import nurgling.routes.ForagerPath;
 public class ForagerRouteConstraints {
     private final ForagerPath path;
     private final int maxDistanceTiles;
-    private final int maxChains;
-    private final int maxChainDistanceTiles;
+    private final int maxBranches;
+    private final int maxBranchDistanceTiles;
     private final boolean avoidCliffs;
     private final int cliffBufferTiles;
 
     public ForagerRouteConstraints(ForagerPath path) {
         this.path = path;
         this.maxDistanceTiles = path.maxDistance;
-        this.maxChains = path.maxChains;
-        this.maxChainDistanceTiles = path.maxChainDistance;
+        this.maxBranches = path.maxBranches;
+        this.maxBranchDistanceTiles = path.maxBranchDistance;
         this.avoidCliffs = path.avoidCliffs;
         this.cliffBufferTiles = path.cliffBufferTiles;
     }
@@ -44,12 +44,12 @@ public class ForagerRouteConstraints {
     }
 
     /** -1 = unlimited hops per detour episode. */
-    public int maxChains() {
-        return maxChains;
+    public int maxBranches() {
+        return maxBranches;
     }
 
     /** -1 = unlimited cumulative distance per detour episode, in tiles. */
-    public int maxChainDistanceTiles() {
-        return maxChainDistanceTiles;
+    public int maxBranchDistanceTiles() {
+        return maxBranchDistanceTiles;
     }
 }

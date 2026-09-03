@@ -54,6 +54,8 @@ public class ForagerSettingsPanel extends Panel {
             "forager.settings.routes_help_add",
             "forager.settings.routes_help_move",
             "forager.settings.routes_help_delete",
+            "forager.settings.routes_help_steps",
+            "forager.settings.routes_help_milestone",
             "forager.settings.routes_help_paint",
             "forager.settings.routes_help_erase",
             "forager.settings.routes_help_pan_zoom",
@@ -76,9 +78,9 @@ public class ForagerSettingsPanel extends Panel {
     private TextEntry brushSizeEntry;
     private CheckBox avoidCliffsCheck;
     private TextEntry cliffBufferEntry;
-    private TextEntry maxChainsEntry;
+    private TextEntry maxBranchesEntry;
     private TextEntry maxDistanceEntry;
-    private TextEntry maxChainDistanceEntry;
+    private TextEntry maxBranchDistanceEntry;
 
     // ---- Guarding ----
     // "break" just stops the bot; whether a check runs at all is a separate per-row enabled CheckBox (see GuardRow/buildGuardRow).
@@ -346,13 +348,15 @@ public class ForagerSettingsPanel extends Panel {
 
         // Own offsets, not the brush/cliff rows' shared column - the longest label needs more room than an even 3-way split.
         Widget capsRow = rsec.add(new Widget(new Coord(UI.scale(560), UI.scale(ROW_H))), cliffRow.pos("bl").add(UI.scale(0, 8)));
-        rowItem(capsRow, new Label(L10n.get("forager.settings.max_chains")), UI.scale(0));
-        maxChainsEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(80));
+        rowItem(capsRow, new Label(L10n.get("forager.settings.max_branches")), UI.scale(0));
+        maxBranchesEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(80));
+        maxBranchesEntry.settip(L10n.get("forager.settings.max_branches_tip"));
         rowItem(capsRow, new Label(L10n.get("forager.settings.max_distance")), UI.scale(160));
         maxDistanceEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(280));
         maxDistanceEntry.settip(L10n.get("forager.settings.max_distance_tip"));
-        rowItem(capsRow, new Label(L10n.get("forager.settings.max_chain_distance")), UI.scale(360));
-        maxChainDistanceEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(500));
+        rowItem(capsRow, new Label(L10n.get("forager.settings.max_branch_distance")), UI.scale(360));
+        maxBranchDistanceEntry = rowItem(capsRow, new TextEntry(UI.scale(ENTRY_W), ""), UI.scale(500));
+        maxBranchDistanceEntry.settip(L10n.get("forager.settings.max_branch_distance_tip"));
 
         mapAnchor = capsRow;
 
@@ -928,9 +932,9 @@ public class ForagerSettingsPanel extends Panel {
         routeMap.setRoute(currentRoute);
         avoidCliffsCheck.a = currentRoute.avoidCliffs;
         cliffBufferEntry.settext(String.valueOf(currentRoute.cliffBufferTiles));
-        maxChainsEntry.settext(currentRoute.maxChains < 0 ? "" : String.valueOf(currentRoute.maxChains));
+        maxBranchesEntry.settext(currentRoute.maxBranches < 0 ? "" : String.valueOf(currentRoute.maxBranches));
         maxDistanceEntry.settext(currentRoute.maxDistance < 0 ? "" : String.valueOf(currentRoute.maxDistance));
-        maxChainDistanceEntry.settext(currentRoute.maxChainDistance < 0 ? "" : String.valueOf(currentRoute.maxChainDistance));
+        maxBranchDistanceEntry.settext(currentRoute.maxBranchDistance < 0 ? "" : String.valueOf(currentRoute.maxBranchDistance));
     }
 
     /** Discards unsaved in-memory edits to the currently selected route by reloading it from disk. */
@@ -944,17 +948,17 @@ public class ForagerSettingsPanel extends Panel {
         routeMap.setRoute(null);
         avoidCliffsCheck.a = false;
         cliffBufferEntry.settext("1");
-        maxChainsEntry.settext("");
+        maxBranchesEntry.settext("");
         maxDistanceEntry.settext("");
-        maxChainDistanceEntry.settext("");
+        maxBranchDistanceEntry.settext("");
     }
 
     private void saveCurrentRoute() {
         if (currentRoute == null) return;
         currentRoute.cliffBufferTiles = parseIntOrDefault(cliffBufferEntry.text(), 1);
-        currentRoute.maxChains = parseIntOrNoCap(maxChainsEntry.text());
+        currentRoute.maxBranches = parseIntOrNoCap(maxBranchesEntry.text());
         currentRoute.maxDistance = parseIntOrNoCap(maxDistanceEntry.text());
-        currentRoute.maxChainDistance = parseIntOrNoCap(maxChainDistanceEntry.text());
+        currentRoute.maxBranchDistance = parseIntOrNoCap(maxBranchDistanceEntry.text());
         try {
             currentRoute.save(NUtils.getDataFile(ROUTES_DIR));
             routeMap.markClean();

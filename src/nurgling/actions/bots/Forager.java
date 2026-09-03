@@ -473,8 +473,8 @@ public class Forager implements Action {
         gui.activeBotDetourTrail = breadcrumbs;
         Gob player = NUtils.player();
         Coord2d leashAnchor = player != null ? player.rc : null;
-        nurgling.actions.bots.forager.DetourChainBudget budget =
-                new nurgling.actions.bots.forager.DetourChainBudget(routeConstraints.maxChains(), routeConstraints.maxChainDistanceTiles());
+        nurgling.actions.bots.forager.DetourBranchBudget budget =
+                new nurgling.actions.bots.forager.DetourBranchBudget(routeConstraints.maxBranches(), routeConstraints.maxBranchDistanceTiles());
         boolean interrupted = false;
         try {
             collectUntilExhausted(gui, preset, breadcrumbs, budget, leashAnchor);
@@ -495,10 +495,10 @@ public class Forager implements Action {
 
     /** Grabs everything actionable in range, rescanning after each pickup, until nothing's found or inventory fills; shared by the outbound pass and the return walk. */
     private void collectUntilExhausted(NGameUI gui, NForagerProp.PresetData preset, ArrayList<Coord2d> breadcrumbs,
-                                        nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
+                                        nurgling.actions.bots.forager.DetourBranchBudget budget, Coord2d leashAnchor) throws InterruptedException {
         while (true) {
             if (isInventoryFull(gui)) return;
-            if (!budget.canChain()) return;
+            if (!budget.canBranch()) return;
 
             Gob player = NUtils.player();
             if (player == null) return;
@@ -522,9 +522,9 @@ public class Forager implements Action {
         }
     }
 
-    /** Walks toward target in MAX_HOP_DISTANCE hops, detouring to closer gobs along the way; detour-episode mode (breadcrumbs/budget non-null) tracks chain state, main-route mode doesn't. */
+    /** Walks toward target in MAX_HOP_DISTANCE hops, detouring to closer gobs along the way; detour-episode mode (breadcrumbs/budget non-null) tracks branch state, main-route mode doesn't. */
     private boolean walkInHops(NGameUI gui, NForagerProp.PresetData preset, Coord2d target, ArrayList<Coord2d> breadcrumbs,
-                                nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
+                                nurgling.actions.bots.forager.DetourBranchBudget budget, Coord2d leashAnchor) throws InterruptedException {
         boolean detourEpisode = breadcrumbs != null;
         if (!detourEpisode) {
             // Anchor held fixed for this whole call, same as the detour-episode case - re-deriving
@@ -537,7 +537,7 @@ public class Forager implements Action {
         }
         while (true) {
             if (isInventoryFull(gui)) return false;
-            if (detourEpisode && !budget.canChain()) return false;
+            if (detourEpisode && !budget.canBranch()) return false;
 
             Gob player = NUtils.player();
             if (player == null) return false;
@@ -587,7 +587,7 @@ public class Forager implements Action {
 
     /** Retraces the breadcrumb trail home most-recent-first, sweeping via collectUntilExhausted before each hop; keeps going even once inventory is full. */
     private void returnToPathViaBreadcrumbs(NGameUI gui, ArrayList<Coord2d> breadcrumbs, NForagerProp.PresetData preset,
-                                             nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
+                                             nurgling.actions.bots.forager.DetourBranchBudget budget, Coord2d leashAnchor) throws InterruptedException {
         while (!breadcrumbs.isEmpty()) {
             collectUntilExhausted(gui, preset, breadcrumbs, budget, leashAnchor);
             if (breadcrumbs.isEmpty()) return;
