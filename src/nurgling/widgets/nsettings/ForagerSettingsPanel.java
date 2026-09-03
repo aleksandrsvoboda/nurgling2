@@ -272,7 +272,7 @@ public class ForagerSettingsPanel extends Panel {
 
         Widget rprev = null;
         for (String key : ROUTES_HELP_KEYS) {
-            rprev = rsec.add(new Label("• " + L10n.get(key)), rprev == null ? Coord.z : rprev.pos("bl").add(UI.scale(0, 3)));
+            rprev = rsec.add(new Label("• " + L10n.get(key), UI.scale(520)), rprev == null ? Coord.z : rprev.pos("bl").add(UI.scale(0, 3)));
         }
 
         rprev = rsec.add(new Label(L10n.get("forager.settings.route")), rprev.pos("bl").add(UI.scale(0, 12)));
