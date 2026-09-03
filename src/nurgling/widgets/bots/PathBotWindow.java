@@ -94,16 +94,6 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     /** Called before switching away from a preset. Subclasses can save additional settings. */
     protected void onPresetSaving(String presetName) {}
 
-    /** Whether this window shows the record-path button; true by default, override false for a bot whose routes are edited elsewhere (e.g. Forager Settings &gt; Routes). */
-    protected boolean supportsRecording() {
-        return true;
-    }
-
-    /** Whether this window shows the new/delete-path buttons; true by default, override false for a bot whose routes are managed elsewhere (the dropdown still selects a route either way). */
-    protected boolean supportsPathManagement() {
-        return true;
-    }
-
     // ========== Constructor ==========
 
     public PathBotWindow(Coord sz, String title) {
@@ -120,8 +110,6 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         // Preset selection
         prev = add(new Label(presetLabel), prev.pos("bl").add(UI.scale(0, 10)));
 
-        // Prop must be loaded before presets can be listed - initializeFromConfig() only runs at the end of the subclass constructor, too late for the dropdown below.
-        loadPropAndGetCurrentPreset();
         loadAvailablePresets();
 
         Widget presetRow = add(new Widget(new Coord(UI.scale(300), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
@@ -217,58 +205,54 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
             }
         }, new Coord(0, 0));
 
-        if (supportsPathManagement()) {
-            pathRow.add(newPathButton = new IButton(
-                Resource.loadsimg("nurgling/hud/buttons/add/u"),
-                Resource.loadsimg("nurgling/hud/buttons/add/d"),
-                Resource.loadsimg("nurgling/hud/buttons/add/h")) {
-                @Override
-                public void click() {
-                    super.click();
-                    handleCreateNewPath();
-                }
-            }, new Coord(UI.scale(245), 0));
-            newPathButton.settip("Create new path");
+        pathRow.add(newPathButton = new IButton(
+            Resource.loadsimg("nurgling/hud/buttons/add/u"),
+            Resource.loadsimg("nurgling/hud/buttons/add/d"),
+            Resource.loadsimg("nurgling/hud/buttons/add/h")) {
+            @Override
+            public void click() {
+                super.click();
+                handleCreateNewPath();
+            }
+        }, new Coord(UI.scale(245), 0));
+        newPathButton.settip("Create new path");
 
-            pathRow.add(deletePathButton = new IButton(
-                Resource.loadsimg("nurgling/hud/buttons/remove/u"),
-                Resource.loadsimg("nurgling/hud/buttons/remove/d"),
-                Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
-                @Override
-                public void click() {
-                    super.click();
-                    handleDeleteCurrentPath();
-                }
-            }, new Coord(UI.scale(270), 0));
-            deletePathButton.settip("Delete current path");
-        }
+        pathRow.add(deletePathButton = new IButton(
+            Resource.loadsimg("nurgling/hud/buttons/remove/u"),
+            Resource.loadsimg("nurgling/hud/buttons/remove/d"),
+            Resource.loadsimg("nurgling/hud/buttons/remove/h")) {
+            @Override
+            public void click() {
+                super.click();
+                handleDeleteCurrentPath();
+            }
+        }, new Coord(UI.scale(270), 0));
+        deletePathButton.settip("Delete current path");
 
         prev = pathRow;
 
-        if (supportsRecording()) {
-            // Record path button
-            Widget recordRow = add(new Widget(new Coord(UI.scale(270), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
-            recordRow.add(new Label("Record:"), new Coord(0, UI.scale(2)));
-            recordRow.add(recordPathButton = new ICheckBox(
-                "nurgling/hud/buttons/record_4states/",
-                "u",
-                "d",
-                "h",
-                "dh") {
-                @Override
-                public void changed(boolean val) {
-                    super.changed(val);
-                    if (val) {
-                        startRecording();
-                    } else {
-                        stopRecording();
-                    }
+        // Record path button
+        Widget recordRow = add(new Widget(new Coord(UI.scale(270), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
+        recordRow.add(new Label("Record:"), new Coord(0, UI.scale(2)));
+        recordRow.add(recordPathButton = new ICheckBox(
+            "nurgling/hud/buttons/record_4states/",
+            "u",
+            "d",
+            "h",
+            "dh") {
+            @Override
+            public void changed(boolean val) {
+                super.changed(val);
+                if (val) {
+                    startRecording();
+                } else {
+                    stopRecording();
                 }
-            }, new Coord(UI.scale(60), 0));
-            recordPathButton.settip("Record path waypoints");
+            }
+        }, new Coord(UI.scale(60), 0));
+        recordPathButton.settip("Record path waypoints");
 
-            prev = recordRow;
-        }
+        prev = recordRow;
 
         // Sections info
         prev = sectionsLabel = add(new Label("No path loaded"), prev.pos("bl").add(UI.scale(0, 10)));
@@ -362,10 +346,6 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     }
 
     protected void handlePresetChanged(String presetName) {
-        // Same Listbox.mousedown null-click case handlePathChanged guards against - see there.
-        if (presetName == null) {
-            return;
-        }
         // Let subclass save any additional settings for old preset
         String oldPreset = getCurrentPresetName();
         if (oldPreset != null && !oldPreset.equals(presetName)) {
@@ -396,8 +376,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     }
 
     protected void handlePathChanged(String pathName) {
-        // Listbox.mousedown calls change(null) on a click below/outside any actual item row - a normal interaction, not specific to this window.
-        if (pathName == null || pathName.equals(getNoPathsMessage())) {
+        if (pathName.equals(getNoPathsMessage())) {
             return;
         }
 
@@ -466,6 +445,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
             saveProp();
 
             updateSectionsInfo();
+            startButton.disable(path.getSectionCount() == 0);
 
         } catch (Exception e) {
             NUtils.getGameUI().error("Failed to load path: " + e.getMessage());
@@ -481,8 +461,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         if (path != null) {
             sectionsLabel.settext(String.format("Path: %s (%d waypoints, %d sections)",
                 path.name, path.waypoints.size(), path.getSectionCount()));
-            // path.getSectionCount() isn't reliable here - sections are segment-relative and regenerate once the bot's on the right segment. Gate on waypoint count instead.
-            startButton.disable(path.waypoints == null || path.waypoints.size() < 2);
+            startButton.disable(path.getSectionCount() == 0);
             return;
         }
         sectionsLabel.settext("No path loaded");
@@ -493,8 +472,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         String currentPreset = getCurrentPresetName();
         ForagerPath path = getPresetForagerPath(currentPreset);
 
-        // Same reasoning as updateSectionsInfo() - gate on waypoint count, not section count.
-        if (path == null || path.waypoints == null || path.waypoints.size() < 2) {
+        if (path == null || path.getSectionCount() == 0) {
             NUtils.getGameUI().error("No valid path loaded");
             return;
         }
