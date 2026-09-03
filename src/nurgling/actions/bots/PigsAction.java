@@ -7,6 +7,7 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
+import nurgling.widgets.Specialisation;
 import nurgling.conf.PigsHerd;
 import nurgling.tools.NAlias;
 
@@ -18,8 +19,8 @@ public class PigsAction implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NArea.Specialisation Pigs = new NArea.Specialisation("pigs");
-        NArea.Specialisation deadkritter = new NArea.Specialisation("deadkritter");
+        NArea.Specialisation Pigs = new NArea.Specialisation(Specialisation.SpecName.pigs.toString());
+        NArea.Specialisation deadkritter = new NArea.Specialisation(Specialisation.SpecName.deadkritter.toString());
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(Pigs);
         req.add(deadkritter);
