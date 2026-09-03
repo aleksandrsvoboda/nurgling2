@@ -3,7 +3,6 @@ package nurgling.tools;
 import haven.Drawable;
 import haven.Gob;
 import nurgling.NConfig;
-import org.json.JSONObject;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,16 +41,7 @@ public class StudyDeskConfig {
      */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> allDesks() {
-        Object existingData = NConfig.get(NConfig.Key.studyDeskLayout);
-
-        Map<String, Object> raw;
-        if (existingData instanceof Map) {
-            raw = (Map<String, Object>) existingData;
-        } else if (existingData instanceof String && !((String) existingData).isEmpty()) {
-            raw = new JSONObject((String) existingData).toMap();
-        } else {
-            return new HashMap<>();
-        }
+        Map<String, Object> raw = NConfig.getAsMap(NConfig.Key.studyDeskLayout);
 
         Object desksObj = raw.get(DESKS_KEY);
         if (desksObj instanceof Map) {

@@ -2,7 +2,6 @@ package nurgling.tools;
 
 import haven.Coord;
 import nurgling.NConfig;
-import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,16 +61,7 @@ public class MilestoneRegistry {
     /** Load every recorded milestone. @return map of gobHash -> milestone entry. */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> allMilestones() {
-        Object existingData = NConfig.get(NConfig.Key.milestones);
-
-        Map<String, Object> raw;
-        if (existingData instanceof Map) {
-            raw = (Map<String, Object>) existingData;
-        } else if (existingData instanceof String && !((String) existingData).isEmpty()) {
-            raw = new JSONObject((String) existingData).toMap();
-        } else {
-            return new HashMap<>();
-        }
+        Map<String, Object> raw = NConfig.getAsMap(NConfig.Key.milestones);
 
         Object milestonesObj = raw.get(MILESTONES_KEY);
         if (milestonesObj instanceof Map) {

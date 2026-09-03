@@ -735,6 +735,26 @@ public class NConfig
     }
 
     /**
+     * Coerces a config value that may already be a Map (deserialized) or a raw JSON String (not
+     * yet parsed) into a Map&lt;String,Object&gt; - the same "is it a Map or a JSON String" check
+     * every flat-global-map-backed-by-one-key config wrapper (e.g. MilestoneRegistry,
+     * StudyDeskConfig) needed before it could read its own top-level key out of it, previously
+     * hand-copied identically in each. Returns an empty map if the value is neither (not yet
+     * configured, or empty).
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getAsMap(Key key)
+    {
+        Object existingData = get(key);
+        if (existingData instanceof Map) {
+            return (Map<String, Object>) existingData;
+        } else if (existingData instanceof String && !((String) existingData).isEmpty()) {
+            return new JSONObject((String) existingData).toMap();
+        }
+        return new HashMap<>();
+    }
+
+    /**
      * Get a value directly from the global config, bypassing session resolution.
      * Use for settings where reads and writes must always target the same instance
      * regardless of which thread (tick vs mouse event) is calling.
