@@ -81,9 +81,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private UI.Grab dragGrab = null;
     // Chunk navigation manager - owned by NMapView, not a singleton
     private ChunkNavManager chunkNavManager;
-    // Milestone (signpost) travel recorder - always ticking, independent of ChunkNav. Recording
-    // is armed explicitly (Ctrl+right-click a milestone -> "Record Milestone", see
-    // nurgling.contextmenu.RecordMilestoneAction), not automatic.
+    // Milestone travel recorder - always ticking; recording itself is armed explicitly via RecordMilestoneAction.
     private final MilestoneTracker milestoneTracker = new MilestoneTracker();
 
     public MilestoneTracker getMilestoneTracker() {
@@ -284,10 +282,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             }
         }
 
-        // Recorded/running route waypoints, and Forager's off-path gob-collection detour trail,
-        // are now both drawn by NWaypointOverlay (see tickWorldOverlays()/wpOverlay) - the old
-        // flat screen-space renderers for both (drawBotPathOnGround, drawBotDetourTrailOnGround)
-        // are fully superseded.
+        // Route waypoints and Forager's detour trail are now drawn by NWaypointOverlay instead.
     }
 
 
@@ -469,10 +464,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         storageTrailOverlay.update();
     }
 
-    /** True if wpid (a route-waypoint list index, see NWaypointOverlay.resolve()) refers to a
-     *  Forager milestone-anchor waypoint while a route is the active editor - those are static,
-     *  recorded locations, not user-repositionable, matching ForagerRouteMap's own 2D-map
-     *  restriction on the same waypoints. Always false while no route is being edited. */
+    /** True if wpid is a Forager milestone-anchor waypoint in the active route editor - those are static, not user-repositionable. */
     private boolean isForagerMilestoneAnchor(long wpid) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.activeRouteEditor == null)
@@ -2221,14 +2213,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
-    /**
-     * Plain left-click on a milestone gob, while Forager Settings' Routes editor is showing a
-     * route - splices it into the route (opening a destination chooser first if it has more than
-     * one recorded), mirroring the embedded 2D Routes map's own left-click behavior for the same
-     * milestones. Returns false (falls through to normal click handling) whenever there's nothing
-     * to do: no route being edited, not a gob, no durable hash yet, not a recorded milestone, or
-     * already spliced into this route.
-     */
+    /** Plain left-click on a milestone gob while a route is being edited splices it into the route; false if there's nothing to do. */
     public boolean spliceMilestoneAt(Gob gob) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.activeRouteEditor == null || gob == null || gob.ngob == null)
@@ -2245,10 +2230,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
      *
      * <p>Returning false leaves the click to fall through and walk normally.
      *
-     * <p>While Forager Settings' Routes section is showing a route (gui.activeRouteEditor),
-     * this adds a waypoint to that route instead of WaypointMovementService's queue - editing a
-     * route and queueing a movement don't both make sense from the same click, and route editing
-     * takes priority since it's the more deliberate, actively-open context.
+     * <p>While a route is being edited, this adds a waypoint to that route instead of queueing a movement.
      */
     public boolean addWaypointAt(Coord2d mc) {
         NGameUI gui = NUtils.getGameUI();

@@ -1,10 +1,6 @@
 package nurgling.guarding;
 
-/**
- * One configurable numeric input a {@link GuardTrigger}'s factory reads to build itself -
- * declared by a {@link GuardSpec} so the settings UI can render an appropriately-labeled field
- * generically, without Forager Settings needing hand-written UI per guard type.
- */
+/** One configurable numeric input a {@link GuardTrigger}'s factory reads, declared by a {@link GuardSpec} so the settings UI can render it generically. */
 public final class GuardInput {
     public enum Kind { PERCENT, TILES, SECONDS, COUNT }
 

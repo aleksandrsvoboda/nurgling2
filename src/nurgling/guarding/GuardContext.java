@@ -8,12 +8,7 @@ import nurgling.conf.NAreaRad;
 
 import java.util.ArrayList;
 
-/**
- * Shared read access every {@link GuardTrigger#check(GuardContext)} call gets, so individual
- * triggers don't each need their own copy of "how do I read the live game state" - only
- * per-guard-instance history a trigger itself needs (e.g. {@link StuckTrigger}'s last-seen
- * position) lives on the trigger instance, not here.
- */
+/** Shared read access every {@link GuardTrigger#check(GuardContext)} call gets. */
 public final class GuardContext {
     public final NGameUI gui;
     public final boolean ignoreBats;

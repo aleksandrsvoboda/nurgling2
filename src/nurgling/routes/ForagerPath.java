@@ -24,10 +24,7 @@ public class ForagerPath {
     public List<ForagerWaypoint> waypoints;
     public List<ForagerSection> sections;
 
-    // Individual tiles painted with the map editor's "Exclusion" brush - Forager never
-    // chain-forages into these (see ForagerRouteConstraints.isGobExcluded). Freeform
-    // (brush-painted), not a fixed rectangle, keyed by segment id since a route can span more
-    // than one.
+    // Individual tiles painted with the map editor's "Exclusion" brush, keyed by segment id.
     public Map<Long, Set<Coord>> exclusionTiles;
 
     public void paintExclusion(long seg, Coord tc) {
@@ -39,22 +36,15 @@ public class ForagerPath {
         return tiles != null && tiles.contains(tc);
     }
 
-    // Caps on chain-foraging away from the route, enforced by Forager's DetourChainBudget (see
-    // nurgling.actions.bots.forager). -1 = no cap. All in tiles.
+    // Caps on chain-foraging away from the route, in tiles; -1 = no cap. See DetourChainBudget.
     public int maxChains = -1;
     public int maxDistance = -1;
     public int maxChainDistance = -1;
 
-    // When set, Forager also avoids known cliffs when picking a detour target (see
-    // ForagerRouteConstraints.cliffCorridorBlocked/CliffCorridorChecker) - checked live against
-    // MCache, no precomputation needed. Deliberately its own flag rather than folded into
-    // exclusionTiles itself, since cliff avoidance and manually-painted exclusion are
-    // conceptually independent toggles even though the bot's own check ORs them together.
+    // When set, Forager also avoids known cliffs when picking a detour target.
     public boolean avoidCliffs = false;
 
-    // How many extra tiles of margin to keep beyond a detected cliff/ridge tile itself when
-    // avoidCliffs is on. Plain tile count, no -1/no-cap sentinel (0 is itself a meaningful value
-    // here - "only the cliff tile itself, no extra margin" - unlike maxChains/etc. above).
+    // Extra tile margin to keep beyond a detected cliff/ridge tile when avoidCliffs is on.
     public int cliffBufferTiles = 1;
 
     public ForagerPath(String name) {
@@ -74,8 +64,7 @@ public class ForagerPath {
         }
     }
 
-    /** Removes the waypoint at index, if in range - used by the Routes map editor's
-     *  right-click-to-delete (arbitrary index, unlike the append-only/last-only methods above). */
+    /** Removes the waypoint at index, if in range. */
     public void removeWaypointAt(int index) {
         if (index >= 0 && index < waypoints.size()) {
             waypoints.remove(index);

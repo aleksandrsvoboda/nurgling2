@@ -10,20 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
 
-/**
- * Forager's bot-launch window - a single Preset selector + Start button. Everything a preset
- * bundles (which Actions Profile/Route/Guarding Profile to run with, the start area, finish/
- * full-inventory reactions) is edited in Forager Settings' Presets section (see
- * nurgling.widgets.nsettings.ForagerSettingsPanel) - this window only picks one preset by name
- * and starts the bot with it, the same selection-only role Actions/Guarding Profiles already
- * moved into earlier in this same refactor.
- * <p>
- * No longer extends PathBotWindow - none of its preset/path CRUD, record button, or per-preset
- * safety dropdowns apply any more now that a preset bundles all of that itself. Still directly
- * implements {@link Checkable}, the one thing PathBotWindow provided that something outside
- * this class genuinely depends on: nurgling.tasks.WaitCheckable, which every bot-launcher
- * action (including actions/bots/Forager.java's own interactive-mode wait) blocks on.
- */
+/** Bot-launch window: picks a Preset by name and starts it - full preset editing lives in ForagerSettingsPanel. Implements Checkable (not PathBotWindow) since callers block on it via WaitCheckable. */
 public class Forager extends Window implements Checkable {
 
     private Dropbox<String> presetDropbox;
@@ -91,13 +78,7 @@ public class Forager extends Window implements Checkable {
             NUtils.getGameUI().error("No valid path loaded");
             return;
         }
-        // Same "gate on waypoint count, not section count" reasoning PathBotWindow's own
-        // handleStartBot() used to: sections are generated from the player's current map
-        // segment at load time (ForagerWaypoint/sessloc are segment-relative), so a perfectly
-        // good path loaded from a different segment than the player's current one legitimately
-        // comes back with 0 sections despite having real waypoints. The bot itself regenerates
-        // sections once it's actually on the right segment (see actions/bots/Forager.java's
-        // run()).
+        // Gate on waypoint count, not section count - sections are segment-relative and regenerate once the bot's on the right segment.
         ForagerPath path;
         try {
             path = ForagerPath.load(preset.pathFile);

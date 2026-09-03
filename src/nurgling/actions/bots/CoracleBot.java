@@ -30,10 +30,7 @@ public class CoracleBot implements Action {
             return mount(gui);
     }
 
-    /** Whether the player is currently mounted on a coracle - public so callers like Forager can
-     *  derive an effective water-mode PathFinder setting from live mount state, rather than
-     *  relying solely on a route's static water-mode toggle (which can't represent "only the
-     *  water-crossing leg of this route is actually on a boat"). */
+    /** Public so callers like Forager can derive an effective water-mode from live mount state. */
     public static boolean isPlayerInCoracle(NGameUI gui) {
         Gob player = NUtils.player();
         if (player == null) return false;
@@ -147,14 +144,7 @@ public class CoracleBot implements Action {
         if (!flowerResult.IsSuccess())
             return Results.ERROR("Failed to board Coracle.");
 
-        // Boarding runs a progress bar (the "hourglass") for the whole mount animation - the
-        // flower click only starts it. Returning immediately here (as this used to) let a caller
-        // like Forager's waypoint-steps think the step was already done and move straight on to
-        // whatever's next while boarding was still in progress, interrupting it (reported live).
-        // Same two-phase wait WorkBellows already uses for a similar "one click starts a timed
-        // action" flower option: bounded wait for the bar to appear (a generous allowance, since
-        // the server may still be walking the character the last stretch onto the coracle), then
-        // bounded wait for it to finish.
+        // The flower click only starts the mount progress bar; wait for it to appear then finish.
         WaitProgress started = new WaitProgress(WaitProgress.Phase.START, 10000);
         NUtils.addTask(started);
         if (!started.isTimedOut()) {
@@ -208,8 +198,7 @@ public class CoracleBot implements Action {
     private boolean isOnValidWaterTile(NGameUI gui) {
         MCache map = gui.ui.sess.glob.map;
         Coord playerTile = NUtils.player().rc.div(MCache.tilesz).floor();
-        // Shared with NPFMap's own water-mode pf-grid classification (see its
-        // isValidWaterTileName javadoc) so the two can never diverge on what counts as water.
+        // Shared with NPFMap's water-mode pf-grid classification so the two can't diverge.
         return nurgling.pf.NPFMap.isValidWaterTileName(map.tilesetname(map.gettile(playerTile)));
     }
 }

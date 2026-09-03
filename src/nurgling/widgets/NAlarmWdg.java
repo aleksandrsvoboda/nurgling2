@@ -246,15 +246,7 @@ public class NAlarmWdg extends Widget
         return alarmActive || alarmLatched;
     }
 
-    /**
-     * Whether this session currently has a LIVE, active hostile/unknown player threat - unlike
-     * {@link #hasAlarm()}, deliberately excludes the latched "notification badge" state (which
-     * persists after the threat has already left, until the session is switched to and
-     * acknowledges it). A bot-safety check needs "is there a real threat right now," not a
-     * tab-bar notification - using hasAlarm() here would leave a bot thinking it's still in
-     * danger indefinitely after a single transient blip in an unattended/background session that
-     * never gets switched to.
-     */
+    /** Unlike {@link #hasAlarm()}, excludes the latched notification badge - only a live, current threat. */
     public boolean hasActiveThreat() {
         return alarmActive;
     }

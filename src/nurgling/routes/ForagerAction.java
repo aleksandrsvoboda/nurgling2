@@ -25,15 +25,11 @@ public class ForagerAction {
     public NotifyTarget notifyTarget;
     public String chatChannelName;  // For CHAT notify
 
-    // Bookkeeping for the item-driven pickup-list widget only - never consulted by the bot's own
-    // matching/action logic above. Null for anything authored the old free-text way (including
-    // manually-typed "custom" entries added through the same widget). Lets the widget redraw its
-    // icon list from a saved profile without needing to re-derive which item an entry came from.
+    // Bookkeeping for the item-driven pickup-list widget only - lets it redraw its icon list from a saved profile without re-deriving which item an entry came from.
     public String sourceItemName;
     public String sourceItemResource;
 
     // Stop foraging this item once its current inventory count reaches this; -1 = no cap.
-    // Same popup/badge mechanism as IconItem's Threshold option (see TaggableItemContainer).
     public int maintainQuantity = -1;
 
     public ForagerAction(String targetObjectPattern, ActionType actionType, String actionName,
@@ -124,20 +120,10 @@ public class ForagerAction {
         return json;
     }
 
-    // Lazily built and cached - toNAlias() is called once per configured action on every
-    // findNearestActionableGob scan (every detour hop, several times/sec while actively
-    // foraging), re-parsing (String.split + NAlias construction) the same immutable result each
-    // time otherwise. Safe only because targetObjectPattern is never reassigned after
-    // construction anywhere in this codebase (confirmed - unlike actionName, which
-    // Forager.confirmActionName() does mutate in place, so that one isn't cached the same way).
+    // Cached since toNAlias() is re-parsed on every findNearestActionableGob scan; safe since targetObjectPattern is never reassigned after construction (unlike actionName).
     private transient NAlias cachedAlias;
 
-    /**
-     * {@link #targetObjectPattern} as an NAlias, matching on every comma-separated name in it
-     * (a plain single name, the common case, just becomes a single-key NAlias as before). Lets
-     * an entry resolved from a dropped item that maps to more than one gob resource (e.g. a
-     * couple of near-identical tree variants sharing one item) match all of them.
-     */
+    /** {@link #targetObjectPattern} as an NAlias matching every comma-separated name in it, so a dropped item mapping to more than one gob resource matches all of them. */
     public NAlias toNAlias() {
         if (cachedAlias == null) {
             cachedAlias = new NAlias(splitPattern(targetObjectPattern));
@@ -145,13 +131,7 @@ public class ForagerAction {
         return cachedAlias;
     }
 
-    /**
-     * {@link #actionName} as an ordered list of candidate flower-menu option strings, matching on
-     * every comma-separated candidate in priority order (a plain single confirmed string, e.g.
-     * one the user typed via Edit Pattern, just becomes a list of one). Lets an auto-guessed entry
-     * (several plausible "Pick X"/"Take X" phrasings - see ForagerPickupContainer) try each in
-     * turn against the real flower menu rather than committing to one guess up front.
-     */
+    /** {@link #actionName} as an ordered list of candidate flower-menu strings, so an auto-guessed entry can try each in turn against the real menu. */
     public java.util.List<String> toActionNameCandidates() {
         return java.util.Arrays.asList(splitPattern(actionName));
     }

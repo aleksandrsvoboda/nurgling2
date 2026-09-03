@@ -1,24 +1,13 @@
 package nurgling.actions.bots.forager;
 
-/**
- * How many more detour hops (a "chain" - the user's own term for a sequence of off-route
- * waypoints chased while collecting) one gob-collection episode is still allowed to take, in
- * both hop count and cumulative distance. Created fresh per episode (a local variable inside
- * Forager.collectNearbyActionableGobs, never an instance field - episodes are sequential, never
- * nested) and only ever touched by the bot thread itself, so it needs none of
- * GuardingProfile.reconcileWithRegistry()'s "return a new list, don't mutate in place" discipline
- * that state shared with a background thread would.
- */
+/** How many more detour hops (in count and cumulative distance) one gob-collection episode may still take. */
 public class DetourChainBudget {
     private int chainsRemaining;
     private double distanceRemainingWorldUnits;
     private final boolean chainsCapped;
     private final boolean distanceCapped;
 
-    /**
-     * @param maxChains -1 = unlimited hops
-     * @param maxChainDistanceTiles -1 = unlimited cumulative distance, otherwise in tiles
-     */
+    /** maxChains/maxChainDistanceTiles: -1 = unlimited. */
     public DetourChainBudget(int maxChains, int maxChainDistanceTiles) {
         this.chainsCapped = maxChains >= 0;
         this.chainsRemaining = maxChains;

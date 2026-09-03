@@ -23,18 +23,11 @@ public class NForagerProp implements JConf {
     public String currentPreset = "Default";
     public HashMap<String, PresetData> presets = new HashMap<>();
 
-    // Actions profiles: named, independently-saved pickup-action lists (see
-    // ForagerPickupContainer), decoupled from a single bundled PresetData so the same actions
-    // set can be reused across different routes/guarding profiles. Additive alongside `presets`
-    // for now - existing presets keep working unchanged until the bot-start flow is migrated to
-    // pick an actions profile, a route, and a guarding profile independently.
+    // Named, independently-saved pickup-action lists, reusable across different presets.
     public String currentActionsProfile = "Default";
     public HashMap<String, ArrayList<ForagerAction>> actionsProfiles = new HashMap<>();
 
-    // Guarding profiles: named, independently-saved safety-watchdog configurations (Forager
-    // Settings > Guarding), each a list of composable Guard entries (see
-    // nurgling.guarding.GuardingProfile) - decoupled from PresetData the same way
-    // actionsProfiles already is above.
+    // Named, independently-saved safety-watchdog configurations (see nurgling.guarding.GuardingProfile).
     public String currentGuardingProfile = "Default";
     public HashMap<String, GuardingProfile> guardingProfiles = new HashMap<>();
 
@@ -43,11 +36,7 @@ public class NForagerProp implements JConf {
         public transient ForagerPath foragerPath = null;
         public ArrayList<ForagerAction> actions = new ArrayList<>();
 
-        // Legacy per-preset safety fields - superseded by guardingProfileName/GuardingProfile
-        // below (see nurgling.guarding). Kept only because the guardingProfiles migration in
-        // the deserializing constructor still reads them off an already-populated PresetData
-        // to seed a profile for an old config that predates guardingProfiles entirely; not
-        // read by any live bot logic any more.
+        // Legacy - superseded by guardingProfileName/GuardingProfile; kept only for the migration in the deserializing constructor.
         public String onPlayerAction = "nothing";
         public String onAnimalAction = "logout";
         public boolean ignoreBats = true;
@@ -56,20 +45,11 @@ public class NForagerProp implements JConf {
         public String afterFinishAction = "nothing";
         public String onFullInventoryAction = "nothing";
 
-        // Which Actions/Guarding Profile this preset runs with (null = not yet assigned; the
-        // deserializing constructor defaults every preset missing one to whatever
-        // currentActionsProfile/currentGuardingProfile already resolved to, so an old preset
-        // keeps behaving exactly as it did before presets could each pick their own). A preset
-        // is now the full "which route + which actions + which guarding, plus start
-        // area/finish reactions" bundle - editing lives in Forager Settings' Presets section,
-        // the bot-launch window only selects a preset by name.
+        // Which Actions/Guarding Profile this preset runs with; null = not yet assigned.
         public String actionsProfileName = null;
         public String guardingProfileName = null;
 
-        // Skips every action's Maintain quantity check (see ForagerAction.maintainQuantity,
-        // Forager.findNearestActionableGob) for this preset - lets a "manual" preset (run while
-        // the user is actually at the keyboard, not caring about over-collecting) coexist with a
-        // "bot" preset using the same Actions profile but respecting its Maintain caps.
+        // Skips every action's Maintain quantity check for this preset (see ForagerAction.maintainQuantity).
         public boolean ignoreMaintainLimits = false;
 
         public PresetData() {}
@@ -157,11 +137,7 @@ public class NForagerProp implements JConf {
             }
         }
         if (actionsProfiles.isEmpty()) {
-            // Legacy config (predates actionsProfiles, or a not-yet-migrated in-development
-            // save from earlier in this same refactor): carry over whatever was already picked
-            // up per-preset via the old `actions` field, one profile per preset name, rather
-            // than silently presenting an empty pickup list. Falls back to one bare "Default"
-            // only if there was nothing to carry over.
+            // Legacy config: carry over each preset's old `actions` field as its own profile.
             for (Map.Entry<String, PresetData> entry : presets.entrySet()) {
                 if (!entry.getValue().actions.isEmpty()) {
                     actionsProfiles.put(entry.getKey(), new ArrayList<>(entry.getValue().actions));
@@ -188,16 +164,7 @@ public class NForagerProp implements JConf {
             }
         }
         if (guardingProfiles.isEmpty()) {
-            // Legacy config predating guardingProfiles: migrate each existing preset's own
-            // onAnimalAction/ignoreBats/waterMode into its own named GuardingProfile, one per
-            // preset name (same shape actionsProfiles' own migration above already uses),
-            // rather than silently discarding those settings or presenting bare defaults. A
-            // preset's onAnimalAction=="nothing" used to mean the whole animal scan was
-            // skipped entirely (see the old detectThreat()'s `if
-            // (!preset.onAnimalAction.equals("nothing"))` guard) - the new model's equivalent
-            // of "skip this check" is disabling its guard outright, not picking an outcome that
-            // does nothing (that option no longer exists), so that maps to enabled=false here
-            // rather than outcomeId="break".
+            // Legacy config: migrate each preset's onAnimalAction/ignoreBats/waterMode into its own GuardingProfile.
             for (Map.Entry<String, PresetData> entry : presets.entrySet()) {
                 PresetData pd = entry.getValue();
                 GuardingProfile migrated = GuardingProfile.withDefaults();
@@ -217,12 +184,7 @@ public class NForagerProp implements JConf {
             }
         }
 
-        // Every preset now carries its own Actions/Guarding Profile selection (Presets phase)
-        // instead of the bot-launch window picking one prop-wide - default any preset that
-        // doesn't have one yet (every existing preset, on first load after this shipped) to
-        // whatever currentActionsProfile/currentGuardingProfile already resolved to above, so
-        // an old preset keeps running with exactly the profile it always did until the user
-        // deliberately changes it in Forager Settings > Presets.
+        // Default any preset missing an Actions/Guarding Profile to the current one.
         for (PresetData pd : presets.values()) {
             if (pd.actionsProfileName == null || !actionsProfiles.containsKey(pd.actionsProfileName)) {
                 pd.actionsProfileName = currentActionsProfile;
@@ -233,9 +195,7 @@ public class NForagerProp implements JConf {
         }
     }
 
-    /** One-shot helper for the migration above: finds the named guard entry in a freshly
-     *  seeded GuardingProfile's list and applies an old preset's action string to it (mapping
-     *  "nothing" to disabling the guard, any other value to that outcome, enabled). */
+    /** Migration helper: applies an old preset's action string onto the named guard entry. */
     private static final class GuardEntryPatch {
         final String guardId;
         final String oldAction;
@@ -260,12 +220,7 @@ public class NForagerProp implements JConf {
         }
     }
 
-    // Find-remove-add is a read-modify-write sequence, not one atomic operation - NConfig.get()/
-    // set() each synchronize their own single map access, but not the sequence as a whole. Used
-    // to only ever be called from the UI thread (Settings save, the bot-launch window), where
-    // that was harmless; the bot's own thread now also calls this (see Forager.confirmActionName,
-    // persisting a confirmed flower-menu guess mid-run), so two real threads can now race here for
-    // the same character - synchronize the whole sequence to close that.
+    // Synchronized: find-remove-add is a read-modify-write sequence, and both the UI thread and a bot thread can now call this.
     public static void set(NForagerProp prop) {
         synchronized (NForagerProp.class) {
             @SuppressWarnings("unchecked")

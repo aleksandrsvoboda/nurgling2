@@ -6,8 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** One configured row in a {@link GuardingProfile} - which guard type, whether it's enabled,
- *  its resolved input values, and what to do when it fires. */
+/** One configured row in a {@link GuardingProfile}: guard type, enabled, inputs, outcome. */
 public final class GuardEntry {
     public String guardId;
     public boolean enabled = true;
@@ -30,12 +29,7 @@ public final class GuardEntry {
         JSONObject settingsJson = json.optJSONObject("settings");
         if (settingsJson != null) {
             for (String key : settingsJson.keySet()) {
-                // optDouble(key) alone returns NaN for a missing/non-numeric value - and since
-                // the key would then still be present in the map, fillDefaultSettings()'s
-                // putIfAbsent below could never replace that NaN with the guard's real default,
-                // silently breaking every comparison against it (NaN comparisons are always
-                // false in Java) for the rest of the run. Skip a NaN read entirely instead, so
-                // it's treated the same as a genuinely-missing key.
+                // Skip NaN (missing/non-numeric) so fillDefaultSettings() can still fill it in.
                 double v = settingsJson.optDouble(key);
                 if (!Double.isNaN(v)) {
                     settings.put(key, v);
@@ -59,9 +53,7 @@ public final class GuardEntry {
         fillDefaultSettings();
     }
 
-    /** Fills in any input the owning GuardSpec declares that isn't already present - covers a
-     *  brand-new entry, an old saved entry from before an input was added to its guard type,
-     *  and a partially-populated JSON blob alike. */
+    /** Fills in any input the owning GuardSpec declares that isn't already present. */
     private void fillDefaultSettings() {
         GuardSpec spec = GuardRegistry.get(guardId);
         if (spec != null) {
@@ -71,9 +63,7 @@ public final class GuardEntry {
         }
     }
 
-    /** Builds a live {@link Guard} from this entry, or null if disabled or its guard type is
-     *  unknown (e.g. an old/removed id in a saved profile - degrades gracefully rather than
-     *  erroring the whole run over one stale entry). */
+    /** Builds a live {@link Guard} from this entry, or null if disabled or its guard type is unknown. */
     public Guard toGuard() {
         if (!enabled) {
             return null;

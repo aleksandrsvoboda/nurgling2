@@ -476,17 +476,7 @@ public class NCore extends Widget
 
     public void addTask(final NTask task) throws InterruptedException
     {
-        // Every bot action in this codebase waits by calling addTask() in a chain (movement,
-        // container windows, poses, ...), but if a task's check() is ALREADY satisfied the
-        // moment it's added (common - e.g. a window that's already open, a pose already
-        // reached), the block below returns immediately WITHOUT ever calling task.wait() - the
-        // one place that actually notices Thread.interrupt(). A long-running sequence built
-        // entirely out of such already-satisfied checks (e.g. Forager's Maintain stock-check
-        // opening/counting/closing several already-familiar containers) could run for a while
-        // after a safety interrupt was requested before anything downstream ever blocked long
-        // enough to notice it - observed as the watchdog's message appearing but the character
-        // just continuing on regardless. Checking here makes every addTask() call itself an
-        // interruption checkpoint, not just the ones that happen to actually block.
+        // A task whose check() is already satisfied never calls task.wait(), the only place that notices an interrupt - so check it here too.
         if (Thread.interrupted()) {
             throw new InterruptedException();
         }

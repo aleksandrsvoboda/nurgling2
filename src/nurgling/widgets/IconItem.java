@@ -26,10 +26,7 @@ public class IconItem extends Widget
     public static final TexI framet = new TexI(Resource.loadimg("nurgling/hud/iconframet"));
     public static final TexI bm = new TexI(Resource.loadimg("nurgling/hud/bartermark"));
     public static final TexI barm = new TexI(Resource.loadimg("nurgling/hud/barrelmark"));
-    // Small green flower badge shown when an item's action is a flower-menu action (see
-    // TaggableItemContainer) - drawn procedurally rather than as a game resource, since there's
-    // no existing small "flower" icon asset to reuse for this (NFlowerMenu's are petal/menu-
-    // background graphics, not a standalone marker).
+    // Small green flower badge for a flower-menu-action item - drawn procedurally, no existing asset to reuse.
     public static final TexI flowerMark = createFlowerMark();
 
     private static TexI createFlowerMark() {
@@ -73,8 +70,7 @@ public class IconItem extends Widget
     Coord basec = null;
     NArea.Ingredient.Type type = NArea.Ingredient.Type.CONTAINER;
 
-    // Whether this entry's action is a flower-menu action (see TaggableItemContainer) -
-    // independent of the NArea.Ingredient.Type marking above.
+    // Whether this entry's action is a flower-menu action - independent of the Type marking above.
     boolean isFlowerAction = false;
 
     int val;
@@ -299,12 +295,7 @@ public class IconItem extends Widget
 
     class SetThreshold extends Window
     {
-        // Generic "set a small number for this icon" popup - originally Threshold-only
-        // (Area Settings' Ingredient/DropContainer), now also backs Forager's Maintain option
-        // (TaggableItemContainer). title and onSet let each caller keep its own label and
-        // persistence target while sharing the popup and the icon's isThreshold/val/q badge
-        // state - an icon is never both an IngredientContainer entry and a TaggableItemContainer
-        // entry at once, so there's no display collision between the two uses.
+        // Generic "set a small number for this icon" popup, shared by Threshold and Maintain via title/onSet.
         public SetThreshold(int val, String title, java.util.function.IntConsumer onSet)
         {
             super(UI.scale(140,25), title);

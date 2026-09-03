@@ -506,13 +506,7 @@ public class PathFinder implements Action {
                                             pfmap.getCells()[test_coord.x][test_coord.y].val = 7;
                                             res.add(test_coord);
                                         } else if (pfmap.cells[npfpos.x][npfpos.y].content.size() > 1) {
-                                            // Multiple gobs' hitboxes overlap this tile (objects placed close
-                                            // together, e.g. a barrel nudged up against a cistern). Only claim
-                                            // test_coord as an approach point for OUR target if, after checking
-                                            // every gob sharing the tile, our target really is the nearest one -
-                                            // the winner must be decided after the full scan, not mid-scan,
-                                            // otherwise an earlier candidate can be accepted before a closer
-                                            // (different) gob is even considered.
+                                            // Multiple gobs share this tile - decide the nearest only after scanning all of them.
                                             Coord2d test2d_coord = Utils.pfGridToWorld(pfmap.cells[test_coord.x][test_coord.y].pos);
                                             double dst = 9000, testdst;
                                             long res_id = -2;

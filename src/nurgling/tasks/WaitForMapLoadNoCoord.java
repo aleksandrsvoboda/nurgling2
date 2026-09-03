@@ -9,11 +9,7 @@ import nurgling.NUtils;
 public class WaitForMapLoadNoCoord extends NTask  {
     private final NGameUI gui;
 
-    // Once the destination grid's data is confirmed present, mesh/fog-of-war render-readiness
-    // is given this many checks to catch up before this just gives up waiting on it
-    // specifically. Without this, a grid whose cut/mesh never reports ready (observed: moving
-    // a hearth fire from a cave to open-sky surface terrain) hangs this task - and whatever bot
-    // is blocked on it - forever, with no way out at all.
+    // Checks to wait for mesh/fog-of-war render-readiness before giving up on it (a grid whose cut/mesh never reports ready would otherwise hang this task forever).
     private static final int RENDER_READY_TIMEOUT_CHECKS = 600;
     private int checkCount = 0;
 

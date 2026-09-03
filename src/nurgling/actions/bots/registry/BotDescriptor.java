@@ -18,9 +18,7 @@ public class BotDescriptor {
     public final String iconPath;
     public final boolean disStacks;
     public final Map<String, Object> defaultSettings;
-    // Independent of allowedAsStepInScenario - a bot can be usable in either picker, both, or
-    // neither. Isolates utility bots (e.g. GateBot) that only make sense attached to a Forager
-    // route waypoint from cluttering the general Scenario step picker.
+    // Independent of allowedAsStepInScenario - isolates route-waypoint-only utility bots (e.g. GateBot) from the general Scenario step picker.
     public final boolean allowedAsForagerStep;
 
     public enum BotType {

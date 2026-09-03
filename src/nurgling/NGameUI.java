@@ -63,33 +63,15 @@ public class NGameUI extends GameUI
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
-    // Index into activeBotPath.waypoints of whichever one Forager is currently heading toward -
-    // set/advanced by actions/bots/Forager.java's run loop, -1 when no bot is running. Lets
-    // NWaypointOverlay color the current target, already-passed, and not-yet-reached waypoints
-    // differently as a run progresses, instead of always treating index 0 as "active" (the
-    // convention Forager Settings' Routes editor and WaypointMovementService's queue still use,
-    // since neither has a moving "current position" concept).
+    // Index into activeBotPath.waypoints Forager is currently heading toward, -1 when idle - lets NWaypointOverlay color current/passed/queued waypoints differently.
     public int activeBotWaypointIndex = -1;
-    // Indices into activeBotPath.waypoints that Forager logged as unreachable this run (a
-    // PathFinder call to that section failed) - set by actions/bots/Forager.java's run loop,
-    // never cleared mid-run (so a skipped waypoint stays visibly marked even after the run moves
-    // on), reset to null in the run's finally block. Lets NWaypointOverlay render a skipped
-    // waypoint distinctly (red/transparent) instead of its normal stale/queued color.
+    // Waypoint indices Forager couldn't reach this run, for NWaypointOverlay to render distinctly; reset in the run's finally block.
     public java.util.Set<Integer> activeBotFailedWaypoints = null;
-    // Set/cleared by ForagerSettingsPanel while its Routes section is expanded - a separate,
-    // independent context from activeBotPath (which means "a bot is running"). Lets NMapView
-    // show the route currently being edited in Settings overlaid on the real 3D map, and lets
-    // Alt+Left-click there add a waypoint to it instead of WaypointMovementService's queue.
+    // The route currently being edited in Forager Settings, shown live on the real map - independent of activeBotPath.
     public nurgling.widgets.nsettings.ForagerRouteMap activeRouteEditor = null;
-    // Live breadcrumb trail for Forager's off-path gob-collection detours (world Coord2d,
-    // most-recent-last), null when no detour is in progress. Same list instance is mutated
-    // live by the bot thread as it hops between gobs, so rendering always sees current state.
+    // Live breadcrumb trail (world Coord2d, most-recent-last) for Forager's off-path detours, null when idle; mutated live by the bot thread.
     public java.util.List<haven.Coord2d> activeBotDetourTrail = null;
-    // The actionable gob's position Forager is currently walking to/interacting with during an
-    // activeBotDetourTrail detour - null when there's no current detour target. Rendered as the
-    // "active" (blue) node of the detour, matching the main route's own active-waypoint
-    // treatment, with activeBotDetourTrail's breadcrumbs behind it staying the detour's plain
-    // color. Set/cleared alongside activeBotDetourTrail.
+    // Current detour target position, rendered as the trail's active node; set/cleared alongside activeBotDetourTrail.
     public haven.Coord2d activeBotDetourTarget = null;
 
     /** Prospecting results waiting to be paired up with their window; see NProspecting. */

@@ -121,16 +121,7 @@ public class NSettingsWindow extends Widget {
     public void wdgmsg(Widget sender, String msg, Object... args) {
         if (msg.equals("close")) {
             hide();
-            // Widget visibility doesn't cascade from parent to child in this framework - hiding
-            // this window alone leaves currentPanel's own `visible` field stuck true, and
-            // Widget.tick() fires regardless of whether an ancestor is hidden (see
-            // Widget.TickEvent.dispatch/shandle - it always calls w.tick(), the "visible" it
-            // tracks is informational, not a gate). ForagerSettingsPanel's tick() self-heals
-            // gui.activeRouteEditor while it *thinks* it's visible, so without this, closing the
-            // window without switching panels first left it re-asserting activeRouteEditor on
-            // every following frame, undoing the explicit null below immediately - reported live
-            // as "waypoints still rendered after closing settings." Hiding currentPanel directly
-            // fixes it at the source (whichever panel it is, not just Forager's).
+            // Widget visibility doesn't cascade from parent to child - hide currentPanel directly so its tick() stops self-healing activeRouteEditor.
             if (currentPanel != null) {
                 currentPanel.hide();
             }

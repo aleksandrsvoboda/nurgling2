@@ -188,16 +188,7 @@ public class NUtils
         return stam.a;
     }
 
-    /**
-     * Current HARD hitpoints as a fraction of max (0.0-1.0), or -1 if the meter isn't up yet -
-     * confirmed via direct in-game testing (2026-08-30), NOT soft hitpoints despite the name
-     * (an earlier, incorrect assumption). The "hp" meter's segment 0 is the wound-reduced
-     * ceiling soft HP is capped at, as a fraction of the character's true (zero-wound) max; see
-     * {@link #getSoftHPFraction()} for the matching soft-HP-over-that-same-max segment. Unlike
-     * {@link #getCurrentHP()}/{@link #getMaxHP()}, this reads the same always-live bar fill
-     * value {@link #getEnergy()}/{@link #getStamina()} do, not the tip/tooltip text - use this
-     * for checks that must not silently go stale.
-     */
+    /** Current HARD hitpoints as a fraction of true max (0.0-1.0), or -1 if unavailable - not soft HP despite the name; always-live like getEnergy()/getStamina(), unlike getCurrentHP()/getMaxHP(). */
     public static double getHPFraction()
     {
         IMeter.Meter hp = getGameUI().getmeter ( "hp", 0 );
@@ -206,17 +197,7 @@ public class NUtils
         return hp.a;
     }
 
-    /**
-     * Current SOFT hitpoints as a fraction of the same max {@link #getHPFraction()} uses (i.e.
-     * NOT a fraction of hard HP) - the "hp" meter's segment 1, present alongside segment 0
-     * whenever the character has any active wound (confirmed via direct in-game testing,
-     * 2026-08-30: with the character at soft/hard/max hitpoints of roughly 62/74/100, segment 0
-     * read ~0.74 and segment 1 read ~0.62). When unwounded, the server may only send one
-     * segment at all (soft == hard == max, nothing to distinguish) - callers wanting "is soft HP
-     * at its current cap" should fall back to comparing against {@link #getHPFraction()} in that
-     * case, which this method does automatically. Always-live like {@link #getHPFraction()}, not
-     * tip/tooltip-derived.
-     */
+    /** Current SOFT hitpoints as a fraction of the same true max getHPFraction() uses; falls back to getHPFraction() when unwounded (server sends only one segment). Always-live, not tooltip-derived. */
     public static double getSoftHPFraction()
     {
         IMeter.Meter soft = getGameUI().getmeter ( "hp", 1 );
@@ -225,27 +206,14 @@ public class NUtils
         return soft.a;
     }
 
-    /**
-     * Current soft hitpoints, or -1 if the "hp" meter hasn't sent a tip value yet.
-     * <p>
-     * WARNING: this is parsed from the meter's tooltip text, which is only known to update
-     * when something requests/hovers the tooltip - it is NOT guaranteed to be live during an
-     * unattended bot run the way {@link #getHPFraction()} is. Confirmed unreliable in
-     * practice (2026-08-18): a bot relying solely on this for a "not at full HP" safety check
-     * never triggered while the character was repeatedly knocked out overnight. Prefer
-     * {@link #getHPFraction()} for anything safety-critical; use this only for cases that
-     * genuinely need the raw number and can tolerate it sometimes being stale/unavailable.
-     */
+    /** Current soft hitpoints, or -1 if unavailable - WARNING: tooltip-derived, only updates on hover, not reliably live; prefer getHPFraction() for safety checks. */
     public static int getCurrentHP()
     {
         IMeter hp = getGameUI().getIMeter("hp");
         return hp == null ? -1 : hp.curHealth;
     }
 
-    /**
-     * Max soft hitpoints, or -1 if the "hp" meter hasn't sent a tip value yet.
-     * See the reliability warning on {@link #getCurrentHP()} - the same applies here.
-     */
+    /** Max soft hitpoints, or -1 if unavailable - see getCurrentHP()'s reliability warning. */
     public static int getMaxHP()
     {
         IMeter hp = getGameUI().getIMeter("hp");

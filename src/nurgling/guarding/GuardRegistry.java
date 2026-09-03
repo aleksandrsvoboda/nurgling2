@@ -9,16 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Every known guard type, registered once here. Forager Settings' Guarding section
- * (ForagerSettingsPanel) builds its rows by iterating {@link #preflightIds()}/
- * {@link #inflightIds()} and looking up each id's {@link GuardSpec} - so a new guard type just
- * needs a spec registered (via {@link #register}) and added to the phase list(s) it applies to,
- * and it shows up in the settings UI with no further hand-built widget code.
- * {@link GuardingProfile#reconcileWithRegistry()} keeps an already-saved profile in sync with
- * whatever's currently registered, so this also covers a guard type added after a profile was
- * first saved.
- */
+/** Every known guard type, registered once here; Forager Settings' Guarding section builds its rows from {@link #preflightIds()}/{@link #inflightIds()}. */
 public final class GuardRegistry {
     private static final Map<String, GuardSpec> specs = new LinkedHashMap<>();
     private static final List<String> preflightIds = new ArrayList<>();
@@ -73,13 +64,7 @@ public final class GuardRegistry {
                         Arrays.asList(
                                 new GuardInput("distance", GuardInput.Kind.TILES, "tiles in", 3),
                                 new GuardInput("timeout", GuardInput.Kind.SECONDS, "s", 10)),
-                        // distance is configured in tiles (GuardInput.Kind.TILES) but
-                        // StuckTrigger compares against Gob.rc, which is in world units - was
-                        // missing this conversion entirely, so a configured "3 tiles" threshold
-                        // was actually enforced as 3 world units (~0.27 tiles), meaning ordinary
-                        // walking jitter almost always exceeded it and the guard essentially
-                        // never fired. Same conversion DetourChainBudget already does correctly
-                        // for its own tiles-configured distance.
+                        // distance is configured in tiles, but StuckTrigger compares world units.
                         settings -> new StuckTrigger(
                                 settings.getOrDefault("distance", 3.0) * MCache.tilesz.x,
                                 (long) (settings.getOrDefault("timeout", 10.0) * 1000))),

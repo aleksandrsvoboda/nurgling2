@@ -7,12 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-/**
- * Small popout listing a milestone's recorded destinations (label + "Add Waypoint" per row),
- * shown when left-clicking a multi-destination milestone icon on the Routes map (see
- * ForagerRouteMap.spliceMilestone()) - a single-destination milestone skips this and splices its
- * one waypoint pair directly.
- */
+/** Popout listing a milestone's recorded destinations (label + "Add Waypoint" per row), shown when clicking a multi-destination milestone icon on the Routes map. */
 public class MilestoneDestinationChooser extends Window {
 
     public MilestoneDestinationChooser(String gobHash, List<Map<String, Object>> destinations,

@@ -1100,11 +1100,7 @@ public class ChunkNavExecutor implements Action {
                 return walkTowardTarget(target, gui, WalkConfig.STEP_BY_STEP);
             }
         } catch (InterruptedException e) {
-            // followIntraChunkPath/walkTowardTarget above both sleep between steps and are
-            // meant to be stoppable mid-walk (e.g. Forager's safety watchdog interrupting the
-            // bot thread) - catching that as a plain Exception here and retrying the walk
-            // instead of propagating it silently defeated every such interrupt, no matter what
-            // requested it, for as long as this method kept finding a fallback path to try.
+            // Don't let the catch-all below swallow a deliberate mid-walk interrupt.
             throw e;
         } catch (Exception e) {
             return walkTowardTarget(target, gui, WalkConfig.STEP_BY_STEP);

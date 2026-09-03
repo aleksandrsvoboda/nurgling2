@@ -94,21 +94,12 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     /** Called before switching away from a preset. Subclasses can save additional settings. */
     protected void onPresetSaving(String presetName) {}
 
-    /** Whether this bot window shows the walk-and-record path-recording button. True by
-     *  default - most PathBotWindow subclasses have no other way to create/edit a route.
-     *  Override to return false for a bot whose routes are edited elsewhere (e.g. Forager, via
-     *  the embedded map editor in Forager Settings &gt; Routes) - the button there is a
-     *  redundant, easy-to-misclick alternative to that editor. */
+    /** Whether this window shows the record-path button; true by default, override false for a bot whose routes are edited elsewhere (e.g. Forager Settings &gt; Routes). */
     protected boolean supportsRecording() {
         return true;
     }
 
-    /** Whether this bot window shows the new/delete-path (+/-) buttons next to the path
-     *  dropdown. True by default - most PathBotWindow subclasses have no other way to create
-     *  or delete a route. Override to return false for a bot whose routes are managed
-     *  elsewhere (e.g. Forager, via Forager Settings &gt; Routes' own add/delete route
-     *  buttons) - this window's dropdown still selects a route, it just no longer creates or
-     *  deletes one. */
+    /** Whether this window shows the new/delete-path buttons; true by default, override false for a bot whose routes are managed elsewhere (the dropdown still selects a route either way). */
     protected boolean supportsPathManagement() {
         return true;
     }
@@ -129,8 +120,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         // Preset selection
         prev = add(new Label(presetLabel), prev.pos("bl").add(UI.scale(0, 10)));
 
-        // Prop must be loaded before presets can be listed - it's otherwise only loaded at the
-        // end of the subclass constructor (initializeFromConfig), too late for the dropdown below.
+        // Prop must be loaded before presets can be listed - initializeFromConfig() only runs at the end of the subclass constructor, too late for the dropdown below.
         loadPropAndGetCurrentPreset();
         loadAvailablePresets();
 
@@ -406,9 +396,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
     }
 
     protected void handlePathChanged(String pathName) {
-        // Listbox.mousedown calls change(null) when a left-click lands in the dropdown's list
-        // area but below/outside any actual item row (e.g. clicking empty space near the bottom
-        // of the popup) - a normal, always-possible interaction, not specific to this window.
+        // Listbox.mousedown calls change(null) on a click below/outside any actual item row - a normal interaction, not specific to this window.
         if (pathName == null || pathName.equals(getNoPathsMessage())) {
             return;
         }
@@ -493,15 +481,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         if (path != null) {
             sectionsLabel.settext(String.format("Path: %s (%d waypoints, %d sections)",
                 path.name, path.waypoints.size(), path.getSectionCount()));
-            // Section count (path.getSectionCount()) is NOT a reliable "is this path valid"
-            // signal here - sections are generated from the player's CURRENT map segment at
-            // load time (ForagerWaypoint/sessloc are segment-relative), so a perfectly good
-            // path loaded while standing on a different segment (e.g. indoors, or via a
-            // configured start area meant to travel there first) legitimately comes back with
-            // 0 sections despite having real waypoints. Gate on waypoint count instead - a
-            // structural property of the path file, independent of where the player is right
-            // now. The bot itself regenerates sections once it's actually on the right segment
-            // (see Forager.java's run()).
+            // path.getSectionCount() isn't reliable here - sections are segment-relative and regenerate once the bot's on the right segment. Gate on waypoint count instead.
             startButton.disable(path.waypoints == null || path.waypoints.size() < 2);
             return;
         }
@@ -513,10 +493,7 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
         String currentPreset = getCurrentPresetName();
         ForagerPath path = getPresetForagerPath(currentPreset);
 
-        // Same reasoning as updateSectionsInfo() - path.getSectionCount() reflects sections
-        // generated from wherever the player happened to be standing at load time, not
-        // whether the path itself is valid. Gate on waypoint count instead; the bot
-        // regenerates sections for real once it's actually on the right segment.
+        // Same reasoning as updateSectionsInfo() - gate on waypoint count, not section count.
         if (path == null || path.waypoints == null || path.waypoints.size() < 2) {
             NUtils.getGameUI().error("No valid path loaded");
             return;

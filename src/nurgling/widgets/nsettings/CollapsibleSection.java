@@ -8,13 +8,7 @@ import haven.Widget;
 
 import java.awt.Color;
 
-/**
- * A titled block of controls that can be collapsed down to just its header - lets a settings
- * page built from several logically-separate groups (e.g. Forager Settings' planned Actions/
- * Routes/Guarding sections) stay navigable as more get added, rather than always showing every
- * group's full content at once. Add whatever controls a section owns to its {@link #content}
- * widget (not this widget directly), then call {@link #pack()} once to size it correctly.
- */
+/** A titled block of controls collapsible to just its header; add content to {@link #content}, then call {@link #pack()}. */
 public class CollapsibleSection extends Widget {
     private static final int HEADER_H = UI.scale(22);
     private static final Color HEADER_BG = new Color(40, 40, 40, 200);
@@ -39,8 +33,7 @@ public class CollapsibleSection extends Widget {
         this.title = Text.render((expanded ? "▼ " : "▶ ") + text);
     }
 
-    /** Notified after every expand/collapse, so the owning panel can reposition whatever
-     *  follows this section and refresh its scroll range. */
+    /** Notified after every expand/collapse, so the owning panel can reposition what follows. */
     public void setOnToggle(Runnable onToggle) {
         this.onToggle = onToggle;
     }
@@ -49,13 +42,9 @@ public class CollapsibleSection extends Widget {
         return expanded;
     }
 
-    /** (Re)computes this section's height from its content's current natural size - call once
-     *  after populating {@link #content} (or again if that content's size changes later). */
+    /** (Re)computes this section's height from its content's current natural size. */
     public void pack() {
-        // content itself must be resized too, not just this wrapper - draw()'s default child
-        // traversal clips each child to its OWN size (see Widget.draw(GOut, boolean)), so a
-        // content widget left at its construction-time height of 0 clips away everything inside
-        // it (and blocks mouse hit-testing the same way) regardless of how big this wrapper is.
+        // content itself must be resized too, or it stays clipped to its construction-time height of 0.
         int contentHeight = content.contentsz().y;
         content.resize(new Coord(content.sz.x, contentHeight));
         resize(new Coord(sz.x, HEADER_H + (expanded ? contentHeight : 0)));

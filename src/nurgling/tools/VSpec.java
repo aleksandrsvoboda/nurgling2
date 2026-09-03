@@ -3334,9 +3334,7 @@ public class VSpec {
     // Looks up the icon resource path already recorded for an item name in the stacking
     // category data (e.g. "Cassiterite" -> "gfx/invobjs/cassiterite"). Returns null if the name
     // isn't in any category. General-purpose - not just for stacking despite where the data lives.
-    // Matches case-insensitively (index keys are lowercased at build time, query lowercased at
-    // lookup) since callers may not have the item's exact display-name casing on hand - e.g. a
-    // pattern typed or derived elsewhere in all-lowercase should still resolve.
+    // Matches case-insensitively.
     public static String getIconPath(String name) {
         if (name == null) return null;
         if (iconPathByName == null) {
@@ -3366,17 +3364,10 @@ public class VSpec {
         return result;
     }
 
-    // Reverse index over `object` (gob resource path -> item names it produces), item name ->
-    // every gob resource path that produces it. Built lazily for the same reason iconPathByName
-    // is: `object` is populated by static initializers earlier in this class.
+    // Reverse index over `object`: item name -> every gob resource path that produces it.
     private static HashMap<String, ArrayList<String>> gobsByItemName;
 
-    /**
-     * Every gob resource path (e.g. "gfx/terobjs/trees/chestnuttree") known to produce the given
-     * item name (e.g. "Chestnut"), per the {@link #object} table. Returns an empty list if the
-     * item isn't linked to any gob there - callers should fall back to matching the item's own
-     * name directly against a gob name for items (like herbs) where the two already coincide.
-     */
+    /** Every gob resource path known to produce the given item name, per {@link #object}; empty if none. */
     public static ArrayList<String> getGobsForItem(String itemName) {
         if (itemName == null) return new ArrayList<>();
         if (gobsByItemName == null) {
@@ -3392,13 +3383,9 @@ public class VSpec {
         return gobs != null ? new ArrayList<>(gobs) : new ArrayList<>();
     }
 
-    /** category name (see {@link #getCategory}) -> a Forager flower-menu action string confirmed
-     *  correct against the real menu, not a guess - used ahead of any generated candidate for
-     *  that category (see ForagerPickupContainer.actionNameCandidates). */
+    /** category name -> a Forager flower-menu action string confirmed correct, not a guess. */
     public static final Map<String, String> VERIFIED_CATEGORY_ACTION = new LinkedHashMap<>();
     static {
-        // CollectBark (an existing, working bot) uses this exact string with the same tree/bush
-        // gobs - confirmed correct, unlike a generated guess.
         VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
         VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
         VERIFIED_CATEGORY_ACTION.put("Tree Bough", "Take bough");

@@ -49,12 +49,7 @@ public class LpExplorer {
         return isYesteryearVariant == HarvestState.isYesteryearSeason();
     }
 
-    // Whether a product's discovery is tracked per-resource or globally. Almost every product
-    // (seed/leaf/bough, and now bark too) is uniquely named per species, so per-resource tracking
-    // is exact for them - but several tree species share the exact identical bark item name
-    // ("Treebark", "Tough Bark"), and stripping it from one satisfies the same curiosity as
-    // stripping it from any other, confirmed in-game. Centralized here so every per-product check
-    // below agrees on which products get that exception, rather than each reimplementing it.
+    // Bark is checked globally (several species share the same bark item name), everything else per-resource.
     private static boolean isProductDiscovered(NCharacterInfo info, String gobResName, String product) {
         return HarvestState.isBarkProductName(product)
             ? info.IsLpExplorerContainsAnywhere(product)
@@ -162,10 +157,7 @@ public class LpExplorer {
         if (!HarvestState.isMatureTreeOrBush(gob, d))
             return Collections.emptyList();
 
-        // Seed/leaf are gated by their own live bit; bough and bark (both fixed per-species
-        // traits, already implied by the product simply existing in VSpec.object) aren't
-        // bit-gated at all - matching TreeHarvestSpec/BushHarvestSpec's own per-category
-        // availability model.
+        // Seed/leaf are gated by their own live bit; bough/bark aren't bit-gated at all.
         int sdt = Sprite.decnum(d.sdt.clone());
         boolean seedPresent = HarvestState.hasSeedBit(sdt);
         boolean leafPresent = HarvestState.hasLeafBit(sdt);
@@ -356,10 +348,7 @@ public class LpExplorer {
     // lazily (VSpec's own static data is populated by class-init order this class shouldn't
     // assume has already run) and cached, mirroring VSpec.getIconPath's existing reverse-index
     // pattern. Confirmed exactly one resource per product name across the whole of VSpec.object
-    // (no two species share a seed/leaf/bough/board/block/ore name) except bark, which is
-    // deliberately shared by design (see isProductDiscovered) - excluded here rather than
-    // tripping the one-resource sanity check below, since checkLpExplorer() already resolves it
-    // to a stable synthetic key regardless of what (if anything) this index maps it to.
+    // (no two species share a seed/leaf/bough/board/block/ore name) except bark, excluded below since it's shared by design.
     private static Map<String, String> productToResource;
 
     private static synchronized Map<String, String> productToResource() {

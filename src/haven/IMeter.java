@@ -34,11 +34,7 @@ import java.util.*;
 public class IMeter extends LayerMeter {
 	public String name;
 	Tex text = null;
-	// Raw current/max values parsed from the "Health:cur/hard/max" tip the server sends for the
-	// "hp" meter - the meter's fraction (Meter.a) alone can't tell soft hitpoints apart from
-	// a reduced max (e.g. from wounds), so bots that need the actual numbers read these.
-	// Populated by parseHealth() below, alongside upstream's own softHealthPercent/etc. fields
-	// (used by NFightsess's combat HUD) - both parsed from the same tip in one pass.
+	// Raw soft/max HP from the "hp" meter's tip - Meter.a alone can't distinguish soft HP from a reduced max.
 	public int curHealth = -1, maxHealth = -1;
 
 	public static String characterCurrentHealth = "";
@@ -161,10 +157,6 @@ public class IMeter extends LayerMeter {
 			double mhp = Double.parseDouble(hps[hps.length - 1].trim());
 			softHealthPercent = (shp > 0 && mhp > 0) ? (shp / (mhp / 100)) : 0;
 			currentHealth = hps[0].trim() + " / " + hps[hps.length - 1].trim();
-			// curHealth/maxHealth (raw ints, not this method's own percent/string fields) -
-			// bots read these via NUtils.getCurrentHP()/getMaxHP(). The old single-slash split
-			// that used to populate them here couldn't parse this 3+-part wounded-state tip at
-			// all (silently left them stale) - this now shares the same split.
 			curHealth = (int) Math.round(shp);
 			maxHealth = (int) Math.round(mhp);
 		} catch(NumberFormatException e) {

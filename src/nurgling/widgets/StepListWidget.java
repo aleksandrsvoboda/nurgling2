@@ -13,16 +13,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/**
- * Reusable add/remove/reorder editor for an ordered {@link BotStep} list - the same list-editing
- * chrome {@code ScenarioPanel}'s "Steps" column uses (icon+label rows, move-up/down, remove,
- * add-via-{@link ScenarioBotSelectionDialog}), extracted so it can be reused verbatim by any other
- * editor of a BotStep list (e.g. a Forager waypoint's attached steps), not just Scenarios.
- * <p>
- * Takes a {@link Supplier} rather than a fixed list so the target list can change after
- * construction (matching how ScenarioPanel keeps one persistent widget across many different
- * edited Scenarios) - just have the supplier read whatever the caller's current target is.
- */
+/** Reusable add/remove/reorder editor for an ordered {@link BotStep} list, shared by ScenarioPanel and Forager waypoint steps. */
 public class StepListWidget extends Widget {
     private final Supplier<List<BotStep>> stepsSupplier;
     private final Consumer<BotStep> onSelect;
@@ -33,22 +24,12 @@ public class StepListWidget extends Widget {
     private BotStep selected = null;
     private ScenarioBotSelectionDialog stepDialog = null;
 
-    /**
-     * @param sz            size of the list box itself (an "Add Step" button, if wanted, is the
-     *                       caller's own responsibility - wire it to {@link #showAddStepDialog()})
-     * @param stepsSupplier returns the current list to edit; may return null/empty if nothing is
-     *                       selected yet
-     * @param onSelect      called with the newly-selected step (or null when the selection is
-     *                       cleared, e.g. after removing the selected step)
-     * @param onChanged     called after any add/remove/reorder, so the caller can mark its own
-     *                       state dirty/persist
-     */
+    /** stepsSupplier may return null/empty; onSelect gets the newly-selected step (or null); onChanged fires after any add/remove/reorder. */
     public StepListWidget(Coord sz, Supplier<List<BotStep>> stepsSupplier, Consumer<BotStep> onSelect, Runnable onChanged) {
         this(sz, stepsSupplier, onSelect, onChanged, b -> b.allowedAsStepInScenario);
     }
 
-    /** @param botFilter which bots the "Add Step" picker offers - e.g. b -&gt; b.allowedAsForagerStep
-     *                    for a Forager waypoint's step list, instead of the Scenario default above. */
+    /** botFilter controls which bots the "Add Step" picker offers. */
     public StepListWidget(Coord sz, Supplier<List<BotStep>> stepsSupplier, Consumer<BotStep> onSelect, Runnable onChanged, Predicate<BotDescriptor> botFilter) {
         super(sz);
         this.stepsSupplier = stepsSupplier;
@@ -170,16 +151,13 @@ public class StepListWidget extends Widget {
         if (steps != null && !steps.isEmpty()) {
             steps0 = steps.get(0);
         }
-        // Keep the current selection if it's still present; otherwise fall back to the first
-        // step (matching ScenarioPanel.showEditorPanel()'s original "select the first step, or
-        // clear the settings panel if there are none" behavior).
+        // Keep the current selection if still present, else fall back to the first step.
         if (steps == null || !steps.contains(selected)) {
             listBox.change(steps0);
         }
     }
 
-    /** Opens the same bot-picker dialog ScenarioPanel's "Add Step" button uses, appending the
-     *  chosen bot as a new step to the end of the current list. */
+    /** Opens the bot-picker dialog, appending the chosen bot as a new step. */
     public void showAddStepDialog() {
         closeAddStepDialog();
         stepDialog = new ScenarioBotSelectionDialog(botFilter, bot -> {
@@ -194,9 +172,7 @@ public class StepListWidget extends Widget {
         ui.root.add(stepDialog, this.c.add(50, 50));
     }
 
-    /** Closes the add-step dialog if open - callers should invoke this whenever they navigate
-     *  away from/save/discard whatever this widget is currently editing, mirroring how
-     *  ScenarioPanel used to tear its own stepDialog field down on load()/save(). */
+    /** Closes the add-step dialog if open; callers should invoke this when navigating away. */
     public void closeAddStepDialog() {
         if (stepDialog != null) {
             stepDialog.reqdestroy();

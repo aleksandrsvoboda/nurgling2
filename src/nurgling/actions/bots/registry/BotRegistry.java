@@ -249,17 +249,10 @@ public class BotRegistry {
         bots.add(new BotDescriptor("dropsoil", BotDescriptor.BotType.UTILS, "Drop Soil", "Drops soil from stockpile until there is 10 soil left in the stockpile..", false, true, SoilStockpileDropper.class, "dropsoil", false));
         bots.add(new BotDescriptor("measure_length", BotDescriptor.BotType.UTILS, "Zone Measure Tool", "Measure and mark zones on the ground. Select areas, view dimensions, and manage multiple selections.", false, true, ZoneMeasureTool.class, "measuring_length", false));
         bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true));
-        // Not a general Scenario step (allowedAsStepInScenario=false) - it blindly toggles
-        // mount/dismount based on current state (no explicit intent, same hazard GateBot's old
-        // toggle-only behavior had - see GateBot's own history), which is unpredictable as an
-        // unattended, possibly-rerun schedule entry. Still launchable directly from the bot menu
-        // and attachable as a Forager waypoint step, where it's the same single, deliberate click
-        // it always was.
+        // Not a Scenario step - blindly toggles mount/dismount, unsafe for an unattended/rerun schedule entry.
         bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", false, true, CoracleBot.class, "coracle", false, Map.of(), true));
         bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", true, true, SkisBot.class, "skis", false));
-        // Forager-only (allowedAsStepInScenario=false, allowedAsForagerStep=true) - a gate along
-        // a route is a per-waypoint concern (see WaypointStepsWindow), not a general Scenario step.
-        // Icon path reuses "goto"'s icon as a placeholder until a dedicated gate icon exists.
+        // Forager-only - a gate along a route is a per-waypoint concern, not a general Scenario step.
         bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens or closes the nearest gate, per this step's Action setting; does nothing if it's already in that state.", false, false, GateBot.class, "goto", false, Map.of("mode", "open"), true));
 
         // BUILD

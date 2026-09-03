@@ -24,10 +24,7 @@ public class NCatSelection extends Window {
     private CategoryList categoryList;
     private ElementList elementList;
 
-    // Null (the original behavior): each row/category shows the two Area-Settings-specific
-    // "add to Take/Put" buttons, wired directly to NUtils.getGameUI().areas.in_items/out_items.
-    // Non-null: rows show a single generic "Add" button that calls this instead, so any other
-    // caller (e.g. Forager's pickup list) can reuse this same searchable catalogue.
+    // Non-null: rows show a single generic "Add" button calling this instead of the Take/Put pair.
     private final Consumer<Element> onSelect;
 
     public NCatSelection() {

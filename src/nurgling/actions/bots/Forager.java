@@ -26,40 +26,22 @@ public class Forager implements Action {
     private HashSet<Long> processedGobs = new HashSet<>();
     private String presetName = null;
 
-    // Set by the guard watcher just before it interrupts the bot thread, so run() can tell
-    // "the watcher stopped me on purpose" apart from a genuine external cancel (e.g. the user
-    // clicking the bot's stop button) - which must still propagate as a real interrupt.
+    // Set by the guard watcher to distinguish an intentional stop from a genuine external cancel.
     private volatile boolean threatStopTriggered = false;
 
-    // The Guard whose trigger fired, set by the guard watcher (see startGuardWatcher) just
-    // before it interrupts the bot thread. Its outcome is performed by the bot thread itself
-    // after it's been interrupted - not by the watcher thread. See startGuardWatcher's javadoc
-    // for why.
+    // The Guard whose trigger fired; its outcome runs on the bot thread after it's interrupted.
     private volatile Guard pendingGuard = null;
 
-    // Resolved once near the top of run() from prop.guardingProfiles/currentGuardingProfile -
-    // see resolveGuardingProfile(). Read by effectiveWaterMode() and used to build both the
-    // pre-flight and in-flight guard lists.
+    // Resolved once near the top of run() - see resolveGuardingProfile().
     private GuardingProfile guardingProfile = null;
 
-    // Set once run() has resolved it, so performGobAction() can persist a confirmed flower-menu
-    // action back onto the live ForagerAction without needing it threaded through every method
-    // signature in between.
+    // Set once run() has resolved it, so performGobAction() can persist a confirmed flower-menu action.
     private NForagerProp forageProp = null;
 
-    // Per-run baseline for Maintain (see ForagerAction.maintainQuantity): how many of each
-    // Maintain-configured action's item are already sitting in its assigned Put area, resolved
-    // once by resolveMaintainAreaStock() near the top of run(). findNearestActionableGob adds
-    // the live carried-inventory count on top of this baseline on every scan - see its javadoc.
-    // Keyed by sourceItemName (not the ForagerAction object itself) so a mid-run "Edit Pattern"
-    // save - which replaces the ForagerAction instance in preset.actions in place - can't orphan
-    // this baseline under a now-unreachable old key and silently reset it to 0.
+    // Per-run Maintain baseline (see ForagerAction.maintainQuantity), keyed by sourceItemName so an in-run Edit Pattern save can't orphan it.
     private Map<String, Integer> maintainAreaStock = new HashMap<>();
 
-    // Route-geometry limits (max distance from route, detour-chain caps, cliff avoidance,
-    // exclusion zones) configured per-route in Forager Settings - resolved once run() knows
-    // path is valid, read by findNearestActionableGob and the detour-chaining loops. See
-    // nurgling.actions.bots.forager.ForagerRouteConstraints.
+    // Route-geometry limits configured per-route in Forager Settings - see ForagerRouteConstraints.
     private nurgling.actions.bots.forager.ForagerRouteConstraints routeConstraints;
 
     public Forager() {
@@ -128,17 +110,7 @@ public class Forager implements Action {
 
         forageProp = prop;
 
-        // Actions are now edited as an independently-selected Actions Profile (Forager Settings
-        // > Presets picks which one this preset runs with), not the preset's own (now-legacy)
-        // `actions` field - overwrite it so every downstream helper that already reads
-        // preset.actions keeps working unchanged. A defensive copy, not the live reference:
-        // ForagerPickupContainer.load() hands out this same List<ForagerAction> to the settings
-        // UI, which structurally mutates it in place (add/remove/drag) - aliasing it directly
-        // here would let a concurrent Settings edit to the same Actions Profile race this bot's
-        // own iteration over the list mid-run. preset.actionsProfileName falls back to the
-        // prop-level currentActionsProfile only defensively - every preset is migrated to carry
-        // its own selection on load (see NForagerProp's deserializing constructor), so this
-        // should always be non-null by the time a real preset reaches here.
+        // Overwrite the legacy preset.actions with a defensive copy of its Actions Profile, so concurrent Settings edits can't race this run's iteration.
         String actionsProfileName = preset.actionsProfileName != null ? preset.actionsProfileName : prop.currentActionsProfile;
         if (prop.actionsProfiles != null && actionsProfileName != null) {
             ArrayList<ForagerAction> profileActions = prop.actionsProfiles.get(actionsProfileName);
@@ -156,11 +128,7 @@ public class Forager implements Action {
         routeConstraints = new nurgling.actions.bots.forager.ForagerRouteConstraints(path);
 
         gui.activeBotPath = path;
-        // Index of the waypoint Forager is currently heading toward - starts at 0 (the initial
-        // walk to path.waypoints.get(0) below) and advances to i+1 at the top of each main-loop
-        // iteration (see below), so NWaypointOverlay can color it as the "active" node and
-        // everything before it as already-passed, independent of the movement-queue/Routes-
-        // editor convention of always treating index 0 as active.
+        // Index of the waypoint Forager is currently heading toward - lets NWaypointOverlay color it as active.
         gui.activeBotWaypointIndex = 0;
         gui.activeBotFailedWaypoints = new HashSet<>();
         Thread threatWatcher = null;
@@ -168,12 +136,7 @@ public class Forager implements Action {
 
         guardingProfile = resolveGuardingProfile(prop, preset);
 
-        // Pre-flight guards: checked once, synchronously, before any movement at all (not even
-        // the walk to the route's start position below) - if one fires, perform its outcome
-        // immediately and end the run without ever taking a step. Distinct from the in-flight
-        // guards below, which run continuously for as long as the bot is active - the same
-        // underlying check (e.g. energy/HP) can be configured with a different threshold/
-        // reaction for each phase (see GuardingProfile).
+        // Pre-flight guards: checked once before any movement; in-flight guards run continuously below.
         GuardContext preflightCtx = new GuardContext(gui, guardingProfile.ignoreBats);
         for (Guard guard : buildGuards(guardingProfile.preflightGuards)) {
             try {
@@ -185,50 +148,22 @@ public class Forager implements Action {
             } catch (InterruptedException e) {
                 throw e;
             } catch (Exception e) {
-                // Same reasoning as startGuardWatcher's identical guard: don't let one bad
-                // read (e.g. a gob disappearing mid-check) kill the whole run before it even
-                // starts - just skip this guard for this pre-flight pass.
+                // Don't let one bad read kill the run before it even starts.
             }
         }
 
-        // Runs continuously in the background for as long as this bot is active, so an
-        // animal wandering into range - or an unknown player appearing - mid-walk (not just
-        // between sections/actions) still triggers the safety action immediately.
+        // Runs continuously in the background so a mid-walk threat still triggers the safety action immediately.
         threatWatcher = startGuardWatcher(gui, guardingProfile, Thread.currentThread());
 
-        // Audit every Maintain-configured action's assigned "Put" area (NArea.jout) before doing
-        // anything else - same one-time-per-run, travel-and-count logic MaintainStockBot's own
-        // scheduler step already uses, so this run's pickup budget for that item accounts for
-        // what's already stored there, not just what's carried. See findNearestActionableGob's
-        // maintainQuantity check below, which reads this map. Skipped entirely when the preset
-        // ignores Maintain limits - nothing would ever read the result, so there's no reason to
-        // pay for the travel-and-count trip.
+        // One-time Put-area audit for Maintain's pickup budget; skipped if the preset ignores Maintain limits.
         maintainAreaStock = preset.ignoreMaintainLimits
                 ? java.util.Collections.emptyMap()
                 : resolveMaintainAreaStock(gui, preset);
 
-        // ForagerSection geometry is expressed in world coordinates relative to sessloc,
-        // which only make sense within the map segment sessloc anchors - so sections can only
-        // be (re)computed correctly once actually standing on the path's segment. They were
-        // already generated once, at load time (see ForagerPath's constructor calling
-        // generateSections()), but that could easily have happened from an entirely different
-        // segment (e.g. this preset's window was opened while indoors) - in which case that
-        // first pass produced zero sections, not an error, just quietly nothing. Regenerate
-        // now, before the ChunkNav-bridging fallback below, in case we're already on the right
-        // segment (the common case) and don't need it at all.
+        // Sections are segment-relative, so they can only be (re)computed while standing on the path's own segment.
         path.generateSections();
         if (path.getSectionCount() == 0) {
-            // Not on the route's own segment (e.g. started indoors, or in a different building
-            // entirely) - bridge over via ChunkNav straight to the route's first waypoint. The
-            // path's own waypoints are stored as persistent map-segment + tile coordinates
-            // (ForagerWaypoint), which only resolve to a world position while already in that
-            // exact segment; ChunkNav operates on a different (live, cross-cell) coordinate
-            // system entirely, keyed to each waypoint's own gridId/localTile (resolved live at
-            // record time - see ForagerWaypoint.resolveGridId's own javadoc - so a route
-            // recorded before that existed, or a milestone-splice anchor, won't have one).
-            // Reuses the exact ChunkNav plan-by-gridId path NUtils.navigateTo() already relies
-            // on for bookmark navigation, just targeting the route's own first waypoint instead
-            // of a captured bookmark.
+            // Not on the route's segment - bridge over via ChunkNav to the route's first waypoint.
             ForagerWaypoint firstWp = path.waypoints.get(0);
             if (firstWp.gridId != -1 && firstWp.localTile != null && gui.map instanceof NMapView) {
                 ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
@@ -261,10 +196,7 @@ public class Forager implements Action {
         pf.waterMode = effectiveWaterMode(gui, preset);
         Results startResult = pf.run(gui);
 
-        // Only run this waypoint's steps (e.g. a GateBot close) if we actually reached it -
-        // otherwise a failed/interrupted walk can trigger them from wherever pathing left off
-        // instead of at the waypoint itself (reported live: closing a gate while still standing
-        // in its own tile, mid-approach).
+        // Only run this waypoint's steps if we actually reached it.
         if (startResult.IsSuccess() && runWaypointSteps(gui, path.waypoints.get(0))) {
             return Results.SUCCESS();
         }
@@ -281,22 +213,12 @@ public class Forager implements Action {
             ForagerSection section = path.getSection(i);
             if (section == null) continue;
 
-            // A section between two waypoints sharing the same milestoneHash represents a
-            // spliced-in signpost link (ForagerRouteMap.spliceMilestone()), not a walkable
-            // stretch - the two anchors are typically far apart or in a different area entirely,
-            // so PathFinder-ing straight to sectionEnd would be wrong (or impossible). Use the
-            // milestone instead of walking, then skip the rest of this section's normal
-            // detour/pathfind/collect logic - there is nothing to walk or scan along the way.
+            // A section between two waypoints sharing the same milestoneHash is a spliced-in signpost link, not a walkable stretch.
             ForagerWaypoint fromWp = path.waypoints.get(i);
             ForagerWaypoint toWp = path.waypoints.get(i + 1);
-            // We're now heading toward i+1 for the rest of this iteration (walk, arrival, steps,
-            // gob-collection/detours all included) - see the field's own javadoc on why this is
-            // set once per iteration rather than at each individual arrival point below.
             gui.activeBotWaypointIndex = i + 1;
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
-                // UseMilestone.run() already reports its own failure message via Results.ERROR().
-                // toWp is passed as the expected destination so it can validate we actually landed
-                // near it after traveling, and teleport home instead of continuing if not.
+                // toWp validates we actually landed near the expected destination.
                 Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp).run(gui);
                 if (!milestoneResult.IsSuccess()) {
                     return milestoneResult;
@@ -308,20 +230,7 @@ public class Forager implements Action {
             }
 
             Coord2d sectionEnd = section.endPoint;
-            // section.endPoint was baked in once, up front, by the single generateSections() call
-            // at the top of run() - relative to whatever sessloc was current *then*. A milestone
-            // crossing physically moves the player elsewhere in the segment mid-route (the
-            // teleport branch above), which can shift the live sessloc/Gob.rc anchor those
-            // world coordinates were computed against - so a post-milestone section's baked
-            // endPoint can end up reporting a wildly wrong distance even though the target
-            // waypoint itself is only a couple of tiles away (reported live: repeated "Can't
-            // find path" and eventually a pathfinder crash from a huge, bogus section distance,
-            // right after boarding a coracle just past a spliced milestone). Reresolve the
-            // target fresh from the waypoint's durable (segment, tile) location against the
-            // *current* sessloc every iteration - toWorldCoord() itself already returns null if
-            // the segment genuinely doesn't match, so this only ever corrects a stale anchor,
-            // never masks a real cross-segment error - and fall back to the precomputed value
-            // only if that fresh resolution isn't available.
+            // Re-resolve against the current sessloc every iteration - a milestone crossing can shift the anchor the baked endPoint used.
             MiniMap.Location currentSessloc = gui.mmap.sessloc;
             if (currentSessloc != null) {
                 Coord2d freshEnd = toWp.toWorldCoord(currentSessloc);
@@ -330,12 +239,7 @@ public class Forager implements Action {
                 }
             }
 
-            // Before committing to the walk toward this section's target, check whether a
-            // known actionable gob is already closer than the target itself - if so, detour
-            // to collect it (and anything else nearby, via the rescan inside the collection
-            // loop) before continuing toward the path. "Return to" here means back to
-            // wherever the character is standing right now, since that's where the section
-            // walk below still needs to depart from.
+            // Detour to a known actionable gob first if it's closer than this section's own target.
             Gob playerBeforeWalk = NUtils.player();
             if (playerBeforeWalk != null) {
                 Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, playerBeforeWalk.rc, preset.actions, SCAN_RADIUS, playerBeforeWalk.rc, preset.ignoreMaintainLimits);
@@ -348,21 +252,9 @@ public class Forager implements Action {
                 }
             }
 
-            // Approaching a milestone anchor is handled entirely separately from the normal
-            // gob-target/tile-target logic below: gob-targeted PathFinder (which has hitbox-aware
-            // approach-point logic, normally used for exactly this kind of "walk up to a solid
-            // object" case) consistently failed live ("Can't find path", then the whole run
-            // aborting) even once pointed at the correct, unambiguous gob (found by durable hash,
-            // valid hitbox confirmed) - the exact cause wasn't pinned down, so rather than keep
-            // guessing at gob-targeted pathing, this sidesteps it completely: walk to a plain
-            // tile-target point a short distance from the milestone, back toward wherever the bot
-            // is currently coming from, which avoids ever pathing onto/through the milestone's own
-            // occupied tile or touching its hitbox at all.
+            // Milestone anchors: walk to a plain tile-target point short of the milestone rather than gob-targeted PathFinder (which failed on these).
             if (toWp.milestoneHash != null) {
                 Gob milestoneGob = Finder.findGob(toWp.milestoneHash);
-                // Gates this waypoint's steps behind actually reaching it - see the startResult
-                // comment above for why (also covers milestoneGob == null: nothing to approach,
-                // so definitely not "arrived").
                 boolean arrivedNearMilestone = false;
                 if (milestoneGob != null && playerBeforeWalk != null) {
                     Coord2d away = playerBeforeWalk.rc.sub(milestoneGob.rc);
@@ -387,10 +279,7 @@ public class Forager implements Action {
             // Check if there are any target objects near the section endpoint (within 1 tile = 11 units)
             Gob targetGob = findGobNear(sectionEnd, 11.0);
 
-            // Cover the ground toward this section's target in rescanning hops first (see
-            // walkInHops' own javadoc, main-route mode) - this is what lets a gob revealed only
-            // partway through a long section still get detoured to, instead of only being caught
-            // by the checks immediately before departure or after arrival.
+            // Cover the ground in rescanning hops first, so a gob revealed mid-section still gets detoured to.
             boolean reachedApproach = walkInHops(gui, preset, targetGob != null ? targetGob.rc : sectionEnd, null, null, null);
 
             if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
@@ -398,12 +287,7 @@ public class Forager implements Action {
                 return Results.SUCCESS();
             }
 
-            // Tracks whether this section's walk actually landed at/near waypoint i+1, so the
-            // steps call below can be gated on it - previously ran unconditionally even after a
-            // failed pfGob/pfEnd walk (only logged, never checked), which could trigger a
-            // waypoint's steps (e.g. a GateBot close) from wherever pathing gave up instead of
-            // at the waypoint itself (reported live: closing a gate while still standing in its
-            // own tile, mid-approach).
+            // Whether this section's walk actually landed at/near waypoint i+1, gating the steps call below.
             boolean arrivedAtWaypoint = reachedApproach;
             if (!reachedApproach) {
                 if (!isInventoryFull(gui)) {
@@ -414,8 +298,7 @@ public class Forager implements Action {
                 }
             } else if (targetGob != null)
             {
-                // Go to the object if found within 1 tile - walkInHops only guarantees getting
-                // within MAX_HOP_DISTANCE, not hitbox-aware precise arrival.
+                // walkInHops only guarantees getting within MAX_HOP_DISTANCE, not precise arrival.
                 PathFinder pfGob = new PathFinder(targetGob);
                 pfGob.waterMode = effectiveWaterMode(gui, preset);
                 Results pfGobResult = pfGob.run(gui);
@@ -439,21 +322,15 @@ public class Forager implements Action {
                 }
             }
 
-            // Section i's endpoint is waypoint i+1 - run any steps attached to it now, right at
-            // arrival, before this section's normal pickup pass continues the route - but only
-            // if we actually arrived, see arrivedAtWaypoint above.
+            // Waypoint i+1's own steps, run only on confirmed arrival.
             if (arrivedAtWaypoint && runWaypointSteps(gui, path.waypoints.get(i + 1))) {
                 return Results.SUCCESS();
             }
 
-            // Main collection pass for this section: repeatedly grab the nearest unprocessed
-            // actionable gob, rescanning after every pickup, until nothing more is found
-            // nearby - then retrace back through the breadcrumb trail before moving on to the
-            // next section.
+            // Repeatedly grab the nearest unprocessed actionable gob until nothing more is found nearby.
             collectNearbyActionableGobs(gui, preset);
 
-            // CHAT_NOTIFY doesn't fit the walk-to-nearest-gob model (it's a one-shot "scan
-            // and notify" action, not a per-gob interaction) - handled separately.
+            // One-shot scan-and-notify, handled separately from the per-gob walk-to model.
             processChatNotifyActions(gui, section, preset.actions);
 
             // Check inventory after each section
@@ -470,27 +347,9 @@ public class Forager implements Action {
 
         return Results.SUCCESS();
         } catch (InterruptedException e) {
-            // Distinguish the watcher's own interrupt (a deliberate safety stop) from a
-            // genuine external cancel (e.g. the user clicking the bot's stop button), which
-            // must keep propagating as a real interrupt so it stops the whole chain rather
-            // than being mistaken for one.
+            // Distinguish the watcher's own deliberate stop from a genuine external cancel, which must keep propagating.
             if (threatStopTriggered) {
-                // The safety action runs here, on the bot thread, only now that it's been
-                // interrupted and its own movement/pathing has stopped - not on the watcher
-                // thread. Running it there instead let the bot thread keep walking/acting in
-                // parallel with (and potentially cancelling) a multi-second travel-to-hearth
-                // channel, which looked like the bot's "running" indicator vanishing before
-                // the character actually got home.
-                //
-                // Once the watcher has decided the run needs to end, that decision is final -
-                // the safety action itself (e.g. TravelToHearthFire's pose/grid-change waits)
-                // can still be interrupted again mid-sequence by something unrelated, and
-                // observed doing so: the character didn't finish teleporting home, stranded
-                // wherever it happened to be when the second interrupt landed. Retry the safety
-                // action itself (clearing the interrupt flag first, so the next attempt isn't
-                // immediately re-interrupted by the same stale signal) rather than letting that
-                // abort the response early - this is the character's actual way home, it must
-                // not give up partway.
+                // Retry the safety action itself on further interrupts - it's the character's actual way home, it must not give up partway.
                 InterruptedException last = null;
                 for (int attempt = 1; attempt <= 3; attempt++) {
                     try {
@@ -522,82 +381,22 @@ public class Forager implements Action {
         }
     }
 
-    // Max distance (world units) for a single PathFinder hop, and the scan radius for the
-    // CHAT_NOTIFY per-section pass (which intentionally only cares about gobs right around
-    // the path, not the whole visible area). PathFinder builds a bounded search grid sized
-    // around its start/end points and can fail to path at all once that span gets too big for
-    // the grid to grow to cover (see PathFinder.construct()'s mul<200 cap) - so any single
-    // PathFinder call, including each hop of a long detour, is kept to this distance.
+    // Max world-unit distance for a single PathFinder hop - PathFinder's search grid fails to path once the span exceeds this.
     private static final double MAX_HOP_DISTANCE = 250.0;
 
-    // Scan radius (world units) for finding actionable gobs to detour towards. Finder.findGobs
-    // has no internal distance cap - it just filters whatever's currently loaded in OCache,
-    // which is itself bounded by the grids the server has sent the client (there's no client-
-    // side render-distance limit) - so this is set far larger than a single hop without extra
-    // scanning cost; it only controls how far out to look for something to walk to, not how
-    // far any single walk actually is.
+    // Scan radius (world units) for finding actionable gobs to detour towards.
     private static final double SCAN_RADIUS = 100000.0;
 
-    // How close (world units, ~11/tile) to stop when approaching a milestone anchor waypoint -
-    // close enough for a reliable right-click (UseMilestone), without pathing onto/through the
-    // milestone's own occupied tile or touching its hitbox.
+    // How close to stop when approaching a milestone anchor, without pathing onto its own tile.
     private static final double MILESTONE_APPROACH_DIST = 20.0;
 
-    /**
-     * The water-mode flag every PathFinder call in this class should actually use - the preset's
-     * own static waterMode toggle, OR-ed with "is the player currently mounted on a coracle right
-     * now." A single static per-route toggle can't represent a route that walks normally to reach
-     * a coracle, crosses water while riding it, then walks normally again after dismounting -
-     * setting the preset's waterMode on for the whole route to cover the water leg also forces
-     * every land leg's PathFinder to treat land tiles as blocked (NPFMap only allows water tiles
-     * when waterMode is set), breaking the walk to/from the coracle. Deriving it live from actual
-     * mount state means the preset's own toggle is only needed for a route with no coracle step
-     * at all (e.g. wading/swimming), and a coracle route just works without the user having to
-     * predict which parts of their route need it.
-     * <p>
-     * The base toggle itself now comes from the resolved GuardingProfile (see
-     * resolveGuardingProfile()) rather than the legacy preset.waterMode field, when one is
-     * available - falling back to preset.waterMode only if guardingProfile somehow isn't set
-     * (shouldn't happen in a normal run() call, but this is also reachable from other bots'
-     * direct construction of Forager-adjacent PathFinder calls in tests/tools).
-     */
+    /** The preset's waterMode toggle OR-ed with live coracle-mount state, so a route with a coracle leg doesn't need waterMode set for its whole length. */
     private boolean effectiveWaterMode(NGameUI gui, NForagerProp.PresetData preset) {
         boolean baseWaterMode = guardingProfile != null ? guardingProfile.waterMode : preset.waterMode;
         return baseWaterMode || CoracleBot.isPlayerInCoracle(gui);
     }
 
-    /**
-     * Finds the nearest unprocessed, constraint-passing gob matching any of the preset's PICK/
-     * FLOWER_ACTION/RIGHT_CLICK actions within radius of the given position, along with which
-     * action it matched. CHAT_NOTIFY is excluded - it's a one-shot "scan this area and notify"
-     * action, not a per-gob walk-to-and-interact action, so it doesn't fit this "closest first"
-     * model and keeps its own pass in {@link #processChatNotifyActions}.
-     * <p>
-     * A candidate is rejected (skipped, same as an already-processed gob - no message, not a
-     * pathing failure) if it's inside a brush-painted exclusion zone, farther than the route's
-     * maxDistance from leashAnchor, or - when the route has avoidCliffs on - has a cliff edge
-     * somewhere in the corridor between from and the candidate (climbing is unreliable, so the
-     * fix is to never attempt the crossing, not the gob's own tile - a candidate sitting on solid
-     * ground past a cliff is still rejected if the walk there would cross one). For a chained
-     * detour episode (collectUntilExhausted/walkInHops's detour-episode mode/
-     * returnToPathViaBreadcrumbs), leashAnchor must be held fixed for the whole episode by the
-     * caller - passing the bot's own constantly-drifting current position would make the leash
-     * never fire. walkInHops' main-route mode is the one deliberate exception: it has no chain/
-     * episode concept at all (see its own javadoc - maxChains/maxChainDistance don't apply to
-     * it), so it intentionally passes its own current position as both from and leashAnchor -
-     * "don't detour more than maxDistance off from wherever I already am on the route" is the
-     * correct, self-contained check for that single-hop
-     * case, not a bug.
-     * <p>
-     * Candidates are gathered and distance-sorted before any cliff check runs, then checked in
-     * ascending-distance order, stopping at the first that clears - the common no-cliff-nearby
-     * case pays for exactly one corridor check, same as before this method needed one at all;
-     * only a genuinely blocked nearest candidate costs a second check against the runner-up.
-     * <p>
-     * ignoreMaintainLimits (from the active preset's own flag) skips every action's Maintain
-     * quantity check entirely, so a "manual" preset can freely over-collect without touching
-     * whatever cap a "bot" preset using the same actions is configured to respect.
-     */
+    /** Nearest unprocessed, constraint-passing gob (exclusion zone/leash/cliff/Maintain) matching any of the preset's actions within radius. */
     private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor, boolean ignoreMaintainLimits) throws InterruptedException {
         MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
         MCache map = (gui.map != null && gui.map.glob != null) ? gui.map.glob.map : null;
@@ -630,39 +429,12 @@ public class Forager implements Action {
         return null;
     }
 
-    /**
-     * Counts inventory items whose underlying resource (e.g. "gfx/invobjs/chestnut") matches
-     * resource, for Maintain. Matching by resource rather than display name/NAlias is required
-     * here - a forageable item's display name can vary by growth/quality stage (e.g. "Unripe
-     * Chestnut" vs "Chestnut") while its resource stays constant, so a name-based count would
-     * under/over-count depending on what happened to be in the inventory at check time. Delegates
-     * to AreaStock.countByResource (shared with the Put-area container count below) rather than
-     * keeping its own copy of the same filter loop.
-     */
+    /** Counts inventory items by underlying resource (not display name, which varies by growth stage) for Maintain. */
     private int countByResource(NGameUI gui, String resource) throws InterruptedException {
         return AreaStock.countByResource(gui.getInventory(), resource);
     }
 
-    /**
-     * Resolves each Maintain-configured action's area-stock baseline once, at the very start of
-     * a run - visiting an area's containers is real travel (see AreaStock.countItemsInAreaContainers),
-     * so this can't happen inside findNearestActionableGob's tight scan loops without turning
-     * every single gob check into a detour there and back. Sums across every visible area that
-     * has the item configured as "Put" (NArea.jout / containOut) rather than requiring one to be
-     * picked, since Forager Settings has no area-picker UI - matching multiple areas is treated
-     * as "all of them count towards the target," not an error.
-     * <p>
-     * Which area is the item's Put area has to be resolved by display name (containOut is keyed
-     * by whatever name was dragged into that area's own "out" IngredientContainer - the existing,
-     * shared area-config format this feature can't unilaterally redefine), but once inside that
-     * area, its containers' contents are counted by resource (countByResource) for the same
-     * display-name-varies-by-growth-stage reason the carried-inventory count uses it - an entry
-     * with no resolved sourceItemResource can't be reliably counted this way, so it contributes 0
-     * (degrades to the carried-only check, same as findNearestActionableGob already does for it).
-     * <p>
-     * Keyed by sourceItemName in the returned map (not the ForagerAction object) - see the
-     * maintainAreaStock field javadoc for why.
-     */
+    /** Resolves each Maintain-configured action's area-stock baseline once, summing across every visible area with the item as "Put". */
     private Map<String, Integer> resolveMaintainAreaStock(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
         Map<String, Integer> stock = new HashMap<>();
         if (gui.map == null || gui.map.glob == null || gui.map.glob.map == null) {
@@ -673,15 +445,7 @@ public class Forager implements Action {
 
             int total = 0;
             int areasChecked = 0;
-            // Enumerated the same way NContext.findOutGlobal/findOuts do (the mechanism
-            // TransferItems2/"Free Inventory" already relies on to find an item's Put area) -
-            // gui.map.nols (every area overlay the client knows about, id > 0) filtered by
-            // !isDisabled(), NOT gui.map.glob.map.areas.values() filtered by area.isVisible().
-            // isVisible() only returns true once the area's own grid is already loaded into
-            // MCache - i.e. only once the character is already near/inside it - which silently
-            // dropped every not-yet-loaded area from consideration here, defeating the whole
-            // point of traveling to check one. isDisabled() is a persisted "hidden" flag,
-            // unrelated to current load state.
+            // gui.map.nols filtered by !isDisabled(), not area.isVisible() (which requires the area's grid already loaded).
             for (Integer id : gui.map.nols.keySet()) {
                 if (id <= 0) continue;
                 NArea area = gui.map.glob.map.areas.get(id);
@@ -691,10 +455,7 @@ public class Forager implements Action {
                     total += AreaStock.countItemsInAreaContainers(gui, area, action.sourceItemResource);
                 }
             }
-            // Silent when no Put area is configured for this item (the common case for a
-            // Maintain entry that only ever meant "cap my carried inventory") - matches
-            // MaintainStockBot's own "Checking .../Found ..." messages otherwise, so a run
-            // that's about to detour through one or more areas' containers isn't silent about it.
+            // Silent when no Put area is configured (the common "cap my carried inventory" case).
             if (areasChecked > 0) {
                 gui.msg("Forager Maintain: \"" + action.sourceItemName + "\" - " + total +
                         " already stored (target " + action.maintainQuantity + ")");
@@ -704,36 +465,7 @@ public class Forager implements Action {
         return stock;
     }
 
-    /**
-     * Repeatedly walks to the nearest unprocessed actionable gob and performs its action,
-     * rescanning from the new position after every one - so a straggler sitting just out of
-     * range of the original scan (e.g. right next to the gob that was just picked) still gets
-     * found, instead of only being caught on some later section's scan, if ever. Continues
-     * until no more matching gobs are found nearby or the inventory fills up.
-     * <p>
-     * Every hop away from the starting position is recorded as a breadcrumb - mirrored live
-     * into {@code gui.activeBotDetourTrail} for the yellow trail overlay (see NMapView/
-     * NMiniMap) - so that once the collection loop ends, {@link #returnToPathViaBreadcrumbs}
-     * can retrace them back to roughly where this call started. Without that, a chain of
-     * nearby-gob hops could leave the character drifting arbitrarily far from the recorded
-     * path with no way back other than the next section's own walk. The trail stays displayed
-     * through the return walk too - {@code returnToPathViaBreadcrumbs} consumes the same list
-     * as it retraces, so it visibly shrinks point by point instead of vanishing all at once.
-     * <p>
-     * If the loop itself is interrupted (the safety watchdog tripping), the return-walk is
-     * skipped entirely rather than attempted in a finally block - adding movement right as an
-     * interrupt is trying to stop the character is exactly what broke the hearth-travel
-     * safety action earlier this session (see {@link #startGuardWatcher}'s javadoc); the same
-     * risk applies here.
-     * <p>
-     * The route's maxChains/maxChainDistance caps (see DetourChainBudget) apply to this whole
-     * episode, not per-call - a single budget is created here and threaded through both the
-     * outbound sweep and the return walk's own inner sweeps, so a chain that's already used up
-     * its budget chasing gobs on the way out doesn't get a fresh allowance chasing more on the
-     * way back. Likewise the maxDistance leash is measured from a single anchor - the player's
-     * position right here, before any hop happens - held fixed for the whole episode; re-deriving
-     * it from the bot's own drifting position every hop would make the leash never fire.
-     */
+    /** Repeatedly walks to the nearest unprocessed actionable gob, recording breadcrumbs for {@link #returnToPathViaBreadcrumbs}, until none remain or inventory fills. */
     private void collectNearbyActionableGobs(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
         ArrayList<Coord2d> breadcrumbs = new ArrayList<>();
         gui.activeBotDetourTrail = breadcrumbs;
@@ -759,20 +491,7 @@ public class Forager implements Action {
         }
     }
 
-    /**
-     * The actual "grab everything actionable in range" loop, extracted so both the outbound
-     * collection pass and the return walk ({@link #returnToPathViaBreadcrumbs}) can run the
-     * exact same behavior - the return trip used to only detour for a gob that happened to be
-     * closer than the very next breadcrumb, which meant anything spotted off to the side (or
-     * only visible once already past its closest point) was quietly skipped for the rest of
-     * that trip. Now the return walk treats every breadcrumb stop the same way the outbound
-     * loop treats every path section: fully sweep the area before moving on.
-     * <p>
-     * Repeatedly walks to the nearest unprocessed actionable gob and performs its action,
-     * rescanning from the new position after every one, until nothing more is found within
-     * SCAN_RADIUS or the inventory fills up. Every hop away from the starting position is
-     * appended to breadcrumbs.
-     */
+    /** Grabs everything actionable in range, rescanning after each pickup, until nothing's found or inventory fills; shared by the outbound pass and the return walk. */
     private void collectUntilExhausted(NGameUI gui, NForagerProp.PresetData preset, ArrayList<Coord2d> breadcrumbs,
                                         nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
         while (true) {
@@ -790,10 +509,7 @@ public class Forager implements Action {
             gui.activeBotDetourTarget = nearest.a.rc;
 
             if (player.rc.dist(nearest.a.rc) > MAX_HOP_DISTANCE) {
-                // Too far for a single PathFinder call - hop towards it, opportunistically
-                // detouring to anything closer found along the way. If it gives up partway
-                // (a hop failed - a dead end), stop the whole pass rather than looping back
-                // around to retry the same unreachable gob forever.
+                // Too far for one PathFinder call - hop toward it; stop the whole pass if a hop fails rather than retrying forever.
                 if (!walkInHops(gui, preset, nearest.a.rc, breadcrumbs, budget, leashAnchor)) return;
                 continue;
             }
@@ -804,38 +520,7 @@ public class Forager implements Action {
         }
     }
 
-    /**
-     * Walks from the current position towards target in hops of at most MAX_HOP_DISTANCE,
-     * instead of one long PathFinder call that risks failing outright once the span is too
-     * big for its search grid to grow to cover (see the comment on MAX_HOP_DISTANCE). Before
-     * each hop, rescans out to SCAN_RADIUS for an actionable gob closer than target itself and
-     * detours to collect it first if found - this is what lets a long walk toward a far gob
-     * still sweep up anything else it passes near, not just the original target.
-     * <p>
-     * Two modes, merged into one method since they only ever differed in whether a detour
-     * episode's own bookkeeping applies - both used with the exact behavior each caller already
-     * relied on separately before this merge:
-     * <ul>
-     *   <li>Detour-episode mode ({@code breadcrumbs}/{@code budget} non-null, called from
-     *       {@link #collectUntilExhausted}): every hop's start position (including detour hops)
-     *       is appended to breadcrumbs for the eventual walk back; budget.canChain()/spend() gate
-     *       and account for every hop; leashAnchor is the caller-supplied fixed anchor for the
-     *       whole episode; a plain hop toward target sets gui.activeBotDetourTarget = target and
-     *       leaves it set for the next iteration/caller to overwrite - target genuinely is a
-     *       detour destination here.
-     *   <li>Main-route mode ({@code breadcrumbs}/{@code budget} null, called from the main
-     *       per-section loop): no breadcrumb tracking, no chain budget (this mode has no chain
-     *       concept at all - maxChains/maxChainDistance don't apply to it); leashAnchor is
-     *       recomputed as the current position every iteration (no accumulated chain to bound);
-     *       a plain hop toward target does NOT touch gui.activeBotDetourTarget at all (target is
-     *       the route's own next waypoint, already rendered as the active route node with its own
-     *       live player leg) - only an actual gob detour found along the way sets it, and clears
-     *       it again right after, since only a real detour deserves its own blue node.
-     * </ul>
-     * Returns true once the player ends up within MAX_HOP_DISTANCE of target (ready for the
-     * caller to do the final approach/action), false if a hop failed before getting there or
-     * the inventory filled up mid-travel - either way, a dead end the caller shouldn't retry.
-     */
+    /** Walks toward target in MAX_HOP_DISTANCE hops, detouring to closer gobs along the way; detour-episode mode (breadcrumbs/budget non-null) tracks chain state, main-route mode doesn't. */
     private boolean walkInHops(NGameUI gui, NForagerProp.PresetData preset, Coord2d target, ArrayList<Coord2d> breadcrumbs,
                                 nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
         boolean detourEpisode = breadcrumbs != null;
@@ -881,16 +566,7 @@ public class Forager implements Action {
         }
     }
 
-    /**
-     * Best-effort recovery from a failed hop. The computed hop waypoint (a straight-line
-     * interpolation toward the target, with no obstacle awareness) can land right on or inside a
-     * gob's hitbox, which can leave the character visibly wedged against it rather than cleanly
-     * failing - reported live: "there is a chance the bot attempts to try and place the waypoint
-     * inside a gob and then just gets stuck." Re-pathing to the character's own current tile is a
-     * trivial, always-reachable no-op that flushes any pending stuck movement state. Called right
-     * before giving up on the hop, not instead of giving up - the original target is still
-     * genuinely unreachable this way, this only unblocks the character for whatever comes next.
-     */
+    /** Best-effort recovery from a failed hop that may have wedged the character against a gob's hitbox. */
     private void unstickAtCurrentPosition(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
         Gob player = NUtils.player();
         if (player == null) return;
@@ -899,37 +575,7 @@ public class Forager implements Action {
         unstick.run(gui);
     }
 
-    /**
-     * Retraces the breadcrumb trail back towards target, one point at a time - most recent
-     * first, since that's the order the character can actually walk it back in. This mutates
-     * the same list instance {@code gui.activeBotDetourTrail} is still pointing at (the caller
-     * doesn't null it out until this returns), so each consumed breadcrumb visibly shrinks the
-     * yellow trail overlay rather than it vanishing all at once.
-     * <p>
-     * Before walking to each breadcrumb, runs a full {@link #collectUntilExhausted} sweep from
-     * the current position - not just a check against that one next point - so the return trip
-     * gets the same treatment as every section of the outbound path: fully clear out whatever's
-     * nearby before moving on, rather than only detouring for something that happens to be
-     * closer than the immediate next checkpoint (which meant anything off to the side, or only
-     * spotted after already passing its closest point, used to get silently skipped for the
-     * rest of the trip). Detouring towards a far gob (via walkInHops's detour-episode mode, called inside
-     * collectUntilExhausted) adds fresh breadcrumbs of its own, which is fine - they just
-     * become the new nearest points to retrace next.
-     * <p>
-     * A breadcrumb is dropped from the list once its hop is attempted, whether or not the hop
-     * actually succeeded - if it's unreachable there's nothing to be gained retrying it, so
-     * this just moves on to the next (older) one. There's deliberately no separate direct
-     * PathFinder-to-target attempt anywhere here (not even once the list empties) - a lone
-     * "just try to path straight there" call was firing constantly and spamming "can't find
-     * path", on top of skipping past any gobs sitting between the hops it replaced. The
-     * breadcrumb chain alone is trusted to get the character home: the oldest breadcrumb (the
-     * position collection started from) is itself the last one walked, so by the time the list
-     * empties the character is already essentially back at target.
-     * <p>
-     * Unlike collectUntilExhausted, this keeps walking breadcrumbs home even once the inventory
-     * is full - collectUntilExhausted itself already stops trying to grab anything more once
-     * that happens, but the walk back to the recorded path still needs to finish regardless.
-     */
+    /** Retraces the breadcrumb trail home most-recent-first, sweeping via collectUntilExhausted before each hop; keeps going even once inventory is full. */
     private void returnToPathViaBreadcrumbs(NGameUI gui, ArrayList<Coord2d> breadcrumbs, NForagerProp.PresetData preset,
                                              nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
         while (!breadcrumbs.isEmpty()) {
@@ -948,11 +594,7 @@ public class Forager implements Action {
         }
     }
 
-    /**
-     * Walks to and performs one action on a single gob - extracted from the old per-type
-     * "for gob in gobs" loops so {@link #collectNearbyActionableGobs} can dispatch a single
-     * gob at a time between rescans. Marks the gob processed once done.
-     */
+    /** Walks to and performs one action on a single gob, marking it processed once done. */
     private void performGobAction(NGameUI gui, ForagerAction action, Gob gob,
                                    NForagerProp.PresetData preset) throws InterruptedException {
         switch (action.actionType) {
@@ -977,14 +619,7 @@ public class Forager implements Action {
                 break;
             }
             case RIGHT_CLICK: {
-                // For objects with no flower menu at all (e.g. gates - see ChunkNavExecutor's
-                // gate handling for the same rclickGob approach) - a plain right-click
-                // performs the interaction directly, with no menu to select an option from.
-                // There's no generic follow-up event to wait on (unlike PICK's
-                // WaitGobRemoval or FLOWER_ACTION's WaitPose - a bare right-click might open
-                // a window, play an animation, or do nothing visible at all depending on the
-                // object), so this just gives the interaction a brief moment to register
-                // before moving on.
+                // For objects with no flower menu - just gives the interaction a brief moment to register before moving on.
                 NUtils.setSpeed(2);
                 try {
                     PathFinder pfRclick = new PathFinder(gob);
@@ -1004,14 +639,7 @@ public class Forager implements Action {
         }
     }
 
-    /**
-     * Once a real flower menu confirms which of an untested "Pick X"/"Take X" candidate list
-     * (see ForagerPickupContainer.actionNameCandidates) was actually correct, narrows this action
-     * down to just that one string and persists it - so this pickup entry never needs to re-try
-     * the whole guess list again, on this run or any future one. No-op if there was only ever one
-     * candidate to begin with (matched already equals actionName - nothing to narrow) or nothing
-     * matched (matched is null).
-     */
+    /** Once a flower menu confirms which candidate action string was correct, narrows and persists it so future runs don't re-guess. */
     private void confirmActionName(ForagerAction action, String matched) {
         if (matched == null || matched.equals(action.actionName) || forageProp == null) {
             return;
@@ -1020,11 +648,7 @@ public class Forager implements Action {
         NForagerProp.set(forageProp);
     }
 
-    /**
-     * CHAT_NOTIFY is a one-shot "scan this section and notify if found" action, not a
-     * per-gob walk-to-and-interact action - it doesn't fit collectNearbyActionableGobs'
-     * nearest-first model at all, so it keeps its own simple per-section scan, same as before.
-     */
+    /** CHAT_NOTIFY is a one-shot scan-and-notify action, not per-gob walk-to-and-interact, so it keeps its own per-section scan. */
     private void processChatNotifyActions(NGameUI gui, ForagerSection section,
                                            java.util.List<ForagerAction> actions) throws InterruptedException {
         for (ForagerAction action : actions) {
@@ -1077,12 +701,7 @@ public class Forager implements Action {
     }
     
     
-    /** Runs a waypoint's attached scheduler-style steps (Ctrl+right-click on the Routes map to
-     *  edit) in full, before the caller continues the route as normal. On failure, dispatches
-     *  wp.onStepsFailAction via performSafetyAction() the same way onFullInventoryAction/
-     *  afterFinishAction already are - "nothing" logs and lets the run continue, "logout"/
-     *  "travel hearth" end it. Returns true if the caller should return Results.SUCCESS()
-     *  immediately (a terminal fail-action already fired), false to keep going. */
+    /** Runs a waypoint's attached steps; on failure dispatches onStepsFailAction. Returns true if the caller should return SUCCESS immediately. */
     private boolean runWaypointSteps(NGameUI gui, ForagerWaypoint wp) throws InterruptedException {
         if (wp.steps == null || wp.steps.isEmpty()) {
             return false;
@@ -1099,24 +718,14 @@ public class Forager implements Action {
         return false;
     }
 
-    /** "nothing"/"logout"/"travel hearth" dispatch, still used by the non-Guard action strings
-     *  (onFullInventoryAction, afterFinishAction, waypoint onStepsFailAction) that predate the
-     *  Guard system and aren't configured per-guard. Delegates "logout"/"travel hearth" to
-     *  GuardOutcome instead of keeping a second, independent copy of that same dispatch (they
-     *  used to be duplicated verbatim, including the coracle-dismount-before-hearth workaround -
-     *  a fix applied to only one copy would have silently left the other stale). */
+    /** "nothing"/"logout"/"travel hearth" dispatch for the non-Guard action strings, delegating to GuardOutcome. */
     private void performSafetyAction(NGameUI gui, String action) throws InterruptedException {
         if (!"nothing".equals(action)) {
             GuardOutcome.fromId(action).perform(gui);
         }
     }
     
-    /** Resolves the preset's own selected GuardingProfile (Forager Settings > Presets), falling
-     *  back to the prop-level currentGuardingProfile only defensively (same reasoning as the
-     *  actionsProfileName fallback above - every preset is migrated to carry its own selection
-     *  on load, so this is a belt-and-suspenders case, not the normal path). Falls back to a
-     *  fresh GuardingProfile.withDefaults() rather than erroring - a Forager run should never be
-     *  blocked from starting just because its guarding config is missing or stale. */
+    /** Resolves the preset's own GuardingProfile, falling back to prop-level then GuardingProfile.withDefaults() rather than erroring. */
     private GuardingProfile resolveGuardingProfile(NForagerProp prop, NForagerProp.PresetData preset) {
         if (prop.guardingProfiles == null || prop.guardingProfiles.isEmpty()) {
             return GuardingProfile.withDefaults();
@@ -1140,32 +749,11 @@ public class Forager implements Action {
         return guards;
     }
 
-    /**
-     * Starts a background thread that polls the selected GuardingProfile's in-flight guards
-     * (unknown players, dangerous animals, low energy/HP, stuck detection - see GuardRegistry)
-     * for as long as the bot is running, independent of whatever the bot thread is doing at the
-     * time - including mid-walk to a single distant gob, which the bot's own inline checks
-     * (only run between sections/actions) would otherwise miss entirely. On a guard firing it
-     * only records which one and interrupts the bot thread - it does not perform the outcome
-     * itself.
-     * <p>
-     * The outcome runs later, on the bot thread, only once it's actually been interrupted and
-     * stopped moving/pathing - not on this watcher thread. Running it here instead would let
-     * the bot thread keep walking/acting in parallel with (and potentially cancelling) a
-     * multi-second travel-to-hearth channel, which looked like the bot's "running" indicator
-     * vanishing before the character actually got home (see run()'s InterruptedException catch
-     * block, which retries the outcome up to 3 times for exactly this reason).
-     */
+    /** Background thread polling in-flight guards independent of the bot thread; records the firing guard and interrupts the bot thread, but doesn't perform its outcome itself. */
     private Thread startGuardWatcher(NGameUI gui, GuardingProfile profile, Thread botThread) {
         List<Guard> guards = buildGuards(profile.inflightGuards);
         GuardContext ctx = new GuardContext(gui, profile.ignoreBats);
-        // BotExecutor is documented as "the ONLY place that calls ThreadLocalUI.set/clear" -
-        // this ad-hoc watcher thread is a real exception to that, and without its own binding,
-        // NConfig.get() calls made from it (e.g. GuardContext.animalRads(), reading the user's
-        // Ring Settings) fall back to the global config instead of this bot's own session/
-        // profile config - wrong data in a multi-session client. Capture the CALLING thread's
-        // bound NUI (this method only ever runs from the already-bound bot thread) and bind it
-        // on the watcher thread too, mirroring BotExecutor.runAsync's own pattern exactly.
+        // Bind the calling thread's NUI here too, mirroring BotExecutor.runAsync, so NConfig reads use this session's config.
         NUI boundUI = NUtils.getUI();
         Thread watcher = new Thread(() -> {
             if (boundUI != null) {
@@ -1187,8 +775,7 @@ public class Forager implements Action {
                 } catch (InterruptedException e) {
                     return;
                 } catch (Exception e) {
-                    // Don't let one bad read (e.g. a gob disappearing mid-check) kill the
-                    // watcher for the rest of the bot's run.
+                    // Don't let one bad read kill the watcher for the rest of the run.
                 }
             }
             } finally {

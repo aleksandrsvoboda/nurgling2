@@ -302,14 +302,7 @@ public class NFlowerMenu extends FlowerMenu
         return false;
     }
 
-    /**
-     * As chooseOpt(String), but tries several candidate option strings in priority order and
-     * picks the first one that's actually a real petal in this menu - used where the exact
-     * flower-menu text isn't known for certain (e.g. Forager's best-guessed "Pick X"/"Take X"
-     * candidates), same principle as matching a gob by several candidate name patterns. Returns
-     * the candidate that actually matched (so a caller with several untested guesses can learn
-     * and remember which one was real), or null if none did.
-     */
+    /** Like chooseOpt(String), but tries each candidate in order and picks the first real petal. */
     public String chooseOpt(List<String> candidates)
     {
         for (String candidate : candidates) {

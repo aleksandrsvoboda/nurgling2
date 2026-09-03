@@ -228,13 +228,7 @@ public class NPFMap
                 Coord2d cc = player.rc;
                 Coord2d cmap = new Coord2d(MCache.cmaps);
                 Coord2d fixator = cc.floor(cmap).mul(cmap).add(cmap.div(2));
-                // The fixed 450 radius below only covers a target within visible range of the
-                // player - a legitimately longer but still-loaded-terrain target (e.g. crossing a
-                // wide body of water) then falls entirely outside this fallback grid, and since
-                // lastMul short-circuits PathFinder.construct()'s normal mul-growth retry loop,
-                // pathfinding just fails outright with no way to recover. Grow the radius to at
-                // least cover the actual src/tgt distance from the player (still floored at 450,
-                // the original fixed size) instead of ignoring it.
+                // Grow past the fixed 450 fallback radius when src/tgt is farther, so a legitimately long target isn't left outside the grid entirely.
                 double radius = Math.max(450, Math.max(cc.dist(a), cc.dist(b)) + 50);
                 Coord2d ul = fixator.add(radius,radius);
                 Coord2d br = fixator.sub(radius,radius);
@@ -314,15 +308,7 @@ public class NPFMap
 
                     if (!waterMode) {
                         for (Coord c : cand) {
-                            // A large grid (e.g. a long water crossing) can reach tiles whose grid
-                            // hasn't finished streaming in yet - gettile() throws Loading for
-                            // those instead of returning a name; that used to propagate all the
-                            // way up as an uncaught exception and kill the whole bot thread
-                            // (confirmed live: a stack trace through here). Treat "don't know
-                            // yet" the same as "no evidence this corner is bad terrain" rather
-                            // than crashing - a genuinely blocked cell still has 3 other corners,
-                            // and a cell that's blocked only because it's still loading will
-                            // simply get reclassified correctly next time this is rebuilt.
+                            // gettile() throws Loading for a not-yet-streamed-in tile - treat as "unknown", not blocked, rather than crashing the thread.
                             String name;
                             try {
                                 name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
@@ -334,32 +320,15 @@ public class NPFMap
                             }
                         }
                     } else {
-                        // A cell only needs ONE of its 4 sampled corners to be water to count as
-                        // passable here - blocking on ANY bad corner (as the land-mode branch
-                        // above does) makes narrow channels/shorelines effectively unpathable,
-                        // since a pf grid cell straddling the water's edge almost always samples
-                        // at least one land corner. That was the actual cause of "Can't find
-                        // path" firing immediately after boarding a coracle: the boarding spot
-                        // sits right at such an edge, so the player's own start cell got
-                        // misclassified as blocked with no gob there to route around, and
-                        // PathFinder.findFreeNear's start-position fixup came back empty.
+                        // Only ONE of the 4 sampled corners needs to be water - blocking on any bad corner would make narrow channels/shorelines unpathable.
                         boolean anyWater = false;
                         for (Coord c : cand) {
-                            // See the !waterMode branch above for why this is wrapped - an
-                            // unloaded corner is "unknown," not "confirmed not water," so it
-                            // just doesn't contribute either way rather than crashing the thread.
                             String name;
                             try {
                                 name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
                             } catch (Loading l) {
                                 continue;
                             }
-                            // Water-mode needs to accept whatever a coracle can actually launch/
-                            // land on, not just open water - CoracleBot.isOnValidWaterTile() (the
-                            // code that decides where boarding/dropping is legal) already treats
-                            // bog/fen/swamp/marsh tiles as valid water for that purpose, but this
-                            // whitelist only recognized deep/open water tile names, so a route
-                            // crossing bog water got every one of those cells blocked outright.
                             if (isValidWaterTileName(name)) {
                                 anyWater = true;
                                 break;
@@ -374,15 +343,7 @@ public class NPFMap
         }
     }
 
-    /**
-     * Whether tileName is water a coracle can actually launch/land on or cross - not just open
-     * water; bog/fen/swamp/marsh count too (CoracleBot's boarding/dropping legality check treats
-     * them the same way - see its isOnValidWaterTile()). Shared between water-mode pf-grid
-     * classification here and CoracleBot's own check so the two can never diverge on what counts
-     * as valid water (they briefly did: this used to be a second, independently-hand-copied
-     * whitelist here that was missing deep/odeep coverage CoracleBot's own check didn't have
-     * either, in the opposite direction - each was right about something the other missed).
-     */
+    /** Whether tileName is water a coracle can launch/land on or cross - open water plus bog/fen/swamp/marsh; shared with CoracleBot's own check. */
     public static boolean isValidWaterTileName(String tileName) {
         return tileName != null && (
                 tileName.startsWith("gfx/tiles/water") || tileName.startsWith("gfx/tiles/owater") ||

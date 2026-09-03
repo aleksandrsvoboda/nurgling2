@@ -15,29 +15,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-/**
- * Drag-and-drop "what should Forager pick up" editor for one Actions profile. Each icon is one
- * {@link ForagerAction}: dropping a real item resolves its target gob pattern via {@link VSpec}
- * (a reverse item-&gt;gob lookup for things like tree/bush produce, falling back to matching the
- * item's own name directly for herbs, where item and gob names already coincide) and, for a
- * gob-linked item, a best-guess set of candidate flower-menu action strings tried in order at
- * runtime (see {@link #actionNameCandidates}) rather than one fixed guess. "Add custom" covers
- * anything with no real item to drag, resolving an icon the same way {@code CheeseOrdersPanel}
- * does for its schedule's custom-named steps. Every field (pattern/action type/action name) stays
- * directly editable afterward via the per-item right-click "Edit Pattern" - this widget only sets
- * reasonable defaults, it never limits what can be expressed.
- */
+/** Drag-and-drop "what should Forager pick up" editor for one Actions profile; each icon is a {@link ForagerAction} resolved via {@link VSpec}, editable afterward via right-click "Edit Pattern". */
 public class ForagerPickupContainer extends BaseIngredientContainer implements TaggableItemContainer {
 
-    // Aliases whatever list load() was last given (typically a preset's own live `actions`
-    // field) rather than holding a private copy, so every mutation here (drop/delete/tag/add
-    // custom) is immediately reflected in the caller's list with no separate sync-back step.
+    // Aliases whatever list load() was last given, so edits here are reflected with no sync step.
     private ArrayList<ForagerAction> actions = new ArrayList<>();
 
-    /** Notified after any edit (drop, delete, tag change, add custom/manual) so the owner can
-     *  persist config immediately, matching how every other per-item edit in this codebase
-     *  (IngredientContainer, FoodContainer) saves right away rather than batching to a Save
-     *  button. Optional - fine to leave unset if the caller persists on its own schedule. */
+    /** Notified after any edit so the owner can persist immediately; optional. */
     public Runnable onChange = null;
 
     private void notifyChanged() {
@@ -63,26 +47,12 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         }
     }
 
-    /**
-     * @param itemResourcePath the item's own invobj resource path (e.g.
-     *                         "gfx/invobjs/herbs/blueberry"), if known - null for the rare case
-     *                         nothing resolved one (e.g. a typed custom name with no catalogue
-     *                         icon match)
-     */
+    // itemResourcePath: the item's own invobj resource path if known, else null.
     private Resolution resolve(String itemName, String itemResourcePath) {
         ArrayList<String> gobs = VSpec.getGobsForItem(itemName);
 
         if (gobs.isEmpty()) {
-            // No tree/bush link found - assume herb/mushroom-style direct match: matching is a
-            // plain substring check against the gob's resource path (e.g. "blueberry" against
-            // "gfx/terobjs/herbs/blueberry"). A herb's invobj and terobj resource paths
-            // consistently share the same short name (only "invobjs"/"terobjs" differs), so the
-            // item's own resource path's last segment is a precise, correct pattern on its own -
-            // no need to guess anything from the display name, which is often a poor match for
-            // the internal name (plurals like "Blueberries"/"Chantrelles", multi-word names like
-            // "Liberty Caps", or a display name with no textual relation at all like "Morels" ->
-            // the "lorchel" resource). Only falls back to guessing from the display name when no
-            // resource path was available to slice at all.
+            // No tree/bush link - herb/mushroom items share their invobj/terobj resource's short name.
             String pattern = (itemResourcePath != null)
                     ? resourceShortName(itemResourcePath)
                     : herbPatternCandidates(itemName);
@@ -92,27 +62,13 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return new Resolution(pattern, ForagerAction.ActionType.FLOWER_ACTION, actionNameCandidates(itemName));
     }
 
-    /** Last path segment of a gfx resource path (e.g. "gfx/invobjs/herbs/blueberry" -&gt;
-     *  "blueberry"). */
+    /** Last path segment of a gfx resource path. */
     private static String resourceShortName(String resourcePath) {
         int slash = resourcePath.lastIndexOf('/');
         return slash >= 0 ? resourcePath.substring(slash + 1) : resourcePath;
     }
 
-    /**
-     * Candidate flower-menu option string(s) for a gob-linked item. If the item falls into a
-     * category with a string already confirmed correct (see {@link VSpec#VERIFIED_CATEGORY_ACTION}),
-     * that's used on its own - a known answer, not a guess, so there's no reason to also carry a
-     * pile of untested ones alongside it. Otherwise falls back to a best-guess, ordered set:
-     * "Pick "/"Take " + the item's own name (and its other singular/plural form, since the source
-     * item name isn't necessarily how the flower menu phrases it - e.g. "Chestnut" the item vs.
-     * potentially "Chestnuts" on the tree), then the same two prefixes against each VSpec category
-     * the item falls into (e.g. "Nuts" for a nut). Tried in order at runtime (see
-     * {@link ForagerAction#toActionNameCandidates}) against the gob's real flower menu - same
-     * principle as matching several candidate gob-name patterns for an item with no VSpec link at
-     * all. Not a substitute for a confirmed answer: right-click "Edit Pattern" always lets this be
-     * replaced with one exact known-good string once confirmed in-game.
-     */
+    /** Candidate flower-menu strings for a gob-linked item: a verified category action if known, else a best-guess ordered set tried in order at runtime. */
     private static String actionNameCandidates(String itemName) {
         List<String> categories = VSpec.getCategory(itemName);
 
@@ -138,9 +94,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         for (String name : names) {
-            // Flower-menu text only capitalizes the first word of the whole phrase (confirmed by
-            // the verified entries above) - the item/category name itself is never a proper noun
-            // here, so lowercase it rather than guessing "Take Walnut"/"Take Nuts".
+            // Flower-menu text only capitalizes the first word of the phrase.
             String lower = name.toLowerCase();
             candidates.add("Pick " + lower);
             candidates.add("Take " + lower);
@@ -148,20 +102,8 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return String.join(",", candidates);
     }
 
-    /**
-     * Last-resort fallback for the rare case {@link #resolve} has no resource path to slice at
-     * all (e.g. a typed custom name with no catalogue icon match) - builds a comma-separated set
-     * of candidate substrings to match against a gob's resource path, widest/most-specific first:
-     * the literal name, the name with spaces removed (multi-word display names never appear as-is
-     * in a resource path, which has none), and singular versions of both (strip one trailing "s")
-     * since resource paths are consistently singular even when the item name is plural.
-     * Duplicates are dropped; {@link ForagerAction#toNAlias()} matches on ANY of these against the
-     * gob's name.
-     */
+    /** Last-resort fallback with no resource path to slice: candidate substrings (name, no-spaces, singular forms) matched against a gob's resource path. */
     private static String herbPatternCandidates(String itemName) {
-        // Matching is already case-insensitive (NAlias lowercases everything internally), but
-        // gob resource paths are always lowercase - keep the saved pattern looking like one
-        // instead of a mix of cases, so it reads sensibly if the user reviews/edits it later.
         String lower = itemName.toLowerCase();
 
         java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
@@ -174,8 +116,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             candidates.add(noSpaces.substring(0, noSpaces.length() - 1));
         }
 
-        // Last word alone (e.g. "caps" out of "liberty caps") - and its singular - as a narrower
-        // fallback in case the full concatenated name still doesn't match anything.
+        // Last word alone, and its singular, as a narrower fallback.
         String[] words = lower.trim().split("\\s+");
         String lastWord = words[words.length - 1];
         candidates.add(lastWord);
@@ -186,12 +127,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return String.join(",", candidates);
     }
 
-    /**
-     * @param placeholder null for the normal path (icon rendered from iconRes via addIcon());
-     *                    non-null when no real icon could be resolved/loaded, drawing this
-     *                    hash-colored placeholder instead (see addPlaceholderIcon()) - the only
-     *                    difference between what used to be two near-identical methods here.
-     */
+    // placeholder: null for the normal icon path; non-null draws a hash-colored placeholder instead.
     private void addResolved(String itemName, JSONObject iconRes, Resolution res, BufferedImage placeholder) {
         ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
         action.sourceItemName = itemName;
@@ -213,12 +149,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         String name = item.name();
         JSONObject res = ItemTex.save(item.spr);
         res.put("name", name);
-        // Overrides whatever icon-layer resource ItemTex.save derived (which, for a Layered/
-        // composite sprite, may not even be set) with the item's own actual resource - this is
-        // what sourceItemResource needs to be for Maintain's inventory-count check to work, since
-        // an item's display name (e.g. "Unripe Chestnut" vs "Chestnut") varies by growth/quality
-        // stage while its underlying invobj resource doesn't. Icon rendering still prefers
-        // "layer" over "static" (see ItemTex.create), so this doesn't change how the icon looks.
+        // Use the item's real resource (not ItemTex.save's derived one) so Maintain's count-by-resource check is stable across display-name variants.
         String itemResourcePath = (item.res != null && item.res.get() != null) ? item.res.get().name : null;
         if (itemResourcePath != null) {
             res.put("static", itemResourcePath);
@@ -227,12 +158,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return super.drop(ev);
     }
 
-    /**
-     * Opens the same searchable item catalogue Area Settings uses (browse by VSpec category, or
-     * search by name across all of them) for adding something without needing the real item in
-     * hand - reuses {@link NCatSelection}, generalized (see its {@code onSelect} constructor)
-     * rather than duplicated, since it's already exactly this feature for a different container.
-     */
+    /** Opens the same searchable item catalogue Area Settings uses, for adding without a real item in hand. */
     public void openCatalogue() {
         NCatSelection cat = new NCatSelection(this::addFromCatalogue);
         NUtils.getGameUI().add(cat, UI.scale(200, 150));
@@ -269,9 +195,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         Resolution res = resolve(typedName, iconPath);
         BufferedImage img = (iconPath != null) ? ItemTex.create(iconRes) : null;
         if (img == null) {
-            // Either no icon path was found, or ItemTex failed to load it (e.g. stale/renamed
-            // resource) - either way, fall back to a stable per-name placeholder rather than
-            // leaving the entry unrenderable.
+            // No icon path, or ItemTex failed to load it - fall back to a stable placeholder.
             iconRes.remove("static");
             addResolved(typedName, iconRes, res, placeholderIcon(typedName));
             return;
@@ -279,19 +203,13 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         addResolved(typedName, iconRes, res, null);
     }
 
-    // 400px wide (see ForagerSettingsPanel) - default gridColumns()=5 (tuned for the 205px-wide
-    // area/food containers) would waste most of that. 10 columns * 35px + margin comfortably
-    // fits within 400px alongside the scrollbar.
+    // 400px wide container - default gridColumns()=5 wastes most of that.
     @Override
     protected int gridColumns() {
         return 10;
     }
 
-    // BaseIngredientContainer.addIcon() always goes through ItemTex.create(), which can't produce
-    // a placeholder image - this adds the icon item directly instead, mirroring addIcon()'s own
-    // bookkeeping (items/icons lists, grid position, scroll bounds). Shared by addResolved()'s own
-    // placeholder branch (a fresh entry, which also owns creating+registering the ForagerAction
-    // itself) and load() (redrawing an entry whose ForagerAction already exists).
+    // addIcon() always goes through ItemTex.create(), which can't produce a placeholder - this mirrors its bookkeeping directly instead.
     private IconItem addPlaceholderIcon(String name, BufferedImage img, boolean isFlowerAction) {
         items.add(new Ingredient(name, img));
         IconItem it = add(new IconItem(name, img, this), gridPos(items.size() - 1));
@@ -336,9 +254,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         }
     }
 
-    /** Restores the shared Threshold/Maintain badge (see IconItem.SetThreshold) onto a freshly
-     *  (re)drawn icon from its entry's saved cap, mirroring IngredientContainer's own restore of
-     *  a saved threshold onto a freshly-added icon. */
+    /** Restores the shared Threshold/Maintain badge onto a freshly (re)drawn icon from its entry's saved cap. */
     private static void restoreMaintainBadge(IconItem it, ForagerAction action) {
         if (action.maintainQuantity >= 0) {
             it.isThreshold = true;
@@ -377,28 +293,14 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     @Override
     public void deleteAll() {
-        // Only clear entries this widget actually renders - a shared list may also hold
-        // advanced/manual entries (e.g. CHAT_NOTIFY) added outside this widget, which must
-        // survive a "clear icons" here.
+        // Only clear entries this widget renders - manual entries (e.g. CHAT_NOTIFY) must survive.
         actions.removeIf(a -> a.sourceItemName != null);
         super.deleteAll();
         notifyChanged();
     }
 
-    /**
-     * Redraws from (and starts aliasing) a preset's live action list, so every mutation this
-     * widget makes afterward - drop, delete, add custom - is reflected directly in the caller's
-     * list with no separate save/sync step needed. Entries with no sourceItemName (e.g. advanced/
-     * manual entries added outside this widget) are left in the list untouched but simply aren't
-     * rendered as icons here.
-     */
+    /** Redraws from (and starts aliasing) a preset's live action list; entries with no sourceItemName aren't rendered as icons but stay in the list. */
     public void load(ArrayList<ForagerAction> liveActions) {
-        // Defensive only - every known caller now guarantees a real list (see
-        // ForagerSettingsPanel's computeIfAbsent self-heal for a stale profile-name reference,
-        // reported live as a crash here). Falling back to a fresh, un-persisted list rather than
-        // crashing is still the better failure mode if some future caller slips up - edits would
-        // silently not save rather than the whole panel going down, and this shouldn't be
-        // reachable in practice.
         this.actions = liveActions != null ? liveActions : new ArrayList<>();
         for (IconItem it : icons) {
             it.destroy();
@@ -408,8 +310,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
         for (ForagerAction action : this.actions) {
             if (action.sourceItemName == null) {
-                // Not created via this widget (e.g. a legacy free-text entry) - not shown here.
-                continue;
+                continue; // Not created via this widget - not shown here.
             }
             JSONObject iconRes = new JSONObject();
             iconRes.put("name", action.sourceItemName);
@@ -428,13 +329,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         }
     }
 
-    /**
-     * Opens the full manual editor prefilled with this item's current pattern/action/action
-     * name, for correcting a wrong or unresolved automatic guess (e.g. a plural/spacing mismatch
-     * {@link #herbPatternCandidates} didn't cover, or a display name that shares no substring at
-     * all with its actual gob resource). The icon/name stay as they are - only the underlying
-     * match/action fields change.
-     */
+    /** Opens the full manual editor prefilled with this item's current pattern/action, for correcting a wrong or unresolved automatic guess. */
     @Override
     public void editItem(String itemName) {
         ForagerAction existing = null;

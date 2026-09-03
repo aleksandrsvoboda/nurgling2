@@ -13,19 +13,7 @@ import nurgling.tools.NAlias;
 
 import java.util.Map;
 
-/**
- * Opens or closes the nearest gate, per the step's configured mode - never blindly toggles.
- * Meant to be attached as two separate Forager waypoint steps (see WaypointStepsWindow), one set
- * to "Open" right before a gated stretch of a route and one set to "Close" right after - the
- * route's own normal PathFinder walk to the next waypoint handles actually walking through it,
- * so this bot only ever needs to do the interact, not track "pending close" state across a whole
- * run the way ChunkNavExecutor's always-on gate handling does.
- * <p>
- * If the gate is already in the mode's target state - most notably, already open because another
- * player opened it - this is a no-op success rather than an interact. The old toggle-only
- * behavior would slam a gate shut that someone else had just opened and was using (reported
- * live), since it had no way to tell "closed, needs opening" apart from "already open, leave it".
- */
+/** Opens or closes the nearest gate per the step's configured mode; a no-op if it's already in that state. */
 public class GateBot implements Action {
 
     private static final double DETECT_RADIUS = MCache.tilesz.x * 3;

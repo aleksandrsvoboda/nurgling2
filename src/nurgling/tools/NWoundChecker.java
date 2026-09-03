@@ -50,14 +50,7 @@ public class NWoundChecker {
         return false;
     }
     
-    /**
-     * Sum of damage across every currently active wound, regardless of type - unlike
-     * hasScrapesAndCutsAboveThreshold above, which only looks at one specific wound resource.
-     * Used for a general "too wounded, stop" check (e.g. swamp fever risk from accumulated
-     * untreated wounds) rather than reacting to any one wound type in particular.
-     * @return total damage summed across all wounds, or 0 if the wound window/list isn't
-     *         available (matches the other methods here: never throws, silent on failure)
-     */
+    /** Sum of damage across every active wound, regardless of type; 0 if unavailable, never throws. */
     public static int totalWoundDamage() {
         int total = 0;
         try {

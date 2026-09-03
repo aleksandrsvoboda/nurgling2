@@ -3,19 +3,9 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.routes.ForagerWaypoint;
 
-/**
- * Popout for editing the scheduler-style {@link nurgling.scenarios.BotStep}s attached to one
- * {@link ForagerWaypoint} (Ctrl+right-click a waypoint on the Routes map to open this). Modeled
- * directly on {@link ActionConfigWindow}'s "popout scoped to one entity" shape, but edits apply
- * immediately to the waypoint's own {@code steps} list (matching how every other edit on the
- * Routes map - add/move/delete a waypoint - already applies immediately and relies on the owning
- * panel's normal save flow to persist it), rather than buffering into a submit/cancel pair.
- */
+/** Popout for editing the {@link nurgling.scenarios.BotStep}s attached to one {@link ForagerWaypoint}; edits apply immediately to its {@code steps} list. */
 public class WaypointStepsWindow extends Window {
 
-    // Same "nothing"/"logout"/"travel hearth" vocabulary already used for onAnimalAction/
-    // afterFinishAction/onFullInventoryAction (widgets/bots/Forager.java) - not shared as a
-    // constant across packages since it's a trivial 3-entry literal, not shared logic.
     private static final String[] FAIL_ACTIONS = {"nothing", "logout", "travel hearth"};
 
     private final ForagerWaypoint waypoint;
@@ -24,9 +14,7 @@ public class WaypointStepsWindow extends Window {
     private final StepListWidget stepList;
     private final StepSettingsPanel stepSettingsPanel;
 
-    // Suppresses fireChanged() while the fail-action dropbox is being set to its initial value
-    // below (Dropbox has no "select without firing" method distinct from change() itself) - opening
-    // this popout shouldn't by itself mark the route dirty.
+    // Suppresses fireChanged() while the fail-action dropbox is set to its initial value below.
     private boolean initializing = true;
 
     public WaypointStepsWindow(ForagerWaypoint waypoint, Runnable onChanged) {

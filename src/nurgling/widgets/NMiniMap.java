@@ -683,23 +683,12 @@ NMiniMap extends MiniMap {
         }
     }
 
-    /**
-     * Draws Forager's live off-path detour trail (breadcrumb hops taken chasing nearby gobs
-     * away from the recorded path) in yellow - the recorded path itself draws in green (see
-     * {@link #drawForagerRecordingPath}) so the two read as visually distinct. The trail is
-     * stored as live world {@link Coord2d}s (session-relative, same space as gob.rc/player.rc),
-     * not the persistent segment-tile coordinates {@link nurgling.routes.ForagerWaypoint} uses -
-     * converted to an absolute segment tile coord the same way {@code ForagerWaypoint.toWorldCoord}
-     * does, just inverted: {@code tc = sessloc.tc + floor(worldPos / tilesz)}.
-     */
+    /** Draws Forager's live off-path detour trail in yellow (the recorded path itself draws in green, see {@link #drawForagerRecordingPath}). */
     protected void drawBotDetourTrail(GOut g) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.activeBotDetourTrail == null || sessloc == null || dloc == null) return;
 
-        // Defensive copy (the trail is live-mutated by the bot thread), then straight into
-        // screen coordinates in the same pass, instead of a separate copy-append-then-convert
-        // pass followed by two more separate passes to draw lines and dots - one allocation, one
-        // conversion loop, one combined draw loop.
+        // Defensive copy (live-mutated by the bot thread), converted to screen coords in the same pass.
         java.util.List<Coord2d> snapshot = new java.util.ArrayList<>(gui.activeBotDetourTrail);
         Gob player = NUtils.player();
         if(player != null) snapshot.add(player.rc);
@@ -729,28 +718,10 @@ NMiniMap extends MiniMap {
         g.chcolor();
     }
 
-    // Amber for a milestone-splice leg/anchor, matching ForagerRouteMap's own
-    // MILESTONE_ACTIVE_LINK_COLOR - not imported directly (that class is the Routes editor's
-    // embedded 2D map, this is the real minimap) to avoid coupling two otherwise-independent
-    // widgets over a single shared color constant.
+    // Amber for a milestone-splice leg/anchor, matching ForagerRouteMap's MILESTONE_ACTIVE_LINK_COLOR (not imported directly to avoid coupling the two widgets).
     private static final Color FORAGER_MILESTONE_LEG_COLOR = new Color(230, 200, 40);
 
-    /**
-     * Draws Forager's route (being edited, or actually running) on the real minimap - dashed
-     * crawling legs and pulsing numbered node plates, the same look
-     * {@link #drawQueuedWaypoints} already gives the movement-queue and
-     * {@code ForagerRouteMap.drawRouteWaypoints} already gives the Routes editor's own embedded
-     * 2D map - this used to be a plain green-line/yellow-dot renderer predating both of those,
-     * left behind when they were built (reported live: "the routes displayed on the map is not
-     * using the new rendered waypoints").
-     * <p>
-     * While a bot is actually running (recordingPath came from gui.activeBotPath, not a
-     * currently-open Routes editor window), reflects the same live progress the in-world
-     * NWaypointOverlay does - gui.activeBotWaypointIndex as the active/pulsing node,
-     * gui.activeBotFailedWaypoints in the failed color - so the two views agree. While only
-     * being edited (no bot running), falls back to ForagerRouteMap's own convention of treating
-     * index 1 as "active" (there's no live progress to reflect).
-     */
+    /** Draws Forager's route on the real minimap with dashed crawling legs and pulsing numbered nodes, matching {@link #drawQueuedWaypoints}/live progress from NWaypointOverlay when a bot is running. */
     protected void drawForagerRecordingPath(GOut g) {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || sessloc == null || dloc == null) return;
@@ -784,8 +755,7 @@ NMiniMap extends MiniMap {
         Coord hsz = sz.div(2);
         double phase = Utils.rtime() * UI.scale(16);
 
-        // Legs, as dashes crawling toward the next waypoint - same treatment as
-        // drawQueuedWaypoints/ForagerRouteMap.drawRouteWaypoints.
+        // Legs as crawling dashes, same treatment as drawQueuedWaypoints/ForagerRouteMap.drawRouteWaypoints.
         Coord prevC = null;
         nurgling.routes.ForagerWaypoint prevWp = null;
         for(int i = 0; i < recordingPath.waypoints.size(); i++) {
@@ -810,8 +780,7 @@ NMiniMap extends MiniMap {
             prevWp = wp;
         }
 
-        // Nodes. The active one is bigger and pulses, matching drawQueuedWaypoints; a failed
-        // one (never reached, pathing gave up) draws dimmed in the failed color instead.
+        // Nodes - active one bigger and pulses; a failed one draws dimmed in the failed color instead.
         int num = 1;
         for(int i = 0; i < recordingPath.waypoints.size(); i++) {
             nurgling.routes.ForagerWaypoint wp = recordingPath.waypoints.get(i);

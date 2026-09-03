@@ -2,15 +2,7 @@ package nurgling.guarding;
 
 import nurgling.NUtils;
 
-/**
- * Fires when soft HP (SHP) drops below a configured percentage of the hard-HP (HHP) ceiling -
- * relative to the ceiling, not to true max, so a reduced ceiling (e.g. from wounds) doesn't make
- * this fire on soft HP that's actually maxed out relative to what's currently achievable. A
- * threshold of 100% (the default) reproduces this guard's original unconditional "not fully
- * healed at all" behavior; split out from {@link LowHpTrigger}, which used to bundle this
- * unconditionally alongside its own configurable HHP-%% check (reported live: fired on even a
- * single point of missing SHP with no way to loosen or disable that half independently).
- */
+/** Fires when soft HP (SHP) drops below a configured percentage of the hard-HP (HHP) ceiling, not true max. */
 public class LowShpTrigger implements GuardTrigger {
     private final double threshold;
     private String lastReason = "";
@@ -21,10 +13,6 @@ public class LowShpTrigger implements GuardTrigger {
 
     @Override
     public boolean check(GuardContext ctx) {
-        // Both fractions are live "hp" meter bar segments sharing the same denominator (true
-        // max), so soft/hard = softFrac/hardFrac needs no tooltip data at all - only the chat
-        // message's raw numbers below use getCurrentHP()/getMaxHP(), which can silently stay
-        // stale/-1 all session if nothing ever hovers the HP bar.
         double hardFrac = NUtils.getHPFraction();
         double softFrac = NUtils.getSoftHPFraction();
         if (softFrac >= 0 && hardFrac > 0 && softFrac < hardFrac * threshold) {

@@ -11,9 +11,7 @@ public class SelectFlowerAction implements Action
     String opt;
     java.util.List<String> optCandidates = null;
 
-    // Which candidate actually matched a real petal, set by run() when optCandidates was used -
-    // lets a caller with several untested guesses (e.g. Forager) learn and remember which one
-    // was real. Null until run() completes, and stays null for the single-known-string form.
+    // Which candidate actually matched a real petal, set by run() when optCandidates was used.
     private String matchedOpt = null;
 
     Object target;
@@ -33,10 +31,7 @@ public class SelectFlowerAction implements Action
         this.target = gob;
     }
 
-    /**
-     * As SelectFlowerAction(String, Gob), but tries several candidate flower-menu option strings
-     * in priority order rather than one exact known string - see NFlowerMenu.chooseOpt(List).
-     */
+    /** As SelectFlowerAction(String, Gob), but tries several candidate option strings in priority order. */
     public SelectFlowerAction(java.util.List<String> optCandidates, Gob gob)
     {
         this.optCandidates = optCandidates;

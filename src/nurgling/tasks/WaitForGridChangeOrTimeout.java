@@ -6,16 +6,7 @@ import haven.MCache;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 
-/**
- * Waits for a teleport-style travel (e.g. hearth fire) to actually land: either the player's
- * grid changes to a different grid that has finished rendering (a genuine teleport happened
- * and the destination is now usable), or a timeout elapses with no grid change at all - which
- * happens when the destination is close enough that travel doesn't cross into a new grid, so
- * there is nothing else to detect and wait for. Uses wall-clock time for the timeout rather
- * than a tick count, since tick rate varies 60-144Hz foregrounded vs 5Hz backgrounded and a
- * tick-based budget would make the same real-world wait take wildly different amounts of time
- * depending on window focus.
- */
+/** Waits for a teleport-style travel to land (grid change + render-ready) or a wall-clock timeout, since a nearby destination may never cross into a new grid at all. */
 public class WaitForGridChangeOrTimeout extends NTask {
     private final NGameUI gui;
     private final long beforeGridId;
@@ -45,10 +36,7 @@ public class WaitForGridChangeOrTimeout extends NTask {
 
         long currentGridId = gui.ui.sess.glob.map.getgridt(tc).id;
         if (currentGridId != beforeGridId) {
-            // Confirmed teleport - only declare done once the new grid is actually render-ready,
-            // so callers don't act on a destination that hasn't finished loading yet. Falls back
-            // to the timeout if the grid itself never reports ready, same reasoning as
-            // WaitForMapLoadNoCoord's timeout.
+            // Only declare done once the new grid is actually render-ready.
             for (MCache.Grid grid : gui.map.glob.map.grids.values()) {
                 if (grid.id == currentGridId) {
                     for (MCache.Grid.Cut cut : grid.cuts) {

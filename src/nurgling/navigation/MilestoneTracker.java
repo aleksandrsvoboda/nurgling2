@@ -12,61 +12,35 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.tools.MilestoneRegistry;
 
-/**
- * Records milestone (signpost) travel: the player explicitly arms recording on a specific
- * milestone gob (Ctrl+right-click it -&gt; "Record Milestone", see
- * {@code nurgling.contextmenu.RecordMilestoneAction}), then travels it normally (the in-game
- * dialog's "Travel" button) - the resulting teleport is detected and logged into
- * {@link MilestoneRegistry}.
- * <p>
- * This replaced an earlier always-on design that watched every right-click on every
- * milestone-named gob automatically. That was dropped by direct request - it fired on every
- * incidental milestone interaction, not just ones the player actually wanted recorded, and every
- * teleport observed afterward (however unrelated) had to be plausibly attributed back to
- * whichever milestone was clicked most recently. Arming is now the deliberate, single source of
- * "what am I trying to record" - once armed, the class still just watches for the next large
- * player-position jump (a real Travel teleport, as opposed to "Follow" which walks there) and
- * settles non-blockingly across several ticks before recording, since a milestone jump can land
- * somewhere far more expensive to load than an adjacent grid.
- */
+/** Records milestone (signpost) travel: player arms a specific gob, then travels it; the resulting teleport is logged into {@link MilestoneRegistry}. */
 public class MilestoneTracker {
 
     private static final long CHECK_INTERVAL_MS = 100;
 
-    // If armed but no qualifying teleport happens within this window, recording is abandoned -
-    // the player likely decided not to travel, or armed the wrong gob. Generous since arming is
-    // now a deliberate one-off action, not something that needs to defend against firing on
-    // every incidental click.
+    // Abandon recording if no qualifying teleport happens within this window of arming.
     private static final long ARM_TIMEOUT_MS = 60_000;
 
-    // Non-blocking settle window after a teleport is detected, before giving up on sessloc ever
-    // reflecting the new segment and just trusting whatever it currently is.
+    // Non-blocking settle window after a teleport before trusting sessloc as-is.
     private static final long SETTLE_TIMEOUT_MS = 5_000;
 
-    // A genuine Travel teleport is a server-driven instantaneous position jump - ordinary
-    // movement (even sprinting) can't cover this far within one CHECK_INTERVAL_MS tick. World
-    // units (same scale as Gob.rc / MCache.tilesz, ~11 units/tile) - comfortably above sprint
-    // speed, tune against a real teleport/Follow-walk once tested live.
+    // World units a position jump must exceed to count as a teleport, not ordinary movement.
     private static final double TELEPORT_DELTA_THRESHOLD = 100.0;
 
     private long lastCheckTime = 0;
     private Coord2d lastPlayerRc = null;
 
-    // The armed milestone, set by RecordMilestoneAction.performUi() via arm(). Cleared once a
-    // teleport is detected (moves into the pending/* fields below) or the arm window times out.
+    // The armed milestone; cleared once a teleport is detected or the arm window times out.
     private Gob armedGob = null;
     private MilestoneRegistry.Location armedSrcLocation = null;
     private long armedAt = 0;
 
-    // Set once a qualifying teleport is detected while armed, while non-blockingly waiting for
-    // sessloc to settle onto the new segment.
+    // Set once a qualifying teleport is detected, while waiting for sessloc to settle.
     private String pendingHash = null;
     private String pendingGobName = null;
     private MilestoneRegistry.Location pendingSrcLocation = null;
     private long pendingSince = 0;
 
-    /** Arms recording on this gob - called from the UI thread by RecordMilestoneAction. The next
-     *  qualifying teleport (not the next grid-boundary walk) gets attributed to it. */
+    /** Arms recording on this gob; the next qualifying teleport gets attributed to it. */
     public void arm(Gob milestoneGob) {
         NGameUI gui = NUtils.getGameUI();
         if (gui == null || milestoneGob == null || milestoneGob.ngob == null) {
@@ -116,11 +90,7 @@ public class MilestoneTracker {
         Coord2d currentRc = player.rc;
 
         if (pendingHash != null) {
-            // Resolve the player's own CURRENT position via the same authoritative gridinfo
-            // lookup used for the milestone's own location (resolveLocation), rather than
-            // gui.mmap.sessloc - SessionLocator (what sessloc comes from) doesn't actually pick
-            // the grid the player is standing in, it returns whichever loaded grid happens to
-            // resolve first, so using it here recorded the wrong destination (reported live).
+            // Use the same authoritative gridinfo lookup as the milestone's own location, not gui.mmap.sessloc.
             MilestoneRegistry.Location destLoc = resolveLocation(gui, currentRc);
             boolean segmentChanged = destLoc != null && destLoc.seg != pendingSrcLocation.seg;
             boolean timedOut = (now - pendingSince) >= SETTLE_TIMEOUT_MS;
@@ -157,18 +127,7 @@ public class MilestoneTracker {
         lastPlayerRc = currentRc;
     }
 
-    /** Resolves an arbitrary absolute world position into a durable, cross-session Location
-     *  (segment id + segment-tile coord) via {@code MapFile.gridinfo} - the same lookup
-     *  {@code haven.MiniMap.MapLocator} uses to resolve the *player's own* live position
-     *  (src/haven/MiniMap.java:153-171), just generalized to an arbitrary Coord2d instead of the
-     *  map view's current center. This replaced an earlier version that instead approximated a
-     *  gob's location via delta math against the live sessloc (target.rc - player.rc, converted
-     *  to a tile offset from sessloc.tc) - reported live as consistently wrong ("not anywhere
-     *  close to where it should be"), because that math has no actual basis: sessloc.tc is a
-     *  segment-space coordinate while Gob.rc is an unrelated live-session MCache-space one, and
-     *  nothing ties their origins together the way that approximation assumed. Resolving through
-     *  MapFile.gridinfo (which is what actually records where each loaded grid sits within a
-     *  segment) is the real, authoritative conversion - not an approximation. */
+    /** Resolves an arbitrary world position into a durable, cross-session Location via {@code MapFile.gridinfo}. */
     private static MilestoneRegistry.Location resolveLocation(NGameUI gui, Coord2d worldPos) {
         if (gui.mmap == null || gui.map == null || gui.map.glob == null) {
             return null;

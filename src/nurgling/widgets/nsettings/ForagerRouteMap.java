@@ -21,38 +21,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Small, dedicated terrain-only map for creating/editing a {@link ForagerPath} directly, rather
- * than overlaying a route on the real map (which always shows the player, other gobs, and grid
- * lines - none of which help while confirming a route "sees everything" it should). Reuses
- * {@link NMiniMap}'s real terrain rendering ({@link #drawmap}) but skips every other layer
- * (icons/markers/player/grid/view-radius) via a custom {@link #drawparts} override, and adds its
- * own waypoint/view-zone/exclusion overlays and mouse handling on top.
- * <p>
- * Interaction: plain left-click on empty space adds a waypoint at the end of the route;
- * left-click-and-drag an existing waypoint's node moves it; plain right-click one deletes it.
- * Shift+left-click-and-drag paints tiles into the route's Exclusion set (a brush, sized to match
- * the viewable-zone box - not a fixed rectangle, tiles accumulate as the button stays held);
- * Shift+right-click-and-drag erases them instead. A grey square tracks the mouse at all times
- * (only while actually over this widget) to show the brush footprint. Free pan (drag empty
- * space) and zoom (scroll) both work normally, same as any other minimap.
- */
+/** Dedicated terrain-only map for editing a {@link ForagerPath} - skips the real map's gob/player/grid clutter and adds its own waypoint/view-zone/exclusion overlays and mouse handling on top of {@link NMiniMap}'s terrain rendering. */
 public class ForagerRouteMap extends NMiniMap {
 
     private ForagerPath route;
 
-    /** Fired after any edit (add/move/delete waypoint, paint/erase exclusion tiles) so the
-     *  owning panel can mark its state dirty and know to persist on save. */
+    /** Fired after any edit so the owning panel can mark its state dirty and persist on save. */
     public Runnable onChange = null;
 
-    /** Set by the owning panel - invoked when the on-map "discard unsaved changes" button (top
-     *  right corner, only shown while dirty) is clicked. */
+    /** Invoked when the on-map "discard unsaved changes" button is clicked. */
     public Runnable onResetRequested = null;
 
-    // Whether route has live edits (waypoint/exclusion/cliff-toggle) not yet reflected in the
-    // last load()/setRoute() baseline - drives the on-map reset button's visibility. Deliberately
-    // scoped to just this widget's own edits, not the caps text fields elsewhere in the panel
-    // (those already follow the panel-wide Save/Cancel convention).
+    // Whether route has unsaved edits not yet reflected in the last load()/setRoute() baseline.
     private boolean dirty = false;
 
     private int draggingWaypointIndex = -1;
@@ -62,26 +42,19 @@ public class ForagerRouteMap extends NMiniMap {
     private Coord hoverC = null;
 
     public static final int DEFAULT_BRUSH_SIZE_TILES = 10;
-    // Independent of viewZoneTileSize() - user-adjustable, only used while the Exclusion brush
-    // is active (Shift held). The un-shifted cursor preview still uses viewZoneTileSize().
+    // User-adjustable brush size, independent of viewZoneTileSize().
     private int brushSizeTiles = DEFAULT_BRUSH_SIZE_TILES;
 
     public ForagerRouteMap(Coord sz, MapFile file) {
         super(sz, file);
-        // Without an initial location, base MiniMap's dloc (what drawmap() actually renders)
-        // stays null forever - tick() only ever resolves it via center()/follow(), neither of
-        // which anything else here calls (unlike NCornerMiniMap, which does this same call in
-        // its own constructor). follow() just gives an initial player-centered view; the base
-        // class's own drag handling already flips follow=false the moment the user pans away
-        // (MiniMap.mousemove), so this doesn't fight free pan/zoom afterward.
+        // Without an initial location, dloc stays null forever until tick() resolves it via follow().
         NGameUI gui = NUtils.getGameUI();
         if (gui != null && gui.map != null) {
             follow(new MapLocator(gui.map));
         }
     }
 
-    /** For edits the panel makes directly to the route model outside this widget (currently just
-     *  the Avoid cliffs checkbox) - same unsaved-changes bookkeeping as an in-map edit. */
+    /** For edits the panel makes directly to the route model outside this widget (e.g. Avoid cliffs). */
     public void markDirty() {
         dirty = true;
     }
@@ -97,21 +70,14 @@ public class ForagerRouteMap extends NMiniMap {
         return route;
     }
 
-    /** Same add-a-waypoint behavior as a plain left-click on this widget (see {@link #clickloc}),
-     *  reachable from outside it - lets NMapView's Alt+Left-click hook add a waypoint here from a
-     *  real-world click while this route is the one active in Forager Settings' Routes editor. */
+    /** Adds a waypoint from a real-world click (NMapView's Alt+Left-click hook). */
     public void addWaypointFromWorld(MiniMap.Location loc) {
         if (route == null) return;
         route.addWaypoint(new ForagerWaypoint(loc));
         notifyChanged();
     }
 
-    /** Same left-click-to-splice behavior as this widget's own 2D-map hit-test path
-     *  (unsplicedMilestoneSourceAt()/spliceMilestone()) - reachable from NMapView for a
-     *  real-world milestone gob click while this route is the active editor (a single-destination
-     *  milestone splices immediately, a multi-destination one opens the same chooser dropdown).
-     *  Returns false (does nothing) if hash isn't a recorded, currently-unspliced milestone, so
-     *  the caller knows to let the click fall through to normal behavior instead. */
+    /** Splices a milestone from a real-world gob click; returns false if hash isn't a recorded, unspliced milestone. */
     public boolean spliceMilestoneFromWorld(String hash) {
         if (hash == null || route == null || isMilestoneSpliced(hash)) return false;
         if (MilestoneRegistry.getMilestone(hash) == null) return false;
@@ -119,9 +85,7 @@ public class ForagerRouteMap extends NMiniMap {
         return true;
     }
 
-    /** Same in-place, metadata-preserving move as this widget's own 2D drag (see mousemove) -
-     *  called from NMapView when a Forager waypoint node is dragged in the real 3D view instead.
-     *  Milestone anchors aren't repositionable there either, matching the 2D restriction. */
+    /** Moves a waypoint from a real-world drag in NMapView; milestone anchors aren't repositionable. */
     public void moveWaypointFromWorld(int index, MiniMap.Location loc, boolean commit) {
         if (route == null || index < 0 || index >= route.waypoints.size()) return;
         ForagerWaypoint old = route.waypoints.get(index);
@@ -133,17 +97,12 @@ public class ForagerRouteMap extends NMiniMap {
         if (commit) notifyChanged();
     }
 
-    /** Called by the owning panel right after a successful save - clears the unsaved-changes
-     *  indicator without touching route/waypoints/exclusion state (unlike setRoute(), this isn't
-     *  a reload, currentRoute is still the same object, it's just no longer ahead of disk). */
+    /** Clears the unsaved-changes indicator after a successful save. */
     public void markClean() {
         dirty = false;
     }
 
-    // paintOrEraseAt() does an O(size^2) tile loop on every mousemove while dragging - unbounded,
-    // a user-typed value here could stall the UI thread for as long as the brush is held (e.g.
-    // 1000 -> 1,000,000 Coord/HashSet ops per mousemove). 200 caps the worst case at 40,000
-    // tiles/call, the same per-frame budget this codebase already treats as acceptable elsewhere.
+    // Caps paintOrEraseAt's O(size^2) tile loop so a huge brush can't stall the UI thread.
     private static final int MAX_BRUSH_SIZE_TILES = 200;
 
     public void setBrushSizeTiles(int tiles) {
@@ -167,11 +126,7 @@ public class ForagerRouteMap extends NMiniMap {
         }
     }
 
-    // Terrain only, plus this widget's own overlays - deliberately skips drawmarkers/drawicons
-    // (gob icons), drawparty (player), drawgrid(GOut) (grid-line overlay), and drawview (the
-    // "explored view radius" box) so this widget's look never depends on the user's other
-    // minimap settings (NConfig.Key.showGrid/showView are global toggles shared by every minimap
-    // instance - just never calling the methods that read them is simpler and always-off here).
+    // Terrain + this widget's own overlays only - skips gob icons/player/grid/view-radius layers.
     @Override
     public void drawparts(GOut g) {
         drawmap(g);
@@ -185,17 +140,10 @@ public class ForagerRouteMap extends NMiniMap {
 
     private static final int TILE_SQUARE_ALPHA = 110;
 
-    // Marks a waypoint that has one or more attached steps (Ctrl+right-click to edit) - takes
-    // priority over the usual active/queued colors so a route's "special" stops are obvious at a
-    // glance, but still yields to the drag-in-progress color.
+    // Marks a waypoint with attached steps; takes priority over the usual active/queued colors.
     private static final Color STEPS_COLOR = new Color(40, 200, 90);
 
-    // Deliberately the exact same rendering NMiniMap.drawQueuedWaypoints already uses for the
-    // real map's alt+left-click movement-queue waypoints (dashed crawling legs, circular numbered
-    // plates, a pulsing ring on the route's start point) - reused via NMiniMap's own dashLine/
-    // ringOutline/getWaypointLabel helpers (made protected for this) rather than reinvented, per
-    // direct instruction. Fixed pixel-size nodes (not tied to tile size) so they stay comfortably
-    // clickable regardless of zoom level.
+    // Reuses NMiniMap's queued-waypoint rendering (dashLine/ringOutline/getWaypointLabel).
     private void drawRouteWaypoints(GOut g) {
         if (route == null || dloc == null || route.waypoints.isEmpty()) return;
         int margin = UI.scale(12);
@@ -211,11 +159,7 @@ public class ForagerRouteMap extends NMiniMap {
                 continue;
             }
             Coord c = toScreen(wp.tc);
-            // dashLine/fellipse (unlike image()-based draws) don't respect the ancestor GOut
-            // clip chain, so - same as the view-zone/exclusion/cliff boxes - they need an
-            // explicit on-screen check derived from g's actual visible window, not just this
-            // widget's full declared size (which can be bigger than what's actually visible
-            // when this widget is partially scrolled out of the settings panel's Scrollport).
+            // dashLine/fellipse don't respect the ancestor GOut clip chain, so this needs an explicit onScreen check.
             if (prevC != null && (onScreen(g, prevC, margin) || onScreen(g, c, margin))) {
                 boolean milestoneLeg = wp.milestoneHash != null && wp.milestoneHash.equals(prevWp.milestoneHash);
                 Color lc = milestoneLeg ? MILESTONE_ACTIVE_LINK_COLOR
@@ -278,14 +222,7 @@ public class ForagerRouteMap extends NMiniMap {
         g.frect(c.sub(r, r), new Coord(r * 2, r * 2));
     }
 
-    /** Recorded milestones (MilestoneRegistry) not yet spliced into the current route: a static
-     *  marker at the milestone's own location, one at each recorded destination (whichever are
-     *  currently on screen), and a blue dashed line between a source/destination pair when both
-     *  are visible at once - purely informational until the source marker is left-clicked (see
-     *  unsplicedMilestoneSourceAt()/spliceMilestone()), at which point it becomes two real,
-     *  linked waypoints in the route and drawRouteWaypoints() takes over rendering it instead
-     *  (in the active yellow color) - so a spliced milestone's original entry is skipped here
-     *  entirely to avoid drawing it twice. */
+    /** Draws unspliced recorded milestones; a spliced one is rendered by drawRouteWaypoints() instead. */
     private void drawMilestones(GOut g) {
         if (dloc == null) return;
         int margin = UI.scale(12);
@@ -308,13 +245,7 @@ public class ForagerRouteMap extends NMiniMap {
                 Coord destC = toScreen(destLoc.tc);
                 boolean destOnScreen = onScreen(g, destC, margin);
 
-                // Used to require BOTH ends on screen at once to draw the link at all, so it only
-                // ever appeared zoomed out (or panned) far enough to fit the whole thing in view.
-                // Same OR (not AND) leniency drawRouteWaypoints() already uses for route legs
-                // just below - dashLine() clips to this widget's own declared size, not to g's
-                // actual visible window within the settings panel's Scrollport (see that method's
-                // comment), so this still needs an onScreen check on at least one end rather than
-                // dropping it outright; it just no longer needs both.
+                // OR (not AND) so the link still draws once either end is on screen, not only when both are.
                 if (srcC != null && (srcOnScreen || destOnScreen)) {
                     g.chcolor(MILESTONE_LINK_COLOR.getRed(), MILESTONE_LINK_COLOR.getGreen(),
                             MILESTONE_LINK_COLOR.getBlue(), 200);
@@ -332,8 +263,7 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    /** True once a milestone has been spliced into the current route (see spliceMilestone()) -
-     *  both its anchor waypoints carry this hash. */
+    /** True once a milestone's anchor waypoints carry this hash. */
     private boolean isMilestoneSpliced(String hash) {
         if (route == null) return false;
         for (ForagerWaypoint wp : route.waypoints) {
@@ -342,9 +272,7 @@ public class ForagerRouteMap extends NMiniMap {
         return false;
     }
 
-    /** Hit-test against an unspliced milestone's own (source) marker only - destinations aren't
-     *  independently clickable, and a milestone that's already spliced into the route is no
-     *  longer drawn by drawMilestones() at all (drawRouteWaypoints/waypointIndexAt own it then). */
+    /** Hit-test against an unspliced milestone's source marker only. */
     private String unsplicedMilestoneSourceAt(Coord c) {
         if (dloc == null) return null;
         double bestDist = UI.scale(MILESTONE_ICON_RADIUS + 3);
@@ -366,11 +294,7 @@ public class ForagerRouteMap extends NMiniMap {
         return best;
     }
 
-    /** Left-click on an unspliced milestone's source marker: splices it into the route as two
-     *  linked waypoints (the milestone's own location, then its destination) appended after
-     *  whatever the route's current last waypoint is - so any further waypoint the user adds
-     *  naturally continues from the destination side, matching normal append-at-end semantics.
-     *  A single-destination milestone splices immediately; a multi-destination one asks first. */
+    /** Splices a milestone into the route as two linked waypoints appended at the end. */
     private void spliceMilestone(String hash) {
         Map<String, Object> entry = MilestoneRegistry.getMilestone(hash);
         if (entry == null || route == null) return;
@@ -403,39 +327,22 @@ public class ForagerRouteMap extends NMiniMap {
         notifyChanged();
     }
 
-    /** Right-click on either anchor of a spliced milestone: removes *both* linked waypoints
-     *  (not just the one clicked) and reverts the milestone to its unspliced preview - the blue
-     *  dashed "not part of the route" rendering drawMilestones() already gives any milestone with
-     *  no matching waypoints in the route. Plain right-click-delete on a normal waypoint still
-     *  only removes that one waypoint, unchanged. */
+    /** Right-click on either spliced anchor removes both linked waypoints, not just the one clicked. */
     private void unspliceMilestone(String hash) {
         if (route == null) return;
         route.waypoints.removeIf(wp -> hash.equals(wp.milestoneHash));
     }
 
-    // Same box the real map draws around the player to show explored/render distance
-    // (NMiniMap.drawview) - same geometry (grid-aligned, 9 small-grids wide/tall), just recomputed
-    // per waypoint instead of the player, and in a distinct dark-blue tint. Recomputed fresh every
-    // frame from each waypoint's current position, so dragging a waypoint moves its zone with it.
+    // Same explored/render-distance box NMiniMap.drawview draws for the player, recomputed per waypoint.
     private static final Color VIEWZONE_BG = new Color(25, 60, 170, 70);
     private static final Color VIEWZONE_BORDER = new Color(25, 60, 170, 180);
 
-    /** Tile footprint of the same "explored/render distance" box the real map draws around the
-     *  player (NMiniMap.drawview) - 9 small-grids square. Shared by the view-zone rendering below
-     *  and the Exclusion brush, which the user asked to be sized the same as the visible area. */
+    /** Tile footprint of the real map's explored/render-distance box - shared by the view-zone rendering and the Exclusion brush. */
     private Coord viewZoneTileSize() {
         return _sgridsz.mul(9).div(MCache.tilesz.floor());
     }
 
-    /** Grid-snapped view-zone box (ul, br - in dloc-relative segment-tile space, br already
-     *  covers the far edge) for an arbitrary segment-tile point - same formula NMiniMap.drawview()
-     *  uses for the player, just parameterized so both a real waypoint (drawWaypointViewZones)
-     *  and the hover cursor preview (drawBrushCursor) snap to the exact same grid the real
-     *  view-zone box would land on, rather than the cursor following the mouse smoothly while
-     *  the real zone jumps in whole grid-cell steps - lining up several waypoints' zones edge to
-     *  edge is much easier when the preview already shows where they'll actually land. Returns
-     *  null if tc's segment doesn't match the live sessloc (nothing to resolve world coords
-     *  against). */
+    /** Grid-snapped view-zone box for an arbitrary tile - same formula NMiniMap.drawview() uses for the player. */
     private Coord[] viewZoneBoxTiles(long seg, Coord tc) {
         if (sessloc == null || seg != sessloc.seg.id) return null;
         Coord2d worldC = tc.sub(sessloc.tc).mul(MCache.tilesz).add(MCache.tilehsz);
@@ -451,10 +358,7 @@ public class ForagerRouteMap extends NMiniMap {
         for (ForagerWaypoint wp : route.waypoints) {
             if (wp.seg != dloc.seg.id) continue;
 
-            // Only draw a waypoint's zone if the waypoint itself is on screen - same check
-            // drawRouteWaypoints uses for the waypoint marker. Without this, a waypoint sitting
-            // just off-screen still had its zone square (much bigger than the marker) poking
-            // into view, visible even though "you can't see that waypoint on the map".
+            // Only draw if the waypoint itself is on screen, not just its (much bigger) zone box.
             Coord wpC = toScreen(wp.tc);
             if (!onScreen(g, wpC, UI.scale(12))) continue;
 
@@ -473,15 +377,7 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    /** Intersects [ul, br) with g's own current clip window (translated into this widget's local
-     *  coordinate space), or null if there's no overlap. Needed because fill/outline primitives
-     *  (frect/rect) don't get clipped by the ancestor GOut chain the way image() draws do -
-     *  without this, a rect far bigger than this widget (the viewable-zone/brush boxes can be,
-     *  at ~81 tiles) visibly bleeds into whatever's drawn around it. Deriving the window from g
-     *  (g.ul/g.br minus g.tx) rather than hardcoding [0,0]-[sz.x,sz.y] matters because this
-     *  widget itself can be partially scrolled out of the settings panel's own Scrollport - the
-     *  visible portion can be smaller than this widget's full declared size, especially at the
-     *  bottom edge. */
+    /** Intersects [ul, br) with g's actual clip window - frect/rect don't respect the GOut clip chain like image() does. */
     private Coord[] clampRect(GOut g, Coord ul, Coord br) {
         Coord winUl = g.ul.sub(g.tx);
         Coord winBr = g.br.sub(g.tx);
@@ -491,18 +387,7 @@ public class ForagerRouteMap extends NMiniMap {
         return new Coord[]{cul, cbr};
     }
 
-    /** Whether point c (plus margin) falls within g's actual visible window - the same "derive
-     *  from g.ul/g.br/g.tx, not this widget's full declared sz" reasoning as clampRect, for
-     *  draw calls (fellipse/line-based dashLine, unlike image()) that skip entirely rather than
-     *  partially-clip, so route waypoint markers/legs don't bleed past a scrolled-off bottom
-     *  edge the same way the view-zone/exclusion/cliff boxes did before clampRect existed. */
-    /** World segment-tile coordinate -&gt; on-screen pixel position, this widget's own zoom/pan
-     *  transform applied - the same formula every draw/hit-test method here needs, previously
-     *  repeated verbatim (each with its own locally-recomputed half-size) at every call site. */
-    private Coord toScreen(Coord tc) {
-        return tc.sub(dloc.tc).div(scalef()).add(sz.div(2));
-    }
-
+    /** Whether point c (plus margin) falls within g's actual visible window - same reasoning as clampRect. */
     private boolean onScreen(GOut g, Coord c, int margin) {
         Coord winUl = g.ul.sub(g.tx);
         Coord winBr = g.br.sub(g.tx);
@@ -510,15 +395,12 @@ public class ForagerRouteMap extends NMiniMap {
                 && c.y >= winUl.y - margin && c.y <= winBr.y + margin;
     }
 
-    // Exclusion tiles - freeform brush-painted, not a fixed rectangle (see paintOrEraseAt).
-    //
-    // A single brush application covers ~viewZoneTileSize() tiles (thousands), and a drag stroke
-    // re-applies it on every mousemove - drawing one frect() per individual tile every frame
-    // (as this used to) meant tens of thousands of draw calls per frame after even a short
-    // stroke, which is what was tanking performance. Instead, cache the tile set merged into
-    // horizontal runs (rebuilt only when the set actually changes - see invalidateExclusionCache,
-    // called from paintOrEraseAt - not on every frame), and draw one frect() per run: a solid
-    // painted blob becomes one rect per row instead of one rect per tile.
+    /** World segment-tile coordinate -&gt; on-screen pixel position, this widget's zoom/pan transform applied. */
+    private Coord toScreen(Coord tc) {
+        return tc.sub(dloc.tc).div(scalef()).add(sz.div(2));
+    }
+
+    // Exclusion tiles cached as merged horizontal runs (see invalidateExclusionCache) instead of one frect() per tile per frame.
     private long exclusionCacheSeg = Long.MIN_VALUE;
     private boolean exclusionDirty = true;
     private final List<int[]> exclusionRuns = new ArrayList<>(); // {y, x1, x2} inclusive
@@ -549,11 +431,7 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    /** Merges a tile set into horizontal runs ({y, x1, x2}, x2 inclusive) for cheap batched
-     *  drawing - one frect() per contiguous row-run instead of one per tile. Shared by the
-     *  Exclusion overlay and the cliff/cliff-safe overlays below; expensive to build (a full sort)
-     *  for a large set, so callers must only call this when the underlying tile set has actually
-     *  changed, not every frame. */
+    /** Merges a tile set into horizontal runs for cheap batched drawing - callers must only rebuild on actual change, not every frame. */
     private static void buildRuns(Set<Coord> tiles, List<int[]> out) {
         out.clear();
         if (tiles.isEmpty()) return;
@@ -584,15 +462,12 @@ public class ForagerRouteMap extends NMiniMap {
         }
     }
 
-    /** Paints (or, with erase=true, removes) every tile in the brush footprint (centered on the
-     *  tile under screen point c) in the route's exclusion set for whichever segment that tile
-     *  resolves to. Sized to the user-adjustable brush size (setBrushSizeTiles), not the
-     *  viewable-zone box - those are independent now. */
+    /** Paints or erases the brush footprint centered on the tile under screen point c. */
     private void paintOrEraseAt(Coord c, boolean erase) {
         Location loc = xlate(c);
         if (loc == null || route == null) return;
         Set<Coord> tiles = erase ? route.exclusionTiles.get(loc.seg.id) : null;
-        if (erase && tiles == null) return; // nothing painted here yet - skip the footprint loop entirely
+        if (erase && tiles == null) return; // nothing painted here yet
         int half = brushSizeTiles / 2;
         for (int dy = -half; dy <= half; dy++) {
             for (int dx = -half; dx <= half; dx++) {
@@ -607,14 +482,7 @@ public class ForagerRouteMap extends NMiniMap {
         invalidateExclusionCache();
     }
 
-    /** Square tracking the mouse - shown at all times while hovering the map, so the brush's
-     *  reach is always legible before clicking. While Shift isn't held (i.e. clicking here would
-     *  act on waypoints, not the Exclusion brush) it previews the viewable-zone box a waypoint
-     *  placed here would get - grid-snapped exactly like the real thing (viewZoneBoxTiles), not
-     *  smoothly following the cursor, so lining up several waypoints' zones edge to edge is a
-     *  matter of watching the preview snap into place rather than guessing. While Shift is held
-     *  it switches to the actual, user-adjustable brush size (unsnapped - a brush paints wherever
-     *  you point it), tinted grey (about to paint) or red (about to erase, also holding right-click). */
+    /** Square tracking the mouse - previews the waypoint view-zone box, or (Shift held) the Exclusion brush footprint. */
     private void drawBrushCursor(GOut g) {
         if (hoverC == null || dloc == null || route == null) return;
         Location loc = xlate(hoverC);
@@ -649,13 +517,7 @@ public class ForagerRouteMap extends NMiniMap {
         g.chcolor();
     }
 
-    // On-map "discard unsaved changes" button, top-right corner, only shown while dirty (per
-    // direct feedback - the previous version of this lived as a permanent IButton up in the
-    // panel's route row, which was both an odd place for it and always visible whether or not
-    // there was anything to discard). Manually drawn/hit-tested rather than a real child Widget
-    // because MiniMap.draw() deliberately never runs the normal child-draw traversal (only
-    // drawparts()) - same reason every other overlay in this widget (waypoints, brush cursor,
-    // exclusion tiles) is hand-drawn instead of being a child Widget.
+    // On-map "discard unsaved changes" button, top-right corner, only shown while dirty.
     private static final int RESET_BTN_MARGIN = 6;
 
     private Coord resetButtonUL() {
@@ -684,10 +546,7 @@ public class ForagerRouteMap extends NMiniMap {
         return super.tooltip(c, prev);
     }
 
-    // Without this, hoverC keeps whatever value it last had from mousemove - once the mouse
-    // leaves this widget (moves elsewhere in the settings panel) mousemove simply stops firing,
-    // so the brush cursor stayed drawn at that stale last-known position forever instead of
-    // disappearing.
+    // Clears hoverC once the mouse leaves this widget, so the brush cursor stops drawing at a stale position.
     @Override
     public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
         if (!hovering) {
@@ -713,9 +572,7 @@ public class ForagerRouteMap extends NMiniMap {
         return best;
     }
 
-    /** Ctrl+right-click on a waypoint - opens its attached-steps popout (WaypointStepsWindow),
-     *  editing the waypoint's steps list directly. Plain right-click (no Ctrl) still deletes,
-     *  handled separately below. */
+    /** Ctrl+right-click on a waypoint opens its attached-steps popout (WaypointStepsWindow). */
     private void openWaypointSteps(int idx) {
         ForagerWaypoint wp = route.waypoints.get(idx);
         WaypointStepsWindow win = new WaypointStepsWindow(wp, this::notifyChanged);
@@ -784,8 +641,7 @@ public class ForagerRouteMap extends NMiniMap {
         if (draggingWaypointIndex >= 0) {
             Location loc = xlate(ev.c);
             if (loc != null && route != null) {
-                // Preserve the waypoint's attached steps/fail-action across the move - it's the
-                // same logical waypoint, just repositioned, not a fresh one.
+                // Preserve the waypoint's attached steps/fail-action across the move.
                 ForagerWaypoint old = route.waypoints.get(draggingWaypointIndex);
                 ForagerWaypoint moved = new ForagerWaypoint(loc);
                 moved.steps = old.steps;
@@ -826,9 +682,7 @@ public class ForagerRouteMap extends NMiniMap {
         return super.mouseup(ev);
     }
 
-    // Fires only on a genuine click (base MiniMap already filters out anything that moved more
-    // than its own drag threshold before calling this) - the click-vs-pan distinction plain
-    // left-click-to-add needs comes for free from that, no separate threshold logic needed here.
+    // Fires only on a genuine click - base MiniMap already filters out drags before calling this.
     @Override
     public boolean clickloc(Location loc, int button, boolean press) {
         if (!press && button == 1 && !ui.modshift && route != null) {

@@ -3,12 +3,7 @@ package nurgling.guarding;
 import haven.Coord2d;
 import haven.Gob;
 
-/** Fires if the character hasn't moved more than a configured distance within a configured
- *  timeout - the most common real cause is PathFinder repeatedly retrying a cliff climb (or
- *  snagging on an object right at a cliff face) without ever giving up. All normal stationary
- *  moments (picking a flower, a brief gate wait) should finish well under a sane timeout.
- *  Tracked across check() calls on this instance, so state lives on the trigger, not the
- *  context - each Guard gets its own StuckTrigger instance for the run. */
+/** Fires if the character hasn't moved more than a configured distance within a configured timeout; state lives on this per-Guard instance across check() calls. */
 public class StuckTrigger implements GuardTrigger {
     private final double distanceThreshold;
     private final long timeoutMs;

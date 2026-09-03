@@ -491,9 +491,7 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/goat/goat", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/troll/troll", 200));
         NAreaRad ratRad = new NAreaRad("gfx/kritter/rat/rat", 200);
-        // Plain Rat isn't actually dangerous - DangerousAnimalTrigger used to hardcode this
-        // exact exclusion; now it just reads this flag like any other ring, so the default
-        // list needs to set it explicitly to keep a brand-new config's behavior unchanged.
+        // Plain Rat isn't dangerous - explicit here so a brand-new config's default animal list starts correct.
         ratRad.dangerous = false;
         arearadprop.add(ratRad);
         arearadprop.add(new NAreaRad("gfx/kritter/eagle/eagle", 200));
@@ -734,14 +732,7 @@ public class NConfig
         }
     }
 
-    /**
-     * Coerces a config value that may already be a Map (deserialized) or a raw JSON String (not
-     * yet parsed) into a Map&lt;String,Object&gt; - the same "is it a Map or a JSON String" check
-     * every flat-global-map-backed-by-one-key config wrapper (e.g. MilestoneRegistry,
-     * StudyDeskConfig) needed before it could read its own top-level key out of it, previously
-     * hand-copied identically in each. Returns an empty map if the value is neither (not yet
-     * configured, or empty).
-     */
+    /** Coerces a config value that may be a Map or a raw JSON String into Map&lt;String,Object&gt;; empty map if neither. */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> getAsMap(Key key)
     {
@@ -786,15 +777,7 @@ public class NConfig
                 synchronized (ctx.config.conf) {
                     ctx.config.conf.put(key, val);
                 }
-                // ctx.config is the per-genus PROFILE instance (ConfigFactory.getConfig() ->
-                // NConfig.getProfileInstance()) - a real, independent NConfig object, separate
-                // from both `current` (global) and ctx.ui.sessionConfig below. NCore.tick()'s
-                // save loop checks THIS instance's own isUpdated()/write() (its own dedicated
-                // per-genus file), not `current`'s - putting the value into its conf map
-                // without marking it dirty here meant it silently never got saved to that file
-                // at all: `current`.write() still fired and looked like a successful save, but
-                // to the wrong (global, not per-world/profile) file. Confirmed live - a Ring
-                // Settings edit showed a "saved" confirmation but reverted on client reload.
+                // ctx.config is a separate per-genus profile instance from current/sessionConfig - must mark it dirty too or its own save loop never persists this.
                 ctx.config.isUpd = true;
             }
             NConfig sc = (ctx.ui != null) ? ctx.ui.sessionConfig : null;
@@ -811,22 +794,7 @@ public class NConfig
 
     public static void needUpdate()
     {
-        // get()/resolveConfig() hand callers the per-session config whenever one's bound
-        // (essentially always during actual gameplay - see resolveConfig()), not `current` - so
-        // a caller that reads a value via get(), mutates it in place (e.g. NRingSettings'
-        // NAreaRad entries), and then calls needUpdate() was marking a config instance that was
-        // never actually touched. Its own session config's isUpd flag stayed false, so NCore's
-        // tick-loop save check (config.isUpdated()/config.write()) never fired - the edit lived
-        // only in memory until the process exited, i.e. never reliably saved.
-        //
-        // Confirmed live for NRingSettings specifically (fixed there by switching to set()
-        // instead, which fans a single key/value out to every relevant instance - the real,
-        // already-correct persistence path). needUpdate() has no key/value to fan out the same
-        // way, only a generic "something changed" signal - so the best general fix, covering
-        // every other get()-then-mutate-in-place caller the same way (there are ~30 of them),
-        // is to mirror the resolved session config's *entire* map into the per-genus profile
-        // instance NCore's save loop actually checks (see set()'s own isUpd fix above for why
-        // that's a different object than both `resolved` and `current`), then mark it dirty too.
+        // A get()-then-mutate-in-place caller only touches the resolved session config, not current - mirror its map into the per-genus profile instance NCore's save loop actually checks, then mark that dirty too.
         NConfig resolved = resolveConfig();
         if (resolved != null)
         {
@@ -1444,13 +1412,7 @@ public class NConfig
     @SuppressWarnings("unchecked")
     private ArrayList<Object> prepareArray(ArrayList<Object> objs)
     {
-        // write()'s own comment already admits the guarantee it documents (never iterate the
-        // map while another thread mutates it) only covers whole-value replacement via set() -
-        // a caller that fetches a list value via get() and then mutates it in place (add/remove)
-        // isn't guarded against at all, and this recurses into nested lists too. Snapshot
-        // defensively before inspecting/iterating rather than risk a ConcurrentModificationException
-        // (or a stale-size IndexOutOfBounds between size() and get(0)) crashing the UI thread over
-        // what is, at worst, one incomplete write of this one value - the next tick retries anyway.
+        // A get()-then-mutate-in-place caller isn't covered by set()'s concurrency guarantee - snapshot defensively to avoid a ConcurrentModificationException/IndexOutOfBounds crashing the UI thread.
         objs = snapshotList(objs);
         if (objs.size() > 0)
         {
@@ -1483,8 +1445,7 @@ public class NConfig
             try {
                 return new ArrayList<>(objs);
             } catch (ConcurrentModificationException ignored) {
-                // Another thread structurally changed it mid-copy - retry a couple times before
-                // giving up on this value for this write cycle.
+                // Another thread structurally changed it mid-copy - retry before giving up.
             }
         }
         return new ArrayList<>();

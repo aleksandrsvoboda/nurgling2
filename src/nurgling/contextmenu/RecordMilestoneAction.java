@@ -6,13 +6,7 @@ import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 
-/**
- * Ctrl+right-click a milestone (signpost) gob -&gt; arms {@link nurgling.navigation.MilestoneTracker}
- * on it, so the next real Travel teleport (not a Follow-walk) gets recorded into
- * {@link nurgling.tools.MilestoneRegistry}. Deliberately manual, not automatic - per direct
- * request, so recording only happens for milestones the player actually wants tracked, instead of
- * on every incidental right-click.
- */
+/** Ctrl+right-click a milestone gob arms {@link nurgling.navigation.MilestoneTracker} to record the next real Travel teleport into {@link nurgling.tools.MilestoneRegistry}. */
 public class RecordMilestoneAction implements GobContextAction {
 
     @Override

@@ -176,13 +176,7 @@ public class BotsInterruptWidget extends Widget {
         {
             for(Gear g: obs)
             {
-                // isInterrupted() only means the thread has been ASKED to stop, not that it
-                // has - interrupt() is cooperative, the thread might not actually notice/unwind
-                // until its next blocking checkpoint. Removing the cog (and its cancel button)
-                // the instant interrupt() is called - as this used to - meant a bot that took a
-                // moment to actually respond (e.g. the safety watchdog firing mid-task) looked
-                // stopped in the UI while still genuinely running in the background, with no
-                // button left to press a second time. Only isAlive() actually means "done".
+                // isInterrupted() only means the thread was ASKED to stop, not that it has - only isAlive() means "done".
                 if(!g.t.isAlive())
                 {
                     // Clear kill list highlight when bot stops

@@ -33,15 +33,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
      *  ring the whole viewport with numbers. */
     private static final int MAX_EDGE_ARROWS = 3;
 
-    /** ROUTE nodes are the normal queue/Forager-route waypoints, colored by index vs. the active
-     *  one (see nodeColor()). DETOUR nodes are Forager's off-path gob-collection breadcrumb trail
-     *  - always a fixed color (see detourColor()), rendered as their own disconnected chain (no
-     *  leg drawn between the last ROUTE node and the first DETOUR one), and never drag-addressable
-     *  or hoverable/pulsed like a ROUTE node. DETOUR_TARGET is the single node at the end of that
-     *  same chain representing the actionable gob currently being walked to/interacted with
-     *  (gui.activeBotDetourTarget) - rendered in activeColor() like a ROUTE node's active
-     *  waypoint, with its own live leg from the player, so "what is Forager actually grabbing
-     *  right now" reads the same way "what waypoint is it heading to" does. */
+    /** ROUTE = normal queue/route waypoints; DETOUR = Forager's off-path breadcrumb trail (fixed color, disconnected chain); DETOUR_TARGET = the gob currently being grabbed, at the trail's end. */
     public enum Kind { ROUTE, DETOUR, DETOUR_TARGET }
 
     /** One queued waypoint, resolved to world coordinates. */
@@ -68,56 +60,27 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
     private Coord2d lastPlayer = null;
     private double lastBuild = 0;
     private volatile List<WNode> screen = Collections.emptyList();
-    // resolve() itself isn't free even when nothing has changed - the activeRouteEditor/
-    // activeBotPath branches allocate and walk every waypoint - and update()/draw2d() each call
-    // it once per frame independently (tick pass then render pass), so without this it ran twice
-    // per frame unconditionally, before the signature check below ever gets a chance to skip the
-    // *expensive* geometry rebuild. update() runs first each frame (NMapView's tick hook, ahead
-    // of the render pass draw2d() is called from), so draw2d() just reuses what update() already
-    // resolved instead of resolving a second time.
+    // Cached by update() (tick pass) so draw2d() (render pass) doesn't re-run the expensive resolve() a second time per frame.
     private List<WNode> lastResolvedNodes = Collections.emptyList();
-    // Whether the nodes resolve() most recently built may be picked up for a 3D-view drag - true
-    // for Forager route editing and the WaypointMovementService queue, false while merely
-    // displaying a running/recording bot's path (read-only; there's no sensible write-back target
-    // for repositioning a waypoint of a route the bot is actively walking). See resolve()/draggable().
+    // Whether the current nodes support a 3D-view drag - true for route editing/the movement queue, false for a read-only bot path. See resolve().
     private volatile boolean draggable = true;
 
-    // Identity of whatever resolve() most recently drew from - the ForagerRouteMap instance, the
-    // running/recording bot's own ForagerPath instance, or QUEUE_SOURCE for the movement queue -
-    // set alongside draggable in resolve(), compared in update() against lastSourceKey (the
-    // source the currently-cached geometry was actually built from). A real source switch (e.g.
-    // Forager Settings' Routes editor turning on) always forces a rebuild this way, even in the
-    // extremely unlikely event the freshly-computed signature collides with the previous one -
-    // belt-and-suspenders alongside the signature check itself, not a replacement for it.
+    // Identity of whatever resolve() most recently drew from, so update() can force a rebuild on a real source switch even if the signature happens to collide.
     private static final Object QUEUE_SOURCE = new Object();
     private volatile Object sourceKey = null;
     private volatile Object lastSourceKey = null;
 
-    // Index (within the current node list) of the "current position" node - 0 for Forager
-    // Settings' Routes editor and WaypointMovementService's queue (neither has a moving "current
-    // position" concept, so the first node is always treated as active, unchanged from before),
-    // or gui.activeBotWaypointIndex for a running bot. Set in resolve(); read by nodeColor()/
-    // nodeAlphaMult() so already-passed nodes render dimmed and the current target stays bright,
-    // instead of only ever the very first node being "active" regardless of progress.
+    // Index of the "current position" node - 0 where there's no moving concept, else gui.activeBotWaypointIndex; read by nodeColor()/nodeAlphaMult().
     private volatile int activeIdx = 0;
-    // Dims an already-passed ROUTE node's ring/leg alpha rather than changing its hue - "stale",
-    // not hidden; the route's own history stays visible, just de-emphasized against the current
-    // target and what's still ahead.
+    // Dims an already-passed ROUTE node's alpha rather than recoloring it.
     private static final double STALE_ALPHA_MULT = 0.35;
 
-    // Forager's off-path gob-collection detour trail (gui.activeBotDetourTrail), resolved
-    // separately from the main route/queue nodes above - see resolveDetourNodes(). Rendered as
-    // its own disconnected chain, always this fixed color, never draggable/hoverable/pulsed.
+    // Forager's off-path detour trail, resolved separately - see resolveDetourNodes(). Fixed color, never draggable/hoverable/pulsed.
     public static Color detourColor() {
         return(new Color(80, 220, 120));
     }
 
-    // Indices (within the current node list) Forager marked as unreachable this run
-    // (gui.activeBotFailedWaypoints) - checked by nodeColor()/nodeAlphaMult() ahead of the
-    // normal active/stale/queued logic, so a skipped waypoint reads as "failed" (red, dimmed)
-    // regardless of where it falls relative to the bot's current progress. Empty for every
-    // source except a running bot (gui.activeBotPath), which is the only one that ever marks a
-    // waypoint unreachable.
+    // Waypoint indices Forager marked unreachable this run (gui.activeBotFailedWaypoints); checked by nodeColor()/nodeAlphaMult() ahead of the normal logic.
     private volatile java.util.Set<Integer> failedIdx = Collections.emptySet();
     private static final double FAILED_ALPHA_MULT = 0.4;
 
@@ -156,11 +119,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         return(Color.WHITE);
     }
 
-    /** Colour of a ROUTE node given its position relative to activeIdx and the current pointer
-     *  state - an already-passed node keeps queuedColor()'s hue (dimmed separately, see
-     *  nodeAlphaMult()), not a distinct "stale" hue, matching "make it transparent" rather than
-     *  recolored. A node Forager marked unreachable this run is the one exception that does get
-     *  its own hue (red), ahead of every other rule including drag/hover. */
+    /** Colour of a ROUTE node given its position relative to activeIdx and the current pointer state; a failed node gets its own hue (red) ahead of every other rule. */
     private Color nodeColor(int idx, long id) {
         if(failedIdx.contains(idx))
             return(failedColor());
@@ -171,10 +130,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         return((idx == activeIdx) ? activeColor() : queuedColor());
     }
 
-    /** Alpha multiplier for a ROUTE node/leg at this index - full brightness at or ahead of
-     *  activeIdx, dimmed behind it; a failed node gets its own (slightly heavier) dimming
-     *  regardless of activeIdx, so a skipped waypoint reads as "skipped" whether it's already
-     *  behind the bot or still ahead of it. */
+    /** Alpha multiplier for a ROUTE node/leg - full brightness at/ahead of activeIdx, dimmed behind it; a failed node gets its own dimming regardless of activeIdx. */
     private double nodeAlphaMult(int idx) {
         if(failedIdx.contains(idx))
             return FAILED_ALPHA_MULT;
@@ -185,15 +141,12 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
      *  Queue resolution
      * ------------------------------------------------------------------ */
 
-    /** True if the nodes resolve() most recently built came from a source that supports being
-     *  dragged in the 3D view - see the {@link #draggable} field. */
+    /** True if the nodes resolve() most recently built support being dragged in the 3D view. */
     public boolean draggable() {
         return draggable;
     }
 
-    /** Forager route/waypoint list -&gt; WNodes, shared by the route-editing and running/recording-
-     *  bot branches of resolve() below - both are just "some ForagerPath," differing only in
-     *  whether dragging one of its waypoints means anything (set by the caller via draggable). */
+    /** Forager route/waypoint list -&gt; WNodes, shared by the route-editing and bot-path branches of resolve() below. */
     private List<WNode> resolveForagerPath(nurgling.routes.ForagerPath path, MiniMap.Location sessloc) {
         if(path == null || path.waypoints.isEmpty())
             return(Collections.emptyList());
@@ -208,9 +161,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         return(ret);
     }
 
-    /** The path loaded/being recorded in an open bot window (e.g. TrufflePigHunter) - checked
-     *  only once gui.activeBotPath itself is already known null (see resolve(), which handles
-     *  that case separately/unconditionally rather than through this method). */
+    /** The path loaded/being recorded in an open bot window (e.g. TrufflePigHunter). */
     private nurgling.routes.ForagerPath resolveBotOrRecordingPath(NGameUI gui) {
         for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
             if(wdg instanceof nurgling.widgets.bots.PathRecordable)
@@ -219,17 +170,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         return null;
     }
 
-    /** Forager's off-path gob-collection detour trail (gui.activeBotDetourTrail - world Coord2d,
-     *  most-recent-last, live-mutated by the bot thread) as DETOUR nodes, plus - if set -
-     *  gui.activeBotDetourTarget (the actionable gob currently being walked to/interacted with)
-     *  as one final DETOUR_TARGET node. The player's own live position is deliberately not
-     *  included here - update()'s player-leg (same mechanism the main route's active waypoint
-     *  uses) supplies that separately, so it's not baked into this list's own signature/chain.
-     *  Only called for gui.activeBotPath specifically (a running bot), never for a merely-open/
-     *  loaded PathRecordable window, which has no live detour of its own. Ids are negative so
-     *  they can never collide with a ROUTE node's list-index id, though it's moot in practice -
-     *  this overlay is never draggable while any DETOUR/DETOUR_TARGET nodes are present (see
-     *  resolve()). */
+    /** Forager's off-path detour trail (gui.activeBotDetourTrail) as DETOUR nodes, plus gui.activeBotDetourTarget as a final DETOUR_TARGET node; ids negative to avoid colliding with ROUTE node ids. */
     private List<WNode> resolveDetourNodes(NGameUI gui) {
         List<Coord2d> trail = gui.activeBotDetourTrail;
         boolean hasTrail = trail != null && !trail.isEmpty();
@@ -240,9 +181,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         int id = -1;
         if(hasTrail) {
             int n = trail.size();
-            // If the target is literally the most recent breadcrumb (e.g. returnToPathViaBreadcrumbs
-            // walking back to it), don't render that position twice - the DETOUR_TARGET node below
-            // already covers it, in its own distinct color.
+            // Don't render the target position twice if it's also the most recent breadcrumb.
             if(target != null && trail.get(n - 1).equals(target))
                 n--;
             for(int i = 0; i < n; i++)
@@ -253,23 +192,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         return ret;
     }
 
-    /** Current queue in world coordinates, or an empty list when there is nothing to draw.
-     *  Tries, in order: (1) Forager Settings' Routes editor, if it's showing a route
-     *  (gui.activeRouteEditor) - unconditionally, bypassing showWaypointsInWorld below, since
-     *  Routes editing is a deliberate, temporary context, not the general "always show my queue"
-     *  preference that toggle controls; draggable. (2) a bot actually running (gui.activeBotPath)
-     *  - also unconditional: unlike case (3) below, Forager's own bot-launch window has no UI
-     *  exposing showBotPathOnGround at all (it doesn't extend PathBotWindow, the only place that
-     *  checkbox lives), so gating this the same way left it silently never rendering while the
-     *  bot ran; read-only, with progress tracking (activeIdx/failedIdx) and its own detour trail.
-     *  (3) a merely open/loaded PathRecordable window's path (e.g. TrufflePigHunter mid-record) -
-     *  gated by showBotPathOnGround, which is that window's own explicit checkbox, still
-     *  respected here; read-only, no progress tracking (no live "current position" for it).
-     *  (4) WaypointMovementService's alt-click queue, gated by showWaypointsInWorld; draggable.
-     *  A Forager route waypoint's own list index stands in for WaypointMovementService.Waypoint's
-     *  stable id in cases (1)/(2)/(3) - safe since nothing mutates any of those lists concurrently
-     *  with a drag gesture (all are only ever touched from the UI thread, and (2)/(3) aren't
-     *  draggable anyway). */
+    /** Current queue in world coordinates: Routes editor, then a running bot path, then an open/recording PathRecordable's path, then the WaypointMovementService queue - first match wins. */
     private List<WNode> resolve() {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.mmap == null) {
@@ -349,12 +272,8 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         h = h * 31 + mv.wpDragId();
         h = h * 31 + activeColor().getRGB();
         h = h * 31 + queuedColor().getRGB();
-        // A progress advance (arriving at a waypoint) doesn't change any node's id/position, but
-        // does change which one should render as active/stale/queued.
+        // Progress (activeIdx) and failures (failedIdx) change node color, not id/position, so they need their own signature contribution.
         h = h * 31 + activeIdx;
-        // Newly marking a waypoint unreachable doesn't change its id/position either, but does
-        // change its color - sum rather than order-sensitive-hash since failedIdx is an
-        // unordered Set.
         int failedSum = 0;
         for(int i : failedIdx)
             failedSum += i;
@@ -400,11 +319,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             return;
         }
 
-        // While a detour is in progress, the player isn't actually walking toward the main
-        // route's active waypoint at all - that leg (drawn below) would otherwise stretch a
-        // long, jarring line from wherever the player currently is (off chasing a gob) back to
-        // a route waypoint they're not really heading to right now. The DETOUR_TARGET node gets
-        // its own, more accurate version of this same leg instead (see below).
+        // While detouring the player isn't heading to the route's active waypoint at all; the DETOUR_TARGET node draws its own leg instead (see below).
         boolean detouring = false;
         for(WNode n : nodes) {
             if(n.kind == Kind.DETOUR_TARGET) {
@@ -414,21 +329,13 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
         }
 
         Buf buf = new Buf();
-        // Starts null, not pl - the route's own chain (drawn below, always queuedColor()) already
-        // covers node 0's leg-in-from-nothing case correctly by simply not drawing one, same as
-        // any other node with nothing before it. The player's own leg into the active node is a
-        // second, separate line (see inside the loop) - not a substitute for this chain, which
-        // stays intact end to end (dimmed where stale) regardless of where the player actually is.
+        // Starts null, not pl - the route's own chain covers node 0's leg-in-from-nothing by simply not drawing one; the player's own leg into the active node is a separate line below.
         Coord2d prev = null;
         boolean prevIsDetourFamily = false;
         for(WNode n : nodes) {
             boolean isDetourFamily = (n.kind == Kind.DETOUR || n.kind == Kind.DETOUR_TARGET);
             if(isDetourFamily != prevIsDetourFamily) {
-                // Entering (or, in principle, leaving) the DETOUR/DETOUR_TARGET chain - it's
-                // separate and disconnected from the route/queue's own legs, but DETOUR and
-                // DETOUR_TARGET are one continuous chain with each other (breadcrumbs leading up
-                // to the gob currently being grabbed), so this only resets between family
-                // boundaries, not on every DETOUR->DETOUR_TARGET transition within it.
+                // Resets only at DETOUR-family boundaries - DETOUR and DETOUR_TARGET share one continuous chain with each other.
                 prev = null;
                 prevIsDetourFamily = isDetourFamily;
             }
@@ -441,13 +348,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
                 continue;
             }
             if(n.kind == Kind.DETOUR_TARGET) {
-                // Ring is blue, mirroring the main route's own active-node treatment - "what is
-                // Forager actually grabbing right now". The chain leg from the last breadcrumb
-                // (prev), if there is one, stays detourColor() (green) instead of blue - it's
-                // part of the breadcrumb trail's own chain, same as how the main route's chain
-                // never turns blue for the leg leading into its active node either (see below);
-                // only the live leg from the player is blue, "this is fine and good" per direct
-                // feedback on this exact split.
+                // Ring is blue like the route's active node; the breadcrumb-chain leg stays green (detourColor), only the live player leg is blue.
                 Color acol = activeColor();
                 if(prev != null)
                     ribbon(buf, prev, n.wc, rgba(detourColor(), 0.95), baseZ);
@@ -461,22 +362,12 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             Color col = nodeColor(idx, n.id);
             double mult = nodeAlphaMult(idx);
             if(prev != null) {
-                // Always the route's own colour (dimmed when stale) - this chain represents the
-                // route itself, not "where the player currently is", so it never turns active/blue
-                // even for the leg leading into the active node; that's the separate player leg
-                // just below instead. Keeps the route fully connected end to end regardless of
-                // where the player actually happens to be relative to it. The one exception is a
-                // failed node - its incoming leg shares its own red, not the route's yellow, so
-                // the whole stop reads as "skipped" rather than just the ring.
+                // Always the route's own colour (dimmed when stale, red if failed) - never active/blue, even for the leg into the active node; that's the separate player leg below.
                 Color legc = failedIdx.contains(idx) ? failedColor() : queuedColor();
                 ribbon(buf, prev, n.wc, rgba(legc, 0.95 * mult), baseZ);
             }
             if(idx == activeIdx && pl != null && !detouring) {
-                // Second, additional leg: live, always full-brightness, tracks the player's
-                // actual current position to wherever they're really heading - coexists with the
-                // route-chain leg above rather than replacing it (reported live: replacing it left
-                // a visible gap in the route chain right where the player currently is). Skipped
-                // entirely while detouring - see the `detouring` comment above.
+                // Second, live leg tracking the player's actual position - coexists with the route-chain leg above rather than replacing it.
                 ribbon(buf, pl, n.wc, rgba(activeColor(), 0.95), baseZ);
             }
             ring(buf, n.wc, rgba(col, 0.95 * mult), rgba(col, 0.18 * mult), baseZ);
@@ -534,10 +425,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             boolean out = (n.sc == null) || (top == null) ||
                     (!n.sc.isect(Coord.z, g.sz()) && !top.isect(Coord.z, g.sz()));
             if(out) {
-                // Out of view: not clickable, and only the first few ROUTE nodes get an edge
-                // arrow - see drawEdgeArrows. Nodes come in queue order, so keeping the head of
-                // the list keeps the lowest-numbered ones. DETOUR nodes never get one - they're
-                // ephemeral breadcrumbs, not route stops worth pointing at off-screen.
+                // Out of view: only the first few ROUTE nodes get an edge arrow (see drawEdgeArrows); DETOUR nodes never do.
                 n.sc = null;
                 if(n.kind == Kind.ROUTE) {
                     if(offscreen == null)
@@ -549,15 +437,12 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
             }
 
             if(n.kind == Kind.DETOUR) {
-                // The 3D ring (already drawn in update()) is enough - no numbered label, pulse,
-                // or ETA readout for an ephemeral breadcrumb.
+                // The 3D ring (already drawn in update()) is enough for an ephemeral breadcrumb.
                 continue;
             }
 
             if(n.kind == Kind.DETOUR_TARGET) {
-                // Pulses like the route's own active node - draws the eye to "what is Forager
-                // actually grabbing right now" - but no numbered plate/ETA, it isn't a numbered
-                // route stop.
+                // Pulses like the route's active node, but no numbered plate/ETA - it isn't a numbered route stop.
                 pulse(g, state, va, n, z, activeColor());
                 continue;
             }

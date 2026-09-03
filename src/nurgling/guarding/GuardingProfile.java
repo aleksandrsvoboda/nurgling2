@@ -7,11 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-/**
- * One named, independently-saved/selected Guarding configuration (Forager Settings &gt;
- * Guarding) - water mode/ignore bats mode flags, plus the pre-flight and in-flight guard lists
- * (each a {@link GuardEntry} per {@link GuardSpec} registered for that phase).
- */
+/** One named, independently-saved/selected Guarding configuration: water/ignore-bats flags plus pre-flight and in-flight guard lists. */
 public final class GuardingProfile {
     public boolean waterMode = false;
     public boolean ignoreBats = true;
@@ -55,10 +51,7 @@ public final class GuardingProfile {
         reconcileWithRegistry();
     }
 
-    /** A brand-new profile's guards, seeded with every registered guard enabled and reacting
-     *  the same way the fixed checks they replace always did (travel to hearth unconditionally)
-     *  - so a fresh profile behaves like the old always-on watchdog until the user deliberately
-     *  changes something. */
+    /** A brand-new profile's guards, seeded with every registered guard enabled, reacting via "travel hearth". */
     public static GuardingProfile withDefaults() {
         GuardingProfile p = new GuardingProfile();
         for (String id : GuardRegistry.preflightIds()) {
@@ -87,26 +80,13 @@ public final class GuardingProfile {
         return json;
     }
 
-    /** Fills in any guard id newly registered since this profile was saved (e.g. a new guard
-     *  type added in code) with a sensible enabled-by-default entry, and drops any
-     *  no-longer-registered ones - keeps an old saved profile automatically in sync with
-     *  whatever's currently registered, so a new GuardSpec shows up (with working defaults) in
-     *  every existing profile too, not just brand-new ones. Called from both deserializing
-     *  constructors above; safe to call again any time (e.g. right after GuardRegistry gains an
-     *  entry mid-session, if that ever becomes possible). */
+    /** Keeps an old saved profile in sync with whatever guard types are currently registered - adds missing ones enabled, drops stale ones. */
     public void reconcileWithRegistry() {
         preflightGuards = reconcileList(preflightGuards, GuardRegistry.preflightIds());
         inflightGuards = reconcileList(inflightGuards, GuardRegistry.inflightIds());
     }
 
-    /** Returns a fresh list rather than mutating the one passed in - a running Forager bot
-     *  (resolveGuardingProfile() in Forager.java) holds a live reference to this same
-     *  GuardingProfile and reads its preflightGuards/inflightGuards fields directly; a
-     *  ConcurrentModificationException is possible if Forager Settings reconciles this profile
-     *  (e.g. just by opening the panel while it's selected) while a bot using it is mid-iteration
-     *  over the *same* list object. Building a new list and reassigning the field means any
-     *  reader that already captured the old reference keeps working off a stable snapshot
-     *  instead of racing a structural edit to it. */
+    /** Returns a fresh list rather than mutating the one passed in, so a bot mid-iteration over the old reference can't hit a ConcurrentModificationException. */
     private List<GuardEntry> reconcileList(List<GuardEntry> list, List<String> knownIds) {
         List<GuardEntry> result = new ArrayList<>();
         for (GuardEntry e : list) {

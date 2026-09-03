@@ -8,26 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Shared read/write logic for passively-recorded milestone (signpost) travel links.
- * <p>
- * Storage is a single flat, global map keyed by the milestone gob's durable hash:
- * <pre>
- * milestones: {
- *   "&lt;gobHash&gt;": {
- *     "gobName": "gfx/terobjs/road/milestone-stone-m",
- *     "seg": 123, "tcX": 45, "tcY": 67,
- *     "destinations": [
- *       {"label": "Destination 1", "seg": 456, "tcX": 12, "tcY": 34, "lastTraversed": 169...},
- *       ...
- *     ]
- *   }, ...
- * }
- * </pre>
- * There is no destination name captured at record time (the in-game Travel dialog's text isn't
- * reachable from this codebase - see the Signpost Travel Recording plan) - a destination's
- * {@code label} starts as an auto-generated "Destination N" and can be renamed by hand.
- */
+/** Shared read/write logic for passively-recorded milestone (signpost) travel links, keyed by the milestone gob's durable hash. */
 public class MilestoneRegistry {
 
     private MilestoneRegistry() {
@@ -43,9 +24,7 @@ public class MilestoneRegistry {
     private static final String LABEL_KEY = "label";
     private static final String LAST_TRAVERSED_KEY = "lastTraversed";
 
-    // How close two recorded destination tile coords (same segment) must be to be treated as
-    // "the same path" on re-traversal rather than a new one - the exact tile you land on can
-    // drift a little between visits.
+    // How close two recorded destination tile coords must be to merge as "the same path".
     private static final int DEST_MERGE_RADIUS_TILES = 5;
 
     public static class Location {
@@ -114,11 +93,7 @@ public class MilestoneRegistry {
                 new Coord(((Number) xObj).intValue(), ((Number) yObj).intValue()));
     }
 
-    /**
-     * Record (or refresh) a traversal: milestone {@code hash} at {@code src}, arriving at
-     * {@code dest}. Matches an existing destination by location proximity (see
-     * {@link #DEST_MERGE_RADIUS_TILES}) and refreshes it in place, or appends a new one.
-     */
+    /** Records (or refreshes, by location proximity match) a traversal from src to dest for milestone hash. */
     @SuppressWarnings("unchecked")
     public static void recordDestination(String hash, String gobName, Location src, Location dest) {
         if (hash == null || src == null || dest == null) {

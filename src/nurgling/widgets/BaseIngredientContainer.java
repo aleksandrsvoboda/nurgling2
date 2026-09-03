@@ -49,11 +49,7 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         this.sb.c = new Coord(UI.scale(180),0);
     }
 
-    // The two other consumers (IngredientContainer/FoodContainer) always use the default
-    // 205x400 size the constructor sets up above, so the scrollbar's position/length were never
-    // exercised past that - a caller that resizes to something else (e.g. ForagerPickupContainer,
-    // widened to fit its grid) needs the scrollbar to follow, or it's left sitting at the old
-    // right edge and the old length, out of sync with the actual visible area.
+    // Keeps the scrollbar's position/length in sync when a caller resizes away from the default size.
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
@@ -98,10 +94,7 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         }
     }
 
-    // Icons per row. 5 fits this class's own default 205px width (its two other consumers,
-    // IngredientContainer/FoodContainer, never resize it); a wider consumer (e.g.
-    // ForagerPickupContainer) overrides this rather than the grid silently staying 5-wide and
-    // wasting the extra width it asked for.
+    // Icons per row; a wider consumer overrides this instead of the grid staying 5-wide.
     protected int gridColumns() {
         return 5;
     }
@@ -111,10 +104,7 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         return UI.scale(new Coord(35*(index%cols), 51*(index/cols))).add(new Coord(5,5));
     }
 
-    // Recomputes how far scrolling is allowed to go from the current item count and the
-    // container's actual visible height, rather than a fixed row-count threshold baked in for
-    // one specific size - correct regardless of gridColumns() or whatever size this widget has
-    // actually been resized to.
+    // Recomputes scroll range from the current item count and actual visible height.
     protected void updateScrollRange() {
         int cols = gridColumns();
         int totalRows = (items.size() + cols - 1) / cols;

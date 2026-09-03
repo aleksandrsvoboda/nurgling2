@@ -12,14 +12,7 @@ import java.util.ArrayList;
 
 public class NRingSettings extends Panel {
 
-    // NConfig.get() resolves to the calling UI's own per-session config copy (see
-    // NConfig.resolveConfig()) - a real, independent NConfig instance, separate from the
-    // per-genus profile config NCore's save loop actually checks/writes. Editing an NAreaRad
-    // in place only mutated that session copy's own list, which the profile instance never
-    // saw - needUpdate() alone (even fixed to mark the right *session* config dirty) can't fix
-    // that, since it's a completely different object holding a completely different list.
-    // Re-pushing this same list through NConfig.set() after every edit is what actually
-    // reaches the profile instance (and gets it marked dirty - see NConfig.set()'s own fix).
+    // Re-pushed through NConfig.set() after every edit (see persistRadProps) rather than relying on needUpdate(), since NConfig.get() returns a session-local copy separate from the saved profile config.
     private final ArrayList<NAreaRad> radProps;
 
     public NRingSettings() {
@@ -69,10 +62,7 @@ public class NRingSettings extends Panel {
                 }
             }, new Coord(checkX, (itemHeight - UI.scale(16)) / 2));
 
-            // Independent of visBox - whether the safety watchdog's DangerousAnimalTrigger
-            // treats this ring as a threat, not just whether it's drawn. Used to be a single
-            // hardcoded "Rat" exclusion inside the trigger itself, which broke for any other
-            // non-dangerous critter a user tracked here for visibility.
+            // Independent of visBox - whether DangerousAnimalTrigger treats this ring as a threat, not just whether it's drawn.
             dangerBox = add(new CheckBox("") {
                 {
                     a = rad.dangerous;
@@ -92,10 +82,7 @@ public class NRingSettings extends Panel {
                 @Override
                 public void done(ReadLine buf) {
                     super.done(buf);
-                    // A chat message on success makes the accept visible (pressing Enter
-                    // previously gave zero feedback either way, reported live as "looks like
-                    // nothing happened"); one on failure explains why nothing changed instead
-                    // of silently swallowing a bad value.
+                    // Chat message on success/failure so accepting (or rejecting) the value is visible.
                     try {
                         int newRadius = Integer.parseInt(buf.line().trim());
                         rad.radius = newRadius;

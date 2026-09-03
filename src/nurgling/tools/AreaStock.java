@@ -18,12 +18,7 @@ import nurgling.navigation.ChunkNavManager;
 
 import java.util.ArrayList;
 
-/**
- * Shared area/container stock-counting logic, extracted from {@link nurgling.actions.bots.MaintainStockBot}
- * (which now calls these same methods for its own stock check, rather than keeping its own copy)
- * so Forager's Maintain feature ({@code ForagerAction.maintainQuantity}) can follow the exact same
- * "how much of this item is already sitting in its Put area" logic without duplicating it.
- */
+/** Shared area/container stock-counting logic, used by both MaintainStockBot and Forager's Maintain feature (ForagerAction.maintainQuantity). */
 public class AreaStock {
 
     /** Every standard container gob plus any stockpile found within area. */
@@ -56,13 +51,7 @@ public class AreaStock {
         return null;
     }
 
-    /**
-     * Counts inv's items whose underlying resource (e.g. "gfx/invobjs/chestnut") matches
-     * resource - shared by Forager's carried-inventory count and its Put-area container count,
-     * both of which need to match this way rather than by display name/NAlias: a forageable
-     * item's display name can vary by growth/quality stage (e.g. "Unripe Chestnut" vs
-     * "Chestnut") while its resource stays constant (see ForagerAction.sourceItemResource).
-     */
+    /** Counts inv's items whose underlying resource matches resource - not display name, which can vary by growth/quality stage. */
     public static int countByResource(NInventory inv, String resource) throws InterruptedException {
         int count = 0;
         for (WItem w : inv.getItems()) {
@@ -76,15 +65,7 @@ public class AreaStock {
         return count;
     }
 
-    /**
-     * Travels to area, the same way {@link nurgling.actions.bots.GotoArea} does - a direct
-     * {@code ChunkNavManager.navigateToArea} call, which plans and walks a single real path
-     * (through buildings/portals included) rather than {@code NUtils.navigateToArea}'s
-     * corner-based ChunkNav fallback, which turned out unreliable for areas far from - or in a
-     * different indoor cell than - wherever the bot happened to start (it only worked when
-     * already near/inside the same cell as the area). Falls back to {@code NUtils.navigateToArea}
-     * only if ChunkNav itself isn't available/initialized yet.
-     */
+    /** Travels to area via ChunkNavManager.navigateToArea (single real path, buildings/portals included), same as GotoArea; falls back to NUtils.navigateToArea only if ChunkNav isn't initialized. */
     private static boolean travelToArea(NGameUI gui, NArea area) throws InterruptedException {
         if (gui.map instanceof NMapView) {
             ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
@@ -95,13 +76,7 @@ public class AreaStock {
         return NUtils.navigateToArea(area, true);
     }
 
-    /**
-     * Travels to area (skips the visit entirely if it can't be reached), opens every container
-     * found in it, tallies items whose resource matches itemResource across all of them, closes
-     * each again (guaranteed once open succeeds, even if counting itself throws/is interrupted -
-     * this runs after Forager's threat watcher has started, so an interrupt genuinely can land
-     * mid-visit here). Returns the total found - 0 if the area is unreachable or has no containers.
-     */
+    /** Travels to area, opens every container in it, tallies items matching itemResource, closes each again (guaranteed even if counting is interrupted mid-visit); 0 if unreachable/empty. */
     public static int countItemsInAreaContainers(NGameUI gui, NArea area, String itemResource) throws InterruptedException {
         if (!travelToArea(gui, area)) {
             return 0;
