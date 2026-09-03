@@ -1059,19 +1059,15 @@ public class ChunkNavExecutor implements Action {
     }
 
     /**
-     * Poll a gate's open/closed state for up to {@code timeoutMs}, rather than blocking on
-     * the core task queue indefinitely (WaitGobModelAttrChange has no timeout at all) -
-     * given we're not certain the right-click actually registers, we'd rather find out and
-     * log it than risk the bot hanging forever on a gate that never changed state.
+     * Wait for a gate's open/closed state for up to {@code timeoutMs}, rather than blocking on
+     * the core task queue indefinitely (WaitGobModelAttrChange has no timeout at all) - given
+     * we're not certain the right-click actually registers, we'd rather find out and log it than
+     * risk the bot hanging forever on a gate that never changed state. Runs through the core task
+     * queue (see WaitForGateState) instead of a bespoke Thread.sleep poll loop, matching every
+     * other bounded-wall-clock-wait in this codebase (WaitForGridChangeOrTimeout, WaitProgress).
      */
     private boolean waitForGateState(Gob gate, boolean wantOpen, long timeoutMs) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            if (gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen) {
-                return true;
-            }
-            Thread.sleep(100);
-        }
+        NUtils.addTask(new nurgling.tasks.WaitForGateState(gate, wantOpen, timeoutMs));
         return gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen;
     }
 
