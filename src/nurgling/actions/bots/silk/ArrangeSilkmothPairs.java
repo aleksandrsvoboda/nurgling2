@@ -55,8 +55,8 @@ public class ArrangeSilkmothPairs implements Action {
     private static final float QEPS = 0.0001f;
     private static final int SLOTS = 16;
     private static final int MAX_PAIRS = 8;
-    /** Backstop only: a fixed plan settles in one or two rounds. */
-    private static final int MAX_ROUNDS = 8;
+    /** Backstop only. Rounds get cheap once containers start dropping out as satisfied. */
+    private static final int MAX_ROUNDS = 20;
 
     private static final NAlias FEMALE = new NAlias("Female Silkmoth");
     /** "Female Silkmoth" contains "male", so it has to be excluded explicitly. */
@@ -69,7 +69,9 @@ public class ArrangeSilkmothPairs implements Action {
         final Container container;
         final ArrayList<Float> females = new ArrayList<>();
         final ArrayList<Float> males = new ArrayList<>();
-        int mothSlots; // slots the cocoons have not taken
+        int mothSlots;   // slots neither cocoons nor unreadable moths have taken
+        double held;     // mean quality of the moths it had at scan time, for ordering
+        boolean done;    // already matches its plan; skip it on later rounds
 
         Target(Container container) {
             this.container = container;
@@ -131,8 +133,15 @@ public class ArrangeSilkmothPairs implements Action {
 
             new CloseTargetContainer(container).run(gui);
 
+            /* A moth whose quality will not read cannot be placed by quality, so pin it where it
+             * is and reserve its slot. Dropping it from the plan instead made it a removal with
+             * no destination, stranded in the pack. */
+            int unreadable = (inv.getItems(FEMALE).size() - females.size())
+                    + (inv.getItems(MALE).size() - males.size());
+
             Target target = new Target(container);
-            target.mothSlots = Math.max(0, SLOTS - cocoons);
+            target.mothSlots = Math.max(0, SLOTS - cocoons - unreadable);
+            target.held = mean(females, males);
             plan.add(target);
 
             heldFemales.put(container.gobid, females);
@@ -143,6 +152,15 @@ public class ArrangeSilkmothPairs implements Action {
 
         Collections.sort(allFemales, Collections.reverseOrder());
         Collections.sort(allMales, Collections.reverseOrder());
+
+        /* Hand the best band to the container already holding the best moths. Any assignment of
+         * bands to containers produces equally good pairing - only the grouping matters, not which
+         * cupboard a group lands in - so pick the one that moves the fewest moths. Slicing in the
+         * order Finder happened to return instead asks for a near-total permutation of every moth
+         * through a pack that holds about 25, which is hundreds of carries and never finished.
+         *
+         * Sorted once, here, and then never again: the plan has to stay put while it is executed. */
+        plan.sort((a, b) -> Double.compare(b.held, a.held));
 
         // Pairs first, best with best. A container only ever gets as many as it has slots for.
         int fi = 0, mi = 0;
@@ -203,19 +221,42 @@ public class ArrangeSilkmothPairs implements Action {
         return target.females.size() + target.males.size();
     }
 
-    /** One visit per container: take out what does not belong, put in what does. */
+    /** One visit per unsatisfied container: put in what belongs, take out what does not. */
     private boolean executeRound(NGameUI gui, ArrayList<Target> plan) throws InterruptedException {
         boolean moved = false;
         for (Target target : plan) {
+            /* Once a container matches its plan nothing can disturb it again - the plan is fixed
+             * and no other container is owed its moths - so later rounds walk past it. That is
+             * what keeps the round count from being 20 full tours of the area. */
+            if (target.done)
+                continue;
+
             new PathFinder(Finder.findGob(target.container.gobid)).run(gui);
             new OpenTargetContainer(target.container).run(gui);
 
-            moved |= reconcile(gui, target, FEMALE, target.females);
-            moved |= reconcile(gui, target, MALE, target.males);
+            boolean movedHere = reconcile(gui, target, FEMALE, target.females);
+            movedHere |= reconcile(gui, target, MALE, target.males);
+            target.done = satisfied(gui, target);
+            moved |= movedHere;
 
             new CloseTargetContainer(target.container).run(gui);
         }
         return moved;
+    }
+
+    private boolean satisfied(NGameUI gui, Target target) throws InterruptedException {
+        NInventory cinv = gui.getInventory(target.container.cap);
+        if (cinv == null)
+            return false;
+        return pending(cinv, FEMALE, target.females) && pending(cinv, MALE, target.males);
+    }
+
+    private static boolean pending(NInventory cinv, NAlias alias, ArrayList<Float> wanted)
+            throws InterruptedException {
+        ArrayList<WItem> toRemove = new ArrayList<>();
+        ArrayList<Float> missing = new ArrayList<>();
+        diff(cinv.getItems(alias), wanted, toRemove, missing);
+        return toRemove.isEmpty() && missing.isEmpty();
     }
 
     /**
@@ -238,6 +279,25 @@ public class ArrangeSilkmothPairs implements Action {
 
         boolean moved = false;
 
+        /* Deliver before taking. A cupboard is 64 physical slots and only 16 of them are ever
+         * budgeted here, so there is always somewhere to put a moth, and unloading first is what
+         * keeps the pack from filling at the first container and stalling every one after it. */
+        if (!missing.isEmpty()) {
+            ArrayList<WItem> inHand = matching(gui.getInventory().getItems(alias), missing);
+            if (!inHand.isEmpty()) {
+                new SimpleTransferToContainer(cinv, inHand, inHand.size()).run(gui);
+                moved = true;
+            }
+        }
+
+        // Re-read: delivering rebuilt the container's widgets.
+        cinv = gui.getInventory(target.container.cap);
+        if (cinv == null)
+            return moved;
+        toRemove.clear();
+        missing.clear();
+        diff(cinv.getItems(alias), wanted, toRemove, missing);
+
         if (!toRemove.isEmpty()) {
             int room = gui.getInventory().getNumberFreeCoord(new Coord(1, 1));
             int take = Math.min(room, toRemove.size());
@@ -245,18 +305,6 @@ public class ArrangeSilkmothPairs implements Action {
                 new TakeWItemsFromContainer(target.container,
                         new ArrayList<>(toRemove.subList(0, take))).run(gui);
                 moved = true;
-            }
-        }
-
-        if (!missing.isEmpty()) {
-            ArrayList<WItem> inHand = matching(gui.getInventory().getItems(alias), missing);
-            if (!inHand.isEmpty()) {
-                // Re-resolve: taking items above rebuilt the container's widgets.
-                NInventory dest = gui.getInventory(target.container.cap);
-                if (dest != null) {
-                    new SimpleTransferToContainer(dest, inHand, inHand.size()).run(gui);
-                    moved = true;
-                }
             }
         }
         return moved;
@@ -269,7 +317,12 @@ public class ArrangeSilkmothPairs implements Action {
      */
     private static void diff(ArrayList<WItem> actual, ArrayList<Float> wanted,
                              ArrayList<WItem> toRemove, ArrayList<Float> missing) {
-        ArrayList<WItem> have = new ArrayList<>(actual);
+        ArrayList<WItem> have = new ArrayList<>();
+        for (WItem witem : actual) {
+            // Unreadable quality: pinned in place, its slot already reserved by the plan.
+            if (((NGItem) witem.item).quality != null)
+                have.add(witem);
+        }
         have.sort((a, b) -> Double.compare(qualityOf(b), qualityOf(a)));
         ArrayList<Float> want = new ArrayList<>(wanted);
         Collections.sort(want, Collections.reverseOrder());
@@ -320,6 +373,16 @@ public class ArrangeSilkmothPairs implements Action {
                 return i;
         }
         return -1;
+    }
+
+    private static double mean(ArrayList<Float> a, ArrayList<Float> b) {
+        int n = a.size() + b.size();
+        if (n == 0)
+            return Double.NEGATIVE_INFINITY; // empty containers sort last, they anchor nothing
+        double sum = 0;
+        for (Float q : a) sum += q;
+        for (Float q : b) sum += q;
+        return sum / n;
     }
 
     private static ArrayList<Float> qualitiesOf(ArrayList<WItem> moths) {
