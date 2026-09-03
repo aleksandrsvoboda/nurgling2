@@ -818,8 +818,29 @@ public class Forager implements Action {
             breadcrumbs.add(player.rc);
             PathFinder hop = new PathFinder(waypoint);
             hop.waterMode = effectiveWaterMode(gui, preset);
-            if (!hop.run(gui).IsSuccess()) return false;
+            if (!hop.run(gui).IsSuccess()) {
+                unstickAtCurrentPosition(gui, preset);
+                return false;
+            }
         }
+    }
+
+    /**
+     * Best-effort recovery from a failed hop. The computed hop waypoint (a straight-line
+     * interpolation toward the target, with no obstacle awareness) can land right on or inside a
+     * gob's hitbox, which can leave the character visibly wedged against it rather than cleanly
+     * failing - reported live: "there is a chance the bot attempts to try and place the waypoint
+     * inside a gob and then just gets stuck." Re-pathing to the character's own current tile is a
+     * trivial, always-reachable no-op that flushes any pending stuck movement state. Called right
+     * before giving up on the hop, not instead of giving up - the original target is still
+     * genuinely unreachable this way, this only unblocks the character for whatever comes next.
+     */
+    private void unstickAtCurrentPosition(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
+        Gob player = NUtils.player();
+        if (player == null) return;
+        PathFinder unstick = new PathFinder(player.rc);
+        unstick.waterMode = effectiveWaterMode(gui, preset);
+        unstick.run(gui);
     }
 
     /**
@@ -862,7 +883,10 @@ public class Forager implements Action {
             Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
             PathFinder hop = new PathFinder(waypoint);
             hop.waterMode = effectiveWaterMode(gui, preset);
-            if (!hop.run(gui).IsSuccess()) return false;
+            if (!hop.run(gui).IsSuccess()) {
+                unstickAtCurrentPosition(gui, preset);
+                return false;
+            }
         }
     }
 
