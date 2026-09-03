@@ -29,10 +29,22 @@ import java.util.List;
  * ratchets the whole farm upward each generation, which random pairing never does.
  *
  * <p>Which male mates with which female inside a cupboard is the game's business, not ours. The
- * only lever is which moths share a cupboard, so this assigns each container a quality BAND: the
- * containers are ranked, the moths are ranked, and container n gets the n-th slice of both the
- * male and the female ordering. A moth already inside its band is left alone, which keeps the
- * shuffling down to the moths that are genuinely in the wrong place.
+ * only lever is which moths share a cupboard, so each container is given a quality BAND: rank the
+ * containers, rank the moths, and hand container n the n-th slice of both orderings.
+ *
+ * <p><b>Bands only ever break ties.</b> Counts alone decide how many moths move; when one has to
+ * move anyway, the band decides which one leaves and where it lands. Letting bands drive the
+ * movement itself does not work here, and the reason is worth recording: a container is ranked by
+ * the moths it currently holds, so every move re-ranks the containers, re-slices the bands and
+ * changes who is out of place. The goal chases the state and never settles - the rebalance ran to
+ * its pass limit every time and stopped halfway through a shuffle, leaving cupboards holding 9
+ * females and 7 males. Sorting by band also let one cupboard take moths a shorter cupboard was
+ * waiting for, so the batch never completed.
+ *
+ * <p>The effect is therefore opportunistic rather than a full sort: quality improves whenever the
+ * count balancing moves a moth. Getting a true sort needs count-NEUTRAL swaps - trade a moth below
+ * its band for one above another's - which always converges because every swap strictly reduces
+ * total misfit, and which never leaves a cupboard unbalanced.
  */
 public class ArrangeSilkmothPairs implements Action {
 
@@ -294,39 +306,25 @@ public class ArrangeSilkmothPairs implements Action {
         return sorted;
     }
 
-    private static int countMisfits(ArrayList<Float> qualities, float[] band) {
-        int misfits = 0;
-        for (Float q : qualities) {
-            if (bandMiss(band, q) > 0)
-                misfits++;
-        }
-        return misfits;
-    }
-
+    /**
+     * Purely a matter of counts, deliberately. Quality decides WHICH moth moves, never whether one
+     * moves at all - see the note on the class. Letting a band create movement made a container
+     * want to hand out and take back the same gender in one pass, which the collect/redistribute
+     * pair cannot express: the moths left, the inventory-limited batch could not put them back,
+     * and the container was left holding 9 females and 7 males.
+     */
     private void calculateDifferences(ArrayList<ContainerState> containerStates) {
         for (ContainerState state : containerStates) {
-            /* A container is wrong either because it holds the wrong NUMBER of moths or because it
-             * holds the wrong ONES. Both are settled by carrying moths out, so the excess is
-             * whichever demands more movement; the shortage is then whatever the target still
-             * needs once those have left. */
-            state.excessFemale = Math.min(state.femaleCount, Math.max(
-                    Math.max(0, state.femaleCount - state.targetFemale),
-                    countMisfits(state.femaleQualities, state.femaleBand)));
-            state.excessMale = Math.min(state.maleCount, Math.max(
-                    Math.max(0, state.maleCount - state.targetMale),
-                    countMisfits(state.maleQualities, state.maleBand)));
-            state.shortageFemale = Math.max(0, state.targetFemale - (state.femaleCount - state.excessFemale));
-            state.shortageMale = Math.max(0, state.targetMale - (state.maleCount - state.excessMale));
+            state.excessFemale = Math.max(0, state.femaleCount - state.targetFemale);
+            state.excessMale = Math.max(0, state.maleCount - state.targetMale);
+            state.shortageFemale = Math.max(0, state.targetFemale - state.femaleCount);
+            state.shortageMale = Math.max(0, state.targetMale - state.maleCount);
         }
     }
 
     private boolean allContainersBalanced(ArrayList<ContainerState> containerStates) {
         for (ContainerState state : containerStates) {
             if (state.femaleCount != state.targetFemale || state.maleCount != state.targetMale) {
-                return false;
-            }
-            if (countMisfits(state.femaleQualities, state.femaleBand) > 0
-                    || countMisfits(state.maleQualities, state.maleBand) > 0) {
                 return false;
             }
         }
@@ -355,16 +353,6 @@ public class ArrangeSilkmothPairs implements Action {
         }
 
         return batch;
-    }
-
-    /** Top of a container's bands, so the batch can be served best-entitled first. */
-    private static double bandTop(ContainerState state) {
-        double top = Double.NEGATIVE_INFINITY;
-        if (state.femaleBand != null)
-            top = Math.max(top, state.femaleBand[1]);
-        if (state.maleBand != null)
-            top = Math.max(top, state.maleBand[1]);
-        return top;
     }
 
     private void collectExcessMoths(NGameUI gui, ArrayList<ContainerState> processingBatch) throws InterruptedException {
@@ -417,10 +405,6 @@ public class ArrangeSilkmothPairs implements Action {
     private void redistributeMoths(NGameUI gui, ArrayList<ContainerState> processingBatch) throws InterruptedException {
         NAlias femaleMothAlias = new NAlias("Female Silkmoth");
         NAlias maleMothAlias = new NAlias(new ArrayList<>(List.of("Male Silkmoth")), new ArrayList<>(List.of("female")));
-
-        /* Serve the highest band first: whatever is in hand is finite, so the best moths must be
-         * offered to the container entitled to them before a lower one can take them. */
-        processingBatch.sort((a, b) -> Double.compare(bandTop(b), bandTop(a)));
 
         for (ContainerState state : processingBatch) {
             if (state.shortageFemale > 0 || state.shortageMale > 0) {
