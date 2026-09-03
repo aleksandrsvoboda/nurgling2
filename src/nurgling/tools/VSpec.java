@@ -3405,16 +3405,23 @@ public class VSpec {
         VERIFIED_CATEGORY_ACTION.put("Stone", "Chip stone");
     }
 
-    /** item display name (lowercased) -> a gob resource-name substring confirmed correct, not a
-     *  guess - for items (typically herbs with no {@link #getGobsForItem} link) whose display
+    /** item display name (lowercased) -> the confirmed full gob resource path (matched against
+     *  Gob.ngob.name - see NParser.isIt/Finder.findGobs, never the item's own display name), not
+     *  a guess - for items (typically herbs with no {@link #getGobsForItem} link) whose display
      *  name has no usable textual relation to their actual gob resource name, so no amount of
      *  pluralization/spacing normalization (see ForagerPickupContainer.herbPatternCandidates)
-     *  reaches it on its own (e.g. "Lingonberries" never reduces to "lingon"). */
+     *  reaches it on its own (e.g. "Lingonberries" never reduces to "lingon"). Full paths here,
+     *  same as every other gob reference in this class (see the tree/bush {@code object} map)
+     *  rather than a short substring - matching is a Gob.ngob.name.contains(key) check either
+     *  way (see NAlias.matches), so a short key would already "work," but the full path is the
+     *  more precise, collision-proof, self-documenting form. Herb gob resource paths consistently
+     *  mirror their invobj counterpart with "invobjs" replaced by "terobjs" (e.g.
+     *  "gfx/invobjs/herbs/lingon" the item vs. "gfx/terobjs/herbs/lingon" the gob). */
     public static final Map<String, String> KNOWN_ITEM_PATTERN = new LinkedHashMap<>();
     static {
-        KNOWN_ITEM_PATTERN.put("lingonberries", "lingon");
-        KNOWN_ITEM_PATTERN.put("yellowfeet", "yellowfoot");
-        KNOWN_ITEM_PATTERN.put("blueberries", "blueberry");
+        KNOWN_ITEM_PATTERN.put("lingonberries", "gfx/terobjs/herbs/lingon");
+        KNOWN_ITEM_PATTERN.put("yellowfeet", "gfx/terobjs/herbs/yellowfoot");
+        KNOWN_ITEM_PATTERN.put("blueberries", "gfx/terobjs/herbs/blueberry");
     }
 
     /**
