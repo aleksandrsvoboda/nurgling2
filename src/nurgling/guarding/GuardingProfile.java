@@ -16,24 +16,6 @@ public final class GuardingProfile {
 
     public GuardingProfile() {}
 
-    public GuardingProfile(JSONObject json) {
-        this.waterMode = json.optBoolean("waterMode", false);
-        this.ignoreBats = json.optBoolean("ignoreBats", true);
-        JSONArray pre = json.optJSONArray("preflightGuards");
-        if (pre != null) {
-            for (int i = 0; i < pre.length(); i++) {
-                preflightGuards.add(new GuardEntry(pre.getJSONObject(i)));
-            }
-        }
-        JSONArray in = json.optJSONArray("inflightGuards");
-        if (in != null) {
-            for (int i = 0; i < in.length(); i++) {
-                inflightGuards.add(new GuardEntry(in.getJSONObject(i)));
-            }
-        }
-        reconcileWithRegistry();
-    }
-
     @SuppressWarnings("unchecked")
     public GuardingProfile(HashMap<String, Object> map) {
         this.waterMode = map.containsKey("waterMode") && (Boolean) map.get("waterMode");

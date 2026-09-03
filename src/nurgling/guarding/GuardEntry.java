@@ -22,23 +22,6 @@ public final class GuardEntry {
         fillDefaultSettings();
     }
 
-    public GuardEntry(JSONObject json) {
-        this.guardId = json.optString("guardId", null);
-        this.enabled = json.optBoolean("enabled", true);
-        this.outcomeId = json.optString("outcomeId", "break");
-        JSONObject settingsJson = json.optJSONObject("settings");
-        if (settingsJson != null) {
-            for (String key : settingsJson.keySet()) {
-                // Skip NaN (missing/non-numeric) so fillDefaultSettings() can still fill it in.
-                double v = settingsJson.optDouble(key);
-                if (!Double.isNaN(v)) {
-                    settings.put(key, v);
-                }
-            }
-        }
-        fillDefaultSettings();
-    }
-
     @SuppressWarnings("unchecked")
     public GuardEntry(HashMap<String, Object> map) {
         this.guardId = (String) map.get("guardId");

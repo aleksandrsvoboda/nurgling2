@@ -537,10 +537,10 @@ public class ForagerSettingsPanel extends Panel {
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.after_finish")), prevField.pos("bl").add(UI.scale(0, 10)));
-        prevField = psec.add(presetAfterFinishDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
+        prevField = psec.add(presetAfterFinishDropbox = buildSimpleDropbox(PRESET_ACTIONS, UI.scale(150)), prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.on_full_inv")), prevField.pos("bl").add(UI.scale(0, 10)));
-        prevField = psec.add(presetOnFullInventoryDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
+        prevField = psec.add(presetOnFullInventoryDropbox = buildSimpleDropbox(PRESET_ACTIONS, UI.scale(150)), prevField.pos("bl").add(UI.scale(0, 5)));
 
         // Lets a "manual" preset share the same Actions profile without inheriting its Maintain caps - see NForagerProp.PresetData.ignoreMaintainLimits.
         presetIgnoreMaintainLimitsCheck = psec.add(new CheckBox(L10n.get("forager.settings.ignore_maintain_limits")), prevField.pos("bl").add(UI.scale(0, 10)));
@@ -551,9 +551,9 @@ public class ForagerSettingsPanel extends Panel {
         relayoutSections();
     }
 
-    /** Shared builder for a plain fixed-option-list dropdown (nothing/logout/travel hearth). */
-    private Dropbox<String> buildSimpleDropbox(String[] items) {
-        Dropbox<String> db = new Dropbox<String>(UI.scale(150), items.length, UI.scale(16)) {
+    /** Shared builder for a plain fixed-option-list dropdown. */
+    private Dropbox<String> buildSimpleDropbox(String[] items, int width) {
+        Dropbox<String> db = new Dropbox<String>(width, items.length, UI.scale(16)) {
             @Override
             protected String listitem(int i) {
                 return items[i];
@@ -593,7 +593,7 @@ public class ForagerSettingsPanel extends Panel {
             rowItem(row, new Button(UI.scale(150), L10n.get("forager.settings.aggression_radii"), this::openRingSettings), UI.scale(ROW_VALUE1_X));
         }
 
-        Dropbox<String> outcome = rowItem(row, buildGuardActionDropbox(), UI.scale(ROW_TOGGLE_X));
+        Dropbox<String> outcome = rowItem(row, buildSimpleDropbox(GUARD_ACTIONS, UI.scale(110)), UI.scale(ROW_TOGGLE_X));
 
         rowMap.put(spec.id, new GuardRow(enabled, inputEntries, outcome));
         return row;
@@ -602,28 +602,6 @@ public class ForagerSettingsPanel extends Panel {
     /** Adds child to row, vertically centered against the row's declared height; x is the child's left edge. */
     private <T extends Widget> T rowItem(Widget row, T child, int x) {
         return row.adda(child, new Coord(x, row.sz.y / 2), 0.0, 0.5);
-    }
-
-    /** Shared builder for the nothing/logout/travel hearth action dropdown used by every guard row. */
-    private Dropbox<String> buildGuardActionDropbox() {
-        Dropbox<String> db = new Dropbox<String>(UI.scale(110), 3, UI.scale(16)) {
-            @Override
-            protected String listitem(int i) {
-                return GUARD_ACTIONS[i];
-            }
-
-            @Override
-            protected int listitems() {
-                return GUARD_ACTIONS.length;
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
-            }
-        };
-        db.change(GUARD_ACTIONS[0]);
-        return db;
     }
 
     /** Repositions every top-level section below the current bottom edge of the one before it. */
