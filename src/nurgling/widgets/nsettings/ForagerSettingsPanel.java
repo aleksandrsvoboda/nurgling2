@@ -155,20 +155,18 @@ public class ForagerSettingsPanel extends Panel {
     // Same purpose as suppressRouteAutoSave/suppressGuardingAutoSave above.
     private boolean suppressPresetAutoSave = false;
 
-    // Actions/Guarding each have two selectors that must never be allowed to show different
-    // profiles at once: the top section's own dropdown (which profile's contents are being
-    // edited right now) and the matching Presets-section dropdown (which profile the active
-    // preset actually runs with). Before this guard existed, they were independent - switching
-    // the active preset never updated the top dropdown, and editing either one didn't touch the
-    // other - so a user could edit "Default" in the Actions section while their preset's own
-    // actionsProfileName still pointed at a completely different profile, with no visible sign
-    // of the mismatch (reported live: preset said it was using the new profile, but the bot ran
-    // the old one). actionsProfileDropbox.change()/presetActionsDropbox.change() (and the
-    // guarding equivalents) now each push their selection into the other, guarded by these
-    // flags to stop the two calling each other forever.
-    private boolean suppressActionsSync = false;
-    private boolean suppressGuardingSync = false;
-
+    // Actions/Guarding each have two selectors: the top section's own dropdown (which profile's
+    // contents are being edited right now) and the matching Presets-section dropdown (which
+    // profile the active preset actually runs with). Switching the active PRESET's profile (via
+    // the Presets-section dropdown, or by loading a different preset) mirrors into the top
+    // dropdown, so editing always follows whatever the active preset currently uses - avoids a
+    // past reported bug where switching presets left the top section silently still showing/
+    // editing a stale profile ("preset said it was using the new profile, but the bot ran the
+    // old one"). This is deliberately one-directional, not a forced lockstep: merely browsing
+    // (or deleting) some other profile in the top section must never silently reassign what the
+    // active preset itself is bound to - an earlier two-way version of this sync did exactly
+    // that, moving the active preset's binding to an arbitrary leftover profile any time an
+    // unrelated, unused profile was deleted (reported live).
     private Scrollport scroll;
     private CollapsibleSection routesSection;
     private Widget routesContent;
@@ -248,17 +246,12 @@ public class ForagerSettingsPanel extends Panel {
                     // path below already does - creates the missing entry rather than handing
                     // pickupContainer.load() a null list, which crashed (reported live).
                     pickupContainer.load(prop.actionsProfiles.computeIfAbsent(item, k -> new ArrayList<>()));
-                    // Keep the Presets section's own Actions Profile selector (and the active
-                    // preset's actual binding) in lockstep - see suppressActionsSync's javadoc.
-                    if (!suppressActionsSync && currentPresetData != null) {
-                        currentPresetData.actionsProfileName = item;
-                        suppressActionsSync = true;
-                        try {
-                            presetActionsDropbox.change(item);
-                        } finally {
-                            suppressActionsSync = false;
-                        }
-                    }
+                    // Deliberately does NOT push into the Presets section's own selector/the
+                    // active preset's binding - see the (one-directional) sync note above this
+                    // field. Browsing to (or deleting) some other profile here must never
+                    // silently reassign what an unrelated preset actually runs with (reported
+                    // live: deleting an unrelated Actions profile moved the active preset's
+                    // binding to whatever profile happened to be picked to replace it at the top).
                 }
             }
         }, new Coord(0, 0));
@@ -477,17 +470,9 @@ public class ForagerSettingsPanel extends Panel {
                     }
                     prop.currentGuardingProfile = item;
                     loadGuardingProfile(item);
-                    // Keep the Presets section's own Guarding Profile selector (and the active
-                    // preset's actual binding) in lockstep - see suppressGuardingSync's javadoc.
-                    if (!suppressGuardingSync && currentPresetData != null) {
-                        currentPresetData.guardingProfileName = item;
-                        suppressGuardingSync = true;
-                        try {
-                            presetGuardingDropbox.change(item);
-                        } finally {
-                            suppressGuardingSync = false;
-                        }
-                    }
+                    // Deliberately does NOT push into the Presets section's own selector/the
+                    // active preset's binding - see the actionsProfileDropbox equivalent's
+                    // comment above for why.
                 }
             }
         }, new Coord(0, 0));
@@ -610,16 +595,11 @@ public class ForagerSettingsPanel extends Panel {
                     if (currentPresetData != null) {
                         currentPresetData.actionsProfileName = item;
                     }
-                    // Mirror into the Actions section's own selector - see
-                    // suppressActionsSync's javadoc.
-                    if (!suppressActionsSync) {
-                        suppressActionsSync = true;
-                        try {
-                            actionsProfileDropbox.change(item);
-                        } finally {
-                            suppressActionsSync = false;
-                        }
-                    }
+                    // Mirror into the Actions section's own selector, so switching which profile
+                    // the active preset uses is reflected at the top for editing - one-directional
+                    // only; see actionsProfileDropbox's own change() for why the reverse doesn't
+                    // happen.
+                    actionsProfileDropbox.change(item);
                 }
             }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
@@ -647,15 +627,8 @@ public class ForagerSettingsPanel extends Panel {
                         currentPresetData.guardingProfileName = item;
                     }
                     // Mirror into the Guarding section's own selector - see
-                    // suppressGuardingSync's javadoc.
-                    if (!suppressGuardingSync) {
-                        suppressGuardingSync = true;
-                        try {
-                            guardingProfileDropbox.change(item);
-                        } finally {
-                            suppressGuardingSync = false;
-                        }
-                    }
+                    // presetActionsDropbox's equivalent above for why this is one-directional.
+                    guardingProfileDropbox.change(item);
                 }
             }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
