@@ -182,6 +182,33 @@ public class ForagerSettingsPanel extends Panel {
     // height (e.g. ensureRouteMapBuilt() adding the map widget after construction).
     private final List<CollapsibleSection> sections = new ArrayList<>();
 
+    /** Base for this panel's several "list of names, no visuals beyond the item's own text label"
+     *  dropdowns (Actions/Guarding/Preset profile pickers, Route pickers) - only their name
+     *  source and change() side effects differ between sites, so listitem/listitems/drawitem
+     *  live here once instead of being repeated identically at every dropdown call site. */
+    private abstract class NamesDropbox extends Dropbox<String> {
+        NamesDropbox(int w, int h, int itemh) {
+            super(w, h, itemh);
+        }
+
+        protected abstract List<String> names();
+
+        @Override
+        protected String listitem(int i) {
+            return names().get(i);
+        }
+
+        @Override
+        protected int listitems() {
+            return names().size();
+        }
+
+        @Override
+        protected void drawitem(GOut g, String item, int i) {
+            g.text(item, Coord.z);
+        }
+    }
+
     public ForagerSettingsPanel() {
         super(L10n.get("nsettings.item.forager"));
 
@@ -205,24 +232,10 @@ public class ForagerSettingsPanel extends Panel {
         prev = sec.add(new Label(L10n.get("forager.settings.actions_profile")), prev.pos("bl").add(UI.scale(0, 12)));
 
         Widget profileRow = sec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), prev.pos("bl").add(UI.scale(0, 5)));
-        profileRow.add(actionsProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
-            private List<String> names() {
+        profileRow.add(actionsProfileDropbox = new NamesDropbox(UI.scale(200), 8, UI.scale(16)) {
+            @Override
+            protected List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
-            }
-
-            @Override
-            protected String listitem(int i) {
-                return names().get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return names().size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
             }
 
             @Override
@@ -335,20 +348,10 @@ public class ForagerSettingsPanel extends Panel {
         rprev = rsec.add(new Label(L10n.get("forager.settings.route")), rprev.pos("bl").add(UI.scale(0, 12)));
 
         Widget routeRow = rsec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), rprev.pos("bl").add(UI.scale(0, 5)));
-        routeRow.add(routeDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
+        routeRow.add(routeDropbox = new NamesDropbox(UI.scale(200), 8, UI.scale(16)) {
             @Override
-            protected String listitem(int i) {
-                return routeNames.get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return routeNames.size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
+            protected List<String> names() {
+                return routeNames;
             }
 
             @Override
@@ -453,24 +456,10 @@ public class ForagerSettingsPanel extends Panel {
 
         gprev = gsec.add(new Label(L10n.get("forager.settings.guarding_profile")), gprev.pos("bl").add(UI.scale(0, 12)));
         Widget guardingProfileRow = gsec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), gprev.pos("bl").add(UI.scale(0, 5)));
-        guardingProfileRow.add(guardingProfileDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
-            private List<String> names() {
+        guardingProfileRow.add(guardingProfileDropbox = new NamesDropbox(UI.scale(200), 8, UI.scale(16)) {
+            @Override
+            protected List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.guardingProfiles.keySet())) : Collections.emptyList();
-            }
-
-            @Override
-            protected String listitem(int i) {
-                return names().get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return names().size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
             }
 
             @Override
@@ -565,24 +554,10 @@ public class ForagerSettingsPanel extends Panel {
 
         pprev = psec.add(new Label(L10n.get("forager.settings.preset")), pprev.pos("bl").add(UI.scale(0, 12)));
         Widget presetRow = psec.add(new Widget(new Coord(UI.scale(360), UI.scale(20))), pprev.pos("bl").add(UI.scale(0, 5)));
-        presetRow.add(presetDropbox = new Dropbox<String>(UI.scale(200), 8, UI.scale(16)) {
-            private List<String> names() {
+        presetRow.add(presetDropbox = new NamesDropbox(UI.scale(200), 8, UI.scale(16)) {
+            @Override
+            protected List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.presets.keySet())) : Collections.emptyList();
-            }
-
-            @Override
-            protected String listitem(int i) {
-                return names().get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return names().size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
             }
 
             @Override
@@ -622,24 +597,10 @@ public class ForagerSettingsPanel extends Panel {
         }, new Coord(UI.scale(240), 0)).settip(L10n.get("forager.settings.delete_preset_tip"));
 
         Widget prevField = psec.add(new Label(L10n.get("forager.settings.preset_actions_profile")), presetRow.pos("bl").add(UI.scale(0, 12)));
-        prevField = psec.add(presetActionsDropbox = new Dropbox<String>(UI.scale(300), 8, UI.scale(16)) {
-            private List<String> names() {
+        prevField = psec.add(presetActionsDropbox = new NamesDropbox(UI.scale(300), 8, UI.scale(16)) {
+            @Override
+            protected List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.actionsProfiles.keySet())) : Collections.emptyList();
-            }
-
-            @Override
-            protected String listitem(int i) {
-                return names().get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return names().size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
             }
 
             @Override
@@ -664,42 +625,18 @@ public class ForagerSettingsPanel extends Panel {
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.settings.preset_route")), prevField.pos("bl").add(UI.scale(0, 10)));
-        prevField = psec.add(presetRouteDropbox = new Dropbox<String>(UI.scale(300), 8, UI.scale(16)) {
+        prevField = psec.add(presetRouteDropbox = new NamesDropbox(UI.scale(300), 8, UI.scale(16)) {
             @Override
-            protected String listitem(int i) {
-                return routeNames.get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return routeNames.size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
+            protected List<String> names() {
+                return routeNames;
             }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.settings.preset_guarding_profile")), prevField.pos("bl").add(UI.scale(0, 10)));
-        prevField = psec.add(presetGuardingDropbox = new Dropbox<String>(UI.scale(300), 8, UI.scale(16)) {
-            private List<String> names() {
+        prevField = psec.add(presetGuardingDropbox = new NamesDropbox(UI.scale(300), 8, UI.scale(16)) {
+            @Override
+            protected List<String> names() {
                 return prop != null ? new ArrayList<>(new TreeSet<>(prop.guardingProfiles.keySet())) : Collections.emptyList();
-            }
-
-            @Override
-            protected String listitem(int i) {
-                return names().get(i);
-            }
-
-            @Override
-            protected int listitems() {
-                return names().size();
-            }
-
-            @Override
-            protected void drawitem(GOut g, String item, int i) {
-                g.text(item, Coord.z);
             }
 
             @Override
@@ -1158,34 +1095,18 @@ public class ForagerSettingsPanel extends Panel {
 
     private void addPreset() {
         if (prop == null) return;
-        TextInputWindow win = new TextInputWindow(
-                L10n.get("forager.settings.new_preset_title"), L10n.get("forager.settings.new_preset_prompt"), name -> {
-            if (name != null && !name.trim().isEmpty()) {
-                String trimmed = name.trim();
-                if (!prop.presets.containsKey(trimmed)) {
+        addNamedEntry("forager.settings.new_preset_title", "forager.settings.new_preset_prompt",
+                prop.presets, () -> {
                     NForagerProp.PresetData pd = new NForagerProp.PresetData();
                     pd.actionsProfileName = prop.currentActionsProfile;
                     pd.guardingProfileName = prop.currentGuardingProfile;
-                    prop.presets.put(trimmed, pd);
-                }
-                prop.currentPreset = trimmed;
-                presetDropbox.change(trimmed);
-            }
-        });
-        NUtils.getGameUI().add(win, UI.scale(250, 250));
-        win.show();
+                    return pd;
+                }, name -> prop.currentPreset = name, presetDropbox);
     }
 
     private void deletePreset() {
-        if (prop == null || presetDropbox.sel == null) return;
-        if (prop.presets.size() <= 1) {
-            // Always keep at least one preset to select at bot start.
-            return;
-        }
-        prop.presets.remove(presetDropbox.sel);
-        String next = prop.presets.keySet().iterator().next();
-        prop.currentPreset = next;
-        presetDropbox.change(next);
+        if (prop == null) return;
+        deleteNamedEntry(prop.presets, presetDropbox, name -> prop.currentPreset = name);
     }
 
     private void loadAvailableRoutes() {
@@ -1333,57 +1254,55 @@ public class ForagerSettingsPanel extends Panel {
 
     private void addProfile() {
         if (prop == null) return;
-        TextInputWindow win = new TextInputWindow(
-                L10n.get("forager.settings.new_profile_title"), L10n.get("forager.settings.new_profile_prompt"), name -> {
-            if (name != null && !name.trim().isEmpty()) {
-                String trimmed = name.trim();
-                prop.actionsProfiles.putIfAbsent(trimmed, new ArrayList<>());
-                prop.currentActionsProfile = trimmed;
-                actionsProfileDropbox.change(trimmed);
-            }
-        });
-        NUtils.getGameUI().add(win, UI.scale(250, 250));
-        win.show();
+        addNamedEntry("forager.settings.new_profile_title", "forager.settings.new_profile_prompt",
+                prop.actionsProfiles, ArrayList::new, name -> prop.currentActionsProfile = name, actionsProfileDropbox);
     }
 
     private void deleteProfile() {
-        if (prop == null || actionsProfileDropbox.sel == null) return;
-        if (prop.actionsProfiles.size() <= 1) {
-            // Always keep at least one profile to select at bot start.
-            return;
-        }
-        prop.actionsProfiles.remove(actionsProfileDropbox.sel);
-        String next = prop.actionsProfiles.keySet().iterator().next();
-        prop.currentActionsProfile = next;
-        actionsProfileDropbox.change(next);
+        if (prop == null) return;
+        deleteNamedEntry(prop.actionsProfiles, actionsProfileDropbox, name -> prop.currentActionsProfile = name);
     }
 
     private void addGuardingProfile() {
         if (prop == null) return;
+        addNamedEntry("forager.settings.new_guarding_profile_title", "forager.settings.new_guarding_profile_prompt",
+                prop.guardingProfiles, GuardingProfile::withDefaults, name -> prop.currentGuardingProfile = name, guardingProfileDropbox);
+    }
+
+    private void deleteGuardingProfile() {
+        if (prop == null) return;
+        deleteNamedEntry(prop.guardingProfiles, guardingProfileDropbox, name -> prop.currentGuardingProfile = name);
+    }
+
+    /** Shared "new named entry" flow for the Actions/Guarding/Presets sections' add buttons:
+     *  prompts for a name, creates the entry (via defaultValue, only if the name isn't already
+     *  taken) if needed, makes it current, and selects it in dropbox - same shape three separate
+     *  call sites duplicated verbatim. */
+    private <V> void addNamedEntry(String titleKey, String promptKey, Map<String, V> map,
+                                    java.util.function.Supplier<V> defaultValue,
+                                    java.util.function.Consumer<String> setCurrent, Dropbox<String> dropbox) {
         TextInputWindow win = new TextInputWindow(
-                L10n.get("forager.settings.new_guarding_profile_title"), L10n.get("forager.settings.new_guarding_profile_prompt"), name -> {
+                L10n.get(titleKey), L10n.get(promptKey), name -> {
             if (name != null && !name.trim().isEmpty()) {
                 String trimmed = name.trim();
-                prop.guardingProfiles.putIfAbsent(trimmed, GuardingProfile.withDefaults());
-                prop.currentGuardingProfile = trimmed;
-                guardingProfileDropbox.change(trimmed);
+                map.putIfAbsent(trimmed, defaultValue.get());
+                setCurrent.accept(trimmed);
+                dropbox.change(trimmed);
             }
         });
         NUtils.getGameUI().add(win, UI.scale(250, 250));
         win.show();
     }
 
-    private void deleteGuardingProfile() {
-        if (prop == null || guardingProfileDropbox.sel == null) return;
-        if (prop.guardingProfiles.size() <= 1) {
-            // Always keep at least one profile to select at bot start, same rule as Actions
-            // profiles.
-            return;
-        }
-        prop.guardingProfiles.remove(guardingProfileDropbox.sel);
-        String next = prop.guardingProfiles.keySet().iterator().next();
-        prop.currentGuardingProfile = next;
-        guardingProfileDropbox.change(next);
+    /** Shared "delete selected entry" flow for the Actions/Guarding/Presets sections' delete
+     *  buttons: refuses to drop the last remaining entry (always keep at least one to select at
+     *  bot start), otherwise removes it and selects whatever's left. */
+    private <V> void deleteNamedEntry(Map<String, V> map, Dropbox<String> dropbox, java.util.function.Consumer<String> setCurrent) {
+        if (dropbox.sel == null || map.size() <= 1) return;
+        map.remove(dropbox.sel);
+        String next = map.keySet().iterator().next();
+        setCurrent.accept(next);
+        dropbox.change(next);
     }
 
     /** Opens the existing per-species aggression-radius editor in its own floating window
