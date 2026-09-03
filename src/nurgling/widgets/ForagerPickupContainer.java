@@ -391,14 +391,20 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
      * rendered as icons here.
      */
     public void load(ArrayList<ForagerAction> liveActions) {
-        this.actions = liveActions;
+        // Defensive only - every known caller now guarantees a real list (see
+        // ForagerSettingsPanel's computeIfAbsent self-heal for a stale profile-name reference,
+        // reported live as a crash here). Falling back to a fresh, un-persisted list rather than
+        // crashing is still the better failure mode if some future caller slips up - edits would
+        // silently not save rather than the whole panel going down, and this shouldn't be
+        // reachable in practice.
+        this.actions = liveActions != null ? liveActions : new ArrayList<>();
         for (IconItem it : icons) {
             it.destroy();
         }
         icons.clear();
         items.clear();
 
-        for (ForagerAction action : liveActions) {
+        for (ForagerAction action : this.actions) {
             if (action.sourceItemName == null) {
                 // Not created via this widget (e.g. a legacy free-text entry) - not shown here.
                 continue;

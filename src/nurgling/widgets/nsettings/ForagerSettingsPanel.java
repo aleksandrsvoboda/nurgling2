@@ -230,7 +230,11 @@ public class ForagerSettingsPanel extends Panel {
                 super.change(item);
                 if (item != null && prop != null) {
                     prop.currentActionsProfile = item;
-                    pickupContainer.load(prop.actionsProfiles.get(item));
+                    // Self-heals a stale reference (e.g. a preset/dropdown entry pointing at a
+                    // profile name deleted elsewhere this session) the same way the initial-load
+                    // path below already does - creates the missing entry rather than handing
+                    // pickupContainer.load() a null list, which crashed (reported live).
+                    pickupContainer.load(prop.actionsProfiles.computeIfAbsent(item, k -> new ArrayList<>()));
                     // Keep the Presets section's own Actions Profile selector (and the active
                     // preset's actual binding) in lockstep - see suppressActionsSync's javadoc.
                     if (!suppressActionsSync && currentPresetData != null) {
