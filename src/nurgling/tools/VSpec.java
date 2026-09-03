@@ -5,6 +5,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -3389,6 +3390,31 @@ public class VSpec {
         }
         ArrayList<String> gobs = gobsByItemName.get(itemName);
         return gobs != null ? new ArrayList<>(gobs) : new ArrayList<>();
+    }
+
+    /** category name (see {@link #getCategory}) -> a Forager flower-menu action string confirmed
+     *  correct against the real menu, not a guess - used ahead of any generated candidate for
+     *  that category (see ForagerPickupContainer.actionNameCandidates). */
+    public static final Map<String, String> VERIFIED_CATEGORY_ACTION = new LinkedHashMap<>();
+    static {
+        // CollectBark (an existing, working bot) uses this exact string with the same tree/bush
+        // gobs - confirmed correct, unlike a generated guess.
+        VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
+        VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
+        VERIFIED_CATEGORY_ACTION.put("Tree Bough", "Take bough");
+        VERIFIED_CATEGORY_ACTION.put("Stone", "Chip stone");
+    }
+
+    /** item display name (lowercased) -> a gob resource-name substring confirmed correct, not a
+     *  guess - for items (typically herbs with no {@link #getGobsForItem} link) whose display
+     *  name has no usable textual relation to their actual gob resource name, so no amount of
+     *  pluralization/spacing normalization (see ForagerPickupContainer.herbPatternCandidates)
+     *  reaches it on its own (e.g. "Lingonberries" never reduces to "lingon"). */
+    public static final Map<String, String> KNOWN_ITEM_PATTERN = new LinkedHashMap<>();
+    static {
+        KNOWN_ITEM_PATTERN.put("lingonberries", "lingon");
+        KNOWN_ITEM_PATTERN.put("yellowfeet", "yellowfoot");
+        KNOWN_ITEM_PATTERN.put("blueberries", "blueberry");
     }
 
     /**

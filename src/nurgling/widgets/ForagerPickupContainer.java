@@ -12,10 +12,8 @@ import org.json.JSONObject;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Drag-and-drop "what should Forager pick up" editor for one Actions profile. Each icon is one
@@ -30,30 +28,6 @@ import java.util.Map;
  * reasonable defaults, it never limits what can be expressed.
  */
 public class ForagerPickupContainer extends BaseIngredientContainer implements TaggableItemContainer {
-
-    /** category name (VSpec.categories key) -> a flower-menu action string confirmed against the
-     *  real menu (not a guess) - included ahead of any generated candidate for that category. */
-    private static final Map<String, String> VERIFIED_CATEGORY_ACTION = new LinkedHashMap<>();
-    static {
-        // CollectBark (an existing, working bot) uses this exact string with the same tree/bush
-        // gobs - confirmed correct, unlike everything actionNameCandidates() below only guesses.
-        VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
-        VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
-        VERIFIED_CATEGORY_ACTION.put("Tree Bough", "Take bough");
-        VERIFIED_CATEGORY_ACTION.put("Stone", "Chip stone");
-    }
-
-    /** item display name (lowercased) -> a gob resource-name substring confirmed correct, not a
-     *  guess - for {@link #herbPatternCandidates} the same way {@link #VERIFIED_CATEGORY_ACTION}
-     *  is for {@link #actionNameCandidates}. Needed whenever the display name has no usable
-     *  textual relation to the actual resource name, so no amount of pluralization/spacing
-     *  normalization gets there on its own (e.g. "Lingonberries" never reduces to "lingon"). */
-    private static final Map<String, String> KNOWN_ITEM_PATTERN = new LinkedHashMap<>();
-    static {
-        KNOWN_ITEM_PATTERN.put("lingonberries", "lingon");
-        KNOWN_ITEM_PATTERN.put("yellowfeet", "yellowfoot");
-        KNOWN_ITEM_PATTERN.put("blueberries", "blueberry");
-    }
 
     // Aliases whatever list load() was last given (typically a preset's own live `actions`
     // field) rather than holding a private copy, so every mutation here (drop/delete/tag/add
@@ -110,7 +84,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     /**
      * Candidate flower-menu option string(s) for a gob-linked item. If the item falls into a
-     * category with a string already confirmed correct (see {@link #VERIFIED_CATEGORY_ACTION}),
+     * category with a string already confirmed correct (see {@link VSpec#VERIFIED_CATEGORY_ACTION}),
      * that's used on its own - a known answer, not a guess, so there's no reason to also carry a
      * pile of untested ones alongside it. Otherwise falls back to a best-guess, ordered set:
      * "Pick "/"Take " + the item's own name (and its other singular/plural form, since the source
@@ -127,7 +101,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
         LinkedHashSet<String> verified = new LinkedHashSet<>();
         for (String cat : categories) {
-            String action = VERIFIED_CATEGORY_ACTION.get(cat);
+            String action = VSpec.VERIFIED_CATEGORY_ACTION.get(cat);
             if (action != null) {
                 verified.add(action);
             }
@@ -163,7 +137,8 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
      * name with spaces removed (multi-word display names never appear as-is in a resource path,
      * which has none), and singular versions of both (strip one trailing "s") since resource
      * paths are consistently singular even when the item name is plural. Duplicates are dropped;
-     * {@link ForagerAction#toNAlias()} matches on ANY of these against the gob's name.
+     * {@link ForagerAction#toNAlias()} matches on ANY of these against the gob's name. Checks
+     * {@link VSpec#KNOWN_ITEM_PATTERN} first for a confirmed answer, ahead of any guessing.
      */
     private static String herbPatternCandidates(String itemName) {
         // Matching is already case-insensitive (NAlias lowercases everything internally), but
@@ -171,7 +146,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // instead of a mix of cases, so it reads sensibly if the user reviews/edits it later.
         String lower = itemName.toLowerCase();
 
-        String known = KNOWN_ITEM_PATTERN.get(lower);
+        String known = VSpec.KNOWN_ITEM_PATTERN.get(lower);
         if (known != null) {
             return known;
         }
