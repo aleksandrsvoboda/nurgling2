@@ -299,4 +299,8 @@ public class BotRegistry {
     public static List<BotDescriptor> allowedInBotMenu() {
         return bots.stream().filter(b -> b.allowedAsItemInBotMenu).collect(Collectors.toList());
     }
+
+    public static List<BotDescriptor> all() {
+        return Collections.unmodifiableList(bots);
+    }
 }

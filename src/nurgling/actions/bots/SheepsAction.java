@@ -19,8 +19,8 @@ public class SheepsAction implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NArea.Specialisation sheeps = new NArea.Specialisation("sheeps");
-        NArea.Specialisation deadkritter = new NArea.Specialisation("deadkritter");
+        NArea.Specialisation sheeps = new NArea.Specialisation(Specialisation.SpecName.sheeps.toString());
+        NArea.Specialisation deadkritter = new NArea.Specialisation(Specialisation.SpecName.deadkritter.toString());
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(sheeps);
         req.add(deadkritter);
