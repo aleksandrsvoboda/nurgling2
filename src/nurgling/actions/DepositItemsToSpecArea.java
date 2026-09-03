@@ -40,6 +40,12 @@ public class DepositItemsToSpecArea implements Action {
     private NAlias fetchAlias = null;
 
     private Map<Long, Integer> containerFreeSpaceMap = new HashMap<>();
+    /**
+     * Items that fit in ONE free cell of each container, measured while it was open in the scan
+     * below. Container.Space counts free CELLS while ItemCount.getNeeded() counts ITEMS, and for
+     * anything that stacks those are not the same number.
+     */
+    private Map<Long, Integer> containerStackDepth = new HashMap<>();
 
     public DepositItemsToSpecArea(NContext context, NAlias itemAlias, Specialisation.SpecName destinationSpec, int maxPerContainer) {
         this.context = context;
@@ -69,6 +75,34 @@ public class DepositItemsToSpecArea implements Action {
     public DepositItemsToSpecArea setFetchAlias(NAlias fetchAlias) {
         this.fetchAlias = fetchAlias;
         return this;
+    }
+
+    /**
+     * Deepest stack this container will hold of anything we are depositing, or 1 when nothing
+     * stacks in it. Read while the container is open, because whether an item stacks at all
+     * depends on the destination - a herbalist table stacks nothing, a cupboard stacks leaves 4
+     * to a cell - and on the client's bundling setting.
+     */
+    private int measureStackDepth(NGameUI gui, Container container) throws InterruptedException {
+        NInventory inv = gui.getInventory(container.cap);
+        if (inv == null)
+            return 1;
+        int depth = 1;
+        for (String key : this.itemAlias.getKeys()) {
+            if (StackSupporter.isStackable(inv, key))
+                depth = Math.max(depth, Math.max(1, StackSupporter.getFullStackSize(key)));
+        }
+        return depth;
+    }
+
+    /**
+     * How many ITEMS still fit, from a free-CELL count. Comparing needed against free cells
+     * directly under-asks by the stack depth: a feeding cupboard with 56 worms has 8 free cells
+     * but room for 32 leaves, so the bot fetched 8, deposited them into 2 cells, found 6 cells
+     * left, fetched 6 - shrinking geometrically and walking back to the pile for every bite.
+     */
+    private int itemsThatFit(long gobid, int freeCells) {
+        return freeCells * containerStackDepth.getOrDefault(gobid, 1);
     }
 
     @Override
@@ -118,13 +152,15 @@ public class DepositItemsToSpecArea implements Action {
             
             gui.msg("DepositItems: Container #" + containerIndex + " [gob=" + container.gobid + "]: current=" + currentCount + ", target=" + maxPerContainer + ", needed=" + needed + ", freeSpace=" + freeSpace);
             
-            // Store free space for external access
+            // Store free space for external access. Stays in CELLS - callers size non-stacking
+            // items (silkworms) off it, so converting here would break them.
             containerFreeSpaceMap.put(container.gobid, freeSpace);
+            containerStackDepth.put(container.gobid, measureStackDepth(gui, container));
 
             // Only add if we need items AND have space
             if (needed > 0 && freeSpace > 0) {
-                // Limit by available free space
-                int canAdd = Math.min(needed, freeSpace);
+                // Limit by what actually fits, in items rather than cells
+                int canAdd = Math.min(needed, itemsThatFit(container.gobid, freeSpace));
                 totalNeeded += canAdd;
                 containersNeedingItems.add(container);
                 gui.msg("DepositItems: Container #" + containerIndex + " NEEDS " + canAdd + " items (added to fill list)");
@@ -191,7 +227,7 @@ public class DepositItemsToSpecArea implements Action {
                 Container.Space space = container.getattr(Container.Space.class);
                 int needed = itemCount.getNeeded();
                 int freeSpace = space.getFreeSpace();
-                totalStillNeeded += Math.min(needed, freeSpace);
+                totalStillNeeded += Math.min(needed, itemsThatFit(container.gobid, freeSpace));
             }
 
             if (totalStillNeeded == 0) {
