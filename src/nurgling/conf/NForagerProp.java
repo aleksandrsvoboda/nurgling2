@@ -66,6 +66,12 @@ public class NForagerProp implements JConf {
         public String actionsProfileName = null;
         public String guardingProfileName = null;
 
+        // Skips every action's Maintain quantity check (see ForagerAction.maintainQuantity,
+        // Forager.findNearestActionableGob) for this preset - lets a "manual" preset (run while
+        // the user is actually at the keyboard, not caring about over-collecting) coexist with a
+        // "bot" preset using the same Actions profile but respecting its Maintain caps.
+        public boolean ignoreMaintainLimits = false;
+
         public PresetData() {}
 
         public PresetData(String pathFile) {
@@ -124,6 +130,8 @@ public class NForagerProp implements JConf {
                     pd.actionsProfileName = (String) entry.getValue().get("actionsProfileName");
                 if (entry.getValue().get("guardingProfileName") != null)
                     pd.guardingProfileName = (String) entry.getValue().get("guardingProfileName");
+                if (entry.getValue().get("ignoreMaintainLimits") != null)
+                    pd.ignoreMaintainLimits = (Boolean) entry.getValue().get("ignoreMaintainLimits");
 
                 presets.put(entry.getKey(), pd);
             }
@@ -312,6 +320,7 @@ public class NForagerProp implements JConf {
                 presetJson.put("actionsProfileName", entry.getValue().actionsProfileName);
             if (entry.getValue().guardingProfileName != null)
                 presetJson.put("guardingProfileName", entry.getValue().guardingProfileName);
+            presetJson.put("ignoreMaintainLimits", entry.getValue().ignoreMaintainLimits);
 
             presetsJson.put(entry.getKey(), presetJson);
         }

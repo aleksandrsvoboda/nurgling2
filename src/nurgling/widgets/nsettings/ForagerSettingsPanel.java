@@ -152,6 +152,7 @@ public class ForagerSettingsPanel extends Panel {
     private Dropbox<String> presetGuardingDropbox;
     private Dropbox<String> presetAfterFinishDropbox;
     private Dropbox<String> presetOnFullInventoryDropbox;
+    private CheckBox presetIgnoreMaintainLimitsCheck;
     // Same purpose as suppressRouteAutoSave/suppressGuardingAutoSave above.
     private boolean suppressPresetAutoSave = false;
 
@@ -637,7 +638,14 @@ public class ForagerSettingsPanel extends Panel {
         prevField = psec.add(presetAfterFinishDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.on_full_inv")), prevField.pos("bl").add(UI.scale(0, 10)));
-        psec.add(presetOnFullInventoryDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
+        prevField = psec.add(presetOnFullInventoryDropbox = buildSimpleDropbox(PRESET_ACTIONS), prevField.pos("bl").add(UI.scale(0, 5)));
+
+        // Lets a "manual" preset (run while the user is actually at the keyboard, not caring
+        // about over-collecting) share the same Actions profile as a "bot" preset without
+        // inheriting its Maintain quantity caps - see ForagerAction.maintainQuantity and
+        // NForagerProp.PresetData.ignoreMaintainLimits.
+        presetIgnoreMaintainLimitsCheck = psec.add(new CheckBox(L10n.get("forager.settings.ignore_maintain_limits")), prevField.pos("bl").add(UI.scale(0, 10)));
+        presetIgnoreMaintainLimitsCheck.settip(L10n.get("forager.settings.ignore_maintain_limits_tip"));
 
         presetsSection.pack();
 
@@ -1021,6 +1029,7 @@ public class ForagerSettingsPanel extends Panel {
 
         presetAfterFinishDropbox.change(pd.afterFinishAction != null ? pd.afterFinishAction : "nothing");
         presetOnFullInventoryDropbox.change(pd.onFullInventoryAction != null ? pd.onFullInventoryAction : "nothing");
+        presetIgnoreMaintainLimitsCheck.a = pd.ignoreMaintainLimits;
     }
 
     /** Reads every Presets widget back into currentPresetData - called before switching the
@@ -1047,6 +1056,7 @@ public class ForagerSettingsPanel extends Panel {
         if (presetOnFullInventoryDropbox.sel != null) {
             currentPresetData.onFullInventoryAction = presetOnFullInventoryDropbox.sel;
         }
+        currentPresetData.ignoreMaintainLimits = presetIgnoreMaintainLimitsCheck.a;
     }
 
     /** PresetData.pathFile is a full file path (NUtils.getDataFile(ROUTES_DIR, name + ".json")),

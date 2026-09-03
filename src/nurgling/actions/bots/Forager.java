@@ -200,8 +200,12 @@ public class Forager implements Action {
         // anything else - same one-time-per-run, travel-and-count logic MaintainStockBot's own
         // scheduler step already uses, so this run's pickup budget for that item accounts for
         // what's already stored there, not just what's carried. See findNearestActionableGob's
-        // maintainQuantity check below, which reads this map.
-        maintainAreaStock = resolveMaintainAreaStock(gui, preset);
+        // maintainQuantity check below, which reads this map. Skipped entirely when the preset
+        // ignores Maintain limits - nothing would ever read the result, so there's no reason to
+        // pay for the travel-and-count trip.
+        maintainAreaStock = preset.ignoreMaintainLimits
+                ? java.util.Collections.emptyMap()
+                : resolveMaintainAreaStock(gui, preset);
 
         // ForagerSection geometry is expressed in world coordinates relative to sessloc,
         // which only make sense within the map segment sessloc anchors - so sections can only
@@ -334,7 +338,7 @@ public class Forager implements Action {
             // walk below still needs to depart from.
             Gob playerBeforeWalk = NUtils.player();
             if (playerBeforeWalk != null) {
-                Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, playerBeforeWalk.rc, preset.actions, SCAN_RADIUS, playerBeforeWalk.rc);
+                Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, playerBeforeWalk.rc, preset.actions, SCAN_RADIUS, playerBeforeWalk.rc, preset.ignoreMaintainLimits);
                 if (nearest != null && playerBeforeWalk.rc.dist(nearest.a.rc) < playerBeforeWalk.rc.dist(sectionEnd)) {
                     collectNearbyActionableGobs(gui, preset);
                     if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
@@ -589,8 +593,12 @@ public class Forager implements Action {
      * ascending-distance order, stopping at the first that clears - the common no-cliff-nearby
      * case pays for exactly one corridor check, same as before this method needed one at all;
      * only a genuinely blocked nearest candidate costs a second check against the runner-up.
+     * <p>
+     * ignoreMaintainLimits (from the active preset's own flag) skips every action's Maintain
+     * quantity check entirely, so a "manual" preset can freely over-collect without touching
+     * whatever cap a "bot" preset using the same actions is configured to respect.
      */
-    private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor) throws InterruptedException {
+    private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor, boolean ignoreMaintainLimits) throws InterruptedException {
         MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
         MCache map = (gui.map != null && gui.map.glob != null) ? gui.map.glob.map : null;
 
@@ -598,7 +606,7 @@ public class Forager implements Action {
         Map<Long, Double> distByGobId = new HashMap<>();
         for (ForagerAction action : actions) {
             if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
-            if (action.maintainQuantity >= 0) {
+            if (!ignoreMaintainLimits && action.maintainQuantity >= 0) {
                 int areaStock = (action.sourceItemName != null) ? maintainAreaStock.getOrDefault(action.sourceItemName, 0) : 0;
                 int carried = (action.sourceItemResource != null) ? countByResource(gui, action.sourceItemResource) : 0;
                 if (areaStock + carried >= action.maintainQuantity) {
@@ -774,7 +782,7 @@ public class Forager implements Action {
             Gob player = NUtils.player();
             if (player == null) return;
 
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor, preset.ignoreMaintainLimits);
             if (nearest == null) {
                 gui.activeBotDetourTarget = null;
                 return;
@@ -842,7 +850,7 @@ public class Forager implements Action {
             if (remaining <= MAX_HOP_DISTANCE) return true;
 
             Coord2d effectiveAnchor = detourEpisode ? leashAnchor : player.rc;
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, effectiveAnchor);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, effectiveAnchor, preset.ignoreMaintainLimits);
             if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
                 gui.activeBotDetourTarget = nearest.a.rc;
                 if (detourEpisode) {
