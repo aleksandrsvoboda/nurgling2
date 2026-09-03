@@ -254,7 +254,7 @@ public class BotRegistry {
         // Forager-only (allowedAsStepInScenario=false, allowedAsForagerStep=true) - a gate along
         // a route is a per-waypoint concern (see WaypointStepsWindow), not a general Scenario step.
         // Icon path reuses "goto"'s icon as a placeholder until a dedicated gate icon exists.
-        bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens the nearest gate if closed, or closes it if open.", false, false, GateBot.class, "goto", false, Map.of(), true));
+        bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens or closes the nearest gate, per this step's Action setting; does nothing if it's already in that state.", false, false, GateBot.class, "goto", false, Map.of("mode", "open"), true));
 
         // BUILD
         bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));

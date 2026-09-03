@@ -11,7 +11,6 @@ import nurgling.equipment.EquipmentPreset;
 import nurgling.scenarios.BotStep;
 import nurgling.scenarios.CraftPreset;
 import nurgling.scenarios.CraftPresetManager;
-import nurgling.tasks.GateDetector;
 import java.util.*;
 
 public class StepSettingsPanel extends Widget {
@@ -163,38 +162,36 @@ public class StepSettingsPanel extends Widget {
         }
         if (desc.id.equals("gate")) {
             hasAnySetting = true;
-            add(new Label("Gate type:"), new Coord(UI.scale(8), y));
+            add(new Label("Action:"), new Coord(UI.scale(8), y));
             y += UI.scale(24);
 
-            List<String> gateTypes = new ArrayList<>();
-            gateTypes.add("any");
-            gateTypes.addAll(Arrays.asList(GateDetector.GATE_NAMES));
+            List<String> gateModes = Arrays.asList("open", "close");
 
-            String currentType = (String) step.getSetting("gateType");
-            String selectedType = gateTypes.contains(currentType) ? currentType : "any";
+            String currentMode = (String) step.getSetting("mode");
+            String selectedMode = gateModes.contains(currentMode) ? currentMode : "open";
 
             NDropbox<String> gateDropdown = new NDropbox<String>(
                     UI.scale(160),
-                    Math.min(gateTypes.size(), 10),
+                    gateModes.size(),
                     UI.scale(22)
             ) {
                 @Override
-                protected String listitem(int i) { return gateTypes.get(i); }
+                protected String listitem(int i) { return gateModes.get(i); }
                 @Override
-                protected int listitems() { return gateTypes.size(); }
+                protected int listitems() { return gateModes.size(); }
                 @Override
                 protected void drawitem(GOut g, String item, int i) {
-                    g.text(gateTypeLabel(item), Coord.z);
+                    g.text("close".equals(item) ? "Close" : "Open", Coord.z);
                 }
                 @Override
                 public void change(String item) {
                     super.change(item);
                     if (item != null) {
-                        step.setSetting("gateType", item);
+                        step.setSetting("mode", item);
                     }
                 }
             };
-            gateDropdown.change(selectedType);
+            gateDropdown.change(selectedMode);
 
             add(gateDropdown, new Coord(UI.scale(8), y));
             y += UI.scale(40);
@@ -623,16 +620,5 @@ public class StepSettingsPanel extends Widget {
 
         add(areaDropdown, new Coord(UI.scale(8), y));
         dropdownHolder[0] = areaDropdown;
-    }
-
-    private static String gateTypeLabel(String gateType) {
-        switch (gateType) {
-            case "any": return "Any gate";
-            case "polegate": return "Pole gate";
-            case "polebiggate": return "Pole gate (big)";
-            case "drystonewallgate": return "Drystone wall gate";
-            case "drystonewallbiggate": return "Drystone wall gate (big)";
-            default: return gateType;
-        }
     }
 }
