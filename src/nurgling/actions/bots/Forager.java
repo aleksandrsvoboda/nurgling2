@@ -255,9 +255,13 @@ public class Forager implements Action {
 
         PathFinder pf = new PathFinder(startPos);
         pf.waterMode = effectiveWaterMode(gui, preset);
-        pf.run(gui);
+        Results startResult = pf.run(gui);
 
-        if (runWaypointSteps(gui, path.waypoints.get(0))) {
+        // Only run this waypoint's steps (e.g. a GateBot close) if we actually reached it -
+        // otherwise a failed/interrupted walk can trigger them from wherever pathing left off
+        // instead of at the waypoint itself (reported live: closing a gate while still standing
+        // in its own tile, mid-approach).
+        if (startResult.IsSuccess() && runWaypointSteps(gui, path.waypoints.get(0))) {
             return Results.SUCCESS();
         }
 
@@ -352,6 +356,10 @@ public class Forager implements Action {
             // occupied tile or touching its hitbox at all.
             if (toWp.milestoneHash != null) {
                 Gob milestoneGob = Finder.findGob(toWp.milestoneHash);
+                // Gates this waypoint's steps behind actually reaching it - see the startResult
+                // comment above for why (also covers milestoneGob == null: nothing to approach,
+                // so definitely not "arrived").
+                boolean arrivedNearMilestone = false;
                 if (milestoneGob != null && playerBeforeWalk != null) {
                     Coord2d away = playerBeforeWalk.rc.sub(milestoneGob.rc);
                     double dist = away.dist(Coord2d.z);
@@ -360,13 +368,13 @@ public class Forager implements Action {
                             : sectionEnd;
                     PathFinder pfApproach = new PathFinder(approachPoint);
                     pfApproach.waterMode = effectiveWaterMode(gui, preset);
-                    pfApproach.run(gui);
+                    arrivedNearMilestone = pfApproach.run(gui).IsSuccess();
                 } else if (milestoneGob != null) {
                     PathFinder pfApproach = new PathFinder(milestoneGob.rc);
                     pfApproach.waterMode = effectiveWaterMode(gui, preset);
-                    pfApproach.run(gui);
+                    arrivedNearMilestone = pfApproach.run(gui).IsSuccess();
                 }
-                if (runWaypointSteps(gui, toWp)) {
+                if (arrivedNearMilestone && runWaypointSteps(gui, toWp)) {
                     return Results.SUCCESS();
                 }
                 continue;
@@ -386,6 +394,13 @@ public class Forager implements Action {
                 return Results.SUCCESS();
             }
 
+            // Tracks whether this section's walk actually landed at/near waypoint i+1, so the
+            // steps call below can be gated on it - previously ran unconditionally even after a
+            // failed pfGob/pfEnd walk (only logged, never checked), which could trigger a
+            // waypoint's steps (e.g. a GateBot close) from wherever pathing gave up instead of
+            // at the waypoint itself (reported live: closing a gate while still standing in its
+            // own tile, mid-approach).
+            boolean arrivedAtWaypoint = reachedApproach;
             if (!reachedApproach) {
                 if (!isInventoryFull(gui)) {
                     gui.msg("Forager debug: section " + i + " failed pathing en route to "
@@ -400,7 +415,8 @@ public class Forager implements Action {
                 PathFinder pfGob = new PathFinder(targetGob);
                 pfGob.waterMode = effectiveWaterMode(gui, preset);
                 Results pfGobResult = pfGob.run(gui);
-                if (!pfGobResult.IsSuccess()) {
+                arrivedAtWaypoint = pfGobResult.IsSuccess();
+                if (!arrivedAtWaypoint) {
                     gui.msg("Forager debug: section " + i + " failed pathing to gob - waterMode="
                             + pfGob.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
                     gui.activeBotFailedWaypoints.add(i + 1);
@@ -411,7 +427,8 @@ public class Forager implements Action {
                 PathFinder pfEnd = new PathFinder(sectionEnd);
                 pfEnd.waterMode = effectiveWaterMode(gui, preset);
                 Results pfEndResult = pfEnd.run(gui);
-                if (!pfEndResult.IsSuccess()) {
+                arrivedAtWaypoint = pfEndResult.IsSuccess();
+                if (!arrivedAtWaypoint) {
                     gui.msg("Forager debug: section " + i + " failed pathing to sectionEnd=" + sectionEnd
                             + " - waterMode=" + pfEnd.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
                     gui.activeBotFailedWaypoints.add(i + 1);
@@ -419,8 +436,9 @@ public class Forager implements Action {
             }
 
             // Section i's endpoint is waypoint i+1 - run any steps attached to it now, right at
-            // arrival, before this section's normal pickup pass continues the route.
-            if (runWaypointSteps(gui, path.waypoints.get(i + 1))) {
+            // arrival, before this section's normal pickup pass continues the route - but only
+            // if we actually arrived, see arrivedAtWaypoint above.
+            if (arrivedAtWaypoint && runWaypointSteps(gui, path.waypoints.get(i + 1))) {
                 return Results.SUCCESS();
             }
 
