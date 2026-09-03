@@ -376,10 +376,10 @@ public class Forager implements Action {
             Gob targetGob = findGobNear(sectionEnd, 11.0);
 
             // Cover the ground toward this section's target in rescanning hops first (see
-            // walkSectionInHops' own javadoc) - this is what lets a gob revealed only partway
-            // through a long section still get detoured to, instead of only being caught by the
-            // checks immediately before departure or after arrival.
-            boolean reachedApproach = walkSectionInHops(gui, preset, targetGob != null ? targetGob.rc : sectionEnd);
+            // walkInHops' own javadoc, main-route mode) - this is what lets a gob revealed only
+            // partway through a long section still get detoured to, instead of only being caught
+            // by the checks immediately before departure or after arrival.
+            boolean reachedApproach = walkInHops(gui, preset, targetGob != null ? targetGob.rc : sectionEnd, null, null, null);
 
             if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
                 performSafetyAction(gui, preset.onFullInventoryAction);
@@ -395,8 +395,8 @@ public class Forager implements Action {
                 }
             } else if (targetGob != null)
             {
-                // Go to the object if found within 1 tile - walkSectionInHops only guarantees
-                // getting within MAX_HOP_DISTANCE, not hitbox-aware precise arrival.
+                // Go to the object if found within 1 tile - walkInHops only guarantees getting
+                // within MAX_HOP_DISTANCE, not hitbox-aware precise arrival.
                 PathFinder pfGob = new PathFinder(targetGob);
                 pfGob.waterMode = effectiveWaterMode(gui, preset);
                 Results pfGobResult = pfGob.run(gui);
@@ -557,13 +557,14 @@ public class Forager implements Action {
      * somewhere in the corridor between from and the candidate (climbing is unreliable, so the
      * fix is to never attempt the crossing, not the gob's own tile - a candidate sitting on solid
      * ground past a cliff is still rejected if the walk there would cross one). For a chained
-     * detour episode (collectUntilExhausted/travelWithWaypoints/returnToPathViaBreadcrumbs),
-     * leashAnchor must be held fixed for the whole episode by the caller - passing the bot's own
-     * constantly-drifting current position would make the leash never fire. walkSectionInHops is
-     * the one deliberate exception: it has no chain/episode concept at all (see its own javadoc -
-     * maxChains/maxChainDistance don't apply to it), so it intentionally passes its own current
-     * position as both from and leashAnchor - "don't detour more than maxDistance off from
-     * wherever I already am on the route" is the correct, self-contained check for that single-hop
+     * detour episode (collectUntilExhausted/walkInHops's detour-episode mode/
+     * returnToPathViaBreadcrumbs), leashAnchor must be held fixed for the whole episode by the
+     * caller - passing the bot's own constantly-drifting current position would make the leash
+     * never fire. walkInHops' main-route mode is the one deliberate exception: it has no chain/
+     * episode concept at all (see its own javadoc - maxChains/maxChainDistance don't apply to
+     * it), so it intentionally passes its own current position as both from and leashAnchor -
+     * "don't detour more than maxDistance off from wherever I already am on the route" is the
+     * correct, self-contained check for that single-hop
      * case, not a bug.
      * <p>
      * Candidates are gathered and distance-sorted before any cliff check runs, then checked in
@@ -767,7 +768,7 @@ public class Forager implements Action {
                 // detouring to anything closer found along the way. If it gives up partway
                 // (a hop failed - a dead end), stop the whole pass rather than looping back
                 // around to retry the same unreachable gob forever.
-                if (!travelWithWaypoints(gui, preset, nearest.a.rc, breadcrumbs, budget, leashAnchor)) return;
+                if (!walkInHops(gui, preset, nearest.a.rc, breadcrumbs, budget, leashAnchor)) return;
                 continue;
             }
 
@@ -783,19 +784,38 @@ public class Forager implements Action {
      * big for its search grid to grow to cover (see the comment on MAX_HOP_DISTANCE). Before
      * each hop, rescans out to SCAN_RADIUS for an actionable gob closer than target itself and
      * detours to collect it first if found - this is what lets a long walk toward a far gob
-     * still sweep up anything else it passes near, not just the original target. Every hop's
-     * start position (including ones spent detouring) is appended to breadcrumbs for the
-     * eventual walk back.
+     * still sweep up anything else it passes near, not just the original target.
      * <p>
+     * Two modes, merged into one method since they only ever differed in whether a detour
+     * episode's own bookkeeping applies - both used with the exact behavior each caller already
+     * relied on separately before this merge:
+     * <ul>
+     *   <li>Detour-episode mode ({@code breadcrumbs}/{@code budget} non-null, called from
+     *       {@link #collectUntilExhausted}): every hop's start position (including detour hops)
+     *       is appended to breadcrumbs for the eventual walk back; budget.canChain()/spend() gate
+     *       and account for every hop; leashAnchor is the caller-supplied fixed anchor for the
+     *       whole episode; a plain hop toward target sets gui.activeBotDetourTarget = target and
+     *       leaves it set for the next iteration/caller to overwrite - target genuinely is a
+     *       detour destination here.
+     *   <li>Main-route mode ({@code breadcrumbs}/{@code budget} null, called from the main
+     *       per-section loop): no breadcrumb tracking, no chain budget (this mode has no chain
+     *       concept at all - maxChains/maxChainDistance don't apply to it); leashAnchor is
+     *       recomputed as the current position every iteration (no accumulated chain to bound);
+     *       a plain hop toward target does NOT touch gui.activeBotDetourTarget at all (target is
+     *       the route's own next waypoint, already rendered as the active route node with its own
+     *       live player leg) - only an actual gob detour found along the way sets it, and clears
+     *       it again right after, since only a real detour deserves its own blue node.
+     * </ul>
      * Returns true once the player ends up within MAX_HOP_DISTANCE of target (ready for the
      * caller to do the final approach/action), false if a hop failed before getting there or
      * the inventory filled up mid-travel - either way, a dead end the caller shouldn't retry.
      */
-    private boolean travelWithWaypoints(NGameUI gui, NForagerProp.PresetData preset, Coord2d target, ArrayList<Coord2d> breadcrumbs,
-                                         nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
+    private boolean walkInHops(NGameUI gui, NForagerProp.PresetData preset, Coord2d target, ArrayList<Coord2d> breadcrumbs,
+                                nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
+        boolean detourEpisode = breadcrumbs != null;
         while (true) {
             if (isInventoryFull(gui)) return false;
-            if (!budget.canChain()) return false;
+            if (detourEpisode && !budget.canChain()) return false;
 
             Gob player = NUtils.player();
             if (player == null) return false;
@@ -803,19 +823,29 @@ public class Forager implements Action {
             double remaining = player.rc.dist(target);
             if (remaining <= MAX_HOP_DISTANCE) return true;
 
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor);
+            Coord2d effectiveAnchor = detourEpisode ? leashAnchor : player.rc;
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, effectiveAnchor);
             if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
                 gui.activeBotDetourTarget = nearest.a.rc;
-                budget.spend(player.rc.dist(nearest.a.rc));
-                breadcrumbs.add(player.rc);
+                if (detourEpisode) {
+                    budget.spend(player.rc.dist(nearest.a.rc));
+                    breadcrumbs.add(player.rc);
+                }
                 performGobAction(gui, nearest.b, nearest.a, preset);
+                if (!detourEpisode) {
+                    gui.activeBotDetourTarget = null;
+                }
                 continue;
             }
-            gui.activeBotDetourTarget = target;
+            if (detourEpisode) {
+                gui.activeBotDetourTarget = target;
+            }
 
             Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
-            budget.spend(player.rc.dist(waypoint));
-            breadcrumbs.add(player.rc);
+            if (detourEpisode) {
+                budget.spend(player.rc.dist(waypoint));
+                breadcrumbs.add(player.rc);
+            }
             PathFinder hop = new PathFinder(waypoint);
             hop.waterMode = effectiveWaterMode(gui, preset);
             if (!hop.run(gui).IsSuccess()) {
@@ -844,53 +874,6 @@ public class Forager implements Action {
     }
 
     /**
-     * Walks the main route toward a section's own target (sectionEnd, or a gob found right at
-     * it) in the same rescanning-hop style as {@link #travelWithWaypoints}, instead of one
-     * uninterrupted PathFinder call straight there. A gob only becomes findable once its grid
-     * has actually loaded in - on a section longer than MAX_HOP_DISTANCE, a single long walk
-     * gave the pre-departure/post-arrival checks no chance to see anything that loaded in
-     * partway through, so it was silently skipped for that whole section (reported live: "we
-     * used to constantly be checking for gobs at any point during the walk... now we only do it
-     * when we reach the waypoints").
-     * <p>
-     * Unlike travelWithWaypoints, this deliberately does *not* set gui.activeBotDetourTarget
-     * (or track breadcrumbs) for a plain hop toward target - target here is the route's own
-     * next waypoint, already rendered as the active route node with its own live player leg;
-     * only an actual detour to a gob found along the way is a real detour worth its own blue
-     * node, so the field is set (and cleared right after) only for that branch.
-     * <p>
-     * Returns true once within MAX_HOP_DISTANCE of target, ready for the caller's own precise
-     * final approach; false if a hop failed or the inventory filled up mid-walk.
-     */
-    private boolean walkSectionInHops(NGameUI gui, NForagerProp.PresetData preset, Coord2d target) throws InterruptedException {
-        while (true) {
-            if (isInventoryFull(gui)) return false;
-
-            Gob player = NUtils.player();
-            if (player == null) return false;
-
-            double remaining = player.rc.dist(target);
-            if (remaining <= MAX_HOP_DISTANCE) return true;
-
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, player.rc);
-            if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
-                gui.activeBotDetourTarget = nearest.a.rc;
-                performGobAction(gui, nearest.b, nearest.a, preset);
-                gui.activeBotDetourTarget = null;
-                continue;
-            }
-
-            Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
-            PathFinder hop = new PathFinder(waypoint);
-            hop.waterMode = effectiveWaterMode(gui, preset);
-            if (!hop.run(gui).IsSuccess()) {
-                unstickAtCurrentPosition(gui, preset);
-                return false;
-            }
-        }
-    }
-
-    /**
      * Retraces the breadcrumb trail back towards target, one point at a time - most recent
      * first, since that's the order the character can actually walk it back in. This mutates
      * the same list instance {@code gui.activeBotDetourTrail} is still pointing at (the caller
@@ -903,7 +886,7 @@ public class Forager implements Action {
      * nearby before moving on, rather than only detouring for something that happens to be
      * closer than the immediate next checkpoint (which meant anything off to the side, or only
      * spotted after already passing its closest point, used to get silently skipped for the
-     * rest of the trip). Detouring towards a far gob (via travelWithWaypoints, called inside
+     * rest of the trip). Detouring towards a far gob (via walkInHops's detour-episode mode, called inside
      * collectUntilExhausted) adds fresh breadcrumbs of its own, which is fine - they just
      * become the new nearest points to retrace next.
      * <p>
