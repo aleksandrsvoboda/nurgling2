@@ -2,6 +2,7 @@ package nurgling.actions.bots.forager;
 
 import haven.Coord;
 import haven.Coord2d;
+import haven.Line2d;
 import haven.Loading;
 import haven.MCache;
 import haven.resutil.Ridges;
@@ -30,33 +31,55 @@ public class CliffCorridorChecker {
     /**
      * True if a broken/cliff-edge ridge tile (see {@link Ridges#brokenp}) lies anywhere in the
      * first MAX_CORRIDOR_SAMPLE_TILES tiles of the corridor from {@code from} toward {@code to},
-     * sampled once per tile crossed and buffered by {@code bufferTiles} extra tiles of margin on
-     * each sample. A sampled tile whose grid isn't loaded yet ({@link Loading}) is treated as
-     * unknown, not as a confirmed cliff - it's skipped rather than either blocking the candidate
-     * or crashing the scan.
+     * buffered by {@code bufferTiles} extra tiles of margin on each sampled tile. A sampled tile
+     * whose grid isn't loaded yet ({@link Loading}) is treated as unknown, not as a confirmed
+     * cliff - it's skipped rather than either blocking the candidate or crashing the scan.
+     * <p>
+     * Uses {@link Line2d.GridIsect} (the same tile-grid line-traversal Gob.java's own line-of-
+     * sight height sampling already relies on) to visit exactly the tiles the line actually
+     * crosses, once each, rather than a fixed-step sampling loop that can both double-sample and
+     * skip tiles depending on step spacing versus tile alignment.
      */
     public static boolean corridorBlocked(MCache map, Coord2d from, Coord2d to, int bufferTiles) {
         if (map == null || from == null || to == null) return false;
 
         double dist = from.dist(to);
-        double sampleDist = Math.min(dist, MAX_CORRIDOR_SAMPLE_TILES * MCache.tilesz.x);
-        int steps = Math.max(1, (int) Math.ceil(sampleDist / MCache.tilesz.x));
-        Coord2d dir = (dist > 0.01) ? to.sub(from).mul(sampleDist / dist) : Coord2d.z;
+        if (dist < 0.01) {
+            // GridIsect's own iterator divides by the line's direction vector - a from==to
+            // (or near enough) corridor has none, so just check the one tile directly instead.
+            return tileOrBufferBroken(map, from.floor(MCache.tilesz), bufferTiles);
+        }
+        Coord2d cappedTo = to;
+        double maxDist = MAX_CORRIDOR_SAMPLE_TILES * MCache.tilesz.x;
+        if (dist > maxDist) {
+            cappedTo = from.add(to.sub(from).mul(maxDist / dist));
+        }
 
-        for (int i = 0; i <= steps; i++) {
-            double t = (double) i / steps;
-            Coord2d p = from.add(dir.mul(t));
-            Coord center = p.floor(MCache.tilesz);
+        Coord2d prev = null;
+        for (Coord2d p : new Line2d.GridIsect(from, cappedTo, MCache.tilesz, true)) {
+            if (prev != null) {
+                // Midpoint of each crossing-to-crossing segment, not the crossing points
+                // themselves (which sit exactly on a tile boundary and could floor() to either
+                // neighbor) - guaranteed to land inside the one tile that segment crosses.
+                Coord tile = prev.add(p).div(2).floor(MCache.tilesz);
+                if (tileOrBufferBroken(map, tile, bufferTiles)) {
+                    return true;
+                }
+            }
+            prev = p;
+        }
+        return false;
+    }
 
-            for (int dx = -bufferTiles; dx <= bufferTiles; dx++) {
-                for (int dy = -bufferTiles; dy <= bufferTiles; dy++) {
-                    try {
-                        if (Ridges.brokenp(map, center.add(dx, dy))) {
-                            return true;
-                        }
-                    } catch (Loading l) {
-                        // Unloaded tile - unknown, not a confirmed cliff. Keep sampling.
+    private static boolean tileOrBufferBroken(MCache map, Coord center, int bufferTiles) {
+        for (int dx = -bufferTiles; dx <= bufferTiles; dx++) {
+            for (int dy = -bufferTiles; dy <= bufferTiles; dy++) {
+                try {
+                    if (Ridges.brokenp(map, center.add(dx, dy))) {
+                        return true;
                     }
+                } catch (Loading l) {
+                    // Unloaded tile - unknown, not a confirmed cliff. Keep sampling.
                 }
             }
         }
