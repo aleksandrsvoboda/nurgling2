@@ -170,7 +170,9 @@ public class NForagerProp implements JConf {
                 GuardingProfile migrated = GuardingProfile.withDefaults();
                 migrated.waterMode = pd.waterMode;
                 migrated.ignoreBats = pd.ignoreBats;
-                for (GuardEntryPatch patch : new GuardEntryPatch[]{new GuardEntryPatch("dangerous_animal", pd.onAnimalAction)}) {
+                for (GuardEntryPatch patch : new GuardEntryPatch[]{
+                        new GuardEntryPatch("dangerous_animal", pd.onAnimalAction),
+                        new GuardEntryPatch("unknown_player", pd.onPlayerAction)}) {
                     patch.applyTo(migrated.inflightGuards);
                 }
                 guardingProfiles.put(entry.getKey(), migrated);

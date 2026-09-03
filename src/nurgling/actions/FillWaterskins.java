@@ -125,6 +125,7 @@ public class FillWaterskins implements Action {
     private static final double LITERS_EPSILON = 0.01;
 
     private static final Pattern LITERS_PATTERN = Pattern.compile("([\\d.]+)\\s*l\\b", Pattern.CASE_INSENSITIVE);
+    private static final long FILL_CLICK_TIMEOUT_MS = 3000;
 
     /** {@link #needsWaterRefill(NGItem, double)} for a Waterskin/Glass Jug specifically. */
     private boolean needsWaterRefill(NGItem ngItem) {
@@ -167,9 +168,14 @@ public class FillWaterskins implements Action {
             String before = ngItem.content().isEmpty() ? null : ngItem.content().get(0).name();
 
             NUtils.activateItem(target);
+            // Bounded wait: a dry source never changes the held item's content, so this must time
+            // out rather than block the bot thread forever - the progress check below already
+            // handles a no-op click correctly.
+            long deadline = System.currentTimeMillis() + FILL_CLICK_TIMEOUT_MS;
             NUtils.addTask(new NTask() {
                 @Override
                 public boolean check() {
+                    if (System.currentTimeMillis() > deadline) return true;
                     WItem h = NUtils.getGameUI().vhand;
                     if (h == null || !(h.item instanceof NGItem)) return true;
                     NGItem ng = (NGItem) h.item;

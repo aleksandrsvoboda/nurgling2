@@ -8,6 +8,7 @@ import nurgling.actions.Action;
 import nurgling.actions.PathFinder;
 import nurgling.actions.Results;
 import nurgling.tasks.GateDetector;
+import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
@@ -61,12 +62,13 @@ public class GateBot implements Action {
     }
 
     private boolean waitForGateState(Gob gate, boolean wantOpen, long timeoutMs) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            if (gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen)
-                return true;
-            Thread.sleep(100);
-        }
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                return System.currentTimeMillis() > deadline || (gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen);
+            }
+        });
         return gate.ngob != null && GateDetector.isDoorOpen(gate) == wantOpen;
     }
 }

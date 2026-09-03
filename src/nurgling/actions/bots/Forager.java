@@ -130,7 +130,9 @@ public class Forager implements Action {
         gui.activeBotPath = path;
         // Index of the waypoint Forager is currently heading toward - lets NWaypointOverlay color it as active.
         gui.activeBotWaypointIndex = 0;
-        gui.activeBotFailedWaypoints = new HashSet<>();
+        // Concurrent set: the render thread iterates this via NWaypointOverlay while this bot
+        // thread adds to it, with no other synchronization between them.
+        gui.activeBotFailedWaypoints = java.util.concurrent.ConcurrentHashMap.newKeySet();
         Thread threatWatcher = null;
         try {
 
@@ -524,6 +526,15 @@ public class Forager implements Action {
     private boolean walkInHops(NGameUI gui, NForagerProp.PresetData preset, Coord2d target, ArrayList<Coord2d> breadcrumbs,
                                 nurgling.actions.bots.forager.DetourChainBudget budget, Coord2d leashAnchor) throws InterruptedException {
         boolean detourEpisode = breadcrumbs != null;
+        if (!detourEpisode) {
+            // Anchor held fixed for this whole call, same as the detour-episode case - re-deriving
+            // it from the current position every hop let repeated hops drift arbitrarily far from
+            // the route, since each hop's leash check only ever bounded the next hop from wherever
+            // the last one left off.
+            Gob startPlayer = NUtils.player();
+            if (startPlayer == null) return false;
+            leashAnchor = startPlayer.rc;
+        }
         while (true) {
             if (isInventoryFull(gui)) return false;
             if (detourEpisode && !budget.canChain()) return false;
@@ -534,8 +545,7 @@ public class Forager implements Action {
             double remaining = player.rc.dist(target);
             if (remaining <= MAX_HOP_DISTANCE) return true;
 
-            Coord2d effectiveAnchor = detourEpisode ? leashAnchor : player.rc;
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, effectiveAnchor, preset.ignoreMaintainLimits);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor, preset.ignoreMaintainLimits);
             if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
                 gui.activeBotDetourTarget = nearest.a.rc;
                 if (detourEpisode) {
