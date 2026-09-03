@@ -63,23 +63,40 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         }
     }
 
-    private Resolution resolve(String itemName) {
+    /**
+     * @param itemResourcePath the item's own invobj resource path (e.g.
+     *                         "gfx/invobjs/herbs/blueberry"), if known - null for the rare case
+     *                         nothing resolved one (e.g. a typed custom name with no catalogue
+     *                         icon match)
+     */
+    private Resolution resolve(String itemName, String itemResourcePath) {
         ArrayList<String> gobs = VSpec.getGobsForItem(itemName);
 
         if (gobs.isEmpty()) {
             // No tree/bush link found - assume herb/mushroom-style direct match: matching is a
-            // plain substring check against the gob's resource path (e.g. "chantrelle" against
-            // "gfx/terobjs/herbs/chantrelle"), which a plural or multi-word display name breaks
-            // outright ("Chantrelles" is not a substring of ".../chantrelle" - the trailing "s"
-            // alone defeats it; "Liberty Caps" never will be either, since resource paths have
-            // no spaces). Try several normalized candidates alongside the literal name so a
-            // simple plural/spacing mismatch like that resolves on its own; anything resolvable
-            // only via an unrelated internal name (e.g. "Morels" -> the "lorchel" resource) still
-            // needs a manual fix via this item's right-click "Edit Pattern".
-            return new Resolution(herbPatternCandidates(itemName), ForagerAction.ActionType.PICK, null);
+            // plain substring check against the gob's resource path (e.g. "blueberry" against
+            // "gfx/terobjs/herbs/blueberry"). A herb's invobj and terobj resource paths
+            // consistently share the same short name (only "invobjs"/"terobjs" differs), so the
+            // item's own resource path's last segment is a precise, correct pattern on its own -
+            // no need to guess anything from the display name, which is often a poor match for
+            // the internal name (plurals like "Blueberries"/"Chantrelles", multi-word names like
+            // "Liberty Caps", or a display name with no textual relation at all like "Morels" ->
+            // the "lorchel" resource). Only falls back to guessing from the display name when no
+            // resource path was available to slice at all.
+            String pattern = (itemResourcePath != null)
+                    ? resourceShortName(itemResourcePath)
+                    : herbPatternCandidates(itemName);
+            return new Resolution(pattern, ForagerAction.ActionType.PICK, null);
         }
         String pattern = String.join(",", gobs);
         return new Resolution(pattern, ForagerAction.ActionType.FLOWER_ACTION, actionNameCandidates(itemName));
+    }
+
+    /** Last path segment of a gfx resource path (e.g. "gfx/invobjs/herbs/blueberry" -&gt;
+     *  "blueberry"). */
+    private static String resourceShortName(String resourcePath) {
+        int slash = resourcePath.lastIndexOf('/');
+        return slash >= 0 ? resourcePath.substring(slash + 1) : resourcePath;
     }
 
     /**
@@ -132,24 +149,20 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
     }
 
     /**
-     * Builds a comma-separated set of candidate substrings to match against a gob's resource
-     * path for an item with no VSpec gob link, widest/most-specific first: the literal name, the
-     * name with spaces removed (multi-word display names never appear as-is in a resource path,
-     * which has none), and singular versions of both (strip one trailing "s") since resource
-     * paths are consistently singular even when the item name is plural. Duplicates are dropped;
-     * {@link ForagerAction#toNAlias()} matches on ANY of these against the gob's name. Checks
-     * {@link VSpec#KNOWN_ITEM_PATTERN} first for a confirmed answer, ahead of any guessing.
+     * Last-resort fallback for the rare case {@link #resolve} has no resource path to slice at
+     * all (e.g. a typed custom name with no catalogue icon match) - builds a comma-separated set
+     * of candidate substrings to match against a gob's resource path, widest/most-specific first:
+     * the literal name, the name with spaces removed (multi-word display names never appear as-is
+     * in a resource path, which has none), and singular versions of both (strip one trailing "s")
+     * since resource paths are consistently singular even when the item name is plural.
+     * Duplicates are dropped; {@link ForagerAction#toNAlias()} matches on ANY of these against the
+     * gob's name.
      */
     private static String herbPatternCandidates(String itemName) {
         // Matching is already case-insensitive (NAlias lowercases everything internally), but
         // gob resource paths are always lowercase - keep the saved pattern looking like one
         // instead of a mix of cases, so it reads sensibly if the user reviews/edits it later.
         String lower = itemName.toLowerCase();
-
-        String known = VSpec.KNOWN_ITEM_PATTERN.get(lower);
-        if (known != null) {
-            return known;
-        }
 
         java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
         candidates.add(lower);
@@ -196,10 +209,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         // an item's display name (e.g. "Unripe Chestnut" vs "Chestnut") varies by growth/quality
         // stage while its underlying invobj resource doesn't. Icon rendering still prefers
         // "layer" over "static" (see ItemTex.create), so this doesn't change how the icon looks.
-        if (item.res != null && item.res.get() != null) {
-            res.put("static", item.res.get().name);
+        String itemResourcePath = (item.res != null && item.res.get() != null) ? item.res.get().name : null;
+        if (itemResourcePath != null) {
+            res.put("static", itemResourcePath);
         }
-        addResolved(name, res, resolve(name));
+        addResolved(name, res, resolve(name, itemResourcePath));
         return super.drop(ev);
     }
 
@@ -219,7 +233,8 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         String name = element.getName();
         JSONObject iconRes = new JSONObject(element.getRes().toString());
         iconRes.put("name", name);
-        addResolved(name, iconRes, resolve(name));
+        String itemResourcePath = iconRes.has("static") ? iconRes.getString("static") : null;
+        addResolved(name, iconRes, resolve(name, itemResourcePath));
     }
 
     /** Opens a small prompt to add an entry with no real item to drag in. */
@@ -241,7 +256,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         if (iconPath != null) {
             iconRes.put("static", iconPath);
         }
-        Resolution res = resolve(typedName);
+        Resolution res = resolve(typedName, iconPath);
         BufferedImage img = (iconPath != null) ? ItemTex.create(iconRes) : null;
         if (img == null) {
             // Either no icon path was found, or ItemTex failed to load it (e.g. stale/renamed
