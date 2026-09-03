@@ -8,8 +8,9 @@ import nurgling.tools.NAlias;
 /** Fires if a dangerous animal (per Options &gt; Ring Settings' configured radii) is within
  *  range of the player. Ring Settings (NConfig.Key.animalrad, read via ctx.animalRads()) is a
  *  general "draw an awareness ring around this critter" list, not a danger list - it includes
- *  plain Rat right alongside the genuinely aggressive Cave Rat, so plain Rat is explicitly
- *  excluded here. */
+ *  plain Rat right alongside the genuinely aggressive Cave Rat, so this reads each entry's own
+ *  NAreaRad.dangerous flag (a per-ring checkbox in Ring Settings, independent of visibility)
+ *  rather than assuming every tracked critter is a threat. */
 public class DangerousAnimalTrigger implements GuardTrigger {
     private String lastReason = "";
 
@@ -23,7 +24,7 @@ public class DangerousAnimalTrigger implements GuardTrigger {
             if (ctx.ignoreBats && rad.name.contains("bat")) {
                 continue;
             }
-            if (rad.name.equals("gfx/kritter/rat/rat")) {
+            if (!rad.dangerous) {
                 continue;
             }
             // 1.25x margin over the configured danger radius - pulls the character out before

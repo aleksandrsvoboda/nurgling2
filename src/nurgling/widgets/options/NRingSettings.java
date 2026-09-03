@@ -43,6 +43,7 @@ public class NRingSettings extends Panel {
         final int itemHeight;
 
         CheckBox visBox;
+        CheckBox dangerBox;
         Label nameLabel;
         TextEntry radEntry;
 
@@ -52,8 +53,9 @@ public class NRingSettings extends Panel {
             this.itemHeight = height;
 
             int checkX = 0;
-            int labelX = UI.scale(24);
-            int entryX = UI.scale(170);
+            int dangerX = UI.scale(20);
+            int labelX = UI.scale(44);
+            int entryX = UI.scale(190);
 
             visBox = add(new CheckBox("") {
                 {
@@ -66,6 +68,23 @@ public class NRingSettings extends Panel {
                     persistRadProps();
                 }
             }, new Coord(checkX, (itemHeight - UI.scale(16)) / 2));
+
+            // Independent of visBox - whether the safety watchdog's DangerousAnimalTrigger
+            // treats this ring as a threat, not just whether it's drawn. Used to be a single
+            // hardcoded "Rat" exclusion inside the trigger itself, which broke for any other
+            // non-dangerous critter a user tracked here for visibility.
+            dangerBox = add(new CheckBox("") {
+                {
+                    a = rad.dangerous;
+                }
+                @Override
+                public void changed(boolean val) {
+                    super.changed(val);
+                    rad.dangerous = val;
+                    persistRadProps();
+                }
+            }, new Coord(dangerX, (itemHeight - UI.scale(16)) / 2));
+            dangerBox.settip(L10n.get("rings.settings_dangerous_tip"));
 
             nameLabel = add(new Label(rad.name), new Coord(labelX, (itemHeight - UI.scale(16)) / 2));
 
@@ -97,10 +116,12 @@ public class NRingSettings extends Panel {
             int cy = (itemHeight - UI.scale(16)) / 2;
             if (visBox != null)
                 visBox.move(new Coord(0, cy));
+            if (dangerBox != null)
+                dangerBox.move(new Coord(UI.scale(20), cy));
             if (nameLabel != null)
-                nameLabel.move(new Coord(UI.scale(24), cy));
+                nameLabel.move(new Coord(UI.scale(44), cy));
             if (radEntry != null)
-                radEntry.move(new Coord(UI.scale(170), cy));
+                radEntry.move(new Coord(UI.scale(190), cy));
         }
     }
 }
