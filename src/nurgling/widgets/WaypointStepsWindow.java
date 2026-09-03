@@ -82,6 +82,7 @@ public class WaypointStepsWindow extends Window {
                 }
             }
         }, prev.pos("bl").add(UI.scale(0, 5)));
+        prev = failDropbox;
 
         String current = waypoint.onStepsFailAction != null ? waypoint.onStepsFailAction : "nothing";
         for (String action : FAIL_ACTIONS) {
