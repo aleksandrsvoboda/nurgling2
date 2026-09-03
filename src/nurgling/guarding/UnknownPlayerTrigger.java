@@ -1,47 +1,22 @@
 package nurgling.guarding;
 
-import haven.BuddyWnd;
-import haven.Gob;
-import haven.res.ui.obj.buddy.Buddy;
-import nurgling.tools.Finder;
-
-import java.awt.Color;
-
 /**
- * Fires if any nearby player character isn't a known ally. {@code gui.alarmWdg.borkas}
- * (populated by NGob.java for every rendered player-character gob) is every player nearby, not
- * just unknown ones - a green/known-ally walking past isn't a threat. Filters to the same
- * "unknown or hostile" definition the alarm/arrow system uses: no buddy-list entry at all, or a
- * buddy in the white (unclassified) or red (hostile) kin group. borkas is a per-session
- * instance field on NAlarmWdg (not static), so this goes through {@code ctx.gui.alarmWdg}
- * rather than any shared static list.
+ * Fires if the session's own alarm/arrow system (NAlarmWdg - the same one Navigation settings'
+ * awareness rings drive) currently has a live hostile/unknown player threat. Deliberately
+ * delegates entirely to NAlarmWdg.hasActiveThreat() rather than re-deriving "is this player
+ * unknown" from borkas/Buddy directly, as an earlier version of this trigger did - that
+ * reimplementation was missing several protections NAlarmWdg already has (a Composite-model-load
+ * readiness check, treating a temporarily-null Buddy.b as "still loading, skip" rather than
+ * "unknown," a cached-last-known-group fallback, and a frame-count delay before a genuinely
+ * unknown player is treated as alarm-worthy - see NConfig.Key.alarmDelayFrames) - which let it
+ * misfire right after a travel/grid change, when nearby players' kin data is transiently
+ * incomplete for everyone (reported live: it sometimes thought the player's own character was an
+ * unknown player, specifically after a travel/cell change).
  */
 public class UnknownPlayerTrigger implements GuardTrigger {
     @Override
     public boolean check(GuardContext ctx) {
-        if (ctx.gui.alarmWdg == null) {
-            return false;
-        }
-        synchronized (ctx.gui.alarmWdg.borkas) {
-            for (Long id : ctx.gui.alarmWdg.borkas) {
-                Gob otherPlayer = Finder.findGob(id);
-                if (otherPlayer == null) {
-                    continue;
-                }
-                Buddy buddy = otherPlayer.getattr(Buddy.class);
-                boolean unknownOrHostile;
-                if (buddy == null || buddy.b == null) {
-                    unknownOrHostile = true;
-                } else {
-                    Color groupColor = BuddyWnd.gc[buddy.b.group];
-                    unknownOrHostile = groupColor.equals(Color.WHITE) || groupColor.equals(Color.RED);
-                }
-                if (unknownOrHostile) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return ctx.gui.alarmWdg != null && ctx.gui.alarmWdg.hasActiveThreat();
     }
 
     @Override
