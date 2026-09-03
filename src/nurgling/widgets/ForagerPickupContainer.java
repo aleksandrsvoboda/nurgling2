@@ -186,14 +186,24 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return String.join(",", candidates);
     }
 
-    private void addResolved(String itemName, JSONObject iconRes, Resolution res) {
+    /**
+     * @param placeholder null for the normal path (icon rendered from iconRes via addIcon());
+     *                    non-null when no real icon could be resolved/loaded, drawing this
+     *                    hash-colored placeholder instead (see addPlaceholderIcon()) - the only
+     *                    difference between what used to be two near-identical methods here.
+     */
+    private void addResolved(String itemName, JSONObject iconRes, Resolution res, BufferedImage placeholder) {
         ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
         action.sourceItemName = itemName;
         if (iconRes != null && iconRes.has("static")) {
             action.sourceItemResource = iconRes.getString("static");
         }
         actions.add(action);
-        addIcon(iconRes);
+        if (placeholder != null) {
+            addPlaceholderIcon(itemName, placeholder, action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+        } else {
+            addIcon(iconRes);
+        }
         notifyChanged();
     }
 
@@ -213,7 +223,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         if (itemResourcePath != null) {
             res.put("static", itemResourcePath);
         }
-        addResolved(name, res, resolve(name, itemResourcePath));
+        addResolved(name, res, resolve(name, itemResourcePath), null);
         return super.drop(ev);
     }
 
@@ -234,7 +244,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         JSONObject iconRes = new JSONObject(element.getRes().toString());
         iconRes.put("name", name);
         String itemResourcePath = iconRes.has("static") ? iconRes.getString("static") : null;
-        addResolved(name, iconRes, resolve(name, itemResourcePath));
+        addResolved(name, iconRes, resolve(name, itemResourcePath), null);
     }
 
     /** Opens a small prompt to add an entry with no real item to drag in. */
@@ -263,10 +273,10 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             // resource) - either way, fall back to a stable per-name placeholder rather than
             // leaving the entry unrenderable.
             iconRes.remove("static");
-            addResolvedPlaceholder(typedName, iconRes, res, placeholderIcon(typedName));
+            addResolved(typedName, iconRes, res, placeholderIcon(typedName));
             return;
         }
-        addResolved(typedName, iconRes, res);
+        addResolved(typedName, iconRes, res, null);
     }
 
     // 400px wide (see ForagerSettingsPanel) - default gridColumns()=5 (tuned for the 205px-wide
@@ -277,19 +287,11 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         return 10;
     }
 
-    private void addResolvedPlaceholder(String itemName, JSONObject iconRes, Resolution res, BufferedImage placeholder) {
-        ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
-        action.sourceItemName = itemName;
-        actions.add(action);
-        addPlaceholderIcon(itemName, placeholder, action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
-        notifyChanged();
-    }
-
     // BaseIngredientContainer.addIcon() always goes through ItemTex.create(), which can't produce
     // a placeholder image - this adds the icon item directly instead, mirroring addIcon()'s own
-    // bookkeeping (items/icons lists, grid position, scroll bounds). Shared by addResolvedPlaceholder
-    // (a fresh entry, which also owns creating+registering the ForagerAction itself) and load()
-    // (redrawing an entry whose ForagerAction already exists).
+    // bookkeeping (items/icons lists, grid position, scroll bounds). Shared by addResolved()'s own
+    // placeholder branch (a fresh entry, which also owns creating+registering the ForagerAction
+    // itself) and load() (redrawing an entry whose ForagerAction already exists).
     private IconItem addPlaceholderIcon(String name, BufferedImage img, boolean isFlowerAction) {
         items.add(new Ingredient(name, img));
         IconItem it = add(new IconItem(name, img, this), gridPos(items.size() - 1));
