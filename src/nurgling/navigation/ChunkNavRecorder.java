@@ -487,11 +487,7 @@ public class ChunkNavRecorder {
     /**
      * Check if a gob should be considered passable (not blocking).
      * Only includes specific portal gobs that are traversable, NOT buildings themselves.
-     * Gates are always treated as passable, same as doors: PathFinder/NPFMap never treat
-     * a gate as blocking (they let the client's normal open-on-approach behavior handle
-     * it), so recording a closed gate as a permanent wall here would freeze that snapshot
-     * into the chunk's walkability grid and make ChunkNav route around - or get stuck at -
-     * a gate that's actually crossable.
+     * Gates are only passable when they are open.
      */
     private boolean isPassableGob(Gob gob) {
         if (gob == null || gob.ngob == null || gob.ngob.name == null) return false;
@@ -511,12 +507,13 @@ public class ChunkNavRecorder {
         // Natural cave mouths - the passage itself, not a wall
         if (lower.contains("/cavein") || lower.contains("/caveout")) return true;
 
-        // All types of gates - always passable, regardless of current open/closed state.
+        // All types of gates - only passable when OPEN (modelAttribute == 1)
         // Includes: polegate, polebiggate, palisadegate, palisadebiggate, drystonewallgate, drystonewallbiggate
         if (lower.contains("/polegate") || lower.contains("/polebiggate") ||
             lower.contains("/palisadegate") || lower.contains("/palisadebiggate") ||
             lower.contains("/drystonewallgate") || lower.contains("/drystonewallbiggate")) {
-            return true;
+            // Check if gate is open using GateDetector logic
+            return GateDetector.isDoorOpen(gob);
         }
 
         // Mine holes
@@ -544,11 +541,11 @@ public class ChunkNavRecorder {
         // Natural cave mouths - the passage itself, not a wall
         if (lower.contains("/cavein") || lower.contains("/caveout")) return true;
 
-        // Gates - always passable, same reasoning as isPassableGob(Gob) above.
+        // Gates - only passable when OPEN (modelAttribute == 1)
         if (lower.contains("/polegate") || lower.contains("/polebiggate") ||
             lower.contains("/palisadegate") || lower.contains("/palisadebiggate") ||
             lower.contains("/drystonewallgate") || lower.contains("/drystonewallbiggate")) {
-            return true;
+            return snap.modelAttribute == 1L;  // 1 = open
         }
 
         // Mine holes
