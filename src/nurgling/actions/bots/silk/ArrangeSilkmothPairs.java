@@ -1,9 +1,11 @@
 package nurgling.actions.bots.silk;
 
+import haven.Coord;
 import haven.Gob;
 import haven.WItem;
 import nurgling.NGItem;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
@@ -14,90 +16,84 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Optimizes silkmoth pairs across containers using inventory as buffer, and groups the moths by
- * quality while doing it.
+ * Groups the breeding moths so the best males share a cupboard with the best females.
  *
- * <p>Egg quality is the average of the two parents, so how the moths are matched cannot change the
- * average egg quality at all - the total is the sum of every moth either way. What it changes is
- * the SPREAD: pairing like with like roughly doubles the variance of pair quality against pairing
- * at random. That is worth having only because the rest of the bot selects - it plants the best
- * eggs it can find and breeds from the best cocoons - so a wider top tail with the bottom culled
- * ratchets the whole farm upward each generation, which random pairing never does.
+ * <p>Egg quality is the average of the two parents, so matching cannot raise the average egg
+ * quality - the total is the sum of every moth either way. It raises the SPREAD, which is worth
+ * having only because the rest of the bot selects: it plants the best eggs and breeds from the best
+ * cocoons. Widening the top tail and culling the bottom is what ratchets the farm upward.
  *
- * <p>Which male mates with which female inside a cupboard is the game's business, not ours. The
- * only lever is which moths share a cupboard, so each container is given a quality BAND: rank the
- * containers, rank the moths, and hand container n the n-th slice of both orderings.
+ * <p>Which male mates with which female inside a cupboard is the game's business, so the lever is
+ * which moths share a cupboard:
  *
- * <p><b>Bands only ever break ties.</b> Counts alone decide how many moths move; when one has to
- * move anyway, the band decides which one leaves and where it lands. Letting bands drive the
- * movement itself does not work here, and the reason is worth recording: a container is ranked by
- * the moths it currently holds, so every move re-ranks the containers, re-slices the bands and
- * changes who is out of place. The goal chases the state and never settles - the rebalance ran to
- * its pass limit every time and stopped halfway through a shuffle, leaving cupboards holding 9
- * females and 7 males. Sorting by band also let one cupboard take moths a shorter cupboard was
- * waiting for, so the batch never completed.
+ * <ol>
+ *   <li>Open every container once and read the quality of every moth in it.</li>
+ *   <li>Sort the females and the males, then walk the containers giving each the next 8 of each -
+ *       or fewer where cocoons have taken the slots.</li>
+ *   <li>Carry moths until reality matches that, a few at a time, because the inventory holds
+ *       nowhere near all of them.</li>
+ * </ol>
  *
- * <p>The effect is therefore opportunistic rather than a full sort: quality improves whenever the
- * count balancing moves a moth. Getting a true sort needs count-NEUTRAL swaps - trade a moth below
- * its band for one above another's - which always converges because every swap strictly reduces
- * total misfit, and which never leaves a cupboard unbalanced.
+ * <p><b>The plan is built once and never recomputed.</b> An earlier version re-derived it each
+ * pass, ranking containers by the moths they happened to hold - so every move re-ranked the
+ * containers and changed the goal. It chased its own tail, ran to the pass limit every time and
+ * stopped halfway through a shuffle, leaving cupboards with 9 females and 7 males. A fixed plan
+ * cannot do that: every round strictly reduces the difference from it, so it settles.
+ *
+ * <p>The plan also covers surplus moths of whichever sex is in excess, by assigning them to the
+ * container already holding them. They never move, and they can never end up stranded in the
+ * inventory with nowhere that wants them.
  */
 public class ArrangeSilkmothPairs implements Action {
 
-    /** Quality is re-read from rebuilt widgets between passes, so bands are matched with slack. */
+    /** Quality is re-read from rebuilt widgets between rounds, so it is matched with slack. */
     private static final float QEPS = 0.0001f;
-    private static final int MAX_PASSES = 12;
+    private static final int SLOTS = 16;
+    private static final int MAX_PAIRS = 8;
+    /** Backstop only: a fixed plan settles in one or two rounds. */
+    private static final int MAX_ROUNDS = 8;
+
+    private static final NAlias FEMALE = new NAlias("Female Silkmoth");
+    /** "Female Silkmoth" contains "male", so it has to be excluded explicitly. */
+    private static final NAlias MALE = new NAlias(
+            new ArrayList<>(List.of("Male Silkmoth")), new ArrayList<>(List.of("female")));
+    private static final NAlias COCOON = new NAlias("Silkworm Cocoon");
+
+    /** What one container should be holding when this is done. Fixed for the whole run. */
+    private static class Target {
+        final Container container;
+        final ArrayList<Float> females = new ArrayList<>();
+        final ArrayList<Float> males = new ArrayList<>();
+        int mothSlots; // slots the cocoons have not taken
+
+        Target(Container container) {
+            this.container = container;
+        }
+    }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
 
-        // Get silkmothBreeding area
         NArea breedingArea = context.goToArea(Specialisation.SpecName.silkmothBreeding);
-        if (breedingArea == null) {
+        if (breedingArea == null)
             return Results.ERROR("SilkmothBreeding area not found");
-        }
 
-        // Get all containers in the breeding area
         ArrayList<Container> containers = getContainersInArea(breedingArea);
-        if (containers.isEmpty()) {
+        if (containers.isEmpty())
             return Results.ERROR("No containers found in breeding area");
-        }
 
-        /* Bounded because the balance test below is over quality bands as well as counts, and
-         * equal-quality moths satisfy more than one band - a pass that cannot settle would
-         * otherwise trade the same moths back and forth forever. */
-        for (int pass = 0; pass < MAX_PASSES; pass++) {
-            // Step 1: Analyze container contents
-            ArrayList<ContainerState> containerStates = analyzeContainers(gui, containers);
+        ArrayList<Target> plan = buildPlan(gui, containers);
 
-            // Step 2: Calculate differences (excess and shortage)
-            calculateDifferences(containerStates);
-
-            // Check if we're done (all containers are balanced)
-            if (allContainersBalanced(containerStates)) {
+        for (int round = 0; round < MAX_ROUNDS; round++) {
+            if (!executeRound(gui, plan))
                 break;
-            }
-
-            // Step 3: Check inventory space and limit processing if needed
-            int inventorySpace = gui.getInventory().getFreeSpace();
-            ArrayList<ContainerState> processingBatch = selectProcessingBatch(containerStates, inventorySpace);
-
-            if (processingBatch.isEmpty()) {
-                break; // No containers can be processed due to inventory space
-            }
-
-            // Step 4: Collect excess moths into inventory
-            collectExcessMoths(gui, processingBatch);
-
-            // Step 5: Redistribute moths from inventory
-            redistributeMoths(gui, processingBatch);
         }
-
         return Results.SUCCESS();
     }
 
@@ -105,59 +101,227 @@ public class ArrangeSilkmothPairs implements Action {
         ArrayList<Gob> gobs = Finder.findGobs(area, new NAlias(new ArrayList<>(NContext.contcaps.keySet())));
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob gob : gobs) {
-            Container c = new Container(gob, NContext.contcaps.get(gob.ngob.name),area);
+            Container c = new Container(gob, NContext.contcaps.get(gob.ngob.name), area);
             c.initattr(Container.Space.class);
             containers.add(c);
         }
         return containers;
     }
 
-    private ArrayList<ContainerState> analyzeContainers(NGameUI gui, ArrayList<Container> containers) throws InterruptedException {
-        ArrayList<ContainerState> states = new ArrayList<>();
-        NAlias femaleMothAlias = new NAlias("Female Silkmoth");
-        NAlias maleMothAlias = new NAlias(new ArrayList<>(List.of("Male Silkmoth")), new ArrayList<>(List.of("female")));
-        NAlias cocoonAlias = new NAlias("Silkworm Cocoon");
+    /**
+     * One pass over every container to see what is there, then the whole assignment at once:
+     * best 8 females with the best 8 males in the first container, the next 8 of each in the
+     * second, and so on down.
+     */
+    private ArrayList<Target> buildPlan(NGameUI gui, ArrayList<Container> containers) throws InterruptedException {
+        ArrayList<Target> plan = new ArrayList<>();
+        ArrayList<Float> allFemales = new ArrayList<>();
+        ArrayList<Float> allMales = new ArrayList<>();
+        Map<Long, ArrayList<Float>> heldFemales = new HashMap<>();
+        Map<Long, ArrayList<Float>> heldMales = new HashMap<>();
 
-        // First pass: collect all counts
-        int totalFemales = 0;
-        int totalMales = 0;
-        
         for (Container container : containers) {
             new PathFinder(Finder.findGob(container.gobid)).run(gui);
             new OpenTargetContainer(container).run(gui);
 
-            // Count items
-            ArrayList<WItem> females = gui.getInventory(container.cap).getItems(femaleMothAlias);
-            ArrayList<WItem> males = gui.getInventory(container.cap).getItems(maleMothAlias);
-            int femaleCount = females.size();
-            int maleCount = males.size();
-            int cocoonCount = gui.getInventory(container.cap).getItems(cocoonAlias).size();
-
-            totalFemales += femaleCount;
-            totalMales += maleCount;
-
-            // Calculate max possible pairs for this container based on space
-            int freeSlots = 16 - cocoonCount;
-            int maxPossiblePairs = Math.min(8, freeSlots / 2);
-
-            ContainerState state = new ContainerState(container, femaleCount, maleCount, cocoonCount, 0, 0); // targets will be set later
-            state.maxPossiblePairs = maxPossiblePairs;
-            state.femaleQualities = qualitiesOf(females);
-            state.maleQualities = qualitiesOf(males);
-            states.add(state);
+            NInventory inv = gui.getInventory(container.cap);
+            ArrayList<Float> females = qualitiesOf(inv.getItems(FEMALE));
+            ArrayList<Float> males = qualitiesOf(inv.getItems(MALE));
+            int cocoons = inv.getItems(COCOON).size();
 
             new CloseTargetContainer(container).run(gui);
-        }
-        
-        // Calculate global constraints and distribute pairs realistically
-        int totalPossiblePairs = Math.min(totalFemales, totalMales);
-        distributePairsAcrossContainers(states, totalPossiblePairs, totalFemales, totalMales);
-        assignQualityBands(states);
 
-        return states;
+            Target target = new Target(container);
+            target.mothSlots = Math.max(0, SLOTS - cocoons);
+            plan.add(target);
+
+            heldFemales.put(container.gobid, females);
+            heldMales.put(container.gobid, males);
+            allFemales.addAll(females);
+            allMales.addAll(males);
+        }
+
+        Collections.sort(allFemales, Collections.reverseOrder());
+        Collections.sort(allMales, Collections.reverseOrder());
+
+        // Pairs first, best with best. A container only ever gets as many as it has slots for.
+        int fi = 0, mi = 0;
+        for (Target target : plan) {
+            int pairs = Math.min(MAX_PAIRS, target.mothSlots / 2);
+            pairs = Math.min(pairs, Math.min(allFemales.size() - fi, allMales.size() - mi));
+            for (int k = 0; k < pairs; k++) {
+                target.females.add(allFemales.get(fi++));
+                target.males.add(allMales.get(mi++));
+            }
+        }
+
+        /* Whichever sex is in surplus has moths left over that no pair wants. Assign each to the
+         * container already holding it: it will die unpaired wherever it sits, so carrying it
+         * about is pure waste - and leaving it out of the plan entirely would make it a removal
+         * with no destination, stranded in the inventory. */
+        keepSurplusWhereItIs(plan, heldFemales, allFemales, fi, true);
+        keepSurplusWhereItIs(plan, heldMales, allMales, mi, false);
+
+        return plan;
     }
 
-    /** Qualities of the given moths, best first. Copies that will not report one are skipped. */
+    private void keepSurplusWhereItIs(ArrayList<Target> plan, Map<Long, ArrayList<Float>> held,
+                                      ArrayList<Float> all, int from, boolean female) {
+        if (from >= all.size())
+            return;
+        ArrayList<Float> leftover = new ArrayList<>(all.subList(from, all.size()));
+
+        // Preferred: the container already holding it, so it never has to be carried anywhere.
+        for (Target target : plan) {
+            ArrayList<Float> mine = held.get(target.container.gobid);
+            if (mine == null)
+                continue;
+            for (Float quality : mine) {
+                if (leftover.isEmpty())
+                    return;
+                if (planned(target) >= target.mothSlots)
+                    break;
+                int idx = indexOfNear(leftover, quality);
+                if (idx < 0)
+                    continue;
+                leftover.remove(idx);
+                (female ? target.females : target.males).add(quality);
+            }
+        }
+
+        /* Its own container filled up with paired moths from elsewhere. Somewhere still has room -
+         * every moth physically fits today, so the slots exist - and leaving one unplanned would
+         * make it a removal with no destination, stranded in the inventory for FreeInventory2 to
+         * deal with. */
+        for (Target target : plan) {
+            while (!leftover.isEmpty() && planned(target) < target.mothSlots)
+                (female ? target.females : target.males).add(leftover.remove(0));
+        }
+    }
+
+    private static int planned(Target target) {
+        return target.females.size() + target.males.size();
+    }
+
+    /** One visit per container: take out what does not belong, put in what does. */
+    private boolean executeRound(NGameUI gui, ArrayList<Target> plan) throws InterruptedException {
+        boolean moved = false;
+        for (Target target : plan) {
+            new PathFinder(Finder.findGob(target.container.gobid)).run(gui);
+            new OpenTargetContainer(target.container).run(gui);
+
+            moved |= reconcile(gui, target, FEMALE, target.females);
+            moved |= reconcile(gui, target, MALE, target.males);
+
+            new CloseTargetContainer(target.container).run(gui);
+        }
+        return moved;
+    }
+
+    /**
+     * Bring one sex of one container in line with its plan.
+     *
+     * <p>Removals happen before additions so a full cupboard can still be swapped: the moths that
+     * do not belong leave first, which is what makes room for the ones that do. When the inventory
+     * is too full to carry anything out, the additions still run, which frees it for the next
+     * round - so a round can always make progress somewhere.
+     */
+    private boolean reconcile(NGameUI gui, Target target, NAlias alias, ArrayList<Float> wanted)
+            throws InterruptedException {
+        NInventory cinv = gui.getInventory(target.container.cap);
+        if (cinv == null)
+            return false;
+
+        ArrayList<WItem> toRemove = new ArrayList<>();
+        ArrayList<Float> missing = new ArrayList<>();
+        diff(cinv.getItems(alias), wanted, toRemove, missing);
+
+        boolean moved = false;
+
+        if (!toRemove.isEmpty()) {
+            int room = gui.getInventory().getNumberFreeCoord(new Coord(1, 1));
+            int take = Math.min(room, toRemove.size());
+            if (take > 0) {
+                new TakeWItemsFromContainer(target.container,
+                        new ArrayList<>(toRemove.subList(0, take))).run(gui);
+                moved = true;
+            }
+        }
+
+        if (!missing.isEmpty()) {
+            ArrayList<WItem> inHand = matching(gui.getInventory().getItems(alias), missing);
+            if (!inHand.isEmpty()) {
+                // Re-resolve: taking items above rebuilt the container's widgets.
+                NInventory dest = gui.getInventory(target.container.cap);
+                if (dest != null) {
+                    new SimpleTransferToContainer(dest, inHand, inHand.size()).run(gui);
+                    moved = true;
+                }
+            }
+        }
+        return moved;
+    }
+
+    /**
+     * Multiset difference by quality over two descending lists: what the container holds and
+     * should not, and what it should hold and does not. Equal qualities cancel, so a moth that is
+     * already in the right place is never picked up and put back down.
+     */
+    private static void diff(ArrayList<WItem> actual, ArrayList<Float> wanted,
+                             ArrayList<WItem> toRemove, ArrayList<Float> missing) {
+        ArrayList<WItem> have = new ArrayList<>(actual);
+        have.sort((a, b) -> Double.compare(qualityOf(b), qualityOf(a)));
+        ArrayList<Float> want = new ArrayList<>(wanted);
+        Collections.sort(want, Collections.reverseOrder());
+
+        int i = 0, j = 0;
+        while (i < have.size() && j < want.size()) {
+            double a = qualityOf(have.get(i));
+            float w = want.get(j);
+            if (Math.abs(a - w) <= QEPS) {
+                i++;
+                j++;
+            } else if (a > w) {
+                toRemove.add(have.get(i++));
+            } else {
+                missing.add(want.get(j++));
+            }
+        }
+        while (i < have.size())
+            toRemove.add(have.get(i++));
+        while (j < want.size())
+            missing.add(want.get(j++));
+    }
+
+    /** The carried moths that satisfy the wanted qualities, each wanted entry claimed at most once. */
+    private static ArrayList<WItem> matching(ArrayList<WItem> carried, ArrayList<Float> wanted) {
+        ArrayList<Float> open = new ArrayList<>(wanted);
+        ArrayList<WItem> picked = new ArrayList<>();
+        for (WItem witem : carried) {
+            if (open.isEmpty())
+                break;
+            Float quality = ((NGItem) witem.item).quality;
+            if (quality == null)
+                continue;
+            int idx = indexOfNear(open, quality);
+            if (idx < 0)
+                continue;
+            open.remove(idx);
+            picked.add(witem);
+        }
+        return picked;
+    }
+
+    private static int indexOfNear(ArrayList<Float> values, Float quality) {
+        if (quality == null)
+            return -1;
+        for (int i = 0; i < values.size(); i++) {
+            if (Math.abs(values.get(i) - quality) <= QEPS)
+                return i;
+        }
+        return -1;
+    }
+
     private static ArrayList<Float> qualitiesOf(ArrayList<WItem> moths) {
         ArrayList<Float> qualities = new ArrayList<>();
         for (WItem witem : moths) {
@@ -165,321 +329,12 @@ public class ArrangeSilkmothPairs implements Action {
             if (q != null)
                 qualities.add(q);
         }
-        Collections.sort(qualities, Collections.reverseOrder());
         return qualities;
     }
 
-    /**
-     * Give every container the quality slice it should be holding.
-     *
-     * <p>Rank all the males and all the females across the whole area, rank the containers, then
-     * hand container n the n-th slice of each ordering, sized to the pair target it was already
-     * given. The result is expressed as a quality range rather than a set of specific moths, which
-     * is what lets the moves below survive the inventory shuffle: a moth is in the right place if
-     * its quality falls in its container's band, no matter which container it came out of.
-     *
-     * <p>Containers are ranked by the moths they already hold, so the best band lands where the
-     * best moths already are and the least possible carrying is needed to reach it.
-     */
-    private void assignQualityBands(ArrayList<ContainerState> states) {
-        ArrayList<Float> allFemales = new ArrayList<>();
-        ArrayList<Float> allMales = new ArrayList<>();
-        for (ContainerState state : states) {
-            allFemales.addAll(state.femaleQualities);
-            allMales.addAll(state.maleQualities);
-        }
-        if (allFemales.isEmpty() && allMales.isEmpty())
-            return;
-        Collections.sort(allFemales, Collections.reverseOrder());
-        Collections.sort(allMales, Collections.reverseOrder());
-
-        states.sort((a, b) -> Double.compare(b.bestHeldQuality(), a.bestHeldQuality()));
-
-        int femaleFrom = 0, maleFrom = 0;
-        for (ContainerState state : states) {
-            state.femaleBand = sliceBand(allFemales, femaleFrom, state.targetFemale);
-            state.maleBand = sliceBand(allMales, maleFrom, state.targetMale);
-            femaleFrom += state.targetFemale;
-            maleFrom += state.targetMale;
-        }
-    }
-
-    /**
-     * The quality range covering ranks [from, from+size) of an ordered list, or null when the
-     * container is owed nothing - a null band means "anything fits", so a container we have no
-     * ranking opinion about is never churned.
-     */
-    private static float[] sliceBand(ArrayList<Float> sorted, int from, int size) {
-        if (size <= 0 || from >= sorted.size())
-            return null;
-        int to = Math.min(sorted.size(), from + size);
-        return new float[]{sorted.get(to - 1), sorted.get(from)}; // {min, max}
-    }
-    
-    private void distributePairsAcrossContainers(ArrayList<ContainerState> states, int totalPossiblePairs, int totalFemales, int totalMales) {
-        // Sort containers by their capacity (prefer containers that can hold more pairs)
-        states.sort((a, b) -> Integer.compare(b.maxPossiblePairs, a.maxPossiblePairs));
-        
-        int pairsDistributed = 0;
-        
-        // Distribute pairs to containers - but respect each container's maxPossiblePairs
-        for (ContainerState state : states) {
-            // Use the already calculated maxPossiblePairs which accounts for cocoons
-            int pairsForThisContainer = Math.min(state.maxPossiblePairs, totalPossiblePairs - pairsDistributed);
-            state.targetFemale = pairsForThisContainer;
-            state.targetMale = pairsForThisContainer;
-            pairsDistributed += pairsForThisContainer;
-
-            if (pairsDistributed >= totalPossiblePairs) {
-                break;
-            }
-        }
-        
-        // Handle remaining unpaired moths - distribute to containers with available space
-        int remainingFemales = totalFemales - pairsDistributed;
-        int remainingMales = totalMales - pairsDistributed;
-        
-        for (ContainerState state : states) {
-            // Calculate available space AFTER pairs and cocoons are placed
-            int usedSlots = state.cocoonCount + state.targetFemale + state.targetMale;
-            int availableSlots = 16 - usedSlots;
-
-            if (availableSlots > 0 && (remainingFemales > 0 || remainingMales > 0)) {
-                // Only add moths if there's actual space remaining
-                int totalRemainingMoths = remainingFemales + remainingMales;
-                int mothsToAdd = Math.min(totalRemainingMoths, availableSlots);
-                
-                // Distribute proportionally between females and males
-                int femalesToAdd = 0;
-                int malesToAdd = 0;
-                
-                if (mothsToAdd > 0) {
-                    if (remainingFemales > 0 && remainingMales > 0) {
-                        // Both genders available - distribute proportionally
-                        femalesToAdd = Math.min(remainingFemales, (mothsToAdd * remainingFemales) / totalRemainingMoths);
-                        malesToAdd = Math.min(mothsToAdd - femalesToAdd, remainingMales);
-                    } else if (remainingFemales > 0) {
-                        // Only females available
-                        femalesToAdd = Math.min(remainingFemales, mothsToAdd);
-                    } else {
-                        // Only males available
-                        malesToAdd = Math.min(remainingMales, mothsToAdd);
-                    }
-                    
-                    state.targetFemale += femalesToAdd;
-                    state.targetMale += malesToAdd;
-                    
-                    remainingFemales -= femalesToAdd;
-                    remainingMales -= malesToAdd;
-                }
-            }
-            
-            if (remainingFemales == 0 && remainingMales == 0) {
-                break;
-            }
-        }
-    }
-
-    /** How far outside its band a quality sits; 0 when it belongs there. */
-    private static double bandMiss(float[] band, Float quality) {
-        if (band == null)
-            return 0; // no opinion about this container - everything belongs
-        if (quality == null)
-            return 0; // unreadable quality is never a reason to carry a moth about
-        if (quality < band[0] - QEPS)
-            return band[0] - quality;
-        if (quality > band[1] + QEPS)
-            return quality - band[1];
-        return 0;
-    }
-
-    /**
-     * The given moths ordered by how well they suit a band. Used from both ends: worst-first to
-     * decide which moths leave a container, best-first to decide which of the ones in hand arrive.
-     */
-    private static ArrayList<WItem> byBandFit(ArrayList<WItem> moths, float[] band, boolean worstFirst) {
-        ArrayList<WItem> sorted = new ArrayList<>(moths);
-        Comparator<WItem> byMiss = (a, b) -> Double.compare(
-                bandMiss(band, ((NGItem) a.item).quality),
-                bandMiss(band, ((NGItem) b.item).quality));
-        Collections.sort(sorted, worstFirst ? byMiss.reversed() : byMiss);
-        return sorted;
-    }
-
-    /**
-     * Purely a matter of counts, deliberately. Quality decides WHICH moth moves, never whether one
-     * moves at all - see the note on the class. Letting a band create movement made a container
-     * want to hand out and take back the same gender in one pass, which the collect/redistribute
-     * pair cannot express: the moths left, the inventory-limited batch could not put them back,
-     * and the container was left holding 9 females and 7 males.
-     */
-    private void calculateDifferences(ArrayList<ContainerState> containerStates) {
-        for (ContainerState state : containerStates) {
-            state.excessFemale = Math.max(0, state.femaleCount - state.targetFemale);
-            state.excessMale = Math.max(0, state.maleCount - state.targetMale);
-            state.shortageFemale = Math.max(0, state.targetFemale - state.femaleCount);
-            state.shortageMale = Math.max(0, state.targetMale - state.maleCount);
-        }
-    }
-
-    private boolean allContainersBalanced(ArrayList<ContainerState> containerStates) {
-        for (ContainerState state : containerStates) {
-            if (state.femaleCount != state.targetFemale || state.maleCount != state.targetMale) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private ArrayList<ContainerState> selectProcessingBatch(ArrayList<ContainerState> containerStates, int inventorySpace) {
-        ArrayList<ContainerState> batch = new ArrayList<>();
-        int requiredSpace = 0;
-
-        // Sort by containers closest to target (minimize transfers)
-        containerStates.sort((a, b) -> {
-            int aDistance = Math.abs(a.femaleCount - a.targetFemale) + Math.abs(a.maleCount - a.targetMale);
-            int bDistance = Math.abs(b.femaleCount - b.targetFemale) + Math.abs(b.maleCount - b.targetMale);
-            return Integer.compare(aDistance, bDistance);
-        });
-
-        for (ContainerState state : containerStates) {
-            int stateRequiredSpace = state.excessFemale + state.excessMale;
-            if (requiredSpace + stateRequiredSpace <= inventorySpace) {
-                batch.add(state);
-                requiredSpace += stateRequiredSpace;
-            } else {
-                break; // Cannot fit more containers in this batch
-            }
-        }
-
-        return batch;
-    }
-
-    private void collectExcessMoths(NGameUI gui, ArrayList<ContainerState> processingBatch) throws InterruptedException {
-        NAlias femaleMothAlias = new NAlias("Female Silkmoth");
-        NAlias maleMothAlias = new NAlias(new ArrayList<>(List.of("Male Silkmoth")), new ArrayList<>(List.of("female")));
-
-        for (ContainerState state : processingBatch) {
-            if (state.excessFemale > 0 || state.excessMale > 0) {
-                new PathFinder(Finder.findGob(state.container.gobid)).run(gui);
-                new OpenTargetContainer(state.container).run(gui);
-
-                // Take excess female moths
-                if (state.excessFemale > 0) {
-                    // Worst fit first, so the moths that leave are the ones in the wrong band.
-                    ArrayList<WItem> femaleMoths = byBandFit(
-                            gui.getInventory(state.container.cap).getItems(femaleMothAlias), state.femaleBand, true);
-                    ArrayList<WItem> excessFemales = new ArrayList<>();
-                    for (int i = 0; i < Math.min(state.excessFemale, femaleMoths.size()); i++) {
-                        excessFemales.add(femaleMoths.get(i));
-                    }
-                    if (!excessFemales.isEmpty()) {
-                        new TakeWItemsFromContainer(state.container, excessFemales).run(gui);
-                        // Update state to reflect actual count after taking
-                        new OpenTargetContainer(state.container).run(gui);
-                        state.femaleCount = gui.getInventory(state.container.cap).getItems(femaleMothAlias).size();
-                    }
-                }
-
-                // Take excess male moths
-                if (state.excessMale > 0) {
-                    ArrayList<WItem> maleMoths = byBandFit(
-                            gui.getInventory(state.container.cap).getItems(maleMothAlias), state.maleBand, true);
-                    ArrayList<WItem> excessMales = new ArrayList<>();
-                    for (int i = 0; i < Math.min(state.excessMale, maleMoths.size()); i++) {
-                        excessMales.add(maleMoths.get(i));
-                    }
-                    if (!excessMales.isEmpty()) {
-                        new TakeWItemsFromContainer(state.container, excessMales).run(gui);
-                        // Update state to reflect actual count after taking
-                        new OpenTargetContainer(state.container).run(gui);
-                        state.maleCount = gui.getInventory(state.container.cap).getItems(maleMothAlias).size();
-                    }
-                }
-
-                new CloseTargetContainer(state.container).run(gui);
-            }
-        }
-    }
-
-    private void redistributeMoths(NGameUI gui, ArrayList<ContainerState> processingBatch) throws InterruptedException {
-        NAlias femaleMothAlias = new NAlias("Female Silkmoth");
-        NAlias maleMothAlias = new NAlias(new ArrayList<>(List.of("Male Silkmoth")), new ArrayList<>(List.of("female")));
-
-        for (ContainerState state : processingBatch) {
-            if (state.shortageFemale > 0 || state.shortageMale > 0) {
-                new PathFinder(Finder.findGob(state.container.gobid)).run(gui);
-                new OpenTargetContainer(state.container).run(gui);
-
-                // Add needed female moths
-                if (state.shortageFemale > 0) {
-                    ArrayList<WItem> femalesInInventory = byBandFit(
-                            gui.getInventory().getItems(femaleMothAlias), state.femaleBand, false);
-                    if (!femalesInInventory.isEmpty()) {
-                        int toTransfer = Math.min(state.shortageFemale, femalesInInventory.size());
-                        new SimpleTransferToContainer(gui.getInventory(state.container.cap), femalesInInventory, toTransfer).run(gui);
-                        // Update state to reflect actual count after adding
-                        state.femaleCount = gui.getInventory(state.container.cap).getItems(femaleMothAlias).size();
-                    }
-                }
-
-                // Add needed male moths
-                if (state.shortageMale > 0) {
-                    ArrayList<WItem> malesInInventory = byBandFit(
-                            gui.getInventory().getItems(maleMothAlias), state.maleBand, false);
-                    if (!malesInInventory.isEmpty()) {
-                        int toTransfer = Math.min(state.shortageMale, malesInInventory.size());
-                        new SimpleTransferToContainer(gui.getInventory(state.container.cap), malesInInventory, toTransfer).run(gui);
-                        // Update state to reflect actual count after adding
-                        state.maleCount = gui.getInventory(state.container.cap).getItems(maleMothAlias).size();
-                    }
-                }
-
-                new CloseTargetContainer(state.container).run(gui);
-            }
-        }
-    }
-
-    // Container state class as specified in silk_task.md
-    private static class ContainerState {
-        Container container;
-        int femaleCount;
-        int maleCount;
-        int cocoonCount;
-        int targetFemale;
-        int targetMale;
-        int maxPossiblePairs; // Maximum pairs this container can hold based on space
-
-        /** Qualities currently held, best first. Read once per pass, in analyzeContainers. */
-        ArrayList<Float> femaleQualities = new ArrayList<>();
-        ArrayList<Float> maleQualities = new ArrayList<>();
-        /** {min, max} quality this container should be holding, or null for "anything fits". */
-        float[] femaleBand;
-        float[] maleBand;
-
-        /** Best moth of either sex in here, used to rank containers before handing out bands. */
-        double bestHeldQuality() {
-            double best = Double.NEGATIVE_INFINITY;
-            if (!femaleQualities.isEmpty())
-                best = Math.max(best, femaleQualities.get(0));
-            if (!maleQualities.isEmpty())
-                best = Math.max(best, maleQualities.get(0));
-            return best;
-        }
-
-        // Calculated differences
-        int excessFemale;
-        int excessMale;
-        int shortageFemale;
-        int shortageMale;
-
-        ContainerState(Container container, int femaleCount, int maleCount, int cocoonCount, int targetFemale, int targetMale) {
-            this.container = container;
-            this.femaleCount = femaleCount;
-            this.maleCount = maleCount;
-            this.cocoonCount = cocoonCount;
-            this.targetFemale = targetFemale;
-            this.targetMale = targetMale;
-        }
+    /** Unreadable quality sorts last, so such a moth is only ever moved as a genuine surplus. */
+    private static double qualityOf(WItem witem) {
+        Float q = ((NGItem) witem.item).quality;
+        return (q == null) ? Double.NEGATIVE_INFINITY : q;
     }
 }
