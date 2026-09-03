@@ -198,7 +198,6 @@ public class ForagerRouteMap extends NMiniMap {
     // clickable regardless of zoom level.
     private void drawRouteWaypoints(GOut g) {
         if (route == null || dloc == null || route.waypoints.isEmpty()) return;
-        Coord hsz = sz.div(2);
         int margin = UI.scale(12);
 
         double phase = Utils.rtime() * UI.scale(16);
@@ -211,7 +210,7 @@ public class ForagerRouteMap extends NMiniMap {
                 prevWp = null;
                 continue;
             }
-            Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            Coord c = toScreen(wp.tc);
             // dashLine/fellipse (unlike image()-based draws) don't respect the ancestor GOut
             // clip chain, so - same as the view-zone/exclusion/cliff boxes - they need an
             // explicit on-screen check derived from g's actual visible window, not just this
@@ -231,7 +230,7 @@ public class ForagerRouteMap extends NMiniMap {
         for (int i = 0; i < route.waypoints.size(); i++) {
             ForagerWaypoint wp = route.waypoints.get(i);
             if (wp.seg != dloc.seg.id) continue;
-            Coord c = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            Coord c = toScreen(wp.tc);
             if (!onScreen(g, c, margin)) continue;
 
             boolean first = (i == 0);
@@ -289,7 +288,6 @@ public class ForagerRouteMap extends NMiniMap {
      *  entirely to avoid drawing it twice. */
     private void drawMilestones(GOut g) {
         if (dloc == null) return;
-        Coord hsz = sz.div(2);
         int margin = UI.scale(12);
 
         for (Map.Entry<String, Object> e : MilestoneRegistry.allMilestones().entrySet()) {
@@ -301,13 +299,13 @@ public class ForagerRouteMap extends NMiniMap {
             MilestoneRegistry.Location srcLoc = MilestoneRegistry.getMilestoneLocation(entry);
             if (srcLoc == null) continue;
 
-            Coord srcC = (srcLoc.seg == dloc.seg.id) ? srcLoc.tc.sub(dloc.tc).div(scalef()).add(hsz) : null;
+            Coord srcC = (srcLoc.seg == dloc.seg.id) ? toScreen(srcLoc.tc) : null;
             boolean srcOnScreen = srcC != null && onScreen(g, srcC, margin);
 
             for (Map<String, Object> dest : MilestoneRegistry.getDestinations(entry)) {
                 MilestoneRegistry.Location destLoc = MilestoneRegistry.getDestinationLocation(dest);
                 if (destLoc == null || destLoc.seg != dloc.seg.id) continue;
-                Coord destC = destLoc.tc.sub(dloc.tc).div(scalef()).add(hsz);
+                Coord destC = toScreen(destLoc.tc);
                 boolean destOnScreen = onScreen(g, destC, margin);
 
                 // Used to require BOTH ends on screen at once to draw the link at all, so it only
@@ -349,7 +347,6 @@ public class ForagerRouteMap extends NMiniMap {
      *  longer drawn by drawMilestones() at all (drawRouteWaypoints/waypointIndexAt own it then). */
     private String unsplicedMilestoneSourceAt(Coord c) {
         if (dloc == null) return null;
-        Coord hsz = sz.div(2);
         double bestDist = UI.scale(MILESTONE_ICON_RADIUS + 3);
         String best = null;
         for (Map.Entry<String, Object> e : MilestoneRegistry.allMilestones().entrySet()) {
@@ -359,7 +356,7 @@ public class ForagerRouteMap extends NMiniMap {
             Map<String, Object> entry = (Map<String, Object>) e.getValue();
             MilestoneRegistry.Location loc = MilestoneRegistry.getMilestoneLocation(entry);
             if (loc == null || loc.seg != dloc.seg.id) continue;
-            Coord sc = loc.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            Coord sc = toScreen(loc.tc);
             double d = sc.dist(c);
             if (d <= bestDist) {
                 bestDist = d;
@@ -450,7 +447,6 @@ public class ForagerRouteMap extends NMiniMap {
 
     private void drawWaypointViewZones(GOut g) {
         if (route == null || dloc == null || sessloc == null) return;
-        Coord hsz = sz.div(2);
 
         for (ForagerWaypoint wp : route.waypoints) {
             if (wp.seg != dloc.seg.id) continue;
@@ -459,13 +455,13 @@ public class ForagerRouteMap extends NMiniMap {
             // drawRouteWaypoints uses for the waypoint marker. Without this, a waypoint sitting
             // just off-screen still had its zone square (much bigger than the marker) poking
             // into view, visible even though "you can't see that waypoint on the map".
-            Coord wpC = wp.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            Coord wpC = toScreen(wp.tc);
             if (!onScreen(g, wpC, UI.scale(12))) continue;
 
             Coord[] box = viewZoneBoxTiles(wp.seg, wp.tc);
             if (box == null) continue;
-            Coord screenUL = box[0].sub(dloc.tc).div(scalef()).add(hsz);
-            Coord screenBR = box[1].sub(dloc.tc).div(scalef()).add(hsz);
+            Coord screenUL = toScreen(box[0]);
+            Coord screenBR = toScreen(box[1]);
 
             Coord[] clipped = clampRect(g, screenUL, screenBR);
             if (clipped == null) continue;
@@ -500,6 +496,13 @@ public class ForagerRouteMap extends NMiniMap {
      *  draw calls (fellipse/line-based dashLine, unlike image()) that skip entirely rather than
      *  partially-clip, so route waypoint markers/legs don't bleed past a scrolled-off bottom
      *  edge the same way the view-zone/exclusion/cliff boxes did before clampRect existed. */
+    /** World segment-tile coordinate -&gt; on-screen pixel position, this widget's own zoom/pan
+     *  transform applied - the same formula every draw/hit-test method here needs, previously
+     *  repeated verbatim (each with its own locally-recomputed half-size) at every call site. */
+    private Coord toScreen(Coord tc) {
+        return tc.sub(dloc.tc).div(scalef()).add(sz.div(2));
+    }
+
     private boolean onScreen(GOut g, Coord c, int margin) {
         Coord winUl = g.ul.sub(g.tx);
         Coord winBr = g.br.sub(g.tx);
@@ -572,10 +575,9 @@ public class ForagerRouteMap extends NMiniMap {
 
     /** Draws a set of runs built by buildRuns(), in the caller's already-set draw color. */
     private void drawRuns(GOut g, List<int[]> runs) {
-        Coord hsz = sz.div(2);
         for (int[] run : runs) {
-            Coord ul = new Coord(run[1], run[0]).sub(dloc.tc).div(scalef()).add(hsz);
-            Coord br = new Coord(run[2] + 1, run[0] + 1).sub(dloc.tc).div(scalef()).add(hsz);
+            Coord ul = toScreen(new Coord(run[1], run[0]));
+            Coord br = toScreen(new Coord(run[2] + 1, run[0] + 1));
             Coord[] clipped = clampRect(g, ul, br);
             if (clipped == null) continue;
             g.frect(clipped[0], clipped[1].sub(clipped[0]));
@@ -619,19 +621,18 @@ public class ForagerRouteMap extends NMiniMap {
         if (loc == null || loc.seg.id != dloc.seg.id) return;
 
         boolean shiftHeld = ui != null && ui.modshift;
-        Coord hsz = sz.div(2);
         Coord screenUL, screenBR;
         if (shiftHeld) {
             Coord size = new Coord(brushSizeTiles, brushSizeTiles);
             Coord ul = loc.tc.sub(size.div(2));
             Coord br = ul.add(size);
-            screenUL = ul.sub(dloc.tc).div(scalef()).add(hsz);
-            screenBR = br.sub(dloc.tc).div(scalef()).add(hsz);
+            screenUL = toScreen(ul);
+            screenBR = toScreen(br);
         } else {
             Coord[] box = viewZoneBoxTiles(loc.seg.id, loc.tc);
             if (box == null) return;
-            screenUL = box[0].sub(dloc.tc).div(scalef()).add(hsz);
-            screenBR = box[1].sub(dloc.tc).div(scalef()).add(hsz);
+            screenUL = toScreen(box[0]);
+            screenBR = toScreen(box[1]);
         }
 
         Coord[] clipped = clampRect(g, screenUL, screenBR);
@@ -702,7 +703,7 @@ public class ForagerRouteMap extends NMiniMap {
         for (int i = 0; i < route.waypoints.size(); i++) {
             ForagerWaypoint wp = route.waypoints.get(i);
             if (wp.seg != dloc.seg.id) continue;
-            Coord sc = wp.tc.sub(dloc.tc).div(scalef()).add(sz.div(2));
+            Coord sc = toScreen(wp.tc);
             double d = sc.dist(c);
             if (d <= bestDist) {
                 bestDist = d;
