@@ -696,31 +696,35 @@ NMiniMap extends MiniMap {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || gui.activeBotDetourTrail == null || sessloc == null || dloc == null) return;
 
-        java.util.List<Coord2d> trail = new java.util.ArrayList<>(gui.activeBotDetourTrail);
+        // Defensive copy (the trail is live-mutated by the bot thread), then straight into
+        // screen coordinates in the same pass, instead of a separate copy-append-then-convert
+        // pass followed by two more separate passes to draw lines and dots - one allocation, one
+        // conversion loop, one combined draw loop.
+        java.util.List<Coord2d> snapshot = new java.util.ArrayList<>(gui.activeBotDetourTrail);
         Gob player = NUtils.player();
-        if(player != null) trail.add(player.rc);
-        if(trail.size() < 2) return;
+        if(player != null) snapshot.add(player.rc);
+        if(snapshot.size() < 2) return;
 
         Coord hsz = sz.div(2);
-        java.util.List<Coord> screenPoints = new java.util.ArrayList<>();
-        for(Coord2d worldPos : trail) {
+        java.util.List<Coord> screenPoints = new java.util.ArrayList<>(snapshot.size());
+        for(Coord2d worldPos : snapshot) {
             Coord tc = sessloc.tc.add(worldPos.floor(MCache.tilesz));
             screenPoints.add(tc.sub(dloc.tc).div(scalef()).add(hsz));
         }
 
         g.chcolor(255, 220, 0, 200);
-        for(int i = 0; i < screenPoints.size() - 1; i++) {
-            Coord a = screenPoints.get(i);
-            Coord b = screenPoints.get(i + 1);
-            if(a.x >= 0 && a.x < sz.x && a.y >= 0 && a.y < sz.y &&
-               b.x >= 0 && b.x < sz.x && b.y >= 0 && b.y < sz.y) {
-                g.line(a, b, 2);
-            }
-        }
+        Coord prev = null;
+        boolean prevOnScreen = false;
         for(Coord c : screenPoints) {
-            if(c.x >= 0 && c.x < sz.x && c.y >= 0 && c.y < sz.y) {
+            boolean onScreen = c.x >= 0 && c.x < sz.x && c.y >= 0 && c.y < sz.y;
+            if(prev != null && prevOnScreen && onScreen) {
+                g.line(prev, c, 2);
+            }
+            if(onScreen) {
                 g.fellipse(c, new Coord(UI.scale(4), UI.scale(4)));
             }
+            prev = c;
+            prevOnScreen = onScreen;
         }
         g.chcolor();
     }

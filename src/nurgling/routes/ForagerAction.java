@@ -124,6 +124,14 @@ public class ForagerAction {
         return json;
     }
 
+    // Lazily built and cached - toNAlias() is called once per configured action on every
+    // findNearestActionableGob scan (every detour hop, several times/sec while actively
+    // foraging), re-parsing (String.split + NAlias construction) the same immutable result each
+    // time otherwise. Safe only because targetObjectPattern is never reassigned after
+    // construction anywhere in this codebase (confirmed - unlike actionName, which
+    // Forager.confirmActionName() does mutate in place, so that one isn't cached the same way).
+    private transient NAlias cachedAlias;
+
     /**
      * {@link #targetObjectPattern} as an NAlias, matching on every comma-separated name in it
      * (a plain single name, the common case, just becomes a single-key NAlias as before). Lets
@@ -131,7 +139,10 @@ public class ForagerAction {
      * couple of near-identical tree variants sharing one item) match all of them.
      */
     public NAlias toNAlias() {
-        return new NAlias(splitPattern(targetObjectPattern));
+        if (cachedAlias == null) {
+            cachedAlias = new NAlias(splitPattern(targetObjectPattern));
+        }
+        return cachedAlias;
     }
 
     /**

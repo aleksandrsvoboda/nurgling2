@@ -68,6 +68,14 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
     private Coord2d lastPlayer = null;
     private double lastBuild = 0;
     private volatile List<WNode> screen = Collections.emptyList();
+    // resolve() itself isn't free even when nothing has changed - the activeRouteEditor/
+    // activeBotPath branches allocate and walk every waypoint - and update()/draw2d() each call
+    // it once per frame independently (tick pass then render pass), so without this it ran twice
+    // per frame unconditionally, before the signature check below ever gets a chance to skip the
+    // *expensive* geometry rebuild. update() runs first each frame (NMapView's tick hook, ahead
+    // of the render pass draw2d() is called from), so draw2d() just reuses what update() already
+    // resolved instead of resolving a second time.
+    private List<WNode> lastResolvedNodes = Collections.emptyList();
     // Whether the nodes resolve() most recently built may be picked up for a 3D-view drag - true
     // for Forager route editing and the WaypointMovementService queue, false while merely
     // displaying a running/recording bot's path (read-only; there's no sensible write-back target
@@ -365,6 +373,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
     public void update() {
         updateFlat();
         List<WNode> nodes = resolve();
+        lastResolvedNodes = nodes;
         if(nodes.isEmpty()) {
             if(lastSig != Long.MIN_VALUE) {
                 clearGeometry();
@@ -502,7 +511,7 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
 
     private void draw2d(GOut g, Pipe state) {
         updateFlat();
-        List<WNode> nodes = resolve();
+        List<WNode> nodes = lastResolvedNodes;
         if(nodes.isEmpty()) {
             screen = Collections.emptyList();
             return;
