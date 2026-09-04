@@ -91,6 +91,8 @@ public class Specialisation extends Window
         crucibles,
         chicken,
         incubator,
+        duck,
+        duckIncubator,
         bed,
         eat,
         safe,
@@ -174,6 +176,8 @@ public class Specialisation extends Window
         specialisation.add(new SpecialisationItem(SpecName.chicken.toString(),"Chicken",Resource.loadsimg("nurgling/categories/chicken")));
         specialisation.add(new SpecialisationItem(SpecName.rabbit.toString(),"Rabbit",Resource.loadsimg("nurgling/categories/rabbit_buck")));
         specialisation.add(new SpecialisationItem(SpecName.incubator.toString(),"Chick Incubator",Resource.loadsimg("nurgling/categories/cincub")));
+        specialisation.add(new SpecialisationItem(SpecName.duck.toString(),"Duck",Resource.loadsimg("nurgling/categories/duck")));
+        specialisation.add(new SpecialisationItem(SpecName.duckIncubator.toString(),"Duckling Incubator",Resource.loadsimg("nurgling/categories/duckling")));
         specialisation.add(new SpecialisationItem(SpecName.bed.toString(),"Bed",Resource.loadsimg("nurgling/categories/bed")));
         specialisation.add(new SpecialisationItem(SpecName.eat.toString(),"Eating area",Resource.loadsimg("nurgling/categories/eat")));
         specialisation.add(new SpecialisationItem(SpecName.rabbitIncubator.toString(),"Rabbit Incubator",Resource.loadsimg("nurgling/categories/bunny")));
