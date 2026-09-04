@@ -132,7 +132,8 @@ public class Specialisation extends Window
         thicket,
         beeSkep,
         soilDump,
-        paving;
+        paving,
+        treeOrchard;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -243,6 +244,11 @@ public class Specialisation extends Window
 
         // Stone paving zone (subtype = stone type to lay, e.g. Soapstone, Diabase)
         specialisation.add(new SpecialisationItem(SpecName.paving.toString(),"Stone Paving",Resource.loadsimg("nurgling/categories/paving")));
+
+        // Shared by the zone versions of every tree-collection bot - bough now, bark and leaf to
+        // come - so it is named for the place rather than for one crop. Reuses an existing icon
+        // rather than shipping a near-identical category image.
+        specialisation.add(new SpecialisationItem(SpecName.treeOrchard.toString(),"Tree Orchard",Resource.loadsimg("nurgling/bots/icons/forest/u")));
 
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
