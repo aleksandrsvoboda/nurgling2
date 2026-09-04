@@ -75,6 +75,33 @@ public class PathFinder implements Action {
         this.mode = mode;
     }
 
+    /* ---------------------------------------------------------------------------------------
+     * Extension points. Every one of these is a no-op here, chosen so that the base class keeps
+     * exactly the behaviour it had before they existed. They exist so a specialised pathfinder
+     * -- CartPathFinder is the only one today -- can adjust the search without this class, NPFMap,
+     * Graph or GoTo having to know anything about it.
+     * --------------------------------------------------------------------------------------- */
+
+    /**
+     * Called once the grid is built and the start and approach cells have been resolved, before
+     * the search runs. Somewhere to adjust the map for an agent that is not a bare character.
+     */
+    protected void onMapReady(NPFMap map, Coord start) {
+    }
+
+    /** How a single leg of the computed path is walked. */
+    protected Results walkTo(NGameUI gui, Coord2d target) throws InterruptedException {
+        return new GoTo(target).run(gui);
+    }
+
+    /**
+     * A leg failed and the path is about to be replanned from {@code at}. Return false to abandon
+     * the route instead. The base class always retries, which is what it has always done.
+     */
+    protected boolean onLegFailed(NGameUI gui, Coord2d at) throws InterruptedException {
+        return true;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         while (true) {
@@ -99,8 +126,11 @@ public class PathFinder implements Action {
                         }
                     }
 
-                    if (!(new GoTo(targetCoord).run(gui)).IsSuccess()) {
-                        this.begin = gui.map.player().rc;
+                    if (!walkTo(gui, targetCoord).IsSuccess()) {
+                        Coord2d at = gui.map.player().rc;
+                        if (!onLegFailed(gui, at))
+                            return Results.ERROR("Can't walk path");
+                        this.begin = at;
                         needRestart = true;
                         break;
                     }
@@ -155,6 +185,8 @@ public class PathFinder implements Action {
 //                dn = true; //start == end
                 return null;
             }
+
+            onMapReady(pfmap, start_pos);
 
             if (dca != null)
                 pfmap.setCellArray(dca);
