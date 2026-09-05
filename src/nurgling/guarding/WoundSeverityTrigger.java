@@ -2,7 +2,8 @@ package nurgling.guarding;
 
 import nurgling.tools.NWoundChecker;
 
-/** Fires when total wound damage (summed across every active wound) reaches a configured threshold - swamp fever risk. Preflight-only. */
+/** Fires when the character actually has the Swamp Fever wound itself, with damage at or above a
+ *  configured threshold - not merely a wound severe enough to risk developing it. Preflight-only. */
 public class WoundSeverityTrigger implements GuardTrigger {
     private final int threshold;
     private String lastReason = "";
@@ -13,9 +14,9 @@ public class WoundSeverityTrigger implements GuardTrigger {
 
     @Override
     public boolean check(GuardContext ctx) {
-        int total = NWoundChecker.totalWoundDamage();
-        if (total >= threshold) {
-            lastReason = "total wound damage at " + total + " (at or above " + threshold + " - swamp fever risk)";
+        int damage = NWoundChecker.swampFeverDamage();
+        if (damage >= threshold) {
+            lastReason = "Swamp Fever damage at " + damage + " (at or above " + threshold + ")";
             return true;
         }
         return false;

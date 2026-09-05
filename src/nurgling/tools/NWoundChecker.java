@@ -13,6 +13,9 @@ public class NWoundChecker {
     
     // Resource name for Scrapes & Cuts wound
     public static final String SCRAPES_CUTS_RES = "paginae/wound/scrapesncuts";
+
+    // Resource name for the Swamp Fever wound itself (a distinct wound, not a Scrapes & Cuts side effect)
+    public static final String SWAMP_FEVER_RES = "paginae/wound/swampfever";
     
     /**
      * Check if player has "Scrapes & Cuts" wound with damage >= threshold
@@ -50,8 +53,9 @@ public class NWoundChecker {
         return false;
     }
     
-    /** Sum of damage across every active wound, regardless of type; 0 if unavailable, never throws. */
-    public static int totalWoundDamage() {
+    /** Damage of the Swamp Fever wound itself (the disease, not a mere risk factor like Scrapes &
+     *  Cuts severity); 0 if not currently afflicted or unavailable, never throws. */
+    public static int swampFeverDamage() {
         int total = 0;
         try {
             CharWnd chrwdg = NUtils.getGameUI().chrwdg;
@@ -66,7 +70,10 @@ public class NWoundChecker {
 
             for (WoundWnd.Wound wound : woundWnd.wounds.wounds) {
                 try {
-                    total += getWoundDamage(wound);
+                    String resName = wound.res.get().name;
+                    if (SWAMP_FEVER_RES.equals(resName)) {
+                        total += getWoundDamage(wound);
+                    }
                 } catch (Loading l) {
                     // Resource not loaded yet, skip
                 }
