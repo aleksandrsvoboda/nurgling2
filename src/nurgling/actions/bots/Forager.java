@@ -430,6 +430,7 @@ public class Forager implements Action {
 
         for (Pair<Gob, ForagerAction> candidate : candidates) {
             if (map != null && routeConstraints.cliffCorridorBlocked(map, from, candidate.a.rc)) continue;
+            if (routeConstraints.corridorExcluded(sessloc, from, candidate.a.rc)) continue;
             return candidate;
         }
         return null;
