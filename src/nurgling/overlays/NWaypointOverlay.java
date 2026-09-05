@@ -172,7 +172,11 @@ public class NWaypointOverlay extends NGroundPathOverlay implements PView.Render
 
     /** Forager's off-path detour trail (gui.activeBotDetourTrail) as DETOUR nodes, plus gui.activeBotDetourTarget as a final DETOUR_TARGET node; ids negative to avoid colliding with ROUTE node ids. */
     private List<WNode> resolveDetourNodes(NGameUI gui) {
-        List<Coord2d> trail = gui.activeBotDetourTrail;
+        // Snapshot before reading size/elements separately - the bot thread mutates the live list
+        // with no synchronization, so a size computed one line and used the next can already be
+        // stale (same defensive-copy pattern NMiniMap's own detour trail draw already uses).
+        List<Coord2d> live = gui.activeBotDetourTrail;
+        List<Coord2d> trail = (live != null) ? new ArrayList<>(live) : null;
         boolean hasTrail = trail != null && !trail.isEmpty();
         Coord2d target = gui.activeBotDetourTarget;
         if(!hasTrail && target == null)
