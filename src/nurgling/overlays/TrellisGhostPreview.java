@@ -5,6 +5,7 @@ import haven.render.*;
 import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.pf.NHitBoxD;
+import nurgling.pf.NHitShapeD;
 
 import java.awt.Color;
 import java.util.*;
@@ -57,7 +58,7 @@ public class TrellisGhostPreview extends Sprite {
         HashMap<Coord, Integer> tileCount = new HashMap<>();
 
         // Find all valid positions
-        ArrayList<NHitBoxD> obstacles = findObstacles(area, rotatedHitBox);
+        ArrayList<NHitShapeD> obstacles = findObstacles(area, rotatedHitBox);
 
         // Calculate which tiles are in the area
         Coord tileBegin = area.a.floor(MCache.tilesz);
@@ -134,7 +135,7 @@ public class TrellisGhostPreview extends Sprite {
                     // Check collisions
                     NHitBoxD testBox = new NHitBoxD(rotatedHitBox.begin, rotatedHitBox.end, testPos, 0);
                     boolean passed = true;
-                    for (NHitBoxD obstacle : obstacles) {
+                    for (NHitShapeD obstacle : obstacles) {
                         if (obstacle.intersects(testBox, false)) {
                             passed = false;
                             break;
@@ -208,8 +209,8 @@ public class TrellisGhostPreview extends Sprite {
     /**
      * Find obstacles in area (same logic as BuildTrellis)
      */
-    private ArrayList<NHitBoxD> findObstacles(Pair<Coord2d, Coord2d> area, NHitBox hitBox) {
-        ArrayList<NHitBoxD> obstacles = new ArrayList<>();
+    private ArrayList<NHitShapeD> findObstacles(Pair<Coord2d, Coord2d> area, NHitBox hitBox) {
+        ArrayList<NHitShapeD> obstacles = new ArrayList<>();
         NHitBoxD areaBox = new NHitBoxD(area.a, area.b);
 
         try {
@@ -219,7 +220,7 @@ public class TrellisGhostPreview extends Sprite {
                           gob.getClass().getName().contains("GlobEffector"))) {
                         if (gob.ngob.hitBox != null && gob.getattr(Following.class) == null &&
                             gob.id != NUtils.player().id) {
-                            NHitBoxD gobBox = new NHitBoxD(gob);
+                            NHitShapeD gobBox = NHitShapeD.of(gob);
                             if (gobBox.intersects(areaBox, true)) {
                                 obstacles.add(gobBox);
                             }

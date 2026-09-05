@@ -291,7 +291,9 @@ public class Graph implements Runnable
                                     {
                                         Gob g = Finder.findGob(id);
                                         if(g!=null) {
-                                            if (hbd.intersects(new NHitBoxD(g.ngob.hitBox.begin, g.ngob.hitBox.end, g.rc, g.a),true)) {
+                                            // Shape, not box: a beam that threads a compound
+                                            // footprint's gap must not be rejected by the union.
+                                            if (NHitShapeD.of(g).intersects(hbd, true)) {
                                                 isFree = false;
                                                 break;
                                             }
