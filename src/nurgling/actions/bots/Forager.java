@@ -244,7 +244,7 @@ public class Forager implements Action {
             // Detour to a known actionable gob first if it's closer than this section's own target.
             Gob playerBeforeWalk = NUtils.player();
             if (playerBeforeWalk != null) {
-                Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, playerBeforeWalk.rc, preset.actions, SCAN_RADIUS, playerBeforeWalk.rc, preset.ignoreMaintainLimits);
+                Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, playerBeforeWalk.rc, preset.actions, SCAN_RADIUS, playerBeforeWalk.rc, preset.ignoreMaintainLimits, effectiveWaterMode(gui, preset));
                 if (nearest != null && playerBeforeWalk.rc.dist(nearest.a.rc) < playerBeforeWalk.rc.dist(sectionEnd)) {
                     collectNearbyActionableGobs(gui, preset);
                     if (isInventoryFull(gui) && !preset.onFullInventoryAction.equals("nothing")) {
@@ -399,7 +399,7 @@ public class Forager implements Action {
     }
 
     /** Nearest unprocessed, constraint-passing gob (exclusion zone/leash/cliff/Maintain) matching any of the preset's actions within radius. */
-    private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor, boolean ignoreMaintainLimits) throws InterruptedException {
+    private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor, boolean ignoreMaintainLimits, boolean waterMode) throws InterruptedException {
         MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
         MCache map = (gui.map != null && gui.map.glob != null) ? gui.map.glob.map : null;
 
@@ -418,6 +418,10 @@ public class Forager implements Action {
                 if (processedGobs.contains(gob.id)) continue;
                 if (routeConstraints.isGobExcluded(sessloc, gob)) continue;
                 if (!routeConstraints.withinLeash(leashAnchor, gob.rc)) continue;
+                // While in water mode (mounted in a coracle), a land-bound gob is structurally
+                // unreachable without dismounting first - skip it rather than waste a detour
+                // attempt PathFinder can never actually complete.
+                if (waterMode && map != null && !isOnOrNearWater(map, gob.rc)) continue;
                 candidates.add(new Pair<>(gob, action));
                 distByGobId.put(gob.id, from.dist(gob.rc));
             }
@@ -429,6 +433,16 @@ public class Forager implements Action {
             return candidate;
         }
         return null;
+    }
+
+    /** Whether target's own tile is water a coracle could actually reach - same tileset check NPFMap's water-mode grid and CoracleBot use; an unstreamed tile is treated as reachable rather than guessed at. */
+    private boolean isOnOrNearWater(MCache map, Coord2d target) {
+        Coord tc = target.div(MCache.tilesz).floor();
+        try {
+            return nurgling.pf.NPFMap.isValidWaterTileName(map.tilesetname(map.gettile(tc)));
+        } catch (Loading l) {
+            return true;
+        }
     }
 
     /** Counts inventory items by underlying resource (not display name, which varies by growth stage) for Maintain. */
@@ -503,7 +517,7 @@ public class Forager implements Action {
             Gob player = NUtils.player();
             if (player == null) return;
 
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor, preset.ignoreMaintainLimits);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor, preset.ignoreMaintainLimits, effectiveWaterMode(gui, preset));
             if (nearest == null) {
                 gui.activeBotDetourTarget = null;
                 return;
@@ -545,7 +559,7 @@ public class Forager implements Action {
             double remaining = player.rc.dist(target);
             if (remaining <= MAX_HOP_DISTANCE) return true;
 
-            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor, preset.ignoreMaintainLimits);
+            Pair<Gob, ForagerAction> nearest = findNearestActionableGob(gui, player.rc, preset.actions, SCAN_RADIUS, leashAnchor, preset.ignoreMaintainLimits, effectiveWaterMode(gui, preset));
             if (nearest != null && player.rc.dist(nearest.a.rc) < remaining) {
                 gui.activeBotDetourTarget = nearest.a.rc;
                 if (detourEpisode) {
@@ -611,21 +625,23 @@ public class Forager implements Action {
             case PICK: {
                 PathFinder pfPick = new PathFinder(gob);
                 pfPick.waterMode = effectiveWaterMode(gui, preset);
-                pfPick.run(gui);
+                // Marks processed either way - an unreachable gob (e.g. on land while mounted in
+                // a coracle) would otherwise keep getting re-picked as "nearest" forever.
+                processedGobs.add(gob.id);
+                if (!pfPick.run(gui).IsSuccess()) break;
                 new SelectFlowerAction("Pick", gob).run(gui);
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitGobRemoval(gob.id));
-                processedGobs.add(gob.id);
                 break;
             }
             case FLOWER_ACTION: {
                 PathFinder pfFlower = new PathFinder(gob);
                 pfFlower.waterMode = effectiveWaterMode(gui, preset);
-                pfFlower.run(gui);
+                processedGobs.add(gob.id);
+                if (!pfFlower.run(gui).IsSuccess()) break;
                 SelectFlowerAction flowerAction = new SelectFlowerAction(action.toActionNameCandidates(), gob);
                 flowerAction.run(gui);
                 confirmActionName(action, flowerAction.getMatchedOpt());
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitPose(NUtils.player(), "gfx/borka/idle"));
-                processedGobs.add(gob.id);
                 break;
             }
             case RIGHT_CLICK: {
@@ -634,13 +650,13 @@ public class Forager implements Action {
                 try {
                     PathFinder pfRclick = new PathFinder(gob);
                     pfRclick.waterMode = effectiveWaterMode(gui, preset);
-                    pfRclick.run(gui);
+                    processedGobs.add(gob.id);
+                    if (!pfRclick.run(gui).IsSuccess()) break;
                     NUtils.rclickGob(gob);
                     NUtils.getUI().core.addTask(new nurgling.tasks.WaitTicks(30));
                 } finally {
                     NUtils.setSpeed(1);
                 }
-                processedGobs.add(gob.id);
                 break;
             }
             default:
