@@ -161,7 +161,11 @@ public class TakeItems2 implements Action
         }
 
         if(inputs == null || inputs.isEmpty())
+        {
+            gui.msg("TakeItems2: no storages listed for '" + item + "' - nothing to tour");
             return Results.FAIL();
+        }
+        gui.msg("TakeItems2: touring " + inputs.size() + " storage(s) for " + count + " of '" + item + "'");
         for(NContext.ObjectStorage input: inputs)
         {
             /* Stop touring source storages the moment nothing more can be carried. `count` is
@@ -418,9 +422,22 @@ public class TakeItems2 implements Action
          * for a "Stockpile" window that will never arrive - or, when a neighbour's hitbox still
          * blocks that cell, dies in fixStartEnd because the target id no longer resolves.
          * Re-resolve on every visit and report a pile that is gone as "nothing taken". */
+        long pileId = (pile.pile == null) ? -1 : pile.pile.id;
         Gob gpile = (pile.pile == null) ? null : Finder.findGob(pile.pile.id);
-        if(gpile == null || !PathFinder.isAvailable(gpile))
+        /* Two very different things end the visit here and both used to be silent, which made
+         * "fetched 0 items" impossible to tell apart from "never tried". An area is normally
+         * several stockpiles - each one vanishes as it empties - so skipping one is routine and
+         * the tour is meant to carry on to the next; skipping ALL of them is the failure. */
+        if(gpile == null)
+        {
+            gui.msg("TakeFromPile: pile " + pileId + " gob not resolvable, skipping to next");
             return Results.FAIL();
+        }
+        if(!PathFinder.isAvailable(gpile))
+        {
+            gui.msg("TakeFromPile: pile " + pileId + " not pathable, skipping to next");
+            return Results.FAIL();
+        }
         new PathFinder(gpile).run(gui);
         new OpenTargetContainer("Stockpile", gpile).run(gui);
         /* A stockpile hands over one item per "xfer2" and the server silently drops the ones
@@ -438,8 +455,13 @@ public class TakeItems2 implements Action
         int room = (item == null)
                 ? Math.min(left.get(), gui.getInventory().getNumberFreeCoord(shape))
                 : StackSupporter.getOptimalItemCapacity(gui.getInventory(), item, shape, left.get());
-        if(room > 0)
+        boolean opened = (gui.getStockpile() != null);
+        int before = (item == null) ? 0 : gui.getInventory().getItems(new NAlias(item)).size();
+        if(room > 0 && opened)
             new TakeItemsFromPile(gpile, gui.getStockpile(), room).run(gui);
+        int got = ((item == null) ? 0 : gui.getInventory().getItems(new NAlias(item)).size()) - before;
+        gui.msg("TakeFromPile: pile " + pileId + " window=" + (opened ? "open" : "NONE")
+                + ", asked " + room + " of " + left.get() + " wanted, took " + got);
         new CloseTargetWindow(NUtils.getGameUI().getWindow("Stockpile")).run(gui);
         return Results.SUCCESS();
     }

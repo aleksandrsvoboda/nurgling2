@@ -1334,36 +1334,9 @@ public class NContext {
         return findInGlobal(new NAlias(name));
     }
 
-    /**
-     * Straight-line distance from the player to an area, used ONLY to break the tie when ChunkNav
-     * could not route to any candidate at all.
-     *
-     * <p>{@link #getDistanceToArea} returns {@code Double.MAX_VALUE} for every area it cannot
-     * route to - ChunkNav not initialised yet, no chunk-level path, or the search interrupted. The
-     * global lookups start their best distance at {@code MAX_VALUE} and keep a candidate only when
-     * it is strictly closer, so a matching area whose cost came back as the sentinel was found,
-     * matched, and then silently dropped. The caller was told the area does not exist: bots that
-     * had used the very same area moments earlier failed with "area not found" once the player had
-     * walked far enough away for the local pass to stop seeing it.
-     *
-     * <p>An unroutable area is still far better than none, so it is kept as a fallback and only
-     * ever used when nothing routes.
-     */
-    private static double straightLineToArea(NArea area) {
-        Gob player = NUtils.player();
-        if (area == null || player == null)
-            return Double.MAX_VALUE;
-        Pair<Coord2d, Coord2d> rc = area.getRCArea();
-        if (rc == null)
-            return Double.MAX_VALUE;
-        return Math.min(rc.a.dist(player.rc), rc.b.dist(player.rc));
-    }
-
     public static NArea findInGlobal(NAlias name) {
         double dist = Double.MAX_VALUE;
         NArea res = null;
-        NArea fallback = null;
-        double fallbackDist = Double.MAX_VALUE;
         NGameUI gui = NUtils.getGameUI();
         if (gui != null && gui.map != null) {
             Set<Integer> nids = gui.map.nols.keySet();
@@ -1376,24 +1349,16 @@ public class NContext {
                             res = cand;
                             dist = candDist;
                         }
-                        double straight = straightLineToArea(cand);
-                        if (fallback == null || straight < fallbackDist) {
-                            fallback = cand;
-                            fallbackDist = straight;
-                        }
                     }
                 }
             }
         }
-        // Nothing routed: hand back a matching area anyway rather than reporting none.
-        return (res != null) ? res : fallback;
+        return res;
     }
 
     public static NArea findSpecGlobal(String name, String sub) {
         double dist = Double.MAX_VALUE;
         NArea target = null;
-        NArea fallback = null;
-        double fallbackDist = Double.MAX_VALUE;
         NGameUI gui = NUtils.getGameUI();
         if (gui != null && gui.map != null) {
             Set<Integer> nids = gui.map.nols.keySet();
@@ -1408,19 +1373,13 @@ public class NContext {
                                 target = area;
                                 dist = candDist;
                             }
-                            double straight = straightLineToArea(area);
-                            if (fallback == null || straight < fallbackDist) {
-                                fallback = area;
-                                fallbackDist = straight;
-                            }
                             break; // Found matching spec, no need to check other specs for same area
                         }
                     }
                 }
             }
         }
-        // Nothing routed: hand back a matching area anyway rather than reporting none.
-        return (target != null) ? target : fallback;
+        return target;
     }
 
     public static NArea findSpecGlobal(NArea.Specialisation spec) {

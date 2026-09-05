@@ -32,6 +32,7 @@ import java.util.Set;
  *    d. Repeat until all containers full OR source exhausted
  */
 public class DepositItemsToSpecArea implements Action {
+
     private final NContext context;
     private final NAlias itemAlias;
     private final Specialisation.SpecName destinationSpec;
@@ -40,12 +41,6 @@ public class DepositItemsToSpecArea implements Action {
     private NAlias fetchAlias = null;
 
     private Map<Long, Integer> containerFreeSpaceMap = new HashMap<>();
-    /**
-     * Items that fit in ONE free cell of each container, measured while it was open in the scan
-     * below. Container.Space counts free CELLS while ItemCount.getNeeded() counts ITEMS, and for
-     * anything that stacks those are not the same number.
-     */
-    private Map<Long, Integer> containerStackDepth = new HashMap<>();
 
     public DepositItemsToSpecArea(NContext context, NAlias itemAlias, Specialisation.SpecName destinationSpec, int maxPerContainer) {
         this.context = context;
@@ -75,34 +70,6 @@ public class DepositItemsToSpecArea implements Action {
     public DepositItemsToSpecArea setFetchAlias(NAlias fetchAlias) {
         this.fetchAlias = fetchAlias;
         return this;
-    }
-
-    /**
-     * Deepest stack this container will hold of anything we are depositing, or 1 when nothing
-     * stacks in it. Read while the container is open, because whether an item stacks at all
-     * depends on the destination - a herbalist table stacks nothing, a cupboard stacks leaves 4
-     * to a cell - and on the client's bundling setting.
-     */
-    private int measureStackDepth(NGameUI gui, Container container) throws InterruptedException {
-        NInventory inv = gui.getInventory(container.cap);
-        if (inv == null)
-            return 1;
-        int depth = 1;
-        for (String key : this.itemAlias.getKeys()) {
-            if (StackSupporter.isStackable(inv, key))
-                depth = Math.max(depth, Math.max(1, StackSupporter.getFullStackSize(key)));
-        }
-        return depth;
-    }
-
-    /**
-     * How many ITEMS still fit, from a free-CELL count. Comparing needed against free cells
-     * directly under-asks by the stack depth: a feeding cupboard with 56 worms has 8 free cells
-     * but room for 32 leaves, so the bot fetched 8, deposited them into 2 cells, found 6 cells
-     * left, fetched 6 - shrinking geometrically and walking back to the pile for every bite.
-     */
-    private int itemsThatFit(long gobid, int freeCells) {
-        return freeCells * containerStackDepth.getOrDefault(gobid, 1);
     }
 
     @Override
@@ -155,12 +122,15 @@ public class DepositItemsToSpecArea implements Action {
             // Store free space for external access. Stays in CELLS - callers size non-stacking
             // items (silkworms) off it, so converting here would break them.
             containerFreeSpaceMap.put(container.gobid, freeSpace);
-            containerStackDepth.put(container.gobid, measureStackDepth(gui, container));
 
             // Only add if we need items AND have space
             if (needed > 0 && freeSpace > 0) {
-                // Limit by what actually fits, in items rather than cells
-                int canAdd = Math.min(needed, itemsThatFit(container.gobid, freeSpace));
+                /* Ask for what will actually be deposited. TransferToContainer caps itself on
+                 * ItemCount.getNeeded() and never looks at free cells, so clamping the plan by
+                 * cells - even converted to items - just under-fetches: a cupboard reporting one
+                 * free cell took ten more leaves, because a part-filled stack absorbs them without
+                 * using a cell at all. Planning and execution now use the same number. */
+                int canAdd = needed;
                 totalNeeded += canAdd;
                 containersNeedingItems.add(container);
                 gui.msg("DepositItems: Container #" + containerIndex + " NEEDS " + canAdd + " items (added to fill list)");
@@ -227,7 +197,7 @@ public class DepositItemsToSpecArea implements Action {
                 Container.Space space = container.getattr(Container.Space.class);
                 int needed = itemCount.getNeeded();
                 int freeSpace = space.getFreeSpace();
-                totalStillNeeded += Math.min(needed, itemsThatFit(container.gobid, freeSpace));
+                totalStillNeeded += needed;
             }
 
             if (totalStillNeeded == 0) {
@@ -303,7 +273,12 @@ public class DepositItemsToSpecArea implements Action {
                 // Update container info after transfer (container should still be open from TransferToContainer)
                 Container.ItemCount itemCount = container.getattr(Container.ItemCount.class);
                 Container.Space space = container.getattr(Container.Space.class);
-                if (space.isReady()) {
+                /* isReady() only says the attribute was initialised during the scan, not that the
+                 * window is open now. TransferToContainer returns without opening anything when
+                 * there is nothing matching to move or no room, and Space.update() then calls
+                 * getFreeSpace() on a null inventory and kills the bot. Keep the last known value
+                 * instead - the reads below use the cached figure and cope with it being stale. */
+                if (space.isReady() && gui.getInventory(container.cap) != null) {
                     space.update();
                     containerFreeSpaceMap.put(container.gobid, space.getFreeSpace());
                 }
