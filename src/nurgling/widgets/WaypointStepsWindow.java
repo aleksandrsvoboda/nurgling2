@@ -6,7 +6,7 @@ import nurgling.routes.ForagerWaypoint;
 /** Popout for editing the {@link nurgling.scenarios.BotStep}s attached to one {@link ForagerWaypoint}; edits apply immediately to its {@code steps} list. */
 public class WaypointStepsWindow extends Window {
 
-    private static final String[] FAIL_ACTIONS = {"nothing", "logout", "travel hearth"};
+    private static final String[] FAIL_ACTIONS = {"nothing", "break", "logout", "travel hearth"};
 
     private final ForagerWaypoint waypoint;
     private final Runnable onChanged;
