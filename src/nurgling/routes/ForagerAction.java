@@ -32,6 +32,9 @@ public class ForagerAction {
     // Stop foraging this item once its current inventory count reaches this; -1 = no cap.
     public int maintainQuantity = -1;
 
+    // Lower number = checked first when picking what to forage next; -1 = unset, checked last.
+    public int priority = -1;
+
     public ForagerAction(String targetObjectPattern, ActionType actionType, String actionName,
                          NotifyTarget notifyTarget, String chatChannelName) {
         this.targetObjectPattern = targetObjectPattern;
@@ -70,6 +73,9 @@ public class ForagerAction {
         if (json.has("maintainQuantity")) {
             this.maintainQuantity = json.getInt("maintainQuantity");
         }
+        if (json.has("priority")) {
+            this.priority = json.getInt("priority");
+        }
     }
 
     public ForagerAction(java.util.HashMap<String, Object> map) {
@@ -92,6 +98,9 @@ public class ForagerAction {
         }
         if (map.containsKey("maintainQuantity")) {
             this.maintainQuantity = ((Number) map.get("maintainQuantity")).intValue();
+        }
+        if (map.containsKey("priority")) {
+            this.priority = ((Number) map.get("priority")).intValue();
         }
     }
 
@@ -116,6 +125,9 @@ public class ForagerAction {
         }
         if (maintainQuantity >= 0) {
             json.put("maintainQuantity", maintainQuantity);
+        }
+        if (priority >= 0) {
+            json.put("priority", priority);
         }
         return json;
     }

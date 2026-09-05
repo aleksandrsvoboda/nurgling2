@@ -22,6 +22,7 @@ public class IconItem extends Widget
     private static final String KEY_UNMARK = "iconitem.unmark";
     private static final String KEY_EDIT = "iconitem.edit";
     private static final String KEY_MAINTAIN = "iconitem.maintain";
+    private static final String KEY_PRIORITY = "iconitem.priority";
     public static final TexI frame = new TexI(Resource.loadimg("nurgling/hud/iconframe"));
     public static final TexI framet = new TexI(Resource.loadimg("nurgling/hud/iconframet"));
     public static final TexI bm = new TexI(Resource.loadimg("nurgling/hud/bartermark"));
@@ -76,6 +77,11 @@ public class IconItem extends Widget
     boolean isFlowerAction = false;
 
     int val;
+
+    // Forager pickup priority (lower = checked first, -1 = unset) - independent of hasBadge/val/q
+    // above since an item can have both a Maintain cap and a priority at once.
+    int priority = -1;
+    TexI priorityTex;
 
     String name;
 
@@ -141,6 +147,10 @@ public class IconItem extends Widget
             {
                 g.image(flowerMark, UI.scale(16, 0), UI.scale(16, 16));
             }
+            if(priority >= 0 && priorityTex != null)
+            {
+                g.image(priorityTex, Coord.z);
+            }
         }
     }
 
@@ -188,6 +198,7 @@ public class IconItem extends Widget
             if (parent instanceof TaggableItemContainer) {
                 addMenuOption(optList, KEY_EDIT);
                 addMenuOption(optList, KEY_MAINTAIN);
+                addMenuOption(optList, KEY_PRIORITY);
             }
             if (parent instanceof IngredientContainer) {
                 if (type == NArea.Ingredient.Type.CONTAINER) {
@@ -253,6 +264,20 @@ public class IconItem extends Widget
                                     newVal -> tc.setMaintainQuantity(IconItem.this.name, newVal));
                             ui.root.add(st, pos);
                         }
+                        else if (key.equals(KEY_PRIORITY))
+                        {
+                            Widget par = IconItem.this.parent;
+                            Coord pos = IconItem.this.c.add(UI.scale(32, 38));
+                            while (par != null && !(par instanceof GameUI))
+                            {
+                                pos = pos.add(par.c);
+                                par = par.parent;
+                            }
+                            TaggableItemContainer tc = (TaggableItemContainer) IconItem.this.parent;
+                            SetThreshold st = new SetThreshold(tc.getPriority(IconItem.this.name), L10n.get("iconitem.priority"),
+                                    newVal -> tc.setPriority(IconItem.this.name, newVal), false);
+                            ui.root.add(st, pos);
+                        }
                         else if(key.equals(KEY_DELETE))
                         {
                             ((BaseIngredientContainer)IconItem.this.parent).delete(IconItem.this.name);
@@ -297,8 +322,15 @@ public class IconItem extends Widget
 
     class SetThreshold extends Window
     {
-        // Generic "set a small number for this icon" popup, shared by Threshold and Maintain via title/onSet.
+        // Generic "set a small number for this icon" popup, shared by Threshold/Maintain (the
+        // shared hasBadge/val/q badge) and Priority (its own separate priority/priorityTex
+        // fields, since an item can have both a Maintain cap and a priority at once).
         public SetThreshold(int val, String title, java.util.function.IntConsumer onSet)
+        {
+            this(val, title, onSet, true);
+        }
+
+        public SetThreshold(int val, String title, java.util.function.IntConsumer onSet, boolean isBadge)
         {
             super(UI.scale(140,25), title);
             TextEntry te;
@@ -310,14 +342,31 @@ public class IconItem extends Widget
                     super.click();
                     try
                     {
-                        IconItem.this.hasBadge = true;
-                        IconItem.this.val = Integer.valueOf(te.text());
-                        IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
-                        onSet.accept(IconItem.this.val);
+                        int newVal = Integer.parseInt(te.text());
+                        if (isBadge)
+                        {
+                            IconItem.this.hasBadge = true;
+                            IconItem.this.val = newVal;
+                            IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
+                        }
+                        else
+                        {
+                            IconItem.this.priority = newVal;
+                            IconItem.this.priorityTex = new TexI(NStyle.iiqual.render(te.text()).img);
+                        }
+                        onSet.accept(newVal);
                     }
                     catch (NumberFormatException e)
                     {
-                        IconItem.this.hasBadge = false;
+                        if (isBadge)
+                        {
+                            IconItem.this.hasBadge = false;
+                        }
+                        else
+                        {
+                            IconItem.this.priority = -1;
+                            IconItem.this.priorityTex = null;
+                        }
                         onSet.accept(-1);
                     }
                     ui.destroy(SetThreshold.this);

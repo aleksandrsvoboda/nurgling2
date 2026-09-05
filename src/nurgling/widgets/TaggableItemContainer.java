@@ -10,4 +10,10 @@ public interface TaggableItemContainer {
 
     /** The currently saved maintain quantity for this item, or -1 if unset. */
     int getMaintainQuantity(String itemName);
+
+    /** Sets which order this item should be checked in relative to others when foraging - lower first, -1 means unset/checked last. */
+    void setPriority(String itemName, int priority);
+
+    /** The currently saved priority for this item, or -1 if unset. */
+    int getPriority(String itemName);
 }

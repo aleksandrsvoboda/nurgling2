@@ -398,7 +398,13 @@ public class Forager implements Action {
         return baseWaterMode || CoracleBot.isPlayerInCoracle(gui);
     }
 
-    /** Nearest unprocessed, constraint-passing gob (exclusion zone/leash/cliff/Maintain) matching any of the preset's actions within radius. */
+    /** Sorts lower Priority first (checked/collected before anything else in range), unset (-1)
+     *  last; ties (including every unset pair) broken by distance ascending. */
+    private int priorityRank(int priority) {
+        return priority < 0 ? Integer.MAX_VALUE : priority;
+    }
+
+    /** Nearest unprocessed, constraint-passing gob (exclusion zone/leash/cliff/Maintain) matching any of the preset's actions within radius, preferring lower Priority actions first. */
     private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor, boolean ignoreMaintainLimits, boolean waterMode) throws InterruptedException {
         MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
         MCache map = (gui.map != null && gui.map.glob != null) ? gui.map.glob.map : null;
@@ -426,7 +432,11 @@ public class Forager implements Action {
                 distByGobId.put(gob.id, from.dist(gob.rc));
             }
         }
-        candidates.sort((a, b) -> Double.compare(distByGobId.get(a.a.id), distByGobId.get(b.a.id)));
+        candidates.sort((a, b) -> {
+            int byPriority = Integer.compare(priorityRank(a.b.priority), priorityRank(b.b.priority));
+            if (byPriority != 0) return byPriority;
+            return Double.compare(distByGobId.get(a.a.id), distByGobId.get(b.a.id));
+        });
 
         for (Pair<Gob, ForagerAction> candidate : candidates) {
             if (map != null && routeConstraints.cliffCorridorBlocked(map, from, candidate.a.rc)) continue;

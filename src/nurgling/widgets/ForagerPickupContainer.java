@@ -248,6 +248,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
                     IconItem it = icons.get(icons.size() - 1);
                     it.setFlowerAction(action.actionType == ForagerAction.ActionType.FLOWER_ACTION);
                     restoreMaintainBadge(it, action);
+                    restorePriorityBadge(it, action);
                     break;
                 }
             }
@@ -260,6 +261,14 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             it.hasBadge = true;
             it.val = action.maintainQuantity;
             it.q = new TexI(nurgling.NStyle.iiqual.render(String.valueOf(action.maintainQuantity)).img);
+        }
+    }
+
+    /** Restores the priority badge onto a freshly (re)drawn icon from its entry's saved priority - independent of the shared Threshold/Maintain badge, since both can apply to the same item. */
+    private static void restorePriorityBadge(IconItem it, ForagerAction action) {
+        if (action.priority >= 0) {
+            it.priority = action.priority;
+            it.priorityTex = new TexI(nurgling.NStyle.iiqual.render(String.valueOf(action.priority)).img);
         }
     }
 
@@ -279,6 +288,27 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         for (ForagerAction action : actions) {
             if (itemName.equals(action.sourceItemName)) {
                 return action.maintainQuantity;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public void setPriority(String itemName, int priority) {
+        for (ForagerAction action : actions) {
+            if (itemName.equals(action.sourceItemName)) {
+                action.priority = priority;
+                break;
+            }
+        }
+        notifyChanged();
+    }
+
+    @Override
+    public int getPriority(String itemName) {
+        for (ForagerAction action : actions) {
+            if (itemName.equals(action.sourceItemName)) {
+                return action.priority;
             }
         }
         return -1;
@@ -323,6 +353,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
             if (img == null) {
                 IconItem it = addPlaceholderIcon(action.sourceItemName, placeholderIcon(action.sourceItemName), isFlowerAction);
                 restoreMaintainBadge(it, action);
+                restorePriorityBadge(it, action);
             } else {
                 addIcon(iconRes);
             }
