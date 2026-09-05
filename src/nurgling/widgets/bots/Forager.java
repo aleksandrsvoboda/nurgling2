@@ -14,6 +14,7 @@ import java.util.TreeSet;
 public class Forager extends Window implements Checkable {
 
     private Dropbox<String> presetDropbox;
+    private CheckBox ignoreMaintainCheck;
     public NForagerProp prop;
     public boolean cancelled = false;
     private boolean ready = false;
@@ -52,7 +53,18 @@ public class Forager extends Window implements Checkable {
             protected void drawitem(GOut g, String item, int i) {
                 g.text(item, Coord.z);
             }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                if (item != null && prop != null && ignoreMaintainCheck != null) {
+                    NForagerProp.PresetData pd = prop.presets.get(item);
+                    ignoreMaintainCheck.a = pd != null && pd.ignoreMaintainLimits;
+                }
+            }
         }, prev.pos("bl").add(UI.scale(0, 5)));
+
+        prev = add(ignoreMaintainCheck = new CheckBox(L10n.get("forager.ignore_maintain")), prev.pos("bl").add(UI.scale(0, 10)));
         presetDropbox.change(prop.currentPreset);
 
         add(new Button(UI.scale(150), "Start") {
@@ -91,6 +103,7 @@ public class Forager extends Window implements Checkable {
             return;
         }
         preset.foragerPath = path;
+        preset.ignoreMaintainLimits = ignoreMaintainCheck.a;
 
         NForagerProp.set(prop);
         ready = true;
