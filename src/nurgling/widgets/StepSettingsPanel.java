@@ -520,6 +520,41 @@ public class StepSettingsPanel extends Widget {
             add(modeDropdown, new Coord(UI.scale(8), y));
             y += UI.scale(40);
         }
+        if (desc.id.equals("apply_tansy")) {
+            hasAnySetting = true;
+            add(new Label("Target Scent of Tansy stacks:"), new Coord(UI.scale(8), y));
+            y += UI.scale(24);
+
+            Object currentTarget = step.getSetting("targetStacks");
+            int target = 10;
+            if (currentTarget != null) {
+                if (currentTarget instanceof Integer) {
+                    target = (Integer) currentTarget;
+                } else if (currentTarget instanceof Long) {
+                    target = ((Long) currentTarget).intValue();
+                } else if (currentTarget instanceof Number) {
+                    target = ((Number) currentTarget).intValue();
+                }
+            }
+
+            TextEntry targetEntry = new TextEntry(UI.scale(60), String.valueOf(target)) {
+                @Override
+                protected void changed() {
+                    try {
+                        int t = Integer.parseInt(text().trim());
+                        if (t > 0) {
+                            step.setSetting("targetStacks", t);
+                        }
+                    } catch (NumberFormatException e) {
+                        // Ignore invalid input
+                    }
+                }
+            };
+            step.setSetting("targetStacks", target);
+
+            add(targetEntry, new Coord(UI.scale(8), y));
+            y += UI.scale(30);
+        }
         if (!hasAnySetting) {
             add(new Label("No settings for this step."), new Coord(UI.scale(8), y));
         }

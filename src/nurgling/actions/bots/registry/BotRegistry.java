@@ -254,9 +254,12 @@ public class BotRegistry {
         bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", true, true, SkisBot.class, "skis", false));
         // Forager-only - a gate along a route is a per-waypoint concern, not a general Scenario step.
         bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens or closes the nearest gate, per this step's Action setting; does nothing if it's already in that state.", false, false, GateBot.class, "goto", false, Map.of("mode", "open"), true));
-        // Hidden from the main bot menu and the general Scenario step picker - meant to be used as
-        // a Forager waypoint step (swamp fever prevention) or launched by the external Scheduler.
-        bots.add(new BotDescriptor("apply_tansy", BotDescriptor.BotType.UTILS, "bot.apply_tansy.title", "bot.apply_tansy.desc", true, false, ApplyTansyIfMissing.class, "leaf", false, Map.of(), true));
+        // Hidden from the main bot menu - a pre-flight prep action (swamp fever prevention),
+        // meant to be set up via the Scheduler/general Scenario step list before a Forager run
+        // starts, not as an in-route Forager waypoint step (which can walk off the route's
+        // segment, e.g. indoors, breaking the route mid-run - out of scope for a "post-flight,
+        // along the route" step).
+        bots.add(new BotDescriptor("apply_tansy", BotDescriptor.BotType.UTILS, "bot.apply_tansy.title", "bot.apply_tansy.desc", true, false, ApplyTansyIfMissing.class, "leaf", false, Map.of("targetStacks", 10), false));
 
         // BUILD
         bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));
