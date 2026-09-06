@@ -162,6 +162,14 @@ public class Forager implements Action {
                 ? java.util.Collections.emptyMap()
                 : resolveMaintainAreaStock(gui, preset);
 
+        // Every pickup action already maintained - nothing this run could collect, so there's no
+        // point walking the route at all.
+        if (nothingLeftToPickUp(gui, preset)) {
+            gui.msg("Forager: every item is already at its Maintain quantity - nothing to do, stopping.");
+            performSafetyAction(gui, preset.afterFinishAction);
+            return Results.SUCCESS();
+        }
+
         // Sections are segment-relative, so they can only be (re)computed while standing on the path's own segment.
         path.generateSections();
         if (path.getSectionCount() == 0) {
@@ -221,7 +229,7 @@ public class Forager implements Action {
             gui.activeBotWaypointIndex = i + 1;
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
                 // toWp validates we actually landed near the expected destination.
-                Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp).run(gui);
+                Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp, guardingProfile.ignoreBats).run(gui);
                 if (!milestoneResult.IsSuccess()) {
                     return milestoneResult;
                 }
@@ -342,8 +350,15 @@ public class Forager implements Action {
                     return Results.SUCCESS();
                 }
             }
+
+            // Everything's become maintained partway through the route - no point walking the rest.
+            if (nothingLeftToPickUp(gui, preset)) {
+                gui.msg("Forager: every item is now at its Maintain quantity - nothing left to do, stopping.");
+                performSafetyAction(gui, preset.afterFinishAction);
+                return Results.SUCCESS();
+            }
         }
-        
+
         // After completing all sections, perform finish action
         performSafetyAction(gui, preset.afterFinishAction);
 
@@ -404,6 +419,27 @@ public class Forager implements Action {
         return priority < 0 ? Integer.MAX_VALUE : priority;
     }
 
+    /** True if there's at least one pickup action (PICK/FLOWER_ACTION/RIGHT_CLICK - not
+     *  CHAT_NOTIFY, a separate scan-and-notify mechanism unrelated to Maintain) and every one of
+     *  them has a Maintain cap set and already met, i.e. there's genuinely nothing left this run
+     *  could collect. A preset with no pickup actions at all (e.g. used purely for waypoint steps
+     *  or chat-notify scanning) never counts as "nothing to look for" here - that's a different,
+     *  valid use case. Always false if Maintain limits are ignored, or if any action has no cap at
+     *  all (unset always means "keep collecting"). */
+    private boolean nothingLeftToPickUp(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
+        if (preset.ignoreMaintainLimits) return false;
+        boolean sawPickupAction = false;
+        for (ForagerAction action : preset.actions) {
+            if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) continue;
+            sawPickupAction = true;
+            if (action.maintainQuantity < 0) return false;
+            int areaStock = (action.sourceItemName != null) ? maintainAreaStock.getOrDefault(action.sourceItemName, 0) : 0;
+            int carried = (action.sourceItemResource != null) ? countByResource(gui, action.sourceItemResource) : 0;
+            if (areaStock + carried < action.maintainQuantity) return false;
+        }
+        return sawPickupAction;
+    }
+
     /** Nearest unprocessed, constraint-passing gob (exclusion zone/leash/cliff/Maintain) matching any of the preset's actions within radius, preferring lower Priority actions first. */
     private Pair<Gob, ForagerAction> findNearestActionableGob(NGameUI gui, Coord2d from, java.util.List<ForagerAction> actions, double radius, Coord2d leashAnchor, boolean ignoreMaintainLimits, boolean waterMode) throws InterruptedException {
         MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
@@ -438,9 +474,11 @@ public class Forager implements Action {
             return Double.compare(distByGobId.get(a.a.id), distByGobId.get(b.a.id));
         });
 
+        boolean ignoreBats = guardingProfile != null && guardingProfile.ignoreBats;
         for (Pair<Gob, ForagerAction> candidate : candidates) {
             if (map != null && routeConstraints.cliffCorridorBlocked(map, from, candidate.a.rc)) continue;
             if (routeConstraints.corridorExcluded(sessloc, from, candidate.a.rc)) continue;
+            if (routeConstraints.dangerousAnimalNearCorridor(from, candidate.a.rc, ignoreBats)) continue;
             return candidate;
         }
         return null;

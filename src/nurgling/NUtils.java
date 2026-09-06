@@ -256,6 +256,10 @@ public class NUtils
         getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),1, 0);
     }
 
+    public static void rclick(Coord2d pos) {
+        getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),3, 0);
+    }
+
 
 
     public static void activateItem(Gob gob, boolean shift) {

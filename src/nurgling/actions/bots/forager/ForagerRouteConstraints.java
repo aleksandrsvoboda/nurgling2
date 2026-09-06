@@ -6,7 +6,13 @@ import haven.Gob;
 import haven.Line2d;
 import haven.MCache;
 import haven.MiniMap;
+import nurgling.NConfig;
+import nurgling.conf.NAreaRad;
 import nurgling.routes.ForagerPath;
+import nurgling.tools.Finder;
+import nurgling.tools.NAlias;
+
+import java.util.ArrayList;
 
 /** Per-route geometry limits (Forager Settings > Routes), consulted by Forager's detour/chase logic. */
 public class ForagerRouteConstraints {
@@ -76,6 +82,49 @@ public class ForagerRouteConstraints {
     public boolean cliffCorridorBlocked(MCache map, Coord2d from, Coord2d to) {
         if (!avoidCliffs) return false;
         return CliffCorridorChecker.corridorBlocked(map, from, to, cliffBufferTiles);
+    }
+
+    // Matches DangerousAnimalTrigger's own margin over each species' configured radius - pulls a
+    // detour away from real danger, not just up to its edge.
+    private static final double DANGER_MARGIN = 1.25;
+
+    /** True if a dangerous animal (per Ring Settings' own per-species radius/dangerous flag - the
+     *  same config DangerousAnimalTrigger uses, respecting ignoreBats the same way) is within its
+     *  own danger radius of any point along the corridor from `from` to `to` - not just the
+     *  candidate's own position, so a walk that merely passes near one is also rejected. Same
+     *  corridor-check spirit as cliffCorridorBlocked/corridorExcluded, checking distance to a live
+     *  gob instead of a static tile property. */
+    @SuppressWarnings("unchecked")
+    public boolean dangerousAnimalNearCorridor(Coord2d from, Coord2d to, boolean ignoreBats) throws InterruptedException {
+        if (from == null || to == null) return false;
+        ArrayList<NAreaRad> rads = (ArrayList<NAreaRad>) NConfig.get(NConfig.Key.animalrad);
+        if (rads == null) return false;
+
+        Coord2d mid = from.add(to).div(2);
+        double halfLen = from.dist(to) / 2.0;
+
+        for (NAreaRad rad : rads) {
+            if (!rad.dangerous) continue;
+            if (ignoreBats && rad.name.contains("bat")) continue;
+
+            double triggerDist = rad.radius * DANGER_MARGIN;
+            for (Gob animal : Finder.findGobs(mid, new NAlias(rad.name), null, halfLen + triggerDist)) {
+                if (distToSegment(animal.rc, from, to) <= triggerDist) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static double distToSegment(Coord2d p, Coord2d a, Coord2d b) {
+        Coord2d ab = b.sub(a);
+        double abLenSq = ab.x * ab.x + ab.y * ab.y;
+        if (abLenSq < 0.0001) return p.dist(a);
+        double t = ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / abLenSq;
+        t = Math.max(0, Math.min(1, t));
+        Coord2d closest = new Coord2d(a.x + ab.x * t, a.y + ab.y * t);
+        return p.dist(closest);
     }
 
     /** -1 = unlimited hops per detour episode. */

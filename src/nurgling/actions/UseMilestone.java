@@ -9,6 +9,10 @@ import haven.Widget;
 import haven.Window;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.actions.bots.CoracleBot;
+import nurgling.guarding.DangerousAnimalTrigger;
+import nurgling.guarding.GuardContext;
+import nurgling.guarding.UnknownPlayerTrigger;
 import nurgling.routes.ForagerWaypoint;
 import nurgling.tasks.WaitDuration;
 import nurgling.tasks.WaitForGridChangeOrTimeout;
@@ -38,10 +42,14 @@ public class UseMilestone implements Action {
     private final String milestoneHash;
     // The route's destination anchor for this splice; null skips post-arrival validation. Compared against actual landing, not MilestoneRegistry's current (possibly since-changed) data.
     private final ForagerWaypoint expectedDestination;
+    // Matches the Guarding profile's own setting, so a milestone bail doesn't second-guess a
+    // deliberate "ignore bats" choice the rest of the safety system already respects.
+    private final boolean ignoreBats;
 
-    public UseMilestone(String milestoneHash, ForagerWaypoint expectedDestination) {
+    public UseMilestone(String milestoneHash, ForagerWaypoint expectedDestination, boolean ignoreBats) {
         this.milestoneHash = milestoneHash;
         this.expectedDestination = expectedDestination;
+        this.ignoreBats = ignoreBats;
     }
 
     @Override
@@ -84,9 +92,28 @@ public class UseMilestone implements Action {
 
         travelButtons.get(0).click();
 
-        // Wait out the peek window (interruptible), then click-confirm at wherever the camera is centered.
+        // Wait out the peek window (interruptible) - the peek previews the destination, so this is
+        // our one chance to bail before actually landing there. Check for a dangerous animal or a
+        // hostile/unknown player already close to the destination; if either is found, cancel the
+        // travel with a right-click (same as a manual player backing out of a Travel peek) instead
+        // of confirming, and head home rather than continuing the route.
         NUtils.getUI().core.addTask(new WaitDuration(PEEK_WAIT_MS));
+
         Coord2d confirmPoint = new Coord2d(gui.map.getcc());
+        GuardContext safetyCtx = new GuardContext(gui, ignoreBats);
+        boolean dangerousAnimal = new DangerousAnimalTrigger().check(safetyCtx);
+        boolean hostilePlayer = !dangerousAnimal && new UnknownPlayerTrigger().check(safetyCtx);
+        if (dangerousAnimal || hostilePlayer) {
+            gui.msg("Forager: bailing on milestone travel - " + (dangerousAnimal ? "dangerous animal" : "unknown/hostile player")
+                    + " detected at the destination. Cancelling and heading home.");
+            NUtils.rclick(confirmPoint);
+            // Can't hearth-fire while mounted - dismount (which also picks the coracle back up) first, same as GuardOutcome.TRAVEL_HEARTH.
+            if (CoracleBot.isPlayerInCoracle(gui)) {
+                new CoracleBot().run(gui);
+            }
+            return new TravelToHearthFire().run(gui);
+        }
+
         NUtils.lclick(confirmPoint);
 
         NUtils.getUI().core.addTask(new WaitForGridChangeOrTimeout(gui, beforeGridId, TRAVEL_TIMEOUT_MS));
@@ -109,6 +136,9 @@ public class UseMilestone implements Action {
             if (wrongPlace) {
                 gui.msg("Forager: milestone travel didn't land near the route's recorded destination "
                         + "- route may be broken. Teleporting home.");
+                if (CoracleBot.isPlayerInCoracle(gui)) {
+                    new CoracleBot().run(gui);
+                }
                 return new TravelToHearthFire().run(gui);
             }
         }
