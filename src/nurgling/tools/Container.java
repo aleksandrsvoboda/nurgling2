@@ -3,9 +3,11 @@ package nurgling.tools;
 import haven.Coord;
 import haven.GAttrib;
 import haven.Gob;
+import haven.UI;
 import haven.WItem;
 import haven.res.ui.tt.wellmined.WellMined;
 import nurgling.*;
+import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 
@@ -27,6 +29,27 @@ public class Container implements NContext.ObjectStorage {
         this.gobHash = gob.ngob.hash;
         this.cap = cap;
         this.parent = area;
+    }
+
+    /* Local pf to the container's gob; falls back to ChunkNav via its area if the gob isn't
+     * currently reachable (e.g. it fell out of the loaded-object cache after a cell change,
+     * such as walking into a house). Returns null if still unreachable. */
+    public static Gob pathTo(NGameUI gui, Container container) throws InterruptedException {
+        Gob gob = Finder.findGob(container.gobHash);
+        if (gob == null || !PathFinder.isAvailable(gob)) {
+            if (container.parent == null) {
+                return null;
+            }
+            NUtils.navigateToArea(container.parent);
+            gob = Finder.findGob(container.gobHash);
+            if (gob == null || !PathFinder.isAvailable(gob)) {
+                return null;
+            }
+        }
+        PathFinder pf = new PathFinder(gob);
+        pf.isHardMode = true;
+        pf.run(gui);
+        return gob;
     }
 
     public Map<Class<? extends Updater>, Updater> updaters = new HashMap<Class<? extends Updater>, Updater>();
@@ -389,6 +412,68 @@ public class Container implements NContext.ObjectStorage {
         if(!c.isInstance(attr))
             return(null);
         return(c.cast(attr));
+    }
+
+    /* Shared by the gathering bots (smelter/tanning tub/drying frame) so each doesn't need
+     * its own copy of "is this container physically full" for Space vs. Tetris containers.
+     * DONE is read null-safely: callers seed TARGET_COORD at construction, which already makes
+     * isReady() true, so DONE is still unset for a container whose window never opened. */
+    public boolean isFull() {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris != null)
+            return Boolean.TRUE.equals(tetris.getRes().get(Tetris.DONE));
+        Space space = getattr(Space.class);
+        return space != null && space.isReady() && space.getFreeSpace() == 0;
+    }
+
+    /* Whether anything currently held would actually fit one of this container's Tetris shapes.
+     * TransferToContainer matches items to holes by exact sprite size, so an item fitting none
+     * of them can never leave the inventory - a caller looping until the container fills needs
+     * this to know when to stop. Always true for non-Tetris containers. */
+    public boolean hasMatchingHole(NAlias alias, NGameUI gui) throws InterruptedException {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris == null)
+            return true;
+        for (WItem witem : gui.getInventory().getItems(alias)) {
+            if (witem.item.spr != null && tetris.calcNumberFreeCoord(Tetris.SRC, witem.item.spr.sz().div(UI.scale(32)).swapXY()) > 0)
+                return true;
+        }
+        return false;
+    }
+
+    /* Real capacity for a known item shape - far better than guessing across every target shape,
+     * so a caller that has seen what it is actually carrying can fill in one trip. */
+    public int freeSpace(Coord shape) {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris != null) {
+            if (tetris.getRes().get(Tetris.SRC) == null)
+                return 1;
+            return tetris.calcNumberFreeCoord(Tetris.SRC, shape);
+        }
+        return freeSpace();
+    }
+
+    /* Each calcNumberFreeCoord restarts from a fresh grid, so the smallest shape over-states
+     * capacity and asking for that many strands the surplus. Take the smallest non-zero count;
+     * skip non-fitting shapes so a container with room for small items only isn't reported as
+     * zero and left unfilled. Only a bootstrap - prefer freeSpace(Coord) once the shape is known. */
+    public int freeSpace() {
+        Tetris tetris = getattr(Tetris.class);
+        if (tetris != null) {
+            /* Not isReady(): callers seed TARGET_COORD at construction, so it reads true before
+             * any update() and SRC can still be missing - which would score every shape 0. */
+            if (tetris.getRes().get(Tetris.SRC) == null)
+                return 1;
+            int fits = 0;
+            for (Coord c : (ArrayList<Coord>) tetris.getRes().get(Tetris.TARGET_COORD)) {
+                int forShape = tetris.calcNumberFreeCoord(Tetris.SRC, c);
+                if (forShape > 0 && (fits == 0 || forShape < fits))
+                    fits = forShape;
+            }
+            return fits;
+        }
+        Space space = getattr(Space.class);
+        return space != null && space.isReady() ? space.getFreeSpace() : 1;
     }
 
     private Class<? extends Updater> attrclass(Class<? extends Updater> cl) {
