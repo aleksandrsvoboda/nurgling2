@@ -4,9 +4,12 @@ import haven.*;
 import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tasks.WaitCollectState;
 import nurgling.tasks.WaitPose;
+import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import static haven.OCache.posres;
@@ -52,8 +55,27 @@ public class CollectFromGob implements Action{
         this.withoutTransfer = withoutTransfer;
     }
 
+    /**
+     * Zone-mode variant. A full inventory is handed to {@link FreeInventory2}, which routes every
+     * item to whatever output zone is registered for it, rather than to a hand-picked pile area -
+     * so a bot driven off a specialisation zone needs no second area selection. returnArea is where
+     * to walk back to afterwards, since FreeInventory2 can leave the player in another map cell.
+     */
+    public CollectFromGob(Gob target, String action, String pose, Coord targetSize, NAlias targetItems, NContext context, NArea returnArea) {
+        this.target = target;
+        this.action = action;
+        this.pose = pose;
+        this.targetSize = targetSize;
+        this.targetItems = targetItems;
+        this.dumpContext = context;
+        this.returnArea = returnArea;
+    }
+
      NAlias targetItems;
     Pair<Coord2d,Coord2d> pileArea = null;
+
+    NContext dumpContext = null;
+    NArea returnArea = null;
 
     boolean withoutTransfer = false;
     @Override
@@ -62,7 +84,22 @@ public class CollectFromGob implements Action{
         do {
             if(!withoutTransfer) {
                 if (NUtils.getGameUI().getInventory().getNumberFreeCoord(targetSize) == 0) {
-                    if (withPiles)
+                    if (dumpContext != null) {
+                        new FreeInventory2(dumpContext).run(gui);
+                        // Nothing could be stored - no output zone accepts these items, so every
+                        // further collect would just refill a pack that can never be emptied.
+                        if (NUtils.getGameUI().getInventory().getNumberFreeCoord(targetSize) == 0)
+                            return Results.FAIL();
+                        // ensurePresence=true: the next thing this loop does is click target, so the
+                        // area has to be streamed back in, not merely "reachable by local PF". The
+                        // gob object itself is dropped when its grid unloads - re-resolve it by id.
+                        NUtils.navigateToArea(returnArea, true);
+                        Gob fresh = Finder.findGob(target.id);
+                        if (fresh == null)
+                            return Results.SUCCESS();
+                        target = fresh;
+                    }
+                    else if (withPiles)
                         new TransferToPiles(pileArea, targetItems).run(gui);
                 }
             }
