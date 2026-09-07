@@ -329,7 +329,7 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
         notifyChanged();
     }
 
-    /** Redraws from (and starts aliasing) a preset's live action list; entries with no sourceItemName aren't rendered as icons but stay in the list. */
+    /** Redraws from (and starts aliasing) a preset's live action list; CHAT_NOTIFY entries have no sourceItemName and aren't rendered as icons here, but stay in the list. */
     public void load(ArrayList<ForagerAction> liveActions) {
         this.actions = liveActions != null ? liveActions : new ArrayList<>();
         for (IconItem it : icons) {
@@ -340,7 +340,17 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
         for (ForagerAction action : this.actions) {
             if (action.sourceItemName == null) {
-                continue; // Not created via this widget - not shown here.
+                if (action.actionType == ForagerAction.ActionType.CHAT_NOTIFY) {
+                    continue; // Not created via this widget - not shown here.
+                }
+                // Orphaned entry - e.g. one created via the old manual "Configure Action" flow,
+                // which only ever set pattern/type/name and never sourceItemName. Left alone, this
+                // stays invisible and undeletable here forever while still matching gobs at full
+                // priority with no Maintain cap possible. Heal it into a normal entry keyed by its
+                // own pattern, so it shows up as a placeholder icon the user can inspect and delete.
+                action.sourceItemName = (action.targetObjectPattern != null && !action.targetObjectPattern.isEmpty())
+                        ? action.targetObjectPattern : "Unknown action";
+                notifyChanged();
             }
             JSONObject iconRes = new JSONObject();
             iconRes.put("name", action.sourceItemName);
