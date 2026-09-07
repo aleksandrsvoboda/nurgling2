@@ -347,7 +347,16 @@ public class PathFinder implements Action {
                 if(target == null)
                     return null;
                 CellsArray ca = target.ngob.getCA();
-                return findFreeNearByHB(ca, target_id, dummy, start);
+                ArrayList<Coord> res = findFreeNearByHB(ca, target_id, dummy, start);
+                if (res == null || res.isEmpty()) {
+                    // Target has no collision box of its own (e.g. a pick-gob like a mushroom
+                    // rendered attached to a tree) - findFreeNearByHB only ever searches around a
+                    // real hitbox, so with none it always comes back empty even though free tiles
+                    // exist nearby (just outside whatever else - the tree - is actually blocking
+                    // this cell). Fall back to scanning directly around the target's own position.
+                    res = findFreeNearByPos(pos);
+                }
+                return res;
             }
         } else {
             if (pfmap.cells[pos.x][pos.y].val!=0 && pfmap.cells[pos.x][pos.y].val!=7) {
@@ -569,6 +578,27 @@ public class PathFinder implements Action {
 //            }
         }
 
+        return res;
+    }
+
+    /** Expanding-ring scan for the nearest free pfmap cell around pos, used as a fallback when the
+     *  target has no collision box of its own for findFreeNearByHB to search around. */
+    private ArrayList<Coord> findFreeNearByPos(Coord pos) {
+        ArrayList<Coord> res = new ArrayList<>();
+        for (int radius = 1; radius <= 20 && res.isEmpty(); radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dy = -radius; dy <= radius; dy++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) != radius) continue;
+                    Coord test = pos.add(dx, dy);
+                    if (test.x >= 0 && test.x < pfmap.size && test.y >= 0 && test.y < pfmap.size) {
+                        if (pfmap.cells[test.x][test.y].val == 0) {
+                            pfmap.getCells()[test.x][test.y].val = 7;
+                            res.add(test);
+                        }
+                    }
+                }
+            }
+        }
         return res;
     }
 
