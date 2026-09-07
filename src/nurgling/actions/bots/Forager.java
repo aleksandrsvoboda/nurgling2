@@ -223,10 +223,12 @@ public class Forager implements Action {
             ForagerSection section = path.getSection(i);
             if (section == null) continue;
 
-            // A section between two waypoints sharing the same milestoneHash is a spliced-in signpost link, not a walkable stretch.
-            ForagerWaypoint fromWp = path.waypoints.get(i);
-            ForagerWaypoint toWp = path.waypoints.get(i + 1);
-            gui.activeBotWaypointIndex = i + 1;
+            // A waypoint gap longer than ForagerPath.SECTION_LENGTH gets split across multiple
+            // sections (see generateSections()), so the section-loop counter i is NOT the same
+            // as the waypoint index - always go through section.waypointIndex instead.
+            ForagerWaypoint fromWp = path.waypoints.get(section.waypointIndex);
+            ForagerWaypoint toWp = path.waypoints.get(section.waypointIndex + 1);
+            gui.activeBotWaypointIndex = section.waypointIndex + 1;
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
                 // toWp validates we actually landed near the expected destination.
                 Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp, guardingProfile.ignoreBats).run(gui);
@@ -304,7 +306,7 @@ public class Forager implements Action {
                     gui.msg("Forager debug: section " + i + " failed pathing en route to "
                             + (targetGob != null ? "gob" : "sectionEnd=" + sectionEnd)
                             + " - waterMode=" + effectiveWaterMode(gui, preset) + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
-                    gui.activeBotFailedWaypoints.add(i + 1);
+                    gui.activeBotFailedWaypoints.add(section.waypointIndex + 1);
                 }
             } else if (targetGob != null)
             {
@@ -316,7 +318,7 @@ public class Forager implements Action {
                 if (!arrivedAtWaypoint) {
                     gui.msg("Forager debug: section " + i + " failed pathing to gob - waterMode="
                             + pfGob.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
-                    gui.activeBotFailedWaypoints.add(i + 1);
+                    gui.activeBotFailedWaypoints.add(section.waypointIndex + 1);
                 }
             } else
             {
@@ -328,12 +330,13 @@ public class Forager implements Action {
                 if (!arrivedAtWaypoint) {
                     gui.msg("Forager debug: section " + i + " failed pathing to sectionEnd=" + sectionEnd
                             + " - waterMode=" + pfEnd.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
-                    gui.activeBotFailedWaypoints.add(i + 1);
+                    gui.activeBotFailedWaypoints.add(section.waypointIndex + 1);
                 }
             }
 
-            // Waypoint i+1's own steps, run only on confirmed arrival.
-            if (arrivedAtWaypoint && runWaypointSteps(gui, path.waypoints.get(i + 1))) {
+            // Waypoint steps only run once we've actually reached the real waypoint - not on an
+            // intermediate sub-section of a gap that got split across multiple sections.
+            if (arrivedAtWaypoint && section.isLastInGap && runWaypointSteps(gui, toWp)) {
                 return Results.SUCCESS();
             }
 
@@ -385,6 +388,14 @@ public class Forager implements Action {
                 return Results.ERROR("Safety action interrupted after 3 attempts: " +
                         (last != null ? last.getMessage() : "unknown"));
             }
+            throw e;
+        } catch (RuntimeException e) {
+            // Without this, an unexpected bug (like the section/waypoint-index mismatch that used
+            // to crash here) kills the bot thread with zero in-game feedback - the character just
+            // stops with no explanation, which is exactly what made that bug so hard to diagnose.
+            // Rethrown after reporting so the console still gets the full stack trace as before.
+            gui.error("Forager: unexpected error (" + e.getClass().getSimpleName() + ": " + e.getMessage()
+                    + ") - bot stopped. Check the java console log for the full stack trace.");
             throw e;
         } finally {
             if (threatWatcher != null) {
@@ -796,7 +807,9 @@ public class Forager implements Action {
     /** "nothing"/"logout"/"travel hearth" dispatch for the non-Guard action strings, delegating to GuardOutcome. */
     private void performSafetyAction(NGameUI gui, String action) throws InterruptedException {
         if (!"nothing".equals(action)) {
+            gui.msg("Forager: running safety action \"" + action + "\"");
             GuardOutcome.fromId(action).perform(gui);
+            gui.msg("Forager: safety action \"" + action + "\" finished");
         }
     }
     

@@ -85,22 +85,32 @@ public class ForagerPath {
         int sectionIndex = 0;
         Coord2d currentStart = waypoints.get(0).toWorldCoord(sessloc);
         if(currentStart == null) return;
-        
+
         for (int i = 1; i < waypoints.size(); i++) {
-            Coord2d nextPoint = waypoints.get(i).toWorldCoord(sessloc);
+            ForagerWaypoint fromWp = waypoints.get(i - 1);
+            ForagerWaypoint toWp = waypoints.get(i);
+            int waypointIndex = i - 1;
+
+            Coord2d nextPoint = toWp.toWorldCoord(sessloc);
             if(nextPoint == null) continue;
             double distance = currentStart.dist(nextPoint);
-            
-            if (distance <= SECTION_LENGTH) {
-                // Points are close, create one section
-                sections.add(new ForagerSection(currentStart, nextPoint, sectionIndex++));
+
+            // A milestone splice teleports instantly - world distance between the two sides is
+            // meaningless (they can be on entirely different segments) and must never be split
+            // into multiple sections, or the main loop would try to replay the same teleport
+            // more than once.
+            boolean isMilestoneSplice = fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash);
+
+            if (isMilestoneSplice || distance <= SECTION_LENGTH) {
+                // Points are close (or a milestone splice), create one section
+                sections.add(new ForagerSection(currentStart, nextPoint, sectionIndex++, waypointIndex, true));
                 currentStart = nextPoint;
             } else {
                 // Points are far, create intermediate sections
                 int numSections = (int) Math.ceil(distance / SECTION_LENGTH);
                 double stepX = (nextPoint.x - currentStart.x) / numSections;
                 double stepY = (nextPoint.y - currentStart.y) / numSections;
-                
+
                 for (int j = 0; j < numSections; j++) {
                     Coord2d sectionStart = new Coord2d(
                         currentStart.x + stepX * j,
@@ -110,7 +120,8 @@ public class ForagerPath {
                         currentStart.x + stepX * (j + 1),
                         currentStart.y + stepY * (j + 1)
                     );
-                    sections.add(new ForagerSection(sectionStart, sectionEnd, sectionIndex++));
+                    boolean isLastInGap = (j == numSections - 1);
+                    sections.add(new ForagerSection(sectionStart, sectionEnd, sectionIndex++, waypointIndex, isLastInGap));
                 }
                 currentStart = nextPoint;
             }

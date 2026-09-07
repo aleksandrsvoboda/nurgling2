@@ -1,6 +1,7 @@
 package nurgling.guarding;
 
 import nurgling.NGameUI;
+import nurgling.actions.Results;
 import nurgling.actions.TravelToHearthFire;
 import nurgling.actions.bots.CoracleBot;
 
@@ -16,11 +17,16 @@ public enum GuardOutcome {
                 gui.act("lo");
                 break;
             case TRAVEL_HEARTH:
-                // Can't hearth-fire while mounted - dismount first, best-effort (fall through and hearth anyway if it fails).
+                // Dismount first so the coracle doesn't get abandoned in the world - best-effort
+                // (fall through and hearth anyway if it fails).
                 if (CoracleBot.isPlayerInCoracle(gui)) {
-                    new CoracleBot().run(gui);
+                    gui.msg("Forager: dismounting coracle before hearth-firing");
+                    Results dismountResult = new CoracleBot().run(gui);
+                    gui.msg("Forager: coracle dismount " + (dismountResult.IsSuccess() ? "succeeded" : "failed"));
                 }
-                new TravelToHearthFire().run(gui);
+                gui.msg("Forager: hearth-firing now");
+                Results hearthResult = new TravelToHearthFire().run(gui);
+                gui.msg("Forager: hearth-fire attempt " + (hearthResult.IsSuccess() ? "succeeded" : "failed"));
                 break;
             case BREAK:
             default:
