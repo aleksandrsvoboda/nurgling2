@@ -143,6 +143,7 @@ public class NSettingsWindow extends Widget {
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.equipment"), new EquipmentBotSettings(), container));
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.starvation"), new StarvationAlertSettings(), container));
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.autologout"), new AutoLogoutSettings(), container));
+        bots.addChild(new SettingsItem(L10n.get("nsettings.item.mining_mastery"), new MiningMasterySettings(), container));
         bots.addChild(new SettingsItem("Icon Generator", new IconGeneratorPanel(), container));
 
         list.addCategory(general);

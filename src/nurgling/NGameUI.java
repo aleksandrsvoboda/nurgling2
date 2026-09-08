@@ -298,6 +298,9 @@ public class NGameUI extends GameUI
             if(nmapView.getChunkNavManager() != null)
                 nmapView.getChunkNavManager().shutdown();
         }
+        /* Icons are keyed by resource name, and the next session may load a different
+         * resource set, so they must not be carried across. */
+        nurgling.actions.bots.MasterMiner.clearIconCache();
         super.dispose();
     }
 

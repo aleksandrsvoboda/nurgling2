@@ -106,6 +106,84 @@ public class LabeledMarkService implements ProfileAwareService {
     }
 
     /**
+     * Add a mark for a mined resource, replacing any mark <em>of the same resource type</em>
+     * within {@code dedupRadiusTiles} of it.
+     *
+     * <p>Differs from {@link #addLabeledMark} in both respects on purpose. The radius is how
+     * far apart two finds have to be to count as different places, and one ore spot deserves
+     * a single mark however many of its walls you chip. Scoping the replacement by type
+     * matters because a vein sits on ground that has already been prospected — an Iron Ochre
+     * mark must not swallow the water sample beside it.
+     *
+     * @return the new mark's location id
+     */
+    public String addMinedMark(String label, String resourceType, double quality, long segmentId,
+                               Coord tileCoords, BufferedImage iconImage, int dedupRadiusTiles) {
+        LabeledMinimapMark mark;
+        lock.writeLock().lock();
+        try {
+            final Coord tc = tileCoords;
+            final long segId = segmentId;
+            final String type = (resourceType != null) ? resourceType : "Unknown";
+            labeledMarks.entrySet().removeIf(e -> type.equals(e.getValue().resourceType)
+                    && e.getValue().isNear(segId, tc, dedupRadiusTiles));
+
+            mark = new LabeledMinimapMark(label, resourceType, quality, segmentId, tileCoords, iconImage);
+            labeledMarks.put(mark.getLocationId(), mark);
+            reindex();
+        } finally {
+            lock.writeLock().unlock();
+        }
+        scheduleSave();
+        return mark.getLocationId();
+    }
+
+    /** Every mark of one resource type, in no particular order. */
+    public List<LabeledMinimapMark> getMarksByResourceType(String resourceType) {
+        List<LabeledMinimapMark> result = new ArrayList<>();
+        if (resourceType == null) {
+            return result;
+        }
+        lock.readLock().lock();
+        try {
+            for (LabeledMinimapMark mark : labeledMarks.values()) {
+                if (resourceType.equals(mark.resourceType)) {
+                    result.add(mark);
+                }
+            }
+        } finally {
+            lock.readLock().unlock();
+        }
+        return result;
+    }
+
+    /**
+     * Move an existing mark to a new tile and relabel it, keeping its resource type,
+     * quality and shared icon. Marks are immutable, so this replaces the object; the
+     * location id is derived from position and label and therefore changes with it.
+     *
+     * @return the new location id, or null if there was no such mark
+     */
+    public String updateMarkPosition(String locationId, String newLabel, double newQuality, Coord newTileCoords) {
+        LabeledMinimapMark moved;
+        lock.writeLock().lock();
+        try {
+            LabeledMinimapMark old = labeledMarks.remove(locationId);
+            if (old == null) {
+                return null;
+            }
+            moved = new LabeledMinimapMark(newLabel, old.resourceType, newQuality, old.segmentId,
+                    newTileCoords, LabeledMinimapMark.icon(old.resourceType), old.labelColor);
+            labeledMarks.put(moved.getLocationId(), moved);
+            reindex();
+        } finally {
+            lock.writeLock().unlock();
+        }
+        scheduleSave();
+        return moved.getLocationId();
+    }
+
+    /**
      * Get all labeled marks for a segment (for map rendering).
      * The returned list is immutable and safe to iterate without copying.
      */
