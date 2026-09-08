@@ -6,6 +6,7 @@ import nurgling.GhostAlpha;
 import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.pf.NHitBoxD;
+import nurgling.pf.NHitShapeD;
 
 import java.awt.Color;
 import java.util.*;
@@ -56,10 +57,10 @@ public class BuildGhostPreview extends GAttrib {
         }
 
         // Find all obstacles in the area (same as Finder.getFreePlace)
-        ArrayList<NHitBoxD> obstacles = findObstacles();
+        ArrayList<NHitShapeD> obstacles = findObstacles();
 
         // Track placed buildings to avoid showing overlaps
-        ArrayList<NHitBoxD> placedBuildings = new ArrayList<>();
+        ArrayList<NHitShapeD> placedBuildings = new ArrayList<>();
 
         // Mirror Finder.getFreePlace(): use rotated dimensions for margin, and apply a 0.5
         // offset for odd-dimension hitboxes so previews align with actual placement.
@@ -75,12 +76,12 @@ public class BuildGhostPreview extends GAttrib {
         for (int i = margin.x; i <= inchMax.x - margin.x; i++) {
             for (int j = margin.y; j <= inchMax.y - margin.y; j++) {
                 Coord2d testPos = area.a.add(i + xOffset, j + yOffset);
-                NHitBoxD testBox = new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle);
+                NHitShapeD testBox = NHitShapeD.of(buildingHitBox, testPos, rotationAngle);
 
                 // Check collisions with obstacles AND already-placed buildings
                 boolean passed = true;
 
-                for (NHitBoxD obstacle : obstacles) {
+                for (NHitShapeD obstacle : obstacles) {
                     if (obstacle.intersects(testBox, false)) {
                         passed = false;
                         break;
@@ -88,7 +89,7 @@ public class BuildGhostPreview extends GAttrib {
                 }
 
                 if (passed) {
-                    for (NHitBoxD placed : placedBuildings) {
+                    for (NHitShapeD placed : placedBuildings) {
                         if (placed.intersects(testBox, false)) {
                             passed = false;
                             break;
@@ -98,11 +99,11 @@ public class BuildGhostPreview extends GAttrib {
 
                 if (passed) {
                     // This position is valid - create a ghost Gob
-                    Coord2d worldPos = new Coord2d(testBox.rc.x, testBox.rc.y);
+                    Coord2d worldPos = new Coord2d(testBox.bounds.rc.x, testBox.bounds.rc.y);
                     createGhostGob(worldPos);
 
                     // Add this building to placed list so we don't overlap it
-                    placedBuildings.add(new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle));
+                    placedBuildings.add(testBox);
                 }
             }
         }
@@ -156,8 +157,8 @@ public class BuildGhostPreview extends GAttrib {
     /**
      * Find obstacles in area (same logic as Finder.getFreePlace)
      */
-    private ArrayList<NHitBoxD> findObstacles() {
-        ArrayList<NHitBoxD> obstacles = new ArrayList<>();
+    private ArrayList<NHitShapeD> findObstacles() {
+        ArrayList<NHitShapeD> obstacles = new ArrayList<>();
         NHitBoxD areaBox = new NHitBoxD(area.a, area.b);
 
         try {
@@ -167,7 +168,7 @@ public class BuildGhostPreview extends GAttrib {
                           gob.getClass().getName().contains("GlobEffector"))) {
                         if (gob.ngob.hitBox != null && gob.getattr(Following.class) == null &&
                             gob.id != NUtils.player().id) {
-                            NHitBoxD gobBox = new NHitBoxD(gob);
+                            NHitShapeD gobBox = NHitShapeD.of(gob);
                             if (gobBox.intersects(areaBox, true)) {
                                 obstacles.add(gobBox);
                             }

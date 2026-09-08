@@ -42,22 +42,44 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
         public static NBoundingBox getBoundingBox(NHitBox hitBox)
         {
-            if (hitBox != null)
-            {
-                ArrayList<Polygon> polygons = new ArrayList<>();
-                Coord2d[] polyVertexes = new Coord2d[4];
-                polyVertexes[0] = hitBox.begin.inv();
-                polyVertexes[1] = new Coord2d(hitBox.end.x, hitBox.begin.y).inv();
-                polyVertexes[2] = hitBox.end.inv();
-                polyVertexes[3] = new Coord2d(hitBox.begin.x, hitBox.end.y).inv();
-                polygons.add(new Polygon(polyVertexes));
+            if (hitBox == null)
+                return null;
 
-                return new NBoundingBox(polygons, true);
+            ArrayList<Polygon> polygons = new ArrayList<>();
+            // inv() is a half-turn about the object's origin, and it belongs here only when
+            // NHitBoxD would also apply its asymmetric half-turn - otherwise the drawn box and the
+            // box the bots collide against disagree. That rule keys on x alone, so a box like the
+            // smelter's (x symmetric, y running -20..11) used to be drawn mirrored in y, at
+            // -11..20, while collision stayed put. For a compound footprint the decision belongs
+            // to the union, exactly as in NHitShapeD: flipping each part on its own would draw the
+            // pieces in each other's places.
+            boolean flip = (hitBox.begin.x != -hitBox.end.x);
+            NHitBox[] parts = hitBox.parts();
+            if (parts == null)
+            {
+                polygons.add(quad(hitBox, flip));
             }
             else
             {
-                return null;
+                for (NHitBox part : parts)
+                    polygons.add(quad(part, flip));
             }
+            return new NBoundingBox(polygons, true);
+        }
+
+        private static Polygon quad(NHitBox box, boolean flip)
+        {
+            Coord2d[] v = new Coord2d[4];
+            v[0] = box.begin;
+            v[1] = new Coord2d(box.end.x, box.begin.y);
+            v[2] = box.end;
+            v[3] = new Coord2d(box.begin.x, box.end.y);
+            if (flip)
+            {
+                for (int i = 0; i < 4; i++)
+                    v[i] = v[i].inv();
+            }
+            return new Polygon(v);
         }
     }
 

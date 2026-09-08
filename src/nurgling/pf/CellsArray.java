@@ -23,7 +23,7 @@ public class CellsArray {
     }
 
     public CellsArray(NHitBox hb, double angl, Coord2d rc) {
-        NHitBoxD objToApproach = new NHitBoxD(hb.begin, hb.end, rc, angl);
+        NHitShapeD objToApproach = NHitShapeD.of(hb, rc, angl);
         begin = Utils.toPfGrid(objToApproach.getCircumscribedUL());
         end = Utils.toPfGrid(objToApproach.getCircumscribedBR());
         NHitBoxD tile = new NHitBoxD(begin);
@@ -33,7 +33,17 @@ public class CellsArray {
         for (int i = 0; i < x_len; i++) {
             for (int j = 0; j < y_len; j++) {
                 tile.setUnitSquare(begin.add(i, j));
-                cells[i][j] = (tile.intersects(objToApproach,false)) ? (short) 1 : 0;
+                // A compound footprint leaves the cells between its parts clear, which is the whole
+                // point: everything downstream - NPFMap, Graph, PathFinder's approach points - reads
+                // this grid and nothing else, so the gap becomes walkable and stand-able for free.
+                short val = 0;
+                for (NHitBoxD part : objToApproach.parts) {
+                    if (tile.intersects(part, false)) {
+                        val = 1;
+                        break;
+                    }
+                }
+                cells[i][j] = val;
             }
         }
     }

@@ -502,7 +502,7 @@ public class Finder
         Coord2d pos = null;
 
 
-        ArrayList<NHitBoxD> significantGobs = new ArrayList<> ();
+        ArrayList<NHitShapeD> significantGobs = new ArrayList<> ();
         NHitBoxD chekerOfArea = new NHitBoxD(area.a, area.b);
 
         // Check area size with rotated hitbox dimensions
@@ -528,7 +528,7 @@ public class Finder
                     }
 
                     if(effectiveHitBox != null && gob.getattr(Following.class)==null  && gob.id!= NUtils.player().id){
-                        NHitBoxD gobBox = new NHitBoxD(effectiveHitBox.begin, effectiveHitBox.end, gob.rc, gob.a);
+                        NHitShapeD gobBox = NHitShapeD.of(effectiveHitBox, gob.rc, gob.a);
                         if (gobBox.intersects(chekerOfArea,true))
                             significantGobs.add(gobBox);
                     }
@@ -554,12 +554,12 @@ public class Finder
             for (int j = margin.y; j <= inchMax.y - margin.y; j++)
             {
                 boolean passed = true;
-                NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, area.a.add(i + xOffset, j + yOffset), angle);
-                for ( NHitBoxD significantHitbox : significantGobs )
+                NHitShapeD testGobBox = NHitShapeD.of(hitBox, area.a.add(i + xOffset, j + yOffset), angle);
+                for ( NHitShapeD significantHitbox : significantGobs )
                     if(significantHitbox.intersects(testGobBox,false))
                         passed = false;
                 if(passed)
-                    return Coord2d.of(testGobBox.rc.x, testGobBox.rc.y);
+                    return Coord2d.of(testGobBox.bounds.rc.x, testGobBox.bounds.rc.y);
             }
         }
         return pos;

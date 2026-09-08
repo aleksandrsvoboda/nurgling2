@@ -3,6 +3,7 @@ package nurgling;
 import haven.*;
 import nurgling.actions.bots.BuildCatalog;
 import nurgling.pf.NHitBoxD;
+import nurgling.pf.NHitShapeD;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -118,7 +119,7 @@ public class MixedGhostStore extends GAttrib {
     public Entry findContaining(Coord2d pos) {
         for (Entry e : entries) {
             if (e.unrotatedHitbox == null) continue;
-            NHitBoxD box = new NHitBoxD(e.unrotatedHitbox.begin, e.unrotatedHitbox.end, e.pos, e.angleRadians());
+            NHitShapeD box = NHitShapeD.of(e.unrotatedHitbox, e.pos, e.angleRadians());
             // Build a tiny point-sized box at pos and use intersection
             NHitBoxD point = new NHitBoxD(pos.add(-0.5, -0.5), pos.add(0.5, 0.5));
             if (box.intersects(point, false)) return e;
@@ -174,7 +175,7 @@ public class MixedGhostStore extends GAttrib {
      */
     public boolean collides(NHitBox hb, Coord2d pos, int rot, Entry ignore) {
         if (hb == null) return false;
-        NHitBoxD testBox = new NHitBoxD(hb.begin, hb.end, pos, rot * Math.PI / 2.0);
+        NHitShapeD testBox = NHitShapeD.of(hb, pos, rot * Math.PI / 2.0);
 
         // Real-world obstacles
         try {
@@ -188,7 +189,7 @@ public class MixedGhostStore extends GAttrib {
                     if (other.attr.isEmpty()) continue;
                     if (other.ngob == null || other.ngob.hitBox == null) continue;
                     if (other.getattr(Following.class) != null) continue;
-                    NHitBoxD otherBox = new NHitBoxD(other);
+                    NHitShapeD otherBox = NHitShapeD.of(other);
                     if (otherBox.intersects(testBox, false)) return true;
                 }
             }
@@ -200,7 +201,7 @@ public class MixedGhostStore extends GAttrib {
         for (Entry e : entries) {
             if (e == ignore) continue;
             if (e.unrotatedHitbox == null) continue;
-            NHitBoxD eBox = new NHitBoxD(e.unrotatedHitbox.begin, e.unrotatedHitbox.end, e.pos, e.angleRadians());
+            NHitShapeD eBox = NHitShapeD.of(e.unrotatedHitbox, e.pos, e.angleRadians());
             if (eBox.intersects(testBox, false)) return true;
         }
         return false;

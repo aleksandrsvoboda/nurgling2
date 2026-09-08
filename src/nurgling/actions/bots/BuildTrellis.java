@@ -7,6 +7,7 @@ import nurgling.areas.NContext;
 import nurgling.overlays.NCustomBauble;
 import nurgling.overlays.TrellisGhostPreview;
 import nurgling.pf.NHitBoxD;
+import nurgling.pf.NHitShapeD;
 import nurgling.tasks.*;
 import nurgling.tools.*;
 
@@ -234,7 +235,7 @@ public class BuildTrellis implements Action {
     }
 
     private Coord2d findFreePlaceWithLimit(Pair<Coord2d, Coord2d> area, NHitBox hitBox, HashMap<Coord, Integer> tileCount, int orientation) {
-            ArrayList<NHitBoxD> significantGobs = new ArrayList<>();
+            ArrayList<NHitShapeD> significantGobs = new ArrayList<>();
             NHitBoxD chekerOfArea = new NHitBoxD(area.a, area.b);
 
             NHitBoxD temporalGobBox = new NHitBoxD(hitBox.begin, hitBox.end, Coord2d.of(0), 0);
@@ -246,7 +247,7 @@ public class BuildTrellis implements Action {
                 for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
                     if (!(gob instanceof OCache.Virtual || gob.attr.isEmpty() || gob.getClass().getName().contains("GlobEffector")))
                         if(gob.ngob.hitBox != null && gob.getattr(Following.class) == null && gob.id != NUtils.player().id) {
-                            NHitBoxD gobBox = new NHitBoxD(gob);
+                            NHitShapeD gobBox = NHitShapeD.of(gob);
                             if (gobBox.intersects(chekerOfArea, true))
                                 significantGobs.add(gobBox);
                         }
@@ -335,7 +336,7 @@ public class BuildTrellis implements Action {
                     // Check collisions with existing objects (not with our own trellises)
                     NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, testPos, 0);
                     boolean passed = true;
-                    for (NHitBoxD significantHitbox : significantGobs) {
+                    for (NHitShapeD significantHitbox : significantGobs) {
                         if(significantHitbox.intersects(testGobBox, false)) {
                             passed = false;
                             break;

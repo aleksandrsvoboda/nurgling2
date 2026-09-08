@@ -1021,6 +1021,26 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }.run();
     }
 
+    private final Map<String, Console.Command> ncmdmap = new TreeMap<String, Console.Command>();
+    {
+        // Collision geometry for whatever is loaded, printed to the log. `hbsweep` covers
+        // everything in view; `hbdump <substring>` narrows it to matching resource names.
+        ncmdmap.put("hbsweep", (cons, args) -> HitBoxProbe.sweep());
+        ncmdmap.put("hbdump", (cons, args) -> {
+            if (args.length >= 2)
+                HitBoxProbe.sweep(args[1]);
+            else
+                HitBoxProbe.sweep();
+        });
+    }
+
+    @Override
+    public Map<String, Console.Command> findcmds() {
+        Map<String, Console.Command> res = new TreeMap<String, Console.Command>(super.findcmds());
+        res.putAll(ncmdmap);
+        return res;
+    }
+
     void inspect(Coord c) {
         new Hittest(c) {
             @Override
@@ -1034,6 +1054,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                         if (gob.ngob.name != null) {
                             ttip.put("gob", gob.ngob.name);
                         }
+                        // Full collision geometry goes to the log, once per resource per session -
+                        // it is far too long for a tooltip, and it is the only way to see what the
+                        // server actually sent. See HitBoxProbe.
+                        HitBoxProbe.dumpOnce(gob);
                         if(gob.ngob.hitBox!=null) {
                             ttip.put("HitBox", gob.ngob.hitBox.toString());
                             ttip.put("isDynamic", String.valueOf(gob.ngob.isDynamic));
