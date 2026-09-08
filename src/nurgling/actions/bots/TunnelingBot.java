@@ -31,6 +31,16 @@ public class TunnelingBot implements Action {
     // Tile size in world units
     private static final double TILE_SIZE = 11.0;
 
+    // Breaking into a natural cavern is only reported as a system notice, so we
+    // watch the message log for it. Matched case-insensitively as a substring to
+    // survive the exact phrasing ("You opened a natural cave gallery.").
+    private static final String CAVE_GALLERY_NOTICE = "cave gallery";
+
+    // Notice sequence taken when tunneling starts, so we ignore older messages
+    private long noticeMark = 0;
+    // Latched: the notice rolls out of the log, the stop condition must not
+    private volatile boolean galleryOpened = false;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Show configuration dialog
@@ -85,6 +95,10 @@ public class TunnelingBot implements Action {
 
         gui.msg("Starting from support at: " + startSupport.rc);
 
+        // Watch for the server telling us we broke into a natural cavern
+        noticeMark = gui.notices.seq();
+        galleryOpened = false;
+
         // Main tunneling loop
         Coord2d currentSupportPos = startSupport.rc;
         int iteration = 0;
@@ -106,18 +120,33 @@ public class TunnelingBot implements Action {
             // The tunnel runs parallel to the support line, but offset by tunnelSide
             Coord2d tunnelOffset = new Coord2d(tunnelSide.dx * TILE_SIZE, tunnelSide.dy * TILE_SIZE);
 
+            // The tile where support will be placed
+            // This is on the support axis, not the tunnel axis
+            Coord nextSupportTileCoord = nextSupportPos.div(tilesz).floor();
+
             // Mine the main tunnel path (offset from support line)
             Results mineResult = mineTunnelPath(gui, currentSupportPos, nextSupportPos, direction, tunnelOffset);
             if (!mineResult.IsSuccess()) {
                 return mineResult;
             }
 
-            // Mine the tile where support will be placed
-            // This is on the support axis, not the tunnel axis
-            Coord nextSupportTileCoord = nextSupportPos.div(tilesz).floor();
-            Results supportTileResult = mineTileIfNeeded(gui, nextSupportTileCoord);
-            if (!supportTileResult.IsSuccess()) {
-                return supportTileResult;
+            if (!caveGalleryOpened(gui)) {
+                Results supportTileResult = mineTileIfNeeded(gui, nextSupportTileCoord);
+                if (!supportTileResult.IsSuccess()) {
+                    return supportTileResult;
+                }
+            }
+
+            if (caveGalleryOpened(gui)) {
+                // Do not leave the section we just cut unsupported, but only if its
+                // tile is already clear - we are done mining at this point
+                if (!needsMining(gui, nextSupportTileCoord)) {
+                    handleBumlings(gui);
+                    if (!placeSupport(gui, nextSupportPos, supportType).IsSuccess()) {
+                        gui.msg("Could not place the last support before stopping");
+                    }
+                }
+                break;
             }
 
             handleBumlings(gui);
@@ -132,7 +161,7 @@ public class TunnelingBot implements Action {
             handleBumlings(gui);
 
             // Dig wings based on wing option
-            if (wingOption != WingOption.NONE) {
+            if (wingOption != WingOption.NONE && !caveGalleryOpened(gui)) {
                 // First, mine connector from tunnel to wing start area
                 Results connectorResult = mineWingConnector(gui, nextSupportPos, direction, tunnelSide, wingSide);
                 if (!connectorResult.IsSuccess()) {
@@ -149,6 +178,10 @@ public class TunnelingBot implements Action {
             // Update current support position for next iteration
             currentSupportPos = nextSupportPos;
 
+            if (caveGalleryOpened(gui)) {
+                break;
+            }
+
             // Check for stop conditions
             if (!canContinueTunneling(gui, currentSupportPos, direction, supportType.radius)) {
                 gui.msg("Cannot continue tunneling - obstacle or map edge detected");
@@ -156,7 +189,23 @@ public class TunnelingBot implements Action {
             }
         }
 
+        if (galleryOpened) {
+            gui.msg("Tunneling stopped: opened a natural cave gallery.");
+        }
+
         return Results.SUCCESS();
+    }
+
+    /**
+     * True once the server has reported that we broke into a natural cave gallery.
+     * Latches on first sight - the notice log is bounded, so a later re-check would
+     * otherwise stop seeing the message and the bot would resume mining.
+     */
+    private boolean caveGalleryOpened(NGameUI gui) {
+        if (!galleryOpened && gui.notices.contains(noticeMark, CAVE_GALLERY_NOTICE)) {
+            galleryOpened = true;
+        }
+        return galleryOpened;
     }
 
     private Coord2d tileCenter(Coord tile) {
@@ -245,12 +294,20 @@ public class TunnelingBot implements Action {
             if (!result.IsSuccess()) {
                 return result;
             }
+            if (caveGalleryOpened(gui)) {
+                break;
+            }
         }
 
         return Results.SUCCESS();
     }
 
     private Results mineTileIfNeeded(NGameUI gui, Coord tilePos) throws InterruptedException {
+        // Once we are through into a natural cavern we stop digging entirely
+        if (caveGalleryOpened(gui)) {
+            return Results.SUCCESS();
+        }
+
         // Check if tile needs mining
         if (!needsMining(gui, tilePos)) {
             return Results.SUCCESS(); // Already open, skip
@@ -277,6 +334,11 @@ public class TunnelingBot implements Action {
         Resource resBefore = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
 
         while (needsMining(gui, tilePos)) {
+            // Stop swinging the moment we break into a natural cavern
+            if (caveGalleryOpened(gui)) {
+                break;
+            }
+
             // Clear any stones that may have fallen during previous mining
             handleBumlings(gui);
 
@@ -292,7 +354,7 @@ public class TunnelingBot implements Action {
                     public boolean check() {
                         Resource current = gui.ui.sess.glob.map.tilesetr(
                                 gui.ui.sess.glob.map.gettile(finalTilePos));
-                        return current != finalResBefore;
+                        return current != finalResBefore || caveGalleryOpened(gui);
                     }
                 });
             }
@@ -530,6 +592,9 @@ public class TunnelingBot implements Action {
         if (!extendResult.IsSuccess()) {
             return extendResult;
         }
+        if (caveGalleryOpened(gui)) {
+            return Results.SUCCESS();
+        }
 
         // Now mine from extended tunnel to the wing start tile
         // Wing start is at support + wingSide offset
@@ -558,7 +623,7 @@ public class TunnelingBot implements Action {
                               WingOption wingOption, TunnelSide wingSide, int supportRadius)
             throws InterruptedException {
 
-        if (wingOption == WingOption.NONE) {
+        if (wingOption == WingOption.NONE || caveGalleryOpened(gui)) {
             return Results.SUCCESS();
         }
 
@@ -607,6 +672,9 @@ public class TunnelingBot implements Action {
                 if (!result.IsSuccess()) {
                     break; // Stop this wing but continue with others
                 }
+                if (caveGalleryOpened(gui)) {
+                    return Results.SUCCESS();
+                }
             }
         }
 
@@ -617,6 +685,9 @@ public class TunnelingBot implements Action {
                 Results result = mineTileIfNeeded(gui, wingTile);
                 if (!result.IsSuccess()) {
                     break;
+                }
+                if (caveGalleryOpened(gui)) {
+                    return Results.SUCCESS();
                 }
             }
         }
@@ -629,6 +700,9 @@ public class TunnelingBot implements Action {
                 if (!result.IsSuccess()) {
                     break;
                 }
+                if (caveGalleryOpened(gui)) {
+                    return Results.SUCCESS();
+                }
             }
         }
 
@@ -639,6 +713,9 @@ public class TunnelingBot implements Action {
                 Results result = mineTileIfNeeded(gui, wingTile);
                 if (!result.IsSuccess()) {
                     break;
+                }
+                if (caveGalleryOpened(gui)) {
+                    return Results.SUCCESS();
                 }
             }
         }
