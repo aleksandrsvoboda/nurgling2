@@ -15,16 +15,14 @@ import nurgling.guarding.GuardingProfile;
 import nurgling.i18n.L10n;
 import nurgling.routes.ForagerAction;
 import nurgling.routes.ForagerPath;
+import nurgling.routes.ForagerRouteStore;
 import nurgling.widgets.ForagerPickupContainer;
 import nurgling.widgets.TextInputWindow;
 import nurgling.widgets.options.NRingSettings;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.File;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -34,8 +32,6 @@ import java.util.TreeSet;
 
 /** "Forager Settings" panel under Settings &gt; Bots - owns editing of Forager's Actions, Routes, and Guarding Profiles. */
 public class ForagerSettingsPanel extends Panel {
-
-    private static final String ROUTES_DIR = "forager_paths";
 
     // Shared row layout for the Routes/Guarding sections' data rows: label at ROW_LABEL_X, values/units after, trailing control at ROW_TOGGLE_X.
     private static final int ROW_LABEL_X = 0;
@@ -518,6 +514,18 @@ public class ForagerSettingsPanel extends Panel {
             protected List<String> names() {
                 return routeNames;
             }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                if (item != null) {
+                    // Mirror into the Routes section's own selector, same one-directional pattern
+                    // as actionsProfileDropbox/guardingProfileDropbox above - so picking a
+                    // different route for this preset also loads it into the map editor below,
+                    // instead of leaving whatever route was last open there.
+                    routeDropbox.change(item);
+                }
+            }
         }, prevField.pos("bl").add(UI.scale(0, 5)));
 
         prevField = psec.add(new Label(L10n.get("forager.settings.preset_guarding_profile")), prevField.pos("bl").add(UI.scale(0, 10)));
@@ -840,7 +848,7 @@ public class ForagerSettingsPanel extends Panel {
 
         presetActionsDropbox.change(pd.actionsProfileName != null ? pd.actionsProfileName : prop.currentActionsProfile);
 
-        String routeName = routeFileToName(pd.pathFile);
+        String routeName = ForagerRouteStore.fileToName(pd.pathFile);
         if (routeName != null && routeNames.contains(routeName)) {
             presetRouteDropbox.change(routeName);
         } else if (!routeNames.isEmpty()) {
@@ -861,7 +869,7 @@ public class ForagerSettingsPanel extends Panel {
             currentPresetData.actionsProfileName = presetActionsDropbox.sel;
         }
         if (presetRouteDropbox.sel != null) {
-            currentPresetData.pathFile = routeNameToFile(presetRouteDropbox.sel);
+            currentPresetData.pathFile = ForagerRouteStore.nameToFile(presetRouteDropbox.sel);
             // Stale now - Forager.run() re-resolves foragerPath from pathFile itself.
             currentPresetData.foragerPath = null;
         }
@@ -877,19 +885,6 @@ public class ForagerSettingsPanel extends Panel {
         currentPresetData.ignoreMaintainLimits = presetIgnoreMaintainLimitsCheck.a;
     }
 
-    /** PresetData.pathFile is a full file path; routeNames/presetRouteDropbox work in bare names - these convert between the two. */
-    private String routeFileToName(String pathFile) {
-        if (pathFile == null || pathFile.isEmpty()) return null;
-        String name = new File(pathFile).getName();
-        if (name.endsWith(".json")) {
-            name = name.substring(0, name.length() - 5);
-        }
-        return name;
-    }
-
-    private String routeNameToFile(String name) {
-        return NUtils.getDataFile(ROUTES_DIR, name + ".json");
-    }
 
     private void addPreset() {
         if (prop == null) return;
@@ -909,26 +904,11 @@ public class ForagerSettingsPanel extends Panel {
 
     private void loadAvailableRoutes() {
         routeNames.clear();
-        File dir = NUtils.getDataFilePath(ROUTES_DIR).toFile();
-        if (dir.exists() && dir.isDirectory()) {
-            File[] files = dir.listFiles((d, n) -> n.endsWith(".json"));
-            if (files != null) {
-                for (File f : files) {
-                    routeNames.add(f.getName().replace(".json", ""));
-                }
-            }
-        }
-        Collections.sort(routeNames);
+        routeNames.addAll(ForagerRouteStore.listRouteNames());
     }
 
     private void loadRoute(String name) {
-        ForagerPath loaded;
-        try {
-            loaded = ForagerPath.load(NUtils.getDataFile(ROUTES_DIR, name + ".json"));
-        } catch (Exception e) {
-            loaded = new ForagerPath(name);
-        }
-        currentRoute = loaded;
+        currentRoute = ForagerRouteStore.load(name);
         routeMap.setRoute(currentRoute);
         avoidCliffsCheck.a = currentRoute.avoidCliffs;
         cliffBufferEntry.settext(String.valueOf(currentRoute.cliffBufferTiles));
@@ -960,7 +940,7 @@ public class ForagerSettingsPanel extends Panel {
         currentRoute.maxDistance = parseIntOrNoCap(maxDistanceEntry.text());
         currentRoute.maxBranchDistance = parseIntOrNoCap(maxBranchDistanceEntry.text());
         try {
-            currentRoute.save(NUtils.getDataFile(ROUTES_DIR));
+            ForagerRouteStore.save(currentRoute);
             routeMap.markClean();
         } catch (Exception e) {
             NUtils.getGameUI().error("Failed to save route: " + e.getMessage());
@@ -1000,32 +980,26 @@ public class ForagerSettingsPanel extends Panel {
     }
 
     private void addRoute() {
-        TextInputWindow win = new TextInputWindow(
-                L10n.get("forager.settings.new_route_title"), L10n.get("forager.settings.new_route_prompt"), name -> {
-            if (name != null && !name.trim().isEmpty()) {
-                String trimmed = name.trim();
-                ForagerPath route = new ForagerPath(trimmed);
-                try {
-                    route.save(NUtils.getDataFile(ROUTES_DIR));
-                } catch (Exception e) {
-                    NUtils.getGameUI().error("Failed to create route: " + e.getMessage());
-                    return;
-                }
-                if (!routeNames.contains(trimmed)) {
-                    routeNames.add(trimmed);
-                    Collections.sort(routeNames);
-                }
-                routeDropbox.change(trimmed);
+        promptForName("forager.settings.new_route_title", "forager.settings.new_route_prompt", trimmed -> {
+            ForagerPath route = new ForagerPath(trimmed);
+            try {
+                ForagerRouteStore.save(route);
+            } catch (Exception e) {
+                NUtils.getGameUI().error("Failed to create route: " + e.getMessage());
+                return;
             }
+            if (!routeNames.contains(trimmed)) {
+                routeNames.add(trimmed);
+                Collections.sort(routeNames);
+            }
+            routeDropbox.change(trimmed);
         });
-        NUtils.getGameUI().add(win, UI.scale(250, 250));
-        win.show();
     }
 
     private void deleteRoute() {
         if (routeDropbox.sel == null) return;
         try {
-            Files.deleteIfExists(NUtils.getDataFilePath(ROUTES_DIR, routeDropbox.sel + ".json"));
+            ForagerRouteStore.delete(routeDropbox.sel);
         } catch (Exception e) {
             NUtils.getGameUI().error("Failed to delete route: " + e.getMessage());
         }
@@ -1065,13 +1039,21 @@ public class ForagerSettingsPanel extends Panel {
     private <V> void addNamedEntry(String titleKey, String promptKey, Map<String, V> map,
                                     java.util.function.Supplier<V> defaultValue,
                                     java.util.function.Consumer<String> setCurrent, Dropbox<String> dropbox) {
+        promptForName(titleKey, promptKey, trimmed -> {
+            map.putIfAbsent(trimmed, defaultValue.get());
+            setCurrent.accept(trimmed);
+            dropbox.change(trimmed);
+        });
+    }
+
+    /** Shared "prompt for a non-blank name" flow underlying every Add button in this panel - the
+     *  actual add semantics (Map-backed profile vs. file-backed route) differ enough per caller
+     *  that only this boilerplate (not the whole add flow) is worth sharing. */
+    private void promptForName(String titleKey, String promptKey, java.util.function.Consumer<String> onNamed) {
         TextInputWindow win = new TextInputWindow(
                 L10n.get(titleKey), L10n.get(promptKey), name -> {
             if (name != null && !name.trim().isEmpty()) {
-                String trimmed = name.trim();
-                map.putIfAbsent(trimmed, defaultValue.get());
-                setCurrent.accept(trimmed);
-                dropbox.change(trimmed);
+                onNamed.accept(name.trim());
             }
         });
         NUtils.getGameUI().add(win, UI.scale(250, 250));
@@ -1125,14 +1107,7 @@ public class ForagerSettingsPanel extends Panel {
                 file = new File(file.getAbsolutePath() + ".json");
             }
             try {
-                JSONObject root = new JSONObject();
-                root.put("name", name);
-                JSONArray arr = new JSONArray();
-                for (ForagerAction action : actions) {
-                    arr.put(action.toJson());
-                }
-                root.put("actions", arr);
-                Files.write(file.toPath(), root.toString(2).getBytes());
+                NForagerProp.exportActionsProfile(name, actions, file);
                 NUtils.getGameUI().msg(L10n.get("forager.settings.export_success"));
             } catch (Exception e) {
                 NUtils.getGameUI().error("Failed to export actions profile: " + e.getMessage());
@@ -1152,25 +1127,11 @@ public class ForagerSettingsPanel extends Panel {
             File file = fc.getSelectedFile();
             if (file == null) return;
             try {
-                String content = new String(Files.readAllBytes(file.toPath()));
-                JSONObject root = new JSONObject(content);
-                JSONArray arr = root.getJSONArray("actions");
-                ArrayList<ForagerAction> actions = new ArrayList<>();
-                for (int i = 0; i < arr.length(); i++) {
-                    actions.add(new ForagerAction(arr.getJSONObject(i)));
-                }
-
-                String baseName = root.has("name") ? root.getString("name") : file.getName().replaceFirst("\\.json$", "");
-                String name = baseName;
-                int suffix = 2;
-                while (prop.actionsProfiles.containsKey(name)) {
-                    name = baseName + " (" + suffix + ")";
-                    suffix++;
-                }
-
-                prop.actionsProfiles.put(name, actions);
-                prop.currentActionsProfile = name;
-                actionsProfileDropbox.change(name);
+                NForagerProp.ImportedActionsProfile imported =
+                        NForagerProp.importActionsProfile(file, prop.actionsProfiles.keySet());
+                prop.actionsProfiles.put(imported.name, imported.actions);
+                prop.currentActionsProfile = imported.name;
+                actionsProfileDropbox.change(imported.name);
             } catch (Exception e) {
                 NUtils.getGameUI().error("Failed to import actions profile: " + e.getMessage());
             }

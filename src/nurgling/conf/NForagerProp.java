@@ -124,8 +124,14 @@ public class NForagerProp implements JConf {
         if (values.get("currentActionsProfile") != null)
             currentActionsProfile = (String) values.get("currentActionsProfile");
 
+        // Whether the key was present at all, not whether the resulting map ends up empty - a
+        // user who deliberately deletes their last Actions Profile and saves has a genuinely
+        // empty (but present) "actionsProfiles":{} in their file, and that must NOT be treated as
+        // a pre-migration config and have old, possibly-deleted-on-purpose data resurrected from
+        // presets' vestigial legacy `actions` field below.
+        boolean hadActionsProfilesKey = values.get("actionsProfiles") != null;
         actionsProfiles = new HashMap<>();
-        if (values.get("actionsProfiles") != null) {
+        if (hadActionsProfilesKey) {
             HashMap<String, ArrayList<HashMap<String, Object>>> profilesMap =
                 (HashMap<String, ArrayList<HashMap<String, Object>>>) values.get("actionsProfiles");
             for (Map.Entry<String, ArrayList<HashMap<String, Object>>> entry : profilesMap.entrySet()) {
@@ -135,18 +141,21 @@ public class NForagerProp implements JConf {
                 }
                 actionsProfiles.put(entry.getKey(), profileActions);
             }
-        }
-        if (actionsProfiles.isEmpty()) {
-            // Legacy config: carry over each preset's old `actions` field as its own profile.
+        } else {
+            // Genuinely pre-migration config: carry over each preset's old `actions` field as its own profile.
             for (Map.Entry<String, PresetData> entry : presets.entrySet()) {
                 if (!entry.getValue().actions.isEmpty()) {
                     actionsProfiles.put(entry.getKey(), new ArrayList<>(entry.getValue().actions));
                 }
             }
+        }
+        // Regardless of which path above ran, currentActionsProfile must always point at a real
+        // entry - seeding an empty "Default" here is just keeping the app usable, not resurrecting anything.
+        if (!actionsProfiles.containsKey(currentActionsProfile)) {
             if (actionsProfiles.isEmpty()) {
                 actionsProfiles.put("Default", new ArrayList<>());
-            }
-            if (!actionsProfiles.containsKey(currentActionsProfile)) {
+                currentActionsProfile = "Default";
+            } else {
                 currentActionsProfile = actionsProfiles.containsKey(currentPreset)
                         ? currentPreset : actionsProfiles.keySet().iterator().next();
             }
@@ -318,5 +327,48 @@ public class NForagerProp implements JConf {
             }
         }
         return new NForagerProp(sessInfo.username, chrid);
+    }
+
+    /** Writes one Actions Profile's own JSON file - the format {@link #importActionsProfile} reads back. */
+    public static void exportActionsProfile(String name, ArrayList<ForagerAction> actions, java.io.File file) throws java.io.IOException {
+        JSONObject root = new JSONObject();
+        root.put("name", name);
+        JSONArray arr = new JSONArray();
+        for (ForagerAction action : actions) {
+            arr.put(action.toJson());
+        }
+        root.put("actions", arr);
+        java.nio.file.Files.write(file.toPath(), root.toString(2).getBytes());
+    }
+
+    /** One profile loaded from an exportActionsProfile() file, with a name already de-duplicated against existingNames. */
+    public static final class ImportedActionsProfile {
+        public final String name;
+        public final ArrayList<ForagerAction> actions;
+
+        public ImportedActionsProfile(String name, ArrayList<ForagerAction> actions) {
+            this.name = name;
+            this.actions = actions;
+        }
+    }
+
+    /** Reads a profile saved by {@link #exportActionsProfile}, picking a "name (2)", "name (3)", ... suffix if `name` is already taken. */
+    public static ImportedActionsProfile importActionsProfile(java.io.File file, java.util.Set<String> existingNames) throws java.io.IOException {
+        String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+        JSONObject root = new JSONObject(content);
+        JSONArray arr = root.getJSONArray("actions");
+        ArrayList<ForagerAction> actions = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) {
+            actions.add(new ForagerAction(arr.getJSONObject(i)));
+        }
+
+        String baseName = root.has("name") ? root.getString("name") : file.getName().replaceFirst("\\.json$", "");
+        String name = baseName;
+        int suffix = 2;
+        while (existingNames.contains(name)) {
+            name = baseName + " (" + suffix + ")";
+            suffix++;
+        }
+        return new ImportedActionsProfile(name, actions);
     }
 }
