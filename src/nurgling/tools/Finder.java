@@ -63,7 +63,7 @@ public class Finder
      * the cluster spans *less* of - so the walk runs along its long axis - and both
      * keys descend.
      */
-    static Comparator<Coord2d> positionComparator(Collection<Coord2d> positions,
+    public static Comparator<Coord2d> positionComparator(Collection<Coord2d> positions,
                                                   PileFillDirection direction)
     {
         Comparator<Coord2d> directed = directedComparator(direction);

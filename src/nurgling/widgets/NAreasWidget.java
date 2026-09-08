@@ -640,7 +640,7 @@ public class NAreasWidget extends Window
                             }
                             else if (option.name.equals(get("area.menu.fill_direction")))
                             {
-                                ui.root.add(new NAreaDirectionMenu(area), ui.mc);
+                                NAreaDirectionMenu.open(ui, area);
                             }
                             else if (option.name.equals(get("area.menu.scan")))
                             {
