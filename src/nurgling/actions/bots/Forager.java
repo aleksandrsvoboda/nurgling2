@@ -26,11 +26,13 @@ public class Forager implements Action {
     private HashSet<Long> processedGobs = new HashSet<>();
     private String presetName = null;
 
-    // Set by the guard watcher to distinguish an intentional stop from a genuine external cancel.
-    private volatile boolean threatStopTriggered = false;
-
-    // The Guard whose trigger fired; its outcome runs on the bot thread after it's interrupted.
-    private volatile Guard pendingGuard = null;
+    // The Guard whose trigger fired, claimed atomically by the catch block below - a plain
+    // boolean+reference pair here couldn't tell a genuine external cancel racing the watcher's own
+    // interrupt apart from the watcher's own stop (both would just see the boolean already true).
+    // compareAndSet on claim, getAndSet(null) on consume: at most one InterruptedException gets
+    // attributed to a given guard firing, and any interrupt that arrives once this is empty again
+    // is unambiguously external.
+    private final java.util.concurrent.atomic.AtomicReference<Guard> pendingGuard = new java.util.concurrent.atomic.AtomicReference<>();
 
     // Resolved once near the top of run() - see resolveGuardingProfile().
     private GuardingProfile guardingProfile = null;
@@ -231,7 +233,7 @@ public class Forager implements Action {
             gui.activeBotWaypointIndex = section.waypointIndex + 1;
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
                 // toWp validates we actually landed near the expected destination.
-                Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp, guardingProfile.ignoreBats).run(gui);
+                Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp, guardingProfile).run(gui);
                 if (!milestoneResult.IsSuccess()) {
                     return milestoneResult;
                 }
@@ -367,15 +369,17 @@ public class Forager implements Action {
 
         return Results.SUCCESS();
         } catch (InterruptedException e) {
-            // Distinguish the watcher's own deliberate stop from a genuine external cancel, which must keep propagating.
-            if (threatStopTriggered) {
+            // Distinguish the watcher's own deliberate stop from a genuine external cancel, which
+            // must keep propagating. Consuming (not just reading) the claim means a second,
+            // unrelated interrupt - e.g. a real external cancel landing right after the guard's
+            // own - won't be misattributed to this same guard firing a second time.
+            Guard triggeredGuard = pendingGuard.getAndSet(null);
+            if (triggeredGuard != null) {
                 // Retry the safety action itself on further interrupts - it's the character's actual way home, it must not give up partway.
                 InterruptedException last = null;
                 for (int attempt = 1; attempt <= 3; attempt++) {
                     try {
-                        if (pendingGuard != null) {
-                            pendingGuard.outcome.perform(gui);
-                        }
+                        triggeredGuard.outcome.perform(gui);
                         gui.msg("Forager: stopped safely after safety action");
                         return Results.SUCCESS();
                     } catch (InterruptedException retry) {
@@ -488,6 +492,7 @@ public class Forager implements Action {
         boolean ignoreBats = guardingProfile != null && guardingProfile.ignoreBats;
         for (Pair<Gob, ForagerAction> candidate : candidates) {
             if (map != null && routeConstraints.cliffCorridorBlocked(map, from, candidate.a.rc)) continue;
+            if (map != null && routeConstraints.landCorridorBlocked(map, from, candidate.a.rc, waterMode)) continue;
             if (routeConstraints.corridorExcluded(sessloc, from, candidate.a.rc)) continue;
             if (routeConstraints.dangerousAnimalNearCorridor(from, candidate.a.rc, ignoreBats)) continue;
             return candidate;
@@ -852,10 +857,12 @@ public class Forager implements Action {
                 try {
                     for (Guard guard : guards) {
                         if (guard.trigger.check(ctx)) {
-                            gui.msg("Forager: " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
-                            pendingGuard = guard;
-                            threatStopTriggered = true;
-                            botThread.interrupt();
+                            // Only interrupt if this watcher actually won the claim - guards
+                            // against a redundant interrupt if something else already has one pending.
+                            if (pendingGuard.compareAndSet(null, guard)) {
+                                gui.msg("Forager: " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
+                                botThread.interrupt();
+                            }
                             return;
                         }
                     }

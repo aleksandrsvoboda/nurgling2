@@ -1,9 +1,5 @@
 package nurgling.actions;
 
-import haven.Coord;
-import haven.Coord2d;
-import haven.Gob;
-import haven.MCache;
 import haven.MenuGrid;
 import nurgling.NGameUI;
 import nurgling.NUtils;
@@ -24,16 +20,7 @@ public class TravelToHearthFire implements Action {
     public Results run(NGameUI gui) throws InterruptedException
     {
         // Snapshot the grid we're leaving from, so completion is detected by an actual grid change.
-        long beforeGridId = -1;
-        Gob player = NUtils.player();
-        if (player != null && player.rc != null) {
-            Coord2d rc = player.rc;
-            Coord tc = rc.div(MCache.tilesz).floor();
-            Coord gc = tc.div(gui.ui.sess.glob.map.cmaps);
-            if (gui.ui.sess.glob.map.grids.get(gc) != null) {
-                beforeGridId = gui.ui.sess.glob.map.getgridt(tc).id;
-            }
-        }
+        long beforeGridId = WaitForGridChangeOrTimeout.currentGridId(gui);
 
         boolean foundButton = false;
         for (MenuGrid.Pagina pag : NUtils.getGameUI().menu.paginae)

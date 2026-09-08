@@ -84,16 +84,20 @@ public class ForagerRouteConstraints {
         return CliffCorridorChecker.corridorBlocked(map, from, to, cliffBufferTiles);
     }
 
-    // Matches DangerousAnimalTrigger's own margin over each species' configured radius - pulls a
-    // detour away from real danger, not just up to its edge.
-    private static final double DANGER_MARGIN = 1.25;
+    /** True (no constraint) unless waterMode is on for this walk - a coracle can't cross land, so
+     *  any land tile along the corridor rules the candidate out the same way a cliff would. */
+    public boolean landCorridorBlocked(MCache map, Coord2d from, Coord2d to, boolean waterMode) {
+        if (!waterMode) return false;
+        return LandCorridorChecker.corridorBlocked(map, from, to);
+    }
 
     /** True if a dangerous animal (per Ring Settings' own per-species radius/dangerous flag - the
-     *  same config DangerousAnimalTrigger uses, respecting ignoreBats the same way) is within its
-     *  own danger radius of any point along the corridor from `from` to `to` - not just the
-     *  candidate's own position, so a walk that merely passes near one is also rejected. Same
-     *  corridor-check spirit as cliffCorridorBlocked/corridorExcluded, checking distance to a live
-     *  gob instead of a static tile property. */
+     *  same config DangerousAnimalTrigger uses, respecting ignoreBats the same way, via
+     *  NAreaRad.isActiveThreat/triggerDist) is within its own danger radius of any point along the
+     *  corridor from `from` to `to` - not just the candidate's own position, so a walk that merely
+     *  passes near one is also rejected. Same corridor-check spirit as
+     *  cliffCorridorBlocked/corridorExcluded, checking distance to a live gob instead of a static
+     *  tile property. */
     @SuppressWarnings("unchecked")
     public boolean dangerousAnimalNearCorridor(Coord2d from, Coord2d to, boolean ignoreBats) throws InterruptedException {
         if (from == null || to == null) return false;
@@ -104,10 +108,9 @@ public class ForagerRouteConstraints {
         double halfLen = from.dist(to) / 2.0;
 
         for (NAreaRad rad : rads) {
-            if (!rad.dangerous) continue;
-            if (ignoreBats && rad.name.contains("bat")) continue;
+            if (!rad.isActiveThreat(ignoreBats)) continue;
 
-            double triggerDist = rad.radius * DANGER_MARGIN;
+            double triggerDist = rad.triggerDist();
             for (Gob animal : Finder.findGobs(mid, new NAlias(rad.name), null, halfLen + triggerDist)) {
                 if (distToSegment(animal.rc, from, to) <= triggerDist) {
                     return true;
