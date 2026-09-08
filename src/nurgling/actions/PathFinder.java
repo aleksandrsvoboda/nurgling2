@@ -127,7 +127,9 @@ public class PathFinder implements Action {
                     } else {
                         msg.append("end OOB(").append(end_pos).append(")");
                     }
-                    NUtils.getGameUI().msg(msg.toString());
+                    if (NUtils.getGameUI() != null) {
+                        NUtils.getGameUI().msg(msg.toString());
+                    }
                 }
                 return
                         Results.ERROR("Can't find path");

@@ -15,6 +15,9 @@ public class NPFMap
     public boolean gatesAlwaysClosed = false;
     public Cell[][] cells;
 
+    // Upper bound (world units) on the constructor's fallback-grid growth - see its use below.
+    private static final double MAX_FALLBACK_RADIUS = 3000.0;
+
     public boolean lastMul = false;
     // 1 hitbox
     // 0 have path
@@ -228,8 +231,11 @@ public class NPFMap
                 Coord2d cc = player.rc;
                 Coord2d cmap = new Coord2d(MCache.cmaps);
                 Coord2d fixator = cc.floor(cmap).mul(cmap).add(cmap.div(2));
-                // Grow past the fixed 450 fallback radius when src/tgt is farther, so a legitimately long target isn't left outside the grid entirely.
-                double radius = Math.max(450, Math.max(cc.dist(a), cc.dist(b)) + 50);
+                // Grow past the fixed 450 fallback radius when src/tgt is farther, so a legitimately
+                // long target isn't left outside the grid entirely - but capped, since size scales
+                // with radius and an uncapped grow for a genuinely distant target (e.g. a milestone
+                // splice) could allocate a huge Cell[][] and stall or OOM instead of just failing to path.
+                double radius = Math.min(MAX_FALLBACK_RADIUS, Math.max(450, Math.max(cc.dist(a), cc.dist(b)) + 50));
                 Coord2d ul = fixator.add(radius,radius);
                 Coord2d br = fixator.sub(radius,radius);
                 end = Utils.toPfGrid(ul);
@@ -322,6 +328,7 @@ public class NPFMap
                     } else {
                         // Only ONE of the 4 sampled corners needs to be water - blocking on any bad corner would make narrow channels/shorelines unpathable.
                         boolean anyWater = false;
+                        boolean anyResolved = false;
                         for (Coord c : cand) {
                             String name;
                             try {
@@ -329,12 +336,16 @@ public class NPFMap
                             } catch (Loading l) {
                                 continue;
                             }
+                            anyResolved = true;
                             if (isValidWaterTileName(name)) {
                                 anyWater = true;
                                 break;
                             }
                         }
-                        if (!anyWater) {
+                        // Only block once at least one corner actually resolved and none were
+                        // water - if every corner is still Loading, that's unknown, not land,
+                        // matching the non-water-mode branch's treatment of an unresolved tile above.
+                        if (anyResolved && !anyWater) {
                             cells[i][j].val = 2;
                         }
                     }
