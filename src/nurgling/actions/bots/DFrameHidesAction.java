@@ -34,9 +34,7 @@ public class DFrameHidesAction implements Action {
         if(new Validator(req, opt).run(gui).IsSuccess()) {
             // The player's client-side stacking toggle silently breaks item stacking on deposit
             // if left off; force it on for the run and always restore it, even on interrupt.
-            boolean oldStackingValue = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
-            NUtils.stackSwitch(true);
-            try {
+            try (NUtils.StackingGuard guard = NUtils.StackingGuard.forceOn()) {
                 NContext context = new NContext(gui);
 
                 ArrayList<Container> containers = new ArrayList<>();
@@ -138,8 +136,6 @@ public class DFrameHidesAction implements Action {
                 new TransferToPiles(rawhidesArea.getRCArea(), new NAlias("Fresh")).run(gui);
 
                 return Results.SUCCESS();
-            } finally {
-                NUtils.stackSwitch(oldStackingValue);
             }
         }
         return Results.FAIL();

@@ -35,9 +35,7 @@ public class LeatherAction implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             // The player's client-side stacking toggle silently breaks item stacking on deposit
             // if left off; force it on for the run and always restore it, even on interrupt.
-            boolean oldStackingValue = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
-            NUtils.stackSwitch(true);
-            try {
+            try (NUtils.StackingGuard guard = NUtils.StackingGuard.forceOn()) {
                 NContext context = new NContext(gui);
                 ArrayList<Container> containers = new ArrayList<>();
                 // findSpec only locates an already-loaded area; it returns null from another cell.
@@ -141,8 +139,6 @@ public class LeatherAction implements Action {
                 }
 
                 return Results.SUCCESS();
-            } finally {
-                NUtils.stackSwitch(oldStackingValue);
             }
         }
         return Results.FAIL();
