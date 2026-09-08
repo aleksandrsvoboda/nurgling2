@@ -287,7 +287,6 @@ public class MiningMasterySettings extends Panel {
         
         NMasterMinerMarkingConfig.set(config);
         NConfig.needUpdate();
-        System.out.println("MiningMasterySettings saved successfully");
     }
     
     /**

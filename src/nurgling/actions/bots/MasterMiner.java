@@ -216,11 +216,6 @@ public class MasterMiner extends ActionWithFinal {
                 }
                 int keepStones = wnd.getKeepStonesForSupport();
                 int[] needToDropRef = new int[] { Math.max(0, totalStones - keepStones) };
-                if (!newItems.isEmpty()) {
-                    System.out.println("[MasterMiner] pass: carried=" + cur.size()
-                            + " counted=" + totalStones + " keep=" + keepStones
-                            + " budget=" + needToDropRef[0] + " new=" + newItems.size());
-                }
 
                 // A stone lands in the hand instead of the pack when the pack is full.
                 if (vhandItem != null && vhandItem.item instanceof NGItem) {
@@ -636,7 +631,6 @@ public class MasterMiner extends ActionWithFinal {
             });
             f3 = getItemQuality(dropped, newItem);
             if (f3 < 0) {
-                System.out.println("[MasterMiner] no drop: quality not ready for " + dropped.name());
                 NUtils.addTask(new WaitTicks(2));
                 return false;
             }
@@ -707,7 +701,6 @@ public class MasterMiner extends ActionWithFinal {
 
         WItem tool = findMiningTool();
         if (tool == null) {
-            System.out.println("[MasterMiner] no drop: no mining tool in hand");
             NUtils.addTask(new WaitTicks(10));
             return false;
         }
@@ -733,9 +726,6 @@ public class MasterMiner extends ActionWithFinal {
         double f5 = toolCoef(toolName);
         ToolType currentToolType = classifyTool(toolName);
 
-        if (f4 == null) {
-            System.out.println("[MasterMiner] no drop: tool " + toolName + " has no quality yet");
-        }
         if (f4 != null) {
             // Quarryartz follows its own formula; everything else uses the tool debuff.
             double wallQ;
@@ -859,20 +849,15 @@ public class MasterMiner extends ActionWithFinal {
                     && (isInMainInventory(gui, newItem) || newItem == gui.vhand);
             String lower = stoneName != null ? stoneName.toLowerCase() : "";
             boolean isTool = lower.contains("axe");
+            /* A blank threshold reads as NaN, which means "never drop" -- the window's label
+             * says so, because it is otherwise an invisible off switch. */
             boolean wantDrop = budget > 0 && !Double.isNaN(threshold) && f3 < threshold
                     && inPack && !isTool;
-
-            System.out.println(String.format(
-                    "[MasterMiner] %s q%.1f threshold=%s budget=%d inPack=%b tool=%b -> %s",
-                    stoneName, f3,
-                    Double.isNaN(threshold) ? "unset(never drops)" : String.format("%.1f", threshold),
-                    budget, inPack, isTool, wantDrop ? "drop" : "keep"));
 
             if (wantDrop) {
                 if (dropStone(gui, newItem)) {
                     needToDropRef[0]--;
                 } else {
-                    System.out.println("[MasterMiner] drop of " + stoneName + " did not land; will retry");
                     /* Still held: leave it unjudged so the next pass retries it,
                      * rather than writing it off as dealt with. */
                     return false;

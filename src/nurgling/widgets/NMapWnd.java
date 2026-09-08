@@ -71,15 +71,15 @@ public class NMapWnd extends MapWnd {
 
         /* Master Miner's finds. These drive the same per-kind setting as the Map Tools sample
          * rows, so the button and the panel are two views of one thing, as fish and tree are. */
-        oreBtn = add(new MapToggleButton("ores", L10n.get("maptools.ore_icons_tip"), MapToolsWindow::toggle));
+        oreBtn = add(new MapToggleButton("ores", L10n.get("maptools.ore_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.ORE)));
         oreBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.ORE));
         oreBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.ORE, val));
 
-        gemBtn = add(new MapToggleButton("gems", L10n.get("maptools.gem_icons_tip"), MapToolsWindow::toggle));
+        gemBtn = add(new MapToggleButton("gems", L10n.get("maptools.gem_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.GEM)));
         gemBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.GEM));
         gemBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.GEM, val));
 
-        stoneBtn = add(new MapToggleButton("stone", L10n.get("maptools.stone_icons_tip"), MapToolsWindow::toggle));
+        stoneBtn = add(new MapToggleButton("stone", L10n.get("maptools.stone_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.STONE)));
         stoneBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.STONE));
         stoneBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.STONE, val));
 
