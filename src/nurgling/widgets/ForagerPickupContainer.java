@@ -129,6 +129,15 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
 
     // placeholder: null for the normal icon path; non-null draws a hash-colored placeholder instead.
     private void addResolved(String itemName, JSONObject iconRes, Resolution res, BufferedImage placeholder) {
+        // Every lookup here (setMaintainQuantity/getPriority/editItem/delete) matches by name and
+        // stops at the first hit, so a second entry sharing a name would be permanently
+        // unreachable through this UI - and delete() would orphan its icon, since the base
+        // container only removes one icon per name. Adding an already-present item is a no-op.
+        for (ForagerAction existing : actions) {
+            if (itemName.equals(existing.sourceItemName)) {
+                return;
+            }
+        }
         ForagerAction action = new ForagerAction(res.pattern, res.actionType, res.actionName);
         action.sourceItemName = itemName;
         if (iconRes != null && iconRes.has("static")) {
@@ -392,10 +401,16 @@ public class ForagerPickupContainer extends BaseIngredientContainer implements T
                 updated.sourceItemName = old.sourceItemName;
                 updated.sourceItemResource = old.sourceItemResource;
                 updated.maintainQuantity = old.maintainQuantity;
+                // ActionConfigWindow has no UI for priority at all, so its built ForagerAction
+                // always defaults it unset - without this, editing just the pattern silently
+                // dropped whatever priority the item had.
+                updated.priority = old.priority;
                 actions.set(foundIdx, updated);
                 for (IconItem it : icons) {
                     if (itemName.equals(it.name)) {
                         it.setFlowerAction(updated.actionType == ForagerAction.ActionType.FLOWER_ACTION);
+                        restoreMaintainBadge(it, updated);
+                        restorePriorityBadge(it, updated);
                         break;
                     }
                 }
