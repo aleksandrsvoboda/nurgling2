@@ -10,6 +10,10 @@ import nurgling.conf.FontSettings;
 import nurgling.conf.NQuestTrackerProp;
 import nurgling.widgets.nsettings.Fonts;
 import nurgling.widgets.quest.QCond;
+import nurgling.widgets.quest.QuestObjectiveAction;
+import nurgling.widgets.quest.QuestObjectiveActionButton;
+import nurgling.widgets.quest.QuestObjectiveActionResolver;
+import nurgling.widgets.quest.QuestObjectiveRowLayout;
 import nurgling.widgets.quest.QuestKind;
 import nurgling.widgets.quest.QuestMenu;
 import nurgling.widgets.quest.QuestModel;
@@ -58,6 +62,8 @@ public class NQuestInfo extends Widget
     /* ------------------------------------------------------------------ state */
 
     private final QuestModel model = new QuestModel();
+
+    private final QuestObjectiveActionResolver actionResolver = new QuestObjectiveActionResolver();
     private NQuestTrackerProp prop = null;
     private NQuestTrackerProp fallback = null;
     private boolean needRebuild = true;
@@ -225,13 +231,16 @@ public class NQuestInfo extends Widget
         final boolean ready;
         final int questId;
         final boolean secondary;
+        /** The objective this row was built from, so the row can offer an action button. */
+        final QCond cond;
 
-        Row(String text, boolean ready, int questId, boolean secondary)
+        Row(String text, boolean ready, int questId, boolean secondary, QCond cond)
         {
             this.text = text;
             this.ready = ready;
             this.questId = questId;
             this.secondary = secondary;
+            this.cond = cond;
         }
     }
 
@@ -311,7 +320,7 @@ public class NQuestInfo extends Widget
                 for(QCond c : q.conds) {
                     if(c.verb == QCond.Verb.TELL)
                         continue;
-                    g.rows.add(new Row(c.text, c.ready, q.id, false));
+                    g.rows.add(new Row(c.text, c.ready, q.id, false, c));
                 }
                 g.total = g.rows.size();
                 g.done = 0;
@@ -331,7 +340,7 @@ public class NQuestInfo extends Widget
             for(QCond c : q.conds) {
                 if(c.verb == QCond.Verb.TELL)
                     continue;
-                g.rows.add(new Row(c.text, c.ready, q.id, false));
+                g.rows.add(new Row(c.text, c.ready, q.id, false, c));
             }
         }
         // Objectives that point at a giver but belong to somebody else's quest - "bring X to
@@ -348,7 +357,7 @@ public class NQuestInfo extends Widget
                 Group g = group(byGiver, target);
                 if(g.questId < 0)
                     g.questId = q.id;
-                g.rows.add(new Row(c.text, false, q.id, true));
+                g.rows.add(new Row(c.text, false, q.id, true, c));
             }
         }
         for(Group g : byGiver.values()) {
@@ -386,7 +395,7 @@ public class NQuestInfo extends Widget
         "Conversation", new QCond.Verb[] {QCond.Verb.GREET, QCond.Verb.RAGE, QCond.Verb.WAVE, QCond.Verb.LAUGH},
         "Attributes", new QCond.Verb[] {QCond.Verb.GAIN},
         "Craft", new QCond.Verb[] {QCond.Verb.CREATE},
-        "Other", new QCond.Verb[] {QCond.Verb.CAVE, QCond.Verb.LIGHT, QCond.Verb.OTHER},
+        "Other", new QCond.Verb[] {QCond.Verb.CAVE, QCond.Verb.LIGHT, QCond.Verb.FELL, QCond.Verb.OTHER},
     };
 
     private List<Group> taskGroups(NQuestTrackerProp p)
@@ -407,7 +416,7 @@ public class NQuestInfo extends Widget
                         continue;
                     if(g.questId < 0)
                         g.questId = q.id;
-                    g.rows.add(new Row(c.text, false, q.id, false));
+                    g.rows.add(new Row(c.text, false, q.id, false, c));
                 }
             }
             if(g.rows.isEmpty())
@@ -826,6 +835,7 @@ public class NQuestInfo extends Widget
         final Row row;
         private final Tex glyph, text;
         private final String full;
+        private final QuestObjectiveActionButton actionButton;
 
         CondRow(Row r, int w)
         {
@@ -836,7 +846,15 @@ public class NQuestInfo extends Widget
                       : (r.secondary ? NStyle.questDim : NStyle.questCond);
             this.glyph = condFnd.render(r.ready ? "✓" : "•", col).tex();
             int off = INDENT + glyph.sz().x + UI.scale(4);
-            this.text = condFnd.render(elide(condFnd, r.text, w - off), col).tex();
+            QuestObjectiveAction potential = actionResolver.resolve(r.cond);
+            if(potential != null) {
+                actionButton = add(new QuestObjectiveActionButton(r.cond));
+                actionButton.c = new Coord(w - actionButton.sz.x - UI.scale(2), (rowH - actionButton.sz.y) / 2);
+            } else {
+                actionButton = null;
+            }
+            int textWidth = QuestObjectiveRowLayout.textWidth(w, off, actionButton != null);
+            this.text = condFnd.render(elide(condFnd, r.text, textWidth), col).tex();
         }
 
         @Override
@@ -845,11 +863,15 @@ public class NQuestInfo extends Widget
             band(g);
             g.image(glyph, new Coord(INDENT, ty(glyph)));
             g.image(text, new Coord(INDENT + glyph.sz().x + UI.scale(4), ty(text)));
+            super.draw(g);
         }
 
         @Override
         public boolean mousedown(MouseDownEvent ev)
         {
+            /* Let the action button claim the click before the row opens the quest. */
+            if(ev.propagate(this))
+                return true;
             if(ev.b == 1) {
                 openQuest(row.questId);
                 return true;
