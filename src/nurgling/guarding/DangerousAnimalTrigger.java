@@ -16,15 +16,10 @@ public class DangerousAnimalTrigger implements GuardTrigger {
             return false;
         }
         for (NAreaRad rad : ctx.animalRads()) {
-            if (ctx.ignoreBats && rad.name.contains("bat")) {
+            if (!rad.isActiveThreat(ctx.ignoreBats)) {
                 continue;
             }
-            if (!rad.dangerous) {
-                continue;
-            }
-            // 1.25x margin over the configured danger radius - pulls the character out before real danger, not after.
-            double triggerDist = rad.radius * 1.25;
-            Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, triggerDist);
+            Gob animal = Finder.findGob(player.rc, new NAlias(rad.name), null, rad.triggerDist());
             if (animal != null) {
                 lastReason = "dangerous animal (" + rad.name + ") nearby";
                 return true;

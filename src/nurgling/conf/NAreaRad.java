@@ -25,6 +25,33 @@ public class NAreaRad implements JConf
         this.dangerous = true;
     }
 
+    // 1.25x margin over the configured danger radius - pulls a detour/character away from real
+    // danger, not just up to its edge. Shared by DangerousAnimalTrigger and
+    // ForagerRouteConstraints.dangerousAnimalNearCorridor so the two can't drift apart.
+    public static final double DANGER_MARGIN = 1.25;
+
+    /** True if this ring should be treated as an active threat right now - dangerous, and not exempted by ignoreBats. */
+    public boolean isActiveThreat(boolean ignoreBats) {
+        if (!dangerous) return false;
+        if (ignoreBats && isBat()) return false;
+        return true;
+    }
+
+    /** Whether "bat" is a whole path segment of this ring's resource name (e.g. "gfx/kritter/bat/bat") -
+     *  a plain substring match would also exempt any future species whose name merely contains "bat". */
+    private boolean isBat() {
+        if (name == null) return false;
+        for (String segment : name.split("/")) {
+            if (segment.equals("bat")) return true;
+        }
+        return false;
+    }
+
+    /** radius scaled by DANGER_MARGIN - the actual trigger distance every consumer of this ring should check against. */
+    public double triggerDist() {
+        return radius * DANGER_MARGIN;
+    }
+
     public NAreaRad(HashMap<String, Object> values)
     {
         name = (String) values.get("name");

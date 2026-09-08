@@ -21,6 +21,15 @@ public class StuckTrigger implements GuardTrigger {
         if (player == null) {
             return false;
         }
+        // A channeled server action (harvesting, digging, crafting, ...) legitimately keeps the
+        // character stationary - gui.prog is the same hourglass-progress widget those actions
+        // already show, so its presence is an unambiguous "busy, not stuck" signal. Reset the
+        // clock rather than let it keep counting through a long, perfectly healthy channel.
+        if (ctx.gui != null && ctx.gui.prog != null) {
+            lastPos = player.rc;
+            lastMovedTime = System.currentTimeMillis();
+            return false;
+        }
         if (lastPos == null || player.rc.dist(lastPos) > distanceThreshold) {
             lastPos = player.rc;
             lastMovedTime = System.currentTimeMillis();

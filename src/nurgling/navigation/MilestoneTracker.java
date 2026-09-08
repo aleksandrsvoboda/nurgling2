@@ -109,7 +109,10 @@ public class MilestoneTracker {
 
         if (armedGob != null) {
             if ((now - armedAt) > ARM_TIMEOUT_MS) {
-                gui.msg("Milestone: recording window expired for " + armedGob.ngob.name + " - not armed anymore.");
+                // The armed gob can have unloaded (out of render range) during the timeout window -
+                // ngob would be null then, same as the bigJump branch below already accounts for.
+                String armedName = armedGob.ngob != null ? armedGob.ngob.name : "the milestone";
+                gui.msg("Milestone: recording window expired for " + armedName + " - not armed anymore.");
                 clearArmed();
             } else {
                 boolean bigJump = lastPlayerRc != null && currentRc.dist(lastPlayerRc) >= TELEPORT_DELTA_THRESHOLD;

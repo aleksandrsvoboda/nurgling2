@@ -53,6 +53,14 @@ public final class GuardEntry {
         }
         GuardSpec spec = GuardRegistry.get(guardId);
         if (spec == null) {
+            // Distinct from "disabled" - a saved profile pointing at a guard type that no longer
+            // exists (e.g. after a rename) would otherwise silently do nothing with zero
+            // indication the user's configured protection isn't actually active.
+            try {
+                nurgling.NUtils.getGameUI().error("Guarding: unknown guard type \"" + guardId + "\" - this entry is disabled until removed/reconfigured.");
+            } catch (Exception e) {
+                // Best-effort only - never let a missing/unready game UI break guard resolution itself.
+            }
             return null;
         }
         GuardTrigger trigger = spec.factory.build(settings);
