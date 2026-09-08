@@ -13,6 +13,7 @@ public class SelectAreaWithLiveGhosts extends NTask {
     private NArea.Space result = null;
     private Gob player = null;
     private int rotationCount = 0; // 0, 1, 2, 3 for 0°, 90°, 180°, 270°
+    private NHitBox currentHitBox;
 
     public SelectAreaWithLiveGhosts(NHitBox hitBox, Indir<Resource> resource) {
         this(hitBox, resource, Message.nil, 0);
@@ -27,6 +28,7 @@ public class SelectAreaWithLiveGhosts extends NTask {
         this.buildingResource = resource;
         this.spriteData = sdt;
         this.rotationCount = initialRotation & 3;
+        this.currentHitBox = getRotatedHitBox();
     }
 
     @Override
@@ -39,10 +41,11 @@ public class SelectAreaWithLiveGhosts extends NTask {
                 // Check if R key was pressed (key code 82)
                 if (mapView.ui.modflags() == 0 && checkRotationKey()) {
                     rotationCount = (rotationCount + 1) % 4;
-
+                    currentHitBox = getRotatedHitBox();
+                    
                     // Update rotation for existing ghosts
                     if (ghostPreview != null) {
-                        ghostPreview.updateRotation(rotationCount, originalHitBox);
+                        ghostPreview.updateRotation(rotationCount, currentHitBox);
                     }
                 }
             }
@@ -56,7 +59,7 @@ public class SelectAreaWithLiveGhosts extends NTask {
                     if (ghostPreview == null && player == null) {
                         player = NUtils.player();
                         if (player != null) {
-                            ghostPreview = new BuildGhostPreview(player, currentArea, originalHitBox, buildingResource, rotationCount, spriteData);
+                            ghostPreview = new BuildGhostPreview(player, currentArea, currentHitBox, buildingResource, rotationCount, spriteData);
                             player.setattr(ghostPreview);
                         }
                     } else if (ghostPreview != null) {
@@ -72,7 +75,7 @@ public class SelectAreaWithLiveGhosts extends NTask {
                 if (ghostPreview == null && player == null) {
                     player = NUtils.player();
                 if (player != null && currentArea != null) {
-                        ghostPreview = new BuildGhostPreview(player, currentArea, originalHitBox, buildingResource, rotationCount, spriteData);
+                        ghostPreview = new BuildGhostPreview(player, currentArea, currentHitBox, buildingResource, rotationCount, spriteData);
                         player.setattr(ghostPreview);
                     }
                 } else if (ghostPreview != null && currentArea != null) {
@@ -97,7 +100,7 @@ public class SelectAreaWithLiveGhosts extends NTask {
                         ghostPreview.update(finalArea);
                     } else {
                         // Create new preview with final area
-                        ghostPreview = new BuildGhostPreview(player, finalArea, originalHitBox, buildingResource, rotationCount, spriteData);
+                        ghostPreview = new BuildGhostPreview(player, finalArea, currentHitBox, buildingResource, rotationCount, spriteData);
                         player.setattr(ghostPreview);
                     }
                 }
@@ -125,6 +128,14 @@ public class SelectAreaWithLiveGhosts extends NTask {
         return false;
     }
     
+    private NHitBox getRotatedHitBox() {
+        NHitBox box = originalHitBox;
+        for (int i = 0; i < rotationCount; i++) {
+            box = box.rotate();
+        }
+        return box;
+    }
+
     /**
      * Get current selection area from active Selector (during selection process)
      */

@@ -636,31 +636,6 @@ public class NUtils
         }
     }
 
-    /** Forces client-side item stacking on for as long as this guard is open, then restores
-     *  whatever it was before on close - even on interrupt/exception. The player's stacking toggle
-     *  silently breaks item stacking on deposit if left off; this is the shared save/force/restore
-     *  pattern several bots need around a fetch-and-deposit run (previously copy-pasted per-bot).
-     *  A try-with-resources guard (rather than wrapping the run in a lambda) so every early return
-     *  already inside those methods keeps working exactly as before. */
-    public static final class StackingGuard implements AutoCloseable {
-        private final boolean oldStackingValue;
-
-        private StackingGuard(boolean oldStackingValue) {
-            this.oldStackingValue = oldStackingValue;
-        }
-
-        public static StackingGuard forceOn() {
-            boolean oldStackingValue = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
-            stackSwitch(true);
-            return new StackingGuard(oldStackingValue);
-        }
-
-        @Override
-        public void close() {
-            stackSwitch(oldStackingValue);
-        }
-    }
-
     public static boolean barrelHasContent(Gob barrel) {
         if(barrel == null)
             return false;
