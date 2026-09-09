@@ -4,8 +4,13 @@ import nurgling.NStyle;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class VSpec {
     public static HashMap<String, ArrayList<JSONObject>> categories = new HashMap<>();
@@ -3328,5 +3333,48 @@ public class VSpec {
             return products.get(products.size() - 1);
         }
         return null;
+    }
+
+    private static final class TreeProductIndex {
+        private static final Map<String, Set<String>> byProduct = buildTreeProductIndex();
+    }
+
+    private static Map<String, Set<String>> buildTreeProductIndex() {
+        Map<String, Set<String>> result = new HashMap<>();
+        for(Map.Entry<String, ArrayList<String>> entry : object.entrySet()) {
+            String resource = entry.getKey();
+            if(resource == null || !resource.startsWith("gfx/terobjs/trees/"))
+                continue;
+            String tree = resource;
+            if(resource.endsWith("-log"))
+                tree = resource.substring(0, resource.length() - 4);
+            else if(resource.endsWith("log"))
+                tree = resource.substring(0, resource.length() - 3);
+            if(!object.containsKey(tree))
+                continue;
+            for(String product : entry.getValue()) {
+                String key = normalizedName(product);
+                if(!key.isEmpty())
+                    result.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(tree);
+            }
+        }
+        Map<String, Set<String>> immutable = new HashMap<>();
+        for(Map.Entry<String, Set<String>> entry : result.entrySet())
+            immutable.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        return Collections.unmodifiableMap(immutable);
+    }
+
+    /**
+     * Trees whose products include the given item name, as {@code gfx/terobjs/trees/*} paths.
+     * Used to trace a quest's "Pick 5 Alder Bark" back to the alder tree, and from there
+     * to the biomes the tree grows in.
+     */
+    public static Set<String> treeResourcesForProduct(String product) {
+        Set<String> result = TreeProductIndex.byProduct.get(normalizedName(product));
+        return result == null ? Collections.emptySet() : result;
+    }
+
+    private static String normalizedName(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 }

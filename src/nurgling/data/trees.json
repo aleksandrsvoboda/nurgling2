@@ -1,0 +1,1190 @@
+[
+  {
+    "name": "Acacia Tree",
+    "terrains": [
+      "Ox Pasture",
+      "Shady Copse"
+    ],
+    "resource": "gfx/terobjs/trees/acacia"
+  },
+  {
+    "name": "Alder Tree",
+    "terrains": [
+      "Beech Grove",
+      "Bounty Acre",
+      "Cloud Range",
+      "Deep Tangle",
+      "Flower Meadow",
+      "Green Brake",
+      "Hard Steppe",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Root Bosk",
+      "Shady Copse",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/alder"
+  },
+  {
+    "name": "Almond Tree",
+    "terrains": [
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Flat",
+      "Highground",
+      "Leaf Detritus",
+      "Moss Brush",
+      "Root Bosk",
+      "Shady Copse",
+      "Red Plain",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/almondtree"
+  },
+  {
+    "name": "Apple Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Deep Tangle",
+      "Flower Meadow",
+      "Greens Ward",
+      "Highground",
+      "Moss Brush",
+      "Root Bosk",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/appletree"
+  },
+  {
+    "name": "Ash Tree",
+    "terrains": [
+      "Black Wood",
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Flat",
+      "Highground",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Pine Barren",
+      "Red Plain",
+      "Root Bosk",
+      "Shady Copse",
+      "Wald",
+      "Wild Turf",
+      "Ox Pasture"
+    ],
+    "resource": "gfx/terobjs/trees/ash"
+  },
+  {
+    "name": "Aspen Tree",
+    "terrains": [
+      "Black Wood",
+      "Cloud Range",
+      "Deep Tangle",
+      "Dry Weald",
+      "Moss Brush",
+      "Oak Wilds",
+      "Red Plain",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/aspen"
+  },
+  {
+    "name": "Bay Willow Tree",
+    "terrains": [
+      "Beech Grove",
+      "Flower Meadow",
+      "Grass",
+      "Greens Ward",
+      "Leaf Patch",
+      "Swamp",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/baywillow"
+  },
+  {
+    "name": "Beech Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Cloud Range",
+      "Deep Tangle",
+      "Flower Meadow",
+      "Grass",
+      "Green Brake",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Moss Brush",
+      "Root Bosk",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/beech"
+  },
+  {
+    "name": "Birch Tree",
+    "terrains": [
+      "Beech Grove",
+      "Black Wood",
+      "Blue Sod",
+      "Deep Tangle",
+      "Hard Steppe",
+      "Highground",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lichen Wold",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Ox Pasture",
+      "Peat Moss",
+      "Pine Barren",
+      "Root Bosk",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/birch"
+  },
+  {
+    "name": "Birdcherry Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Dry Weald",
+      "Leaf Detritus",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Peat Moss",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/birdcherrytree"
+  },
+  {
+    "name": "Black Pine Tree",
+    "terrains": [
+      "Black Wood",
+      "Deep Tangle",
+      "Dry Weald",
+      "Heath",
+      "Lichen Wold",
+      "Peat Moss",
+      "Pine Barren",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Sour Timber",
+      "Timber Land"
+    ],
+    "resource": "gfx/terobjs/trees/blackpine"
+  },
+  {
+    "name": "Black Poplar Tree",
+    "terrains": [
+      "Black Wood",
+      "Dry Weald",
+      "Moss Brush",
+      "Oak Wilds",
+      "Sombre Bramble",
+      "Sour Timber"
+    ],
+    "resource": "gfx/terobjs/trees/blackpoplar"
+  },
+  {
+    "name": "Buckthorn Tree",
+    "terrains": [
+      "Black Wood",
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Flat",
+      "Highground",
+      "Lichen Wold",
+      "Pine Barren",
+      "Red Plain",
+      "Root Bosk",
+      "Wald",
+      "Ox Pasture"
+    ],
+    "resource": "gfx/terobjs/trees/buckthorn"
+  },
+  {
+    "name": "Carob Tree",
+    "terrains": [
+      "Flower Meadow",
+      "Red Plain"
+    ],
+    "resource": "gfx/terobjs/trees/carobtree"
+  },
+  {
+    "name": "Cedar Tree",
+    "terrains": [
+      "Dry Flat",
+      "Red Plain",
+      "Wald",
+      "Ox Pasture",
+      "Shady Copse"
+    ],
+    "resource": "gfx/terobjs/trees/cedar"
+  },
+  {
+    "name": "Charred Tree",
+    "terrains": [
+      "Ashland",
+      "Oak Wilds"
+    ]
+  },
+  {
+    "name": "Chaste Tree",
+    "terrains": [
+      "Beech Grove",
+      "Leaf Patch",
+      "Ox Pasture",
+      "Peat Moss",
+      "Root Bosk"
+    ],
+    "resource": "gfx/terobjs/trees/chastetree"
+  },
+  {
+    "name": "Checker Tree",
+    "terrains": [
+      "Beech Grove",
+      "Greens Ward"
+    ],
+    "resource": "gfx/terobjs/trees/checkertree"
+  },
+  {
+    "name": "Cherry Tree",
+    "terrains": [
+      "Blue Sod",
+      "Bounty Acre",
+      "Deep Tangle",
+      "Green Brake",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf",
+      "Ox Pasture"
+    ],
+    "resource": "gfx/terobjs/trees/cherry"
+  },
+  {
+    "name": "Chestnut Tree",
+    "terrains": [
+      "Beech Grove",
+      "Cloud Range",
+      "Leaf Patch",
+      "Oak Wilds",
+      "Ox Pasture",
+      "Wild Turf",
+      "Grass"
+    ],
+    "resource": "gfx/terobjs/trees/chestnuttree"
+  },
+  {
+    "name": "Conker Tree",
+    "terrains": [
+      "Deep Tangle",
+      "Greens Ward",
+      "Leaf Patch",
+      "Moss Brush",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/conkertree"
+  },
+  {
+    "name": "Cork Oak Tree",
+    "terrains": [
+      "Red Plain",
+      "Wald",
+      "Flower Meadow"
+    ],
+    "resource": "gfx/terobjs/trees/corkoak"
+  },
+  {
+    "name": "Crabapple Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Bounty Acre",
+      "Cloud Range",
+      "Flower Meadow",
+      "Green Brake",
+      "Highground",
+      "Root Bosk"
+    ],
+    "resource": "gfx/terobjs/trees/crabappletree"
+  },
+  {
+    "name": "Cypress Tree",
+    "terrains": [
+      "Dry Flat",
+      "Ox Pasture",
+      "Red Plain",
+      "Shady Copse",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/cypress"
+  },
+  {
+    "name": "Dogwood Tree",
+    "terrains": [
+      "Bounty Acre",
+      "Green Brake",
+      "Peat Moss",
+      "Shady Copse"
+    ],
+    "resource": "gfx/terobjs/trees/dogwood"
+  },
+  {
+    "name": "Dragon Tree",
+    "terrains": [
+      "Beech Grove",
+      "Flower Meadow",
+      "Wald"
+    ]
+  },
+  {
+    "name": "Dwarf Pine",
+    "terrains": [
+      "Mountain"
+    ],
+    "resource": "gfx/terobjs/trees/dwarfpine"
+  },
+  {
+    "name": "Elm Tree",
+    "terrains": [
+      "Black Wood",
+      "Beech Grove",
+      "Blue Sod",
+      "Cloud Range",
+      "Deep Tangle",
+      "Hard Steppe",
+      "Highground",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Oak Wilds",
+      "Red Plain",
+      "Shady Copse",
+      "Sour Timber",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/elm"
+  },
+  {
+    "name": "Fig Tree",
+    "terrains": [
+      "Greens Ward",
+      "Highground"
+    ],
+    "resource": "gfx/terobjs/trees/figtree"
+  },
+  {
+    "name": "Fir Tree",
+    "terrains": [
+      "Blue Sod",
+      "Deep Tangle",
+      "Hard Steppe",
+      "Leaf Patch",
+      "Moss Brush",
+      "Pine Barren",
+      "Red Plain",
+      "Root Bosk",
+      "Sombre Bramble",
+      "Sour Timber",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/fir"
+  },
+  {
+    "name": "Gloomcap",
+    "terrains": [
+      "Cave"
+    ],
+    "resource": "gfx/terobjs/trees/gloomcap"
+  },
+  {
+    "name": "Gnome's Cap",
+    "terrains": [
+      "Cave"
+    ],
+    "resource": "gfx/terobjs/trees/gnomeshat"
+  },
+  {
+    "name": "Goldenchain Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Cloud Range",
+      "Flower Meadow",
+      "Highground",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/goldenchain"
+  },
+  {
+    "name": "Gray Alder Tree",
+    "terrains": [
+      "Dry Weald",
+      "Heath",
+      "Highground",
+      "Pine Barren",
+      "Root Bosk",
+      "Scrub Veld"
+    ],
+    "resource": "gfx/terobjs/trees/grayalder"
+  },
+  {
+    "name": "Green Apple Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Deep Tangle",
+      "Flower Meadow",
+      "Highground",
+      "Moss Brush",
+      "Root Bosk",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/appletreegreen"
+  },
+  {
+    "name": "Hazel Tree",
+    "terrains": [
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Weald",
+      "Heath",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lichen Wold",
+      "Moss Brush",
+      "Pine Barren",
+      "Red Plain",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Root Bosk"
+    ],
+    "resource": "gfx/terobjs/trees/hazel"
+  },
+  {
+    "name": "Hornbeam Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Weald",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Peat Moss",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/hornbeam"
+  },
+  {
+    "name": "Juniper Tree",
+    "terrains": [
+      "Black Wood",
+      "Deep Tangle",
+      "Dry Weald",
+      "Heath",
+      "Lichen Wold",
+      "Mountain",
+      "Peat Moss",
+      "Pine Barren",
+      "Red Plain",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/juniper"
+  },
+  {
+    "name": "King's Oak Tree",
+    "terrains": [
+      "Black Wood",
+      "Deep Tangle",
+      "Dry Weald",
+      "Leaf Detritus",
+      "Moss Brush",
+      "Oak Wilds",
+      "Red Plain",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/kingsoak"
+  },
+  {
+    "name": "Larch Tree",
+    "terrains": [
+      "Black Wood",
+      "Bog",
+      "Deep Tangle",
+      "Dry Weald",
+      "Hard Steppe",
+      "Heath",
+      "Highground",
+      "Lichen Wold",
+      "Moss Brush",
+      "Peat Moss",
+      "Pine Barren",
+      "Red Plain",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/larch"
+  },
+  {
+    "name": "Laurel Tree",
+    "terrains": [
+      "Dry Flat",
+      "Red Plain",
+      "Wald",
+      "Ox Pasture",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Sour Timber"
+    ],
+    "resource": "gfx/terobjs/trees/laurel"
+  },
+  {
+    "name": "Lemon Tree",
+    "terrains": [
+      "Ox Pasture",
+      "Dry Flat"
+    ],
+    "resource": "gfx/terobjs/trees/lemontree"
+  },
+  {
+    "name": "Linden Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Dry Flat",
+      "Dry Weald",
+      "Grass",
+      "Greens Ward",
+      "Hard Steppe",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Oak Wilds",
+      "Peat Moss",
+      "Shady Copse",
+      "Sour Timber",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/linden"
+  },
+  {
+    "name": "Lote Tree",
+    "terrains": [
+      "Black Wood",
+      "Bounty Acre",
+      "Green Brake",
+      "Ox Pasture",
+      "Shady Copse"
+    ],
+    "resource": "gfx/terobjs/trees/lotetree"
+  },
+  {
+    "name": "Mallorn Tree",
+    "terrains": []
+  },
+  {
+    "name": "Maple Tree",
+    "terrains": [
+      "Blue Sod",
+      "Deep Tangle",
+      "Greens Ward",
+      "Heath",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Sombre Bramble",
+      "Sour Timber",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/maple"
+  },
+  {
+    "name": "Mayflower Tree",
+    "terrains": [
+      "Highground",
+      "Red Plain",
+      "Timber Land",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/mayflower"
+  },
+  {
+    "name": "Medlar Tree",
+    "terrains": [
+      "Beech Grove",
+      "Greens Ward",
+      "Highground"
+    ],
+    "resource": "gfx/terobjs/trees/medlartree"
+  },
+  {
+    "name": "Mound Tree",
+    "terrains": [
+      "Cave",
+      "Gleam Grotto",
+      "Warm Depth",
+      "Wild Cavern"
+    ],
+    "resource": "gfx/terobjs/trees/moundtree"
+  },
+  {
+    "name": "Mulberry Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Cloud Range",
+      "Deep Tangle",
+      "Grass",
+      "Greens Ward",
+      "Highground",
+      "Leaf Detritus",
+      "Moss Brush",
+      "Oak Wilds",
+      "Root Bosk",
+      "Shady Copse",
+      "Timber Land",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/mulberry"
+  },
+  {
+    "name": "Oak Tree",
+    "terrains": [
+      "Bounty Acre",
+      "Blue Sod",
+      "Cloud Range",
+      "Deep Tangle",
+      "Grass",
+      "Greens Ward",
+      "Highground",
+      "Leaf",
+      "Leaf Detritus",
+      "Oak Wilds",
+      "Red Plain",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/oak"
+  },
+  {
+    "name": "Olive Tree",
+    "terrains": [
+      "Dry Flat",
+      "Ox Pasture",
+      "Wald",
+      "Shady Copse"
+    ],
+    "resource": "gfx/terobjs/trees/olivetree"
+  },
+  {
+    "name": "Orange Tree",
+    "terrains": [
+      "Wald",
+      "Lichen Wold",
+      "Heath"
+    ],
+    "resource": "gfx/terobjs/trees/orangetree"
+  },
+  {
+    "name": "Osier Tree",
+    "terrains": [
+      "Deep Tangle",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/osier"
+  },
+  {
+    "name": "Pear Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Cloud Range",
+      "Flower Meadow",
+      "Grass",
+      "Highground"
+    ],
+    "resource": "gfx/terobjs/trees/peartree"
+  },
+  {
+    "name": "Persimmon Tree",
+    "terrains": [
+      "Bounty Acre",
+      "Flower Meadow",
+      "Wild Moor",
+      "Green Brake"
+    ],
+    "resource": "gfx/terobjs/trees/persimmontree"
+  },
+  {
+    "name": "Pine Tree",
+    "terrains": [
+      "Beach",
+      "Black Wood",
+      "Blue Sod",
+      "Bog",
+      "Cloud Range",
+      "Deep Tangle",
+      "Dry Weald",
+      "Fen",
+      "Grass",
+      "Hard Steppe",
+      "Heath",
+      "Highground",
+      "Leaf Patch",
+      "Lichen Wold",
+      "Moss Brush",
+      "Mountain",
+      "Oak Wilds",
+      "Peat Moss",
+      "Pine Barren",
+      "Red Plain",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/pine"
+  },
+  {
+    "name": "Plane Tree",
+    "terrains": [
+      "Wald",
+      "Flower Meadow",
+      "Red Plain"
+    ],
+    "resource": "gfx/terobjs/trees/planetree"
+  },
+  {
+    "name": "Plum Tree",
+    "terrains": [
+      "Blue Sod",
+      "Bounty Acre",
+      "Deep Tangle",
+      "Flower Meadow",
+      "Green Brake",
+      "Highground",
+      "Leaf Detritus",
+      "Moss Brush",
+      "Red Plain",
+      "Root Bosk",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/plumtree"
+  },
+  {
+    "name": "Poplar Tree",
+    "terrains": [
+      "Blue Sod",
+      "Greens Ward",
+      "Heath",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/poplar"
+  },
+  {
+    "name": "Quince Tree",
+    "terrains": [
+      "Blue Sod",
+      "Beech Grove",
+      "Bounty Acre",
+      "Deep Tangle",
+      "Green Brake",
+      "Highground",
+      "Moss Brush",
+      "Oak Wilds",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/quincetree"
+  },
+  {
+    "name": "Rowan Tree",
+    "terrains": [
+      "Beech Grove",
+      "Bounty Acre",
+      "Deep Tangle",
+      "Flower Meadow",
+      "Green Brake",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Oak Wilds",
+      "Peat Moss",
+      "Root Bosk",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Sour Timber",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/rowan"
+  },
+  {
+    "name": "Sallow Tree",
+    "terrains": [
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Flat",
+      "Dry Weald",
+      "Highground",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Lichen Wold",
+      "Lush Field",
+      "Moor",
+      "Pine Barren",
+      "Root Bosk",
+      "Shady Copse",
+      "Wald",
+      "Wild Turf",
+      "Heath",
+      "Red Plain"
+    ],
+    "resource": "gfx/terobjs/trees/sallow"
+  },
+  {
+    "name": "Silver Fir Tree",
+    "terrains": [
+      "Red Plain",
+      "Flower Meadow"
+    ],
+    "resource": "gfx/terobjs/trees/silverfir"
+  },
+  {
+    "name": "Sorb Tree",
+    "terrains": [
+      "Beech Grove",
+      "Bounty Acre",
+      "Green Brake",
+      "Ox Pasture",
+      "Shady Copse",
+      "Sombre Bramble"
+    ],
+    "resource": "gfx/terobjs/trees/sorbtree"
+  },
+  {
+    "name": "Southron Pine Tree",
+    "terrains": [
+      "Badlands"
+    ]
+  },
+  {
+    "name": "Spruce Tree",
+    "terrains": [
+      "Black Wood",
+      "Blue Sod",
+      "Deep Tangle",
+      "Dry Weald",
+      "Hard Steppe",
+      "Heath",
+      "Highground",
+      "Leaf Patch",
+      "Lichen Wold",
+      "Moss Brush",
+      "Peat Moss",
+      "Pine Barren",
+      "Red Plain",
+      "Root Bosk",
+      "Sombre Bramble",
+      "Sour Timber",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/spruce"
+  },
+  {
+    "name": "Stone Pine Tree",
+    "terrains": [
+      "Pine Barren",
+      "Shady Copse",
+      "Sour Timber",
+      "Timber Land"
+    ],
+    "resource": "gfx/terobjs/trees/stonepine"
+  },
+  {
+    "name": "Sweetgum Tree",
+    "terrains": [
+      "Dry Flat",
+      "Flower Meadow",
+      "Leaf Detritus",
+      "Red Plain",
+      "Highground",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/sweetgum"
+  },
+  {
+    "name": "Sycamore Tree",
+    "terrains": [
+      "Cloud Range",
+      "Leaf Detritus",
+      "Timber Land",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/sycamore"
+  },
+  {
+    "name": "Tamarisk Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Cloud Range",
+      "Deep Tangle",
+      "Grass",
+      "Greens Ward",
+      "Highground",
+      "Leaf Detritus",
+      "Leaf Patch",
+      "Moss Brush",
+      "Oak Wilds",
+      "Red Plain",
+      "Root Bosk",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/tamarisk"
+  },
+  {
+    "name": "Terebinth Tree",
+    "terrains": [
+      "Beech Grove",
+      "Cloud Range",
+      "Greens Ward",
+      "Root Bosk"
+    ],
+    "resource": "gfx/terobjs/trees/terebinth"
+  },
+  {
+    "name": "Towercap",
+    "terrains": [
+      "Cave",
+      "Gleam Grotto",
+      "Wild Cavern"
+    ],
+    "resource": "gfx/terobjs/trees/towercap"
+  },
+  {
+    "name": "Tree Heath Tree",
+    "terrains": [
+      "Black Wood",
+      "Beech Grove",
+      "Dry Weald",
+      "Green Brake",
+      "Lichen Wold",
+      "Shady Copse"
+    ],
+    "resource": "gfx/terobjs/trees/treeheath"
+  },
+  {
+    "name": "Trumpet Chantrelle",
+    "terrains": [
+      "Cave"
+    ],
+    "resource": "gfx/terobjs/trees/trombonechantrelle"
+  },
+  {
+    "name": "Walnut Tree",
+    "terrains": [
+      "Beech Grove",
+      "Bounty Acre",
+      "Blue Sod",
+      "Deep Tangle",
+      "Green Brake",
+      "Grove",
+      "Leaf Detritus",
+      "Lush Field",
+      "Moor",
+      "Moss Brush",
+      "Shady Copse",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf",
+      "Ox Pasture",
+      "Dry Flat",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/walnuttree"
+  },
+  {
+    "name": "Warty Birch Tree",
+    "terrains": [
+      "Timber Land",
+      "Oak Wilds"
+    ],
+    "resource": "gfx/terobjs/trees/wartybirch"
+  },
+  {
+    "name": "Whitebeam Tree",
+    "terrains": [
+      "Black Wood",
+      "Blue Sod",
+      "Deep Tangle",
+      "Green Brake",
+      "Lichen Wold",
+      "Lush Field",
+      "Moor",
+      "Oak Wilds",
+      "Sombre Bramble",
+      "Timber Land",
+      "Wald",
+      "Wild Turf"
+    ],
+    "resource": "gfx/terobjs/trees/whitebeam"
+  },
+  {
+    "name": "Whitewillow Tree",
+    "terrains": []
+  },
+  {
+    "name": "Willow Tree",
+    "terrains": [
+      "Beech Grove",
+      "Blue Sod",
+      "Bounty Acre",
+      "Cloud Range",
+      "Deep Tangle",
+      "Fen",
+      "Flower Meadow",
+      "Grass",
+      "Green Brake",
+      "Hard Steppe",
+      "Highground",
+      "Root Bosk",
+      "Swamp",
+      "Wald",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/willow"
+  },
+  {
+    "name": "Wood Strawberry Tree",
+    "terrains": [
+      "Beech Grove",
+      "Cloud Range",
+      "Greens Ward",
+      "Highground"
+    ],
+    "resource": "gfx/terobjs/trees/strawberrytree"
+  },
+  {
+    "name": "Wych Elm Tree",
+    "terrains": [
+      "Cloud Range",
+      "Dry Weald",
+      "Greens Ward",
+      "Highground",
+      "Leaf Detritus",
+      "Timber Land",
+      "Wild Moor"
+    ],
+    "resource": "gfx/terobjs/trees/wychelm"
+  },
+  {
+    "name": "Yew Tree",
+    "terrains": [
+      "Deep Tangle",
+      "Hard Steppe",
+      "Leaf Patch",
+      "Moss Brush",
+      "Pine Barren",
+      "Sombre Bramble",
+      "Sour Timber",
+      "Timber Land",
+      "Wald"
+    ],
+    "resource": "gfx/terobjs/trees/yew"
+  },
+  {
+    "name": "Zelkova Tree",
+    "terrains": [
+      "Beech Grove",
+      "Leaf Patch",
+      "Ox Pasture",
+      "Peat Moss",
+      "Root Bosk"
+    ],
+    "resource": "gfx/terobjs/trees/zelkova"
+  }
+]
