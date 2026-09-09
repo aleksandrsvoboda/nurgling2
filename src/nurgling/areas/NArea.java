@@ -13,6 +13,8 @@ import java.util.List;
 
 public class NArea
 {
+    public static final String PILE_FILL_DIRECTION_JSON = "pile_fill_direction";
+
     public long gid = Long.MIN_VALUE;
     public String path = "";
     public boolean hide = false;
@@ -218,6 +220,7 @@ public class NArea
         this.jin = other.jin;
         this.jout = other.jout;
         this.jspec = other.jspec;
+        this.pileFillDirection = other.pileFillDirection;
         this.spec.clear();
         this.spec.addAll(other.spec);
         // Copy sync metadata if the incoming area carries it.
@@ -313,11 +316,62 @@ public class NArea
         {
             this.version = obj.getInt("version");
         }
+        this.pileFillDirection = PileFillDirection.fromStored(
+                obj.has(PILE_FILL_DIRECTION_JSON) ? obj.get(PILE_FILL_DIRECTION_JSON) : null);
     }
     public Space space;
     public String name;
     public int id;
     public int version = 1;  // Version for sync - incremented on each update
+
+    /**
+     * Which corner this zone is filled from. Belongs to {@link AreaFieldGroup#ROUTING}
+     * because it changes automation behaviour rather than the zone's geometry or looks.
+     */
+    public PileFillDirection pileFillDirection = PileFillDirection.DEFAULT;
+
+    /**
+     * Zone bounds that remember which zone produced them.
+     *
+     * Bots pass bounds around as a bare {@code Pair<Coord2d,Coord2d>} through many
+     * layers ({@code NContext -> TransferToPiles -> PileMaker}, {@code Finder.findGobs},
+     * ...). Returning a Pair subclass lets {@link nurgling.tools.Finder} recover the
+     * fill direction without a new parameter on every one of those signatures.
+     *
+     * {@link #direction()} reads the field live, so a bounds object cached before the
+     * user changed the direction still reports the new value.
+     */
+    public static final class DirectedAreaBounds extends Pair<Coord2d, Coord2d> {
+        private final NArea owner;
+
+        public DirectedAreaBounds(Coord2d a, Coord2d b, NArea owner) {
+            super(a, b);
+            this.owner = owner;
+        }
+
+        public PileFillDirection direction() {
+            return (owner == null || owner.pileFillDirection == null)
+                    ? PileFillDirection.DEFAULT : owner.pileFillDirection;
+        }
+    }
+
+    public DirectedAreaBounds directedBounds(Coord2d a, Coord2d b) {
+        return new DirectedAreaBounds(a, b, this);
+    }
+
+    /**
+     * Change the fill direction. Returns false when nothing changed so callers can
+     * skip the save round trip.
+     */
+    public boolean setPileFillDirection(PileFillDirection direction) {
+        PileFillDirection next = (direction == null) ? PileFillDirection.DEFAULT : direction;
+        if (pileFillDirection == next)
+            return false;
+        pileFillDirection = next;
+        markDirty(AreaFieldGroup.ROUTING);
+        return true;
+    }
+
     public long lastLocalChange = 0;  // Timestamp of last local change (to prevent sync overwrite)
     public Color color = new Color(194,194,65,56);
     public final ArrayList<Long> grids_id = new ArrayList<>();
@@ -384,7 +438,7 @@ public class NArea
                 if (NUtils.player()!=null && begin.mul(MCache.tilesz).dist(NUtils.player().rc) > 1000 && end.mul(MCache.tilesz).dist(NUtils.player().rc) > 1000) {
                     return null;
                 }
-                return new Pair<Coord2d, Coord2d>(begin.mul(MCache.tilesz), end.sub(1, 1).mul(MCache.tilesz).add(MCache.tilesz));
+                return directedBounds(begin.mul(MCache.tilesz), end.sub(1, 1).mul(MCache.tilesz).add(MCache.tilesz));
             }
         }
         return null;
@@ -469,6 +523,8 @@ public class NArea
             jspec.put(obj);
         }
         res.put("spec",jspec);
+        res.put(PILE_FILL_DIRECTION_JSON,
+                (pileFillDirection == null ? PileFillDirection.DEFAULT : pileFillDirection).name());
         res.put("version", version);
         this.jspec = jspec;
         return res;

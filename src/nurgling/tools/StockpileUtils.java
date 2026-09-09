@@ -14,6 +14,7 @@ public class StockpileUtils {
         itemMaxSize.put("gfx/terobjs/stockpile-board", new Coord(4,1));
         itemMaxSize.put("gfx/terobjs/stockpile-wblock", new Coord(1,2));
         itemMaxSize.put("gfx/terobjs/stockpile-pumpkin", new Coord(3,3));
+        itemMaxSize.put("gfx/terobjs/stockpile-watermelon", new Coord(2,2));
     }
 
     public static HashMap<String, String> defaultItems = new HashMap<>();

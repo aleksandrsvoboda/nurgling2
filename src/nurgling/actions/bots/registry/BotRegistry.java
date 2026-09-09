@@ -9,6 +9,9 @@ import nurgling.actions.bots.silk.SilkProductionBot;
 import nurgling.actions.bots.CollectSwillInArea;
 import nurgling.actions.bots.farmers.WheatFarmer;
 import nurgling.actions.bots.farmers.YellowOnionFarmer;
+import nurgling.actions.bots.farmers.WhiteOnionFarmer;
+import nurgling.actions.bots.farmers.WatermelonFarmer;
+import nurgling.actions.bots.farmers.RadishFarmer;
 import nurgling.actions.bots.farmers.StringGrassFarmer;
 import nurgling.actions.bots.farmers.WildKaleFarmer;
 import nurgling.actions.bots.farmers.WildOnionFarmer;
@@ -97,6 +100,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("blueprint_tree_planter", BotDescriptor.BotType.RESOURCES, "bot.blueprint_tree_planter.title", "bot.blueprint_tree_planter.desc", false, true, BlueprintTreePlanter.class, "treegardener", false));
         bots.add(new BotDescriptor("boughbee", BotDescriptor.BotType.RESOURCES, "bot.boughbee.title", "bot.boughbee.desc", false, true, BoughBee.class, "boughpyre", false));
         bots.add(new BotDescriptor("forager", BotDescriptor.BotType.RESOURCES, "bot.forager.title", "bot.forager.desc", true, true, Forager.class, "forager", false));
+        bots.add(new BotDescriptor("masterminer", BotDescriptor.BotType.RESOURCES, "bot.masterminer.title", "bot.masterminer.desc", false, true, MasterMiner.class, "masterminer", false));
         bots.add(new BotDescriptor("tunneling", BotDescriptor.BotType.RESOURCES, "Tunneling Bot", "Digs tunnels with support placement, or use 'No Support' mode for minesweeper-guided mining without supports.", false, true, TunnelingBot.class, "tunelling", false));
         bots.add(new BotDescriptor("tickbot", BotDescriptor.BotType.RESOURCES, "bot.tick.title", "bot.tick.desc", true, true, TickBot.class, "tick", false));
 
@@ -137,6 +141,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("attackall", BotDescriptor.BotType.BATTLE, "Attack All", "Attacks all enemies.", true, true, AttackAll.class, "attackall", false));
         bots.add(new BotDescriptor("taming", BotDescriptor.BotType.BATTLE, "Tame an animal", "Attacks the nearest animal waiting to be tamed, allows it to escape. Ties the animal on a rope if the corresponding setting is set. Fighting on your own", false, true, TaimingAnimal.class, "taming", false));
         bots.add(new BotDescriptor("combatdist", BotDescriptor.BotType.BATTLE, "Combat Distance Tool", "Opens a window to manage combat distance. Shows current distance to target, allows manual distance input, and auto-calculates optimal kiting distance based on enemy type and vehicle.", false, true, CombatDistanceTool.class, "combatdist", false));
+        bots.add(new BotDescriptor("quickbarrage", BotDescriptor.BotType.BATTLE, "bot.quickbarrage.title", "bot.quickbarrage.desc", false, true, QuickBarrageBot.class, "quickbarrage", false));
 
         // FARMING
         bots.add(new BotDescriptor("turnip", BotDescriptor.BotType.FARMING, "Turnip Farmer", "Automatically harvests and replants turnips.", true, true, nurgling.actions.bots.farmers.TurnipsFarmer.class, "turnip", false));
@@ -144,13 +149,16 @@ public class BotRegistry {
         bots.add(new BotDescriptor("beetroot", BotDescriptor.BotType.FARMING, "Beetroot Farmer", "Automatically harvests and replants beetroots.", true, true, nurgling.actions.bots.farmers.BeetrootFarmer.class, "beetroot", false));
         bots.add(new BotDescriptor("red_onion", BotDescriptor.BotType.FARMING, "Red Onion Farmer", "Automatically harvests and replants red onions.", true, true, nurgling.actions.bots.farmers.RedOnionFarmer.class, "red_onion", false));
         bots.add(new BotDescriptor("yellow_onion", BotDescriptor.BotType.FARMING, "Yellow Onion Farmer", "Automatically harvests and replants yellow onions.", true, true, YellowOnionFarmer.class, "yellow_onion", false));
+        bots.add(new BotDescriptor("white_onion", BotDescriptor.BotType.FARMING, "bot.white_onion.title", "bot.white_onion.desc", true, true, WhiteOnionFarmer.class, "white_onion", false));
         bots.add(new BotDescriptor("leek", BotDescriptor.BotType.FARMING, "Leek Farmer", "Automatically harvests and replants leek.", true, true, nurgling.actions.bots.farmers.LeekFarmer.class, "leek", false));
+        bots.add(new BotDescriptor("radish", BotDescriptor.BotType.FARMING, "bot.radish.title", "bot.radish.desc", true, true, RadishFarmer.class, "radish", false));
         bots.add(new BotDescriptor("garlic", BotDescriptor.BotType.FARMING, "Garlic Farmer", "Automatically harvests and replants garlic.", true, true, nurgling.actions.bots.farmers.GarlicFarmer.class, "garlic", false));
         bots.add(new BotDescriptor("hemp", BotDescriptor.BotType.FARMING, "Hemp Farmer", "Automatically harvests and replants hemp.", true, true, nurgling.actions.bots.farmers.HempFarmer.class, "hemp", false));
         bots.add(new BotDescriptor("flax", BotDescriptor.BotType.FARMING, "Flax Farmer", "Automatically harvests and replants flax.", true, true, nurgling.actions.bots.farmers.FlaxFarmer.class, "flax", false));
         bots.add(new BotDescriptor("lettuce", BotDescriptor.BotType.FARMING, "Lettuce Farmer", "Automatically harvests and replants lettuce.", true, true, nurgling.actions.bots.farmers.LettuceFarmer.class, "lettuce", true));
         bots.add(new BotDescriptor("green_kale", BotDescriptor.BotType.FARMING, "Green Kale Farmer", "Automatically harvests and replants green kale.", true, true, nurgling.actions.bots.farmers.GreenKaleFarmer.class, "green_kale", false));
         bots.add(new BotDescriptor("pumpkin", BotDescriptor.BotType.FARMING, "Pumpkin Farmer", "Automatically harvests and replants pumpkins.", true, true, PumpkinFarmer.class, "pumpkin", true));
+        bots.add(new BotDescriptor("watermelon", BotDescriptor.BotType.FARMING, "bot.watermelon.title", "bot.watermelon.desc", true, true, WatermelonFarmer.class, "watermelon", true));
         bots.add(new BotDescriptor("barley", BotDescriptor.BotType.FARMING, "Barley Farmer", "Automatically harvests and replants barley.", true, true, nurgling.actions.bots.farmers.BarleyFarmer.class, "barley", false));
         bots.add(new BotDescriptor("millet", BotDescriptor.BotType.FARMING, "Millet Farmer", "Automatically harvests and replants millet.", true, true, nurgling.actions.bots.farmers.MilletFarmer.class, "millet", false));
         bots.add(new BotDescriptor("wheat", BotDescriptor.BotType.FARMING, "Wheat Farmer", "Automatically harvests and replants wheat.", true, true, WheatFarmer.class, "wheat", false));
@@ -161,15 +169,6 @@ public class BotRegistry {
         bots.add(new BotDescriptor("peppercorn", BotDescriptor.BotType.FARMING, "Peppercorn Farmer", "Automatically harvests peppercorn from trellis.", true, true, PeppercornFarmer.class, "peppercorn", false));
         bots.add(new BotDescriptor("pea", BotDescriptor.BotType.FARMING, "Pea Farmer", "Automatically harvests and replants peas.", true, true, PeaFarmer.class, "pea", false));
         bots.add(new BotDescriptor("cucumber", BotDescriptor.BotType.FARMING, "Cucumber Farmer", "Automatically harvests and replants cucumbers.", true, true, CucumberFarmer.class, "cucumber", false));
-        bots.add(new BotDescriptor("goats", BotDescriptor.BotType.FARMING, "Goat Manager", "Manages goat herds.", true, true, GoatsAction.class, "goats", false));
-        bots.add(new BotDescriptor("sheeps", BotDescriptor.BotType.FARMING, "Sheep Manager", "Manages sheep herds.", true, true, SheepsAction.class, "sheeps", false));
-        bots.add(new BotDescriptor("pigs", BotDescriptor.BotType.FARMING, "Pig Manager", "Manages pig herds.", true, true, PigsAction.class, "pigs", false));
-        bots.add(new BotDescriptor("horses", BotDescriptor.BotType.FARMING, "Horse Manager", "Manages horses.", true, true, HorsesAction.class, "horses", false));
-        bots.add(new BotDescriptor("cows", BotDescriptor.BotType.FARMING, "Cow Manager", "Manages cows.", true, true, nurgling.actions.bots.CowsAction.class, "cows", false));
-        bots.add(new BotDescriptor("reindeers", BotDescriptor.BotType.FARMING, "Teimdeer Manager", "Manages teimdeer.", true, true, nurgling.actions.bots.DeersAction.class, "reindeers", false));
-        bots.add(new BotDescriptor("chicken", BotDescriptor.BotType.FARMING, "Chicken Manager", "Manages chicken coops.", true, true, KFC.class, "chicken", false));
-        bots.add(new BotDescriptor("rabbit", BotDescriptor.BotType.FARMING, "Rabbit Manager", "Manages rabbit hutches.", true, true, RabbitMaster.class, "rabbit", false));
-        bots.add(new BotDescriptor("bee", BotDescriptor.BotType.FARMING, "Beehive Manager", "Collects honey and wax from beehives.", true, true, HoneyAndWaxCollector.class, "bee", false));
         bots.add(new BotDescriptor("stringgrass", BotDescriptor.BotType.FARMING, "String Grass Farmer", "Automatically harvests and replants string grass.", true, true, StringGrassFarmer.class, "stringgrass", false));
         bots.add(new BotDescriptor("wildkale", BotDescriptor.BotType.FARMING, "Wild Kale Farmer", "Automatically harvests and replants wild kale.", true, true, WildKaleFarmer.class, "wildkale", false));
         bots.add(new BotDescriptor("wildonion", BotDescriptor.BotType.FARMING, "Wild Onion Farmer", "Automatically harvests and replants wild onions.", true, true, WildOnionFarmer.class, "wildonion", false));
@@ -183,8 +182,18 @@ public class BotRegistry {
         // Garden pot farming (harvest, fill, plant cycle)
         bots.add(new BotDescriptor("gardenpot_farmer", BotDescriptor.BotType.FARMING, "Garden Pot Farmer", "Complete garden pot farming cycle: harvests ready plants, fills with soil/water, and plants new items.", true, true, GardenPotFarmer.class, "gardenpot", false));
 
-        // Truffle pig hunting
-        bots.add(new BotDescriptor("trufflepig", BotDescriptor.BotType.FARMING, "Truffle Pig Hunter", "Hunt truffles with a leashed pig along a defined path.", true, true, TrufflePigHunter.class, "trufflepig", false));
+        // ANIMALS
+        bots.add(new BotDescriptor("goats", BotDescriptor.BotType.ANIMALS, "Goat Manager", "Manages goat herds.", true, true, GoatsAction.class, "goats", false));
+        bots.add(new BotDescriptor("sheeps", BotDescriptor.BotType.ANIMALS, "Sheep Manager", "Manages sheep herds.", true, true, SheepsAction.class, "sheeps", false));
+        bots.add(new BotDescriptor("pigs", BotDescriptor.BotType.ANIMALS, "Pig Manager", "Manages pig herds.", true, true, PigsAction.class, "pigs", false));
+        bots.add(new BotDescriptor("horses", BotDescriptor.BotType.ANIMALS, "Horse Manager", "Manages horses.", true, true, HorsesAction.class, "horses", false));
+        bots.add(new BotDescriptor("cows", BotDescriptor.BotType.ANIMALS, "Cow Manager", "Manages cows.", true, true, nurgling.actions.bots.CowsAction.class, "cows", false));
+        bots.add(new BotDescriptor("reindeers", BotDescriptor.BotType.ANIMALS, "Teimdeer Manager", "Manages teimdeer.", true, true, nurgling.actions.bots.DeersAction.class, "reindeers", false));
+        bots.add(new BotDescriptor("chicken", BotDescriptor.BotType.ANIMALS, "Chicken Manager", "Manages chicken coops.", true, true, KFC.class, "chicken", false));
+        bots.add(new BotDescriptor("duck", BotDescriptor.BotType.ANIMALS, "bot.duck.title", "bot.duck.desc", true, true, DuckMaster.class, "duck", false));
+        bots.add(new BotDescriptor("rabbit", BotDescriptor.BotType.ANIMALS, "Rabbit Manager", "Manages rabbit hutches.", true, true, RabbitMaster.class, "rabbit", false));
+        bots.add(new BotDescriptor("bee", BotDescriptor.BotType.ANIMALS, "Beehive Manager", "Collects honey and wax from beehives.", true, true, HoneyAndWaxCollector.class, "bee", false));
+        bots.add(new BotDescriptor("trufflepig", BotDescriptor.BotType.ANIMALS, "Truffle Pig Hunter", "Hunt truffles with a leashed pig along a defined path.", true, true, TrufflePigHunter.class, "trufflepig", false));
 
         // FARMING QUALITY
         bots.add(new BotDescriptor("turnipq", BotDescriptor.BotType.FARMING_QUALITY, "Turnip Farmer Quality", "Automatically harvests and replants turnips in X*Y cell patches.", true, true, TurnipsFarmerQ.class, "turnipq", false));
@@ -192,13 +201,16 @@ public class BotRegistry {
         bots.add(new BotDescriptor("beetrootq", BotDescriptor.BotType.FARMING_QUALITY, "Beetroot Farmer Quality", "Automatically harvests and replants beetroot in X*Y cell patches.", true, true, BeetrootFarmerQ.class, "beetrootq", false));
         bots.add(new BotDescriptor("red_onionq", BotDescriptor.BotType.FARMING_QUALITY, "Red Onion Farmer Quality", "Automatically harvests and replants red onions in X*Y cell patches.", true, true, RedOnionFarmerQ.class, "red_onionq", false));
         bots.add(new BotDescriptor("yellow_onionq", BotDescriptor.BotType.FARMING_QUALITY, "Yellow Onion Farmer Quality", "Automatically harvests and replants yellow onions in X*Y cell patches.", true, true, YellowOnionFarmerQ.class, "yellow_onionq", false));
+        bots.add(new BotDescriptor("white_onionq", BotDescriptor.BotType.FARMING_QUALITY, "bot.white_onionq.title", "bot.white_onionq.desc", true, true, WhiteOnionFarmerQ.class, "white_onionq", false));
         bots.add(new BotDescriptor("leekq", BotDescriptor.BotType.FARMING_QUALITY, "Leek Farmer Quality", "Automatically harvests and replants leek in X*Y cell patches.", true, true, LeekFarmerQ.class, "leekq", false));
+        bots.add(new BotDescriptor("radishq", BotDescriptor.BotType.FARMING_QUALITY, "bot.radishq.title", "bot.radishq.desc", true, true, RadishFarmerQ.class, "radishq", false));
         bots.add(new BotDescriptor("garlicq", BotDescriptor.BotType.FARMING_QUALITY, "Garlic Farmer Quality", "Automatically harvests and replants garlic in X*Y cell patches.", true, true, GarlicFarmerQ.class, "garlicq", false));
         bots.add(new BotDescriptor("hempq", BotDescriptor.BotType.FARMING_QUALITY, "Hemp Farmer Quality", "Automatically harvests and replants hemp in X*Y cell patches.", true, true, HempFarmerQ.class, "hempq", false));
         bots.add(new BotDescriptor("flaxq", BotDescriptor.BotType.FARMING_QUALITY, "Flax Farmer Quality", "Automatically harvests and replants flax in X*Y cell patches.", true, true, FlaxFarmerQ.class, "flaxq", false));
         bots.add(new BotDescriptor("green_kaleq", BotDescriptor.BotType.FARMING_QUALITY, "Green Kale Farmer Quality", "Automatically harvests and replants green kale in X*Y cell patches.", true, true, GreenKaleFarmerQ.class, "green_kaleq", false));
         bots.add(new BotDescriptor("lettuceq", BotDescriptor.BotType.FARMING_QUALITY, "Lettuce Farmer Quality", "Automatically harvests and replants lettuce in X*Y cell patches.", true, true, LettuceFarmerQ.class, "lettuceq", false));
         bots.add(new BotDescriptor("pumpkinq", BotDescriptor.BotType.FARMING_QUALITY, "Pumpkin Farmer Quality", "Automatically harvests and replants pumpkins in X*Y cell patches.", true, true, PumpkinFarmerQ.class, "pumpkinq", false));
+        bots.add(new BotDescriptor("watermelonq", BotDescriptor.BotType.FARMING_QUALITY, "bot.watermelonq.title", "bot.watermelonq.desc", true, true, WatermelonFarmerQ.class, "watermelonq", false));
 
         bots.add(new BotDescriptor("barleyq", BotDescriptor.BotType.FARMING_QUALITY, "Barley Farmer Quality", "Automatically harvests and replants barley in X*Y cell patches.", true, true, BarleyFarmerQ.class, "barleyq", false));
         bots.add(new BotDescriptor("milletq", BotDescriptor.BotType.FARMING_QUALITY, "Millet Farmer Quality", "Automatically harvests and replants millet in X*Y cell patches.", true, true, MilletFarmerQ.class, "milletq", false));
@@ -241,7 +253,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("studytable", BotDescriptor.BotType.UTILS, "bot.studytable.title", "bot.studytable.desc", true, true, StudyDeskFiller.class, "studytable", false));
         // Same class as "studytable" (fillAll=false) - allowedAsStepInScenario=false since
         // schedules pick this via that step's own All/Just Owned setting instead (StepSettingsPanel).
-        bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "test47", false, Map.of("fillAll", false)));
+        bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "studytable_nearest", false, Map.of("fillAll", false)));
         bots.add(new BotDescriptor("swill_collector", BotDescriptor.BotType.UTILS, "Swill Collector", "Collects swill items from area and feeds to troughs/cisterns.", false, true, CollectSwillToTrough.class, "swillcollector", false));
         bots.add(new BotDescriptor("swill_to_trough", BotDescriptor.BotType.UTILS, "Swill To Trough", "Collects swill from area to selected trough (click to select).", false, true, CollectSwillInArea.class, "swillzone", false));
         bots.add(new BotDescriptor("qzone", BotDescriptor.BotType.UTILS, "Quality in Zone", "Scan the quality of all typical objects in the area.", false, true, InspectQualityBot.class, "qzone", false));
@@ -307,5 +319,9 @@ public class BotRegistry {
 
     public static List<BotDescriptor> allowedInBotMenu() {
         return bots.stream().filter(b -> b.allowedAsItemInBotMenu).collect(Collectors.toList());
+    }
+
+    public static List<BotDescriptor> all() {
+        return Collections.unmodifiableList(bots);
     }
 }

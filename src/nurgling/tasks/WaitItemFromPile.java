@@ -36,6 +36,16 @@ public class WaitItemFromPile extends NTask
     private final int baseline;
     private int totalItemCount = 0;
 
+    /* The pile delivers one item per "xfer2" message and the server silently drops the ones
+     * that no longer fit, so a transfer can legitimately settle below target_size - a full
+     * inventory being the usual reason. Waiting on the difference forever is what hangs the
+     * caller, so once nothing new has arrived for a while, finish and let the caller read the
+     * partial count off getTotalItemCount(). Checks run on the UI tick, so this is a few
+     * seconds of complete silence, long after a real transfer would have kept streaming. */
+    private static final int STALL_LIMIT = 250;
+    private int stall = 0;
+    private int highWater = Integer.MIN_VALUE;
+
     public WaitItemFromPile()
     {
         this(null, 0, 1);
@@ -102,7 +112,16 @@ public class WaitItemFromPile extends NTask
             for (NGItem item : fresh)
                 totalItemCount += getItemCount(item);
         }
-        return totalItemCount >= target_size;
+        if (totalItemCount >= target_size)
+            return true;
+
+        if (totalItemCount > highWater)
+        {
+            highWater = totalItemCount;
+            stall = 0;
+            return false;
+        }
+        return ++stall >= STALL_LIMIT;
     }
 
     private int getItemCount(NGItem item)

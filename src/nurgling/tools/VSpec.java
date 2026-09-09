@@ -4,10 +4,14 @@ import nurgling.NStyle;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class VSpec {
     public static HashMap<String, ArrayList<JSONObject>> categories = new HashMap<>();
@@ -1332,6 +1336,7 @@ public class VSpec {
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cattailroots\",\"name\":\"Cattail Roots\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cavebulb\",\"name\":\"Cavebulb\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/oddtuber\",\"name\":\"Odd Tuber\"}"));
+        rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/radish\",\"name\":\"Radish\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/turnip\",\"name\":\"Turnip\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/beetweird\",\"name\":\"Weird Beetroot\"}"));
         categories.put("Tuber", rootVegetables);
@@ -1340,6 +1345,7 @@ public class VSpec {
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/preonion\",\"name\":\"Wild Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/yellowonion\",\"name\":\"Yellow Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/redonion\",\"name\":\"Red Onion\"}"));
+        onions.add(new JSONObject("{\"static\":\"gfx/invobjs/whiteonion\",\"name\":\"White Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/garlic\",\"name\":\"Garlic\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/small/leek\",\"name\":\"Leek\",\"x\":2,\"y\":1}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/pickledonion\",\"name\":\"Pickled Onions\"}"));
@@ -1396,6 +1402,8 @@ public class VSpec {
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-pipeweed\",\"name\":\"Pipeweed Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-poppy\",\"name\":\"Poppy Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-pumpkin\",\"name\":\"Pumpkin Seeds\"}"));
+        seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-radish\",\"name\":\"Radish Seeds\"}"));
+        seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-watermelon\",\"name\":\"Watermelon Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-turnip\",\"name\":\"Turnip Seeds\"}"));
         seeds.addAll(maltedGrains);
         seeds.addAll(millableSeed);
@@ -1407,11 +1415,14 @@ public class VSpec {
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/lettucehead\",\"name\":\"Head of Lettuce\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkinflesh\",\"name\":\"Pumpkin Flesh\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkin\",\"name\":\"Pumpkin\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/watermelonslice\",\"name\":\"Watermelon Slice\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/small/watermelon\",\"name\":\"Watermelon\",\"x\":2,\"y\":2}"));
         categories.put("Crops - other", cropsOther);
 
         ArrayList<JSONObject> eggs = new ArrayList<>();
         eggs.add(new JSONObject("{\"static\":\"gfx/invobjs/egg-bullfinch\",\"name\":\"Bullfinch Egg\"}"));
         eggs.add(new JSONObject("{\"static\":\"gfx/invobjs/egg-chicken\",\"name\":\"Chicken Egg\"}"));
+        eggs.add(new JSONObject("{\"static\":\"gfx/invobjs/egg-duck\",\"name\":\"Duck Egg\"}"));
         eggs.add(new JSONObject("{\"static\":\"gfx/invobjs/egg-magpie\",\"name\":\"Magpie Egg\"}"));
         eggs.add(new JSONObject("{\"static\":\"gfx/invobjs/egg-rockdove\",\"name\":\"Rock Dove Egg\"}"));
         eggs.add(new JSONObject("{\"static\":\"gfx/invobjs/egg-woodgrouse\",\"name\":\"Woodgrouse Egg\"}"));
@@ -1855,6 +1866,8 @@ public class VSpec {
         ArrayList<JSONObject> deadAnimalCarcasses = new ArrayList<>();
         deadAnimalCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/rooster-dead\",\"name\":\"Dead Cock\"}"));
         deadAnimalCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/hen-dead\",\"name\":\"Dead Hen\"}"));
+        deadAnimalCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/duckdrake-dead\",\"name\":\"Dead Duck Drake\"}"));
+        deadAnimalCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/duckhen-dead\",\"name\":\"Dead Duck Hen\"}"));
         deadAnimalCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/hedgehog-dead\",\"name\":\"Dead Hedgehog\"}"));
         deadAnimalCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/stoat-dead\",\"name\":\"Dead Stoat\"}"));
         categories.put("Dead Animal Carcass", deadAnimalCarcasses);
@@ -1870,6 +1883,7 @@ public class VSpec {
         cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/bogturtle-cleaned\",\"name\":\"Cleaned Bog Turtle\"}"));
         cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/bullfinch-cleaned\",\"name\":\"Cleaned Bullfinch\"}"));
         cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/chicken-cleaned\",\"name\":\"Cleaned Chicken\"}"));
+        cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/duck-cleaned\",\"name\":\"Cleaned Duck\"}"));
         cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/eagleowl-cleaned\",\"name\":\"Cleaned Eagle Owl\"}"));
         cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/goldeneagle-cleaned\",\"name\":\"Cleaned Golden Eagle\"}"));
         cleanCarcasses.add(new JSONObject("{\"static\":\"gfx/invobjs/magpie-cleaned\",\"name\":\"Cleaned Magpie\"}"));
@@ -2007,6 +2021,7 @@ public class VSpec {
         ArrayList<JSONObject> cleanedBirds = new ArrayList<>();
         cleanedBirds.add(new JSONObject("{\"static\":\"gfx/invobjs/bullfinch-cleaned\",\"name\":\"Cleaned Bullfinch\"}"));
         cleanedBirds.add(new JSONObject("{\"static\":\"gfx/invobjs/chicken-cleaned\",\"name\":\"Cleaned Chicken\"}"));
+        cleanedBirds.add(new JSONObject("{\"static\":\"gfx/invobjs/duck-cleaned\",\"name\":\"Cleaned Duck\"}"));
         cleanedBirds.add(new JSONObject("{\"static\":\"gfx/invobjs/goldeneagle-cleaned\",\"name\":\"Cleaned Golden Eagle\"}"));
         cleanedBirds.add(new JSONObject("{\"static\":\"gfx/invobjs/magpie-cleaned\",\"name\":\"Cleaned Magpie\"}"));
         cleanedBirds.add(new JSONObject("{\"static\":\"gfx/invobjs/mallard-cleaned\",\"name\":\"Cleaned Mallard\"}"));
@@ -2031,6 +2046,7 @@ public class VSpec {
 
         ArrayList<JSONObject> poultry = new ArrayList<>();
         poultry.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-poultry\", \"gfx/invobjs/meat-chicken\"], \"name\": \"Chicken Meat\"}"));
+        poultry.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-poultry\", \"gfx/invobjs/meat-duck\"], \"name\": \"Duck Meat\"}"));
         poultry.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-poultry\", \"gfx/invobjs/meat-eagleowl\"], \"name\": \"Eagle Owl Meat\"}"));
         poultry.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-poultry\", \"gfx/invobjs/meat-goldeneagle\"], \"name\": \"Golden Eagle Meat\"}"));
         poultry.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-poultry\", \"gfx/invobjs/meat-magpie\"], \"name\": \"Magpie Meat\"}"));
@@ -2238,6 +2254,7 @@ public class VSpec {
         ArrayList<JSONObject> feathers = new ArrayList<>();
         feathers.add(new JSONObject("{\"static\":\"gfx/invobjs/feather-bullfinch\",\"name\":\"Bullfinch Feather\"}"));
         feathers.add(new JSONObject("{\"static\":\"gfx/invobjs/feather-chicken\",\"name\":\"Chicken Feathers\"}"));
+        feathers.add(new JSONObject("{\"static\":\"gfx/invobjs/feather-duck\",\"name\":\"Duck Feather\"}"));
         feathers.add(new JSONObject("{\"static\":\"gfx/invobjs/feather-eagleowl\",\"name\":\"Eagle Owl Feather\"}"));
         feathers.add(new JSONObject("{\"static\":\"gfx/invobjs/feather-goldeneagle\",\"name\":\"Golden Eagle Feather\"}"));
         feathers.add(new JSONObject("{\"static\":\"gfx/invobjs/feather-magpie\",\"name\":\"Magpie Feather\"}"));
@@ -3431,5 +3448,48 @@ public class VSpec {
             return products.get(products.size() - 1);
         }
         return null;
+    }
+
+    private static final class TreeProductIndex {
+        private static final Map<String, Set<String>> byProduct = buildTreeProductIndex();
+    }
+
+    private static Map<String, Set<String>> buildTreeProductIndex() {
+        Map<String, Set<String>> result = new HashMap<>();
+        for(Map.Entry<String, ArrayList<String>> entry : object.entrySet()) {
+            String resource = entry.getKey();
+            if(resource == null || !resource.startsWith("gfx/terobjs/trees/"))
+                continue;
+            String tree = resource;
+            if(resource.endsWith("-log"))
+                tree = resource.substring(0, resource.length() - 4);
+            else if(resource.endsWith("log"))
+                tree = resource.substring(0, resource.length() - 3);
+            if(!object.containsKey(tree))
+                continue;
+            for(String product : entry.getValue()) {
+                String key = normalizedName(product);
+                if(!key.isEmpty())
+                    result.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(tree);
+            }
+        }
+        Map<String, Set<String>> immutable = new HashMap<>();
+        for(Map.Entry<String, Set<String>> entry : result.entrySet())
+            immutable.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        return Collections.unmodifiableMap(immutable);
+    }
+
+    /**
+     * Trees whose products include the given item name, as {@code gfx/terobjs/trees/*} paths.
+     * Used to trace a quest's "Pick 5 Alder Bark" back to the alder tree, and from there
+     * to the biomes the tree grows in.
+     */
+    public static Set<String> treeResourcesForProduct(String product) {
+        Set<String> result = TreeProductIndex.byProduct.get(normalizedName(product));
+        return result == null ? Collections.emptySet() : result;
+    }
+
+    private static String normalizedName(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 }

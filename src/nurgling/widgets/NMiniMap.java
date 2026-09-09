@@ -62,6 +62,24 @@ NMiniMap extends MiniMap {
         return null;
     }
 
+    /**
+     * Whether one category of mark is shown. Backs both the Map Tools row and the map
+     * window's toggle button, so the two cannot drift apart.
+     */
+    public static boolean showProspectKind(nurgling.conf.ProspectKind kind) {
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        return (settings == null) || settings.enabled(kind);
+    }
+
+    public static void showProspectKind(nurgling.conf.ProspectKind kind, boolean val) {
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        if(settings == null)
+            settings = new nurgling.conf.ProspectMarkSettings();
+        settings.setEnabled(kind, val);
+        /* Mutated in place, so re-setting it is what flags the config as dirty. */
+        NConfig.set(NConfig.Key.prospectMarks, settings);
+    }
+
     /** Whether a prospected sample mark passes the current kind/threshold filter. */
     public static boolean markVisible(LabeledMinimapMark mark) {
         nurgling.conf.ProspectMarkSettings settings = prospectSettings();

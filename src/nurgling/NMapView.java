@@ -157,6 +157,19 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     public HashMap<Long, Gob> dummys = new HashMap<>();
     public HashMap<Long, Gob> routeDummys = new HashMap<>();
     public HashMap<Long, Gob> portalDummys = new HashMap<>();
+    private MinesweeperOverlay minesweeperOverlay;
+
+    /**
+     * Ask the minesweeper overlay to re-read its memory and redraw, rather than waiting for
+     * the next periodic pass. Called when something starts that the player wants the mine
+     * state for. Safe from a bot thread; the redraw happens on the next tick.
+     */
+    public void restoreMinesweeperOverlay() {
+        if (minesweeperOverlay == null) {
+            minesweeperOverlay = new MinesweeperOverlay();
+        }
+        minesweeperOverlay.requestRestore();
+    }
 
 
     // Destination point for path line (set by click)
@@ -632,6 +645,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             dummy.virtual = true;
             area.gid = dummy.id;
             dummy.addcustomol(new NAreaLabel(dummy, area));
+            dummy.addcustomol(new nurgling.overlays.NAreaDirectionArrow(dummy, area));
             synchronized (dummys) {
                 dummys.put(dummy.id, dummy);
             }
@@ -1204,6 +1218,12 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             chunkNavManager.tick();
         }
         milestoneTracker.tick();
+
+        if (minesweeperOverlay == null) {
+            minesweeperOverlay = new MinesweeperOverlay();
+        }
+        minesweeperOverlay.tick(dt);
+
         ArrayList<Long> forRemove = new ArrayList<>();
 //        for(Gob dummy : dummys.values())
 //        {

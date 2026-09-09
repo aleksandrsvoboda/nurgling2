@@ -1105,6 +1105,11 @@ public class NContext {
     public static NArea findIn(NAlias name) {
         double dist = 10000;
         NArea res = null;
+        // player() is null while map/plgob is still resolving (login, teleport, logout);
+        // selection here is purely distance-based, so there is nothing to pick without it.
+        Gob player = NUtils.player();
+        if(player == null)
+            return null;
         if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null) {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
@@ -1114,7 +1119,7 @@ public class NContext {
                         Pair<Coord2d, Coord2d> testrc = test.getRCArea();
                         if(testrc!=null) {
                             double testdist;
-                            if ((testdist = (testrc.a.dist(NUtils.player().rc) + testrc.b.dist(NUtils.player().rc))) < dist) {
+                            if ((testdist = (testrc.a.dist(player.rc) + testrc.b.dist(player.rc))) < dist) {
                                 res = test;
                                 dist = testdist;
                             }
@@ -1212,13 +1217,16 @@ public class NContext {
                 targets.add(area.area);
         }
 
-        if(targets.size()>1) {
+        // Closest-of-equals only refines the threshold pick above, so when player() is
+        // unavailable (map/plgob still resolving) keep that pick instead of NPEing.
+        Gob player = NUtils.player();
+        if(targets.size()>1 && player != null) {
             for (NArea test: targets) {
                 Pair<Coord2d, Coord2d> testrc = test.getRCArea();
                 if(testrc == null)
                     continue;
                 double testdist;
-                if ((testdist = (testrc.a.dist(NUtils.player().rc) + testrc.b.dist(NUtils.player().rc))) < dist) {
+                if ((testdist = (testrc.a.dist(player.rc) + testrc.b.dist(player.rc))) < dist) {
                     res = test;
                     dist = testdist;
                 }
@@ -1260,13 +1268,16 @@ public class NContext {
                 targets.add(area.area);
         }
 
-        if(targets.size()>1) {
+        // Closest-of-equals only refines the threshold pick above, so when player() is
+        // unavailable (map/plgob still resolving) keep that pick instead of NPEing.
+        Gob player = NUtils.player();
+        if(targets.size()>1 && player != null) {
             for (NArea test: targets) {
                 Pair<Coord2d, Coord2d> testrc = test.getRCArea();
                 if(testrc == null)
                     continue;
                 double testdist;
-                if ((testdist = (testrc.a.dist(NUtils.player().rc) + testrc.b.dist(NUtils.player().rc))) < dist) {
+                if ((testdist = (testrc.a.dist(player.rc) + testrc.b.dist(player.rc))) < dist) {
                     res = test;
                     dist = testdist;
                 }
@@ -1493,6 +1504,10 @@ public class NContext {
     public static NArea findSpec(String name) {
         double dist = 10000;
         NArea res = null;
+        // See findIn(NAlias): no player position means no distance to compare against.
+        Gob player = NUtils.player();
+        if(player == null)
+            return null;
         if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null) {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
@@ -1507,7 +1522,7 @@ public class NContext {
                                 Pair<Coord2d, Coord2d> testrc = test.getRCArea();
                                 if(testrc != null) {
                                     double testdist;
-                                    if ((testdist = (testrc.a.dist(NUtils.player().rc) + testrc.b.dist(NUtils.player().rc))) < dist) {
+                                    if ((testdist = (testrc.a.dist(player.rc) + testrc.b.dist(player.rc))) < dist) {
                                         res = test;
                                         dist = testdist;
                                     }
@@ -1524,6 +1539,10 @@ public class NContext {
     public static NArea findSpec(String name, String sub) {
         double dist = 10000;
         NArea res = null;
+        // See findIn(NAlias): no player position means no distance to compare against.
+        Gob player = NUtils.player();
+        if(player == null)
+            return null;
         if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null) {
             Set<Integer> nids = NUtils.getGameUI().map.nols.keySet();
             for(Integer id : nids) {
@@ -1538,7 +1557,7 @@ public class NContext {
                                 Pair<Coord2d,Coord2d> testrc = test.getRCArea();
                                 if(testrc!=null) {
                                     double testdist;
-                                    if ((testdist = (testrc.a.dist(NUtils.player().rc) + testrc.b.dist(NUtils.player().rc))) < dist) {
+                                    if ((testdist = (testrc.a.dist(player.rc) + testrc.b.dist(player.rc))) < dist) {
                                         res = test;
                                         dist = testdist;
                                     }

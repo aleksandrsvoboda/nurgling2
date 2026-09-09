@@ -88,6 +88,10 @@ public class NConfig
         debug,
         claydiggerprop,
         miningol,
+        minesweeperol,
+        miningoverlaymemory,
+        masterminerprop,
+        masterminermarkingconfig,
         q_pattern,
         q_range,
         q_visitor,
@@ -130,6 +134,8 @@ public class NConfig
         validateAllCropsBeforeHarvest,
         skipButcherInKFC,
         skipPluckingCocksInKFC,
+        skipButcherInDuck,
+        skipPluckingDrakesInDuck,
         studyDeskLayout,
         milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map
         milestoneTracking,   // Whether MilestoneTracker passively records signpost/milestone travel
@@ -328,6 +334,10 @@ public class NConfig
         conf.put(Key.disableMenugridKeys, false);
         conf.put(Key.baseurl, "https://raw.githubusercontent.com/aleksandrsvoboda/nurgling-release/stable/ver");
         conf.put(Key.miningol, true);
+        conf.put(Key.minesweeperol, true);
+        conf.put(Key.miningoverlaymemory, new ArrayList<NMiningOverlayMemory>());
+        conf.put(Key.masterminerprop, new ArrayList<NMasterMinerProp>());
+        conf.put(Key.masterminermarkingconfig, new ArrayList<NMasterMinerMarkingConfig>());
         conf.put(Key.crime, false);
         conf.put(Key.tracking, false);
         conf.put(Key.swimming, false);
@@ -397,6 +407,8 @@ public class NConfig
         conf.put(Key.ignoreStrawInFarmers, false);
         conf.put(Key.skipButcherInKFC, false);
         conf.put(Key.skipPluckingCocksInKFC, false);
+        conf.put(Key.skipButcherInDuck, false);
+        conf.put(Key.skipPluckingDrakesInDuck, false);
         conf.put(Key.printpfmap, false);
         conf.put(Key.boxLineWidth, 4);
         conf.put(Key.persistentBarrelLabels, false);
@@ -1183,6 +1195,15 @@ public class NConfig
                                 break;
                             case "NWorldExplorer":
                                 res.add(new NWorldExplorerProp(obj));
+                                break;
+                            case "NMiningOverlayMemory":
+                                res.add(new NMiningOverlayMemory(obj));
+                                break;
+                            case "NMasterMinerProp":
+                                res.add(new NMasterMinerProp(obj));
+                                break;
+                            case "NMasterMinerMarkingConfig":
+                                res.add(new NMasterMinerMarkingConfig(obj));
                                 break;
                             case "NFishingSettings":
                                 res.add(new NFishingSettings(obj));

@@ -13,6 +13,7 @@ import nurgling.NInventory.QualityType;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public class FillContainers2 implements Action
 {
@@ -40,12 +41,37 @@ public class FillContainers2 implements Action
         if (area == null)
             return Results.ERROR("NO area for: " + transferedItems);
         context.addInItem(transferedItems, null);
+        /* Source storages already emptied of transferedItems, shared by every top-up below so
+         * repeated trips do not walk back to ones with nothing left. Safe because the source
+         * (findInGlobal above) is a different area from the containers being filled. */
+        HashSet<String> depletedSources = new HashSet<>();
+
+        /* QualityType.High means the BEST copies, and the best copies are not necessarily in
+         * whichever container happens to be opened first - so rank the whole source area once and
+         * take only from the top of that ranking. Everything clearing the cut-off belongs in the
+         * result, which is why the fetch below can stay greedy and still end up globally correct.
+         * Costs one pass over the source containers, once per fill. */
+        Float minQuality = null;
+        if (qualityType == QualityType.High) {
+            FindQualityThreshold scan = new FindQualityThreshold(context, transferedItems, calculateTargetSize());
+            scan.run(gui);
+            minQuality = scan.getThreshold();
+            if (minQuality != null) {
+                // Containers holding nothing that good are not worth walking to at all.
+                depletedSources.addAll(scan.getWithoutEligible());
+                gui.msg("Taking " + transferedItems + " of q" + String.format("%.1f", minQuality) + " and above");
+            }
+        }
+
         for (Container cont : conts) {
             while(!isReady(cont)) {
                 if (gui.getInventory().getItems(transferedItems).isEmpty()) {
                     int target_size = calculateTargetSize();
                     int optimalCapacity = StackSupporter.getOptimalItemCapacity(NUtils.getGameUI().getInventory(), transferedItems, targetCoord, target_size);
-                    new TakeItems2(context, transferedItems, optimalCapacity, qualityType).run(gui);
+                    TakeItems2 take = new TakeItems2(context, transferedItems, optimalCapacity, qualityType);
+                    take.depleted = depletedSources;
+                    take.minQuality = minQuality;
+                    take.run(gui);
                     if (gui.getInventory().getItems(transferedItems).isEmpty())
                         return Results.ERROR("NO ITEMS");
                 }

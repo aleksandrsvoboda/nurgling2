@@ -5,7 +5,9 @@ import haven.Label;
 import haven.Window;
 import nurgling.*;
 import nurgling.areas.*;
+import nurgling.i18n.L10n;
 import nurgling.overlays.NAreaLabel;
+import nurgling.tools.SpecialisationUsage;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -14,13 +16,42 @@ import java.util.List;
 
 public class Specialisation extends Window
 {
+    private static final Coord WSZ = UI.scale(200, 500);
+    /* Beyond this the tooltip stops being readable, so the rest is summarised. */
+    private static final int TIP_BOTS = 15;
 
     private NArea area = null;
+    private final TextEntry search;
+    private final SpecialisationList list;
 
     public Specialisation()
     {
-        super(UI.scale(200,500), "Specialisation");
-        add(new SpecialisationList(UI.scale(200,500)));
+        super(WSZ, "Specialisation");
+        search = add(new TextEntry(WSZ.x, "") {
+            @Override
+            protected void changed()
+            {
+                super.changed();
+                if(list != null)
+                    list.filter(text());
+            }
+        }, Coord.z);
+        search.settip(L10n.get("spec.search.placeholder"));
+        list = add(new SpecialisationList(new Coord(WSZ.x, WSZ.y - search.sz.y - UI.scale(4))),
+                   search.pos("bl").adds(0, 4));
+        setfocusctl(true);
+        /* Route keys to the search field, but never grab focus on our own - the window
+         * spends most of its life hidden and is only focused from selectSpecialisation. */
+        autofocus = false;
+    }
+
+    /** Clears the filter and puts the caret in the search field, ready to type. */
+    public void resetSearch()
+    {
+        search.settext("");
+        list.filter("");
+        list.scrollval(0);
+        setfocus(search);
     }
     public enum SpecName
     {
@@ -60,6 +91,8 @@ public class Specialisation extends Window
         crucibles,
         chicken,
         incubator,
+        duck,
+        duckIncubator,
         bed,
         eat,
         safe,
@@ -143,6 +176,8 @@ public class Specialisation extends Window
         specialisation.add(new SpecialisationItem(SpecName.chicken.toString(),"Chicken",Resource.loadsimg("nurgling/categories/chicken")));
         specialisation.add(new SpecialisationItem(SpecName.rabbit.toString(),"Rabbit",Resource.loadsimg("nurgling/categories/rabbit_buck")));
         specialisation.add(new SpecialisationItem(SpecName.incubator.toString(),"Chick Incubator",Resource.loadsimg("nurgling/categories/cincub")));
+        specialisation.add(new SpecialisationItem(SpecName.duck.toString(),"Duck",Resource.loadsimg("nurgling/categories/duck")));
+        specialisation.add(new SpecialisationItem(SpecName.duckIncubator.toString(),"Duckling Incubator",Resource.loadsimg("nurgling/categories/duckling")));
         specialisation.add(new SpecialisationItem(SpecName.bed.toString(),"Bed",Resource.loadsimg("nurgling/categories/bed")));
         specialisation.add(new SpecialisationItem(SpecName.eat.toString(),"Eating area",Resource.loadsimg("nurgling/categories/eat")));
         specialisation.add(new SpecialisationItem(SpecName.rabbitIncubator.toString(),"Rabbit Incubator",Resource.loadsimg("nurgling/categories/bunny")));
@@ -221,6 +256,27 @@ public class Specialisation extends Window
         });
     }
 
+    /** Builds the hover text listing the bots that need a given specialisation. */
+    private static String usageTip(SpecialisationItem item, List<String> bots)
+    {
+        List<String> lines = new ArrayList<>();
+        lines.add("$b{" + RichText.Parser.quote(item.prettyName) + "}");
+        if(bots.isEmpty())
+        {
+            lines.add("$i{" + RichText.Parser.quote(L10n.get("spec.tip.unused")) + "}");
+        }
+        else
+        {
+            lines.add(RichText.Parser.quote(L10n.get("spec.tip.usedby", bots.size())));
+            int shown = Math.min(bots.size(), TIP_BOTS);
+            for(int i = 0; i < shown; i++)
+                lines.add("• " + RichText.Parser.quote(bots.get(i)));
+            if(bots.size() > shown)
+                lines.add("$i{" + RichText.Parser.quote(L10n.get("spec.tip.more", bots.size() - shown)) + "}");
+        }
+        return(String.join("\n", lines));
+    }
+
     public static SpecialisationItem findSpecialisation(String name)
     {
         for(SpecialisationItem specialisationItem : specialisation)
@@ -230,6 +286,8 @@ public class Specialisation extends Window
     }
 
     public class SpecialisationList extends SListBox<SpecialisationItem, Widget> {
+        private List<SpecialisationItem> shown = new ArrayList<>(specialisation);
+
         SpecialisationList(Coord sz) {
             super(sz, UI.scale(24));
         }
@@ -240,7 +298,22 @@ public class Specialisation extends Window
             super.change(item);
         }
 
-        protected List<SpecialisationItem> items() {return new ArrayList<>(specialisation);}
+        /** Narrows the list to items whose display name or id contains {@code query}. */
+        void filter(String query)
+        {
+            String q = query.trim().toLowerCase();
+            List<SpecialisationItem> next = new ArrayList<>();
+            for(SpecialisationItem item : specialisation)
+            {
+                if(q.isEmpty() || item.prettyName.toLowerCase().contains(q) || item.name.toLowerCase().contains(q))
+                    next.add(item);
+            }
+            shown = next;
+            sel = null;
+            reset();
+        }
+
+        protected List<SpecialisationItem> items() {return shown;}
 
         @Override
         public void resize(Coord sz) {
@@ -249,9 +322,32 @@ public class Specialisation extends Window
 
         protected Widget makeitem(SpecialisationItem item, int idx, Coord sz) {
             return(new ItemWidget<SpecialisationItem>(this, sz, item) {
+                private Tex tip = null;
+
                 {
                     //item.resize(new Coord(searchF.sz.x - removei[0].sz().x  + UI.scale(4), item.sz.y));
                     add(item);
+                }
+
+                @Override
+                public Object tooltip(Coord c, Widget prev) {
+                    if(tip == null) {
+                        List<String> bots = SpecialisationUsage.botsFor(item.name);
+                        if(bots == null)
+                            /* Scan still running; ask again on the next hover. */
+                            return(L10n.get("spec.tip.scanning"));
+                        tip = RichText.render(usageTip(item, bots), UI.scale(280)).tex();
+                    }
+                    return(tip);
+                }
+
+                @Override
+                public void dispose() {
+                    if(tip != null) {
+                        tip.dispose();
+                        tip = null;
+                    }
+                    super.dispose();
                 }
 
                 public boolean mousedown(MouseDownEvent ev) {
@@ -345,10 +441,12 @@ public class Specialisation extends Window
 
     public static void selectSpecialisation(NArea area)
     {
+        SpecialisationUsage.request();
         NUtils.getGameUI().spec.show();
         NUtils.getGameUI().setfocus(NUtils.getGameUI().spec);
         NUtils.getGameUI().spec.raise();
         NUtils.getGameUI().spec.area = area;
+        NUtils.getGameUI().spec.resetSearch();
         // Position relative to areas widget if it exists and is visible
         if(NUtils.getGameUI().areas != null && NUtils.getGameUI().areas.visible()) {
             NUtils.getGameUI().spec.c = NUtils.getGameUI().areas.c.add(

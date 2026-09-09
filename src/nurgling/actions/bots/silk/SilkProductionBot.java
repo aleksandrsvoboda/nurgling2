@@ -50,6 +50,10 @@ public class SilkProductionBot implements Action {
         gui.msg("Collecting ready silkworm cocoons to breeding area.");
         // 1 OPEN ALL SILKMOTH BREEDING CONTAINERS
         DepositItemsToSpecArea depositItemsActionCacoons = new DepositItemsToSpecArea(context, new NAlias(moth, cacoons), Specialisation.SpecName.silkmothBreeding, Specialisation.SpecName.silkwormFeeding, 16);
+        /* Moths must be COUNTED toward the 16 per cupboard - they hatch in place and hold a slot -
+         * but must never be FETCHED: they exist nowhere in the feeding area, so leaving them in the
+         * fetch list toured all of it, finding nothing, on every single trip. */
+        depositItemsActionCacoons.setFetchAlias(new NAlias(cacoons));
         depositItemsActionCacoons.run(gui);
 
         gui.msg("Killing and dropping off remaining silkworm cocoons to storage area.");

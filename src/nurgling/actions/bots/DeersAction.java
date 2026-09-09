@@ -7,6 +7,7 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
+import nurgling.widgets.Specialisation;
 import nurgling.conf.TeimDeerHerd;
 import nurgling.tools.NAlias;
 
@@ -18,8 +19,8 @@ public class DeersAction implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NArea.Specialisation deers = new NArea.Specialisation("deer");
-        NArea.Specialisation deadkritter = new NArea.Specialisation("deadkritter");
+        NArea.Specialisation deers = new NArea.Specialisation(Specialisation.SpecName.deer.toString());
+        NArea.Specialisation deadkritter = new NArea.Specialisation(Specialisation.SpecName.deadkritter.toString());
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(deers);
         req.add(deadkritter);

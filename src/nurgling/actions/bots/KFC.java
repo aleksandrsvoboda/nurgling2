@@ -28,6 +28,10 @@ import java.util.*;
  */
 public class KFC implements Action {
 
+    /* NAlias matches by substring, so a bare "Hen" would also catch a "Duck Hen" that happens
+     * to be in the player's inventory or in a coop shared with the duck zones. */
+    private static final NAlias HEN = new NAlias(java.util.List.of("Hen"), java.util.List.of("Duck"));
+
     // Coop info class
     private static class CoopInfo {
         String gobHash;
@@ -166,7 +170,7 @@ public class KFC implements Action {
 
             CoopInfo coopInfo = new CoopInfo(hash, roosterQuality);
 
-            ArrayList<WItem> hens = gui.getInventory("Chicken Coop").getItems(new NAlias("Hen"));
+            ArrayList<WItem> hens = gui.getInventory("Chicken Coop").getItems(HEN);
             for (WItem hen : hens) {
                 coopInfo.henQualities.add(((NGItem) hen.item).quality);
             }
@@ -196,7 +200,7 @@ public class KFC implements Action {
                 qcocks.add(new IncubatorInfo(hash, ((NGItem) rooster.item).quality));
             }
 
-            ArrayList<WItem> hens = gui.getInventory("Chicken Coop").getItems(new NAlias("Hen"));
+            ArrayList<WItem> hens = gui.getInventory("Chicken Coop").getItems(HEN);
             for (WItem hen : hens) {
                 qhens.add(new IncubatorInfo(hash, ((NGItem) hen.item).quality));
             }
@@ -234,7 +238,7 @@ public class KFC implements Action {
         }
 
         // Get quality threshold from top hens
-        ArrayList<WItem> topHens = gui.getInventory("Chicken Coop").getItems(new NAlias("Hen"));
+        ArrayList<WItem> topHens = gui.getInventory("Chicken Coop").getItems(HEN);
         ArrayList<Float> qtop = new ArrayList<>();
         for (WItem top : topHens) {
             qtop.add(((NGItem) top.item).quality);
@@ -529,7 +533,7 @@ public class KFC implements Action {
             }
 
             // Get hen from coop inventory
-            WItem hen = gui.getInventory("Chicken Coop").getItem(new NAlias("Hen"));
+            WItem hen = gui.getInventory("Chicken Coop").getItem(HEN);
             if (hen == null) {
                 new CloseTargetContainer("Chicken Coop").run(gui);
                 continue;
@@ -551,7 +555,7 @@ public class KFC implements Action {
             for (CoopInfo coopInfo : coopInfos) {
                 for (int i = 0; i < coopInfo.henQualities.size(); i++) {
                     if (coopInfo.henQualities.get(i) < henQuality) {
-                        hen = gui.getInventory().getItem(new NAlias("Hen"));
+                        hen = gui.getInventory().getItem(HEN);
                         if (hen == null) break;
 
                         // Navigate to chicken area and open coop for replacement
@@ -566,7 +570,7 @@ public class KFC implements Action {
                         }
 
                         // Get current hen in coop
-                        WItem oldHen = gui.getInventory("Chicken Coop").getItem(new NAlias("Hen"), coopInfo.henQualities.get(i));
+                        WItem oldHen = gui.getInventory("Chicken Coop").getItem(HEN, coopInfo.henQualities.get(i));
                         if (oldHen == null) {
                             new CloseTargetContainer("Chicken Coop").run(gui);
                             continue;
@@ -596,7 +600,7 @@ public class KFC implements Action {
             }
 
             // Process the hen (butcher it)
-            hen = gui.getInventory().getItem(new NAlias("Hen"));
+            hen = gui.getInventory().getItem(HEN);
             if (hen != null) {
                 butcherChicken(gui, hen, "Hen", "Dead Hen");
             }

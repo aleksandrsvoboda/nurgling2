@@ -67,6 +67,33 @@ public class NUtils
         return (ui != null) ? ui.gui : null;
     }
 
+    /** Top-left corner that centres a child of {@code childSz} inside {@code parentSz}. */
+    public static Coord centeredPos(Coord parentSz, Coord childSz) {
+        if (parentSz == null || childSz == null)
+            return Coord.z;
+        return Coord.of(
+                Math.max(0, (parentSz.x - childSz.x) / 2),
+                Math.max(0, (parentSz.y - childSz.y) / 2));
+    }
+
+    public static <T extends Widget> T addCentered(T wdg) {
+        return addCentered(getGameUI(), wdg);
+    }
+
+    /**
+     * Add {@code wdg} centred in {@code parent}, keeping it on screen when the parent is a
+     * {@link GameUI}. Bot windows use this instead of a hardcoded position so they land
+     * somewhere visible at any resolution.
+     */
+    public static <T extends Widget> T addCentered(Widget parent, T wdg) {
+        if (parent == null || wdg == null)
+            return wdg;
+        parent.add(wdg, centeredPos(parent.sz, wdg.sz));
+        if (parent instanceof GameUI)
+            ((GameUI) parent).fitwdg(wdg);
+        return wdg;
+    }
+
     public static NUI getUI(){
         // First check if this thread has a bound UI (bot threads)
         NUI threadUI = ThreadLocalUI.get();
@@ -481,6 +508,29 @@ public class NUtils
 
     public static void drop(WItem item) {
         item.item.wdgmsg("drop", item.sz, getGameUI().map.player().rc, 0);
+    }
+
+    /* Server flood protection: a burst of "drop" messages in the same instant is throttled
+     * server-side -- the extra drops are simply ignored, and a big enough burst disconnects
+     * the client. The budget is shared by everything that drops automatically, so the
+     * combined rate stays under the threshold no matter how many of them are running. */
+    private static final long DROP_INTERVAL_MS = 150;
+    private static long lastDropMs = 0;
+
+    /**
+     * Claim the next drop slot, if one is free.
+     *
+     * @return true when the caller may drop right now, having consumed the slot. Call it
+     *         immediately before dropping and only once the drop is certain, so a claimed
+     *         slot is never wasted.
+     */
+    public static synchronized boolean dropSlotReady() {
+        long now = System.currentTimeMillis();
+        if (now - lastDropMs >= DROP_INTERVAL_MS) {
+            lastDropMs = now;
+            return true;
+        }
+        return false;
     }
     
     public static void itemact(WItem item) throws InterruptedException {

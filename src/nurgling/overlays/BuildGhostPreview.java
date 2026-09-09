@@ -6,6 +6,7 @@ import nurgling.GhostAlpha;
 import nurgling.NHitBox;
 import nurgling.NUtils;
 import nurgling.pf.NHitBoxD;
+import nurgling.tools.Finder;
 
 import java.awt.Color;
 import java.util.*;
@@ -71,39 +72,40 @@ public class BuildGhostPreview extends GAttrib {
         double xOffset = ((rotatedBR.x - rotatedUL.x) % 2.0 > 0.5) ? 0.5 : 0.0;
         double yOffset = ((rotatedBR.y - rotatedUL.y) % 2.0 > 0.5) ? 0.5 : 0.0;
 
-        // Simulate Finder.getFreePlace() behavior: pixel-by-pixel search
-        for (int i = margin.x; i <= inchMax.x - margin.x; i++) {
-            for (int j = margin.y; j <= inchMax.y - margin.y; j++) {
-                Coord2d testPos = area.a.add(i + xOffset, j + yOffset);
-                NHitBoxD testBox = new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle);
+        // Walk the candidates in exactly the order Finder.getFreePlace() would, via the
+        // same helper. This packing is greedy - each accepted ghost blocks later ones -
+        // so a different order would give a different layout, and the preview would stop
+        // matching what Build actually does.
+        for (Coord offset : Finder.placementOffsets(margin, inchMax, Finder.directionOf(area))) {
+            Coord2d testPos = area.a.add(offset.x + xOffset, offset.y + yOffset);
+            NHitBoxD testBox = new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle);
 
-                // Check collisions with obstacles AND already-placed buildings
-                boolean passed = true;
+            // Check collisions with obstacles AND already-placed buildings
+            boolean passed = true;
 
-                for (NHitBoxD obstacle : obstacles) {
-                    if (obstacle.intersects(testBox, false)) {
+            for (NHitBoxD obstacle : obstacles) {
+                if (obstacle.intersects(testBox, false)) {
+                    passed = false;
+                    break;
+                }
+            }
+
+            if (passed) {
+                for (NHitBoxD placed : placedBuildings) {
+                    if (placed.intersects(testBox, false)) {
                         passed = false;
                         break;
                     }
                 }
+            }
 
-                if (passed) {
-                    for (NHitBoxD placed : placedBuildings) {
-                        if (placed.intersects(testBox, false)) {
-                            passed = false;
-                            break;
-                        }
-                    }
-                }
+            if (passed) {
+                // This position is valid - create a ghost Gob
+                Coord2d worldPos = new Coord2d(testBox.rc.x, testBox.rc.y);
+                createGhostGob(worldPos);
 
-                if (passed) {
-                    // This position is valid - create a ghost Gob
-                    Coord2d worldPos = new Coord2d(testBox.rc.x, testBox.rc.y);
-                    createGhostGob(worldPos);
-
-                    // Add this building to placed list so we don't overlap it
-                    placedBuildings.add(new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle));
-                }
+                // Add this building to placed list so we don't overlap it
+                placedBuildings.add(new NHitBoxD(buildingHitBox.begin, buildingHitBox.end, testPos, rotationAngle));
             }
         }
     }

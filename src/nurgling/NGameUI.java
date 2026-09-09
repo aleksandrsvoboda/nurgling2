@@ -8,6 +8,7 @@ import nurgling.conf.NToolBeltProp;
 import nurgling.notifications.DiscordHookObject;
 import nurgling.overlays.QualityOl;
 import nurgling.tools.NAlias;
+import nurgling.tools.NNoticeLog;
 import nurgling.tools.NParser;
 import nurgling.tools.NSearchItem;
 import nurgling.widgets.*;
@@ -38,6 +39,8 @@ public class NGameUI extends GameUI
     public Specialisation spec;
     public BotsInterruptWidget biw;
     public NEquipProxy nep;
+    /** System notices from the server, so bots can react to text-only events. */
+    public final NNoticeLog notices = new NNoticeLog();
     public NBeltProxy nbp;
     private SwimmingStatusBuff swimmingBuff = null;
     private TrackingStatusBuff trackingBuff = null;
@@ -56,6 +59,8 @@ public class NGameUI extends GameUI
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
     public TreeLocationService treeLocationService;
     public TreeSearchWindow treeSearchWindow = null;
+
+    public MineralSearchWindow mineralSearchWindow = null;
     public final Map<String, TreeLocationDetailsWindow> openTreeDetailWindows = new HashMap<>();
     public LabeledMarkService labeledMarkService;
     public MapToolsWindow mapToolsWindow = null;
@@ -308,10 +313,15 @@ public class NGameUI extends GameUI
             if(nmapView.getChunkNavManager() != null)
                 nmapView.getChunkNavManager().shutdown();
         }
+        /* Icons are keyed by resource name, and the next session may load a different
+         * resource set, so they must not be carried across. */
+        nurgling.actions.bots.MasterMiner.clearIconCache();
         super.dispose();
     }
 
     public int getMaxBase(){
+        if(chrwdg == null || chrwdg.battr == null || chrwdg.battr.attrs.isEmpty())
+            return 0;
         return chrwdg.battr.attrs.stream().max(new Comparator<BAttrWnd.Attr>() {
                     @Override
                     public int compare(BAttrWnd.Attr o1, BAttrWnd.Attr o2) {
@@ -1137,10 +1147,12 @@ public class NGameUI extends GameUI
 
 
     public boolean msg(UI.Notice msg) {
-        if (msg.message().contains("Quality")) {
+        String text = msg.message();
+        notices.add(text);
+        if (text != null && text.contains("Quality")) {
             if(map.clickedGob!=null)
             {
-                Matcher m = Pattern.compile("Quality: (\\d+)").matcher(msg.message());
+                Matcher m = Pattern.compile("Quality: (\\d+)").matcher(text);
                 if(m.matches()) {
                     try {
                         map.clickedGob.gob.addcustomol(new QualityOl(map.clickedGob.gob, Integer.parseInt(m.group(1))));
