@@ -168,6 +168,13 @@ public class TransferToPiles implements Action{
             return new NAlias("gfx/terobjs/stockpile-trash");
         } else if (NParser.checkName(items.getDefault(), new NAlias("pumpkin"))) {
             return new NAlias("gfx/terobjs/stockpile-pumpkin");
+        } else if (NParser.checkName(items.getDefault(), new NAlias("Watermelon Slice"))) {
+            // Checked before plain "watermelon": slices have their own pile, unlike pumpkin flesh.
+            return new NAlias("gfx/terobjs/stockpile-watermelonslice");
+        } else if (NParser.checkName(items.getDefault(), new NAlias("watermelon"))) {
+            return new NAlias("gfx/terobjs/stockpile-watermelon");
+        } else if (NParser.checkName(items.getDefault(), new NAlias("radish"))) {
+            return new NAlias("gfx/terobjs/stockpile-radish");
         } else if (NParser.checkName(items.getDefault(), new NAlias("metal"))) {
             return new NAlias("gfx/terobjs/stockpile-metal");
         } else if (NParser.checkName(items.getDefault(), new NAlias("brick"))) {

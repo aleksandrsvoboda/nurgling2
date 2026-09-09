@@ -1256,6 +1256,7 @@ public class VSpec {
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cattailroots\",\"name\":\"Cattail Roots\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cavebulb\",\"name\":\"Cavebulb\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/oddtuber\",\"name\":\"Odd Tuber\"}"));
+        rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/radish\",\"name\":\"Radish\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/turnip\",\"name\":\"Turnip\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/beetweird\",\"name\":\"Weird Beetroot\"}"));
         categories.put("Tuber", rootVegetables);
@@ -1264,6 +1265,7 @@ public class VSpec {
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/preonion\",\"name\":\"Wild Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/yellowonion\",\"name\":\"Yellow Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/redonion\",\"name\":\"Red Onion\"}"));
+        onions.add(new JSONObject("{\"static\":\"gfx/invobjs/whiteonion\",\"name\":\"White Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/garlic\",\"name\":\"Garlic\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/small/leek\",\"name\":\"Leek\",\"x\":2,\"y\":1}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/pickledonion\",\"name\":\"Pickled Onions\"}"));
@@ -1320,6 +1322,8 @@ public class VSpec {
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-pipeweed\",\"name\":\"Pipeweed Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-poppy\",\"name\":\"Poppy Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-pumpkin\",\"name\":\"Pumpkin Seeds\"}"));
+        seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-radish\",\"name\":\"Radish Seeds\"}"));
+        seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-watermelon\",\"name\":\"Watermelon Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-turnip\",\"name\":\"Turnip Seeds\"}"));
         seeds.addAll(maltedGrains);
         seeds.addAll(millableSeed);
@@ -1331,6 +1335,8 @@ public class VSpec {
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/lettucehead\",\"name\":\"Head of Lettuce\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkinflesh\",\"name\":\"Pumpkin Flesh\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkin\",\"name\":\"Pumpkin\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/watermelonslice\",\"name\":\"Watermelon Slice\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/small/watermelon\",\"name\":\"Watermelon\",\"x\":2,\"y\":2}"));
         categories.put("Crops - other", cropsOther);
 
         ArrayList<JSONObject> eggs = new ArrayList<>();
