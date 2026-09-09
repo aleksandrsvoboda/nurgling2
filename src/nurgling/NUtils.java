@@ -801,9 +801,10 @@ public class NUtils
             return false;
         }
 
-        // Crucible is ready when it has coal (bit 2 set in modelAttribute)
+        // Crucible is ready once it holds fuel of either kind: the low bits are 0 empty,
+        // 1 branches, 2 coal (4 is the flame). Testing bit 2 alone missed a branch-fuelled one.
         if (name.contains("crucible")) {
-            return (workstation.ngob.getModelAttribute() & 2) == 2;
+            return (workstation.ngob.getModelAttribute() & 3) != 0;
         }
         // For pow (forges), they're ready when not burning (bit 48)
         else if (name.startsWith("gfx/terobjs/pow")) {
