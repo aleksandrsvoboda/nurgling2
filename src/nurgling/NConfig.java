@@ -137,6 +137,8 @@ public class NConfig
         skipButcherInDuck,
         skipPluckingDrakesInDuck,
         studyDeskLayout,
+        milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map
+        milestoneTracking,   // Whether MilestoneTracker passively records signpost/milestone travel
         waypointRetryOnStuck,
         holdToMove,
         verboseCal,
@@ -416,6 +418,8 @@ public class NConfig
         conf.put(Key.showTerrainName, false);
         conf.put(Key.validateAllCropsBeforeHarvest, false);
         conf.put(Key.studyDeskLayout, "");
+        conf.put(Key.milestones, "");
+        conf.put(Key.milestoneTracking, true);
         conf.put(Key.waypointRetryOnStuck, true);
         conf.put(Key.holdToMove, false);
         conf.put(Key.verboseCal, false);
@@ -498,11 +502,14 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/goldeneagle/goldeneagle", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/goat/goat", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/troll/troll", 200));
-        arearadprop.add(new NAreaRad("gfx/kritter/rat/rat", 200));
+        NAreaRad ratRad = new NAreaRad("gfx/kritter/rat/rat", 200);
+        // Plain Rat isn't dangerous - explicit here so a brand-new config's default animal list starts correct.
+        ratRad.dangerous = false;
+        arearadprop.add(ratRad);
         arearadprop.add(new NAreaRad("gfx/kritter/eagle/eagle", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/cavelouse/cavelouse", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/boreworm/boreworm", 200));
-        arearadprop.add(new NAreaRad("gfx/kritter/woodscorpion/woodscorpion", 50));
+        arearadprop.add(new NAreaRad("gfx/kritter/woodscorpion/woodscorpion", 30));
         arearadprop.add(new NAreaRad("gfx/kritter/rat/caverat", 100));
         arearadprop.add(new NAreaRad("gfx/kritter/ooze/greenooze", 100));
         conf.put(Key.animalrad, arearadprop);
@@ -737,6 +744,19 @@ public class NConfig
         }
     }
 
+    /** Coerces a config value that may be a Map or a raw JSON String into Map&lt;String,Object&gt;; empty map if neither. */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getAsMap(Key key)
+    {
+        Object existingData = get(key);
+        if (existingData instanceof Map) {
+            return (Map<String, Object>) existingData;
+        } else if (existingData instanceof String && !((String) existingData).isEmpty()) {
+            return new JSONObject((String) existingData).toMap();
+        }
+        return new HashMap<>();
+    }
+
     /**
      * Get a value directly from the global config, bypassing session resolution.
      * Use for settings where reads and writes must always target the same instance
@@ -769,6 +789,8 @@ public class NConfig
                 synchronized (ctx.config.conf) {
                     ctx.config.conf.put(key, val);
                 }
+                // ctx.config is a separate per-genus profile instance from current/sessionConfig - must mark it dirty too or its own save loop never persists this.
+                ctx.config.isUpd = true;
             }
             NConfig sc = (ctx.ui != null) ? ctx.ui.sessionConfig : null;
             if (sc != null)
@@ -776,6 +798,7 @@ public class NConfig
                 synchronized (sc.conf) {
                     sc.conf.put(key, val);
                 }
+                sc.isUpd = true;
             }
         }
     }
@@ -783,6 +806,28 @@ public class NConfig
 
     public static void needUpdate()
     {
+        // A get()-then-mutate-in-place caller only touches the resolved session config, not current - mirror its map into the per-genus profile instance NCore's save loop actually checks, then mark that dirty too.
+        NConfig resolved = resolveConfig();
+        if (resolved != null)
+        {
+            resolved.isUpd = true;
+            String genus = resolved.getGenus();
+            if (genus != null && !genus.isEmpty())
+            {
+                NConfig profile = getProfileInstance(genus);
+                if (profile != null && profile != resolved)
+                {
+                    Map<Key, Object> snapshot;
+                    synchronized (resolved.conf) {
+                        snapshot = new HashMap<>(resolved.conf);
+                    }
+                    synchronized (profile.conf) {
+                        profile.conf.putAll(snapshot);
+                    }
+                    profile.isUpd = true;
+                }
+            }
+        }
         if (current != null)
         {
             current.isUpd = true;
@@ -1342,7 +1387,7 @@ public class NConfig
             // New animals to add if missing
             String[][] newAnimals = {
                 {"gfx/kritter/bear/polarbear", "100"},
-                {"gfx/kritter/woodscorpion/woodscorpion", "50"},
+                {"gfx/kritter/woodscorpion/woodscorpion", "30"},
                 {"gfx/kritter/rat/caverat", "100"},
                 {"gfx/kritter/ooze/greenooze", "100"},
             };
@@ -1388,6 +1433,8 @@ public class NConfig
     @SuppressWarnings("unchecked")
     private ArrayList<Object> prepareArray(ArrayList<Object> objs)
     {
+        // A get()-then-mutate-in-place caller isn't covered by set()'s concurrency guarantee - snapshot defensively to avoid a ConcurrentModificationException/IndexOutOfBounds crashing the UI thread.
+        objs = snapshotList(objs);
         if (objs.size() > 0)
         {
             ArrayList<Object> res = new ArrayList<>();
@@ -1412,6 +1459,17 @@ public class NConfig
             return res;
         }
         return objs;
+    }
+
+    private static ArrayList<Object> snapshotList(ArrayList<Object> objs) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                return new ArrayList<>(objs);
+            } catch (ConcurrentModificationException ignored) {
+                // Another thread structurally changed it mid-copy - retry before giving up.
+            }
+        }
+        return new ArrayList<>();
     }
 
     @SuppressWarnings("unchecked")

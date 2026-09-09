@@ -13,6 +13,9 @@ public class NWoundChecker {
     
     // Resource name for Scrapes & Cuts wound
     public static final String SCRAPES_CUTS_RES = "paginae/wound/scrapesncuts";
+
+    // Resource name for the Swamp Fever wound itself (a distinct wound, not a Scrapes & Cuts side effect)
+    public static final String SWAMP_FEVER_RES = "paginae/wound/swampfever";
     
     /**
      * Check if player has "Scrapes & Cuts" wound with damage >= threshold
@@ -50,6 +53,37 @@ public class NWoundChecker {
         return false;
     }
     
+    /** Damage of the Swamp Fever wound itself (the disease, not a mere risk factor like Scrapes &
+     *  Cuts severity); 0 if not currently afflicted or unavailable, never throws. */
+    public static int swampFeverDamage() {
+        int total = 0;
+        try {
+            CharWnd chrwdg = NUtils.getGameUI().chrwdg;
+            if (chrwdg == null || chrwdg.wound == null) {
+                return 0;
+            }
+
+            WoundWnd woundWnd = chrwdg.wound;
+            if (woundWnd.wounds == null) {
+                return 0;
+            }
+
+            for (WoundWnd.Wound wound : woundWnd.wounds.wounds) {
+                try {
+                    String resName = wound.res.get().name;
+                    if (SWAMP_FEVER_RES.equals(resName)) {
+                        total += getWoundDamage(wound);
+                    }
+                } catch (Loading l) {
+                    // Resource not loaded yet, skip
+                }
+            }
+        } catch (Exception e) {
+            // Silently ignore errors
+        }
+        return total;
+    }
+
     /**
      * Extract damage value from wound's ItemInfo
      * Damage info is typically in the format: [resId, currentDamage, maxDamage, healRate]

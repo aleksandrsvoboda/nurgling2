@@ -215,6 +215,38 @@ public class NUtils
         return stam.a;
     }
 
+    /** Current HARD hitpoints as a fraction of true max (0.0-1.0), or -1 if unavailable - not soft HP despite the name; always-live like getEnergy()/getStamina(), unlike getCurrentHP()/getMaxHP(). */
+    public static double getHPFraction()
+    {
+        IMeter.Meter hp = getGameUI().getmeter ( "hp", 0 );
+        if(hp == null)
+            return -1;
+        return hp.a;
+    }
+
+    /** Current SOFT hitpoints as a fraction of the same true max getHPFraction() uses; falls back to getHPFraction() when unwounded (server sends only one segment). Always-live, not tooltip-derived. */
+    public static double getSoftHPFraction()
+    {
+        IMeter.Meter soft = getGameUI().getmeter ( "hp", 1 );
+        if(soft == null)
+            return getHPFraction();
+        return soft.a;
+    }
+
+    /** Current soft hitpoints, or -1 if unavailable - WARNING: tooltip-derived, only updates on hover, not reliably live; prefer getHPFraction() for safety checks. */
+    public static int getCurrentHP()
+    {
+        IMeter hp = getGameUI().getIMeter("hp");
+        return hp == null ? -1 : hp.curHealth;
+    }
+
+    /** Max soft hitpoints, or -1 if unavailable - see getCurrentHP()'s reliability warning. */
+    public static int getMaxHP()
+    {
+        IMeter hp = getGameUI().getIMeter("hp");
+        return hp == null ? -1 : hp.maxHealth;
+    }
+
     public static NEquipory getEquipment(){
         if ( getGameUI()!=null && getGameUI().equwnd != null ) {
             for ( Widget w = getGameUI().equwnd.lchild ; w != null ; w = w.prev ) {
@@ -249,6 +281,10 @@ public class NUtils
 
     public static void lclick(Coord2d pos) {
         getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),1, 0);
+    }
+
+    public static void rclick(Coord2d pos) {
+        getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),3, 0);
     }
 
 

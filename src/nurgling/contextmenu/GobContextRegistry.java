@@ -38,6 +38,7 @@ public class GobContextRegistry {
         register(new ChipStoneAreaAction());
         register(new ShearWoolAreaAction());
         register(new LightAction());
+        register(new RecordMilestoneAction());
         register(new KilnFuelAction());
         register(new HTableTimesAction());
         // Registered last so the generic entry sits below the object-specific ones.

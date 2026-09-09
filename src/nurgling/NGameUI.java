@@ -68,6 +68,16 @@ public class NGameUI extends GameUI
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
+    // Index into activeBotPath.waypoints Forager is currently heading toward, -1 when idle - lets NWaypointOverlay color current/passed/queued waypoints differently.
+    public int activeBotWaypointIndex = -1;
+    // Waypoint indices Forager couldn't reach this run, for NWaypointOverlay to render distinctly; reset in the run's finally block.
+    public java.util.Set<Integer> activeBotFailedWaypoints = null;
+    // The route currently being edited in Forager Settings, shown live on the real map - independent of activeBotPath.
+    public nurgling.widgets.nsettings.ForagerRouteMap activeRouteEditor = null;
+    // Live breadcrumb trail (world Coord2d, most-recent-last) for Forager's off-path detours, null when idle; mutated live by the bot thread.
+    public java.util.List<haven.Coord2d> activeBotDetourTrail = null;
+    // Current detour target position, rendered as the trail's active node; set/cleared alongside activeBotDetourTrail.
+    public haven.Coord2d activeBotDetourTarget = null;
 
     /** Prospecting results waiting to be paired up with their window; see NProspecting. */
     public final NProspecting.Pending prospecting = new NProspecting.Pending();
@@ -665,6 +675,25 @@ public class NGameUI extends GameUI
         List<IMeter.Meter> meters = getmeters ( name );
         if ( meters != null && midx < meters.size () ) {
             return meters.get ( midx );
+        }
+        return null;
+    }
+
+    public IMeter getIMeter(String name) {
+        synchronized (meters) {
+            try {
+                for (Widget meter : new ArrayList<>(meters)) {
+                    if (meter instanceof IMeter) {
+                        IMeter im = (IMeter) meter;
+                        Resource res = im.bg.get();
+                        if (res != null && res.basename().equals(name)) {
+                            return im;
+                        }
+                    }
+                }
+            } catch (IndexOutOfBoundsException | ConcurrentModificationException e) {
+                return null;
+            }
         }
         return null;
     }

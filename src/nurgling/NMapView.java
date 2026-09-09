@@ -26,6 +26,7 @@ import nurgling.overlays.map.*;
 import nurgling.navigation.ChunkNavData;
 import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPortal;
+import nurgling.navigation.MilestoneTracker;
 import nurgling.scenarios.Scenario;
 import nurgling.headless.Headless;
 import nurgling.tasks.WaitForMapGridLoad;
@@ -80,6 +81,12 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private UI.Grab dragGrab = null;
     // Chunk navigation manager - owned by NMapView, not a singleton
     private ChunkNavManager chunkNavManager;
+    // Milestone travel recorder - always ticking; recording itself is armed explicitly via RecordMilestoneAction.
+    private final MilestoneTracker milestoneTracker = new MilestoneTracker();
+
+    public MilestoneTracker getMilestoneTracker() {
+        return milestoneTracker;
+    }
 
     // Track areas that were deleted locally to prevent restoration during sync
     private final Set<Integer> locallyDeletedAreas = new HashSet<>();
@@ -288,75 +295,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             }
         }
 
-        // Draw bot path on ground
-        drawBotPathOnGround(g);
-
-    }
-
-    private void drawBotPathOnGround(GOut g) {
-        if(!(Boolean) NConfig.get(NConfig.Key.showBotPathOnGround))
-            return;
-        try {
-            NGameUI gui = NUtils.getGameUI();
-            if(gui == null) return;
-
-            // Get path from active bot execution or from open bot settings window
-            nurgling.routes.ForagerPath path = gui.activeBotPath;
-            if(path == null) {
-                // Check for open PathRecordable window
-                for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
-                    if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
-                        path = ((nurgling.widgets.bots.PathRecordable) wdg).getCurrentLoadedPath();
-                        break;
-                    }
-                }
-            }
-            if(path == null || path.waypoints.isEmpty()) return;
-
-            haven.MiniMap.Location sessloc = gui.mmap != null ? gui.mmap.sessloc : null;
-            if(sessloc == null) return;
-
-            // Convert all visible waypoints to screen coordinates
-            java.util.List<Coord> screenPoints = new java.util.ArrayList<>();
-            for(nurgling.routes.ForagerWaypoint wp : path.waypoints) {
-                Coord2d worldPos = wp.toWorldCoord(sessloc);
-                if(worldPos == null) continue;
-                Coord3f sc = screenxf(worldPos);
-                if(sc == null) continue;
-                screenPoints.add(sc.round2());
-            }
-
-            if(screenPoints.isEmpty()) return;
-
-            // Draw lines between waypoints
-            for(int i = 0; i < screenPoints.size() - 1; i++) {
-                Coord a = screenPoints.get(i);
-                Coord b = screenPoints.get(i + 1);
-                g.chcolor(0, 0, 0, 180);
-                g.line(a, b, 4);
-                g.chcolor(0, 255, 128, 200);
-                g.line(a, b, 2);
-            }
-
-            // Draw nodes at each waypoint
-            int num = 1;
-            for(Coord sc : screenPoints) {
-                int r = UI.scale(6);
-                // Black outline
-                g.chcolor(0, 0, 0, 200);
-                g.fellipse(sc, new Coord(r, r));
-                // Green fill
-                g.chcolor(0, 255, 128, 220);
-                g.fellipse(sc, new Coord(r - 1, r - 1));
-                // Number label
-                g.chcolor(0, 0, 0, 255);
-                g.aimage(nurgling.widgets.NMiniMap.getWaypointLabel(num).tex(), sc, 0.5, 0.5);
-                num++;
-            }
-            g.chcolor();
-        } catch(Exception e) {
-            // Ignore rendering errors
-        }
+        // Route waypoints and Forager's detour trail are now drawn by NWaypointOverlay instead.
     }
 
 
@@ -538,6 +477,16 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         storageTrailOverlay.update();
     }
 
+    /** True if wpid is a Forager milestone-anchor waypoint in the active route editor - those are static, not user-repositionable. */
+    private boolean isForagerMilestoneAnchor(long wpid) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.activeRouteEditor == null)
+            return false;
+        nurgling.routes.ForagerPath route = gui.activeRouteEditor.getRoute();
+        return route != null && wpid >= 0 && (int) wpid < route.waypoints.size()
+                && route.waypoints.get((int) wpid).milestoneHash != null;
+    }
+
     /** Id of the waypoint whose ground node contains the given screen point, or -1. */
     private long worldWaypointAt(Coord c) {
         if(wpOverlay == null)
@@ -583,13 +532,20 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             public void hit(Coord pc, Coord2d mc) {
                 wpDragPending = false;
                 NGameUI gui = NUtils.getGameUI();
-                if(gui == null || gui.waypointMovementService == null)
+                if(gui == null)
                     return;
                 haven.MiniMap.Location sessloc = (gui.mmap != null) ? gui.mmap.sessloc : null;
                 if(sessloc == null)
                     return;
                 Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
-                gui.waypointMovementService.setWaypoint(id, new haven.MiniMap.Location(sessloc.seg, tc), sessloc, commit);
+                haven.MiniMap.Location loc = new haven.MiniMap.Location(sessloc.seg, tc);
+                if(gui.activeRouteEditor != null) {
+                    gui.activeRouteEditor.moveWaypointFromWorld((int)id, loc, commit);
+                } else {
+                    if(gui.waypointMovementService == null)
+                        return;
+                    gui.waypointMovementService.setWaypoint(id, loc, sessloc, commit);
+                }
             }
 
             public void nohit(Coord pc) {
@@ -1261,6 +1217,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if (chunkNavManager != null) {
             chunkNavManager.tick();
         }
+        milestoneTracker.tick();
 
         if (minesweeperOverlay == null) {
             minesweeperOverlay = new MinesweeperOverlay();
@@ -1453,7 +1410,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
          * right where you are still clicking. Same rule as the minimap (NMiniMap.mousedown). */
         if(ev.b == 1 && wpGrab == null && !ui.modmeta && !ui.modshift && !ui.modctrl) {
             long wpid = worldWaypointAt(ev.c);
-            if(wpid >= 0) {
+            if(wpid >= 0 && !isForagerMilestoneAnchor(wpid) && (wpOverlay == null || wpOverlay.draggable())) {
                 wpDragOrigin = waypointWorldPos(wpid);
                 wpDragId = wpid;
                 wpDragPending = false;
@@ -2276,21 +2233,43 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return sendPingToChat(grid.id, tc.sub(grid.ul));
     }
 
+    /** Plain left-click on a milestone gob while a route is being edited splices it into the route; false if there's nothing to do. */
+    public boolean spliceMilestoneAt(Gob gob) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.activeRouteEditor == null || gob == null || gob.ngob == null)
+            return false;
+        String hash = gob.ngob.hash;
+        if(hash == null)
+            return false;
+        return gui.activeRouteEditor.spliceMilestoneFromWorld(hash);
+    }
+
     /**
      * Queue a waypoint at a world position - the world's half of alt+LMB, matching what
      * NMiniMapWnd.clickloc and NMapWnd.handleWaypointClick do from a map.
      *
      * <p>Returning false leaves the click to fall through and walk normally.
+     *
+     * <p>While a route is being edited, this adds a waypoint to that route instead of queueing a movement.
      */
     public boolean addWaypointAt(Coord2d mc) {
         NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.waypointMovementService == null || gui.mmap == null)
+        if(gui == null || gui.mmap == null)
             return false;
         haven.MiniMap.Location sessloc = gui.mmap.sessloc;
         if(sessloc == null)
             return false;
         Coord tc = mc.floor(MCache.tilesz).add(sessloc.tc);
-        gui.waypointMovementService.addWaypoint(new haven.MiniMap.Location(sessloc.seg, tc), sessloc);
+        haven.MiniMap.Location loc = new haven.MiniMap.Location(sessloc.seg, tc);
+
+        if(gui.activeRouteEditor != null) {
+            gui.activeRouteEditor.addWaypointFromWorld(loc);
+            return true;
+        }
+
+        if(gui.waypointMovementService == null)
+            return false;
+        gui.waypointMovementService.addWaypoint(loc, sessloc);
         return true;
     }
 

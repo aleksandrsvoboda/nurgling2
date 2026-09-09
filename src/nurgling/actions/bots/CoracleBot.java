@@ -30,7 +30,8 @@ public class CoracleBot implements Action {
             return mount(gui);
     }
 
-    private boolean isPlayerInCoracle(NGameUI gui) {
+    /** Public so callers like Forager can derive an effective water-mode from live mount state. */
+    public static boolean isPlayerInCoracle(NGameUI gui) {
         Gob player = NUtils.player();
         if (player == null) return false;
 
@@ -143,6 +144,13 @@ public class CoracleBot implements Action {
         if (!flowerResult.IsSuccess())
             return Results.ERROR("Failed to board Coracle.");
 
+        // The flower click only starts the mount progress bar; wait for it to appear then finish.
+        WaitProgress started = new WaitProgress(WaitProgress.Phase.START, 10000);
+        NUtils.addTask(started);
+        if (!started.isTimedOut()) {
+            NUtils.addTask(new WaitProgress(WaitProgress.Phase.FINISH, 30000));
+        }
+
         return Results.SUCCESS();
     }
 
@@ -190,13 +198,7 @@ public class CoracleBot implements Action {
     private boolean isOnValidWaterTile(NGameUI gui) {
         MCache map = gui.ui.sess.glob.map;
         Coord playerTile = NUtils.player().rc.div(MCache.tilesz).floor();
-        String tileName = map.tilesetname(map.gettile(playerTile));
-        if (tileName == null) return false;
-
-        return tileName.contains("water") ||
-               tileName.contains("bog") ||
-               tileName.contains("fen") ||
-               tileName.contains("swamp") ||
-               tileName.contains("marsh");
+        // Shared with NPFMap's water-mode pf-grid classification so the two can't diverge.
+        return nurgling.pf.NPFMap.isValidWaterTileName(map.tilesetname(map.gettile(playerTile)));
     }
 }

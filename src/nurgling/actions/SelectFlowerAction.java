@@ -9,6 +9,10 @@ import nurgling.tasks.*;
 public class SelectFlowerAction implements Action
 {
     String opt;
+    java.util.List<String> optCandidates = null;
+
+    // Which candidate actually matched a real petal, set by run() when optCandidates was used.
+    private String matchedOpt = null;
 
     Object target;
     Sprite spr = null;
@@ -24,6 +28,13 @@ public class SelectFlowerAction implements Action
     public SelectFlowerAction(String opt, Gob gob)
     {
         this.opt = opt;
+        this.target = gob;
+    }
+
+    /** As SelectFlowerAction(String, Gob), but tries several candidate option strings in priority order. */
+    public SelectFlowerAction(java.util.List<String> optCandidates, Gob gob)
+    {
+        this.optCandidates = optCandidates;
         this.target = gob;
     }
 
@@ -73,7 +84,14 @@ public class SelectFlowerAction implements Action
                 return Results.FAIL();
             else
                 return Results.SUCCESS();
-        if(fm.chooseOpt(opt))
+        boolean chosen;
+        if (optCandidates != null) {
+            matchedOpt = fm.chooseOpt(optCandidates);
+            chosen = matchedOpt != null;
+        } else {
+            chosen = fm.chooseOpt(opt);
+        }
+        if(chosen)
         {
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
             return Results.SUCCESS();
@@ -82,9 +100,14 @@ public class SelectFlowerAction implements Action
         {
             NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
             if(!ignoreErrors)
-                return Results.ERROR("NO OPT:" + opt);
+                return Results.ERROR("NO OPT:" + (optCandidates != null ? String.join(",", optCandidates) : opt));
             return Results.FAIL();
         }
 
+    }
+
+    /** Which candidate actually matched, after a successful run() with the candidates-list form. */
+    public String getMatchedOpt() {
+        return matchedOpt;
     }
 }

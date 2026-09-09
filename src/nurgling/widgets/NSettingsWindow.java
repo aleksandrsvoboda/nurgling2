@@ -143,6 +143,7 @@ public class NSettingsWindow extends Widget {
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.equipment"), new EquipmentBotSettings(), container));
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.starvation"), new StarvationAlertSettings(), container));
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.autologout"), new AutoLogoutSettings(), container));
+        bots.addChild(new SettingsItem(L10n.get("nsettings.item.forager"), new ForagerSettingsPanel(), container));
         bots.addChild(new SettingsItem(L10n.get("nsettings.item.mining_mastery"), new MiningMasterySettings(), container));
         bots.addChild(new SettingsItem("Icon Generator", new IconGeneratorPanel(), container));
 
@@ -156,9 +157,16 @@ public class NSettingsWindow extends Widget {
     public void wdgmsg(Widget sender, String msg, Object... args) {
         if (msg.equals("close")) {
             hide();
-            if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null) {
-                ((NMapView) NUtils.getGameUI().map).destroyRouteDummys();
-                NUtils.getGameUI().map.glob.oc.paths.pflines = null;
+            // Widget visibility doesn't cascade from parent to child - hide currentPanel directly so its tick() stops self-healing activeRouteEditor.
+            if (currentPanel != null) {
+                currentPanel.hide();
+            }
+            if (NUtils.getGameUI() != null) {
+                NUtils.getGameUI().activeRouteEditor = null;
+                if (NUtils.getGameUI().map != null) {
+                    ((NMapView) NUtils.getGameUI().map).destroyRouteDummys();
+                    NUtils.getGameUI().map.glob.oc.paths.pflines = null;
+                }
             }
         } else {
             super.wdgmsg(sender, msg, args);

@@ -1099,6 +1099,9 @@ public class ChunkNavExecutor implements Action {
             } else {
                 return walkTowardTarget(target, gui, WalkConfig.STEP_BY_STEP);
             }
+        } catch (InterruptedException e) {
+            // Don't let the catch-all below swallow a deliberate mid-walk interrupt.
+            throw e;
         } catch (Exception e) {
             return walkTowardTarget(target, gui, WalkConfig.STEP_BY_STEP);
         }

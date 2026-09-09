@@ -246,6 +246,11 @@ public class NAlarmWdg extends Widget
         return alarmActive || alarmLatched;
     }
 
+    /** Unlike {@link #hasAlarm()}, excludes the latched notification badge - only a live, current threat. */
+    public boolean hasActiveThreat() {
+        return alarmActive;
+    }
+
     /** Clear the latch. Called when the user switches to this session. */
     public void acknowledgeAlarm() {
         alarmLatched = false;

@@ -262,8 +262,17 @@ public class BotRegistry {
         bots.add(new BotDescriptor("dropsoil", BotDescriptor.BotType.UTILS, "Drop Soil", "Drops soil from stockpile until there is 10 soil left in the stockpile..", false, true, SoilStockpileDropper.class, "dropsoil", false));
         bots.add(new BotDescriptor("measure_length", BotDescriptor.BotType.UTILS, "Zone Measure Tool", "Measure and mark zones on the ground. Select areas, view dimensions, and manage multiple selections.", false, true, ZoneMeasureTool.class, "measuring_length", false));
         bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true));
-        bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", false, true, CoracleBot.class, "coracle", false));
-        bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", false, true, SkisBot.class, "skis", false));
+        // Not a Scenario step - blindly toggles mount/dismount, unsafe for an unattended/rerun schedule entry.
+        bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", false, true, CoracleBot.class, "coracle", false, Map.of(), true));
+        bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", true, true, SkisBot.class, "skis", false));
+        // Forager-only - a gate along a route is a per-waypoint concern, not a general Scenario step.
+        bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens or closes the nearest gate, per this step's Action setting; does nothing if it's already in that state.", false, false, GateBot.class, "goto", false, Map.of("mode", "open"), true));
+        // Hidden from the main bot menu - a pre-flight prep action (swamp fever prevention),
+        // meant to be set up via the Scheduler/general Scenario step list before a Forager run
+        // starts, not as an in-route Forager waypoint step (which can walk off the route's
+        // segment, e.g. indoors, breaking the route mid-run - out of scope for a "post-flight,
+        // along the route" step).
+        bots.add(new BotDescriptor("apply_tansy", BotDescriptor.BotType.UTILS, "bot.apply_tansy.title", "bot.apply_tansy.desc", true, false, ApplyTansyIfMissing.class, "leaf", false, Map.of("targetStacks", 10), false));
 
         // BUILD
         bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));
