@@ -8,6 +8,7 @@ import nurgling.conf.NToolBeltProp;
 import nurgling.notifications.DiscordHookObject;
 import nurgling.overlays.QualityOl;
 import nurgling.tools.NAlias;
+import nurgling.tools.NNoticeLog;
 import nurgling.tools.NParser;
 import nurgling.tools.NSearchItem;
 import nurgling.widgets.*;
@@ -38,6 +39,8 @@ public class NGameUI extends GameUI
     public Specialisation spec;
     public BotsInterruptWidget biw;
     public NEquipProxy nep;
+    /** System notices from the server, so bots can react to text-only events. */
+    public final NNoticeLog notices = new NNoticeLog();
     public NBeltProxy nbp;
     private SwimmingStatusBuff swimmingBuff = null;
     private TrackingStatusBuff trackingBuff = null;
@@ -1115,10 +1118,12 @@ public class NGameUI extends GameUI
 
 
     public boolean msg(UI.Notice msg) {
-        if (msg.message().contains("Quality")) {
+        String text = msg.message();
+        notices.add(text);
+        if (text != null && text.contains("Quality")) {
             if(map.clickedGob!=null)
             {
-                Matcher m = Pattern.compile("Quality: (\\d+)").matcher(msg.message());
+                Matcher m = Pattern.compile("Quality: (\\d+)").matcher(text);
                 if(m.matches()) {
                     try {
                         map.clickedGob.gob.addcustomol(new QualityOl(map.clickedGob.gob, Integer.parseInt(m.group(1))));
