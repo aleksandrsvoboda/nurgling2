@@ -56,6 +56,8 @@ public class NGameUI extends GameUI
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
     public TreeLocationService treeLocationService;
     public TreeSearchWindow treeSearchWindow = null;
+
+    public MineralSearchWindow mineralSearchWindow = null;
     public final Map<String, TreeLocationDetailsWindow> openTreeDetailWindows = new HashMap<>();
     public LabeledMarkService labeledMarkService;
     public MapToolsWindow mapToolsWindow = null;
@@ -298,6 +300,9 @@ public class NGameUI extends GameUI
             if(nmapView.getChunkNavManager() != null)
                 nmapView.getChunkNavManager().shutdown();
         }
+        /* Icons are keyed by resource name, and the next session may load a different
+         * resource set, so they must not be carried across. */
+        nurgling.actions.bots.MasterMiner.clearIconCache();
         super.dispose();
     }
 

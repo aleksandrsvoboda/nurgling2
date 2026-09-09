@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.tools.MapDbTransfer;
+import nurgling.conf.ProspectKind;
 import nurgling.i18n.L10n;
 
 import java.awt.Color;
@@ -17,6 +18,9 @@ public class NMapWnd extends MapWnd {
     public Resource.Image searchRes = null;
     MapToggleButton treeBtn;
     MapToggleButton fishBtn;
+    MapToggleButton oreBtn;
+    MapToggleButton gemBtn;
+    MapToggleButton stoneBtn;
     MapToggleButton mapToolsBtn;
     MapToggleButton vectorClearBtn;
     TextEntry markerSearchField;
@@ -50,32 +54,40 @@ public class NMapWnd extends MapWnd {
         super(file, mv, sz, title);
         searchRes = Resource.local().loadwait("alttex/selectedtex").layer(Resource.imgc);
         
-        // Position buttons in top-right corner (15px right, 10px down from original position)
-        int btnSpacing = UI.scale(5);
-        Coord btnPos = view.c.add(view.sz.x - UI.scale(35), UI.scale(15));
-        
-        // Map tools button (rightmost) - opens the Map Tools panel (no icon toggle)
-        mapToolsBtn = add(new MapToggleButton("maptools", L10n.get("maptools.button_tip"), MapToolsWindow::toggle), btnPos);
+        /* Built right-to-left from the top-right of the view; layoutMapButtons() does the
+         * actual placing, both here and on every resize. */
+        mapToolsBtn = add(new MapToggleButton("maptools", L10n.get("maptools.button_tip"), MapToolsWindow::toggle));
         mapToolsBtn.a = false; // Always show as unpressed (no toggle state)
         mapToolsBtn.click(MapToolsWindow::toggle); // Left click opens the panel
 
-        // Fish button (middle) - shares its state with the Map Tools panel through NConfig
-        btnPos = btnPos.sub(mapToolsBtn.sz.x + btnSpacing, 0);
-        fishBtn = add(new MapToggleButton("fish", "Toggle fish icons (Right-click: Fish Search)", MapToolsWindow::openFishSearch), btnPos);
+        // Shares its state with the Map Tools panel through NConfig.
+        fishBtn = add(new MapToggleButton("fish", "Toggle fish icons (Right-click: Fish Search)", MapToolsWindow::openFishSearch));
         fishBtn.state(() -> NMiniMap.showFishIcons());
         fishBtn.set(val -> NMiniMap.showFishIcons(val));
 
-        // Tree button
-        btnPos = btnPos.sub(fishBtn.sz.x + btnSpacing, 0);
-        treeBtn = add(new MapToggleButton("tree", "Toggle tree icons (Right-click: Tree Search)", MapToolsWindow::openTreeSearch), btnPos);
+        treeBtn = add(new MapToggleButton("tree", "Toggle tree icons (Right-click: Tree Search)", MapToolsWindow::openTreeSearch));
         treeBtn.state(() -> NMiniMap.showTreeIcons());
         treeBtn.set(val -> NMiniMap.showTreeIcons(val));
 
-        // Vector clear button (leftmost)
-        btnPos = btnPos.sub(treeBtn.sz.x + btnSpacing, 0);
-        vectorClearBtn = add(new MapToggleButton("vector", "Clear tracking vectors", null), btnPos);
+        /* Master Miner's finds. These drive the same per-kind setting as the Map Tools sample
+         * rows, so the button and the panel are two views of one thing, as fish and tree are. */
+        oreBtn = add(new MapToggleButton("ores", L10n.get("maptools.ore_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.ORE)));
+        oreBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.ORE));
+        oreBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.ORE, val));
+
+        gemBtn = add(new MapToggleButton("gems", L10n.get("maptools.gem_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.GEM)));
+        gemBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.GEM));
+        gemBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.GEM, val));
+
+        stoneBtn = add(new MapToggleButton("stone", L10n.get("maptools.stone_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.STONE)));
+        stoneBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.STONE));
+        stoneBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.STONE, val));
+
+        vectorClearBtn = add(new MapToggleButton("vector", "Clear tracking vectors", null));
         vectorClearBtn.a = false; // Always show as unpressed
         vectorClearBtn.click(this::clearVectors);
+
+        layoutMapButtons();
 
         // Add marker search field at bottom-right (no label, no button)
         add(markerSearchField = new TextEntry(UI.scale(200), "") {
@@ -411,23 +423,36 @@ public class NMapWnd extends MapWnd {
         markerSearchPattern = pattern;
     }
 
+    /**
+     * Lay the overlay toggles out along the top-right of the map view, wrapping onto another
+     * row rather than running off the left edge when the window is small.
+     */
+    private void layoutMapButtons() {
+        MapToggleButton[] btns = {mapToolsBtn, fishBtn, treeBtn, oreBtn, gemBtn, stoneBtn, vectorClearBtn};
+        for(MapToggleButton btn : btns) {
+            if(btn == null)
+                return;
+        }
+        int spacing = UI.scale(5);
+        int right = view.c.x + view.sz.x - UI.scale(35);
+        int left = view.c.x + UI.scale(5);
+        int x = right;
+        int y = view.c.y + UI.scale(15);
+        for(MapToggleButton btn : btns) {
+            if(x < left) {
+                x = right;
+                y += btn.sz.y + spacing;
+            }
+            btn.c = new Coord(x, y);
+            x -= btn.sz.x + spacing;
+        }
+    }
+
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
         
-        // Position buttons in top-right corner (15px right, 10px down from original position)
-        if(mapToolsBtn != null && fishBtn != null && treeBtn != null && vectorClearBtn != null) {
-            int btnSpacing = UI.scale(5);
-            Coord btnPos = view.c.add(view.sz.x - UI.scale(35), UI.scale(15));
-
-            mapToolsBtn.c = btnPos;
-            btnPos = btnPos.sub(mapToolsBtn.sz.x + btnSpacing, 0);
-            fishBtn.c = btnPos;
-            btnPos = btnPos.sub(fishBtn.sz.x + btnSpacing, 0);
-            treeBtn.c = btnPos;
-            btnPos = btnPos.sub(treeBtn.sz.x + btnSpacing, 0);
-            vectorClearBtn.c = btnPos;
-        }
+        layoutMapButtons();
         
         // Keep marker search field at bottom-right
         if(markerSearchField != null)

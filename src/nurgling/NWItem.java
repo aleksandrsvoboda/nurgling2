@@ -132,24 +132,11 @@ public class NWItem extends WItem
     // Server flood protection: dropping many items in the same instant (after
     // picking up a big batch, or trimming a large stack) sends a burst of
     // "drop" messages that trips the server's spam protection and disconnects
-    // the client. Auto-drops are throttled to at most one item per interval,
-    // shared statically across every item so the COMBINED drop rate -- loose
-    // items and stacked items together -- stays under the threshold.
-    private static final long AUTODROP_INTERVAL_MS = 150;
-    private static long lastAutodropMs = 0;
-
-    // Returns true (and consumes the slot) only when enough time has passed
-    // since the last auto-drop. Call this immediately before actually dropping,
-    // and only once it is certain the item will be dropped, so slots are never
-    // wasted.
+    // the client. The budget lives in NUtils so that it is shared with the bots
+    // that drop on their own -- the COMBINED rate is what the server sees.
     private static boolean autodropAllowed()
     {
-        long now = System.currentTimeMillis();
-        if (now - lastAutodropMs >= AUTODROP_INTERVAL_MS) {
-            lastAutodropMs = now;
-            return true;
-        }
-        return false;
+        return NUtils.dropSlotReady();
     }
 
     private void autoDrop()

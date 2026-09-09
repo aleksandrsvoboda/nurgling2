@@ -88,6 +88,10 @@ public class NConfig
         debug,
         claydiggerprop,
         miningol,
+        minesweeperol,
+        miningoverlaymemory,
+        masterminerprop,
+        masterminermarkingconfig,
         q_pattern,
         q_range,
         q_visitor,
@@ -328,6 +332,10 @@ public class NConfig
         conf.put(Key.disableMenugridKeys, false);
         conf.put(Key.baseurl, "https://raw.githubusercontent.com/aleksandrsvoboda/nurgling-release/stable/ver");
         conf.put(Key.miningol, true);
+        conf.put(Key.minesweeperol, true);
+        conf.put(Key.miningoverlaymemory, new ArrayList<NMiningOverlayMemory>());
+        conf.put(Key.masterminerprop, new ArrayList<NMasterMinerProp>());
+        conf.put(Key.masterminermarkingconfig, new ArrayList<NMasterMinerMarkingConfig>());
         conf.put(Key.crime, false);
         conf.put(Key.tracking, false);
         conf.put(Key.swimming, false);
@@ -1142,6 +1150,15 @@ public class NConfig
                                 break;
                             case "NWorldExplorer":
                                 res.add(new NWorldExplorerProp(obj));
+                                break;
+                            case "NMiningOverlayMemory":
+                                res.add(new NMiningOverlayMemory(obj));
+                                break;
+                            case "NMasterMinerProp":
+                                res.add(new NMasterMinerProp(obj));
+                                break;
+                            case "NMasterMinerMarkingConfig":
+                                res.add(new NMasterMinerMarkingConfig(obj));
                                 break;
                             case "NFishingSettings":
                                 res.add(new NFishingSettings(obj));

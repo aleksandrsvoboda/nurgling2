@@ -77,8 +77,15 @@ public class MapToolsWindow extends Window {
                 () -> NMiniMap.showFishIcons(), val -> NMiniMap.showFishIcons(val), MapToolsWindow::openFishSearch);
 
         y += MARGIN;
-        tab.add(new Label(L10n.get("maptools.section_samples")), 0, y);
-        y += UI.scale(17);
+        Label samplesLbl = tab.add(new Label(L10n.get("maptools.section_samples")), 0, y);
+        Button minedSearch = tab.add(new Button(SEARCH_BTN_W, L10n.get("maptools.search_btn")) {
+            @Override
+            public void click() {
+                openMineralSearch(null);
+            }
+        }, OVERLAY_W - SEARCH_BTN_W, y);
+        minedSearch.settip(L10n.get("mineral.search_tip"));
+        y += alignRow(y, samplesLbl, minedSearch) + ROW_GAP;
 
         // Master row: hides the whole layer without losing the per-kind settings.
         CheckBox master = tab.add(new CheckBox(L10n.get("maptools.show_samples")), UI.scale(4), y);
@@ -308,6 +315,33 @@ public class MapToolsWindow extends Window {
             gui.add(gui.treeSearchWindow, new Coord(100, 100));
             gui.treeSearchWindow.show();
         }
+    }
+
+    /**
+     * Open the ore/gemstone/stone search, preselecting one category.
+     *
+     * @param preset category to start on, or null for all three
+     */
+    public static void openMineralSearch(ProspectKind preset) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null)
+            return;
+        if(gui.mineralSearchWindow != null) {
+            /* Reopen on the asked-for category even when it is already up, so right-clicking
+             * the gem button while an ore search is showing does what it looks like. */
+            if(gui.mineralSearchWindow.visible() && preset == null) {
+                gui.mineralSearchWindow.hide();
+                return;
+            }
+            gui.mineralSearchWindow.show();
+            gui.mineralSearchWindow.raise();
+            gui.mineralSearchWindow.preset(preset);
+            return;
+        }
+        gui.mineralSearchWindow = new MineralSearchWindow(gui);
+        gui.add(gui.mineralSearchWindow, new Coord(100, 100));
+        gui.mineralSearchWindow.show();
+        gui.mineralSearchWindow.preset(preset);
     }
 
     public static void openFishSearch() {
