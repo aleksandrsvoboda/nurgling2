@@ -71,6 +71,7 @@ public class StackSupporter {
         customStackSizes.put("Washed-up Bladderwrack", 4);
         customStackSizes.put("Commmon Starfish", 4);
         customStackSizes.put("Cave Lantern", 4);
+        customStackSizes.put("Raw Narwhal", 5);
 
         putAll(3,
                 "Tuber", "Onion", "Beetroot", "Carrot", "Cucumber",
