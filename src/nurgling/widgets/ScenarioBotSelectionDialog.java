@@ -17,16 +17,20 @@ public class ScenarioBotSelectionDialog extends Window {
     public static final int COLS = 6;
 
     public ScenarioBotSelectionDialog(java.util.function.Consumer<BotDescriptor> onSelect) {
+        this(b -> b.allowedAsStepInScenario, onSelect);
+    }
+
+    public ScenarioBotSelectionDialog(java.util.function.Predicate<BotDescriptor> filter, java.util.function.Consumer<BotDescriptor> onSelect) {
         super(new Coord(ICON_SIZE * COLS + GRID_PADDING * 2, UI.scale(350)), L10n.get("botselect.title"));
 
-        List<BotDescriptor.BotType> groupOrder = List.of(RESOURCES, UTILS, PRODUCTIONS, FARMING, FARMING_QUALITY, LIVESTOCK);
+        List<BotDescriptor.BotType> groupOrder = List.of(RESOURCES, UTILS, PRODUCTIONS, FARMING, FARMING_QUALITY, ANIMALS);
         int contentWidth = ICON_SIZE * COLS + GRID_PADDING * 2;
         Widget contentPanel = new Widget(new Coord(contentWidth, 10000)); // Height will be fixed below
 
         int y = GRID_PADDING;
         for (BotDescriptor.BotType type : groupOrder) {
             List<BotDescriptor> group = BotRegistry.byType(type).stream()
-                    .filter(b -> b.allowedAsStepInScenario)
+                    .filter(filter)
                     .toList();
             if (group.isEmpty()) continue;
 
@@ -35,7 +39,7 @@ public class ScenarioBotSelectionDialog extends Window {
                 case PRODUCTIONS: title = L10n.get("botselect.production");  break;
                 case FARMING:  title = L10n.get("botselect.farmers");   break;
                 case FARMING_QUALITY: title = L10n.get("botselect.farmers_quality"); break;
-                case LIVESTOCK: title = L10n.get("botselect.livestock"); break;
+                case ANIMALS: title = L10n.get("botselect.animals"); break;
                 case UTILS:    title = L10n.get("botselect.utils");     break;
                 case RESOURCES:    title = L10n.get("botselect.resources");     break;
                 default:       title = L10n.get("botselect.other");

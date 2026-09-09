@@ -14,8 +14,7 @@ import java.util.List;
  * Living trees: seed/leaf/bough/bark, each independently toggleable, read from the tree's live
  * per-instance state bitmask (see HarvestState) rather than guessed from species/season. Bough
  * and bark aren't part of that bitmask - bough is a fixed per-species trait (HarvestState.hasBough),
- * bark is assumed always available on a mature tree (its own item disappears once fully harvested,
- * same as the tree itself would stop being "mature" - not modeled further here).
+ * bark is assumed always available on any mature tree species VSpec tracks a bark product for.
  */
 public class TreeHarvestSpec implements HarvestSpec {
     @Override
@@ -65,7 +64,7 @@ public class TreeHarvestSpec implements HarvestSpec {
         boolean seedUndiscovered = seed && undiscovered != null && undiscovered.seed;
         boolean leafUndiscovered = leaf && undiscovered != null && undiscovered.leaf;
         boolean boughUndiscovered = bough && undiscovered != null && undiscovered.bough;
-        boolean barkUndiscovered = bark && lpassistentOn && LpExplorer.hasUndiscoveredBarkProduct(res.name);
+        boolean barkUndiscovered = bark && undiscovered != null && undiscovered.bark;
 
         List<Part> parts = new ArrayList<>(4);
         HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf"), leafUndiscovered);

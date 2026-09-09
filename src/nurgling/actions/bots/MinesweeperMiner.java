@@ -27,12 +27,34 @@ public class MinesweeperMiner implements Action {
     );
     private static final int SOLVER_RADIUS = 30;
 
+    // Breaking into a natural cavern is only reported as a system notice, so we
+    // watch the message log for it. Matched case-insensitively as a substring to
+    // survive the exact phrasing ("You opened a natural cave gallery.").
+    private static final String CAVE_GALLERY_NOTICE = "cave gallery";
+
     private final Direction direction;
     private final int maxLateral;
+
+    // Notice sequence taken when mining starts, so we ignore older messages
+    private long noticeMark = 0;
+    // Latched: the notice rolls out of the log, the stop condition must not
+    private volatile boolean galleryOpened = false;
 
     public MinesweeperMiner(Direction direction, int maxLateral) {
         this.direction = direction;
         this.maxLateral = maxLateral;
+    }
+
+    /**
+     * True once the server has reported that we broke into a natural cave gallery.
+     * Latches on first sight - the notice log is bounded, so a later re-check would
+     * otherwise stop seeing the message and the bot would resume mining.
+     */
+    private boolean caveGalleryOpened(NGameUI gui) {
+        if (!galleryOpened && gui.notices.contains(noticeMark, CAVE_GALLERY_NOTICE)) {
+            galleryOpened = true;
+        }
+        return galleryOpened;
     }
 
     @Override
@@ -45,6 +67,10 @@ public class MinesweeperMiner implements Action {
         if (player == null) return Results.ERROR("No player found");
 
         Coord startTile = player.rc.div(tilesz).floor();
+
+        // Watch for the server telling us we broke into a natural cavern
+        noticeMark = gui.notices.seq();
+        galleryOpened = false;
 
         // Track the starting lateral position for deviation limit
         int startLateral = getLateral(startTile, direction);
@@ -76,6 +102,12 @@ public class MinesweeperMiner implements Action {
             }
             tilesMinedTotal++;
             handleBumlings(gui);
+
+            if (caveGalleryOpened(gui)) {
+                gui.msg("Minesweeper Miner: opened a natural cave gallery, stopping after "
+                        + tilesMinedTotal + " tiles.");
+                break;
+            }
         }
 
         return Results.SUCCESS();
@@ -182,6 +214,11 @@ public class MinesweeperMiner implements Action {
      */
     private Results mineTile(NGameUI gui, MinesweeperSolver solver, Coord tilePos)
             throws InterruptedException {
+        // Once we are through into a natural cavern we stop digging entirely
+        if (caveGalleryOpened(gui)) {
+            return Results.SUCCESS();
+        }
+
         if (!isTileMineable(gui, tilePos)) {
             solver.markMined(tilePos);
             return Results.SUCCESS();
@@ -216,6 +253,11 @@ public class MinesweeperMiner implements Action {
         Resource resBefore = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
 
         while (isTileMineable(gui, tilePos)) {
+            // Stop swinging the moment we break into a natural cavern
+            if (caveGalleryOpened(gui)) {
+                break;
+            }
+
             handleBumlings(gui);
 
             NUtils.mine(worldPos);
@@ -229,7 +271,7 @@ public class MinesweeperMiner implements Action {
                     public boolean check() {
                         Resource current = gui.ui.sess.glob.map.tilesetr(
                                 gui.ui.sess.glob.map.gettile(finalTilePos));
-                        return current != finalResBefore;
+                        return current != finalResBefore || caveGalleryOpened(gui);
                     }
                 });
             }

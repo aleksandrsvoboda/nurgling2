@@ -45,7 +45,7 @@ public class TunnelingBot implements Action {
 
         TunnelingDialog dialog = new TunnelingDialog();
         dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, maxLateralRef, confirmRef, cancelRef);
-        gui.add(dialog, UI.scale(200, 200));
+        NUtils.addCentered(gui, dialog);
 
         // Wait for user input
         NUtils.addTask(new NTask() {

@@ -2208,7 +2208,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 					return;
 			}
 		}
-		
+
+		if(!ui.modmeta && !ui.modshift && !ui.modctrl && clickb == 1 && clickedGob != null) {
+			if(MapView.this instanceof nurgling.NMapView) {
+				if(((nurgling.NMapView)MapView.this).spliceMilestoneAt(clickedGob.gob))
+					return;
+			}
+		}
+
 		if(clickb==3 && clickedGob!=null)
 		{
 			NUtils.getUI().core.setLastAction(clickedGob.gob);

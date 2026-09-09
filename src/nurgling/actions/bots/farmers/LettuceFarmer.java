@@ -64,7 +64,7 @@ public class LettuceFarmer implements Action {
             }
             
             if (lettuceLeaf != null)
-                new LettuceAndPumpkinCollector(NContext.findSpec(field), NContext.findSpec(seed), lettuceLeaf, new NAlias("items/lettucehead", "Head of Lettuce"), NContext.findSpec(trough)).run(gui);
+                new LettucePumpkinAndWatermelonCollector(NContext.findSpec(field), NContext.findSpec(seed), lettuceLeaf, new NAlias("items/lettucehead", "Head of Lettuce"), LettucePumpkinAndWatermelonCollector.Product.LETTUCE, NContext.findSpec(trough)).run(gui);
             new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/lettuce")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);

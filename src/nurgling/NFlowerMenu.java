@@ -301,4 +301,19 @@ public class NFlowerMenu extends FlowerMenu
         wdgmsg("cl", -1);
         return false;
     }
+
+    /** Like chooseOpt(String), but tries each candidate in order and picks the first real petal. */
+    public String chooseOpt(List<String> candidates)
+    {
+        for (String candidate : candidates) {
+            for (NPetal petal : nopts) {
+                if (petal.name.equals(candidate)) {
+                    nchoose(petal);
+                    return candidate;
+                }
+            }
+        }
+        wdgmsg("cl", -1);
+        return null;
+    }
 }

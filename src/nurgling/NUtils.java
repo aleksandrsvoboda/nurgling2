@@ -67,6 +67,33 @@ public class NUtils
         return (ui != null) ? ui.gui : null;
     }
 
+    /** Top-left corner that centres a child of {@code childSz} inside {@code parentSz}. */
+    public static Coord centeredPos(Coord parentSz, Coord childSz) {
+        if (parentSz == null || childSz == null)
+            return Coord.z;
+        return Coord.of(
+                Math.max(0, (parentSz.x - childSz.x) / 2),
+                Math.max(0, (parentSz.y - childSz.y) / 2));
+    }
+
+    public static <T extends Widget> T addCentered(T wdg) {
+        return addCentered(getGameUI(), wdg);
+    }
+
+    /**
+     * Add {@code wdg} centred in {@code parent}, keeping it on screen when the parent is a
+     * {@link GameUI}. Bot windows use this instead of a hardcoded position so they land
+     * somewhere visible at any resolution.
+     */
+    public static <T extends Widget> T addCentered(Widget parent, T wdg) {
+        if (parent == null || wdg == null)
+            return wdg;
+        parent.add(wdg, centeredPos(parent.sz, wdg.sz));
+        if (parent instanceof GameUI)
+            ((GameUI) parent).fitwdg(wdg);
+        return wdg;
+    }
+
     public static NUI getUI(){
         // First check if this thread has a bound UI (bot threads)
         NUI threadUI = ThreadLocalUI.get();
@@ -188,6 +215,38 @@ public class NUtils
         return stam.a;
     }
 
+    /** Current HARD hitpoints as a fraction of true max (0.0-1.0), or -1 if unavailable - not soft HP despite the name; always-live like getEnergy()/getStamina(), unlike getCurrentHP()/getMaxHP(). */
+    public static double getHPFraction()
+    {
+        IMeter.Meter hp = getGameUI().getmeter ( "hp", 0 );
+        if(hp == null)
+            return -1;
+        return hp.a;
+    }
+
+    /** Current SOFT hitpoints as a fraction of the same true max getHPFraction() uses; falls back to getHPFraction() when unwounded (server sends only one segment). Always-live, not tooltip-derived. */
+    public static double getSoftHPFraction()
+    {
+        IMeter.Meter soft = getGameUI().getmeter ( "hp", 1 );
+        if(soft == null)
+            return getHPFraction();
+        return soft.a;
+    }
+
+    /** Current soft hitpoints, or -1 if unavailable - WARNING: tooltip-derived, only updates on hover, not reliably live; prefer getHPFraction() for safety checks. */
+    public static int getCurrentHP()
+    {
+        IMeter hp = getGameUI().getIMeter("hp");
+        return hp == null ? -1 : hp.curHealth;
+    }
+
+    /** Max soft hitpoints, or -1 if unavailable - see getCurrentHP()'s reliability warning. */
+    public static int getMaxHP()
+    {
+        IMeter hp = getGameUI().getIMeter("hp");
+        return hp == null ? -1 : hp.maxHealth;
+    }
+
     public static NEquipory getEquipment(){
         if ( getGameUI()!=null && getGameUI().equwnd != null ) {
             for ( Widget w = getGameUI().equwnd.lchild ; w != null ; w = w.prev ) {
@@ -222,6 +281,10 @@ public class NUtils
 
     public static void lclick(Coord2d pos) {
         getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),1, 0);
+    }
+
+    public static void rclick(Coord2d pos) {
+        getGameUI().map.wdgmsg("click", Coord.z, pos.floor(posres),3, 0);
     }
 
 
@@ -445,6 +508,29 @@ public class NUtils
 
     public static void drop(WItem item) {
         item.item.wdgmsg("drop", item.sz, getGameUI().map.player().rc, 0);
+    }
+
+    /* Server flood protection: a burst of "drop" messages in the same instant is throttled
+     * server-side -- the extra drops are simply ignored, and a big enough burst disconnects
+     * the client. The budget is shared by everything that drops automatically, so the
+     * combined rate stays under the threshold no matter how many of them are running. */
+    private static final long DROP_INTERVAL_MS = 150;
+    private static long lastDropMs = 0;
+
+    /**
+     * Claim the next drop slot, if one is free.
+     *
+     * @return true when the caller may drop right now, having consumed the slot. Call it
+     *         immediately before dropping and only once the drop is certain, so a claimed
+     *         slot is never wasted.
+     */
+    public static synchronized boolean dropSlotReady() {
+        long now = System.currentTimeMillis();
+        if (now - lastDropMs >= DROP_INTERVAL_MS) {
+            lastDropMs = now;
+            return true;
+        }
+        return false;
     }
     
     public static void itemact(WItem item) throws InterruptedException {
@@ -751,9 +837,10 @@ public class NUtils
             return false;
         }
 
-        // Crucible is ready when it has coal (bit 2 set in modelAttribute)
+        // Crucible is ready once it holds fuel of either kind: the low bits are 0 empty,
+        // 1 branches, 2 coal (4 is the flame). Testing bit 2 alone missed a branch-fuelled one.
         if (name.contains("crucible")) {
-            return (workstation.ngob.getModelAttribute() & 2) == 2;
+            return (workstation.ngob.getModelAttribute() & 3) != 0;
         }
         // For pow (forges), they're ready when not burning (bit 48)
         else if (name.startsWith("gfx/terobjs/pow")) {

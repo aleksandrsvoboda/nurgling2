@@ -476,6 +476,10 @@ public class NCore extends Widget
 
     public void addTask(final NTask task) throws InterruptedException
     {
+        // A task whose check() is already satisfied never calls task.wait(), the only place that notices an interrupt - so check it here too.
+        if (Thread.interrupted()) {
+            throw new InterruptedException();
+        }
         synchronized (task)
         {
             if(!task.check())

@@ -27,8 +27,9 @@ public class Chipper implements Action {
             "Heavy Earth", "Horn Silver", "Hornblende", "Iron Ochre", "Jasper", "Korund", "Kyanite",
             "Lava Rock", "Lead Glance", "Leaf Ore", "Limestone", "Malachite", "Marble", "Meteorite",
             "Mica", "Microlite", "Obsidian", "Olivine", "Orthoclase", "Peacock Ore", "Pegmatite",
-            "Porphyry", "Pumice", "Quarryartz", "Quartz", "Rhyolite", "Rock Crystal", "Sandstone",
-            "Schist", "Schrifterz", "Serpentine", "Shard of Conch", "Silvershine", "Slag", "Slate",
+            "Porphyry", "Pumice", "Quarryartz", "Quartz", "Rhyolite", "Rock Crystal", "Rock Salt", "Sandstone",
+            "Schist", "Schrifterz", "Serpentine", "Shard of Conch", "Petrified Shell", "Petrified Seashell",
+            "Silvershine", "Slag", "Slate",
             "Soapstone", "Sodalite", "Sunstone", "Wine Glance", "Zincspar"
     )));
 

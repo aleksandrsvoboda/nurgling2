@@ -70,6 +70,63 @@ public class MinesweeperSolver {
         return numbers.getOrDefault(key(tile.x, tile.y), -1);
     }
 
+    public void putState(int x, int y, TileState state) {
+        states.put(key(x, y), state);
+    }
+
+    public void putNumber(int x, int y, int number) {
+        numbers.put(key(x, y), number);
+    }
+
+    public List<Coord> dangerTiles() {
+        return tilesWithState(TileState.DANGER);
+    }
+
+    public List<Coord> safeTiles() {
+        return tilesWithState(TileState.SAFE);
+    }
+
+    private List<Coord> tilesWithState(TileState wanted) {
+        List<Coord> tiles = new ArrayList<>();
+        for (Map.Entry<Long, TileState> entry : states.entrySet()) {
+            if (entry.getValue() == wanted) {
+                tiles.add(new Coord(keyX(entry.getKey()), keyY(entry.getKey())));
+            }
+        }
+        return tiles;
+    }
+
+    /**
+     * Mined floor without a dust number is a minesweeper 0, which is the strongest
+     * constraint there is — every neighbour of it is safe. {@link #refresh} cannot tell
+     * those apart from bedrock and marks them WALL because they are no longer mineable,
+     * so this promotes any WALL adjacent to a REVEALED tile back to a revealed zero.
+     */
+    public void promoteAdjacentBlanks() {
+        List<Long> blanks = new ArrayList<>();
+        for (Map.Entry<Long, TileState> entry : states.entrySet()) {
+            if (entry.getValue() != TileState.REVEALED) {
+                continue;
+            }
+            int x = keyX(entry.getKey());
+            int y = keyY(entry.getKey());
+            for (int[] d : NEIGHBORS) {
+                long nk = key(x + d[0], y + d[1]);
+                if (states.getOrDefault(nk, TileState.UNKNOWN) == TileState.WALL) {
+                    blanks.add(nk);
+                }
+            }
+        }
+        for (long nk : blanks) {
+            if (states.get(nk) == TileState.WALL) {
+                states.put(nk, TileState.REVEALED);
+                if (!numbers.containsKey(nk)) {
+                    numbers.put(nk, 0);
+                }
+            }
+        }
+    }
+
     /**
      * Initialize/refresh the solver grid around a center position.
      * Prunes old entries far from the player to prevent unbounded growth.
@@ -115,13 +172,16 @@ public class MinesweeperSolver {
     public void scanMinesweeperNumbers() {
         synchronized (gui.ui.sess.glob.oc) {
             for (Gob gob : gui.ui.sess.glob.oc) {
-                Gob.Overlay ol = gob.findol(NMiningNumber.class);
-                if (ol != null && ol.spr instanceof NMiningNumber) {
-                    NMiningNumber nmn = (NMiningNumber) ol.spr;
-                    Coord tile = gob.rc.div(tilesz).floor();
-                    long k = key(tile.x, tile.y);
-                    states.put(k, TileState.REVEALED);
-                    numbers.put(k, nmn.val);
+                /* Not Gob.findol(Class): it dereferences ol.spr without a null check, and a
+                 * gob here can still be carrying an overlay whose sprite has not resolved. */
+                for (Gob.Overlay ol : gob.ols) {
+                    if (ol.spr instanceof NMiningNumber) {
+                        NMiningNumber nmn = (NMiningNumber) ol.spr;
+                        Coord tile = gob.rc.div(tilesz).floor();
+                        long k = key(tile.x, tile.y);
+                        states.put(k, TileState.REVEALED);
+                        numbers.put(k, nmn.val);
+                    }
                 }
             }
         }
@@ -294,18 +354,34 @@ public class MinesweeperSolver {
     }
 
     /**
-     * Check if a tile is mineable (rock or cave tile type).
-     * Uses raw coordinates to avoid Coord allocation.
+     * Whether a tile is mineable (rock or cave tile type).
+     *
+     * <p>Returns {@code null} when the answer is not knowable yet — no session, the grid
+     * has not loaded, or the tileset resource is still resolving. Callers that watch for
+     * a tile changing from mineable to mined need that distinction: treating "still
+     * loading" as "not mineable" would report a phantom mining event on every grid load.
      */
-    private boolean isTileMineable(int x, int y) {
-        try {
-            Coord tilePos = new Coord(x, y);
-            Resource res = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(tilePos));
-            if (res == null) return false;
-            return NParser.checkName(res.name, MINEABLE_TILES);
-        } catch (Exception e) {
-            return false;
+    public Boolean mineableOrUnknown(int x, int y) {
+        if (gui == null || gui.ui == null || gui.ui.sess == null) {
+            return null;
         }
+        try {
+            Resource res = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(new Coord(x, y)));
+            if (res == null) {
+                return null;
+            }
+            return NParser.checkName(res.name, MINEABLE_TILES);
+        } catch (Loading e) {
+            return null;
+        } catch (ArrayIndexOutOfBoundsException e) {
+            /* MCache.tilesetr indexes its set table unguarded, so a tile id from a grid
+             * whose tileset table has not caught up yet lands out of range. */
+            return null;
+        }
+    }
+
+    private boolean isTileMineable(int x, int y) {
+        return Boolean.TRUE.equals(mineableOrUnknown(x, y));
     }
 
     /**
@@ -373,7 +449,11 @@ public class MinesweeperSolver {
                         int ty = nms.begin.y + j;
                         long k = key(tx, ty);
                         TileState current = states.getOrDefault(k, TileState.UNKNOWN);
-                        if (current == TileState.UNKNOWN || current == TileState.SAFE) {
+                        /* Support coverage outranks every deduction: a tile the solver
+                         * called DANGER is still safe to mine once it is propped. Only
+                         * hard facts about the tile itself — already mined (REVEALED) or
+                         * not mineable at all (WALL) — survive. */
+                        if (current != TileState.REVEALED && current != TileState.WALL) {
                             states.put(k, TileState.SUPPORTED);
                         }
                     }
@@ -395,9 +475,10 @@ public class MinesweeperSolver {
         synchronized (gui.ui.sess.glob.oc) {
             for (Gob gob : gui.ui.sess.glob.oc) {
                 if (gob.rc.dist(worldPos) < tilesz.x) {
-                    Gob.Overlay ol = gob.findol(NMiningNumber.class);
-                    if (ol != null && ol.spr instanceof NMiningNumber) {
-                        return ((NMiningNumber) ol.spr).val;
+                    for (Gob.Overlay ol : gob.ols) {
+                        if (ol.spr instanceof NMiningNumber) {
+                            return ((NMiningNumber) ol.spr).val;
+                        }
                     }
                 }
             }

@@ -3,6 +3,8 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NUtils;
 import nurgling.i18n.L10n;
+import nurgling.tools.ForageTerrain;
+import nurgling.tools.RockResourceMapper;
 
 import java.awt.Color;
 import java.util.*;
@@ -106,104 +108,100 @@ public class TerrainSearchPanel extends Widget {
             }
         }
     }
+
+    /** Replace the current map highlight with the terrain used by one forageable. */
+    public void selectTerrains(Collection<String> terrains) {
+        if(terrains == null || terrains.isEmpty())
+            return;
+        Set<String> selected = new HashSet<>();
+        for(String terrain : terrains)
+            selected.add(terrain.toLowerCase(Locale.ROOT));
+        LinkedHashSet<String> patterns = new LinkedHashSet<>();
+        for(TerrainCategory category : TerrainCategory.ALL_CATEGORIES) {
+            for(TerrainPreset preset : category.presets) {
+                preset.enabled = selected.contains(preset.displayName.toLowerCase(Locale.ROOT));
+                if(preset.enabled)
+                    patterns.add(preset.searchPattern);
+            }
+        }
+        terrainSearchField.settext(String.join("|", patterns));
+        applyTerrainHighlight(terrains);
+        invalidateMap();
+        if(selectedCategory != null)
+            presetList.updatePresets(selectedCategory);
+    }
+
+    static void applyTerrainHighlight(Collection<String> terrains) {
+        TileHighlight.setHighlighted(ForageTerrain.resourceNames(terrains));
+    }
+
+    /** Replace the highlight with already resolved, exact tile resource paths. */
+    public void selectResources(Collection<String> resources) {
+        if(resources == null || resources.isEmpty())
+            return;
+        terrainSearchField.settext("");
+        applyResourceHighlight(resources);
+        invalidateMap();
+    }
+
+    static void applyResourceHighlight(Collection<String> resources) {
+        TileHighlight.setHighlighted(new LinkedHashSet<>(resources));
+    }
+
+    private static void invalidateMap() {
+        if(NUtils.getGameUI() != null && NUtils.getGameUI().mmap instanceof NMiniMap)
+            ((NMiniMap)NUtils.getGameUI().mmap).invalidateDisplayCache();
+    }
     
     /**
      * Find all tile resource names that match the search pattern
      */
     private java.util.Set<String> findMatchingTiles(String pattern) {
+        return resourceNamesForPattern(pattern);
+    }
+
+    static java.util.Set<String> resourceNamesForPattern(String pattern) {
         java.util.Set<String> result = new java.util.HashSet<>();
         String lowerPattern = pattern.toLowerCase();
-        
-        // Search through all categories
+
+        // Prefer an exact preset so "grass" does not also enable the Grassland group.
         for(TerrainCategory cat : TerrainCategory.ALL_CATEGORIES) {
             for(TerrainPreset preset : cat.presets) {
-                // Check for exact match or contains match
-                if(preset.searchPattern.toLowerCase().equals(lowerPattern) || 
-                   preset.searchPattern.toLowerCase().contains(lowerPattern)) {
-                    // Convert search pattern to full resource name
+                if(preset.searchPattern.toLowerCase().equals(lowerPattern))
                     result.addAll(presetToResourceNames(preset.searchPattern));
-                }
             }
         }
-        
+        if(!result.isEmpty())
+            return result;
+        for(TerrainCategory cat : TerrainCategory.ALL_CATEGORIES) {
+            for(TerrainPreset preset : cat.presets) {
+                if(preset.searchPattern.toLowerCase().contains(lowerPattern))
+                    result.addAll(presetToResourceNames(preset.searchPattern));
+            }
+        }
         return result;
     }
     
     /**
      * Convert preset search pattern to full tile resource names
      */
-    private java.util.Set<String> presetToResourceNames(String searchPattern) {
+    private static java.util.Set<String> presetToResourceNames(String searchPattern) {
         java.util.Set<String> result = new java.util.HashSet<>();
         String lower = searchPattern.toLowerCase();
-        
-        // Map common search patterns to resource paths
-        // Ores - gfx/tiles/rocks/*
-        if(lower.equals("cassiterite")) result.add("gfx/tiles/rocks/cassiterite");
-        else if(lower.equals("chalcopyrite")) result.add("gfx/tiles/rocks/chalcopyrite");
-        else if(lower.equals("malachite")) result.add("gfx/tiles/rocks/malachite");
-        else if(lower.equals("heavyearth")) result.add("gfx/tiles/rocks/ilmenite");
-        else if(lower.equals("ironochre")) result.add("gfx/tiles/rocks/limonite");
-        else if(lower.equals("bloodstone")) result.add("gfx/tiles/rocks/hematite");
-        else if(lower.equals("blackore")) result.add("gfx/tiles/rocks/magnetite");
-        else if(lower.equals("cinnabar")) result.add("gfx/tiles/rocks/cinnabar");
-        else if(lower.equals("galena")) result.add("gfx/tiles/rocks/galena");
-        else if(lower.equals("silvershine")) result.add("gfx/tiles/rocks/argentite");
-        else if(lower.equals("hornsilver")) result.add("gfx/tiles/rocks/hornsilver");
-        else if(lower.equals("wineglance")) result.add("gfx/tiles/rocks/cuprite");
-        else if(lower.equals("leadglance")) result.add("gfx/tiles/rocks/leadglance");
-        else if(lower.equals("leafore")) result.add("gfx/tiles/rocks/petzite");
-        else if(lower.equals("schrifterz")) result.add("gfx/tiles/rocks/sylvanite");
-        else if(lower.equals("direvein")) result.add("gfx/tiles/rocks/nagyagite");
-        else if(lower.equals("blackcoal")) result.add("gfx/tiles/rocks/blackcoal");
-        // Rocks - gfx/tiles/rocks/*
-        else if(lower.equals("alabaster")) result.add("gfx/tiles/rocks/alabaster");
-        else if(lower.equals("apatite")) result.add("gfx/tiles/rocks/apatite");
-        else if(lower.equals("arkose")) result.add("gfx/tiles/rocks/arkose");
-        else if(lower.equals("basalt")) result.add("gfx/tiles/rocks/basalt");
-        else if(lower.equals("breccia")) result.add("gfx/tiles/rocks/breccia");
-        else if(lower.equals("chert")) result.add("gfx/tiles/rocks/chert");
-        else if(lower.equals("diabase")) result.add("gfx/tiles/rocks/diabase");
-        else if(lower.equals("diorite")) result.add("gfx/tiles/rocks/diorite");
-        else if(lower.equals("dolomite")) result.add("gfx/tiles/rocks/dolomite");
-        else if(lower.equals("eclogite")) result.add("gfx/tiles/rocks/eclogite");
-        else if(lower.equals("feldspar")) result.add("gfx/tiles/rocks/feldspar");
-        else if(lower.equals("flint")) result.add("gfx/tiles/rocks/flint");
-        else if(lower.equals("fluorospar")) result.add("gfx/tiles/rocks/fluorospar");
-        else if(lower.equals("gabbro")) result.add("gfx/tiles/rocks/gabbro");
-        else if(lower.equals("gneiss")) result.add("gfx/tiles/rocks/gneiss");
-        else if(lower.equals("granite")) result.add("gfx/tiles/rocks/granite");
-        else if(lower.equals("graywacke")) result.add("gfx/tiles/rocks/graywacke");
-        else if(lower.equals("greenschist")) result.add("gfx/tiles/rocks/greenschist");
-        else if(lower.equals("hornblende")) result.add("gfx/tiles/rocks/hornblende");
-        else if(lower.equals("jasper")) result.add("gfx/tiles/rocks/jasper");
-        else if(lower.equals("korund")) result.add("gfx/tiles/rocks/corund");
-        else if(lower.equals("kyanite")) result.add("gfx/tiles/rocks/kyanite");
-        else if(lower.equals("limestone")) result.add("gfx/tiles/rocks/limestone");
-        else if(lower.equals("marble")) result.add("gfx/tiles/rocks/marble");
-        else if(lower.equals("mica")) result.add("gfx/tiles/rocks/mica");
-        else if(lower.equals("microlite")) result.add("gfx/tiles/rocks/microlite");
-        else if(lower.equals("olivine")) result.add("gfx/tiles/rocks/olivine");
-        else if(lower.equals("orthoclase")) result.add("gfx/tiles/rocks/orthoclase");
-        else if(lower.equals("pegmatite")) result.add("gfx/tiles/rocks/pegmatite");
-        else if(lower.equals("porphyry")) result.add("gfx/tiles/rocks/porphyry");
-        else if(lower.equals("pumice")) result.add("gfx/tiles/rocks/pumice");
-        else if(lower.equals("quartz")) result.add("gfx/tiles/rocks/quartz");
-        else if(lower.equals("quarryartz")) result.add("gfx/tiles/rocks/quartz");
-        else if(lower.equals("rhyolite")) result.add("gfx/tiles/rocks/rhyolite");
-        else if(lower.equals("rocksalt")) result.add("gfx/tiles/rocks/halite");
-        else if(lower.equals("sandstone")) result.add("gfx/tiles/rocks/sandstone");
-        else if(lower.equals("schist")) result.add("gfx/tiles/rocks/schist");
-        else if(lower.equals("serpentine")) result.add("gfx/tiles/rocks/serpentine");
-        else if(lower.equals("slate")) result.add("gfx/tiles/rocks/slate");
-        else if(lower.equals("soapstone")) result.add("gfx/tiles/rocks/soapstone");
-        else if(lower.equals("sodalite")) result.add("gfx/tiles/rocks/sodalite");
-        else if(lower.equals("sunstone")) result.add("gfx/tiles/rocks/sunstone");
-        else if(lower.equals("zincspar")) result.add("gfx/tiles/rocks/zincspar");
-        // Ground tiles - gfx/tiles/*
-        else {
-            // Try as generic ground tile
-            result.add("gfx/tiles/" + lower);
+
+        if(ForageTerrain.known(lower)) {
+            result.addAll(ForageTerrain.resourceNames(lower));
+            return result;
         }
+        
+        Set<String> rocks = RockResourceMapper.getTileResourcesForItem(lower);
+        if(!rocks.isEmpty()) {
+            result.addAll(rocks);
+            return result;
+        }
+
+        // Try as a generic ground tile.
+        result.add("gfx/tiles/" + lower);
         
         return result;
     }
@@ -377,8 +375,14 @@ public class TerrainSearchPanel extends Widget {
         private static List<TerrainCategory> createCategories() {
             // Define all individual categories first
             TerrainCategory natural = new TerrainCategory("Natural",
+                new TerrainPreset("Forest", "forest"),
+                new TerrainPreset("Grassland", "grassland"),
+                new TerrainPreset("Water Terrain", "waterterrain"),
+                new TerrainPreset("Shallow Water", "shallowwater"),
                 new TerrainPreset("Grass", "grass"),
                 new TerrainPreset("Beach", "beach"),
+                new TerrainPreset("Acre Clay Field", "acreclayfield"),
+                new TerrainPreset("Badlands", "badlands"),
                 new TerrainPreset("Beech Grove", "beechgrove"),
                 new TerrainPreset("Black Wood", "blackwood"),
                 new TerrainPreset("Blue Sod", "bluesod"),
@@ -390,8 +394,8 @@ public class TerrainSearchPanel extends Widget {
                 new TerrainPreset("Dry Weald", "dryweald"),
                 new TerrainPreset("Fen", "fen"),
                 new TerrainPreset("Flower Meadow", "flowermeadow"),
-                new TerrainPreset("Greenbrake", "greenbrake"),
-                new TerrainPreset("Greensward", "greensward"),
+                new TerrainPreset("Green Brake", "greenbrake"),
+                new TerrainPreset("Greens Ward", "greensward"),
                 new TerrainPreset("Grove", "grove"),
                 new TerrainPreset("Hard Steppe", "hardsteppe"),
                 new TerrainPreset("Heath", "heath"),
@@ -402,6 +406,7 @@ public class TerrainSearchPanel extends Widget {
                 new TerrainPreset("Lush Field", "lushfield"),
                 new TerrainPreset("Moor", "moor"),
                 new TerrainPreset("Moss Brush", "mossbrush"),
+                new TerrainPreset("Mountain", "mountain"),
                 new TerrainPreset("Oak Wilds", "oakwilds"),
                 new TerrainPreset("Ox Pasture", "oxpasture"),
                 new TerrainPreset("Peat Moss", "peatmoss"),
@@ -410,10 +415,12 @@ public class TerrainSearchPanel extends Widget {
                 new TerrainPreset("Root Bosk", "rootbosk"),
                 new TerrainPreset("Scrub Veld", "scrubveld"),
                 new TerrainPreset("Shady Copse", "shadycopse"),
+                new TerrainPreset("Sand Cliff", "sandcliff"),
                 new TerrainPreset("Skargard", "skargard"),
                 new TerrainPreset("Sombre Bramble", "sombrebramble"),
                 new TerrainPreset("Sour Timber", "sourtimber"),
                 new TerrainPreset("Swamp", "swamp"),
+                new TerrainPreset("Tidepool", "tidepool"),
                 new TerrainPreset("Timber Land", "timberland"),
                 new TerrainPreset("Wald", "wald"),
                 new TerrainPreset("Wild Moor", "wildmoor"),

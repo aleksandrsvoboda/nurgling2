@@ -459,6 +459,7 @@ public class NAreasWidget extends Window
                     add(L10n.get("area.menu.select_space"));
                     add(L10n.get("area.menu.set_color"));
                     add(L10n.get("area.menu.edit_name"));
+                    add(L10n.get("area.menu.fill_direction"));
                     add(L10n.get("area.menu.scan"));
                     add(L10n.get("area.menu.delete"));
                 }
@@ -636,6 +637,10 @@ public class NAreasWidget extends Window
                             else if (option.name.equals(get("area.menu.edit_name")))
                             {
                                 NEditAreaName.changeName(area, AreaItem.this);
+                            }
+                            else if (option.name.equals(get("area.menu.fill_direction")))
+                            {
+                                NAreaDirectionMenu.open(ui, area);
                             }
                             else if (option.name.equals(get("area.menu.scan")))
                             {

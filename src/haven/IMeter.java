@@ -34,6 +34,8 @@ import java.util.*;
 public class IMeter extends LayerMeter {
 	public String name;
 	Tex text = null;
+	// Raw soft/max HP from the "hp" meter's tip - Meter.a alone can't distinguish soft HP from a reduced max.
+	public int curHealth = -1, maxHealth = -1;
 
 	public static String characterCurrentHealth = "";
 	public static double characterSoftHealthPercent = 0;
@@ -155,6 +157,8 @@ public class IMeter extends LayerMeter {
 			double mhp = Double.parseDouble(hps[hps.length - 1].trim());
 			softHealthPercent = (shp > 0 && mhp > 0) ? (shp / (mhp / 100)) : 0;
 			currentHealth = hps[0].trim() + " / " + hps[hps.length - 1].trim();
+			curHealth = (int) Math.round(shp);
+			maxHealth = (int) Math.round(mhp);
 		} catch(NumberFormatException e) {
 			softHealthPercent = 0;
 		}

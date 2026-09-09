@@ -167,7 +167,7 @@ public class DropContainer extends BaseIngredientContainer {
             maxy = UI.scale(51)*((items.size()-1)/5 - 5);
             cury = Math.min(cury, Math.max(maxy, 0));
             if(res.has("th")) {
-                it.isThreshold = true;
+                it.hasBadge = true;
                 it.val = (Integer)res.get("th");
                 it.q = new TexI(NStyle.iiqual.render(String.valueOf(it.val)).img);
             }

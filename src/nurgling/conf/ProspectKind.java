@@ -1,9 +1,11 @@
 package nurgling.conf;
 
+import nurgling.actions.bots.MasterMiner;
+
 /**
- * Categories of prospected ground samples placed on the map by the Checker bots
- * (CheckWater, CheckClay). The bots store the raw item name as the mark's resource
- * type, so the mapping is done by name matching.
+ * Categories of resource marks placed on the map: ground samples from the Checker bots
+ * (CheckWater, CheckClay) and mined finds from Master Miner. The bots store the raw item
+ * name as the mark's resource type, so the mapping is done by name matching.
  */
 public enum ProspectKind {
     WATER("maptools.kind.water"),
@@ -11,6 +13,9 @@ public enum ProspectKind {
     CLAY("maptools.kind.clay"),
     SOIL("maptools.kind.soil"),
     SAND("maptools.kind.sand"),
+    ORE("maptools.kind.ore"),
+    GEM("maptools.kind.gem"),
+    STONE("maptools.kind.stone"),
     OTHER("maptools.kind.other");
 
     public final String l10nKey;
@@ -26,6 +31,15 @@ public enum ProspectKind {
     public static ProspectKind of(String resourceType) {
         if(resourceType == null)
             return OTHER;
+        /* Mined finds are tested first, and against name lists rather than the loose word
+         * matching below: Sandstone would otherwise read as a Sand ground sample. Nothing a
+         * Checker bot samples appears in those lists, so the samples are unaffected. */
+        if(MasterMiner.isGemstone(resourceType))
+            return GEM;
+        if(MasterMiner.isOre(resourceType))
+            return ORE;
+        if(MasterMiner.isMinedStone(resourceType))
+            return STONE;
         String s = resourceType.toLowerCase();
         if(s.contains("saltwater") || s.contains("salt water"))
             return SALTWATER;

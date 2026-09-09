@@ -6,6 +6,9 @@ import nurgling.areas.*;
 import nurgling.i18n.L10n;
 import org.json.JSONObject;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.*;
 import java.util.*;
 
@@ -17,24 +20,74 @@ public class IconItem extends Widget
     private static final String KEY_MARK_BARTER = "iconitem.mark_barter";
     private static final String KEY_MARK_BARREL = "iconitem.mark_barrel";
     private static final String KEY_UNMARK = "iconitem.unmark";
+    private static final String KEY_EDIT = "iconitem.edit";
+    private static final String KEY_MAINTAIN = "iconitem.maintain";
+    private static final String KEY_PRIORITY = "iconitem.priority";
     public static final TexI frame = new TexI(Resource.loadimg("nurgling/hud/iconframe"));
     public static final TexI framet = new TexI(Resource.loadimg("nurgling/hud/iconframet"));
     public static final TexI bm = new TexI(Resource.loadimg("nurgling/hud/bartermark"));
     public static final TexI barm = new TexI(Resource.loadimg("nurgling/hud/barrelmark"));
+    // Small green flower badge for a flower-menu-action item - drawn procedurally, no existing asset to reuse.
+    public static final TexI flowerMark = createFlowerMark();
+
+    private static TexI createFlowerMark() {
+        int size = 32;
+        BufferedImage img = TexI.mkbuf(new Coord(size, size));
+        Graphics2D g2d = img.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int cx = size / 2, cy = size / 2;
+        int petalR = size / 4;
+        double dist = size / 4.0;
+        Color petal = new Color(70, 170, 70);
+        Color petalOutline = new Color(25, 100, 25);
+        for (int i = 0; i < 5; i++) {
+            double angle = Math.toRadians(90 + i * 72);
+            int px = (int) Math.round(cx + dist * Math.cos(angle));
+            int py = (int) Math.round(cy - dist * Math.sin(angle));
+            g2d.setColor(petal);
+            g2d.fillOval(px - petalR, py - petalR, petalR * 2, petalR * 2);
+            g2d.setColor(petalOutline);
+            g2d.drawOval(px - petalR, py - petalR, petalR * 2, petalR * 2);
+        }
+        int centerR = size / 6;
+        g2d.setColor(new Color(230, 200, 60));
+        g2d.fillOval(cx - centerR, cy - centerR, centerR * 2, centerR * 2);
+        g2d.setColor(new Color(150, 120, 30));
+        g2d.drawOval(cx - centerR, cy - centerR, centerR * 2, centerR * 2);
+
+        g2d.dispose();
+        return new TexI(img);
+    }
+
     public JSONObject src;
     TexI tex = null;
 
     TexI tip;
     TexI q;
     boolean noOpts = false;
-    boolean isThreshold = false;
+    // Shared Threshold/Maintain badge flag - the two features never coexist on the same icon
+    // (mutually exclusive by parent container type), so one flag/rendering covers both.
+    boolean hasBadge = false;
 
     Coord basec = null;
     NArea.Ingredient.Type type = NArea.Ingredient.Type.CONTAINER;
 
+    // Whether this entry's action is a flower-menu action - independent of the Type marking above.
+    boolean isFlowerAction = false;
+
     int val;
 
+    // Forager pickup priority (lower = checked first, -1 = unset) - independent of hasBadge/val/q
+    // above since an item can have both a Maintain cap and a priority at once.
+    int priority = -1;
+    TexI priorityTex;
+
     String name;
+
+    void setFlowerAction(boolean isFlowerAction) {
+        this.isFlowerAction = isFlowerAction;
+    }
 
     public IconItem(String name, BufferedImage img, Widget parent)
     {
@@ -72,7 +125,7 @@ public class IconItem extends Widget
     {
         if (tex != null)
         {
-            if(isThreshold)
+            if(hasBadge)
             {
                 g.image(framet, Coord.z, UI.scale(32, 42));
                 g.image(q, new Coord(UI.scale(16)-q.sz().x/2,UI.scale(28)));
@@ -89,6 +142,14 @@ public class IconItem extends Widget
             if(type == NArea.Ingredient.Type.BARREL)
             {
                 g.image(barm, UI.scale(16,16), UI.scale(16, 16));
+            }
+            if(isFlowerAction)
+            {
+                g.image(flowerMark, UI.scale(16, 0), UI.scale(16, 16));
+            }
+            if(priority >= 0 && priorityTex != null)
+            {
+                g.image(priorityTex, Coord.z);
             }
         }
     }
@@ -130,28 +191,24 @@ public class IconItem extends Widget
         if(menu == null) {
             menuKeyMap.clear();
             ArrayList<String> optList = new ArrayList<>();
-            
-            if(type==NArea.Ingredient.Type.CONTAINER)
-            {
-                if (parent instanceof IngredientContainer || parent instanceof DropContainer)
-                    addMenuOption(optList, KEY_THRESHOLD);
-                addMenuOption(optList, KEY_DELETE);
-                if (parent instanceof IngredientContainer) {
+
+            if (parent instanceof IngredientContainer || parent instanceof DropContainer)
+                addMenuOption(optList, KEY_THRESHOLD);
+            addMenuOption(optList, KEY_DELETE);
+            if (parent instanceof TaggableItemContainer) {
+                addMenuOption(optList, KEY_EDIT);
+                addMenuOption(optList, KEY_MAINTAIN);
+                addMenuOption(optList, KEY_PRIORITY);
+            }
+            if (parent instanceof IngredientContainer) {
+                if (type == NArea.Ingredient.Type.CONTAINER) {
                     addMenuOption(optList, KEY_MARK_BARTER);
                     addMenuOption(optList, KEY_MARK_BARREL);
-                }
-            }
-            else
-            {
-                if(parent instanceof IngredientContainer || parent instanceof DropContainer) {
-                    addMenuOption(optList, KEY_THRESHOLD);
-                }
-                addMenuOption(optList, KEY_DELETE);
-                if(parent instanceof IngredientContainer) {
+                } else {
                     addMenuOption(optList, KEY_UNMARK);
                 }
             }
-            
+
             String[] opts = optList.toArray(new String[0]);
             menu = new NFlowerMenu(opts) {
 
@@ -184,9 +241,42 @@ public class IconItem extends Widget
                                 pos = pos.add(par.c);
                                 par = par.parent;
                             }
-                            SetThreshold st = new SetThreshold(val);
+                            SetThreshold st = new SetThreshold(val, L10n.get("iconitem.threshold"), newVal -> {
+                                if (IconItem.this.parent instanceof IngredientContainer)
+                                    ((IngredientContainer) IconItem.this.parent).setThreshold(IconItem.this.name, newVal);
+                                else if (IconItem.this.parent instanceof DropContainer)
+                                    ((DropContainer) IconItem.this.parent).setThreshold(IconItem.this.name, newVal);
+                            });
                             ui.root.add(st, pos);
 
+                        }
+                        else if (key.equals(KEY_MAINTAIN))
+                        {
+                            Widget par = IconItem.this.parent;
+                            Coord pos = IconItem.this.c.add(UI.scale(32, 38));
+                            while (par != null && !(par instanceof GameUI))
+                            {
+                                pos = pos.add(par.c);
+                                par = par.parent;
+                            }
+                            TaggableItemContainer tc = (TaggableItemContainer) IconItem.this.parent;
+                            SetThreshold st = new SetThreshold(tc.getMaintainQuantity(IconItem.this.name), L10n.get("iconitem.maintain"),
+                                    newVal -> tc.setMaintainQuantity(IconItem.this.name, newVal));
+                            ui.root.add(st, pos);
+                        }
+                        else if (key.equals(KEY_PRIORITY))
+                        {
+                            Widget par = IconItem.this.parent;
+                            Coord pos = IconItem.this.c.add(UI.scale(32, 38));
+                            while (par != null && !(par instanceof GameUI))
+                            {
+                                pos = pos.add(par.c);
+                                par = par.parent;
+                            }
+                            TaggableItemContainer tc = (TaggableItemContainer) IconItem.this.parent;
+                            SetThreshold st = new SetThreshold(tc.getPriority(IconItem.this.name), L10n.get("iconitem.priority"),
+                                    newVal -> tc.setPriority(IconItem.this.name, newVal), false);
+                            ui.root.add(st, pos);
                         }
                         else if(key.equals(KEY_DELETE))
                         {
@@ -203,6 +293,10 @@ public class IconItem extends Widget
                         else if(key.equals(KEY_UNMARK))
                         {
                             ((IngredientContainer)IconItem.this.parent).setType(IconItem.this.name, NArea.Ingredient.Type.CONTAINER);
+                        }
+                        else if(key.equals(KEY_EDIT))
+                        {
+                            ((TaggableItemContainer)IconItem.this.parent).editItem(IconItem.this.name);
                         }
                     }
                     uimsg("cancel");
@@ -228,9 +322,17 @@ public class IconItem extends Widget
 
     class SetThreshold extends Window
     {
-        public SetThreshold(int val)
+        // Generic "set a small number for this icon" popup, shared by Threshold/Maintain (the
+        // shared hasBadge/val/q badge) and Priority (its own separate priority/priorityTex
+        // fields, since an item can have both a Maintain cap and a priority at once).
+        public SetThreshold(int val, String title, java.util.function.IntConsumer onSet)
         {
-            super(UI.scale(140,25), L10n.get("iconitem.threshold"));
+            this(val, title, onSet, true);
+        }
+
+        public SetThreshold(int val, String title, java.util.function.IntConsumer onSet, boolean isBadge)
+        {
+            super(UI.scale(140,25), title);
             TextEntry te;
             prev = add(te = new TextEntry(UI.scale(80),String.valueOf(val)));
             add(new Button(UI.scale(50), L10n.get("iconitem.btn_set")){
@@ -240,21 +342,32 @@ public class IconItem extends Widget
                     super.click();
                     try
                     {
-                        IconItem.this.isThreshold = true;
-                        IconItem.this.val = Integer.valueOf(te.text());
-                        IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
-                        if(IconItem.this.parent instanceof IngredientContainer)
-                            ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,IconItem.this.val);
-                        else if(IconItem.this.parent instanceof DropContainer)
-                            ((DropContainer)IconItem.this.parent).setThreshold(IconItem.this.name,IconItem.this.val);
+                        int newVal = Integer.parseInt(te.text());
+                        if (isBadge)
+                        {
+                            IconItem.this.hasBadge = true;
+                            IconItem.this.val = newVal;
+                            IconItem.this.q = new TexI(NStyle.iiqual.render(te.text()).img);
+                        }
+                        else
+                        {
+                            IconItem.this.priority = newVal;
+                            IconItem.this.priorityTex = new TexI(NStyle.iiqual.render(te.text()).img);
+                        }
+                        onSet.accept(newVal);
                     }
                     catch (NumberFormatException e)
                     {
-                        IconItem.this.isThreshold = false;
-                        if(IconItem.this.parent instanceof IngredientContainer)
-                            ((IngredientContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
-                        else if(IconItem.this.parent instanceof DropContainer)
-                            ((DropContainer)IconItem.this.parent).setThreshold(IconItem.this.name,-1);
+                        if (isBadge)
+                        {
+                            IconItem.this.hasBadge = false;
+                        }
+                        else
+                        {
+                            IconItem.this.priority = -1;
+                            IconItem.this.priorityTex = null;
+                        }
+                        onSet.accept(-1);
                     }
                     ui.destroy(SetThreshold.this);
 

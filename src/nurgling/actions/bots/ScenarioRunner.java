@@ -15,7 +15,12 @@ public class ScenarioRunner implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        for (BotStep step : scenario.getSteps()) {
+        return runSteps(gui, scenario.getSteps());
+    }
+
+    /** Sequentially runs a plain step list, aborting on the first non-success result. */
+    public static Results runSteps(NGameUI gui, java.util.List<BotStep> steps) throws InterruptedException {
+        for (BotStep step : steps) {
             BotDescriptor desc = BotRegistry.byId(step.getId());
             Action bot = (desc != null) ? desc.instantiate(step.getSettings()) : null;
             if (bot == null) {

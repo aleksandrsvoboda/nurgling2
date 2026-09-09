@@ -135,7 +135,10 @@ public class LightObject implements Action {
         } else if (gobName.contains("gfx/terobjs/steelcrucible")) {
             return new LightConfig("Steel Crucible", 4, 0, -1);
         } else if (gobName.contains("gfx/terobjs/crucible")) {
-            return new LightConfig("Crucible", 4, 2, -1);
+            /* Fuel is a two-bit field here, not one flag: measured in game the crucible draws 0
+             * empty, 1 branches, 2 coal, and 4 for the flame. Testing bit 2 alone called a
+             * crucible packed with branches empty and refused to light it. */
+            return new LightConfig("Crucible", 4, 3, -1);
         }
         return null;
     }

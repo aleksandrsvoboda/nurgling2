@@ -1,7 +1,9 @@
 package nurgling.tools;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,6 +16,8 @@ public class RockResourceMapper {
 
     // Map from bumbling/inventory resource name to tile resource name
     private static final Map<String, String> gobToTileMap = new HashMap<>();
+    // Map from a human-readable item/display name to the tile resource it comes from
+    private static final Map<String, String> itemToTileMap = new HashMap<>();
 
     static {
         // Register all rock type mappings
@@ -140,6 +144,22 @@ public class RockResourceMapper {
         registerRock("argyrodite");
         registerRock("canfieldite");
         registerRock("blackcoal");
+        registerRock("sunstone");
+
+        // Inventory/display names used by the terrain-search ore presets.
+        registerItemAlias("Heavy Earth", "ilmenite");
+        registerItemAlias("Iron Ochre", "limonite");
+        registerItemAlias("Bloodstone", "hematite");
+        registerItemAlias("Black Ore", "magnetite");
+        registerItemAlias("Silvershine", "argentite");
+        registerItemAlias("Wine Glance", "cuprite");
+        registerItemAlias("Lead Glance", "leadglance");
+        registerItemAlias("Leaf Ore", "petzite");
+        registerItemAlias("Schrifterz", "sylvanite");
+        registerItemAlias("Direvein", "nagyagite");
+        registerItemAlias("Quarryartz", "quartz");
+        registerItemAlias("Rock Salt", "halite");
+        registerItemAlias("Korund", "corund");
     }
 
     /**
@@ -148,6 +168,7 @@ public class RockResourceMapper {
      */
     private static void registerRock(String rockName) {
         String tileResource = "gfx/tiles/rocks/" + rockName;
+        itemToTileMap.put(normalize(rockName), tileResource);
 
         // Common patterns for bumbling and inventory resources
         String[] gobPatterns = {
@@ -161,6 +182,11 @@ public class RockResourceMapper {
         for (String gobPattern : gobPatterns) {
             gobToTileMap.put(gobPattern, tileResource);
         }
+    }
+
+    /** Maps a display name that does not match its tile name, e.g. "Iron Ochre" -> limonite. */
+    private static void registerItemAlias(String itemName, String rockName) {
+        itemToTileMap.put(normalize(itemName), "gfx/tiles/rocks/" + rockName);
     }
 
     /**
@@ -188,5 +214,19 @@ public class RockResourceMapper {
         }
 
         return result;
+    }
+
+    /**
+     * Given an item or rock display name (e.g. "Flint", "Iron Ochre"), returns the tile
+     * resource it is mined from. Empty when the name is not a known rock.
+     */
+    public static Set<String> getTileResourcesForItem(String itemName) {
+        String tile = itemToTileMap.get(normalize(itemName));
+        return tile == null ? Collections.emptySet() : Collections.singleton(tile);
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "");
     }
 }

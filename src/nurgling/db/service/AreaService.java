@@ -122,12 +122,7 @@ public class AreaService {
         String touchedBy = currentPlayerName();
 
         for (int attempt = 0; attempt < MAX_OCC_RETRIES; attempt++) {
-            JSONObject json = area.toJson();
-            JSONObject dataJson = new JSONObject();
-            if (json.has("space")) dataJson.put("space", json.get("space"));
-            if (json.has("in")) dataJson.put("in", json.get("in"));
-            if (json.has("out")) dataJson.put("out", json.get("out"));
-            if (json.has("spec")) dataJson.put("spec", json.get("spec"));
+            JSONObject dataJson = buildDataJson(area);
 
             final int expectedVersion = area.baselineVersion;
             final String dataStr = dataJson.toString();
@@ -276,6 +271,20 @@ public class AreaService {
     }
 
     // -------------------- Bulk export (used by Export button) --------------------
+
+    /**
+     * The subset of an area's JSON that lives in the {@code areas.data} column.
+     * Everything else (name, path, hide, colour, version) has its own column.
+     */
+    static JSONObject buildDataJson(NArea area) {
+        JSONObject json = area.toJson();
+        JSONObject data = new JSONObject();
+        for (String key : new String[]{"space", "in", "out", "spec",
+                NArea.PILE_FILL_DIRECTION_JSON}) {
+            if (json.has(key)) data.put(key, json.get(key));
+        }
+        return data;
+    }
 
     public int exportAreasToDatabase(Map<Integer, NArea> areas, String profile) throws SQLException {
         List<NArea> areasCopy = new ArrayList<>(areas.values());

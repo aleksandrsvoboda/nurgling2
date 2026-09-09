@@ -9,6 +9,7 @@ import nurgling.conf.ProspectMarkSettings;
 import nurgling.i18n.L10n;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -34,13 +35,16 @@ public class MapToolsWindow extends Window {
     private static final double COUNT_INTERVAL = 0.5;
 
     private final List<KindRow> rows = new ArrayList<>();
+    private final Tabs tabs;
+    private final Tabs.Tab searchTab;
+    private final TerrainSearchPanel terrainSearchPanel;
     private TextEntry masterEntry;
     private double countTimer = COUNT_INTERVAL;
 
     public MapToolsWindow() {
         super(new Coord(OVERLAY_W, UI.scale(260)), L10n.get("maptools.title"), true);
 
-        Tabs tabs = new Tabs(Coord.z, Coord.z, this) {
+        tabs = new Tabs(Coord.z, Coord.z, this) {
             @Override
             public void changed(Tab from, Tab to) {
                 /* The two tabs are very different sizes; follow the visible one. */
@@ -48,18 +52,18 @@ public class MapToolsWindow extends Window {
             }
         };
         Tabs.Tab overlays = tabs.add();
-        Tabs.Tab search = tabs.add();
+        searchTab = tabs.add();
 
         buildOverlays(overlays);
-        search.add(new TerrainSearchPanel(), 0, 0);
+        terrainSearchPanel = searchTab.add(new TerrainSearchPanel(), 0, 0);
 
         Widget tabBtn = add(tabs.new TabButton(TAB_BTN_W, L10n.get("maptools.tab_overlays"), overlays), 0, 0);
-        add(tabs.new TabButton(TAB_BTN_W, L10n.get("maptools.tab_search"), search), TAB_BTN_W + MARGIN, 0);
+        add(tabs.new TabButton(TAB_BTN_W, L10n.get("maptools.tab_search"), searchTab), TAB_BTN_W + MARGIN, 0);
 
         /* Place the tab bodies under the buttons, whatever height the buttons turned out to be. */
         tabs.c = new Coord(0, tabBtn.sz.y + MARGIN);
         overlays.c = tabs.c;
-        search.c = tabs.c;
+        searchTab.c = tabs.c;
 
         tabs.showtab(overlays);
         pack();
@@ -77,8 +81,15 @@ public class MapToolsWindow extends Window {
                 () -> NMiniMap.showFishIcons(), val -> NMiniMap.showFishIcons(val), MapToolsWindow::openFishSearch);
 
         y += MARGIN;
-        tab.add(new Label(L10n.get("maptools.section_samples")), 0, y);
-        y += UI.scale(17);
+        Label samplesLbl = tab.add(new Label(L10n.get("maptools.section_samples")), 0, y);
+        Button minedSearch = tab.add(new Button(SEARCH_BTN_W, L10n.get("maptools.search_btn")) {
+            @Override
+            public void click() {
+                openMineralSearch(null);
+            }
+        }, OVERLAY_W - SEARCH_BTN_W, y);
+        minedSearch.settip(L10n.get("mineral.search_tip"));
+        y += alignRow(y, samplesLbl, minedSearch) + ROW_GAP;
 
         // Master row: hides the whole layer without losing the per-kind settings.
         CheckBox master = tab.add(new CheckBox(L10n.get("maptools.show_samples")), UI.scale(4), y);
@@ -292,6 +303,38 @@ public class MapToolsWindow extends Window {
         }
     }
 
+    /** Open the terrain controls and replace their filter with these gathering biomes. */
+    public static void openTerrainSearch(Collection<String> terrains) {
+        MapToolsWindow wnd = showSearchTab();
+        if(wnd != null) {
+            wnd.terrainSearchPanel.selectTerrains(terrains);
+            wnd.pack();
+        }
+    }
+
+    /** Open the terrain controls and highlight exact tile resources (used for quest rocks). */
+    public static void openTerrainResources(Collection<String> resources) {
+        MapToolsWindow wnd = showSearchTab();
+        if(wnd != null) {
+            wnd.terrainSearchPanel.selectResources(resources);
+            wnd.pack();
+        }
+    }
+
+    private static MapToolsWindow showSearchTab() {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null)
+            return null;
+        if(gui.mapToolsWindow == null) {
+            gui.mapToolsWindow = new MapToolsWindow();
+            gui.add(gui.mapToolsWindow, new Coord(100, 100));
+        }
+        gui.mapToolsWindow.show();
+        gui.mapToolsWindow.raise();
+        gui.mapToolsWindow.tabs.showtab(gui.mapToolsWindow.searchTab);
+        return gui.mapToolsWindow;
+    }
+
     public static void openTreeSearch() {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null)
@@ -308,6 +351,33 @@ public class MapToolsWindow extends Window {
             gui.add(gui.treeSearchWindow, new Coord(100, 100));
             gui.treeSearchWindow.show();
         }
+    }
+
+    /**
+     * Open the ore/gemstone/stone search, preselecting one category.
+     *
+     * @param preset category to start on, or null for all three
+     */
+    public static void openMineralSearch(ProspectKind preset) {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null)
+            return;
+        if(gui.mineralSearchWindow != null) {
+            /* Reopen on the asked-for category even when it is already up, so right-clicking
+             * the gem button while an ore search is showing does what it looks like. */
+            if(gui.mineralSearchWindow.visible() && preset == null) {
+                gui.mineralSearchWindow.hide();
+                return;
+            }
+            gui.mineralSearchWindow.show();
+            gui.mineralSearchWindow.raise();
+            gui.mineralSearchWindow.preset(preset);
+            return;
+        }
+        gui.mineralSearchWindow = new MineralSearchWindow(gui);
+        gui.add(gui.mineralSearchWindow, new Coord(100, 100));
+        gui.mineralSearchWindow.show();
+        gui.mineralSearchWindow.preset(preset);
     }
 
     public static void openFishSearch() {

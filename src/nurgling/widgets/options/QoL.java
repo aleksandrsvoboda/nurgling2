@@ -21,6 +21,7 @@ public class QoL extends Panel {
     private CheckBox showCritterCircles;
     private CheckBox showCSprite;
     private CheckBox miningOL;
+    private CheckBox minesweeperOL;
     private CheckBox tracking;
     private CheckBox crime;
     private CheckBox swimming;
@@ -269,6 +270,7 @@ public class QoL extends Panel {
 
         leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.map_overlays")), leftPrev.pos("bl").adds(0, 15));
         leftPrev = miningOL = leftColumn.add(new CheckBox(L10n.get("qol.mining_overlay")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = minesweeperOL = leftColumn.add(new CheckBox(L10n.get("qol.minesweeper_overlay")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = showPersonalClaims = leftColumn.add(new CheckBox(L10n.get("qol.personal_claims")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = showVillageClaims = leftColumn.add(new CheckBox(L10n.get("qol.village_claims")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = showRealmOverlays = leftColumn.add(new CheckBox(L10n.get("qol.realm_overlays")), leftPrev.pos("bl").adds(0, 5));
@@ -373,6 +375,7 @@ public class QoL extends Panel {
         showCSprite.a = getBool(NConfig.Key.nextshowCSprite);
 
         miningOL.a = getBool(NConfig.Key.miningol);
+        minesweeperOL.a = getBool(NConfig.Key.minesweeperol);
         tracking.a = getBool(NConfig.Key.tracking);
         crime.a = getBool(NConfig.Key.crime);
         swimming.a = getBool(NConfig.Key.swimming);
@@ -478,6 +481,7 @@ public class QoL extends Panel {
 
     public void syncMiningOverlay() {
         miningOL.a = getBool(NConfig.Key.miningol);
+        minesweeperOL.a = getBool(NConfig.Key.minesweeperol);
     }
 
     @Override
@@ -500,6 +504,7 @@ public class QoL extends Panel {
         // Save mining overlay and sync with minimap button
         boolean oldMiningOL = getBool(NConfig.Key.miningol);
         NConfig.set(NConfig.Key.miningol, miningOL.a);
+        NConfig.set(NConfig.Key.minesweeperol, minesweeperOL.a);
         if(oldMiningOL != miningOL.a) {
             // Sync with minimap button
             if(NUtils.getGameUI() != null && NUtils.getGameUI().mmapw != null && NUtils.getGameUI().mmapw.minesup != null) {

@@ -35,6 +35,23 @@ public class HoneyAndWaxCollector implements Action {
     private static final int MIN_FREE_SLOTS = 5;
 
     /**
+     * The hive's model attribute is not a state enum - it is the bitmask of mesh layer ids the server told
+     * the client to draw (see StaticSprite.lsparts: a layer renders when (1 << mr.id) & flags). So each
+     * visible feature is one independent bit and they simply add up. Applying propolis and/or queen's milk
+     * lights extra bits, which is why a full hive reads 39 plain, 15 with propolis and 31 with propolis and
+     * queen's milk - testing the whole value for equality skips every decorated hive.
+     *
+     * Observed live: 6 wax, 35 honey, 39 both (plain); 11 honey, 15 both (propolis); 27 honey, 31 both
+     * (propolis + queen's milk). Bit 0 is set in exactly the honey readings and bit 2 in exactly the wax
+     * ones, so masking those two is correct for every decoration, present and future.
+     *
+     * Masking is also immune to calcMarker() reading sdt as signed bytes: sign extension only ever
+     * corrupts bits 8 and up, so a test on the low byte holds even when the marker comes back negative.
+     */
+    private static final int HONEY_BIT = 1;
+    private static final int WAX_BIT = 4;
+
+    /**
      * Frames to wait for a honey pull to resolve. A successful pull empties the hive and changes its
      * model attribute, so the wait exits early; this bound is only reached when the attribute never
      * moves, which is the barrel-full case.
@@ -565,13 +582,11 @@ public class HoneyAndWaxCollector implements Action {
     // ================================================================ state
 
     private boolean hasHoney(Gob hive) {
-        long attr = hive.ngob.getModelAttribute();
-        return attr == 35 || attr == 39;
+        return (hive.ngob.getModelAttribute() & HONEY_BIT) != 0;
     }
 
     private boolean hasWax(Gob hive) {
-        long attr = hive.ngob.getModelAttribute();
-        return attr == 39 || attr == 6;
+        return (hive.ngob.getModelAttribute() & WAX_BIT) != 0;
     }
 
     // ================================================================ tasks

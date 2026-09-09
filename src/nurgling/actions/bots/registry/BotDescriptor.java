@@ -18,6 +18,8 @@ public class BotDescriptor {
     public final String iconPath;
     public final boolean disStacks;
     public final Map<String, Object> defaultSettings;
+    // Independent of allowedAsStepInScenario - isolates route-waypoint-only utility bots (e.g. GateBot) from the general Scenario step picker.
+    public final boolean allowedAsForagerStep;
 
     public enum BotType {
         RESOURCES,
@@ -25,17 +27,21 @@ public class BotDescriptor {
         BATTLE,
         FARMING,
         FARMING_QUALITY,
-        LIVESTOCK,
+        ANIMALS,
         UTILS,
         BUILD,
         TOOLS
     }
 
     public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, boolean disStacks) {
-        this(id, type, titleKey, descriptionKey, allowedAsStepInScenario, allowedAsItemInBotMenu, clazz, iconPath, disStacks, Map.of());
+        this(id, type, titleKey, descriptionKey, allowedAsStepInScenario, allowedAsItemInBotMenu, clazz, iconPath, disStacks, Map.of(), false);
     }
 
     public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, boolean disStacks, Map<String, Object> defaultSettings) {
+        this(id, type, titleKey, descriptionKey, allowedAsStepInScenario, allowedAsItemInBotMenu, clazz, iconPath, disStacks, defaultSettings, false);
+    }
+
+    public BotDescriptor(String id, BotType type, String titleKey, String descriptionKey, boolean allowedAsStepInScenario, boolean allowedAsItemInBotMenu, Class<? extends Action> clazz, String iconPath, boolean disStacks, Map<String, Object> defaultSettings, boolean allowedAsForagerStep) {
         this.id = id;
         this.type = type;
         this.titleKey = titleKey;
@@ -46,6 +52,7 @@ public class BotDescriptor {
         this.iconPath = iconPath;
         this.disStacks = disStacks;
         this.defaultSettings = defaultSettings;
+        this.allowedAsForagerStep = allowedAsForagerStep;
     }
 
     /**

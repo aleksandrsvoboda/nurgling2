@@ -25,9 +25,10 @@ public class SwillItemRegistry {
         "Dewy Lady's Mantle", "Dusk Fern", "Grapes", "Green Kelp",
         "Grub", "Kvann", "Lady's Mantle", "Liberty Caps", "Lingonberries",
         "Mulberry", "Parasol Mushroom", "Peapod", "Portobello Mushroom",
-        "Pumpkin Flesh", "Pumpkin Stew", "Raw Meat", "Red Onion",
+        "Pumpkin Flesh", "Pumpkin Stew", "Radish", "Raw Meat", "Red Onion",
         "Sorb Apple", "Spindly Taproot", "Stalagoom", "Straw",
-        "Strawberry", "Turnip", "Wild Onion", "Yellowfeet", "Yellow Onion"
+        "Strawberry", "Turnip", "Watermelon", "Watermelon Slice",
+        "White Onion", "Wild Onion", "Yellowfeet", "Yellow Onion"
     );
 
     // Low value items (0.05L and below)
@@ -41,7 +42,8 @@ public class SwillItemRegistry {
     public static final Set<String> SEED_SWILL = Set.of(
         "Barley Seeds", "Carrot Seeds", "Cucumber Seeds", "Hemp Seeds",
         "Millet Seeds", "Pipeweed Seeds", "Poppy Seeds", "Turnip Seeds",
-        "Wheat Seeds", "Flax Seeds", "Pea Seeds", "Pumpkin Seeds"
+        "Wheat Seeds", "Flax Seeds", "Pea Seeds", "Pumpkin Seeds",
+        "Radish Seeds", "Watermelon Seeds"
     );
 
     // Combined set of all swill items for convenience

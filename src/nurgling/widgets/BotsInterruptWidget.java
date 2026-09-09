@@ -176,7 +176,8 @@ public class BotsInterruptWidget extends Widget {
         {
             for(Gear g: obs)
             {
-                if(g.t.isInterrupted() || !g.t.isAlive())
+                // isInterrupted() only means the thread was ASKED to stop, not that it has - only isAlive() means "done".
+                if(!g.t.isAlive())
                 {
                     // Clear kill list highlight when bot stops
                     Entry.killList.clear();

@@ -15,6 +15,9 @@ public class NPFMap
     public boolean gatesAlwaysClosed = false;
     public Cell[][] cells;
 
+    // Upper bound (world units) on the constructor's fallback-grid growth - see its use below.
+    private static final double MAX_FALLBACK_RADIUS = 3000.0;
+
     public boolean lastMul = false;
     // 1 hitbox
     // 0 have path
@@ -228,8 +231,13 @@ public class NPFMap
                 Coord2d cc = player.rc;
                 Coord2d cmap = new Coord2d(MCache.cmaps);
                 Coord2d fixator = cc.floor(cmap).mul(cmap).add(cmap.div(2));
-                Coord2d ul = fixator.add(450,450);
-                Coord2d br = fixator.sub(450,450);
+                // Grow past the fixed 450 fallback radius when src/tgt is farther, so a legitimately
+                // long target isn't left outside the grid entirely - but capped, since size scales
+                // with radius and an uncapped grow for a genuinely distant target (e.g. a milestone
+                // splice) could allocate a huge Cell[][] and stall or OOM instead of just failing to path.
+                double radius = Math.min(MAX_FALLBACK_RADIUS, Math.max(450, Math.max(cc.dist(a), cc.dist(b)) + 50));
+                Coord2d ul = fixator.add(radius,radius);
+                Coord2d br = fixator.sub(radius,radius);
                 end = Utils.toPfGrid(ul);
                 begin = Utils.toPfGrid(br);
                 size = end.x-begin.x;
@@ -304,23 +312,55 @@ public class NPFMap
                     cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(-MCache.tileqsz.x,-MCache.tileqsz.y))).div(MCache.tilesz).floor());
                     cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(MCache.tileqsz.x,MCache.tileqsz.y))).div(MCache.tilesz).floor());
 
-                    for(Coord c : cand) {
-                        String name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
-                        if(!waterMode) {
+                    if (!waterMode) {
+                        for (Coord c : cand) {
+                            // gettile() throws Loading for a not-yet-streamed-in tile - treat as "unknown", not blocked, rather than crashing the thread.
+                            String name;
+                            try {
+                                name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
+                            } catch (Loading l) {
+                                continue;
+                            }
                             if (name != null && (name.startsWith("gfx/tiles/cave") || name.startsWith("gfx/tiles/rocks") || name.equals("gfx/tiles/deep") || name.equals("gfx/tiles/odeep") || name.startsWith("gfx/tiles/nil"))) {
                                 cells[i][j].val = 2;
                             }
                         }
-                        else
-                        {
-                            if (name != null && !(name.startsWith("gfx/tiles/water") || name.startsWith("gfx/tiles/owater") || name.equals("gfx/tiles/deep") || name.equals("gfx/tiles/odeep"))) {
-                                cells[i][j].val = 2;
+                    } else {
+                        // Only ONE of the 4 sampled corners needs to be water - blocking on any bad corner would make narrow channels/shorelines unpathable.
+                        boolean anyWater = false;
+                        boolean anyResolved = false;
+                        for (Coord c : cand) {
+                            String name;
+                            try {
+                                name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
+                            } catch (Loading l) {
+                                continue;
                             }
+                            anyResolved = true;
+                            if (isValidWaterTileName(name)) {
+                                anyWater = true;
+                                break;
+                            }
+                        }
+                        // Only block once at least one corner actually resolved and none were
+                        // water - if every corner is still Loading, that's unknown, not land,
+                        // matching the non-water-mode branch's treatment of an unresolved tile above.
+                        if (anyResolved && !anyWater) {
+                            cells[i][j].val = 2;
                         }
                     }
                 }
             }
         }
+    }
+
+    /** Whether tileName is water a coracle can launch/land on or cross - open water plus bog/fen/swamp/marsh; shared with CoracleBot's own check. */
+    public static boolean isValidWaterTileName(String tileName) {
+        return tileName != null && (
+                tileName.startsWith("gfx/tiles/water") || tileName.startsWith("gfx/tiles/owater") ||
+                tileName.equals("gfx/tiles/deep") || tileName.equals("gfx/tiles/odeep") ||
+                tileName.contains("bog") || tileName.contains("fen") ||
+                tileName.contains("swamp") || tileName.contains("marsh"));
     }
 
     public ArrayList<Coord> checkCA(CellsArray ca) {

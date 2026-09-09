@@ -30,11 +30,13 @@ public class AreaSnapshot {
     public final String inJson;        // serialized jin
     public final String outJson;       // serialized jout
     public final String specJson;      // serialized jspec
+    public final String pileFillDirection; // PileFillDirection.name()
     public final int version;          // version this snapshot was captured at
 
     private AreaSnapshot(String name, String path, boolean hide,
                          int r, int g, int b, int a,
                          String spaceJson, String inJson, String outJson, String specJson,
+                         String pileFillDirection,
                          int version) {
         this.name = name == null ? "" : name;
         this.path = path == null ? "" : path;
@@ -47,6 +49,8 @@ public class AreaSnapshot {
         this.inJson = inJson == null ? "[]" : inJson;
         this.outJson = outJson == null ? "[]" : outJson;
         this.specJson = specJson == null ? "[]" : specJson;
+        this.pileFillDirection = pileFillDirection == null
+            ? PileFillDirection.DEFAULT.name() : pileFillDirection;
         this.version = version;
     }
 
@@ -59,10 +63,13 @@ public class AreaSnapshot {
         String in = json.has("in") ? json.get("in").toString() : "[]";
         String out = json.has("out") ? json.get("out").toString() : "[]";
         String spec = json.has("spec") ? json.get("spec").toString() : "[]";
+        String direction = PileFillDirection.fromStored(
+            json.has(NArea.PILE_FILL_DIRECTION_JSON)
+                ? json.get(NArea.PILE_FILL_DIRECTION_JSON) : null).name();
         Color c = area.color;
         return new AreaSnapshot(area.name, area.path, area.hide,
             c.getRed(), c.getGreen(), c.getBlue(), c.getAlpha(),
-            space, in, out, spec, area.version);
+            space, in, out, spec, direction, area.version);
     }
 
     /**
@@ -72,9 +79,23 @@ public class AreaSnapshot {
     public static AreaSnapshot of(String name, String path, boolean hide,
                                   int r, int g, int b, int a,
                                   String spaceJson, String inJson, String outJson, String specJson,
+                                  String pileFillDirection,
                                   int version) {
         return new AreaSnapshot(name, path, hide, r, g, b, a,
-            spaceJson, inJson, outJson, specJson, version);
+            spaceJson, inJson, outJson, specJson, pileFillDirection, version);
+    }
+
+    /**
+     * Compatibility overload for callsites that predate the fill direction; they
+     * get the legacy DEFAULT value.
+     */
+    public static AreaSnapshot of(String name, String path, boolean hide,
+                                  int r, int g, int b, int a,
+                                  String spaceJson, String inJson, String outJson, String specJson,
+                                  int version) {
+        return of(name, path, hide, r, g, b, a,
+            spaceJson, inJson, outJson, specJson,
+            PileFillDirection.DEFAULT.name(), version);
     }
 
     /**
@@ -89,7 +110,11 @@ public class AreaSnapshot {
         String in = data.has("in") ? data.get("in").toString() : "[]";
         String out = data.has("out") ? data.get("out").toString() : "[]";
         String spec = data.has("spec") ? data.get("spec").toString() : "[]";
-        return new AreaSnapshot(name, path, hide, r, g, b, a, space, in, out, spec, version);
+        String direction = PileFillDirection.fromStored(
+            data.has(NArea.PILE_FILL_DIRECTION_JSON)
+                ? data.get(NArea.PILE_FILL_DIRECTION_JSON) : null).name();
+        return new AreaSnapshot(name, path, hide, r, g, b, a,
+            space, in, out, spec, direction, version);
     }
 
     /**
@@ -112,7 +137,8 @@ public class AreaSnapshot {
             result.add(AreaFieldGroup.COSMETIC);
         }
         if (!a.inJson.equals(b.inJson) || !a.outJson.equals(b.outJson)
-            || !a.specJson.equals(b.specJson)) {
+            || !a.specJson.equals(b.specJson)
+            || !a.pileFillDirection.equals(b.pileFillDirection)) {
             result.add(AreaFieldGroup.ROUTING);
         }
         return result;
@@ -151,6 +177,7 @@ public class AreaSnapshot {
         out.put("in", new JSONArray(routingSrc.inJson));
         out.put("out", new JSONArray(routingSrc.outJson));
         out.put("spec", new JSONArray(routingSrc.specJson));
+        out.put(NArea.PILE_FILL_DIRECTION_JSON, routingSrc.pileFillDirection);
 
         out.put("version", newVersion);
         return out;

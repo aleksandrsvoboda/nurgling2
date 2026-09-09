@@ -1,5 +1,7 @@
 package nurgling.widgets.quest;
 
+import java.util.Locale;
+
 /**
  * One objective line of a quest, as sent by the server in the {@code conds} message.
  *
@@ -12,7 +14,7 @@ public class QCond
 {
     public enum Verb
     {
-        TELL, KILL, PICK, BRING, GREET, LAUGH, RAGE, WAVE, GAIN, CAVE, LIGHT, CREATE, OTHER
+        TELL, KILL, PICK, BRING, GREET, LAUGH, RAGE, WAVE, GAIN, CAVE, LIGHT, CREATE, FELL, OTHER
     }
 
     /** Owning quest id. */
@@ -26,6 +28,8 @@ public class QCond
     public final String giver;
     /** Lowercased item name for a {@code Bring} objective, or null. */
     public final String bringItem;
+    /** Lowercased display item for a {@code Pick}, {@code Bring}, {@code Create} or {@code Fell} objective. */
+    public final String itemTarget;
     /** Gob-name fragment for a {@code Kill}/{@code Pick} objective, or null. */
     public final String gobTarget;
 
@@ -37,6 +41,7 @@ public class QCond
         this.verb = verb(d);
         this.giver = wantsGiver(verb) ? giver(d) : null;
         this.bringItem = (verb == Verb.BRING) ? bringItem(d) : null;
+        this.itemTarget = itemTarget(verb, d, bringItem);
         this.gobTarget = (verb == Verb.KILL) ? huntTarget(d)
                        : (verb == Verb.PICK) ? pickTarget(d) : null;
         this.text = (status == null || status.isEmpty()) ? d : (d + " " + status);
@@ -87,6 +92,8 @@ public class QCond
             return Verb.GAIN;
         if(t.contains("Create"))
             return Verb.CREATE;
+        if(t.contains("Fell") || t.contains("Chop"))
+            return Verb.FELL;
         if(t.contains("Tell"))
             return Verb.TELL;
         if(t.contains("cave"))
@@ -142,6 +149,30 @@ public class QCond
             return null;
         // Lowercased on purpose: NGItem matches it against item.name().toLowerCase().
         return trimToNull(info.substring(start, end).toLowerCase());
+    }
+
+    private static String itemTarget(Verb verb, String info, String bringItem)
+    {
+        String target;
+        if(verb == Verb.BRING)
+            target = bringItem;
+        else if(verb == Verb.PICK || verb == Verb.CREATE || verb == Verb.FELL)
+            target = trimToNull(tail(info));
+        else
+            return null;
+        if(target == null || target.equals(verb.name().toLowerCase(Locale.ROOT)))
+            return null;
+        return stripDecorations(target.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT));
+    }
+
+    /** Drop quest quantity/progress suffixes such as {@code (x2)} and {@code 2/6[3/5]}. */
+    private static String stripDecorations(String target)
+    {
+        if(target == null)
+            return null;
+        target = target.replaceAll("\\s*\\(x\\d+\\)", "");
+        target = target.replaceAll("\\s*\\d+\\s*/\\s*\\d+(?:\\s*\\[\\d+\\s*/\\s*\\d+\\])?\\s*$", "");
+        return trimToNull(target.replaceAll("\\s+", " ").trim());
     }
 
     /** Text after the leading article, lowercased - the common prefix of both target parsers. */

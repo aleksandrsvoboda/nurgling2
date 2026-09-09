@@ -4,8 +4,14 @@ import nurgling.NStyle;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class VSpec {
     public static HashMap<String, ArrayList<JSONObject>> categories = new HashMap<>();
@@ -14,138 +20,164 @@ public class VSpec {
         // Acacia Tree
         ArrayList<String> acaciaOp = new ArrayList<>();
         acaciaOp.add("Acacia Pod"); // РЎРµРјРµРЅР°
+        acaciaOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/acacia"));
         object.put("gfx/terobjs/trees/acacia", acaciaOp);
 
         // Alder Tree
         ArrayList<String> alderOp = new ArrayList<>();
         alderOp.add("Alder Bough"); // Р’РµС‚РєРё
         alderOp.add("Alder Catkin"); // РЎРµРјРµРЅР°
+        alderOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/alder"));
         object.put("gfx/terobjs/trees/alder", alderOp);
 
         // Almond Tree
         ArrayList<String> almondtreeOp = new ArrayList<>();
         almondtreeOp.add("Almonds"); // РЎРµРјРµРЅР°
+        almondtreeOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/almondtree"));
         object.put("gfx/terobjs/trees/almondtree", almondtreeOp);
 
         // Apple Tree
         ArrayList<String> appletreeOp = new ArrayList<>();
         appletreeOp.add("Red Apple"); // РЎРµРјРµРЅР°
         appletreeOp.add("Yesteryear's Red Apple");
+        appletreeOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/appletree"));
         object.put("gfx/terobjs/trees/appletree", appletreeOp);
 
         // Green Apple Tree
         ArrayList<String> appletreegreenOp = new ArrayList<>();
         appletreegreenOp.add("Green Apple"); // РЎРµРјРµРЅР°
+        appletreegreenOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/appletreegreen"));
         object.put("gfx/terobjs/trees/appletreegreen", appletreegreenOp);
 
         // Ash Tree
         ArrayList<String> ashOp = new ArrayList<>();
         ashOp.add("Ash Samaras"); // РЎРµРјРµРЅР°
+        ashOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/ash"));
         object.put("gfx/terobjs/trees/ash", ashOp);
 
         // Aspen Tree
         ArrayList<String> aspenOp = new ArrayList<>();
         aspenOp.add("Aspen Catkin"); // РЎРµРјРµРЅР°
+        aspenOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/aspen"));
         object.put("gfx/terobjs/trees/aspen", aspenOp);
 
         // Bay Willow Tree
         ArrayList<String> baywillowOp = new ArrayList<>();
         baywillowOp.add("Bay Willow Catkins"); // РЎРµРјРµРЅР°
+        baywillowOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/baywillow"));
         object.put("gfx/terobjs/trees/baywillow", baywillowOp);
 
         // Beech Tree
         ArrayList<String> beechOp = new ArrayList<>();
         beechOp.add("Beech Nuts"); // РЎРµРјРµРЅР°
         beechOp.add("Beech Bough"); // Р’РµС‚РєРё
+        beechOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/beech"));
         object.put("gfx/terobjs/trees/beech", beechOp);
 
         // Birch Tree
         ArrayList<String> birchOp = new ArrayList<>();
         birchOp.add("Birch Catkin"); // РЎРµРјРµРЅР°
+        birchOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/birch"));
         object.put("gfx/terobjs/trees/birch", birchOp);
 
         // Bird Cherry Tree
         ArrayList<String> birdcherryOp = new ArrayList<>();
         birdcherryOp.add("Bird Cherries"); // РЎРµРјРµРЅР°
+        birdcherryOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/birdcherrytree"));
         object.put("gfx/terobjs/trees/birdcherrytree", birdcherryOp);
 
         // Black Pine Tree
         ArrayList<String> blackpineOp = new ArrayList<>();
         blackpineOp.add("Black Pine Cone"); // РЎРµРјРµРЅР°
+        blackpineOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/blackpine"));
         object.put("gfx/terobjs/trees/blackpine", blackpineOp);
 
         // Black Poplar Tree
         ArrayList<String> blackpoplarOp = new ArrayList<>();
         blackpoplarOp.add("Blackpoplar Catkin"); // РЎРµРјРµРЅР°
+        blackpoplarOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/blackpoplar"));
         object.put("gfx/terobjs/trees/blackpoplar", blackpoplarOp);
 
         // Buckthorn Tree
         ArrayList<String> buckthornOp = new ArrayList<>();
         buckthornOp.add("Buckthorn Drupes"); // РЎРµРјРµРЅР°
+        buckthornOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/buckthorn"));
         object.put("gfx/terobjs/trees/buckthorn", buckthornOp);
 
         // Carob Tree
         ArrayList<String> carobOp = new ArrayList<>();
         carobOp.add("Carob Pod"); // РЎРµРјРµРЅР°
+        carobOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/carobtree"));
         object.put("gfx/terobjs/trees/carobtree", carobOp);
 
         // Cedar Tree
         ArrayList<String> cedarOp = new ArrayList<>();
         cedarOp.add("Cedar Cone"); // РЎРµРјРµРЅР°
+        cedarOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/cedar"));
         object.put("gfx/terobjs/trees/cedar", cedarOp);
 
         // Chaste Tree
         ArrayList<String> chasteOp = new ArrayList<>();
         chasteOp.add("Chastetree Seeds"); // РЎРµРјРµРЅР°
+        chasteOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/chastetree"));
         object.put("gfx/terobjs/trees/chastetree", chasteOp);
 
         // Checker Tree
         ArrayList<String> checkerOp = new ArrayList<>();
         checkerOp.add("Checker Tree Fruits"); // РЎРµРјРµРЅР°
+        checkerOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/checkertree"));
         object.put("gfx/terobjs/trees/checkertree", checkerOp);
 
         // Cherry Tree
         ArrayList<String> cherryOp = new ArrayList<>();
         cherryOp.add("Cherries"); // РџР»РѕРґС‹
         cherryOp.add("Yesteryear's Cherries");
+        cherryOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/cherry"));
         object.put("gfx/terobjs/trees/cherry", cherryOp);
 
         // Chestnut Tree
         ArrayList<String> chestnutOp = new ArrayList<>();
         chestnutOp.add("Chestnut"); // РЎРµРјРµРЅР°
+        chestnutOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/chestnuttree"));
         object.put("gfx/terobjs/trees/chestnuttree", chestnutOp);
 
         // Conker Tree
         ArrayList<String> conkerOp = new ArrayList<>();
         conkerOp.add("Conker Leaf"); // Р›РёСЃС‚СЊСЏ
         conkerOp.add("Conker"); // РЎРµРјРµРЅР°
+        conkerOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/conkertree"));
         object.put("gfx/terobjs/trees/conkertree", conkerOp);
 
         // Cork Oak Tree
         ArrayList<String> corkoakOp = new ArrayList<>();
         corkoakOp.add("Cork"); // РЎРµРјРµРЅР°
+        corkoakOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/corkoak"));
         object.put("gfx/terobjs/trees/corkoak", corkoakOp);
 
         // Cypress Tree
         ArrayList<String> cypressOp = new ArrayList<>();
         cypressOp.add("Cypress Cone"); // РЎРµРјРµРЅР°
+        cypressOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/cypress"));
         object.put("gfx/terobjs/trees/cypress", cypressOp);
 
         // Dogwood Tree
         ArrayList<String> dogwoodOp = new ArrayList<>();
         dogwoodOp.add("Dogwood Seeds"); // РЎРµРјРµРЅР°
+        dogwoodOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/dogwood"));
         object.put("gfx/terobjs/trees/dogwood", dogwoodOp);
 
         // Elm Tree
         ArrayList<String> elmOp = new ArrayList<>();
         elmOp.add("Elm Bough"); // Р’РµС‚РєРё
         elmOp.add("Elm Seeds"); // РЎРµРјРµРЅР°
+        elmOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/elm"));
         object.put("gfx/terobjs/trees/elm", elmOp);
 
         // Fir Tree
         ArrayList<String> firOp = new ArrayList<>();
         firOp.add("Fir Bough"); // Р’РµС‚РєРё
         firOp.add("Fir Cone"); // РЎРµРјРµРЅР°
+        firOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/fir"));
         object.put("gfx/terobjs/trees/fir", firOp);
 
         // Fig Tree
@@ -153,82 +185,97 @@ public class VSpec {
         figOp.add("Fig Leaf"); // Р›РёСЃС‚СЊСЏ
         figOp.add("Fig"); // РЎРµРјРµРЅР°
         figOp.add("Yesteryear's Fig");
+        figOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/figtree"));
         object.put("gfx/terobjs/trees/figtree", figOp);
 
         // Gray Alder Tree
         ArrayList<String> grayalderOp = new ArrayList<>();
         grayalderOp.add("Gray Alder Bough"); // Р’РµС‚РєРё
         grayalderOp.add("Gray Alder Cones"); // РЎРµРјРµРЅР°
+        grayalderOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/grayalder"));
         object.put("gfx/terobjs/trees/grayalder", grayalderOp);
 
         // Hazel Tree
         ArrayList<String> hazelOp = new ArrayList<>();
         hazelOp.add("Hazelnut"); // РЎРµРјРµРЅР°
+        hazelOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/hazel"));
         object.put("gfx/terobjs/trees/hazel", hazelOp);
 
         // Hornbeam Tree
         ArrayList<String> hornbeamOp = new ArrayList<>();
         hornbeamOp.add("Hornbeam Catkins"); // РЎРµРјРµРЅР°
+        hornbeamOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/hornbeam"));
         object.put("gfx/terobjs/trees/hornbeam", hornbeamOp);
 
         // Juniper Tree
         ArrayList<String> juniperOp = new ArrayList<>();
         juniperOp.add("Juniper Berries"); // РЎРµРјРµРЅР°
+        juniperOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/juniper"));
         object.put("gfx/terobjs/trees/juniper", juniperOp);
 
         // King's Oak Tree
         ArrayList<String> kingsoakOp = new ArrayList<>();
         kingsoakOp.add("King's Acorn"); // РЎРµРјРµРЅР°
+        kingsoakOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/kingsoak"));
         object.put("gfx/terobjs/trees/kingsoak", kingsoakOp);
 
         // Larch Tree
         ArrayList<String> larchOp = new ArrayList<>();
         larchOp.add("Larch Cones"); // РЎРµРјРµРЅР°
+        larchOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/larch"));
         object.put("gfx/terobjs/trees/larch", larchOp);
 
         // Laurel Tree
         ArrayList<String> laurelOp = new ArrayList<>();
         laurelOp.add("Laurel Leaves"); // Р›РёСЃС‚СЊСЏ
         laurelOp.add("Laurel Seeds"); // РЎРµРјРµРЅР°
+        laurelOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/laurel"));
         object.put("gfx/terobjs/trees/laurel", laurelOp);
 
         // Lemon Tree
         ArrayList<String> lemonOp = new ArrayList<>();
         lemonOp.add("Lemon"); // РџР»РѕРґС‹
         lemonOp.add("Yesteryear's Lemon");
+        lemonOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/lemontree"));
         object.put("gfx/terobjs/trees/lemontree", lemonOp);
 
         // Linden Tree
         ArrayList<String> lindenOp = new ArrayList<>();
         lindenOp.add("Linden Bough"); // Р’РµС‚РєРё
         lindenOp.add("Linden Fruits"); // РЎРµРјРµРЅР°
+        lindenOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/linden"));
         object.put("gfx/terobjs/trees/linden", lindenOp);
 
         // Lote Tree
         ArrayList<String> loteOp = new ArrayList<>();
         loteOp.add("Lote Tree Drupes"); // РЎРµРјРµРЅР°
+        loteOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/lotetree"));
         object.put("gfx/terobjs/trees/lotetree", loteOp);
 
         // Maple Tree
         ArrayList<String> mapleOp = new ArrayList<>();
         mapleOp.add("Maple Leaf"); // Р›РёСЃС‚СЊСЏ
         mapleOp.add("Maple Samara"); // РЎРµРјРµРЅР° (РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕСЃР»РµРґРЅРёРј)
+        mapleOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/maple"));
         object.put("gfx/terobjs/trees/maple", mapleOp);
 
         // Mayflower Tree
         ArrayList<String> mayflowerOp = new ArrayList<>();
         mayflowerOp.add("Mayflower Pomes"); // РЎРµРјРµРЅР°
+        mayflowerOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/mayflower"));
         object.put("gfx/terobjs/trees/mayflower", mayflowerOp);
 
         // Medlar Tree
         ArrayList<String> medlarOp = new ArrayList<>();
         medlarOp.add("Medlar"); // РЎРµРјРµРЅР°
         medlarOp.add("Yesteryear's Medlar");
+        medlarOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/medlartree"));
         object.put("gfx/terobjs/trees/medlartree", medlarOp);
 
         // Mound Tree
         ArrayList<String> moundOp = new ArrayList<>();
         moundOp.add("Mound Beans"); // РЎРµРјРµРЅР°
+        moundOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/moundtree"));
         object.put("gfx/terobjs/trees/moundtree", moundOp);
 
         // Mulberry Tree
@@ -236,204 +283,242 @@ public class VSpec {
         mulberryOp.add("Mulberry Leaf"); // Р›РёСЃС‚СЊСЏ
         mulberryOp.add("Mulberry"); // РЎРµРјРµРЅР° (РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕСЃР»РµРґРЅРёРј)
         mulberryOp.add("Yesteryear's Mulberry");
+        mulberryOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/mulberry"));
         object.put("gfx/terobjs/trees/mulberry", mulberryOp);
 
         // Oak Tree
         ArrayList<String> oakOp = new ArrayList<>();
         oakOp.add("Oak Acorn"); // РЎРµРјРµРЅР°
+        oakOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/oak"));
         object.put("gfx/terobjs/trees/oak", oakOp);
 
         // Olive Tree
         ArrayList<String> oliveOp = new ArrayList<>();
         oliveOp.add("Olive Branch"); // Р’РµС‚РєРё
         oliveOp.add("Olive"); // РЎРµРјРµРЅР°
+        oliveOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/olivetree"));
         object.put("gfx/terobjs/trees/olivetree", oliveOp);
 
         // Orange Tree
         ArrayList<String> orangeOp = new ArrayList<>();
         orangeOp.add("Orange"); // РџР»РѕРґС‹
         orangeOp.add("Yesteryear's Orange");
+        orangeOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/orangetree"));
         object.put("gfx/terobjs/trees/orangetree", orangeOp);
 
         // Osier Tree
         ArrayList<String> osierOp = new ArrayList<>();
         osierOp.add("Osier Catkin"); // РЎРµРјРµРЅР°
+        osierOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/osier"));
         object.put("gfx/terobjs/trees/osier", osierOp);
 
         // Pear Tree
         ArrayList<String> pearOp = new ArrayList<>();
         pearOp.add("Pear"); // РџР»РѕРґС‹
         pearOp.add("Yesteryear's Pear");
+        pearOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/peartree"));
         object.put("gfx/terobjs/trees/peartree", pearOp);
 
         // Persimmon Tree
         ArrayList<String> persimmonOp = new ArrayList<>();
         persimmonOp.add("Persimmon"); // РџР»РѕРґС‹
         persimmonOp.add("Yesteryear's Persimmon");
+        persimmonOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/persimmontree"));
         object.put("gfx/terobjs/trees/persimmontree", persimmonOp);
 
         // Pine Tree
         ArrayList<String> pineOp = new ArrayList<>();
         pineOp.add("Pine Cone"); // РЎРµРјРµРЅР°
+        pineOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/pine"));
         object.put("gfx/terobjs/trees/pine", pineOp);
 
         // Plane Tree
         ArrayList<String> planeOp = new ArrayList<>();
         planeOp.add("Plane Seedpods"); // РЎРµРјРµРЅР°
+        planeOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/planetree"));
         object.put("gfx/terobjs/trees/planetree", planeOp);
 
         // Plum Tree
         ArrayList<String> plumOp = new ArrayList<>();
         plumOp.add("Plum"); // РџР»РѕРґС‹
         plumOp.add("Yesteryear's Plum");
+        plumOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/plumtree"));
         object.put("gfx/terobjs/trees/plumtree", plumOp);
 
         // Poplar Tree
         ArrayList<String> poplarOp = new ArrayList<>();
         poplarOp.add("Poplar Catkin"); // РЎРµРјРµРЅР°
         poplarOp.add("Poplar Bough"); // Р’РµС‚РєРё
+        poplarOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/poplar"));
         object.put("gfx/terobjs/trees/poplar", poplarOp);
 
         // Quince Tree
         ArrayList<String> quinceOp = new ArrayList<>();
         quinceOp.add("Quince"); // РџР»РѕРґС‹
         quinceOp.add("Yesteryear's Quince");
+        quinceOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/quincetree"));
         object.put("gfx/terobjs/trees/quincetree", quinceOp);
 
         // Rowan Tree
         ArrayList<String> rowanOp = new ArrayList<>();
         rowanOp.add("Rowan Berries"); // РЎРµРјРµРЅР°
+        rowanOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/rowan"));
         object.put("gfx/terobjs/trees/rowan", rowanOp);
 
         // Sallow Tree
         ArrayList<String> sallowOp = new ArrayList<>();
         sallowOp.add("Sallow Catkin"); // РЎРµРјРµРЅР°
+        sallowOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/sallow"));
         object.put("gfx/terobjs/trees/sallow", sallowOp);
 
         // Silver Fir Tree
         ArrayList<String> silverfirOp = new ArrayList<>();
         silverfirOp.add("Silverfir Cone"); // РЎРµРјРµРЅР°
+        silverfirOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/silverfir"));
         object.put("gfx/terobjs/trees/silverfir", silverfirOp);
 
         // Sorb Tree
         ArrayList<String> sorbOp = new ArrayList<>();
         sorbOp.add("Sorb Apple"); // РЎРµРјРµРЅР°
         sorbOp.add("Yesteryear's Sorb Apple");
+        sorbOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/sorbtree"));
         object.put("gfx/terobjs/trees/sorbtree", sorbOp);
 
         // Spruce Tree
         ArrayList<String> spruceOp = new ArrayList<>();
         spruceOp.add("Spruce Bough"); // Р’РµС‚РєРё
         spruceOp.add("Spruce Cone"); // РЎРµРјРµРЅР°
+        spruceOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/spruce"));
         object.put("gfx/terobjs/trees/spruce", spruceOp);
 
         // Stone Pine Tree
         ArrayList<String> stonepineOp = new ArrayList<>();
         stonepineOp.add("Stone Pine Cone"); // РЎРµРјРµРЅР°
+        stonepineOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/stonepine"));
         object.put("gfx/terobjs/trees/stonepine", stonepineOp);
 
         // Sweetgum Tree
         ArrayList<String> sweetgumOp = new ArrayList<>();
         sweetgumOp.add("Sweetgum Bough"); // Р’РµС‚РєРё
         sweetgumOp.add("Sweetgum Seedpod"); // РЎРµРјРµРЅР°
+        sweetgumOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/sweetgum"));
         object.put("gfx/terobjs/trees/sweetgum", sweetgumOp);
 
         // Sycamore Tree
         ArrayList<String> sycamoreOp = new ArrayList<>();
         sycamoreOp.add("Sycamore Seed"); // РЎРµРјРµРЅР°
+        sycamoreOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/sycamore"));
         object.put("gfx/terobjs/trees/sycamore", sycamoreOp);
 
         // Tamarisk Tree
         ArrayList<String> tamariskOp = new ArrayList<>();
         tamariskOp.add("Tamarisk Seeds"); // РЎРµРјРµРЅР°
+        tamariskOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/tamarisk"));
         object.put("gfx/terobjs/trees/tamarisk", tamariskOp);
 
         // Wood Strawberry Tree
         ArrayList<String> woodstrawberryOp = new ArrayList<>();
         woodstrawberryOp.add("Wood Strawberry"); // РџР»РѕРґС‹
         woodstrawberryOp.add("Yesteryear's Wood Strawberry");
+        woodstrawberryOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/strawberrytree"));
         object.put("gfx/terobjs/trees/strawberrytree", woodstrawberryOp);
 
         // Terebinth Tree
         ArrayList<String> terebinthOp = new ArrayList<>();
         terebinthOp.add("Terebinth Seed"); // РЎРµРјРµРЅР°
+        terebinthOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/terebinth"));
         object.put("gfx/terobjs/trees/terebinth", terebinthOp);
 
         // Tree Heath Tree
         ArrayList<String> treeheathOp = new ArrayList<>();
         treeheathOp.add("Tree Heath Seed"); // РЎРµРјРµРЅР°
+        treeheathOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/treeheath"));
         object.put("gfx/terobjs/trees/treeheath", treeheathOp);
 
         // Walnut Tree
         ArrayList<String> walnutOp = new ArrayList<>();
         walnutOp.add("Walnut"); // РЎРµРјРµРЅР°
+        walnutOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/walnuttree"));
         object.put("gfx/terobjs/trees/walnuttree", walnutOp);
 
         // Warty Birch Tree
         ArrayList<String> wartybirchOp = new ArrayList<>();
         wartybirchOp.add("Warty Birch Catkin"); // РЎРµРјРµРЅР°
+        wartybirchOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/wartybirch"));
         object.put("gfx/terobjs/trees/wartybirch", wartybirchOp);
 
         // Whitebeam Tree
         ArrayList<String> whitebeamOp = new ArrayList<>();
         whitebeamOp.add("Whitebeam Fruits"); // РЎРµРјРµРЅР°
+        whitebeamOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/whitebeam"));
         object.put("gfx/terobjs/trees/whitebeam", whitebeamOp);
 
         // Willow Tree
         ArrayList<String> willowOp = new ArrayList<>();
         willowOp.add("Willow Catkin"); // РЎРµРјРµРЅР°
+        willowOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/willow"));
         object.put("gfx/terobjs/trees/willow", willowOp);
 
         // Wych Elm Tree
         ArrayList<String> wychelmOp = new ArrayList<>();
         wychelmOp.add("Wych Elm Samara"); // РЎРµРјРµРЅР°
+        wychelmOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/wychelm"));
         object.put("gfx/terobjs/trees/wychelm", wychelmOp);
 
         // Yew Tree
         ArrayList<String> yewOp = new ArrayList<>();
         yewOp.add("Yew Bough"); // Р’РµС‚РєРё
         yewOp.add("Yew Cones"); // РЎРµРјРµРЅР°
+        yewOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/yew"));
         object.put("gfx/terobjs/trees/yew", yewOp);
 
         // Zelkova Tree
         ArrayList<String> zelkovaOp = new ArrayList<>();
         zelkovaOp.add("Zelkova Catkin"); // РЎРµРјРµРЅР°
+        zelkovaOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/zelkova"));
         object.put("gfx/terobjs/trees/zelkova", zelkovaOp);
 
         // Gloomcap Tree
         ArrayList<String> gloomcapOp = new ArrayList<>();
         gloomcapOp.add("Gloomcap Spores"); // РЎРµРјРµРЅР°
+        gloomcapOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/gloomcap"));
         object.put("gfx/terobjs/trees/gloomcap", gloomcapOp);
 
         // Gnome's Cap Tree
         ArrayList<String> gnomescapOp = new ArrayList<>();
         gnomescapOp.add("Gnome's Cap Spore"); // РЎРµРјРµРЅР°
+        gnomescapOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/gnomeshat"));
         object.put("gfx/terobjs/trees/gnomeshat", gnomescapOp);
 
         // Goldenchain Tree
         ArrayList<String> goldenchainOp = new ArrayList<>();
         goldenchainOp.add("Goldenchain Seeds"); // РЎРµРјРµРЅР°
+        goldenchainOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/goldenchain"));
         object.put("gfx/terobjs/trees/goldenchain", goldenchainOp);
 
         // Towercap Tree
         ArrayList<String> towercapOp = new ArrayList<>();
         towercapOp.add("Towercap Spore"); // РЎРµРјРµРЅР°
+        towercapOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/towercap"));
         object.put("gfx/terobjs/trees/towercap", towercapOp);
 
         // Trumpet Chantrelle Tree
         ArrayList<String> trumpetchantrelleOp = new ArrayList<>();
         trumpetchantrelleOp.add("Trombone Chantrelle Spore"); // РЎРµРјРµРЅР°
+        trumpetchantrelleOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/trombonechantrelle"));
         object.put("gfx/terobjs/trees/trombonechantrelle", trumpetchantrelleOp);
 
         // Crabapple Tree
         ArrayList<String> crabappleOp = new ArrayList<>();
         crabappleOp.add("Crabapple"); // РџР»РѕРґС‹
         crabappleOp.add("Yesteryear's Crabapple");
+        crabappleOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/crabappletree"));
         object.put("gfx/terobjs/trees/crabappletree", crabappleOp);
 
         // Dwarf Pine Tree
         ArrayList<String> dwarfpineOp = new ArrayList<>();
         dwarfpineOp.add("Dwarf Pine Cone"); // РЎРµРјРµРЅР°
+        dwarfpineOp.add(HarvestState.getBarkProductName("gfx/terobjs/trees/dwarfpine"));
         object.put("gfx/terobjs/trees/dwarfpine", dwarfpineOp);
 
 
@@ -1251,6 +1336,7 @@ public class VSpec {
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cattailroots\",\"name\":\"Cattail Roots\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cavebulb\",\"name\":\"Cavebulb\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/oddtuber\",\"name\":\"Odd Tuber\"}"));
+        rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/radish\",\"name\":\"Radish\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/turnip\",\"name\":\"Turnip\"}"));
         rootVegetables.add(new JSONObject("{\"static\":\"gfx/invobjs/beetweird\",\"name\":\"Weird Beetroot\"}"));
         categories.put("Tuber", rootVegetables);
@@ -1259,6 +1345,7 @@ public class VSpec {
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/preonion\",\"name\":\"Wild Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/yellowonion\",\"name\":\"Yellow Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/redonion\",\"name\":\"Red Onion\"}"));
+        onions.add(new JSONObject("{\"static\":\"gfx/invobjs/whiteonion\",\"name\":\"White Onion\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/garlic\",\"name\":\"Garlic\"}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/small/leek\",\"name\":\"Leek\",\"x\":2,\"y\":1}"));
         onions.add(new JSONObject("{\"static\":\"gfx/invobjs/pickledonion\",\"name\":\"Pickled Onions\"}"));
@@ -1315,6 +1402,8 @@ public class VSpec {
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-pipeweed\",\"name\":\"Pipeweed Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-poppy\",\"name\":\"Poppy Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-pumpkin\",\"name\":\"Pumpkin Seeds\"}"));
+        seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-radish\",\"name\":\"Radish Seeds\"}"));
+        seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-watermelon\",\"name\":\"Watermelon Seeds\"}"));
         seeds.add(new JSONObject("{\"static\":\"gfx/invobjs/seed-turnip\",\"name\":\"Turnip Seeds\"}"));
         seeds.addAll(maltedGrains);
         seeds.addAll(millableSeed);
@@ -1326,6 +1415,8 @@ public class VSpec {
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/lettucehead\",\"name\":\"Head of Lettuce\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkinflesh\",\"name\":\"Pumpkin Flesh\"}"));
         cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/pumpkin\",\"name\":\"Pumpkin\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/watermelonslice\",\"name\":\"Watermelon Slice\"}"));
+        cropsOther.add(new JSONObject("{\"static\":\"gfx/invobjs/small/watermelon\",\"name\":\"Watermelon\",\"x\":2,\"y\":2}"));
         categories.put("Crops - other", cropsOther);
 
         ArrayList<JSONObject> eggs = new ArrayList<>();
@@ -3257,9 +3348,10 @@ public class VSpec {
     // for O(1) lookups instead of rescanning every category's every entry on every call.
     private static HashMap<String, String> iconPathByName;
 
-    // Looks up the icon resource path already recorded for an exact item name in the stacking
+    // Looks up the icon resource path already recorded for an item name in the stacking
     // category data (e.g. "Cassiterite" -> "gfx/invobjs/cassiterite"). Returns null if the name
     // isn't in any category. General-purpose - not just for stacking despite where the data lives.
+    // Matches case-insensitively.
     public static String getIconPath(String name) {
         if (name == null) return null;
         if (iconPathByName == null) {
@@ -3270,13 +3362,13 @@ public class VSpec {
                     // single "static" path - skip those rather than erroring, since callers here
                     // only ever want a single icon image.
                     if (entry.has("static") && entry.has("name")) {
-                        index.putIfAbsent(entry.getString("name"), entry.getString("static"));
+                        index.putIfAbsent(entry.getString("name").toLowerCase(), entry.getString("static"));
                     }
                 }
             }
             iconPathByName = index;
         }
-        return iconPathByName.get(name);
+        return iconPathByName.get(name.toLowerCase());
     }
 
     public static ArrayList<String> getCategoryContent(String name) {
@@ -3287,6 +3379,34 @@ public class VSpec {
             result.add(res.getString("name"));
         }
         return result;
+    }
+
+    // Reverse index over `object`: item name -> every gob resource path that produces it.
+    private static HashMap<String, ArrayList<String>> gobsByItemName;
+
+    /** Every gob resource path known to produce the given item name, per {@link #object}; empty if none. */
+    public static ArrayList<String> getGobsForItem(String itemName) {
+        if (itemName == null) return new ArrayList<>();
+        if (gobsByItemName == null) {
+            HashMap<String, ArrayList<String>> index = new HashMap<>();
+            for (Map.Entry<String, ArrayList<String>> entry : object.entrySet()) {
+                for (String producedItem : entry.getValue()) {
+                    index.computeIfAbsent(producedItem, k -> new ArrayList<>()).add(entry.getKey());
+                }
+            }
+            gobsByItemName = index;
+        }
+        ArrayList<String> gobs = gobsByItemName.get(itemName);
+        return gobs != null ? new ArrayList<>(gobs) : new ArrayList<>();
+    }
+
+    /** category name -> a Forager flower-menu action string confirmed correct, not a guess. */
+    public static final Map<String, String> VERIFIED_CATEGORY_ACTION = new LinkedHashMap<>();
+    static {
+        VERIFIED_CATEGORY_ACTION.put("Bark", "Take bark");
+        VERIFIED_CATEGORY_ACTION.put("Berry", "Pick berries");
+        VERIFIED_CATEGORY_ACTION.put("Tree Bough", "Take bough");
+        VERIFIED_CATEGORY_ACTION.put("Stone", "Chip stone");
     }
 
     /**
@@ -3328,5 +3448,48 @@ public class VSpec {
             return products.get(products.size() - 1);
         }
         return null;
+    }
+
+    private static final class TreeProductIndex {
+        private static final Map<String, Set<String>> byProduct = buildTreeProductIndex();
+    }
+
+    private static Map<String, Set<String>> buildTreeProductIndex() {
+        Map<String, Set<String>> result = new HashMap<>();
+        for(Map.Entry<String, ArrayList<String>> entry : object.entrySet()) {
+            String resource = entry.getKey();
+            if(resource == null || !resource.startsWith("gfx/terobjs/trees/"))
+                continue;
+            String tree = resource;
+            if(resource.endsWith("-log"))
+                tree = resource.substring(0, resource.length() - 4);
+            else if(resource.endsWith("log"))
+                tree = resource.substring(0, resource.length() - 3);
+            if(!object.containsKey(tree))
+                continue;
+            for(String product : entry.getValue()) {
+                String key = normalizedName(product);
+                if(!key.isEmpty())
+                    result.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(tree);
+            }
+        }
+        Map<String, Set<String>> immutable = new HashMap<>();
+        for(Map.Entry<String, Set<String>> entry : result.entrySet())
+            immutable.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        return Collections.unmodifiableMap(immutable);
+    }
+
+    /**
+     * Trees whose products include the given item name, as {@code gfx/terobjs/trees/*} paths.
+     * Used to trace a quest's "Pick 5 Alder Bark" back to the alder tree, and from there
+     * to the biomes the tree grows in.
+     */
+    public static Set<String> treeResourcesForProduct(String product) {
+        Set<String> result = TreeProductIndex.byProduct.get(normalizedName(product));
+        return result == null ? Collections.emptySet() : result;
+    }
+
+    private static String normalizedName(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 }

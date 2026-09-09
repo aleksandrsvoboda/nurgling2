@@ -2,20 +2,17 @@ package nurgling.widgets.nsettings;
 
 import haven.*;
 import nurgling.NGameUI;
-import nurgling.NStyle;
 import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.ActionWithFinal;
-import nurgling.actions.bots.registry.BotDescriptor;
-import nurgling.actions.bots.registry.BotRegistry;
 import nurgling.scenarios.*;
 import nurgling.sessions.BotExecutor;
 import nurgling.widgets.CustomIcon;
 import nurgling.widgets.CustomIconManager;
 import nurgling.widgets.NScenarioButton;
 import nurgling.widgets.SavedIconsWindow;
-import nurgling.widgets.ScenarioBotSelectionDialog;
+import nurgling.widgets.StepListWidget;
 import nurgling.widgets.StepSettingsPanel;
 
 import nurgling.i18n.L10n;
@@ -35,17 +32,14 @@ public class ScenarioPanel extends Panel {
     private final SListBox<Scenario, Widget> scenarioList;
 
     private final TextEntry scenarioNameEntry;
-    private SListBox<BotStep, Widget> stepList;
+    private StepListWidget stepList;
 
     private StepSettingsPanel stepSettingsPanel;
     private IButton iconPreview;
     private Button iconSelectBtn;
     private Button iconClearBtn;
 
-    private BotStep selectedStep = null;
     private Scenario editingScenario = null;
-
-    private ScenarioBotSelectionDialog stepDialog = null;
 
 
     public ScenarioPanel() {
@@ -168,115 +162,12 @@ public class ScenarioPanel extends Panel {
         int settingsPanelWidth = (contentWidth - margin * 2 - colSpacing) - stepPanelWidth;
 
         stepList = editorPanel.add(
-                new SListBox<BotStep, Widget>(new Coord(stepPanelWidth, editorListHeight), UI.scale(32)) {
-                    @Override
-                    protected List<BotStep> items() {
-                        return editingScenario != null ? editingScenario.getSteps() : Collections.emptyList();
-                    }
-                    @Override
-                    public void change(BotStep item) {
-                        super.change(item);
-                        selectedStep = item;
-                        stepSettingsPanel.setStep(selectedStep);
-                    }
-                    @Override
-                    protected Widget makeitem(BotStep step, int idx, Coord sz) {
-                        return new ItemWidget<BotStep>(this, sz, step) {{
-                            String botId = step.getId();
-                            BotDescriptor desc = BotRegistry.byId(botId);
-                            Tex iconTex = null;
-                            if (desc != null) {
-                                botId = desc.getDisplayName();
-                                try {
-                                    BufferedImage iconImg = Resource.loadsimg(desc.getUpIconPath());
-                                    if (iconImg != null)
-                                        iconTex = new TexI(iconImg);
-                                } catch (Exception e) {
-                                    iconTex = null;
-                                }
-                            }
-
-                            // Mark ✪ for bots that have settings
-                            boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id));
-                            String marker = hasSettings ? " ✪" : "";
-                            Label label = new Label(botId + marker);
-
-                            int iconMargin = UI.scale(4);
-                            int iconSize = UI.scale(24);
-                            int labelX = iconTex != null ? iconSize + iconMargin * 2 : UI.scale(10);
-                            int labelY = (sz.y - label.sz.y) / 2;
-
-                            if (iconTex != null) {
-                                Tex finalIconTex = iconTex;
-                                add(new Widget(new Coord(iconSize, iconSize)) {
-                                    @Override
-                                    public void draw(GOut g) {
-                                        g.image(finalIconTex, Coord.z, new Coord(iconSize, iconSize));
-                                    }
-                                }, new Coord(iconMargin, (sz.y - iconSize) / 2));
-                            }
-
-                            add(label, new Coord(labelX, labelY));
-
-                            // Move Up button
-                            int upBtnX = sz.x - UI.scale(90);
-                            add(new IButton(NStyle.upSquareArrow[0].back, NStyle.upSquareArrow[1].back, NStyle.upSquareArrow[2].back) {
-                                @Override
-                                public void click() {
-                                    moveStep(step, -1);
-                                }
-
-                            }, new Coord(upBtnX, (sz.y - UI.scale(22)) / 2));
-
-                            // Move Down button
-                            int downBtnX = sz.x - UI.scale(60);
-
-                            add(new IButton(NStyle.downSquareArrow[0].back, NStyle.downSquareArrow[1].back, NStyle.downSquareArrow[2].back) {
-                                @Override
-                                public void click() {
-                                    moveStep(step, 1);
-                                }
-
-                            }, new Coord(downBtnX, (sz.y - UI.scale(22)) / 2));
-
-                            int removeBtnX = sz.x - UI.scale(30);
-
-                            add(new IButton(NStyle.crossSquare[0].back, NStyle.crossSquare[1].back, NStyle.crossSquare[2].back) {
-                                @Override
-                                public void click() {
-                                    if (editingScenario != null) {
-                                    editingScenario.getSteps().remove(step);
-                                    stepList.update();
-                                    if (selectedStep == step) {
-                                        selectedStep = null;
-                                        updateStepSettingsPanel();
-                                    }
-                                }
-                                }
-
-                            }, new Coord(removeBtnX, (sz.y - UI.scale(22)) / 2));
-                        }
-                            @Override
-                            public void draw(GOut g) {
-                                if (list.sel == this.item) {
-                                    g.chcolor(50, 80, 120, 120);
-                                    g.frect(Coord.z, sz);
-                                    g.chcolor();
-                                }
-                                super.draw(g);
-                            }
-                            @Override
-                            public boolean mousedown(MouseDownEvent ev) {
-                                if (super.mousedown(ev)) return true;
-                                if (ev.b == 1) {
-                                    list.change(this.item);
-                                    return true;
-                                }
-                                return false;
-                            }
-                        };
-                    }
-                },
+                new StepListWidget(
+                        new Coord(stepPanelWidth, editorListHeight),
+                        () -> editingScenario != null ? editingScenario.getSteps() : Collections.emptyList(),
+                        step -> stepSettingsPanel.setStep(step),
+                        () -> {}
+                ),
                 new Coord(margin, y)
         );
 
@@ -300,10 +191,7 @@ public class ScenarioPanel extends Panel {
 
     @Override
     public void load() {
-        if (stepDialog != null) {
-            stepDialog.reqdestroy();
-            stepDialog = null;
-        }
+        stepList.closeAddStepDialog();
 
         if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null) {
             this.manager = NUtils.getUI().core.scenarioManager;
@@ -338,14 +226,7 @@ public class ScenarioPanel extends Panel {
         editorPanel.show();
         scenarioNameEntry.settext(editingScenario != null ? editingScenario.getName() : "");
         updateIconPreview();
-        stepList.update();
-        List<BotStep> steps = editingScenario != null ? editingScenario.getSteps() : Collections.emptyList();
-        if (!steps.isEmpty()) {
-            stepList.change(steps.get(0));
-        } else {
-            selectedStep = null;
-            stepSettingsPanel.setStep(null);
-        }
+        stepList.refresh();
     }
 
     private void editScenario(Scenario s) {
@@ -376,10 +257,7 @@ public class ScenarioPanel extends Panel {
     }
 
     private void saveScenario() {
-        if (stepDialog != null) {
-            stepDialog.reqdestroy();
-            stepDialog = null;
-        }
+        stepList.closeAddStepDialog();
 
         if (manager != null && editingScenario != null) {
             editingScenario.setName(scenarioNameEntry.text());
@@ -398,38 +276,7 @@ public class ScenarioPanel extends Panel {
     }
 
     private void showBotSelectDialog() {
-        if (stepDialog != null) {
-            stepDialog.reqdestroy();
-        }
-
-        stepDialog = new ScenarioBotSelectionDialog(bot -> {
-            if (editingScenario != null && bot != null) {
-                editingScenario.addStep(new BotStep(bot.id));
-                stepList.update();
-            }
-            stepDialog = null;
-        });
-        ui.root.add(stepDialog, this.c.add(50, 50));
-    }
-
-    private void updateStepSettingsPanel() {
-        stepSettingsPanel.setStep(selectedStep);
-    }
-
-    private void moveStep(BotStep step, int direction) {
-        if (editingScenario == null) return;
-        List<BotStep> steps = editingScenario.getSteps();
-        int idx = steps.indexOf(step);
-        int newIdx = idx + direction;
-        if (idx < 0 || newIdx < 0 || newIdx >= steps.size()) return;
-
-        // Swap the steps
-        Collections.swap(steps, idx, newIdx);
-        stepList.update();
-
-        // Maintain selection/focus
-        selectedStep = step;
-        updateStepSettingsPanel();
+        stepList.showAddStepDialog();
     }
 
     void start(String path, Action action)

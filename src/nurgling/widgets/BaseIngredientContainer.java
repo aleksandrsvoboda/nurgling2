@@ -49,6 +49,16 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         this.sb.c = new Coord(UI.scale(180),0);
     }
 
+    // Keeps the scrollbar's position/length in sync when a caller resizes away from the default size.
+    @Override
+    public void resize(Coord sz) {
+        super.resize(sz);
+        if (sb != null) {
+            sb.c = new Coord(sz.x - sb.sz.x, 0);
+            sb.resize(sz.y);
+        }
+    }
+
     @Override
     public void draw(GOut g) {
         g.chcolor(bg);
@@ -84,15 +94,33 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
         }
     }
 
+    // Icons per row; a wider consumer overrides this instead of the grid staying 5-wide.
+    protected int gridColumns() {
+        return 5;
+    }
+
+    protected Coord gridPos(int index) {
+        int cols = gridColumns();
+        return UI.scale(new Coord(35*(index%cols), 51*(index/cols))).add(new Coord(5,5));
+    }
+
+    // Recomputes scroll range from the current item count and actual visible height.
+    protected void updateScrollRange() {
+        int cols = gridColumns();
+        int totalRows = (items.size() + cols - 1) / cols;
+        int visibleRows = Math.max(1, (sz.y - UI.scale(10)) / UI.scale(51));
+        maxy = UI.scale(51) * Math.max(0, totalRows - visibleRows);
+        cury = Math.min(cury, Math.max(maxy, 0));
+    }
+
     public void addIcon(JSONObject res) {
         if(res != null && res.get("name") != null) {
             Ingredient ing;
             items.add(ing = new Ingredient((String)res.get("name"), ItemTex.create(res)));
-            IconItem it = add(new IconItem(ing.name, ing.image, this), UI.scale(new Coord(35*((items.size()-1)%5),51*((items.size()-1)/5))).add(new Coord(5,5)));
+            IconItem it = add(new IconItem(ing.name, ing.image, this), gridPos(items.size()-1));
             it.basec = new Coord(it.c);
             icons.add(it);
-            maxy = UI.scale(51)*((items.size()-1)/5 - 5);
-            cury = Math.min(cury, Math.max(maxy, 0));
+            updateScrollRange();
         }
     }
 
