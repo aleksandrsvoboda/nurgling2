@@ -676,6 +676,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             dummy.virtual = true;
             area.gid = dummy.id;
             dummy.addcustomol(new NAreaLabel(dummy, area));
+            dummy.addcustomol(new nurgling.overlays.NAreaDirectionArrow(dummy, area));
             synchronized (dummys) {
                 dummys.put(dummy.id, dummy);
             }

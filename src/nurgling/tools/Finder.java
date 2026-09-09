@@ -12,48 +12,115 @@ import java.util.regex.Pattern;
 
 public class Finder
 {
-    static final Comparator<Gob> x_comp = new Comparator<Gob> () {
-        @Override
-        public int compare(
-                Gob lhs,
-                Gob rhs
-        ) {
-            // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-            return (lhs.rc.x > rhs.rc.x) ? -1 : ((lhs.rc.x < rhs.rc.x) ? 1 : (lhs.rc.y > rhs.rc.y) ? -1 : (
-                    lhs.rc.y < rhs.rc.y) ? 1 : 0);
-        }
-    };
+    // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
+    static final Comparator<Coord2d> x_pos_comp = (lhs, rhs) ->
+            (lhs.x > rhs.x) ? -1 : ((lhs.x < rhs.x) ? 1 : (lhs.y > rhs.y) ? -1 : (lhs.y < rhs.y) ? 1 : 0);
 
-    static final Comparator<Gob> y_comp = new Comparator<Gob> () {
-        @Override
-        public int compare(
-                Gob lhs,
-                Gob rhs
-        ) {
-            // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-            return (lhs.rc.y > rhs.rc.y) ? -1 : ((lhs.rc.y < rhs.rc.y) ? 1 : (lhs.rc.x > rhs.rc.x) ? -1 : (
-                    lhs.rc.x < rhs.rc.x) ? 1 : 0);
-        }
-    };
+    static final Comparator<Coord2d> y_pos_comp = (lhs, rhs) ->
+            (lhs.y > rhs.y) ? -1 : ((lhs.y < rhs.y) ? 1 : (lhs.x > rhs.x) ? -1 : (lhs.x < rhs.x) ? 1 : 0);
 
+    static final Comparator<Gob> x_comp = byPosition(x_pos_comp);
+    static final Comparator<Gob> y_comp = byPosition(y_pos_comp);
+
+    static Comparator<Gob> byPosition(Comparator<Coord2d> positions) {
+        return (lhs, rhs) -> positions.compare(lhs.rc, rhs.rc);
+    }
+
+    /**
+     * Order gobs the way a zone with no configured fill direction has always been
+     * ordered: primary key is the axis the cluster is *narrower* on (so the walk
+     * runs along its long axis), and both keys descend.
+     */
     static void sort(ArrayList<Gob> gobs)
     {
-        if(!gobs.isEmpty())
+        sort(gobs, PileFillDirection.DEFAULT);
+    }
+
+    /**
+     * Order gobs for a zone with a fill direction. {@link PileFillDirection#DEFAULT}
+     * reproduces the legacy order above byte for byte, so zones the user has not
+     * configured keep behaving exactly as before.
+     *
+     * The direction here has to agree with {@link #getFreePlace}: a zone whose arrow
+     * says left-to-right must both create piles from the left and visit its cupboards
+     * from the left.
+     */
+    static void sort(ArrayList<Gob> gobs, PileFillDirection direction)
+    {
+        if(gobs.isEmpty())
+            return;
+        ArrayList<Coord2d> positions = new ArrayList<>(gobs.size());
+        for(Gob gob: gobs)
+            positions.add(gob.rc);
+        gobs.sort(byPosition(positionComparator(positions, direction)));
+    }
+
+    /**
+     * The comparator {@link #sort} will use for a set of positions.
+     *
+     * For an explicit direction this is {@link #directedComparator}. For
+     * {@link PileFillDirection#DEFAULT} it is the legacy rule: primary key is the axis
+     * the cluster spans *less* of - so the walk runs along its long axis - and both
+     * keys descend.
+     */
+    public static Comparator<Coord2d> positionComparator(Collection<Coord2d> positions,
+                                                  PileFillDirection direction)
+    {
+        Comparator<Coord2d> directed = directedComparator(direction);
+        if(directed != null)
+            return directed;
+        return legacyPrimaryIsX(positions) ? x_pos_comp : y_pos_comp;
+    }
+
+    /** The legacy axis choice: true when the cluster is taller than it is wide. */
+    static boolean legacyPrimaryIsX(Collection<Coord2d> positions)
+    {
+        if(positions.isEmpty())
+            return false;
+        Coord2d first = positions.iterator().next();
+        double minX = first.x, maxX = first.x, minY = first.y, maxY = first.y;
+        for(Coord2d pos: positions)
         {
-            Coord2d min = new Coord2d(gobs.get(0).rc.x,gobs.get(0).rc.y);
-            Coord2d max = new Coord2d(gobs.get(0).rc.x,gobs.get(0).rc.y);
-            for(Gob gob: gobs)
-            {
-                max.x = Math.max(gob.rc.x,max.x);
-                max.y = Math.max(gob.rc.y,max.y);
-                min.x = Math.min(gob.rc.x,min.x);
-                min.y = Math.min(gob.rc.y,min.y);
-            }
-            if(Math.abs(max.y-min.y) > Math.abs(max.x - min.x))
-                gobs.sort(x_comp);
-            else
-                gobs.sort(y_comp);
+            maxX = Math.max(pos.x, maxX);
+            maxY = Math.max(pos.y, maxY);
+            minX = Math.min(pos.x, minX);
+            minY = Math.min(pos.y, minY);
         }
+        return Math.abs(maxY - minY) > Math.abs(maxX - minX);
+    }
+
+    /**
+     * Comparator for an explicit fill direction, or null for
+     * {@link PileFillDirection#DEFAULT} (the caller then applies the legacy rule).
+     *
+     * Only the outer axis ever flips - the inner axis stays ascending - which mirrors
+     * how {@link #placementOffsets} orders its candidates.
+     */
+    static Comparator<Coord2d> directedComparator(PileFillDirection direction)
+    {
+        if(direction == null || direction == PileFillDirection.DEFAULT)
+            return null;
+        final boolean xOuter = (direction == PileFillDirection.LEFT_TO_RIGHT
+                || direction == PileFillDirection.RIGHT_TO_LEFT);
+        final boolean outerDescending = (direction == PileFillDirection.RIGHT_TO_LEFT
+                || direction == PileFillDirection.BOTTOM_TO_TOP);
+        return (lhs, rhs) -> {
+            int res = Double.compare(xOuter ? lhs.x : lhs.y, xOuter ? rhs.x : rhs.y);
+            if(res != 0)
+                return outerDescending ? -res : res;
+            return Double.compare(xOuter ? lhs.y : lhs.x, xOuter ? rhs.y : rhs.x);
+        };
+    }
+
+    /**
+     * The fill direction carried by a bounds object, or DEFAULT for bounds that did
+     * not come from a saved zone (ad-hoc drag selections, tile rectangles, ...).
+     */
+    public static PileFillDirection directionOf(Pair<Coord2d,Coord2d> bounds)
+    {
+        return (bounds instanceof NArea.DirectedAreaBounds)
+                ? ((NArea.DirectedAreaBounds) bounds).direction()
+                : PileFillDirection.DEFAULT;
     }
 
     public static ArrayList<Gob> findGobs(NArea area, NAlias name) throws InterruptedException
@@ -79,7 +146,7 @@ public class Finder
                 }
             }
         }
-        sort(result);
+        sort(result, directionOf(space));
         return result;
     }
 
@@ -156,7 +223,7 @@ public class Finder
                 }
             }
         }
-        sort(result);
+        sort(result, directionOf(space));
         return result;
     }
 
@@ -178,7 +245,7 @@ public class Finder
                 }
             }
         }
-        sort(result);
+        sort(result, directionOf(space));
         return result;
     }
 
@@ -198,7 +265,7 @@ public class Finder
                 }
             }
         }
-        sort(result);
+        sort(result, directionOf(space));
         return result;
     }
 
@@ -486,7 +553,7 @@ public class Finder
                 }
             }
         }
-        sort(result);
+        sort(result, directionOf(space));
         return result;
     }
 
@@ -549,20 +616,74 @@ public class Finder
         double xOffset = ((rotatedBR.x - rotatedUL.x) % 2.0 > 0.5) ? 0.5 : 0.0;
         double yOffset = ((rotatedBR.y - rotatedUL.y) % 2.0 > 0.5) ? 0.5 : 0.0;
 
-        for (int i = margin.x; i <= inchMax.x - margin.x; i++)
+        for (Coord offset : placementOffsets(margin, inchMax, directionOf(area)))
         {
-            for (int j = margin.y; j <= inchMax.y - margin.y; j++)
-            {
-                boolean passed = true;
-                NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, area.a.add(i + xOffset, j + yOffset), angle);
-                for ( NHitBoxD significantHitbox : significantGobs )
-                    if(significantHitbox.intersects(testGobBox,false))
-                        passed = false;
-                if(passed)
-                    return Coord2d.of(testGobBox.rc.x, testGobBox.rc.y);
-            }
+            boolean passed = true;
+            NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, area.a.add(offset.x + xOffset, offset.y + yOffset), angle);
+            for ( NHitBoxD significantHitbox : significantGobs )
+                if(significantHitbox.intersects(testGobBox,false))
+                    passed = false;
+            if(passed)
+                return Coord2d.of(testGobBox.rc.x, testGobBox.rc.y);
         }
         return pos;
+    }
+
+    /**
+     * The order candidate positions are tried in, for a zone spanning
+     * {@code [margin .. inchMax - margin]} on each axis.
+     *
+     * {@link PileFillDirection#DEFAULT} resolves to LEFT_TO_RIGHT, which is the
+     * x-outer/y-inner ascending walk this scan has always used - so an unconfigured
+     * zone places objects exactly where it did before.
+     *
+     * Only the outer axis is reversed for the "backwards" directions; the inner axis
+     * always ascends, matching {@link #directedComparator}.
+     *
+     * The returned list computes each element on access rather than storing them, so
+     * {@link #getFreePlace} - which usually stops on one of the first candidates -
+     * does not pay for the whole grid. A large zone is hundreds of units on a side,
+     * which would otherwise be tens of thousands of Coords per call.
+     */
+    public static List<Coord> placementOffsets(Coord margin, Coord inchMax, PileFillDirection direction)
+    {
+        PileFillDirection resolved = (direction == null ? PileFillDirection.DEFAULT : direction).forPlacement();
+        final boolean rowMajor = (resolved == PileFillDirection.TOP_TO_BOTTOM
+                || resolved == PileFillDirection.BOTTOM_TO_TOP);
+        final int[] xs = axisOffsets(margin.x, inchMax.x - margin.x,
+                resolved == PileFillDirection.RIGHT_TO_LEFT);
+        final int[] ys = axisOffsets(margin.y, inchMax.y - margin.y,
+                resolved == PileFillDirection.BOTTOM_TO_TOP);
+
+        final int[] outer = rowMajor ? ys : xs;
+        final int[] inner = rowMajor ? xs : ys;
+        final int size = outer.length * inner.length;
+
+        return new java.util.AbstractList<Coord>() {
+            @Override
+            public int size() {
+                return size;
+            }
+
+            @Override
+            public Coord get(int index) {
+                if(index < 0 || index >= size)
+                    throw new IndexOutOfBoundsException(String.valueOf(index));
+                int o = outer[index / inner.length];
+                int i = inner[index % inner.length];
+                return rowMajor ? new Coord(i, o) : new Coord(o, i);
+            }
+        };
+    }
+
+    /** Every integer in {@code [min, max]}, ascending or descending. Empty when max &lt; min. */
+    static int[] axisOffsets(int min, int max, boolean descending)
+    {
+        int count = Math.max(0, max - min + 1);
+        int[] values = new int[count];
+        for(int i = 0; i < count; i++)
+            values[i] = descending ? (max - i) : (min + i);
+        return values;
     }
 
 
