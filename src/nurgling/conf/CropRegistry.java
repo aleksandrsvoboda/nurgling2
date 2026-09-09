@@ -89,6 +89,14 @@ public class CropRegistry {
                 )
         );
 
+        // White Onion
+        HARVESTABLE.put(
+                new NAlias("plants/whiteonion"),
+                Arrays.asList(
+                        new CropStage(3, new NAlias("White Onion"), StorageBehavior.STOCKPILE)
+                )
+        );
+
         // Garlic
         HARVESTABLE.put(
                 new NAlias("plants/garlic"),
@@ -138,11 +146,29 @@ public class CropRegistry {
                 )
         );
 
+        // Radish
+        HARVESTABLE.put(
+                new NAlias("plants/radish"),
+                Arrays.asList(
+                        new CropStage(2, new NAlias("Radish Seeds"), StorageBehavior.BARREL),
+                        new CropStage(4, new NAlias("Radish"), StorageBehavior.STOCKPILE)
+                )
+        );
+
         // Pumpkin
         HARVESTABLE.put(
                 new NAlias("plants/pumpkin"),
                 Arrays.asList(
                         new CropStage(4, new NAlias("Pumpkin Seeds"), StorageBehavior.BARREL)
+                )
+        );
+
+        // Watermelon (harvest yields seeds; the melons themselves drop as gobs and are
+        // picked up and sliced by LettucePumpkinAndWatermelonCollector, like pumpkins)
+        HARVESTABLE.put(
+                new NAlias("plants/watermelon"),
+                Arrays.asList(
+                        new CropStage(4, new NAlias("Watermelon Seeds"), StorageBehavior.BARREL)
                 )
         );
 

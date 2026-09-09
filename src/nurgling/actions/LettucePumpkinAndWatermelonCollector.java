@@ -12,28 +12,55 @@ import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
-public class LettuceAndPumpkinCollector implements Action {
+/**
+ * Collects the whole heads/fruit a harvest leaves lying in the field, cuts them up on the
+ * spot and delivers the pieces: seeds to the seed area, the cut by-product to its piles.
+ */
+public class LettucePumpkinAndWatermelonCollector implements Action {
+
+    /**
+     * The per-crop half of the job. The pickup itself is identical for all three crops;
+     * what differs is the flower-menu verb that cuts one item up, the name of the piece
+     * that falls out, and how full the inventory has to be before it is worth stopping to
+     * cut. Heads of lettuce are small and numerous, so they are split at half full; a
+     * pumpkin or a watermelon is cut only once nothing else fits.
+     */
+    public enum Product {
+        LETTUCE("Lettuce Leaf", "Split", true),
+        PUMPKIN("Pumpkin Flesh", "Slice", false),
+        WATERMELON("Watermelon Slice", "Slice", false);
+
+        public final String byProduct;
+        public final String verb;
+        public final boolean cutWhenHalfFull;
+
+        Product(String byProduct, String verb, boolean cutWhenHalfFull) {
+            this.byProduct = byProduct;
+            this.verb = verb;
+            this.cutWhenHalfFull = cutWhenHalfFull;
+        }
+    }
+
     NArea input;
     NArea seedOutput;
     NArea itemOutput;
     NArea troughArea;
     NAlias items;
-    String secondaryItemAlias;
+    Product product;
     boolean isQualityGrid = false;
 
-    public LettuceAndPumpkinCollector(NArea input, NArea seedOutput, NArea itemOutput, NAlias items, NArea troughArea) {
+    public LettucePumpkinAndWatermelonCollector(NArea input, NArea seedOutput, NArea itemOutput, NAlias items, Product product, NArea troughArea) {
         this.input = input;
         this.seedOutput = seedOutput;
         this.itemOutput = itemOutput;
         this.items = items;
+        this.product = product;
         this.troughArea = troughArea;
-        this.secondaryItemAlias = items.keys.contains("Head of Lettuce") ? "Lettuce Leaf" : "Pumpkin Flesh";
     }
 
-    public LettuceAndPumpkinCollector(NArea input, NArea seedOutput, NArea itemOutput, NAlias items, NArea troughArea, boolean isQualityGrid) {
-        this(input, seedOutput, itemOutput, items, troughArea);
+    public LettucePumpkinAndWatermelonCollector(NArea input, NArea seedOutput, NArea itemOutput, NAlias items, Product product, NArea troughArea, boolean isQualityGrid) {
+        this(input, seedOutput, itemOutput, items, product, troughArea);
         this.isQualityGrid = isQualityGrid;
     }
 
@@ -62,15 +89,19 @@ public class LettuceAndPumpkinCollector implements Action {
                 totalItemsThatCanFit = Math.max(gui.getInventory().getNumberFreeCoord(testItems.get(0)) + 1, totalItemsThatCanFit);
                 currentQuantity = gui.getInventory().getItems(items).size();
 
-                if ((this.items.keys.contains("Head of Lettuce") && gui.getInventory().getNumberFreeCoord(testItems.get(0)) <= Math.floor(totalItemsThatCanFit/2))
-                        || (this.items.keys.contains("Pumpkin") && gui.getInventory().getNumberFreeCoord(testItems.get(0)) == 0)) {
+                int free = gui.getInventory().getNumberFreeCoord(testItems.get(0));
+                boolean timeToCut = product.cutWhenHalfFull
+                        ? free <= Math.floor(totalItemsThatCanFit / 2)
+                        : free == 0;
+
+                if (timeToCut) {
                     splitItems(gui);
 
                     if (!(testItems = gui.getInventory().getItems(new NAlias("Seed"))).isEmpty()) {
                         transferSeeds(gui);
                     }
 
-                    if (!(testItems = gui.getInventory().getItems(new NAlias(this.secondaryItemAlias))).isEmpty()) {
+                    if (!(testItems = gui.getInventory().getItems(new NAlias(product.byProduct))).isEmpty()) {
                         transferSecondaryItems(gui);
                     }
 
@@ -95,7 +126,7 @@ public class LettuceAndPumpkinCollector implements Action {
             transferSeeds(gui);
         }
 
-        if (!(testItems = gui.getInventory().getItems(new NAlias(this.secondaryItemAlias))).isEmpty()) {
+        if (!(testItems = gui.getInventory().getItems(new NAlias(product.byProduct))).isEmpty()) {
             transferSecondaryItems(gui);
         }
 
@@ -103,13 +134,13 @@ public class LettuceAndPumpkinCollector implements Action {
     }
 
     /**
-     * Moves the sliced by-product ("Pumpkin Flesh" / "Lettuce Leaf") to its piles by exact name.
-     * The exact-name form keeps TransferToPiles on the batched Stockpile.put() path - matched as
-     * an alias, "Pumpkin Flesh" collides with its own stacking-category sibling "Pumpkin" and
-     * every load would be moved one item at a time.
+     * Moves the cut by-product ("Pumpkin Flesh" / "Lettuce Leaf" / "Watermelon Slice") to its
+     * piles by exact name. The exact-name form keeps TransferToPiles on the batched
+     * Stockpile.put() path - matched as an alias, "Pumpkin Flesh" collides with its own
+     * stacking-category sibling "Pumpkin" and every load would be moved one item at a time.
      */
     private void transferSecondaryItems(NGameUI gui) throws InterruptedException {
-        new TransferToPiles(itemOutput.getRCArea(), this.secondaryItemAlias, 0).run(gui);
+        new TransferToPiles(itemOutput.getRCArea(), product.byProduct, 0).run(gui);
     }
 
     private void transferSeeds(NGameUI gui) throws InterruptedException {
@@ -157,12 +188,7 @@ public class LettuceAndPumpkinCollector implements Action {
         NUtils.getUI().core.addTask(new NFlowerMenuIsClosed());
         ArrayList<WItem> items = NUtils.getGameUI().getInventory().getItems(this.items);
         for (WItem item : items) {
-            if(this.items.keys.contains("Head of Lettuce")) {
-                new SelectFlowerAction("Split", (NWItem) item).run(gui);
-            } else if(this.items.keys.contains("Pumpkin")) {
-                new SelectFlowerAction("Slice", (NWItem) item).run(gui);
-            }
-
+            new SelectFlowerAction(product.verb, (NWItem) item).run(gui);
         }
     }
 }
