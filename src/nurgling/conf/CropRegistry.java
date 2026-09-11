@@ -13,16 +13,24 @@ public class CropRegistry {
         public final NAlias result;
         public final StorageBehavior storageBehavior;
         public final boolean isHybridTrellis;
+        // Whether the product can be put back in the ground. Seeds always can, and so can
+        // most vegetables - but not all: radishes are grown from Radish Seeds only.
+        public final boolean plantable;
 
         public CropStage(int stage, NAlias result, StorageBehavior storageBehavior) {
             this(stage, result, storageBehavior, false);
         }
 
         public CropStage(int stage, NAlias result, StorageBehavior storageBehavior, boolean isHybridTrellis) {
+            this(stage, result, storageBehavior, isHybridTrellis, true);
+        }
+
+        public CropStage(int stage, NAlias result, StorageBehavior storageBehavior, boolean isHybridTrellis, boolean plantable) {
             this.stage = stage;
             this.result = result;
             this.storageBehavior = storageBehavior;
             this.isHybridTrellis = isHybridTrellis;
+            this.plantable = plantable;
         }
     }
 
@@ -34,13 +42,14 @@ public class CropRegistry {
     }
 
     /**
-     * The harvest product for a crop with the given storage behavior, or null if the
-     * crop has no such product. Used to derive planting material per storage location
-     * (BARREL = stacked seeds, STOCKPILE = vegetables).
+     * The plantable harvest product for a crop with the given storage behavior, or null
+     * if the crop has none. Used to derive planting material per storage location
+     * (BARREL = stacked seeds, STOCKPILE = vegetables); a product that can't be planted
+     * is never returned, so it can never become a planting source.
      */
-    public static CropStage getProductByStorage(NAlias crop, StorageBehavior behavior) {
+    public static CropStage getPlantingMaterial(NAlias crop, StorageBehavior behavior) {
         for (CropStage stage : getStages(crop)) {
-            if (stage.storageBehavior == behavior)
+            if (stage.storageBehavior == behavior && stage.plantable)
                 return stage;
         }
         return null;
@@ -146,12 +155,12 @@ public class CropRegistry {
                 )
         );
 
-        // Radish
+        // Radish (a radish can't be planted - the field is resown from Radish Seeds only)
         HARVESTABLE.put(
                 new NAlias("plants/radish"),
                 Arrays.asList(
                         new CropStage(2, new NAlias("Radish Seeds"), StorageBehavior.BARREL),
-                        new CropStage(4, new NAlias("Radish"), StorageBehavior.STOCKPILE)
+                        new CropStage(4, new NAlias("Radish"), StorageBehavior.STOCKPILE, false, false)
                 )
         );
 

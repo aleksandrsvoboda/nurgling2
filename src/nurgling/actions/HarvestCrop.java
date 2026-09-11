@@ -259,21 +259,23 @@ public class HarvestCrop implements Action {
             Gob cistern,
             boolean barrelOnlyIfInventoryFull
     ) throws InterruptedException {
-        Map<NAlias, CropRegistry.StorageBehavior> resultStorage = new HashMap<>();
+        Map<NAlias, CropRegistry.CropStage> resultStage = new HashMap<>();
         for (CropRegistry.CropStage stage : CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList())) {
-            resultStorage.put(stage.result, stage.storageBehavior);
+            resultStage.put(stage.result, stage);
         }
 
         List<WItem> barrelItems = new ArrayList<>();
         List<WItem> stockpileItems = new ArrayList<>();
+        List<WItem> unplantableItems = new ArrayList<>();
 
         String name = "";
         for (WItem item : gui.getInventory().getItems()) {
             name = ((NGItem) item.item).name();
-            CropRegistry.StorageBehavior behavior = resultStorage.get(new NAlias(name));
-            if (behavior == null) continue;
-            if (behavior == CropRegistry.StorageBehavior.BARREL) barrelItems.add(item);
-            else if (behavior == CropRegistry.StorageBehavior.STOCKPILE) stockpileItems.add(item);
+            CropRegistry.CropStage stage = resultStage.get(new NAlias(name));
+            if (stage == null) continue;
+            if (stage.storageBehavior == CropRegistry.StorageBehavior.BARREL) barrelItems.add(item);
+            else if (stage.storageBehavior == CropRegistry.StorageBehavior.STOCKPILE) stockpileItems.add(item);
+            if (!stage.plantable) unplantableItems.add(item);
         }
 
         if(!isQualityGrid) {
@@ -303,6 +305,13 @@ public class HarvestCrop implements Action {
                 }
             }
         } else {
+            // The seed container holds planting material only: a product that can't be
+            // planted (radishes) is dropped as on a regular field, and the bot sweeps it
+            // into its pile afterwards.
+            if (!unplantableItems.isEmpty()) {
+                dropAllItemsOfExactName(gui, unplantableItems);
+                stockpileItems.removeAll(unplantableItems);
+            }
             if(!barrelOnlyIfInventoryFull || gui.getInventory().getFreeSpace() <= 7) {
                 // Find all containers in the seed area
                 ArrayList<Container> containers = new ArrayList<>();
@@ -362,11 +371,22 @@ public class HarvestCrop implements Action {
         return false;
     }
 
+    // Drops every item whose name contains the target's - on purpose, as that also sheds
+    // unregistered by-products such as Beetroot Leaves - except the crop's other registered
+    // products: "Radish" must not take "Radish Seeds" (bound for the barrel) down with it.
     private void dropAllItemsOfExactName(NGameUI gui, List<WItem> targetItems) throws InterruptedException {
         if(!targetItems.isEmpty()) {
             String targetName = ((NGItem) targetItems.get(0).item).name();
 
-            ArrayList<WItem> items = gui.getInventory().getWItems(new NAlias(targetName));
+            ArrayList<String> siblings = new ArrayList<>();
+            for (CropRegistry.CropStage stage : CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList())) {
+                for (String key : stage.result.keys) {
+                    if (!targetName.toLowerCase().contains(key.toLowerCase()))
+                        siblings.add(key);
+                }
+            }
+
+            ArrayList<WItem> items = gui.getInventory().getWItems(new NAlias(Collections.singletonList(targetName), siblings));
 
             for (WItem item : items) {
                 NUtils.drop(item);
