@@ -1,0 +1,3 @@
+#TOOLTIP LAYER FOR RES src/custom///gfx\hud\btn-flip.res
+#String tooltip
+Cycles a metal bar into nuggets and back at a lit crucible to call Irrlights, and catches each one that spawns.

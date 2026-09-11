@@ -14,8 +14,8 @@ import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.Action;
-import nurgling.actions.Drink;
 import nurgling.actions.PathFinder;
+import nurgling.actions.RestoreResources;
 import nurgling.actions.LightGob;
 import nurgling.actions.Results;
 import nurgling.actions.TakeItems2;
@@ -56,9 +56,10 @@ import java.util.List;
  * output zone, and the bot walks back to the exact spot it started from.
  * <p>
  * Preconditions: the crucible is lit, the player stands next to it with either one metal bar or a
- * set of nuggets (any metal - the recipes are generic), a zone somewhere has "Irrlight" marked
- * as an output, and - only needed once the crucible burns out - a Fuel zone with the "Branch"
- * subtype.
+ * set of nuggets (any metal - the recipes are generic), and a zone somewhere has "Irrlight" marked
+ * as an output. Two more zones are only touched once the run is long enough to need them: a Fuel
+ * zone with the "Branch" subtype when the crucible burns out, and the eat / water zones
+ * {@link RestoreResources} uses when the food or the waterskins run out.
  */
 public class IrrlightBot implements Action {
     /** Bar -> nuggets. */
@@ -109,9 +110,18 @@ public class IrrlightBot implements Action {
     private static final int MIN_FREE_SLOTS = 5;
     /** Close enough to the starting spot that walking back would be a no-op. */
     private static final double HOME_TOLERANCE = 3;
+    /** How long to let the crucible stream back in after a trip before calling it gone. */
+    private static final long CRUCIBLE_RELOAD_TIMEOUT = 15000;
 
     private NMakewindow mwnd = null;
     private String openError = null;
+    /**
+     * The crucible's stable handle. A gob id is only valid while the object stays in the object
+     * cache: leave for long enough that it unloads - a 42-second food trip is enough - and coming
+     * back either finds it under a new id or not yet re-sent at all. The hash survives both, which
+     * is why Container and Finder.findGob(String) exist in the first place.
+     */
+    private String crucibleHash = null;
     /** Irrlights we chased and could not catch; touched from the UI thread too. */
     private final java.util.Set<Long> ignored = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
@@ -121,6 +131,8 @@ public class IrrlightBot implements Action {
         if (crucible == null)
             return Results.ERROR("No crucible nearby: stand next to a lit crucible before starting");
         long crucibleId = crucible.id;
+        if (crucible.ngob != null)
+            crucibleHash = crucible.ngob.hash;
         NGlobalCoord home = NUtils.bookmarkHere();
 
         NContext context = new NContext(gui);
@@ -133,10 +145,16 @@ public class IrrlightBot implements Action {
             return Results.ERROR("No output zone for Irrlights: mark a zone with \"" + IRRLIGHT_NAME
                     + "\" as an output so the catch has somewhere to go");
 
-        int total = 0;
         int fails = 0;
         int preps = 0;
         String lastCraftError = null;
+
+        return loop(gui, context, home, crucibleId, fails, preps, lastCraftError);
+    }
+
+    private Results loop(NGameUI gui, NContext context, NGlobalCoord home, long crucibleId,
+                         int fails, int preps, String lastCraftError) throws InterruptedException {
+        int total = 0;
 
         Results delivery = maybeDeliver(gui, context, home, crucibleId);
         if (!delivery.IsSuccess())
@@ -157,7 +175,7 @@ public class IrrlightBot implements Action {
                 continue;
             }
 
-            if (Finder.findGob(crucibleId) == null)
+            if (awaitCrucible(crucibleId) == null)
                 return Results.ERROR("The crucible is gone");
             if (!burning(crucibleId)) {
                 if (++preps > MAX_PREP_ATTEMPTS)
@@ -192,7 +210,12 @@ public class IrrlightBot implements Action {
                 return Results.ERROR("Nothing to smelt: carry a metal bar or its nuggets");
             }
 
-            new Drink(0.9, false).run(gui);
+            /* Drinks below half stamina, eats below a third energy, and refills the waterskins
+             * from the water zone when the drink finds them empty - then walks back to its own
+             * bookmark, which is this spot. Same call, same stop-on-failure, as Chopper/Chipper. */
+            if (!new RestoreResources().run(gui).IsSuccess())
+                return Results.ERROR("Out of food or water");
+            goHome(gui, home, crucibleId);
 
             if (!useCrucible(gui, crucibleId))
                 return Results.ERROR("The crucible is gone");
@@ -209,6 +232,7 @@ public class IrrlightBot implements Action {
             final int target = before;
             final String grows = output;
             Watch watch = watch(() -> countRes(gui.getInventory(), grows) > target, CRAFT_TIMEOUT);
+
             switch (watch.wake) {
                 case DONE:
                     fails = 0;
@@ -271,7 +295,7 @@ public class IrrlightBot implements Action {
          * the whole point of refuelling. The station itself says when it has had enough: it stops
          * taking what we hold, and the branch is simply put back. */
         for (int fed = 0; fed < MAX_FUEL_ITEMS; fed++) {
-            Gob station = Finder.findGob(crucibleId);
+            Gob station = awaitCrucible(crucibleId);
             if (station == null)
                 return Results.ERROR("The crucible is gone");
             ArrayList<WItem> branches = gui.getInventory().getItems(new NAlias(BRANCH));
@@ -294,24 +318,24 @@ public class IrrlightBot implements Action {
     }
 
     private Results lightCrucible(NGameUI gui, long crucibleId) throws InterruptedException {
-        Gob station = Finder.findGob(crucibleId);
+        Gob station = awaitCrucible(crucibleId);
         if (station == null)
             return Results.ERROR("The crucible is gone");
         return new LightGob(new ArrayList<>(Collections.singletonList(station.ngob.hash)), FIRE_BIT).run(gui);
     }
 
     /** Holds fuel of any kind - branches or coal - as opposed to standing empty. */
-    private static boolean fuelled(long crucibleId) {
+    private boolean fuelled(long crucibleId) {
         return (modelAttr(crucibleId) & FUEL_MASK) != 0;
     }
 
     /** Actually alight, which is what smelting needs - fuel alone is not enough. */
-    private static boolean burning(long crucibleId) {
+    private boolean burning(long crucibleId) {
         return (modelAttr(crucibleId) & FIRE_BIT) != 0;
     }
 
-    private static long modelAttr(long crucibleId) {
-        Gob station = Finder.findGob(crucibleId);
+    private long modelAttr(long crucibleId) {
+        Gob station = findCrucible(crucibleId);
         return (station == null || station.ngob == null) ? 0 : station.ngob.getModelAttribute();
     }
 
@@ -353,7 +377,7 @@ public class IrrlightBot implements Action {
      * is opened, so the server has already ordered the two by the time we press craft.
      */
     private boolean useCrucible(NGameUI gui, long crucibleId) throws InterruptedException {
-        Gob crucible = Finder.findGob(crucibleId);
+        Gob crucible = awaitCrucible(crucibleId);
         if (crucible == null)
             return false;
         NUtils.rclickGob(crucible);
@@ -400,6 +424,28 @@ public class IrrlightBot implements Action {
         return got;
     }
 
+    /** By id first, falling back to the hash when the object was re-sent under a new one. */
+    private Gob findCrucible(long crucibleId) {
+        Gob g = Finder.findGob(crucibleId);
+        if (g == null && crucibleHash != null)
+            g = Finder.findGob(crucibleHash);
+        return g;
+    }
+
+    /**
+     * The crucible, giving it time to stream back in when we have just returned from a trip.
+     * Calling it gone on the first miss is a race against the server re-sending the object, and
+     * losing that race ended a run with the character standing 5.7 units from a crucible that was
+     * plainly still there.
+     */
+    private Gob awaitCrucible(long crucibleId) throws InterruptedException {
+        Gob g = findCrucible(crucibleId);
+        if (g != null)
+            return g;
+        waitFor(() -> findCrucible(crucibleId) != null, CRUCIBLE_RELOAD_TIMEOUT);
+        return findCrucible(crucibleId);
+    }
+
     /** Nearest Irrlight we have not already given up on, or null. Safe on either thread. */
     private Gob catchable() {
         Gob player = NUtils.player();
@@ -428,7 +474,7 @@ public class IrrlightBot implements Action {
             return;
         if (NUtils.navigateTo(home))
             return;
-        Gob crucible = Finder.findGob(crucibleId);
+        Gob crucible = findCrucible(crucibleId);
         if (crucible != null)
             new PathFinder(crucible).run(gui);
     }
