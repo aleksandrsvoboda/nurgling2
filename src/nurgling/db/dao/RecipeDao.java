@@ -50,6 +50,7 @@ public class RecipeDao {
                                 rs.getDouble("hunger"),
                                 rs.getInt("energy"),
                                 new HashMap<>(),
+                                new HashMap<>(),
                                 new HashMap<>()
                         );
                     } catch (SQLException e) {
@@ -59,11 +60,7 @@ public class RecipeDao {
 
                 String ingredientName = rs.getString("ingredient_name");
                 if (!rs.wasNull() && ingredientName != null) {
-                    String ingResource = rs.getString("ing_resource");
-                    recipe.getIngredients().put(
-                            ingredientName,
-                            new Recipe.IngredientInfo(rs.getDouble("percentage"), ingResource)
-                    );
+                    recipe.addIngredientRow(ingredientName, rs.getDouble("percentage"), rs.getString("ing_resource"));
                 }
 
                 String fepName = rs.getString("fep_name");
@@ -119,19 +116,34 @@ public class RecipeDao {
     }
 
     private void saveIngredients(DatabaseAdapter adapter, Recipe recipe) throws SQLException {
-        if (!recipe.getIngredients().isEmpty()) {
-            // Upsert ingredients (handles concurrent updates)
-            List<Object[]> ingredientParams = new ArrayList<>();
-            List<String> ingredientNames = new ArrayList<>();
-            for (java.util.Map.Entry<String, Recipe.IngredientInfo> entry : recipe.getIngredients().entrySet()) {
-                ingredientParams.add(new Object[]{
-                    recipe.getHash(),
-                    entry.getKey(),
-                    entry.getValue().percentage,
-                    entry.getValue().resourceName
-                });
-                ingredientNames.add(entry.getKey());
+        // Smoking woods share the ingredients table, told apart by Recipe.SMOKE_RESOURCE in resource_name
+        List<Object[]> ingredientParams = new ArrayList<>();
+        List<String> ingredientNames = new ArrayList<>();
+        for (java.util.Map.Entry<String, Recipe.IngredientInfo> entry : recipe.getIngredients().entrySet()) {
+            ingredientParams.add(new Object[]{
+                recipe.getHash(),
+                entry.getKey(),
+                entry.getValue().percentage,
+                entry.getValue().resourceName
+            });
+            ingredientNames.add(entry.getKey());
+        }
+        for (java.util.Map.Entry<String, Double> entry : recipe.getSmokingWoods().entrySet()) {
+            // (recipe_hash, name) is unique, so an ingredient of the same name keeps the row
+            if (recipe.getIngredients().containsKey(entry.getKey())) {
+                continue;
             }
+            ingredientParams.add(new Object[]{
+                recipe.getHash(),
+                entry.getKey(),
+                entry.getValue(),
+                Recipe.SMOKE_RESOURCE
+            });
+            ingredientNames.add(entry.getKey());
+        }
+
+        if (!ingredientParams.isEmpty()) {
+            // Upsert ingredients (handles concurrent updates)
 
             List<String> columns = java.util.Arrays.asList("recipe_hash", "name", "percentage", "resource_name");
             List<String> conflictColumns = java.util.Arrays.asList("recipe_hash", "name");
