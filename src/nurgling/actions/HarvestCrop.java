@@ -371,26 +371,40 @@ public class HarvestCrop implements Action {
         return false;
     }
 
-    // Drops every item whose name contains the target's - on purpose, as that also sheds
-    // unregistered by-products such as Beetroot Leaves - except the crop's other registered
-    // products: "Radish" must not take "Radish Seeds" (bound for the barrel) down with it.
     private void dropAllItemsOfExactName(NGameUI gui, List<WItem> targetItems) throws InterruptedException {
         if(!targetItems.isEmpty()) {
             String targetName = ((NGItem) targetItems.get(0).item).name();
 
-            ArrayList<String> siblings = new ArrayList<>();
-            for (CropRegistry.CropStage stage : CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList())) {
-                for (String key : stage.result.keys) {
-                    if (!targetName.toLowerCase().contains(key.toLowerCase()))
-                        siblings.add(key);
-                }
-            }
-
-            ArrayList<WItem> items = gui.getInventory().getWItems(new NAlias(Collections.singletonList(targetName), siblings));
+            ArrayList<WItem> items = gui.getInventory().getWItems(dropAlias(crop, targetName));
 
             for (WItem item : items) {
                 NUtils.drop(item);
             }
         }
+    }
+
+    // The drop matches every item whose name contains the target's - on purpose, as that also
+    // sheds by-products such as Beetroot Leaves (and the seeds of leek/carrot/turnip, which those
+    // bots have always lost this way). A product that can't be replanted is the exception: it
+    // spares the crop's other registered products, since "Radish Seeds" are the only way to
+    // resow a radish field.
+    static NAlias dropAlias(NAlias crop, String targetName) {
+        List<CropRegistry.CropStage> stages = CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList());
+        boolean unplantable = false;
+        for (CropRegistry.CropStage stage : stages) {
+            if (!stage.plantable && stage.result.keys.contains(targetName))
+                unplantable = true;
+        }
+        if (!unplantable)
+            return new NAlias(targetName);
+
+        ArrayList<String> siblings = new ArrayList<>();
+        for (CropRegistry.CropStage stage : stages) {
+            for (String key : stage.result.keys) {
+                if (!targetName.toLowerCase().contains(key.toLowerCase()))
+                    siblings.add(key);
+            }
+        }
+        return new NAlias(Collections.singletonList(targetName), siblings);
     }
 }
