@@ -48,10 +48,10 @@ public class RadishFarmerQ implements Action {
 
             new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), radishArea.getRCArea(), new NAlias("items/radish")).run(gui);
 
-            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/radish"), new NAlias("Radish"), true).run(gui);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/radish"), new NAlias("Radish Seeds"), true).run(gui);
 
             if (cleanupQContainers && NContext.findSpec(trough) != null) {
-                new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Radish"), NContext.findSpec(trough)).run(gui);
+                new CleanupSeedQContainer(NContext.findSpec(seedQ), new NAlias("Radish Seeds"), NContext.findSpec(trough)).run(gui);
             }
 
             NUtils.stackSwitch(oldStackingValue);

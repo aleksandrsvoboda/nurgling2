@@ -61,7 +61,7 @@ public class RadishFarmer implements Action {
 
             if (radishArea != null)
                 new CollectItemsToPile(NContext.findSpec(field).getRCArea(), radishArea.getRCArea(), new NAlias("items/radish")).run(gui);
-            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/radish"), radishArea).run(gui);
+            new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/radish")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
 
