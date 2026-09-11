@@ -7,7 +7,9 @@ import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ValidateAllCropsReady implements Action {
 
@@ -32,9 +34,12 @@ public class ValidateAllCropsReady implements Action {
             return Results.SUCCESS();
         }
 
+        // A stage can carry several products (radish: seeds and radishes), so count each once.
+        Set<Integer> countedStages = new HashSet<>();
         int readyCropCount = 0;
         for (CropRegistry.CropStage stage : cropStages) {
-            readyCropCount += Finder.findGobs(field, crop, stage.stage).size();
+            if (countedStages.add(stage.stage))
+                readyCropCount += Finder.findGobs(field, crop, stage.stage).size();
         }
 
         if (readyCropCount < totalCropCount) {

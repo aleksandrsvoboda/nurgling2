@@ -155,11 +155,16 @@ public class CropRegistry {
                 )
         );
 
-        // Radish (a radish can't be planted - the field is resown from Radish Seeds only)
+        // Radish - a radish can't be planted, the field is resown from Radish Seeds only.
+        // Harvested at stages 3 and 4 only (the wiki's "Stage 4"/"Stage 5" - it counts from 1),
+        // the two that yield seeds as well as radishes: 5-8 / 10-15 seeds against the 5 a tile
+        // takes to resow. Stage 2 gives radishes alone and would starve the seed barrel.
         HARVESTABLE.put(
                 new NAlias("plants/radish"),
                 Arrays.asList(
-                        new CropStage(2, new NAlias("Radish Seeds"), StorageBehavior.BARREL),
+                        new CropStage(3, new NAlias("Radish Seeds"), StorageBehavior.BARREL),
+                        new CropStage(3, new NAlias("Radish"), StorageBehavior.STOCKPILE, false, false),
+                        new CropStage(4, new NAlias("Radish Seeds"), StorageBehavior.BARREL),
                         new CropStage(4, new NAlias("Radish"), StorageBehavior.STOCKPILE, false, false)
                 )
         );
