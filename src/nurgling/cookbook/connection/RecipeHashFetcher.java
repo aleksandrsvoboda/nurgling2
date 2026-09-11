@@ -57,6 +57,7 @@ public class RecipeHashFetcher implements Runnable {
                                 rs.getDouble("hunger"),
                                 rs.getInt("energy"),
                                 new HashMap<>(), // Ingredients
+                                new HashMap<>(), // Smoking woods
                                 new HashMap<>()   // FEPS
                         );
                         r.setFavorite(rs.getBoolean("is_favorite"));
@@ -75,13 +76,10 @@ public class RecipeHashFetcher implements Runnable {
                             ));
                 }
 
+                // The join repeats each ingredient once per fep; filing the same row again is harmless
                 String ingName = rs.getString("ing_name");
-                if (ingName != null && !recipe.getIngredients().containsKey(ingName)) {
-                    String ingResource = rs.getString("ing_resource");
-                    recipe.getIngredients().put(
-                            ingName,
-                            new Recipe.IngredientInfo(rs.getDouble("ing_percentage"), ingResource)
-                    );
+                if (ingName != null) {
+                    recipe.addIngredientRow(ingName, rs.getDouble("ing_percentage"), rs.getString("ing_resource"));
                 }
             }
 

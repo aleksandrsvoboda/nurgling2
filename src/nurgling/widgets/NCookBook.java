@@ -589,6 +589,16 @@ public class NCookBook extends Window {
                 Recipe.IngredientInfo ingInfo = recipe.getIngredients().get(ingName);
                 str.append(ingName).append(": ").append(Utils.odformat2(ingInfo.percentage,2)).append("%").append("\040");
             }
+            if(!recipe.getSmokingWoods().isEmpty()) {
+                List<String> woods = new ArrayList<>();
+                for(Map.Entry<String, Double> wood : recipe.getSmokingWoods().entrySet()) {
+                    woods.add(RichText.Parser.quote(wood.getKey()) + " (" + Utils.odformat2(wood.getValue(), 2) + "%)");
+                }
+                if(str.length() > 0)
+                    str.append("\n");
+                str.append("$col[224,160,96]{").append(L10n.get("cookbook.smoked_with")).append(" ")
+                   .append(String.join(", ", woods)).append("}");
+            }
             ing = new TexI(ingfnd.render(str.toString(), UI.scale(250)).img);
 
             add(new Label(Utils.odformat2(total/recipe.getHunger(),2)), UI.scale(col3, y_pos));
