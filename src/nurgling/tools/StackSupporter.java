@@ -49,6 +49,28 @@ public class StackSupporter {
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
+        customStackSizes.put("Small Brain", 3);
+        customStackSizes.put("Brain", 2);
+        customStackSizes.put("Crane Feather", 5);
+        customStackSizes.put("Crane Meat", 4);
+        customStackSizes.put("Tangled Bramble", 4);
+        customStackSizes.put("Thorny Thistle", 4);
+        customStackSizes.put("Cruel Bee Stinger", 3);
+        customStackSizes.put("Curious Needle", 5);
+        customStackSizes.put("Seasponge", 4);
+        customStackSizes.put("Adder Skeleton", 3);
+        customStackSizes.put("Bullfinch Meat", 4);
+        customStackSizes.put("Jotun Clam Meat", 5);
+        customStackSizes.put("Lynx Claws", 3);
+        customStackSizes.put("Tinder Conk", 4);
+        customStackSizes.put("Hide Strap", 3); // part of String category, but has lower stack size
+        customStackSizes.put("Aurochs Hair", 3);
+        customStackSizes.put("Cave Louse Chitin", 3);
+        customStackSizes.put("Cave Louse Leg", 4);
+        customStackSizes.put("Brown Kelp", 4);
+        customStackSizes.put("Washed-up Bladderwrack", 4);
+        customStackSizes.put("Commmon Starfish", 4);
+        customStackSizes.put("Cave Lantern", 4);
 
         putAll(3,
                 "Tuber", "Onion", "Beetroot", "Carrot", "Cucumber",
@@ -101,8 +123,6 @@ public class StackSupporter {
         catExceptions.add("Red Deer Antlers");
         catExceptions.add("Reindeer Antlers");
         catExceptions.add("Roe Deer Antlers");
-        catExceptions.add("Wolf's Claw");
-        catExceptions.add("Lynx Claws");
         catExceptions.add("Silkworm");
         catExceptions.add("Female Silkmoth");
         catExceptions.add("Male Silkmoth");
@@ -208,7 +228,7 @@ public class StackSupporter {
     /**
      * Exact-name variant of {@link #isSameExist}. Only counts a sibling as present when an
      * inventory item's name equals it outright.
-     *
+     * <p>
      * isSameExist() resolves siblings through NAlias, which matches by substring, so any item
      * whose name contains a sibling's name reports a collision with itself - "Pumpkin Flesh"
      * and "Pumpkin" share the "Crops - other" category, so a pure load of flesh always looked
@@ -251,6 +271,7 @@ public class StackSupporter {
         if (((NInventory) NUtils.getGameUI().maininv).bundle.a && isStackable(inventory, itemName)) {
             int maxStackSize = getFullStackSize(itemName);
             int maxCapacity = freeSlots * maxStackSize;
+
             return Math.min(targetCount, maxCapacity);
         }
 
