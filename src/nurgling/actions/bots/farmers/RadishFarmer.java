@@ -12,6 +12,7 @@ import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class RadishFarmer implements Action {
     @Override
@@ -60,7 +61,7 @@ public class RadishFarmer implements Action {
             }
 
             if (radishArea != null)
-                new CollectItemsToPile(NContext.findSpec(field).getRCArea(), radishArea.getRCArea(), new NAlias("items/radish")).run(gui);
+                new CollectItemsToPile(NContext.findSpec(field).getRCArea(), radishArea.getRCArea(), new NAlias(new ArrayList<>(Arrays.asList("items/radish", "Radish")), new ArrayList<>(Arrays.asList("seed")))).run(gui);
             new SeedCrop(NContext.findSpec(field), NContext.findSpec(seed), new NAlias("plants/radish")).run(gui);
 
             NUtils.stackSwitch(oldStackingValue);
