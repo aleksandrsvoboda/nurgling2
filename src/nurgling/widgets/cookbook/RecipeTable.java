@@ -29,7 +29,8 @@ public class RecipeTable extends Widget {
     }
 
     /* Widths are unscaled pixels: fix is the minimum, flex a share of what is left. hideBelow is
-     * the table width under which the column drops out, 0 for never. */
+     * the table width under which the column drops out, 0 for never. The fixed widths of the
+     * columns still shown must fit below each threshold, or the rightmost gets cut off. */
     enum Col {
         ICON(52, 0, 0, null, null, null, false),
         NAME(120, 1.2, 0, CookbookModel.Column.NAME, "cookbook.col.food", null, false),
@@ -39,7 +40,8 @@ public class RecipeTable extends Widget {
         H(54, 0, 700, CookbookModel.Column.H, "cookbook.col.h", "cookbook.tip.h", true),
         FH(64, 0, 0, CookbookModel.Column.FH, "cookbook.col.fh", "cookbook.tip.fh", true),
         TOP(44, 0, 900, CookbookModel.Column.TOP, "cookbook.col.top", "cookbook.tip.top", true),
-        ENERGY(62, 0, 900, CookbookModel.Column.ENERGY, "cookbook.col.energy", "cookbook.tip.energy", true);
+        ENERGY(62, 0, 900, CookbookModel.Column.ENERGY, "cookbook.col.energy", "cookbook.tip.energy", true),
+        MIX(110, 0, 1000, null, "cookbook.col.mix", "cookbook.tip.mix", false);
 
         final int fix;
         final double flex;
@@ -63,6 +65,7 @@ public class RecipeTable extends Widget {
     public static final int ROW_H = UI.scale(40);
     private static final int PAD = UI.scale(8);
     private static final int CHIP_GAP = UI.scale(11);
+    private static final int MIX_H = UI.scale(12);
     private static final Coord ICON_SZ = UI.scale(new Coord(24, 24));
     private static final Coord STAR_SZ = UI.scale(new Coord(16, 16));
     private static final Col[] COLS = Col.values();
@@ -297,6 +300,8 @@ public class RecipeTable extends Widget {
         private final String[] chipTip;
         private Tex ing = null, wood = null, ingTip = null;
         private int ingW = -1;
+        private int[] mixEdges = null;
+        private int mixW = -1;
         private boolean hover = false;
         private Coord mouse = null;
 
@@ -365,6 +370,50 @@ public class RecipeTable extends Widget {
                 x += chipW[i] + CHIP_GAP;
             }
             return -1;
+        }
+
+        /* Where the mix bar starts in the row. */
+        private int mixX() {
+            return colX[Col.MIX.ordinal()] + PAD;
+        }
+
+        /* The mix bar: each FEP's share of the total as a run of its attribute colour, in chip
+         * order. Returns the left edge of every segment, relative to mixX(), plus the bar's right
+         * edge; null while the column is hidden or the dish has no FEPs. */
+        private int[] mixEdges() {
+            int w = colW[Col.MIX.ordinal()] - 2 * PAD;
+            if((w <= 0) || (row.total <= 0))
+                return null;
+            if((mixEdges == null) || (w != mixW)) {
+                int n = row.feps.size();
+                int[] e = new int[n + 1];
+                double cum = 0;
+                for(int i = 0; i < n; i++) {
+                    cum += row.feps.get(i).value;
+                    e[i + 1] = (int)Math.round(cum / row.total * w);
+                }
+                mixEdges = e;
+                mixW = w;
+            }
+            return mixEdges;
+        }
+
+        private int segmentAt(Coord c) {
+            int[] e = mixEdges();
+            if(e == null)
+                return -1;
+            int x = c.x - mixX();
+            for(int i = 0; i + 1 < e.length; i++) {
+                if((x >= e[i]) && (x < e[i + 1]))
+                    return i;
+            }
+            return -1;
+        }
+
+        /* The FEP under the mouse, as a chip or as a segment of the mix bar; -1 for neither. */
+        private int fepAt(Coord c) {
+            int i = chipAt(c);
+            return (i >= 0) ? i : segmentAt(c);
         }
 
         /* Ingredients, then the smoking woods in the warning colour, cut to the column's width. */
@@ -466,6 +515,21 @@ public class RecipeTable extends Widget {
             number(g, Col.FH, perHunger);
             number(g, Col.TOP, top);
             number(g, Col.ENERGY, energy);
+
+            int[] e = mixEdges();
+            if(e != null) {
+                int bx = mixX(), by = (sz.y - MIX_H) / 2;
+                for(int i = 0; i + 1 < e.length; i++) {
+                    if(e[i + 1] > e[i]) {
+                        FepValue f = row.feps.get(i);
+                        CookbookTheme.fill(g, Coord.of(bx + e[i], by), Coord.of(e[i + 1] - e[i], MIX_H), f.attr.swatch(f.tier));
+                    }
+                }
+                CookbookTheme.frame(g, Coord.of(bx, by), Coord.of(e[e.length - 1], MIX_H), CookbookTheme.outline);
+                int hot = (mouse != null) ? segmentAt(mouse) : -1;
+                if(hot >= 0)
+                    CookbookTheme.frame(g, Coord.of(bx + e[hot], by), Coord.of(e[hot + 1] - e[hot], MIX_H), CookbookTheme.accent);
+            }
         }
 
         @Override
@@ -480,9 +544,9 @@ public class RecipeTable extends Widget {
                 actions.toggleFavorite(row);
                 return true;
             }
-            int chip = chipAt(ev.c);
-            if(chip >= 0) {
-                FepValue f = row.feps.get(chip);
+            int fep = fepAt(ev.c);
+            if(fep >= 0) {
+                FepValue f = row.feps.get(fep);
                 if(f.attr != FepAttr.UNKNOWN)
                     model.sortByFep(f.attr, f.tier);
                 return true;
@@ -502,9 +566,9 @@ public class RecipeTable extends Widget {
         public Object tooltip(Coord c, Widget prev) {
             if(inStar(c))
                 return L10n.get(row.recipe.isFavorite() ? "cookbook.remove_from_favorites" : "cookbook.add_to_favorites");
-            int chip = chipAt(c);
-            if(chip >= 0)
-                return chipTip[chip];
+            int fep = fepAt(c);
+            if(fep >= 0)
+                return chipTip[fep];
             int i = Col.INGREDIENTS.ordinal();
             if((colW[i] > 0) && (c.x >= colX[i]) && (c.x < colX[i] + colW[i])) {
                 Tex t = ingredientTip();
