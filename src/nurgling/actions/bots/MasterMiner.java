@@ -26,8 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ConcurrentModificationException;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -62,10 +61,32 @@ public class MasterMiner extends ActionWithFinal {
 
     private volatile boolean stop = false;
     private MasterMinerWnd wnd = null;
+    /** Where a carried item came from; decided the first time it is seen, never changed. */
+    private enum Origin {
+        /** Carried when the run started, or picked up while the mining cursor was down. */
+        CARRIED,
+        /** Appeared while the mining cursor was up: a stone out of the wall. */
+        MINED
+    }
+
+    /** How far one item has got. Counted and recorded apply to MINED stones only. */
+    private static final class Seen {
+        final Origin origin;
+        boolean counted;
+        boolean recorded;
+        /** Kept or dropped: nothing left to decide. */
+        boolean settled;
+
+        Seen(Origin origin) {
+            this.origin = origin;
+        }
+    }
+
     /* Keyed by GItem, not WItem: the inventory destroys and rebuilds the WItem widget when
-     * an item changes slot, so widget identity is not stable enough to remember a stone by
-     * -- every stone would look new again on the next pass. */
-    private final Set<GItem> known = new HashSet<>();
+     * an item changes slot, so widget identity is not stable enough to remember a stone by.
+     * Weak keys let a stone that is dropped or used up fall out on its own; an entry is never
+     * removed just because one pass missed the item, or that stone would be counted again. */
+    private final Map<GItem, Seen> seen = new WeakHashMap<>();
     
 
 
@@ -121,7 +142,7 @@ public class MasterMiner extends ActionWithFinal {
     public Results run(NGameUI gui) throws InterruptedException {
         // Reset, so a second run does not inherit the first one's state.
         stop = false;
-        known.clear();
+        seen.clear();
         MasterMinerWnd created = new MasterMinerWnd();
         Coord savedPos = created.savedWindowPos();
         if (savedPos != null) {
@@ -147,11 +168,11 @@ public class MasterMiner extends ActionWithFinal {
         }
 
         try {
-            /* `known` starts empty on purpose, so the first pass judges what is already
-             * carried as well as what is mined from now on. The threshold is the player's
-             * statement of what is worth keeping; stone that fails it is no more worth
-             * carrying because it was mined a minute ago. */
-            ArrayList<WItem> allItems;
+            /* The first pass enters everything already carried as CARRIED. That stone is still
+             * judged against the drop threshold -- the threshold is the player's statement of
+             * what is worth keeping, wherever the stone came from -- but it did not come out of
+             * this wall, so it is never counted and never marked. */
+            boolean baseline = true;
 
             while (!stop && wnd != null && !wnd.isClosed()) {
                 flushMarkerBatchIfDue(gui);
@@ -161,31 +182,39 @@ public class MasterMiner extends ActionWithFinal {
                 String curs = NUtils.getCursorName();
                 boolean mining = (curs != null) && NParser.checkName(curs, "mine");
 
+                /* Walk the widget tree rather than getItems(): that only looks at
+                 * child/next and misses items sitting in stack slots. The hand counts as
+                 * carried too: a stone lands there when the pack is full. */
+                ArrayList<WItem> carried = collectAllWItemsFromWidget(gui.getInventory());
+                WItem hand = gui.vhand;
+                if (hand != null && hand.item != null) {
+                    carried.add(hand);
+                }
+
+                /* Give every newcomer its origin now, even with the cursor down: stone picked
+                 * up then did not come out of a wall either. Items whose name has not resolved
+                 * are entered as well, or a stone carried since the start would pass for a
+                 * fresh one on the pass its name arrives. */
+                Origin arrival = (baseline || !mining) ? Origin.CARRIED : Origin.MINED;
+                for (WItem it : carried) {
+                    seen.computeIfAbsent(it.item, k -> new Seen(arrival));
+                }
+                baseline = false;
+
                 if (!mining) {
                     NUtils.addTask(new WaitTicks(10));
                     continue;
                 }
 
-                /* Walk the widget tree rather than getItems(): that only looks at
-                 * child/next and misses items sitting in stack slots. */
-                allItems = collectAllWItemsFromWidget(gui.getInventory());
-                ArrayList<WItem> cur = filterMinedItems(allItems);
-
-                /* Forget stones that have left the pack, so `known` tracks what is carried
-                 * rather than everything ever seen. */
-                Set<GItem> carried = new HashSet<>();
+                ArrayList<WItem> cur = filterMinedItems(carried);
+                ArrayList<WItem> pending = new ArrayList<>();
                 for (WItem it : cur) {
-                    carried.add(it.item);
-                }
-                known.retainAll(carried);
-
-                ArrayList<WItem> newItems = new ArrayList<>();
-                for (WItem it : cur) {
-                    if (!known.contains(it.item)) {
-                        newItems.add(it);
+                    Seen s = seen.get(it.item);
+                    if (s != null && !s.settled) {
+                        pending.add(it);
                     }
                 }
-                
+
                 /* Re-check every stack each pass: a stack can grow, and change its average
                  * quality, without any new item appearing. */
                 ArrayList<WItem> stacksToCheck = new ArrayList<>();
@@ -200,40 +229,10 @@ public class MasterMiner extends ActionWithFinal {
                 }
 
                 // Droppable = everything carried, hand included, beyond the support reserve.
-                int totalStones = countTotalStones(cur);
-                WItem vhandItem = gui.vhand;
-                if (vhandItem != null && vhandItem.item instanceof NGItem) {
-                    NGItem vhandNGItem = (NGItem) vhandItem.item;
-                    String vhandName = vhandNGItem.name();
-                    if (vhandName != null && !isGemstone(vhandNGItem) && !isGemstone(vhandName) &&
-                        (NParser.checkName(vhandName, MINED_ITEMS) || NParser.checkName(vhandName, ORE_ITEMS))) {
-                        String vhandStoneType = classifyStoneType(vhandName);
-                        if (!"Shell".equals(vhandStoneType) && !"Cat Gold".equals(vhandStoneType)) {
-                            haven.GItem.Amount vhAm = vhandNGItem.getInfo(haven.GItem.Amount.class);
-                            totalStones += (vhAm != null && vhAm.itemnum() > 0) ? vhAm.itemnum() : 1;
-                        }
-                    }
-                }
                 int keepStones = wnd.getKeepStonesForSupport();
-                int[] needToDropRef = new int[] { Math.max(0, totalStones - keepStones) };
+                int[] needToDropRef = new int[] { Math.max(0, countTotalStones(cur) - keepStones) };
 
-                // A stone lands in the hand instead of the pack when the pack is full.
-                if (vhandItem != null && vhandItem.item instanceof NGItem) {
-                    NGItem vhandNGItem = (NGItem) vhandItem.item;
-                    String vhandName = vhandNGItem.name();
-                    if (vhandName != null) {
-                        boolean isMinedItem = NParser.checkName(vhandName, MINED_ITEMS) || 
-                                             NParser.checkName(vhandName, ORE_ITEMS) ||
-                                             isGemstone(vhandNGItem) || 
-                                             isGemstone(vhandName);
-                        if (isMinedItem && !known.contains(vhandItem.item)
-                            && processNewStone(gui, vhandItem, wnd, needToDropRef)) {
-                            known.add(vhandItem.item);
-                        }
-                    }
-                }
-                
-                if (newItems.isEmpty() && stacksToCheck.isEmpty()) {
+                if (pending.isEmpty() && stacksToCheck.isEmpty()) {
                     NUtils.addTask(new WaitTicks(5));
                     continue;
                 }
@@ -242,13 +241,8 @@ public class MasterMiner extends ActionWithFinal {
                 for (WItem stackItem : stacksToCheck) {
                     checkAndDropStack(gui, stackItem, wnd, needToDropRef);
                 }
-                /* Only a stone that was actually judged is remembered. One whose quality had
-                 * not arrived yet, or that was mined mid tool-swap, comes round again next
-                 * pass instead of being written off unexamined. */
-                for (WItem newItem : newItems) {
-                    if (processNewStone(gui, newItem, wnd, needToDropRef)) {
-                        known.add(newItem.item);
-                    }
+                for (WItem stone : pending) {
+                    processStone(gui, stone, seen.get(stone.item), wnd, needToDropRef);
                 }
 
                 NUtils.addTask(new WaitTicks(2));
@@ -597,107 +591,143 @@ public class MasterMiner extends ActionWithFinal {
     }
     
     /**
-     * Handle one newly dropped stone.
-     * needToDropRef[0] is the remaining drop budget after the support reserve.
-     *
-     * @return true once the stone has been judged, false if nothing could be decided yet —
-     *         its quality has not arrived, or there is no tool to compare it against. The
-     *         caller must not remember a stone it gets false for, or that stone is never
-     *         looked at again and sits in the pack forever.
+     * Take one stone as far as it can go this pass. A stone that came out of the wall is
+     * counted and recorded -- read-out rows, "last mined" line, map mark -- and then, like a
+     * carried one, judged against the drop threshold. Each step happens once: a step that
+     * cannot finish yet (quality not arrived, no tool to compare against, drop refused) leaves
+     * the stone for the next pass without repeating the ones already done, so a retry never
+     * counts or marks it twice.
      */
-    private boolean processNewStone(NGameUI gui, WItem newItem, MasterMinerWnd wnd, int[] needToDropRef) throws InterruptedException {
-        NGItem dropped = (NGItem) newItem.item;
-        
-        // Stacks report their quality through the stack summary.
-        double f3 = getItemQuality(dropped, newItem);
-        
+    private void processStone(NGameUI gui, WItem w, Seen s, MasterMinerWnd wnd, int[] needToDropRef) throws InterruptedException {
+        NGItem stone = (NGItem) w.item;
+        double f3 = awaitQuality(gui, w);
         if (f3 < 0) {
-            // Quality has not arrived yet; wait for it.
-            WItem finalNewItem = newItem;
-            NUtils.addTask(new NTask() {
-                @Override
-                public boolean check() {
-                    /* Stop waiting if the stone is gone: the caller reads the quality again
-                     * and gives up cleanly, whereas an unbounded wait would never return. */
-                    if (!(finalNewItem.item instanceof NGItem)) {
-                        return true;
+            return;
+        }
+        String stoneName = stone.name();
+        boolean gem = isGemstone(stone) || isGemstone(stoneName);
+
+        if (s.origin == Origin.MINED && !s.recorded) {
+            // A stack is not one stone out of the wall; its stones are recorded one by one.
+            if (isSingleStone(stone)) {
+                if (gem) {
+                    recordGem(gui, stone, f3, wnd);
+                } else {
+                    if (!s.counted) {
+                        wnd.incrementCounter();
+                        s.counted = true;
                     }
-                    NGItem gi = (NGItem) finalNewItem.item;
-                    if (gi.name() == null) {
-                        return false;
+                    if (!recordStone(gui, stone, f3, wnd)) {
+                        return;
                     }
-                    return getItemQuality(gi, finalNewItem) >= 0;
                 }
-            });
-            f3 = getItemQuality(dropped, newItem);
-            if (f3 < 0) {
-                NUtils.addTask(new WaitTicks(2));
-                return false;
+            }
+            s.recorded = true;
+        }
+
+        // Gemstones are never dropped.
+        s.settled = gem || judgeDrop(gui, w, stoneName, f3, wnd, needToDropRef);
+    }
+
+    /** One item rather than a stack: a stack reports an Amount above one. */
+    private static boolean isSingleStone(NGItem item) {
+        GItem.Amount amount = item.getInfo(GItem.Amount.class);
+        return amount == null || amount.itemnum() <= 1;
+    }
+
+    /**
+     * The stone's quality, waiting for it to arrive if need be.
+     *
+     * @return the quality, or -1 if it has not arrived yet or the stone left meanwhile
+     */
+    private double awaitQuality(NGameUI gui, WItem w) throws InterruptedException {
+        NGItem stone = (NGItem) w.item;
+        // Stacks report their quality through the stack summary.
+        double q = getItemQuality(stone, w);
+        if (q >= 0) {
+            return q;
+        }
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                /* Stop waiting if the stone is gone: the caller gives up cleanly, whereas an
+                 * unbounded wait would never return. */
+                if (hasLeftInventory(gui, w)) {
+                    return true;
+                }
+                return stone.name() != null && getItemQuality(stone, w) >= 0;
+            }
+        });
+        q = getItemQuality(stone, w);
+        if (q < 0) {
+            NUtils.addTask(new WaitTicks(2));
+        }
+        return q;
+    }
+
+    /**
+     * Show a mined gemstone on the "last mined" line and mark it if the settings ask for it.
+     * A gemstone's wall quality is just its own quality; no tool formula applies.
+     */
+    private void recordGem(NGameUI gui, NGItem dropped, double f3, MasterMinerWnd wnd) {
+        String stoneName = dropped.name();
+        wnd.setLastMined(stoneName, f3, masonry());
+
+        // Mark it only if this gem is enabled in the settings.
+        nurgling.conf.NMasterMinerMarkingConfig markingConfig = nurgling.conf.NMasterMinerMarkingConfig.get();
+        if (markingConfig != null) {
+            String configKey = extractGemstoneBaseName(stoneName);
+
+            // Settings keys have been written in mixed case; try the variants.
+            Boolean enabled = markingConfig.isEnabled(configKey);
+            if (enabled == null && !configKey.equals(configKey.toLowerCase())) {
+                // lower case
+                enabled = markingConfig.isEnabled(configKey.toLowerCase());
+                if (enabled != null) {
+                    configKey = configKey.toLowerCase();
+                }
+            }
+            if (enabled == null && !configKey.equals(configKey.substring(0, 1).toUpperCase() + configKey.substring(1).toLowerCase())) {
+                // capitalised
+                String properCase = configKey.substring(0, 1).toUpperCase() + configKey.substring(1).toLowerCase();
+                enabled = markingConfig.isEnabled(properCase);
+                if (enabled != null) {
+                    configKey = properCase;
+                }
+            }
+
+            Double threshold = markingConfig.getThreshold(configKey);
+
+            // No explicit setting means on: gemstones are worth marking by default.
+            boolean shouldMark = false;
+            if (enabled == null) {
+                shouldMark = true;
+            } else {
+                // Explicit setting wins.
+                shouldMark = enabled;
+            }
+
+            if (shouldMark) {
+                double itemThreshold = (threshold != null && !threshold.isNaN()) ? threshold : 10.0;
+                if (f3 >= itemThreshold) {
+                    // Gems are marked at their own quality, with no tool formula.
+                    // Mark under the base name, so every cut of a gem shares one type.
+                    String baseGemName = extractGemstoneBaseName(stoneName);
+                    enqueueMark(gui, baseGemName, dropped, f3, "gem");
+                }
             }
         }
+    }
+
+    /**
+     * Back-compute the wall's quality from a stone out of it, update the read-out rows and
+     * mark the find on the map.
+     *
+     * @return false if there is no tool to compare against yet; the caller retries next pass
+     */
+    private boolean recordStone(NGameUI gui, NGItem dropped, double f3, MasterMinerWnd wnd) throws InterruptedException {
         String stoneName = dropped.name();
         String stoneType = classifyStoneType(stoneName);
-
-        // Gemstone?
-        boolean isGem = isGemstone(dropped);
-        if (!isGem) {
-            isGem = isGemstone(stoneName);
-        }
-        
-        // Gemstones do not feed the wall-quality read-out and are never dropped,
-        // but they do get a map mark.
-        if (isGem) {
-            // Show it on the "last mined" line.
-            // A gemstone's wall quality is just its own quality; no tool formula applies.
-            wnd.setLastMined(stoneName, f3, masonry());
-            
-            // Mark it only if this gem is enabled in the settings.
-            nurgling.conf.NMasterMinerMarkingConfig markingConfig = nurgling.conf.NMasterMinerMarkingConfig.get();
-            if (markingConfig != null) {
-                String configKey = extractGemstoneBaseName(stoneName);
-                
-                // Settings keys have been written in mixed case; try the variants.
-                Boolean enabled = markingConfig.isEnabled(configKey);
-                if (enabled == null && !configKey.equals(configKey.toLowerCase())) {
-                    // lower case
-                    enabled = markingConfig.isEnabled(configKey.toLowerCase());
-                    if (enabled != null) {
-                        configKey = configKey.toLowerCase();
-                    }
-                }
-                if (enabled == null && !configKey.equals(configKey.substring(0, 1).toUpperCase() + configKey.substring(1).toLowerCase())) {
-                    // capitalised
-                    String properCase = configKey.substring(0, 1).toUpperCase() + configKey.substring(1).toLowerCase();
-                    enabled = markingConfig.isEnabled(properCase);
-                    if (enabled != null) {
-                        configKey = properCase;
-                    }
-                }
-                
-                Double threshold = markingConfig.getThreshold(configKey);
-                
-                // No explicit setting means on: gemstones are worth marking by default.
-                boolean shouldMark = false;
-                if (enabled == null) {
-                    shouldMark = true;
-                } else {
-                    // Explicit setting wins.
-                    shouldMark = enabled;
-                }
-                
-                if (shouldMark) {
-                    double itemThreshold = (threshold != null && !threshold.isNaN()) ? threshold : 10.0;
-                    if (f3 >= itemThreshold) {
-                        // Gems are marked at their own quality, with no tool formula.
-                        // Mark under the base name, so every cut of a gem shares one type.
-                        String baseGemName = extractGemstoneBaseName(stoneName);
-                        enqueueMark(gui, baseGemName, dropped, f3, "gem");
-                    }
-                }
-            }
-            // Gemstones are never dropped and never counted.
-            return true;
-        }
 
         WItem tool = findMiningTool();
         if (tool == null) {
@@ -725,145 +755,151 @@ public class MasterMiner extends ActionWithFinal {
         Double f4 = ((NGItem) ftool.item).quality != null ? (double) ((NGItem) ftool.item).quality : null;
         double f5 = toolCoef(toolName);
         ToolType currentToolType = classifyTool(toolName);
+        if (f4 == null) {
+            return false;
+        }
 
-        if (f4 != null) {
-            // Quarryartz follows its own formula; everything else uses the tool debuff.
-            double wallQ;
+        // Quarryartz follows its own formula; everything else uses the tool debuff.
+        double wallQ;
+        if ("Quarryartz".equals(stoneType)) {
+            // A wall poorer than the tool yields its own quality unchanged.
+            if (f3 < f4) {
+                wallQ = f3;
+            } else {
+                // Quarryartz: wallQ = 2*f3 - f4
+                // and is the same whichever tool is used.
+                wallQ = (2.0 * f3) - f4;
+            }
+        } else {
+            // Everything else goes through the tool-debuff formula.
+            wallQ = calcWallQ(f3, f4, f5);
+        }
+
+        // What the other tools would have yielded from this same wall.
+        ToolSet set = scanTools(gui, ftool);
+        Double bestAltQ = null;
+        if (currentToolType != ToolType.STONE_AXE && set.stoneAxeQ != null) {
+            Double pred;
             if ("Quarryartz".equals(stoneType)) {
-                // A wall poorer than the tool yields its own quality unchanged.
-                if (f3 < f4) {
-                    wallQ = f3;
+                // A wall poorer than the tool would drop at its own quality.
+                if (wallQ < set.stoneAxeQ) {
+                    pred = wallQ;
                 } else {
-                    // Quarryartz: wallQ = 2*f3 - f4
-                    // and is the same whichever tool is used.
-                    wallQ = (2.0 * f3) - f4;
+                    // Quarryartz inverted: from wallQ = 2*f3 - f4 it follows that
+                    // f3 = (wallQ + f4) / 2, and wallQ is the same for every tool.
+                    pred = (wallQ + set.stoneAxeQ) / 2.0;
                 }
             } else {
-                // Everything else goes through the tool-debuff formula.
-                wallQ = calcWallQ(f3, f4, f5);
+                pred = invDropQ(wallQ, set.stoneAxeQ, 0.8);
             }
+            if (bestAltQ == null || (pred != null && pred > bestAltQ)) bestAltQ = pred;
+        }
+        if (currentToolType != ToolType.TINKER_AXE && set.tinkerAxeQ != null) {
+            Double pred;
+            if ("Quarryartz".equals(stoneType)) {
+                // A wall poorer than the tool would drop at its own quality.
+                if (wallQ < set.tinkerAxeQ) {
+                    pred = wallQ;
+                } else {
+                    // Quarryartz inverted: from wallQ = 2*f3 - f4 it follows that
+                    // f3 = (wallQ + f4) / 2, and wallQ is the same for every tool.
+                    pred = (wallQ + set.tinkerAxeQ) / 2.0;
+                }
+            } else {
+                pred = invDropQ(wallQ, set.tinkerAxeQ, 0.9);
+            }
+            if (bestAltQ == null || (pred != null && pred > bestAltQ)) bestAltQ = pred;
+        }
+        if (currentToolType != ToolType.PICKAXE && set.pickaxeQ != null) {
+            Double pred;
+            if ("Quarryartz".equals(stoneType)) {
+                // A wall poorer than the tool would drop at its own quality.
+                if (wallQ < set.pickaxeQ) {
+                    pred = wallQ;
+                } else {
+                    // Quarryartz inverted: from wallQ = 2*f3 - f4 it follows that
+                    // f3 = (wallQ + f4) / 2, and wallQ is the same for every tool.
+                    pred = (wallQ + set.pickaxeQ) / 2.0;
+                }
+            } else {
+                pred = invDropQ(wallQ, set.pickaxeQ, 1.0);
+            }
+            if (bestAltQ == null || (pred != null && pred > bestAltQ)) bestAltQ = pred;
+        }
 
-            // What the other tools would have yielded from this same wall.
-            ToolSet set = scanTools(gui, ftool);
-            Double bestAltQ = null;
-            if (currentToolType != ToolType.STONE_AXE && set.stoneAxeQ != null) {
-                Double pred;
-                if ("Quarryartz".equals(stoneType)) {
-                    // A wall poorer than the tool would drop at its own quality.
-                    if (wallQ < set.stoneAxeQ) {
-                        pred = wallQ;
-                    } else {
-                        // Quarryartz inverted: from wallQ = 2*f3 - f4 it follows that
-                        // f3 = (wallQ + f4) / 2, and wallQ is the same for every tool.
-                        pred = (wallQ + set.stoneAxeQ) / 2.0;
-                    }
-                } else {
-                    pred = invDropQ(wallQ, set.stoneAxeQ, 0.8);
-                }
-                if (bestAltQ == null || (pred != null && pred > bestAltQ)) bestAltQ = pred;
-            }
-            if (currentToolType != ToolType.TINKER_AXE && set.tinkerAxeQ != null) {
-                Double pred;
-                if ("Quarryartz".equals(stoneType)) {
-                    // A wall poorer than the tool would drop at its own quality.
-                    if (wallQ < set.tinkerAxeQ) {
-                        pred = wallQ;
-                    } else {
-                        // Quarryartz inverted: from wallQ = 2*f3 - f4 it follows that
-                        // f3 = (wallQ + f4) / 2, and wallQ is the same for every tool.
-                        pred = (wallQ + set.tinkerAxeQ) / 2.0;
-                    }
-                } else {
-                    pred = invDropQ(wallQ, set.tinkerAxeQ, 0.9);
-                }
-                if (bestAltQ == null || (pred != null && pred > bestAltQ)) bestAltQ = pred;
-            }
-            if (currentToolType != ToolType.PICKAXE && set.pickaxeQ != null) {
-                Double pred;
-                if ("Quarryartz".equals(stoneType)) {
-                    // A wall poorer than the tool would drop at its own quality.
-                    if (wallQ < set.pickaxeQ) {
-                        pred = wallQ;
-                    } else {
-                        // Quarryartz inverted: from wallQ = 2*f3 - f4 it follows that
-                        // f3 = (wallQ + f4) / 2, and wallQ is the same for every tool.
-                        pred = (wallQ + set.pickaxeQ) / 2.0;
-                    }
-                } else {
-                    pred = invDropQ(wallQ, set.pickaxeQ, 1.0);
-                }
-                if (bestAltQ == null || (pred != null && pred > bestAltQ)) bestAltQ = pred;
-            }
+        // Update the row for this category.
+        if (stoneType != null) {
+            int masonryForUI = masonry();
+            wnd.setStoneInfo(stoneType, stoneName, f3, wallQ, bestAltQ, masonryForUI, set, currentToolType);
+            wnd.setLastMined(stoneName, wallQ, masonryForUI);
 
-            // Update the row for this category.
-            if (stoneType != null) {
-                int masonryForUI = masonry();
-                wnd.setStoneInfo(stoneType, stoneName, f3, wallQ, bestAltQ, masonryForUI, set, currentToolType);
-                wnd.setLastMined(stoneName, wallQ, masonryForUI);
-                wnd.incrementCounter();
-                
-                // Mark it on the map if the settings say so.
-                nurgling.conf.NMasterMinerMarkingConfig markingConfig = nurgling.conf.NMasterMinerMarkingConfig.get();
-                if (markingConfig != null) {
-                    // Non-gems are keyed by their full name.
-                    String configKey = stoneName;
-                    
-                    Boolean enabled = markingConfig.isEnabled(configKey);
-                    Double threshold = markingConfig.getThreshold(configKey);
-                    
-                    /* Everything mined is marked unless the settings say otherwise: the map
-                     * window's ore/gem/stone buttons are what hide a category day to day, and
-                     * a layer that is never populated cannot be toggled back on. */
-                    boolean shouldMark = (enabled == null) || enabled;
-                    
-                    // Enabled, and the wall is rich enough to be worth remembering.
-                    if (shouldMark) {
-                        double itemThreshold = (threshold != null && !threshold.isNaN()) ? threshold : 10.0;
-                        
-                        if (wallQ >= itemThreshold) {
-                            if ("Quarryartz".equals(stoneType)) {
-                                // Quarryartz is marked exactly where it was dug.
-                                enqueueMark(gui, stoneName, null, wallQ, "quarryartz");
-                            } else {
-                                // Stone and ore share one mark per spot.
-                                enqueueMark(gui, stoneName, dropped, wallQ, "ore");
-                            }
+            // Mark it on the map if the settings say so.
+            nurgling.conf.NMasterMinerMarkingConfig markingConfig = nurgling.conf.NMasterMinerMarkingConfig.get();
+            if (markingConfig != null) {
+                // Non-gems are keyed by their full name.
+                String configKey = stoneName;
+
+                Boolean enabled = markingConfig.isEnabled(configKey);
+                Double threshold = markingConfig.getThreshold(configKey);
+
+                /* Everything mined is marked unless the settings say otherwise: the map
+                 * window's ore/gem/stone buttons are what hide a category day to day, and
+                 * a layer that is never populated cannot be toggled back on. */
+                boolean shouldMark = (enabled == null) || enabled;
+
+                // Enabled, and the wall is rich enough to be worth remembering.
+                if (shouldMark) {
+                    double itemThreshold = (threshold != null && !threshold.isNaN()) ? threshold : 10.0;
+
+                    if (wallQ >= itemThreshold) {
+                        if ("Quarryartz".equals(stoneType)) {
+                            // Quarryartz is marked exactly where it was dug.
+                            enqueueMark(gui, stoneName, null, wallQ, "quarryartz");
+                        } else {
+                            // Stone and ore share one mark per spot.
+                            enqueueMark(gui, stoneName, dropped, wallQ, "ore");
                         }
                     }
                 }
             }
-
-            // Drop check. Uses the stone's own quality (f3), not the wall quality,
-            // because what you carry is the stone, not the wall.
-            // Shell and Cat Gold have their own threshold.
-            double threshold;
-            if ("Shell".equals(stoneType) || "Cat Gold".equals(stoneType)) {
-                threshold = wnd.getShellCatGoldThreshold();
-            } else {
-                threshold = wnd.getDropThreshold();
-            }
-            
-            // Only within the drop budget, and only below the threshold.
-            int budget = (needToDropRef == null) ? 0 : needToDropRef[0];
-            boolean inPack = (newItem != null)
-                    && (isInMainInventory(gui, newItem) || newItem == gui.vhand);
-            String lower = stoneName != null ? stoneName.toLowerCase() : "";
-            boolean isTool = lower.contains("axe");
-            /* A blank threshold reads as NaN, which means "never drop" -- the window's label
-             * says so, because it is otherwise an invisible off switch. */
-            boolean wantDrop = budget > 0 && !Double.isNaN(threshold) && f3 < threshold
-                    && inPack && !isTool;
-
-            if (wantDrop) {
-                if (dropStone(gui, newItem)) {
-                    needToDropRef[0]--;
-                } else {
-                    /* Still held: leave it unjudged so the next pass retries it,
-                     * rather than writing it off as dealt with. */
-                    return false;
-                }
-            }
         }
+        return true;
+    }
+
+    /**
+     * Drop the stone if it is under the threshold and the support reserve leaves room for it.
+     * Uses the stone's own quality (f3), not the wall quality, because what you carry is the
+     * stone, not the wall. Shell and Cat Gold have their own threshold.
+     *
+     * @return true once decided, kept or dropped; false if the drop was refused and the stone
+     *         is still held, so the next pass tries again
+     */
+    private boolean judgeDrop(NGameUI gui, WItem w, String stoneName, double f3, MasterMinerWnd wnd, int[] needToDropRef) throws InterruptedException {
+        String stoneType = classifyStoneType(stoneName);
+        double threshold;
+        if ("Shell".equals(stoneType) || "Cat Gold".equals(stoneType)) {
+            threshold = wnd.getShellCatGoldThreshold();
+        } else {
+            threshold = wnd.getDropThreshold();
+        }
+
+        // Only within the drop budget, and only below the threshold.
+        int budget = (needToDropRef == null) ? 0 : needToDropRef[0];
+        boolean inPack = isInMainInventory(gui, w) || w == gui.vhand;
+        String lower = stoneName != null ? stoneName.toLowerCase() : "";
+        boolean isTool = lower.contains("axe");
+        /* A blank threshold reads as NaN, which means "never drop" -- the window's label
+         * says so, because it is otherwise an invisible off switch. */
+        boolean wantDrop = budget > 0 && !Double.isNaN(threshold) && f3 < threshold
+                && inPack && !isTool;
+        if (!wantDrop) {
+            return true;
+        }
+        if (!dropStone(gui, w)) {
+            // Still held: leave it undecided so the next pass retries the drop.
+            return false;
+        }
+        needToDropRef[0]--;
         return true;
     }
 
