@@ -17,21 +17,27 @@ public enum GuardOutcome {
                 gui.act("lo");
                 break;
             case TRAVEL_HEARTH:
-                // Dismount first so the coracle doesn't get abandoned in the world - best-effort
-                // (fall through and hearth anyway if it fails).
-                if (CoracleBot.isPlayerInCoracle(gui)) {
-                    gui.msg("Forager: dismounting coracle before hearth-firing");
-                    Results dismountResult = new CoracleBot().run(gui);
-                    gui.msg("Forager: coracle dismount " + (dismountResult.IsSuccess() ? "succeeded" : "failed"));
-                }
-                gui.msg("Forager: hearth-firing now");
-                Results hearthResult = new TravelToHearthFire().run(gui);
-                gui.msg("Forager: hearth-fire attempt " + (hearthResult.IsSuccess() ? "succeeded" : "failed"));
+                travelHearth(gui);
                 break;
             case BREAK:
             default:
                 break;
         }
+    }
+
+    /** Hearth-fires home and returns the travel's own result. */
+    public static Results travelHearth(NGameUI gui) throws InterruptedException {
+        // Dismount first so the coracle doesn't get abandoned in the world - best-effort
+        // (fall through and hearth anyway if it fails).
+        if (CoracleBot.isPlayerInCoracle(gui)) {
+            gui.msg("Forager: dismounting coracle before hearth-firing");
+            Results dismountResult = new CoracleBot().run(gui);
+            gui.msg("Forager: coracle dismount " + (dismountResult.IsSuccess() ? "succeeded" : "failed"));
+        }
+        gui.msg("Forager: hearth-firing now");
+        Results hearthResult = new TravelToHearthFire().run(gui);
+        gui.msg("Forager: hearth-fire attempt " + (hearthResult.IsSuccess() ? "succeeded" : "failed"));
+        return hearthResult;
     }
 
     public String id() {

@@ -108,7 +108,7 @@ public class ForagerSettingsPanel extends Panel {
 
     // ---- Presets ----
     // A preset bundles which Actions Profile/Route/Guarding Profile to run together, plus the start area and finish/full-inventory reactions.
-    private static final String[] PRESET_ACTIONS = {"nothing", "logout", "travel hearth"};
+    private static final String[] PRESET_ACTIONS = {"nothing", "logout", "travel hearth", nurgling.actions.bots.Forager.HEARTH_UNLOAD_HEARTH};
     private NForagerProp.PresetData currentPresetData;
     private Dropbox<String> presetDropbox;
     private Dropbox<String> presetActionsDropbox;

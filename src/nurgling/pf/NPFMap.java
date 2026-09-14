@@ -33,14 +33,6 @@ public class NPFMap
     long currentTransport = -1;
     public boolean bad = false;
 
-    private boolean isGate(Gob gob) {
-        if (gob.ngob == null || gob.ngob.name == null) return false;
-        for (String gateName : GateDetector.GATE_NAMES) {
-            if (gob.ngob.name.equals(gateName)) return true;
-        }
-        return false;
-    }
-
     public CellsArray addGob(Gob gob) {
         CellsArray ca;
 
@@ -457,7 +449,7 @@ public class NPFMap
     }
 
     private CellsArray getCa(Gob gob) {
-        if(gatesAlwaysClosed && isGate(gob)) {
+        if(gatesAlwaysClosed && GateDetector.isGate(gob)) {
             return gob.ngob.getTrueCA();
         } else {
             return gob.ngob.getCA();

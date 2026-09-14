@@ -6,12 +6,14 @@ import nurgling.actions.*;
 import nurgling.actions.bots.forager.DetourBranchBudget;
 import nurgling.actions.bots.forager.RouteLookahead;
 import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.conf.NDiscordNotification;
 import nurgling.conf.NForagerProp;
 import nurgling.guarding.*;
 import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPath;
 import nurgling.routes.*;
+import nurgling.tasks.GateDetector;
 import nurgling.tools.AreaStock;
 import nurgling.tools.Finder;
 import nurgling.tools.MilestoneRegistry;
@@ -38,6 +40,24 @@ public class Forager implements Action {
 
     // Resolved once near the top of run() - see resolveGuardingProfile().
     private GuardingProfile guardingProfile = null;
+
+    // The preset's "Dangerous animal" guard while it's enabled, else null. When set, Forager's walks plan around dangerous
+    // animals (avoidZones), and a route leg with no safe way around falls back to this guard's reaction.
+    private Guard dangerGuard = null;
+    private java.util.function.Supplier<List<PathFinder.AvoidZone>> avoidZones = null;
+
+    // Testing aid for the [ForagerAvoid] log: what the bot thread is doing right now (read by the guard watcher), and when the run began.
+    private volatile String activity = "starting";
+    private long runStartMs = 0;
+
+    // Set by walk() when a route leg found no safe way around a dangerous animal; the main loop then skips that waypoint.
+    private boolean routeLegBlocked = false;
+
+    // The in-flight guard watcher (see startGuardWatcher) - a field so an end-of-run action can stop it first.
+    private Thread threatWatcher = null;
+
+    // Spots this run's walks got stuck on (something the pathfinder can't see, e.g. a young tree) - every later walk avoids them.
+    private final ArrayList<Coord2d> stallSpots = new ArrayList<>();
 
     // Set once run() has resolved it, so performGobAction() can persist a confirmed flower-menu action.
     private NForagerProp forageProp = null;
@@ -69,6 +89,7 @@ public class Forager implements Action {
         // The Recent Actions panel re-runs the same instance, so per-run drink state starts fresh here.
         lastFailedDrinkMs = 0;
         reportedNoWater = false;
+        stallSpots.clear();
 
         NForagerProp prop = null;
         NForagerProp.PresetData preset = null;
@@ -146,10 +167,17 @@ public class Forager implements Action {
         // Concurrent set: the render thread iterates this via NWaypointOverlay while this bot
         // thread adds to it, with no other synchronization between them.
         gui.activeBotFailedWaypoints = java.util.concurrent.ConcurrentHashMap.newKeySet();
-        Thread threatWatcher = null;
+        threatWatcher = null;
         try {
 
         guardingProfile = resolveGuardingProfile(prop, preset);
+        dangerGuard = resolveDangerGuard(guardingProfile);
+        final boolean ignoreBats = guardingProfile.ignoreBats;
+        avoidZones = (dangerGuard != null) ? () -> routeConstraints.dangerZones(gui, ignoreBats) : null;
+        runStartMs = System.currentTimeMillis();
+        System.out.println("[ForagerAvoid] avoidance " + (dangerGuard != null
+                ? "ON - blocked waypoints are skipped; chase/nearby reaction: " + dangerGuard.outcome.id() + ", ignoreBats=" + ignoreBats
+                : "OFF - \"Dangerous animal\" guard disabled"));
 
         // Pre-flight guards: checked once before any movement; in-flight guards run continuously below.
         GuardContext preflightCtx = new GuardContext(gui, guardingProfile.ignoreBats);
@@ -215,9 +243,7 @@ public class Forager implements Action {
             return Results.ERROR("Cannot get start position - waypoint not in current segment");
         }
 
-        PathFinder pf = new PathFinder(startPos);
-        pf.waterMode = effectiveWaterMode(gui, preset);
-        Results startResult = pf.run(gui);
+        Results startResult = walk(gui, preset, new PathFinder(startPos), true);
 
         // Only run this waypoint's steps if we actually reached it.
         if (startResult.IsSuccess() && runWaypointSteps(gui, path.waypoints.get(0))) {
@@ -230,11 +256,16 @@ public class Forager implements Action {
             return Results.SUCCESS();
         }
 
+        // Waypoint a dangerous animal blocked - the gap's remaining sub-sections all walk to that same waypoint, so they're skipped too.
+        int zoneBlockedWaypoint = -1;
+
         // Main loop through sections
         for (int i = 0; i < path.getSectionCount(); i++)
         {
             ForagerSection section = path.getSection(i);
             if (section == null) continue;
+            if (section.waypointIndex + 1 == zoneBlockedWaypoint) continue;
+            routeLegBlocked = false;
 
             // A waypoint gap longer than ForagerPath.SECTION_LENGTH gets split across multiple
             // sections (see generateSections()), so the section-loop counter i is NOT the same
@@ -244,6 +275,7 @@ public class Forager implements Action {
             gui.activeBotWaypointIndex = section.waypointIndex + 1;
             if (fromWp.milestoneHash != null && fromWp.milestoneHash.equals(toWp.milestoneHash)) {
                 // toWp validates we actually landed near the expected destination.
+                activity = "milestone travel";
                 Results milestoneResult = new UseMilestone(fromWp.milestoneHash, toWp, guardingProfile).run(gui);
                 if (!milestoneResult.IsSuccess()) {
                     return milestoneResult;
@@ -280,13 +312,9 @@ public class Forager implements Action {
                     Coord2d approachPoint = (dist > 0.01)
                             ? milestoneGob.rc.add(away.mul(MILESTONE_APPROACH_DIST / dist))
                             : sectionEnd;
-                    PathFinder pfApproach = new PathFinder(approachPoint);
-                    pfApproach.waterMode = effectiveWaterMode(gui, preset);
-                    arrivedNearMilestone = pfApproach.run(gui).IsSuccess();
+                    arrivedNearMilestone = walk(gui, preset, new PathFinder(approachPoint), true).IsSuccess();
                 } else if (milestoneGob != null) {
-                    PathFinder pfApproach = new PathFinder(milestoneGob.rc);
-                    pfApproach.waterMode = effectiveWaterMode(gui, preset);
-                    arrivedNearMilestone = pfApproach.run(gui).IsSuccess();
+                    arrivedNearMilestone = walk(gui, preset, new PathFinder(milestoneGob.rc), true).IsSuccess();
                 }
                 if (arrivedNearMilestone && runWaypointSteps(gui, toWp)) {
                     return Results.SUCCESS();
@@ -320,8 +348,7 @@ public class Forager implements Action {
             {
                 // walkInHops only guarantees getting within MAX_HOP_DISTANCE, not precise arrival.
                 PathFinder pfGob = new PathFinder(targetGob);
-                pfGob.waterMode = effectiveWaterMode(gui, preset);
-                Results pfGobResult = pfGob.run(gui);
+                Results pfGobResult = walk(gui, preset, pfGob, true);
                 arrivedAtWaypoint = pfGobResult.IsSuccess();
                 if (!arrivedAtWaypoint) {
                     gui.msg("Forager debug: section " + i + " failed pathing to gob - waterMode="
@@ -332,14 +359,17 @@ public class Forager implements Action {
             {
                 // Go to the endpoint if no objects found nearby
                 PathFinder pfEnd = new PathFinder(sectionEnd);
-                pfEnd.waterMode = effectiveWaterMode(gui, preset);
-                Results pfEndResult = pfEnd.run(gui);
+                Results pfEndResult = walk(gui, preset, pfEnd, true);
                 arrivedAtWaypoint = pfEndResult.IsSuccess();
                 if (!arrivedAtWaypoint) {
                     gui.msg("Forager debug: section " + i + " failed pathing to sectionEnd=" + sectionEnd
                             + " - waterMode=" + pfEnd.waterMode + " mounted=" + CoracleBot.isPlayerInCoracle(gui));
                     gui.activeBotFailedWaypoints.add(section.waypointIndex + 1);
                 }
+            }
+
+            if (routeLegBlocked) {
+                zoneBlockedWaypoint = section.waypointIndex + 1;
             }
 
             // Waypoint steps only run once we've actually reached the real waypoint - not on an
@@ -432,6 +462,9 @@ public class Forager implements Action {
     // How close to stop when approaching a milestone anchor, without pathing onto its own tile.
     private static final double MILESTONE_APPROACH_DIST = 20.0;
 
+    // Preset finish / full-inventory action: hearth home, unload into the configured areas, then hearth again to end at the fire.
+    public static final String HEARTH_UNLOAD_HEARTH = "hearth, unload, hearth";
+
     // checkStamina drinks once stamina drops below DRINK_BELOW, back up to DRINK_TARGET - RestoreResources' own numbers.
     private static final double DRINK_BELOW = 0.5;
     private static final double DRINK_TARGET = 0.9;
@@ -512,11 +545,14 @@ public class Forager implements Action {
         });
 
         boolean ignoreBats = guardingProfile != null && guardingProfile.ignoreBats;
+        // With avoidance on, the walk itself goes around animals - only an item inside a danger zone is out of reach.
+        List<PathFinder.AvoidZone> zones = (avoidZones != null) ? avoidZones.get() : null;
         for (Pair<Gob, ForagerAction> candidate : candidates) {
             if (map != null && routeConstraints.cliffCorridorBlocked(map, from, candidate.a.rc)) continue;
             if (map != null && routeConstraints.landCorridorBlocked(map, from, candidate.a.rc, waterMode)) continue;
             if (routeConstraints.corridorExcluded(sessloc, from, candidate.a.rc)) continue;
-            if (routeConstraints.dangerousAnimalNearCorridor(from, candidate.a.rc, ignoreBats)) continue;
+            if (zones != null ? PathFinder.AvoidZone.anyContains(zones, candidate.a.rc)
+                    : routeConstraints.dangerousAnimalNearCorridor(from, candidate.a.rc, ignoreBats)) continue;
             return candidate;
         }
         return null;
@@ -710,14 +746,13 @@ public class Forager implements Action {
                 gui.activeBotDetourTarget = target;
             }
 
-            Coord2d waypoint = player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE));
+            // A hop point is arbitrary - out of any danger zone, so the hop plans around the zone instead of failing on it.
+            Coord2d waypoint = outsideDangerZones(player.rc.add(target.sub(player.rc).norm(MAX_HOP_DISTANCE)));
             if (detourEpisode) {
                 detour.budget.spend(player.rc.dist(waypoint));
                 detour.breadcrumbs.add(player.rc);
             }
-            PathFinder hop = new PathFinder(waypoint);
-            hop.waterMode = effectiveWaterMode(gui, preset);
-            if (!hop.run(gui).IsSuccess()) {
+            if (!walk(gui, preset, new PathFinder(waypoint), !detourEpisode).IsSuccess()) {
                 unstickAtCurrentPosition(gui, preset);
                 return false;
             }
@@ -731,6 +766,87 @@ public class Forager implements Action {
         PathFinder unstick = new PathFinder(player.rc);
         unstick.waterMode = effectiveWaterMode(gui, preset);
         unstick.run(gui);
+    }
+
+    /** One of Forager's own walks: water mode, plus - while the "Dangerous animal" guard is on - planning around dangerous
+     *  animals. A walk with no safe way around just fails; for a route leg the main loop then skips on to the next waypoint. */
+    private Results walk(NGameUI gui, NForagerProp.PresetData preset, PathFinder pf, boolean routeLeg) throws InterruptedException {
+        String what = routeLeg ? "route walk" : "pickup/detour walk";
+        if (avoidZones != null) {
+            stepOutOfDangerZone(gui, preset);
+        }
+        activity = what;
+        pf.waterMode = effectiveWaterMode(gui, preset);
+        pf.avoidZones = avoidZones;
+        pf.learnedBlocks = stallSpots;
+        Results result = pf.run(gui);
+        activity = "stopped after " + what;
+        if (routeLeg && pf.blockedByAvoidZones) {
+            routeLegBlocked = true;
+            gui.msg("Forager: a dangerous animal blocks the way to the next waypoint - skipping it");
+            System.out.println("[ForagerAvoid] route leg blocked by a danger zone - skipping to the next waypoint");
+        }
+        return result;
+    }
+
+    /** If an animal has come within its danger zone of the player (it moved - walks never plan into one), backs straight away out
+     *  of it first, instead of planning the next walk hugging the animal at its current distance, just outside the guard's trigger. */
+    private void stepOutOfDangerZone(NGameUI gui, NForagerProp.PresetData preset) throws InterruptedException {
+        Gob player = NUtils.player();
+        if (player == null) return;
+        for (PathFinder.AvoidZone z : avoidZones.get()) {
+            if (z.contains(player.rc)) {
+                Coord2d out = outsideDangerZones(z.pushOut(player.rc, MCache.tilesz.x));
+                System.out.println(String.format("[ForagerAvoid] inside %s zone (dist %.0f of r=%.0f) - backing off to (%.0f,%.0f)",
+                        z.label, z.dist(player.rc), z.r, out.x, out.y));
+                activity = "backing off from " + z.label;
+                PathFinder back = new PathFinder(out);
+                back.waterMode = effectiveWaterMode(gui, preset);
+                back.avoidZones = avoidZones;
+                back.learnedBlocks = stallSpots;
+                back.run(gui);
+                return;
+            }
+        }
+    }
+
+    /** Testing aid: every dangerous animal near the player, against the guard trigger and zone radii, plus what the bot is doing. */
+    private void logDangerTelemetry(NGameUI gui) {
+        Gob player = gui.map.player();
+        if (player == null || routeConstraints == null || guardingProfile == null) return;
+        List<String> threats = routeConstraints.describeNearbyThreats(gui, guardingProfile.ignoreBats, player);
+        if (threats.isEmpty()) return;
+        System.out.println(String.format("[ForagerAvoid] t=%.1fs player=(%.0f,%.0f) pose=%s doing: %s | %s",
+                (System.currentTimeMillis() - runStartMs) / 1000.0, player.rc.x, player.rc.y, player.pose(), activity,
+                String.join(" | ", threats)));
+    }
+
+    /** p pushed out of any danger zone it falls in (a few passes, for overlapping zones); p itself while avoidance is off. */
+    private Coord2d outsideDangerZones(Coord2d p) {
+        if (avoidZones == null) return p;
+        List<PathFinder.AvoidZone> zones = avoidZones.get();
+        for (int pass = 0; pass < 4; pass++) {
+            PathFinder.AvoidZone inside = null;
+            for (PathFinder.AvoidZone z : zones) {
+                if (z.contains(p)) {
+                    inside = z;
+                    break;
+                }
+            }
+            if (inside == null) return p;
+            p = inside.pushOut(p, MCache.tilesz.x);
+        }
+        return p;
+    }
+
+    /** The profile's "Dangerous animal" in-flight guard if it's enabled, else null. */
+    private Guard resolveDangerGuard(GuardingProfile profile) {
+        for (GuardEntry entry : profile.inflightGuards) {
+            if ("dangerous_animal".equals(entry.guardId)) {
+                return entry.toGuard();
+            }
+        }
+        return null;
     }
 
     /** Walks the breadcrumb trail home, sweeping via collectUntilExhausted before each hop and jumping past breadcrumbs one hop can skip; keeps going even once inventory is full. */
@@ -765,9 +881,7 @@ public class Forager implements Action {
     /** One PathFinder walk to pos, shown as the detour target. */
     private boolean hopTo(NGameUI gui, NForagerProp.PresetData preset, Coord2d pos) throws InterruptedException {
         gui.activeBotDetourTarget = pos;
-        PathFinder hop = new PathFinder(pos);
-        hop.waterMode = effectiveWaterMode(gui, preset);
-        return hop.run(gui).IsSuccess();
+        return walk(gui, preset, new PathFinder(pos), false).IsSuccess();
     }
 
     /** Look-ahead over the stops from section firstSection on, where the main loop will gather, up to the first milestone - milestone sections don't gather, and beyond one positions are on the far side of a teleport. */
@@ -802,21 +916,17 @@ public class Forager implements Action {
                                    NForagerProp.PresetData preset) throws InterruptedException {
         switch (action.actionType) {
             case PICK: {
-                PathFinder pfPick = new PathFinder(gob);
-                pfPick.waterMode = effectiveWaterMode(gui, preset);
                 // Marks processed either way - an unreachable gob (e.g. on land while mounted in
                 // a coracle) would otherwise keep getting re-picked as "nearest" forever.
                 processedGobs.add(gob.id);
-                if (!pfPick.run(gui).IsSuccess()) break;
+                if (!walk(gui, preset, new PathFinder(gob), false).IsSuccess()) break;
                 new SelectFlowerAction("Pick", gob).run(gui);
                 NUtils.getUI().core.addTask(new nurgling.tasks.WaitGobRemoval(gob.id));
                 break;
             }
             case FLOWER_ACTION: {
-                PathFinder pfFlower = new PathFinder(gob);
-                pfFlower.waterMode = effectiveWaterMode(gui, preset);
                 processedGobs.add(gob.id);
-                if (!pfFlower.run(gui).IsSuccess()) break;
+                if (!walk(gui, preset, new PathFinder(gob), false).IsSuccess()) break;
                 SelectFlowerAction flowerAction = new SelectFlowerAction(action.toActionNameCandidates(), gob);
                 flowerAction.run(gui);
                 confirmActionName(action, flowerAction.getMatchedOpt());
@@ -827,10 +937,8 @@ public class Forager implements Action {
                 // For objects with no flower menu - just gives the interaction a brief moment to register before moving on.
                 NUtils.setSpeed(2);
                 try {
-                    PathFinder pfRclick = new PathFinder(gob);
-                    pfRclick.waterMode = effectiveWaterMode(gui, preset);
                     processedGobs.add(gob.id);
-                    if (!pfRclick.run(gui).IsSuccess()) break;
+                    if (!walk(gui, preset, new PathFinder(gob), false).IsSuccess()) break;
                     NUtils.rclickGob(gob);
                     NUtils.getUI().core.addTask(new nurgling.tasks.WaitTicks(30));
                 } finally {
@@ -919,9 +1027,11 @@ public class Forager implements Action {
             return;
         }
         if (System.currentTimeMillis() - lastFailedDrinkMs < DRINK_RETRY_MS) return;
+        activity = "drinking";
         if (!new Drink(DRINK_TARGET, false).run(gui).IsSuccess()) {
             lastFailedDrinkMs = System.currentTimeMillis();
         }
+        activity = "stopped after drinking";
     }
     
     
@@ -930,6 +1040,7 @@ public class Forager implements Action {
         if (wp.steps == null || wp.steps.isEmpty()) {
             return false;
         }
+        activity = "waypoint steps";
         Results stepsResult = ScenarioRunner.runSteps(gui, wp.steps);
         if (!stepsResult.IsSuccess()) {
             String failAction = wp.onStepsFailAction != null ? wp.onStepsFailAction : "nothing";
@@ -942,13 +1053,40 @@ public class Forager implements Action {
         return false;
     }
 
-    /** "nothing"/"logout"/"travel hearth" dispatch for the non-Guard action strings, delegating to GuardOutcome. */
+    /** "nothing"/"logout"/"travel hearth"/HEARTH_UNLOAD_HEARTH dispatch for the preset's end-of-run action strings. The route is
+     *  over by then, so the guard watcher is stopped first - a guard firing while unloading at home (standing at a chest, a
+     *  villager passing) would otherwise interrupt it and hearth mid-unload. */
     private void performSafetyAction(NGameUI gui, String action) throws InterruptedException {
-        if (!"nothing".equals(action)) {
-            gui.msg("Forager: running safety action \"" + action + "\"");
+        if ("nothing".equals(action)) return;
+        stopGuardWatcher();
+        gui.msg("Forager: running safety action \"" + action + "\"");
+        if (HEARTH_UNLOAD_HEARTH.equals(action)) {
+            hearthUnloadHearth(gui);
+        } else {
             GuardOutcome.fromId(action).perform(gui);
-            gui.msg("Forager: safety action \"" + action + "\" finished");
         }
+        gui.msg("Forager: safety action \"" + action + "\" finished");
+    }
+
+    /** Stops the guard watcher and waits for it to exit, so it can't fire (and interrupt the bot thread) during an end-of-run action. */
+    private void stopGuardWatcher() throws InterruptedException {
+        if (threatWatcher != null) {
+            threatWatcher.interrupt();
+            threatWatcher.join(1000);
+        }
+    }
+
+    /** HEARTH_UNLOAD_HEARTH: hearth home, unload into the configured areas (FreeInventory2), hearth again to end at the fire.
+     *  Never unloads if the first hearth didn't land - that would unload wherever the route happened to end. */
+    private void hearthUnloadHearth(NGameUI gui) throws InterruptedException {
+        if (!GuardOutcome.travelHearth(gui).IsSuccess()) {
+            gui.error("Forager: hearth travel failed - not unloading here");
+            return;
+        }
+        if (!new FreeInventory2(new NContext(gui)).run(gui).IsSuccess()) {
+            gui.msg("Forager: unloading didn't finish - hearthing back anyway");
+        }
+        GuardOutcome.travelHearth(gui);
     }
     
     /** Resolves the preset's own GuardingProfile, falling back to prop-level then GuardingProfile.withDefaults() rather than erroring. */
@@ -985,6 +1123,7 @@ public class Forager implements Action {
             if (boundUI != null) {
                 nurgling.sessions.ThreadLocalUI.set(boundUI);
             }
+            int tick = 0;
             try {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
@@ -994,11 +1133,16 @@ public class Forager implements Action {
                             // against a redundant interrupt if something else already has one pending.
                             if (pendingGuard.compareAndSet(null, guard)) {
                                 gui.msg("Forager: " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
+                                System.out.println("[ForagerAvoid] guard fired: " + guard.trigger.describe() + " (" + guard.outcome.id() + ")");
+                                logDangerTelemetry(gui);
                                 botThread.interrupt();
                             }
                             return;
                         }
                     }
+                    // Testing aid: about once a second, where every nearby dangerous animal is relative to the player.
+                    if (++tick % 3 == 0)
+                        logDangerTelemetry(gui);
                     Thread.sleep(300);
                 } catch (InterruptedException e) {
                     return;
@@ -1021,7 +1165,10 @@ public class Forager implements Action {
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
             for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
                 if (!(gob instanceof OCache.Virtual || gob.attr.isEmpty() || gob.getClass().getName().contains("GlobEffector"))) {
-                    if (gob.id != NUtils.playerID() && gob.rc.dist(pos) <= radius && !(gob instanceof MapView.Plob) && gob.id > 0) {
+                    // Never a gate: an open one is empty space, so "walking to" it ends in the gateway, short of the waypoint -
+                    // and that waypoint's steps (e.g. closing that very gate) would then run standing in it.
+                    if (gob.id != NUtils.playerID() && gob.rc.dist(pos) <= radius && !(gob instanceof MapView.Plob) && gob.id > 0
+                            && !GateDetector.isGate(gob)) {
                         return gob;
                     }
                 }
