@@ -315,6 +315,7 @@ public class QoL extends Panel {
 
         rightPrev = rightColumn.add(new Label("● " + L10n.get("qol.section.qol")), rightPrev.pos("bl").adds(0, 15));
         rightPrev = autoDrink = rightColumn.add(new CheckBox(L10n.get("qol.auto_drink")), rightPrev.pos("bl").adds(0, 5));
+        autoDrink.settip(L10n.get("qol.auto_drink_tip"));
         rightPrev = autoSaveTableware = rightColumn.add(new CheckBox(L10n.get("qol.auto_save_tableware")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = questNotified = rightColumn.add(new CheckBox(L10n.get("qol.quest_notified")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = lpassistent = rightColumn.add(new CheckBox(L10n.get("qol.lp_assistant")), rightPrev.pos("bl").adds(0, 5));
