@@ -59,6 +59,16 @@ public class PathFinder implements Action {
     // A step is only abandoned once a zone reaches this far into the rest of the path - planned paths skim zone edges at cell precision.
     private static final double ZONE_ABORT_SLACK = MCache.tilesz.x;
 
+    // Opt-in (Forager): spots walks sharing this list stalled at - blocked like a small obstacle the grid can't see (a young
+    // tree with no client hitbox), and appended to on every new stall (see noteStall).
+    public List<Coord2d> learnedBlocks = null;
+    // With learnedBlocks: stalls allowed in one run() before giving up, instead of bumping the same obstacle until a guard fires.
+    public int maxStalls = 3;
+    private int stalls = 0;
+    // A stall spot is blocked this far ahead of where the character stopped (capped at the rest of that step), this wide.
+    private static final double STALL_BLOCK_AHEAD = 7;
+    private static final double STALL_BLOCK_R = MCache.tilesz.x / 2;
+
     /** A no-walk capsule: every point within r of the segment a-b (a plain circle when a == b); label names it in logs. */
     public static final class AvoidZone {
         public final Coord2d a, b;
@@ -174,6 +184,7 @@ public class PathFinder implements Action {
     public Results run(NGameUI gui) throws InterruptedException {
         blockedByAvoidZones = false;
         zoneReplanTimes.clear();
+        stalls = 0;
         while (true) {
             LinkedList<Graph.Vertex> path = construct();
 
@@ -210,6 +221,12 @@ public class PathFinder implements Action {
                         // A zone moved onto the path: re-plan from here, unless that keeps happening.
                         if (go.aborted() && zoneReplanStorm())
                             return zoneBlocked(gui, "Dangerous animals keep crossing the path");
+                        // Otherwise the character stopped short on something: learn the spot and re-plan around it, up to a point.
+                        if (!go.aborted() && learnedBlocks != null && noteStall(gui, targetCoord)) {
+                            stopHere(gui);
+                            System.out.println("[PathFinder stall] giving up on this walk after " + stalls + " stalls");
+                            return Results.ERROR("Stuck: gave up after " + stalls + " stalls");
+                        }
                         this.begin = gui.map.player().rc;
                         needRestart = true;
                         break;
@@ -292,9 +309,8 @@ public class PathFinder implements Action {
     /** Gives up on a walk avoidZones made impossible: stops the character where it is (it may still be heading for an abandoned step) and flags why. */
     private Results zoneBlocked(NGameUI gui, String why) {
         blockedByAvoidZones = true;
+        stopHere(gui);
         Gob player = gui.map.player();
-        if (player != null)
-            gui.map.wdgmsg("click", Coord.z, player.rc.floor(OCache.posres), 1, 0);
         System.out.println("[PathFinder zones] giving up" + (player != null ? " at " + fmt(player.rc) : "") + ": " + why);
         return Results.ERROR(why);
     }
@@ -353,9 +369,11 @@ public class PathFinder implements Action {
         return String.format("(%.0f,%.0f)", c.x, c.y);
     }
 
-    /** Blocks every free grid cell inside a planned zone, so the graph search routes around it. */
-    private void blockZones() {
-        if (plannedZones.isEmpty())
+    /** Blocks every free grid cell inside a planned zone or within STALL_BLOCK_R of a learned stall spot, so the graph search routes around them. */
+    private void blockAvoided() {
+        boolean zones = !plannedZones.isEmpty();
+        boolean learned = learnedBlocks != null && !learnedBlocks.isEmpty();
+        if (!zones && !learned)
             return;
         NPFMap.Cell[][] cells = pfmap.getCells();
         for (int i = 0; i < pfmap.size; i++) {
@@ -363,10 +381,58 @@ public class PathFinder implements Action {
                 NPFMap.Cell cell = cells[i][j];
                 if (cell.val != 0)
                     continue;
-                if (AvoidZone.anyContains(plannedZones, Utils.pfGridToWorld(cell.pos)))
+                Coord2d w = Utils.pfGridToWorld(cell.pos);
+                if ((zones && AvoidZone.anyContains(plannedZones, w)) || (learned && nearLearnedBlock(w)))
                     cell.val = 1;
             }
         }
+    }
+
+    private boolean nearLearnedBlock(Coord2d w) {
+        for (Coord2d spot : learnedBlocks) {
+            if (w.dist(spot) < STALL_BLOCK_R)
+                return true;
+        }
+        return false;
+    }
+
+    /** A step that stopped short without a zone abort ran into something the grid can't see (e.g. a young tree with no client
+     *  hitbox): block a spot just ahead, for this and every later walk sharing learnedBlocks. True once maxStalls is reached. */
+    private boolean noteStall(NGameUI gui, Coord2d stepTarget) {
+        Gob player = gui.map.player();
+        if (player == null)
+            return false;
+        double shortfall = player.rc.dist(stepTarget);
+        Coord2d spot = (shortfall > 0.01)
+                ? player.rc.add(stepTarget.sub(player.rc).norm(Math.min(STALL_BLOCK_AHEAD, shortfall)))
+                : player.rc;
+        learnedBlocks.add(spot);
+        stalls++;
+        System.out.println(String.format("[PathFinder stall] %d/%d: stopped at %s, %.0f short of %s - blocking %s. Nearby: %s",
+                stalls, maxStalls, fmt(player.rc), shortfall, fmt(stepTarget), fmt(spot), describeGobsNear(gui, spot)));
+        return stalls >= maxStalls;
+    }
+
+    /** Testing aid: what's within a tile and a half of p - resource name, distance, and whether the client gave it a hitbox. */
+    private static String describeGobsNear(NGameUI gui, Coord2d p) {
+        StringBuilder sb = new StringBuilder();
+        synchronized (gui.ui.sess.glob.oc) {
+            for (Gob g : gui.ui.sess.glob.oc) {
+                if (g.id == gui.map.plgob || g instanceof OCache.Virtual || g.ngob == null || g.ngob.name == null)
+                    continue;
+                double d = g.rc.dist(p);
+                if (d <= MCache.tilesz.x * 1.5)
+                    sb.append(String.format("%s#%d d=%.0f hitbox=%s; ", g.ngob.name, g.id, d, g.ngob.hitBox != null ? "yes" : "NO"));
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : "nothing";
+    }
+
+    /** Stops the character where it stands - it may still be heading for an abandoned step. */
+    private static void stopHere(NGameUI gui) {
+        Gob player = gui.map.player();
+        if (player != null)
+            gui.map.wdgmsg("click", Coord.z, player.rc.floor(OCache.posres), 1, 0);
     }
 
     public LinkedList<Graph.Vertex> construct() throws InterruptedException {
@@ -405,7 +471,7 @@ public class PathFinder implements Action {
             pfmap.waterMode = waterMode;
             pfmap.gatesAlwaysClosed = gatesAlwaysClosed;
             pfmap.build();
-            blockZones();
+            blockAvoided();
             CellsArray dca = null;
             if (dummy != null)
                 dca = pfmap.addGob(dummy);

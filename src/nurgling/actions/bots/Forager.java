@@ -6,12 +6,14 @@ import nurgling.actions.*;
 import nurgling.actions.bots.forager.DetourBranchBudget;
 import nurgling.actions.bots.forager.RouteLookahead;
 import nurgling.areas.NArea;
+import nurgling.areas.NContext;
 import nurgling.conf.NDiscordNotification;
 import nurgling.conf.NForagerProp;
 import nurgling.guarding.*;
 import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPath;
 import nurgling.routes.*;
+import nurgling.tasks.GateDetector;
 import nurgling.tools.AreaStock;
 import nurgling.tools.Finder;
 import nurgling.tools.MilestoneRegistry;
@@ -51,6 +53,12 @@ public class Forager implements Action {
     // Set by walk() when a route leg found no safe way around a dangerous animal; the main loop then skips that waypoint.
     private boolean routeLegBlocked = false;
 
+    // The in-flight guard watcher (see startGuardWatcher) - a field so an end-of-run action can stop it first.
+    private Thread threatWatcher = null;
+
+    // Spots this run's walks got stuck on (something the pathfinder can't see, e.g. a young tree) - every later walk avoids them.
+    private final ArrayList<Coord2d> stallSpots = new ArrayList<>();
+
     // Set once run() has resolved it, so performGobAction() can persist a confirmed flower-menu action.
     private NForagerProp forageProp = null;
 
@@ -81,6 +89,7 @@ public class Forager implements Action {
         // The Recent Actions panel re-runs the same instance, so per-run drink state starts fresh here.
         lastFailedDrinkMs = 0;
         reportedNoWater = false;
+        stallSpots.clear();
 
         NForagerProp prop = null;
         NForagerProp.PresetData preset = null;
@@ -158,7 +167,7 @@ public class Forager implements Action {
         // Concurrent set: the render thread iterates this via NWaypointOverlay while this bot
         // thread adds to it, with no other synchronization between them.
         gui.activeBotFailedWaypoints = java.util.concurrent.ConcurrentHashMap.newKeySet();
-        Thread threatWatcher = null;
+        threatWatcher = null;
         try {
 
         guardingProfile = resolveGuardingProfile(prop, preset);
@@ -452,6 +461,9 @@ public class Forager implements Action {
 
     // How close to stop when approaching a milestone anchor, without pathing onto its own tile.
     private static final double MILESTONE_APPROACH_DIST = 20.0;
+
+    // Preset finish / full-inventory action: hearth home, unload into the configured areas, then hearth again to end at the fire.
+    public static final String HEARTH_UNLOAD_HEARTH = "hearth, unload, hearth";
 
     // checkStamina drinks once stamina drops below DRINK_BELOW, back up to DRINK_TARGET - RestoreResources' own numbers.
     private static final double DRINK_BELOW = 0.5;
@@ -766,6 +778,7 @@ public class Forager implements Action {
         activity = what;
         pf.waterMode = effectiveWaterMode(gui, preset);
         pf.avoidZones = avoidZones;
+        pf.learnedBlocks = stallSpots;
         Results result = pf.run(gui);
         activity = "stopped after " + what;
         if (routeLeg && pf.blockedByAvoidZones) {
@@ -790,6 +803,7 @@ public class Forager implements Action {
                 PathFinder back = new PathFinder(out);
                 back.waterMode = effectiveWaterMode(gui, preset);
                 back.avoidZones = avoidZones;
+                back.learnedBlocks = stallSpots;
                 back.run(gui);
                 return;
             }
@@ -1039,13 +1053,40 @@ public class Forager implements Action {
         return false;
     }
 
-    /** "nothing"/"logout"/"travel hearth" dispatch for the non-Guard action strings, delegating to GuardOutcome. */
+    /** "nothing"/"logout"/"travel hearth"/HEARTH_UNLOAD_HEARTH dispatch for the preset's end-of-run action strings. The route is
+     *  over by then, so the guard watcher is stopped first - a guard firing while unloading at home (standing at a chest, a
+     *  villager passing) would otherwise interrupt it and hearth mid-unload. */
     private void performSafetyAction(NGameUI gui, String action) throws InterruptedException {
-        if (!"nothing".equals(action)) {
-            gui.msg("Forager: running safety action \"" + action + "\"");
+        if ("nothing".equals(action)) return;
+        stopGuardWatcher();
+        gui.msg("Forager: running safety action \"" + action + "\"");
+        if (HEARTH_UNLOAD_HEARTH.equals(action)) {
+            hearthUnloadHearth(gui);
+        } else {
             GuardOutcome.fromId(action).perform(gui);
-            gui.msg("Forager: safety action \"" + action + "\" finished");
         }
+        gui.msg("Forager: safety action \"" + action + "\" finished");
+    }
+
+    /** Stops the guard watcher and waits for it to exit, so it can't fire (and interrupt the bot thread) during an end-of-run action. */
+    private void stopGuardWatcher() throws InterruptedException {
+        if (threatWatcher != null) {
+            threatWatcher.interrupt();
+            threatWatcher.join(1000);
+        }
+    }
+
+    /** HEARTH_UNLOAD_HEARTH: hearth home, unload into the configured areas (FreeInventory2), hearth again to end at the fire.
+     *  Never unloads if the first hearth didn't land - that would unload wherever the route happened to end. */
+    private void hearthUnloadHearth(NGameUI gui) throws InterruptedException {
+        if (!GuardOutcome.travelHearth(gui).IsSuccess()) {
+            gui.error("Forager: hearth travel failed - not unloading here");
+            return;
+        }
+        if (!new FreeInventory2(new NContext(gui)).run(gui).IsSuccess()) {
+            gui.msg("Forager: unloading didn't finish - hearthing back anyway");
+        }
+        GuardOutcome.travelHearth(gui);
     }
     
     /** Resolves the preset's own GuardingProfile, falling back to prop-level then GuardingProfile.withDefaults() rather than erroring. */
@@ -1124,7 +1165,10 @@ public class Forager implements Action {
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
             for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
                 if (!(gob instanceof OCache.Virtual || gob.attr.isEmpty() || gob.getClass().getName().contains("GlobEffector"))) {
-                    if (gob.id != NUtils.playerID() && gob.rc.dist(pos) <= radius && !(gob instanceof MapView.Plob) && gob.id > 0) {
+                    // Never a gate: an open one is empty space, so "walking to" it ends in the gateway, short of the waypoint -
+                    // and that waypoint's steps (e.g. closing that very gate) would then run standing in it.
+                    if (gob.id != NUtils.playerID() && gob.rc.dist(pos) <= radius && !(gob instanceof MapView.Plob) && gob.id > 0
+                            && !GateDetector.isGate(gob)) {
                         return gob;
                     }
                 }
