@@ -1,6 +1,8 @@
 package nurgling.conf;
 
+import haven.Gob;
 import nurgling.NConfig;
+import nurgling.tools.NParser;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -50,6 +52,12 @@ public class NAreaRad implements JConf
     /** radius scaled by DANGER_MARGIN - the actual trigger distance every consumer of this ring should check against. */
     public double triggerDist() {
         return radius * DANGER_MARGIN;
+    }
+
+    /** A knocked-out or dead animal (the ring overlay's own pose test) - no threat, however close. An unknown pose counts as alive. */
+    public static boolean isDownOrDead(Gob gob) {
+        String pose = gob.pose();
+        return pose != null && NParser.checkName(pose, "dead", "knock");
     }
 
     public NAreaRad(HashMap<String, Object> values)

@@ -10,6 +10,8 @@ import nurgling.tools.NParser;
 
 import java.util.*;
 import java.util.concurrent.atomic.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import static nurgling.pf.Graph.getPath;
 
@@ -32,6 +34,99 @@ public class PathFinder implements Action {
     Mode mode = Mode.NEAREST;
     Gob gobInStartPos = null;
     double badDir = Double.MAX_VALUE;
+
+    // Opt-in, null for every bot but Forager: live no-walk zones this walk plans around, and abandons a step for
+    // when one moves onto the rest of the path (see zoneAbort). Read on the task thread too, so it must not block.
+    public Supplier<List<AvoidZone>> avoidZones = null;
+    // Set when the walk failed only because of avoidZones - no way around them, or they kept moving onto every new path.
+    public boolean blockedByAvoidZones = false;
+    // The zones the last construct() planned against, already cleared of its start (see clearOf).
+    private List<AvoidZone> plannedZones = Collections.emptyList();
+    // construct() plans as if avoidZones were null - pathExistsWithoutZones()'s one check.
+    private boolean ignoreZones = false;
+    // Written by run() on the bot thread, read by zoneAbort() on the task thread.
+    private volatile long lastZoneReplanMs = 0;
+    private final ArrayDeque<Long> zoneReplanTimes = new ArrayDeque<>();
+
+    // How often a walking step re-reads the zones, and the least time between two zone re-plans.
+    private static final long ZONE_CHECK_MS = 200;
+    private static final long ZONE_REPLAN_MIN_MS = 1000;
+    // More zone re-plans than this within ZONE_STORM_WINDOW_MS means no safe path - an animal pacing across every new one.
+    private static final int ZONE_STORM_MAX = 8;
+    private static final long ZONE_STORM_WINDOW_MS = 15000;
+    // A zone the walk starts inside is cut this far short of the start, so the start cell stays free and a path can only lead away.
+    private static final double ZONE_START_CLEARANCE = MCache.tilesz.x;
+    // A step is only abandoned once a zone reaches this far into the rest of the path - planned paths skim zone edges at cell precision.
+    private static final double ZONE_ABORT_SLACK = MCache.tilesz.x;
+
+    /** A no-walk capsule: every point within r of the segment a-b (a plain circle when a == b); label names it in logs. */
+    public static final class AvoidZone {
+        public final Coord2d a, b;
+        public final double r;
+        public final String label;
+
+        public AvoidZone(Coord2d a, Coord2d b, double r, String label) {
+            this.a = a;
+            this.b = b;
+            this.r = r;
+            this.label = label;
+        }
+
+        public boolean contains(Coord2d p) {
+            return dist(p) < r;
+        }
+
+        public static boolean anyContains(List<AvoidZone> zones, Coord2d p) {
+            for (AvoidZone z : zones) {
+                if (z.contains(p)) return true;
+            }
+            return false;
+        }
+
+        /** Distance from p to the zone's core segment. */
+        public double dist(Coord2d p) {
+            return pointToSegment(p, a, b);
+        }
+
+        /** Closest approach between segment p-q and the zone's core segment. */
+        public double dist(Coord2d p, Coord2d q) {
+            if (segmentsCross(p, q, a, b)) return 0;
+            return Math.min(Math.min(pointToSegment(p, a, b), pointToSegment(q, a, b)),
+                    Math.min(pointToSegment(a, p, q), pointToSegment(b, p, q)));
+        }
+
+        /** p moved straight away from the zone's core to margin outside its edge (sideways across the core's heading if p sits on it). */
+        public Coord2d pushOut(Coord2d p, double margin) {
+            Coord2d c = closestOnSegment(p, a, b);
+            Coord2d away = p.sub(c);
+            if (away.abs() < 0.01) {
+                Coord2d ab = b.sub(a);
+                away = (ab.abs() < 0.01) ? new Coord2d(1, 0) : new Coord2d(-ab.y, ab.x);
+            }
+            return c.add(away.norm(r + margin));
+        }
+
+        private static Coord2d closestOnSegment(Coord2d p, Coord2d s, Coord2d e) {
+            Coord2d se = e.sub(s);
+            double lenSq = se.x * se.x + se.y * se.y;
+            if (lenSq < 1e-9) return s;
+            double t = Math.max(0, Math.min(1, ((p.x - s.x) * se.x + (p.y - s.y) * se.y) / lenSq));
+            return s.add(se.mul(t));
+        }
+
+        private static double pointToSegment(Coord2d p, Coord2d s, Coord2d e) {
+            return p.dist(closestOnSegment(p, s, e));
+        }
+
+        private static boolean segmentsCross(Coord2d p, Coord2d q, Coord2d s, Coord2d e) {
+            double d1 = cross(s, e, p), d2 = cross(s, e, q), d3 = cross(p, q, s), d4 = cross(p, q, e);
+            return ((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0));
+        }
+
+        private static double cross(Coord2d o, Coord2d u, Coord2d v) {
+            return (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x);
+        }
+    }
 
 
 
@@ -77,11 +172,19 @@ public class PathFinder implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        blockedByAvoidZones = false;
+        zoneReplanTimes.clear();
         while (true) {
             LinkedList<Graph.Vertex> path = construct();
 
             if (path != null) {
                 boolean needRestart = false;
+                // Every corner in world coordinates, so each step's zone check can see the rest of the path.
+                List<Coord2d> corners = new ArrayList<>();
+                for (Graph.Vertex v : path)
+                    corners.add(Utils.pfGridToWorld(v.pos));
+                logPlan(corners);
+                int step = 0;
 //                NUtils.getGameUI().msg(Utils.pfGridToWorld(path.getLast().pos).toString());
                 //TODO syntetic points
                 for (Graph.Vertex vert : path) {
@@ -99,7 +202,14 @@ public class PathFinder implements Action {
                         }
                     }
 
-                    if (!(new GoTo(targetCoord).run(gui)).IsSuccess()) {
+                    GoTo go = (avoidZones != null)
+                            ? new GoTo(targetCoord, zoneAbort(gui, corners.subList(step, corners.size())))
+                            : new GoTo(targetCoord);
+                    step++;
+                    if (!go.run(gui).IsSuccess()) {
+                        // A zone moved onto the path: re-plan from here, unless that keeps happening.
+                        if (go.aborted() && zoneReplanStorm())
+                            return zoneBlocked(gui, "Dangerous animals keep crossing the path");
                         this.begin = gui.map.player().rc;
                         needRestart = true;
                         break;
@@ -112,6 +222,8 @@ public class PathFinder implements Action {
 //                    if(start_pos == end_poses.get(0) && NUtils.player().rc.dist(Utils.pfGridToWorld(pfmap.cells[start_pos]))
                     return Results.SUCCESS();
                 }
+                if (!plannedZones.isEmpty() && pathExistsWithoutZones())
+                    return zoneBlocked(gui, "No safe path around dangerous animals");
                 if (waterMode && pfmap != null && start_pos != null && end_pos != null) {
                     NPFMap.Cell[][] cells = pfmap.getCells();
                     StringBuilder msg = new StringBuilder("Forager debug: water-mode path failed - size=" + pfmap.size + " lastMul=" + pfmap.lastMul + " ");
@@ -138,12 +250,140 @@ public class PathFinder implements Action {
         }
     }
 
+    /** A GoTo abort check: true once a freshly read zone reaches into the rest of the path (the player through `rest`) - polled
+     *  every ZONE_CHECK_MS, and never within ZONE_REPLAN_MIN_MS of the last zone re-plan. Runs on the task thread. */
+    private BooleanSupplier zoneAbort(NGameUI gui, List<Coord2d> rest) {
+        long[] nextCheck = {0};
+        return () -> {
+            long now = System.currentTimeMillis();
+            if (now < nextCheck[0] || now - lastZoneReplanMs < ZONE_REPLAN_MIN_MS)
+                return false;
+            nextCheck[0] = now + ZONE_CHECK_MS;
+            Gob player = gui.map.player();
+            if (player == null)
+                return false;
+            List<AvoidZone> zones = clearOf(avoidZones.get(), player.rc, false);
+            Coord2d from = player.rc;
+            for (Coord2d to : rest) {
+                for (AvoidZone z : zones) {
+                    double into = z.r - z.dist(from, to);
+                    if (into > ZONE_ABORT_SLACK) {
+                        System.out.println(String.format("[PathFinder zones] step abandoned at %s: %s (r=%.0f) now %.0f into the path",
+                                fmt(player.rc), z.label, z.r, into));
+                        return true;
+                    }
+                }
+                from = to;
+            }
+            return false;
+        };
+    }
+
+    /** Records one zone re-plan; true once there have been more than ZONE_STORM_MAX within ZONE_STORM_WINDOW_MS. */
+    private boolean zoneReplanStorm() {
+        long now = System.currentTimeMillis();
+        lastZoneReplanMs = now;
+        zoneReplanTimes.addLast(now);
+        while (now - zoneReplanTimes.peekFirst() > ZONE_STORM_WINDOW_MS)
+            zoneReplanTimes.removeFirst();
+        return zoneReplanTimes.size() > ZONE_STORM_MAX;
+    }
+
+    /** Gives up on a walk avoidZones made impossible: stops the character where it is (it may still be heading for an abandoned step) and flags why. */
+    private Results zoneBlocked(NGameUI gui, String why) {
+        blockedByAvoidZones = true;
+        Gob player = gui.map.player();
+        if (player != null)
+            gui.map.wdgmsg("click", Coord.z, player.rc.floor(OCache.posres), 1, 0);
+        System.out.println("[PathFinder zones] giving up" + (player != null ? " at " + fmt(player.rc) : "") + ": " + why);
+        return Results.ERROR(why);
+    }
+
+    /** Whether this walk would have a path at all without avoidZones - tells "blocked by the zones" apart from an ordinary no-path. */
+    private boolean pathExistsWithoutZones() throws InterruptedException {
+        ignoreZones = true;
+        try {
+            pfmap = null;
+            dn = false;
+            boolean exists = construct(true) != null || dn;
+            System.out.println("[PathFinder zones] no path " + fmt(begin) + " -> " + fmt(end) + " with zones; without them: "
+                    + (exists ? "path exists" : "no path either"));
+            return exists;
+        } finally {
+            ignoreZones = false;
+        }
+    }
+
+    /** zones as seen from `from`: one `from` is already inside shrinks to ZONE_START_CLEARANCE short of it (or drops out), so a walk from there can only lead away. */
+    private static List<AvoidZone> clearOf(List<AvoidZone> zones, Coord2d from, boolean log) {
+        List<AvoidZone> res = new ArrayList<>(zones.size());
+        for (AvoidZone z : zones) {
+            double d = z.dist(from);
+            if (d >= z.r) {
+                res.add(z);
+                continue;
+            }
+            if (log)
+                System.out.println(String.format("[PathFinder zones] start %s is inside %s (dist %.0f of r=%.0f) - planning keeps >= %.0f from it",
+                        fmt(from), z.label, d, z.r, Math.max(0, d - ZONE_START_CLEARANCE)));
+            if (d > ZONE_START_CLEARANCE)
+                res.add(new AvoidZone(z.a, z.b, d - ZONE_START_CLEARANCE, z.label));
+        }
+        return res;
+    }
+
+    /** Testing aid: one line per planned walk with zones - how close the path comes to each zone's edge (negative = it cuts in). */
+    private void logPlan(List<Coord2d> corners) {
+        if (plannedZones.isEmpty())
+            return;
+        StringBuilder sb = new StringBuilder(String.format("[PathFinder zones] plan %s -> %s, %d corners:", fmt(begin), fmt(end), corners.size()));
+        for (AvoidZone z : plannedZones) {
+            double closest = Double.MAX_VALUE;
+            Coord2d from = begin;
+            for (Coord2d to : corners) {
+                closest = Math.min(closest, z.dist(from, to));
+                from = to;
+            }
+            sb.append(String.format(" %s r=%.0f clearance=%+.0f", z.label, z.r, closest - z.r));
+        }
+        System.out.println(sb);
+    }
+
+    private static String fmt(Coord2d c) {
+        return String.format("(%.0f,%.0f)", c.x, c.y);
+    }
+
+    /** Blocks every free grid cell inside a planned zone, so the graph search routes around it. */
+    private void blockZones() {
+        if (plannedZones.isEmpty())
+            return;
+        NPFMap.Cell[][] cells = pfmap.getCells();
+        for (int i = 0; i < pfmap.size; i++) {
+            for (int j = 0; j < pfmap.size; j++) {
+                NPFMap.Cell cell = cells[i][j];
+                if (cell.val != 0)
+                    continue;
+                if (AvoidZone.anyContains(plannedZones, Utils.pfGridToWorld(cell.pos)))
+                    cell.val = 1;
+            }
+        }
+    }
+
     public LinkedList<Graph.Vertex> construct() throws InterruptedException {
         return construct(false);
     }
 
     public LinkedList<Graph.Vertex> construct(boolean test) throws InterruptedException {
         LinkedList<Graph.Vertex> path = new LinkedList<>();
+        plannedZones = (avoidZones != null && !ignoreZones) ? clearOf(avoidZones.get(), begin, true) : Collections.emptyList();
+        // A target inside a zone can't be reached without entering it - nothing to plan.
+        for (AvoidZone z : plannedZones) {
+            if (z.contains(end)) {
+                System.out.println(String.format("[PathFinder zones] target %s is inside %s (dist %.0f of r=%.0f) - no path",
+                        fmt(end), z.label, z.dist(end), z.r));
+                return null;
+            }
+        }
         int mul = 1;
         while (path.isEmpty() && mul < 200) {
             if(pfmap!=null && pfmap.lastMul)
@@ -152,7 +392,10 @@ public class PathFinder implements Action {
             pfmap.getBegin();
             pfmap.getEnd();
             if(pfmap.bad) {
-                if (test) {
+                // With zones in play, a grid too big to build means no way around them - not a reason to kill the bot.
+                if (test || !plannedZones.isEmpty()) {
+                    if (!plannedZones.isEmpty())
+                        System.out.println("[PathFinder zones] grid too big to plan around the zones (mul=" + mul + ")");
                     return null;
                 } else {
                     NUtils.getGameUI().error("Unable to build grid of required size");
@@ -162,6 +405,7 @@ public class PathFinder implements Action {
             pfmap.waterMode = waterMode;
             pfmap.gatesAlwaysClosed = gatesAlwaysClosed;
             pfmap.build();
+            blockZones();
             CellsArray dca = null;
             if (dummy != null)
                 dca = pfmap.addGob(dummy);
