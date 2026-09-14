@@ -48,6 +48,11 @@ public class Forager implements Action {
     // Route-geometry limits configured per-route in Forager Settings - see ForagerRouteConstraints.
     private nurgling.actions.bots.forager.ForagerRouteConstraints routeConstraints;
 
+    // When checkStamina's last drink failed, so it can hold off DRINK_RETRY_MS instead of stalling every hop.
+    private long lastFailedDrinkMs = 0;
+    // "Out of water" is only reported once per run.
+    private boolean reportedNoWater = false;
+
     public Forager() {
         // Default constructor - will show UI
     }
@@ -61,6 +66,10 @@ public class Forager implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        // The Recent Actions panel re-runs the same instance, so per-run drink state starts fresh here.
+        lastFailedDrinkMs = 0;
+        reportedNoWater = false;
+
         NForagerProp prop = null;
         NForagerProp.PresetData preset = null;
 
@@ -423,6 +432,12 @@ public class Forager implements Action {
     // How close to stop when approaching a milestone anchor, without pathing onto its own tile.
     private static final double MILESTONE_APPROACH_DIST = 20.0;
 
+    // checkStamina drinks once stamina drops below DRINK_BELOW, back up to DRINK_TARGET - RestoreResources' own numbers.
+    private static final double DRINK_BELOW = 0.5;
+    private static final double DRINK_TARGET = 0.9;
+    // After a failed drink (e.g. somewhere drinking doesn't work), checkStamina waits this long before trying again.
+    private static final long DRINK_RETRY_MS = 60_000;
+
     /** The preset's waterMode toggle OR-ed with live coracle-mount state, so a route with a coracle leg doesn't need waterMode set for its whole length. */
     private boolean effectiveWaterMode(NGameUI gui, NForagerProp.PresetData preset) {
         boolean baseWaterMode = guardingProfile != null ? guardingProfile.waterMode : preset.waterMode;
@@ -601,6 +616,7 @@ public class Forager implements Action {
     private void collectUntilExhausted(NGameUI gui, NForagerProp.PresetData preset, Detour detour) throws InterruptedException {
         while (true) {
             if (isInventoryFull(gui)) return;
+            checkStamina(gui);
             if (sweepCluster(gui, preset, detour)) continue;
             if (!detour.budget.canBranch()) return;
 
@@ -667,6 +683,7 @@ public class Forager implements Action {
         }
         while (true) {
             if (isInventoryFull(gui)) return false;
+            checkStamina(gui);
             if (detourEpisode) {
                 if (sweepCluster(gui, preset, detour)) continue;
                 if (!detour.budget.canBranch()) return false;
@@ -886,6 +903,25 @@ public class Forager implements Action {
         }
 
         return false;
+    }
+
+    /** With QoL Auto-drink on, drinks back up to DRINK_TARGET once stamina drops below DRINK_BELOW. Only called
+     *  between walks: AutoDrink itself stays paused while a bot runs, since a walk would cut the drink off. */
+    private void checkStamina(NGameUI gui) throws InterruptedException {
+        if (!(Boolean) NConfig.get(NConfig.Key.autoDrink)) return;
+        double stamina = NUtils.getStamina();
+        if (stamina < 0 || stamina >= DRINK_BELOW) return;
+        if (gui.drinkMeter != null && gui.drinkMeter.getTotalDrinkable() <= 0) {
+            if (!reportedNoWater) {
+                reportedNoWater = true;
+                gui.msg("Forager: out of water - can't drink, carrying on.");
+            }
+            return;
+        }
+        if (System.currentTimeMillis() - lastFailedDrinkMs < DRINK_RETRY_MS) return;
+        if (!new Drink(DRINK_TARGET, false).run(gui).IsSuccess()) {
+            lastFailedDrinkMs = System.currentTimeMillis();
+        }
     }
     
     
