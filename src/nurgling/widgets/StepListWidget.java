@@ -69,7 +69,7 @@ public class StepListWidget extends Widget {
                     }
 
                     // Mark ✪ for bots that have settings
-                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id) || "gate".equals(desc.id));
+                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id) || "gate".equals(desc.id) || "set_speed".equals(desc.id));
                     String marker = hasSettings ? " ✪" : "";
                     Label label = new Label(botId + marker);
 

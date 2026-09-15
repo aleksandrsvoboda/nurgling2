@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
+import nurgling.actions.bots.SetSpeedBot;
 import nurgling.actions.bots.WaitBot;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
@@ -194,6 +195,43 @@ public class StepSettingsPanel extends Widget {
             gateDropdown.change(selectedMode);
 
             add(gateDropdown, new Coord(UI.scale(8), y));
+            y += UI.scale(40);
+        }
+        if (desc.id.equals("set_speed")) {
+            hasAnySetting = true;
+            add(new Label("Speed:"), new Coord(UI.scale(8), y));
+            y += UI.scale(24);
+
+            Object currentSpeed = step.getSetting("speed");
+            int selectedSpeed = (currentSpeed instanceof Number) ? ((Number) currentSpeed).intValue() : SetSpeedBot.DEFAULT_SPEED;
+            if (selectedSpeed < 0 || selectedSpeed >= SetSpeedBot.SPEED_KEYS.length) {
+                selectedSpeed = SetSpeedBot.DEFAULT_SPEED;
+            }
+
+            NDropbox<Integer> speedDropdown = new NDropbox<Integer>(
+                    UI.scale(160),
+                    SetSpeedBot.SPEED_KEYS.length,
+                    UI.scale(22)
+            ) {
+                @Override
+                protected Integer listitem(int i) { return i; }
+                @Override
+                protected int listitems() { return SetSpeedBot.SPEED_KEYS.length; }
+                @Override
+                protected void drawitem(GOut g, Integer item, int i) {
+                    g.text(SetSpeedBot.speedName(item), Coord.z);
+                }
+                @Override
+                public void change(Integer item) {
+                    super.change(item);
+                    if (item != null) {
+                        step.setSetting("speed", item);
+                    }
+                }
+            };
+            speedDropdown.change(selectedSpeed);
+
+            add(speedDropdown, new Coord(UI.scale(8), y));
             y += UI.scale(40);
         }
         if (desc.id.equals("equipment_bot")) {
