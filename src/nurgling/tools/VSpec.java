@@ -3167,6 +3167,8 @@ public class VSpec {
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/yulecracker\",\"name\":\"Yule Cracker\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/brain-tiny\",\"name\":\"Tiny Brain\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/petrifiedshell\",\"name\":\"Petrified Seashell\"}"));
+        StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/flotsam\",\"name\":\"Peculiar Flotsam\"}"));
+        StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/curiousneedle\",\"name\":\"Curious Needle\"}"));
         categories.put("Stackable Curiosities", StackableCurios);
 
         ArrayList<JSONObject> NoneStackableCurio = new ArrayList<>();
@@ -3215,7 +3217,6 @@ public class VSpec {
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/feathertrinket\",\"name\":\"Feather Trinket\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/barkboat\",\"name\":\"Barkboat\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/reedship\",\"name\":\"Reed Ship\"}"));
-//        NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/flotsam\",\"name\":\"Peculiar Flotsam\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/frogspawn\",\"name\":\"Frogspawn\"}"));
         NoneStackableCurio.add(new JSONObject("{\"static\":\"gfx/invobjs/foetus\",\"name\":\"Beast Unborn\"}"));
         categories.put("Curiosities", NoneStackableCurio);
@@ -3243,7 +3244,6 @@ public class VSpec {
         nonStackable.add(new JSONObject("{\"static\":\"gfx/invobjs/dream\",\"name\":\"A Beautiful Dream\"}"));
         nonStackable.add(new JSONObject("{\"static\":\"gfx/invobjs/suckmaw\",\"name\":\"Suckling's Maw\"}"));
         nonStackable.add(new JSONObject("{\"static\":\"gfx/invobjs/driftkelp\",\"name\":\"Driftkelp\"}"));
-        nonStackable.add(new JSONObject("{\"static\":\"gfx/invobjs/curiousneedle\",\"name\":\"Curious Needle\"}"));
         nonStackable.add(new JSONObject("{\"static\":\"gfx/invobjs/antwing\",\"name\":\"Ant Wing\"}"));
         categories.put("NonStackable", nonStackable);
 
