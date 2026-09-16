@@ -116,26 +116,26 @@ public class BotRegistry {
         bots.add(new BotDescriptor("tickbot", BotDescriptor.BotType.RESOURCES, "bot.tick.title", "bot.tick.desc", true, true, TickBot.class, "tick", false));
 
         // PRODUCTIONS
-        bots.add(new BotDescriptor("smelter", BotDescriptor.BotType.PRODUCTIONS, "Smelter", "Smelts ore.", true, true, SmelterAction.class, "smelter", true));
-        bots.add(new BotDescriptor("backer", BotDescriptor.BotType.PRODUCTIONS, "Baker", "Bakes stuff.", true, true, BakerAction.class, "backer", true));
+        bots.add(new BotDescriptor("smelter", BotDescriptor.BotType.PRODUCTIONS, "Smelter", "Smelts ore.", true, true, SmelterAction.class, "smelter", false));
+        bots.add(new BotDescriptor("backer", BotDescriptor.BotType.PRODUCTIONS, "Baker", "Bakes stuff.", true, true, BakerAction.class, "backer", false));
         bots.add(new BotDescriptor("ugardenpot", BotDescriptor.BotType.PRODUCTIONS, "Ungarden Pot", "Ungardens pots.", true, true, UnGardentPotAction.class, "ugardenpot", true));
         bots.add(new BotDescriptor("butcher", BotDescriptor.BotType.PRODUCTIONS, "Butcher", "Butchers animals.", true, true, Butcher.class, "butcher", false));
-        bots.add(new BotDescriptor("hides", BotDescriptor.BotType.PRODUCTIONS, "Handle hides.", "Handles hides.", true, true, DFrameHidesAction.class, "hides", true));
-        bots.add(new BotDescriptor("dryedfish", BotDescriptor.BotType.PRODUCTIONS, "Dry Fish", "Dries fish on drying frames.", true, true, DFrameFishAction.class, "dryedfish", true));
+        bots.add(new BotDescriptor("hides", BotDescriptor.BotType.PRODUCTIONS, "Handle hides.", "Handles hides.", true, true, DFrameHidesAction.class, "hides", false));
+        bots.add(new BotDescriptor("dryedfish", BotDescriptor.BotType.PRODUCTIONS, "Dry Fish", "Dries fish on drying frames.", true, true, DFrameFishAction.class, "dryedfish", false));
         bots.add(new BotDescriptor("fishroast", BotDescriptor.BotType.PRODUCTIONS, "Spit Roast", "Roasts fish.", false, true, FriedFish.class, "fishroast", true));
-        bots.add(new BotDescriptor("leather", BotDescriptor.BotType.PRODUCTIONS, "Leather Action", "Makes leather.", true, true, LeatherAction.class, "leather", true));
-        bots.add(new BotDescriptor("gelatin", BotDescriptor.BotType.PRODUCTIONS, "Gelatin", "Crafts gelatin from hides. Fills inventory with hides from readyHides zone and crafts.", true, true, GelatinAction.class, "gelatin", true));
+        bots.add(new BotDescriptor("leather", BotDescriptor.BotType.PRODUCTIONS, "Leather Action", "Makes leather.", true, true, LeatherAction.class, "leather", false));
+        bots.add(new BotDescriptor("gelatin", BotDescriptor.BotType.PRODUCTIONS, "Gelatin", "Crafts gelatin from hides. Fills inventory with hides from readyHides zone and crafts.", true, true, GelatinAction.class, "gelatin", false));
         bots.add(new BotDescriptor("smoking", BotDescriptor.BotType.PRODUCTIONS, "Smoking", "Smokes stuff.", false, true, Smoking.class, "smoking", true));
-        bots.add(new BotDescriptor("tarkiln", BotDescriptor.BotType.PRODUCTIONS, "Tarkiln Action", "Burns stuff in tarkiln.", true, true, TarkilnAction.class, "tarkiln", true));
-        bots.add(new BotDescriptor("tabaco", BotDescriptor.BotType.PRODUCTIONS, "Tabaco Action", "Processes tabaco.", true, true, TabacoAction.class, "tabaco", true));
+        bots.add(new BotDescriptor("tarkiln", BotDescriptor.BotType.PRODUCTIONS, "Tarkiln Action", "Burns stuff in tarkiln.", true, true, TarkilnAction.class, "tarkiln", false));
+        bots.add(new BotDescriptor("tabaco", BotDescriptor.BotType.PRODUCTIONS, "Tabaco Action", "Processes tabaco.", true, true, TabacoAction.class, "tabaco", false));
         bots.add(new BotDescriptor("brick", BotDescriptor.BotType.PRODUCTIONS, "Bricks Action", "Makes bricks.", true, true, BricksAction.class, "brick", true));
         bots.add(new BotDescriptor("branch", BotDescriptor.BotType.PRODUCTIONS, "Branch Action", "Processes branches.", true, true, BranchAction.class, "branch", false));
         bots.add(new BotDescriptor("wrap", BotDescriptor.BotType.PRODUCTIONS, "Wrap Action", "Wraps items.", true, true, WrapAction.class, "wrap", true));
         bots.add(new BotDescriptor("bonestoash", BotDescriptor.BotType.PRODUCTIONS, "Bone Ash", "Burns bones to ash.", true, true, BoneAshAction.class, "bonestoash", true));
-        bots.add(new BotDescriptor("ash", BotDescriptor.BotType.PRODUCTIONS, "Block Ash", "Blocks ash.", true, true, BlockAshAction.class, "ash", true));
-        bots.add(new BotDescriptor("lye", BotDescriptor.BotType.PRODUCTIONS, "Lye Boiler", "Boils lye.", true, true, LyeBoiler.class, "lye", true));
-        bots.add(new BotDescriptor("steel", BotDescriptor.BotType.PRODUCTIONS, "Steel Action", "Makes steel.", true, true, SteelAction.class, "steel", true));
-        bots.add(new BotDescriptor("fineryforge", BotDescriptor.BotType.PRODUCTIONS, "Forging ", "Forging.", true, true, FFAction.class, "fineryforge", true));
+        bots.add(new BotDescriptor("ash", BotDescriptor.BotType.PRODUCTIONS, "Block Ash", "Blocks ash.", true, true, BlockAshAction.class, "ash", false));
+        bots.add(new BotDescriptor("lye", BotDescriptor.BotType.PRODUCTIONS, "Lye Boiler", "Boils lye.", true, true, LyeBoiler.class, "lye", false));
+        bots.add(new BotDescriptor("steel", BotDescriptor.BotType.PRODUCTIONS, "Steel Action", "Makes steel.", true, true, SteelAction.class, "steel", false));
+        bots.add(new BotDescriptor("fineryforge", BotDescriptor.BotType.PRODUCTIONS, "Forging ", "Forging.", true, true, FFAction.class, "fineryforge", false));
         bots.add(new BotDescriptor("irrlight", BotDescriptor.BotType.PRODUCTIONS, "Irrlight Farmer", "Cycles a metal bar into nuggets and back at a lit crucible to call Irrlights, and catches every one that spawns.", false, true, IrrlightBot.class, "irrlight", false));
 
         // Silk
