@@ -1,6 +1,7 @@
 package nurgling.widgets.login;
 
 import haven.*;
+import nurgling.NConfig;
 import nurgling.NStyle;
 import nurgling.conf.NSavedAccounts;
 import nurgling.conf.NSavedAccounts.Account;
@@ -14,9 +15,9 @@ import java.awt.event.KeyEvent;
 import java.util.function.BiConsumer;
 
 /**
- * The login form, laid straight onto the backdrop scrim: saved accounts, then user name and password
- * (or "login saved" for an account with a token), Remember me, and Log in. Server progress and errors
- * show here as well. The protocol is untouched: the owner turns {@code submit} into the same "login"
+ * The login form, laid straight onto the backdrop scrim: saved accounts, then the user name, and a
+ * password field only when the account has none saved, plus Remember me and Log in. Server progress
+ * and errors show here as well. The protocol is untouched: the owner turns {@code submit} into the same "login"
  * message the stock form sends.
  */
 public class NLoginPanel extends Widget {
@@ -33,7 +34,7 @@ public class NLoginPanel extends Widget {
     private Field user, pass;
     private IButton eye;
     private TokenLine tokline;
-    private CheckBox remember;
+    private CheckBox remember, obf;
     private Progress prog;
     private Button forget, loginbtn;
     /** The saved account whose name is in the user field, or null for a password login. */
@@ -95,6 +96,12 @@ public class NLoginPanel extends Widget {
         remember.a = true;
         remember.settip(L10n.get("login.remember_tip"), true);
         remhint = add(new ILabel(L10n.get("login.remember_hint"), NLoginTheme.hint));
+        /* Same setting as Options > QoL: AuthClient reads it when it opens the connection, so it
+         * takes effect on the next attempt - which is why it belongs here and not only in Options. */
+        obf = add(new CheckBox(L10n.get("login.obfuscate")));
+        obf.a = Boolean.TRUE.equals(NConfig.get(NConfig.Key.alwaysObfuscate));
+        obf.settip(L10n.get("login.obfuscate_tip"), true);
+        obf.changed = a -> NConfig.set(NConfig.Key.alwaysObfuscate, a);
         prog = add(new Progress());
         keyhint = add(new ILabel(L10n.get("login.keys_hint"), NLoginTheme.hint));
         forget = add(new Button(UI.scale(80), L10n.get("login.forget_me"), this::forgetcur));
@@ -119,6 +126,8 @@ public class NLoginPanel extends Widget {
     /** The server is waiting for credentials (first time, or again after a failure). */
     public void ready() {
         busy = false;
+        /* Options may have changed it while this screen was up. */
+        obf.a = Boolean.TRUE.equals(NConfig.get(NConfig.Key.alwaysObfuscate));
         reload();
         if (parent != null)
             parent.setfocus(this);
@@ -266,15 +275,22 @@ public class NLoginPanel extends Widget {
         y = stack(tokline, y, UI.scale(10));
         y = stack(remember, y, TIGHT);
         y = stack(remhint, y, GAP);
+        y = stack(obf, y, GAP);
+        /* The action row keeps its height while connecting - the spinner sits in the same slot as
+         * the buttons and the hint keeps its space - so the form does not jump on submit. */
+        int barh = loginbtn.sz.y;
         if (prog.visible) {
-            y = stack(prog, y, 0);
+            prog.move(Coord.of(0, y + ((barh - prog.sz.y) / 2)));
         } else {
             loginbtn.move(Coord.of(W - loginbtn.sz.x, y));
             if (forget.visible)
                 forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y));
-            y += loginbtn.sz.y;
-            if (keyhint.visible)
-                y = stack(keyhint, y + UI.scale(6), 0);
+        }
+        y += barh;
+        if (accounts.saved() > 0) {
+            y += UI.scale(6);
+            keyhint.move(Coord.of(0, y));
+            y += keyhint.sz.y;
         }
         resize(Coord.of(W, y));
     }

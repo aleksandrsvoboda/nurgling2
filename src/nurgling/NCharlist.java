@@ -4,6 +4,7 @@ import haven.*;
 import haven.Charlist;
 import nurgling.conf.NCharTags;
 import nurgling.i18n.L10n;
+import nurgling.widgets.NAvaview;
 import nurgling.widgets.NCharTagsWnd;
 import nurgling.widgets.charsel.NWorldTabs;
 import nurgling.widgets.cookbook.PillButton;
@@ -510,7 +511,7 @@ public class NCharlist extends Charlist {
          * name and disc are drawn by drawbox() instead and stay hidden. */
         @Override
         protected void buildLayout() {
-            ava = add(new Avaview(AVSZ, -1, "avacam"), Coord.of(UI.scale(12), (sz.y - AVSZ.y) / 2));
+            ava = add(new NAvaview(AVSZ, -1, "avacam"), Coord.of(UI.scale(12), (sz.y - AVSZ.y) / 2));
             name = add(new ILabel(chr.name, NLoginTheme.cname), Coord.z);
             name.hide();
             disc = add(new ILabel("", NLoginTheme.meta), Coord.z);
