@@ -2,6 +2,7 @@ package nurgling.widgets.charsel;
 
 import haven.*;
 import haven.render.Location;
+import haven.render.Projection;
 import nurgling.NCharlist;
 import nurgling.NConfig;
 import nurgling.conf.NCharTags;
@@ -28,8 +29,12 @@ public class NCharselScreen extends Widget {
     private static final int SRV_RIGHT = 300;
     /** Rows cropped off the top of the avatar view; see addchild(). */
     private static final int AVACROP = UI.scale(12);
-    /** Extra height for the avatar view so the whole character fits; see addchild(). */
-    private static final int AVAGROW = UI.scale(48);
+    /** Extra headroom above the character; AVACROP eats 12 of it again. */
+    private static final int AVATOP = UI.scale(16);
+    /** Extra room below the character, so a spun foot stays inside the view. */
+    private static final int AVABOT = UI.scale(40);
+    /** Extra width, so a cape does not run off the sides when the character is spun. */
+    private static final int AVAWIDE = UI.scale(90);
     /** Radians of spin per pixel dragged: a full turn takes about 400 px. */
     private static final double ROTSPEED = 0.015;
     /** Key for our rotation in the view's basic states; must not collide with Camera/Projection. */
@@ -101,18 +106,28 @@ public class NCharselScreen extends Widget {
              * to match, which clips them. Only empty sky above the head is lost. */
             Widget view = pf.ch;
             if (view instanceof Avaview) {
-                /* The server sizes the view so the near foot falls outside the frustum. The
-                 * projection's horizontal field is fixed, so a taller view shows more of the scene
-                 * at the same scale rather than a smaller character - but PView.resize does not
-                 * rebuild the projection, so the new aspect has to be applied by hand. */
-                view.resize(Coord.of(view.sz.x, view.sz.y + AVAGROW));
-                ((Avaview) view).makeproj();
+                avaview = (Avaview) view;
+                /* The server sizes the view so the near foot falls outside it and a spun cape runs
+                 * off the sides. Both are fixed by enlarging the view, but the projection has to be
+                 * rebuilt by hand: PView.resize leaves it alone, and the view's own makeproj uses a
+                 * fixed horizontal field, where scale = width / (2 * field) - so a wider view would
+                 * only zoom in. Growing the field with the width keeps the character at its old size
+                 * and turns the extra pixels into extra scene instead. */
+                Coord osz = view.sz;
+                Coord nsz = osz.add(AVAWIDE, AVATOP + AVABOT);
+                view.resize(nsz);
+                float field = 0.5f * ((float) nsz.x / (float) osz.x);
+                float half = (((float) nsz.y) / ((float) nsz.x)) * field;
+                /* The frustum is symmetric, so the added height would split evenly top and bottom.
+                 * Sliding the window down by the difference puts the room where it is wanted -
+                 * below the feet - without touching the scale. */
+                float wpp = (2 * field) / nsz.x;
+                float shift = ((AVABOT - AVATOP) / 2f) * wpp;
+                avaview.basic(Projection.class, Projection.frustum(-field, field, -half - shift, half - shift, 1, 5000));
             }
             view.move(Coord.of(0, -AVACROP));
             pf.resize(Coord.of(view.sz.x, view.sz.y - AVACROP));
             avatar = pf;
-            if (view instanceof Avaview)
-                avaview = (Avaview) view;
         } else if (child instanceof Avaview) {
             avatar = child;
             avaview = (Avaview) child;
