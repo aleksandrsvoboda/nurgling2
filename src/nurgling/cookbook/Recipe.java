@@ -3,12 +3,20 @@ package nurgling.cookbook;
 import java.util.*;
 
 public class Recipe {
+    /**
+     * resource_name of an ingredients-table row that holds a smoking wood rather than an ingredient.
+     * It names the game resource behind the "Smoked with ..." tooltip line, so no real ingredient can
+     * carry it, and clients that predate it simply list the wood among the ingredients.
+     */
+    public static final String SMOKE_RESOURCE = "ui/tt/smoked";
+
     private final String hash;
     private final String name;
     private final String resourceName;
     private final double hunger;
     private final int energy;
     private final Map<String, IngredientInfo> ingredients; // Ingredient name -> info (percent + resource)
+    private final Map<String, Double> smokingWoods;        // Wood name -> share of the smoke in percent, sorted by name
     private final Map<String, Fep> feps;         // FEP name -> value
     private boolean isFavorite;
 
@@ -20,7 +28,7 @@ public class Recipe {
             this.percentage = percentage;
             this.resourceName = resourceName;
         }
-        
+
         public IngredientInfo(double percentage) {
             this(percentage, null);
         }
@@ -29,6 +37,7 @@ public class Recipe {
     public Recipe(String hash, String name, String resourceName,
                   double hunger, int energy,
                   Map<String, IngredientInfo> ingredients,
+                  Map<String, Double> smokingWoods,
                   Map<String, Fep> feps) {
         this.hash = hash;
         this.name = name;
@@ -36,6 +45,7 @@ public class Recipe {
         this.hunger = hunger;
         this.energy = energy;
         this.ingredients = ingredients;
+        this.smokingWoods = new TreeMap<>(smokingWoods);
         this.feps = feps;
     }
 
@@ -62,6 +72,19 @@ public class Recipe {
 
     public Map<String, IngredientInfo> getIngredients() {
         return ingredients;
+    }
+
+    public Map<String, Double> getSmokingWoods() {
+        return smokingWoods;
+    }
+
+    /** Files a row of the ingredients table as either an ingredient or a smoking wood. */
+    public void addIngredientRow(String name, double percentage, String resourceName) {
+        if (SMOKE_RESOURCE.equals(resourceName)) {
+            smokingWoods.put(name, percentage);
+        } else {
+            ingredients.put(name, new IngredientInfo(percentage, resourceName));
+        }
     }
 
     public static class Fep
@@ -96,6 +119,7 @@ public class Recipe {
                 ", hunger=" + hunger +
                 ", energy=" + energy +
                 ", ingredients=" + ingredients +
+                ", smokingWoods=" + smokingWoods +
                 ", feps=" + feps.toString() +
                 '}';
     }

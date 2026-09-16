@@ -19,17 +19,17 @@ public class UnGardentPotAction implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        NArea.Specialisation rfuelb = new NArea.Specialisation(Specialisation.SpecName.fuel.toString(), "branch");
         NArea.Specialisation rkiln = new NArea.Specialisation(Specialisation.SpecName.kiln.toString());
         NArea.Specialisation rgardenpot = new NArea.Specialisation(Specialisation.SpecName.gardenpot.toString());
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(rkiln);
-        req.add(rfuelb);
         req.add(rgardenpot);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
         NContext icontext = new NContext(gui);
-        if(new Validator(req, opt).run(gui).IsSuccess()) {
+        if(new Validator(req, opt)
+                .fuel(Specialisation.SpecName.fuelKiln, "branch")
+                .run(gui).IsSuccess()) {
 
             NArea kilns = icontext.goToArea(Specialisation.SpecName.kiln);
 
@@ -41,6 +41,7 @@ public class UnGardentPotAction implements Action {
                 cand.initattr(Container.FuelLvl.class);
                 cand.getattr(Container.FuelLvl.class).setMaxlvl(23);
                 cand.getattr(Container.FuelLvl.class).setFueltype("branch");
+                cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelKiln);
                 cand.initattr(Container.Tetris.class);
                 Container.Tetris tetris = cand.getattr(Container.Tetris.class);
                 ArrayList<Coord> coords = new ArrayList<>();

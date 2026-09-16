@@ -30,6 +30,7 @@ public class TESTFillCauldron implements Action {
 
             cand.getattr(Container.FuelLvl.class).setAbsMaxlvl(50);//cauldron has 50 fuel lvl
             cand.getattr(Container.FuelLvl.class).setFueltype("branch");
+            cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelCauldron);
             cand.getattr(Container.FuelLvl.class).setMaxlvl(20);//we need 20
             cand.getattr(Container.FuelLvl.class).setFuelmod(5);//1 item of type "branch" = 5 fuel
 

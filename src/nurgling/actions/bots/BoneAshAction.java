@@ -30,7 +30,9 @@ public class BoneAshAction implements Action {
         req.add(rkilns);
         req.add(rBoneForAsh);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
-        if(new Validator(req, opt).run(gui).IsSuccess()) {
+        if(new Validator(req, opt)
+                .fuel(Specialisation.SpecName.fuelKiln, "Branch")
+                .run(gui).IsSuccess()) {
 
             Pair<Coord2d,Coord2d> rca = NContext.findSpec(Specialisation.SpecName.boneforash.toString()).getRCArea();
             if(rca==null)
@@ -47,6 +49,7 @@ public class BoneAshAction implements Action {
                 cand.initattr(Container.FuelLvl.class);
                 cand.getattr(Container.FuelLvl.class).setMaxlvl(6);
                 cand.getattr(Container.FuelLvl.class).setFueltype("Branch");
+                cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelKiln);
                 cand.initattr(Container.Tetris.class);
                 Container.Tetris tetris = cand.getattr(Container.Tetris.class);
                 ArrayList<Coord> coords = new ArrayList<>();

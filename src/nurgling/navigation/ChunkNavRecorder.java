@@ -508,12 +508,12 @@ public class ChunkNavRecorder {
         if (lower.contains("/cavein") || lower.contains("/caveout")) return true;
 
         // All types of gates - only passable when OPEN (modelAttribute == 1)
-        // Includes: polegate, polebiggate, palisadegate, palisadebiggate, drystonewallgate, drystonewallbiggate
-        if (lower.contains("/polegate") || lower.contains("/polebiggate") ||
-            lower.contains("/palisadegate") || lower.contains("/palisadebiggate") ||
-            lower.contains("/drystonewallgate") || lower.contains("/drystonewallbiggate")) {
-            // Check if gate is open using GateDetector logic
-            return GateDetector.isDoorOpen(gob);
+        // Every gate type in GateDetector.GATE_NAMES (pole, drystone, palisade, brick - small and big)
+        for (String gateName : GateDetector.GATE_NAMES) {
+            if (lower.equals(gateName)) {
+                // Check if gate is open using GateDetector logic
+                return GateDetector.isDoorOpen(gob);
+            }
         }
 
         // Mine holes

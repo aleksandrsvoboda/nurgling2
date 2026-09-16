@@ -63,6 +63,17 @@ public class BotRegistry {
                 false
         ));
         bots.add(new BotDescriptor(
+                "set_speed",
+                BotDescriptor.BotType.UTILS,
+                "bot.set_speed.title",
+                "bot.set_speed.desc",
+                true,
+                false,
+                SetSpeedBot.class,
+                "speed",
+                false
+        ));
+        bots.add(new BotDescriptor(
                 "autocraft_bot",
                 BotDescriptor.BotType.UTILS,
                 "Autocraft",

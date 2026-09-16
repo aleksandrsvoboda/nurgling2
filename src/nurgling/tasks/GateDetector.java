@@ -17,12 +17,26 @@ public class GateDetector {
     private Coord2d lastNearbyPosition = null;
     private boolean wasNearGate = false;
 
+    // Every gate type the res server has (verified 2026-09-14; there's no "brickwallbiggate") - all open at model attribute 1.
     public static final String[] GATE_NAMES = {
             "gfx/terobjs/arch/polebiggate",
             "gfx/terobjs/arch/drystonewallbiggate",
+            "gfx/terobjs/arch/palisadebiggate",
+            "gfx/terobjs/arch/brickbiggate",
             "gfx/terobjs/arch/polegate",
             "gfx/terobjs/arch/drystonewallgate",
+            "gfx/terobjs/arch/palisadegate",
+            "gfx/terobjs/arch/brickwallgate",
     };
+
+    /** Whether gob is one of GATE_NAMES (exact resource name). */
+    public static boolean isGate(Gob gob) {
+        if (gob.ngob == null || gob.ngob.name == null) return false;
+        for (String gateName : GATE_NAMES) {
+            if (gob.ngob.name.equals(gateName)) return true;
+        }
+        return false;
+    }
 
     public boolean isNearGate() {
         try {

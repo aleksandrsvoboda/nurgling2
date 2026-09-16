@@ -216,8 +216,11 @@ public class NGItem extends GItem
                         // Energy alone is not distinctive: every item sharing the same name
                         // reports the same energy value regardless of what it was actually made
                         // from, so two genuinely different recipes with the same name would
-                        // collide and the second one would be silently skipped.
-                        String quickKey = name + "|" + buildIngredientSignature();
+                        // collide and the second one would be silently skipped. The smoking woods
+                        // count for the same reason: one food smoked with different woods is a
+                        // different recipe.
+                        String quickKey = name + "|" + buildIngredientSignature() + "|"
+                                + nurgling.cookbook.SmokeWood.signature(nurgling.cookbook.SmokeWood.from(info));
                         if (NCore.isRecipeQuickCached(quickKey)) {
                             sent = true; // Already processed, skip
                             nurgling.db.DatabaseManager.incrementSkippedRecipe();

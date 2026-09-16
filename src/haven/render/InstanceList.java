@@ -709,8 +709,14 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	synchronized(this) {
 	    InstKey key = uslotmap.get(slot);
 	    if(key == null) {
-		if(invalid.remove(slot) != Boolean.TRUE)
-		    throw(new IllegalStateException("removing non-present slot"));
+		if(invalid.remove(slot) != Boolean.TRUE) {
+		    /* Nurgling: a remove()+add() re-key (Sole/Instance/InstancedSlot.update())
+		     * whose add() threw leaves the slot tracked nowhere, normally in no client
+		     * either, and that throw is often swallowed (Gob.updstate() eats Loading).
+		     * Nothing is left to remove; throwing only kills the UI thread mid TreeSlot.remove(). */
+		    Warning.warn("removing orphaned slot %s", slot.obj());
+		    return;
+		}
 		ninvalid--;
 		clremove(slot);
 		if(new InstKey(slot).valid())
@@ -747,8 +753,11 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	synchronized(this) {
 	    InstKey prevkey = uslotmap.get(slot);
 	    if(prevkey == null) {
-		if(invalid.get(slot) != Boolean.TRUE)
-		    throw(new IllegalStateException("updating non-present slot"));
+		if(invalid.get(slot) != Boolean.TRUE) {
+		    /* Nurgling: orphaned by a failed re-key, see remove(). */
+		    Warning.warn("updating orphaned slot %s", slot.obj());
+		    return;
+		}
 		if(key.valid()) {
 		    invalid.remove(slot);
 		    add0(slot, key, true, null);

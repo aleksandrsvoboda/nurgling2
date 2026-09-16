@@ -60,7 +60,7 @@ public class PrepareWorkStation implements Action
             else if(name.startsWith("gfx/terobjs/pow"))
             {
                 ArrayList<Gob> pows = new ArrayList<>(Arrays.asList(ws));
-                if(!new FillFuelPowOrCauldron(context, pows, 1).run(gui).IsSuccess())
+                if(!new FillFuelPowOrCauldron(context, pows, 1, Specialisation.SpecName.fuelFireplace).run(gui).IsSuccess())
                     return Results.FAIL();
                 ArrayList<String> flighted = new ArrayList<>();
                 for (Gob cont : pows) {
@@ -89,7 +89,10 @@ public class PrepareWorkStation implements Action
         if(NUtils.getGameUI().getInventory().getItems("Coal").isEmpty()) {
             int target_size = count;
             while (target_size != 0 && NUtils.getGameUI().getInventory().getFreeSpace() != 0) {
-                ArrayList<Gob> piles = Finder.findGobs(NContext.findSpec(Specialisation.SpecName.fuel.toString(), "Coal"), new NAlias("stockpile"));
+                NArea fuelarea = context.goToFuelArea(Specialisation.SpecName.fuelCrucible, "Coal");
+                if (fuelarea == null)
+                    return false;
+                ArrayList<Gob> piles = Finder.findGobs(fuelarea, new NAlias("stockpile"));
                 if (piles.isEmpty()) {
                     if (gui.getInventory().getItems().isEmpty())
                         return false;
@@ -107,14 +110,19 @@ public class PrepareWorkStation implements Action
                 target_size = target_size - tifp.getResult();
             }
         }
-        new PathFinder(crucible).run(gui);
+        /* The coal may have come from a zone nowhere near the crucible. */
+        context.goToArea(context.workstation);
+        Gob station = Finder.findGob(crucible.id);
+        if (station == null)
+            return false;
+        new PathFinder(station).run(gui);
         ArrayList<WItem> fueltitem = NUtils.getGameUI().getInventory().getItems("Coal");
         if (fueltitem.isEmpty()) {
             return false;
         }
         for(int i=0; i<1;i++) {
             NUtils.takeItemToHand(fueltitem.get(i));
-            NUtils.activateItem(crucible);
+            NUtils.activateItem(station);
             NUtils.getUI().core.addTask(new HandIsFree(NUtils.getGameUI().getInventory()));
         }
         return true;

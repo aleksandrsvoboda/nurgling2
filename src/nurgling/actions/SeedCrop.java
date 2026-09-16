@@ -96,13 +96,13 @@ public class SeedCrop implements Action {
         stockPiles = (vegArea != null) ? Finder.findGobs(vegArea, new NAlias("stockpile")) : new ArrayList<>();
 
         // Build planting sources from the crop registry, in priority order:
-        // barrel seeds first, then stockpile vegetables. Each product is matched by
-        // an exact alias so seeds and vegetables can never be conflated even when
-        // both are present in the inventory at once.
+        // barrel seeds first, then stockpile vegetables (only where the vegetable itself
+        // is plantable). Each product is matched by an exact alias so seeds and vegetables
+        // can never be conflated even when both are present in the inventory at once.
         sources.clear();
         sourceIdx = 0;
-        CropRegistry.CropStage barrelStage = CropRegistry.getProductByStorage(crop, CropRegistry.StorageBehavior.BARREL);
-        CropRegistry.CropStage stockStage = CropRegistry.getProductByStorage(crop, CropRegistry.StorageBehavior.STOCKPILE);
+        CropRegistry.CropStage barrelStage = CropRegistry.getPlantingMaterial(crop, CropRegistry.StorageBehavior.BARREL);
+        CropRegistry.CropStage stockStage = CropRegistry.getPlantingMaterial(crop, CropRegistry.StorageBehavior.STOCKPILE);
         if (barrelStage != null && !barrels.isEmpty())
             sources.add(new PlantingSource(SourceType.BARREL, seedItemAlias(barrelStage.result), 5));
         if (stockStage != null && vegArea != null && !stockPiles.isEmpty())

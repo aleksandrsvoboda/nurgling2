@@ -27,7 +27,9 @@ public class LyeBoiler implements Action {
         req.add(rboiler);
         req.add(rwater);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
-        if (new Validator(req, opt).run(gui).IsSuccess()) {
+        if (new Validator(req, opt)
+                .fuel(Specialisation.SpecName.fuelCauldron, "branch")
+                .run(gui).IsSuccess()) {
 
 
             NArea cauldrons = NContext.findSpec(Specialisation.SpecName.boiler.toString());
@@ -45,6 +47,7 @@ public class LyeBoiler implements Action {
                 cand.getattr(Container.FuelLvl.class).setMaxlvl(40);
                 cand.getattr(Container.FuelLvl.class).setFuelmod(5);//branch gives 5 fuel, not 1
                 cand.getattr(Container.FuelLvl.class).setFueltype("branch");
+                cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelCauldron);
 
                 containers.add(cand);
             }

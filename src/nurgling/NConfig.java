@@ -30,6 +30,7 @@ public class NConfig
         vilol, claimol, realmol,
         minimapVilol, minimapClaimol, minimapRealmol,
         selectedWorld,
+        charlistSort,
         showVarity,
         autoSplitter,
         showGilding,
@@ -117,7 +118,7 @@ public class NConfig
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
         serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
-        temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
+        temsmarktime, exploredAreaEnable, chunkNavOverlay, minimapTogglesShown, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
         shortPalisades,
@@ -294,6 +295,7 @@ public class NConfig
         conf.put(Key.minimapClaimol, false);
         conf.put(Key.minimapRealmol, false);
         conf.put(Key.selectedWorld, null);
+        conf.put(Key.charlistSort, "played");
         conf.put(Key.showVarity, false);
         conf.put(Key.autoSplitter, false);
         conf.put(Key.showGilding, false);
@@ -388,6 +390,7 @@ public class NConfig
         conf.put(Key.serverUser, "");
         conf.put(Key.exploredAreaEnable, false);
         conf.put(Key.chunkNavOverlay, false);
+        conf.put(Key.minimapTogglesShown, true);
         conf.put(Key.player_box, false);
         conf.put(Key.player_fov, false);
         conf.put(Key.gridbox, false);

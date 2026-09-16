@@ -46,6 +46,10 @@ public class StackSupporter {
         customStackSizes.put("Petrified Seashell", 3);
         customStackSizes.put("Dead Wood Scorpion", 4);
         customStackSizes.put("Odd Honeycomb", 3);
+        // meat-clam + meat-jotunclam. In no VSpec category; a meat, and the server stacks it 5 deep.
+        customStackSizes.put("Jotun Clam Meat", 5);
+        // Registered under "Stackable Curiosities" (stack size 4), but the server stacks it 5 deep.
+        customStackSizes.put("Curious Needle", 5);
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
