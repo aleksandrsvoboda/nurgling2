@@ -27,7 +27,6 @@
 package haven;
 
 import nurgling.i18n.L10n;
-import nurgling.widgets.*;
 
 import java.util.*;
 import java.net.URI;
@@ -38,32 +37,40 @@ public class LoginScreen extends Widget {
 	textf = new Text.Foundry(Text.sans, 16).aa(true),
 	textfs = new Text.Foundry(Text.sans, 14).aa(true);
     public static final Tex bg = Resource.loadtex("nurgling/hud/loginscr2");
-    public static final Tex loadingbg = Resource.loadtex("nurgling/hud/loginscr2");
     public static final Position bgc = new Position(UI.scale(420, 300));
     public final Widget login;
     public final String confname;
     private Text error, progress;
     protected Button optbtn;
     private OptWnd opts;
-    private Img bgimg;
     private boolean isLoading = false;
 
     private String getpref(String name, String def) {
 	return(Utils.getpref(name + "@" + confname, def));
     }
 
+    /** The backdrop behind everything else; subclasses can swap in their own. */
+    protected Widget mkbg() {
+	return(new Img(bg));
+    }
+
+    /** The login form; subclasses can swap in their own. */
+    protected Widget mkcredbox() {
+	return(new Credbox());
+    }
+
     public LoginScreen(String confname) {
 	super(bg.sz());
 	this.confname = confname;
 	setfocustab(true);
-	bgimg = add(new Img(bg), Coord.z);
+	add(mkbg(), Coord.z);
 	optbtn = add(new Button(UI.scale(100), L10n.get("login.options")), UI.scale(10), sz.y - UI.scale(10) - UI.scale(30));
 	optbtn.setgkey(GameUI.kb_opt);
 //	if(HttpStatus.mond.get() != null)
 //	    adda(new StatusLabel(HttpStatus.mond.get(), 1.0), sz.x - UI.scale(10), UI.scale(10), 1.0, 0.0);
 	
 	// Always show normal login form
-	login = new Credbox();
+	login = mkcredbox();
 	adda(login, bgc.adds(0, 10), 0.5, 0.0).hide();
 	
 	// Add Steam login button if Steam is available
@@ -160,7 +167,7 @@ public class LoginScreen extends Widget {
 	    tkbox.pack();
 	    tkbox.hide();
 
-	    adda(exec = new IButton("nurgling/hud/buttons/login/", "u", "d", "o") {
+	    adda(exec = new IButton("gfx/hud/buttons/login", "u", "d", "o") {
 		    protected void depress() {ui.sfx(Button.clbtdown.stream());}
 		    protected void unpress() {ui.sfx(Button.clbtup.stream());}
 		    public void click() {enter();}
@@ -194,7 +201,6 @@ public class LoginScreen extends Widget {
 	}
 
 	private void forget() {
-		((NLoginScreen)parent).removeToken();
 	    String nm = user.text();
 	    Bootstrap.settoken(nm, confname, null);
 	    savetoken.set(false);
@@ -392,21 +398,9 @@ public class LoginScreen extends Widget {
     protected void progress(String p) {
 	if(progress != null)
 	    progress = null;
-	if(p != null) {
+	if(p != null)
 	    progress = textf.render(p, java.awt.Color.WHITE);
-	    setLoadingScreen(true);
-	} else {
-	    setLoadingScreen(false);
-	}
-    }
-
-    private void setLoadingScreen(boolean loading) {
-	if(isLoading != loading) {
-	    isLoading = loading;
-	    if(bgimg != null) {
-		bgimg.img = loading ? loadingbg : bg;
-	    }
-	}
+	isLoading = (p != null);
     }
 
     private void clear() {

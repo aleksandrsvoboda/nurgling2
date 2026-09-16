@@ -61,23 +61,18 @@ public class Img extends Widget {
     
     /** Get background texture based on selected world */
     public static Tex getCharselBg() {
-	// Check selected world from NConfig
-	String selectedWorld = (String) nurgling.NConfig.get(nurgling.NConfig.Key.selectedWorld);
+	return(getCharselBg((String) nurgling.NConfig.get(nurgling.NConfig.Key.selectedWorld)));
+    }
+
+    /** Background for a world label; null (all worlds) and unknown worlds get the default art. */
+    public static Tex getCharselBg(String world) {
 	// The current newest world (internally "16.2") is reported by the server
 	// with the disc label "World 16.1"; accept either label for its background.
-	if(selectedWorld != null && (selectedWorld.contains("16.1") || selectedWorld.contains("16.2"))) {
+	if(world != null && (world.contains("16.1") || world.contains("16.2")))
 	    return getCharselBgWorld162();
-	}
-	// Use world16 for everything else (All, null, World 16, etc.)
 	return getCharselBgWorld16();
     }
     
-    /** Update background image based on current world selection */
-    public void updateCharselBackground() {
-	if(charselType == CharselType.BACKGROUND) {
-	    setimg(getCharselBg());
-	}
-    }
     
     private static Tex getVerifyTex() {
 	if(verifyTex == null)

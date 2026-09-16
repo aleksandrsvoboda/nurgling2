@@ -1,47 +1,45 @@
 package nurgling.widgets;
 
 import haven.*;
-import haven.Label;
-import haven.Window;
-import nurgling.*;
-import nurgling.conf.*;
-import nurgling.i18n.L10n;
+import nurgling.NConfig;
+import nurgling.conf.NCharTags;
+import nurgling.widgets.login.NBackdrop;
+import nurgling.widgets.login.NLoginPanel;
+import nurgling.widgets.login.NLoginStatusBar;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.*;
-import java.util.List;
 
-public class NLoginScreen extends LoginScreen
-{
+/**
+ * Login screen: the art as it always was, a scrim on its left edge, and on it the login form with
+ * saved accounts ({@link NLoginPanel}), plus a status line along the bottom. Saved accounts are
+ * token-only; nothing here writes a password anywhere.
+ */
+public class NLoginScreen extends LoginScreen {
+    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final long BASE_RETRY_DELAY_MS = 1000;
+    private static final long MAX_RETRY_DELAY_MS = 30000;
+    private static final int VERSION_CHECK_TIMEOUT_MS = 2000;
+    private static final int MARGIN = UI.scale(64);
 
-    private boolean msgMode = false;
-
-    ArrayList<NLoginDataItem> loginItems = new ArrayList<>();
-
-    int marg = UI.scale(10);
-
-    // Retry and backoff state for bot mode
-    private boolean autoLoginInProgress = false;
-    private long lastAutoLoginTime = 0;
+    private IButton discordBtn;
+    private NLoginStatusBar statusbar;
+    /* Bot mode: set by the server's "login" prompt, cleared once an automatic attempt is sent. */
+    private boolean autoPending = false;
     private int retryAttempt = 0;
     private long nextRetryTime = 0;
-    private static final int MAX_RETRY_ATTEMPTS = 5;
-    private static final long BASE_RETRY_DELAY_MS = 1000; // Start with 1 second
-    private static final long MAX_RETRY_DELAY_MS = 30000; // Cap at 30 seconds
-    private static final int VERSION_CHECK_TIMEOUT_MS = 2000;
-    private volatile boolean updateAvailable = false;
-    private boolean updateNoticeShown = false;
-    private boolean firstFrameDrawn = false;
+    /* Account of the attempt in flight; it becomes "last used" if the screen closes on success. */
+    private String pending = null;
 
     /**
      * Compares two version strings numerically.
-     * @param remoteVersion the remote version string (e.g., "2.103.1")
-     * @param localVersion the local version string (e.g., "2.103.0")
      * @return true if remoteVersion is greater than localVersion
      */
     private static boolean isRemoteVersionNewer(String remoteVersion, String localVersion) {
@@ -73,13 +71,9 @@ public class NLoginScreen extends LoginScreen
         }
     }
 
-    public NLoginScreen(String hostname)
-    {
+    public NLoginScreen(String hostname) {
         super(hostname);
-        add(new LoginList(new Coord(UI.scale(200), UI.scale(bg.sz().y - marg * 2))), new Coord(marg, marg));
-        optbtn.move(new Coord(bg.sz().x - UI.scale(130), UI.scale(30)));
-
-        IButton discordBtn = new IButton("nurgling/hud/buttons/discord/", "u", "d", "h") {
+        discordBtn = add(new IButton("nurgling/hud/buttons/discord/", "u", "d", "h") {
             @Override
             public void click() {
                 try {
@@ -88,397 +82,146 @@ public class NLoginScreen extends LoginScreen
                     System.err.println("[NLoginScreen] Failed to open Discord link: " + e.getMessage());
                 }
             }
-        };
-        adda(discordBtn, bg.sz().x - UI.scale(50), bg.sz().y - UI.scale(50), 1.0, 1.0);
-
-        adda(new StatusLabel(HttpStatus.mond.get(), 0.5), bg.sz().x/2, bg.sz().y, 0.5, 1);
-        ArrayList<NLoginData> logpass = (ArrayList<NLoginData>) NConfig.get(NConfig.Key.credentials);
-        if (logpass != null)
-        {
-            for (NLoginData item : logpass)
-            {
-                loginItems.add(new NLoginDataItem(item));
-            }
-        }
+        });
+        statusbar = add(new NLoginStatusBar(HttpStatus.mond.get(), sz.x - (2 * MARGIN)));
+        layout();
         startVersionCheck();
     }
 
-    private void startVersionCheck() {
-        if (!new File("ver").isFile())
-            return;
-        Object baseurl = NConfig.get(NConfig.Key.baseurl);
-        if (!(baseurl instanceof String))
-            return;
-        Thread checker = new HackThread(() -> {
-            try {
-                URLConnection conn = new URL((String) baseurl).openConnection();
-                conn.setConnectTimeout(VERSION_CHECK_TIMEOUT_MS);
-                conn.setReadTimeout(VERSION_CHECK_TIMEOUT_MS);
-                try (BufferedReader remote = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-                     BufferedReader local = Files.newBufferedReader(Paths.get("ver"), StandardCharsets.UTF_8)) {
-                    updateAvailable = isRemoteVersionNewer(remote.readLine(), local.readLine());
-                }
-            } catch (Exception ignored) {
-            }
-        }, "Version check");
-        checker.setDaemon(true);
-        checker.start();
+    /* Both are called from the LoginScreen constructor, before this class's fields are set. */
+    @Override
+    protected Widget mkbg() {
+        return (new NBackdrop(() -> bg, NBackdrop.SCRIMW));
     }
 
-    private void showUpdateNotice() {
-        Window win = adda(new Window(new Coord(UI.scale(150, 40)), L10n.get("login.attention")) {
-            @Override
-            public void wdgmsg(String msg, Object... args) {
-                if (msg.equals("close"))
-                    hide();
-                else
-                    super.wdgmsg(msg, args);
-            }
-        }, bgc.x, bg.sz().y / 8, 0.5, 0.5);
-        win.add(new Label(L10n.get("login.new_version")));
+    @Override
+    protected Widget mkcredbox() {
+        return (new NLoginPanel(confname, this::submit));
+    }
+
+    private NLoginPanel panel() {
+        return ((NLoginPanel) login);
+    }
+
+    /* The form sits on the scrim; Options and Discord top right; the status line along the bottom. */
+    private void layout() {
+        optbtn.move(Coord.of(sz.x - optbtn.sz.x - UI.scale(20), UI.scale(20)));
+        discordBtn.move(Coord.of(optbtn.c.x - UI.scale(12) - discordBtn.sz.x, optbtn.c.y + ((optbtn.sz.y - discordBtn.sz.y) / 2)));
+        statusbar.move(Coord.of(MARGIN, sz.y - statusbar.sz.y - UI.scale(10)));
+        placeform();
+    }
+
+    private void placeform() {
+        int top = UI.scale(40), bottom = statusbar.c.y - UI.scale(12);
+        login.move(Coord.of(MARGIN, Math.max(top, top + (((bottom - top) - login.sz.y) / 2))));
+    }
+
+    /* The form changes height as it switches between password, saved-account and busy states. */
+    @Override
+    public void cresize(Widget ch) {
+        if ((ch == login) && (statusbar != null))
+            placeform();
+    }
+
+    @Override
+    public void uimsg(String msg, Object... args) {
+        if (msg == "login") {
+            login.show();
+            panel().ready();
+            if (NConfig.isBotMod())
+                autoPending = true;
+        } else if (msg == "prg") {
+            login.show();
+            panel().busy((String) args[0]);
+        } else if (msg == "error") {
+            pending = null;
+            panel().error((String) args[0]);
+        } else {
+            super.uimsg(msg, args);
+        }
     }
 
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        if (firstFrameDrawn && updateAvailable && !updateNoticeShown) {
-            updateNoticeShown = true;
-            showUpdateNotice();
-        }
-    }
-
-    @Override
-    public void draw(GOut g) {
-        super.draw(g);
-        firstFrameDrawn = true;
-    }
-
-    @Override
-    protected void progress(String p)
-    {
-        super.progress(p);
-        if (NConfig.isBotMod())
-        {
+        if (autoPending && NConfig.isBotMod())
             attemptAutoLogin();
-        }
     }
 
     /**
-     * Attempts auto-login with retry logic and exponential backoff.
-     * Prevents infinite retry loops that cause account bans.
+     * Bot mode: logs in with the bot credentials, backing off exponentially between failures and
+     * giving up (exiting) after {@link #MAX_RETRY_ATTEMPTS}, so a bad password can't hammer the auth
+     * server into banning the account.
      */
-    private void attemptAutoLogin()
-    {
-        long currentTime = System.currentTimeMillis();
-
-        // Check if we've exceeded maximum retry attempts
+    private void attemptAutoLogin() {
         if (retryAttempt >= MAX_RETRY_ATTEMPTS) {
             System.err.println("[NLoginScreen] Maximum retry attempts (" + MAX_RETRY_ATTEMPTS + ") reached. Auto-login disabled to prevent ban.");
             System.err.println("[NLoginScreen] Terminating game to prevent further connection attempts.");
-
-            // Terminate the game process - same pattern used by scenario bots
-            // No need to logout since we never successfully logged in
             System.exit(1); // Exit code 1 indicates failure
             return;
         }
-
-        // Check if we're already in the process of logging in
-        if (autoLoginInProgress) {
-            return; // Don't send duplicate login attempts
-        }
-
-        // Check if we need to wait for backoff delay
-        if (currentTime < nextRetryTime) {
-            long remainingWait = nextRetryTime - currentTime;
-            if (remainingWait > 1000) { // Only log if more than 1 second remaining
-                System.out.println("[NLoginScreen] Auto-login waiting " + (remainingWait / 1000) + " seconds before retry attempt " + (retryAttempt + 1));
-            }
+        long now = System.currentTimeMillis();
+        if (now < nextRetryTime)
             return;
-        }
+        autoPending = false;
+        retryAttempt++;
+        nextRetryTime = now + Math.min(BASE_RETRY_DELAY_MS * (1L << retryAttempt), MAX_RETRY_DELAY_MS);
+        System.out.println("[NLoginScreen] Auto-login attempt " + retryAttempt + "/" + MAX_RETRY_ATTEMPTS);
+        send(new AuthClient.NativeCred(NConfig.botmod.user, NConfig.botmod.pass), false);
+    }
 
-        // Check if this is too soon after last attempt (prevents rapid-fire retries)
-        if (currentTime - lastAutoLoginTime < 500) { // Minimum 500ms between attempts
-            return;
-        }
+    /* A manual attempt from the form; in bot mode it restarts the automatic retry budget. */
+    private void submit(AuthClient.Credentials creds, boolean savepw) {
+        autoPending = false;
+        retryAttempt = 0;
+        nextRetryTime = 0;
+        send(creds, savepw);
+    }
 
-        try {
-            // Mark login as in progress to prevent duplicates
-            autoLoginInProgress = true;
-            lastAutoLoginTime = currentTime;
+    private void send(AuthClient.Credentials creds, boolean savepw) {
+        pending = creds.authname();
+        wdgmsg("login", creds, savepw);
+    }
 
-            System.out.println("[NLoginScreen] Auto-login attempt " + (retryAttempt + 1) + "/" + MAX_RETRY_ATTEMPTS);
+    /* The server only takes the login screen down once the connection is made. */
+    @Override
+    public void destroy() {
+        if (pending != null)
+            NCharTags.setUsed(pending, System.currentTimeMillis());
+        super.destroy();
+    }
 
-            // Send the login credentials
-            wdgmsg("login", new Object[]{new AuthClient.NativeCred(NConfig.botmod.user, NConfig.botmod.pass), false});
-
-            // Prepare for potential retry with exponential backoff
-            retryAttempt++;
-            long backoffDelay = Math.min(BASE_RETRY_DELAY_MS * (1L << retryAttempt), MAX_RETRY_DELAY_MS);
-            nextRetryTime = currentTime + backoffDelay;
-
-            // Reset login progress flag after a short delay to allow for success
-            // This gets reset earlier if login succeeds via onLoginSuccess()
-            new Thread(() -> {
+    private void startVersionCheck() {
+        Object baseurl = NConfig.get(NConfig.Key.baseurl);
+        Thread checker = new HackThread(() -> {
+            String local = readLocalVersion();
+            String remote = null;
+            if ((local != null) && (baseurl instanceof String)) {
                 try {
-                    Thread.sleep(2000); // Give 2 seconds for login to potentially succeed
-                    if (autoLoginInProgress) {
-                        autoLoginInProgress = false; // Reset if still in progress
+                    URLConnection conn = new URL((String) baseurl).openConnection();
+                    conn.setConnectTimeout(VERSION_CHECK_TIMEOUT_MS);
+                    conn.setReadTimeout(VERSION_CHECK_TIMEOUT_MS);
+                    try (BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                        remote = in.readLine();
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }).start();
-
-        } catch (Exception e) {
-            System.err.println("[NLoginScreen] Auto-login attempt failed: " + e.getMessage());
-            autoLoginInProgress = false;
-        }
-    }
-
-    /**
-     * Call this when login succeeds to reset retry state
-     */
-    private void onLoginSuccess() {
-        System.out.println("[NLoginScreen] Auto-login successful, resetting retry state");
-        autoLoginInProgress = false;
-        retryAttempt = 0;
-        nextRetryTime = 0;
-        lastAutoLoginTime = 0;
-    }
-
-    /**
-     * Call this to reset retry state (e.g., when user manually logs in)
-     */
-    public void resetAutoLoginState() {
-        autoLoginInProgress = false;
-        retryAttempt = 0;
-        nextRetryTime = 0;
-        lastAutoLoginTime = 0;
-    }
-
-    public void wdgmsg(
-            Widget sender,
-            String msg,
-            Object... args
-    )
-    {
-
-        if (sender == this && !msgMode)
-        {
-            Credbox clogin = (Credbox) login;
-            if (!clogin.pass.text().isEmpty())
-            {
-                saveLoginPass(clogin.user.text(), clogin.pass.text());
-            }
-            else
-            {
-                if (args[0] != null && args[0] instanceof AuthClient.TokenCred) {
-                    saveLoginToken(clogin.user.text(), ((AuthClient.TokenCred) args[0]).token);
-                }
-
-            }
-        }
-
-        // Reset auto-login retry state when any login attempt is made
-        if ("login".equals(msg) && NConfig.isBotMod()) {
-            resetAutoLoginState();
-        }
-
-        super.wdgmsg(sender, msg, args);
-    }
-
-    void saveLoginPass(String login, String pass)
-    {
-        ArrayList<NLoginData> logpass;
-        if (!pass.isEmpty())
-        {
-
-            logpass = (ArrayList<NLoginData>) (NConfig.get(NConfig.Key.credentials));
-            if (logpass == null)
-            {
-                logpass = new ArrayList<>();
-            }
-            boolean isFound = false;
-            for (NLoginData item : logpass)
-            {
-                if (item.name.equals(login))
-                {
-                    if (!pass.equals(item.pass))
-                    {
-                        item.pass = pass;
-                        item.isTokenUsed = false;
-                        NConfig.set(NConfig.Key.credentials, logpass);
-                    }
-                    isFound = true;
+                } catch (IOException ignored) {
+                    /* Offline or no update server: just no badge. */
                 }
             }
-            if (!isFound)
-            {
-                logpass.add(new NLoginData(login, pass));
-                NConfig.set(NConfig.Key.credentials, logpass);
-            }
-        }
+            statusbar.versions(local, isRemoteVersionNewer(remote, local) ? remote.trim() : null);
+        }, "Version check");
+        checker.setDaemon(true);
+        checker.start();
     }
 
-
-    void saveLoginToken(String login, byte[] buff)
-    {
-        ArrayList<NLoginData> logpass;
-        if (buff.length > 0)
-        {
-
-            logpass = (ArrayList<NLoginData>) NConfig.get(NConfig.Key.credentials);
-            if (logpass == null)
-            {
-                logpass = new ArrayList<>();
-            }
-            boolean isFound = false;
-            for (NLoginData item : logpass)
-            {
-                if (item.name.equals(login))
-                {
-                    if (item.token != null && item.token.length == buff.length)
-                    {
-                        for (int i = 0; i < buff.length; i++)
-                            if (buff[i] != item.token[i])
-                            {
-                                item.token = Arrays.copyOf(buff, buff.length);
-                                item.isTokenUsed = true;
-                                item.pass = "";
-                                NConfig.set(NConfig.Key.credentials, logpass);
-                            }
-
-                    }
-                    else
-                    {
-                        item.token = Arrays.copyOf(buff, buff.length);
-                        item.isTokenUsed = true;
-                        item.pass = "";
-                        NConfig.set(NConfig.Key.credentials, logpass);
-                    }
-                    isFound = true;
-                }
-            }
-            if (!isFound)
-            {
-                logpass.add(new NLoginData(login, Arrays.copyOf(buff, buff.length)));
-                NConfig.set(NConfig.Key.credentials, logpass);
-            }
-        }
-    }
-
-    public void removeToken()
-    {
-        ArrayList<NLoginData> logpass = ((ArrayList<NLoginData>) NConfig.get(NConfig.Key.credentials));
-        if (logpass != null)
-            for (NLoginData item : logpass)
-            {
-                if (item.name.equals(((Credbox)login).user.text()))
-                {
-                    logpass.remove(item);
-                    NConfig.set(NConfig.Key.credentials, logpass);
-                    for (NLoginDataItem item1 : loginItems)
-                    {
-                        if (item1.nd == item)
-                            loginItems.remove(item1);
-                        break;
-                    }
-                    break;
-                }
-
-            }
-    }
-
-
-    public class LoginList extends SListBox<NLoginDataItem, Widget>
-    {
-        LoginList(Coord sz)
-        {
-            super(sz, UI.scale(25));
-            pack();
-        }
-
-        protected List<NLoginDataItem> items()
-        {
-            return (loginItems);
-        }
-
-        protected Widget makeitem(NLoginDataItem item, int idx, Coord sz)
-        {
-            return (new ItemWidget<NLoginDataItem>(this, sz, item)
-            {
-                {
-                    int len = 0;
-                    int h = 0;
-                    for (NLoginDataItem pL : loginItems)
-                    {
-                        len = Math.max(len, pL.sz.x);
-                        h = pL.sz.y;
-                    }
-                    len = Math.max(len, UI.scale(250));
-                    item.resize(new Coord(len, h));
-                    add(item);
-                }
-
-                @Override
-                public boolean mousedown(MouseDownEvent ev) {
-                    boolean psel = sel == item;
-                    return super.mousedown(ev);
-                }
-            });
-        }
-    }
-
-
-    public class NLoginDataItem extends Widget
-    {
-        NLoginData nd;
-        Label text;
-        IButton remove;
-
-        @Override
-        public void resize(Coord sz)
-        {
-            super.resize(sz);
-            int x = sz.x - NStyle.removei[0].sz().x - UI.scale(65);
-            remove.move(new Coord(x, sz.y / 2 - remove.sz.y / 2 + UI.scale(2)));
-        }
-
-        public NLoginDataItem(NLoginData nd)
-        {
-            this.nd = nd;
-            this.text = add(new Label(nd.name, NStyle.fcomboitems), new Coord(UI.scale(7), 0));
-
-            remove = add(new IButton(NStyle.removei[0].back, NStyle.removei[1].back, NStyle.removei[2].back)
-            {
-                @Override
-                public void click()
-                {
-                    ArrayList<NLoginData> ld = ((ArrayList<NLoginData>) NConfig.get(NConfig.Key.credentials));
-                    ld.remove(nd);
-                    NConfig.set(NConfig.Key.credentials, ld);
-                    loginItems.remove(NLoginDataItem.this);
-                }
-            });
-            remove.settip(Resource.remote().loadwait("nurgling/hud/buttons/removeItem/u").flayer(Resource.tooltip).text());
-            pack();
-        }
-
-        @Override
-        public boolean mousedown(MouseDownEvent ev) {
-            boolean res = super.mousedown(ev);
-            if (!res)
-            {
-                msgMode = true;
-                // Reset auto-login state when user manually selects login
-                NLoginScreen.this.resetAutoLoginState();
-                if (!nd.isTokenUsed)
-                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.NativeCred(nd.name, nd.pass), false});
-                else
-                    NLoginScreen.this.wdgmsg("login", new Object[]{new AuthClient.TokenCred(nd.name, Arrays.copyOf(nd.token, nd.token.length)), false});
-                msgMode = false;
-            }
-            return res;
+    private static String readLocalVersion() {
+        if (!new File("ver").isFile())
+            return (null);
+        try (BufferedReader in = Files.newBufferedReader(Paths.get("ver"), StandardCharsets.UTF_8)) {
+            String line = in.readLine();
+            return ((line == null) || line.trim().isEmpty()) ? null : line.trim();
+        } catch (IOException e) {
+            return (null);
         }
     }
 }
