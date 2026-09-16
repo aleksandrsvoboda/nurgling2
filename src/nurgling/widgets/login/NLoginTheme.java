@@ -96,7 +96,12 @@ public final class NLoginTheme {
 
     /** Eight square dots chasing round {@code ctr}. */
     public static void drawSpinner(GOut g, Coord ctr, int r) {
-        int n = 8, d = Math.max(2, UI.scale(3));
+        drawSpinner(g, ctr, r, Math.max(2, UI.scale(3)));
+    }
+
+    /** As above, with the dot size given: a big view needs dots to match. */
+    public static void drawSpinner(GOut g, Coord ctr, int r, int dot) {
+        int n = 8, d = Math.max(2, dot);
         int head = (int) (Utils.rtime() * 10) % n;
         for (int i = 0; i < n; i++) {
             double a = (2 * Math.PI * i) / n;

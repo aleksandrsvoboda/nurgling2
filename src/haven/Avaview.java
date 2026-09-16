@@ -61,7 +61,7 @@ public class Avaview extends PView {
 	    }
 	    if((args.length > 2) && (args[2] != null))
 		camnm = (String)args[2];
-	    return(new ProxyFrame<>(new Avaview(sz, avagob, camnm), inner));
+	    return(new ProxyFrame<>(new nurgling.widgets.NAvaview(sz, avagob, camnm), inner));
 	}
     }
 
