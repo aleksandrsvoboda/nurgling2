@@ -25,6 +25,8 @@ public class NCharselScreen extends Widget {
     private static final Coord ARTSZ = new Coord(1376, 768);
     /* Children right of this (server coordinates) belong to the right side of the old layout. */
     private static final int SRV_RIGHT = 300;
+    /** Rows cropped off the top of the avatar view; see addchild(). */
+    private static final int AVACROP = UI.scale(12);
 
     private final NBackdrop backdrop;
     private final NamePlate plate;
@@ -78,9 +80,17 @@ public class NCharselScreen extends Widget {
         } else if (child instanceof NCharlist) {
             list = (NCharlist) child;
         } else if (child instanceof ProxyFrame) {
-            avatar = child;
+            ProxyFrame<?> pf = (ProxyFrame<?>) child;
             /* No frame: the avatar stands in the art like the rest of the screen. */
-            ((ProxyFrame<?>) child).color = null;
+            pf.color = null;
+            /* haven's avatar view renders a short dark line a few pixels below its own top edge, on
+             * every character (naked ones included). It is the server's widget and the line comes out
+             * of the 3D render, so crop those rows instead: shift the view up and shorten the frame
+             * to match, which clips them. Only empty sky above the head is lost. */
+            Widget view = pf.ch;
+            view.move(Coord.of(0, -AVACROP));
+            pf.resize(Coord.of(view.sz.x, view.sz.y - AVACROP));
+            avatar = pf;
         } else if (child instanceof Avaview) {
             avatar = child;
         } else if ((child instanceof IButton) && (newchar == null)) {
