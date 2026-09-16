@@ -44,7 +44,8 @@ public class PrepareCauldron implements Action {
         if (needFuel && (cauldron.ngob.getModelAttribute() & 1) == 0) {
             wasUpdate = true;
             ArrayList<Gob> cauldrons = new ArrayList<>(Arrays.asList(cauldron));
-            if (!new FillFuelPowOrCauldron(context, cauldrons, 1).run(gui).IsSuccess()) {
+            if (!new FillFuelPowOrCauldron(context, cauldrons, 1,
+                    nurgling.widgets.Specialisation.SpecName.fuelCauldron).run(gui).IsSuccess()) {
                 return Results.ERROR("Failed to fill cauldron with fuel");
             }
         }

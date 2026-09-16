@@ -529,6 +529,38 @@ public class NContext {
         return area;
     }
 
+    private static String fuelKey(Specialisation.SpecName zone, String material) {
+        return("fuel:" + zone + ((material != null && !material.isEmpty()) ? ("_" + material) : ""));
+    }
+
+    /**
+     * Find a burner's fuel area WITHOUT navigating, falling back to the shared {@code fuel}
+     * zone when the burner has none of its own. See {@link FuelZones#find}.
+     */
+    public NArea findFuelArea(Specialisation.SpecName zone, String material) {
+        String key = fuelKey(zone, material);
+        if(!areas.containsKey(key)) {
+            NArea area = FuelZones.find(zone, material);
+            if(area == null)
+                return null;
+            areas.put(key, area);
+        }
+        return areas.get(key);
+    }
+
+    /**
+     * Find a burner's fuel area and navigate to it. The fallback can resolve to a zone that
+     * is nowhere near the player, so anything that goes on to look for piles there must come
+     * through here rather than calling {@link FuelZones#find} directly.
+     */
+    public NArea goToFuelArea(Specialisation.SpecName zone, String material) throws InterruptedException {
+        NArea area = findFuelArea(zone, material);
+        if(area == null)
+            return null;
+        navigateToAreaIfNeeded(fuelKey(zone, material));
+        return area;
+    }
+
     /**
      * Find construction materials zone for a specific material type WITHOUT navigating.
      * Only finds and caches the area, navigation happens later when needed.
@@ -613,7 +645,12 @@ public class NContext {
 
         ArrayList<ObjectStorage> inputs = new ArrayList<>();
         NArea area;
-        if (subtype != null && !subtype.isEmpty()) {
+        boolean isFuel = (FuelZones.of(name) != null);
+        if (isFuel) {
+            /* Fuel zones resolve through their own fallback chain, so callers such as
+             * TakeItems2 get it without needing to know about it. */
+            area = goToFuelArea(name, subtype);
+        } else if (subtype != null && !subtype.isEmpty()) {
             area = goToArea(name, subtype);
         } else {
             area = goToArea(name);
@@ -623,7 +660,8 @@ public class NContext {
             return null;
         }
 
-        navigateToAreaIfNeeded(String.valueOf(name));
+        if(!isFuel)
+            navigateToAreaIfNeeded(String.valueOf(name));
 
         for (Gob gob : Finder.findGobs(area, new NAlias(new ArrayList<String>(contcaps.keySet()), new ArrayList<>()))) {
             String hash = gob.ngob.hash;

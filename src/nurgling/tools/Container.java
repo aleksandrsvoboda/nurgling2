@@ -220,6 +220,7 @@ public class Container implements NContext.ObjectStorage {
         public static final String ABSMAXLVL = "absmaxlvl";
         public static final String FUELMOD = "flmod";
         public static final String FUELAREA = "fuelarea";
+        public static final String FUELZONE = "fuelzone";
 
         public FuelLvl(){
             res.put(FUELMOD, (int) 1);
@@ -264,9 +265,22 @@ public class Container implements NContext.ObjectStorage {
         public void setFuelArea(nurgling.areas.NArea area) {
             res.put(FUELAREA, area);
         }
-        
+
         public nurgling.areas.NArea getFuelArea() {
             return (nurgling.areas.NArea) res.get(FUELAREA);
+        }
+
+        /**
+         * Which burner's fuel zone feeds this container, e.g. {@code fuelKiln}. Left unset it
+         * means the shared {@code fuel} zone, which is what every setup that predates the
+         * per-burner split has. An explicit {@link #setFuelArea} still wins over this.
+         */
+        public void setFuelZone(nurgling.widgets.Specialisation.SpecName zone) {
+            res.put(FUELZONE, zone);
+        }
+
+        public nurgling.widgets.Specialisation.SpecName getFuelZone() {
+            return (nurgling.widgets.Specialisation.SpecName) res.get(FUELZONE);
         }
 
         public int neededFuel() {

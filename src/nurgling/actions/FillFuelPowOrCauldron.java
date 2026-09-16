@@ -9,6 +9,7 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.HandIsFree;
 import nurgling.tools.Finder;
+import nurgling.tools.FuelZones;
 import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
@@ -21,10 +22,19 @@ public class FillFuelPowOrCauldron implements Action
     int marker;
     Coord targetCoord = new Coord(2, 1);
     NContext context;
+    /** Which burner's fuel zone to draw from; falls back to the shared one. */
+    Specialisation.SpecName zone;
+    static final String MATERIAL = "Block";
+
     public FillFuelPowOrCauldron(NContext context, ArrayList<Gob> gobs, int marker) {
+        this(context, gobs, marker, null);
+    }
+
+    public FillFuelPowOrCauldron(NContext context, ArrayList<Gob> gobs, int marker, Specialisation.SpecName zone) {
         this.pows = gobs;
         this.marker = marker;
         this.context = context;
+        this.zone = zone;
     }
     NAlias fuelname = new NAlias("block", "Block");
 
@@ -51,7 +61,9 @@ public class FillFuelPowOrCauldron implements Action
                 if(NUtils.getGameUI().getInventory().getItems(fuelname).isEmpty()) {
                     int target_size = count;
                     while (target_size != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(targetCoord) != 0) {
-                        NArea fuelarea = context.goToArea(Specialisation.SpecName.fuel, "Block");
+                        NArea fuelarea = context.goToFuelArea(zone, MATERIAL);
+                        if (fuelarea == null)
+                            return Results.ERROR("No area set for " + FuelZones.describe(zone, MATERIAL));
                         ArrayList<Gob> piles = Finder.findGobs(fuelarea, new NAlias("stockpile"));
                         if (piles.isEmpty()) {
                             if (gui.getInventory().getItems().isEmpty())

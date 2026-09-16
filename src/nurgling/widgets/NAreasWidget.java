@@ -169,7 +169,10 @@ public class NAreasWidget extends Window
         prev = add(al = new AreaList(UI.scale(new Coord(400,170))), searchField.pos("bl").adds(0, 25));
         Widget lab = add(new Label(get("area.label.specialisation"),NStyle.areastitle), prev.pos("bl").add(UI.scale(0,5)));
 
-        add(csl = new CurrentSpecialisationList(UI.scale(164,190)),lab.pos("bl").add(UI.scale(0,5)));
+        /* Wide enough for the longest names - "Fuel: Finery Forge(Branch)",
+         * "Seeds of crop quality(Watermelon)" - to clear the buttons on the right.
+         * The band to the right of this list is empty down to the ingredient frames. */
+        add(csl = new CurrentSpecialisationList(UI.scale(230,190)),lab.pos("bl").add(UI.scale(0,5)));
         add(new IButton(NStyle.add[0].back,NStyle.add[1].back,NStyle.add[2].back){
             @Override
             public void click()
@@ -947,7 +950,7 @@ public class NAreasWidget extends Window
                 icon = new TexI(specialisationItem.image);
             }
             
-            int btnX = 135;
+            int btnX = 195;
             
             if(SpecialisationData.data.get(item.name)!=null)
             {

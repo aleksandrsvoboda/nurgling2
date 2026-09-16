@@ -17,14 +17,14 @@ public class SteelAction implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NArea.Specialisation ofuelb = new NArea.Specialisation(Specialisation.SpecName.fuel.toString(), "branch");
         NArea.Specialisation rsmelter = new NArea.Specialisation(Specialisation.SpecName.crucibles.toString());
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(rsmelter);
-        req.add(ofuelb);
 
-        if (new Validator(req, new ArrayList<>()).run(gui).IsSuccess()) {
+        if (new Validator(req, new ArrayList<>())
+                .fuel(Specialisation.SpecName.fuelSteelbox, "branch")
+                .run(gui).IsSuccess()) {
 
             NArea smelters = NContext.findSpec(Specialisation.SpecName.crucibles.toString());
             Finder.findGobs(smelters, new NAlias("gfx/terobjs/steelcrucible"));
@@ -38,6 +38,7 @@ public class SteelAction implements Action {
                 cand.getattr(Container.FuelLvl.class).setMaxlvl(15);
                 cand.getattr(Container.FuelLvl.class).setAbsMaxlvl(18);
                 cand.getattr(Container.FuelLvl.class).setFueltype("branch");
+                cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelSteelbox);
 
                 containers.add(cand);
             }

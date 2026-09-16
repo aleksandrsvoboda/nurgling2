@@ -134,7 +134,19 @@ public class Specialisation extends Window
         thicket,
         beeSkep,
         soilDump,
-        paving;
+        paving,
+        /* Per-burner fuel zones. The material stays in the subtype; see FuelZones, which is
+         * the table these are registered and resolved from. Plain "fuel" above remains the
+         * shared fallback for any burner without its own zone. */
+        fuelSmelter,
+        fuelSteelbox,
+        fuelFforge,
+        fuelKiln,
+        fuelOven,
+        fuelCauldron,
+        fuelFireplace,
+        fuelCrucible,
+        fuelTarkiln;
     }
 
     private static ArrayList<SpecialisationItem> specialisation = new ArrayList<>();
@@ -248,6 +260,14 @@ public class Specialisation extends Window
         // Stone paving zone (subtype = stone type to lay, e.g. Soapstone, Diabase)
         specialisation.add(new SpecialisationItem(SpecName.paving.toString(),"Stone Paving",Resource.loadsimg("nurgling/categories/paving")));
 
+        // Per-burner fuel zones. They all share the Fuel icon and are told apart by name, so
+        // adding one is a single row in FuelZones rather than a line here.
+        {
+            BufferedImage fuelIcon = Resource.loadsimg(nurgling.tools.FuelZones.ICON);
+            for(nurgling.tools.FuelZones.Zone zone : nurgling.tools.FuelZones.all)
+                specialisation.add(new SpecialisationItem(zone.spec.toString(), zone.prettyName, fuelIcon));
+        }
+
         specialisation.sort(new Comparator<SpecialisationItem>() {
             @Override
             public int compare(SpecialisationItem o1, SpecialisationItem o2) {
@@ -279,8 +299,10 @@ public class Specialisation extends Window
 
     public static SpecialisationItem findSpecialisation(String name)
     {
+        /* Exact match, not contains: the fuel zones all share the "fuel" prefix, so a
+         * substring test would answer "fuel" with whichever of them sorted first. */
         for(SpecialisationItem specialisationItem : specialisation)
-            if(specialisationItem.name.contains(name))
+            if(specialisationItem.name.equals(name))
                 return specialisationItem;
         return null;
     }

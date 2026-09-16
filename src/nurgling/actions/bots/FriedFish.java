@@ -14,6 +14,7 @@ import nurgling.tasks.WaitPose;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -184,7 +185,7 @@ public class FriedFish implements Action {
                 }
             }
 
-            if(!new FillFuelPowOrCauldron(context, pows, 1).run(gui).IsSuccess())
+            if(!new FillFuelPowOrCauldron(context, pows, 1, Specialisation.SpecName.fuelFireplace).run(gui).IsSuccess())
                 return Results.FAIL();
             ArrayList<String> flighted =new ArrayList<>();
             for (Gob pow : pows) {
