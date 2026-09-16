@@ -37,6 +37,9 @@ public class NLoginScreen extends LoginScreen {
     private long nextRetryTime = 0;
     /* Account of the attempt in flight; it becomes "last used" if the screen closes on success. */
     private String pending = null;
+    /* Fixed top for the form: it is centred once per window size and then stays put, so the form
+     * growing or shrinking (password vs saved account, connecting) never moves what is on screen. */
+    private int formtop = -1;
 
     /**
      * Compares two version strings numerically.
@@ -108,12 +111,16 @@ public class NLoginScreen extends LoginScreen {
         optbtn.move(Coord.of(sz.x - optbtn.sz.x - UI.scale(20), UI.scale(20)));
         discordBtn.move(Coord.of(optbtn.c.x - UI.scale(12) - discordBtn.sz.x, optbtn.c.y + ((optbtn.sz.y - discordBtn.sz.y) / 2)));
         statusbar.move(Coord.of(MARGIN, sz.y - statusbar.sz.y - UI.scale(10)));
+        formtop = -1;
         placeform();
     }
 
     private void placeform() {
-        int top = UI.scale(40), bottom = statusbar.c.y - UI.scale(12);
-        login.move(Coord.of(MARGIN, Math.max(top, top + (((bottom - top) - login.sz.y) / 2))));
+        if (formtop < 0) {
+            int top = UI.scale(40), bottom = statusbar.c.y - UI.scale(12);
+            formtop = Math.max(top, top + (((bottom - top) - login.sz.y) / 2));
+        }
+        login.move(Coord.of(MARGIN, formtop));
     }
 
     /* The form changes height as it switches between password, saved-account and busy states. */

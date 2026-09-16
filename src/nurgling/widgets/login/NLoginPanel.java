@@ -14,9 +14,9 @@ import java.awt.event.KeyEvent;
 import java.util.function.BiConsumer;
 
 /**
- * The login form, laid straight onto the backdrop scrim: saved accounts, then user name and password
- * (or "login saved" for an account with a token), Remember me, and Log in. Server progress and errors
- * show here as well. The protocol is untouched: the owner turns {@code submit} into the same "login"
+ * The login form, laid straight onto the backdrop scrim: saved accounts, then the user name, and a
+ * password field only when the account has none saved, plus Remember me and Log in. Server progress
+ * and errors show here as well. The protocol is untouched: the owner turns {@code submit} into the same "login"
  * message the stock form sends.
  */
 public class NLoginPanel extends Widget {
@@ -266,15 +266,21 @@ public class NLoginPanel extends Widget {
         y = stack(tokline, y, UI.scale(10));
         y = stack(remember, y, TIGHT);
         y = stack(remhint, y, GAP);
+        /* The action row keeps its height while connecting - the spinner sits in the same slot as
+         * the buttons and the hint keeps its space - so the form does not jump on submit. */
+        int barh = loginbtn.sz.y;
         if (prog.visible) {
-            y = stack(prog, y, 0);
+            prog.move(Coord.of(0, y + ((barh - prog.sz.y) / 2)));
         } else {
             loginbtn.move(Coord.of(W - loginbtn.sz.x, y));
             if (forget.visible)
                 forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y));
-            y += loginbtn.sz.y;
-            if (keyhint.visible)
-                y = stack(keyhint, y + UI.scale(6), 0);
+        }
+        y += barh;
+        if (accounts.saved() > 0) {
+            y += UI.scale(6);
+            keyhint.move(Coord.of(0, y));
+            y += keyhint.sz.y;
         }
         resize(Coord.of(W, y));
     }
