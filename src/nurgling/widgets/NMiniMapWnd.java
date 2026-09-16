@@ -81,8 +81,13 @@ public class NMiniMapWnd extends Widget{
     public ACheckBox fog;
     public ACheckBox natura;
     public ACheckBox minesup;
+    public ACheckBox togglesShown;
     ACheckBox map_box;
     Widget toggle_panel;
+    /* Every button of the toggle panel in display order, collapse control
+     * first. Hidden ones stay in the list (and in the widget tree) so that
+     * expanding restores them. */
+    final java.util.List<Widget> buttons = new java.util.ArrayList<>();
     public StatusWdg swdg;
     public static final IBox pbox = Window.wbox;
     public static final KeyBinding kb_eye = KeyBinding.get("ol-eye", KeyMatch.nil);
@@ -90,6 +95,7 @@ public class NMiniMapWnd extends Widget{
     public static final KeyBinding kb_path = KeyBinding.get("ol-mgrid", KeyMatch.nil);
     public static final KeyBinding kb_hidenature = KeyBinding.get("ol-hidenature", KeyMatch.nil);
     public static final KeyBinding kb_minesup = KeyBinding.get("ol-minesup", KeyMatch.nil);
+    public static final KeyBinding kb_toggles = KeyBinding.get("mwnd_toggles", KeyMatch.nil);
     final Coord marg = UI.scale(new Coord(5,5));
     public NMiniMapWnd(String name, NMapView map, MapFile file) {
         super(new Coord(UI.scale(133),UI.scale(133)));
@@ -117,8 +123,16 @@ public class NMiniMapWnd extends Widget{
         }
 
         toggle_panel = new Widget();
-        java.util.List<Widget> buttons = new java.util.ArrayList<>();
-        
+
+        togglesShown = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/collapse", kb_toggles, L10n.get("minimap.toggle_buttons"));
+        togglesShown.changed(a -> {
+            NConfig.set(NConfig.Key.minimapTogglesShown, a);
+            NConfig.needUpdate();
+            applyToggleVisibility();
+        });
+        togglesShown.a = (Boolean) NConfig.get(NConfig.Key.minimapTogglesShown);
+        buttons.add(togglesShown);
+
         ACheckBox first = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/claim", GameUI.kb_claim, L10n.get("minimap.personal_claims"));
         first.changed(a -> switchStatus("cplot", a));
         first.a = (Boolean) NConfig.get(NConfig.Key.claimol);
@@ -222,10 +236,8 @@ public class NMiniMapWnd extends Widget{
         chunkNav.a = (Boolean) NConfig.get(NConfig.Key.chunkNavOverlay);
         buttons.add(chunkNav);
 
-        // Layout buttons with wrapping
-        layoutButtons(buttons);
-
-        toggle_panel.pack();
+        // Layout buttons with wrapping, honouring the collapsed state
+        applyToggleVisibility();
         add(toggle_panel);
         
         map_box = add(new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/map", GameUI.kb_map, L10n.get("minimap.map")), miniMap.sz.x-(first.sz.x), 0).state(() -> NMiniMapWnd.this.ui.gui.wndstate(NMiniMapWnd.this.ui.gui.mapfile)).click(() -> {
@@ -393,61 +405,67 @@ public class NMiniMapWnd extends Widget{
 
     }
 
-    private void layoutButtons(java.util.List<Widget> buttons) {
+    /* Show or hide everything but the collapse control itself. */
+    private void applyToggleVisibility() {
+        for(Widget btn : buttons) {
+            if(btn != togglesShown)
+                btn.show(togglesShown.a);
+        }
+        relayoutPanel();
+    }
+
+    private void relayoutPanel() {
+        layoutButtons();
+        toggle_panel.pack();
+        toggle_panel.move(new Coord(0, miniMap.sz.y - toggle_panel.sz.y));
+    }
+
+    private void layoutButtons() {
         if(buttons.isEmpty()) return;
+
+        // Positions are assigned by re-adding, so detach everything first.
+        for(Widget btn : buttons) {
+            if(btn.parent != null)
+                btn.unlink();
+        }
 
         int btnSpacing = UI.scale(3);
         int maxWidth = miniMap.sz.x;
         int currentX = 0;
         int currentY = 0;
         int rowHeight = 0;
-        
+
         for(Widget btn : buttons) {
-            // Get button size
-            int btnWidth = btn.sz.x;
-            int btnHeight = btn.sz.y;
-            
+            // Hidden buttons take no space but stay in the tree.
+            if(!btn.visible) {
+                toggle_panel.add(btn, Coord.z);
+                continue;
+            }
+
             // Check if button fits in current row
-            if(currentX > 0 && currentX + btnWidth > maxWidth) {
+            if(currentX > 0 && currentX + btn.sz.x > maxWidth) {
                 // Move to next row
                 currentX = 0;
                 currentY += rowHeight + btnSpacing;
                 rowHeight = 0;
             }
-            
-            // Add button to toggle_panel
+
             toggle_panel.add(btn, currentX, currentY);
-            
-            // Update position and row height
-            currentX += btnWidth + btnSpacing;
-            rowHeight = Math.max(rowHeight, btnHeight);
+
+            currentX += btn.sz.x + btnSpacing;
+            rowHeight = Math.max(rowHeight, btn.sz.y);
         }
     }
-    
+
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
         miniMap.resize(sz.x - UI.scale(15), sz.y );
-        
+
         // Re-layout buttons when resizing
-        if(toggle_panel != null) {
-            // Collect all buttons
-            java.util.List<Widget> buttons = new java.util.ArrayList<>();
-            for(Widget w : toggle_panel.children()) {
-                buttons.add(w);
-            }
-            
-            // Remove all buttons from panel
-            for(Widget w : buttons) {
-                w.unlink();
-            }
-            
-            // Re-layout
-            layoutButtons(buttons);
-            toggle_panel.pack();
-        }
-        
+        if(toggle_panel != null)
+            relayoutPanel();
+
         map_box.move(new Coord(miniMap.sz.x-(map_box.sz.x), 0));
-        toggle_panel.move(new Coord(0, miniMap.sz.y-(toggle_panel.sz.y)));
     }
 }
