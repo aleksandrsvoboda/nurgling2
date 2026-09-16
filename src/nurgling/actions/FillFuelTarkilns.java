@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
+import nurgling.areas.NArea;
 import nurgling.tasks.HandIsFree;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -14,17 +15,25 @@ public class FillFuelTarkilns implements Action
 {
 
     ArrayList<Gob> gobs;
-    Pair<Coord2d,Coord2d> fuel;
+    NArea fuel;
+    /** Where the tarkilns are, for the trip back from the fuel zone. */
+    NArea station;
 
-    public FillFuelTarkilns(ArrayList<Gob> gobs, Pair<Coord2d,Coord2d> fuel) {
+    public FillFuelTarkilns(ArrayList<Gob> gobs, NArea fuel, NArea station) {
         this.gobs = gobs;
         this.fuel = fuel;
+        this.station = station;
     }
 
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
+        /* The fuel zone is configured now rather than hand-picked each run, so it can be
+         * anywhere - go there before looking for its piles. */
+        if (!NUtils.navigateToArea(fuel)) {
+            return Results.ERROR("Can't reach the tarkiln fuel area");
+        }
         ArrayList<Gob> piles = Finder.findGobs(fuel, new NAlias("stockpile"));
         if (piles.isEmpty()) {
             return Results.ERROR("NO FUEL IN AREA");
@@ -68,6 +77,8 @@ public class FillFuelTarkilns implements Action
                     if (NUtils.getGameUI().getInventory().getItems(fuelname).isEmpty()) {
                         int target_size = Math.min(maxSize, count);
                         while (target_size != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(targetCoord) != 0) {
+                            if (!NUtils.navigateToArea(fuel))
+                                return Results.ERROR("Can't reach the tarkiln fuel area");
                             piles = Finder.findGobs(fuel, new NAlias("stockpile"));
                             if (piles.isEmpty()) {
                                 if (gui.getInventory().getItems().isEmpty())
@@ -89,11 +100,20 @@ public class FillFuelTarkilns implements Action
                     ArrayList<WItem> fueltitem = NUtils.getGameUI().getInventory().getItems(fuelname);
                     int val = Math.min(needFuel.get(gob), fueltitem.size());
                     if (needFuel.get(gob) != 0) {
-                        new PathFinder(gob).run(gui);
+                        /* Fetching fuel may have taken us out of the tarkiln area entirely,
+                         * and the gob we captured goes stale with it. */
+                        if (station != null && !NUtils.navigateToArea(station))
+                            return Results.ERROR("Can't get back to the tarkilns");
+                        Gob target = Finder.findGob(gob.id);
+                        if (target == null) {
+                            needFuel.put(gob, 0);
+                            break;
+                        }
+                        new PathFinder(target).run(gui);
 
                         for (int i = 0; i < val; i++) {
                             NUtils.takeItemToHand(fueltitem.get(i));
-                            NUtils.activateItem(gob);
+                            NUtils.activateItem(target);
                             NUtils.getUI().core.addTask(new HandIsFree(NUtils.getGameUI().getInventory()));
                         }
                         needFuel.put(gob, needFuel.get(gob) - val);

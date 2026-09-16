@@ -23,16 +23,16 @@ public class FFAction implements Action {
     public Results run(NGameUI gui) throws InterruptedException
     {
 
-        NArea.Specialisation rfuelc = new NArea.Specialisation(Specialisation.SpecName.fuel.toString(), "coal");
         NArea.Specialisation rfforge = new NArea.Specialisation(Specialisation.SpecName.fforge.toString());
         NArea.Specialisation ranvil = new NArea.Specialisation(Specialisation.SpecName.anvil.toString());
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(rfforge);
-        req.add(rfuelc);
         req.add(ranvil);
 
-        if (new Validator(req, new ArrayList<>()).run(gui).IsSuccess())
+        if (new Validator(req, new ArrayList<>())
+                .fuel(Specialisation.SpecName.fuelFforge, "coal")
+                .run(gui).IsSuccess())
         {
 
             NArea fforges = NContext.findSpec(Specialisation.SpecName.fforge.toString());
@@ -47,6 +47,7 @@ public class FFAction implements Action {
                 cand.initattr(Container.FuelLvl.class);
                 cand.getattr(Container.FuelLvl.class).setMaxlvl(2);
                 cand.getattr(Container.FuelLvl.class).setFueltype("coal");
+                cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelFforge);
                 cand.initattr(Container.TargetItems.class);
                 cand.getattr(Container.TargetItems.class).addTarget("Dross");
                 containers.add(cand);

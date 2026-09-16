@@ -36,6 +36,7 @@ public class BakerAction implements Action {
             cand.initattr(Container.FuelLvl.class);
             cand.getattr(Container.FuelLvl.class).setMaxlvl(4);
             cand.getattr(Container.FuelLvl.class).setFueltype("branch");
+            cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelOven);
 
             containers.add(cand);
         }

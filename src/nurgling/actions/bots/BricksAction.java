@@ -27,7 +27,9 @@ public class BricksAction implements Action {
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(rkilns);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
-        if(new Validator(req, opt).run(gui).IsSuccess()) {
+        if(new Validator(req, opt)
+                .fuel(Specialisation.SpecName.fuelKiln, "branch")
+                .run(gui).IsSuccess()) {
 
             NArea npile_area = null;
 
@@ -52,6 +54,7 @@ public class BricksAction implements Action {
                 cand.initattr(Container.FuelLvl.class);
                 cand.getattr(Container.FuelLvl.class).setMaxlvl(2);
                 cand.getattr(Container.FuelLvl.class).setFueltype("branch");
+                cand.getattr(Container.FuelLvl.class).setFuelZone(Specialisation.SpecName.fuelKiln);
                 containers.add(cand);
             }
 

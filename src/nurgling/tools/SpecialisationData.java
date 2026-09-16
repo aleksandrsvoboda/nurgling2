@@ -11,8 +11,11 @@ public class SpecialisationData {
         ArrayList<String> crops = new ArrayList<>(Arrays.asList("Flax", "Turnip", "Carrot", "Hemp", "Millet", "Wheat", "Barley", "Poppy", "Beetroot", "Red Onion", "Yellow Onion", "White Onion", "Garlic", "Pipeweed", "Lettuce", "Pumpkin", "Watermelon", "Green Kale", "Leek", "Radish", "Grape", "Hops", "Peppercorn", "Pea", "Cucumber", "String Grass", "Wild Kale", "Wild Onion", "Wild Tuber", "Wild Gourd", "Wild Flower"));
         data.put("crop",crops);
         data.put("seed",crops);
-        ArrayList<String> fuel = new ArrayList<>(Arrays.asList("Branch", "Coal", "Block", "Log"));
+        ArrayList<String> fuel = new ArrayList<>(Arrays.asList("Branch", "Coal", "Block", "Log", "Board"));
         data.put("fuel",fuel);
+        /* Every per-burner fuel zone picks its material from the same list. */
+        for(FuelZones.Zone zone : FuelZones.all)
+            data.put(zone.spec.toString(), fuel);
         ArrayList<String> htable = new ArrayList<>(Arrays.asList("Pipeweed", "Green Tea Leaves", "Black Tea Leaves", "Silkworm Egg", "Trees"));
         data.put("htable",htable);
         ArrayList<String> barrel = new ArrayList<>(Arrays.asList("Quicksilver", "Honey", "Pickling Brine", "Grape Juice"));
