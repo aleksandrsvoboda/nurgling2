@@ -169,10 +169,11 @@ public class NAreasWidget extends Window
         prev = add(al = new AreaList(UI.scale(new Coord(400,170))), searchField.pos("bl").adds(0, 25));
         Widget lab = add(new Label(get("area.label.specialisation"),NStyle.areastitle), prev.pos("bl").add(UI.scale(0,5)));
 
-        /* Wide enough for the longest names - "Fuel: Finery Forge(Branch)",
-         * "Seeds of crop quality(Watermelon)" - to clear the buttons on the right.
-         * The band to the right of this list is empty down to the ingredient frames. */
-        add(csl = new CurrentSpecialisationList(UI.scale(230,190)),lab.pos("bl").add(UI.scale(0,5)));
+        /* Same width as the area list above it, which AreaList.resize pins to 164 px whatever
+         * size it is built with. The Take/Put frames start right after that column and run
+         * down past this list, so anything wider slides underneath them. Long names are
+         * shortened instead - see SpecialisationItem.setLabel. */
+        add(csl = new CurrentSpecialisationList(UI.scale(SPEC_COLUMN_W,190)),lab.pos("bl").add(UI.scale(0,5)));
         add(new IButton(NStyle.add[0].back,NStyle.add[1].back,NStyle.add[2].back){
             @Override
             public void click()
@@ -841,6 +842,9 @@ public class NAreasWidget extends Window
         }
     }
 
+    /** Width of the left column holding the area list and the specialisation list. */
+    static final int SPEC_COLUMN_W = 164;
+
     public class CurrentSpecialisationList extends SListBox<SpecialisationItem, Widget> {
         CurrentSpecialisationList(Coord sz) {
             super(sz, UI.scale(24));
@@ -935,22 +939,50 @@ public class NAreasWidget extends Window
             NConfig.setAreaRankPreset(area.id, specName, presetName);
         }
         
+        private static final int LABEL_X = 30;
+        private static final int BTN_X = 135;
+        private int labelWidth;
+        /** The untruncated name, shown as a tooltip when the label had to be shortened. */
+        private String fullLabel;
+
+        /**
+         * Shows a name that fits the row, cutting it with an ellipsis if needed. Names such as
+         * "Fuel: Finery Forge(Coal)" or "Seeds of crop quality(Watermelon)" are wider than the
+         * space left of the settings button, and would otherwise run underneath it.
+         */
+        void setLabel(String full)
+        {
+            fullLabel = full;
+            Text.Line fitted = Text.std.ellipsize(full, labelWidth);
+            text.settext(fitted.text);
+            fitted.dispose();
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev)
+        {
+            /* Only over the name itself, so the buttons keep their own tooltips. */
+            if(fullLabel != null && !fullLabel.equals(text.texts) && c.x < UI.scale(LABEL_X) + labelWidth)
+                return fullLabel;
+            return super.tooltip(c, prev);
+        }
+
         public SpecialisationItem(NArea.Specialisation item)
         {
             this.item = item;
             Specialisation.SpecialisationItem specialisationItem = findSpecialisation(item.name);
-            if(item.subtype == null) {
-                this.text = add(new Label(specialisationItem == null ? "???" + item.name + "???":specialisationItem.prettyName), new Coord(UI.scale(30,4)));
-            }
-            else
-            {
-                this.text = add(new Label((specialisationItem == null ? "???" + item.name + "???":specialisationItem.prettyName) + "(" + item.subtype + ")"), new Coord(UI.scale(30,4)));
-            }
+            String prettyName = specialisationItem == null ? "???" + item.name + "???" : specialisationItem.prettyName;
+            /* The name has to stop short of the first button, or run to the column edge when
+             * the row has none. */
+            boolean hasButton = SpecialisationData.data.get(item.name) != null || isAnimalSpec(item.name);
+            labelWidth = hasButton ? UI.scale(BTN_X - LABEL_X - 3) : UI.scale(SPEC_COLUMN_W - LABEL_X - 12);
+            this.text = add(new Label(""), new Coord(UI.scale(LABEL_X,4)));
+            setLabel(item.subtype == null ? prettyName : prettyName + "(" + item.subtype + ")");
             if(specialisationItem != null) {
                 icon = new TexI(specialisationItem.image);
             }
             
-            int btnX = 195;
+            int btnX = BTN_X;
             
             if(SpecialisationData.data.get(item.name)!=null)
             {
@@ -979,7 +1011,7 @@ public class NAreasWidget extends Window
                                 {
                                     Specialisation.SpecialisationItem specItem = findSpecialisation(item.name);
                                     String prettyName = specItem != null ? specItem.prettyName : item.name;
-                                    SpecialisationItem.this.text.settext(prettyName + "(" + option.name + ")");
+                                    SpecialisationItem.this.setLabel(prettyName + "(" + option.name + ")");
                                     item.subtype = option.name;
                                     if (al.sel != null && al.sel.area != null) {
                                         al.sel.area.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
