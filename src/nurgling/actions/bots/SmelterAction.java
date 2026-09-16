@@ -37,13 +37,7 @@ public class SmelterAction implements Action {
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
         opt.add(omercury);
 
-        /* Ore smelters burn coal and stack furnaces burn branches, so both come out of the
-         * Smelter fuel zone - or the shared Fuel zone when that is not set. */
-        Validator validator = new Validator(req, opt)
-                .fuel(Specialisation.SpecName.fuelSmelter, "coal")
-                .fuel(Specialisation.SpecName.fuelSmelter, "branch");
-
-        if(validator.run(gui).IsSuccess()) {
+        if(new Validator(req, opt).run(gui).IsSuccess()) {
             // The player's client-side stacking toggle silently breaks item stacking on deposit
             // if left off; force it on for the run and always restore it, even on interrupt.
             boolean oldStackingValue = ((NInventory) NUtils.getGameUI().maininv).bundle.a;
@@ -113,6 +107,18 @@ public class SmelterAction implements Action {
                 }
                 if(containers.isEmpty())
                     return Results.ERROR("NO SMELTERS");
+
+                /* Fuel is only required for the kinds of furnace actually standing in the area:
+                 * Ore/Smith's Smelters burn coal, Stack Furnaces burn branches. Demanding both up
+                 * front stopped a smelter-only setup for want of a branch zone it never uses. */
+                Validator fuel = new Validator(new ArrayList<>(), new ArrayList<>());
+                if (containers.size() > furnaces.size())
+                    fuel.fuel(Specialisation.SpecName.fuelSmelter, "coal");
+                if (!furnaces.isEmpty())
+                    fuel.fuel(Specialisation.SpecName.fuelSmelter, "branch");
+                Results fuelCheck = fuel.run(gui);
+                if (!fuelCheck.IsSuccess())
+                    return fuelCheck;
 
                 Results res = null;
                 while (res == null || res.IsSuccess()) {
