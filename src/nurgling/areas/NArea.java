@@ -14,6 +14,7 @@ import java.util.List;
 public class NArea
 {
     public static final String PILE_FILL_DIRECTION_JSON = "pile_fill_direction";
+    public static final String MIN_HARVEST_STAGE_JSON = "min_harvest_stage";
 
     public long gid = Long.MIN_VALUE;
     public String path = "";
@@ -33,12 +34,30 @@ public class NArea
         return hide;
     }
 
+    /** This area's own entry for a specialisation, matched the way NContext.findSpec matches it. */
+    public Specialisation getSpecialisation(Specialisation query) {
+        for (Specialisation s : spec) {
+            if (!s.name.equals(query.name))
+                continue;
+            if (query.subtype == null || (s.subtype != null && s.subtype.equalsIgnoreCase(query.subtype)))
+                return s;
+        }
+        return null;
+    }
+
 
 
     public static class Specialisation
     {
         public String name;
         public String subtype = null;
+
+        /**
+         * Crop fields only: the farmer leaves the field alone until every plant has reached a
+         * harvest stage at least this high (null = no per-field requirement). It rides inside
+         * the spec JSON, so it syncs with the area without a schema change.
+         */
+        public Integer minHarvestStage = null;
 
         public Specialisation(String name, String subtype) {
             this.name = name;
@@ -302,14 +321,14 @@ public class NArea
             jspec = (JSONArray) obj.get("spec");
             for(int i = 0 ; i < jspec.length(); i++) {
 
-                String name = (String) ((JSONObject) jspec.get(i)).get("name");
-                if (((JSONObject) jspec.get(i)).has("subtype")) {
-                    spec.add(new Specialisation(name, (String) ((JSONObject) jspec.get(i)).get("subtype")));
-                }
-                else
-                {
-                    spec.add(new Specialisation(name));
-                }
+                JSONObject js = (JSONObject) jspec.get(i);
+                String name = (String) js.get("name");
+                Specialisation s = js.has("subtype")
+                        ? new Specialisation(name, (String) js.get("subtype"))
+                        : new Specialisation(name);
+                if (js.has(MIN_HARVEST_STAGE_JSON))
+                    s.minHarvestStage = js.getInt(MIN_HARVEST_STAGE_JSON);
+                spec.add(s);
             }
         }
         if(obj.has("version"))
@@ -520,6 +539,8 @@ public class NArea
             obj.put("name", s.name);
             if(s.subtype!=null)
                 obj.put("subtype", s.subtype);
+            if(s.minHarvestStage!=null)
+                obj.put(MIN_HARVEST_STAGE_JSON, s.minHarvestStage);
             jspec.put(obj);
         }
         res.put("spec",jspec);
