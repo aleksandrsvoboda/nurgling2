@@ -40,9 +40,9 @@ public class Charlist extends Widget {
     public static final int margin = UI.scale(6);
     public static final int btnw = UI.scale(100);
     public final int height;
-    public final IButton sau, sad;
+    public IButton sau, sad;
     public final List<Char> chars = new ArrayList<Char>();
-    public final Boxlist list;
+    public Boxlist list;
     public Avaview avalink;
     private boolean dirty;
     private boolean showdisc;
@@ -63,23 +63,21 @@ public class Charlist extends Widget {
 	super(Coord.z);
 	this.height = height;
 	setcanfocus(true);
+	buildLayout();
+    }
+
+    protected void buildLayout() {
 	sau = adda(new IButton("nurgling/hud/buttons/csau/", "u", "d", "o"), bsz.x / 2, 0, 0.5, 0)
 	    .action(() -> scroll(-1));
 	list = add(new Boxlist(height), 0, sau.c.y + sau.sz.y + margin);
 	sad = adda(new IButton("nurgling/hud/buttons/csad/", "u", "d", "o"), bsz.x / 2, list.c.y + list.sz.y + margin, 0.5, 0)
 	    .action(() -> scroll(1));
 	sau.hide(); sad.hide();
-        Button logout  = add(new Button(UI.scale(90), L10n.get("charlist.logout")) {
-            @Override
-            public void click() {
-                RemoteUI rui = (RemoteUI) ui.rcvr;
-                synchronized (rui.sess) {
-                    rui.sess.close();
-                }
-            }
-        }, list.sz.x/2-UI.scale(45), sad.c.y + sad.sz.y + margin );
+	resize(new Coord(bsz.x, sad.c.y + sad.sz.y));
+    }
 
-        resize(new Coord(bsz.x, sad.c.y + sad.sz.y + logout.c.y + logout.sz.y));
+    protected Charbox mkbox(Char chr, Coord sz) {
+	return(new Charbox(chr));
     }
 
     public static class Char {
@@ -102,12 +100,20 @@ public class Charlist extends Widget {
 
     public class Charbox extends Widget {
 	public final Char chr;
-	public final Avaview ava;
-	public final ILabel name, disc;
+	public Avaview ava;
+	public ILabel name, disc;
 
 	public Charbox(Char chr) {
-	    super(bsz);
+	    this(chr, bsz);
+	}
+
+	protected Charbox(Char chr, Coord sz) {
+	    super(sz);
 	    this.chr = chr;
+	    buildLayout();
+	}
+
+	protected void buildLayout() {
 	    Widget avaf = adda(Frame.with(this.ava = new Avaview(Avaview.dasz, -1, "avacam"), false), Coord.of(sz.y / 2), 0.5, 0.5);
 	    name = add(new ILabel(chr.name, nf), avaf.pos("ur").adds(5, 0));
 	    disc = add(new ILabel("", df), name.pos("bl"));
@@ -123,11 +129,15 @@ public class Charlist extends Widget {
 	}
 
 	public void draw(GOut g) {
+	    drawbox(g);
+	    super.draw(g);
+	}
+
+	protected void drawbox(GOut g) {
 	    if(list.sel == chr)
 		g.chcolor(255, 255, 128, 255);
 	    ISBox.box.draw(g, Coord.z, sz);
 	    g.chcolor();
-	    super.draw(g);
 	}
 
 	public boolean mousedown(MouseDownEvent ev) {
@@ -138,11 +148,15 @@ public class Charlist extends Widget {
 
     public class Boxlist extends SListBox<Char, Charbox> {
 	public Boxlist(int h) {
-	    super(Coord.of(bsz.x, ((bsz.y + margin) * h) - margin), bsz.y, margin);
+	    this(Coord.of(bsz.x, ((bsz.y + margin) * h) - margin), bsz.y, margin);
+	}
+
+	public Boxlist(Coord sz, int itemh, int marg) {
+	    super(sz, itemh, marg);
 	}
 
 	protected List<Char> items() {return(getDisplayChars());}
-	protected Charbox makeitem(Char chr, int idx, Coord sz) {return(new Charbox(chr));}
+	protected Charbox makeitem(Char chr, int idx, Coord sz) {return(mkbox(chr, sz));}
 
 	protected void drawslot(GOut g, Char item, int idx, Area area) {}
 	public boolean mousewheel(MouseWheelEvent ev) {return(false);}
@@ -231,8 +245,10 @@ public class Charlist extends Widget {
 	    synchronized(chars) {
 		chars.add(c);
 		if(chars.size() > height) {
-		    sau.show();
-		    sad.show();
+		    if(sau != null)
+			sau.show();
+		    if(sad != null)
+			sad.show();
 		}
 		if(list.sel == null)
 		    list.change(c);
@@ -287,16 +303,17 @@ public class Charlist extends Widget {
     }
 
     public boolean keydown(KeyDownEvent ev) {
+	List<Char> shown = getDisplayChars();
 	if(ev.code == ev.awt.VK_UP) {
-	    if(!chars.isEmpty())
-		list.change(chars.get(Math.max(chars.indexOf(list.sel) - 1, 0)));
+	    if(!shown.isEmpty())
+		list.change(shown.get(Math.max(shown.indexOf(list.sel) - 1, 0)));
 	    return(true);
 	} else if(ev.code == ev.awt.VK_DOWN) {
-	    if(!chars.isEmpty())
-		list.change(chars.get(Math.min(chars.indexOf(list.sel) + 1, chars.size() - 1)));
+	    if(!shown.isEmpty())
+		list.change(shown.get(Math.min(shown.indexOf(list.sel) + 1, shown.size() - 1)));
 	    return(true);
 	} else if(ev.code == ev.awt.VK_ENTER) {
-	    if(list.sel != null)
+	    if((list.sel != null) && shown.contains(list.sel))
 		wdgmsg("play", list.sel.name);
 	    return(true);
 	}
