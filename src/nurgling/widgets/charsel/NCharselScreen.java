@@ -27,6 +27,8 @@ public class NCharselScreen extends Widget {
     private static final int SRV_RIGHT = 300;
     /** Rows cropped off the top of the avatar view; see addchild(). */
     private static final int AVACROP = UI.scale(12);
+    /** Extra height for the avatar view so the whole character fits; see addchild(). */
+    private static final int AVAGROW = UI.scale(48);
 
     private final NBackdrop backdrop;
     private final NamePlate plate;
@@ -88,6 +90,14 @@ public class NCharselScreen extends Widget {
              * of the 3D render, so crop those rows instead: shift the view up and shorten the frame
              * to match, which clips them. Only empty sky above the head is lost. */
             Widget view = pf.ch;
+            if (view instanceof Avaview) {
+                /* The server sizes the view so the near foot falls outside the frustum. The
+                 * projection's horizontal field is fixed, so a taller view shows more of the scene
+                 * at the same scale rather than a smaller character - but PView.resize does not
+                 * rebuild the projection, so the new aspect has to be applied by hand. */
+                view.resize(Coord.of(view.sz.x, view.sz.y + AVAGROW));
+                ((Avaview) view).makeproj();
+            }
             view.move(Coord.of(0, -AVACROP));
             pf.resize(Coord.of(view.sz.x, view.sz.y - AVACROP));
             avatar = pf;

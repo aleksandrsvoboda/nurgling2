@@ -74,7 +74,8 @@ public class Avaview extends PView {
 	makeproj();
     }
 
-    protected void makeproj() {
+    /* public so the character-selection screen can rebuild it after resizing the view */
+    public void makeproj() {
 	float field = 0.5f;
 	float aspect = ((float)sz.y) / ((float)sz.x);
 	basic(Projection.class, Projection.frustum(-field, field, -aspect * field, aspect * field, 1, 5000));
