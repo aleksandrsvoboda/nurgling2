@@ -36,6 +36,36 @@ public class CropRegistry {
 
     public static final Map<NAlias, List<CropStage>> HARVESTABLE = new HashMap<>();
 
+    /**
+     * Crop zone subtype -> plant, for the crops grown on open fields by HarvestCrop (the
+     * regular and quality farmers). Trellis crops are left out: their bots don't read a
+     * per-field harvest stage.
+     */
+    private static final Map<String, NAlias> FIELD_CROPS = new HashMap<>();
+
+    /** The plant grown on a crop field of this subtype, or null if it isn't a field crop. */
+    public static NAlias getFieldCrop(String subtype) {
+        return subtype == null ? null : FIELD_CROPS.get(subtype);
+    }
+
+    /** The distinct stages a crop is harvested at, lowest first. */
+    public static List<Integer> getHarvestStages(NAlias crop) {
+        TreeSet<Integer> stages = new TreeSet<>();
+        for (CropStage stage : getStages(crop))
+            stages.add(stage.stage);
+        return new ArrayList<>(stages);
+    }
+
+    /** The products a harvest at this stage yields, e.g. "Radish Seeds, Radish". */
+    public static String describeStage(NAlias crop, int stage) {
+        LinkedHashSet<String> products = new LinkedHashSet<>();
+        for (CropStage cs : getStages(crop)) {
+            if (cs.stage == stage)
+                products.addAll(cs.result.keys);
+        }
+        return String.join(", ", products);
+    }
+
     /** All harvest stages registered for a crop (empty if unknown). */
     public static List<CropStage> getStages(NAlias crop) {
         return HARVESTABLE.getOrDefault(crop, Collections.emptyList());
@@ -56,6 +86,32 @@ public class CropRegistry {
     }
 
     static {
+        FIELD_CROPS.put("Flax", new NAlias("plants/flax"));
+        FIELD_CROPS.put("Turnip", new NAlias("plants/turnip"));
+        FIELD_CROPS.put("Carrot", new NAlias("plants/carrot"));
+        FIELD_CROPS.put("Hemp", new NAlias("plants/hemp"));
+        FIELD_CROPS.put("Millet", new NAlias("plants/millet"));
+        FIELD_CROPS.put("Wheat", new NAlias("plants/wheat"));
+        FIELD_CROPS.put("Barley", new NAlias("plants/barley"));
+        FIELD_CROPS.put("Poppy", new NAlias("plants/poppy"));
+        FIELD_CROPS.put("Beetroot", new NAlias("plants/beet"));
+        FIELD_CROPS.put("Red Onion", new NAlias("plants/redonion"));
+        FIELD_CROPS.put("Yellow Onion", new NAlias("plants/yellowonion"));
+        FIELD_CROPS.put("White Onion", new NAlias("plants/whiteonion"));
+        FIELD_CROPS.put("Garlic", new NAlias("plants/garlic"));
+        FIELD_CROPS.put("Pipeweed", new NAlias("plants/pipeweed"));
+        FIELD_CROPS.put("Lettuce", new NAlias("plants/lettuce"));
+        FIELD_CROPS.put("Pumpkin", new NAlias("plants/pumpkin"));
+        FIELD_CROPS.put("Watermelon", new NAlias("plants/watermelon"));
+        FIELD_CROPS.put("Green Kale", new NAlias("plants/greenkale"));
+        FIELD_CROPS.put("Leek", new NAlias("plants/leek"));
+        FIELD_CROPS.put("Radish", new NAlias("plants/radish"));
+        FIELD_CROPS.put("String Grass", new NAlias("plants/stringgrass"));
+        FIELD_CROPS.put("Wild Kale", new NAlias("plants/wildbrassica"));
+        FIELD_CROPS.put("Wild Onion", new NAlias("plants/wildonion"));
+        FIELD_CROPS.put("Wild Tuber", new NAlias("plants/tuber"));
+        FIELD_CROPS.put("Wild Flower", new NAlias("plants/wildflower"));
+
         // Turnip
         HARVESTABLE.put(
                 new NAlias("plants/turnip"),

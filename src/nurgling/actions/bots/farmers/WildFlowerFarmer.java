@@ -44,12 +44,10 @@ public class WildFlowerFarmer implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
-            if ((Boolean) NConfig.get(NConfig.Key.validateAllCropsBeforeHarvest)) {
-                if (!new ValidateAllCropsReady(NContext.findSpec(field), new NAlias("plants/wildflower")).run(gui).isSuccess) {
-                    NUtils.stackSwitch(oldStackingValue);
-                    gui.msg("Not all wild flower crops are ready for harvest, skipping harvest.");
-                    return Results.SUCCESS();
-                }
+            if (!new ValidateAllCropsReady(NContext.findSpec(field), field, new NAlias("plants/wildflower"),
+                    (Boolean) NConfig.get(NConfig.Key.validateAllCropsBeforeHarvest)).run(gui).isSuccess) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.SUCCESS();
             }
 
             new HarvestCrop(

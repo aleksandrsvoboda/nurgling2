@@ -38,6 +38,11 @@ public class MilletFarmerQ implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
+            if (!new ValidateAllCropsReady(NContext.findSpec(cropQ), cropQ, new NAlias("plants/millet"), false).run(gui).isSuccess) {
+                NUtils.stackSwitch(oldStackingValue);
+                return Results.SUCCESS();
+            }
+
             new HarvestCrop(
                     NContext.findSpec(cropQ),
                     NContext.findSpec(seedQ),
