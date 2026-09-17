@@ -16,7 +16,8 @@ import java.util.List;
  */
 public class NAccountList extends SListBox<Account, Widget> {
     public static final int ROWH = UI.scale(30);
-    private static final int MAXROWS = 8;
+    /** Rows shown before the screen has said how much height there is. */
+    public static final int DEFROWS = 8;
     private static final int DELW = UI.scale(22);
     private static final double DBLCLICK = 0.4;
     /** How far a press has to move before it counts as a drag rather than a click. */
@@ -45,6 +46,7 @@ public class NAccountList extends SListBox<Account, Widget> {
     private double lastclickt = 0;
     /* Drag state: the row the pointer went down on, and whether it has moved far enough to count. */
     private Account dragging = null;
+    private int maxrows = DEFROWS;
     private boolean dragged = false;
     private int dragy = 0;
     private UI.Grab dgrab = null;
@@ -62,7 +64,19 @@ public class NAccountList extends SListBox<Account, Widget> {
         confirm = null;
         if (!items.contains(sel))
             sel = null;
-        resize(Coord.of(sz.x, Math.min(items.size(), MAXROWS) * ROWH));
+        fit();
+    }
+
+    /** Most rows to show before scrolling; the list is never taller than its accounts. */
+    public void maxrows(int n) {
+        if (n == maxrows)
+            return;
+        maxrows = n;
+        fit();
+    }
+
+    private void fit() {
+        resize(Coord.of(sz.x, Math.min(items.size(), maxrows) * ROWH));
     }
 
     /** Number of real saved accounts (without the "another account" row). */

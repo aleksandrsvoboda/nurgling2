@@ -23,11 +23,12 @@ import java.util.function.BiConsumer;
 public class NLoginPanel extends Widget {
     public static final int W = UI.scale(300);
     private static final int GAP = UI.scale(12), TIGHT = UI.scale(3);
+    /** The list keeps at least this many rows even when the window is very short. */
+    private static final int MINROWS = 3;
 
     private final String confname;
     private final BiConsumer<AuthClient.Credentials, Boolean> submit;
     private Banner err, info;
-    private Heading heading;
     private Section section;
     private NAccountList accounts;
     private ILabel userlbl, passlbl, caps, remhint, keyhint;
@@ -41,6 +42,8 @@ public class NLoginPanel extends Widget {
     private Account cur = null;
     private boolean busy = false, capson = false, capsok = true;
     private double capscheck = 0;
+    /** Height the screen can give the form (-1: not told yet), and our height in the tallest mode. */
+    private int budget = -1, stableh = 0;
 
     public NLoginPanel(String confname, BiConsumer<AuthClient.Credentials, Boolean> submit) {
         super(Coord.of(W, 0));
@@ -49,7 +52,6 @@ public class NLoginPanel extends Widget {
         setfocustab(true);
         err = add(new Banner(true));
         info = add(new Banner(false));
-        heading = add(new Heading(L10n.get("login.heading"), L10n.get("login.subheading")));
         section = add(new Section());
         accounts = add(new NAccountList(W, new NAccountList.Listener() {
             public void select(Account a) {
@@ -119,6 +121,25 @@ public class NLoginPanel extends Widget {
         }
         user.settext((first != null) ? first.name : Utils.getpref("loginname@" + confname, ""));
         userchanged();
+    }
+
+    /**
+     * The height the screen can give the form. The account list takes whatever is left after
+     * everything else, so accounts are not stuck behind a scrollbar while the screen has room.
+     */
+    public void budget(int h) {
+        if (h == budget)
+            return;
+        budget = h;
+        relayout();
+    }
+
+    /**
+     * Height in the tallest arrangement - password entry with the Caps Lock line showing. The screen
+     * centres on this, so switching to a saved account or back never moves anything on screen.
+     */
+    public int stableh() {
+        return (stableh);
     }
 
     /* ---------------------------------------------------------------- state from the server */
@@ -257,13 +278,31 @@ public class NLoginPanel extends Widget {
     }
 
     private void relayout() {
+        boolean haslist = accounts.visible;
+        /* Sized against the tallest arrangement, not the current one: if the list grew and shrank as
+         * the password fields came and went, rows would move under the pointer between the clicks
+         * of a double-click. */
+        int below = (userlbl.sz.y + TIGHT) + (user.sz.y + UI.scale(8))
+            + (passlbl.sz.y + TIGHT) + (pass.sz.y + UI.scale(6)) + (caps.sz.y + UI.scale(4))
+            + (remember.sz.y + TIGHT) + (remhint.sz.y + GAP) + (obf.sz.y + GAP)
+            + loginbtn.sz.y + (haslist ? (UI.scale(6) + keyhint.sz.y) : 0);
+        int above = (err.visible ? (err.sz.y + GAP) : 0) + (info.visible ? (info.sz.y + GAP) : 0);
+        int listgap = GAP + UI.scale(4);
+        if (haslist) {
+            above += section.sz.y + UI.scale(4);
+            int rows = NAccountList.DEFROWS;
+            if (budget > 0)
+                rows = Math.max(MINROWS, (budget - above - listgap - below) / NAccountList.ROWH);
+            accounts.maxrows(rows);
+        }
+        stableh = above + (haslist ? (accounts.sz.y + listgap) : 0) + below;
+
         int y = 0;
         y = stack(err, y, GAP);
         y = stack(info, y, GAP);
-        y = stack(heading, y, GAP + UI.scale(6));
         y = stack(section, y, UI.scale(4));
-        if (accounts.visible)
-            y = stack(accounts, y, GAP + UI.scale(4));
+        if (haslist)
+            y = stack(accounts, y, listgap);
         y = stack(userlbl, y, TIGHT);
         y = stack(user, y, UI.scale(8));
         if (pass.visible) {
@@ -287,7 +326,7 @@ public class NLoginPanel extends Widget {
                 forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y));
         }
         y += barh;
-        if (accounts.saved() > 0) {
+        if (haslist) {
             y += UI.scale(6);
             keyhint.move(Coord.of(0, y));
             y += keyhint.sz.y;
@@ -383,28 +422,6 @@ public class NLoginPanel extends Widget {
             g.chcolor();
             if (t != null)
                 g.image(t.tex(), Coord.of(UI.scale(10), UI.scale(5)));
-        }
-    }
-
-    /** Big title, a quieter line under it, and the short accent underline. */
-    static class Heading extends Widget {
-        private final Text title, sub;
-
-        Heading(String title, String sub) {
-            super(Coord.z);
-            this.title = NLoginTheme.heading.render(title);
-            this.sub = ((sub == null) || sub.isEmpty()) ? null : NLoginTheme.sub.render(sub);
-            int h = this.title.sz().y + ((this.sub != null) ? this.sub.sz().y - UI.scale(4) : 0) + UI.scale(8);
-            resize(Coord.of(W, h));
-        }
-
-        public void draw(GOut g) {
-            g.image(title.tex(), Coord.z);
-            if (sub != null)
-                g.image(sub.tex(), Coord.of(0, title.sz().y - UI.scale(4)));
-            g.chcolor(NLoginTheme.accent);
-            g.frect(Coord.of(0, sz.y - UI.scale(2)), Coord.of(UI.scale(40), UI.scale(2)));
-            g.chcolor();
         }
     }
 
