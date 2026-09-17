@@ -5,7 +5,7 @@ import haven.Charlist;
 import nurgling.conf.NCharTags;
 import nurgling.i18n.L10n;
 import nurgling.widgets.NAvaview;
-import nurgling.widgets.NCharTagsWnd;
+import nurgling.widgets.NTagsWnd;
 import nurgling.widgets.charsel.NWorldTabs;
 import nurgling.widgets.cookbook.PillButton;
 import nurgling.widgets.login.NLoginTheme;
@@ -35,8 +35,6 @@ public class NCharlist extends Charlist {
     private static final int GAP = UI.scale(10);
     private static final double DBLCLICK = 0.4;
     private static final List<String> SORTS = Arrays.asList("played", "name", "world");
-    private static final Map<String, Text> chiptexts = new HashMap<>();
-    private static final Map<String, Text> tiptexts = new HashMap<>();
 
     /* Built in buildLayout(), which runs inside the Charlist constructor: none of these may have an
      * initialiser, or it would wipe the widget after super() returns. */
@@ -216,23 +214,6 @@ public class NCharlist extends Charlist {
         return ((w ? (c.disc + "  ·  ") : "") + played);
     }
 
-    public static Text chiptext(String tag) {
-        Text t = chiptexts.get(tag);
-        if (t == null)
-            chiptexts.put(tag, t = NLoginTheme.chip.render(tag));
-        return (t);
-    }
-
-    private static Text tiptext(String s) {
-        Text t = tiptexts.get(s);
-        if (t == null) {
-            if (tiptexts.size() > 64)
-                tiptexts.clear();
-            tiptexts.put(s, t = NLoginTheme.tip.renderwrap(s, UI.scale(260)));
-        }
-        return (t);
-    }
-
     private static String imgtip(Img img) {
         Object t = img.tooltip;
         if (t instanceof String)
@@ -378,7 +359,7 @@ public class NCharlist extends Charlist {
 
     @Override
     public void destroy() {
-        NCharTagsWnd.close();
+        NTagsWnd.close();
         super.destroy();
     }
 
@@ -479,7 +460,7 @@ public class NCharlist extends Charlist {
 
         public Object tooltip(Coord c, Widget prev) {
             int i = badgeat(c);
-            return ((i < 0) ? null : tiptext(btips.get(i)));
+            return ((i < 0) ? null : NLoginTheme.tiptext(btips.get(i)));
         }
 
         public boolean mousedown(MouseDownEvent ev) {
@@ -558,7 +539,7 @@ public class NCharlist extends Charlist {
             List<String> tags = NCharTags.tags(acc, chr.name);
             int shown = 0;
             for (String t : tags) {
-                Text tt = chiptext(t);
+                Text tt = NLoginTheme.chiptext(t);
                 int w = tt.sz().x + UI.scale(8);
                 int reserve = ((tags.size() - shown) > 1) ? UI.scale(24) : 0;
                 if (cx + w > maxx - reserve)
@@ -568,7 +549,7 @@ public class NCharlist extends Charlist {
                 shown++;
             }
             if (shown < tags.size())
-                NLoginTheme.drawChip(g, Coord.of(cx, cy), chiptext("+" + (tags.size() - shown)), NLoginTheme.muted);
+                NLoginTheme.drawChip(g, Coord.of(cx, cy), NLoginTheme.chiptext("+" + (tags.size() - shown)), NLoginTheme.muted);
 
             editx = -1;
             if (hover) {
@@ -584,13 +565,13 @@ public class NCharlist extends Charlist {
 
         public boolean mousedown(MouseDownEvent ev) {
             if (ev.b == 3) {
-                NCharTagsWnd.open(ui, NCharTags.account(ui), chr.name);
+                NTagsWnd.open(ui, NCharTags.account(ui), chr.name);
                 return (true);
             }
             if (ev.b != 1)
                 return (super.mousedown(ev));
             if ((editx >= 0) && (ev.c.x >= editx)) {
-                NCharTagsWnd.open(ui, NCharTags.account(ui), chr.name);
+                NTagsWnd.open(ui, NCharTags.account(ui), chr.name);
                 return (true);
             }
             double now = Utils.rtime();
@@ -607,7 +588,7 @@ public class NCharlist extends Charlist {
 
         public Object tooltip(Coord c, Widget prev) {
             if ((editx >= 0) && (c.x >= editx))
-                return (tiptext(L10n.get("charlist.tags_tip")));
+                return (NLoginTheme.tiptext(L10n.get("charlist.tags_tip")));
             String acc = NCharTags.account(ui);
             List<String> tags = NCharTags.tags(acc, chr.name);
             String note = NCharTags.note(acc, chr.name);
@@ -619,7 +600,7 @@ public class NCharlist extends Charlist {
                     sb.append("\n\n");
                 sb.append(note);
             }
-            return ((sb.length() == 0) ? null : tiptext(sb.toString()));
+            return ((sb.length() == 0) ? null : NLoginTheme.tiptext(sb.toString()));
         }
     }
 }

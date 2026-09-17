@@ -1,8 +1,10 @@
 package nurgling.widgets.login;
 
 import haven.*;
+import nurgling.conf.NCharTags;
 import nurgling.conf.NSavedAccounts.Account;
 import nurgling.i18n.L10n;
+import nurgling.widgets.NTagsWnd;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
@@ -13,12 +15,16 @@ import java.util.List;
  * Saved accounts as rows on the scrim. A click selects the account (the form follows it), a
  * double-click or Enter logs in, dragging a row reorders the list, and removing one takes a second
  * click on the same row's "×" (or a second Delete), so a stray click never throws a login away.
+ * Each account also carries tags and a note, drawn on its row and edited by right-clicking it or
+ * clicking the note glyph the row shows while it is under the pointer.
  */
 public class NAccountList extends SListBox<Account, Widget> {
     public static final int ROWH = UI.scale(30);
     /** Rows shown before the screen has said how much height there is. */
     public static final int DEFROWS = 8;
     private static final int DELW = UI.scale(22);
+    /** Slot for the note glyph that opens the tag editor; always reserved, so nothing shifts on hover. */
+    private static final int EDITW = UI.scale(16);
     private static final double DBLCLICK = 0.4;
     /** How far a press has to move before it counts as a drag rather than a click. */
     private static final int DRAGTHRESH = UI.scale(4);
@@ -117,6 +123,9 @@ public class NAccountList extends SListBox<Account, Widget> {
     private void askremove(Account a) {
         if (confirm == a) {
             confirm = null;
+            /* Flushes and closes the editor first: forgetting the account drops its tags and note,
+             * and an editor still open on it would write them straight back. */
+            NTagsWnd.close();
             l.remove(a);
         } else {
             confirm = a;
@@ -216,6 +225,13 @@ public class NAccountList extends SListBox<Account, Widget> {
         super.mousemove(ev);
     }
 
+    /* dispose() runs however the list goes away, including as a child of a torn-down screen where
+     * destroy() is never called; the editor window is not our child, so it is closed by hand. */
+    public void dispose() {
+        NTagsWnd.close();
+        super.dispose();
+    }
+
     public boolean mouseup(MouseUpEvent ev) {
         if ((ev.b == 1) && (dragging != null)) {
             enddrag();
@@ -228,12 +244,13 @@ public class NAccountList extends SListBox<Account, Widget> {
         private final Account a;
         private final Text nm, meta;
         private boolean hover = false;
-        private int delx;
+        private int delx, editx;
 
         Row(Account a, Coord sz) {
             super(sz);
             this.a = a;
             this.delx = sz.x - DELW;
+            this.editx = delx - EDITW;
             if (a == ANOTHER) {
                 nm = NLoginTheme.body.render(L10n.get("login.another"), NLoginTheme.muted);
                 meta = null;
@@ -250,6 +267,11 @@ public class NAccountList extends SListBox<Account, Widget> {
 
         private boolean indel(Coord c) {
             return (delvisible() && (c.x >= delx));
+        }
+
+        /* The glyph only appears with the "×", but the slot it sits in is always kept clear. */
+        private boolean inedit(Coord c) {
+            return (delvisible() && (confirm != a) && (c.x >= editx) && (c.x < delx));
         }
 
         public void draw(GOut g) {
@@ -276,6 +298,7 @@ public class NAccountList extends SListBox<Account, Widget> {
             g.image(nm.tex(), Coord.of(x, cy - (nm.sz().y / 2)));
             boolean conf = (confirm == a);
             delx = sz.x - DELW;
+            editx = delx - EDITW;
             if (delvisible()) {
                 if (conf) {
                     int w = CONFIRM.sz().x;
@@ -284,10 +307,43 @@ public class NAccountList extends SListBox<Account, Widget> {
                     delx -= UI.scale(4);
                 } else {
                     g.image(CROSS.tex(), Coord.of(sz.x - (DELW / 2) - (CROSS.sz().x / 2), cy - (CROSS.sz().y / 2)));
+                    NLoginTheme.drawNote(g, Coord.of(editx + UI.scale(4), cy - UI.scale(5)), NLoginTheme.muted);
                 }
             }
-            if ((meta != null) && !conf)
-                g.image(meta.tex(), Coord.of(sz.x - DELW - UI.scale(4) - meta.sz().x, cy - (meta.sz().y / 2)));
+            if (conf)
+                return;
+            int right = editx - UI.scale(4);
+            if (meta != null) {
+                right -= meta.sz().x;
+                g.image(meta.tex(), Coord.of(right, cy - (meta.sz().y / 2)));
+                right -= UI.scale(6);
+            }
+            if (a != ANOTHER)
+                drawtags(g, x + nm.sz().x + UI.scale(8), cy, right);
+        }
+
+        /* Note glyph then chips, left to right; what does not fit collapses into a "+n" chip. */
+        private void drawtags(GOut g, int cx, int cy, int maxx) {
+            if (NCharTags.hasAccNote(a.name)) {
+                if ((cx + UI.scale(8)) > maxx)
+                    return;
+                NLoginTheme.drawNote(g, Coord.of(cx, cy - UI.scale(5)), NLoginTheme.note);
+                cx += UI.scale(14);
+            }
+            List<String> tags = NCharTags.accTags(a.name);
+            int ch = NLoginTheme.chiph(), cty = cy - (ch / 2), shown = 0;
+            for (String t : tags) {
+                Text tt = NLoginTheme.chiptext(t);
+                int w = tt.sz().x + UI.scale(8);
+                int reserve = ((tags.size() - shown) > 1) ? UI.scale(24) : 0;
+                if ((cx + w) > (maxx - reserve))
+                    break;
+                NLoginTheme.drawChip(g, Coord.of(cx, cty), tt, NCharTags.accColor(t));
+                cx += w + UI.scale(3);
+                shown++;
+            }
+            if (shown < tags.size())
+                NLoginTheme.drawChip(g, Coord.of(cx, cty), NLoginTheme.chiptext("+" + (tags.size() - shown)), NLoginTheme.muted);
         }
 
         public void mousemove(MouseMoveEvent ev) {
@@ -296,11 +352,21 @@ public class NAccountList extends SListBox<Account, Widget> {
         }
 
         public boolean mousedown(MouseDownEvent ev) {
+            if (ev.b == 3) {
+                if (a == ANOTHER)
+                    return (super.mousedown(ev));
+                NTagsWnd.openacc(ui, a.name);
+                return (true);
+            }
             if (ev.b != 1)
                 return (super.mousedown(ev));
             NAccountList.this.parent.setfocus(NAccountList.this);
             if (indel(ev.c)) {
                 askremove(a);
+                return (true);
+            }
+            if (inedit(ev.c)) {
+                NTagsWnd.openacc(ui, a.name);
                 return (true);
             }
             double now = Utils.rtime();
@@ -318,11 +384,27 @@ public class NAccountList extends SListBox<Account, Widget> {
         }
 
         public Object tooltip(Coord c, Widget prev) {
-            if (!indel(c))
+            if (indel(c)) {
+                if (deltip == null)
+                    deltip = NLoginTheme.tip.render(L10n.get("login.remove_tip"));
+                return (deltip);
+            }
+            if (a == ANOTHER)
                 return (null);
-            if (deltip == null)
-                deltip = NLoginTheme.tip.render(L10n.get("login.remove_tip"));
-            return (deltip);
+            if (inedit(c))
+                return (NLoginTheme.tiptext(L10n.get("login.tags_tip")));
+            /* The row only has room for a chip or two; the whole of it belongs in the tooltip. */
+            StringBuilder sb = new StringBuilder();
+            List<String> tags = NCharTags.accTags(a.name);
+            String note = NCharTags.accNote(a.name);
+            if (!tags.isEmpty())
+                sb.append(String.join(", ", tags));
+            if (!note.isEmpty()) {
+                if (sb.length() > 0)
+                    sb.append("\n\n");
+                sb.append(note);
+            }
+            return ((sb.length() == 0) ? null : NLoginTheme.tiptext(sb.toString()));
         }
     }
 }
