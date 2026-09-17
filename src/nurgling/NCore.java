@@ -185,6 +185,15 @@ public class NCore extends Widget
     /**
      * Get list of active task names for debug display
      */
+    /** The task thread t is currently blocked on in addTask, or null. */
+    public NTask waitingTask(Thread t) {
+        for (NTask task : tasks) {
+            if (task.owner == t)
+                return task;
+        }
+        return null;
+    }
+
     public String[] getActiveTaskNames() {
         synchronized (tasks) {
             if (tasks.isEmpty()) {
@@ -484,6 +493,8 @@ public class NCore extends Widget
         {
             if(!task.check())
             {
+                task.owner = Thread.currentThread();
+                task.waitSince = System.currentTimeMillis();
                 synchronized (tasks)
                 {
                     tasks.add(task);

@@ -253,8 +253,7 @@ public class NDraggableWidget extends Widget
             NDragProp res = new NDragProp(NDraggableWidget.this.c, btnLock.a, btnVis.a, name);
             res.flip = btnFlip.a;
             NDragProp.set(name, res);
-            target_c.x = this.c.x;
-            target_c.y = this.c.y;
+            target_c = new Coord(this.c);
             dm.remove();
             dm = null;
             return true;
@@ -342,14 +341,12 @@ public class NDraggableWidget extends Widget
 
         if(NUtils.getGameUI()!=null && NUtils.getGameUI().sz!=Coord.z && dm == null)
         {
-            if (c.x + sz.x > NUtils.getGameUI().sz.x - GameUI.margin.x)
-                c.x = NUtils.getGameUI().sz.x - sz.x;
-            else
-                c.x = target_c.x;
-            if (c.y + sz.y > NUtils.getGameUI().sz.y - GameUI.margin.y)
-                c.y = NUtils.getGameUI().sz.y - sz.y;
-            else
-                c.y = target_c.y;
+            // Assign a fresh Coord: c can alias a shared instance (Widget defaults c to Coord.z),
+            // and writing through it once moved Coord.z itself and broke every blurred text render.
+            int x = (c.x + sz.x > NUtils.getGameUI().sz.x - GameUI.margin.x) ? NUtils.getGameUI().sz.x - sz.x : target_c.x;
+            int y = (c.y + sz.y > NUtils.getGameUI().sz.y - GameUI.margin.y) ? NUtils.getGameUI().sz.y - sz.y : target_c.y;
+            if (c.x != x || c.y != y)
+                c = new Coord(x, y);
         }
     }
 

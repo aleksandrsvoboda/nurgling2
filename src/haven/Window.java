@@ -416,7 +416,7 @@ public class Window extends Widget {
 			g.frect(Coord.z, deco.contarea().sz());
 			g.chcolor();
 
-			int id = (int) (NUtils.getTickId() / 5) % 12;
+			int id = (int) (NUtils.getTickId() / 5) % NStyle.gear.length;
 			g.image(NStyle.gear[id], new Coord(deco.contarea().sz().x / 2 - NStyle.gear[0].sz().x / 2, deco.contarea().sz().y / 2 - NStyle.gear[0].sz().y / 2));
 			super.draw(g,strict);
 		}

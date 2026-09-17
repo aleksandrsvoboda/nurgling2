@@ -140,7 +140,7 @@ public class BotRegistry {
 
         // Silk
         bots.add(new BotDescriptor("mulberry_leaf_refiller", BotDescriptor.BotType.PRODUCTIONS, "Refill silkworm cupboards with mulberry leafs", "Refill silkworm cupboards with mulberry leafs.", true, true, RefillSilkwormFeedingCupboards.class, "mulberry_leaf", false));
-        bots.add(new BotDescriptor("silk_production", BotDescriptor.BotType.PRODUCTIONS, "Manages silk production starting at eggs all the way to silkworm cocoons.", "Silk cocoons production.", true, true, SilkProductionBot.class, "silkworm_cocoon", false));
+        bots.add(new BotDescriptor("silk_production", BotDescriptor.BotType.PRODUCTIONS, "bot.silkworm_cocoon.title", "bot.silkworm_cocoon.desc", true, true, SilkProductionBot.class, "silkworm_cocoon", false));
 
         bots.add(new BotDescriptor("pickling", BotDescriptor.BotType.PRODUCTIONS, "Pickling Bot", "Complete automated pickling system. Manages brine levels, fills jars with fresh vegetables, extracts ready pickled items, and maintains continuous production cycle.", true, true, PicklingBot.class, "pickle", true));
         bots.add(new BotDescriptor("grapejuicer", BotDescriptor.BotType.PRODUCTIONS, "Grape Juicer", "Presses grapes in extraction press and fills barrels with grape juice.", true, true, GrapeJuicer.class, "grapejuicer", false));
