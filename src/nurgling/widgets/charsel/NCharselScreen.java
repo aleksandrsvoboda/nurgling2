@@ -267,10 +267,10 @@ public class NCharselScreen extends Widget {
             if (!tags.isEmpty()) {
                 int gap = UI.scale(4), tw = -gap;
                 for (String t : tags)
-                    tw += NCharlist.chiptext(t).sz().x + UI.scale(8) + gap;
+                    tw += NLoginTheme.chiptext(t).sz().x + UI.scale(8) + gap;
                 int x = (sz.x - tw) / 2;
                 for (String t : tags)
-                    x += NLoginTheme.drawChip(g, Coord.of(x, y), NCharlist.chiptext(t), NCharTags.color(t)) + gap;
+                    x += NLoginTheme.drawChip(g, Coord.of(x, y), NLoginTheme.chiptext(t), NCharTags.color(t)) + gap;
                 y += NLoginTheme.chiph() + UI.scale(6);
             }
 

@@ -6,6 +6,8 @@ import nurgling.conf.FontSettings;
 import nurgling.i18n.L10n;
 
 import java.awt.Color;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Shared look for the login and character-selection screens. Their text sits straight on the
@@ -45,6 +47,31 @@ public final class NLoginTheme {
     public static final Text.Foundry badge = new Text.Foundry(FontSettings.getOpenSansSemibold(), 10, fg).aa(true);
     public static final Text.Foundry chip = new Text.Foundry(FontSettings.getOpenSansSemibold(), 10, new Color(18, 20, 16)).aa(true);
     public static final Text.Foundry tip = new Text.Foundry(Text.sans, 12).aa(true);
+
+    /* Rendered text is expensive enough that the rows, which redraw every frame, cache it. Both
+     * the character list and the login list draw the same chips and tooltips, so the caches live
+     * here rather than in either screen. */
+    private static final Map<String, Text> chiptexts = new HashMap<>();
+    private static final Map<String, Text> tiptexts = new HashMap<>();
+
+    /** Chip label for a tag, in the dark chip text colour. */
+    public static Text chiptext(String tag) {
+        Text t = chiptexts.get(tag);
+        if (t == null)
+            chiptexts.put(tag, t = chip.render(tag));
+        return (t);
+    }
+
+    /** Wrapped tooltip text; notes make these long and varied, so the cache is bounded. */
+    public static Text tiptext(String s) {
+        Text t = tiptexts.get(s);
+        if (t == null) {
+            if (tiptexts.size() > 64)
+                tiptexts.clear();
+            tiptexts.put(s, t = tip.renderwrap(s, UI.scale(260)));
+        }
+        return (t);
+    }
 
     private static Text.Furnace shadow(Text.Foundry f) {
         return (new PUtils.BlurFurn(f, UI.scale(2), UI.scale(1), Color.BLACK));
