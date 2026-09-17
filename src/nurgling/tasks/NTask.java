@@ -20,4 +20,7 @@ public abstract class NTask
     protected int counter = 0;
     protected int maxCounter = 200;
     protected boolean infinite = true;
+    /** The thread blocked on this task and since when; shown by the Bot Status strip. */
+    public volatile Thread owner = null;
+    public volatile long waitSince = 0;
 }

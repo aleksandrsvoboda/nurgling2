@@ -4,6 +4,7 @@ import haven.*;
 import haven.res.ui.rbuff.RealmBuff;
 import haven.res.ui.relcnt.RelCont;
 import nurgling.conf.NDiscordNotification;
+import nurgling.conf.NDragProp;
 import nurgling.conf.NToolBeltProp;
 import nurgling.notifications.DiscordHookObject;
 import nurgling.overlays.QualityOl;
@@ -210,8 +211,12 @@ public class NGameUI extends GameUI
         // Position NImportStrategyDialog relative to areas widget center
         add(importDialog = new NImportStrategyDialog(), new Coord(sz.x/2 - importDialog.sz.x/2, sz.y/2 - importDialog.sz.y/2));
         importDialog.hide();
-        // Position BotsInterruptWidget (observer with gears) in center of screen
-        add(biw = new BotsInterruptWidget(), new Coord(sz.x/2 - biw.sz.x/2, sz.y/2 - biw.sz.y/2));
+        // Bot Status strip; first placement is under the portrait, then wherever the user drags it
+        biw = new BotsInterruptWidget();
+        boolean placed = NDragProp.get(BotsInterruptWidget.DRAG_NAME).c != Coord.z;
+        NDraggableWidget botStatus = add(new NDraggableWidget(biw, BotsInterruptWidget.DRAG_NAME, biw.sz.add(NDraggableWidget.delta)));
+        if(!placed && portrait != null)
+            botStatus.target_c = portrait.c.add(0, portrait.sz.y);
         waypointMovementService = new WaypointMovementService(this);
         pingService = new PingService(this);
         fishLocationService = new FishLocationService(this, genus);
@@ -615,8 +620,6 @@ public class NGameUI extends GameUI
             nean.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 7));
         if(spec != null)
             spec.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 7));
-        if(biw != null)
-            biw.move(new Coord(sz.x / 2 - biw.sz.x / 2, sz.y / 2 - biw.sz.y / 2));
         if(blueprintWidget != null)
             blueprintWidget.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
     }
@@ -1204,6 +1207,11 @@ public class NGameUI extends GameUI
                 sm.switchToSessionByIndex(i);
                 return true;
             }
+        }
+
+        if (BotsInterruptWidget.kb_interrupt_bots.key().match(ev.awt) && biw != null && biw.hasRunningBots()) {
+            biw.interruptAll();
+            return true;
         }
 
         return super.globtype(ev);
