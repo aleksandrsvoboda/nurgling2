@@ -56,8 +56,10 @@ public class Forager extends Window implements Checkable {
 
             @Override
             public void change(String item) {
+                // A click outside the open list closes it with change(null) - keep the current selection.
+                if (item == null) return;
                 super.change(item);
-                if (item != null && prop != null && ignoreMaintainCheck != null) {
+                if (prop != null && ignoreMaintainCheck != null) {
                     NForagerProp.PresetData pd = prop.presets.get(item);
                     ignoreMaintainCheck.a = pd != null && pd.ignoreMaintainLimits;
                 }

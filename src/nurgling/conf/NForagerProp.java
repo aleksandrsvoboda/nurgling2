@@ -12,7 +12,6 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -237,13 +236,8 @@ public class NForagerProp implements JConf {
             @SuppressWarnings("unchecked")
             ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
             if (foragerProps != null) {
-                for (Iterator<NForagerProp> i = foragerProps.iterator(); i.hasNext(); ) {
-                    NForagerProp oldprop = i.next();
-                    if (oldprop.username.equals(prop.username) && oldprop.chrid.equals(prop.chrid)) {
-                        i.remove();
-                        break;
-                    }
-                }
+                // Drops every casing variant too, so a character saved under two spellings collapses back to one entry.
+                foragerProps.removeIf(oldprop -> oldprop.isFor(prop.username, prop.chrid));
             } else {
                 foragerProps = new ArrayList<>();
             }
@@ -321,12 +315,20 @@ public class NForagerProp implements JConf {
         ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
         if (foragerProps == null)
             foragerProps = new ArrayList<>();
+        // Last match wins: set() appends, so that's the most recently saved variant.
+        NForagerProp found = null;
         for (NForagerProp prop : foragerProps) {
-            if (prop.username.equals(sessInfo.username) && prop.chrid.equals(chrid)) {
-                return prop;
+            if (prop.isFor(sessInfo.username, chrid)) {
+                found = prop;
             }
         }
-        return new NForagerProp(sessInfo.username, chrid);
+        return found != null ? found : new NForagerProp(sessInfo.username, chrid);
+    }
+
+    /** The server echoes the character name as the client sent it (a launcher's typed "bob" vs the charlist's "Bob"), so match ignoring case. */
+    private boolean isFor(String username, String chrid) {
+        return this.username != null && this.username.equalsIgnoreCase(username)
+                && this.chrid != null && this.chrid.equalsIgnoreCase(chrid);
     }
 
     /** Writes one Actions Profile's own JSON file - the format {@link #importActionsProfile} reads back. */

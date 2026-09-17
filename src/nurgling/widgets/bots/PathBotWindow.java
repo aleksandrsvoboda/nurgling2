@@ -138,6 +138,8 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
 
             @Override
             public void change(String item) {
+                // A click outside the open list closes it with change(null) - keep the current selection.
+                if (item == null) return;
                 super.change(item);
                 handlePresetChanged(item);
             }
@@ -200,6 +202,8 @@ public abstract class PathBotWindow extends Window implements Checkable, PathRec
 
             @Override
             public void change(String item) {
+                // A click outside the open list closes it with change(null) - keep the current selection.
+                if (item == null) return;
                 super.change(item);
                 handlePathChanged(item);
             }
