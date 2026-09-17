@@ -40,6 +40,8 @@ public class NLoginScreen extends LoginScreen {
     /* Fixed top for the form: it is centred once per window size and then stays put, so the form
      * growing or shrinking (password vs saved account, connecting) never moves what is on screen. */
     private int formtop = -1;
+    /* Vertical room for the form, between the top margin and the status line. */
+    private int formmin = 0, formmax = 0;
 
     /**
      * Compares two version strings numerically.
@@ -106,20 +108,38 @@ public class NLoginScreen extends LoginScreen {
         return ((NLoginPanel) login);
     }
 
-    /* The form sits on the scrim; Options and Discord top right; the status line along the bottom. */
+    /* LoginScreen centres the art-sized screen in the window; lay out again whenever that moves. */
+    @Override
+    public void presize() {
+        super.presize();
+        if (statusbar != null)
+            layout();
+    }
+
+    /* The form sits on the scrim; Options and Discord top right; the status line along the bottom.
+     * Everything is kept inside the part of the art the window actually shows, since a window
+     * shorter than the art crops it top and bottom. */
     private void layout() {
-        optbtn.move(Coord.of(sz.x - optbtn.sz.x - UI.scale(20), UI.scale(20)));
+        int vtop = 0, vbot = sz.y;
+        if (parent != null) {
+            vtop = Math.max(0, -c.y);
+            vbot = Math.min(sz.y, parent.sz.y - c.y);
+        }
+        optbtn.move(Coord.of(sz.x - optbtn.sz.x - UI.scale(20), vtop + UI.scale(20)));
         discordBtn.move(Coord.of(optbtn.c.x - UI.scale(12) - discordBtn.sz.x, optbtn.c.y + ((optbtn.sz.y - discordBtn.sz.y) / 2)));
-        statusbar.move(Coord.of(MARGIN, sz.y - statusbar.sz.y - UI.scale(10)));
+        statusbar.move(Coord.of(MARGIN, vbot - statusbar.sz.y - UI.scale(10)));
+        formmin = vtop + UI.scale(40);
+        formmax = statusbar.c.y - UI.scale(12);
+        panel().budget(formmax - formmin);
         formtop = -1;
         placeform();
     }
 
+    /* Centred on the form's tallest arrangement, then fixed: switching between password entry and a
+     * saved account, or connecting, never moves what is on screen. */
     private void placeform() {
-        if (formtop < 0) {
-            int top = UI.scale(40), bottom = statusbar.c.y - UI.scale(12);
-            formtop = Math.max(top, top + (((bottom - top) - login.sz.y) / 2));
-        }
+        if (formtop < 0)
+            formtop = formmin + Math.max(0, ((formmax - formmin) - panel().stableh()) / 2);
         login.move(Coord.of(MARGIN, formtop));
     }
 
