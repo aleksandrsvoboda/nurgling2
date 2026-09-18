@@ -18,6 +18,7 @@ public class NMiniMapWnd extends Widget{
     public static final KeyBinding kb_night = KeyBinding.get("mwnd_night", KeyMatch.nil);
     public static final KeyBinding kb_fog = KeyBinding.get("mwnd_fog", KeyMatch.nil);
     public static final KeyBinding kb_resourcetimers = KeyBinding.get("mwnd_resourcetimers", KeyMatch.nil);
+    public static final KeyBinding kb_routewalker = KeyBinding.get("mwnd_routewalker", KeyMatch.nil);
     public static class NMenuCheckBox extends ICheckBox {
         public NMenuCheckBox(String base, KeyBinding gkey, String tooltip) {
             super(base, "/u", "/d", "/h", "/dh");
@@ -235,6 +236,15 @@ public class NMiniMapWnd extends Widget{
         });
         chunkNav.a = (Boolean) NConfig.get(NConfig.Key.chunkNavOverlay);
         buttons.add(chunkNav);
+
+        // Route Walker: pick a saved forager route and just walk it (no foraging).
+        ACheckBox routeWalker = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/path", kb_routewalker, L10n.get("minimap.route_walker"));
+        routeWalker.state(() -> {
+            NGameUI gui = NUtils.getGameUI();
+            return gui != null && gui.routeWalkerWindow != null && gui.routeWalkerWindow.visible();
+        });
+        routeWalker.click(RouteWalkerWindow::toggle);
+        buttons.add(routeWalker);
 
         // Layout buttons with wrapping, honouring the collapsed state
         applyToggleVisibility();

@@ -248,6 +248,8 @@ public class NConfig
         // Bot path display
         showBotPathOnMinimap,
         showBotPathOnGround,
+        // Route Walker: the route picked last, so the window reopens on it
+        routeWalkerLast,
         // Movement waypoints (alt+click) drawn in the 3D world
         showWaypointsInWorld,
         pingSound,
@@ -674,6 +676,7 @@ public class NConfig
         // Bot path display
         conf.put(Key.showBotPathOnMinimap, false);
         conf.put(Key.showBotPathOnGround, false);
+        conf.put(Key.routeWalkerLast, "");
         conf.put(Key.showWaypointsInWorld, true);
         conf.put(Key.pingSound, true);
 

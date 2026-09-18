@@ -65,6 +65,7 @@ public class NGameUI extends GameUI
     public final Map<String, TreeLocationDetailsWindow> openTreeDetailWindows = new HashMap<>();
     public LabeledMarkService labeledMarkService;
     public MapToolsWindow mapToolsWindow = null;
+    public RouteWalkerWindow routeWalkerWindow = null;
     public StudyDeskPlannerWidget studyDeskPlanner = null;
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;

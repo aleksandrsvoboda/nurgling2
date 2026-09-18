@@ -40,6 +40,14 @@ public class PathFinder implements Action {
     public Supplier<List<AvoidZone>> avoidZones = null;
     // Set when the walk failed only because of avoidZones - no way around them, or they kept moving onto every new path.
     public boolean blockedByAvoidZones = false;
+    // Opt-in, null for every caller that doesn't set it: polled while walking (on the task thread too, so it must
+    // not block). While it reads true the current step is abandoned, the character is stopped where it stands and
+    // run() returns FAIL instead of re-planning - the Route Walker's pause. Null = unchanged behaviour.
+    public BooleanSupplier abort = null;
+    // Set when this walk returned because `abort` fired, so the caller can tell "you told me to stop"
+    // from "I couldn't get there" - a pause that is lifted again before the caller looks at the flag
+    // would otherwise read as a genuine pathing failure.
+    public boolean abortedByCaller = false;
     // The zones the last construct() planned against, already cleared of its start (see clearOf).
     private List<AvoidZone> plannedZones = Collections.emptyList();
     // construct() plans as if avoidZones were null - pathExistsWithoutZones()'s one check.
@@ -183,9 +191,13 @@ public class PathFinder implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         blockedByAvoidZones = false;
+        abortedByCaller = false;
         zoneReplanTimes.clear();
         stalls = 0;
         while (true) {
+            if (aborted()) {
+                return abortWalk(gui);
+            }
             LinkedList<Graph.Vertex> path = construct();
 
             if (path != null) {
@@ -213,11 +225,15 @@ public class PathFinder implements Action {
                         }
                     }
 
-                    GoTo go = (avoidZones != null)
-                            ? new GoTo(targetCoord, zoneAbort(gui, corners.subList(step, corners.size())))
-                            : new GoTo(targetCoord);
+                    BooleanSupplier stepAbort = both(abort,
+                            (avoidZones != null) ? zoneAbort(gui, corners.subList(step, corners.size())) : null);
+                    GoTo go = (stepAbort != null) ? new GoTo(targetCoord, stepAbort) : new GoTo(targetCoord);
                     step++;
                     if (!go.run(gui).IsSuccess()) {
+                        // Asked to stop (paused/cancelled): halt here instead of re-planning and walking on.
+                        if (aborted()) {
+                            return abortWalk(gui);
+                        }
                         // A zone moved onto the path: re-plan from here, unless that keeps happening.
                         if (go.aborted() && zoneReplanStorm())
                             return zoneBlocked(gui, "Dangerous animals keep crossing the path");
@@ -265,6 +281,25 @@ public class PathFinder implements Action {
 
             }
         }
+    }
+
+    /** Stops the character and ends the walk because {@link #abort} fired. */
+    private Results abortWalk(NGameUI gui) {
+        abortedByCaller = true;
+        stopHere(gui);
+        return Results.FAIL();
+    }
+
+    /** True while this walk's caller (if any) is asking it to stop - see {@link #abort}. */
+    private boolean aborted() {
+        return (abort != null) && abort.getAsBoolean();
+    }
+
+    /** Either check, whichever are present; null when neither is. */
+    private static BooleanSupplier both(BooleanSupplier a, BooleanSupplier b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return () -> a.getAsBoolean() || b.getAsBoolean();
     }
 
     /** A GoTo abort check: true once a freshly read zone reaches into the rest of the path (the player through `rest`) - polled
@@ -429,7 +464,7 @@ public class PathFinder implements Action {
     }
 
     /** Stops the character where it stands - it may still be heading for an abandoned step. */
-    private static void stopHere(NGameUI gui) {
+    public static void stopHere(NGameUI gui) {
         Gob player = gui.map.player();
         if (player != null)
             gui.map.wdgmsg("click", Coord.z, player.rc.floor(OCache.posres), 1, 0);
