@@ -190,6 +190,9 @@ public class MainFrame {
 	haven.error.FileLogger.redirectSystemErr();
 	haven.error.FileLogger.log("Application starting...");
 
+	/* Plugins load before the first login, so they can take part in character selection. */
+	nurgling.plugins.NPluginManager.loadAll();
+
 	/* Set up the error handler as early as humanly possible. */
 	ThreadGroup g = new ThreadGroup("Haven main group");
 	String ed = Utils.getprop("haven.errorurl", "");
