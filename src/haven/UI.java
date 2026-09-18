@@ -506,6 +506,8 @@ public class UI {
 			UI.this.gui = (NGameUI) wdg;
 		bind(wdg, id);
 	    }
+	    if(nurgling.plugins.UiEvents.active())
+		nurgling.plugins.UiEvents.fireNewWidget(UI.this, id, (typenm != null) ? typenm : String.valueOf(type), wdg, cargs);
 	}
 
 	public String toString() {
@@ -535,15 +537,18 @@ public class UI {
 	}
 
 	public void run() {
+	    Widget wdg, pwdg;
 	    synchronized(UI.this) {
-		Widget wdg = getwidget(id);
-		Widget pwdg = getwidget(parent);
+		wdg = getwidget(id);
+		pwdg = getwidget(parent);
 		if(wdg == null)
 		    throw(new UIException(String.format("Null child widget %d added to %d (%s)", id, parent, pwdg), null, pargs));
 		if(pwdg == null)
 		    throw(new UIException(String.format("Null parent widget %d for %d (%s)", parent, id, wdg), null, pargs));
 		pwdg.addchild(wdg, pargs);
 	    }
+	    if(nurgling.plugins.UiEvents.active())
+		nurgling.plugins.UiEvents.fireAddWidget(UI.this, id, wdg, parent, pwdg, pargs);
 	}
 
 	public String toString() {
@@ -702,8 +707,11 @@ public class UI {
 	public void run() {
 	    synchronized(UI.this) {
 		Widget wdg = getwidget(id);
-		if(wdg != null)
+		if(wdg != null) {
+		    if(nurgling.plugins.UiEvents.active())
+			nurgling.plugins.UiEvents.fireDestroyWidget(UI.this, id, wdg);
 		    destroy(wdg);
+		}
 	    }
 	}
 
@@ -736,6 +744,8 @@ public class UI {
 	    /// new Warning("wdgmsg sender (%s) is not in rwidgets, message is %s", sender.getClass().getName(), msg).issue();
 	    return;
 	}
+	if(nurgling.plugins.UiEvents.active())
+	    nurgling.plugins.UiEvents.fireOutgoing(this, id, sender, msg, args);
 	if(rcvr != null)
 	    rcvr.rcvmsg(id, msg, args);
     }
@@ -757,6 +767,8 @@ public class UI {
 		synchronized(UI.this) {
 		    dispatch(wdg, new Widget.MessageEvent(msg, args));
 		}
+		if(nurgling.plugins.UiEvents.active())
+		    nurgling.plugins.UiEvents.fireUiMsg(UI.this, id, wdg, msg, args);
 	    } else {
 		throw(new UIException("Uimsg to non-existent widget " + id, msg, args));
 	    }

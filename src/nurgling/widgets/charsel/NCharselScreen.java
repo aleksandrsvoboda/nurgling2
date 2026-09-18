@@ -5,7 +5,9 @@ import haven.render.Location;
 import haven.render.Projection;
 import nurgling.NCharlist;
 import nurgling.NConfig;
+import nurgling.conf.FontSettings;
 import nurgling.conf.NCharTags;
+import nurgling.plugins.NPluginManager;
 import nurgling.widgets.login.NBackdrop;
 import nurgling.widgets.login.NLoginTheme;
 
@@ -21,6 +23,9 @@ import java.util.Map;
  * server sends: background Img, verify Img, subscription Img, the charlist, a ProxyFrame holding the
  * big avatar, and the "New character" IButton. The Imgs and the IButton are kept (hidden) because
  * the list's heading badges and footer button stand in for them.
+ *
+ * Plugins hook in through {@link NPluginManager#onCharsel}: they can add links under the list
+ * ({@link #addAction}) and show their own content in the list's place ({@link #showPanel}).
  */
 public class NCharselScreen extends Widget {
     private static final Coord SRVSZ = new Coord(800, 600);
@@ -51,6 +56,10 @@ public class NCharselScreen extends Widget {
     private final Map<Widget, Coord> loose = new HashMap<>();
     /* Drag-to-spin state for the avatar. */
     private Avaview avaview;
+    /* Plugin additions: links under the list, and at most one panel shown in the list's place. */
+    private final List<ActionLink> actions = new ArrayList<>();
+    private Widget panel;
+    private boolean pluginsNotified = false;
     private UI.Grab rotgrab = null;
     private double rot = 0, rotstart = 0;
     private int rotx = 0;
@@ -139,6 +148,10 @@ public class NCharselScreen extends Widget {
         }
         wire();
         layout();
+        if ((list != null) && !pluginsNotified) {
+            pluginsNotified = true;
+            NPluginManager.onCharsel(this);
+        }
     }
 
     public void cdestroy(Widget ch) {
@@ -151,6 +164,10 @@ public class NCharselScreen extends Widget {
         }
         if (ch == newchar)
             newchar = null;
+        if (ch == panel) {
+            panel = null;
+            setListShown(true);
+        }
         badges.remove(ch);
         loose.remove(ch);
         wire();
@@ -163,9 +180,78 @@ public class NCharselScreen extends Widget {
         }
     }
 
+    /* ------------------------------------------------------------- plugin additions */
+
+    /** Adds a link under the character list's footer. For plugins, from {@code NPlugin.onCharsel}. */
+    public void addAction(String label, Runnable action) {
+        ActionLink a = add(new ActionLink(label, action), Coord.z);
+        actions.add(a);
+        if (panel != null)
+            a.hide();
+        layout();
+    }
+
+    /** The size a panel gets: the character list's column. */
+    public Coord panelSize() {
+        return (Coord.of(NCharlist.W, NCharlist.H));
+    }
+
+    /** Shows {@code w} in the character list's place, replacing any earlier panel, until {@link #closePanel}. */
+    public <T extends Widget> T showPanel(T w) {
+        closePanel();
+        panel = add(w, Coord.z);
+        setListShown(false);
+        layout();
+        return (w);
+    }
+
+    /** Removes the panel, if any, and brings the character list back. */
+    public void closePanel() {
+        if (panel != null) {
+            Widget p = panel;
+            panel = null;
+            p.reqdestroy();
+        }
+        setListShown(true);
+        layout();
+    }
+
+    /** The panel shown in the list's place, or null. */
+    public Widget panel() {
+        return (panel);
+    }
+
+    /** The server's hidden "New character" button, or null before it arrives. */
+    public IButton newCharButton() {
+        return (newchar);
+    }
+
+    private void setListShown(boolean shown) {
+        if (list != null) {
+            if (shown)
+                list.show();
+            else
+                list.hide();
+        }
+        for (ActionLink a : actions) {
+            if (shown)
+                a.show();
+            else
+                a.hide();
+        }
+    }
+
     private void layout() {
+        int lx = UI.scale(56), ly = (sz.y - NCharlist.H) / 2;
         if (list != null)
-            list.move(Coord.of(UI.scale(56), (sz.y - list.sz.y) / 2));
+            list.move(Coord.of(lx, (sz.y - list.sz.y) / 2));
+        if (panel != null)
+            panel.move(Coord.of(lx, ly));
+        int ax = lx;
+        for (ActionLink a : actions) {
+            a.move(Coord.of(ax, ly + NCharlist.H + UI.scale(8)));
+            ax += a.sz.x + UI.scale(16);
+        }
 
         /* The avatar and its name plate share the art area right of the scrim. */
         int cx = (backdrop.scrimw() + sz.x) / 2;
@@ -231,6 +317,42 @@ public class NCharselScreen extends Widget {
         super.tick(dt);
         if (avatar instanceof ProxyFrame)
             ((ProxyFrame<?>) avatar).color = null;
+    }
+
+    /** A plugin's entry under the list: accent-coloured text, underlined while hovered. */
+    private static class ActionLink extends Widget {
+        private static final Text.Foundry fnd = new Text.Foundry(FontSettings.getOpenSansSemibold(), 12, NLoginTheme.accent).aa(true);
+        private final Text text;
+        private final Runnable action;
+        private boolean hover = false;
+
+        ActionLink(String label, Runnable action) {
+            super(Coord.z);
+            this.text = fnd.render(label);
+            this.action = action;
+            resize(text.sz().add(0, UI.scale(2)));
+        }
+
+        public void draw(GOut g) {
+            g.image(text.tex(), Coord.z);
+            if (hover) {
+                g.chcolor(NLoginTheme.accent);
+                g.frect(Coord.of(0, text.sz().y), Coord.of(text.sz().x, UI.scale(1)));
+                g.chcolor();
+            }
+        }
+
+        public void mousemove(MouseMoveEvent ev) {
+            hover = ev.c.isect(Coord.z, sz);
+        }
+
+        public boolean mousedown(MouseDownEvent ev) {
+            if (ev.b == 1) {
+                action.run();
+                return (true);
+            }
+            return (super.mousedown(ev));
+        }
     }
 
     /** Name, world and last played, tags and the first line of the note, under the big avatar. */
