@@ -289,7 +289,7 @@ public class NAccountList extends SListBox<Account, Widget> {
             if (drag) {
                 /* Picked up: outline it so it reads as the thing being moved. */
                 g.chcolor(NLoginTheme.accent);
-                g.rect(Coord.z, sz);
+                NLoginTheme.outline(g, Coord.z, sz);
             }
             g.chcolor(NLoginTheme.rowline);
             g.frect(Coord.of(0, sz.y - 1), Coord.of(sz.x, 1));

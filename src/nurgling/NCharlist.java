@@ -514,7 +514,7 @@ public class NCharlist extends Charlist {
             g.chcolor(NLoginTheme.rowline);
             g.frect(Coord.of(0, sz.y - 1), Coord.of(sz.x, 1));
             g.chcolor(NLoginTheme.outline);
-            g.rect(ava.c.sub(1, 1), ava.sz.add(2, 2));
+            NLoginTheme.outline(g, ava.c.sub(1, 1), ava.sz.add(2, 2));
             g.chcolor();
 
             String acc = NCharTags.account(ui);

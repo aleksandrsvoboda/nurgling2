@@ -85,13 +85,25 @@ public final class NLoginTheme {
         return (chip.height() + UI.scale(3));
     }
 
+    /**
+     * A 1px outline around {@code sz} at {@code c}, the same pixels {@code GOut.rect} strokes, but
+     * clipped like everything else. {@code GOut.rect} sends its line strip unclipped, so a row
+     * hanging past the bottom of a scrolled list leaked its outlines below the list.
+     */
+    public static void outline(GOut g, Coord c, Coord sz) {
+        g.frect(c, Coord.of(sz.x, 1));
+        g.frect(c.add(0, sz.y - 1), Coord.of(sz.x, 1));
+        g.frect(c, Coord.of(1, sz.y));
+        g.frect(c.add(sz.x - 1, 0), Coord.of(1, sz.y));
+    }
+
     /** Outlined badge in {@code col}; returns its width. */
     public static int drawBadge(GOut g, Coord c, Text t, Color col) {
         int w = t.sz().x + UI.scale(10), h = badgeh();
         g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), 38);
         g.frect(c, Coord.of(w, h));
         g.chcolor(col);
-        g.rect(c, Coord.of(w, h));
+        outline(g, c, Coord.of(w, h));
         g.chcolor();
         g.image(t.tex(), c.add(UI.scale(5), (h - t.sz().y) / 2));
         return (w);
@@ -103,7 +115,7 @@ public final class NLoginTheme {
         g.chcolor(col);
         g.frect(c, Coord.of(w, h));
         g.chcolor(Color.BLACK);
-        g.rect(c, Coord.of(w, h));
+        outline(g, c, Coord.of(w, h));
         g.chcolor();
         g.image(t.tex(), c.add(UI.scale(4), (h - t.sz().y) / 2));
         return (w);
@@ -115,7 +127,7 @@ public final class NLoginTheme {
         g.chcolor(col);
         g.frect(c, psz);
         g.chcolor(Color.BLACK);
-        g.rect(c, psz);
+        outline(g, c, psz);
         for (int i = 0; i < 3; i++)
             g.frect(c.add(UI.scale(2), UI.scale(2 + (i * 3))), UI.scale(new Coord(4, 1)));
         g.chcolor();
