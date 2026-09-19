@@ -758,6 +758,9 @@ NMiniMap extends MiniMap {
         boolean liveBot = false;
         if(pathWnd != null) {
             recordingPath = pathWnd.getCurrentLoadedPath();
+            // A window showing the very route a bot is walking (the Route Walker): colour it live -
+            // current/failed waypoints - instead of as a static preview.
+            liveBot = (recordingPath != null) && (recordingPath == gui.activeBotPath);
         } else if((Boolean) nurgling.NConfig.get(nurgling.NConfig.Key.showBotPathOnMinimap) && gui.activeBotPath != null) {
             recordingPath = gui.activeBotPath;
             liveBot = true;
