@@ -370,6 +370,13 @@
       </fileset>
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="release/haven-config.properties" failonerror="false" quiet="true" />
+    <!-- Linux: JOGL crashes in Mesa's GLX, so every launcher (updater, HnH Scheduler, scripts)
+         must pick the LWJGL toolkit. hafen reads haven-config.properties next to hafen.jar,
+         and the updater installs this variant on Linux only. -->
+    <concat destfile="release/platform/linux/haven-config.properties">
+      <filelist dir="etc" files="ansgar-config.properties" />
+      <string>${line.separator}haven.toolkit=lwjgl${line.separator}</string>
+    </concat>
     <copy todir="release/" file="build/nurgling-res.jar" />
     <copy todir="release/" file="build/hafen.jar" />
     <copy todir="release/" file="etc/run.bat" />
