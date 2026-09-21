@@ -48,7 +48,7 @@ jobs:
           echo ""
           echo "Checking the merged manifest (signature and every file)..."
           if [ -f manifest.json ]; then
-            java -jar updater/core.jar verify manifest.json
+            java -jar updater/core.jar verify "$PWD/manifest.json"
           else
             echo "(no manifest.json yet: release predates the updater)"
           fi
