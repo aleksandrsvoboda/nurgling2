@@ -162,6 +162,10 @@ public class MainFrame {
     }
 
     public static void main(final String[] args) {
+	/* Lets the updater see this client is running, so it never replaces jars under it.
+	 * First of all, so headless runs (scheduled bots) are covered too; it loads no AWT. */
+	nurgling.UpdaterLock.hold();
+
 	// Check for headless mode FIRST, before any other initialization
 	if(Headless.hasHeadlessFlag(args)) {
 	    // Set headless mode before any AWT classes load
@@ -189,9 +193,6 @@ public class MainFrame {
 	// Initialize FileLogger and redirect System.err as early as possible
 	haven.error.FileLogger.redirectSystemErr();
 	haven.error.FileLogger.log("Application starting...");
-
-	/* Lets the updater see this client is running, so it never replaces jars under it. */
-	nurgling.UpdaterLock.hold();
 
 	/* Plugins load before the first login, so they can take part in character selection. */
 	nurgling.plugins.NPluginManager.loadAll();

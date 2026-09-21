@@ -7,7 +7,7 @@
     "os": {
       "windows": ["-Dsun.java2d.win.uiScaleX=1.0", "-Dsun.java2d.win.uiScaleY=1.0"],
       "macos": ["-Xdock:name=Nurgling", "-Dapple.awt.application.name=Nurgling"],
-      "linux": ["-Dhaven.toolkit=lwjgl"]
+      "linux": []
     },
     "heap": { "min": "1024m", "max": "4096m" }
   },
