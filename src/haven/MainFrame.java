@@ -190,6 +190,9 @@ public class MainFrame {
 	haven.error.FileLogger.redirectSystemErr();
 	haven.error.FileLogger.log("Application starting...");
 
+	/* Lets the updater see this client is running, so it never replaces jars under it. */
+	nurgling.UpdaterLock.hold();
+
 	/* Plugins load before the first login, so they can take part in character selection. */
 	nurgling.plugins.NPluginManager.loadAll();
 

@@ -1,0 +1,15 @@
+{
+  "minUpdater": "1.0.0",
+  "launch": {
+    "mainJar": "hafen.jar",
+    "minJava": 17,
+    "jvm": ["-Xss8m", "-Dsun.java2d.uiScale.enabled=false", "--add-exports=java.desktop/sun.awt=ALL-UNNAMED"],
+    "os": {
+      "windows": ["-Dsun.java2d.win.uiScaleX=1.0", "-Dsun.java2d.win.uiScaleY=1.0"],
+      "macos": ["-Xdock:name=Nurgling", "-Dapple.awt.application.name=Nurgling"],
+      "linux": ["-Dhaven.toolkit=lwjgl"]
+    },
+    "heap": { "min": "1024m", "max": "4096m" }
+  },
+  "obsolete": []
+}
