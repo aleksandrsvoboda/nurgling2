@@ -11,5 +11,18 @@
     },
     "heap": { "min": "1024m", "max": "4096m" }
   },
-  "obsolete": []
+  "obsolete": [],
+  "apps": {
+    "scheduler": {
+      "name": "HnH Scheduler",
+      "repo": "aleksandrsvoboda/hnh-scheduler",
+      "version": "latest",
+      "assets": {
+        "windows-x64": { "kind": "nsis", "pattern": "*Setup.exe" },
+        "macos-x64": { "kind": "dmg", "pattern": "*.dmg" },
+        "macos-arm64": { "kind": "dmg", "pattern": "*.dmg" },
+        "linux-x64": { "kind": "appimage", "pattern": "*.AppImage" }
+      }
+    }
+  }
 }

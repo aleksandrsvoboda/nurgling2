@@ -107,7 +107,11 @@ jobs:
         shell: pwsh
         env:
           MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
+          # Companion apps (HnH Scheduler): newest release, pinned by GitHub's sha256 digests.
+          # Never fails the release; publish keeps the previous release's apps if this can't resolve.
+          java -jar release/updater/core.jar resolve-apps etc/release.json apps.json
           try {
             Invoke-WebRequest -UseBasicParsing -OutFile previous-manifest.json `
               -Uri "https://raw.githubusercontent.com/${{ env.RELEASE_REPO }}/${{ env.RELEASE_BRANCH }}/manifest.json"
@@ -119,7 +123,7 @@ jobs:
           $prev = @()
           if (Test-Path previous-manifest.json) { $prev = @("--previous", "previous-manifest.json") }
           java -jar release/updater/core.jar publish release --version $env:VERSION --git-rev $env:GITHUB_SHA `
-            --note "$note" --config etc/release.json --runtime updater-assets/runtime.json `
+            --note "$note" --config etc/release.json --runtime updater-assets/runtime.json --apps apps.json `
             --sign-with-env MANIFEST_SIGNING_KEY @prev
           if ($LASTEXITCODE -ne 0) { throw "publish failed" }
 
