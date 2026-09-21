@@ -58,7 +58,8 @@ public class NPluginManager {
                     plugins.add(p);
                     System.out.println("[Plugins] Loaded: " + p.name() + " (" + jar.getName() + ")");
                 }
-            } catch (Exception e) {
+            } catch (Exception | LinkageError e) {
+                // LinkageError: a jar built against an older client (missing class or method). Skip it, don't stop startup.
                 System.out.println("[Plugins] Failed to load " + jar.getName() + ": " + e);
             }
         }
@@ -70,7 +71,7 @@ public class NPluginManager {
         for (NPlugin p : plugins) {
             try {
                 p.onCharsel(screen);
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | LinkageError e) {
                 System.out.println("[Plugins] onCharsel error in " + p.name() + ": " + e);
             }
         }
@@ -82,7 +83,7 @@ public class NPluginManager {
         for (NPlugin p : plugins) {
             try {
                 p.onLoad(gui);
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | LinkageError e) {
                 System.out.println("[Plugins] onLoad error in " + p.name() + ": " + e);
             }
         }
