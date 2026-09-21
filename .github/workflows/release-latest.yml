@@ -73,31 +73,60 @@ jobs:
             Write-Host "Could not fetch version from release repo, starting at build 0"
             $buildNum = 0
           }
-          "#Build Number for ANT. Do not edit!`nbuild.number=$buildNum" | Out-File -FilePath "build.num" -Encoding ASCII -NoNewline
-          Write-Host "Created build.num with build.number=$buildNum"
+          $releaseVersion = "$versionNum.$buildNum"
+          echo "VERSION=$releaseVersion" >> $env:GITHUB_ENV
+          Write-Host "Release version: $releaseVersion"
 
       - name: Build with Ant
         run: ant release
 
-      - name: Add batch files to version manifest
+      # The updater (private nurgling-updater repo) publishes its builds as releases of the
+      # release repo; every client release ships the newest one.
+      - name: Add the latest updater
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          $files = @("run_updater.bat", "run_updater_latest.bat", "run_updater_stable.bat", "nurgling_launcher.jar")
-          foreach ($file in $files) {
-            $path = "release\$file"
-            if (Test-Path $path) {
-              $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
-              Add-Content -Path "release\ver" -Value "$file=$hash"
-              Write-Host "Added $file=$hash"
-            } else {
-              Write-Host "Warning: $file not found in release folder"
-            }
+          gh release download --repo ${{ env.RELEASE_REPO }} --dir updater-assets `
+            --pattern "nurgling-updater.jar" --pattern "core.jar" --pattern "*.bat" --pattern "*.sh" `
+            --pattern "*.command" --pattern "nurgling_launcher.jar" --pattern "runtime.json" --pattern "SHA256SUMS"
+          if ($LASTEXITCODE -ne 0) { throw "could not download the updater release" }
+          foreach ($line in Get-Content "updater-assets\SHA256SUMS") {
+            $sum, $name = $line -split '\s+\*?', 2
+            $path = "updater-assets\$name"
+            if (!(Test-Path $path)) { continue }
+            $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+            if ($actual -ne $sum) { throw "checksum mismatch for $name" }
           }
+          New-Item -ItemType Directory -Force release\updater | Out-Null
+          Copy-Item updater-assets\core.jar release\updater\core.jar
+          # Nurgling.bat/.sh/.command, plus the old launcher and run_updater*.bat kept as a fallback
+          Copy-Item updater-assets\nurgling-updater.jar, updater-assets\nurgling_launcher.jar, updater-assets\*.bat, updater-assets\*.sh, updater-assets\*.command release\
+
+      - name: Write manifest and ver
+        shell: pwsh
+        env:
+          MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+        run: |
+          try {
+            Invoke-WebRequest -UseBasicParsing -OutFile previous-manifest.json `
+              -Uri "https://raw.githubusercontent.com/${{ env.RELEASE_REPO }}/${{ env.RELEASE_BRANCH }}/manifest.json"
+          } catch {
+            Write-Host "No previous manifest (first release with the new updater)"
+          }
+          $note = "${{ github.event.inputs.release_message }}"
+          if ($note -eq "") { $note = git log -1 --pretty=%s }
+          $prev = @()
+          if (Test-Path previous-manifest.json) { $prev = @("--previous", "previous-manifest.json") }
+          java -jar release/updater/core.jar publish release --version $env:VERSION --git-rev $env:GITHUB_SHA `
+            --note "$note" --config etc/release.json --runtime updater-assets/runtime.json `
+            --sign-with-env MANIFEST_SIGNING_KEY @prev
+          if ($LASTEXITCODE -ne 0) { throw "publish failed" }
 
       - name: Verify build artifacts
         shell: pwsh
         run: |
-          $requiredFiles = @("hafen.jar", "ver", "nurgling_launcher.jar", "nurgling-res.jar")
+          $requiredFiles = @("hafen.jar", "ver", "nurgling-res.jar", "manifest.json", "manifest.json.sig", "nurgling-updater.jar", "updater\core.jar")
           foreach ($file in $requiredFiles) {
             if (!(Test-Path "release\$file")) {
               Write-Error "Missing required file: release\$file"
@@ -124,6 +153,8 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
+          # Files ship byte-for-byte: manifest hashes and the .bat shims' offsets depend on it.
+          git config --global core.autocrlf false
           git clone "https://x-access-token:$env:RELEASE_TOKEN@github.com/${{ env.RELEASE_REPO }}.git" release-repo
           cd release-repo
 
@@ -137,6 +168,7 @@ jobs:
           Copy-Item "..\release\*" . -Recurse
 
           git add -A
+          git update-index --chmod=+x nurgling.sh Nurgling.command
 
           $message = "Release ${{ env.VERSION }}"
           if ("${{ github.event.inputs.release_message }}" -ne "") {

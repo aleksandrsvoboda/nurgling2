@@ -322,7 +322,38 @@
     <copy todir="bin/" file="etc/sqlite-jdbc-3.49.1.0.jar" />
   </target>
 
-  <target name="pre-release" depends="build-env, jar, extlib/jogl, res-jar">
+  <!-- JOGL 2.5.0 for macOS only. The common JOGL natives are x86_64-only and fail on Apple
+       Silicon; these carry arm64 too. They go to release/platform/macos/, which the updater
+       installs on Macs in place of the common jars (Windows and Linux keep theirs). -->
+  <target name="extlib/jogl-macos" depends="extlib-env">
+    <property name="jogl-macos.url" value="https://jogamp.org/deployment/v2.5.0/jar" />
+    <mkdir dir="lib/ext/jogl-macos" />
+    <get dest="lib/ext/jogl-macos/" skipexisting="true">
+      <url url="${jogl-macos.url}/jogl-all.jar" />
+      <url url="${jogl-macos.url}/gluegen-rt.jar" />
+      <url url="${jogl-macos.url}/jogl-all-natives-macosx-universal.jar" />
+      <url url="${jogl-macos.url}/gluegen-rt-natives-macosx-universal.jar" />
+    </get>
+    <checksum file="lib/ext/jogl-macos/jogl-all.jar" algorithm="SHA-256" property="245717cceabca264a210a899f8839d47bd127f50f80892ead2277dd89cbcd301" verifyproperty="jogl-macos.ok.jogl" />
+    <checksum file="lib/ext/jogl-macos/gluegen-rt.jar" algorithm="SHA-256" property="3620c18536a8671fcb1c595d7448e9d31226b824117af6a4c6d45c657f4dabe3" verifyproperty="jogl-macos.ok.gluegen" />
+    <checksum file="lib/ext/jogl-macos/jogl-all-natives-macosx-universal.jar" algorithm="SHA-256" property="032e56167443a80f9f4477fbeef255e59988c6cd5237a151b948bde4bcb7c80c" verifyproperty="jogl-macos.ok.joglnat" />
+    <checksum file="lib/ext/jogl-macos/gluegen-rt-natives-macosx-universal.jar" algorithm="SHA-256" property="3dbd5d054f108c3f8c0c07281e6e3494b85b89b0d8b3f0fbef4bf6c41ca254ec" verifyproperty="jogl-macos.ok.gluegennat" />
+    <fail message="JOGL 2.5.0 macOS jars failed their checksums; delete lib/ext/jogl-macos and retry">
+      <condition>
+        <not><and>
+          <istrue value="${jogl-macos.ok.jogl}" />
+          <istrue value="${jogl-macos.ok.gluegen}" />
+          <istrue value="${jogl-macos.ok.joglnat}" />
+          <istrue value="${jogl-macos.ok.gluegennat}" />
+        </and></not>
+      </condition>
+    </fail>
+  </target>
+
+  <target name="pre-release" depends="build-env, jar, extlib/jogl, extlib/jogl-macos, res-jar">
+    <copy todir="release/platform/macos">
+      <fileset dir="lib/ext/jogl-macos" includes="*.jar" />
+    </copy>
     <copy todir="release" failonerror="false" quiet="true">
       <file name="lib/ext/builtin-res.jar" />
       <file name="lib/ext/hafen-res.jar" />
@@ -343,10 +374,6 @@
     <copy todir="release/" file="build/hafen.jar" />
     <copy todir="release/" file="etc/run.bat" />
     <copy todir="release/" file="etc/run8.bat" />
-    <copy todir="release/" file="etc/run_updater.bat" />
-    <copy todir="release/" file="etc/run_updater_stable.bat" />
-    <copy todir="release/" file="etc/run_updater_latest.bat" />
-    <copy todir="release/" file="etc/nurgling_launcher.jar" />
   </target>
 
   <target name="steam-release" depends="build-env, jar, extlib/jogl">
@@ -371,15 +398,7 @@
     <copy todir="steam/" file="build/hafen.jar" />
   </target>
 
+  <!-- major.minor; CI appends the build number and the updater's publish step writes ver and manifest.json -->
   <property name="version.num" value="2.103"/>
-  <target name="version" depends="pre-release">
-    <buildnumber file="build.num"/>
-    <exec executable="java" failifexecutionfails="false">
-      <arg line="-jar etc/nurgling_launcher.jar hash release ${version.num}.${build.number}" />
-    </exec>
-  </target>
-
-  <target name="release" depends="version">
-    <copy todir="release/" file="ver" />
-  </target>
+  <target name="release" depends="pre-release" />
 </project>

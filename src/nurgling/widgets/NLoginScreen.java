@@ -219,7 +219,9 @@ public class NLoginScreen extends LoginScreen {
     }
 
     private void startVersionCheck() {
-        Object baseurl = NConfig.get(NConfig.Key.baseurl);
+        /* The updater passes the ver URL of the channel the player is on; older launchers don't. */
+        String channelUrl = System.getProperty("nurgling.updateurl");
+        Object baseurl = channelUrl != null ? channelUrl : NConfig.get(NConfig.Key.baseurl);
         Thread checker = new HackThread(() -> {
             String local = readLocalVersion();
             String remote = null;

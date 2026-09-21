@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Promote latest to stable
         env:
           RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
@@ -39,6 +44,14 @@ jobs:
           echo ""
           echo "New stable version:"
           head -1 ver
+
+          echo ""
+          echo "Checking the merged manifest (signature and every file)..."
+          if [ -f manifest.json ]; then
+            java -jar updater/core.jar verify manifest.json
+          else
+            echo "(no manifest.json yet: release predates the updater)"
+          fi
 
           echo ""
           echo "Pushing to stable branch..."
