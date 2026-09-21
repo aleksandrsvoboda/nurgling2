@@ -24,9 +24,13 @@ public class IsPoseMov extends NTask
         this.poses = poses;
     }
 
+    int count = 0;
+    int th = 200;
+
     @Override
     public boolean check()
     {
+        count++;
         if (NUtils.getGameUI() != null && NUtils.getGameUI().map != null && gob != null)
         {
             if (gob.rc.dist(coord) <= pfmdelta)
@@ -35,14 +39,15 @@ public class IsPoseMov extends NTask
             if (drawable != null)
             {
                 String pose;
-                // Экстренный выход если движение так и началось ( 200 попыток )
-                return  drawable instanceof Composite && (pose = ((Composite) drawable).current_pose) != null && NParser.checkName(pose, poses);
+                // Экстренный выход если движение так и началось ( 200 попыток ) - same as IsMoving; without it a
+                // mount that never starts moving (a coracle nosed into the shore) waits forever instead of letting GoTo fail.
+                return count > th || drawable instanceof Composite && (pose = ((Composite) drawable).current_pose) != null && NParser.checkName(pose, poses);
             }
         }
         return false;
     }
     public boolean getResult()
     {
-        return true;
+        return count <= th;
     }
 }

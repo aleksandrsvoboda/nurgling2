@@ -713,6 +713,10 @@ public class PathFinder implements Action {
         } else {
             if (pfmap.cells[pos.x][pos.y].val!=0 && pfmap.cells[pos.x][pos.y].val!=7) {
                 ArrayList<Coord> targets = null;
+                // Blocked by the terrain, not a gob (a coracle beached on a shore tile in water mode): no hitbox to step off, so start from the nearest free cell.
+                if (pfmap.cells[pos.x][pos.y].content.isEmpty()) {
+                    return nearestFreeCells(pos);
+                }
                 if(pfmap.cells[pos.x][pos.y].content.contains((long)-1)) {
                     CellsArray ca = dummy.ngob.getCA();
                     return findFreeNearByHB(ca, target_id, dummy, start);
@@ -947,6 +951,23 @@ public class PathFinder implements Action {
                             pfmap.getCells()[test.x][test.y].val = 7;
                             res.add(test);
                         }
+                    }
+                }
+            }
+        }
+        return res;
+    }
+
+    /** The free cells in the first ring around pos that has any - like findFreeNearByPos, but without marking them as end cells. */
+    private ArrayList<Coord> nearestFreeCells(Coord pos) {
+        ArrayList<Coord> res = new ArrayList<>();
+        for (int radius = 1; radius <= 20 && res.isEmpty(); radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dy = -radius; dy <= radius; dy++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) != radius) continue;
+                    Coord test = pos.add(dx, dy);
+                    if (test.x >= 0 && test.x < pfmap.size && test.y >= 0 && test.y < pfmap.size && pfmap.cells[test.x][test.y].val == 0) {
+                        res.add(test);
                     }
                 }
             }
