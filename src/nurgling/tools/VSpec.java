@@ -3166,6 +3166,8 @@ public class VSpec {
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/cattailhead\",\"name\":\"Cattail Head\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/yulecracker\",\"name\":\"Yule Cracker\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/brain-tiny\",\"name\":\"Tiny Brain\"}"));
+        StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/brain-small\",\"name\":\"Small Brain\"}"));
+        StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/brain\",\"name\":\"Brain\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/petrifiedshell\",\"name\":\"Petrified Seashell\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/flotsam\",\"name\":\"Peculiar Flotsam\"}"));
         StackableCurios.add(new JSONObject("{\"static\":\"gfx/invobjs/curiousneedle\",\"name\":\"Curious Needle\"}"));
