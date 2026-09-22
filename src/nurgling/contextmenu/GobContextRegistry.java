@@ -41,6 +41,7 @@ public class GobContextRegistry {
         register(new RecordMilestoneAction());
         register(new KilnFuelAction());
         register(new HTableTimesAction());
+        register(new TakeDecalAction());
         // Registered last so the generic entry sits below the object-specific ones.
         register(new ConfigureGobAction());
     }
