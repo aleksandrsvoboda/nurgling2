@@ -743,6 +743,9 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	    Object[] ret = {0, (int)gob.id, gob.rc.floor(OCache.posres), 0, -1};
 	    for(Object node : cd.array()) {
 		if(node instanceof Gob.Overlay) {
+		    /* A locked decal is click-through: everything below it is the decal's own mesh. */
+		    if(nurgling.tools.DecalLock.passesThrough((Gob.Overlay)node))
+			break;
 		    ret[0] = 1;
 		    ret[3] = ((Gob.Overlay)node).id;
 		}
