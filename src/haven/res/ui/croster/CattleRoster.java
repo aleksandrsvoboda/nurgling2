@@ -419,6 +419,12 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 	    addentry(parse(args));
 	} else if(msg == "upd") {
 	    T entry = parse(args);
+	    // Preserve the resolved area binding across updates: parse() rebuilds the
+	    // entry from server data (which carries no area), so without this the areaId
+	    // resets to -1 on every upd and the custom Rank column falls back to 0.0.
+	    T old = entries.get(entry.id);
+	    if(old != null && old.areaId >= 0)
+		entry.areaId = old.areaId;
 	    delentry(entry.id);
 	    addentry(entry);
 	} else if(msg == "rm") {
