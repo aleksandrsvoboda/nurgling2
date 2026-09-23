@@ -53,6 +53,7 @@ public class StackSupporter {
         // Registered under "Stackable Curiosities" (stack size 4), but the server stacks these shallower.
         customStackSizes.put("Small Brain", 3);
         customStackSizes.put("Brain", 2);
+        customStackSizes.put("Aurochs Hair", 3);
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
