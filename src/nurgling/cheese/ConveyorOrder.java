@@ -227,17 +227,21 @@ public class ConveyorOrder {
         return null;
     }
 
+    /** True when {@code place} is where this order's last stage ages. */
+    public boolean endsIn(CheeseBranch.Place place) {
+        List<CheeseBranch.Cheese> chain = CheeseBranch.getChainToProduct(cheeseType);
+        return chain != null && chain.get(chain.size() - 1).place == place;
+    }
+
     /**
-     * A finished tray of this order's cheese in the place its last stage ages in: continuous orders
-     * always slice, one-time orders until the count is met. The place check keeps an order for an
-     * intermediate cheese (e.g. Cellar Cheddar) from slicing trays that are still on their way elsewhere.
+     * A finished tray of this order's cheese in the place its last stage ages in, while this order
+     * still counts trays waiting there. Counting matters when another order's recipe carries the
+     * same cheese further: an order for Jorbonzola must not slice the trays booked to a Midnight
+     * Blue order, since Jorbonzola is one of its stages.
      */
     public boolean wantsSlice(CheeseBranch.Place place) {
-        List<CheeseBranch.Cheese> chain = CheeseBranch.getChainToProduct(cheeseType);
-        if (chain == null || chain.get(chain.size() - 1).place != place)
+        if (!endsIn(place))
             return false;
-        if (mode == Mode.continuous)
-            return true;
         for (CheeseOrder.StepStatus s : status)
             if (s.name.equals(cheeseType) && s.left > 0)
                 return true;
