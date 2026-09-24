@@ -1988,6 +1988,7 @@ public class VSpec {
         ArrayList<JSONObject> finebones = new ArrayList<>();
         finebones.addAll(goatHorn);
         finebones.add(new JSONObject("{\"static\":\"gfx/invobjs/beartooth\",\"name\":\"Bear Tooth\"}"));
+        finebones.add(new JSONObject("{\"static\":\"gfx/invobjs/polarbeartooth\",\"name\":\"Ice Bear Tooth\"}"));
         finebones.add(new JSONObject("{\"static\":\"gfx/invobjs/boartusk\",\"name\":\"Boar Tusk\"}"));
         finebones.add(new JSONObject("{\"static\":\"gfx/invobjs/bogturtleshell\",\"name\":\"Bog Turtle Shell\"}"));
         finebones.add(new JSONObject("{\"static\":\"gfx/invobjs/borewormbeak\",\"name\":\"Boreworm Beak\"}"));
