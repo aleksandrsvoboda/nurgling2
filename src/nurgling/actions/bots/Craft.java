@@ -116,14 +116,20 @@ public class Craft implements Action {
                 continue;
             }
 
-            if (!s.categories) {
-                ncontext.addInItem(s.name, ItemTex.create(ItemTex.save(s.spr)));
-                if (!ncontext.isInBarrel(s.name)) {
-                    size += s.count;
-                }
-            } else if (s.ing != null) {
+            if (s.ing != null) {
+                // An ingredient was already chosen (interactively or restored from a preset) -
+                // always honor it, regardless of whether s.categories has been (re)computed yet.
+                // s.categories is only refreshed by Spec.tick() while autoMode is on, so reading
+                // it here right after enabling autoMode can still see a stale `false` and wrongly
+                // fall through to the generic category name (e.g. "Bar of Any Metal") instead of
+                // the chosen ingredient (e.g. "Copper Bar").
                 ncontext.addInItem(s.ing.name, s.ing.img);
                 if (!ncontext.isInBarrel(s.ing.name)) {
+                    size += s.count;
+                }
+            } else if (!s.categories) {
+                ncontext.addInItem(s.name, ItemTex.create(ItemTex.save(s.spr)));
+                if (!ncontext.isInBarrel(s.name)) {
                     size += s.count;
                 }
             } else {
@@ -141,14 +147,15 @@ public class Craft implements Action {
         for (NMakewindow.Spec s : mwnd.outputs) {
 
             if (!mwnd.noTransfer.a) {
-                if (!s.categories) {
-                    if(!ncontext.isInBarrel(s.name))
-                        size += s.count;
-                    ncontext.addOutItem(s.name, ItemTex.create(ItemTex.save(s.spr)), 1);
-                } else if (s.ing != null) {
+                // Same ordering fix as the inputs loop above: check s.ing before s.categories.
+                if (s.ing != null) {
                     if(!ncontext.isInBarrel(s.ing.name))
                         size += s.count;
                     ncontext.addOutItem(s.ing.name, s.ing.img, 1);
+                } else if (!s.categories) {
+                    if(!ncontext.isInBarrel(s.name))
+                        size += s.count;
+                    ncontext.addOutItem(s.name, ItemTex.create(ItemTex.save(s.spr)), 1);
                 }
             }
         }
