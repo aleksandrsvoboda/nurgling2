@@ -6,7 +6,6 @@ import haven.res.ui.stackinv.ItemStack;
 import nurgling.NGItem;
 import nurgling.NInventory;
 import nurgling.tools.NAlias;
-import nurgling.tools.NParser;
 import nurgling.tools.StackSupporter;
 
 public class GetNotFullStack extends NTask
@@ -38,7 +37,13 @@ public class GetNotFullStack extends NTask
                 if (!NGItem.validateItem(item)) {
                     return true;
                 } else {
-                    if (NParser.checkName(((NGItem)item.item).name(), name)) {
+                    /* matchesExact, not checkName: a stack merge only succeeds between
+                     * identical items, but NAlias matches by substring, so a search for
+                     * "Animal Fat" also returns "Rendered Animal Fat". Handing that back
+                     * as a merge target makes the caller itemact() an item the server
+                     * refuses to merge; the merge never happens and the StackSizeChanged
+                     * that follows waits forever (NTask.infinite defaults to true). */
+                    if (name.matchesExact(((NGItem)item.item).name())) {
                         /* Strictly less than, not "different from": maxSize is our guess at the
                          * server's stack depth, and when it guesses low every stack the server
                          * built deeper than that would come back as a fill target. Merging into

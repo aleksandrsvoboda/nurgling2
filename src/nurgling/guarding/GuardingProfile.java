@@ -13,6 +13,11 @@ public final class GuardingProfile {
     public boolean ignoreBats = true;
     public List<GuardEntry> preflightGuards = new ArrayList<>();
     public List<GuardEntry> inflightGuards = new ArrayList<>();
+    // "Notify on sight": comma-separated gob name patterns reported once each per run, without stopping the bot.
+    public String sightingPatterns = "";
+    public boolean sightingDiscord = true;
+    // Chat channel to also post sightings to; empty = none.
+    public String sightingChatChannel = "";
 
     public GuardingProfile() {}
 
@@ -29,6 +34,15 @@ public final class GuardingProfile {
             for (HashMap<String, Object> em : (ArrayList<HashMap<String, Object>>) map.get("inflightGuards")) {
                 inflightGuards.add(new GuardEntry(em));
             }
+        }
+        if (map.get("sightingPatterns") != null) {
+            this.sightingPatterns = (String) map.get("sightingPatterns");
+        }
+        if (map.get("sightingDiscord") != null) {
+            this.sightingDiscord = (Boolean) map.get("sightingDiscord");
+        }
+        if (map.get("sightingChatChannel") != null) {
+            this.sightingChatChannel = (String) map.get("sightingChatChannel");
         }
         reconcileWithRegistry();
     }
@@ -59,6 +73,9 @@ public final class GuardingProfile {
             in.put(e.toJson());
         }
         json.put("inflightGuards", in);
+        json.put("sightingPatterns", sightingPatterns);
+        json.put("sightingDiscord", sightingDiscord);
+        json.put("sightingChatChannel", sightingChatChannel);
         return json;
     }
 
