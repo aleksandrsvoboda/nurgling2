@@ -54,6 +54,8 @@ public class StackSupporter {
         customStackSizes.put("Small Brain", 3);
         customStackSizes.put("Brain", 2);
         customStackSizes.put("Aurochs Hair", 3);
+        // gfx/invobjs/peapod. In no VSpec category.
+        customStackSizes.put("Peapod", 3);
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
@@ -110,7 +112,6 @@ public class StackSupporter {
         catExceptions.add("Reindeer Antlers");
         catExceptions.add("Roe Deer Antlers");
         catExceptions.add("Wolf's Claw");
-        catExceptions.add("Lynx Claws");
         catExceptions.add("Silkworm");
         catExceptions.add("Female Silkmoth");
         catExceptions.add("Male Silkmoth");
@@ -144,7 +145,6 @@ public class StackSupporter {
         Window win = inv.getparent(Window.class);
         if (win != null) {
             if (NParser.checkName(win.cap, unstackableContainers)
-                || NParser.checkName(name, new NAlias("Lynx Claws"))
                 || name.equals("Silkworm")
                 || name.equals("Tick")
                 || name.contains("Dried Filet")
