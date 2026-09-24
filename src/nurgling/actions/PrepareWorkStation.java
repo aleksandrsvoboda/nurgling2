@@ -78,24 +78,39 @@ public class PrepareWorkStation implements Action
         return Results.SUCCESS();
     }
 
+    /**
+     * A crucible's fuel is a two-bit field, not a single flag: bit 1 is branches, bit 2 is coal.
+     * See LightObject.getConfig's crucible entry and NUtils.isWorkStationReady, which already
+     * treat either as valid fuel (bit 4 is the separate flame bit). But most crucible recipes
+     * actually need coal specifically - branch only works for a few (e.g. smelting bars into
+     * nuggets) - so coal is always preferred: it counts as "already fueled" on its own, and is
+     * topped off whenever available even if the crucible already holds branch fuel instead of
+     * settling for it. Branch is only ever accepted, existing or freshly fetched, once coal is
+     * confirmed unavailable anywhere (in hand, in the fuel zone, or the zone/station unreachable).
+     */
+    private static final String[] CRUCIBLE_FUELS = {"Coal", "Branch"};
+
     boolean fillCrucible(Gob crucible, NGameUI gui) throws InterruptedException
     {
-        if((crucible.ngob.getModelAttribute()&2)==2)
+        if((crucible.ngob.getModelAttribute()&2)!=0)
             return true;
+        boolean hasBranchFuel = (crucible.ngob.getModelAttribute()&1)!=0;
+
         int count = 1;
         if(NUtils.getGameUI().getInventory().getFreeSpace()==0)
-            return false;
+            return hasBranchFuel;
 
-        if(NUtils.getGameUI().getInventory().getItems("Coal").isEmpty()) {
+        if(!hasAny(CRUCIBLE_FUELS)) {
             int target_size = count;
             while (target_size != 0 && NUtils.getGameUI().getInventory().getFreeSpace() != 0) {
-                NArea fuelarea = context.goToFuelArea(Specialisation.SpecName.fuelCrucible, "Coal");
+                // material=null matches a "Fuel: Crucible" zone tagged with either fuel.
+                NArea fuelarea = context.goToFuelArea(Specialisation.SpecName.fuelCrucible, null);
                 if (fuelarea == null)
-                    return false;
+                    return hasBranchFuel;
                 ArrayList<Gob> piles = Finder.findGobs(fuelarea, new NAlias("stockpile"));
                 if (piles.isEmpty()) {
                     if (gui.getInventory().getItems().isEmpty())
-                        return false;
+                        return hasBranchFuel;
                     else
                         break;
                 }
@@ -110,21 +125,36 @@ public class PrepareWorkStation implements Action
                 target_size = target_size - tifp.getResult();
             }
         }
-        /* The coal may have come from a zone nowhere near the crucible. */
+        /* The fuel may have come from a zone nowhere near the crucible. */
         context.goToArea(context.workstation);
         Gob station = Finder.findGob(crucible.id);
         if (station == null)
-            return false;
+            return hasBranchFuel;
         new PathFinder(station).run(gui);
-        ArrayList<WItem> fueltitem = NUtils.getGameUI().getInventory().getItems("Coal");
-        if (fueltitem.isEmpty()) {
-            return false;
+        WItem fuelItem = firstOf(CRUCIBLE_FUELS);
+        if (fuelItem == null) {
+            return hasBranchFuel;
         }
-        for(int i=0; i<1;i++) {
-            NUtils.takeItemToHand(fueltitem.get(i));
-            NUtils.activateItem(station);
-            NUtils.getUI().core.addTask(new HandIsFree(NUtils.getGameUI().getInventory()));
-        }
+        NUtils.takeItemToHand(fuelItem);
+        NUtils.activateItem(station);
+        NUtils.getUI().core.addTask(new HandIsFree(NUtils.getGameUI().getInventory()));
         return true;
+    }
+
+    private boolean hasAny(String[] itemNames) throws InterruptedException {
+        for (String name : itemNames) {
+            if (!NUtils.getGameUI().getInventory().getItems(name).isEmpty())
+                return true;
+        }
+        return false;
+    }
+
+    private WItem firstOf(String[] itemNames) throws InterruptedException {
+        for (String name : itemNames) {
+            ArrayList<WItem> items = NUtils.getGameUI().getInventory().getItems(name);
+            if (!items.isEmpty())
+                return items.get(0);
+        }
+        return null;
     }
 }
