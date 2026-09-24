@@ -162,6 +162,9 @@ public class CraftPreset {
         private int count;
         private int width = 1;
         private int height = 1;
+        private boolean isCategory;
+        private String preferredIngredient;
+        private boolean isIgnored;
 
         public OutputSpec() {}
 
@@ -171,6 +174,9 @@ public class CraftPreset {
             this.count = obj.optInt("count", 1);
             this.width = obj.optInt("width", 1);
             this.height = obj.optInt("height", 1);
+            this.isCategory = obj.optBoolean("isCategory", false);
+            this.preferredIngredient = obj.optString("preferredIngredient", null);
+            this.isIgnored = obj.optBoolean("isIgnored", false);
         }
 
         public JSONObject toJson() {
@@ -180,6 +186,11 @@ public class CraftPreset {
             obj.put("count", count);
             obj.put("width", width);
             obj.put("height", height);
+            obj.put("isCategory", isCategory);
+            if (preferredIngredient != null) {
+                obj.put("preferredIngredient", preferredIngredient);
+            }
+            obj.put("isIgnored", isIgnored);
             return obj;
         }
 
@@ -198,5 +209,23 @@ public class CraftPreset {
 
         public int getHeight() { return height; }
         public void setHeight(int height) { this.height = height; }
+
+        public boolean isCategory() { return isCategory; }
+        public void setCategory(boolean category) { isCategory = category; }
+
+        public String getPreferredIngredient() { return preferredIngredient; }
+        public void setPreferredIngredient(String preferredIngredient) { this.preferredIngredient = preferredIngredient; }
+
+        public boolean isIgnored() { return isIgnored; }
+        public void setIgnored(boolean ignored) { isIgnored = ignored; }
+
+        /**
+         * The concrete item name to use for inventory/area lookups: the chosen
+         * ingredient for a category output (e.g. "Copper Nugget"), or the plain
+         * name for a non-category output.
+         */
+        public String getEffectiveName() {
+            return preferredIngredient != null ? preferredIngredient : name;
+        }
     }
 }

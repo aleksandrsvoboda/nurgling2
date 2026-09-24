@@ -621,7 +621,7 @@ public class StepSettingsPanel extends Widget {
         // Get output item name from preset
         String outputItemName = null;
         if (preset != null && !preset.getOutputs().isEmpty()) {
-            outputItemName = preset.getOutputs().get(0).getName();
+            outputItemName = preset.getOutputs().get(0).getEffectiveName();
         }
 
         // Get all areas and filter to those with PUT for output item

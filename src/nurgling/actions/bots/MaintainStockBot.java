@@ -81,7 +81,7 @@ public class MaintainStockBot implements Action {
             return Results.ERROR("Preset has no output items");
         }
         CraftPreset.OutputSpec output = preset.getOutputs().get(0);
-        String outputItemName = output.getName();
+        String outputItemName = output.getEffectiveName();
         Coord itemSize = new Coord(output.getWidth(), output.getHeight());
 
         gui.msg("MaintainStock: Checking " + outputItemName + " (target: " + targetQuantity + ")");

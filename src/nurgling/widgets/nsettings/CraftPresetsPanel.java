@@ -121,10 +121,12 @@ public class CraftPresetsPanel extends Panel {
         String iconName = null;
         String iconResPath = null;
         if (!preset.getOutputs().isEmpty()) {
-            iconName = preset.getOutputs().get(0).getName();
+            iconName = preset.getOutputs().get(0).getEffectiveName();
             iconResPath = preset.getOutputs().get(0).getResourcePath();
         } else if (!preset.getInputs().isEmpty()) {
-            iconName = preset.getInputs().get(0).getName();
+            iconName = preset.getInputs().get(0).getPreferredIngredient() != null
+                ? preset.getInputs().get(0).getPreferredIngredient()
+                : preset.getInputs().get(0).getName();
             iconResPath = preset.getInputs().get(0).getResourcePath();
         }
         if (iconName != null || iconResPath != null) {
@@ -165,7 +167,7 @@ public class CraftPresetsPanel extends Panel {
             StringBuilder inputs = new StringBuilder(L10n.get("craftpresets.inputs") + " ");
             for (CraftPreset.InputSpec input : preset.getInputs()) {
                 if (inputs.length() > 8) inputs.append(", ");
-                inputs.append(input.getName());
+                inputs.append(input.getPreferredIngredient() != null ? input.getPreferredIngredient() : input.getName());
                 if (input.getCount() > 1) inputs.append(" x").append(input.getCount());
             }
             String inputsStr = inputs.length() > 70 ? inputs.substring(0, 67) + "..." : inputs.toString();
@@ -175,7 +177,7 @@ public class CraftPresetsPanel extends Panel {
             StringBuilder outputs = new StringBuilder(L10n.get("craftpresets.outputs") + " ");
             for (CraftPreset.OutputSpec output : preset.getOutputs()) {
                 if (outputs.length() > 9) outputs.append(", ");
-                outputs.append(output.getName());
+                outputs.append(output.getEffectiveName());
                 if (output.getCount() > 1) outputs.append(" x").append(output.getCount());
             }
             String outputsStr = outputs.length() > 70 ? outputs.substring(0, 67) + "..." : outputs.toString();

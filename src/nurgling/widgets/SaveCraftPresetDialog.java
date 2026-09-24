@@ -181,6 +181,13 @@ public class SaveCraftPresetDialog extends Window {
             CraftPreset.OutputSpec outputSpec = new CraftPreset.OutputSpec();
             outputSpec.setName(spec.name);
             outputSpec.setCount(spec.count);
+            outputSpec.setCategory(spec.categories);
+
+            // Capture ingredient preference for categories
+            if (spec.ing != null) {
+                outputSpec.setPreferredIngredient(spec.ing.name);
+                outputSpec.setIgnored(spec.ing.isIgnored);
+            }
 
             // Capture resource path and item size
             // The crafting window uses "small" preview icons, so we need to load the real item resource

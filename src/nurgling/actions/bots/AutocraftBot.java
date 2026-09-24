@@ -177,6 +177,54 @@ public class AutocraftBot implements Action {
                 }
             }
         }
+
+        // Match preset outputs to mwnd outputs and set ingredient preferences
+        for (CraftPreset.OutputSpec presetOutput : preset.getOutputs()) {
+            if (!presetOutput.isCategory()) {
+                continue; // Only categories need configuration
+            }
+
+            // Find matching spec in mwnd.outputs
+            for (NMakewindow.Spec spec : mwnd.outputs) {
+                if (spec.name != null && spec.name.equals(presetOutput.getName())) {
+                    if (presetOutput.isIgnored()) {
+                        // Mark as ignored
+                        spec.ing = mwnd.new Ingredient(
+                            Resource.loadsimg("nurgling/hud/autocraft/ignore"),
+                            "Ignore ingredient",
+                            true
+                        );
+                    } else if (presetOutput.getPreferredIngredient() != null) {
+                        // Set preferred ingredient (an output has no source area to check,
+                        // so it's applied unconditionally unlike input preferences)
+                        setPreferredOutputIngredient(mwnd, spec, presetOutput.getPreferredIngredient());
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets the preferred ingredient for a category output spec, mirroring
+     * setPreferredIngredient() but without the source-area check that inputs need.
+     */
+    private void setPreferredOutputIngredient(NMakewindow mwnd, NMakewindow.Spec spec, String preferredName) {
+        ArrayList<JSONObject> categoryItems = VSpec.categories.get(spec.name);
+        if (categoryItems == null) {
+            return;
+        }
+
+        for (JSONObject obj : categoryItems) {
+            if (obj == null || !obj.has("name")) {
+                continue;
+            }
+            String itemName = obj.getString("name");
+            if (itemName != null && itemName.equals(preferredName)) {
+                spec.ing = mwnd.new Ingredient(obj);
+                return;
+            }
+        }
     }
 
     /**
