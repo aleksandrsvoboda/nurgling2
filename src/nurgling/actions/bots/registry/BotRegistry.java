@@ -6,6 +6,7 @@ import nurgling.actions.bots.*;
 import nurgling.actions.bots.CarrotFarmerQ;
 import nurgling.actions.bots.silk.RefillSilkwormFeedingCupboards;
 import nurgling.actions.bots.silk.SilkProductionBot;
+import nurgling.actions.bots.cheeseconveyor.CheeseConveyorBot;
 import nurgling.actions.bots.CollectSwillInArea;
 import nurgling.actions.bots.farmers.WheatFarmer;
 import nurgling.actions.bots.farmers.YellowOnionFarmer;
@@ -191,6 +192,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("compostbin", BotDescriptor.BotType.FARMING, "Compost Bin", "Pull mulch out of compost bins.", true, true, CompostBinUnloader.class, "compostbin", false));
         bots.add(new BotDescriptor("curdingtub", BotDescriptor.BotType.FARMING, "Unload curding Tubs", "Pull curd out of curding tubs.", true, true, CurdingTubUnloader.class, "cheese_empty", false));
         bots.add(new BotDescriptor("cheese", BotDescriptor.BotType.FARMING, "Cheese Production Bot", "Process cheese orders.", true, true, CheeseProductionBot.class, "cheese", false));
+        bots.add(new BotDescriptor("cheese_conveyor", BotDescriptor.BotType.FARMING, "bot.cheese_conveyor.title", "bot.cheese_conveyor.desc", true, true, CheeseConveyorBot.class, "cheese_conveyor", false));
         // Garden pot farming (harvest, fill, plant cycle)
         bots.add(new BotDescriptor("gardenpot_farmer", BotDescriptor.BotType.FARMING, "Garden Pot Farmer", "Complete garden pot farming cycle: harvests ready plants, fills with soil/water, and plants new items.", true, true, GardenPotFarmer.class, "gardenpot", false));
 
@@ -231,6 +233,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("pipeweedq", BotDescriptor.BotType.FARMING_QUALITY, "Pipeweed Farmer Quality", "Automatically harvests and replants pipeweed in X*Y cell patches.", true, true, PipeweedFarmerQ.class, "pipeweedq", false));
 
         // UTILS
+        bots.add(new BotDescriptor("calculators", BotDescriptor.BotType.UTILS, "bot.calculators.title", "bot.calculators.desc", false, true, CalculatorsTool.class, "calculators", false));
         bots.add(new BotDescriptor("equipment_bot", BotDescriptor.BotType.UTILS, "Equipment Bot", "Equip items from a saved preset.", true, false, EquipmentBot.class, "shieldsword", false));
         bots.add(new BotDescriptor("shieldsword", BotDescriptor.BotType.UTILS, "Equip Shield/Sword", "Equips shield and sword.", true, true, EquipShieldSword.class, "shieldsword", false));
         bots.add(new BotDescriptor("filwater", BotDescriptor.BotType.UTILS, "Fill Waterskins (Select Zone)", "Fills waterskins - always prompts to select water zone.", false, true, FillWaterskins.class, "filwater", false));
