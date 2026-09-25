@@ -139,6 +139,9 @@ public class NConfig
         skipButcherInDuck,
         skipPluckingDrakesInDuck,
         studyDeskLayout,
+        studyReportGhosts,   // per-character study report slot history, drawn as ghosts (StudyReportGhosts)
+        showStudyReportGhosts,
+        curioFinishedSound,
         milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map
         milestoneTracking,   // Whether MilestoneTracker passively records signpost/milestone travel
         waypointRetryOnStuck,
@@ -429,6 +432,9 @@ public class NConfig
         conf.put(Key.showTerrainName, false);
         conf.put(Key.validateAllCropsBeforeHarvest, false);
         conf.put(Key.studyDeskLayout, "");
+        conf.put(Key.studyReportGhosts, "");
+        conf.put(Key.showStudyReportGhosts, true);
+        conf.put(Key.curioFinishedSound, true);
         conf.put(Key.milestones, "");
         conf.put(Key.milestoneTracking, true);
         conf.put(Key.waypointRetryOnStuck, true);

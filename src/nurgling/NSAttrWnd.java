@@ -225,6 +225,10 @@ public class NSAttrWnd extends SAttrWnd {
 	if(place == "study") {
 	    Coord nbtl = NFrame.nbox.btloff();
 	    add(child, studyc.add(nbtl));
+	    if(child instanceof Inventory) {
+		child.add(new nurgling.widgets.StudyReportGhosts((Inventory)child)).lower();
+		child.add(new nurgling.widgets.CurioFinishedAlert((Inventory)child));
+	    }
 	    NFrame.around(this, Collections.singletonList(child));
 	    Widget inf = add(new NStudyInfo(
 		new Coord(nsattrw - child.sz.x - NFrame.nbox.bisz().x - UI.scale(5), child.sz.y), child),
