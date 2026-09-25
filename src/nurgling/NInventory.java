@@ -306,6 +306,16 @@ public class NInventory extends Inventory
         super.addchild(child, args);
     }
 
+    /** Called with each item widget as it leaves this inventory, while its info is still readable. */
+    public java.util.function.Consumer<WItem> onItemRemoved = null;
+
+    @Override
+    public void cdestroy(Widget w) {
+        super.cdestroy(w);
+        if ((w instanceof WItem) && (onItemRemoved != null))
+            onItemRemoved.accept((WItem) w);
+    }
+
     public int getNumberFreeCoord(Coord coord) throws InterruptedException
     {
         GetNumberFreeCoord gnfc = new GetNumberFreeCoord(this, coord);

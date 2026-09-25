@@ -227,7 +227,8 @@ public class NSAttrWnd extends SAttrWnd {
 	    add(child, studyc.add(nbtl));
 	    if(child instanceof Inventory) {
 		child.add(new nurgling.widgets.StudyReportGhosts((Inventory)child)).lower();
-		child.add(new nurgling.widgets.CurioFinishedAlert((Inventory)child));
+		if(child instanceof NInventory)
+		    ((NInventory)child).onItemRemoved = nurgling.widgets.CurioFinishedAlert::removed;
 	    }
 	    NFrame.around(this, Collections.singletonList(child));
 	    Widget inf = add(new NStudyInfo(
