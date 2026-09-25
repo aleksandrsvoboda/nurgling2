@@ -274,6 +274,7 @@ public class NCore extends Widget
                     // Start area and route sync after database is initialized
                     startAreaSync();
                     startPlanningSync();
+                    startTodoSync();
                     startFishSync();
                     startPeerPositionSync();
                 }
@@ -291,6 +292,10 @@ public class NCore extends Widget
         {
             startPeerPositionSync();
         }
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !todoSyncStarted)
+        {
+            startTodoSync();
+        }
 
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null)
         {
@@ -298,6 +303,7 @@ public class NCore extends Widget
                 if (databaseManager != null) {
                     stopAreaSync();
                     stopPlanningSync();
+                    stopTodoSync();
                     stopFishSync();
                     stopPeerPositionSync();
                     databaseManager.shutdown();
@@ -864,6 +870,7 @@ public class NCore extends Widget
 
     private static volatile boolean areaSyncStarted = false;
     private static volatile boolean planningSyncStarted = false;
+    private static volatile boolean todoSyncStarted = false;
     private static volatile boolean fishSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;
     private static volatile boolean peerPositionSyncStarted = false;
@@ -1139,6 +1146,26 @@ public class NCore extends Widget
             databaseManager.getPlanningService().stopSync();
         }
         planningSyncStarted = false;
+    }
+
+    /**
+     * Start the shared To-Do list sync. Each session's TodoStore does the work; the service only
+     * drives it, so one loop serves every session.
+     */
+    private void startTodoSync() {
+        if (todoSyncStarted || databaseManager == null || !databaseManager.isReady()
+            || databaseManager.getTodoService() == null) {
+            return;
+        }
+        databaseManager.getTodoService().startSync(4);
+        todoSyncStarted = true;
+    }
+
+    private void stopTodoSync() {
+        if (databaseManager != null && databaseManager.getTodoService() != null) {
+            databaseManager.getTodoService().stopSync();
+        }
+        todoSyncStarted = false;
     }
 
 }
