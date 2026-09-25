@@ -1,7 +1,7 @@
-package nurgling.widgets;
+package nurgling;
 
 import haven.*;
-import nurgling.NConfig;
+import nurgling.widgets.CurioFinishedAlert;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -10,30 +10,32 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Faded "ghost" images of the curiosities that last sat in each study report slot, so a
- * finished (or taken out) curiosity leaves a reminder of what to put back there.
+ * The study report inventory. NUI creates it in place of a plain NInventory for the "study" slot.
  * <p>
- * Lives as the bottom-most child of the study inventory, so the ghosts draw above the slot
- * squares and below the live items, and the Study Report mirror widget shows them too.
- * The layout is remembered per character:
+ * Remembers which curiosity last sat in each slot and draws it as a faded "ghost" once the slot is
+ * empty, like Hurricane's StudyInventory. Items are recorded as they are added and again as they
+ * are removed, so curiosities the server removes right after login are caught too. The layout
+ * is kept per character:
  * <pre>
  * studyReportGhosts: { "characters": { "&lt;chrid&gt;": [ {"res": ..., "x": 0, "y": 0, "w": 1, "h": 1}, ... ] } }
  * </pre>
- * Ported from Hurricane's StudyInventory; unlike it, a new item clears every ghost its
- * footprint touches, not only ghosts anchored inside it.
+ * Unlike Hurricane, a new item clears every ghost its footprint touches, not only ghosts
+ * anchored inside it.
  */
-public class StudyReportGhosts extends Widget {
+public class NStudyInventory extends NInventory {
     private static final Color TINT = new Color(238, 238, 238, 160);
     private static final String CHARACTERS_KEY = "characters";
 
-    private final Inventory study;
     private final List<Ghost> ghosts = new ArrayList<>();
     private String chrid;
+    /** Some item couldn't be recorded yet because its resource is still loading. */
+    private boolean pending = false;
 
     private static class Ghost {
         final String res;
         final Coord ul, span;
         final Indir<Resource> ind;
+        Resource.Image img = null;
         boolean broken = false;
 
         Ghost(String res, Coord ul, Coord span) {
@@ -49,22 +51,22 @@ public class StudyReportGhosts extends Widget {
         }
 
         Resource.Image image() {
-            if (broken)
-                return null;
-            try {
-                return ind.get().layer(Resource.imgc);
-            } catch (Loading l) {
-                return null;
-            } catch (Resource.LoadException | Resource.BadResourceException e) {
-                broken = true;
-                return null;
+            if (img == null && !broken) {
+                try {
+                    img = ind.get().layer(Resource.imgc);
+                    broken = (img == null);
+                } catch (Loading l) {
+                    return null;
+                } catch (Resource.LoadException | Resource.BadResourceException e) {
+                    broken = true;
+                }
             }
+            return img;
         }
     }
 
-    public StudyReportGhosts(Inventory study) {
-        super(study.sz);
-        this.study = study;
+    public NStudyInventory(Coord sz) {
+        super(sz);
     }
 
     @Override
@@ -74,65 +76,82 @@ public class StudyReportGhosts extends Widget {
         load();
     }
 
-    /** Cells covered by an item image of the given (UI-scaled) size. */
-    private static Coord span(Coord ssz) {
-        return ssz.div(Inventory.sqsz).add(1, 1);
+    /** Slots covered by a sprite of the given pixel size, rounded the way WItem sizes itself. */
+    private static Coord cells(Coord px) {
+        return Coord.of(Math.max(1, (px.x + sqsz.x / 2) / sqsz.x), Math.max(1, (px.y + sqsz.y / 2) / sqsz.y));
     }
 
-    private static Coord cell(WItem w) {
-        return w.c.sub(1, 1).div(Inventory.sqsz);
+    /** Records the item's slot; returns whether the ghost layout changed. Throws Loading until the item's resource is in. */
+    private boolean record(WItem w) {
+        Resource res = w.item.getres();
+        Resource.Image img = res.layer(Resource.imgc);
+        if (img == null)
+            return false;
+        Coord ul = w.c.sub(1, 1).div(sqsz);
+        Coord span = cells(img.ssz);
+        for (Ghost g : ghosts) {
+            if (g.res.equals(res.name) && g.ul.equals(ul) && g.span.equals(span))
+                return false;
+        }
+        ghosts.removeIf(g -> g.overlaps(ul, span));
+        ghosts.add(new Ghost(res.name, ul, span));
+        return true;
     }
 
-    @Override
-    public void tick(double dt) {
-        super.tick(dt);
+    private void recordAll() {
         boolean changed = false;
-        for (WItem w : study.children(WItem.class)) {
-            Resource res;
+        pending = false;
+        for (WItem w : children(WItem.class)) {
             try {
-                res = w.item.getres();
+                changed |= record(w);
             } catch (Loading l) {
-                continue;
+                pending = true;
             }
-            Resource.Image img = res.layer(Resource.imgc);
-            if (img != null)
-                changed |= record(res.name, cell(w), span(img.ssz));
         }
         if (changed)
             save();
     }
 
-    private boolean record(String res, Coord ul, Coord span) {
-        for (Ghost g : ghosts) {
-            if (g.res.equals(res) && g.ul.equals(ul) && g.span.equals(span))
-                return false;
+    @Override
+    public void addchild(Widget child, Object... args) {
+        super.addchild(child, args);
+        if (child instanceof GItem)
+            recordAll();
+    }
+
+    @Override
+    public void cdestroy(Widget w) {
+        super.cdestroy(w);
+        if (w instanceof WItem) {
+            try {
+                if (record((WItem) w))
+                    save();
+            } catch (Loading l) {
+                // Left before its resource loaded; nothing to show for it.
+            }
+            CurioFinishedAlert.removed((WItem) w);
         }
-        ghosts.removeIf(g -> g.overlaps(ul, span));
-        ghosts.add(new Ghost(res, ul, span));
-        return true;
+    }
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        if (pending)
+            recordAll();
     }
 
     @Override
     public void draw(GOut g) {
-        if (!(Boolean) NConfig.get(NConfig.Key.showStudyReportGhosts))
-            return;
-        g.chcolor(TINT);
-        for (Ghost gh : ghosts) {
-            if (occupied(gh))
-                continue;
-            Resource.Image img = gh.image();
-            if (img != null)
-                g.image(img, gh.ul.mul(Inventory.sqsz).add(1, 1));
+        if (Boolean.TRUE.equals(NConfig.get(NConfig.Key.showStudyReportGhosts))) {
+            g.chcolor(TINT);
+            for (Ghost gh : ghosts) {
+                Resource.Image img = gh.image();
+                if (img != null)
+                    g.image(img, gh.ul.mul(sqsz).add(1, 1));
+            }
+            g.chcolor();
         }
-        g.chcolor();
-    }
-
-    private boolean occupied(Ghost gh) {
-        for (Widget w = study.child; w != null; w = w.next) {
-            if ((w instanceof WItem) && gh.overlaps(cell((WItem) w), span(w.sz)))
-                return true;
-        }
-        return false;
+        super.draw(g);
     }
 
     @SuppressWarnings("unchecked")

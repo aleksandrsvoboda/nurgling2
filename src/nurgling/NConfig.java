@@ -139,7 +139,7 @@ public class NConfig
         skipButcherInDuck,
         skipPluckingDrakesInDuck,
         studyDeskLayout,
-        studyReportGhosts,   // per-character study report slot history, drawn as ghosts (StudyReportGhosts)
+        studyReportGhosts,   // per-character study report slot history, drawn as ghosts (NStudyInventory)
         showStudyReportGhosts,
         curioFinishedSound,
         milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map

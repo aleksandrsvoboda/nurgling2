@@ -8,7 +8,7 @@ import nurgling.NConfig;
  * Plays "alarm/curio" when a curiosity finishes studying: a study report item removed while its
  * study meter is at the end. Curiosities taken out by hand leave with a lower meter and stay silent.
  * <p>
- * Runs from the study inventory's item-removal hook, like Ard/Hurricane's InventoryStudy.cdestroy,
+ * Called from NStudyInventory.cdestroy, like Ard/Hurricane's InventoryStudy.cdestroy,
  * so it also catches the curiosities the server removes right after login: they arrive finished
  * and are taken away within the same burst of messages.
  */

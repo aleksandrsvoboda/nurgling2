@@ -417,6 +417,11 @@ public class NUI extends UI
     @Override
     public void newwidgetp(int id, String type, int parent, Object[] pargs, Object... cargs) throws InterruptedException
     {
+        if (type.equals("inv") && (pargs.length > 0) && "study".equals(pargs[0])) {
+            // Study report gets its own inventory class (ghosts, curio-finished sound), like Hurricane's inv-study
+            newwidgetp(id, (ui, args) -> new NStudyInventory((Coord) args[0]), parent, pargs, cargs);
+            return;
+        }
         super.newwidgetp(id, type, parent, pargs, cargs);
         if (type.startsWith("ui/province"))
             setProvince(cargs);
