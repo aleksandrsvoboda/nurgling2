@@ -91,6 +91,21 @@ public class Entry extends Widget {
 	g.image(rend[idx], new Coord(col.x + (int)Math.round((col.w - sz.x) * a), (this.sz.y - sz.y) / 2));
     }
 
+    private Tex numtex = null;
+    private int numv;
+    public void draw(GOut g) {
+	int num = idx + 1;
+	if((numtex == null) || (numv != num)) {
+	    if(numtex != null)
+		numtex.dispose();
+	    numtex = CharWnd.attrf.render(Integer.toString(num)).tex();
+	    numv = num;
+	}
+	Column<Entry> col = CattleRoster.numcol;
+	g.image(numtex, new Coord(col.x + col.w - UI.scale(6) - numtex.sz().x, (sz.y - numtex.sz().y) / 2));
+	super.draw(g);
+    }
+
     public boolean mousedown(MouseDownEvent ev) {
 	if(ev.propagate(this) || super.mousedown(ev))
 	    return(true);

@@ -30,6 +30,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
     public static final Comparator<Entry> namecmp = (a, b) -> a.name.compareTo(b.name);
     public static final int TOOLBAR_H = UI.scale(25);  // Height for top toolbar (combobox, settings button)
     public static final int HEADH = UI.scale(55);  // Total header height (toolbar + column headers)
+    public static final Column<Entry> numcol = new Column<>("#", null, 30);  // Row number gutter, not sortable
     public final Map<UID, T> entries = new HashMap<>();
     public final Scrollbar sb;
     public final Widget entrycont;
@@ -272,7 +273,8 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 
     @SafeVarargs
     public static <E extends Entry>  List<Column<? super E>> initcols(Column<? super E>... attrs) {
-	for(int i = 0, x = CheckBox.sbox.sz().x + UI.scale(10); i < attrs.length; i++) {
+	numcol.x = CheckBox.sbox.sz().x + UI.scale(10);
+	for(int i = 0, x = numcol.x + numcol.w + UI.scale(1); i < attrs.length; i++) {
 	    Column<? super E> attr = attrs[i];
 	    attr.x = x;
 	    x += attr.w;
@@ -323,7 +325,8 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
     protected abstract List<Column<? super T>> cols();
 
     public void drawcols(GOut g) {
-	Column prev = null;
+	g.aimage(numcol.head(), new Coord(numcol.x + (numcol.w / 2), TOOLBAR_H + (HEADH - TOOLBAR_H) / 2), 0.5, 0.5);
+	Column prev = numcol;
 	for(Column col : cols()) {
 	    if((prev != null) && !prev.r) {
 		g.chcolor(255, 255, 0, 64);
