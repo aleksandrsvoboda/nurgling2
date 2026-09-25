@@ -294,7 +294,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	menugridc = brframe.c.add(UI.scale(20), UI.scale(34));
 	Img rbtnimg =add(new Img(rbtnbg), 0, sz.y - rbtnbg.sz().y);
 	rbtnimg.hide();
-	add(new NDraggableWidget(new MainMenu(), "mainmenu", UI.scale(260,109)));
+	add(new NDraggableWidget(new MainMenu(), "mainmenu", UI.scale(270,109)));
 	menubuttons(rbtnimg);
 	portrait = add(new NDraggableWidget(Frame.with(new Avaview(Avaview.dasz, plid, "avacam"), false),"portrait", UI.scale(120, 108)));
 	add(new NDraggableWidget(buffs = new Bufflist(),"bufflist",Coord.z));
