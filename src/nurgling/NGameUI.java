@@ -55,6 +55,7 @@ public class NGameUI extends GameUI
     public WaypointMovementService waypointMovementService;
     public PingService pingService;
     public FishLocationService fishLocationService;
+    public nurgling.todo.TodoStore todoStore;
     public PeerPositionService peerPositionService;
     public FishSearchWindow fishSearchWindow = null;
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
@@ -221,6 +222,7 @@ public class NGameUI extends GameUI
         waypointMovementService = new WaypointMovementService(this);
         pingService = new PingService(this);
         fishLocationService = new FishLocationService(this, genus);
+        todoStore = new nurgling.todo.TodoStore(this, genus);
         peerPositionService = new PeerPositionService(this);
         treeLocationService = new TreeLocationService(this, genus);
         labeledMarkService = new LabeledMarkService(this, genus);
@@ -293,7 +295,16 @@ public class NGameUI extends GameUI
     }
 
     @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        if(todoStore != null)
+            todoStore.tick();
+    }
+
+    @Override
     public void dispose() {
+        if(todoStore != null)
+            todoStore.flushFile();
         if(localizedResourceTimerService != null)
             localizedResourceTimerService.dispose();
         if(fishLocationService != null)

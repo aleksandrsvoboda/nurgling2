@@ -117,7 +117,7 @@ public class NConfig
         smokeprop,
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
-        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
+        serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, todoNotify, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, minimapTogglesShown, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
@@ -377,6 +377,7 @@ public class NConfig
          * are separately switchable in Database settings. */
         conf.put(Key.sharePosition, true);
         conf.put(Key.showPeerPositions, true);
+        conf.put(Key.todoNotify, true);
         conf.put(Key.autoHearthSecret, true);
         conf.put(Key.dbGrantRole, "PUBLIC");
         conf.put(Key.dbStatsOverlay, false);

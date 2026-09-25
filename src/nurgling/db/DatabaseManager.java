@@ -27,6 +27,7 @@ public class DatabaseManager {
     private StorageItemService storageItemService;
     private AreaService areaService;
     private nurgling.db.service.PlanningService planningService;
+    private nurgling.db.service.TodoService todoService;
     private KinSecretService kinSecretService;
     private nurgling.db.service.FishLocationDbService fishLocationService;
     private nurgling.db.service.PeerPositionDbService peerPositionService;
@@ -386,6 +387,8 @@ public class DatabaseManager {
         this.storageItemService = new StorageItemService(this);
         this.areaService = new AreaService(this);
         this.planningService = new nurgling.db.service.PlanningService(this);
+        /* Uses the routes table, which every schema version has; see TodoDao. */
+        this.todoService = new nurgling.db.service.TodoService(this);
         this.kinSecretService =
             skippedMigrations.containsKey(nurgling.db.migration.MigrationManager.MIGRATION_KIN_SECRETS)
                 ? null : new KinSecretService(this);
@@ -780,6 +783,13 @@ public class DatabaseManager {
      */
     public nurgling.db.service.PlanningService getPlanningService() {
         return planningService;
+    }
+
+    /**
+     * Get the shared To-Do list service.
+     */
+    public nurgling.db.service.TodoService getTodoService() {
+        return todoService;
     }
 
     /**

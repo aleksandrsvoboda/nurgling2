@@ -41,6 +41,7 @@ public class DatabaseSettings extends Panel {
     private CheckBox shareMapMarksCheckbox;
     private CheckBox sharePosCheckbox;
     private CheckBox showPeerPosCheckbox;
+    private CheckBox todoNotifyCheckbox;
     private Dropbox<String> dbType;
     private final int labelWidth = UI.scale(80); // РЁРёСЂРёРЅР° Р»РµР№Р±Р»РѕРІ
     private final int entryX = UI.scale(110);    // X-РєРѕРѕСЂРґРёРЅР°С‚Р° РґР»СЏ TextEntry (was 90, increased for better space)
@@ -51,6 +52,7 @@ public class DatabaseSettings extends Panel {
     private boolean shareMapMarks;
     private boolean sharePos;
     private boolean showPeerPos;
+    private boolean todoNotify;
     private String dbTypeStr;
     private String host, user, pass, dbPath;
 
@@ -132,7 +134,17 @@ public class DatabaseSettings extends Panel {
             }
         }, new Coord(margin, y));
         showPeerPosCheckbox.tooltip = Text.render(L10n.get("database.show_peer_positions_tip")).tex();
-        y += showPeerPosCheckbox.sz.y + UI.scale(8);
+        y += showPeerPosCheckbox.sz.y + UI.scale(5);
+
+        // System-log lines when a villager assigns you a task or finishes one you created
+        prev = todoNotifyCheckbox = content.add(new CheckBox(L10n.get("database.todo_notify")) {
+            public void set(boolean val) {
+                a = val;
+                todoNotify = val;
+            }
+        }, new Coord(margin, y));
+        todoNotifyCheckbox.tooltip = Text.render(L10n.get("database.todo_notify_tip")).tex();
+        y += todoNotifyCheckbox.sz.y + UI.scale(8);
 
         // Р—Р°РіРѕР»РѕРІРѕРє СЂР°Р·РґРµР»Р°
         prev = content.add(new Label(L10n.get("database.settings")), new Coord(margin, y));
@@ -290,6 +302,8 @@ public class DatabaseSettings extends Panel {
         sharePosCheckbox.a = sharePos;
         showPeerPos = getBool(NConfig.Key.showPeerPositions);
         showPeerPosCheckbox.a = showPeerPos;
+        todoNotify = getBool(NConfig.Key.todoNotify);
+        todoNotifyCheckbox.a = todoNotify;
 
         boolean isPostgres = getBool(NConfig.Key.postgres);
         dbTypeStr = isPostgres ? "PostgreSQL" : "SQLite";
@@ -330,6 +344,7 @@ public class DatabaseSettings extends Panel {
         boolean wasSharing = (Boolean) NConfig.get(NConfig.Key.sharePosition);
         NConfig.set(NConfig.Key.sharePosition, sharePos);
         NConfig.set(NConfig.Key.showPeerPositions, showPeerPos);
+        NConfig.set(NConfig.Key.todoNotify, todoNotify);
         if (wasSharing && !sharePos && nurgling.NCore.databaseManager != null
             && nurgling.NCore.databaseManager.getPeerPositionService() != null) {
             nurgling.NCore.databaseManager.getPeerPositionService().withdrawOptedOut();
