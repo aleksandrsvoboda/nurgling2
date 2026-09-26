@@ -6,6 +6,7 @@ import nurgling.NUtils;
 import nurgling.cheese.CheeseBranch;
 import nurgling.cheese.CheeseOrder;
 import nurgling.cheese.CheeseOrdersManager;
+import nurgling.cheese.CheeseStageHours;
 import nurgling.cheese.ConveyorOrder;
 import nurgling.cheese.ConveyorOrdersManager;
 import nurgling.i18n.L10n;
@@ -53,10 +54,12 @@ public class CheeseConveyorPanel extends Panel {
         listPanel = add(new Widget(new Coord(contentWidth, contentHeight)), new Coord(margin, margin));
         listPanel.add(new Label(L10n.get("conveyor.title")), Coord.z);
         listScroll = listPanel.add(new Scrollport(new Coord(contentWidth, UI.scale(430))), new Coord(0, UI.scale(28)));
-        listContent = new Widget(new Coord(contentWidth - UI.scale(20), UI.scale(50))) {
+        listContent = new Widget(new Coord(listScroll.cont.sz.x, UI.scale(50))) {
             @Override
             public void pack() {
-                resize(contentsz());
+                // Keep the full width: rows are laid out against it, and a list that packed itself
+                // down to a "None" label would lay the next rows out inside that width.
+                resize(new Coord(listScroll.cont.sz.x, contentsz().y));
             }
         };
         listScroll.cont.add(listContent, Coord.z);
@@ -209,7 +212,7 @@ public class CheeseConveyorPanel extends Panel {
 
         List<ConveyorOrder> orders = new ArrayList<>(manager.getOrders().values());
         orders.sort(Comparator.comparingInt(ConveyorOrder::getId));
-        int w = listContent.sz.x;
+        int w = listScroll.cont.sz.x;
         int y = 0;
         for (boolean continuous : new boolean[]{true, false}) {
             listContent.add(new Label(L10n.get(continuous ? "conveyor.section.continuous" : "conveyor.section.once")), new Coord(0, y));
@@ -307,10 +310,45 @@ public class CheeseConveyorPanel extends Panel {
                 row.add(new Label(step.name), new Coord(UI.scale(62), y));
                 row.add(new Label(step.place), new Coord(UI.scale(230), y));
                 row.add(new Label(L10n.get("conveyor.step_left", String.valueOf(step.left))), new Coord(UI.scale(310), y));
+                row.add(new Label(stageTiming(order, step)), new Coord(UI.scale(380), y));
                 y += stepH;
             }
         }
         return row;
+    }
+
+    /**
+     * Age of the oldest trays still in a stage and roughly how long they have left, e.g.
+     * "2d 4h ago, ~6h left". Trays placed before stamps existed, imported or moved by hand read
+     * as unknown.
+     */
+    private static String stageTiming(ConveyorOrder order, CheeseOrder.StepStatus step) {
+        if (step.left <= 0 || step.place.equals(CheeseBranch.Place.start.name()))
+            return "";
+        CheeseBranch.Place place = CheeseBranch.Place.valueOf(step.place);
+        long arrived = order.oldestArrival(step.name, place);
+        if (arrived <= 0)
+            return L10n.get("conveyor.step_unknown");
+        long age = Math.max(0, System.currentTimeMillis() - arrived);
+        String text = L10n.get("conveyor.step_age", duration(age));
+        int hours = CheeseStageHours.defaultHours(step.name, place);
+        if (hours > 0) {
+            long left = hours * 3600_000L - age;
+            text += left > 0 ? "  " + L10n.get("conveyor.step_left_time", duration(left))
+                    : "  " + L10n.get("conveyor.step_ready");
+        }
+        return text;
+    }
+
+    private static String duration(long millis) {
+        long minutes = millis / 60_000;
+        long hours = minutes / 60;
+        long days = hours / 24;
+        if (days > 0)
+            return days + "d " + (hours % 24) + "h";
+        if (hours > 0)
+            return hours + "h " + (minutes % 60) + "m";
+        return minutes + "m";
     }
 
     /** Cheese icon from the VSpec cheese category, loaded once per type. */

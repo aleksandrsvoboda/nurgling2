@@ -4,7 +4,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An order of the Cheese Conveyor bot. There is at most one per cheese: trays on a rack carry no
@@ -39,6 +41,7 @@ public class ConveyorOrder {
     private int extra;
     private boolean paused;
     private final List<CheeseOrder.StepStatus> status;
+    private final Map<String, List<Batch>> batches = new LinkedHashMap<>();
 
     private ConveyorOrder(int id, String cheeseType, Mode mode, List<CheeseOrder.StepStatus> status) {
         this.id = id;
@@ -74,6 +77,20 @@ public class ConveyorOrder {
         if (arr != null)
             for (int i = 0; i < arr.length(); i++)
                 status.add(new CheeseOrder.StepStatus(arr.getJSONObject(i)));
+        JSONObject stamps = json.optJSONObject("batches");
+        if (stamps != null) {
+            for (String key : stamps.keySet()) {
+                JSONArray list = stamps.optJSONArray(key);
+                if (list == null)
+                    continue;
+                List<Batch> stage = batches.computeIfAbsent(key, k -> new ArrayList<>());
+                for (int i = 0; i < list.length(); i++) {
+                    JSONObject b = list.optJSONObject(i);
+                    if (b != null && b.optInt("count") > 0)
+                        stage.add(new Batch(b.getInt("count"), b.optLong("time", 0)));
+                }
+            }
+        }
     }
 
     public JSONObject toJson() {
@@ -92,6 +109,20 @@ public class ConveyorOrder {
         for (CheeseOrder.StepStatus s : status)
             arr.put(s.toJson());
         obj.put("status", arr);
+        JSONObject stamps = new JSONObject();
+        for (Map.Entry<String, List<Batch>> stage : batches.entrySet()) {
+            if (stage.getValue().isEmpty())
+                continue;
+            JSONArray list = new JSONArray();
+            for (Batch b : stage.getValue()) {
+                JSONObject jb = new JSONObject();
+                jb.put("count", b.count);
+                jb.put("time", b.time);
+                list.put(jb);
+            }
+            stamps.put(stage.getKey(), list);
+        }
+        obj.put("batches", stamps);
         return obj;
     }
 
@@ -188,6 +219,10 @@ public class ConveyorOrder {
 
     /** Stage counters for trays of {@code cheese} leaving {@code from}: move them to the next step of this chain. */
     public void advance(String cheese, CheeseBranch.Place from, int moved) {
+        advance(cheese, from, moved, System.currentTimeMillis());
+    }
+
+    public void advance(String cheese, CheeseBranch.Place from, int moved, long nowMillis) {
         List<CheeseBranch.Cheese> chain = CheeseBranch.getChainToProduct(cheeseType);
         if (chain == null)
             return;
@@ -197,6 +232,9 @@ public class ConveyorOrder {
                 CheeseOrder.StepStatus cur = findStep(step.name, step.place);
                 if (cur != null)
                     cur.left = Math.max(0, cur.left - moved);
+                // The oldest trays in a stage are the ones that ripen first, so they are the ones
+                // that just left it.
+                takeOldest(step.name, step.place, moved);
                 CheeseBranch.Cheese next = chain.get(i + 1);
                 CheeseOrder.StepStatus nxt = findStep(next.name, next.place);
                 if (nxt == null) {
@@ -204,8 +242,65 @@ public class ConveyorOrder {
                     status.add(nxt);
                 }
                 nxt.left += moved;
+                batches(next.name, next.place).add(new Batch(moved, nowMillis));
                 return;
             }
+        }
+    }
+
+    /**
+     * When trays entered a stage. Each entry is a batch the bot placed there, oldest first; trays
+     * that were already on the racks before this was recorded have {@link Batch#time} 0.
+     */
+    public static class Batch {
+        public int count;
+        public final long time;
+
+        Batch(int count, long time) {
+            this.count = count;
+            this.time = time;
+        }
+    }
+
+    public List<Batch> batches(String name, CheeseBranch.Place place) {
+        return batches.computeIfAbsent(CheeseStageHours.key(name, place), k -> new ArrayList<>());
+    }
+
+    /**
+     * Batches of a stage, corrected against its counter first: trays counted but never stamped
+     * (placed by an older build, imported, or moved by hand) show up as one batch of unknown age.
+     */
+    public List<Batch> stageBatches(String name, CheeseBranch.Place place) {
+        CheeseOrder.StepStatus step = findStep(name, place);
+        int left = step == null ? 0 : step.left;
+        List<Batch> list = batches(name, place);
+        int total = 0;
+        for (Batch b : list)
+            total += b.count;
+        if (total > left)
+            takeOldest(name, place, total - left);
+        else if (total < left)
+            list.add(0, new Batch(left - total, 0));
+        return list;
+    }
+
+    /** When the oldest trays of a stage arrived, or 0 when that is unknown. */
+    public long oldestArrival(String name, CheeseBranch.Place place) {
+        List<Batch> list = stageBatches(name, place);
+        return list.isEmpty() ? 0 : list.get(0).time;
+    }
+
+    private void takeOldest(String name, CheeseBranch.Place place, int count) {
+        List<Batch> list = batches(name, place);
+        int togo = count;
+        while (togo > 0 && !list.isEmpty()) {
+            Batch first = list.get(0);
+            if (first.count > togo) {
+                first.count -= togo;
+                return;
+            }
+            togo -= first.count;
+            list.remove(0);
         }
     }
 
@@ -252,6 +347,7 @@ public class ConveyorOrder {
         for (CheeseOrder.StepStatus s : status) {
             if (s.name.equals(cheeseType) && s.left > 0) {
                 s.left--;
+                takeOldest(s.name, CheeseBranch.Place.valueOf(s.place), 1);
                 return;
             }
         }
