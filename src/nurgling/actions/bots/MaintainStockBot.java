@@ -81,7 +81,7 @@ public class MaintainStockBot implements Action {
             return Results.ERROR("Preset has no output items");
         }
         CraftPreset.OutputSpec output = preset.getOutputs().get(0);
-        String outputItemName = output.getName();
+        String outputItemName = output.getEffectiveName();
         Coord itemSize = new Coord(output.getWidth(), output.getHeight());
 
         gui.msg("MaintainStock: Checking " + outputItemName + " (target: " + targetQuantity + ")");
@@ -150,12 +150,21 @@ public class MaintainStockBot implements Action {
             return Results.SUCCESS();
         }
 
-        gui.msg("MaintainStock: Crafting " + actualToCraft + " " + outputItemName);
+        // "quantity" below is the number of craft ACTIONS to run, not the number of items
+        // wanted - Craft treats it as a repeat count, and one action already yields
+        // output.getCount() items (e.g. smelting a bar yields 10 nuggets per action). Passing
+        // the item count straight through as the action count overshoots by that same factor.
+        int itemsPerCraft = Math.max(1, output.getCount());
+        int craftsNeeded = (actualToCraft + itemsPerCraft - 1) / itemsPerCraft;
 
-        // Run AutocraftBot with calculated quantity
+        gui.msg("MaintainStock: Crafting " + actualToCraft + " " + outputItemName
+                + " (" + craftsNeeded + " craft action" + (craftsNeeded == 1 ? "" : "s")
+                + " at " + itemsPerCraft + " per action)");
+
+        // Run AutocraftBot with the corresponding number of craft actions
         Map<String, Object> autocraftSettings = new HashMap<>();
         autocraftSettings.put("presetId", presetId);
-        autocraftSettings.put("quantity", actualToCraft);
+        autocraftSettings.put("quantity", craftsNeeded);
         AutocraftBot autocraft = new AutocraftBot(autocraftSettings);
         return autocraft.run(gui);
     }
