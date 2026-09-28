@@ -41,6 +41,12 @@ public class NQuestTrackerProp implements JConf
     public final Set<String> collapsed = new LinkedHashSet<>();
     /** Maximum rendered rows before the panel cuts off with a "+N more" row. 0 = unlimited. */
     public int maxrows = 12;
+    /** Publish this character's quests to villagers on the database. Opt-in, so off by default. */
+    public boolean shareQuests = false;
+    /** The Village tab was the last one shown. Kept while the database is away, for when it returns. */
+    public boolean villageTab = false;
+    /** Villagers whose shared quests the player hid, by character name. */
+    public final Set<String> hiddenVillagers = new LinkedHashSet<>();
 
     public NQuestTrackerProp(String username, String chrid)
     {
@@ -78,6 +84,11 @@ public class NQuestTrackerProp implements JConf
         readStrings(values.get("collapsed"), collapsed);
         if(values.get("maxrows") instanceof Number)
             maxrows = ((Number)values.get("maxrows")).intValue();
+        if(values.get("shareQuests") instanceof Boolean)
+            shareQuests = (Boolean)values.get("shareQuests");
+        if(values.get("villageTab") instanceof Boolean)
+            villageTab = (Boolean)values.get("villageTab");
+        readStrings(values.get("hiddenVillagers"), hiddenVillagers);
     }
 
     private static String str(Object o)
@@ -114,6 +125,9 @@ public class NQuestTrackerProp implements JConf
         j.put("expanded", new JSONArray(expanded));
         j.put("collapsed", new JSONArray(collapsed));
         j.put("maxrows", maxrows);
+        j.put("shareQuests", shareQuests);
+        j.put("villageTab", villageTab);
+        j.put("hiddenVillagers", new JSONArray(hiddenVillagers));
         return j;
     }
 

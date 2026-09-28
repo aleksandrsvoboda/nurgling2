@@ -17,6 +17,8 @@ import nurgling.widgets.quest.QuestObjectiveRowLayout;
 import nurgling.widgets.quest.QuestKind;
 import nurgling.widgets.quest.QuestMenu;
 import nurgling.widgets.quest.QuestModel;
+import nurgling.widgets.quest.SharedQuests;
+import nurgling.widgets.quest.VillageQuestStore;
 
 import java.awt.Color;
 import java.util.*;
@@ -59,6 +61,45 @@ public class NQuestInfo extends Widget
     /** Lowercased item names of unfinished {@code Bring} objectives. */
     private volatile Set<String> bringItems = Collections.emptySet();
 
+    /**
+     * Bumped whenever {@link #villageWanters} would answer differently. Separate from
+     * {@link #lastUpdate} so a villager's change does not make every gob re-evaluate itself.
+     */
+    public final AtomicInteger villageUpdate = new AtomicInteger(0);
+
+    /** One villager wanting an item, for the item frame and its tooltip. */
+    public static final class Want
+    {
+        public final String name;
+        public final String text;
+        public final boolean online;
+
+        Want(String name, String text, boolean online)
+        {
+            this.name = name;
+            this.text = text;
+            this.online = online;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if(!(o instanceof Want))
+                return false;
+            Want w = (Want)o;
+            return name.equals(w.name) && text.equals(w.text) && online == w.online;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(name, text, online);
+        }
+    }
+
+    /** Lowercased bring-item name to the villagers wanting it. Replaced wholesale, never mutated. */
+    private volatile Map<String, List<Want>> villageBring = Collections.emptyMap();
+
     /* ------------------------------------------------------------------ state */
 
     private final QuestModel model = new QuestModel();
@@ -84,10 +125,26 @@ public class NQuestInfo extends Widget
     /** The prop sets we published last rebuild, to tell a real change from a rebuild. */
     private final Map<String, HashSet<String>> markedProps = new HashMap<>();
 
+    /* village tab */
+    private final TabStrip tabs;
+    /** Database up with quest sharing available; the tab strip only exists while this holds. */
+    private boolean connected = false;
+    private int villageRev = -1;
+    /** Villagers with at least one quest, for the tab label. */
+    private int villageCount = 0;
+    /* what was last offered for publishing, so the JSON is only rebuilt when it can differ */
+    private int offeredRev = -1;
+    private boolean offeredShare = false;
+    private boolean offeredSettled = false;
+    private Text.Foundry chipFnd;
+    private final Map<String, Tex> chipCache = new HashMap<>();
+
     public NQuestInfo()
     {
         super(DEF_SZ);
         fonts();
+        tabs = add(new TabStrip());
+        tabs.hide();
         modebtn = add(new NMiniMapWnd.NMenuCheckBox(
             "nurgling/hud/buttons/questmode", null, "Group by quest giver / by task"));
         modebtn.changed(a -> {
@@ -166,6 +223,11 @@ public class NQuestInfo extends Widget
         condFnd = new Text.Foundry(f.deriveFont(Math.max(8f, f.getSize2D() - UI.scale(1f))),
                                    NStyle.questCond).aa(true);
         rowH = groupFnd.height() + UI.scale(3);
+        chipFnd = new Text.Foundry(f.deriveFont(java.awt.Font.BOLD, Math.max(8f, f.getSize2D() - UI.scale(2f))),
+                                   NStyle.infoBg).aa(true);
+        for(Tex t : chipCache.values())
+            t.dispose();
+        chipCache.clear();
         needRebuild = true;
     }
 
@@ -182,6 +244,14 @@ public class NQuestInfo extends Widget
     private void relayout()
     {
         int x = PAD.x, top = PAD.y;
+        if(connected) {
+            tabs.show();
+            tabs.c = Coord.z;
+            tabs.resize(new Coord(sz.x, rowH + UI.scale(4)));
+            top += tabs.sz.y;
+        } else {
+            tabs.hide();
+        }
         modebtn.c = new Coord(x, top);
         x += modebtn.sz.x + PAD.x;
         for(KindChip c : chips) {
@@ -217,9 +287,148 @@ public class NQuestInfo extends Widget
         NGameUI gui = getparent(NGameUI.class);
         if(model.tick(dt, (gui != null) ? gui.chrwdg : null))
             needRebuild = true;
+        tickVillage(gui);
         if(needRebuild) {
             needRebuild = false;
             rebuild();
+        }
+    }
+
+    /* ------------------------------------------------------------------ village sync */
+
+    /** The shared database is up and has quest sharing. Two field reads, cheap enough per tick. */
+    private static boolean dbConnected()
+    {
+        nurgling.db.DatabaseManager dm = nurgling.NCore.databaseManager;
+        return dm != null && dm.getQuestShareService() != null;
+    }
+
+    private static nurgling.db.service.QuestShareDbService shareService()
+    {
+        nurgling.db.DatabaseManager dm = nurgling.NCore.databaseManager;
+        return (dm != null) ? dm.getQuestShareService() : null;
+    }
+
+    /** True while the Village tab is the one on screen. */
+    private boolean villageShown()
+    {
+        return connected && prop().villageTab;
+    }
+
+    private void tickVillage(NGameUI gui)
+    {
+        boolean conn = dbConnected();
+        if(conn != connected) {
+            connected = conn;
+            if(!conn && gui != null && gui.villageQuests != null)
+                gui.villageQuests.clear();
+            if(conn && prop().villageTab)
+                requestRead();
+            relayout();
+            needRebuild = true;
+        }
+        if(gui == null || gui.villageQuests == null)
+            return;
+        VillageQuestStore store = gui.villageQuests;
+        int rev = store.revision();
+        if(rev != villageRev) {
+            villageRev = rev;
+            rebuildVillageIndex(store);
+            if(villageShown())
+                needRebuild = true;
+        }
+        offer(gui, false);
+    }
+
+    /**
+     * Hand this character's quests to the sync worker. The JSON is only rebuilt when the model, the
+     * share flag or the login guard moved; the store itself drops offers that did not change.
+     */
+    private void offer(NGameUI gui, boolean force)
+    {
+        if(gui == null || gui.villageQuests == null || gui.chrid == null || prop == null)
+            return;
+        boolean share = prop.shareQuests;
+        boolean settled = model.settled();
+        if(!force && offeredRev == model.revision() && offeredShare == share && offeredSettled == settled)
+            return;
+        offeredRev = model.revision();
+        offeredShare = share;
+        offeredSettled = settled;
+        String data = (share && settled) ? SharedQuests.encode(SharedQuests.fromModel(model.quests())) : null;
+        gui.villageQuests.offer(gui.chrid, share, data);
+    }
+
+    private void requestRead()
+    {
+        nurgling.db.service.QuestShareDbService svc = shareService();
+        if(svc != null)
+            svc.requestRead();
+    }
+
+    private void setShare(boolean on)
+    {
+        NQuestTrackerProp p = prop();
+        if(p.shareQuests == on)
+            return;
+        p.shareQuests = on;
+        p.save();
+        NGameUI gui = getparent(NGameUI.class);
+        // Offer first: the worker must see "not sharing" before the withdraw it is about to run.
+        offer(gui, true);
+        if(!on && gui != null) {
+            nurgling.db.service.QuestShareDbService svc = shareService();
+            if(svc != null)
+                svc.withdraw(gui.getGenus(), gui.chrid);
+        }
+        needRebuild = true;
+    }
+
+    private void setVillageTab(boolean village)
+    {
+        NQuestTrackerProp p = prop();
+        if(p.villageTab == village)
+            return;
+        p.villageTab = village;
+        p.save();
+        if(village)
+            requestRead();
+        needRebuild = true;
+    }
+
+    private boolean villagerVisible(VillageQuestStore.Villager v, NQuestTrackerProp p)
+    {
+        return !p.hiddenVillagers.contains(v.name);
+    }
+
+    /** Rebuild the bring index the item frames read, and the tab's villager count. */
+    private void rebuildVillageIndex(VillageQuestStore store)
+    {
+        NQuestTrackerProp p = prop();
+        Map<String, List<Want>> idx = new HashMap<>();
+        int count = 0;
+        if(connected) {
+            for(VillageQuestStore.Villager v : store.villagers().values()) {
+                if(!villagerVisible(v, p))
+                    continue;
+                if(!v.quests.isEmpty())
+                    count++;
+                for(VillageQuestStore.VQuest q : v.quests) {
+                    for(QCond c : q.conds) {
+                        if(c.verb != QCond.Verb.BRING || c.ready || c.bringItem == null)
+                            continue;
+                        idx.computeIfAbsent(c.bringItem, k -> new ArrayList<>()).add(new Want(v.name, c.text, v.online()));
+                    }
+                }
+            }
+        }
+        villageCount = count;
+        if(!idx.equals(villageBring)) {
+            Map<String, List<Want>> frozen = new HashMap<>();
+            for(Map.Entry<String, List<Want>> e : idx.entrySet())
+                frozen.put(e.getKey(), Collections.unmodifiableList(e.getValue()));
+            villageBring = Collections.unmodifiableMap(frozen);
+            villageUpdate.incrementAndGet();
         }
     }
 
@@ -233,6 +442,8 @@ public class NQuestInfo extends Widget
         final boolean secondary;
         /** The objective this row was built from, so the row can offer an action button. */
         final QCond cond;
+        /** Villagers this row belongs to, drawn as name chips. Empty on the Mine tab. */
+        final List<VillageQuestStore.Villager> holders = new ArrayList<>();
 
         Row(String text, boolean ready, int questId, boolean secondary, QCond cond)
         {
@@ -257,6 +468,9 @@ public class NQuestInfo extends Widget
         boolean pinned;
         int done, total;
         final List<Row> rows = new ArrayList<>();
+        /** Villagers holding this quest; non-empty only on the Village tab. */
+        final List<VillageQuestStore.Villager> holders = new ArrayList<>();
+        boolean village;
 
         Color titleColor()
         {
@@ -275,7 +489,11 @@ public class NQuestInfo extends Widget
     private void rebuild()
     {
         NQuestTrackerProp p = prop();
-        List<Group> groups = (p.mode == NQuestTrackerProp.Mode.TASKS) ? taskGroups(p) : giverGroups(p);
+        List<Group> groups;
+        if(villageShown())
+            groups = (p.mode == NQuestTrackerProp.Mode.TASKS) ? villageTaskGroups(p) : villageQuestGroups(p);
+        else
+            groups = (p.mode == NQuestTrackerProp.Mode.TASKS) ? taskGroups(p) : giverGroups(p);
         boolean overlays = applyMarkerProps();
         filterAndSort(groups, p);
         layoutRows(groups, p);
@@ -427,6 +645,128 @@ public class NQuestInfo extends Widget
         return out;
     }
 
+    /** The villagers to show, in name order, skipping the ones the player hid. */
+    private List<VillageQuestStore.Villager> shownVillagers(NQuestTrackerProp p)
+    {
+        List<VillageQuestStore.Villager> out = new ArrayList<>();
+        NGameUI gui = getparent(NGameUI.class);
+        if(gui == null || gui.villageQuests == null)
+            return out;
+        for(VillageQuestStore.Villager v : gui.villageQuests.villagers().values()) {
+            if(villagerVisible(v, p))
+                out.add(v);
+        }
+        return out;
+    }
+
+    /** Village tab, grouped by quest: the same quest held by several villagers is one group. */
+    private List<Group> villageQuestGroups(NQuestTrackerProp p)
+    {
+        Map<String, Group> byKey = new LinkedHashMap<>();
+        List<Group> out = new ArrayList<>();
+        for(VillageQuestStore.Villager v : shownVillagers(p)) {
+            if(v.tooNew) {
+                Group g = new Group();
+                g.key = "vnew:" + v.name;
+                g.title = v.name + " shares quests in a newer format - update nurgling";
+                g.kind = QuestKind.WORLD;
+                g.idle = true;
+                g.village = true;
+                g.holders.add(v);
+                out.add(g);
+                continue;
+            }
+            for(VillageQuestStore.VQuest q : v.quests) {
+                String key = "v:" + q.key();
+                if(q.quest.kind == QuestKind.UNKNOWN || p.hiddenQuests.contains(key))
+                    continue;
+                if(!p.kinds.contains(q.quest.kind) && !p.pinned.contains(key))
+                    continue;
+                Group g = byKey.get(key);
+                if(g == null) {
+                    g = new Group();
+                    g.key = key;
+                    g.questKey = key;
+                    g.title = q.quest.title;
+                    g.kind = q.quest.kind;
+                    g.village = true;
+                    byKey.put(key, g);
+                }
+                g.holders.add(v);
+                if(q.readyToTurnIn())
+                    g.ready = true;
+                if(!q.quest.loaded) {
+                    Row r = new Row("objectives not loaded yet", false, -1, true, null);
+                    r.holders.add(v);
+                    g.rows.add(r);
+                    continue;
+                }
+                for(QCond c : q.conds) {
+                    if(c.verb == QCond.Verb.TELL)
+                        continue;
+                    Row r = new Row(c.text, c.ready, -1, false, c);
+                    r.holders.add(v);
+                    g.rows.add(r);
+                }
+            }
+        }
+        for(Group g : byKey.values()) {
+            // With one holder the group row already says whose quest it is.
+            if(g.holders.size() == 1) {
+                for(Row r : g.rows)
+                    r.holders.clear();
+            }
+            g.total = g.rows.size();
+            for(Row r : g.rows) {
+                if(r.ready)
+                    g.done++;
+            }
+            out.add(g);
+        }
+        return out;
+    }
+
+    /** Village tab, grouped by task: what the village needs, identical objectives merged. */
+    private List<Group> villageTaskGroups(NQuestTrackerProp p)
+    {
+        List<VillageQuestStore.Villager> shown = shownVillagers(p);
+        List<Group> out = new ArrayList<>();
+        for(int i = 0; i < TASK_CATS.length; i += 2) {
+            String name = (String)TASK_CATS[i];
+            Set<QCond.Verb> verbs = new HashSet<>(Arrays.asList((QCond.Verb[])TASK_CATS[i + 1]));
+            Group g = new Group();
+            g.key = "vtask:" + name;
+            g.title = name;
+            g.kind = QuestKind.NPC;
+            g.village = true;
+            Map<String, Row> byText = new LinkedHashMap<>();
+            for(VillageQuestStore.Villager v : shown) {
+                for(VillageQuestStore.VQuest q : v.quests) {
+                    String key = "v:" + q.key();
+                    if(q.quest.kind == QuestKind.UNKNOWN || p.hiddenQuests.contains(key))
+                        continue;
+                    if(!p.kinds.contains(q.quest.kind) && !p.pinned.contains(key))
+                        continue;
+                    for(QCond c : q.conds) {
+                        if(c.ready || !verbs.contains(c.verb))
+                            continue;
+                        Row r = byText.get(c.text);
+                        if(r == null)
+                            byText.put(c.text, r = new Row(c.text, false, -1, false, c));
+                        if(!r.holders.contains(v))
+                            r.holders.add(v);
+                    }
+                }
+            }
+            if(byText.isEmpty())
+                continue;
+            g.rows.addAll(byText.values());
+            g.total = g.rows.size();
+            out.add(g);
+        }
+        return out;
+    }
+
     private void filterAndSort(List<Group> groups, final NQuestTrackerProp p)
     {
         for(Iterator<Group> i = groups.iterator(); i.hasNext(); ) {
@@ -529,10 +869,15 @@ public class NQuestInfo extends Widget
             }
         }
         boolean capped = hidden > 0;
-        if(capped)
+        if(capped) {
             add(new MoreRow(hidden, w), shown, y);
-        else if(shown == 0)
-            add(new EmptyRow(w), shown, y);
+        } else if(shown == 0 && villageShown()) {
+            add(new EmptyRow(w, "No villagers are sharing quests", null), shown, y);
+            if(!p.shareQuests && canShare())
+                add(new EmptyRow(w, "Share this character's quests", () -> setShare(true)), shown + 1, y + rowH);
+        } else if(shown == 0) {
+            add(new EmptyRow(w, "No quests to show", null), shown, y);
+        }
         body.cont.update();
     }
 
@@ -629,6 +974,26 @@ public class NQuestInfo extends Widget
                 needRebuild = true;
             }));
         }
+        if(connected) {
+            if(canShare()) {
+                items.add(new QuestMenu.Item((p.shareQuests ? "☑" : "☐") + " Share this character's quests",
+                    () -> setShare(!p.shareQuests)));
+            } else {
+                items.add(new QuestMenu.Item("☐ Share quests (read-only database login)", () -> {
+                    NGameUI gui = getparent(NGameUI.class);
+                    if(gui != null)
+                        gui.msg("This database login is read-only, so it can see villagers' quests but not share its own.");
+                }));
+            }
+        }
+        if(!p.hiddenVillagers.isEmpty()) {
+            items.add(new QuestMenu.Item("Unhide villagers (" + p.hiddenVillagers.size() + ")", () -> {
+                p.hiddenVillagers.clear();
+                p.save();
+                villageRev = -1;
+                needRebuild = true;
+            }));
+        }
         popup(items);
     }
 
@@ -711,7 +1076,30 @@ public class NQuestInfo extends Widget
         }
         if(g.questId >= 0)
             items.add(new QuestMenu.Item("Open in Quest Log", () -> openQuest(g.questId)));
+        if(g.village) {
+            for(final VillageQuestStore.Villager v : g.holders) {
+                if(items.size() >= 6)
+                    break;
+                items.add(new QuestMenu.Item("Hide quests from " + v.name, () -> hideVillager(v.name)));
+            }
+        }
         popup(items);
+    }
+
+    private void hideVillager(String name)
+    {
+        NQuestTrackerProp p = prop();
+        p.hiddenVillagers.add(name);
+        p.save();
+        villageRev = -1;
+        needRebuild = true;
+    }
+
+    /** False for a read-only database login, which can see the village but not publish. */
+    private boolean canShare()
+    {
+        NGameUI gui = getparent(NGameUI.class);
+        return gui == null || gui.villageQuests == null || gui.villageQuests.canWrite();
     }
 
     /* ------------------------------------------------------------------ rows */
@@ -729,6 +1117,90 @@ public class NQuestInfo extends Widget
                 hi = mid - 1;
         }
         return (lo <= 0) ? "…" : (s.substring(0, lo).trim() + "…");
+    }
+
+    /* ------------------------------------------------------------------ villager chips */
+
+    /** At most this many name chips per row; the rest collapse into a "+n" chip. */
+    private static final int MAX_CHIPS = 2;
+    private static final int CHIP_NAME = 8;
+
+    private List<Tex> chips(List<VillageQuestStore.Villager> holders)
+    {
+        if(holders.isEmpty())
+            return Collections.emptyList();
+        List<Tex> out = new ArrayList<>();
+        for(int i = 0; i < holders.size() && i < MAX_CHIPS; i++)
+            out.add(chip(holders.get(i)));
+        if(holders.size() > MAX_CHIPS)
+            out.add(chipTex("+" + (holders.size() - MAX_CHIPS), NStyle.questDim, 255));
+        return out;
+    }
+
+    private Tex chip(VillageQuestStore.Villager v)
+    {
+        Color col = NStyle.questHolders[Math.floorMod(v.name.hashCode(), NStyle.questHolders.length)];
+        String label = (v.name.length() > CHIP_NAME) ? (v.name.substring(0, CHIP_NAME - 1) + "…") : v.name;
+        return chipTex(label, col, v.online() ? 255 : 110);
+    }
+
+    private Tex chipTex(String label, Color col, int alpha)
+    {
+        String key = label + "|" + col.getRGB() + "|" + alpha;
+        Tex t = chipCache.get(key);
+        if(t == null) {
+            java.awt.image.BufferedImage txt = chipFnd.render(label).img;
+            int pad = UI.scale(3);
+            int h = Math.min(rowH - UI.scale(2), txt.getHeight() + UI.scale(1));
+            java.awt.image.BufferedImage img = TexI.mkbuf(new Coord(txt.getWidth() + pad * 2, h));
+            java.awt.Graphics2D gr = img.createGraphics();
+            gr.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), alpha));
+            gr.fillRect(0, 0, img.getWidth(), img.getHeight());
+            gr.drawImage(txt, pad, (h - txt.getHeight()) / 2, null);
+            gr.dispose();
+            chipCache.put(key, t = new TexI(img));
+        }
+        return t;
+    }
+
+    private static int chipsWidth(List<Tex> chips)
+    {
+        int w = 0;
+        for(Tex t : chips)
+            w += t.sz().x + UI.scale(3);
+        return w;
+    }
+
+    /** Draw chips right-aligned so the last one ends at {@code right}. */
+    private void drawChips(GOut g, List<Tex> chips, int right)
+    {
+        int x = right - chipsWidth(chips) + UI.scale(3);
+        for(Tex t : chips) {
+            g.image(t, new Coord(x, (g.sz().y - t.sz().y) / 2));
+            x += t.sz().x + UI.scale(3);
+        }
+    }
+
+    private static String holdersText(List<VillageQuestStore.Villager> holders)
+    {
+        StringBuilder sb = new StringBuilder();
+        for(VillageQuestStore.Villager v : holders) {
+            if(sb.length() > 0)
+                sb.append(", ");
+            sb.append(v.name).append(v.online() ? " (online)" : " (offline " + age(v.ageMillis) + ")");
+        }
+        return sb.toString();
+    }
+
+    private static String age(long ms)
+    {
+        long m = ms / 60000;
+        if(m < 60)
+            return m + " min";
+        long h = m / 60;
+        if(h < 48)
+            return h + " h";
+        return (h / 24) + " d";
     }
 
     private abstract class ARow extends Widget
@@ -770,6 +1242,7 @@ public class NQuestInfo extends Widget
         final Group group;
         final boolean collapsed;
         private final Tex chev, title, counter;
+        private final List<Tex> chips;
 
         GroupRow(Group g, int w, boolean collapsed)
         {
@@ -780,7 +1253,9 @@ public class NQuestInfo extends Widget
             String pin = g.pinned ? "◆ " : "";
             String cnt = (g.total > 0) ? (g.done + "/" + g.total) : "";
             this.counter = cnt.isEmpty() ? null : condFnd.render(cnt, NStyle.questDim).tex();
+            this.chips = chips(g.holders);
             int cw = (counter != null) ? counter.sz().x + UI.scale(6) : 0;
+            cw += chipsWidth(chips);
             this.title = groupFnd.render(
                 elide(groupFnd, pin + nz(g.title), w - CHEV_W - cw), g.titleColor()).tex();
         }
@@ -791,8 +1266,12 @@ public class NQuestInfo extends Widget
             band(g);
             g.image(chev, new Coord(0, ty(chev)));
             g.image(title, new Coord(CHEV_W, ty(title)));
-            if(counter != null)
+            int right = sz.x;
+            if(counter != null) {
                 g.image(counter, new Coord(sz.x - counter.sz().x, ty(counter)));
+                right -= counter.sz().x + UI.scale(6);
+            }
+            drawChips(g, chips, right);
         }
 
         @Override
@@ -825,8 +1304,9 @@ public class NQuestInfo extends Widget
         @Override
         public Object tooltip(Coord c, Widget prev)
         {
-            return nz(group.title) + " - left-click to " + (collapsed ? "expand" : "collapse")
-                 + ", right-click for options";
+            String tip = nz(group.title) + " - left-click to " + (collapsed ? "expand" : "collapse")
+                       + ", right-click for options";
+            return group.holders.isEmpty() ? tip : (holdersText(group.holders) + "\n" + tip);
         }
     }
 
@@ -836,6 +1316,7 @@ public class NQuestInfo extends Widget
         private final Tex glyph, text;
         private final String full;
         private final QuestObjectiveActionButton actionButton;
+        private final List<Tex> chips;
 
         CondRow(Row r, int w)
         {
@@ -853,7 +1334,9 @@ public class NQuestInfo extends Widget
             } else {
                 actionButton = null;
             }
-            int textWidth = QuestObjectiveRowLayout.textWidth(w, off, actionButton != null);
+            this.chips = chips(r.holders);
+            int textWidth = Math.max(0, QuestObjectiveRowLayout.textWidth(w, off, actionButton != null)
+                                        - chipsWidth(chips));
             this.text = condFnd.render(elide(condFnd, r.text, textWidth), col).tex();
         }
 
@@ -863,6 +1346,7 @@ public class NQuestInfo extends Widget
             band(g);
             g.image(glyph, new Coord(INDENT, ty(glyph)));
             g.image(text, new Coord(INDENT + glyph.sz().x + UI.scale(4), ty(text)));
+            drawChips(g, chips, (actionButton != null) ? actionButton.c.x - UI.scale(2) : sz.x);
             super.draw(g);
         }
 
@@ -882,7 +1366,7 @@ public class NQuestInfo extends Widget
         @Override
         public Object tooltip(Coord c, Widget prev)
         {
-            return full;
+            return row.holders.isEmpty() ? full : (full + "\n" + holdersText(row.holders));
         }
     }
 
@@ -926,17 +1410,35 @@ public class NQuestInfo extends Widget
     private class EmptyRow extends ARow
     {
         private final Tex text;
+        /** Makes the row a link when set. */
+        private final Runnable action;
 
-        EmptyRow(int w)
+        EmptyRow(int w, String msg, Runnable action)
         {
             super(w);
-            this.text = condFnd.render("No quests to show", NStyle.questDim).tex();
+            this.action = action;
+            this.text = condFnd.render(msg, (action != null) ? NStyle.questVillage : NStyle.questDim).tex();
         }
 
         @Override
         public void draw(GOut g)
         {
+            if(action != null && hover) {
+                g.chcolor(NStyle.questHover);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
             g.image(text, new Coord(INDENT, ty(text)));
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev)
+        {
+            if(action != null && ev.b == 1) {
+                action.run();
+                return true;
+            }
+            return super.mousedown(ev);
         }
     }
 
@@ -1009,6 +1511,87 @@ public class NQuestInfo extends Widget
         }
     }
 
+    /** Mine | Village switch. Only shown while the shared database is connected. */
+    private class TabStrip extends Widget
+    {
+        private int hover = -1;
+
+        TabStrip()
+        {
+            super(new Coord(DEF_SZ.x, UI.scale(18)));
+        }
+
+        private String label(int i)
+        {
+            if(i == 0)
+                return "Mine";
+            return (villageCount > 0) ? ("Village (" + villageCount + ")") : "Village";
+        }
+
+        @Override
+        public void draw(GOut g)
+        {
+            boolean village = prop().villageTab;
+            int half = sz.x / 2;
+            int line = Math.max(1, UI.scale(2));
+            for(int i = 0; i < 2; i++) {
+                boolean on = (i == 1) == village;
+                int x0 = i * half, w = (i == 0) ? half : sz.x - half;
+                if(hover == i) {
+                    g.chcolor(NStyle.questHover);
+                    g.frect(new Coord(x0, 0), new Coord(w, sz.y));
+                }
+                Color col = on ? ((i == 1) ? NStyle.questVillage : Color.WHITE) : NStyle.questDim;
+                String key = "tab|" + label(i) + "|" + col.getRGB();
+                Tex t = chipCache.get(key);
+                if(t == null)
+                    chipCache.put(key, t = groupFnd.render(label(i), col).tex());
+                int tx = x0 + (w - t.sz().x) / 2;
+                g.chcolor();
+                g.image(t, new Coord(tx, (sz.y - line - t.sz().y) / 2));
+                if(i == 0 && prop().shareQuests) {
+                    // This character is sharing: a small violet dot after "Mine".
+                    int d = UI.scale(5);
+                    g.chcolor(NStyle.questVillage);
+                    g.frect(new Coord(tx + t.sz().x + UI.scale(4), (sz.y - line - d) / 2), new Coord(d, d));
+                }
+                if(on) {
+                    g.chcolor(NStyle.border);
+                    g.frect(new Coord(x0, sz.y - line), new Coord(w, line));
+                }
+                g.chcolor();
+            }
+            g.chcolor(NStyle.separator);
+            g.frect(new Coord(0, sz.y - UI.scale(1)), new Coord(sz.x, UI.scale(1)));
+            g.chcolor();
+        }
+
+        @Override
+        public void mousemove(MouseMoveEvent ev)
+        {
+            hover = ev.c.isect(Coord.z, sz) ? ((ev.c.x < sz.x / 2) ? 0 : 1) : -1;
+            super.mousemove(ev);
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev)
+        {
+            if(ev.b == 1) {
+                setVillageTab(ev.c.x >= sz.x / 2);
+                return true;
+            }
+            return super.mousedown(ev);
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev)
+        {
+            if(c.x < sz.x / 2)
+                return prop().shareQuests ? "Your quests - shared with the village" : "Your quests";
+            return "Quests of villagers sharing theirs on the database";
+        }
+    }
+
     /* ------------------------------------------------------------------ drawing */
 
     @Override
@@ -1071,6 +1654,28 @@ public class NQuestInfo extends Widget
                 return true;
         }
         return false;
+    }
+
+    /**
+     * Villagers wanting this item for an unfinished {@code Bring} objective, or null when nobody does.
+     * Matches the way {@link #isQuestedItem} does. Read from {@link NGItem#tick} on the UI thread.
+     */
+    public List<Want> villageWanters(NGItem item)
+    {
+        String nm = (item == null) ? null : item.name();
+        Map<String, List<Want>> idx = villageBring;
+        if(nm == null || idx.isEmpty())
+            return null;
+        String lc = nm.toLowerCase();
+        List<Want> out = null;
+        for(Map.Entry<String, List<Want>> e : idx.entrySet()) {
+            if(lc.contains(e.getKey())) {
+                if(out == null)
+                    out = new ArrayList<>();
+                out.addAll(e.getValue());
+            }
+        }
+        return out;
     }
 
     public boolean isQuestedItem(NGItem item)

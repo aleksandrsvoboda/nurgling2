@@ -27,6 +27,12 @@ public class NStyle {
     public static final Color questCondDone  = new Color(122, 175, 122); // satisfied objective
     public static final Color questDim       = new Color(143, 163, 164); // counters, chevrons, hints
     public static final Color questHover     = new Color(255, 255, 255, 26);
+    public static final Color questVillage   = new Color(179, 140, 255); // villagers' quests: tab, item frame
+    /** Name-chip colors for villagers in the quest tracker, picked by name hash. */
+    public static final Color[] questHolders = {
+        new Color(179, 140, 255), new Color(231, 168, 216), new Color(159, 215, 255),
+        new Color(201, 226, 138), new Color(242, 197, 124), new Color(143, 227, 196)
+    };
 
     /**
      * Resolves the window content-area background color, honoring the user's

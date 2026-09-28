@@ -23,6 +23,8 @@ public class QCond
     public final boolean ready;
     /** Server text, with the status suffix appended - what gets rendered. */
     public final String text;
+    /** Server description and status as received, so the objective can be shared and re-parsed. */
+    public final String desc, status;
     public final Verb verb;
     /** Quest giver this objective points at, or null. Raw parse; canonicalised by the model. */
     public final String giver;
@@ -45,6 +47,8 @@ public class QCond
         this.gobTarget = (verb == Verb.KILL) ? huntTarget(d)
                        : (verb == Verb.PICK) ? pickTarget(d) : null;
         this.text = (status == null || status.isEmpty()) ? d : (d + " " + status);
+        this.desc = d;
+        this.status = status;
     }
 
     /** Objectives that name a quest giver, and so contribute a marker on the map. */
