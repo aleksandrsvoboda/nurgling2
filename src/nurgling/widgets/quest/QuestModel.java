@@ -72,6 +72,25 @@ public class QuestModel
             return leaf();
         }
 
+        /**
+         * Whether {@link #title()} is the real name and not the resource-leaf stand-in used while the
+         * resource is still loading. A loaded resource without a tooltip counts as known: the leaf is
+         * then the final answer.
+         */
+        public boolean titleKnown()
+        {
+            if(stitle != null && !stitle.isEmpty())
+                return true;
+            if(res == null)
+                return false;
+            try {
+                res.get();
+                return true;
+            } catch(Loading l) {
+                return false;
+            }
+        }
+
         /** Last path element of the quest resource, or {@code "#id"} while unresolved. */
         public String leaf()
         {

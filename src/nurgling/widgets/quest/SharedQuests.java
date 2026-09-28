@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The quests one character shares with the village, and their JSON form in {@code quest_shares.data}.
@@ -90,12 +91,37 @@ public final class SharedQuests
         }
     }
 
-    /** What this character shares: every quest whose kind is known, with its objectives as received. */
+    /**
+     * Quests never shared, by title: the "Beginning of Farming" family every character gets as a
+     * tutorial. Nobody can help with them, so they would only clutter every villager's tab.
+     */
+    public static boolean excluded(String title)
+    {
+        return title != null && title.toLowerCase(Locale.ROOT).contains("beginning");
+    }
+
+    /**
+     * Whether every quest's real title is known yet. Until then {@link #fromModel} leaves those quests
+     * out, since a stand-in title could hide an {@link #excluded} one, and the caller should ask again.
+     */
+    public static boolean titlesKnown(Collection<QuestModel.TQuest> quests)
+    {
+        for(QuestModel.TQuest q : quests) {
+            if(q.kind != QuestKind.UNKNOWN && !q.titleKnown())
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * What this character shares: every quest whose kind and real title are known, with its objectives
+     * as received, minus the {@link #excluded} ones.
+     */
     public static List<Quest> fromModel(Collection<QuestModel.TQuest> quests)
     {
         List<Quest> out = new ArrayList<>();
         for(QuestModel.TQuest q : quests) {
-            if(q.kind == QuestKind.UNKNOWN)
+            if(q.kind == QuestKind.UNKNOWN || !q.titleKnown() || excluded(q.title()))
                 continue;
             List<Cond> conds = new ArrayList<>(q.conds.size());
             for(QCond c : q.conds)
