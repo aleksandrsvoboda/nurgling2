@@ -136,6 +136,8 @@ public class NQuestInfo extends Widget
     private int offeredRev = -1;
     private boolean offeredShare = false;
     private boolean offeredSettled = false;
+    /** When to rebuild the offer again because some quest titles were still loading; 0 = not needed. */
+    private double titlesPendingAt = 0;
     private Text.Foundry chipFnd;
     private final Map<String, Tex> chipCache = new HashMap<>();
 
@@ -350,12 +352,21 @@ public class NQuestInfo extends Widget
             return;
         boolean share = prop.shareQuests;
         boolean settled = model.settled();
-        if(!force && offeredRev == model.revision() && offeredShare == share && offeredSettled == settled)
+        boolean retry = (titlesPendingAt > 0) && (Utils.rtime() >= titlesPendingAt);
+        if(!force && !retry && offeredRev == model.revision() && offeredShare == share && offeredSettled == settled)
             return;
         offeredRev = model.revision();
         offeredShare = share;
         offeredSettled = settled;
-        String data = (share && settled) ? SharedQuests.encode(SharedQuests.fromModel(model.quests())) : null;
+        String data = null;
+        titlesPendingAt = 0;
+        if(share && settled) {
+            data = SharedQuests.encode(SharedQuests.fromModel(model.quests()));
+            // A quest whose resource is still loading was left out (its stand-in name could hide a
+            // "Beginning" quest). Loading does not move the model's revision, so look again shortly.
+            if(!SharedQuests.titlesKnown(model.quests()))
+                titlesPendingAt = Utils.rtime() + 1.0;
+        }
         gui.villageQuests.offer(gui.chrid, share, data);
     }
 

@@ -122,8 +122,11 @@ public class VillageQuestStore
         {
             SharedQuests.Decoded d = SharedQuests.decode(data);
             List<VQuest> qs = new ArrayList<>(d.quests.size());
-            for(SharedQuests.Quest q : d.quests)
-                qs.add(new VQuest(q));
+            for(SharedQuests.Quest q : d.quests) {
+                // Senders already leave these out; this covers rows written before they did.
+                if(!SharedQuests.excluded(q.title))
+                    qs.add(new VQuest(q));
+            }
             return new Villager(name, version, ageMillis, d.tooNew(), Collections.unmodifiableList(qs));
         }
 
