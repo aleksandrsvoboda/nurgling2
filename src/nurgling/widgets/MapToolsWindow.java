@@ -79,6 +79,11 @@ public class MapToolsWindow extends Window {
                 () -> NMiniMap.showTreeIcons(), val -> NMiniMap.showTreeIcons(val), MapToolsWindow::openTreeSearch);
         y = addIconRow(tab, y, L10n.get("maptools.fish_icons"),
                 () -> NMiniMap.showFishIcons(), val -> NMiniMap.showFishIcons(val), MapToolsWindow::openFishSearch);
+        CheckBox cluster = tab.add(new CheckBox(L10n.get("maptools.cluster_marks")), UI.scale(4), y);
+        cluster.settip(L10n.get("maptools.cluster_marks_tip"));
+        cluster.state(() -> NMiniMap.clusterMinedMarks());
+        cluster.set(val -> NMiniMap.clusterMinedMarks(val));
+        y += cluster.sz.y + ROW_GAP;
 
         y += MARGIN;
         Label samplesLbl = tab.add(new Label(L10n.get("maptools.section_samples")), 0, y);
