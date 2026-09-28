@@ -25,6 +25,11 @@ public class NGItem extends GItem
     public boolean isSearched = false;
     public boolean isQuested = false;
     int lastQuestUpdate = 0;
+    /** Villagers wanting this item for one of their quests, or null. Drawn by NQuestItem. */
+    public List<NQuestInfo.Want> villageWanted = null;
+    int lastVillageUpdate = 0;
+    /** villageWanted changed since the tooltip was last built. */
+    boolean questTipDirty = false;
     String name = null;
     public Float quality = null;
     public boolean autodropRequested = false; // guards against re-sending autodrop for a stacked item already being dropped
@@ -55,6 +60,8 @@ public class NGItem extends GItem
 
     public boolean needlongtip()
     {
+        if (questTipDirty)
+            return true;
         for (ItemInfo inf : info()) {
             if (inf instanceof NFoodInfo) {
                 return ((NFoodInfo) inf).needToolTip;
@@ -81,6 +88,7 @@ public class NGItem extends GItem
 
     public void consumedLongtip()
     {
+        questTipDirty = false;
         for (ItemInfo inf : info()) {
             if (inf instanceof NFoodInfo) {
                 ((NFoodInfo) inf).consumedTooltip();
@@ -235,10 +243,23 @@ public class NGItem extends GItem
                     }
                 }
             }
-            NGameUI qgui = NUtils.getGameUI();
-            if (qgui != null && qgui.questinfo != null && lastQuestUpdate < qgui.questinfo.lastUpdate.get()) {
-                isQuested = qgui.questinfo.isQuestedItem(this);
-                lastQuestUpdate = qgui.questinfo.lastUpdate.get();
+            // The item's own session, not the one on screen: with two sessions open, items must be
+            // framed from their own character's quests.
+            NGameUI qgui = (ui != null && ui.gui != null) ? ui.gui : NUtils.getGameUI();
+            if (qgui != null && qgui.questinfo != null) {
+                if (lastQuestUpdate < qgui.questinfo.lastUpdate.get()) {
+                    isQuested = qgui.questinfo.isQuestedItem(this);
+                    lastQuestUpdate = qgui.questinfo.lastUpdate.get();
+                }
+                int vu = qgui.questinfo.villageUpdate.get();
+                if (lastVillageUpdate != vu) {
+                    List<NQuestInfo.Want> w = qgui.questinfo.villageWanters(this);
+                    if (!java.util.Objects.equals(w, villageWanted)) {
+                        villageWanted = w;
+                        questTipDirty = true;
+                    }
+                    lastVillageUpdate = vu;
+                }
             }
         }
     }

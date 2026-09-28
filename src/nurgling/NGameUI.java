@@ -57,6 +57,8 @@ public class NGameUI extends GameUI
     public FishLocationService fishLocationService;
     public nurgling.todo.TodoStore todoStore;
     public PeerPositionService peerPositionService;
+    /** Quest sharing with villagers on the database; written by QuestShareDbService, read by the tracker. */
+    public nurgling.widgets.quest.VillageQuestStore villageQuests;
     public FishSearchWindow fishSearchWindow = null;
     public final Map<String, FishLocationDetailsWindow> openFishDetailWindows = new HashMap<>();
     public TreeLocationService treeLocationService;
@@ -224,6 +226,7 @@ public class NGameUI extends GameUI
         fishLocationService = new FishLocationService(this, genus);
         todoStore = new nurgling.todo.TodoStore(this, genus);
         peerPositionService = new PeerPositionService(this);
+        villageQuests = new nurgling.widgets.quest.VillageQuestStore();
         treeLocationService = new TreeLocationService(this, genus);
         labeledMarkService = new LabeledMarkService(this, genus);
         // These widgets depend on areas which is created in GameUI constructor

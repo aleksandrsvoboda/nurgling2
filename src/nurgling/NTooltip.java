@@ -544,6 +544,7 @@ public class NTooltip {
         Integer presenceMax = null;      // Presence max value (y in "Presence: x/y")
         NKilnInfo kilnInfo = null;
         NSmelterInfo smelterInfo = null;
+        nurgling.iteminfo.NQuestItem questItem = null;
         for (ItemInfo ii : info) {
             String className = ii.getClass().getSimpleName();
             String fullName = ii.getClass().getName();
@@ -598,6 +599,9 @@ public class NTooltip {
             }
             if (ii instanceof NSmelterInfo) {
                 smelterInfo = (NSmelterInfo) ii;
+            }
+            if (ii instanceof nurgling.iteminfo.NQuestItem) {
+                questItem = (nurgling.iteminfo.NQuestItem) ii;
             }
             if (ii instanceof ItemInfo.Contents) {
                 contentsList.add((ItemInfo.Contents) ii);
@@ -1399,10 +1403,12 @@ public class NTooltip {
             result = presenceAndBelow;
         }
         result = appendFiringTip(result, kilnInfo, scaledSectionSpacing, bodyDescentVal);
-        return appendFiringTip(result, smelterInfo, scaledSectionSpacing, bodyDescentVal);
+        result = appendFiringTip(result, smelterInfo, scaledSectionSpacing, bodyDescentVal);
+        // "Wanted by <villager>" lines, when a villager's quest wants this item
+        return appendFiringTip(result, questItem, scaledSectionSpacing, bodyDescentVal);
     }
 
-    /** Appends the kiln/smelter meter bar and remaining time below the rest of the tooltip. */
+    /** Appends a tip (kiln/smelter meter and remaining time, villagers wanting the item) below the rest. */
     private static BufferedImage appendFiringTip(BufferedImage result, ItemInfo.Tip tip,
                                                  int scaledSectionSpacing, int bodyDescentVal) {
         if (tip == null)

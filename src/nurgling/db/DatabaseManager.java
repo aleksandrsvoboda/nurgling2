@@ -31,6 +31,7 @@ public class DatabaseManager {
     private KinSecretService kinSecretService;
     private nurgling.db.service.FishLocationDbService fishLocationService;
     private nurgling.db.service.PeerPositionDbService peerPositionService;
+    private nurgling.db.service.QuestShareDbService questShareService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
     private nurgling.db.service.VillagerService villagerService;
@@ -420,6 +421,14 @@ public class DatabaseManager {
                 + "live player positions will not be shown");
         }
 
+        /* Checked like peer_positions. Without it the quest tracker simply has no Village tab. */
+        boolean questShareOk = tableUsable("quest_shares");
+        this.questShareService = questShareOk ? new nurgling.db.service.QuestShareDbService(this) : null;
+        if (!questShareOk) {
+            System.err.println("[DatabaseManager] quest_shares unavailable; "
+                + "villagers' quests will not be shared");
+        }
+
         boolean mapOk = tableUsable("map_grids")
             && tableUsable("map_grid_placements")
             && tableUsable("map_markers");
@@ -534,6 +543,8 @@ public class DatabaseManager {
                 feature = "Map sharing";
             } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_PEER_POSITIONS) {
                 feature = "Player position sharing";
+            } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_QUEST_SHARES) {
+                feature = "Quest sharing";
             } else {
                 feature = "Schema update " + e.getKey();
             }
@@ -805,6 +816,11 @@ public class DatabaseManager {
      */
     public nurgling.db.service.PeerPositionDbService getPeerPositionService() {
         return peerPositionService;
+    }
+
+    /** Null when quest_shares is missing or unreadable; the tracker then shows no Village tab. */
+    public nurgling.db.service.QuestShareDbService getQuestShareService() {
+        return questShareService;
     }
 
     public nurgling.db.service.FishLocationDbService getFishLocationService() {
