@@ -14,12 +14,12 @@ public class NCalculatorsWindow extends Window {
     private final List<Widget> tabs = new ArrayList<>();
 
     public NCalculatorsWindow() {
-        super(UI.scale(640, 470), L10n.get("calc.title"));
+        super(UI.scale(720, 480), L10n.get("calc.title"));
         int tabW = UI.scale(120);
         int tabY = 0;
         int contentY = UI.scale(30);
 
-        addTab(L10n.get("calc.tab.cheese_racks"), new CheeseRackCalculatorPanel(UI.scale(640, 440)),
+        addTab(L10n.get("calc.tab.cheese_racks"), new CheeseRackCalculatorPanel(UI.scale(720, 450)),
                 tabW, tabY, contentY);
         select(0);
     }

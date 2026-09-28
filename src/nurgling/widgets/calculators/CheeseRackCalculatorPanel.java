@@ -20,14 +20,14 @@ public class CheeseRackCalculatorPanel extends Widget {
     private static final int ROW_H = UI.scale(26);
     private static final int STAGE_H = UI.scale(22);
     private static final int X_CHEESE = 0;
-    private static final int X_TRAYS = UI.scale(165);
-    private static final int X_EVERY = UI.scale(210);
-    private static final int X_PER_RUN = UI.scale(258);
-    private static final int X_PLACE0 = UI.scale(310);
-    private static final int PLACE_W = UI.scale(46);
-    private static final int X_FIRST = UI.scale(500);
-    private static final int X_STAGES_BTN = UI.scale(548);
-    private static final int X_REMOVE_BTN = UI.scale(582);
+    private static final int X_TRAYS = UI.scale(172);
+    private static final int X_EVERY = UI.scale(225);
+    private static final int X_PER_RUN = UI.scale(285);
+    private static final int X_PLACE0 = UI.scale(355);
+    private static final int PLACE_W = UI.scale(52);
+    private static final int X_FIRST = UI.scale(570);
+    private static final int X_STAGES_BTN = UI.scale(630);
+    private static final int X_REMOVE_BTN = UI.scale(664);
     private static final int ENTRY_W = UI.scale(40);
     private static final int SMALL_BTN_W = UI.scale(30);
     private static final String[] CURDS = {"Cow's Curd", "Sheep's Curd", "Goat's Curd"};
@@ -53,6 +53,8 @@ public class CheeseRackCalculatorPanel extends Widget {
     private final Map<String, Integer> overrides = new HashMap<>();
     private String runEvery = "12";
     private String headroom = "0";
+    /** Hours one line of the supply summary covers: 1 for per hour, 24 for per day. */
+    private int period = 24;
     private boolean rebuildPending = false;
 
     private final Scrollport scroll;
@@ -61,6 +63,7 @@ public class CheeseRackCalculatorPanel extends Widget {
     private final Label totalAll;
     private final Label circulation;
     private final Label[] curdLabels = new Label[CURDS.length];
+    private final List<String> periods = Arrays.asList(L10n.get("calc.cheese.per_hour"), L10n.get("calc.cheese.per_day"));
 
     public CheeseRackCalculatorPanel(Coord sz) {
         super(sz);
@@ -88,7 +91,34 @@ public class CheeseRackCalculatorPanel extends Widget {
                 recompute();
             }
         }, prev.pos("ur").adds(5, -4));
-        add(new Label("%"), prev.pos("ur").adds(4, 4));
+        prev = add(new Label("%"), prev.pos("ur").adds(4, 4));
+        prev = add(new Label(L10n.get("calc.cheese.show")), prev.pos("ur").adds(20, 0));
+        Dropbox<String> periodBox = new Dropbox<String>(UI.scale(90), periods.size(), UI.scale(16)) {
+            @Override
+            protected String listitem(int i) {
+                return periods.get(i);
+            }
+
+            @Override
+            protected int listitems() {
+                return periods.size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                period = periods.indexOf(item) == 0 ? 1 : 24;
+                save();
+                recompute();
+            }
+        };
+        periodBox.sel = periods.get(period == 1 ? 0 : 1);
+        add(periodBox, prev.pos("ur").adds(5, -4));
 
         y += UI.scale(30);
         add(new Label(L10n.get("calc.cheese.col.cheese")), new Coord(X_CHEESE, y));
@@ -100,7 +130,7 @@ public class CheeseRackCalculatorPanel extends Widget {
         add(new Label(L10n.get("calc.cheese.col.first")), new Coord(X_FIRST, y));
 
         y += UI.scale(22);
-        int listH = sz.y - y - UI.scale(120);
+        int listH = sz.y - y - UI.scale(190);
         scroll = add(new Scrollport(new Coord(sz.x, listH)), new Coord(0, y));
         content = new Widget(new Coord(sz.x - UI.scale(20), UI.scale(20))) {
             @Override
@@ -132,7 +162,8 @@ public class CheeseRackCalculatorPanel extends Widget {
         circulation = add(new Label(""), new Coord(0, y));
         for (int i = 0; i < CURDS.length; i++)
             curdLabels[i] = add(new Label(""), new Coord(0, y + UI.scale(16) * (i + 1)));
-        add(new Label(L10n.get("calc.cheese.hint")), new Coord(UI.scale(300), y));
+        add(new Label(L10n.get("calc.cheese.tubs_note")), new Coord(0, y + UI.scale(16) * (CURDS.length + 1)));
+        add(new Label(L10n.get("calc.cheese.hint")), new Coord(0, y + UI.scale(16) * (CURDS.length + 2)));
 
         rebuild();
     }
@@ -295,10 +326,16 @@ public class CheeseRackCalculatorPanel extends Widget {
         totalAll.settext(L10n.get("calc.cheese.total", String.valueOf(total.totalRacks)));
         circulation.settext(L10n.get("calc.cheese.circulation", String.valueOf(total.traysInCirculation)));
         for (int i = 0; i < CURDS.length; i++) {
-            Double perHour = total.curdsPerHour.get(CURDS[i]);
-            curdLabels[i].settext(perHour == null ? "" : L10n.get("calc.cheese.curds", CURDS[i], fmt(perHour),
-                    fmt(perHour / CheeseRackCalculator.CURDS_PER_TUB_HOUR)));
+            CheeseRackCalculator.Supply supply = total.supplies.get(CURDS[i]);
+            String unit = L10n.get(period == 1 ? "calc.cheese.per_hour" : "calc.cheese.per_day");
+            curdLabels[i].settext(supply == null ? "" : L10n.get("calc.cheese.curds", CURDS[i],
+                    fmt(supply.curdsPerHour * period), String.valueOf(supply.tubs),
+                    fmt(supply.milkPerHour() * period), fmt2(supply.rennetPerHour() * period), unit));
         }
+    }
+
+    private static String fmt2(double v) {
+        return String.format(Locale.ROOT, "%.2f", v);
     }
 
     private static String fmt(double v) {
@@ -318,6 +355,7 @@ public class CheeseRackCalculatorPanel extends Widget {
         JSONObject o = new JSONObject();
         o.put("runEvery", runEvery);
         o.put("headroom", headroom);
+        o.put("period", period);
         JSONArray arr = new JSONArray();
         for (RowState rs : rows) {
             JSONObject r = new JSONObject();
@@ -349,6 +387,7 @@ public class CheeseRackCalculatorPanel extends Widget {
         }
         runEvery = o.optString("runEvery", runEvery);
         headroom = o.optString("headroom", headroom);
+        period = o.optInt("period", period) == 1 ? 1 : 24;
         JSONArray arr = o.optJSONArray("rows");
         if (arr != null) {
             for (int i = 0; i < arr.length(); i++) {
