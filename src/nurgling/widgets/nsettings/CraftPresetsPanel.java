@@ -5,6 +5,7 @@ import haven.res.lib.itemtex.ItemTex;
 import nurgling.scenarios.CraftPreset;
 import nurgling.scenarios.CraftPresetManager;
 import nurgling.tools.VSpec;
+import nurgling.widgets.NDropbox;
 import org.json.JSONObject;
 
 import nurgling.i18n.L10n;
@@ -77,13 +78,28 @@ public class CraftPresetsPanel extends Panel {
         presetListContainer.cont.update();
     }
 
+    private static final int lineH = UI.scale(18);
+    private static final int fallbackRowH = UI.scale(22);
+
     private Widget createPresetWidget(CraftPreset preset, Coord sz) {
         boolean isExpanded = expandedPresets.contains(preset.getId());
 
         // Calculate height
         int baseHeight = UI.scale(32);
-        int expandedHeight = UI.scale(50);
-        int totalHeight = isExpanded ? baseHeight + expandedHeight : baseHeight;
+        int expandedHeight = 0;
+        if (isExpanded) {
+            expandedHeight += UI.scale(5);
+            for (CraftPreset.InputSpec input : preset.getInputs()) {
+                expandedHeight += lineH;
+                if (input.getEffectiveName() != null) {
+                    expandedHeight += input.getFallbackPresetIds().size() * fallbackRowH;
+                    expandedHeight += fallbackRowH;
+                }
+            }
+            expandedHeight += lineH; // outputs summary
+            expandedHeight += UI.scale(5);
+        }
+        int totalHeight = baseHeight + expandedHeight;
 
         Widget w = new Widget(new Coord(sz.x, totalHeight));
 
@@ -159,19 +175,74 @@ public class CraftPresetsPanel extends Panel {
             rebuildPresetList();
         }), new Coord(delBtnX, (baseHeight - UI.scale(24)) / 2));
 
-        // Expanded details
+        // Expanded details: one row per input (name + count), and - for inputs with a
+        // resolvable concrete item name - an editable, ordered fallback-recipe list used by
+        // ComplexCraftResolver to craft a shortfall when normal sourcing comes up short.
         if (isExpanded) {
             int detailY = baseHeight + UI.scale(5);
+            List<CraftPreset> allPresets = CraftPresetManager.getInstance().getPresetList();
 
-            // Inputs
-            StringBuilder inputs = new StringBuilder(L10n.get("craftpresets.inputs") + " ");
             for (CraftPreset.InputSpec input : preset.getInputs()) {
-                if (inputs.length() > 8) inputs.append(", ");
-                inputs.append(input.getPreferredIngredient() != null ? input.getPreferredIngredient() : input.getName());
-                if (input.getCount() > 1) inputs.append(" x").append(input.getCount());
+                String label = input.getPreferredIngredient() != null ? input.getPreferredIngredient() : input.getName();
+                String line = label + (input.getCount() > 1 ? " x" + input.getCount() : "");
+                w.add(new Label(line), new Coord(nameX, detailY));
+                detailY += lineH;
+
+                String effectiveName = input.getEffectiveName();
+                if (effectiveName != null) {
+                    for (String fallbackId : new ArrayList<>(input.getFallbackPresetIds())) {
+                        CraftPreset fallback = CraftPresetManager.getInstance().getPreset(fallbackId);
+                        String fallbackName = fallback != null ? fallback.getName() : "(missing preset)";
+                        w.add(new Label("   " + L10n.get("craftpresets.fallback") + " " + fallbackName),
+                            new Coord(nameX + UI.scale(10), detailY));
+                        w.add(new Button(UI.scale(24), "x", () -> {
+                            input.getFallbackPresetIds().remove(fallbackId);
+                            CraftPresetManager.getInstance().addOrUpdatePreset(preset);
+                            rebuildPresetList();
+                        }), new Coord(sz.x - margin - UI.scale(24), detailY));
+                        detailY += fallbackRowH;
+                    }
+
+                    List<CraftPreset> candidates = new ArrayList<>();
+                    for (CraftPreset candidate : allPresets) {
+                        if (!candidate.getId().equals(preset.getId())
+                            && !input.getFallbackPresetIds().contains(candidate.getId())) {
+                            candidates.add(candidate);
+                        }
+                    }
+                    if (!candidates.isEmpty()) {
+                        w.add(new Label(L10n.get("craftpresets.add_fallback")),
+                            new Coord(nameX + UI.scale(10), detailY));
+                        final List<CraftPreset> finalCandidates = candidates;
+                        NDropbox<CraftPreset> addFallback = new NDropbox<CraftPreset>(
+                            UI.scale(150), Math.min(finalCandidates.size(), 8), UI.scale(20)
+                        ) {
+                            @Override
+                            protected CraftPreset listitem(int i) { return finalCandidates.get(i); }
+                            @Override
+                            protected int listitems() { return finalCandidates.size(); }
+                            @Override
+                            protected void drawitem(GOut g, CraftPreset item, int i) {
+                                g.text(item.getName(), Coord.z);
+                            }
+                            @Override
+                            public void change(CraftPreset item) {
+                                super.change(item);
+                                if (item != null) {
+                                    input.getFallbackPresetIds().add(item.getId());
+                                    CraftPresetManager.getInstance().addOrUpdatePreset(preset);
+                                    rebuildPresetList();
+                                }
+                            }
+                        };
+                        w.add(addFallback, new Coord(nameX + UI.scale(90), detailY - UI.scale(2)));
+                    } else {
+                        w.add(new Label(L10n.get("craftpresets.no_other_presets")),
+                            new Coord(nameX + UI.scale(90), detailY));
+                    }
+                    detailY += fallbackRowH;
+                }
             }
-            String inputsStr = inputs.length() > 70 ? inputs.substring(0, 67) + "..." : inputs.toString();
-            w.add(new Label(inputsStr), new Coord(nameX, detailY));
 
             // Outputs
             StringBuilder outputs = new StringBuilder(L10n.get("craftpresets.outputs") + " ");
@@ -181,7 +252,7 @@ public class CraftPresetsPanel extends Panel {
                 if (output.getCount() > 1) outputs.append(" x").append(output.getCount());
             }
             String outputsStr = outputs.length() > 70 ? outputs.substring(0, 67) + "..." : outputs.toString();
-            w.add(new Label(outputsStr), new Coord(nameX, detailY + UI.scale(18)));
+            w.add(new Label(outputsStr), new Coord(nameX, detailY));
         }
 
         return w;

@@ -10,6 +10,11 @@ import nurgling.tools.*;
 import nurgling.tools.Container;
 import nurgling.widgets.Specialisation;
 import nurgling.conf.ConstructionMaterialsRegistry;
+import nurgling.actions.OpenTargetContainer;
+import nurgling.actions.CloseTargetContainer;
+import nurgling.actions.CloseTargetWindow;
+import nurgling.actions.PathFinder;
+import haven.res.ui.tt.cn.CustomName;
 import org.json.*;
 
 import java.awt.image.BufferedImage;
@@ -769,6 +774,88 @@ public class NContext {
             });
         }
         return inputs;
+    }
+
+    /**
+     * Count how many of {@code item} are currently reachable through the same "Take"-tagged
+     * storages {@link #getInStorages} (and so {@code TakeItems2}/{@code Craft}) would draw
+     * from - without taking or moving anything. Used to decide, ahead of time, whether an
+     * ingredient still needs to be crafted via a fallback recipe.
+     * <p>
+     * Barrel and barter-stand sources aren't counted precisely here (a barrel's content is a
+     * liquid volume only readable from an open barrel window, and a barter stand's "stock" is
+     * shop inventory, not something a fallback recipe would ever restock) - either one found
+     * among the storages makes this return {@link Integer#MAX_VALUE}, so a fallback is never
+     * triggered for an ingredient normal sourcing already handles on its own.
+     */
+    public int countAvailable(String item, NGameUI gui) throws InterruptedException {
+        addInItem(item, null);
+        ArrayList<ObjectStorage> storages = getInStorages(item);
+        if (storages == null || storages.isEmpty()) {
+            return 0;
+        }
+
+        NAlias alias = new NAlias(item);
+        int total = 0;
+        for (ObjectStorage storage : storages) {
+            if (storage instanceof Container) {
+                Container cont = (Container) storage;
+                Gob contgob = Finder.findGob(cont.gobHash);
+                if (contgob == null) {
+                    continue;
+                }
+                if (!"Frame".equals(cont.cap) && contgob.ngob.isContainerEmpty()) {
+                    continue;
+                }
+                new PathFinder(contgob).run(gui);
+                new OpenTargetContainer(cont).run(gui);
+                NInventory cinv = gui.getInventory(cont.cap);
+                if (cinv != null) {
+                    for (WItem witem : cinv.getItems(alias)) {
+                        total += getActualItemCount(witem);
+                    }
+                }
+                new CloseTargetContainer(cont).run(gui);
+            } else if (storage instanceof Pile) {
+                Pile pile = (Pile) storage;
+                if (pile.pile == null) {
+                    continue;
+                }
+                Gob gpile = Finder.findGob(pile.pile.id);
+                if (gpile == null) {
+                    continue;
+                }
+                new PathFinder(gpile).run(gui);
+                new OpenTargetContainer("Stockpile", gpile).run(gui);
+                NISBox box = gui.getStockpile();
+                if (box != null) {
+                    total += Math.max(0, box.total());
+                }
+                new CloseTargetWindow(gui.getWindow("Stockpile")).run(gui);
+            } else if (storage instanceof Barter || storage instanceof Barrel) {
+                return Integer.MAX_VALUE;
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Actual quantity one inventory item represents - liquids/stacked goods carry a real
+     * count via {@link CustomName} (in hundredths, mirroring {@code Craft.getActualItemCount}),
+     * anything else counts as one.
+     */
+    private int getActualItemCount(WItem item) {
+        if (item.item.info != null) {
+            for (ItemInfo inf : item.item.info) {
+                if (inf instanceof CustomName) {
+                    float count = ((CustomName) inf).count;
+                    if (count > 0) {
+                        return (int) (count * 100);
+                    }
+                }
+            }
+        }
+        return 1;
     }
 
     public ArrayList<ObjectStorage> getOutStorages(String item, double q)  throws InterruptedException

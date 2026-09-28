@@ -56,6 +56,19 @@ public class AutocraftBot implements Action {
             return Results.ERROR("Craft preset not found: " + presetId);
         }
 
+        // Resolve-before-gather: plan out any ingredient shortfall against each input's
+        // fallback-recipe list, and craft it, before opening any window or taking anything for
+        // this craft. Nothing below this point runs if the plan can't be completed.
+        ComplexCraftResolver.PlanNode plan = ComplexCraftResolver.plan(preset, quantity, gui);
+        if (plan == null) {
+            return Results.ERROR("Cannot satisfy ingredients for " + preset.getName()
+                    + " - no available stock or viable fallback recipe");
+        }
+        Results planResult = ComplexCraftResolver.execute(plan, gui);
+        if (!planResult.IsSuccess()) {
+            return planResult;
+        }
+
         gui.msg("Starting autocraft: " + preset.getName() + " x" + quantity);
 
         // Get the recipe resource path and activate it via menu
