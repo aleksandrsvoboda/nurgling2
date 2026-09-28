@@ -2,6 +2,7 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.NUtils;
+import nurgling.areas.NContext;
 import nurgling.i18n.L10n;
 import nurgling.scenarios.CraftPreset;
 import nurgling.scenarios.CraftPresetManager;
@@ -145,6 +146,15 @@ public class SaveCraftPresetDialog extends Window {
         // Get recipe resource from NMakewindow (captured at creation time)
         if (mwnd.recipeResource != null) {
             preset.setRecipeResource(mwnd.recipeResource);
+        }
+
+        // Resolve the workstation this recipe uses (e.g. "gfx/terobjs/crucible") by reusing
+        // NContext's own tool->workstation lookup, so presets can gate workstation-specific
+        // settings (like crucible fuel preference) without duplicating that resolution here.
+        NContext tempContext = new NContext(NUtils.getGameUI());
+        tempContext.addTools(mwnd.tools);
+        if (tempContext.workstation != null) {
+            preset.setWorkstationType(tempContext.workstation.station);
         }
 
         // Capture inputs

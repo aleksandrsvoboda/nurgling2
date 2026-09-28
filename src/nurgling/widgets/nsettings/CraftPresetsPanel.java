@@ -2,10 +2,12 @@ package nurgling.widgets.nsettings;
 
 import haven.*;
 import haven.res.lib.itemtex.ItemTex;
+import nurgling.areas.NContext;
 import nurgling.scenarios.CraftPreset;
 import nurgling.scenarios.CraftPresetManager;
 import nurgling.tools.VSpec;
 import nurgling.widgets.NDropbox;
+import nurgling.widgets.Specialisation;
 import org.json.JSONObject;
 
 import nurgling.i18n.L10n;
@@ -80,6 +82,12 @@ public class CraftPresetsPanel extends Panel {
 
     private static final int lineH = UI.scale(18);
     private static final int fallbackRowH = UI.scale(22);
+    private static final int fuelRowH = UI.scale(24);
+
+    /** Whether this preset's workstation (captured at save time) is a crucible. */
+    private static boolean isCrucible(CraftPreset preset) {
+        return NContext.workstation_spec_map.get(preset.getWorkstationType()) == Specialisation.SpecName.crucible;
+    }
 
     private Widget createPresetWidget(CraftPreset preset, Coord sz) {
         boolean isExpanded = expandedPresets.contains(preset.getId());
@@ -95,6 +103,9 @@ public class CraftPresetsPanel extends Panel {
                     expandedHeight += input.getFallbackPresetIds().size() * fallbackRowH;
                     expandedHeight += fallbackRowH;
                 }
+            }
+            if (isCrucible(preset)) {
+                expandedHeight += fuelRowH;
             }
             expandedHeight += lineH; // outputs summary
             expandedHeight += UI.scale(5);
@@ -242,6 +253,28 @@ public class CraftPresetsPanel extends Panel {
                     }
                     detailY += fallbackRowH;
                 }
+            }
+
+            // Crucible fuel preference - only shown for presets whose recipe uses a crucible
+            // (captured as workstationType at save time). Coal/Branch toggle: no dedicated
+            // radio widget exists in this codebase, so two plain Buttons stand in for one,
+            // matching the fallback-recipe editor's own toggle style above.
+            if (isCrucible(preset)) {
+                boolean isBranch = "Branch".equals(preset.getCrucibleFuel());
+                w.add(new Label(L10n.get("craftpresets.crucible_fuel")), new Coord(nameX, detailY));
+                int fuelBtnW = UI.scale(70);
+                int coalBtnX = nameX + UI.scale(90);
+                w.add(new Button(fuelBtnW, isBranch ? "Coal" : "[Coal]", () -> {
+                    preset.setCrucibleFuel(null);
+                    CraftPresetManager.getInstance().addOrUpdatePreset(preset);
+                    rebuildPresetList();
+                }), new Coord(coalBtnX, detailY - UI.scale(2)));
+                w.add(new Button(fuelBtnW, isBranch ? "[Branch]" : "Branch", () -> {
+                    preset.setCrucibleFuel("Branch");
+                    CraftPresetManager.getInstance().addOrUpdatePreset(preset);
+                    rebuildPresetList();
+                }), new Coord(coalBtnX + fuelBtnW + UI.scale(5), detailY - UI.scale(2)));
+                detailY += fuelRowH;
             }
 
             // Outputs

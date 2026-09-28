@@ -156,6 +156,7 @@ public class AutocraftBot implements Action {
 
         // Run the craft
         Craft craft = new Craft(mwnd, quantity);
+        craft.crucibleFuelPreference = preset.getCrucibleFuel();
         Results result = craft.run(gui);
 
         gui.msg("Autocraft completed: " + preset.getName());

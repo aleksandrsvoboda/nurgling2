@@ -62,6 +62,13 @@ public class Craft implements Action {
     boolean prefilled = false;
 
     /**
+     * Preferred crucible fuel ("Coal"/"Branch") for this craft, sourced from the CraftPreset
+     * being run. Null means the default (Coal). Copied onto the NContext this craft builds,
+     * for PrepareWorkStation.fillCrucible to read.
+     */
+    String crucibleFuelPreference = null;
+
+    /**
      * Original recipe identity captured before PrepareWorkStation runs. Lighting a
      * cold station (LightFire) opens the "Light fire" recipe in the craft window and
      * may leave it open if its own restore fails. We use this to re-select the
@@ -109,6 +116,7 @@ public class Craft implements Action {
 
     private Results mwnd_run(NGameUI gui) throws InterruptedException {
         NContext ncontext = new NContext(gui);
+        ncontext.crucibleFuelPreference = crucibleFuelPreference;
         int size = 0;
         for (NMakewindow.Spec s : mwnd.inputs) {
             // Skip ignored optional ingredients

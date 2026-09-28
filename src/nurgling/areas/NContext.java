@@ -1016,6 +1016,10 @@ public class NContext {
 
     public String equip = null;
     public NContext.Workstation workstation = null;
+    /** Preferred crucible fuel ("Coal"/"Branch") for the current craft run, or null for the
+     *  default (Coal). Set per-run by Craft.mwnd_run from the CraftPreset being crafted;
+     *  read by PrepareWorkStation.fillCrucible. */
+    public String crucibleFuelPreference = null;
     public NContext(NGameUI gui)
     {
         this.gui = gui;

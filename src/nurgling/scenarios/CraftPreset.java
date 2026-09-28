@@ -17,6 +17,7 @@ public class CraftPreset {
     private String recipeName;
     private String recipeResource;
     private String workstationType;
+    private String crucibleFuel;
     private List<InputSpec> inputs;
     private List<OutputSpec> outputs;
 
@@ -32,6 +33,7 @@ public class CraftPreset {
         this.recipeName = obj.optString("recipeName", "");
         this.recipeResource = obj.optString("recipeResource", "");
         this.workstationType = obj.optString("workstationType", "");
+        this.crucibleFuel = obj.optString("crucibleFuel", null);
 
         this.inputs = new ArrayList<>();
         if (obj.has("inputs")) {
@@ -57,6 +59,9 @@ public class CraftPreset {
         obj.put("recipeName", recipeName);
         obj.put("recipeResource", recipeResource);
         obj.put("workstationType", workstationType);
+        if (crucibleFuel != null) {
+            obj.put("crucibleFuel", crucibleFuel);
+        }
 
         JSONArray inputsArray = new JSONArray();
         for (InputSpec input : inputs) {
@@ -85,6 +90,17 @@ public class CraftPreset {
 
     public String getRecipeResource() { return recipeResource; }
     public void setRecipeResource(String recipeResource) { this.recipeResource = recipeResource; }
+
+    public String getWorkstationType() { return workstationType; }
+    public void setWorkstationType(String workstationType) { this.workstationType = workstationType; }
+
+    /**
+     * Preferred crucible fuel for this recipe - "Coal" or "Branch". Null means the default
+     * (Coal), matching PrepareWorkStation.fillCrucible's behavior before this preference
+     * existed. Only meaningful for a preset whose workstation is a crucible.
+     */
+    public String getCrucibleFuel() { return crucibleFuel; }
+    public void setCrucibleFuel(String crucibleFuel) { this.crucibleFuel = crucibleFuel; }
 
     public List<InputSpec> getInputs() { return inputs; }
     public void setInputs(List<InputSpec> inputs) { this.inputs = inputs; }

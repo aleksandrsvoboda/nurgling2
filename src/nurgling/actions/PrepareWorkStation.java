@@ -81,30 +81,38 @@ public class PrepareWorkStation implements Action
     /**
      * A crucible's fuel is a two-bit field, not a single flag: bit 1 is branches, bit 2 is coal.
      * See LightObject.getConfig's crucible entry and NUtils.isWorkStationReady, which already
-     * treat either as valid fuel (bit 4 is the separate flame bit). But most crucible recipes
-     * actually need coal specifically - branch only works for a few (e.g. smelting bars into
-     * nuggets) - so coal is always preferred: it counts as "already fueled" on its own, and is
-     * topped off whenever available even if the crucible already holds branch fuel instead of
-     * settling for it. Branch is only ever accepted, existing or freshly fetched, once coal is
-     * confirmed unavailable anywhere (in hand, in the fuel zone, or the zone/station unreachable).
+     * treat either as valid fuel (bit 4 is the separate flame bit). Which one to prefer is a
+     * per-preset choice (`context.crucibleFuelPreference`, "Coal" or "Branch", default Coal via
+     * {@link #fuelOrder()}) rather than hardcoded: the preferred fuel counts as "already fueled"
+     * on its own, and is topped off whenever available even if the crucible already holds the
+     * other fuel instead of settling for it. This is a soft preference, not a hard requirement -
+     * the non-preferred fuel is still accepted, existing in hand or freshly fetched, once the
+     * preferred one is confirmed unavailable anywhere (in hand, in the fuel zone, or the
+     * zone/station unreachable); fuel already in hand short-circuits a trip to fetch the
+     * preferred one rather than being ignored in its favor.
      */
-    private static final String[] CRUCIBLE_FUELS = {"Coal", "Branch"};
+    private static final String[] COAL_FIRST = {"Coal", "Branch"};
+    private static final String[] BRANCH_FIRST = {"Branch", "Coal"};
+
+    private String[] fuelOrder() {
+        return "Branch".equals(context.crucibleFuelPreference) ? BRANCH_FIRST : COAL_FIRST;
+    }
 
     boolean fillCrucible(Gob crucible, NGameUI gui) throws InterruptedException
     {
         if((crucible.ngob.getModelAttribute()&2)!=0)
             return true;
         boolean hasBranchFuel = (crucible.ngob.getModelAttribute()&1)!=0;
+        String[] fuels = fuelOrder();
 
         int count = 1;
         if(NUtils.getGameUI().getInventory().getFreeSpace()==0)
             return hasBranchFuel;
 
-        if(!hasAny(CRUCIBLE_FUELS)) {
+        if(!hasAny(fuels)) {
             int target_size = count;
             while (target_size != 0 && NUtils.getGameUI().getInventory().getFreeSpace() != 0) {
-                // material=null matches a "Fuel: Crucible" zone tagged with either fuel.
-                NArea fuelarea = context.goToFuelArea(Specialisation.SpecName.fuelCrucible, null);
+                NArea fuelarea = findFuelZone(fuels[0]);
                 if (fuelarea == null)
                     return hasBranchFuel;
                 ArrayList<Gob> piles = Finder.findGobs(fuelarea, new NAlias("stockpile"));
@@ -131,7 +139,7 @@ public class PrepareWorkStation implements Action
         if (station == null)
             return hasBranchFuel;
         new PathFinder(station).run(gui);
-        WItem fuelItem = firstOf(CRUCIBLE_FUELS);
+        WItem fuelItem = firstOf(fuels);
         if (fuelItem == null) {
             return hasBranchFuel;
         }
@@ -139,6 +147,20 @@ public class PrepareWorkStation implements Action
         NUtils.activateItem(station);
         NUtils.getUI().core.addTask(new HandIsFree(NUtils.getGameUI().getInventory()));
         return true;
+    }
+
+    /**
+     * Resolve the crucible fuel zone, trying one specifically stocked with the preferred
+     * material first, then falling back to any "Fuel: Crucible" zone (material=null matches
+     * either fuel) - so a player who keeps separate Coal-only and Branch-only zones still gets
+     * the preferred one, even when the generic near/global lookup would otherwise pick whichever
+     * is nearer regardless of material.
+     */
+    private NArea findFuelZone(String preferredMaterial) throws InterruptedException {
+        NArea area = context.goToFuelArea(Specialisation.SpecName.fuelCrucible, preferredMaterial);
+        if (area != null)
+            return area;
+        return context.goToFuelArea(Specialisation.SpecName.fuelCrucible, null);
     }
 
     private boolean hasAny(String[] itemNames) throws InterruptedException {
