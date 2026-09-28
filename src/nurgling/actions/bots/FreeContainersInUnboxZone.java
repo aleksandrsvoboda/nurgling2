@@ -26,6 +26,11 @@ public class FreeContainersInUnboxZone implements Action {
             return Results.ERROR("No unbox zone area found");
         }
 
+        // The unbox zone may itself be configured with PUT preferences so it can act as a local
+        // storage buffer. When unboxing it, those preferences must be ignored, or items would
+        // just get routed straight back into the zone they were taken from.
+        context.excludeOutArea(unboxArea);
+
         Pair<Coord2d,Coord2d> area = unboxArea.getRCArea();
         ArrayList<Container> containers = new ArrayList<>();
 
@@ -37,7 +42,7 @@ public class FreeContainersInUnboxZone implements Action {
                 containers.add(cand);
             }
             if (!containers.isEmpty())
-                new FreeContainers(containers).run(gui);
+                new FreeContainers(containers, null, unboxArea).run(gui);
         }
 
         ArrayList<Gob> gobs;

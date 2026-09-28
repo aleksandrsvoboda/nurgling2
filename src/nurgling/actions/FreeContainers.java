@@ -3,6 +3,7 @@ package nurgling.actions;
 import haven.Gob;
 import haven.WItem;
 import nurgling.*;
+import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tools.*;
 
@@ -14,6 +15,7 @@ public class FreeContainers implements Action
 {
     ArrayList<Container> containers;
     NAlias pattern = null;
+    NArea excludeOutArea = null;
 
     public FreeContainers(ArrayList<Container> containers) {
         this.containers = containers;
@@ -24,12 +26,23 @@ public class FreeContainers implements Action
         this.pattern = pattern;
     }
 
+    /**
+     * @param excludeOutArea an area to skip as a PUT destination (e.g. the zone the containers
+     *                       are themselves being emptied from), or null to consider every area.
+     */
+    public FreeContainers(ArrayList<Container> containers, NAlias pattern, NArea excludeOutArea) {
+        this.containers = containers;
+        this.pattern = pattern;
+        this.excludeOutArea = excludeOutArea;
+    }
+
     HashSet<String> targets = new HashSet<>();
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
         NContext context = new NContext(gui);
+        context.excludeOutArea(excludeOutArea);
 
         for (Container container : containers)
         {
