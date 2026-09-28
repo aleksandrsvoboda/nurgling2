@@ -3452,7 +3452,7 @@ public class VSpec {
         ArrayList<String> products = object.get(treePath);
         if (products != null && !products.isEmpty()) {
             // Return the last item in the list (typically the seed)
-            return products.get(products.size() - 1);
+            return products.get(0);
         }
         return null;
     }
