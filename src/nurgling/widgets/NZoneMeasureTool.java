@@ -3,12 +3,14 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NGameUI;
 import nurgling.NMapView;
+import nurgling.NUtils;
 import nurgling.i18n.L10n;
 import nurgling.overlays.NZoneMeasureOverlay;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class NZoneMeasureTool extends Window {
@@ -25,6 +27,12 @@ public class NZoneMeasureTool extends Window {
     private Button clearOneBtn;
     private Button clearAllBtn;
     private Label statusLabel;
+    private Label gobTotalLabel;
+    private GobCountList gobCountList;
+
+    // Gob counts follow gobs loading, moving and being removed
+    private static final double RECOUNT_INTERVAL = 1.0;
+    private double sinceRecount = 0;
 
     // Color selection
     private NColorWidget fillColorWidget;
@@ -76,6 +84,10 @@ public class NZoneMeasureTool extends Window {
         // Status label
         prev = add(statusLabel = new Label(L10n.get("zone.ready")), prev.pos("bl").adds(0, 10));
 
+        // Gobs in the most recent zone
+        prev = add(gobTotalLabel = new Label(""), prev.pos("bl").adds(0, 5));
+        prev = add(gobCountList = new GobCountList(UI.scale(180), 8), prev.pos("bl").adds(0, 2));
+
         pack();
     }
 
@@ -105,6 +117,7 @@ public class NZoneMeasureTool extends Window {
         zones.add(overlay);
 
         statusLabel.settext("Zone: " + width + " x " + height + " tiles");
+        recountGobs();
     }
 
     public void onSelectionCancelled() {
@@ -141,6 +154,7 @@ public class NZoneMeasureTool extends Window {
         if (toRemove != null) {
             toRemove.destroy();
             zones.remove(toRemove);
+            recountGobs();
             statusLabel.settext("Zone cleared. " + zones.size() + " remaining");
         } else {
             statusLabel.settext("No zone at that location");
@@ -156,7 +170,32 @@ public class NZoneMeasureTool extends Window {
             zone.destroy();
         }
         zones.clear();
+        recountGobs();
         statusLabel.settext("All zones cleared");
+    }
+
+    private void recountGobs() {
+        sinceRecount = 0;
+        for (NZoneMeasureOverlay zone : zones) {
+            zone.countGobs(gui.map.glob.oc);
+        }
+        if (zones.isEmpty()) {
+            gobTotalLabel.settext("");
+            gobCountList.setCounts(null);
+        } else {
+            NZoneMeasureOverlay latest = zones.get(zones.size() - 1);
+            gobTotalLabel.settext(L10n.get("zone.gobs", latest.getGobTotal()));
+            gobCountList.setCounts(latest.getGobCounts());
+        }
+    }
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        sinceRecount += dt;
+        if (!zones.isEmpty() && sinceRecount >= RECOUNT_INTERVAL) {
+            recountGobs();
+        }
     }
 
     public void cleanup() {
@@ -183,5 +222,65 @@ public class NZoneMeasureTool extends Window {
     public void destroy() {
         cleanup();
         super.destroy();
+    }
+
+    /** Gob types in a zone with their counts, largest first. */
+    private static class GobCountList extends Listbox<GobCountList.Row> {
+        private static final Text.Foundry fnd = new Text.Foundry(Text.sans, 11).aa(true);
+        private List<Row> rows = new ArrayList<>();
+        private List<Map.Entry<String, Integer>> shown = null;
+
+        private static class Row {
+            final Text name;
+            final Text count;
+
+            Row(String res, int count) {
+                this.name = fnd.render(String.valueOf(NUtils.prettyResName(res)));
+                this.count = fnd.render(String.valueOf(count));
+            }
+        }
+
+        GobCountList(int w, int h) {
+            super(w, h, UI.scale(16));
+        }
+
+        void setCounts(List<Map.Entry<String, Integer>> counts) {
+            if (Objects.equals(counts, shown))
+                return;
+            shown = counts;
+            for (Row row : rows) {
+                row.name.dispose();
+                row.count.dispose();
+            }
+            List<Row> next = new ArrayList<>();
+            if (counts != null) {
+                for (Map.Entry<String, Integer> e : counts) {
+                    next.add(new Row(e.getKey(), e.getValue()));
+                }
+            }
+            rows = next;
+        }
+
+        @Override
+        protected Row listitem(int i) {
+            return rows.get(i);
+        }
+
+        @Override
+        protected int listitems() {
+            return rows.size();
+        }
+
+        @Override
+        protected void drawitem(GOut g, Row item, int i) {
+            int y = (itemh - item.name.sz().y) / 2;
+            g.image(item.count.tex(), new Coord(g.sz().x - item.count.sz().x - UI.scale(4), y));
+            g.image(item.name.tex(), new Coord(UI.scale(4), y));
+        }
+
+        @Override
+        protected void itemclick(Row item, int button) {
+            // Read-only list
+        }
     }
 }
