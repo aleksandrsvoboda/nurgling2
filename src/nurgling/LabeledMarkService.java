@@ -225,6 +225,32 @@ public class LabeledMarkService implements ProfileAwareService {
     }
 
     /**
+     * Remove several marks at once, re-indexing and saving once rather than per mark.
+     *
+     * @return how many of them were present
+     */
+    public int removeMarks(Collection<LabeledMinimapMark> marks) {
+        int removed = 0;
+        lock.writeLock().lock();
+        try {
+            for (LabeledMinimapMark mark : marks) {
+                if (mark != null && labeledMarks.remove(mark.getLocationId()) != null) {
+                    removed++;
+                }
+            }
+            if (removed > 0) {
+                reindex();
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+        if (removed > 0) {
+            scheduleSave();
+        }
+        return removed;
+    }
+
+    /**
      * Remove a labeled mark object.
      */
     public boolean removeMark(LabeledMinimapMark mark) {

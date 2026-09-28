@@ -8,6 +8,7 @@ import nurgling.overlays.map.MinimapClaimRenderer;
 import nurgling.overlays.map.MinimapDiscoveryRenderer;
 import nurgling.overlays.map.MinimapExploredAreaRenderer;
 import nurgling.tools.ExploredArea;
+import nurgling.i18n.L10n;
 import nurgling.tools.NParser;
 
 import java.awt.*;
@@ -53,6 +54,16 @@ NMiniMap extends MiniMap {
 
     public static void showFishIcons(boolean val) {
         NConfig.set(NConfig.Key.showFishIcons, val);
+    }
+
+    /** Whether nearby ore, gem and stone marks of one type are drawn as a single badge. */
+    public static boolean clusterMinedMarks() {
+        Object val = NConfig.get(NConfig.Key.clusterMinedMarks);
+        return !(val instanceof Boolean) || (Boolean) val;
+    }
+
+    public static void clusterMinedMarks(boolean val) {
+        NConfig.set(NConfig.Key.clusterMinedMarks, val);
     }
 
     public static nurgling.conf.ProspectMarkSettings prospectSettings() {
@@ -1372,6 +1383,7 @@ NMiniMap extends MiniMap {
     // scale = 4.0 means 4x zoom in, scale = 0.25 means 4x zoom out
     private float currentScale = 1.0f;
     private float targetScale = 1.0f;
+    private static final float MAX_SCALE = 4.0f;
     
     // Smooth zoom speed (how fast to interpolate to target)
     private static final float ZOOM_SPEED = 0.15f; // 15% per frame at 60fps = very smooth
@@ -1698,58 +1710,200 @@ NMiniMap extends MiniMap {
         }
     }
 
+    /* Labeled mark badges. MARK_MERGE is roughly an icon plus its label: mined marks of one
+     * type closer than that share a badge. Badges of different types may overlap. */
+    private static final int MARK_MERGE = UI.scale(28);
+    private static final int MARK_HIT_RADIUS = UI.scale(12);
+    private static final Color MARK_COUNT_BG = new Color(31, 122, 116);
+    private static final Text.Foundry markCountFnd = new Text.Foundry(Text.sans.deriveFont(Font.BOLD), 9, Color.WHITE).aa(true);
+    private static final java.util.Map<Integer, Text> markCountText = new java.util.HashMap<>();
+
+    /** Clusters of the last frame; drawing, hover and right-click all read this one result. */
+    private LabeledMarkClusters markClusters;
+
     /**
-     * Draw labeled marks on the minimap (from Checker bots like CheckWater, CheckClay).
-     * Shows an icon with a quality label underneath (e.g., "q20").
+     * The labeled marks of the displayed segment grouped into badges, or null when there is
+     * nothing to show. Rebuilt only when the marks, the filter or the zoom change; panning
+     * reuses it.
+     */
+    private LabeledMarkClusters labeledMarkClusters() {
+        if(sessloc == null || dloc == null)
+            return null;
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.labeledMarkService == null)
+            return null;
+        /* Looked up once per call rather than per mark; NConfig.get is not free. */
+        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
+        if(settings != null && !settings.master)
+            return null;
+        java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
+        if(marks.isEmpty())
+            return null;
+        double scale = scalef();
+        boolean cluster = clusterMinedMarks();
+        LabeledMarkClusters cur = markClusters;
+        if(cur == null || !cur.matches(marks, settings, scale, cluster))
+            markClusters = cur = new LabeledMarkClusters(marks, settings, scale, MARK_MERGE, cluster);
+        return cur;
+    }
+
+    /**
+     * Draw labeled marks on the minimap (Checker bot samples and Master Miner finds).
+     * Each badge is the best mark's icon with its quality label underneath (e.g. "q20"), plus
+     * a count when it stands for several marks of the same type.
      * Data is loaded from LabeledMarkService for persistence between sessions.
      */
     private void drawLabeledMarks(GOut g) {
-        if(sessloc == null || dloc == null) return;
-        
-        NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.labeledMarkService == null) return;
-        
-        /* Looked up once per frame rather than per mark; NConfig.get is not free. */
-        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
-        if(settings != null && !settings.master)
-            return;
-
-        java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
-        if(marks.isEmpty())
+        LabeledMarkClusters clusters = labeledMarkClusters();
+        if(clusters == null)
             return;
 
         Coord hsz = sz.div(2);
-        float scale = scalef();
+        double scale = scalef();
+        int iconSize = UI.scale(18);
 
-        for(LabeledMinimapMark mark : marks) {
-            if(settings != null && !settings.shows(mark.kind, mark.quality))
+        for(LabeledMarkClusters.Cluster cluster : clusters.clusters) {
+            Coord screenPos = cluster.screenPos(dloc.tc, scale, hsz);
+            if(screenPos.x < -MARK_MERGE || screenPos.x > sz.x + MARK_MERGE
+               || screenPos.y < -MARK_MERGE || screenPos.y > sz.y + MARK_MERGE)
                 continue;
+            LabeledMinimapMark best = cluster.best();
 
-            /* Screen position, computed without allocating: a well-explored world holds
-             * thousands of samples and only a few are ever on screen. */
-            int px = (int)Math.round((mark.tileCoords.x - dloc.tc.x) / (double)scale) + hsz.x;
-            int py = (int)Math.round((mark.tileCoords.y - dloc.tc.y) / (double)scale) + hsz.y;
-            if(px < 0 || px > sz.x || py < 0 || py > sz.y)
-                continue;
-
-            Coord screenPos = new Coord(px, py);
-
-            // Draw icon if available
-            TexI iconTex = mark.getIconTex();
+            TexI iconTex = best.getIconTex();
             if(iconTex != null) {
                 int dsz = Math.max(iconTex.sz().y, iconTex.sz().x);
-                int targetSize = UI.scale(18);
                 g.aimage(iconTex, screenPos, 0.5, 0.5,
-                    UI.scale(targetSize * iconTex.sz().x / dsz, targetSize * iconTex.sz().y / dsz));
+                    UI.scale(iconSize * iconTex.sz().x / dsz, iconSize * iconTex.sz().y / dsz));
             }
 
-            // Draw label under the icon (like quest giver names)
-            Text labelText = mark.getLabelText();
-            if(labelText != null) {
-                Coord textPos = screenPos.add(0, UI.scale(10));
-                g.aimage(labelText.tex(), textPos, 0.5, 0);
-            }
+            // Label under the icon (like quest giver names)
+            Text labelText = best.getLabelText();
+            if(labelText != null)
+                g.aimage(labelText.tex(), screenPos.add(0, UI.scale(10)), 0.5, 0);
+
+            if(cluster.marks.size() > 1)
+                drawMarkCount(g, screenPos.add(UI.scale(8), -UI.scale(8)), cluster.marks.size());
         }
+    }
+
+    /** Count badge on a cluster: a teal disc with the number of marks it stands for. */
+    private static void drawMarkCount(GOut g, Coord c, int count) {
+        Text txt = markCountText.computeIfAbsent(count, n -> markCountFnd.render(String.valueOf(n)));
+        int r = Math.max(UI.scale(6), (txt.sz().x + UI.scale(4)) / 2);
+        g.chcolor(0, 0, 0, 160);
+        g.fellipse(c, new Coord(r + 1, r + 1));
+        g.chcolor(MARK_COUNT_BG);
+        g.fellipse(c, new Coord(r, r));
+        g.chcolor();
+        g.aimage(txt.tex(), c, 0.5, 0.5);
+    }
+
+    /** Clusters under a screen point, topmost (last drawn) first. */
+    private java.util.List<LabeledMarkClusters.Cluster> labeledClustersAt(Coord screenCoord) {
+        java.util.List<LabeledMarkClusters.Cluster> hits = new java.util.ArrayList<>();
+        LabeledMarkClusters clusters = labeledMarkClusters();
+        if(clusters == null)
+            return hits;
+        Coord hsz = sz.div(2);
+        double scale = scalef();
+        java.util.List<LabeledMarkClusters.Cluster> all = clusters.clusters;
+        for(int i = all.size() - 1; i >= 0; i--) {
+            LabeledMarkClusters.Cluster cluster = all.get(i);
+            if(screenCoord.dist(cluster.screenPos(dloc.tc, scale, hsz)) < MARK_HIT_RADIUS)
+                hits.add(cluster);
+        }
+        return hits;
+    }
+
+    /**
+     * Hover card for the badges under the cursor: one line per badge, with its count and
+     * quality range when it groups several marks.
+     */
+    private Object labeledMarkTooltip(Coord c) {
+        java.util.List<LabeledMarkClusters.Cluster> hits = labeledClustersAt(c);
+        if(hits.isEmpty())
+            return null;
+        BufferedImage[] lines = new BufferedImage[hits.size()];
+        for(int i = 0; i < hits.size(); i++) {
+            LabeledMarkClusters.Cluster cluster = hits.get(i);
+            long best = Math.round(cluster.best().quality);
+            String line;
+            if(cluster.marks.size() == 1) {
+                line = String.format("%s q%d", cluster.type, best);
+            } else {
+                line = String.format("%s ×%d · q%d–q%d", cluster.type, cluster.marks.size(),
+                                     Math.round(cluster.worst().quality), best);
+            }
+            lines[i] = Text.render(line).img;
+        }
+        return new TexI(ItemInfo.catimgs(0, lines));
+    }
+
+    /**
+     * Right-click on a badge. A single mark is deleted as before; a cluster opens a menu, since
+     * deleting whichever of its marks happened to be hit would remove one the user cannot see.
+     */
+    private boolean labeledMarkRightClick(Coord c) {
+        java.util.List<LabeledMarkClusters.Cluster> hits = labeledClustersAt(c);
+        if(hits.isEmpty())
+            return false;
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null || gui.labeledMarkService == null)
+            return true;
+        LabeledMarkClusters.Cluster cluster = hits.get(0);
+        if(cluster.marks.size() == 1) {
+            gui.labeledMarkService.removeMark(cluster.best());
+            return true;
+        }
+        openMarkClusterMenu(gui, cluster);
+        return true;
+    }
+
+    private void openMarkClusterMenu(NGameUI gui, LabeledMarkClusters.Cluster cluster) {
+        final String deleteAll = L10n.get("maptools.cluster.delete_all", cluster.marks.size());
+        final String keepBest = L10n.get("maptools.cluster.keep_best");
+        final String zoomHere = L10n.get("maptools.cluster.zoom_here");
+        final java.util.List<LabeledMinimapMark> marks = new java.util.ArrayList<>(cluster.marks);
+        final Coord anchor = cluster.anchor;
+        final MapFile.Segment seg = dloc.seg;
+        NFlowerMenu menu = new NFlowerMenu(new String[]{deleteAll, keepBest, zoomHere}) {
+            private boolean done = false;
+
+            @Override
+            public boolean mousedown(MouseDownEvent ev) {
+                if(super.mousedown(ev))
+                    nchoose(null);
+                return(true);
+            }
+
+            @Override
+            public void nchoose(NPetal option) {
+                if(done)
+                    return;
+                done = true;
+                if(option != null) {
+                    if(option.name.equals(deleteAll)) {
+                        gui.labeledMarkService.removeMarks(marks);
+                    } else if(option.name.equals(keepBest)) {
+                        gui.labeledMarkService.removeMarks(marks.subList(1, marks.size()));
+                    } else if(option.name.equals(zoomHere)) {
+                        zoomTo(seg, anchor);
+                    }
+                }
+                uimsg("cancel");
+            }
+        };
+        menu.shiftMode = true;
+        ui.root.add(menu, ui.mc);
+    }
+
+    /** Centre the map on a tile and zoom in one step (doubling the scale, up to the maximum). */
+    private void zoomTo(MapFile.Segment seg, Coord tc) {
+        follow = false;
+        setloc = null;
+        center(new Location(seg, tc));
+        targetScale = Math.min(MAX_SCALE, targetScale * 2);
+        zoomlevel = Utils.clip((int)(Math.log(1.0 / targetScale) / Math.log(2)), 0, 5);
     }
 
     private void drawterrainname(GOut g) {
@@ -1800,8 +1954,8 @@ NMiniMap extends MiniMap {
             // Zoom in - multiply by 1.0526 (inverse of 0.95, ~5.3% increase)
             targetScale *= 1.0526f;
             // Limit maximum scale to 4x
-            if(targetScale > 4.0f)
-                targetScale = 4.0f;
+            if(targetScale > MAX_SCALE)
+                targetScale = MAX_SCALE;
         }
         
         // Update zoomlevel for compatibility with base class
@@ -2051,7 +2205,11 @@ NMiniMap extends MiniMap {
         if(dloc != null && sessloc != null) {
             Coord hsz = sz.div(2);
 
-            // Check for tree location tooltip first (check in screen space)
+            Object markTip = labeledMarkTooltip(c);
+            if(markTip != null)
+                return(markTip);
+
+            // Check for tree location tooltip (check in screen space)
             NGameUI gui = NUtils.getGameUI();
             if(gui != null && gui.treeLocationService != null && showTreeIcons()) {
                 // Check if markers are hidden (respect "Hide Markers" button)
@@ -2474,39 +2632,6 @@ NMiniMap extends MiniMap {
         }
         return null;
     }
-    
-    /**
-     * Find a labeled minimap mark at the given screen coordinate.
-     * Used for right-click deletion of water/soil quality marks.
-     */
-    private LabeledMinimapMark labeledMarkAt(Coord screenCoord) {
-        if(dloc == null || sessloc == null) return null;
-        
-        NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.labeledMarkService == null) return null;
-        
-        java.util.List<LabeledMinimapMark> marks = gui.labeledMarkService.getMarksForSegment(dloc.seg.id);
-        
-        Coord hsz = sz.div(2);
-        int threshold = UI.scale(12); // Click radius
-        nurgling.conf.ProspectMarkSettings settings = prospectSettings();
-
-        for(LabeledMinimapMark mark : marks) {
-            /* A filtered-out mark is not drawn, so it must not be clickable either -
-             * otherwise it keeps an invisible hitbox that swallows right-clicks. */
-            if(settings != null && !settings.shows(mark.kind, mark.quality))
-                continue;
-
-            // Calculate screen position for this mark
-            Coord markScreenPos = mark.tileCoords.sub(dloc.tc).div(scalef()).add(hsz);
-            
-            // Check if click is within threshold
-            if(screenCoord.dist(markScreenPos) < threshold) {
-                return mark;
-            }
-        }
-        return null;
-    }
 
     @Override
     public boolean filter(DisplayMarker mark) {
@@ -2584,6 +2709,11 @@ NMiniMap extends MiniMap {
                 return true;
             }
         }
+
+        // Right-click on a labeled mark badge is handled on release; consume the press so the
+        // base class does not also walk the player to the clicked tile.
+        if(ev.b == 3 && !labeledClustersAt(ev.c).isEmpty())
+            return true;
 
         // Check for right-click on an undiscovered-LP marker. Our marker isn't a real
         // DisplayIcon, so without this check, base MiniMap.mousedown() falls through to its own
@@ -2687,17 +2817,9 @@ NMiniMap extends MiniMap {
             }
         }
 
-        // Handle right-click release on labeled mark (water/soil quality) - delete it
-        if(ev.b == 3 && dloc != null && sessloc != null) {
-            LabeledMinimapMark labeledMark = labeledMarkAt(ev.c);
-            if(labeledMark != null) {
-                NGameUI gui = NUtils.getGameUI();
-                if(gui != null && gui.labeledMarkService != null) {
-                    gui.labeledMarkService.removeMark(labeledMark);
-                }
-                return true;
-            }
-        }
+        // Right-click release on a labeled mark badge: delete a single mark, or open the cluster menu
+        if(ev.b == 3 && labeledMarkRightClick(ev.c))
+            return true;
         
         // Handle right-click release on tree location - open details window
         if(ev.b == 3 && dloc != null && sessloc != null && showTreeIcons()) { // Button 3 is right-clicked
