@@ -18,6 +18,12 @@ public class CheeseRackCalculator {
     public static final int TRAYS_PER_RACK = 3;
     /** One curding tub makes a curd every 36 minutes. */
     public static final double CURDS_PER_TUB_HOUR = 60.0 / 36.0;
+    /** A curding tub holds 20 curds (5x4) and stops once it is full. */
+    public static final int CURDS_PER_TUB = 20;
+    /** Litres of milk each curd takes. */
+    public static final double MILK_PER_CURD = 1.0;
+    /** Litres of rennet each curd takes, so one litre is good for 50 curds. */
+    public static final double RENNET_PER_CURD = 0.02;
 
     public static final CheeseBranch.Place[] RACK_PLACES = {
             CheeseBranch.Place.mine, CheeseBranch.Place.outside, CheeseBranch.Place.cellar, CheeseBranch.Place.inside
@@ -67,11 +73,36 @@ public class CheeseRackCalculator {
         }
     }
 
+    /** What one curd type costs per hour, and how many tubs keep up with it. */
+    public static class Supply {
+        public double curdsPerHour;
+        public int tubs;
+
+        public double milkPerHour() {
+            return curdsPerHour * MILK_PER_CURD;
+        }
+
+        public double rennetPerHour() {
+            return curdsPerHour * RENNET_PER_CURD;
+        }
+    }
+
+    /**
+     * Tubs needed for a curd rate, assuming they are emptied before they fill up. A tub holds
+     * {@link #CURDS_PER_TUB} curds and stops there, which it reaches after 12 hours, so this
+     * assumes emptying at least that often.
+     */
+    public static int tubsFor(double curdsPerHour) {
+        if (curdsPerHour <= 0)
+            return 0;
+        return (int) Math.ceil(curdsPerHour / CURDS_PER_TUB_HOUR - 1e-9);
+    }
+
     public static class Result {
         public final List<RowResult> rows = new ArrayList<>();
         public final Map<CheeseBranch.Place, Double> trays = new EnumMap<>(CheeseBranch.Place.class);
         public final Map<CheeseBranch.Place, Integer> racks = new EnumMap<>(CheeseBranch.Place.class);
-        public final Map<String, Double> curdsPerHour = new LinkedHashMap<>();
+        public final Map<String, Supply> supplies = new LinkedHashMap<>();
         public int totalRacks;
         public int traysInCirculation;
     }
@@ -130,7 +161,7 @@ public class CheeseRackCalculator {
                 rr.racks.put(e.getKey(), racksFor(e.getValue(), headroomPct));
                 res.trays.merge(e.getKey(), e.getValue(), Double::sum);
             }
-            res.curdsPerHour.merge(curd, perHour * CheeseConstants.CURDS_PER_TRAY, Double::sum);
+            res.supplies.computeIfAbsent(curd, k -> new Supply()).curdsPerHour += perHour * CheeseConstants.CURDS_PER_TRAY;
             inHand += rr.traysPerRun;
             res.rows.add(rr);
         }
@@ -144,6 +175,8 @@ public class CheeseRackCalculator {
             res.totalRacks += r;
         }
         res.traysInCirculation = (int) Math.ceil(onRacks + inHand - 1e-9);
+        for (Supply supply : res.supplies.values())
+            supply.tubs = tubsFor(supply.curdsPerHour);
         return res;
     }
 }

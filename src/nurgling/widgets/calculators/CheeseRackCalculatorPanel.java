@@ -2,35 +2,76 @@ package nurgling.widgets.calculators;
 
 import haven.*;
 import nurgling.NConfig;
+import nurgling.NStyle;
 import nurgling.cheese.CheeseBranch;
 import nurgling.cheese.CheeseRackCalculator;
 import nurgling.cheese.CheeseStageHours;
 import nurgling.i18n.L10n;
+import nurgling.widgets.cookbook.CookbookTheme;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.awt.Color;
 import java.util.*;
 
 /**
  * Cheese rack calculator tab: how many racks each area needs for a steady rate of trays.
- * Everything is in trays, racks and hours. Inputs are remembered in {@link NConfig.Key#cheeseRackCalculator}.
+ * Rates are in trays and hours, racks are counts. Inputs are remembered in
+ * {@link NConfig.Key#cheeseRackCalculator}. Drawn like the cookbook table.
  */
 public class CheeseRackCalculatorPanel extends Widget {
-    private static final int ROW_H = UI.scale(26);
-    private static final int STAGE_H = UI.scale(22);
-    private static final int X_CHEESE = 0;
-    private static final int X_TRAYS = UI.scale(165);
-    private static final int X_EVERY = UI.scale(210);
-    private static final int X_PER_RUN = UI.scale(258);
-    private static final int X_PLACE0 = UI.scale(310);
-    private static final int PLACE_W = UI.scale(46);
-    private static final int X_FIRST = UI.scale(500);
-    private static final int X_STAGES_BTN = UI.scale(548);
-    private static final int X_REMOVE_BTN = UI.scale(582);
-    private static final int ENTRY_W = UI.scale(40);
-    private static final int SMALL_BTN_W = UI.scale(30);
+    private static final int TOOLBAR_H = UI.scale(28);
+    private static final int HEAD_H = UI.scale(22);
+    private static final int ROW_H = UI.scale(28);
+    private static final int STAGE_H = UI.scale(20);
+    private static final int PAD = UI.scale(8);
+    private static final int LINE_H = UI.scale(17);
+
+    private static final int X_CHEESE = PAD;
+    private static final int W_CHEESE = UI.scale(160);
+    private static final int X_TRAYS = UI.scale(180);
+    private static final int X_EVERY = UI.scale(232);
+    private static final int R_PER_RUN = UI.scale(332);
+    private static final int R_PLACE0 = UI.scale(398);
+    private static final int PLACE_W = UI.scale(56);
+    private static final int R_FIRST = UI.scale(636);
+    private static final int X_STAGES_BTN = UI.scale(646);
+    private static final int X_REMOVE_BTN = UI.scale(674);
+    private static final int ENTRY_W = UI.scale(44);
+    private static final int SMALL_BTN_W = UI.scale(24);
     private static final String[] CURDS = {"Cow's Curd", "Sheep's Curd", "Goat's Curd"};
+
+    /** Label that keeps its right edge fixed, so numbers line up under their heading. */
+    private static class RLabel extends Label {
+        private final int right;
+
+        RLabel(String text, Text.Foundry f, int right) {
+            super(text, f);
+            this.right = right;
+        }
+
+        @Override
+        public void settext(String text) {
+            super.settext(text);
+            move(new Coord(right - sz.x, c.y));
+        }
+    }
+
+    /** Flat coloured band behind a row. */
+    private static class Band extends Widget {
+        private final Color color;
+
+        Band(Coord sz, Color color) {
+            super(sz);
+            this.color = color;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            CookbookTheme.fill(g, Coord.z, sz, color);
+        }
+    }
 
     private static class RowState {
         String cheese;
@@ -51,8 +92,11 @@ public class CheeseRackCalculatorPanel extends Widget {
     private final List<String> cheeseTypes = CheeseBranch.allProducts();
     private final List<RowState> rows = new ArrayList<>();
     private final Map<String, Integer> overrides = new HashMap<>();
+    private final List<String> periods = Arrays.asList(L10n.get("calc.cheese.per_hour"), L10n.get("calc.cheese.per_day"));
     private String runEvery = "12";
     private String headroom = "0";
+    /** Hours one line of the supply summary covers: 1 for per hour, 24 for per day. */
+    private int period = 24;
     private boolean rebuildPending = false;
 
     private final Scrollport scroll;
@@ -61,13 +105,19 @@ public class CheeseRackCalculatorPanel extends Widget {
     private final Label totalAll;
     private final Label circulation;
     private final Label[] curdLabels = new Label[CURDS.length];
+    private final int headY;
+    private final int listY;
+    private final int listH;
+    private final int totalsY;
+    private final int summaryY;
 
     public CheeseRackCalculatorPanel(Coord sz) {
         super(sz);
         load();
 
-        int y = 0;
-        Widget prev = add(new Label(L10n.get("calc.cheese.run_every")), new Coord(0, y + UI.scale(4)));
+        // ---- toolbar
+        int y = UI.scale(6);
+        Widget prev = add(new Label(L10n.get("calc.cheese.run_every"), CookbookTheme.body), new Coord(PAD, y + UI.scale(3)));
         prev = add(new TextEntry(ENTRY_W, runEvery) {
             @Override
             protected void changed() {
@@ -76,9 +126,9 @@ public class CheeseRackCalculatorPanel extends Widget {
                 save();
                 recompute();
             }
-        }, prev.pos("ur").adds(5, -4));
-        prev = add(new Label(L10n.get("calc.cheese.hours")), prev.pos("ur").adds(4, 4));
-        prev = add(new Label(L10n.get("calc.cheese.headroom")), prev.pos("ur").adds(20, 0));
+        }, prev.pos("ur").adds(6, -3));
+        prev = add(new Label(L10n.get("calc.cheese.hours"), CookbookTheme.body), prev.pos("ur").adds(5, 3));
+        prev = add(new Label(L10n.get("calc.cheese.headroom"), CookbookTheme.body), prev.pos("ur").adds(18, 0));
         prev = add(new TextEntry(ENTRY_W, headroom) {
             @Override
             protected void changed() {
@@ -87,62 +137,115 @@ public class CheeseRackCalculatorPanel extends Widget {
                 save();
                 recompute();
             }
-        }, prev.pos("ur").adds(5, -4));
-        add(new Label("%"), prev.pos("ur").adds(4, 4));
+        }, prev.pos("ur").adds(6, -3));
+        prev = add(new Label("%", CookbookTheme.body), prev.pos("ur").adds(5, 3));
+        prev = add(new Label(L10n.get("calc.cheese.show"), CookbookTheme.body), prev.pos("ur").adds(18, 0));
+        Dropbox<String> periodBox = new Dropbox<String>(UI.scale(84), periods.size(), UI.scale(16)) {
+            @Override
+            protected String listitem(int i) {
+                return periods.get(i);
+            }
 
-        y += UI.scale(30);
-        add(new Label(L10n.get("calc.cheese.col.cheese")), new Coord(X_CHEESE, y));
-        add(new Label(L10n.get("calc.cheese.col.trays")), new Coord(X_TRAYS, y));
-        add(new Label(L10n.get("calc.cheese.col.every")), new Coord(X_EVERY, y));
-        add(new Label(L10n.get("calc.cheese.col.per_run")), new Coord(X_PER_RUN, y));
+            @Override
+            protected int listitems() {
+                return periods.size();
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+
+            @Override
+            public void change(String item) {
+                super.change(item);
+                period = periods.indexOf(item) == 0 ? 1 : 24;
+                save();
+                recompute();
+            }
+        };
+        periodBox.sel = periods.get(period == 1 ? 0 : 1);
+        add(periodBox, prev.pos("ur").adds(6, -3));
+
+        // ---- table head
+        headY = TOOLBAR_H + UI.scale(4);
+        int ty = headY + UI.scale(4);
+        add(new Label(L10n.get("calc.cheese.col.cheese"), CookbookTheme.bold), new Coord(X_CHEESE, ty));
+        add(new Label(L10n.get("calc.cheese.col.trays"), CookbookTheme.bold), new Coord(X_TRAYS, ty));
+        add(new Label(L10n.get("calc.cheese.col.every"), CookbookTheme.bold), new Coord(X_EVERY, ty));
+        addRight(this, L10n.get("calc.cheese.col.per_run"), CookbookTheme.bold, R_PER_RUN, ty);
         for (int i = 0; i < CheeseRackCalculator.RACK_PLACES.length; i++)
-            add(new Label(placeName(CheeseRackCalculator.RACK_PLACES[i])), new Coord(placeX(i), y));
-        add(new Label(L10n.get("calc.cheese.col.first")), new Coord(X_FIRST, y));
+            addRight(this, placeName(CheeseRackCalculator.RACK_PLACES[i]), CookbookTheme.bold, placeRight(i), ty);
+        addRight(this, L10n.get("calc.cheese.col.first"), CookbookTheme.bold, R_FIRST, ty);
 
-        y += UI.scale(22);
-        int listH = sz.y - y - UI.scale(120);
-        scroll = add(new Scrollport(new Coord(sz.x, listH)), new Coord(0, y));
-        content = new Widget(new Coord(sz.x - UI.scale(20), UI.scale(20))) {
+        // ---- rows
+        listY = headY + HEAD_H;
+        listH = sz.y - listY - UI.scale(178);
+        scroll = add(new Scrollport(new Coord(sz.x, listH)), new Coord(0, listY));
+        content = new Widget(new Coord(scroll.cont.sz.x, UI.scale(20))) {
             @Override
             public void pack() {
-                resize(contentsz());
+                resize(new Coord(scroll.cont.sz.x, contentsz().y));
             }
         };
         scroll.cont.add(content, Coord.z);
 
-        y += listH + UI.scale(6);
-        add(new Label(L10n.get("calc.cheese.racks_needed")), new Coord(X_CHEESE, y));
+        // ---- totals
+        totalsY = listY + listH + UI.scale(2);
+        add(new Label(L10n.get("calc.cheese.racks_needed"), CookbookTheme.bold), new Coord(X_CHEESE, totalsY + UI.scale(4)));
         for (int i = 0; i < CheeseRackCalculator.RACK_PLACES.length; i++)
-            totalRacks.put(CheeseRackCalculator.RACK_PLACES[i], add(new Label("0"), new Coord(placeX(i), y)));
-        totalAll = add(new Label(""), new Coord(X_FIRST, y));
+            totalRacks.put(CheeseRackCalculator.RACK_PLACES[i],
+                    addRight(this, "0", CookbookTheme.bold, placeRight(i), totalsY + UI.scale(4)));
+        totalAll = addRight(this, "", CookbookTheme.bold, R_FIRST, totalsY + UI.scale(4));
 
-        y += UI.scale(24);
-        add(new Button(UI.scale(120), L10n.get("calc.cheese.add"), () -> {
+        int btnY = totalsY + HEAD_H + UI.scale(8);
+        add(new Button(UI.scale(110), L10n.get("calc.cheese.add"), () -> {
             rows.add(new RowState(cheeseTypes.get(0), "1", "24"));
             save();
             rebuildPending = true;
-        }), new Coord(0, y));
-        add(new Button(UI.scale(150), L10n.get("calc.cheese.reset_hours"), () -> {
+        }), new Coord(PAD, btnY));
+        add(new Button(UI.scale(140), L10n.get("calc.cheese.reset_hours"), () -> {
             overrides.clear();
             save();
             rebuildPending = true;
-        }), new Coord(UI.scale(130), y));
+        }), new Coord(PAD + UI.scale(120), btnY));
 
-        y += UI.scale(32);
-        circulation = add(new Label(""), new Coord(0, y));
+        // ---- supply box
+        summaryY = btnY + UI.scale(32);
+        int sy = summaryY + UI.scale(6);
+        circulation = add(new Label("", CookbookTheme.bold), new Coord(PAD + UI.scale(6), sy));
         for (int i = 0; i < CURDS.length; i++)
-            curdLabels[i] = add(new Label(""), new Coord(0, y + UI.scale(16) * (i + 1)));
-        add(new Label(L10n.get("calc.cheese.hint")), new Coord(UI.scale(300), y));
+            curdLabels[i] = add(new Label("", CookbookTheme.body), new Coord(PAD + UI.scale(6), sy + LINE_H * (i + 1)));
+        int noteY = sy + LINE_H * (CURDS.length + 1) + UI.scale(3);
+        add(new Label(L10n.get("calc.cheese.tubs_note"), CookbookTheme.small), new Coord(PAD + UI.scale(6), noteY));
+        add(new Label(L10n.get("calc.cheese.hint"), CookbookTheme.small), new Coord(PAD + UI.scale(6), noteY + UI.scale(13)));
 
         rebuild();
     }
 
-    private static int placeX(int i) {
-        return X_PLACE0 + i * PLACE_W;
+    private static Label addRight(Widget parent, String text, Text.Foundry f, int right, int y) {
+        RLabel label = new RLabel(text, f, right);
+        parent.add(label, new Coord(right - label.sz.x, y));
+        return label;
+    }
+
+    private static int placeRight(int i) {
+        return R_PLACE0 + i * PLACE_W;
     }
 
     private static String placeName(CheeseBranch.Place place) {
         return L10n.get("calc.cheese.place." + place.name());
+    }
+
+    @Override
+    public void draw(GOut g) {
+        CookbookTheme.fill(g, Coord.z, sz, CookbookTheme.bg);
+        CookbookTheme.fill(g, Coord.z, new Coord(sz.x, TOOLBAR_H), CookbookTheme.head);
+        CookbookTheme.fill(g, new Coord(0, headY), new Coord(sz.x, HEAD_H), CookbookTheme.head);
+        CookbookTheme.fill(g, new Coord(0, totalsY), new Coord(sz.x, HEAD_H), CookbookTheme.head);
+        CookbookTheme.fill(g, new Coord(0, listY + listH), new Coord(sz.x, UI.scale(1)), CookbookTheme.line);
+        CookbookTheme.frame(g, new Coord(PAD, summaryY), new Coord(sz.x - PAD * 2, sz.y - summaryY - UI.scale(4)), CookbookTheme.outline);
+        super.draw(g);
     }
 
     @Override
@@ -159,7 +262,9 @@ public class CheeseRackCalculatorPanel extends Widget {
             child.destroy();
 
         int y = 0;
+        int i = 0;
         for (RowState row : rows) {
+            content.add(new Band(new Coord(content.sz.x, ROW_H), (i++ % 2 == 0) ? NStyle.rowEven : NStyle.rowOdd), new Coord(0, y));
             addRow(row, y);
             y += ROW_H;
             if (row.expanded)
@@ -171,7 +276,7 @@ public class CheeseRackCalculatorPanel extends Widget {
     }
 
     private void addRow(RowState row, int y) {
-        Dropbox<String> cheese = new Dropbox<String>(UI.scale(155), Math.min(16, cheeseTypes.size()), UI.scale(16)) {
+        Dropbox<String> cheese = new Dropbox<String>(W_CHEESE, Math.min(16, cheeseTypes.size()), UI.scale(16)) {
             @Override
             protected String listitem(int i) {
                 return cheeseTypes.get(i);
@@ -196,7 +301,7 @@ public class CheeseRackCalculatorPanel extends Widget {
             }
         };
         cheese.sel = row.cheese;
-        content.add(cheese, new Coord(X_CHEESE, y + UI.scale(3)));
+        content.add(cheese, new Coord(X_CHEESE, y + UI.scale(5)));
 
         content.add(new TextEntry(ENTRY_W, row.trays) {
             @Override
@@ -206,7 +311,7 @@ public class CheeseRackCalculatorPanel extends Widget {
                 save();
                 recompute();
             }
-        }, new Coord(X_TRAYS, y + UI.scale(2)));
+        }, new Coord(X_TRAYS, y + UI.scale(5)));
         content.add(new TextEntry(ENTRY_W, row.every) {
             @Override
             protected void changed() {
@@ -215,35 +320,37 @@ public class CheeseRackCalculatorPanel extends Widget {
                 save();
                 recompute();
             }
-        }, new Coord(X_EVERY, y + UI.scale(2)));
+        }, new Coord(X_EVERY, y + UI.scale(5)));
 
-        row.perRun = content.add(new Label(""), new Coord(X_PER_RUN, y + UI.scale(5)));
+        int ty = y + UI.scale(8);
+        row.perRun = addRight(content, "", CookbookTheme.body, R_PER_RUN, ty);
         row.racks.clear();
         for (int i = 0; i < CheeseRackCalculator.RACK_PLACES.length; i++)
-            row.racks.put(CheeseRackCalculator.RACK_PLACES[i], content.add(new Label(""), new Coord(placeX(i), y + UI.scale(5))));
-        row.first = content.add(new Label(""), new Coord(X_FIRST, y + UI.scale(5)));
+            row.racks.put(CheeseRackCalculator.RACK_PLACES[i], addRight(content, "", CookbookTheme.body, placeRight(i), ty));
+        row.first = addRight(content, "", CookbookTheme.body, R_FIRST, ty);
 
         content.add(new Button(SMALL_BTN_W, row.expanded ? "▼" : "▶", () -> {
             row.expanded = !row.expanded;
             rebuildPending = true;
-        }), new Coord(X_STAGES_BTN, y));
+        }), new Coord(X_STAGES_BTN, y + UI.scale(3)));
         content.add(new Button(SMALL_BTN_W, "x", () -> {
             rows.remove(row);
             save();
             rebuildPending = true;
-        }), new Coord(X_REMOVE_BTN, y));
+        }), new Coord(X_REMOVE_BTN, y + UI.scale(3)));
     }
 
     private int addStages(RowState row, int y) {
         List<CheeseRackCalculator.Stage> stages = CheeseRackCalculator.stages(row.cheese, overrides);
         if (stages == null) {
-            content.add(new Label(L10n.get("calc.cheese.no_data")), new Coord(UI.scale(15), y + UI.scale(3)));
+            content.add(new Label(L10n.get("calc.cheese.no_data"), CookbookTheme.small), new Coord(X_CHEESE + UI.scale(18), y + UI.scale(3)));
             return y + STAGE_H;
         }
         for (CheeseRackCalculator.Stage stage : stages) {
             String key = CheeseStageHours.key(stage.name, stage.place);
             int wiki = CheeseStageHours.defaultHours(stage.name, stage.place);
-            content.add(new Label(stage.name + " (" + placeName(stage.place) + ")"), new Coord(UI.scale(15), y + UI.scale(3)));
+            content.add(new Label(stage.name + " (" + placeName(stage.place) + ")", CookbookTheme.small),
+                    new Coord(X_CHEESE + UI.scale(18), y + UI.scale(4)));
             content.add(new TextEntry(ENTRY_W, String.valueOf(stage.hours)) {
                 @Override
                 protected void changed() {
@@ -257,7 +364,8 @@ public class CheeseRackCalculatorPanel extends Widget {
                     recompute();
                 }
             }, new Coord(X_TRAYS, y));
-            content.add(new Label(L10n.get("calc.cheese.wiki_hours", String.valueOf(wiki))), new Coord(X_EVERY + UI.scale(5), y + UI.scale(3)));
+            content.add(new Label(L10n.get("calc.cheese.wiki_hours", String.valueOf(wiki)), CookbookTheme.small),
+                    new Coord(X_EVERY, y + UI.scale(4)));
             y += STAGE_H;
         }
         return y;
@@ -285,7 +393,7 @@ public class CheeseRackCalculatorPanel extends Widget {
             rs.first.settext(String.valueOf(Math.round(rr.leadHours)));
             for (Map.Entry<CheeseBranch.Place, Label> e : rs.racks.entrySet()) {
                 Integer r = rr.racks.get(e.getKey());
-                e.getValue().settext(r == null ? "–" : String.valueOf(r));
+                e.getValue().settext((r == null || r == 0) ? "–" : String.valueOf(r));
             }
         }
 
@@ -294,11 +402,17 @@ public class CheeseRackCalculatorPanel extends Widget {
             e.getValue().settext(String.valueOf(total.racks.getOrDefault(e.getKey(), 0)));
         totalAll.settext(L10n.get("calc.cheese.total", String.valueOf(total.totalRacks)));
         circulation.settext(L10n.get("calc.cheese.circulation", String.valueOf(total.traysInCirculation)));
+        String unit = L10n.get(period == 1 ? "calc.cheese.per_hour" : "calc.cheese.per_day");
         for (int i = 0; i < CURDS.length; i++) {
-            Double perHour = total.curdsPerHour.get(CURDS[i]);
-            curdLabels[i].settext(perHour == null ? "" : L10n.get("calc.cheese.curds", CURDS[i], fmt(perHour),
-                    fmt(perHour / CheeseRackCalculator.CURDS_PER_TUB_HOUR)));
+            CheeseRackCalculator.Supply supply = total.supplies.get(CURDS[i]);
+            curdLabels[i].settext(supply == null ? "" : L10n.get("calc.cheese.curds", CURDS[i],
+                    fmt(supply.curdsPerHour * period), String.valueOf(supply.tubs),
+                    fmt(supply.milkPerHour() * period), fmt2(supply.rennetPerHour() * period), unit));
         }
+    }
+
+    private static String fmt2(double v) {
+        return String.format(Locale.ROOT, "%.2f", v);
     }
 
     private static String fmt(double v) {
@@ -318,6 +432,7 @@ public class CheeseRackCalculatorPanel extends Widget {
         JSONObject o = new JSONObject();
         o.put("runEvery", runEvery);
         o.put("headroom", headroom);
+        o.put("period", period);
         JSONArray arr = new JSONArray();
         for (RowState rs : rows) {
             JSONObject r = new JSONObject();
@@ -349,6 +464,7 @@ public class CheeseRackCalculatorPanel extends Widget {
         }
         runEvery = o.optString("runEvery", runEvery);
         headroom = o.optString("headroom", headroom);
+        period = o.optInt("period", period) == 1 ? 1 : 24;
         JSONArray arr = o.optJSONArray("rows");
         if (arr != null) {
             for (int i = 0; i < arr.length(); i++) {
