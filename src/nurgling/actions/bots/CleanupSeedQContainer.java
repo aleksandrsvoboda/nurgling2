@@ -61,18 +61,30 @@ public class CleanupSeedQContainer implements Action {
         }
 
         while (seeds.size() > containerCapacity / 2) {
+            // The trough is a best-effort target: RedOnionFarmerQ registers it as optional and
+            // ignores our result, and HarvestCrop treats a null trough gob as normal. If it is not
+            // in loaded range, stop cleanup gracefully instead of crashing the whole farmer run.
+            // Checked before fetching so we never orphan seeds in the inventory.
+            Gob trough = Finder.findGob(trougha, new NAlias("gfx/terobjs/trough"));
+            if (trough == null)
+                break;
+
             int fetchCount = Math.min(seeds.size() - (containerCapacity / 2), gui.getInventory().getFreeSpace());
+
+            // No free inventory space to pull seeds into - nothing more can be moved this pass.
+            // Guards against fetchCount == 0 both crashing (empty transfer) and looping forever.
+            if (fetchCount <= 0)
+                break;
 
             // Fetch low seeds to inventory
             new TakeAvailableItemsFromContainer(container, iseed, fetchCount, NInventory.QualityType.Low).run(gui);
 
-            Gob trough = Finder.findGob(trougha, new NAlias("gfx/terobjs/trough"));
+            // Nothing actually landed in the inventory (e.g. no free coord of the seed's shape) -
+            // stop rather than issuing an empty transfer or spinning.
+            if (gui.getInventory().getItems(iseed).isEmpty())
+                break;
 
-            if (!gui.getInventory().getItems(iseed).isEmpty() && trough != null) {
-                new TransferToTrough(trough, iseed).run(gui);
-            } else {
-                throw new RuntimeException("Failed to transfer to trough!");
-            }
+            new TransferToTrough(trough, iseed).run(gui);
 
             new PathFinder(containerGob).run(gui);
 
