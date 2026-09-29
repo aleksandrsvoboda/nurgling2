@@ -930,7 +930,7 @@ public class VkEnvironment implements Environment {
 	Texture.Filter mag = nearest ? Texture.Filter.NEAREST : smp.magfilter;
 	Texture.Filter min = nearest ? Texture.Filter.NEAREST : smp.minfilter;
 	Texture.Filter mip = nearest ? ((smp.mipfilter == null) ? null : Texture.Filter.NEAREST) : smp.mipfilter;
-	float aniso = (anisotropy && !nearest) ? Math.min(smp.anisotropy, maxaniso) : 0;
+	float aniso = (anisotropy && !nearest) ? Math.min(smp.effanisotropy(), maxaniso) : 0;
 	int border = vkborder(smp.border, tex.fmt.integer);
 	List<Object> key = Arrays.asList(mag, min, mip, smp.swrap, smp.twrap, smp.rwrap, aniso, border);
 	synchronized(samplers) {

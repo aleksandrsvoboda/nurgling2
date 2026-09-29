@@ -363,8 +363,8 @@ public abstract class GLTexture extends GLObject implements BGL.ID {
 		    bind(gl);
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, magfilter(data));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, minfilter(data));
-		    if(data.anisotropy > 0)
-			gl.glTexParameterf(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, data.anisotropy);
+		    if((data.effanisotropy() > 0) && (env.caps.anisotropy > 0))
+			gl.glTexParameterf(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, Math.max(1.0f, Math.min(data.effanisotropy(), env.caps.anisotropy)));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, wrapmode(data.swrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, wrapmode(data.twrap));
 		    gl.glTexParameterfv(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_BORDER_COLOR, data.border.to4a());
@@ -452,8 +452,8 @@ public abstract class GLTexture extends GLObject implements BGL.ID {
 		    bind(gl);
 		    gl.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_MAG_FILTER, magfilter(data));
 		    gl.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_MIN_FILTER, minfilter(data));
-		    if(data.anisotropy > 0)
-			gl.glTexParameterf(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, data.anisotropy);
+		    if((data.effanisotropy() > 0) && (env.caps.anisotropy > 0))
+			gl.glTexParameterf(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, Math.max(1.0f, Math.min(data.effanisotropy(), env.caps.anisotropy)));
 		    gl.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_WRAP_S, wrapmode(data.swrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_WRAP_T, wrapmode(data.twrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_WRAP_R, wrapmode(data.rwrap));
@@ -548,8 +548,8 @@ public abstract class GLTexture extends GLObject implements BGL.ID {
 		    bind(gl);
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_MAG_FILTER, magfilter(data));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_MIN_FILTER, minfilter(data));
-		    if(data.anisotropy > 0)
-			gl.glTexParameterf(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, data.anisotropy);
+		    if((data.effanisotropy() > 0) && (env.caps.anisotropy > 0))
+			gl.glTexParameterf(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, Math.max(1.0f, Math.min(data.effanisotropy(), env.caps.anisotropy)));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_WRAP_S, wrapmode(data.swrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_WRAP_T, wrapmode(data.twrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_WRAP_R, wrapmode(data.rwrap));
@@ -690,8 +690,8 @@ public abstract class GLTexture extends GLObject implements BGL.ID {
 		    bind(gl);
 		    gl.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, magfilter(data));
 		    gl.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, minfilter(data));
-		    if(data.anisotropy > 0)
-			gl.glTexParameterf(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, data.anisotropy);
+		    if((data.effanisotropy() > 0) && (env.caps.anisotropy > 0))
+			gl.glTexParameterf(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, Math.max(1.0f, Math.min(data.effanisotropy(), env.caps.anisotropy)));
 		    gl.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_S, wrapmode(data.swrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_T, wrapmode(data.twrap));
 		    gl.glTexParameterfv(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_BORDER_COLOR, data.border.to4a());

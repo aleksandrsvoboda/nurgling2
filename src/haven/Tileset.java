@@ -410,6 +410,9 @@ public class Tileset extends Resource.Layer {
 		    mipmap(Mipmapper.avg);
 		    img.minfilter(Texture.Filter.NEAREST).mipfilter(Texture.Filter.LINEAR);
 		    img.magfilter(Texture.Filter.NEAREST);
+		    /* Nurgling: packed tile atlas; anisotropic filtering would
+		     * bleed neighbouring tiles in as dark seams. */
+		    img.anisotropy(-1);
 		    centroid = true;
 		}
 
