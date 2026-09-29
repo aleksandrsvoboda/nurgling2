@@ -108,13 +108,18 @@ public class ISmoke extends Sprite implements Rendered, Sprite.CDel, TickList.Ti
 		bollar.add(new Boll(Coord3f.o.sadd(0, rnd.nextFloat() * (float)Math.PI * 2, (float)Math.sqrt(rnd.nextFloat()) * srad)));
 	}
 	Coord3f nv = Coord3f.o;
+	boolean fx = nurgling.render.FireFX.smoke;
 	if(gob != null) {
 	    nv = Environ.get(gob.glob).wind().mul(0.4f);
+	    if(fx)
+		nv = nv.add(nurgling.render.FireFX.gust(gob.rc));
 	    nv = nv.rot(Coord3f.zu, (float)gob.a);
+	} else if(fx) {
+	    nv = nurgling.render.FireFX.gust(null);
 	}
 	for(Iterator<Boll> i = bollar.iterator(); i.hasNext();) {
 	    Boll boll = i.next();
-	    if(boll.tick(dt, nv))
+	    if(boll.tick(dt, fx ? boll.wind(nv) : nv))
 		i.remove();
 	}
     }
@@ -138,6 +143,16 @@ public class ISmoke extends Sprite implements Rendered, Sprite.CDel, TickList.Ti
 	    xv = (float)rnd.nextGaussian() * sv;
 	    yv = (float)rnd.nextGaussian() * sv;
 	    zv = initzv;
+	}
+
+	/* Realistic smoke: the plume rises straight near its source
+	 * and bends over higher up, and curls as it goes. */
+	Coord3f wind(Coord3f nv) {
+	    float hf = nurgling.render.FireFX.windheight(z);
+	    float sw = 1.6f * hf;
+	    float cx = (float)Math.sin((z * 0.13f) + (t * 1.1f) + (seed * 40f)) * sw;
+	    float cy = (float)Math.cos((z * 0.11f) + (t * 0.9f) + (seed * 23f)) * sw;
+	    return(Coord3f.of((nv.x * hf) + cx, (nv.y * hf) + cy, nv.z));
 	}
 
 	public boolean tick(float dt, Coord3f nv) {

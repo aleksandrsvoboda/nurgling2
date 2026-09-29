@@ -78,10 +78,13 @@ public class Embers implements RenderTree.Node, Rendered, TickList.TickNode, Tic
 		embers.add(new Ember());
 	    }
 	}
-	Coord3f wind = Coord3f.o;
+	Coord3f wind = FireFX.smoke ? FireFX.gust(null) : Coord3f.o;
 	if(gob != null) {
 	    try {
-		wind = Environ.get(gob.glob).wind().mul(0.6f).rot(Coord3f.zu, (float)gob.a);
+		wind = Environ.get(gob.glob).wind().mul(0.6f);
+		if(FireFX.smoke)
+		    wind = wind.add(FireFX.gust(gob.rc));
+		wind = wind.rot(Coord3f.zu, (float)gob.a);
 	    } catch(RuntimeException e) {
 		wind = Coord3f.o;
 	    }

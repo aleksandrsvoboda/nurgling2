@@ -33,6 +33,56 @@ public class FireFX {
 	return(ch);
     }
 
+    /* Pretend wind for smoke and embers: long lulls, gusts that build
+     * over a couple of seconds and die away, and a direction that
+     * slowly wanders. Every fire shares it, so all smoke in view
+     * leans the same way, but a gust sweeps across the land, reaching
+     * a fire a little later the further downwind it stands. Same
+     * space as Environ.wind(); added to the game's own wind. */
+    static final double FRONT = 70;
+    /* The wind's clock (replaceable for offline rendering). */
+    public static volatile java.util.function.DoubleSupplier clock = Utils::rtime;
+
+    private static double vnoise(double x) {
+	double i = Math.floor(x), f = x - i;
+	double a = hash(i), b = hash(i + 1);
+	f = f * f * (3 - 2 * f);
+	return(a + ((b - a) * f));
+    }
+
+    private static double hash(double i) {
+	double v = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+	return(v - Math.floor(v));
+    }
+
+    public static double winddir(double t) {
+	return(0.9 + (0.55 * Math.sin(t * 0.021)) + (0.3 * Math.sin((t * 0.057) + 2.0)));
+    }
+
+    /* Gust strength, 0..1, mostly low with occasional peaks. */
+    public static double gustiness(double t) {
+	double n = (0.65 * vnoise(t / 2.6)) + (0.35 * vnoise((t / 0.9) + 17.0));
+	return(Math.pow(Utils.clip((n - 0.15) / 0.85, 0, 1), 1.5));
+    }
+
+    /* The wind at a map position (or anywhere, if null). */
+    public static Coord3f gust(Coord2d at) {
+	double t = clock.getAsDouble();
+	double dir = winddir(t);
+	double dx = Math.cos(dir), dy = Math.sin(dir);
+	if(at != null)
+	    t -= ((at.x * dx) + (at.y * dy)) / FRONT;
+	/* A steady breeze under the gusts. */
+	double s = 3.5 + (12.0 * gustiness(t)) + (1.0 * Math.sin((t * 1.9) + 0.7));
+	return(Coord3f.of((float)(dx * s), (float)(dy * s), 0));
+    }
+
+    /* How much of the wind reaches a puff at height z above its
+     * source: sheltered low down, full force higher up. */
+    public static float windheight(float z) {
+	return(Math.max(0.3f, Math.min(1.6f, 0.3f + (z / 22f))));
+    }
+
     /* Value noise and a few octaves of it, in 3D. */
     public static final String NOISE =
 	"float hv_fhash(vec3 p)\n" +
