@@ -88,19 +88,7 @@ public class RenderTree implements RenderList.Adapter, Disposable {
     }
 
     public Locked lock() {
-	/* nurgling: time contended waits for HitchLog. The tryLock
-	 * hold is released once Locked has taken its own. */
-	if(lock.tryLock()) {
-	    try {
-		return(new Locked(this.lock));
-	    } finally {
-		lock.unlock();
-	    }
-	}
-	long t0 = System.nanoTime();
-	Locked ret = new Locked(this.lock);
-	nurgling.HitchLog.treewait(System.nanoTime() - t0);
-	return(ret);
+	return(new Locked(this.lock));
     }
 
     private static class Client<R> {

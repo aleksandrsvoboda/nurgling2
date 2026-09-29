@@ -199,9 +199,7 @@ public class GLProgram implements Disposable {
 	    this.id = gl.glCreateShader(type);
 	    GLException.checkfor(gl, env);
 	    gl.glShaderSource(this.id, 1, new String[] {text}, new int[] {text.length()});
-	    long t0 = System.nanoTime();
 	    gl.glCompileShader(this.id);
-	    env.progstats.compilems += (System.nanoTime() - t0) * 1e-6;
 	    /* nurgling: with parallel compile the status query is
 	     * deferred to ProgOb.finish(), since it forces the driver
 	     * to complete the compile on the spot. */
@@ -360,10 +358,7 @@ public class GLProgram implements Disposable {
 		gl.glBindAttribLocation(this.id, attr.id, attr.name);
 	    for(int i = 0; i < fragdata.length; i++)
 		gl.glBindFragDataLocation(this.id, i, fragnms[i]);
-	    long t0 = System.nanoTime();
 	    gl.glLinkProgram(this.id);
-	    env.progstats.linkms += (System.nanoTime() - t0) * 1e-6;
-	    env.progstats.linked++;
 	    if(env.parallelsc)
 		env.pendprog(this);
 	    else
@@ -409,7 +404,6 @@ public class GLProgram implements Disposable {
 	    for(UniformID uni : unis)
 		uni.run(gl);
 	    ready = true;
-	    env.progstats.finished++;
 	}
 
 	boolean deleted = false; // GL thread only

@@ -43,7 +43,6 @@ public abstract class GLEnvironment implements Environment {
     public static final Config.Variable<Boolean> asyncshaders = Config.Variable.propb("haven.asyncshaders", true);
     public final boolean parallelsc;
     private final List<GLProgram.ProgOb> pendprogs = new ArrayList<>(); // GL thread only
-    public final ProgStats progstats = new ProgStats();
     public int nilfbo_id = 0, nilfbo_db = 0;
     final Object drawmon = new Object();
     final Object prepmon = new Object();
@@ -188,15 +187,7 @@ public abstract class GLEnvironment implements Environment {
 	    (caps.exts.contains("GL_KHR_parallel_shader_compile") || caps.exts.contains("GL_ARB_parallel_shader_compile"));
 	if(parallelsc)
 	    initgl.glMaxShaderCompilerThreads(0xffffffff);
-	System.out.println("[gl] async shader compile: " + (parallelsc ? "on" : (asyncshaders.get() ? "off (driver lacks parallel_shader_compile)" : "off (haven.asyncshaders=false)")));
 	initialize(initgl);
-    }
-
-    /* Written on the GL thread, read by the UI thread's hitch log. */
-    public static class ProgStats {
-	public volatile long linked, finished, frames;
-	public volatile double prepms, procms, compilems, linkms;
-	public volatile int pending;
     }
 
     void pendprog(GLProgram.ProgOb prog) {
@@ -216,7 +207,6 @@ public abstract class GLEnvironment implements Environment {
 	    if(prog.deleted || prog.poll(gl))
 		i.remove();
 	}
-	progstats.pending = pendprogs.size();
     }
 
     private void initialize(GL gl) {
@@ -372,14 +362,12 @@ public abstract class GLEnvironment implements Environment {
 	}
 	try {
 	    synchronized(drawmon) {
-		long pstart = System.nanoTime();
 		checkqueries(gl);
 		if((prep != null) && (prep.gl != null)) {
 		    BufferBGL xf = new BufferBGL(16);
 		    this.curstate.apply(xf, prep.init);
 		    xf.run(gl);
 		    prep.gl.run(gl);
-		    progstats.prepms += (System.nanoTime() - pstart) * 1e-6;
 		    this.curstate = prep.state;
 		    try {
 			GLException.checkfor(gl, this);
@@ -407,8 +395,6 @@ public abstract class GLEnvironment implements Environment {
 		clean();
 		if(debuglog)
 		    checkdebuglog(gl);
-		progstats.procms += (System.nanoTime() - pstart) * 1e-6;
-		progstats.frames += copy.size();
 	    }
 	} catch(Exception e) {
 	    for(Throwable c = e; c != null; c = c.getCause()) {

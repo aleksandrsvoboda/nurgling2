@@ -929,15 +929,12 @@ public class Widget {
 
 	public boolean dispatch(Widget w) {
 	    boolean pv = visible;
-	    long[] acc = nurgling.HitchLog.wtimer.get(), t0 = {System.nanoTime(), acc[0]};
-	    acc[0] = 0;
 	    try {
 		if(!w.visible)
 		    visible = false;
 		return(super.dispatch(w));
 	    } finally {
 		visible = pv;
-		nurgling.HitchLog.widgetdone(w, "tick", acc, t0);
 	    }
 	}
 
@@ -960,16 +957,6 @@ public class Widget {
 	    for(Widget wdg = from.child; wdg != null; wdg = wdg.next)
 		dispatch(wdg);
 	    return(true);
-	}
-
-	public boolean dispatch(Widget w) {
-	    long[] acc = nurgling.HitchLog.wtimer.get(), t0 = {System.nanoTime(), acc[0]};
-	    acc[0] = 0;
-	    try {
-		return(super.dispatch(w));
-	    } finally {
-		nurgling.HitchLog.widgetdone(w, "gtick", acc, t0);
-	    }
 	}
 
 	protected boolean shandle(Widget w) {
