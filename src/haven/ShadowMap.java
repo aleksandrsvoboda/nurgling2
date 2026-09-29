@@ -230,6 +230,15 @@ public class ShadowMap extends State {
 	return(ret);
     }
 
+    /* Nurgling: for light shafts, the map from view space (under
+     * cam) to this map's texture coordinates and depth. */
+    public Matrix4f eyetotex(Camera cam) {
+	if(lcam == null)
+	    return(null);
+	Matrix4f cm = Transform.rxinvert(cam.fin(Matrix4f.id));
+	return(texbias.mul(lproj.fin(Matrix4f.id)).mul(lcam.fin(Matrix4f.id)).mul(cm));
+    }
+
     public boolean haspos() {
 	return(lcam != null);
     }

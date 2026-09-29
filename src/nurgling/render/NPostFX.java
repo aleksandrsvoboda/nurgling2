@@ -321,6 +321,11 @@ public class NPostFX {
 	private FXAA fxaa;
 	private Sharpen sharp;
 	private Clarity clar;
+	private SceneFX.History hist;
+	private SceneFX.TiltShift tilt;
+	private SceneFX.Heat heat;
+	private SceneFX.Shafts shafts;
+	private NGfx.Settings cur = null;
 
 	/* rebasic re-applies the view's basic states, so that the
 	 * scene switches between 8-bit and float color when HDR
@@ -381,6 +386,16 @@ public class NPostFX {
 		clar.amount = s.claritystrength;
 	    boolean rp = GroundRelief.set(s.relief, s.reliefstrength, s.objrelief, s.objreliefstrength);
 	    rp |= FireFX.set(s.fire, s.smoke, s.hdr());
+	    rp |= Atmos.set(s.clouds, s.wet, s.glow, s.water, s.sway);
+	    hist = toggle(hist, s.water || s.smoke, () -> new SceneFX.History(view));
+	    rp |= FireFX.setsoft(s.smoke && (hist != null));
+	    tilt = toggle(tilt, s.tilt, SceneFX.TiltShift::new);
+	    if(tilt != null)
+		tilt.strength = s.tiltstrength;
+	    heat = toggle(heat, s.heat, () -> new SceneFX.Heat(view));
+	    shafts = toggle(shafts, s.shafts, () -> new SceneFX.Shafts(view));
+	    AmbientFX.enabled = s.particles;
+	    cur = s;
 	    if(rp)
 		reprog.run();
 	    fxaa = toggle(fxaa, s.fxaa, FXAA::new);
@@ -394,15 +409,108 @@ public class NPostFX {
 	     * loaded ones. */
 	    Texture.defanisotropy = (s.aniso > 1) ? s.aniso : 0;
 	}
+
+	private Atmos.Env env = null;
+	private float wetness = 0;
+	private double last = 0;
+
+	/* Per frame: the values that follow the game world (weather,
+	 * time of day, fires, the sun). fires: world positions of the
+	 * fires in view. */
+	public void tick(MapView mv, int sunidx, java.util.List<Coord3f> fires) {
+	    NGfx.Settings s = cur;
+	    if(s == null)
+		return;
+	    double now = Utils.rtime();
+	    float dt = (float)Math.min(Math.max(now - last, 0), 1.0);
+	    last = now;
+	    Glob glob = mv.glob;
+	    DirLight sun = mv.amblight;
+	    boolean raining = false, sclouds = false;
+	    for(Glob.Weather w : glob.weather()) {
+		if((w instanceof haven.res.gfx.fx.rain.Rain) && (((haven.res.gfx.fx.rain.Rain)w).rate > 0))
+		    raining = true;
+		if(w.getClass().getName().endsWith(".Clouds"))
+		    sclouds = true;
+	    }
+	    /* Wet in about half a minute of rain, dry over a few. */
+	    float tgt = (s.wet && raining) ? 1 : 0;
+	    wetness += (tgt - wetness) * Math.min(1, dt / ((tgt > wetness) ? 25f : 150f));
+	    if(!s.wet)
+		wetness = 0;
+	    float[] sdir = {0, 0, 1}, scol = {0, 0, 0}, sky = {0.5f, 0.5f, 0.5f};
+	    if(sun != null) {
+		sdir = sun.dir.clone();
+		scol = new float[] {sun.dif[0], sun.dif[1], sun.dif[2]};
+		float[] sk = {(sun.amb[0] + sun.dif[0]) * 0.6f, (sun.amb[1] + sun.dif[1]) * 0.6f, (sun.amb[2] + sun.dif[2]) * 0.65f};
+		sky = sk;
+	    }
+	    Atmos.History h = (hist == null) ? null : hist.cur;
+	    Atmos.Env ne = new Atmos.Env((s.clouds && !sclouds && (sunidx >= 0)) ? 0.38f : 0, (wetness > 0.01f) ? wetness : 0, s.glow, s.water,
+					 sunidx, sdir, scol, sky, h);
+	    if(!ne.on() && (h == null)) {
+		if(env != null)
+		    view.basic(Atmos.class, null);
+		env = null;
+	    } else if(ne.differs(env)) {
+		env = ne;
+		view.basic(Atmos.class, ne);
+	    }
+	    if(grade != null)
+		grade.tod = s.tod ? todtint(glob, sun, raining) : new float[] {1, 1, 1, 1};
+	    if(heat != null)
+		heat.fires = fires;
+	    if(shafts != null) {
+		Camera cam = view.basic.state().get(Homo3D.cam);
+		if((sun == null) || (cam == null)) {
+		    shafts.sun = null;
+		} else {
+		    float[] e = cam.fin(Matrix4f.id).mul4(new float[] {sun.dir[0], sun.dir[1], sun.dir[2], 0});
+		    float l = (float)Math.sqrt(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+		    /* Strongest with a low sun; faint by moonlight. */
+		    float elev = sun.dir[2] / (float)Math.sqrt(sun.dir[0] * sun.dir[0] + sun.dir[1] * sun.dir[1] + sun.dir[2] * sun.dir[2]);
+		    float low = 0.35f + 0.65f * (1 - Math.max(0, Math.min(1, elev / 0.7f)));
+		    float lum = (sun.dif[0] + sun.dif[1] + sun.dif[2]) / 3;
+		    shafts.sun = new float[] {e[0] / l, e[1] / l, e[2] / l, 0.4f * low * Math.min(1, lum)};
+		    shafts.suncol = new float[] {sun.dif[0], sun.dif[1] * 0.95f, sun.dif[2] * 0.85f};
+		}
+	    }
+	}
+
+	/* Warm and golden near sunrise and sunset, cool and a little
+	 * muted at night, grey in rain. */
+	static float[] todtint(Glob glob, DirLight sun, boolean raining) {
+	    float r = 1, g = 1, b = 1, sat = 1;
+	    Astronomy ast = glob.ast;
+	    if((ast != null) && (sun != null)) {
+		float l = (float)Math.sqrt(sun.dir[0] * sun.dir[0] + sun.dir[1] * sun.dir[1] + sun.dir[2] * sun.dir[2]);
+		float elev = sun.dir[2] / Math.max(l, 1e-5f);
+		if(!ast.night) {
+		    float gold = 1 - Math.max(0, Math.min(1, (elev - 0.05f) / 0.4f));
+		    r += 0.10f * gold; g += 0.01f * gold; b -= 0.12f * gold;
+		    sat += 0.12f * gold;
+		} else {
+		    r -= 0.08f; g -= 0.02f; b += 0.10f;
+		    sat -= 0.18f;
+		}
+	    }
+	    if(raining) {
+		r -= 0.03f; b += 0.02f;
+		sat -= 0.15f;
+	    }
+	    return(new float[] {r, g, b, sat});
+	}
     }
 
     /* Tone mapping and color grading */
 
-    static final RawFunction gradefn = new RawFunction(VEC4, "hv_grade", 4,
-	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec2 v)\n" +
+    static final RawFunction gradefn = new RawFunction(VEC4, "hv_grade", 5,
+	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec2 v, vec4 tod)\n" +
 	"{\n" +
-	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, vignette) */\n" +
-	"    vec3 x = col.rgb;\n" +
+	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, vignette);\n" +
+	"     * tod = time-of-day tint and saturation */\n" +
+	"    vec3 x = col.rgb * tod.rgb;\n" +
+	"    x = mix(vec3(dot(x, vec3(0.2126, 0.7152, 0.0722))), x, tod.w);\n" +
 	"    if(v.x > 0.5) {\n" +
 	"        x *= g.x;\n" +
 	"        x *= vec3(1.0 + 0.07 * g.w, 1.0 + 0.015 * g.w, 1.0 - 0.07 * g.w);\n" +
@@ -421,12 +529,13 @@ public class NPostFX {
 	"    }\n" +
 	"    return(vec4(clamp(x, 0.0, 1.0), col.a));\n" +
 	"}\n");
-    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC2, 1);
-    static final ShaderMacro gr_sh = shader(gradefn, gr_g, gr_v);
+    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC2, 1), gr_tod = u(VEC4, 2);
+    static final ShaderMacro gr_sh = shader(gradefn, gr_g, gr_v, gr_tod);
 
     public static class Grade extends PostProcessor {
 	boolean grade, vignette;
 	float exposure, contrast, saturation, warmth;
+	volatile float[] tod = {1, 1, 1, 1};
 
 	public int order() {return(ORDER_TONEMAP);}
 
@@ -438,7 +547,7 @@ public class NPostFX {
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    blit(g, in, new Pass(gr_sh, new float[] {exposure, contrast, saturation, warmth},
-				 new float[] {grade ? 1 : 0, vignette ? 1 : 0}));
+				 new float[] {grade ? 1 : 0, vignette ? 1 : 0}, tod));
 	}
     }
 

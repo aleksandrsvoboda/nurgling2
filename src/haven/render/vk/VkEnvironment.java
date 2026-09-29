@@ -166,24 +166,35 @@ public class VkEnvironment implements Environment {
     private static boolean haslayer(MemoryStack st, String name) {
 	IntBuffer n = st.mallocInt(1);
 	vkEnumerateInstanceLayerProperties(n, null);
-	VkLayerProperties.Buffer props = VkLayerProperties.malloc(n.get(0), st);
-	vkEnumerateInstanceLayerProperties(n, props);
-	for(VkLayerProperties p : props) {
-	    if(p.layerNameString().equals(name))
-		return(true);
+	/* On the heap: lists that depend on the driver can be long. */
+	VkLayerProperties.Buffer props = VkLayerProperties.malloc(n.get(0));
+	try {
+	    vkEnumerateInstanceLayerProperties(n, props);
+	    for(VkLayerProperties p : props) {
+		if(p.layerNameString().equals(name))
+		    return(true);
+	    }
+	    return(false);
+	} finally {
+	    props.free();
 	}
-	return(false);
     }
 
     private static Set<String> devexts(MemoryStack st, VkPhysicalDevice pdev) {
 	IntBuffer n = st.mallocInt(1);
 	vkEnumerateDeviceExtensionProperties(pdev, (ByteBuffer)null, n, null);
-	VkExtensionProperties.Buffer props = VkExtensionProperties.malloc(n.get(0), st);
-	vkEnumerateDeviceExtensionProperties(pdev, (ByteBuffer)null, n, props);
-	Set<String> ret = new HashSet<>();
-	for(VkExtensionProperties p : props)
-	    ret.add(p.extensionNameString());
-	return(ret);
+	/* On the heap: drivers list hundreds of extensions (260 bytes
+	 * each), more than the stack holds. */
+	VkExtensionProperties.Buffer props = VkExtensionProperties.malloc(n.get(0));
+	try {
+	    vkEnumerateDeviceExtensionProperties(pdev, (ByteBuffer)null, n, props);
+	    Set<String> ret = new HashSet<>();
+	    for(VkExtensionProperties p : props)
+		ret.add(p.extensionNameString());
+	    return(ret);
+	} finally {
+	    props.free();
+	}
     }
 
     /* Checks, without a window, that some device can run the
@@ -331,7 +342,7 @@ public class VkEnvironment implements Environment {
 			continue;
 		    }
 		    vkGetPhysicalDeviceQueueFamilyProperties(pd, n, null);
-		    VkQueueFamilyProperties.Buffer qfs = VkQueueFamilyProperties.malloc(n.get(0), st);
+		    VkQueueFamilyProperties.Buffer qfs = VkQueueFamilyProperties.malloc(n.get(0));
 		    vkGetPhysicalDeviceQueueFamilyProperties(pd, n, qfs);
 		    int fam = -1;
 		    IntBuffer sup = st.mallocInt(1);
@@ -344,6 +355,7 @@ public class VkEnvironment implements Environment {
 			    break;
 			}
 		    }
+		    qfs.free();
 		    if(fam < 0) {
 			rejects.add(nm + ": cannot present to the window");
 			continue;
@@ -387,10 +399,11 @@ public class VkEnvironment implements Environment {
 		{
 		    IntBuffer n = st.mallocInt(1);
 		    vkGetPhysicalDeviceQueueFamilyProperties(pdev, n, null);
-		    qfs = VkQueueFamilyProperties.malloc(n.get(0), st);
+		    qfs = VkQueueFamilyProperties.malloc(n.get(0));
 		    vkGetPhysicalDeviceQueueFamilyProperties(pdev, n, qfs);
 		}
 		this.ts_bits = qfs.get(qfam).timestampValidBits();
+		qfs.free();
 
 		VkPhysicalDeviceVulkan12Features a12 = VkPhysicalDeviceVulkan12Features.calloc(st).sType$Default();
 		VkPhysicalDeviceVulkan13Features a13 = VkPhysicalDeviceVulkan13Features.calloc(st).sType$Default().pNext(a12.address());
