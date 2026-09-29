@@ -32,7 +32,7 @@ public class NGobIconRing extends Sprite implements RenderTree.Node
         this.radius = radius;
         
         // Load the ring texture from marks/notifyrings
-        texture = new TexI(Resource.loadimg("marks/notifyrings")).st();
+        texture = MarkTex.ring("marks/notifyrings");
 
         // Create vertex data for a quad that will display the ring texture
         // The quad is positioned at z=5f (slightly above ground) to avoid z-fighting

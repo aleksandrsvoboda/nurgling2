@@ -46,7 +46,11 @@ public class QuickActionPreset implements JConf {
         obj.put("keybind", keybind);
         
         JSONArray patternsArray = new JSONArray();
-        for (HashMap<String, Object> pattern : patterns) {
+        // Serialize a copy: the QuickActions settings widget clears and refills this list
+        // while NConfig.write() runs on another thread at login, which threw
+        // ConcurrentModificationException mid-iteration. The copy goes through toArray(),
+        // which doesn't check for concurrent modification.
+        for (HashMap<String, Object> pattern : new ArrayList<>(patterns)) {
             JSONObject patternObj = new JSONObject(pattern);
             patternsArray.put(patternObj);
         }

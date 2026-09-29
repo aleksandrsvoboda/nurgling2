@@ -37,6 +37,12 @@ import static haven.render.DataBuffer.Usage.*;
 public abstract class GLEnvironment implements Environment {
     public static final boolean debuglog = Utils.nonconst(false), labels = Utils.nonconst(false);
     public final Caps caps;
+    /* nurgling: compile/link shader programs without blocking the
+     * GL thread when the driver supports it (set
+     * haven.asyncshaders=false to compare against the old path). */
+    public static final Config.Variable<Boolean> asyncshaders = Config.Variable.propb("haven.asyncshaders", true);
+    public final boolean parallelsc;
+    private final List<GLProgram.ProgOb> pendprogs = new ArrayList<>(); // GL thread only
     public int nilfbo_id = 0, nilfbo_db = 0;
     final Object drawmon = new Object();
     final Object prepmon = new Object();
@@ -177,7 +183,30 @@ public abstract class GLEnvironment implements Environment {
 	this.wnd = wnd;
 	this.caps = mkcaps(initgl);
 	this.caps.checkreq();
+	this.parallelsc = asyncshaders.get() &&
+	    (caps.exts.contains("GL_KHR_parallel_shader_compile") || caps.exts.contains("GL_ARB_parallel_shader_compile"));
+	if(parallelsc)
+	    initgl.glMaxShaderCompilerThreads(0xffffffff);
 	initialize(initgl);
+    }
+
+    void pendprog(GLProgram.ProgOb prog) {
+	pendprogs.add(prog);
+    }
+
+    private void pollprogs(GL gl) {
+	if(pendprogs.isEmpty())
+	    return;
+	/* Finishing a program (status checks, uniform lookups) can still
+	 * cost the driver a few ms; spread a burst over several frames. */
+	long deadline = System.nanoTime() + 2_000_000;
+	for(Iterator<GLProgram.ProgOb> i = pendprogs.iterator(); i.hasNext();) {
+	    if(System.nanoTime() > deadline)
+		break;
+	    GLProgram.ProgOb prog = i.next();
+	    if(prog.deleted || prog.poll(gl))
+		i.remove();
+	}
     }
 
     private void initialize(GL gl) {
@@ -347,6 +376,7 @@ public abstract class GLEnvironment implements Environment {
 		    }
 		    prep.dispose();
 		}
+		pollprogs(gl);
 		for(GLRender cmd : copy) {
 		    BufferBGL xf = new BufferBGL(16);
 		    this.curstate.apply(xf, cmd.init);

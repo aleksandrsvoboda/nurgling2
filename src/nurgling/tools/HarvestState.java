@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -35,6 +36,7 @@ public class HarvestState {
     private static final Map<String, String> BARK_ICON_TO_PRODUCT;
 
     private static final Map<String, Optional<BufferedImage>> ICON_CACHE = new ConcurrentHashMap<>();
+    private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
 
     // Off-season fruit is reported under this literal prefix (e.g. "Yesteryear's Red Apple");
     // shared with LpExplorer so both sides of the season-aware behavior (icon selection here,
@@ -300,28 +302,40 @@ public class HarvestState {
     }
 
     /**
-     * As loadIcon(), but blocking=false throws haven.Loading rather than waiting when the resource
-     * hasn't arrived yet. The fetch is still queued by the load() call, so a later call (next
-     * frame) picks it up - and nothing is cached, since remembering a not-yet-loaded icon as
-     * absent would make it absent forever.
+     * As loadIcon(), but blocking=false never does the work on the calling thread: an uncached
+     * icon is loaded and scaled on a Defer thread and haven.Loading is thrown until it's cached,
+     * so a later call (next frame) picks it up.
      *
      * Loading rather than a null return so callers can tell "not here yet" from "this resource
      * genuinely doesn't exist", which IS cached as null and is a final answer they can build on.
      *
-     * The gob-tick paths (NObjHarvestOl / NLPassistant) keep blocking, which is what they always
-     * did; the minimap renderer must not, since it runs on the render thread where a resource
-     * round-trip is a visible freeze.
+     * Everything on the frame's tick threads, on loaders holding a gob's lock, or on the render
+     * thread must use blocking=false (the harvest specs, NLPassistant, the minimap renderer).
      */
     public static BufferedImage loadIcon(String resourceName, boolean blocking) {
         if (resourceName == null) return null;
 
         Optional<BufferedImage> cached = ICON_CACHE.get(resourceName);
         if (cached != null) return cached.orElse(null);
+        if (!blocking) {
+            // Load and scale on a background thread: even with the resource already on disk the
+            // convolvedown is real CPU work, and these callers run on the frame's tick threads or
+            // on loaders holding a gob's lock. The caller retries next frame until it's cached.
+            if (PENDING.add(resourceName)) {
+                haven.Defer.later(() -> {
+                    try {
+                        loadIcon(resourceName, true);
+                    } finally {
+                        PENDING.remove(resourceName);
+                    }
+                }, null);
+            }
+            throw new Loading("harvest icon " + resourceName);
+        }
 
         BufferedImage img;
         try {
-            Resource res = blocking ? Resource.remote().loadwait(resourceName)
-                                    : Resource.remote().load(resourceName).get();
+            Resource res = Resource.remote().loadwait(resourceName);
             // layer() rather than flayer(): a resource with no image layer is a permanent miss we
             // want to cache, not a NoSuchLayerException to unwind through the render loop.
             Resource.Image lay = res.layer(Resource.imgc);
@@ -336,7 +350,7 @@ public class HarvestState {
             // resource the server doesn't have surfaces from Queued.get() as NoSuchResourceException
             // (a BadResourceException), and only its *cause* is a LoadException - so catching
             // LoadException alone lets a bad icon path unwind out of the gob tick and kill the UI
-            // thread. haven.Loading is unrelated to both, so the non-blocking path still propagates.
+            // thread.
             img = null;
         }
         ICON_CACHE.put(resourceName, Optional.ofNullable(img));

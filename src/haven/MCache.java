@@ -447,7 +447,6 @@ public class MCache implements MapSource {
 	public long id;
 	public int seq = -1;
 	public boolean removed = false;
-	private int olseq = -1;
 	public final Cut[] cuts;
 
 	public abstract class Deferred<T> implements Disposable {
@@ -477,8 +476,8 @@ public class MCache implements MapSource {
 			    T prev = ret;
 			    update(ret = this.def.get());
 			    this.def = null;
-			    if((prev != null) && (prev instanceof Disposable))
-				((Disposable)prev).dispose();
+			    if(prev != null)
+				retire(prev);
 			}
 		    }
 		}
@@ -487,6 +486,12 @@ public class MCache implements MapSource {
 
 	    protected void update(T val) {
 		this.val = val;
+	    }
+
+	    /* nurgling: called with the value a rebuild replaced. */
+	    protected void retire(T prev) {
+		if(prev instanceof Disposable)
+		    ((Disposable)prev).dispose();
 	    }
 
 	    public T cur() {
@@ -533,6 +538,105 @@ public class MCache implements MapSource {
 
 		public final Map<Integer, RenderTree.Node> nols = new HashMap<>();
 		public final Map<Integer, RenderTree.Node> nedgs = new HashMap<>();
+	    /* nurgling: overlay meshes are invalidated per cut. Bumped when this
+	     * cut's terrain mesh is replaced (its overlays reference the old
+	     * mesh's vertices); the ol and nol maps each remember the mesh
+	     * version and global overlay sequence they were built against.
+	     * Upstream reset the whole grid instead, so any cut rebuild redid
+	     * every overlay in all of the grid's cuts inside the frame. */
+	    volatile int meshver = 0;
+	    int olmv = -1, olgseq = -1, nolmv = -1, nolgseq = -1;
+
+	    /* nurgling: overlay meshes are built on Defer threads instead of
+	     * inside the frame. Until a rebuild lands, the grid keeps showing
+	     * the old node, so replaced nodes are retired rather than
+	     * disposed, and disposed once their replacement is handed out.
+	     * Old terrain meshes are kept alive while retired overlay nodes
+	     * may still reference their vertices. Keys are OverlayInfo (ols)
+	     * or Integer (nols). Guarded by the Cut's monitor. */
+	    private final Map<Object, Defer.Future<RenderTree.Node[]>> olbuild = new HashMap<>();
+	    private final Map<Object, List<RenderTree.Node>> retired = new HashMap<>();
+	    private final List<MapMesh> oldmeshes = new ArrayList<>();
+
+	    private void retire(Object key, RenderTree.Node... nodes) {
+		for(RenderTree.Node n : nodes) {
+		    if(n != null)
+			retired.computeIfAbsent(key, k -> new ArrayList<>()).add(n);
+		}
+	    }
+
+	    private void cancelbuild(Object key) {
+		Defer.Future<RenderTree.Node[]> f = olbuild.remove(key);
+		if(f != null)
+		    f.cancel();
+	    }
+
+	    /* The node for key is being replaced right now; free what it replaces. */
+	    private void consume(Object key) {
+		List<RenderTree.Node> old = retired.remove(key);
+		if(old != null) {
+		    for(RenderTree.Node n : old) {
+			if(n instanceof Disposable)
+			    ((Disposable)n).dispose();
+		    }
+		}
+		sweepmeshes();
+	    }
+
+	    private void sweepmeshes() {
+		if(retired.isEmpty() && !oldmeshes.isEmpty()) {
+		    for(MapMesh m : oldmeshes)
+			m.dispose();
+		    oldmeshes.clear();
+		}
+	    }
+
+	    synchronized void retiremesh(MapMesh prev) {
+		/* Overlay nodes built on prev stay in ols/nols until the
+		 * getters notice meshver changed; keep it until they're gone. */
+		if(ols.isEmpty() && olols.isEmpty() && nols.isEmpty() && nedgs.isEmpty() && retired.isEmpty() && olbuild.isEmpty())
+		    prev.dispose();
+		else
+		    oldmeshes.add(prev);
+	    }
+
+	    /* Returns the finished build for key, starting it if needed;
+	     * throws Loading while it runs. */
+	    private RenderTree.Node[] build(Object key, Defer.Callable<RenderTree.Node[]> task) {
+		Defer.Future<RenderTree.Node[]> f = olbuild.get(key);
+		if(f == null)
+		    olbuild.put(key, f = Defer.later(task));
+		RenderTree.Node[] ret = f.get();
+		olbuild.remove(key);
+		return(ret);
+	    }
+
+	    private void clearols() {
+		for(OverlayInfo id : ols.keySet())
+		    retire(id, ols.get(id), olols.get(id));
+		ols.clear();
+		olols.clear();
+		for(Object key : new ArrayList<>(olbuild.keySet())) {
+		    if(key instanceof OverlayInfo)
+			cancelbuild(key);
+		}
+	    }
+
+	    private void clearnols(Integer only) {
+		if(only == null) {
+		    for(Integer id : nols.keySet())
+			retire(id, nols.get(id), nedgs.get(id));
+		    nols.clear();
+		    nedgs.clear();
+		    for(Object key : new ArrayList<>(olbuild.keySet())) {
+			if(key instanceof Integer)
+			    cancelbuild(key);
+		    }
+		} else {
+		    retire(only, nols.remove(only), nedgs.remove(only));
+		    cancelbuild(only);
+		}
+	    }
 
 	    public Cut(Coord cc) {
 		this.cc = cc;
@@ -545,7 +649,10 @@ public class MCache implements MapSource {
 			}
 			public void update(MapMesh mesh) {
 			    super.update(mesh);
-			    olseq = -1;
+			    meshver++;
+			}
+			protected void retire(MapMesh prev) {
+			    retiremesh(prev);
 			}
 			public String message() {
 			    return("Building map...");
@@ -568,8 +675,19 @@ public class MCache implements MapSource {
 
 	    public void dispose() {
 		synchronized(this) {
-		    mesh.dispose();
-		    fo.dispose();
+		    for(Defer.Future<RenderTree.Node[]> f : olbuild.values())
+			f.cancel();
+		    olbuild.clear();
+		    for(List<RenderTree.Node> l : retired.values()) {
+			for(RenderTree.Node n : l) {
+			    if(n instanceof Disposable)
+				((Disposable)n).dispose();
+			}
+		    }
+		    retired.clear();
+		    for(MapMesh m : oldmeshes)
+			m.dispose();
+		    oldmeshes.clear();
 		    for(RenderTree.Node r : ols.values()) {
 			if(r instanceof Disposable)
 			    ((Disposable)r).dispose();
@@ -593,6 +711,11 @@ public class MCache implements MapSource {
 			}
 			nedgs.clear();
 	    }
+	    /* Outside the Cut's monitor: a mesh swap takes the Deferred's
+	     * monitor and then this Cut's (retiremesh), so taking them in
+	     * the other order here could deadlock. */
+	    mesh.dispose();
+	    fo.dispose();
 		}
 	}
 
@@ -721,28 +844,24 @@ public class MCache implements MapSource {
 	}
 	
 	public RenderTree.Node getolcut(OverlayInfo id, Coord cc) {
-	    int nseq = MCache.this.olseq;
-	    if(this.olseq != nseq) {
-		for(int i = 0; i < cutn.x * cutn.y; i++) {
-		    for(RenderTree.Node r : cuts[i].ols.values()) {
-			if(r instanceof Disposable)
-			    ((Disposable)r).dispose();
-		    }
-		    for(RenderTree.Node r : cuts[i].olols.values()) {
-			if(r instanceof Disposable)
-			    ((Disposable)r).dispose();
-		    }
-		    cuts[i].ols.clear();
-		    cuts[i].olols.clear();
-		}
-		this.olseq = nseq;
-	    }
 	    Cut cut = geticut(cc);
-	    if(!cut.ols.containsKey(id)) {
-		cut.ols.put(id, getcut(cc).makeol(id));
-		cut.olols.put(id, getcut(cc).makeolol(id));
+	    /* Fetch first: picking up a finished mesh bumps meshver. */
+	    MapMesh mm = cut.mesh.get();
+	    synchronized(cut) {
+		int gseq = MCache.this.olseq, mv = cut.meshver;
+		if((cut.olgseq != gseq) || (cut.olmv != mv)) {
+		    cut.clearols();
+		    cut.olgseq = gseq;
+		    cut.olmv = mv;
+		}
+		if(!cut.ols.containsKey(id)) {
+		    RenderTree.Node[] b = cut.build(id, () -> new RenderTree.Node[] {mm.makeol(id), mm.makeolol(id)});
+		    cut.ols.put(id, b[0]);
+		    cut.olols.put(id, b[1]);
+		    cut.consume(id);
+		}
+		return(cut.ols.get(id));
 	    }
-	    return(cut.ols.get(id));
 	}
 
 	public RenderTree.Node getnolcut(Integer id, Coord cc) {
@@ -755,48 +874,61 @@ public class MCache implements MapSource {
 		boolean requpd = (nol != null && nol.requpdate2);
 		if((areas.get(id)!= null && areas.get(id).grids_id.contains(this.id)) || NMapView.isCustom(id))
 		{
-			int nseq = MCache.this.olseq;
-			if (this.olseq != nseq || requpd)
+			Cut cut = geticut(cc);
+			// Fetch first: picking up a finished mesh bumps meshver.
+			MapMesh mm = cut.mesh.get();
+			if (requpd)
 			{
+				// The area's geometry changed: only its own meshes are stale.
 				for (int i = 0; i < cutn.x * cutn.y; i++)
 				{
-					for (RenderTree.Node r : cuts[i].nols.values())
+					synchronized (cuts[i])
 					{
-						if (r instanceof Disposable)
-							((Disposable) r).dispose();
+						cuts[i].clearnols(id);
 					}
-					for (RenderTree.Node r : cuts[i].nedgs.values())
-					{
-						if (r instanceof Disposable)
-							((Disposable) r).dispose();
-					}
-					cuts[i].nols.clear();
-					cuts[i].nedgs.clear();
 				}
-				this.olseq = nseq;
 			}
-			Cut cut = geticut(cc);
-			if (!cut.nols.containsKey(id) || requpd)
+			synchronized (cut)
 			{
-				if (nol == null)
-					return null;
-				cut.nols.put(id, nol.makenol(getcut(cc), this.id, ul));
-				cut.nedgs.put(id, nol.makenolol(getcut(cc),this.id, ul));
-				nol.cuts.add(cut);
+				int gseq = MCache.this.olseq, mv = cut.meshver;
+				if (cut.nolgseq != gseq || cut.nolmv != mv)
+				{
+					cut.clearnols(null);
+					cut.nolgseq = gseq;
+					cut.nolmv = mv;
+				}
+				if (!cut.nols.containsKey(id))
+				{
+					if (nol == null)
+						return null;
+					long gid = this.id;
+					Coord gul = ul;
+					RenderTree.Node[] b = cut.build(id, () -> new RenderTree.Node[] {nol.makenol(mm, gid, gul), nol.makenolol(mm, gid, gul)});
+					cut.nols.put(id, b[0]);
+					cut.nedgs.put(id, b[1]);
+					cut.consume(id);
+					nol.cuts.add(cut);
+				}
+				return (cut.nols.get(id));
 			}
-			return (cut.nols.get(id));
 		}
 		return null;
 	}
 	
 	public RenderTree.Node getololcut(OverlayInfo id, Coord cc) {
 	    getolcut(id, cc);
-	    return(geticut(cc).olols.get(id));
+	    Cut cut = geticut(cc);
+	    synchronized(cut) {
+		return(cut.olols.get(id));
+	    }
 	}
 
 	public RenderTree.Node getnedgecut(Integer id, Coord cc) {
 		getnolcut(id, cc);
-		return(geticut(cc).nedgs.get(id));
+		Cut cut = geticut(cc);
+		synchronized(cut) {
+			return(cut.nedgs.get(id));
+		}
 	}
 
 
@@ -1222,6 +1354,17 @@ public class MCache implements MapSource {
 		return gridMap;
 	}
 
+	/* nurgling: one locked pass for callers that look up many grid ids
+	 * per frame (area overlays), instead of a locked scan per lookup. */
+	public Map<Long, Grid> gridsById() {
+		Map<Long, Grid> ret = new HashMap<>();
+		synchronized(grids) {
+			for(Grid g : grids.values())
+				ret.put(g.id, g);
+		}
+		return(ret);
+	}
+
 	public Grid findGrid(long id)
 	{
 		synchronized(grids) {
@@ -1405,7 +1548,11 @@ public class MCache implements MapSource {
 			grids.put(c, g = new Grid(c));
 		    g.fill(msg);
 		    req.remove(c);
-		    olseq++;
+		    /* nurgling: no olseq bump. fill() rebuilds this grid's cut
+		     * meshes and its neighbours' edge cuts, and each mesh
+		     * replacement invalidates that cut's overlays. A global
+		     * bump made every loaded grid rebuild every overlay in
+		     * view (twice: against the old mesh, then the new one). */
 		    chseq++;
 		    gridwait.wnotify();
 		}

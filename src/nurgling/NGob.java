@@ -169,7 +169,7 @@ public class NGob
                             }
                         }
                     }
-                    parent.addcustomol(new NTexMarker(parent, new TexI(Resource.loadsimg("nurgling/hud/taiming")), () ->
+                    parent.addcustomol(new NTexMarker(parent, nurgling.overlays.MarkTex.marker("nurgling/hud/taiming"), () ->
                     {
                         if(NUtils.getGameUI().fv!=null)
                         {
@@ -581,8 +581,16 @@ public class NGob
             // only two things this method needs to react to - no need to duplicate those checks.
             HarvestSpec spec = name == null ? null : HarvestSpecs.forResource(name);
             cachedHarvestSpec = spec;
-            TexI label = spec == null ? null : nurgling.overlays.NObjHarvestOl.computeLabel(parent, spec);
-            if (label == null)
+            TexI label = null;
+            boolean pending = false;
+            try {
+                label = spec == null ? null : nurgling.overlays.NObjHarvestOl.computeLabel(parent, spec);
+            } catch (Loading l) {
+                // Icons are loading in the background; attach the overlay anyway so its tick
+                // picks them up, since nothing else re-runs this until the gob changes.
+                pending = true;
+            }
+            if (label == null && !pending)
             {
                 if (ol != null) ol.remove(true);
                 return;
@@ -900,7 +908,7 @@ public class NGob
                             parent.addcustomol(new NBarrelOverlay(parent));
                         } else if (name.contains("gfx/terobjs/items/gems/gemstone"))
                         {
-                            parent.addcustomol(new NTexMarker(parent, new TexI(Resource.loadsimg("marks/gem")), () -> false, true));
+                            parent.addcustomol(new NTexMarker(parent, nurgling.overlays.MarkTex.marker("marks/gem"), () -> false, true));
                         }
 
                         if (name.equals("gfx/borka/body"))

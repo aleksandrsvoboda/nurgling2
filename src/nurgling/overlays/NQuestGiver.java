@@ -38,7 +38,7 @@ public class NQuestGiver extends Sprite implements RenderTree.Node, PView.Render
     public NQuestGiver(Owner owner, NQuestInfo.MarkerInfo mi)
     {
         super(owner, null);
-        сt = new TexI(Resource.loadimg("marks/questgiver")).st();
+        сt = MarkTex.ring("marks/questgiver");
         gob = (Gob) owner;
         name = gob.ngob.name;
         label = active_title.render(mi.name).tex();

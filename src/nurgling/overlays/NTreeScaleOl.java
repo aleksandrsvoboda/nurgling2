@@ -37,14 +37,21 @@ public class NTreeScaleOl extends NObjectTexLabel {
         }
         this.calculatedScale = scale;
         this.img = qIcon;
-        BufferedImage retlabel =fnd.render(String.format("%d%%",scale)).img;
-        BufferedImage ret = TexI.mkbuf(new Coord(UI.scale(1)+img.sz().x+retlabel.getWidth(), Math.max(img.sz().y,retlabel.getHeight())));
-        Graphics g = ret.getGraphics();
-        g.drawImage(img.back, 0, ret.getHeight()/2-img.sz().y/2, null);
-        g.drawImage(retlabel,UI.scale(1)+img.sz().x,ret.getHeight()/2-retlabel.getHeight()/2,null);
-        g.dispose();
-        this.label = new TexI(ret);
+        this.label = labels.computeIfAbsent(scale, NTreeScaleOl::mklabel);
+    }
 
+    /* One label per growth value, shared by every tree showing it: rendering and blurring the
+     * text per gob made a separate texture for each young tree in a forest as it loaded in. */
+    private static final java.util.Map<Long, TexI> labels = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static TexI mklabel(long scale) {
+        BufferedImage retlabel = fnd.render(String.format("%d%%", scale)).img;
+        BufferedImage ret = TexI.mkbuf(new Coord(UI.scale(1)+qIcon.sz().x+retlabel.getWidth(), Math.max(qIcon.sz().y,retlabel.getHeight())));
+        Graphics g = ret.getGraphics();
+        g.drawImage(qIcon.back, 0, ret.getHeight()/2-qIcon.sz().y/2, null);
+        g.drawImage(retlabel,UI.scale(1)+qIcon.sz().x,ret.getHeight()/2-retlabel.getHeight()/2,null);
+        g.dispose();
+        return new TexI(ret);
     }
     
     private static void updateConfigCache() {

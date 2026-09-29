@@ -47,7 +47,12 @@ public class NObjHarvestOl extends NObjectTexLabel {
     }
 
     public boolean refresh() {
-        TexI tex = computeLabel(gob, spec);
+        TexI tex;
+        try {
+            tex = computeLabel(gob, spec);
+        } catch (Loading l) {
+            return true;  // icons still loading in the background; keep the overlay, retry next tick
+        }
         this.label = tex;
         this.img = tex;
         return tex != null;

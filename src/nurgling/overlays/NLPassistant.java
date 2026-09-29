@@ -32,6 +32,8 @@ public class NLPassistant extends NObjectTexLabel
     // product (e.g. a log's Board and Block), so the icon needs to be re-resolved whenever this
     // changes, not just set once at construction.
     private List<String> shownProducts = Collections.emptyList();
+    // False while the generic marker stands in for icons still loading in the background.
+    private boolean resolved = false;
 
     public NLPassistant(Owner owner)
     {
@@ -58,7 +60,10 @@ public class NLPassistant extends NObjectTexLabel
         // getMarkerIcon() already returns a framed, tinted, memoized TexI in the same presentation
         // NObjHarvestOl's own harvest-icon label uses, so ours reads as the same family of UI
         // element - use it directly rather than unwrapping and re-wrapping its image.
-        TexI icon = LpExplorer.getMarkerIcon(gob, products);
+        // Non-blocking: this runs on the frame's tick threads. Until the icons are loaded (or
+        // if none exist) the generic marker shows and tick() retries.
+        TexI icon = LpExplorer.getMarkerIcon(gob, products, false, true);
+        resolved = icon != null;
         TexI tex = icon != null ? icon : genericMarker();
         this.label = tex;
         this.img = tex;
@@ -104,7 +109,7 @@ public class NLPassistant extends NObjectTexLabel
         }
         if (products.isEmpty())
             return true; // Everything this gob tracks has been discovered - remove.
-        if (!products.equals(shownProducts))
+        if (!resolved || !products.equals(shownProducts))
             refresh(products);
         return false;
     }

@@ -293,17 +293,17 @@ public class LpExplorer {
             if (img != null)
                 parts.add(new HarvestSpec.Part(product, img, true));
         }
-        if (parts.isEmpty())
+        // Nothing until every icon is in: a partial composition isn't memoized, so a caller
+        // retrying each frame would build a fresh texture every frame.
+        if (pending || parts.isEmpty())
             return null;
 
         // Lay out the same direction the gob's own always-on harvest overlay would (e.g. a log's
         // Board+Block side by side), so the fallback marker and NObjHarvestOl read consistently.
         HarvestSpec spec = HarvestSpecs.forResource(gob.ngob.name);
         TexI tex = NObjHarvestOl.compose(spec != null && spec.horizontal(), background, parts);
-        // Don't memoize while an icon is still in flight - the next call re-composes once it
-        // arrives. A permanently-absent icon isn't pending, so that composition does get cached
-        // and we stop rebuilding it every frame.
-        if (tex != null && !pending)
+        // A permanently-absent icon isn't pending, so this composition is final and cached.
+        if (tex != null)
             MARKER_ICON_CACHE.put(key, tex);
         return tex;
     }

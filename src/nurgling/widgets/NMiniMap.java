@@ -2511,7 +2511,10 @@ NMiniMap extends MiniMap {
 
                     // Load and cache if not already cached
                     if(tex == null) {
-                        Resource fishRes = Resource.remote().loadwait(fishResource);
+                        // Non-blocking: this runs while drawing the minimap on the UI
+                        // thread. Until the resource arrives get() throws Loading, the
+                        // catch below skips the icon, and a later frame draws it.
+                        Resource fishRes = Resource.remote().load(fishResource).get();
                         BufferedImage icon = fishRes.layer(Resource.imgc).img;
                         tex = new TexI(icon);
                         fishIconCache.put(fishResource, tex);

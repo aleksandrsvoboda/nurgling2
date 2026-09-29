@@ -54,8 +54,8 @@ public class BushHarvestSpec implements HarvestSpec {
         boolean leafUndiscovered = leaf && undiscovered != null && undiscovered.leaf;
 
         List<Part> parts = new ArrayList<>(2);
-        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf"), leafUndiscovered);
-        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(res, "seed"), seedUndiscovered);
+        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf", false), leafUndiscovered);
+        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(res, "seed", false), seedUndiscovered);
         return parts;
     }
 }

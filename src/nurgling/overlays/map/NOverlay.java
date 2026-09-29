@@ -37,13 +37,50 @@ public class NOverlay extends MapView.MapRaster
         this.id = id;
     }
 
+    /* Grids by id, snapshotted once per frame by NMapView.oltick for areaCuts. */
+    public static volatile Map<Long, MCache.Grid> gridsById = Collections.emptyMap();
+
     public void tick() {
         super.tick();
         if(area != null) {
+            if(id >= 0)
+                area = areaCuts(area);
             base.tick();
             outl.tick();
         }
         requpdate2 = false;
+    }
+
+    /* An area covers a few tiles, usually a single cut, yet the view window spans
+     * 5x5 cuts. Ticking only the cuts the area overlaps keeps the per-frame cost from
+     * scaling with the number of saved areas. Grid.tick removes every cut outside the
+     * returned area, so an area that moves, shrinks or leaves the view is cleaned up. */
+    private Area areaCuts(Area win) {
+        NArea narea = map.areas.get(id);
+        NArea.Space space = (narea == null) ? null : narea.space;
+        if(space == null)
+            return(win);
+        Map<Long, MCache.Grid> grids = gridsById;
+        Coord ul = null, br = null;
+        try {
+            for(Map.Entry<Long, NArea.VArea> e : space.space.entrySet()) {
+                Area va = e.getValue().area;
+                if(!va.positive())
+                    continue;
+                MCache.Grid g = grids.get(e.getKey());
+                if(g == null)
+                    continue;
+                Coord cul = g.ul.add(va.ul).div(MCache.cutsz);
+                Coord cbr = g.ul.add(va.br).sub(1, 1).div(MCache.cutsz).add(1, 1);
+                ul = (ul == null) ? cul : Coord.of(Math.min(ul.x, cul.x), Math.min(ul.y, cul.y));
+                br = (br == null) ? cbr : Coord.of(Math.max(br.x, cbr.x), Math.max(br.y, cbr.y));
+            }
+        } catch(ConcurrentModificationException e) {
+            /* A bot is editing the area's geometry in place; tick the whole window this frame. */
+            return(win);
+        }
+        Area cuts = (ul == null) ? null : new Area(ul, br).overlap(win);
+        return((cuts == null) ? new Area(win.ul, win.ul) : cuts);
     }
 
     public void added(RenderTree.Slot slot) {
@@ -73,8 +110,7 @@ public class NOverlay extends MapView.MapRaster
     }
 
     public RenderTree.Node makenol(MapMesh mm, Long grid_id, Coord grid_ul) {
-        if(mm.olvert == null)
-            mm.olvert = mm.makeolvbuf();
+        mm.olvert();
         class Buf implements Tiler.MCons {
             short[] fl = new short[16];
             int fn = 0;
@@ -109,8 +145,7 @@ public class NOverlay extends MapView.MapRaster
     }
 
     public RenderTree.Node makenolol(MapMesh mm, Long grid_id, Coord grid_ul) {
-        if(mm.olvert == null)
-            mm.olvert = mm.makeolvbuf();
+        mm.olvert();
         class Buf implements Tiler.MCons {
             int mask;
             short[] fl = new short[16];

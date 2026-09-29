@@ -200,6 +200,14 @@ public class GLProgram implements Disposable {
 	    GLException.checkfor(gl, env);
 	    gl.glShaderSource(this.id, 1, new String[] {text}, new int[] {text.length()});
 	    gl.glCompileShader(this.id);
+	    /* nurgling: with parallel compile the status query is
+	     * deferred to ProgOb.finish(), since it forces the driver
+	     * to complete the compile on the spot. */
+	    if(!env.parallelsc)
+		check(gl);
+	}
+
+	void check(GL gl) {
 	    int[] buf = {0};
 	    gl.glGetShaderiv(this.id, GL.GL_COMPILE_STATUS, buf);
 	    if(buf[0] != 1) {
@@ -287,14 +295,23 @@ public class GLProgram implements Disposable {
 	public abstract int glid();
     }
 
+    /* KHR/ARB_parallel_shader_compile */
+    static final int GL_COMPLETION_STATUS = 0x91B1;
+
     public class ProgOb extends GLObject implements BGL.ID {
 	public final ShaderOb[] shaders;
 	private int id;
+	/* nurgling: set on the GL thread once link status has been
+	 * checked and uniform locations resolved. Draw lists skip
+	 * slots whose program is not ready rather than stall the
+	 * frame on the driver's compile. */
+	volatile boolean ready = false;
+	private final List<UniformID> unis = new ArrayList<>();
+	final BGL.Request finisher = this::finish;
 
 	public ProgOb(GLEnvironment env, ShaderOb... shaders) {
 	    super(env);
 	    this.shaders = shaders;
-	    env.prepare(this);
 	    for(Map.Entry<Uniform, String> uni : GLProgram.this.unifnms.entrySet()) {
 		UniformID id = uniresolve(uni.getKey().type, uni.getValue());
 		/* XXX: This should work with samplers in compound
@@ -305,6 +322,10 @@ public class GLProgram implements Disposable {
 		    id.sampler = samplerids.get(uni.getKey());
 		umap.put(uni.getKey(), id);
 	    }
+	    /* Prepared last: the GL thread may run create() and
+	     * finish() as soon as this is queued, and finish() reads
+	     * the uniforms collected above. */
+	    env.prepare(this);
 	}
 
 	private UniformID uniresolve(Type type, String name) {
@@ -325,7 +346,7 @@ public class GLProgram implements Disposable {
 		    sub[n++] = uniresolve(f.type, name + "." + f.name);
 		ret.sub = sub;
 	    }
-	    env.prepare(ret);
+	    unis.add(ret);
 	    return(ret);
 	}
 
@@ -338,6 +359,36 @@ public class GLProgram implements Disposable {
 	    for(int i = 0; i < fragdata.length; i++)
 		gl.glBindFragDataLocation(this.id, i, fragnms[i]);
 	    gl.glLinkProgram(this.id);
+	    if(env.parallelsc)
+		env.pendprog(this);
+	    else
+		finish(gl);
+	}
+
+	/* Called on the GL thread; true once the program is ready
+	 * for use. Never blocks on the driver. */
+	boolean poll(GL gl) {
+	    if(ready)
+		return(true);
+	    int[] buf = {0};
+	    gl.glGetProgramiv(this.id, GL_COMPLETION_STATUS, buf);
+	    if(buf[0] == 0)
+		return(false);
+	    finish(gl);
+	    return(true);
+	}
+
+	/* Called on the GL thread. Blocks on the driver if the
+	 * compile is still running, so the frame paths only call it
+	 * through poll(); immediate-mode use of a not-yet-ready
+	 * program goes through the finisher request instead. */
+	void finish(GL gl) {
+	    if(ready)
+		return;
+	    if(env.parallelsc) {
+		for(ShaderOb sh : shaders)
+		    sh.check(gl);
+	    }
 	    int[] buf = {0};
 	    gl.glGetProgramiv(this.id, GL.GL_LINK_STATUS, buf);
 	    if(buf[0] != 1) {
@@ -350,9 +401,15 @@ public class GLProgram implements Disposable {
 		}
 		throw(new LinkException("Failed to link GL program", GLProgram.this, info));
 	    }
+	    for(UniformID uni : unis)
+		uni.run(gl);
+	    ready = true;
 	}
 
+	boolean deleted = false; // GL thread only
+
 	protected void delete(GL gl) {
+	    deleted = true;
 	    gl.glDeleteProgram(id);
 	}
 
@@ -415,10 +472,18 @@ public class GLProgram implements Disposable {
 	return(glp);
     }
 
+    /* Whether draw lists may use this program without stalling
+     * the GL thread on its compile. */
+    public boolean ready() {
+	return(glid().ready);
+    }
+
     public static void apply(BGL gl, GLProgram from, GLProgram to) {
-	if(to != null)
-	    gl.glUseProgram(to.glid());
-	else
+	if(to != null) {
+	    ProgOb glp = to.glid();
+	    gl.bglSubmit(glp.finisher);
+	    gl.glUseProgram(glp);
+	} else
 	    gl.glUseProgram(null);
 	if((from != null) && (to == null)) {
 	    for(int i = 0; i < from.samplers.length; i++) {
