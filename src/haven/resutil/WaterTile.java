@@ -443,7 +443,8 @@ public class WaterTile extends Tiler {
 		}
 	    };
 
-	public ShaderMacro shader() {return(shader);}
+	/* Nurgling: better water (a graphics option). */
+	public ShaderMacro shader() {return(nurgling.render.Atmos.water(shader));}
 
 	public void apply(Pipe buf) {
 	    buf.put(surfslot, this);

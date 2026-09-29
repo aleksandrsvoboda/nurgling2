@@ -66,6 +66,7 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.saturation", 50, 200, s -> s.saturation, "saturation", 100);
 	prev = slider(cont, prev, "gfx.warmth", -100, 100, s -> s.warmth, "warmth", 100);
 	prev = check(cont, prev, "gfx.vignette", s -> s.vignette, "vignette");
+	prev = check(cont, prev, "gfx.tod", s -> s.tod, "tod");
 	prev = check(cont, prev, "gfx.clarity", s -> s.clarity, "clarity");
 	prev = slider(cont, prev, "gfx.claritystrength", 0, 100, s -> s.claritystrength, "claritystrength", 100);
 
@@ -76,6 +77,8 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.sharpness", 0, 100, s -> s.sharpness, "sharpness", 100);
 	prev = choice(cont, prev, "gfx.aniso", new String[] {"gfx.off", "4x", "8x", "16x"}, new int[] {1, 4, 8, 16}, s -> s.aniso, "aniso");
 	prev = cont.add(new Label(L10n.get("gfx.aniso.note")), prev.pos("bl").adds(15, 2));
+	prev = check(cont, prev, "gfx.tilt", s -> s.tilt, "tilt");
+	prev = slider(cont, prev, "gfx.tiltstrength", 20, 250, s -> s.tiltstrength, "tiltstrength", 100);
 
 	/* Lighting */
 	prev = section(cont, prev, "gfx.sec.light");
@@ -97,6 +100,14 @@ public class GraphicsSettings extends Panel {
 	prev = section(cont, prev, "gfx.sec.effects");
 	prev = check(cont, prev, "gfx.fire", s -> s.fire, "fire");
 	prev = check(cont, prev, "gfx.smoke", s -> s.smoke, "smoke");
+	prev = check(cont, prev, "gfx.heat", s -> s.heat, "heat");
+	prev = check(cont, prev, "gfx.glow", s -> s.glow, "glow");
+	prev = check(cont, prev, "gfx.water", s -> s.water, "water");
+	prev = check(cont, prev, "gfx.clouds", s -> s.clouds, "clouds");
+	prev = check(cont, prev, "gfx.wet", s -> s.wet, "wet");
+	prev = check(cont, prev, "gfx.sway", s -> s.sway, "sway");
+	prev = check(cont, prev, "gfx.particles", s -> s.particles, "particles");
+	prev = check(cont, prev, "gfx.shafts", s -> s.shafts, "shafts");
 	cont.pack();
     }
 

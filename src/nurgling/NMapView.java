@@ -234,6 +234,59 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.render.NPostFX.Manager postfx = null;
     private nurgling.render.PointShadows pshadows = null;
 
+    /* World positions of the fires near the view (warm point lights),
+     * for heat shimmer. */
+    private java.util.List<Coord3f> fires() {
+        java.util.List<Coord3f> ret = new java.util.ArrayList<>();
+        Coord3f cc;
+        try {
+            cc = getcc().invy();
+        } catch (Loading l) {
+            return (ret);
+        }
+        java.util.List<Object[]> found = new java.util.ArrayList<>();
+        synchronized (lights.ll) {
+            for (haven.render.RenderList.Slot<Light> ls : lights.ll) {
+                if (!(ls.obj() instanceof PosLight))
+                    continue;
+                PosLight pl = (PosLight) ls.obj();
+                if (pl.dif[0] <= pl.dif[2] * 1.4f)
+                    continue;
+                float[] p = haven.render.Homo3D.locxf(ls.state()).mul4(pl.pos);
+                Coord3f pos = Coord3f.of(p[0], p[1], p[2]);
+                float d = pos.dist(cc);
+                if (d < 500)
+                    found.add(new Object[] {pos, d});
+            }
+        }
+        found.sort(java.util.Comparator.comparingDouble(o -> (Float) o[1]));
+        for (Object[] o : found)
+            ret.add((Coord3f) o[0]);
+        return (ret);
+    }
+
+    /* Graphics options: dust, fireflies and blowing leaves around the view. */
+    private nurgling.render.AmbientFX ambient = null;
+    private RenderTree.Slot s_ambient = null;
+
+    private void updambient() {
+        boolean want = nurgling.render.AmbientFX.enabled;
+        if (want && (ambient == null)) {
+            ambient = new nurgling.render.AmbientFX(this);
+            try {
+                s_ambient = basic.add(ambient);
+            } catch (Loading e) {
+                ambient = null;
+                s_ambient = null;
+            }
+        } else if (!want && (ambient != null)) {
+            if (s_ambient != null)
+                s_ambient.remove();
+            ambient = null;
+            s_ambient = null;
+        }
+    }
+
     /* Graphics options: shadows from torches, fires and other point lights. */
     private void updpshadows() {
         int n = nurgling.render.PointShadows.count;
@@ -291,6 +344,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             });
         postfx.sync(g.out.env());
         updpshadows();
+        postfx.tick(this, (amblight == null) ? -1 : lights.index(amblight), fires());
+        updambient();
 
         super.draw(g);
         synchronized (dummys) {

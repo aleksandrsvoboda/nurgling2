@@ -24,6 +24,16 @@ import static haven.render.sl.Type.*;
 public class FireFX {
     public static volatile boolean fire = false, smoke = false, hdr = false;
 
+    /* Soft smoke: puffs fade out where they meet the ground and
+     * walls (needs the frame history, see SceneFX.History). */
+    public static volatile boolean soft = false;
+
+    public static boolean setsoft(boolean soft) {
+	boolean ch = (soft != FireFX.soft);
+	FireFX.soft = soft;
+	return(ch);
+    }
+
     /* Returns whether anything changed (and programs must be rebuilt). */
     public static boolean set(boolean fire, boolean smoke, boolean hdr) {
 	boolean ch = (fire != FireFX.fire) || (smoke != FireFX.smoke) || (fire && (hdr != FireFX.hdr));
@@ -40,8 +50,50 @@ public class FireFX {
      * a fire a little later the further downwind it stands. Same
      * space as Environ.wind(); added to the game's own wind. */
     static final double FRONT = 70;
-    /* The wind's clock (replaceable for offline rendering). */
-    public static volatile java.util.function.DoubleSupplier clock = Utils::rtime;
+    /* The wind's clock (replaceable for offline rendering). It wraps
+     * like the shaders' frame time, so trees and water (see WIND)
+     * feel the same gusts as smoke and embers. */
+    public static volatile java.util.function.DoubleSupplier clock = () -> Utils.rtime() % 3000.0;
+
+    /* The same wind for shaders: hv_gust(p, t) is the wind at map
+     * position p (render space, y flipped as in mapv) at frame time t,
+     * in world units per second, render space; hv_gusty(p, t) is the
+     * gust strength 0..1 there. */
+    public static final String WIND =
+	"float hv_whash(float i)\n" +
+	"{\n" +
+	"    return(fract(sin(i * 127.1 + 311.7) * 43758.5453));\n" +
+	"}\n" +
+	"float hv_wnoise(float x)\n" +
+	"{\n" +
+	"    float i = floor(x), f = x - i;\n" +
+	"    f = f * f * (3.0 - 2.0 * f);\n" +
+	"    return(mix(hv_whash(i), hv_whash(i + 1.0), f));\n" +
+	"}\n" +
+	"float hv_wdir(float t)\n" +
+	"{\n" +
+	"    return(0.9 + 0.55 * sin(t * 0.021) + 0.3 * sin(t * 0.057 + 2.0));\n" +
+	"}\n" +
+	"float hv_wgusts(float t)\n" +
+	"{\n" +
+	"    float n = 0.65 * hv_wnoise(t / 2.6) + 0.35 * hv_wnoise(t / 0.9 + 17.0);\n" +
+	"    return(pow(clamp((n - 0.15) / 0.85, 0.0, 1.0), 1.5));\n" +
+	"}\n" +
+	"float hv_gusty(vec2 p, float t)\n" +
+	"{\n" +
+	"    float a = hv_wdir(t);\n" +
+	"    vec2 d = vec2(cos(a), sin(a));\n" +
+	"    return(hv_wgusts(t - dot(vec2(p.x, -p.y), d) / 70.0));\n" +
+	"}\n" +
+	"vec2 hv_gust(vec2 p, float t)\n" +
+	"{\n" +
+	"    float a = hv_wdir(t);\n" +
+	"    vec2 d = vec2(cos(a), sin(a));\n" +
+	"    float tt = t - dot(vec2(p.x, -p.y), d) / 70.0;\n" +
+	"    float s = 3.5 + 12.0 * hv_wgusts(tt) + sin(tt * 1.9 + 0.7);\n" +
+	"    return(vec2(d.x, -d.y) * s);\n" +
+	"}\n";
+    public static final RawFunction winddef = new RawFunction(VEC2, "hv_gust", 2, WIND);
 
     private static double vnoise(double x) {
 	double i = Math.floor(x), f = x - i;

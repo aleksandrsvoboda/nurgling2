@@ -64,6 +64,11 @@ public class VulkanToolkit extends AWTToolkit {
 	    throw(new Unavailable(e.getMessage(), e));
 	} catch(LinkageError e) {
 	    throw(new Unavailable("Vulkan libraries could not be loaded", e));
+	} catch(RuntimeException | OutOfMemoryError e) {
+	    /* A failure in the probe itself (a driver quirk, a bug here)
+	     * must not keep the client from starting: fall back to
+	     * OpenGL instead. */
+	    throw(new Unavailable("Vulkan probe failed: " + e, e));
 	}
     }
 

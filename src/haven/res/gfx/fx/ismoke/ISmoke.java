@@ -271,6 +271,17 @@ public class ISmoke extends Sprite implements Rendered, Sprite.CDel, TickList.Ti
 	"    vec2 d = pc - vec2(0.5);\n" +
 	"    return(vec2(d.x * c - d.y * s, d.x * s + d.y * c) + vec2(0.5));\n" +
 	"}\n");
+    static final AutoVarying veye = new AutoVarying(VEC3, "s_smokeeye") {
+	    protected Expression root(VertexContext vctx) {
+		return(pick(Homo3D.get(vctx.prog).eyev.depref(), "xyz"));
+	    }
+	};
+    /* Soft smoke: puffs fade out where they meet the ground, walls
+     * and roofs, instead of cutting through them. */
+    private static final ShaderMacro softprog = prog -> {
+	FragColor.fragcol(prog.fctx).mod(in -> vec4(pick(in, "rgb"),
+						    mul(pick(in, "a"), nurgling.render.Atmos.soft(prog, veye.ref(), mul(bollsz.ref(), l(1.5))))), 950);
+    };
     private static final ShaderMacro fxprog = new ShaderMacro() {
 	    public void modify(final ProgramContext prog) {
 		final Function pdiv = new Function.Def(FLOAT) {{
@@ -294,10 +305,16 @@ public class ISmoke extends Sprite implements Rendered, Sprite.CDel, TickList.Ti
 	    }
 	};
 
+    private static final ShaderMacro fxsoft = ShaderMacro.compose(fxprog, softprog);
+
     class DrawState extends RUtils.AdHoc {
 	DrawState() {super(prog);}
 	float sz() {return(sz);}
-	public ShaderMacro shader() {return(nurgling.render.FireFX.smoke ? fxprog : super.shader());}
+	public ShaderMacro shader() {
+	    if(!nurgling.render.FireFX.smoke)
+		return(super.shader());
+	    return(nurgling.render.FireFX.soft ? fxsoft : fxprog);
+	}
     }
     private final State draw = new DrawState();
     public void added(RenderTree.Slot slot) {

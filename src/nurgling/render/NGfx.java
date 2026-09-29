@@ -42,6 +42,11 @@ public class NGfx {
 	public final boolean fire, smoke;
 	/* Water reflections */
 	public final boolean water;
+	/* World: fair-weather clouds, time-of-day grading, wet ground in
+	 * rain, fire glow, trees swaying in gusts, ambient particles,
+	 * heat shimmer, light shafts, tilt-shift. */
+	public final boolean clouds, tod, wet, glow, sway, particles, heat, shafts, tilt;
+	public final float tiltstrength;
 
 	private Settings(Map<String, Object> m) {
 	    grade = b(m, "grade", false);
@@ -71,6 +76,16 @@ public class NGfx {
 	    plights = Math.max(0, Math.min(4, i(m, "plights", 0)));
 	    plightres = i(m, "plightres", 0);
 	    fire = b(m, "fire", false);
+	    clouds = b(m, "clouds", false);
+	    tod = b(m, "tod", false);
+	    wet = b(m, "wet", false);
+	    glow = b(m, "glow", false);
+	    sway = b(m, "sway", false);
+	    particles = b(m, "particles", false);
+	    heat = b(m, "heat", false);
+	    shafts = b(m, "shafts", false);
+	    tilt = b(m, "tilt", false);
+	    tiltstrength = f(m, "tiltstrength", 0.8f);
 	    smoke = b(m, "smoke", false);
 	}
 
@@ -88,6 +103,9 @@ public class NGfx {
 	    m.put("objrelief", objrelief); m.put("objreliefstrength", objreliefstrength);
 	    m.put("plights", plights); m.put("plightres", plightres);
 	    m.put("fire", fire); m.put("smoke", smoke);
+	    m.put("clouds", clouds); m.put("tod", tod); m.put("wet", wet); m.put("glow", glow);
+	    m.put("sway", sway); m.put("particles", particles); m.put("heat", heat); m.put("shafts", shafts);
+	    m.put("tilt", tilt); m.put("tiltstrength", tiltstrength);
 	    return(m);
 	}
 
@@ -134,7 +152,6 @@ public class NGfx {
 	    m.put("softshadow", on);
 	    m.put("shadowq", ultra ? 1 : 0);
 	    m.put("aniso", ultra ? 16 : (on ? 8 : 1));
-	    m.put("water", ultra);
 	    m.put("relief", on);
 	    m.put("clarity", on);
 	    m.put("objrelief", on);
@@ -142,6 +159,15 @@ public class NGfx {
 	    m.put("plightres", ultra ? 1 : 0);
 	    m.put("fire", on);
 	    m.put("smoke", on);
+	    m.put("water", on);
+	    m.put("clouds", on);
+	    m.put("tod", on);
+	    m.put("wet", on);
+	    m.put("glow", on);
+	    m.put("sway", on);
+	    m.put("particles", on);
+	    m.put("heat", on);
+	    m.put("shafts", ultra);
 	    return(new Settings(m));
 	}
     }
