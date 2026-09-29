@@ -35,6 +35,9 @@ public class NGfx {
 	/* Terrain relief and local contrast */
 	public final boolean relief, clarity, objrelief;
 	public final float reliefstrength, claritystrength, objreliefstrength;
+	/* Shadows from point lights: how many lights, and map size
+	 * (0 = normal, 1 = high) */
+	public final int plights, plightres;
 	/* Water reflections */
 	public final boolean water;
 
@@ -63,6 +66,8 @@ public class NGfx {
 	    claritystrength = f(m, "claritystrength", 0.35f);
 	    objrelief = b(m, "objrelief", false);
 	    objreliefstrength = f(m, "objreliefstrength", 0.6f);
+	    plights = Math.max(0, Math.min(4, i(m, "plights", 0)));
+	    plightres = i(m, "plightres", 0);
 	}
 
 	public Map<String, Object> map() {
@@ -77,6 +82,7 @@ public class NGfx {
 	    m.put("relief", relief); m.put("reliefstrength", reliefstrength);
 	    m.put("clarity", clarity); m.put("claritystrength", claritystrength);
 	    m.put("objrelief", objrelief); m.put("objreliefstrength", objreliefstrength);
+	    m.put("plights", plights); m.put("plightres", plightres);
 	    return(m);
 	}
 
@@ -127,6 +133,8 @@ public class NGfx {
 	    m.put("relief", on);
 	    m.put("clarity", on);
 	    m.put("objrelief", on);
+	    m.put("plights", ultra ? 2 : (on ? 1 : 0));
+	    m.put("plightres", ultra ? 1 : 0);
 	    return(new Settings(m));
 	}
     }

@@ -208,8 +208,9 @@ public abstract class Light implements RenderTree.Node {
 	}
 
 	private final ShaderMacro shader;
+	/* Nurgling: object relief for cel-shaded materials. */
 	public ShaderMacro shader() {
-	    return(shader);
+	    return(nurgling.render.GroundRelief.cel(shader));
 	}
 	public void apply(Pipe p) {p.put(slot, this);}
     }

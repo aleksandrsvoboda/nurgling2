@@ -88,6 +88,8 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.objreliefstrength", 10, 200, s -> s.objreliefstrength, "objreliefstrength", 100);
 	prev = check(cont, prev, "gfx.softshadow", s -> s.softshadow, "softshadow");
 	prev = choice(cont, prev, "gfx.shadowq", new String[] {"gfx.shadowq.soft", "gfx.shadowq.softer"}, new int[] {0, 1}, s -> s.shadowq, "shadowq");
+	prev = choice(cont, prev, "gfx.plights", new String[] {"gfx.off", "1", "2", "4"}, new int[] {0, 1, 2, 4}, s -> s.plights, "plights");
+	prev = choice(cont, prev, "gfx.plightres", new String[] {"gfx.plightres.normal", "gfx.plightres.high"}, new int[] {0, 1}, s -> s.plightres, "plightres");
 	prev = check(cont, prev, "gfx.bloom", s -> s.bloom, "bloom");
 	prev = slider(cont, prev, "gfx.bloomstrength", 10, 150, s -> s.bloomstrength, "bloomstrength", 100);
 	cont.pack();

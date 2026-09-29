@@ -386,6 +386,8 @@ public class NPostFX {
 	    if(sharp != null)
 		sharp.amount = s.sharpness;
 	    ShadowMap.softness = s.softshadow ? ((s.shadowq > 0) ? 2 : 1) : 0;
+	    PointShadows.count = s.plights;
+	    PointShadows.res = (s.plightres > 0) ? 1024 : 512;
 	    /* Applies to textures as they get samplers, i.e. newly
 	     * loaded ones. */
 	    Texture.defanisotropy = (s.aniso > 1) ? s.aniso : 0;
