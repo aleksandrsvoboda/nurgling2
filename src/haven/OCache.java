@@ -118,8 +118,11 @@ public class OCache implements Iterable<Gob> {
 		copy.add(g);
 	}
 	Consumer<Gob> task = g -> {
+	    long t0 = System.nanoTime();
 	    synchronized(g) {
+		long t1 = System.nanoTime();
 		g.ctick(dt);
+		nurgling.HitchLog.gobtick(g, t1 - t0, System.nanoTime() - t1);
 	    }
 	};
 	if(!Config.par.get())

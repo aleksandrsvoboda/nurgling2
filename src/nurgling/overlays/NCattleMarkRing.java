@@ -21,7 +21,7 @@ public class NCattleMarkRing extends Sprite implements RenderTree.Node
         super(owner, null);
         this.gob = (Gob) owner;
         
-        texture = new TexI(Resource.loadimg("marks/domesticring")).st();
+        texture = MarkTex.ring("marks/domesticring");
 
         double len = MCache.tilesz.x * 2;
         if (gob.ngob != null && gob.ngob.hitBox != null) {

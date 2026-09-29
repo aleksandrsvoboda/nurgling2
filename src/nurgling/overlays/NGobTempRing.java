@@ -25,7 +25,7 @@ public class NGobTempRing extends Sprite implements RenderTree.Node
         this.radius = radius;
         
         // Use same texture as NGobIconRing
-        texture = new TexI(Resource.loadimg("marks/notifyrings")).st();
+        texture = MarkTex.ring("marks/notifyrings");
 
         float[] data = {
                 radius, radius, 5f, 1, 1,

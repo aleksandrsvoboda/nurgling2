@@ -64,7 +64,7 @@ public class ProductListHarvestSpec implements HarvestSpec {
         boolean fullyDiscovered = lpassistentOn && LpExplorer.isFullyDiscovered(gobResName);
         List<Part> parts = new ArrayList<>(products.size());
         for (String product : products) {
-            BufferedImage img = LpExplorer.resolveProductIcon(gob, product);
+            BufferedImage img = LpExplorer.resolveProductIcon(gob, product, false);
             if (img != null)
                 parts.add(new Part(product, img, lpassistentOn && !fullyDiscovered && LpExplorer.isProductUndiscovered(gobResName, product)));
         }

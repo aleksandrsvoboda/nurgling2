@@ -456,8 +456,10 @@ public abstract class UILoop implements Console.Directory {
 	}
     }
 
+    private final nurgling.HitchLog hitchlog = new nurgling.HitchLog();
     protected void framedone(Frame f) {
 	updstats(f);
+	hitchlog.frame(f, env);
     }
 
     public static class Frame {
@@ -471,6 +473,9 @@ public abstract class UILoop implements Console.Directory {
 	public GPUProfile.Frame gprof = null;
 	public RenderProfile rprofc = null;
 	public double ttime, ftime, waited;
+	/* nurgling: per-phase UI thread times, for HitchLog */
+	public double tdwait, ttick, tdraw, tswap;
+	public double tdisp, toc, tgtick, tutick;
 
 	public Frame(UILoop loop, UI ui, Render out, Frame prev) {
 	    this.loop = loop;
@@ -485,15 +490,22 @@ public abstract class UILoop implements Console.Directory {
 		CPUProfile.phase(prof, "dwait");
 		if(rprofc != null) rprofc.new Part("tick", out);
 		if(gprof  != null) gprof.part(out, "tick");
+		double t0 = Utils.rtime();
 		loop.dispatch(ui);
+		double t1 = Utils.rtime();
 		CPUProfile.phase(prof, "stick");
+		double t2 = t1;
 		if(ui.sess != null) {
 		    ui.sess.glob.ctick();
+		    t2 = Utils.rtime();
 		    ui.sess.glob.gtick(out);
 		}
+		double t3 = Utils.rtime();
 		CPUProfile.phase(prof, "utick");
 		ui.tick();
 		ui.gtick(out);
+		double t4 = Utils.rtime();
+		tdisp = t1 - t0; toc = t2 - t1; tgtick = t3 - t2; tutick = t4 - t3;
 		ui.mousehover(ui.mc);
 		Coord sz = loop.wnd.size();
 		if(!ui.root.sz.equals(sz))
@@ -544,19 +556,28 @@ public abstract class UILoop implements Console.Directory {
 	    this.prof   = profile.get() ? CPUProfile.set(loop.uprof.new Frame()) : null;
 	    this.gprof  = profile.get() ? loop.gprof.new Frame(out) : null;
 	    this.rprofc = profile.get() ? new RenderProfile(loop.rprof, (prev == null) ? null : prev.rprofc, out) : null;
+	    nurgling.HitchLog.framestart(frameno);
 	    SyncMode syncmode = ui.gprefs.syncmode.val;
 	    boolean swapsync = (syncmode != SyncMode.FRAME);
 	    boolean tickwait = (syncmode == SyncMode.FRAME) || (syncmode == SyncMode.TICK);
 
 	    if(!swapsync) out.fence(sync);
+	    double t0 = Utils.rtime();
 	    if(!tickwait) syncwait();
 	    ttime = Utils.rtime();
 	    tick();
+	    double t1 = Utils.rtime();
 	    if(tickwait) syncwait();
+	    double t2 = Utils.rtime();
 	    display();
+	    double t3 = Utils.rtime();
 	    CPUProfile.phase(prof, "aux");
 	    swapbuffers();
 	    if(swapsync) out.fence(sync);
+	    tdwait = (ttime - t0) + (t2 - t1);
+	    ttick = t1 - ttime;
+	    tdraw = t3 - t2;
+	    tswap = Utils.rtime() - t3;
 	}
     }
 

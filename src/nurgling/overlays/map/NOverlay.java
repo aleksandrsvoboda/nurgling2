@@ -37,6 +37,9 @@ public class NOverlay extends MapView.MapRaster
         this.id = id;
     }
 
+    /* Grids by id, snapshotted once per frame by NMapView.oltick for areaCuts. */
+    public static volatile Map<Long, MCache.Grid> gridsById = Collections.emptyMap();
+
     public void tick() {
         super.tick();
         if(area != null) {
@@ -57,13 +60,14 @@ public class NOverlay extends MapView.MapRaster
         NArea.Space space = (narea == null) ? null : narea.space;
         if(space == null)
             return(win);
+        Map<Long, MCache.Grid> grids = gridsById;
         Coord ul = null, br = null;
         try {
             for(Map.Entry<Long, NArea.VArea> e : space.space.entrySet()) {
                 Area va = e.getValue().area;
                 if(!va.positive())
                     continue;
-                MCache.Grid g = map.findGrid(e.getKey());
+                MCache.Grid g = grids.get(e.getKey());
                 if(g == null)
                     continue;
                 Coord cul = g.ul.add(va.ul).div(MCache.cutsz);
@@ -106,8 +110,7 @@ public class NOverlay extends MapView.MapRaster
     }
 
     public RenderTree.Node makenol(MapMesh mm, Long grid_id, Coord grid_ul) {
-        if(mm.olvert == null)
-            mm.olvert = mm.makeolvbuf();
+        mm.olvert();
         class Buf implements Tiler.MCons {
             short[] fl = new short[16];
             int fn = 0;
@@ -142,8 +145,7 @@ public class NOverlay extends MapView.MapRaster
     }
 
     public RenderTree.Node makenolol(MapMesh mm, Long grid_id, Coord grid_ul) {
-        if(mm.olvert == null)
-            mm.olvert = mm.makeolvbuf();
+        mm.olvert();
         class Buf implements Tiler.MCons {
             int mask;
             short[] fl = new short[16];

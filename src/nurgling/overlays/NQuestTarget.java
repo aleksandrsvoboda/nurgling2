@@ -32,7 +32,7 @@ public class NQuestTarget extends Sprite implements RenderTree.Node
         super(owner, null);
         this.isHunting = isHunting;
         this.qi = qi;
-        сt = (isHunting) ? new TexI(Resource.loadimg("marks/hunttarget")).st() : new TexI(Resource.loadimg("marks/picktarget")).st();
+        сt = (isHunting) ? MarkTex.ring("marks/hunttarget") : MarkTex.ring("marks/picktarget");
         gob = (Gob) owner;
         name = gob.ngob.name;
         double len = MCache.tilesz.x*2;

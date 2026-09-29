@@ -947,7 +947,22 @@ public class GLDrawList implements DrawList {
 	if(GLEnvironment.debuglog)
 	    g.gl().glPushDebugGroup(GL.GL_DEBUG_SOURCE_APPLICATION, 0, String.valueOf(desc));
 	synchronized(this) {
+	    /* nurgling: slots whose program is still compiling are
+	     * skipped instead of stalling the GL thread. This is safe
+	     * because slots are sorted by program within an order, so
+	     * the slot after a skipped run always has a different
+	     * program than the slot before it and its compiled list
+	     * re-applies its full state. Readiness is sampled once per
+	     * run of equal programs so a run is never split. */
 	    DrawSlot first = first(), last = null;
+	    GLProgram rprog = null;
+	    boolean rready = false;
+	    for(; first != null; first = first.next()) {
+		if(first.prog != rprog)
+		    rready = (rprog = first.prog).ready();
+		if(rready)
+		    break;
+	    }
 	    if(first == null)
 		return;
 	    try {
@@ -966,12 +981,17 @@ public class GLDrawList implements DrawList {
 	    if(g.state.prog() != first.prog)
 		throw(new ProgramMismatchException(g.state.prog(), first.prog));
 	    BGL gl = g.gl();
-	    for(DrawSlot cur = first; cur != null; last = cur, cur = cur.next()) {
+	    for(DrawSlot cur = first; cur != null; cur = cur.next()) {
+		if(cur.prog != rprog)
+		    rready = (rprog = cur.prog).ready();
+		if(!rready)
+		    continue;
 		if(GLEnvironment.debuglog) {
 		    if((last == null) || (last.gorder != cur.gorder))
 			g.marker("order: " + String.valueOf(cur.gorder));
 		}
 		gl.bglCallList(cur.compiled);
+		last = cur;
 	    }
 	    settingbuf.put(gl);
 	    g.state.assume(last.bk.state());

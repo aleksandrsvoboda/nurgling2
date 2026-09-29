@@ -31,6 +31,13 @@ import haven.render.gl.GL;
 import org.lwjgl.opengl.*;
 
 public class LWJGLWrap implements GL {
+    public void glMaxShaderCompilerThreads(int count) {
+	GLCapabilities caps = org.lwjgl.opengl.GL.getCapabilities();
+	if(caps.GL_KHR_parallel_shader_compile)
+	    KHRParallelShaderCompile.glMaxShaderCompilerThreadsKHR(count);
+	else if(caps.GL_ARB_parallel_shader_compile)
+	    ARBParallelShaderCompile.glMaxShaderCompilerThreadsARB(count);
+    }
     public static final LWJGLWrap instance = new LWJGLWrap();
 
     private static ByteBuffer ckbuf(ByteBuffer buf, long size) {

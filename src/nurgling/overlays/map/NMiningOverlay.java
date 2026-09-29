@@ -89,8 +89,7 @@ public class NMiningOverlay extends NOverlay
 
     public RenderTree.Node makenol(MapMesh mm, Long grid_id, Coord grid_ul)
     {
-        if (mm.olvert == null)
-            mm.olvert = mm.makeolvbuf();
+        mm.olvert();
         class Buf implements Tiler.MCons
         {
             short[] fl = new short[16];
@@ -163,8 +162,7 @@ public class NMiningOverlay extends NOverlay
 
     public RenderTree.Node makenolol(MapMesh mm, Long grid_id, Coord grid_ul)
     {
-        if (mm.olvert == null)
-            mm.olvert = mm.makeolvbuf();
+        mm.olvert();
         class Buf implements Tiler.MCons
         {
             int mask;

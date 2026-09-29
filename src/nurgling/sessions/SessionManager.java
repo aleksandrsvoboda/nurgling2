@@ -22,7 +22,7 @@ import java.util.function.Consumer;
  */
 public class SessionManager {
     /** Singleton instance */
-    private static SessionManager instance;
+    private static volatile SessionManager instance;
 
     /** All sessions, keyed by session ID */
     private final Map<String, SessionContext> sessions = new LinkedHashMap<>();
@@ -66,11 +66,17 @@ public class SessionManager {
     /**
      * Get the singleton SessionManager instance.
      */
-    public static synchronized SessionManager getInstance() {
-        if (instance == null) {
-            instance = new SessionManager();
+    public static SessionManager getInstance() {
+        /* Double-checked: called per gob per frame from parallel tick
+         * threads, where a synchronized getter parked them 10+ ms. */
+        SessionManager ret = instance;
+        if (ret != null)
+            return ret;
+        synchronized (SessionManager.class) {
+            if (instance == null)
+                instance = new SessionManager();
+            return instance;
         }
-        return instance;
     }
 
     /**

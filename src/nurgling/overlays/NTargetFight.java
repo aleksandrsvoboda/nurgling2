@@ -22,7 +22,7 @@ public class NTargetFight extends Sprite implements RenderTree.Node
     public NTargetFight(Owner owner)
     {
         super(owner, null);
-        сt = new TexI(Resource.loadimg("marks/targetfight")).st();
+        сt = MarkTex.ring("marks/targetfight");
         gob = (Gob) owner;
         double len = MCache.tilesz.x;
         if(gob.ngob.hitBox!=null)

@@ -363,4 +363,6 @@ public interface GL {
     public void glViewport(int x, int y, int w, int h);
 
     public default void xlateexc(RuntimeException exc) {}
+    /* nurgling: KHR/ARB_parallel_shader_compile; no-op where unsupported. */
+    public default void glMaxShaderCompilerThreads(int count) {}
 }

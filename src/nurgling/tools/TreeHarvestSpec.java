@@ -67,10 +67,10 @@ public class TreeHarvestSpec implements HarvestSpec {
         boolean barkUndiscovered = bark && undiscovered != null && undiscovered.bark;
 
         List<Part> parts = new ArrayList<>(4);
-        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf"), leafUndiscovered);
-        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(res, "seed"), seedUndiscovered);
-        HarvestSpec.addPart(parts, "bough", bough, HarvestState.getIcon(res, "bough"), boughUndiscovered);
-        HarvestSpec.addPart(parts, "bark", bark, HarvestState.getIcon(res, "bark"), barkUndiscovered);
+        HarvestSpec.addPart(parts, "leaf", leaf, HarvestState.getIcon(res, "leaf", false), leafUndiscovered);
+        HarvestSpec.addPart(parts, "seed", seed, HarvestState.getIcon(res, "seed", false), seedUndiscovered);
+        HarvestSpec.addPart(parts, "bough", bough, HarvestState.getIcon(res, "bough", false), boughUndiscovered);
+        HarvestSpec.addPart(parts, "bark", bark, HarvestState.getIcon(res, "bark", false), barkUndiscovered);
         return parts;
     }
 }

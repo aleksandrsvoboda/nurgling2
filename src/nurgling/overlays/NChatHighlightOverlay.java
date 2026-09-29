@@ -32,7 +32,7 @@ public class NChatHighlightOverlay extends Sprite implements RenderTree.Node {
         super(owner, null);
         
         // Create bright green highlight texture
-        ct = new TexI(Resource.loadimg("marks/altselect")).st();
+        ct = MarkTex.ring("marks/altselect");
         
         gob = (Gob) owner;
         startTime = System.currentTimeMillis();

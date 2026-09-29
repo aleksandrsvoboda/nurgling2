@@ -40,6 +40,10 @@ public class JOGLWrap implements GL, WrappedJOGL {
     }
 
     public com.jogamp.opengl.GL getGL() {return(back);}
+    public void glMaxShaderCompilerThreads(int count) {
+	if((back instanceof GL4bc) && back.isFunctionAvailable("glMaxShaderCompilerThreadsARB"))
+	    ((GL4bc)back).glMaxShaderCompilerThreadsARB(count);
+    }
 
     public void glActiveTexture(int texture) {back.glActiveTexture(texture);}
     public void glAttachShader(int program, int shader) {back.glAttachShader(program, shader);}
