@@ -119,6 +119,10 @@ public abstract class Texture implements Disposable {
 	CLAMP, CLAMP_BORDER, CLAMP_MIRROR,
     }
 
+    /* Anisotropy applied to mipmapped textures that don't ask for
+     * any themselves (a graphics option); 0 means off. */
+    public static volatile float defanisotropy = 0;
+
     public abstract static class Sampler<T extends Texture> implements Disposable {
 	public final T tex;
 	public Filter magfilter = Filter.LINEAR, minfilter = Filter.NEAREST, mipfilter = null;
@@ -150,6 +154,17 @@ public abstract class Texture implements Disposable {
 	public Sampler<T> rwrap(Wrapping v) {rwrap = v; return(this);}
 	public Sampler<T> wrapmode(Wrapping v) {return(swrap(v).twrap(v).rwrap(v));}
 	public Sampler<T> anisotropy(float v) {anisotropy = v; return(this);}
+
+	/* The anisotropy the backend should use. A negative
+	 * anisotropy opts out of the default (for atlases, where the
+	 * wide filter footprint bleeds between packed images). */
+	public float effanisotropy() {
+	    if(anisotropy < 0)
+		return(0);
+	    if((anisotropy > 0) || (mipfilter == null))
+		return(anisotropy);
+	    return(defanisotropy);
+	}
 	public Sampler<T> border(FColor v) {border = v; return(this);}
 
 	public Sampler<T> copy(Sampler<?> that) {

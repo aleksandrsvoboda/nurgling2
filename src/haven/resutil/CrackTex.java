@@ -159,7 +159,8 @@ public class CrackTex extends State implements InstanceBatch.AttribState {
     private static final Uniform u_tex = new Uniform(SAMPLER3D, "cracktex", p -> p.get(slot).img, slot);
     private static final Uniform u_col = new Uniform(VEC3, "crackcol", p -> p.get(slot).color, slot);
     private static final InstancedUniform u_rot = new InstancedUniform.Vec4("crackrot", p -> p.get(slot).rot, slot);
-    private static final ShaderMacro shader = prog -> {
+    private static ShaderMacro mkshader(boolean relief) {
+	return(prog -> {
 	final AutoVarying crackc = new AutoVarying(VEC3, "s_crackc") {
 		protected Expression root(VertexContext vctx) {
 		    return(MiscLib.vqrot.call(pick(Homo3D.vertex.ref(), "xyz"), u_rot.ref()));
@@ -168,10 +169,26 @@ public class CrackTex extends State implements InstanceBatch.AttribState {
 	FragColor.fragcol(prog.fctx).mod(in -> MiscLib.colblend.call(in, vec4(u_col.ref(),
 									      texture3D(u_tex.ref(), mul(crackc.ref(), l(0.025))))),
 					 100);
-    };
+	/* Nurgling: with object relief on, the cracks are cut into
+	 * the surface. */
+	if(relief) {
+	    float k = nurgling.render.GroundRelief.crackdepth();
+	    nurgling.render.GroundRelief.defcracks(prog.fctx);
+	    Homo3D.frageyen(prog.fctx).mod(in -> nurgling.render.GroundRelief.crackn.call(in, Homo3D.frageyev.ref(), u_tex.ref(), mul(crackc.ref(), l(0.025)), l(k)), 20);
+	    FragColor.fragcol(prog.fctx).mod(in -> nurgling.render.GroundRelief.crackc.call(in, Homo3D.frageyev.ref(), u_tex.ref(), mul(crackc.ref(), l(0.025)),
+											   nurgling.render.GroundRelief.sun().ref(), l(k)), 101);
+	}
+	});
+    }
+    private static final ShaderMacro shader = mkshader(false);
+    private static final Map<Float, ShaderMacro> rshaders = new HashMap<>();
 
     public ShaderMacro shader() {
-	return(shader);
+	if(!nurgling.render.GroundRelief.cracks())
+	    return(shader);
+	synchronized(rshaders) {
+	    return(rshaders.computeIfAbsent(nurgling.render.GroundRelief.crackdepth(), k -> mkshader(true)));
+	}
     }
 
     public void apply(Pipe buf) {

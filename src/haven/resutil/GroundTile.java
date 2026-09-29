@@ -77,10 +77,12 @@ public class GroundTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	else
 	    throw(new RuntimeException("Cannot use texture for ground-tile rendering: " + tex));
 	Pipe.Op ret;
+	/* Nurgling: GroundRelief only adds a shader while the graphics
+	 * option is on. */
 	if(clip)
-	    ret = Pipe.Op.compose(gcol, gt.draw, gt.clip, new MapMesh.MLOrder(z));
+	    ret = Pipe.Op.compose(gcol, gt.draw, gt.clip, new MapMesh.MLOrder(z), nurgling.render.GroundRelief.state);
 	else
-	    ret = Pipe.Op.compose(gcol, gt.draw, new MapMesh.MLOrder(z));
+	    ret = Pipe.Op.compose(gcol, gt.draw, new MapMesh.MLOrder(z), nurgling.render.GroundRelief.state);
 	return(ret);
     }
 

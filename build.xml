@@ -6,6 +6,9 @@
   <property name="junit-platform.version" value="1.14.2" />
   <property name="junit-platform.jar" location="lib/ext/junit/junit-platform-console-standalone-${junit-platform.version}.jar" />
   <property name="junit-platform.sha256" value="5566ffe2aa48263867bca745925f73bf7b01591b30d9a60f191c0b16fa0955e9" />
+  <!-- Vulkan renderer: LWJGL modules matching the bundled lwjgl-fat (3.4.1), from Maven Central. -->
+  <property name="lwjgl-vk.version" value="3.4.1" />
+  <property name="lwjgl-vk.jars" value="lwjgl-vulkan-${lwjgl-vk.version}.jar lwjgl-shaderc-${lwjgl-vk.version}.jar lwjgl-shaderc-${lwjgl-vk.version}-natives-windows.jar lwjgl-shaderc-${lwjgl-vk.version}-natives-linux.jar lwjgl-vma-${lwjgl-vk.version}.jar lwjgl-vma-${lwjgl-vk.version}-natives-windows.jar lwjgl-vma-${lwjgl-vk.version}-natives-linux.jar" />
 
   <path id="client.classpath">
 	<pathelement path="lib/ext/jogl/jogl-all.jar" />
@@ -13,6 +16,9 @@
 	<pathelement path="lib/ext/lwjgl/lwjgl-fat.jar" />
 	<pathelement path="lib/ext/lwjgl/lwjgl-awt.jar" />
 	<pathelement path="lib/ext/lwjgl/lwjgl-opengl-fat.jar" />
+	<pathelement path="lib/ext/lwjgl-vk/lwjgl-vulkan-${lwjgl-vk.version}.jar" />
+	<pathelement path="lib/ext/lwjgl-vk/lwjgl-shaderc-${lwjgl-vk.version}.jar" />
+	<pathelement path="lib/ext/lwjgl-vk/lwjgl-vma-${lwjgl-vk.version}.jar" />
 	<pathelement path="lib/ext/steamworks/steamworks4j.jar" />
     <pathelement path="etc/json-java.jar" />
     <pathelement path="etc/postgresql-42.7.5.jar" />
@@ -77,6 +83,7 @@
     <available property="extlib/has-lwjgl-base" file="lib/ext/lwjgl/has-lwjgl-base" />
     <available property="extlib/has-lwjgl-gl" file="lib/ext/lwjgl/has-lwjgl-gl" />
     <available property="extlib/has-steamworks" file="lib/ext/steamworks/has-steamworks" />
+    <available property="extlib/has-lwjgl-vk" file="lib/ext/lwjgl-vk/has-lwjgl-vk" />
   </target>
 
   <target name="extlib/jogl" depends="extlib-env" unless="extlib/has-jogl">
@@ -89,6 +96,43 @@
 
   <target name="extlib/lwjgl-gl" depends="extlib-env, extlib/lwjgl-base" unless="extlib/has-lwjgl-gl">
     <extlib name="lwjgl-gl" path="lib/ext/lwjgl" url="${ext-lib-base}/lwjgl/current/lwjgl-opengl" />
+  </target>
+
+  <target name="extlib/lwjgl-vk" depends="extlib-env" unless="extlib/has-lwjgl-vk">
+    <property name="lwjgl-vk.url" value="https://repo1.maven.org/maven2/org/lwjgl" />
+    <mkdir dir="lib/ext/lwjgl-vk" />
+    <get dest="lib/ext/lwjgl-vk/" skipexisting="true" maxtime="120" retries="3">
+      <url url="${lwjgl-vk.url}/lwjgl-vulkan/${lwjgl-vk.version}/lwjgl-vulkan-${lwjgl-vk.version}.jar" />
+      <url url="${lwjgl-vk.url}/lwjgl-shaderc/${lwjgl-vk.version}/lwjgl-shaderc-${lwjgl-vk.version}.jar" />
+      <url url="${lwjgl-vk.url}/lwjgl-shaderc/${lwjgl-vk.version}/lwjgl-shaderc-${lwjgl-vk.version}-natives-windows.jar" />
+      <url url="${lwjgl-vk.url}/lwjgl-shaderc/${lwjgl-vk.version}/lwjgl-shaderc-${lwjgl-vk.version}-natives-linux.jar" />
+      <url url="${lwjgl-vk.url}/lwjgl-vma/${lwjgl-vk.version}/lwjgl-vma-${lwjgl-vk.version}.jar" />
+      <url url="${lwjgl-vk.url}/lwjgl-vma/${lwjgl-vk.version}/lwjgl-vma-${lwjgl-vk.version}-natives-windows.jar" />
+      <url url="${lwjgl-vk.url}/lwjgl-vma/${lwjgl-vk.version}/lwjgl-vma-${lwjgl-vk.version}-natives-linux.jar" />
+    </get>
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-vulkan-${lwjgl-vk.version}.jar" algorithm="SHA-256" property="7f39be7c1e7b14b47d18ec5e23dd25240d2e41c090393524615d760203bf14a6" verifyproperty="lwjgl-vk.ok.1" />
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-shaderc-${lwjgl-vk.version}.jar" algorithm="SHA-256" property="72293c0d58aa07205f67233efed3769111e8312c73bd8e1f4c13a44ab255f27f" verifyproperty="lwjgl-vk.ok.2" />
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-shaderc-${lwjgl-vk.version}-natives-windows.jar" algorithm="SHA-256" property="d1449f6e4969797230545ec77c2f7478862379e586b35530c3d3651c926cc9ca" verifyproperty="lwjgl-vk.ok.3" />
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-shaderc-${lwjgl-vk.version}-natives-linux.jar" algorithm="SHA-256" property="207a09044daa8bb6fed7ff8057411b22d8cc86f3e86939b03428b573e621e21c" verifyproperty="lwjgl-vk.ok.4" />
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-vma-${lwjgl-vk.version}.jar" algorithm="SHA-256" property="d6a9677b5d487c97b874c18cb9c726197e9a8773f6a1c031ea9f5950b8c0b3c2" verifyproperty="lwjgl-vk.ok.5" />
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-vma-${lwjgl-vk.version}-natives-windows.jar" algorithm="SHA-256" property="b79a4f0679fa5902fafb345792314e400dfdcf04b4c15df700363c448c27ba15" verifyproperty="lwjgl-vk.ok.6" />
+    <checksum file="lib/ext/lwjgl-vk/lwjgl-vma-${lwjgl-vk.version}-natives-linux.jar" algorithm="SHA-256" property="4f83a80bc03ad749aa4c9ad7d39d136753e7e862624e7e0ee4ab7b914848815f" verifyproperty="lwjgl-vk.ok.7" />
+    <fail message="LWJGL Vulkan jars failed their checksums; delete lib/ext/lwjgl-vk and retry">
+      <condition>
+        <not>
+          <and>
+            <istrue value="${lwjgl-vk.ok.1}" />
+            <istrue value="${lwjgl-vk.ok.2}" />
+            <istrue value="${lwjgl-vk.ok.3}" />
+            <istrue value="${lwjgl-vk.ok.4}" />
+            <istrue value="${lwjgl-vk.ok.5}" />
+            <istrue value="${lwjgl-vk.ok.6}" />
+            <istrue value="${lwjgl-vk.ok.7}" />
+          </and>
+        </not>
+      </condition>
+    </fail>
+    <touch file="lib/ext/lwjgl-vk/has-lwjgl-vk" />
   </target>
 
   <target name="extlib/steamworks" depends="extlib-env" unless="extlib/has-steamworks">
@@ -115,7 +159,7 @@
         </unjar>
     </target>
 
-  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, resources">
+  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/lwjgl-vk, extlib/steamworks, resources">
     <condition property="explicit-annotations">
       <javaversion atleast="21" />
     </condition>
@@ -171,7 +215,7 @@
       <fileset dir="build/classes-lib" />
       <manifest>
 	<attribute name="Main-Class" value="haven.MainFrame" />
-	<attribute name="Class-Path" value="hafen-panama.jar jogl-all.jar gluegen-rt.jar lwjgl-fat.jar lwjgl-awt.jar lwjgl-opengl-fat.jar steamworks4j.jar builtin-res.jar hafen-res.jar nurgling-res.jar json-java.jar postgresql-42.7.5.jar sqlite-jdbc-3.49.1.0.jar" />
+	<attribute name="Class-Path" value="hafen-panama.jar jogl-all.jar gluegen-rt.jar lwjgl-fat.jar lwjgl-awt.jar lwjgl-opengl-fat.jar ${lwjgl-vk.jars} steamworks4j.jar builtin-res.jar hafen-res.jar nurgling-res.jar json-java.jar postgresql-42.7.5.jar sqlite-jdbc-3.49.1.0.jar" />
 	<attribute name="Add-Exports" value="java.base/java.lang java.desktop/sun.awt java.desktop/sun.java2d" />
 	<attribute name="Enable-Native-Access" value="ALL-UNNAMED" />
       </manifest>
@@ -200,6 +244,7 @@
     <copy todir="build">
       <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/lwjgl-vk"><include name="*.jar" /></fileset>
     </copy>
     <copy file="local-config.properties" tofile="build/haven-config.properties" failonerror="false" quiet="true" />
   </target>
@@ -216,6 +261,7 @@
       </fileset>
       <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/lwjgl-vk"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
     </copy>
     <copy todir="bin" failonerror="false" quiet="true">
@@ -350,7 +396,7 @@
     </fail>
   </target>
 
-  <target name="pre-release" depends="build-env, jar, extlib/jogl, extlib/jogl-macos, res-jar">
+  <target name="pre-release" depends="build-env, jar, extlib/jogl, extlib/jogl-macos, extlib/lwjgl-vk, res-jar">
     <copy todir="release/platform/macos">
       <fileset dir="lib/ext/jogl-macos" includes="*.jar" />
     </copy>
@@ -368,6 +414,9 @@
       <fileset dir="lib/ext/lwjgl">
         <include name="*.jar" />
       </fileset>
+      <fileset dir="lib/ext/lwjgl-vk">
+        <include name="*.jar" />
+      </fileset>
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="release/haven-config.properties" failonerror="false" quiet="true" />
     <!-- Linux: JOGL crashes in Mesa's GLX, so every launcher (updater, HnH Scheduler, scripts)
@@ -383,7 +432,7 @@
     <copy todir="release/" file="etc/run8.bat" />
   </target>
 
-  <target name="steam-release" depends="build-env, jar, extlib/jogl">
+  <target name="steam-release" depends="build-env, jar, extlib/jogl, extlib/lwjgl-vk">
     <copy todir="steam" failonerror="false" quiet="true">
       <file name="lib/ext/builtin-res.jar" />
       <file name="lib/ext/hafen-res.jar" />
@@ -397,6 +446,9 @@
         <include name="*.jar" />
       </fileset>
       <fileset dir="lib/ext/lwjgl">
+        <include name="*.jar" />
+      </fileset>
+      <fileset dir="lib/ext/lwjgl-vk">
         <include name="*.jar" />
       </fileset>
     </copy>

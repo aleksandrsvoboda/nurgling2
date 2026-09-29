@@ -231,6 +231,49 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return isFound;
     }
 
+    private nurgling.render.NPostFX.Manager postfx = null;
+    private nurgling.render.PointShadows pshadows = null;
+
+    /* Graphics options: shadows from torches, fires and other point lights. */
+    private void updpshadows() {
+        int n = nurgling.render.PointShadows.count;
+        if ((n <= 0) || (instancer == null)) {
+            if (pshadows != null) {
+                basic(nurgling.render.PointShadows.class, null);
+                pshadows.dispose();
+                pshadows = null;
+            }
+            return;
+        }
+        if ((pshadows == null) || (pshadows.master() != instancer)) {
+            if (pshadows != null)
+                pshadows.dispose();
+            pshadows = new nurgling.render.PointShadows(instancer);
+        }
+        Coord3f cc;
+        try {
+            cc = getcc().invy();
+        } catch (Loading l) {
+            return;
+        }
+        /* Render space has y flipped relative to map coordinates. */
+        nurgling.render.PointShadows.Ground ground = (x, y) -> {
+            try {
+                return (glob.map.getcz(x, -y));
+            } catch (Loading l) {
+                return (-1e9f);
+            }
+        };
+        basic(nurgling.render.PointShadows.class, pshadows.update(lights, cc, n, nurgling.render.PointShadows.res, ground));
+    }
+
+    @Override
+    protected void maindraw(haven.render.Render out) {
+        if (pshadows != null)
+            pshadows.draw(out);
+        super.maindraw(out);
+    }
+
     @Override
     public void draw(GOut g) {
         // Initialize overlays only once on first draw (when GameUI is ready)
@@ -239,6 +282,15 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             // getShortWallCapOverlay(); // No longer needed - NCaveTile renders caps directly
             overlaysInitialized = true;
         }
+
+        // Graphics options: keep the post-processing chain in sync with the settings.
+        if (postfx == null)
+            postfx = new nurgling.render.NPostFX.Manager(this, this::basic, () -> {
+                if (back instanceof haven.render.vk.VkDrawList)
+                    ((haven.render.vk.VkDrawList) back).refresh();
+            });
+        postfx.sync(g.out.env());
+        updpshadows();
 
         super.draw(g);
         synchronized (dummys) {

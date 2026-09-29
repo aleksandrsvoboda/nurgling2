@@ -1148,7 +1148,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    return;
 		slist = new ShadowMap.ShadowList(instancer);
 		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
-	    } else if(smap.lbuf.w != sdwres) {
+	    } else if((smap.lbuf.w != sdwres) || (smap.soft != ShadowMap.softness)) {
 		smap.dispose();
 		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
 		smapcc = null;

@@ -93,6 +93,13 @@ public class Phong extends ValBlock.Group implements Lighting{
 	private final OrderList<Runnable> mods = new OrderList<Runnable>();
 	public Block dcalc, scalc;
 	public Statement dcurs, scurs;
+	/* Nurgling: statements added before lcurs can scale lvl, the
+	 * light's whole contribution (ambient, diffuse and specular). */
+	public Statement lcurs;
+
+	public void lmod(Statement st) {
+	    code.add(st, lcurs);
+	}
 
 	private DoLight() {
 	    super(VOID, "dolight");
@@ -142,6 +149,7 @@ public class Phong extends ValBlock.Group implements Lighting{
 
 	protected void cons() {
 	    dvals.cons(code);
+	    code.add(lcurs = new Placeholder());
 	    code.add(stmt(aadd(diff, mul(pick(fref(mat, "amb"), "rgb"),
 					 pick(fref(ls,  "amb"), "rgb"),
 					 lvl.ref()))));

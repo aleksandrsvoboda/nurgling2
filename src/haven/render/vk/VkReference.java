@@ -24,41 +24,21 @@
  *  Boston, MA 02111-1307 USA
  */
 
-package haven.resutil;
+package haven.render.vk;
 
-import java.util.*;
 import haven.*;
-import haven.render.*;
-import haven.render.sl.*;
-import haven.render.sl.ValBlock.Value;
-import static haven.render.sl.Cons.*;
-import static haven.render.sl.Function.PDir.*;
-import static haven.render.sl.Type.*;
 
-public class TexAnim extends State {
-    public static final Slot<TexAnim> slot = new Slot<TexAnim>(Slot.Type.DRAW, TexAnim.class);
-    public final Coord3f ax;
-
-    public TexAnim(Coord3f ax) {
-	this.ax = ax;
+public class VkReference<T extends Disposable> extends Finalizer.Reference<T> {
+    public VkReference(T ob) {
+	super(ob);
     }
 
-    @Material.SpecName("texrot")
-    public static class $texrot implements Material.Spec {
-	public void cons(Material.Buffer buf,Object... args) {
-	    buf.states.add(new TexAnim(new Coord3f(Utils.fv(args[0]), Utils.fv(args[1]), 0)));
-	}
-    }
-
-    private static final Uniform cax = new Uniform(VEC2, p -> p.get(slot).ax, slot);
-    private static final ShaderMacro shader = prog -> {
-	Tex2D.rtexcoord.value(prog.vctx).mod(in -> add(in, mul(cax.ref(), FrameInfo.time())), 0);
-    };
-    /* Nurgling: realistic fire (a graphics option) for the unlit
-     * flame materials that use this. */
-    public ShaderMacro shader() {return(nurgling.render.FireFX.flame(shader));}
-
-    public void apply(Pipe buf) {
-	buf.put(slot, this);
+    public static <T extends Disposable> T get(Object ro, Class<T> type) {
+	if(!(ro instanceof VkReference))
+	    return(null);
+	VkReference<?> ref = (VkReference<?>)ro;
+	if(!type.isInstance(ref.ob))
+	    return(null);
+	return(type.cast(ref.ob));
     }
 }
