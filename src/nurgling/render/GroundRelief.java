@@ -54,6 +54,21 @@ public class GroundRelief {
 	"    float l = length(m);\n" +
 	"    return((l > 0.0) ? (m / l) : n);\n" +
 	"}\n" +
+	/* Height in world units. Ground (sc < 0) uses a fixed depth.
+	 * Objects measure depth in texels of their own texture (sc,
+	 * calibrated per texture), so a texture squeezed onto a small
+	 * barrel and one stretched over a roof get the same slopes. */
+	"float hv_rdepth(sampler2D hm, vec2 tc, vec3 p, float h, float k, float sc)\n" +
+	"{\n" +
+	"    if(sc < 0.0)\n" +
+	"        return(h * k * 0.8);\n" +
+	"    vec2 dx = dFdx(tc), dy = dFdy(tc);\n" +
+	"    vec2 ts = vec2(textureSize(hm, 0));\n" +
+	"    float uva = abs(dx.x * dy.y - dx.y * dy.x) * ts.x * ts.y;\n" +
+	"    float wa = length(cross(dFdx(p), dFdy(p)));\n" +
+	"    float wpt = sqrt(wa / max(uva, 1e-12));\n" +
+	"    return(h * k * sc * wpt);\n" +
+	"}\n" +
 	"vec3 hv_rfacen(vec3 p)\n" +
 	"{\n" +
 	"    vec3 n = normalize(cross(dFdx(p), dFdy(p)));\n" +
@@ -69,21 +84,21 @@ public class GroundRelief {
 
     /* Bends the normal the game's own lighting uses, so the sun,
      * moon, fires and torches all shade the stones. */
-    static final RawFunction nfn = new RawFunction(VEC3, "hv_rnorm", 5,
-	"vec3 hv_rnorm(vec3 n, vec3 p, sampler2D hm, vec2 tc, float k)\n" +
+    static final RawFunction nfn = new RawFunction(VEC3, "hv_rnorm", 6,
+	"vec3 hv_rnorm(vec3 n, vec3 p, sampler2D hm, vec2 tc, float k, float sc)\n" +
 	"{\n" +
-	"    return(hv_rbump(n, p, texture(hm, tc).r * k * 0.8));\n" +
+	"    return(hv_rbump(n, p, hv_rdepth(hm, tc, p, texture(hm, tc).r, k, sc)));\n" +
 	"}\n");
 
     /* Keeps the relief readable when the light is mostly ambient
      * (night, night vision): a little extra shading from the sun or
      * moon direction (gain g), and deep veins get less light. */
-    static final RawFunction cfn = new RawFunction(VEC4, "hv_rcol", 7,
-	"vec4 hv_rcol(vec4 col, vec3 p, sampler2D hm, vec2 tc, vec3 L, float k, float g)\n" +
+    static final RawFunction cfn = new RawFunction(VEC4, "hv_rcol", 8,
+	"vec4 hv_rcol(vec4 col, vec3 p, sampler2D hm, vec2 tc, vec3 L, float k, float g, float sc)\n" +
 	"{\n" +
 	"    vec3 n = hv_rfacen(p);\n" +
 	"    float hw = texture(hm, tc).r;\n" +
-	"    vec3 bn = hv_rbump(n, p, hw * k * 0.8);\n" +
+	"    vec3 bn = hv_rbump(n, p, hv_rdepth(hm, tc, p, hw, k, sc));\n" +
 	"    float s = 1.0 + g * (dot(bn, L) - dot(n, L));\n" +
 	"    s *= mix(1.0 - 0.22 * min(k, 1.5), 1.0, smoothstep(0.0, 0.6, hw));\n" +
 	"    return(vec4(col.rgb * clamp(s, 0.5, 1.35), col.a));\n" +
@@ -155,8 +170,22 @@ public class GroundRelief {
 
     /* Height maps */
 
-    private static final Map<TexRender, Texture2D.Sampler2D> heights = new WeakHashMap<>();
+    /* A texture's height map and its object calibration. */
+    static class Relief {
+	final Texture2D.Sampler2D map;
+	final float scale;
+	Relief(Texture2D.Sampler2D map, float scale) {this.map = map; this.scale = scale;}
+    }
+
+    private static final Map<TexRender, Relief> heights = new WeakHashMap<>();
     private static Texture2D.Sampler2D flat = null;
+    private static Relief flatr = null;
+
+    private static synchronized Relief flatr() {
+	if(flatr == null)
+	    flatr = new Relief(flat(), 0);
+	return(flatr);
+    }
 
     private static Texture2D.Sampler2D sampler(Texture2D tex) {
 	Texture2D.Sampler2D ret = tex.sampler();
@@ -207,7 +236,17 @@ public class GroundRelief {
 	return(t * t * (3 - 2 * t));
     }
 
+    /* Target mean slope of object relief at strength 1. */
+    static final float SLOPE = 1.0f;
+
     static float[] heightmap(BufferedImage img) {
+	return(heightmap(img, null));
+    }
+
+    /* stats, if given, receives the calibration for object relief:
+     * the depth (in texels) giving the target mean slope, less for
+     * faint textures whose painted detail is subtle. */
+    static float[] heightmap(BufferedImage img, float[] stats) {
 	int w = img.getWidth(), h = img.getHeight();
 	float[] lum = new float[w * h];
 	for(int y = 0; y < h; y++) {
@@ -254,12 +293,27 @@ public class GroundRelief {
 	float range = Math.max(hi - lo, 0.0001f);
 	for(int i = 0; i < s.length; i++)
 	    s[i] = (s[i] - lo) / range;
+	if(stats != null) {
+	    double g = 0;
+	    for(int y = 0; y < h; y++) {
+		for(int x = 0; x < w; x++) {
+		    float c = s[y * w + x];
+		    float dx = s[y * w + ((x + 1) % w)] - c, dy = s[((y + 1) % h) * w + x] - c;
+		    g += Math.sqrt((dx * dx) + (dy * dy));
+		}
+	    }
+	    g /= (w * h);
+	    float depth = (g > 1e-5) ? (float)Math.min(SLOPE / g, 80) : 0;
+	    float contrast = (float)Math.sqrt(m2);
+	    stats[0] = depth * Math.max(0.35f, Math.min(1.0f, contrast / 0.07f));
+	}
 	return(s);
     }
 
-    private static Texture2D.Sampler2D mkheight(BufferedImage img) {
+    private static Relief mkheight(BufferedImage img) {
 	int w = img.getWidth(), h = img.getHeight();
-	float[] hm = heightmap(img);
+	float[] stats = new float[1];
+	float[] hm = heightmap(img, stats);
 	boolean pot = ((w & (w - 1)) == 0) && ((h & (h - 1)) == 0);
 	List<byte[]> levels = new ArrayList<>();
 	float[] cur = hm;
@@ -293,16 +347,16 @@ public class GroundRelief {
 					  buf.pull(ByteBuffer.wrap(levels.get(img2.level)));
 					  return(buf);
 				      });
-	return(sampler(tex));
+	return(new Relief(sampler(tex), stats[0]));
     }
 
-    private static final Map<TexRender, Defer.Future<Texture2D.Sampler2D>> pending = new WeakHashMap<>();
+    private static final Map<TexRender, Defer.Future<Relief>> pending = new WeakHashMap<>();
 
     /* objs: only world-object textures get a height map. Throws
      * Loading until the map is built. */
-    static Texture2D.Sampler2D heightfor(TexRender.TexDraw draw, boolean objs) {
+    static Relief heightfor(TexRender.TexDraw draw, boolean objs) {
 	if((draw == null) || !(draw.tex instanceof TexL))
-	    return(flat());
+	    return(flatr());
 	TexL tex = (TexL)draw.tex;
 	if(objs) {
 	    /* World objects, and the tile textures (brick, stone)
@@ -310,31 +364,31 @@ public class GroundRelief {
 	     * smooth and made shiny instead. */
 	    String nm = tex.loadname();
 	    if((nm == null) || !(nm.contains("gfx/terobjs/") || nm.contains("gfx/tiles/")) || metal(nm))
-		return(flat());
+		return(flatr());
 	}
 	synchronized(heights) {
-	    Texture2D.Sampler2D ret = heights.get(tex);
+	    Relief ret = heights.get(tex);
 	    if(ret != null)
 		return(ret);
 	}
-	Defer.Future<Texture2D.Sampler2D> f;
+	Defer.Future<Relief> f;
 	synchronized(pending) {
 	    f = pending.get(tex);
 	    if(f == null) {
 		pending.put(tex, f = Defer.later(() -> {
 			    try {
 				BufferedImage img = tex.fill();
-				return((img == null) ? flat() : mkheight(img));
+				return((img == null) ? flatr() : mkheight(img));
 			    } catch(Loading l) {
 				throw(l);
 			    } catch(RuntimeException e) {
 				new Warning(e, "could not derive relief for " + tex).issue();
-				return(flat());
+				return(flatr());
 			    }
 			}));
 	    }
 	}
-	Texture2D.Sampler2D ret = f.get();
+	Relief ret = f.get();
 	synchronized(heights) {
 	    heights.put(tex, ret);
 	}
@@ -365,25 +419,27 @@ public class GroundRelief {
 	return(metal(((TexL)draw.tex).loadname()) ? 1 : 0);
     }
 
-    static final Uniform uheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), false), TexRender.TexDraw.slot);
-    static final Uniform uoheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), true), TexRender.TexDraw.slot);
+    static final Uniform uheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), false).map, TexRender.TexDraw.slot);
+    static final Uniform uoheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), true).map, TexRender.TexDraw.slot);
+    static final Uniform uoscale = new Uniform(FLOAT, p -> heightfor(p.get(TexRender.TexDraw.slot), true).scale, TexRender.TexDraw.slot);
     static final Uniform umetal = new Uniform(FLOAT, p -> metalfor(p.get(TexRender.TexDraw.slot)), TexRender.TexDraw.slot);
 
     private static final Map<Float, ShaderMacro> macros = new HashMap<>();
 
     private static ShaderMacro mkmacro(Uniform hm, float k, boolean objs) {
+	java.util.function.Supplier<Expression> sc = () -> objs ? uoscale.ref() : Cons.l(-1.0);
 	return(prog -> {
 		define(prog.fctx, nfn);
 		define(prog.fctx, cfn);
 		Homo3D.frageyen(prog.fctx).mod(in -> {
 			if(!textured(prog))
 			    return(in);
-			return(nfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), Cons.l(k)));
+			return(nfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), Cons.l(k), sc.get()));
 		    }, 10);
 		FragColor.fragcol(prog.fctx).mod(in -> {
 			if(!textured(prog))
 			    return(in);
-			return(cfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(0.55)));
+			return(cfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(0.55), sc.get()));
 		    }, 1000);
 		if(objs) {
 		    mfn.define(prog.fctx);
@@ -406,7 +462,7 @@ public class GroundRelief {
 		FragColor.fragcol(prog.fctx).mod(in -> {
 			if(!textured(prog))
 			    return(in);
-			return(cfn.call(in, Homo3D.frageyev.ref(), uoheight.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(1.3)));
+			return(cfn.call(in, Homo3D.frageyev.ref(), uoheight.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(1.3), uoscale.ref()));
 		    }, 1001);
 	    });
     }
