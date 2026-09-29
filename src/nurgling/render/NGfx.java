@@ -38,6 +38,8 @@ public class NGfx {
 	/* Shadows from point lights: how many lights, and map size
 	 * (0 = normal, 1 = high) */
 	public final int plights, plightres;
+	/* Realistic fire (flames, embers) and smoke */
+	public final boolean fire, smoke;
 	/* Water reflections */
 	public final boolean water;
 
@@ -68,6 +70,8 @@ public class NGfx {
 	    objreliefstrength = f(m, "objreliefstrength", 0.6f);
 	    plights = Math.max(0, Math.min(4, i(m, "plights", 0)));
 	    plightres = i(m, "plightres", 0);
+	    fire = b(m, "fire", false);
+	    smoke = b(m, "smoke", false);
 	}
 
 	public Map<String, Object> map() {
@@ -83,6 +87,7 @@ public class NGfx {
 	    m.put("clarity", clarity); m.put("claritystrength", claritystrength);
 	    m.put("objrelief", objrelief); m.put("objreliefstrength", objreliefstrength);
 	    m.put("plights", plights); m.put("plightres", plightres);
+	    m.put("fire", fire); m.put("smoke", smoke);
 	    return(m);
 	}
 
@@ -135,6 +140,8 @@ public class NGfx {
 	    m.put("objrelief", on);
 	    m.put("plights", ultra ? 2 : (on ? 1 : 0));
 	    m.put("plightres", ultra ? 1 : 0);
+	    m.put("fire", on);
+	    m.put("smoke", on);
 	    return(new Settings(m));
 	}
     }

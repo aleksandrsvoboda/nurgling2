@@ -379,7 +379,9 @@ public class NPostFX {
 	    clar = toggle(clar, s.clarity, Clarity::new);
 	    if(clar != null)
 		clar.amount = s.claritystrength;
-	    if(GroundRelief.set(s.relief, s.reliefstrength, s.objrelief, s.objreliefstrength))
+	    boolean rp = GroundRelief.set(s.relief, s.reliefstrength, s.objrelief, s.objreliefstrength);
+	    rp |= FireFX.set(s.fire, s.smoke, s.hdr());
+	    if(rp)
 		reprog.run();
 	    fxaa = toggle(fxaa, s.fxaa, FXAA::new);
 	    sharp = toggle(sharp, s.sharpen, Sharpen::new);

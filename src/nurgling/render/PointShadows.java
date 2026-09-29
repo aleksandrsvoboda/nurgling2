@@ -53,7 +53,7 @@ public class PointShadows implements Disposable {
     }
 
     /* How far a light reaches, from its attenuation and cut-off. */
-    static float reach(PosLight l) {
+    public static float reach(PosLight l) {
 	float at = (PosLight.atoverride != 0) ? PosLight.atoverride : l.at;
 	if(at <= 0)
 	    return(MAXREACH);

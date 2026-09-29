@@ -92,6 +92,11 @@ public class GraphicsSettings extends Panel {
 	prev = choice(cont, prev, "gfx.plightres", new String[] {"gfx.plightres.normal", "gfx.plightres.high"}, new int[] {0, 1}, s -> s.plightres, "plightres");
 	prev = check(cont, prev, "gfx.bloom", s -> s.bloom, "bloom");
 	prev = slider(cont, prev, "gfx.bloomstrength", 10, 150, s -> s.bloomstrength, "bloomstrength", 100);
+
+	/* Effects */
+	prev = section(cont, prev, "gfx.sec.effects");
+	prev = check(cont, prev, "gfx.fire", s -> s.fire, "fire");
+	prev = check(cont, prev, "gfx.smoke", s -> s.smoke, "smoke");
 	cont.pack();
     }
 
