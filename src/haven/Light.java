@@ -170,7 +170,9 @@ public abstract class Light implements RenderTree.Node {
 	    this(frag, defamb, defdif, defspc, defemi, 0.0f);
 	}
 
-	public ShaderMacro shader() {return(shader);}
+	/* Nurgling: object relief (a graphics option) extends the
+	 * per-pixel lighting shader while it is on. */
+	public ShaderMacro shader() {return(nurgling.render.GroundRelief.phong(shader));}
 
 	public void apply(Pipe p) {p.put(lighting, this);}
     }

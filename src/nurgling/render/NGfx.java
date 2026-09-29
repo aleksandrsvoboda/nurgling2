@@ -33,8 +33,8 @@ public class NGfx {
 	/* Anisotropic filtering level (1 = off) */
 	public final int aniso;
 	/* Terrain relief and local contrast */
-	public final boolean relief, clarity;
-	public final float reliefstrength, claritystrength;
+	public final boolean relief, clarity, objrelief;
+	public final float reliefstrength, claritystrength, objreliefstrength;
 	/* Water reflections */
 	public final boolean water;
 
@@ -61,6 +61,8 @@ public class NGfx {
 	    reliefstrength = f(m, "reliefstrength", 1.0f);
 	    clarity = b(m, "clarity", false);
 	    claritystrength = f(m, "claritystrength", 0.35f);
+	    objrelief = b(m, "objrelief", false);
+	    objreliefstrength = f(m, "objreliefstrength", 0.6f);
 	}
 
 	public Map<String, Object> map() {
@@ -74,6 +76,7 @@ public class NGfx {
 	    m.put("aniso", aniso); m.put("water", water);
 	    m.put("relief", relief); m.put("reliefstrength", reliefstrength);
 	    m.put("clarity", clarity); m.put("claritystrength", claritystrength);
+	    m.put("objrelief", objrelief); m.put("objreliefstrength", objreliefstrength);
 	    return(m);
 	}
 
@@ -123,6 +126,7 @@ public class NGfx {
 	    m.put("water", ultra);
 	    m.put("relief", on);
 	    m.put("clarity", on);
+	    m.put("objrelief", on);
 	    return(new Settings(m));
 	}
     }

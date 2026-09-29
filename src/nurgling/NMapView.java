@@ -244,7 +244,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
         // Graphics options: keep the post-processing chain in sync with the settings.
         if (postfx == null)
-            postfx = new nurgling.render.NPostFX.Manager(this, this::basic);
+            postfx = new nurgling.render.NPostFX.Manager(this, this::basic, () -> {
+                if (back instanceof haven.render.vk.VkDrawList)
+                    ((haven.render.vk.VkDrawList) back).refresh();
+            });
         postfx.sync(g.out.env());
 
         super.draw(g);

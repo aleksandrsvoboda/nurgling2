@@ -57,6 +57,9 @@ public class VkDrawList implements DrawList {
     private final TreeSet<DrawSlot> order;
     private boolean disposed = false;
     private static final AtomicLong uniqid = new AtomicLong();
+    /* Slots whose programs should be rebuilt; see refresh(). */
+    private final Set<Slot<? extends Rendered>> stale = new LinkedHashSet<>();
+    private static final int REBUILD_PER_FRAME = 300;
 
     VkDrawList(VkEnvironment env) {
 	this.env = env;
@@ -723,6 +726,8 @@ public class VkDrawList implements DrawList {
 	    throw(new IllegalArgumentException());
 	VkRender g = (VkRender)r;
 	synchronized(this) {
+	    if(!stale.isEmpty())
+		rebuild(REBUILD_PER_FRAME);
 	    for(DrawSlot s : order) {
 		if(s.geo == null)
 		    continue;
@@ -730,6 +735,32 @@ public class VkDrawList implements DrawList {
 		g.draw(s.prog, s.key, s.tgt.val, s.dyn.val, s.tex, s.ubo, s.geo);
 	    }
 	}
+    }
+
+    /* Rebuilds every slot's program, a few per frame, e.g. after a
+     * state's shader changed with a graphics option. */
+    public void refresh() {
+	synchronized(this) {
+	    stale.addAll(slotmap.keySet());
+	}
+    }
+
+    private void rebuild(int max) {
+	List<Slot<? extends Rendered>> retry = new ArrayList<>();
+	Iterator<Slot<? extends Rendered>> it = stale.iterator();
+	for(int n = 0; it.hasNext() && (n < max); n++) {
+	    Slot<? extends Rendered> slot = it.next();
+	    it.remove();
+	    if(!slotmap.containsKey(slot))
+		continue;
+	    try {
+		update(slot);
+	    } catch(Loading l) {
+		/* Keep the current slot until what it waits for is loaded. */
+		retry.add(slot);
+	    }
+	}
+	stale.addAll(retry);
     }
 
     public void add(Slot<? extends Rendered> slot) {
@@ -748,6 +779,7 @@ public class VkDrawList implements DrawList {
 	    DrawSlot dslot = slotmap.remove(slot);
 	    if(dslot == null)
 		throw(new IllegalStateException(String.format("removing non-present slot (%s)", slot.obj())));
+	    stale.remove(slot);
 	    order.remove(dslot);
 	    dslot.dispose();
 	}
@@ -803,6 +835,7 @@ public class VkDrawList implements DrawList {
 		slot.dispose();
 	    order.clear();
 	    slotmap.clear();
+	    stale.clear();
 	    disposed = true;
 	}
     }

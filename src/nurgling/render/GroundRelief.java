@@ -21,14 +21,20 @@ import static haven.render.sl.Type.*;
  * direction (and less light in the deep veins) keeps the relief
  * readable in any lighting.
  *
- * GroundTile and TerrainTile add the state to every ground material;
- * its shader is only present while the effect is on. Toggling
- * rebuilds the map meshes, since draw lists pick programs when meshes
- * are added.
+ * Terrain: GroundTile and TerrainTile add the state to every ground
+ * material. World objects (houses, ovens, barrels; resources under
+ * gfx/terobjs/): the per-pixel Phong lighting state adds the same
+ * shader through phong(). Characters, animals and items are left
+ * alone, since painted faces and clothing would turn lumpy.
+ *
+ * Height maps are built on the background loader; materials wait for
+ * theirs the same way they wait for their textures. The shaders are
+ * only present while the effects are on; toggling rebuilds the draw
+ * lists' programs.
  */
 public class GroundRelief {
-    public static volatile boolean enabled = false;
-    private static volatile float strength = 1.0f;
+    public static volatile boolean enabled = false, objects = false;
+    private static volatile float strength = 1.0f, ostrength = 0.6f;
 
     /* The stone normal, from the smooth height map. */
     static final String BUMP =
@@ -73,7 +79,7 @@ public class GroundRelief {
 	"    vec3 m = abs(det) * n - sign(det) * (dhx * r1 + dhy * r2);\n" +
 	"    vec3 bn = (length(m) > 0.0) ? normalize(m) : n;\n" +
 	"    float s = 1.0 + 0.55 * (dot(bn, L) - dot(n, L));\n" +
-	"    s *= mix(1.0 - 0.22 * min(k, 1.5), 1.04, smoothstep(0.0, 0.6, hw));\n" +
+	"    s *= mix(1.0 - 0.22 * min(k, 1.5), 1.0, smoothstep(0.0, 0.6, hw));\n" +
 	"    return(vec4(col.rgb * clamp(s, 0.5, 1.35), col.a));\n" +
 	"}\n");
 
@@ -231,45 +237,109 @@ public class GroundRelief {
 	return(sampler(tex));
     }
 
-    static Texture2D.Sampler2D heightfor(TexRender.TexDraw draw) {
+    private static final Map<TexRender, Defer.Future<Texture2D.Sampler2D>> pending = new WeakHashMap<>();
+
+    /* objs: only world-object textures get a height map. Throws
+     * Loading until the map is built. */
+    static Texture2D.Sampler2D heightfor(TexRender.TexDraw draw, boolean objs) {
 	if((draw == null) || !(draw.tex instanceof TexL))
 	    return(flat());
 	TexL tex = (TexL)draw.tex;
+	if(objs) {
+	    String nm = tex.loadname();
+	    if((nm == null) || !nm.contains("gfx/terobjs/"))
+		return(flat());
+	}
 	synchronized(heights) {
 	    Texture2D.Sampler2D ret = heights.get(tex);
 	    if(ret != null)
 		return(ret);
 	}
-	Texture2D.Sampler2D ret;
-	try {
-	    BufferedImage img = tex.fill();
-	    ret = (img == null) ? flat() : mkheight(img);
-	} catch(Loading l) {
-	    throw(l);
-	} catch(RuntimeException e) {
-	    new Warning(e, "could not derive ground relief for " + tex).issue();
-	    ret = flat();
+	Defer.Future<Texture2D.Sampler2D> f;
+	synchronized(pending) {
+	    f = pending.get(tex);
+	    if(f == null) {
+		pending.put(tex, f = Defer.later(() -> {
+			    try {
+				BufferedImage img = tex.fill();
+				return((img == null) ? flat() : mkheight(img));
+			    } catch(Loading l) {
+				throw(l);
+			    } catch(RuntimeException e) {
+				new Warning(e, "could not derive relief for " + tex).issue();
+				return(flat());
+			    }
+			}));
+	    }
 	}
+	Texture2D.Sampler2D ret = f.get();
 	synchronized(heights) {
 	    heights.put(tex, ret);
+	}
+	synchronized(pending) {
+	    pending.remove(tex);
 	}
 	return(ret);
     }
 
-    static final Uniform uheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot)), TexRender.TexDraw.slot);
+    static final Uniform uheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), false), TexRender.TexDraw.slot);
+    static final Uniform uoheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), true), TexRender.TexDraw.slot);
 
     private static final Map<Float, ShaderMacro> macros = new HashMap<>();
 
+    private static ShaderMacro mkmacro(Uniform hm, float k) {
+	return(prog -> {
+		nfn.define(prog.fctx);
+		cfn.define(prog.fctx);
+		Homo3D.frageyen(prog.fctx).mod(in -> {
+			if(!textured(prog))
+			    return(in);
+			return(nfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), Cons.l(k)));
+		    }, 10);
+		FragColor.fragcol(prog.fctx).mod(in -> {
+			if(!textured(prog))
+			    return(in);
+			return(cfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k)));
+		    }, 1000);
+	    });
+    }
+
+    private static boolean textured(ProgramContext prog) {
+	Tex2D t = prog.getmod(Tex2D.class);
+	return((t != null) && (t.tex2d != null));
+    }
+
     private static ShaderMacro macro(float k) {
 	synchronized(macros) {
-	    return(macros.computeIfAbsent(k, key -> prog -> {
-			nfn.define(prog.fctx);
-			cfn.define(prog.fctx);
-			Homo3D.frageyen(prog.fctx).mod(in -> nfn.call(in, Homo3D.frageyev.ref(), uheight.ref(), Tex2D.rtexcoord.ref(), Cons.l(key)), 10);
-			FragColor.fragcol(prog.fctx).mod(in -> cfn.call(in, Homo3D.frageyev.ref(), uheight.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(key)), 1000);
-		    }));
+	    return(macros.computeIfAbsent(k, key -> mkmacro(uheight, key)));
 	}
     }
+
+    private static final Map<List<Object>, ShaderMacro> phongs = new HashMap<>();
+
+    /* Hook for Light.PhongLight: per-pixel lit materials get object
+     * relief while it is on. */
+    public static ShaderMacro phong(ShaderMacro base) {
+	if(!objects || (base != Light.PhongLight.flight))
+	    return(base);
+	float k = ostrength;
+	PhongCache c = lastphong;
+	if((c != null) && (c.k == k))
+	    return(c.macro);
+	ShaderMacro ret;
+	synchronized(phongs) {
+	    ret = phongs.computeIfAbsent(Arrays.asList(base, k), key -> ShaderMacro.compose(base, mkmacro(uoheight, k)));
+	}
+	lastphong = new PhongCache(k, ret);
+	return(ret);
+    }
+
+    private static class PhongCache {
+	final float k;
+	final ShaderMacro macro;
+	PhongCache(float k, ShaderMacro macro) {this.k = k; this.macro = macro;}
+    }
+    private static volatile PhongCache lastphong = null;
 
     public static final State.Slot<State> slot = new State.Slot<>(State.Slot.Type.DRAW, State.class);
     public static final State state = new State() {
@@ -284,12 +354,16 @@ public class GroundRelief {
 	    public String toString() {return("#<ground-relief>");}
 	};
 
-    /* Returns whether anything changed (and the map must be rebuilt). */
-    public static boolean set(boolean on, float k) {
+    /* Returns whether anything changed (and programs must be rebuilt). */
+    public static boolean set(boolean ground, float k, boolean objs, float ok) {
 	k = Math.round(k * 20) / 20.0f;
-	boolean ch = (on != enabled) || (on && (k != strength));
-	enabled = on;
+	ok = Math.round(ok * 20) / 20.0f;
+	boolean ch = (ground != enabled) || (ground && (k != strength)) ||
+	    (objs != objects) || (objs && (ok != ostrength));
+	enabled = ground;
 	strength = k;
+	objects = objs;
+	ostrength = ok;
 	return(ch);
     }
 }

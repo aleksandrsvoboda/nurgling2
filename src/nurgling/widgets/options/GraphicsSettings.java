@@ -84,6 +84,8 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.aostrength", 20, 200, s -> s.aostrength, "aostrength", 100);
 	prev = check(cont, prev, "gfx.relief", s -> s.relief, "relief");
 	prev = slider(cont, prev, "gfx.reliefstrength", 20, 300, s -> s.reliefstrength, "reliefstrength", 100);
+	prev = check(cont, prev, "gfx.objrelief", s -> s.objrelief, "objrelief");
+	prev = slider(cont, prev, "gfx.objreliefstrength", 10, 200, s -> s.objreliefstrength, "objreliefstrength", 100);
 	prev = check(cont, prev, "gfx.softshadow", s -> s.softshadow, "softshadow");
 	prev = choice(cont, prev, "gfx.shadowq", new String[] {"gfx.shadowq.soft", "gfx.shadowq.softer"}, new int[] {0, 1}, s -> s.shadowq, "shadowq");
 	prev = check(cont, prev, "gfx.bloom", s -> s.bloom, "bloom");

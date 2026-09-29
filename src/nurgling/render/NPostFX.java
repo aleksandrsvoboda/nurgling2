@@ -312,7 +312,7 @@ public class NPostFX {
     /* Keeps a view's effect chain in sync with the settings. */
     public static class Manager {
 	private final PView view;
-	private final Runnable rebasic;
+	private final Runnable rebasic, reprog;
 	private int ver = -1;
 	private boolean lastsup;
 	private DepthFX dfx;
@@ -325,9 +325,12 @@ public class NPostFX {
 	/* rebasic re-applies the view's basic states, so that the
 	 * scene switches between 8-bit and float color when HDR
 	 * processing is turned on or off. */
-	public Manager(PView view, Runnable rebasic) {
+	/* reprog rebuilds the view's draw-list programs, for shader
+	 * changes (relief) that only apply when a slot is added. */
+	public Manager(PView view, Runnable rebasic, Runnable reprog) {
 	    this.view = view;
 	    this.rebasic = rebasic;
+	    this.reprog = reprog;
 	}
 
 	private <T extends PostProcessor> T toggle(T cur, boolean want, java.util.function.Supplier<T> mk) {
@@ -376,8 +379,8 @@ public class NPostFX {
 	    clar = toggle(clar, s.clarity, Clarity::new);
 	    if(clar != null)
 		clar.amount = s.claritystrength;
-	    if(GroundRelief.set(s.relief, s.reliefstrength) && (view instanceof MapView))
-		((MapView)view).glob.map.invalidateAll();
+	    if(GroundRelief.set(s.relief, s.reliefstrength, s.objrelief, s.objreliefstrength))
+		reprog.run();
 	    fxaa = toggle(fxaa, s.fxaa, FXAA::new);
 	    sharp = toggle(sharp, s.sharpen, Sharpen::new);
 	    if(sharp != null)
