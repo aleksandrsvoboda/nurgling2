@@ -402,19 +402,8 @@ public class VkProgram extends VkObject {
 	return(ctx.symtab.get(sym));
     }
 
-    private VkProgram(VkEnvironment env, ProgramContext ctx) {
+    private VkProgram(VkEnvironment env, ProgramContext ctx, String rvsrc, String rfsrc) {
 	super(env);
-	String rfsrc, rvsrc;
-	{
-	    StringWriter buf = new StringWriter();
-	    ctx.fctx.construct(buf);
-	    rfsrc = buf.toString();
-	}
-	{
-	    StringWriter buf = new StringWriter();
-	    ctx.vctx.construct(buf);
-	    rvsrc = buf.toString();
-	}
 
 	/* Uniforms, in a deterministic order so that sources stay
 	 * stable for the SPIR-V cache. */
@@ -573,11 +562,30 @@ public class VkProgram extends VkObject {
 	}
     }
 
+    /* Programs are built on several threads, but generating their
+     * GLSL is not thread-safe: shared function bodies (Function.Def
+     * statics such as Svaj.svaja) keep per-program expansions, like
+     * PostProc.AutoMacro.exp, in their own fields. So the macros and
+     * the source text are made one program at a time; only the
+     * compiling to SPIR-V runs in parallel. */
+    private static final Object srclock = new Object();
+
     public static VkProgram build(VkEnvironment env, Collection<ShaderMacro> mods) {
 	ProgramContext prog = new ProgramContext();
-	for(ShaderMacro mod : mods)
-	    mod.modify(prog);
-	return(new VkProgram(env, prog));
+	String[] src;
+	synchronized(srclock) {
+	    for(ShaderMacro mod : mods)
+		mod.modify(prog);
+	    src = source(prog);
+	}
+	return(new VkProgram(env, prog, src[0], src[1]));
+    }
+
+    private static String[] source(ProgramContext ctx) {
+	StringWriter fbuf = new StringWriter(), vbuf = new StringWriter();
+	ctx.fctx.construct(fbuf);
+	ctx.vctx.construct(vbuf);
+	return(new String[] {vbuf.toString(), fbuf.toString()});
     }
 
     public int uniform(Uniform var) {
@@ -707,7 +715,7 @@ public class VkProgram extends VkObject {
 	final int[] cmask;
 	private final int hash;
 	volatile long pipe = 0;
-	boolean building = false;
+	final java.util.concurrent.atomic.AtomicBoolean building = new java.util.concurrent.atomic.AtomicBoolean();
 
 	PipeKey(VkProgram prog, VertexKey vk, int topo, int[] cfmt, int dfmt, BlendMode[] blend, int[] cmask) {
 	    this.prog = prog;
@@ -791,24 +799,23 @@ public class VkProgram extends VkObject {
     boolean pipeready(PipeKey key) {
 	if(key.pipe != 0)
 	    return(true);
-	synchronized(key) {
-	    if(!key.building) {
-		key.building = true;
-		/* Held while queued and building, so that the cleanup of
-		 * unused programs does not destroy its shader modules and
-		 * layout under the driver. */
-		lock();
-		env.builders.submit(() -> {
-			try {
-			    synchronized(buildlock) {
-				if(!disposed())
-				    pipeline(key);
-			    }
-			} finally {
-			    unlock();
+	/* Not synchronized on key: pipeline() holds that for the whole
+	 * build, and the frame must not wait for it. */
+	if(key.building.compareAndSet(false, true)) {
+	    /* Held while queued and building, so that the cleanup of
+	     * unused programs does not destroy its shader modules and
+	     * layout under the driver. */
+	    lock();
+	    env.builders.submit(() -> {
+		    try {
+			synchronized(buildlock) {
+			    if(!disposed())
+				pipeline(key);
 			}
-		    });
-	    }
+		    } finally {
+			unlock();
+		    }
+		});
 	}
 	return(false);
     }

@@ -1121,7 +1121,18 @@ public class VkEnvironment implements Environment {
 	synchronized(pendprog) {
 	    f = pendprog.get(key);
 	    if(f == null) {
-		pendprog.put(key, builders.submit(() -> getprog(key.hash, key.shaders)));
+		pendprog.put(key, builders.submit(() -> {
+			    VkProgram prog = getprog(key.hash, key.shaders);
+			    /* Saved in the program table by now, where the
+			     * next ask finds it; so the entry need not wait to
+			     * be claimed (an object that has left view never
+			     * would). A failed build keeps its entry, so that
+			     * the error reaches the caller. */
+			    synchronized(pendprog) {
+				pendprog.remove(key);
+			    }
+			    return(prog);
+			}));
 		return(null);
 	    }
 	    if(!f.isDone())

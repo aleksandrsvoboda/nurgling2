@@ -205,7 +205,7 @@ public class GroundRelief {
     }
 
     /* Box blur with wrap-around, in place, radius r. */
-    private static void blur(float[] a, int w, int h, int r) {
+    static void blur(float[] a, int w, int h, int r) {
 	float[] tmp = new float[Math.max(w, h)];
 	float n = 2 * r + 1;
 	for(int y = 0; y < h; y++) {
@@ -231,7 +231,7 @@ public class GroundRelief {
 	}
     }
 
-    private static float smoothstep(float e0, float e1, float x) {
+    static float smoothstep(float e0, float e1, float x) {
 	float t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
 	return(t * t * (3 - 2 * t));
     }
@@ -310,10 +310,49 @@ public class GroundRelief {
 	return(s);
     }
 
-    private static Relief mkheight(BufferedImage img) {
+    static float[] luminance(BufferedImage img) {
+	int w = img.getWidth(), h = img.getHeight();
+	float[] lum = new float[w * h];
+	for(int y = 0; y < h; y++) {
+	    for(int x = 0; x < w; x++) {
+		int c = img.getRGB(x, y);
+		lum[y * w + x] = (0.299f * ((c >> 16) & 255) + 0.587f * ((c >> 8) & 255) + 0.114f * (c & 255)) / 255f;
+	    }
+	}
+	return(lum);
+    }
+
+    /* The depth (in texels) giving a height map the target mean slope. */
+    static float calibrate(float[] s, int w, int h) {
+	double g = 0;
+	for(int y = 0; y < h; y++) {
+	    for(int x = 0; x < w; x++) {
+		float c = s[y * w + x];
+		float dx = s[y * w + ((x + 1) % w)] - c, dy = s[((y + 1) % h) * w + x] - c;
+		g += Math.sqrt((dx * dx) + (dy * dy));
+	    }
+	}
+	g /= (w * h);
+	return((g > 1e-5) ? (float)Math.min(SLOPE / g, 80) : 0);
+    }
+
+    /* name: the texture's resource, to tell what it is made of (see
+     * Materials); objects only, the ground is all stone and soil. */
+    private static Relief mkheight(BufferedImage img, String name, boolean objs) {
 	int w = img.getWidth(), h = img.getHeight();
 	float[] stats = new float[1];
-	float[] hm = heightmap(img, stats);
+	Materials.Kind kind = objs ? Materials.classify(name, img, luminance(img)) : Materials.Kind.STONE;
+	if(kind == Materials.Kind.FLAT)
+	    return(flatr());
+	float[] hm;
+	if(kind == Materials.Kind.STONE) {
+	    hm = heightmap(img, stats);
+	} else {
+	    float[] lum = luminance(img);
+	    hm = (kind == Materials.Kind.WOOD) ? Materials.wood(lum, w, h) : Materials.fine(lum, w, h);
+	    stats[0] = calibrate(hm, w, h);
+	}
+	stats[0] *= kind.depth;
 	boolean pot = ((w & (w - 1)) == 0) && ((h & (h - 1)) == 0);
 	List<byte[]> levels = new ArrayList<>();
 	float[] cur = hm;
@@ -378,7 +417,7 @@ public class GroundRelief {
 		pending.put(tex, f = Defer.later(() -> {
 			    try {
 				BufferedImage img = tex.fill();
-				return((img == null) ? flatr() : mkheight(img));
+				return((img == null) ? flatr() : mkheight(img, tex.loadname(), objs));
 			    } catch(Loading l) {
 				throw(l);
 			    } catch(RuntimeException e) {
