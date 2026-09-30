@@ -39,6 +39,18 @@ public class NContext {
     int counter = 0;
     private NGameUI gui;
 
+    /**
+     * When set, {@link #resolveOutAreas} skips this area as a PUT destination. Used by bots that
+     * pull items out of a zone (e.g. unboxing an "unbox" specialised area) so items never get
+     * routed straight back into the zone they were just taken from because that same zone also
+     * happens to have a matching PUT preference configured.
+     */
+    private Integer excludedOutAreaId = null;
+
+    public void excludeOutArea(NArea area) {
+        excludedOutAreaId = (area != null) ? area.id : null;
+    }
+
     private NGlobalCoord lastcoord;
 
     public static HashMap<String, String> contcaps = new HashMap<>();
@@ -1095,6 +1107,8 @@ public class NContext {
                 continue;
             NArea cand = gui.map.glob.map.areas.get(id);
             if(cand == null || !cand.containOut(name))
+                continue;
+            if(excludedOutAreaId != null && cand.id == excludedOutAreaId)
                 continue;
             double dist = getDistanceToArea(cand, gui);
             if(dist == Double.MAX_VALUE)
