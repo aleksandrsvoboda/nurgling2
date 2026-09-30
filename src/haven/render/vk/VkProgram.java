@@ -794,7 +794,20 @@ public class VkProgram extends VkObject {
 	synchronized(key) {
 	    if(!key.building) {
 		key.building = true;
-		env.builders.submit(() -> pipeline(key));
+		/* Held while queued and building, so that the cleanup of
+		 * unused programs does not destroy its shader modules and
+		 * layout under the driver. */
+		lock();
+		env.builders.submit(() -> {
+			try {
+			    synchronized(buildlock) {
+				if(!disposed())
+				    pipeline(key);
+			    }
+			} finally {
+			    unlock();
+			}
+		    });
 	    }
 	}
 	return(false);
@@ -875,20 +888,26 @@ public class VkProgram extends VkObject {
     public void lock() {locked.incrementAndGet();}
     public void unlock() {locked.decrementAndGet();}
 
+    /* Taken by a pipeline being built in the background and by
+     * destruction, so that the one never runs into the other. */
+    private final Object buildlock = new Object();
+
     protected void destroy() {
-	synchronized(pipes) {
-	    for(PipeKey key : pipes.values()) {
-		if(key.pipe != 0) {
-		    vkDestroyPipeline(env.dev, key.pipe, null);
-		    key.pipe = 0;
-		    env.npipes.decrementAndGet();
+	synchronized(buildlock) {
+	    synchronized(pipes) {
+		for(PipeKey key : pipes.values()) {
+		    if(key.pipe != 0) {
+			vkDestroyPipeline(env.dev, key.pipe, null);
+			key.pipe = 0;
+			env.npipes.decrementAndGet();
+		    }
 		}
 	    }
+	    vkDestroyPipelineLayout(env.dev, layout, null);
+	    vkDestroyDescriptorSetLayout(env.dev, dsl, null);
+	    vkDestroyShaderModule(env.dev, vmod, null);
+	    vkDestroyShaderModule(env.dev, fmod, null);
 	}
-	vkDestroyPipelineLayout(env.dev, layout, null);
-	vkDestroyDescriptorSetLayout(env.dev, dsl, null);
-	vkDestroyShaderModule(env.dev, vmod, null);
-	vkDestroyShaderModule(env.dev, fmod, null);
     }
 
     public String toString() {
