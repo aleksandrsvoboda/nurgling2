@@ -37,8 +37,10 @@ public class NOverlay extends MapView.MapRaster
         this.id = id;
     }
 
-    /* Grids by id, snapshotted once per frame by NMapView.oltick for areaCuts. */
-    public static volatile Map<Long, MCache.Grid> gridsById = Collections.emptyMap();
+    /* Grids by id, snapshotted once per frame by NMapView.oltick for areaCuts.
+     * Per overlay, not static: with several sessions, a background
+     * session's oltick would otherwise swap in its own grids. */
+    public Map<Long, MCache.Grid> gridsById = Collections.emptyMap();
 
     public void tick() {
         super.tick();
@@ -124,7 +126,15 @@ public class NOverlay extends MapView.MapRaster
         }
         Coord t = new Coord();
         Buf buf = new Buf();
-        NArea.VArea space = NUtils.getArea(id).space.space.get(grid_id);
+        /* This overlay's own session's area: NUtils.getArea goes through
+         * the active session, which with several sessions may not be the
+         * one this mesh is built for. */
+        NArea area = map.areas.get(id);
+        if(area == null || area.space == null || area.space.space == null)
+            return(null);
+        NArea.VArea space = area.space.space.get(grid_id);
+        if(space == null)
+            return(null);
         Area curArea = space.area.xl(grid_ul);
         for(t.y = 0; t.y < mm.sz.y; t.y++) {
             for(t.x = 0; t.x < mm.sz.x; t.x++) {
@@ -175,7 +185,7 @@ public class NOverlay extends MapView.MapRaster
         Area a = Area.sized(mm.ul, mm.sz);
 
         Buf buf = new Buf();
-        NArea area = NUtils.getArea(id);
+        NArea area = map.areas.get(id);
         if (area == null || area.space == null || area.space.space == null) {
             return null;
         }

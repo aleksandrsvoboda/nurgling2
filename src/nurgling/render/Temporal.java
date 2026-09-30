@@ -1,5 +1,7 @@
 package nurgling.render;
 
+import java.util.*;
+
 import haven.*;
 import haven.render.*;
 import haven.render.sl.*;
@@ -24,10 +26,11 @@ import static nurgling.render.NPostFX.*;
 public class Temporal {
     public static volatile boolean taa = false, upscale = false;
 
-    /* Sub-pixel jitter, in pixels, for the current frame. */
-    static volatile float jx = 0, jy = 0;
-    static volatile Coord jsz = Coord.of(1, 1);
-    private static int frame = 0;
+    /* Each view's jitter this frame, in clip space: {dx, dy, frame}.
+     * Per view, since with several sessions another session's camera
+     * update would otherwise overwrite it between this view's jitter
+     * and its TAA pass. */
+    private static final Map<PView, float[]> jitters = new WeakHashMap<>();
 
     private static float halton(int i, int b) {
 	float f = 1, r = 0;
@@ -41,12 +44,23 @@ public class Temporal {
 
     /* A state op that nudges the scene's projection for this frame;
      * composed onto the map camera's state. */
-    public static Pipe.Op jitter(Coord rsz) {
-	int i = (frame++ % 8) + 1;
-	float x = halton(i, 2) - 0.5f, y = halton(i, 3) - 0.5f;
-	jx = x; jy = y; jsz = rsz;
-	float dx = (2 * x) / Math.max(rsz.x, 1), dy = (2 * y) / Math.max(rsz.y, 1);
+    public static Pipe.Op jitter(PView view, Coord rsz) {
+	float dx, dy;
+	synchronized(jitters) {
+	    float[] j = jitters.computeIfAbsent(view, v -> new float[3]);
+	    int i = ((int)(j[2]++) % 8) + 1;
+	    dx = (2 * (halton(i, 2) - 0.5f)) / Math.max(rsz.x, 1);
+	    dy = (2 * (halton(i, 3) - 0.5f)) / Math.max(rsz.y, 1);
+	    j[0] = dx; j[1] = dy;
+	}
 	return(new Jitter(dx, dy));
+    }
+
+    private static float[] jitterof(PView view) {
+	synchronized(jitters) {
+	    float[] j = jitters.get(view);
+	    return((j == null) ? new float[2] : new float[] {j[0], j[1]});
+	}
     }
 
     static class Jitter implements Pipe.Op {
@@ -117,9 +131,8 @@ public class Temporal {
 	    Camera cam = depth.view.basic.state().get(Homo3D.cam);
 	    if((prj == null) || (cam == null))
 		return(null);
-	    Coord sz = jsz;
-	    float dx = (2 * jx) / Math.max(sz.x, 1), dy = (2 * jy) / Math.max(sz.y, 1);
-	    Matrix4f unj = Transform.makexlate(new Matrix4f(), Coord3f.of(-dx, -dy, 0)).mul(prj.fin(Matrix4f.id));
+	    float[] j = jitterof(depth.view);
+	    Matrix4f unj = Transform.makexlate(new Matrix4f(), Coord3f.of(-j[0], -j[1], 0)).mul(prj.fin(Matrix4f.id));
 	    return(unj.mul(cam.fin(Matrix4f.id)));
 	}
 

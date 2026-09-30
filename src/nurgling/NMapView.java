@@ -239,7 +239,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     @Override
     public void basic(Object id, haven.render.Pipe.Op state) {
         if ((id == Camera.class) && (state != null) && nurgling.render.Temporal.taa)
-            state = haven.render.Pipe.Op.compose(state, nurgling.render.Temporal.jitter(rendersz()));
+            state = haven.render.Pipe.Op.compose(state, nurgling.render.Temporal.jitter(this, rendersz()));
         super.basic(id, state);
     }
 
@@ -1519,9 +1519,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     protected void oltick()
     {
         super.oltick();
-        NOverlay.gridsById = glob.map.gridsById();
-        for(NOverlay ol : nols.values())
+        java.util.Map<Long, MCache.Grid> grids = glob.map.gridsById();
+        for(NOverlay ol : nols.values()) {
+            ol.gridsById = grids;
             ol.tick();
+        }
     }
 
     /**
