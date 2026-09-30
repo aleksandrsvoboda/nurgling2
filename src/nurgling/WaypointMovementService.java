@@ -174,7 +174,17 @@ public class WaypointMovementService {
                     // Get player's current location in the same coordinate system as the target
                     Coord mc = new Coord2d(mv.getcc()).floor(tilesz);
                     MCache.Grid plg = mv.ui.sess.glob.map.getgrid(mc.div(cmaps));
-                    MapFile.GridInfo info = file.gridinfo.get(plg.id);
+                    /* gridinfo loads from disk on a miss, which needs the map
+                     * file's lock (a second session's grids often miss). If it
+                     * is busy, look again next tick rather than stall the frame. */
+                    MapFile.GridInfo info;
+                    if(!file.lock.readLock().tryLock())
+                        return;
+                    try {
+                        info = file.gridinfo.get(plg.id);
+                    } finally {
+                        file.lock.readLock().unlock();
+                    }
 
                     if(info != null && info.seg == target.seg.id) {
                         // Convert to segment-relative tile coordinates

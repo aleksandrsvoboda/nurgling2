@@ -100,7 +100,14 @@ public class TreeLocationService implements ProfileAwareService {
             MCache.Grid grid = mcache.getgrid(gridCoord);
 
             MapFile mapFile = gui.mmap.file;
-            MapFile.GridInfo info = mapFile.gridinfo.get(grid.id);
+            /* gridinfo loads from disk on a miss, which needs the map file's lock. */
+            MapFile.GridInfo info;
+            mapFile.lock.readLock().lock();
+            try {
+                info = mapFile.gridinfo.get(grid.id);
+            } finally {
+                mapFile.lock.readLock().unlock();
+            }
             if (info == null) return;
 
             long segmentId = info.seg;
