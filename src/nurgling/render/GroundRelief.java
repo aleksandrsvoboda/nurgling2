@@ -502,7 +502,81 @@ public class GroundRelief {
 	return((t != null) && (t.tex2d != null));
     }
 
+    /* Parallax ground (a graphics option): the ground texture is
+     * looked up where the line of sight actually meets the relief, so
+     * stones hide the gaps behind them when seen at an angle. A short
+     * march through the height map; the shift is held to a few texels,
+     * as the ground textures sit side by side in an atlas. */
+    public static volatile boolean parallax = false;
+    static final RawFunction pomfn = new RawFunction(VEC2, "hv_pom", 4,
+	"vec2 hv_pom(vec2 tc, vec3 p, sampler2D hm, float k)\n" +
+	"{\n" +
+	"    vec3 dp1 = dFdx(p), dp2 = dFdy(p);\n" +
+	"    vec2 duv1 = dFdx(tc), duv2 = dFdy(tc);\n" +
+	"    /* The ground's own (face) normal: the texture coordinate is\n" +
+	"     * worked out before the shading normal is. */\n" +
+	"    vec3 n = cross(dp1, dp2);\n" +
+	"    float nl = length(n);\n" +
+	"    if(nl < 1e-12)\n" +
+	"        return(tc);\n" +
+	"    n /= nl;\n" +
+	"    if(dot(n, p) > 0.0)\n" +
+	"        n = -n;\n" +
+	"    vec3 dp2perp = cross(dp2, n), dp1perp = cross(n, dp1);\n" +
+	"    vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;\n" +
+	"    vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;\n" +
+	"    float im = inversesqrt(max(max(dot(T, T), dot(B, B)), 1e-20));\n" +
+	"    T *= im; B *= im;\n" +
+	"    vec3 v = normalize(-p);\n" +
+	"    vec3 vt = vec3(dot(v, T), dot(v, B), dot(v, n));\n" +
+	"    if(vt.z < 0.05)\n" +
+	"        return(tc);\n" +
+	"    /* Depth in texture units: the relief's world depth over the\n" +
+	"     * texture's world scale. */\n" +
+	"    float uvpw = length(duv1) / max(length(dp1), 1e-6);\n" +
+	"    vec2 dir = -(vt.xy / max(vt.z, 0.3)) * (k * 0.8 * uvpw);\n" +
+	"    vec2 ts = vec2(textureSize(hm, 0));\n" +
+	"    float lim = 4.0 / max(ts.x, 1.0);\n" +
+	"    float dl = length(dir);\n" +
+	"    if(dl > lim)\n" +
+	"        dir *= lim / dl;\n" +
+	"    const int N = 10;\n" +
+	"    vec2 step = dir / float(N);\n" +
+	"    vec2 uv = tc;\n" +
+	"    float depth = 0.0, pdepth = 0.0;\n" +
+	"    float h = 1.0 - textureGrad(hm, uv, duv1, duv2).r, ph = h;\n" +
+	"    for(int i = 0; i < N; i++) {\n" +
+	"        if(depth >= h)\n" +
+	"            break;\n" +
+	"        pdepth = depth; ph = h;\n" +
+	"        uv += step;\n" +
+	"        depth += 1.0 / float(N);\n" +
+	"        h = 1.0 - textureGrad(hm, uv, duv1, duv2).r;\n" +
+	"    }\n" +
+	"    /* Between the last two steps, where the ray crossed. */\n" +
+	"    float a = h - depth, b = ph - pdepth;\n" +
+	"    float w = (abs(a - b) > 1e-5) ? clamp(a / (a - b), 0.0, 1.0) : 0.0;\n" +
+	"    return(mix(uv, uv - step, w));\n" +
+	"}\n");
+
+    private static ShaderMacro mkpom(float k) {
+	return(prog -> {
+		Tex2D tex = prog.getmod(Tex2D.class);
+		if((tex == null) || (tex.tex2d == null))
+		    return;
+		pomfn.define(prog.fctx);
+		tex.texcoord().mod(in -> pomfn.call(in, Homo3D.frageyev.ref(), uheight.ref(), Cons.l(k)), 10);
+	    });
+    }
+
+    private static final Map<Float, ShaderMacro> pmacros = new HashMap<>();
+
     private static ShaderMacro macro(float k) {
+	if(parallax) {
+	    synchronized(pmacros) {
+		return(pmacros.computeIfAbsent(k, key -> ShaderMacro.compose(mkmacro(uheight, key, false), mkpom(key))));
+	    }
+	}
 	synchronized(macros) {
 	    return(macros.computeIfAbsent(k, key -> mkmacro(uheight, key, false)));
 	}
@@ -548,11 +622,12 @@ public class GroundRelief {
 	};
 
     /* Returns whether anything changed (and programs must be rebuilt). */
-    public static boolean set(boolean ground, float k, boolean objs, float ok) {
+    public static boolean set(boolean ground, float k, boolean objs, float ok, boolean pom) {
 	k = Math.round(k * 20) / 20.0f;
 	ok = Math.round(ok * 20) / 20.0f;
 	boolean ch = (ground != enabled) || (ground && (k != strength)) ||
-	    (objs != objects) || (objs && (ok != ostrength));
+	    (objs != objects) || (objs && (ok != ostrength)) || (ground && (pom != parallax));
+	parallax = pom;
 	enabled = ground;
 	strength = k;
 	objects = objs;

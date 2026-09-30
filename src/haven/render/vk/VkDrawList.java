@@ -520,6 +520,11 @@ public class VkDrawList implements DrawList {
 
     /* Slots */
 
+    /* A slot's program is still being built (see getprogasync). */
+    static class NotReady extends RuntimeException {
+	public Throwable fillInStackTrace() {return(this);}
+    }
+
     private class DrawSlot {
 	final long sortid = uniqid.getAndIncrement();
 	final Slot<? extends Rendered> bk;
@@ -542,6 +547,18 @@ public class VkDrawList implements DrawList {
 	final int[] tver;
 	private boolean disposed = false;
 
+	/* A placeholder, drawing nothing, while the program builds. */
+	DrawSlot(Slot<? extends Rendered> bk, boolean pending) {
+	    this.bk = bk;
+	    this.prog = null;
+	    this.unis = new UniformSetting[0];
+	    this.uboa = null;
+	    this.ubo = null;
+	    this.uver = new int[0];
+	    this.tver = new int[0];
+	    this.ordersrc = null;
+	}
+
 	DrawSlot(Slot<? extends Rendered> bk) {
 	    this.bk = bk;
 	    GroupPipe bst = bk.state();
@@ -552,7 +569,10 @@ public class VkDrawList implements DrawList {
 		shaders[i] = (st[i] == null) ? null : st[i].shader();
 		shash ^= System.identityHashCode(shaders[i]);
 	    }
-	    this.prog = env.getprog(shash, shaders);
+	    VkProgram prog = env.getprogasync(shash, shaders);
+	    if(prog == null)
+		throw(new NotReady());
+	    this.prog = prog;
 	    prog.lock();
 	    this.unis = new UniformSetting[prog.uniforms.length];
 	    this.uboa = (prog.ubosize > 0) ? new byte[prog.ubosize] : null;
@@ -665,7 +685,8 @@ public class VkDrawList implements DrawList {
 	    }
 	    if(geo != null)
 		geo.put();
-	    prog.unlock();
+	    if(prog != null)
+		prog.unlock();
 	}
 
 	void dispose() {
@@ -732,6 +753,10 @@ public class VkDrawList implements DrawList {
 		if(s.geo == null)
 		    continue;
 		s.refresh();
+		/* A new pipeline is made in the background; the slot
+		 * shows up once it is ready. */
+		if(!s.prog.pipeready(s.key))
+		    continue;
 		g.draw(s.prog, s.key, s.tgt.val, s.dyn.val, s.tex, s.ubo, s.geo);
 	    }
 	}
@@ -754,7 +779,8 @@ public class VkDrawList implements DrawList {
 	    if(!slotmap.containsKey(slot))
 		continue;
 	    try {
-		update(slot);
+		if(!tryupdate(slot))
+		    retry.add(slot);
 	    } catch(Loading l) {
 		/* Keep the current slot until what it waits for is loaded. */
 		retry.add(slot);
@@ -767,7 +793,17 @@ public class VkDrawList implements DrawList {
 	synchronized(this) {
 	    if(disposed)
 		throw(new IllegalStateException());
-	    DrawSlot dslot = new DrawSlot(slot);
+	    /* A slot that cannot be built yet (its program is being
+	     * built, or a texture it uses is still loading) is kept as
+	     * a placeholder drawing nothing and retried each frame; the
+	     * list never throws Loading at those adding to it. */
+	    DrawSlot dslot;
+	    try {
+		dslot = new DrawSlot(slot);
+	    } catch(NotReady | Loading e) {
+		dslot = new DrawSlot(slot, true);
+		stale.add(slot);
+	    }
 	    order.add(dslot);
 	    if(slotmap.put(slot, dslot) != null)
 		throw(new AssertionError());
@@ -787,12 +823,35 @@ public class VkDrawList implements DrawList {
 
     public void update(Slot<? extends Rendered> slot) {
 	synchronized(this) {
-	    DrawSlot dslot = new DrawSlot(slot);
-	    remove(slot);
-	    order.add(dslot);
-	    if(slotmap.put(slot, dslot) != null)
-		throw(new AssertionError());
+	    /* Until the new program is built, or what the slot's
+	     * uniforms wait for has loaded, it keeps drawing as before
+	     * and is retried each frame. */
+	    try {
+		if(!tryupdate(slot))
+		    stale.add(slot);
+	    } catch(Loading l) {
+		stale.add(slot);
+	    }
 	}
+    }
+
+    /* Replaces the slot's drawing; false (keeping the old one) while
+     * its new program is still being built. */
+    private boolean tryupdate(Slot<? extends Rendered> slot) {
+	DrawSlot dslot;
+	try {
+	    dslot = new DrawSlot(slot);
+	} catch(NotReady e) {
+	    return(false);
+	}
+	DrawSlot old = slotmap.remove(slot);
+	if(old == null)
+	    throw(new IllegalStateException(String.format("updating non-present slot (%s)", slot.obj())));
+	order.remove(old);
+	old.dispose();
+	order.add(dslot);
+	slotmap.put(slot, dslot);
+	return(true);
     }
 
     @SuppressWarnings("unchecked")

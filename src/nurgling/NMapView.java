@@ -234,6 +234,15 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.render.NPostFX.Manager postfx = null;
     private nurgling.render.PointShadows pshadows = null;
 
+    /* Graphics options: temporal anti-aliasing nudges the camera by a
+     * fraction of a pixel every frame. */
+    @Override
+    public void basic(Object id, haven.render.Pipe.Op state) {
+        if ((id == Camera.class) && (state != null) && nurgling.render.Temporal.taa)
+            state = haven.render.Pipe.Op.compose(state, nurgling.render.Temporal.jitter(rendersz()));
+        super.basic(id, state);
+    }
+
     /* World positions of the fires near the view (warm point lights),
      * for heat shimmer. */
     private java.util.List<Coord3f> fires() {
@@ -265,12 +274,100 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return (ret);
     }
 
+    /* People and animals standing or moving in water near the view,
+     * as (x, y, strength, distance, vx, vy) in render space, nearest
+     * first, for the rings and wakes spreading around them. */
+    private java.util.List<float[]> waders() {
+        java.util.List<float[]> ret = new java.util.ArrayList<>();
+        if (!nurgling.render.Atmos.waterfx)
+            return (ret);
+        Coord3f cc;
+        try {
+            cc = getcc().invy();
+        } catch (Loading l) {
+            return (ret);
+        }
+        java.util.List<float[]> found = new java.util.ArrayList<>();
+        synchronized (glob.oc) {
+            for (Gob gob : glob.oc) {
+                Coord2d rc = gob.rc;
+                if (rc == null)
+                    continue;
+                double d = Math.hypot(rc.x - cc.x, -rc.y - cc.y);
+                if (d > 250)
+                    continue;
+                if (nurgling.render.TileKinds.kind(nurgling.render.TileKinds.at(glob.map, rc)) != nurgling.render.TileKinds.WATER)
+                    continue;
+                if ((gob.ngob == null) || (gob.ngob.name == null))
+                    continue;
+                String nm = gob.ngob.name;
+                if (!nm.startsWith("gfx/borka/") && !nm.startsWith("gfx/kritter/"))
+                    continue;
+                Moving m = gob.getattr(Moving.class);
+                float vx = 0, vy = 0;
+                if (m instanceof LinMove) {
+                    Coord2d v = ((LinMove) m).v;
+                    if (v != null) {
+                        vx = (float) v.x;
+                        vy = (float) -v.y;
+                    }
+                }
+                found.add(new float[] {(float) rc.x, (float) -rc.y, (m != null) ? 1.0f : 0.3f, (float) d, vx, vy});
+            }
+        }
+        found.sort(java.util.Comparator.comparingDouble(o -> o[3]));
+        for (int i = 0; (i < found.size()) && (i < 8); i++)
+            ret.add(found.get(i));
+        return (ret);
+    }
+
+    /* Photo mode: focus on the clicked point of the map. */
+    private void photofocus(Coord2d mc) {
+        try {
+            float z = (float) glob.map.getcz(mc);
+            haven.render.Camera cam = basic.state().get(haven.render.Homo3D.cam);
+            if (cam == null)
+                return;
+            float[] e = cam.fin(Matrix4f.id).mul4(new float[] {(float) mc.x, (float) -mc.y, z, 1});
+            nurgling.render.Photo.focus = Math.max(1, -e[2]);
+        } catch (Loading l) {
+        }
+    }
+
+    private Tex photohint = null;
+
+    /* Photo mode's hint, fading out after a few seconds. */
+    private void drawphoto(GOut g) {
+        if (!nurgling.render.Photo.on)
+            return;
+        double t = Utils.rtime() - nurgling.render.Photo.since;
+        if (t > 6)
+            return;
+        if (photohint == null)
+            photohint = new Text.Foundry(Text.sans, 14).aa(true).renderstroked(nurgling.i18n.L10n.get("photo.hint"), java.awt.Color.WHITE, java.awt.Color.BLACK).tex();
+        float a = (float) Math.min(1, (6 - t) / 1.5);
+        g.chcolor(255, 255, 255, (int) (a * 255));
+        g.aimage(photohint, new Coord(sz.x / 2, UI.scale(40)), 0.5, 0);
+        g.chcolor();
+    }
+
+    @Override
+    public boolean mousewheel(MouseWheelEvent ev) {
+        /* Photo mode: shift and the wheel set how soft the blur is. */
+        if (nurgling.render.Photo.on && ui.modshift) {
+            float a = nurgling.render.Photo.aperture * (float) Math.pow(1.15, -ev.a);
+            nurgling.render.Photo.aperture = Math.max(0.15f, Math.min(4f, a));
+            return (true);
+        }
+        return (super.mousewheel(ev));
+    }
+
     /* Graphics options: dust, fireflies and blowing leaves around the view. */
     private nurgling.render.AmbientFX ambient = null;
     private RenderTree.Slot s_ambient = null;
 
     private void updambient() {
-        boolean want = nurgling.render.AmbientFX.enabled;
+        boolean want = nurgling.render.AmbientFX.any();
         if (want && (ambient == null)) {
             ambient = new nurgling.render.AmbientFX(this);
             try {
@@ -344,10 +441,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             });
         postfx.sync(g.out.env());
         updpshadows();
-        postfx.tick(this, (amblight == null) ? -1 : lights.index(amblight), fires());
+        postfx.tick(this, g.out, (amblight == null) ? -1 : lights.index(amblight), fires(), waders());
         updambient();
 
         super.draw(g);
+        drawphoto(g);
         synchronized (dummys) {
             for (Gob dummy : dummys.values()) {
                 dummy.gtick(g.out);
@@ -1504,6 +1602,20 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     @Override
     public boolean mousedown(MouseDownEvent ev)
     {
+        /* Photo mode: a left click sets the focus; the camera's own
+         * (middle) button still works; nothing else reaches the game. */
+        if (nurgling.render.Photo.on) {
+            if (ev.b == 1) {
+                new Hittest(ev.c) {
+                    protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+                        photofocus(mc);
+                    }
+                }.run();
+                return (true);
+            }
+            if (ev.b != 2)
+                return (true);
+        }
         // Block all clicks in DRAG mode to prevent character movement during UI adjustment
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
@@ -1829,6 +1941,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     public boolean keydown(KeyDownEvent ev) {
+        if (nurgling.render.Photo.on && (ev.code == java.awt.event.KeyEvent.VK_ESCAPE)) {
+            if (ui.gui instanceof NGameUI)
+                ((NGameUI) ui.gui).photomode(false);
+            return (true);
+        }
         if(ev.code == 16) {
             shiftPressed = true;
         }

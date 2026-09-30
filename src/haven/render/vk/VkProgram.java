@@ -706,7 +706,8 @@ public class VkProgram extends VkObject {
 	final BlendMode[] blend;
 	final int[] cmask;
 	private final int hash;
-	long pipe = 0;
+	volatile long pipe = 0;
+	boolean building = false;
 
 	PipeKey(VkProgram prog, VertexKey vk, int topo, int[] cfmt, int dfmt, BlendMode[] blend, int[] cmask) {
 	    this.prog = prog;
@@ -785,10 +786,31 @@ public class VkProgram extends VkObject {
 	VK_DYNAMIC_STATE_DEPTH_COMPARE_OP, VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE,
     };
 
-    /* Render thread only */
+    /* Whether key's pipeline is made; if not, it is started on the
+     * compiler threads. For draw lists, which skip a draw until then. */
+    boolean pipeready(PipeKey key) {
+	if(key.pipe != 0)
+	    return(true);
+	synchronized(key) {
+	    if(!key.building) {
+		key.building = true;
+		env.builders.submit(() -> pipeline(key));
+	    }
+	}
+	return(false);
+    }
+
     long pipeline(PipeKey key) {
 	if(key.pipe != 0)
 	    return(key.pipe);
+	synchronized(key) {
+	    if(key.pipe != 0)
+		return(key.pipe);
+	    return(mkpipeline(key));
+	}
+    }
+
+    private long mkpipeline(PipeKey key) {
 	VertexKey vk = key.vk;
 	try(MemoryStack st = stackPush()) {
 	    VkPipelineShaderStageCreateInfo.Buffer stages = VkPipelineShaderStageCreateInfo.calloc(2, st);

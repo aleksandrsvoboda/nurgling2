@@ -325,6 +325,9 @@ public class NPostFX {
 	private SceneFX.TiltShift tilt;
 	private SceneFX.Heat heat;
 	private SceneFX.Shafts shafts;
+	private Temporal.TAA taa;
+	private Temporal.AutoExposure autoexp;
+	private SceneFX.DoF dof;
 	private NGfx.Settings cur = null;
 
 	/* rebasic re-applies the view's basic states, so that the
@@ -384,7 +387,10 @@ public class NPostFX {
 	    clar = toggle(clar, s.clarity, Clarity::new);
 	    if(clar != null)
 		clar.amount = s.claritystrength;
-	    boolean rp = GroundRelief.set(s.relief, s.reliefstrength, s.objrelief, s.objreliefstrength);
+	    boolean rp = GroundRelief.set(s.relief, s.reliefstrength, s.objrelief, s.objreliefstrength, s.parallax);
+	    boolean wfx = s.waterfx && s.water;
+	    rp |= (wfx != Atmos.waterfx);
+	    Atmos.waterfx = wfx;
 	    rp |= FireFX.set(s.fire, s.smoke, s.hdr());
 	    rp |= Atmos.set(s.clouds, s.wet, s.glow, s.water, s.sway);
 	    hist = toggle(hist, s.water || s.smoke, () -> new SceneFX.History(view));
@@ -398,7 +404,12 @@ public class NPostFX {
 	    cur = s;
 	    if(rp)
 		reprog.run();
-	    fxaa = toggle(fxaa, s.fxaa, FXAA::new);
+	    /* TAA smooths edges itself; FXAA on top would only blur. */
+	    fxaa = toggle(fxaa, s.fxaa && !s.taa, FXAA::new);
+	    taa = toggle(taa, s.taa, () -> new Temporal.TAA(view));
+	    Temporal.taa = s.taa;
+	    Temporal.upscale = s.upscale;
+	    autoexp = toggle(autoexp, s.autoexp, Temporal.AutoExposure::new);
 	    sharp = toggle(sharp, s.sharpen, Sharpen::new);
 	    if(sharp != null)
 		sharp.amount = s.sharpness;
@@ -417,19 +428,30 @@ public class NPostFX {
 	/* Per frame: the values that follow the game world (weather,
 	 * time of day, fires, the sun). fires: world positions of the
 	 * fires in view. */
-	public void tick(MapView mv, int sunidx, java.util.List<Coord3f> fires) {
+	private float snowcover = 0;
+	private Texture2D ringtex = null;
+	private Texture2D.Sampler2D ringsamp = null;
+
+	/* waders: (x, y, strength) in render space, of those in water. */
+	public void tick(MapView mv, Render out, int sunidx, java.util.List<Coord3f> fires, java.util.List<float[]> waders) {
 	    NGfx.Settings s = cur;
 	    if(s == null)
 		return;
+	    dof = toggle(dof, Photo.on, () -> new SceneFX.DoF(view));
 	    double now = Utils.rtime();
 	    float dt = (float)Math.min(Math.max(now - last, 0), 1.0);
 	    last = now;
 	    Glob glob = mv.glob;
 	    DirLight sun = mv.amblight;
-	    boolean raining = false, sclouds = false;
+	    boolean raining = false, sclouds = false, snowing = false;
+	    float rainrate = 0;
 	    for(Glob.Weather w : glob.weather()) {
-		if((w instanceof haven.res.gfx.fx.rain.Rain) && (((haven.res.gfx.fx.rain.Rain)w).rate > 0))
+		if((w instanceof haven.res.gfx.fx.rain.Rain) && (((haven.res.gfx.fx.rain.Rain)w).rate > 0)) {
 		    raining = true;
+		    rainrate = ((haven.res.gfx.fx.rain.Rain)w).rate;
+		}
+		if((w instanceof haven.res.gfx.fx.snow.Snow) && (((haven.res.gfx.fx.snow.Snow)w).rate > 0))
+		    snowing = true;
 		if(w.getClass().getName().endsWith(".Clouds"))
 		    sclouds = true;
 	    }
@@ -438,6 +460,16 @@ public class NPostFX {
 	    wetness += (tgt - wetness) * Math.min(1, dt / ((tgt > wetness) ? 25f : 150f));
 	    if(!s.wet)
 		wetness = 0;
+	    /* Snow settles over about a minute of snowfall and melts
+	     * over several. */
+	    float stgt = (s.snow && snowing) ? 1 : 0;
+	    snowcover += (stgt - snowcover) * Math.min(1, dt / ((stgt > snowcover) ? 50f : 400f));
+	    if(!s.snow)
+		snowcover = 0;
+	    AmbientFX.rainrate = raining ? rainrate : 0;
+	    AmbientFX.lightning = s.lightning;
+	    AmbientFX.steps = s.steps;
+	    AmbientFX.wildlife = s.wildlife;
 	    float[] sdir = {0, 0, 1}, scol = {0, 0, 0}, sky = {0.5f, 0.5f, 0.5f};
 	    if(sun != null) {
 		sdir = sun.dir.clone();
@@ -448,6 +480,27 @@ public class NPostFX {
 	    Atmos.History h = (hist == null) ? null : hist.cur;
 	    Atmos.Env ne = new Atmos.Env((s.clouds && !sclouds && (sunidx >= 0)) ? 0.38f : 0, (wetness > 0.01f) ? wetness : 0, s.glow, s.water,
 					 sunidx, sdir, scol, sky, h);
+	    ne.snow = (snowcover > 0.01f) ? snowcover : 0;
+	    if(Atmos.waterfx) {
+		if(ringtex == null) {
+		    ringtex = new Texture2D(16, 1, DataBuffer.Usage.STREAM, new VectorFormat(4, NumberFormat.FLOAT32), null);
+		    ringsamp = ringtex.sampler();
+		    ringsamp.minfilter(Texture.Filter.NEAREST).magfilter(Texture.Filter.NEAREST);
+		}
+		java.util.List<float[]> ws = waders;
+		out.update(ringtex.image(0), (DataBuffer.Filler<Texture.Image>)(img, env) -> {
+			FillBuffer fb = env.fillbuf(img);
+			java.nio.ByteBuffer bb = fb.push();
+			/* Two texels a source: (x, y, strength, 0), (vx, vy, 0, 0). */
+			for(int i = 0; i < 8; i++) {
+			    float[] w = (i < ws.size()) ? ws.get(i) : null;
+			    bb.putFloat((w == null) ? 0 : w[0]).putFloat((w == null) ? 0 : w[1]).putFloat((w == null) ? 0 : w[2]).putFloat(0);
+			    bb.putFloat((w == null) ? 0 : w[4]).putFloat((w == null) ? 0 : w[5]).putFloat(0).putFloat(0);
+			}
+			return(fb);
+		    });
+		ne.rings = ringsamp;
+	    }
 	    if(!ne.on() && (h == null)) {
 		if(env != null)
 		    view.basic(Atmos.class, null);
@@ -456,8 +509,15 @@ public class NPostFX {
 		env = ne;
 		view.basic(Atmos.class, ne);
 	    }
-	    if(grade != null)
-		grade.tod = s.tod ? todtint(glob, sun, raining) : new float[] {1, 1, 1, 1};
+	    if(grade != null) {
+		float[] tt = s.tod ? todtint(glob, sun, raining) : new float[] {1, 1, 1, 1};
+		/* Lightning lights up the whole scene for a moment. */
+		float fl = AmbientFX.flash;
+		if(fl > 0)
+		    tt = new float[] {tt[0] * (1 + fl * 1.6f), tt[1] * (1 + fl * 1.7f), tt[2] * (1 + fl * 2.0f), tt[3]};
+		grade.tod = tt;
+		grade.expo = (autoexp == null) ? null : autoexp.exposure;
+	    }
 	    if(heat != null)
 		heat.fires = fires;
 	    if(shafts != null) {
@@ -504,12 +564,12 @@ public class NPostFX {
 
     /* Tone mapping and color grading */
 
-    static final RawFunction gradefn = new RawFunction(VEC4, "hv_grade", 5,
-	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec2 v, vec4 tod)\n" +
+    static final RawFunction gradefn = new RawFunction(VEC4, "hv_grade", 6,
+	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec2 v, vec4 tod, sampler2D expo)\n" +
 	"{\n" +
 	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, vignette);\n" +
 	"     * tod = time-of-day tint and saturation */\n" +
-	"    vec3 x = col.rgb * tod.rgb;\n" +
+	"    vec3 x = col.rgb * tod.rgb * texture(expo, vec2(0.5)).r;\n" +
 	"    x = mix(vec3(dot(x, vec3(0.2126, 0.7152, 0.0722))), x, tod.w);\n" +
 	"    if(v.x > 0.5) {\n" +
 	"        x *= g.x;\n" +
@@ -529,13 +589,14 @@ public class NPostFX {
 	"    }\n" +
 	"    return(vec4(clamp(x, 0.0, 1.0), col.a));\n" +
 	"}\n");
-    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC2, 1), gr_tod = u(VEC4, 2);
-    static final ShaderMacro gr_sh = shader(gradefn, gr_g, gr_v, gr_tod);
+    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC2, 1), gr_tod = u(VEC4, 2), gr_expo = u(SAMPLER2D, 3);
+    static final ShaderMacro gr_sh = shader(gradefn, gr_g, gr_v, gr_tod, gr_expo);
 
     public static class Grade extends PostProcessor {
 	boolean grade, vignette;
 	float exposure, contrast, saturation, warmth;
 	volatile float[] tod = {1, 1, 1, 1};
+	volatile Texture2D.Sampler2D expo = null;
 
 	public int order() {return(ORDER_TONEMAP);}
 
@@ -547,7 +608,8 @@ public class NPostFX {
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    blit(g, in, new Pass(gr_sh, new float[] {exposure, contrast, saturation, warmth},
-				 new float[] {grade ? 1 : 0, vignette ? 1 : 0}, tod));
+				 new float[] {grade ? 1 : 0, vignette ? 1 : 0}, tod,
+				 (expo == null) ? Temporal.one() : expo));
 	}
     }
 

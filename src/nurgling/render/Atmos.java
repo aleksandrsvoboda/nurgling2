@@ -29,6 +29,8 @@ import static haven.render.sl.Type.*;
 public class Atmos {
     /* Settings. */
     public static volatile boolean clouds = false, wet = false, glow = false, water = false, sway = false;
+    /* Water details: caustics on the lake bed, rings around waders. */
+    public static volatile boolean waterfx = false;
 
     public static boolean set(boolean clouds, boolean wet, boolean glow, boolean water, boolean sway) {
 	boolean ch = (clouds != Atmos.clouds) || (wet != Atmos.wet) || (glow != Atmos.glow) || (water != Atmos.water) || (sway != Atmos.sway);
@@ -54,8 +56,11 @@ public class Atmos {
     }
 
     public static class Env extends State {
-	/* cover: fair-weather cloud cover, 0 for none. wet: 0..1. */
+	/* cover: fair-weather cloud cover, 0 for none. wet, snow: 0..1. */
 	public final float cover, wet;
+	public float snow = 0;
+	/* Wading rings: a small texture of (x, y, strength, 0) per source. */
+	public Texture2D.Sampler2D rings = null;
 	public final boolean glow, water;
 	public final float[] sundir, suncol, skycol;
 	public final History hist;
@@ -69,16 +74,17 @@ public class Atmos {
 	}
 
 	public boolean on() {
-	    return((cover > 0) || (wet > 0) || glow || water);
+	    return((cover > 0) || (wet > 0) || (snow > 0) || glow || water);
 	}
 
-	public ShaderMacro shader() {return(Shader.get(cover > 0, wet > 0, glow));}
+	public ShaderMacro shader() {return(Shader.get(cover > 0, wet > 0, glow, snow > 0));}
 	public void apply(Pipe p) {p.put(slot, this);}
 
 	/* Whether this differs enough from that to be worth a new state. */
 	public boolean differs(Env that) {
 	    return((that == null) || (Math.abs(cover - that.cover) > 0.02f) || (Math.abs(wet - that.wet) > 0.03f) ||
 		   (glow != that.glow) || (water != that.water) || (hist != that.hist) || (sunidx != that.sunidx) ||
+		   (Math.abs(snow - that.snow) > 0.03f) || (rings != that.rings) ||
 		   diff(sundir, that.sundir, 0.02f) || diff(suncol, that.suncol, 0.03f) || diff(skycol, that.skycol, 0.03f));
 	}
 
@@ -100,6 +106,7 @@ public class Atmos {
     static final Uniform ucover = new Uniform(FLOAT, p -> env(p).cover, slot);
     static final Uniform usunidx = new Uniform(INT, p -> env(p).sunidx, slot);
     static final Uniform uwet = new Uniform(FLOAT, p -> env(p).wet, slot);
+    static final Uniform usnow = new Uniform(FLOAT, p -> env(p).snow, slot);
     static final Uniform ucdir = new Uniform(VEC2, p -> {
 	    float[] d = env(p).sundir;
 	    float zf = 1.0f / (d[2] + 1.1f);
@@ -153,11 +160,26 @@ public class Atmos {
 	"    return(vec4(c, col.a));\n" +
 	"}\n");
 
-    static class Shader implements ShaderMacro {
-	final boolean clouds, wet, glow;
+    /* Settled snow: upward faces turn white, patchy at the edges,
+     * before lighting so it is lit and shadowed like the ground. */
+    static final RawFunction snowfn = new RawFunction(VEC4, "hv_snow", 5,
+	"vec4 hv_snow(vec4 col, vec3 en, vec3 up, vec3 mp, float s)\n" +
+	"{\n" +
+	"    float nl = length(en);\n" +
+	"    if(nl < 0.01)\n" +
+	"        return(col);\n" +
+	"    float face = dot(en / nl, up);\n" +
+	"    float nz = hv_ffbm(vec3(mp.xy * 0.18, 3.7));\n" +
+	"    float cov = smoothstep(0.3, 0.75, face + (nz - 0.5) * 0.5 - (1.0 - s) * 0.9) * min(s * 1.5, 1.0);\n" +
+	"    vec3 sc = vec3(0.9, 0.93, 1.0) * (0.92 + 0.12 * nz);\n" +
+	"    return(vec4(mix(col.rgb, sc, cov * 0.93), col.a));\n" +
+	"}\n");
 
-	Shader(boolean clouds, boolean wet, boolean glow) {
-	    this.clouds = clouds; this.wet = wet; this.glow = glow;
+    static class Shader implements ShaderMacro {
+	final boolean clouds, wet, glow, snow;
+
+	Shader(boolean clouds, boolean wet, boolean glow, boolean snow) {
+	    this.clouds = clouds; this.wet = wet; this.glow = glow; this.snow = snow;
 	}
 
 	public void modify(ProgramContext prog) {
@@ -197,6 +219,11 @@ public class Atmos {
 										    ph.dolight.lvl.ref(), l(0.45))))));
 		    }, 20);
 	    }
+	    if(snow) {
+		snowfn.define(prog.fctx);
+		ValBlock.Value sen = Homo3D.frageyen(prog.fctx);
+		FragColor.fragcol(prog.fctx).mod(in -> snowfn.call(in, sen.depref(), uup.ref(), Homo3D.fragmapv.ref(), usnow.ref()), 200);
+	    }
 	    if(wet) {
 		wetfn.define(prog.fctx);
 		ValBlock.Value en = Homo3D.frageyen(prog.fctx);
@@ -206,18 +233,18 @@ public class Atmos {
 	    }
 	}
 
-	public int hashCode() {return((clouds ? 1 : 0) | (wet ? 2 : 0) | (glow ? 4 : 0));}
+	public int hashCode() {return((clouds ? 1 : 0) | (wet ? 2 : 0) | (glow ? 4 : 0) | (snow ? 8 : 0));}
 	public boolean equals(Object o) {
-	    return((o instanceof Shader) && (((Shader)o).clouds == clouds) && (((Shader)o).wet == wet) && (((Shader)o).glow == glow));
+	    return((o instanceof Shader) && (((Shader)o).hashCode() == hashCode()));
 	}
 
-	private static final Shader[] cache = new Shader[8];
-	static synchronized ShaderMacro get(boolean clouds, boolean wet, boolean glow) {
-	    int i = (clouds ? 1 : 0) | (wet ? 2 : 0) | (glow ? 4 : 0);
+	private static final Shader[] cache = new Shader[16];
+	static synchronized ShaderMacro get(boolean clouds, boolean wet, boolean glow, boolean snow) {
+	    int i = (clouds ? 1 : 0) | (wet ? 2 : 0) | (glow ? 4 : 0) | (snow ? 8 : 0);
 	    if(i == 0)
 		return(null);
 	    if(cache[i] == null)
-		cache[i] = new Shader(clouds, wet, glow);
+		cache[i] = new Shader(clouds, wet, glow, snow);
 	    return(cache[i]);
 	}
     }
@@ -239,6 +266,7 @@ public class Atmos {
 	return((e == null) ? null : e.hist);
     }
 
+    static final Uniform urings = new Uniform(SAMPLER2D, p -> {Env e = p.get(slot); return(((e == null) || (e.rings == null)) ? dummy() : e.rings);}, slot);
     static final Uniform uhcol = new Uniform(SAMPLER2D, p -> {History h = hist(p); return((h == null) ? dummy() : h.col);}, slot);
     static final Uniform uhdep = new Uniform(SAMPLER2D, p -> {History h = hist(p); return((h == null) ? dummy() : h.dep);}, slot);
     static final Uniform uhpp = new Uniform(VEC4, p -> {History h = hist(p); return((h == null) ? new float[4] : h.pp);}, slot);
@@ -287,6 +315,88 @@ public class Atmos {
 	"    return(normalize(n - (tx * (hx - h0) + ty * (hy - h0)) / e * a));\n" +
 	"}\n");
 
+    /* Rings spreading around people and animals in the water. Each
+     * source is two texels: (x, y, strength, 0) and its velocity (vx,
+     * vy, 0, 0), in render space. Someone standing makes concentric
+     * rings; someone moving leaves a wake: rings sent out from where
+     * they were moments ago, still spreading, which together trail
+     * off behind in a V, with a small bow wave in front. */
+    static final RawFunction ringfn = new RawFunction(VEC3, "hv_rings", 5,
+	"vec3 hv_rings(vec3 n, vec3 mp, vec3 up, float t, sampler2D rs)\n" +
+	"{\n" +
+	"    vec3 tx = normalize(cross(up, vec3(0.0, 0.0, 1.0)) + vec3(1e-4));\n" +
+	"    vec3 ty = cross(up, tx);\n" +
+	"    vec2 g = vec2(0.0);\n" +
+	"    for(int i = 0; i < 8; i++) {\n" +
+	"        vec4 s = texelFetch(rs, ivec2(i * 2, 0), 0);\n" +
+	"        if(s.z <= 0.0)\n" +
+	"            continue;\n" +
+	"        vec2 vel = texelFetch(rs, ivec2(i * 2 + 1, 0), 0).xy;\n" +
+	"        float spd = length(vel);\n" +
+	"        vec2 rel = mp.xy - s.xy;\n" +
+	"        if(dot(rel, rel) > 70.0 * 70.0)\n" +
+	"            continue;\n" +
+	"        if(spd < 0.5) {\n" +
+	"            float r = length(rel);\n" +
+	"            if((r < 0.5) || (r > 40.0))\n" +
+	"                continue;\n" +
+	"            float w = cos(r * 1.2 - t * 5.0) * exp(-r * 0.1) * s.z * smoothstep(0.5, 3.0, r);\n" +
+	"            g += (rel / r) * w;\n" +
+	"            continue;\n" +
+	"        }\n" +
+	"        /* Wake: a ring every 0.4 s, spreading at 7 units a second\n" +
+	"         * from where the wader was when it was sent. */\n" +
+	"        float ph = fract(t * 2.5);\n" +
+	"        for(int k = 0; k < 8; k++) {\n" +
+	"            float age = (float(k) + ph) * 0.4;\n" +
+	"            vec2 d = rel + vel * age;\n" +
+	"            float r = length(d);\n" +
+	"            float rad = 0.8 + age * 7.0;\n" +
+	"            float x = r - rad;\n" +
+	"            if(abs(x) > 3.0)\n" +
+	"                continue;\n" +
+	"            float fade = (1.0 - age / 3.2) * (1.0 - age / 3.2);\n" +
+	"            float w = sin(x * 2.1) * exp(-x * x * 0.45) * fade * s.z * 1.4;\n" +
+	"            g += (d / max(r, 0.01)) * w;\n" +
+	"        }\n" +
+	"        /* The bow wave pushed up in front. */\n" +
+	"        vec2 fw = vel / spd;\n" +
+	"        float along = dot(rel, fw), side = dot(rel, vec2(-fw.y, fw.x));\n" +
+	"        float bow = exp(-(along - 1.5) * (along - 1.5) * 0.5 - side * side * 0.12) * min(spd / 10.0, 1.0);\n" +
+	"        g += fw * bow * 0.8;\n" +
+	"    }\n" +
+	"    return(normalize(n + (tx * g.x - ty * g.y) * 0.3));\n" +
+	"}\n");
+
+    /* Caustics: the sunlight focused by the ripples, dancing on the
+     * lake bed, fading with depth. */
+    static final RawFunction causticfn = new RawFunction(VEC4, "hv_caustic", 5,
+	"vec4 hv_caustic(vec4 col, vec3 mp, float t, float depth, vec3 sc)\n" +
+	"{\n" +
+	"    vec2 q = mp.xy * 0.12;\n" +
+	"    float a = 1.0 - abs(hv_ffbm(vec3(q, t * 0.35)) * 2.0 - 1.0);\n" +
+	"    float b = 1.0 - abs(hv_ffbm(vec3(q * 1.3 + vec2(5.2, 1.3), t * 0.28 + 3.0)) * 2.0 - 1.0);\n" +
+	"    float c = pow(a * b, 7.0) * 3.0;\n" +
+	"    float f = (1.0 - smoothstep(0.0, 8.0, depth)) * smoothstep(0.0, 0.4, depth);\n" +
+	"    return(vec4(col.rgb * (1.0 + c * f * sc * 0.8), col.a));\n" +
+	"}\n");
+    private static final ShaderMacro causticsh = prog -> {
+	FireFX.noisedef.define(prog.fctx);
+	causticfn.define(prog.fctx);
+	FragColor.fragcol(prog.fctx).mod(in -> causticfn.call(in, Homo3D.fragmapv.ref(), FrameInfo.time(),
+							     haven.resutil.WaterTile.BottomFog.fragd.ref(), usuncol.ref()), 900);
+    };
+    private static final Map<ShaderMacro, ShaderMacro> caustics = new HashMap<>();
+
+    /* Hook for WaterTile's lake-bed fog. */
+    public static ShaderMacro caustics(ShaderMacro base) {
+	if(!waterfx)
+	    return(base);
+	synchronized(caustics) {
+	    return(caustics.computeIfAbsent(base, b -> ShaderMacro.compose(b, causticsh)));
+	}
+    }
+
     /* The water's surface color: sky reflection by viewing angle,
      * tinted to the time of day, a sun or moon glint, and the shore
      * reflected from the last frame's picture. in holds the game's own
@@ -329,6 +439,10 @@ public class Atmos {
 	"    return(vec4(c, in0.a));\n" +
 	"}\n");
 
+    private static final ShaderMacro ringsh = prog -> {
+	ringfn.define(prog.fctx);
+	Homo3D.frageyen(prog.fctx).mod(in -> ringfn.call(in, Homo3D.fragmapv.ref(), uup.ref(), FrameInfo.time(), urings.ref()), -4);
+    };
     private static final ShaderMacro watersh = prog -> {
 	FireFX.noisedef.define(prog.fctx);
 	FireFX.winddef.define(prog.fctx);
@@ -340,13 +454,15 @@ public class Atmos {
 							   usuncol.ref(), uskycol.ref(), uhcol.ref(), uhdep.ref(), uhpp.ref(), uhpr.ref(),
 							   pick(uhpr.ref(), "z"), uup.ref()), 10);
     };
-    private static final Map<ShaderMacro, ShaderMacro> waters = new HashMap<>();
+    private static final Map<ShaderMacro, ShaderMacro> waters = new HashMap<>(), waterfxs = new HashMap<>();
 
     /* Hook for WaterTile's surface. */
     public static ShaderMacro water(ShaderMacro base) {
 	if(!water)
 	    return(base);
 	synchronized(waters) {
+	    if(waterfx)
+		return(waterfxs.computeIfAbsent(base, b -> ShaderMacro.compose(b, ringsh, watersh)));
 	    return(waters.computeIfAbsent(base, b -> ShaderMacro.compose(b, watersh)));
 	}
     }

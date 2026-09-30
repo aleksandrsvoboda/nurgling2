@@ -31,6 +31,8 @@ public class PointShadows implements Disposable {
     public static volatile int count = 0, res = 512;
     static final int FACES = 5;
     static final float NEAR = 1.0f, EXCL = 3.0f, MAXREACH = 330f;
+    /* About how far from the view's center the screen reaches. */
+    static final float VIEW = 180f;
     /* Lights set at ground level (braziers, fires) are placed at
      * the flame for their shadows, and their fixture is left out. */
     static final float LOWLIGHT = 4f, LIFT = 7f, FIXTURE = 9f;
@@ -466,6 +468,7 @@ public class PointShadows implements Disposable {
 	final Light light;
 	final int idx;
 	final Coord3f pos;
+	/* dist: the light's score (higher is shadowed first). */
 	final float far, dist, lift;
 	Cand(Light light, int idx, Coord3f pos, float far, float dist, float lift) {
 	    this.light = light; this.idx = idx; this.pos = pos; this.far = far; this.dist = dist; this.lift = lift;
@@ -486,7 +489,10 @@ public class PointShadows implements Disposable {
 		Coord3f pos = Coord3f.of(p[0], p[1], p[2]);
 		float far = reach(pl);
 		float d = pos.dist(cc);
-		if(d > far + 300)
+		/* How much of the light's lit circle reaches into the view
+		 * around cc, times how bright it is. */
+		float reachin = (far + VIEW) - d;
+		if(reachin <= 0)
 		    continue;
 		float lift = 0;
 		if(ground != null) {
@@ -494,10 +500,18 @@ public class PointShadows implements Disposable {
 		    if(pos.z - gz < LOWLIGHT)
 			lift = (gz + LIFT) - pos.z;
 		}
-		cands.add(new Cand(pl, i, pos, far, d, lift));
+		float lum = Math.max(0.05f, (pl.dif[0] + pl.dif[1] + pl.dif[2]) / 3);
+		float score = Math.min(reachin, far) * lum;
+		/* A light already shadowed keeps it unless another is
+		 * clearly better, so shadows do not flick between lights. */
+		for(Shadow sh : shadows) {
+		    if(sh.light == pl)
+			score *= 1.4f;
+		}
+		cands.add(new Cand(pl, i, pos, far, score, lift));
 	    }
 	}
-	cands.sort(Comparator.comparingDouble(c -> c.dist));
+	cands.sort(Comparator.comparingDouble(c -> -c.dist));
 	try(Locked lk = casters.lock()) {
 	    while(shadows.size() > n)
 		shadows.remove(shadows.size() - 1).dispose();
