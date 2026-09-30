@@ -622,6 +622,7 @@ public class VkEnvironment implements Environment {
     }
 
     public void dispose() {
+	builders.shutdownNow();
 	Collection<VkRender> copy;
 	synchronized(submitted) {
 	    copy = new ArrayList<>(submitted);
@@ -1082,6 +1083,76 @@ public class VkEnvironment implements Environment {
 	    }
 	}
 	ptab = ntab;
+    }
+
+    /* Programs and pipelines for the draw lists are built on these
+     * threads, so that a new kind of object appearing does not stall
+     * the frame while its shaders compile; it is drawn once ready. */
+    final java.util.concurrent.ExecutorService builders = java.util.concurrent.Executors.newFixedThreadPool(
+	Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2)), r -> {
+	    Thread t = new HackThread(r, "Vulkan shader compiler");
+	    t.setDaemon(true);
+	    return(t);
+	});
+
+    private static class PKey {
+	final int hash;
+	final ShaderMacro[] shaders;
+	PKey(int hash, ShaderMacro[] shaders) {this.hash = hash; this.shaders = shaders;}
+	public int hashCode() {return(hash);}
+	public boolean equals(Object o) {
+	    return((o instanceof PKey) && (((PKey)o).hash == hash) && Arrays.equals(((PKey)o).shaders, shaders));
+	}
+    }
+    private final Map<PKey, java.util.concurrent.Future<VkProgram>> pendprog = new HashMap<>();
+
+    /* Like getprog, but a program not built yet is built in the
+     * background: null until it is ready. */
+    public VkProgram getprogasync(int hash, ShaderMacro[] shaders) {
+	synchronized(pmon) {
+	    SavedProg s = findprog(hash, shaders);
+	    if(s != null) {
+		s.used = true;
+		return(s.prog);
+	    }
+	}
+	PKey key = new PKey(hash, shaders.clone());
+	java.util.concurrent.Future<VkProgram> f;
+	synchronized(pendprog) {
+	    f = pendprog.get(key);
+	    if(f == null) {
+		pendprog.put(key, builders.submit(() -> {
+			    VkProgram prog = getprog(key.hash, key.shaders);
+			    /* Saved in the program table by now, where the
+			     * next ask finds it; so the entry need not wait to
+			     * be claimed (an object that has left view never
+			     * would). A failed build keeps its entry, so that
+			     * the error reaches the caller. */
+			    synchronized(pendprog) {
+				pendprog.remove(key);
+			    }
+			    return(prog);
+			}));
+		return(null);
+	    }
+	    if(!f.isDone())
+		return(null);
+	    pendprog.remove(key);
+	}
+	try {
+	    return(f.get());
+	} catch(java.util.concurrent.ExecutionException e) {
+	    Throwable c = e.getCause();
+	    if(c instanceof RuntimeException)
+		throw((RuntimeException)c);
+	    if(c instanceof Error)
+		throw((Error)c);
+	    throw(new RuntimeException(c));
+	} catch(InterruptedException e) {
+	    /* Not reached: the future is done. */
+	    Thread.currentThread().interrupt();
+	    return(null);
+	}
     }
 
     public VkProgram getprog(int hash, ShaderMacro[] shaders) {

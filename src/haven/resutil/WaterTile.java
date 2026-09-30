@@ -577,7 +577,8 @@ public class WaterTile extends Tiler {
 	    };
 	}
 
-	public ShaderMacro shader() {return(shader);}
+	/* Nurgling: caustics on the lake bed (a graphics option). */
+	public ShaderMacro shader() {return(nurgling.render.Atmos.caustics(shader));}
     }
     public static final BottomFog waterfog = new BottomFog();
     public static final BottomFog deepfog = new BottomFog(col3(BottomFog.deepfogcolor));

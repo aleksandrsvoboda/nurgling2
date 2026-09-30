@@ -126,7 +126,6 @@ public class NGob
     private static final NAlias BORKA_ALIAS = new NAlias("borka");
     private static final NAlias PLANTS_ALIAS = new NAlias("plants");
     private static final NAlias GARDEN_POT_ALIAS = new NAlias("gardenpot");
-    private static final NAlias MINEBEAM_ALIAS = new NAlias(new ArrayList<>(Arrays.asList("minebeam", "column", "towercap", "ladder", "minesupport")), new ArrayList<>(Arrays.asList("stump", "wrack", "log")));
     private static final NAlias MOUNDBED_ALIAS = new NAlias("gfx/terobjs/moundbed");
     private static final NAlias IGNORED_ARCH = new NAlias("-door", "arch/hwall");
     private static final NAlias KRITTER_ALIAS = new NAlias("kritter");
@@ -879,26 +878,14 @@ public class NGob
                         gardenPotMarkerAdded = true;
                     }
 
-                    if (NParser.checkName(name, MINEBEAM_ALIAS))
-                        {
-                            switch (name)
-                            {
-                                case "gfx/terobjs/map/naturalminesupport":
-                                    parent.addcustomol(new NMiningSupport(parent, 92));
-                                    break;
-                                case "gfx/terobjs/ladder":
-                                case "gfx/terobjs/minesupport":
-                                case "gfx/terobjs/trees/towercap":
-                                    parent.addcustomol(new NMiningSupport(parent, 100));
-                                    break;
-                                case "gfx/terobjs/minebeam":
-                                    parent.addcustomol(new NMiningSupport(parent, 150));
-                                    break;
-                                case "gfx/terobjs/column":
-                                    parent.addcustomol(new NMiningSupport(parent, 125));
-                                    break;
-                            }
-                        }
+                    NMiningSupport.Spec mineSpec = NMiningSupport.specFor(name);
+                    if (mineSpec != null)
+                    {
+                        if (mineSpec.isRect())
+                            parent.addcustomol(new NMiningSupport(parent, mineSpec.widthTiles, mineSpec.lengthTiles));
+                        else
+                            parent.addcustomol(new NMiningSupport(parent, mineSpec.circleRadius));
+                    }
                         if (name.contains("gfx/terobjs/dframe") || name.contains("gfx/terobjs/cheeserack"))
                         {
                             customMask = true;

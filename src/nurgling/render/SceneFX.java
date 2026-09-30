@@ -240,6 +240,60 @@ public class SceneFX {
 	}
     }
 
+    /* Depth of field for photo mode: what is nearer or further than
+     * the focus goes soft, gathered from a disk sized by the blur. */
+    static final RawFunction doffn = new RawFunction(VEC4, "hv_dof", 6, DEPTHLIB +
+	"float hv_coc(float d, vec2 fa)\n" +
+	"{\n" +
+	"    return(clamp(abs(d - fa.x) / max(fa.x * 0.55, 1.0), 0.0, 1.0));\n" +
+	"}\n" +
+	"vec4 hv_dof(vec4 col, vec2 tc, sampler2D src, sampler2D dep, vec4 pp, vec2 fa)\n" +
+	"{\n" +
+	"    /* fa = (focus distance, blur radius in pixels) */\n" +
+	"    ivec2 sz = textureSize(dep, 0);\n" +
+	"    vec2 px = 1.0 / vec2(textureSize(src, 0));\n" +
+	"    float d = hv_lindist(texelFetch(dep, clamp(ivec2(tc * vec2(sz)), ivec2(0), sz - 1), 0).r, pp);\n" +
+	"    float coc = hv_coc(d, fa);\n" +
+	"    vec3 sum = texture(src, tc).rgb;\n" +
+	"    float ws = 1.0;\n" +
+	"    for(int i = 0; i < 32; i++) {\n" +
+	"        float a = float(i) * 2.39996323;\n" +
+	"        float r = sqrt((float(i) + 0.5) / 32.0);\n" +
+	"        vec2 o = vec2(cos(a), sin(a)) * r * fa.y;\n" +
+	"        vec2 st = tc + o * px;\n" +
+	"        float sd = hv_lindist(texelFetch(dep, clamp(ivec2(st * vec2(sz)), ivec2(0), sz - 1), 0).r, pp);\n" +
+	"        float sc = hv_coc(sd, fa);\n" +
+	"        /* A tap counts if its own blur reaches this far; nearer\n" +
+	"         * sharp things do not bleed onto the blurred background. */\n" +
+	"        float reach = ((sd < d) ? sc : max(sc, coc)) * fa.y;\n" +
+	"        float w = clamp(reach - r * fa.y + 1.0, 0.0, 1.0);\n" +
+	"        sum += texture(src, st).rgb * w;\n" +
+	"        ws += w;\n" +
+	"    }\n" +
+	"    return(vec4(sum / ws, 1.0));\n" +
+	"}\n");
+    static final Uniform df_src = u(SAMPLER2D, 0), df_dep = u(SAMPLER2D, 1), df_pp = u(VEC4, 2), df_fa = u(VEC2, 3);
+    static final ShaderMacro df_sh = shader(doffn, df_src, df_dep, df_pp, df_fa);
+
+    public static class DoF extends PostProcessor {
+	final Depth depth;
+
+	public DoF(PView view) {this.depth = new Depth(view);}
+
+	public int order() {return(-85);}
+
+	public void run(GOut g, Texture2D.Sampler2D in) {
+	    Texture2D.Sampler2D ds = depth.samp();
+	    float f = Photo.focus;
+	    if(!Photo.on || (f <= 0) || (ds == null)) {
+		g.image(new TexRaw(in, true), Coord.z, g.sz());
+		return;
+	    }
+	    float r = 9f * Photo.aperture * (in.tex.sz().y / 1080f + 0.4f);
+	    blit(g, in, new Pass(df_sh, in, ds, depth.projparams()[0], new float[] {f, r}));
+	}
+    }
+
     /* Light shafts: sunlight scattered in the air, marched through
      * the sun's shadow map, so it streams between trees and past
      * buildings when the sun is low. */

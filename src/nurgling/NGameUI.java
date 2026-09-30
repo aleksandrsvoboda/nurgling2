@@ -1202,8 +1202,45 @@ public class NGameUI extends GameUI
         return super.keydown(ev);
     }
 
+    /* Photo mode (a graphics option, Vulkan only): hides the
+     * interface for screenshots; see nurgling.render.Photo. */
+    public static final KeyBinding kb_photo = KeyBinding.get("photo-mode", KeyMatch.forchar('P', KeyMatch.C | KeyMatch.S));
+    private final java.util.List<Widget> photohidden = new java.util.ArrayList<>();
+
+    public void photomode(boolean on) {
+        if (on == nurgling.render.Photo.on)
+            return;
+        if (on) {
+            if ((ui == null) || !nurgling.render.NGfx.supported(ui.getenv())) {
+                msg(nurgling.i18n.L10n.get("photo.novulkan"));
+                return;
+            }
+            photohidden.clear();
+            for (Widget w = child; w != null; w = w.next) {
+                if ((w != map) && w.visible) {
+                    photohidden.add(w);
+                    w.hide();
+                }
+            }
+            nurgling.render.Photo.focus = 0;
+            nurgling.render.Photo.since = Utils.rtime();
+            nurgling.render.Photo.on = true;
+            if (map != null)
+                setfocus(map);
+        } else {
+            nurgling.render.Photo.on = false;
+            for (Widget w : photohidden)
+                w.show();
+            photohidden.clear();
+        }
+    }
+
     @Override
     public boolean globtype(GlobKeyEvent ev) {
+        if (kb_photo.key().match(ev.awt)) {
+            photomode(!nurgling.render.Photo.on);
+            return true;
+        }
         nurgling.sessions.SessionManager sm = nurgling.sessions.SessionManager.getInstance();
 
         // Check session switching keybindings

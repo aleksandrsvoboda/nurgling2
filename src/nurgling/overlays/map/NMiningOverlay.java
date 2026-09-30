@@ -15,6 +15,7 @@ public class NMiningOverlay extends NOverlay
 {
     public Gob dummy = null;
     Coord2d oldDummy = null;
+    double oldDummyA = Double.NaN;
     final ArrayList<Long> curGobs = new ArrayList<>();
 
     public NMiningOverlay()
@@ -85,7 +86,51 @@ public class NMiningOverlay extends NOverlay
         super.tick();
     }
 
-    boolean[][] buf2;
+    /* The support coverage over one map section (padded by a tile on
+     * each side), built for each section on its own: sections are
+     * built on separate worker threads, so a mask kept on the overlay
+     * could be replaced by another section's between makenol and
+     * makenolol. */
+    private boolean[][] maskForCut(MapMesh mm)
+    {
+        boolean[][] buf2 = new boolean[mm.sz.x + 2][mm.sz.y + 2];
+        if (!Boolean.TRUE.equals(NConfig.get(NConfig.Key.miningol)))
+            return buf2;
+        ArrayList<Long> snapshot;
+        synchronized (curGobs) {
+            snapshot = new ArrayList<>(curGobs);
+        }
+        for (Long id : snapshot) {
+            Gob g = Finder.findGob(id);
+            if (g == null)
+                continue;
+            NMiningSupport nms = null;
+            for (Gob.Overlay ol : g.ols) {
+                if (ol.spr instanceof NMiningSupport) {
+                    nms = (NMiningSupport) ol.spr;
+                    break;
+                }
+            }
+            if (nms == null)
+                continue;
+            NMiningSupport.Mask mask = nms.getMask();
+            if ((mask == null) || (mask.data == null))
+                continue;
+            int x0 = Math.max(0, mask.begin.x - mm.ul.x + 1), x1 = Math.min(mm.sz.x + 2, mask.end.x - mm.ul.x + 1);
+            int y0 = Math.max(0, mask.begin.y - mm.ul.y + 1), y1 = Math.min(mm.sz.y + 2, mask.end.y - mm.ul.y + 1);
+            for (int x = x0; x < x1; x++) {
+                int sx = x + mm.ul.x - 1 - mask.begin.x;
+                if (sx >= mask.data.length)
+                    continue;
+                for (int y = y0; y < y1; y++) {
+                    int sy = y + mm.ul.y - 1 - mask.begin.y;
+                    if ((sy < mask.data[sx].length) && mask.data[sx][sy])
+                        buf2[x][y] = true;
+                }
+            }
+        }
+        return buf2;
+    }
 
     public RenderTree.Node makenol(MapMesh mm, Long grid_id, Coord grid_ul)
     {
@@ -105,39 +150,7 @@ public class NMiningOverlay extends NOverlay
         }
         Coord t = new Coord();
         Buf buf = new Buf();
-//        NArea.VArea space = NUtils.getArea(id).space.space.get(grid_id);
-//        Area curArea = space.area.xl(grid_ul);
-        buf2 = new boolean[mm.sz.x + 2][mm.sz.y + 2];
-        if((Boolean)NConfig.get(NConfig.Key.miningol)) {
-            ArrayList<Long> snapshot;
-            synchronized (curGobs) {
-                snapshot = new ArrayList<>(curGobs);
-            }
-            for (Long id : snapshot) {
-                Gob g = Finder.findGob(id);
-
-                if (g != null && g.findol(NMiningSupport.class) != null) {
-                    NMiningSupport nms = (NMiningSupport) g.findol(NMiningSupport.class).spr;
-                    Coord beg = nms.begin.sub(mm.ul.sub(1, 1));
-                    Coord en = nms.end.sub(mm.ul.sub(1, 1));
-                    boolean[][] data = nms.getData();
-                    if ((beg.x >= 0 && beg.x <= mm.sz.x + 2 ||
-                            en.x >= 0 && en.x <= mm.sz.x + 2) &&
-                            (beg.y >= 0 && beg.y <= mm.sz.y + 2 ||
-                                    en.y >= 0 && en.y <= mm.sz.y + 2)) {
-                        for (t.y = Math.max(beg.y, 0); t.y < Math.min(en.y, mm.sz.y + 2); t.y++) {
-                            for (t.x = Math.max(beg.x, 0); t.x < Math.min(en.x, mm.sz.x + 2); t.x++) {
-                                int dx = t.x - beg.x;
-                                int dy = t.y - beg.y;
-                                if (data.length > dx && data[dx].length > dy && data[dx][dy]) {
-                                    buf2[t.x][t.y] = data[dx][dy];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        boolean[][] buf2 = maskForCut(mm);
 
         for (t.y = 0; t.y < mm.sz.y; t.y++)
         {
@@ -196,6 +209,7 @@ public class NMiningOverlay extends NOverlay
             }
         }
         Area a = Area.sized(mm.ul, mm.sz);
+        boolean[][] buf2 = maskForCut(mm);
 
         Buf buf = new Buf();
         for(Coord t : a) {
@@ -264,11 +278,15 @@ public class NMiningOverlay extends NOverlay
         {
             res = true;
             oldDummy = null;
+            oldDummyA = Double.NaN;
         }
-        if(dummy!= null && (oldDummy==null || !oldDummy.equals(dummy.rc.x,dummy.rc.y)))
+        /* A placement preview moved, or turned (a tunnel's coverage
+         * turns with it). */
+        if(dummy!= null && (oldDummy==null || !oldDummy.equals(dummy.rc.x,dummy.rc.y) || (dummy.a != oldDummyA)))
         {
             res = true;
             oldDummy = new Coord2d(dummy.rc.x, dummy.rc.y);
+            oldDummyA = dummy.a;
         }
 
         if(isVisible!=(Boolean)NConfig.get(NConfig.Key.miningol))

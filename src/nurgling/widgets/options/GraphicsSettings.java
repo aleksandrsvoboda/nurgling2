@@ -67,16 +67,20 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.warmth", -100, 100, s -> s.warmth, "warmth", 100);
 	prev = check(cont, prev, "gfx.vignette", s -> s.vignette, "vignette");
 	prev = check(cont, prev, "gfx.tod", s -> s.tod, "tod");
+	prev = check(cont, prev, "gfx.autoexp", s -> s.autoexp, "autoexp");
 	prev = check(cont, prev, "gfx.clarity", s -> s.clarity, "clarity");
 	prev = slider(cont, prev, "gfx.claritystrength", 0, 100, s -> s.claritystrength, "claritystrength", 100);
 
 	/* Image quality */
 	prev = section(cont, prev, "gfx.sec.image");
 	prev = check(cont, prev, "gfx.fxaa", s -> s.fxaa, "fxaa");
+	prev = check(cont, prev, "gfx.taa", s -> s.taa, "taa");
 	prev = check(cont, prev, "gfx.sharpen", s -> s.sharpen, "sharpen");
 	prev = slider(cont, prev, "gfx.sharpness", 0, 100, s -> s.sharpness, "sharpness", 100);
 	prev = choice(cont, prev, "gfx.aniso", new String[] {"gfx.off", "4x", "8x", "16x"}, new int[] {1, 4, 8, 16}, s -> s.aniso, "aniso");
 	prev = cont.add(new Label(L10n.get("gfx.aniso.note")), prev.pos("bl").adds(15, 2));
+	prev = check(cont, prev, "gfx.upscale", s -> s.upscale, "upscale");
+	prev = rscale(cont, prev);
 	prev = check(cont, prev, "gfx.tilt", s -> s.tilt, "tilt");
 	prev = slider(cont, prev, "gfx.tiltstrength", 20, 250, s -> s.tiltstrength, "tiltstrength", 100);
 
@@ -87,6 +91,7 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.aostrength", 20, 200, s -> s.aostrength, "aostrength", 100);
 	prev = check(cont, prev, "gfx.relief", s -> s.relief, "relief");
 	prev = slider(cont, prev, "gfx.reliefstrength", 20, 300, s -> s.reliefstrength, "reliefstrength", 100);
+	prev = check(cont, prev, "gfx.parallax", s -> s.parallax, "parallax");
 	prev = check(cont, prev, "gfx.objrelief", s -> s.objrelief, "objrelief");
 	prev = slider(cont, prev, "gfx.objreliefstrength", 10, 200, s -> s.objreliefstrength, "objreliefstrength", 100);
 	prev = check(cont, prev, "gfx.softshadow", s -> s.softshadow, "softshadow");
@@ -105,8 +110,14 @@ public class GraphicsSettings extends Panel {
 	prev = check(cont, prev, "gfx.water", s -> s.water, "water");
 	prev = check(cont, prev, "gfx.clouds", s -> s.clouds, "clouds");
 	prev = check(cont, prev, "gfx.wet", s -> s.wet, "wet");
+	prev = check(cont, prev, "gfx.waterfx", s -> s.waterfx, "waterfx");
+	prev = check(cont, prev, "gfx.snow", s -> s.snow, "snow");
+	prev = check(cont, prev, "gfx.lightning", s -> s.lightning, "lightning");
 	prev = check(cont, prev, "gfx.sway", s -> s.sway, "sway");
 	prev = check(cont, prev, "gfx.particles", s -> s.particles, "particles");
+	prev = check(cont, prev, "gfx.steps", s -> s.steps, "steps");
+	prev = check(cont, prev, "gfx.wildlife", s -> s.wildlife, "wildlife");
+	prev = cont.add(new Label(L10n.get("gfx.photo")), new Coord(UI.scale(5), prev.pos("bl").y + UI.scale(8)));
 	prev = check(cont, prev, "gfx.shafts", s -> s.shafts, "shafts");
 	cont.pack();
     }
@@ -140,6 +151,47 @@ public class GraphicsSettings extends Panel {
 		sl.val = Math.round(get.apply(NGfx.get()) * scale);
 		vlbl.settext(String.format("%.2f", sl.val / (double)scale));
 	    });
+	return(lbl);
+    }
+
+    /* The game's own render scale (also in the video options): below
+     * 100%, the picture is rendered smaller and scaled up. */
+    private Widget rscale(Widget cont, Widget prev) {
+	Widget lbl = cont.add(new Label(L10n.get("gfx.rscale")), new Coord(UI.scale(25), prev.pos("bl").y + UI.scale(4)));
+	float[] vals = {1.0f, 0.85f, 0.77f, 0.67f, 0.5f};
+	String[] labels = {"100%", "85%", "77%", "67%", "50%"};
+	boolean[] ready = {false};
+	RadioGroup grp = new RadioGroup(cont) {
+		public void changed(int btn, String l) {
+		    if(!ready[0] || (ui == null) || (ui.gprefs == null))
+			return;
+		    try {
+			ui.setgprefs(ui.gprefs.update(null, ui.gprefs.rscale, vals[btn]));
+		    } catch(GSettings.SettingException e) {
+			ui.error(e.getMessage());
+		    }
+		}
+	    };
+	int x = UI.scale(160);
+	for(int i = 0; i < labels.length; i++) {
+	    Widget p = grp.add(labels[i], new Coord(x, lbl.c.y));
+	    x = p.pos("ur").x + UI.scale(10);
+	}
+	Runnable sync = () -> {
+	    if((ui == null) || (ui.gprefs == null))
+		return;
+	    float cur = ui.gprefs.rscale.val;
+	    for(int i = 0; i < vals.length; i++) {
+		if(Math.abs(vals[i] - cur) < 0.02f)
+		    grp.check(i);
+	    }
+	};
+	refresh.add(() -> {
+		ready[0] = false;
+		sync.run();
+		ready[0] = true;
+	    });
+	ready[0] = true;
 	return(lbl);
     }
 

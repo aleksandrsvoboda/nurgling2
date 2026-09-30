@@ -47,6 +47,11 @@ public class NGfx {
 	 * heat shimmer, light shafts, tilt-shift. */
 	public final boolean clouds, tod, wet, glow, sway, particles, heat, shafts, tilt;
 	public final float tiltstrength;
+	/* Temporal anti-aliasing, edge-aware upscaling, auto-exposure;
+	 * snow settling, parallax ground, water details (caustics, wading
+	 * rings), footstep effects, butterflies,
+	 * lightning. */
+	public final boolean taa, upscale, autoexp, snow, parallax, waterfx, steps, wildlife, lightning;
 
 	private Settings(Map<String, Object> m) {
 	    grade = b(m, "grade", false);
@@ -86,6 +91,15 @@ public class NGfx {
 	    shafts = b(m, "shafts", false);
 	    tilt = b(m, "tilt", false);
 	    tiltstrength = f(m, "tiltstrength", 0.8f);
+	    taa = b(m, "taa", false);
+	    upscale = b(m, "upscale", false);
+	    autoexp = b(m, "autoexp", false);
+	    snow = b(m, "snow", false);
+	    parallax = b(m, "parallax", false);
+	    waterfx = b(m, "waterfx", false);
+	    steps = b(m, "steps", false);
+	    wildlife = b(m, "wildlife", false);
+	    lightning = b(m, "lightning", false);
 	    smoke = b(m, "smoke", false);
 	}
 
@@ -106,6 +120,10 @@ public class NGfx {
 	    m.put("clouds", clouds); m.put("tod", tod); m.put("wet", wet); m.put("glow", glow);
 	    m.put("sway", sway); m.put("particles", particles); m.put("heat", heat); m.put("shafts", shafts);
 	    m.put("tilt", tilt); m.put("tiltstrength", tiltstrength);
+	    m.put("taa", taa); m.put("upscale", upscale); m.put("autoexp", autoexp);
+	    m.put("snow", snow);
+	    m.put("parallax", parallax); m.put("waterfx", waterfx); m.put("steps", steps);
+	    m.put("wildlife", wildlife); m.put("lightning", lightning);
 	    return(m);
 	}
 
@@ -168,6 +186,14 @@ public class NGfx {
 	    m.put("particles", on);
 	    m.put("heat", on);
 	    m.put("shafts", ultra);
+	    m.put("taa", on);
+	    m.put("autoexp", on);
+	    m.put("snow", on);
+	    m.put("parallax", on);
+	    m.put("waterfx", on);
+	    m.put("steps", on);
+	    m.put("wildlife", on);
+	    m.put("lightning", on);
 	    return(new Settings(m));
 	}
     }
