@@ -864,14 +864,13 @@ public class MCache implements MapSource {
 	    }
 	}
 
-	public RenderTree.Node getnolcut(Integer id, Coord cc) {
-		// Cache getGameUI() result to avoid race conditions during session switching
-		nurgling.NGameUI gui = NUtils.getGameUI();
-		if(gui == null || gui.map == null || !(gui.map instanceof nurgling.NMapView))
-			return null;
-		nurgling.NMapView mapView = (nurgling.NMapView) gui.map;
-		NOverlay nol = mapView.nols.get(id);
-		boolean requpd = (nol != null && nol.requpdate2);
+	/* nol: the overlay asking, which belongs to this map's session. Not
+	 * looked up through NUtils.getGameUI(): with several sessions that is
+	 * the active one, whose overlay of the same id would build (and
+	 * register) this session's cuts from its own areas. */
+	public RenderTree.Node getnolcut(NOverlay nol, Coord cc) {
+		Integer id = nol.id;
+		boolean requpd = nol.requpdate2;
 		if((areas.get(id)!= null && areas.get(id).grids_id.contains(this.id)) || NMapView.isCustom(id))
 		{
 			Cut cut = geticut(cc);
@@ -899,8 +898,6 @@ public class MCache implements MapSource {
 				}
 				if (!cut.nols.containsKey(id))
 				{
-					if (nol == null)
-						return null;
 					long gid = this.id;
 					Coord gul = ul;
 					RenderTree.Node[] b = cut.build(id, () -> new RenderTree.Node[] {nol.makenol(mm, gid, gul), nol.makenolol(mm, gid, gul)});
@@ -923,11 +920,11 @@ public class MCache implements MapSource {
 	    }
 	}
 
-	public RenderTree.Node getnedgecut(Integer id, Coord cc) {
-		getnolcut(id, cc);
+	public RenderTree.Node getnedgecut(NOverlay nol, Coord cc) {
+		getnolcut(nol, cc);
 		Cut cut = geticut(cc);
 		synchronized(cut) {
-			return(cut.nedgs.get(id));
+			return(cut.nedgs.get(nol.id));
 		}
 	}
 
@@ -1525,15 +1522,15 @@ public class MCache implements MapSource {
 	}
     }
 
-	public RenderTree.Node getnolcut(Integer id, Coord cc) {
+	public RenderTree.Node getnolcut(NOverlay nol, Coord cc) {
 		synchronized(grids) {
-			return(getgrid(cc.div(cutn)).getnolcut(id, cc.mod(cutn)));
+			return(getgrid(cc.div(cutn)).getnolcut(nol, cc.mod(cutn)));
 		}
 	}
 
-	public RenderTree.Node getnedgecut(Integer id, Coord cc) {
+	public RenderTree.Node getnedgecut(NOverlay nol, Coord cc) {
 		synchronized(grids) {
-			return(getgrid(cc.div(cutn)).getnedgecut(id, cc.mod(cutn)));
+			return(getgrid(cc.div(cutn)).getnedgecut(nol, cc.mod(cutn)));
 		}
 	}
 

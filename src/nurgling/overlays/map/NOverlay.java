@@ -10,7 +10,7 @@ import java.util.*;
 
 public class NOverlay extends MapView.MapRaster
 {
-    final Integer id;
+    public final Integer id;
     public boolean requpdate2 = false;
 
     public boolean requpdate(){
@@ -19,12 +19,12 @@ public class NOverlay extends MapView.MapRaster
     Color bc;
     public final Grid base = new Grid<RenderTree.Node>() {
         public RenderTree.Node getcut(Coord cc) {
-            return(map.getnolcut(id, cc));
+            return(map.getnolcut(NOverlay.this, cc));
         }
     };
     public final Grid outl = new Grid<RenderTree.Node>() {
         public RenderTree.Node getcut(Coord cc) {
-            return(map.getnedgecut(id, cc));
+            return(map.getnedgecut(NOverlay.this, cc));
         }
     };
 
