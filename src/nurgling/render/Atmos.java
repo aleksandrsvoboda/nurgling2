@@ -29,6 +29,8 @@ import static haven.render.sl.Type.*;
 public class Atmos {
     /* Settings. */
     public static volatile boolean clouds = false, wet = false, glow = false, water = false, sway = false;
+    /* Settled snow (a setting, like the above). */
+    public static volatile boolean snow = false;
     /* Water details: caustics on the lake bed, rings around waders. */
     public static volatile boolean waterfx = false;
 
@@ -74,10 +76,13 @@ public class Atmos {
 	}
 
 	public boolean on() {
-	    return((cover > 0) || (wet > 0) || (snow > 0) || glow || water);
+	    return(Atmos.clouds || Atmos.wet || Atmos.snow || glow || water);
 	}
 
-	public ShaderMacro shader() {return(Shader.get(cover > 0, wet > 0, glow, snow > 0));}
+	/* The shader follows the settings, not the weather: a shower
+	 * starting or clouds passing only changes values, and never
+	 * makes every lit object's shader be built again. */
+	public ShaderMacro shader() {return(Shader.get(Atmos.clouds, Atmos.wet, glow, Atmos.snow));}
 	public void apply(Pipe p) {p.put(slot, this);}
 
 	/* Whether this differs enough from that to be worth a new state. */
@@ -128,6 +133,8 @@ public class Atmos {
     static final RawFunction cloudfn = new RawFunction(FLOAT, "hv_cloudlit", 4,
 	"float hv_cloudlit(vec3 mp, vec2 cdir, float t, float cover)\n" +
 	"{\n" +
+	"    if(cover <= 0.0)\n" +
+	"        return(1.0);\n" +
 	"    vec2 tc = (mp.xy + mp.z * cdir) / 600.0 + vec2(0.007, -0.004) * t;\n" +
 	"    float c = hv_ffbm(vec3(tc, t * 0.002));\n" +
 	"    c = c * 0.75 + hv_ffbm(vec3(tc * 2.7 + vec2(3.1, 7.7), t * 0.004)) * 0.25;\n" +

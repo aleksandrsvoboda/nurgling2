@@ -393,6 +393,8 @@ public class NPostFX {
 	    Atmos.waterfx = wfx;
 	    rp |= FireFX.set(s.fire, s.smoke, s.hdr());
 	    rp |= Atmos.set(s.clouds, s.wet, s.glow, s.water, s.sway);
+	    rp |= (s.snow != Atmos.snow);
+	    Atmos.snow = s.snow;
 	    hist = toggle(hist, s.water || s.smoke, () -> new SceneFX.History(view));
 	    rp |= FireFX.setsoft(s.smoke && (hist != null));
 	    tilt = toggle(tilt, s.tilt, SceneFX.TiltShift::new);

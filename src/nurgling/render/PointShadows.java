@@ -547,17 +547,16 @@ public class PointShadows implements Disposable {
 		for(RenderList.Slot<? extends Rendered> s : new ArrayList<>(sh.active))
 		    sh.leave(s);
 	    }
-	    if(assign.length == 0) {
-		cur = null;
-		return(null);
-	    }
+	    /* With no light to shadow, the state stays, shadowing no
+	     * light: taking it away would change every lit object's
+	     * shader, which then has to be built anew. */
 	    int[] idx = new int[n];
 	    float[] far = new float[n], lift = new float[n];
 	    Texture2D.Sampler2D[] maps = new Texture2D.Sampler2D[n];
 	    Arrays.fill(idx, -1);
 	    Arrays.fill(far, 1);
 	    for(int i = 0; i < n; i++)
-		maps[i] = assign[i % assign.length].samp;
+		maps[i] = (assign.length > 0) ? assign[i % assign.length].samp : Atmos.dummy();
 	    for(int i = 0; i < assign.length; i++) {
 		idx[i] = cands.get(i).idx;
 		far[i] = cands.get(i).far;

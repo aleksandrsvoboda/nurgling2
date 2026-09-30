@@ -438,15 +438,15 @@ public class MinesweeperSolver {
             Gob.Overlay ol = support.findol(NMiningSupport.class);
             if (ol == null || !(ol.spr instanceof NMiningSupport)) continue;
 
-            NMiningSupport nms = (NMiningSupport) ol.spr;
-            boolean[][] data = nms.getData();
-            if (data == null) continue;
+            NMiningSupport.Mask mask = ((NMiningSupport) ol.spr).getMask();
+            if (mask == null || mask.data == null) continue;
+            boolean[][] data = mask.data;
 
             for (int i = 0; i < data.length; i++) {
                 for (int j = 0; j < data[i].length; j++) {
                     if (data[i][j]) {
-                        int tx = nms.begin.x + i;
-                        int ty = nms.begin.y + j;
+                        int tx = mask.begin.x + i;
+                        int ty = mask.begin.y + j;
                         long k = key(tx, ty);
                         TileState current = states.getOrDefault(k, TileState.UNKNOWN);
                         /* Support coverage outranks every deduction: a tile the solver
