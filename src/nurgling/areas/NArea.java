@@ -428,6 +428,27 @@ public class NArea
         return new Area(begin,end);
     }
 
+    /* The area's tile bounds on map, the given session's map (getArea()
+     * goes through the active session, which may be elsewhere); null if
+     * none of its grids are loaded there. */
+    public Area getArea(MCache map)
+    {
+        Coord begin = null;
+        Coord end = null;
+        for (Map.Entry<Long, VArea> e : space.space.entrySet())
+        {
+            MCache.Grid grid = map.findGrid(e.getKey());
+            if(grid!=null)
+            {
+                Coord b = e.getValue().area.ul.add(grid.ul);
+                Coord en = e.getValue().area.br.add(grid.ul);
+                begin = (begin != null) ? new Coord(Math.min(begin.x, b.x), Math.min(begin.y, b.y)) : b;
+                end = (end != null) ? new Coord(Math.max(end.x, en.x), Math.max(end.y, en.y)) : en;
+            }
+        }
+        return((begin == null) ? null : new Area(begin, end));
+    }
+
     public Pair<Coord2d,Coord2d> getRCArea()
     {
         return getRCArea(true);

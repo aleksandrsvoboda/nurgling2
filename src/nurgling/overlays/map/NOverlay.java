@@ -141,7 +141,9 @@ public class NOverlay extends MapView.MapRaster
                 Coord gc = t.add(mm.ul);
                 if(curArea.contains(gc))
                 {
-                    mm.map.tiler(mm.map.gettile(gc)).lay(mm, t, gc, buf, false);
+                    Tiler tl = mm.map.tiler(mm.map.gettile(gc));
+                    if(tl != null)
+                        tl.lay(mm, t, gc, buf, false);
                 }
             }
         }
@@ -194,7 +196,7 @@ public class NOverlay extends MapView.MapRaster
             return null;
         }
         Area curArea = space.area.xl(grid_ul);
-        Area fullarea = area.getArea();
+        Area fullarea = area.getArea(map);
         if (fullarea == null) {
             return null;
         }
@@ -206,8 +208,11 @@ public class NOverlay extends MapView.MapRaster
                     if(!fullarea.contains(t.add(Coord.uecw[d])))
                         buf.mask |= 1 << d;
                 }
-                if(buf.mask != 0)
-                    mm.map.tiler(mm.map.gettile(t)).lay(mm, t.sub(a.ul), t, buf, false);
+                if(buf.mask != 0) {
+                    Tiler tl = mm.map.tiler(mm.map.gettile(t));
+                    if(tl != null)
+                        tl.lay(mm, t.sub(a.ul), t, buf, false);
+                }
             }
         }
         if(buf.fn == 0)

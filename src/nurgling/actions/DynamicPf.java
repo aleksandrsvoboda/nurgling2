@@ -43,8 +43,13 @@ public class DynamicPf implements Action
         public LinkedList<Graph.Vertex> path;
         public AtomicBoolean ready = new AtomicBoolean(false);
         public NPFMap pfMap;
+        /* The session of the bot that made this worker: it runs on its own
+         * thread, which would otherwise see no session (NUtils.getGameUI()
+         * null) when the bot's session is not the active one. */
+        private final nurgling.NUI ui = NUtils.getUI();
         @Override
         public void run() {
+            nurgling.sessions.ThreadLocalUI.set(ui);
             try {
                 PathFinder pf = (isVirtual) ? new PathFinder(target, isVirtual) : new PathFinder(target);
                 pf.isDynamic = true;
@@ -54,6 +59,8 @@ public class DynamicPf implements Action
                 ready.set(true);
             } catch (InterruptedException e) {
 
+            } finally {
+                nurgling.sessions.ThreadLocalUI.clear();
             }
         }
 
