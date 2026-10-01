@@ -279,6 +279,7 @@ public class NCore extends Widget
                     startPeerPositionSync();
                     startQuestShareSync();
                     startTimerSync();
+                    startForageSync();
                 }
             }
         }
@@ -306,6 +307,10 @@ public class NCore extends Widget
         {
             startTimerSync();
         }
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !forageSyncStarted)
+        {
+            startForageSync();
+        }
 
         if(!(Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null)
         {
@@ -318,6 +323,7 @@ public class NCore extends Widget
                     stopPeerPositionSync();
                     stopQuestShareSync();
                     stopTimerSync();
+                    stopForageSync();
                     databaseManager.shutdown();
                     databaseManager = null;
                 }
@@ -888,6 +894,7 @@ public class NCore extends Widget
     private static volatile boolean peerPositionSyncStarted = false;
     private static volatile boolean questShareSyncStarted = false;
     private static volatile boolean timerSyncStarted = false;
+    private static volatile boolean forageSyncStarted = false;
 
     /**
      * Start periodic area sync from database
@@ -1138,6 +1145,30 @@ public class NCore extends Widget
             svc.startSync(15);
             timerSyncStarted = true;
         }
+    }
+
+    /** Start sharing forage finds with villagers. Same locking as timers, for the same reason. */
+    private void startForageSync() {
+        if (forageSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+            return;
+        }
+        synchronized (dbLock) {
+            if (forageSyncStarted || databaseManager == null || !databaseManager.isReady()) {
+                return;
+            }
+            nurgling.db.service.ForageSyncService svc = databaseManager.getForageSyncService();
+            if (svc == null) return;   // optional migration not run yet; finds stay on their file
+
+            svc.startSync(15);
+            forageSyncStarted = true;
+        }
+    }
+
+    private void stopForageSync() {
+        if (databaseManager != null && databaseManager.getForageSyncService() != null) {
+            databaseManager.getForageSyncService().stopSync();
+        }
+        forageSyncStarted = false;
     }
 
     private void stopTimerSync() {

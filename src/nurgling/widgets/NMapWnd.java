@@ -21,6 +21,7 @@ public class NMapWnd extends MapWnd {
     MapToggleButton oreBtn;
     MapToggleButton gemBtn;
     MapToggleButton stoneBtn;
+    MapToggleButton forageBtn;
     MapToggleButton mapToolsBtn;
     MapToggleButton vectorClearBtn;
     TextEntry markerSearchField;
@@ -82,6 +83,10 @@ public class NMapWnd extends MapWnd {
         stoneBtn = add(new MapToggleButton("stone", L10n.get("maptools.stone_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.STONE)));
         stoneBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.STONE));
         stoneBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.STONE, val));
+
+        forageBtn = add(new MapToggleButton("forage", L10n.get("maptools.forage_icons_tip"), MapToolsWindow::openForageSearch));
+        forageBtn.state(() -> NMiniMap.showForageFinds());
+        forageBtn.set(val -> NMiniMap.showForageFinds(val));
 
         vectorClearBtn = add(new MapToggleButton("vector", "Clear tracking vectors", null));
         vectorClearBtn.a = false; // Always show as unpressed
@@ -428,7 +433,7 @@ public class NMapWnd extends MapWnd {
      * row rather than running off the left edge when the window is small.
      */
     private void layoutMapButtons() {
-        MapToggleButton[] btns = {mapToolsBtn, fishBtn, treeBtn, oreBtn, gemBtn, stoneBtn, vectorClearBtn};
+        MapToggleButton[] btns = {mapToolsBtn, fishBtn, treeBtn, oreBtn, gemBtn, stoneBtn, forageBtn, vectorClearBtn};
         for(MapToggleButton btn : btns) {
             if(btn == null)
                 return;

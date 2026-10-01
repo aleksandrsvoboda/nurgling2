@@ -279,6 +279,10 @@ public class NConfig
         showFishIcons,
         clusterMinedMarks,
         prospectMarks,
+        // Forage finds: picked forageables with their quality
+        showForageFinds,
+        recordForageFinds,
+        forageMinQuality,
         // Localization
         language,
         // Calculators window: cheese rack calculator rows and stage-hour overrides (JSON string)
@@ -352,6 +356,9 @@ public class NConfig
         conf.put(Key.showTreeIcons, true);
         conf.put(Key.showFishIcons, true);
         conf.put(Key.clusterMinedMarks, true);
+        conf.put(Key.showForageFinds, true);
+        conf.put(Key.recordForageFinds, false);
+        conf.put(Key.forageMinQuality, 0);
         conf.put(Key.prospectMarks, new ProspectMarkSettings());
         conf.put(Key.disableWinAnim, true);
         conf.put(Key.disableMenugridKeys, false);
@@ -1144,6 +1151,13 @@ public class NConfig
      */
     public String getResourceTimersPath() {
         return getProfileAwarePath("resource_timers.nurgling.json");
+    }
+
+    /**
+     * Gets the dynamic path for the forage finds file
+     */
+    public String getForageFindsPath() {
+        return getProfileAwarePath("forage_finds.nurgling.json");
     }
 
     /**

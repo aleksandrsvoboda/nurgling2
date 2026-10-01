@@ -1601,6 +1601,17 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             disol(tag);
     }
 
+    /**
+     * Every click on the world reaches the server through here - the player's own, the Q quick action and
+     * every bot helper alike - so this is where the forage recorder learns which gob a flower menu is for.
+     */
+    @Override
+    public void wdgmsg(String msg, Object... args) {
+        if("click".equals(msg) && ui != null && ui.gui != null && ui.gui.forageRecorder != null)
+            ui.gui.forageRecorder.noteMapClick(args);
+        super.wdgmsg(msg, args);
+    }
+
     @Override
     public boolean mousedown(MouseDownEvent ev)
     {

@@ -33,6 +33,7 @@ public class DatabaseManager {
     private nurgling.db.service.PeerPositionDbService peerPositionService;
     private nurgling.db.service.QuestShareDbService questShareService;
     private nurgling.db.service.TimerSyncService timerSyncService;
+    private nurgling.db.service.ForageSyncService forageSyncService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
     private nurgling.db.service.VillagerService villagerService;
@@ -439,6 +440,14 @@ public class DatabaseManager {
                 + "timers stay on their JSON file and are not shared");
         }
 
+        /* Checked like timers. Without it forage finds stay on their JSON file and are not shared. */
+        boolean forageOk = tableUsable("forage_finds");
+        this.forageSyncService = forageOk ? new nurgling.db.service.ForageSyncService(this) : null;
+        if (!forageOk) {
+            System.err.println("[DatabaseManager] forage_finds unavailable; "
+                + "forage finds stay on their JSON file and are not shared");
+        }
+
         boolean mapOk = tableUsable("map_grids")
             && tableUsable("map_grid_placements")
             && tableUsable("map_markers");
@@ -557,6 +566,8 @@ public class DatabaseManager {
                 feature = "Quest sharing";
             } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_TIMERS) {
                 feature = "Timer sharing";
+            } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_FORAGE_FINDS) {
+                feature = "Forage find sharing";
             } else {
                 feature = "Schema update " + e.getKey();
             }
@@ -838,6 +849,11 @@ public class DatabaseManager {
     /** Null when the timers table is missing or unreadable; timers then stay on their file. */
     public nurgling.db.service.TimerSyncService getTimerSyncService() {
         return timerSyncService;
+    }
+
+    /** Null when the forage_finds table is missing or unreadable; finds then stay on their file. */
+    public nurgling.db.service.ForageSyncService getForageSyncService() {
+        return forageSyncService;
     }
 
     public nurgling.db.service.FishLocationDbService getFishLocationService() {

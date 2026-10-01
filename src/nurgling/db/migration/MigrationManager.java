@@ -21,7 +21,7 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 14;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 15;
 
     /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_KIN_SECRETS = 9;
@@ -40,6 +40,9 @@ public class MigrationManager {
 
     /** Version of the migration that creates timers; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_TIMERS = 14;
+
+    /** Version of the migration that creates forage_finds; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_FORAGE_FINDS = 15;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -718,6 +721,47 @@ public class MigrationManager {
                 safeCreateIndex(adapter, "CREATE INDEX idx_timers_deleted ON timers (profile, deleted_at)");
                 safeCreateIndex(adapter, "CREATE INDEX idx_timers_grid ON timers (profile, grid_id)");
                 System.out.println("Created timers table");
+            }
+        });
+
+        /* Optional: forage_finds backs only the shared forage finds on the map, which stay on their JSON
+         * file when the table is missing. A role without CREATE on the schema must not lose area,
+         * planning and recipe sync over it. */
+        migrations.add(new Migration(MIGRATION_FORAGE_FINDS, "Create forage_finds table for shared forageable finds", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (adapter.tableExists("forage_finds")) {
+                    return;
+                }
+                createTable(adapter, "forage_finds",
+                    "CREATE TABLE forage_finds (" +
+                    /* Derived from the place and the picked gob (see nurgling.forage.ForageFind.makeId), so a
+                     * retried upload of one pick stays one row. */
+                    "id VARCHAR(64) PRIMARY KEY, " +
+                    "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                    /* Server grid id plus the tile offset inside it. */
+                    "grid_id BIGINT NOT NULL, " +
+                    "ox INTEGER NOT NULL, " +
+                    "oy INTEGER NOT NULL, " +
+                    "gob_res VARCHAR(255) NOT NULL, " +
+                    "item_res VARCHAR(255), " +
+                    "item_name VARCHAR(255) NOT NULL, " +
+                    "quality DOUBLE PRECISION NOT NULL, " +
+                    "amount INTEGER NOT NULL DEFAULT 1, " +
+                    /* Epoch ms on the picker's clock; only ever shown as a date. */
+                    "found_at BIGINT NOT NULL, " +
+                    "found_by VARCHAR(255), " +
+                    "version INTEGER NOT NULL DEFAULT 1, " +
+                    /* Epoch ms on the database's clock, set on insert and on delete. The delta poll asks
+                     * for rows changed since its last look, so a world with thousands of finds is not
+                     * re-listed every few seconds. */
+                    "changed_at BIGINT NOT NULL DEFAULT 0, " +
+                    "deleted_by VARCHAR(255), " +
+                    "deleted_at TIMESTAMP" +
+                    ")");
+                safeCreateIndex(adapter, "CREATE INDEX idx_forage_changed ON forage_finds (profile, changed_at)");
+                safeCreateIndex(adapter, "CREATE INDEX idx_forage_grid ON forage_finds (profile, grid_id)");
+                System.out.println("Created forage_finds table");
             }
         });
 
