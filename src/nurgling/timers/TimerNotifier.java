@@ -9,7 +9,11 @@ import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
+import nurgling.todo.TodoItem;
+import nurgling.todo.TodoStore;
+import nurgling.widgets.timers.TimerBanners;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -60,14 +64,22 @@ public class TimerNotifier {
 
         boolean onScreen = SessionManager.getInstance().getActiveUI() == gui.ui;
         if(!onScreen) {
-            attention = !store.due(ms).isEmpty();
+            attention = !openTasksOnly(store.due(ms), ms).isEmpty();
             return;
         }
         attention = false;
         if((Boolean) NConfig.get(NConfig.Key.timerCombatQuiet) && inCombat())
             return;   // the banners wait for the fight to end
 
-        List<Timer> due = store.due(ms);
+        // A heads-up is quiet: no sound, no flashing, just the banner.
+        List<Timer> soon = openTasksOnly(store.dueSoon(ms, headsUpMs()), ms);
+        if(!soon.isEmpty()) {
+            store.markSoon(soon);
+            if(gui.timerBanners != null)
+                gui.timerBanners.postDeadlines(TimerBanners.Type.TASK_SOON, soon, false);
+        }
+
+        List<Timer> due = openTasksOnly(store.due(ms), ms);
         if(due.isEmpty()) {
             firstPass = false;
             return;
@@ -76,11 +88,44 @@ public class TimerNotifier {
         boolean away = firstPass && due.stream().allMatch(t -> t.readyAt() < loginAt);
         firstPass = false;
 
-        if(gui.timerBanners != null)
-            gui.timerBanners.post(due, away);
+        if(gui.timerBanners != null) {
+            List<Timer> tasks = new ArrayList<>();
+            List<Timer> others = new ArrayList<>();
+            for(Timer t : due)
+                (t.kind == Timer.Kind.TASK ? tasks : others).add(t);
+            if(!others.isEmpty())
+                gui.timerBanners.post(others, away);
+            if(!tasks.isEmpty())
+                gui.timerBanners.postDeadlines(TimerBanners.Type.TASK_DUE, tasks, away);
+        }
         playSound(due);
         if((Boolean) NConfig.get(NConfig.Key.timerFlashTaskbar))
             requestAttention();
+    }
+
+    /**
+     * Drop task deadlines whose task is no longer open - finished a moment ago, before the deadline was
+     * cleaned up - and all of them while the To-Do list has not finished loading.
+     */
+    private List<Timer> openTasksOnly(List<Timer> timers, long now) {
+        TodoStore todo = gui.todoStore;
+        boolean settled = todo != null && todo.settled();
+        List<Timer> out = new ArrayList<>();
+        for(Timer t : timers) {
+            if(t.kind != Timer.Kind.TASK) {
+                out.add(t);
+                continue;
+            }
+            TodoItem it = settled ? todo.view().items.get(t.taskId) : null;
+            if(it != null && it.isOpen(now))
+                out.add(t);
+        }
+        return out;
+    }
+
+    private static long headsUpMs() {
+        Object v = NConfig.get(NConfig.Key.taskHeadsUpMinutes);
+        return (v instanceof Number) ? ((Number) v).longValue() * 60_000L : 0;
     }
 
     /** Whether this session's tab should carry the timer dot. */

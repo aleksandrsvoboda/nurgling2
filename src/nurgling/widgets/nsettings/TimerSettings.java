@@ -17,6 +17,11 @@ public class TimerSettings extends Panel {
     private final PillButton[] soundButtons = new PillButton[keys.length];
     private final CheckBox flash;
     private final CheckBox combatQuiet;
+    private final TextEntry myCharacters;
+    private final PillButton headsUp;
+    private final CheckBox notifyDone;
+    private static final int[] HEADS_UP_MINUTES = {0, 15, 60, 180};
+    private int headsUpMinutes = 60;
 
     public TimerSettings() {
         super(L10n.get("timers.settings.title"));
@@ -39,6 +44,21 @@ public class TimerSettings extends Panel {
         y += UI.scale(26);
         combatQuiet = add(new CheckBox(L10n.get("timers.settings.combat_quiet")), new Coord(margin, y));
         y += UI.scale(34);
+
+        add(new Label(L10n.get("tasks.settings.heading")), new Coord(margin, y));
+        y += UI.scale(24);
+        add(new Label(L10n.get("tasks.settings.heads_up")), new Coord(margin, y + UI.scale(4)));
+        headsUp = add(new PillButton(L10n.get("tasks.settings.heads_up_button"), true, this::cycleHeadsUp).minWidth(UI.scale(120)),
+            new Coord(margin + UI.scale(200), y));
+        y += UI.scale(30);
+        notifyDone = add(new CheckBox(L10n.get("tasks.settings.notify_done")), new Coord(margin, y));
+        y += UI.scale(30);
+        add(new Label(L10n.get("tasks.settings.my_characters")), new Coord(margin, y));
+        y += UI.scale(20);
+        myCharacters = add(new TextEntry(UI.scale(420), ""), new Coord(margin, y));
+        y += UI.scale(22);
+        add(new Label(L10n.get("tasks.settings.my_characters_help")), new Coord(margin, y));
+        y += UI.scale(34);
         add(new Label(L10n.get("timers.settings.help")), new Coord(margin, y));
     }
 
@@ -49,6 +69,19 @@ public class TimerSettings extends Panel {
         sounds[idx] = all[(cur + 1) % all.length];
         showSound(idx);
         play(idx);
+    }
+
+    private void cycleHeadsUp() {
+        int i = 0;
+        while(i < HEADS_UP_MINUTES.length && HEADS_UP_MINUTES[i] != headsUpMinutes)
+            i++;
+        headsUpMinutes = HEADS_UP_MINUTES[(i + 1) % HEADS_UP_MINUTES.length];
+        showHeadsUp();
+    }
+
+    private void showHeadsUp() {
+        headsUp.suffix(headsUpMinutes == 0 ? L10n.get("tasks.settings.off")
+            : nurgling.timers.TimerDurations.formatShort(headsUpMinutes * 60_000L));
     }
 
     private void play(int idx) {
@@ -70,6 +103,12 @@ public class TimerSettings extends Panel {
         }
         flash.a = Boolean.TRUE.equals(NConfig.get(NConfig.Key.timerFlashTaskbar));
         combatQuiet.a = Boolean.TRUE.equals(NConfig.get(NConfig.Key.timerCombatQuiet));
+        Object hu = NConfig.get(NConfig.Key.taskHeadsUpMinutes);
+        headsUpMinutes = (hu instanceof Number) ? ((Number) hu).intValue() : 60;
+        showHeadsUp();
+        notifyDone.a = Boolean.TRUE.equals(NConfig.get(NConfig.Key.taskNotifyDone));
+        Object mc = NConfig.get(NConfig.Key.timerMyCharacters);
+        myCharacters.settext((mc instanceof String) ? (String) mc : "");
     }
 
     @Override
@@ -78,6 +117,9 @@ public class TimerSettings extends Panel {
             NConfig.set(keys[i], sounds[i]);
         NConfig.set(NConfig.Key.timerFlashTaskbar, flash.a);
         NConfig.set(NConfig.Key.timerCombatQuiet, combatQuiet.a);
+        NConfig.set(NConfig.Key.taskHeadsUpMinutes, headsUpMinutes);
+        NConfig.set(NConfig.Key.taskNotifyDone, notifyDone.a);
+        NConfig.set(NConfig.Key.timerMyCharacters, myCharacters.text().trim());
         NConfig.needUpdate();
     }
 }

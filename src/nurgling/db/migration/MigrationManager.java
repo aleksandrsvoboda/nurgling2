@@ -677,7 +677,8 @@ public class MigrationManager {
             }
         });
 
-        /* Optional: timers backs only village-shared resource timers, map pins and reminders, which
+        /* Optional: timers backs only village-shared resource timers, map pins, reminders and To-Do task
+         * deadlines, which
          * stay on their JSON file when the table is missing. A role without CREATE on the schema must
          * not lose area, planning and recipe sync over it. */
         migrations.add(new Migration(MIGRATION_TIMERS, "Create timers table for shared resource timers, pins and reminders", true) {
@@ -705,6 +706,9 @@ public class MigrationManager {
                     "duration_ms BIGINT NOT NULL, " +
                     "repeat_ms BIGINT NOT NULL DEFAULT 0, " +
                     "set_by VARCHAR(255), " +
+                    /* Task deadlines only: the To-Do item they belong to, and who it is assigned to. */
+                    "task_id INTEGER, " +
+                    "assignee VARCHAR(255), " +
                     "version INTEGER NOT NULL DEFAULT 1, " +
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "last_touched_by VARCHAR(255), " +

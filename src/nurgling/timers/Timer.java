@@ -25,7 +25,9 @@ import java.util.UUID;
  */
 public final class Timer {
     public enum Kind {
-        RESOURCE, PIN, REMINDER;
+        RESOURCE, PIN, REMINDER,
+        /** The deadline of a To-Do task; see {@link nurgling.todo.TaskDeadlines}. */
+        TASK;
 
         public String key() {return name().toLowerCase();}
 
@@ -61,9 +63,19 @@ public final class Timer {
     public final int version;
     public final long legacySeg;
     public final Coord legacyTc;
+    /** The To-Do task a {@link Kind#TASK} timer is the deadline of; 0 for every other kind. */
+    public final int taskId;
+    /** Character the task is assigned to; empty for "anyone" and for every other kind. */
+    public final String assignee;
 
     public Timer(String id, Kind kind, long gridId, int ox, int oy, String resType, String name, String icon, long startedAt, long durationMs, long repeatMs, String setBy, boolean shared,
                  int version, long legacySeg, Coord legacyTc) {
+        this(id, kind, gridId, ox, oy, resType, name, icon, startedAt, durationMs, repeatMs, setBy, shared, version,
+            legacySeg, legacyTc, 0, "");
+    }
+
+    public Timer(String id, Kind kind, long gridId, int ox, int oy, String resType, String name, String icon, long startedAt, long durationMs, long repeatMs, String setBy, boolean shared,
+                 int version, long legacySeg, Coord legacyTc, int taskId, String assignee) {
         this.id = id;
         this.kind = kind;
         this.gridId = gridId;
@@ -80,6 +92,8 @@ public final class Timer {
         this.version = version;
         this.legacySeg = legacySeg;
         this.legacyTc = legacyTc;
+        this.taskId = taskId;
+        this.assignee = (assignee == null) ? "" : assignee;
     }
 
     /** Resource timers are keyed on the spot, so two villagers timing one tar pit end up on one row. */
@@ -110,7 +124,7 @@ public final class Timer {
     /** Same timer, started again now with the given length. */
     public Timer restarted(long now, long duration) {
         return new Timer(id, kind, gridId, ox, oy, resType, name, icon, now, duration, repeatMs, setBy,
-            shared, version, legacySeg, legacyTc);
+            shared, version, legacySeg, legacyTc, taskId, assignee);
     }
 
     /**
@@ -125,27 +139,39 @@ public final class Timer {
             start += skip * repeatMs;
         }
         return new Timer(id, kind, gridId, ox, oy, resType, name, icon, start, repeatMs, repeatMs, setBy,
-            shared, version, legacySeg, legacyTc);
+            shared, version, legacySeg, legacyTc, taskId, assignee);
     }
 
     public Timer withLocation(long gridId, int ox, int oy) {
         return new Timer(id, kind, gridId, ox, oy, resType, name, icon, startedAt, durationMs, repeatMs,
-            setBy, shared, version, 0, null);
+            setBy, shared, version, 0, null, taskId, assignee);
     }
 
     public Timer withVersion(int version) {
         return new Timer(id, kind, gridId, ox, oy, resType, name, icon, startedAt, durationMs, repeatMs,
-            setBy, shared, version, legacySeg, legacyTc);
+            setBy, shared, version, legacySeg, legacyTc, taskId, assignee);
     }
 
     public Timer withDetails(String name, String icon, long repeatMs, boolean shared) {
         return new Timer(id, kind, gridId, ox, oy, resType, name, icon, startedAt, durationMs, repeatMs,
-            setBy, shared, version, legacySeg, legacyTc);
+            setBy, shared, version, legacySeg, legacyTc, taskId, assignee);
+    }
+
+    /** A task deadline following its task: who it is assigned to now, and its current title. */
+    public Timer withTask(String assignee, String name) {
+        return new Timer(id, kind, gridId, ox, oy, resType, name, icon, startedAt, durationMs, repeatMs,
+            setBy, shared, version, legacySeg, legacyTc, taskId, assignee);
+    }
+
+    /** A task deadline's id: one per task per world, the same on every client. */
+    public static String taskTimerId(String genus, int taskId) {
+        String key = "task|" + genus + "|" + taskId;
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     public Timer withId(String id) {
         return new Timer(id, kind, gridId, ox, oy, resType, name, icon, startedAt, durationMs, repeatMs,
-            setBy, shared, version, legacySeg, legacyTc);
+            setBy, shared, version, legacySeg, legacyTc, taskId, assignee);
     }
 
     public JSONObject toJson() {
@@ -176,6 +202,10 @@ public final class Timer {
             j.put("legacyX", legacyTc.x);
             j.put("legacyY", legacyTc.y);
         }
+        if(taskId != 0) {
+            j.put("taskId", taskId);
+            j.put("assignee", assignee);
+        }
         return j;
     }
 
@@ -197,7 +227,9 @@ public final class Timer {
             j.optBoolean("shared", false),
             j.optInt("version", 0),
             j.optLong("legacySeg", 0),
-            legacy);
+            legacy,
+            j.optInt("taskId", 0),
+            j.optString("assignee", ""));
     }
 
     /**

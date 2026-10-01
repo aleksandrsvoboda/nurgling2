@@ -48,7 +48,7 @@ public class TimerDao {
 
     private static final String COLS =
         "id, kind, grid_id, ox, oy, res_type, name, icon, started_at, duration_ms, repeat_ms, " +
-        "set_by, version, deleted_at";
+        "set_by, task_id, assignee, version, deleted_at";
 
     /**
      * Milliseconds to add to this client's clock to get the database's. Players' PC clocks drift by
@@ -74,31 +74,34 @@ public class TimerDao {
         Long gridId = t.hasLocation() ? t.gridId : null;
         Integer ox = t.hasLocation() ? t.ox : null;
         Integer oy = t.hasLocation() ? t.oy : null;
+        Integer taskId = (t.taskId != 0) ? t.taskId : null;
+        String assignee = (t.taskId != 0) ? t.assignee : null;
         if (adapter instanceof PostgresAdapter) {
             /* A stale edit - an older restart arriving after a newer one - leaves the row alone; the
              * WHERE on DO UPDATE makes that a no-op instead of rolling the timer back. A deleted row is
              * always taken over: saving it again is a deliberate re-add. */
             adapter.executeUpdate(
                 "INSERT INTO timers (id, profile, kind, grid_id, ox, oy, res_type, name, icon, " +
-                "started_at, duration_ms, repeat_ms, set_by, version, updated_at, last_touched_by, deleted_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, NULL) " +
+                "started_at, duration_ms, repeat_ms, set_by, task_id, assignee, version, updated_at, last_touched_by, deleted_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, NULL) " +
                 "ON CONFLICT (id) DO UPDATE SET " +
                 "kind = EXCLUDED.kind, grid_id = EXCLUDED.grid_id, ox = EXCLUDED.ox, oy = EXCLUDED.oy, " +
                 "res_type = EXCLUDED.res_type, name = EXCLUDED.name, icon = EXCLUDED.icon, " +
                 "started_at = EXCLUDED.started_at, duration_ms = EXCLUDED.duration_ms, " +
-                "repeat_ms = EXCLUDED.repeat_ms, version = timers.version + 1, updated_at = CURRENT_TIMESTAMP, " +
+                "repeat_ms = EXCLUDED.repeat_ms, task_id = EXCLUDED.task_id, assignee = EXCLUDED.assignee, " +
+                "version = timers.version + 1, updated_at = CURRENT_TIMESTAMP, " +
                 "last_touched_by = EXCLUDED.last_touched_by, deleted_at = NULL " +
                 "WHERE timers.deleted_at IS NOT NULL OR timers.started_at <= EXCLUDED.started_at",
                 t.id, profile, t.kind.key(), gridId, ox, oy, t.resType, t.name, t.icon,
-                startedAt, t.durationMs, t.repeatMs, t.setBy, touchedBy);
+                startedAt, t.durationMs, t.repeatMs, t.setBy, taskId, assignee, touchedBy);
         } else {
             adapter.executeUpdate(
                 "INSERT OR REPLACE INTO timers (id, profile, kind, grid_id, ox, oy, res_type, name, icon, " +
-                "started_at, duration_ms, repeat_ms, set_by, version, updated_at, last_touched_by, deleted_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
+                "started_at, duration_ms, repeat_ms, set_by, task_id, assignee, version, updated_at, last_touched_by, deleted_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
                 "COALESCE((SELECT version + 1 FROM timers WHERE id = ?), 1), CURRENT_TIMESTAMP, ?, NULL)",
                 t.id, profile, t.kind.key(), gridId, ox, oy, t.resType, t.name, t.icon,
-                startedAt, t.durationMs, t.repeatMs, t.setBy, t.id, touchedBy);
+                startedAt, t.durationMs, t.repeatMs, t.setBy, taskId, assignee, t.id, touchedBy);
         }
         try (ResultSet rs = adapter.executeQuery("SELECT version FROM timers WHERE id = ?", t.id)) {
             return rs.next() ? rs.getInt(1) : 0;
@@ -185,7 +188,9 @@ public class TimerDao {
             rs.getString("set_by"),
             true,
             rs.getInt("version"),
-            0, null);
+            0, null,
+            rs.getInt("task_id"),
+            rs.getString("assignee"));
         return new Row(t, rs.getTimestamp("deleted_at") != null);
     }
 }

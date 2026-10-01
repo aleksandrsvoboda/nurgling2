@@ -56,7 +56,7 @@ public final class TimerIcons {
     private static final int RING_FRAMES = 24;
     /** Height of the pin's head centre as a share of its image size (24 of 64 px). */
     private static final double PIN_HEAD = 24.0 / 64;
-    private static Tex ringTrack, pinTex, checkTex, reminderTex, badgeTex, dotTex;
+    private static Tex ringTrack, pinTex, checkTex, reminderTex, badgeTex, dotTex, taskTex;
     private static final Tex[] ringFill = new Tex[RING_FRAMES];
     private static final Map<String, Tex> resIcons = new HashMap<>();
 
@@ -135,8 +135,8 @@ public final class TimerIcons {
     }
 
     /**
-     * The icon for a timer in a list or banner: the resource's map icon, a pin in its colour, or a clock
-     * face for a reminder.
+     * The icon for a timer in a list or banner: the resource's map icon, a pin in its colour, a clock face
+     * for a reminder, or the task icon for a To-Do deadline.
      */
     public static void drawKindIcon(GOut g, Timer t, Coord ul, int size) {
         CookbookTheme.fill(g, ul, Coord.of(size, size), new Color(0x4a, 0x3b, 0x28));
@@ -152,11 +152,20 @@ public final class TimerIcons {
             pin(g, ul.add(size / 2, size / 2), in, NStyle.border);
         } else if(t.kind == Timer.Kind.PIN) {
             pin(g, ul.add(size / 2, size / 2), in, pinColor(t.icon));
+        } else if(t.kind == Timer.Kind.TASK) {
+            drawTaskIcon(g, iul, in);
         } else {
             if(reminderTex == null)
                 reminderTex = icon("reminder");
             g.image(reminderTex, iul, Coord.of(in, in));
         }
+    }
+
+    /** The To-Do task icon, for task deadlines and task news. */
+    public static void drawTaskIcon(GOut g, Coord ul, int size) {
+        if(taskTex == null)
+            taskTex = icon("task");
+        g.image(taskTex, ul, Coord.of(size, size));
     }
 
     /**

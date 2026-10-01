@@ -49,20 +49,23 @@ public class TimerStore {
      * refer to, so a timer somebody restarts is automatically "not seen yet" again.
      */
     public static final class Local {
-        public static final Local MINE = new Local(-1, -1, 0, true);
-        public static final Local NOT_MINE = new Local(-1, -1, 0, false);
+        public static final Local MINE = new Local(-1, -1, 0, true, -1);
+        public static final Local NOT_MINE = new Local(-1, -1, 0, false, -1);
 
         public final long ackedStart;
         public final long notifiedStart;
         public final long snoozeUntil;
         /** Whether this client wants banners and sounds for the timer. */
         public final boolean notify;
+        /** The cycle a "due soon" heads-up was shown for (task deadlines only). */
+        public final long soonStart;
 
-        public Local(long ackedStart, long notifiedStart, long snoozeUntil, boolean notify) {
+        public Local(long ackedStart, long notifiedStart, long snoozeUntil, boolean notify, long soonStart) {
             this.ackedStart = ackedStart;
             this.notifiedStart = notifiedStart;
             this.snoozeUntil = snoozeUntil;
             this.notify = notify;
+            this.soonStart = soonStart;
         }
 
         JSONObject toJson() {
@@ -71,12 +74,13 @@ public class TimerStore {
             j.put("notifiedStart", notifiedStart);
             j.put("snoozeUntil", snoozeUntil);
             j.put("notify", notify);
+            j.put("soonStart", soonStart);
             return j;
         }
 
         static Local fromJson(JSONObject j) {
             return new Local(j.optLong("ackedStart", -1), j.optLong("notifiedStart", -1),
-                j.optLong("snoozeUntil", 0), j.optBoolean("notify", true));
+                j.optLong("snoozeUntil", 0), j.optBoolean("notify", true), j.optLong("soonStart", -1));
         }
     }
 
@@ -91,6 +95,13 @@ public class TimerStore {
     /** Ids to tombstone in the database. */
     private final Map<String, Long> pendingDelete = new LinkedHashMap<>();
     private long generation = 0;
+    /**
+     * Task events already shown on this client ("assigned|42|John", "done|42|1759…"), shared by every
+     * session on the world so one assignment raises one banner. Kept in the file so assignments made
+     * while the player was offline are announced at login, and only once.
+     */
+    private final java.util.Set<String> announced = new java.util.HashSet<>();
+    private boolean announceSeeded = false;
     private final Object saveLock = new Object();
 
     private volatile List<Timer> snapshot = Collections.emptyList();
@@ -182,7 +193,7 @@ public class TimerStore {
         }
         synchronized(this) {
             Local l = local(id);
-            local.put(id, new Local(t.startedAt, l.notifiedStart, 0, l.notify));
+            local.put(id, new Local(t.startedAt, l.notifiedStart, 0, l.notify, l.soonStart));
         }
         changed();
     }
@@ -192,7 +203,7 @@ public class TimerStore {
             if(!timers.containsKey(id))
                 return;
             Local l = local(id);
-            local.put(id, new Local(l.ackedStart, l.notifiedStart, until, l.notify));
+            local.put(id, new Local(l.ackedStart, l.notifiedStart, until, l.notify, l.soonStart));
         }
         changed();
     }
@@ -202,7 +213,7 @@ public class TimerStore {
             if(!timers.containsKey(id))
                 return;
             Local l = local(id);
-            local.put(id, new Local(l.ackedStart, l.notifiedStart, l.snoozeUntil, notify));
+            local.put(id, new Local(l.ackedStart, l.notifiedStart, l.snoozeUntil, notify, l.soonStart));
         }
         changed();
     }
@@ -212,10 +223,46 @@ public class TimerStore {
         synchronized(this) {
             for(Timer t : shown) {
                 Local l = local(t.id);
-                local.put(t.id, new Local(l.ackedStart, t.startedAt, 0, l.notify));
+                local.put(t.id, new Local(l.ackedStart, t.startedAt, 0, l.notify, l.soonStart));
             }
         }
         changed();
+    }
+
+    /** Record that the "due soon" heads-up went up for the current cycle. */
+    public void markSoon(Collection<Timer> shown) {
+        synchronized(this) {
+            for(Timer t : shown) {
+                Local l = local(t.id);
+                local.put(t.id, new Local(l.ackedStart, l.notifiedStart, l.snoozeUntil, l.notify, t.startedAt));
+            }
+        }
+        changed();
+    }
+
+    /** Task deadlines within {@code lead} of being due that have not had their heads-up yet. */
+    public synchronized List<Timer> dueSoon(long now, long lead) {
+        List<Timer> out = new ArrayList<>();
+        if(lead <= 0)
+            return out;
+        for(Timer t : timers.values()) {
+            if(t.kind != Timer.Kind.TASK || t.isReady(now) || t.remaining(now) > lead || !wantsNotice(t))
+                continue;
+            Local l = local(t.id);
+            if(l.notify && l.soonStart != t.startedAt && l.ackedStart != t.startedAt)
+                out.add(t);
+        }
+        return out;
+    }
+
+    /**
+     * Whether this client should be told about a timer at all. Everything but a task deadline: yes. A task
+     * deadline goes to its assignee only, or to its creator while nobody has taken it.
+     */
+    public static boolean wantsNotice(Timer t) {
+        if(t.kind != Timer.Kind.TASK)
+            return true;
+        return MyCharacters.contains(t.assignee.isEmpty() ? t.setBy : t.assignee);
     }
 
     /**
@@ -225,7 +272,7 @@ public class TimerStore {
     public synchronized List<Timer> due(long now) {
         List<Timer> out = new ArrayList<>();
         for(Timer t : timers.values()) {
-            if(!t.isReady(now))
+            if(!t.isReady(now) || !wantsNotice(t))
                 continue;
             Local l = local(t.id);
             if(!l.notify || l.ackedStart == t.startedAt)
@@ -242,7 +289,7 @@ public class TimerStore {
         int n = 0;
         for(Timer t : timers.values()) {
             Local l = local(t.id);
-            if(t.isReady(now) && l.ackedStart != t.startedAt && (l.snoozeUntil == 0 || now >= l.snoozeUntil))
+            if(t.isReady(now) && wantsNotice(t) && l.ackedStart != t.startedAt && (l.snoozeUntil == 0 || now >= l.snoozeUntil))
                 n++;
         }
         return n;
@@ -252,10 +299,34 @@ public class TimerStore {
     public boolean anyDueWithin(long now, long window) {
         for(Timer t : snapshot) {
             long r = t.readyAt() - now;
-            if(r > 0 && r <= window)
+            if(r > 0 && r <= window && wantsNotice(t))
                 return true;
         }
         return false;
+    }
+
+    /**
+     * Compare the task events that are true now with the ones already shown, remember the current set,
+     * and return the new ones. The very first call only records: a player updating to this version should
+     * not get a banner for every task already assigned to them.
+     */
+    public List<String> newlyAnnounced(java.util.Set<String> current) {
+        List<String> fresh = new ArrayList<>();
+        synchronized(this) {
+            if(announceSeeded) {
+                for(String k : current) {
+                    if(!announced.contains(k))
+                        fresh.add(k);
+                }
+                if(fresh.isEmpty() && announced.equals(current))
+                    return fresh;
+            }
+            announced.clear();
+            announced.addAll(current);
+            announceSeeded = true;
+        }
+        save();
+        return fresh;
     }
 
     /** The last length used for this kind of timer; key is the resource type, "pin" or "reminder". */
@@ -276,13 +347,7 @@ public class TimerStore {
      * sharing). Those notify by default and read as "you"; other villagers' are opt-in.
      */
     public static boolean isLocalCharacter(String setBy) {
-        if(setBy == null)
-            return true;
-        for(nurgling.sessions.SessionContext ctx : nurgling.sessions.SessionManager.getInstance().getAllSessions()) {
-            if(setBy.equals(ctx.characterName))
-                return true;
-        }
-        return false;
+        return setBy == null || MyCharacters.contains(setBy);
     }
 
     public static String durationKey(Timer.Kind kind, String resType) {
@@ -376,7 +441,8 @@ public class TimerStore {
         List<Pending<Timer>> out = new ArrayList<>();
         for(Map.Entry<String, Long> e : pendingUpsert.entrySet()) {
             Timer t = timers.get(e.getKey());
-            if(t != null && t.hasLocation() == (t.kind != Timer.Kind.REMINDER) && t.legacyTc == null)
+            boolean located = (t != null) && (t.kind == Timer.Kind.RESOURCE || t.kind == Timer.Kind.PIN);
+            if(t != null && t.hasLocation() == located && t.legacyTc == null)
                 out.add(new Pending<>(t, e.getValue()));
         }
         return out;
@@ -432,7 +498,9 @@ public class TimerStore {
                     continue;   // our own edit is on its way; it wins
                 Timer old = timers.get(row.id);
                 if(old == null) {
-                    local.put(row.id, isMine.test(row.setBy) ? Local.MINE : Local.NOT_MINE);
+                    // A task deadline is filtered by wantsNotice instead: it follows the assignee as they change.
+                    boolean mine = row.kind == Timer.Kind.TASK || isMine.test(row.setBy);
+                    local.put(row.id, mine ? Local.MINE : Local.NOT_MINE);
                 } else if(!old.shared) {
                     continue;   // made private here; the database copy is being withdrawn
                 } else {
@@ -485,7 +553,8 @@ public class TimerStore {
     private static boolean sameContent(Timer a, Timer b) {
         return a.startedAt == b.startedAt && a.durationMs == b.durationMs && a.repeatMs == b.repeatMs
             && a.gridId == b.gridId && a.ox == b.ox && a.oy == b.oy && a.shared == b.shared
-            && a.name.equals(b.name) && java.util.Objects.equals(a.icon, b.icon);
+            && a.name.equals(b.name) && java.util.Objects.equals(a.icon, b.icon)
+            && a.taskId == b.taskId && a.assignee.equals(b.assignee);
     }
 
     // -------------------- Persistence --------------------
@@ -535,6 +604,12 @@ public class TimerStore {
                         for(int i = 0; i < pu.length(); i++)
                             pendingUpsert.put(pu.getString(i), ++generation);
                     }
+                    JSONArray an = main.optJSONArray("announced");
+                    if(an != null) {
+                        for(int i = 0; i < an.length(); i++)
+                            announced.add(an.getString(i));
+                    }
+                    announceSeeded = main.optBoolean("announceSeeded", false);
                     JSONArray pd = main.optJSONArray("pendingDelete");
                     if(pd != null) {
                         for(int i = 0; i < pd.length(); i++)
@@ -590,6 +665,8 @@ public class TimerStore {
         main.put("lastDurations", ld);
         main.put("pendingUpsert", new JSONArray(pendingUpsert.keySet()));
         main.put("pendingDelete", new JSONArray(pendingDelete.keySet()));
+        main.put("announced", new JSONArray(announced));
+        main.put("announceSeeded", announceSeeded);
         return main.toString(2);
     }
 }

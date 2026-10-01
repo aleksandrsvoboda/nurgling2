@@ -209,10 +209,17 @@ public class TimersPanel extends Window {
             long now = System.currentTimeMillis();
             List<Timer> ready = new ArrayList<>();
             List<Timer> coming = new ArrayList<>();
+            List<Timer> tasks = new ArrayList<>();
             int dismissed = 0;
             for(Timer t : store.timers()) {
                 if(!passes(t) || store.isStale(t, now))
                     continue;
+                if(t.kind == Timer.Kind.TASK) {
+                    // Only the deadlines meant for this player: their tasks, or untaken ones they set.
+                    if(TimerStore.wantsNotice(t) && taskOf(t) != null)
+                        tasks.add(t);
+                    continue;
+                }
                 if(t.isReady(now)) {
                     ready.add(t);
                     if(store.local(t.id).ackedStart == t.startedAt)
@@ -230,8 +237,9 @@ public class TimersPanel extends Window {
                 return Long.compare(b.readyAt(), a.readyAt());
             });
             coming.sort((a, b) -> Long.compare(a.readyAt(), b.readyAt()));
+            tasks.sort((a, b) -> Long.compare(a.readyAt(), b.readyAt()));
 
-            if(ready.isEmpty() && coming.isEmpty()) {
+            if(ready.isEmpty() && coming.isEmpty() && tasks.isEmpty()) {
                 int y = UI.scale(20);
                 for(String line : L10n.get("timers.panel.empty").split("\n")) {
                     Tex t = TimerIcons.text(CookbookTheme.body, line, CookbookTheme.muted);
@@ -253,6 +261,11 @@ public class TimersPanel extends Window {
                 y = header(g, y, L10n.get("timers.panel.coming"), CookbookTheme.muted);
                 for(int i = 0; i < coming.size(); i++)
                     y = row(g, y, i, coming.get(i), now);
+            }
+            if(!tasks.isEmpty()) {
+                y = header(g, y, L10n.get("tasks.panel.heading"), CookbookTheme.accent);
+                for(int i = 0; i < tasks.size(); i++)
+                    y = row(g, y, i, tasks.get(i), now);
             }
             contentH = y + scroll;
             scroll = Math.max(0, Math.min(scroll, contentH - sz.y));
@@ -292,7 +305,16 @@ public class TimersPanel extends Window {
                 L10n.get(l.notify ? "timers.tip.mute" : "timers.tip.unmute")));
             bx -= B + UI.scale(4);
             Coord mid = Coord.of(bx, by);
-            if(ready && !dismissed) {
+            boolean task = t.kind == Timer.Kind.TASK;
+            nurgling.todo.TodoItem item = task ? taskOf(t) : null;
+            if(task) {
+                // A task is finished in the To-Do list, which takes its deadline with it.
+                if(item != null && gui.todoStore.canEdit(item.listId)) {
+                    CookbookTheme.frame(g, mid, bsz, TimerIcons.READY);
+                    TimerIcons.check(g, mid, B);
+                    hits.add(new Hit(mid, bsz, () -> gui.todoStore.setDone(t.taskId, true), L10n.get("tasks.tip.done")));
+                }
+            } else if(ready && !dismissed) {
                 CookbookTheme.frame(g, mid, bsz, TimerIcons.READY);
                 TimerIcons.check(g, mid, B);
                 hits.add(new Hit(mid, bsz, () -> store.dismiss(t.id, System.currentTimeMillis()), L10n.get("timers.tip.dismiss")));
@@ -303,13 +325,15 @@ public class TimersPanel extends Window {
                 g.image(NStyle.removei[0], mid, bsz);
                 hits.add(new Hit(mid, bsz, () -> remove(t), removeTip(t, arming)));
             }
-            bx -= B + UI.scale(4);
-            Coord rs = Coord.of(bx, by);
-            g.image(TimerIcons.restartIcon(), rs, bsz);
-            hits.add(new Hit(rs, bsz, () -> {
-                store.restart(t.id, System.currentTimeMillis());
-                store.rememberDuration(TimerStore.durationKey(t.kind, t.resType), t.durationMs);
-            }, L10n.get("timers.tip.restart", TimerDurations.formatShort(t.durationMs))));
+            if(!task) {
+                bx -= B + UI.scale(4);
+                Coord rs = Coord.of(bx, by);
+                g.image(TimerIcons.restartIcon(), rs, bsz);
+                hits.add(new Hit(rs, bsz, () -> {
+                    store.restart(t.id, System.currentTimeMillis());
+                    store.rememberDuration(TimerStore.durationKey(t.kind, t.resType), t.durationMs);
+                }, L10n.get("timers.tip.restart", TimerDurations.formatShort(t.durationMs))));
+            }
 
             // Name, time, detail line and progress bar.
             int tx = PAD + icon + UI.scale(8);
@@ -318,7 +342,8 @@ public class TimersPanel extends Window {
             String right = ready ? "" : TimerDurations.format(t.remaining(now));
             Tex rt = right.isEmpty() ? null : TimerIcons.text(CookbookTheme.bold, right, CookbookTheme.accent);
             int nameW = tw - ((rt == null) ? 0 : rt.sz().x + UI.scale(6));
-            g.image(TimerIcons.text(CookbookTheme.bold, CookbookTheme.ellipsize(CookbookTheme.bold, TimerBanners.displayName(t), nameW), fg),
+            String name = (item != null) ? item.title : TimerBanners.displayName(t);
+            g.image(TimerIcons.text(CookbookTheme.bold, CookbookTheme.ellipsize(CookbookTheme.bold, name, nameW), fg),
                 Coord.of(tx, y + UI.scale(3)));
             if(rt != null)
                 g.image(rt, Coord.of(tx + tw - rt.sz().x, y + UI.scale(3)));
@@ -331,14 +356,33 @@ public class TimersPanel extends Window {
 
             // The rest of the row: show it on the map, or open it for editing.
             hits.add(new Hit(Coord.of(0, y), Coord.of(bx - UI.scale(4), RH), () -> {
-                if(!t.hasLocation() || !TimerPlacement.showOnMap(gui, t))
+                if(task)
+                    gui.openTodoTask(t.taskId);
+                else if(!t.hasLocation() || !TimerPlacement.showOnMap(gui, t))
                     gui.showTimerPopover(TimerPopover.edit(gui, t));
             }, null));
             return y + RH;
         }
 
+        /** The task behind a deadline, or null when this client cannot see it. */
+        private nurgling.todo.TodoItem taskOf(Timer t) {
+            NGameUI gui = gui();
+            return (gui.todoStore == null) ? null : gui.todoStore.view().items.get(t.taskId);
+        }
+
         private String detail(Timer t, boolean ready, boolean dismissed, long now) {
             List<String> parts = new ArrayList<>();
+            if(t.kind == Timer.Kind.TASK) {
+                nurgling.todo.TodoItem it = taskOf(t);
+                parts.add(ready ? L10n.get("tasks.overdue", TimerDurations.format(now - t.readyAt()))
+                    : L10n.get("tasks.due_at", TimerDurations.formatClock(t.readyAt(), L10n.get("timers.tomorrow"))));
+                if(it != null && !TimerStore.isLocalCharacter(it.createdBy))
+                    parts.add(L10n.get("tasks.from", it.createdBy));
+                parts.add(t.assignee.isEmpty() ? L10n.get("tasks.nobody") : L10n.get("tasks.for", TimerStore.isLocalCharacter(t.assignee) ? L10n.get("timers.by_you") : t.assignee));
+                if(dismissed)
+                    parts.add(L10n.get("timers.dismissed"));
+                return String.join(" \u00b7 ", parts);
+            }
             if(ready)
                 parts.add(L10n.get("timers.ready_ago", TimerDurations.format(now - t.readyAt())));
             else

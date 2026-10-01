@@ -52,6 +52,7 @@ public class NGameUI extends GameUI
     /** This world's timers; the same instance for every session on the world. */
     public nurgling.timers.TimerStore timerStore;
     public nurgling.timers.TimerNotifier timerNotifier;
+    public nurgling.todo.TaskDeadlines taskDeadlines;
     public nurgling.widgets.timers.TimerBanners timerBanners;
     public nurgling.widgets.timers.TimersPanel timersPanel;
     private nurgling.widgets.timers.TimerPopover timerPopover;
@@ -243,6 +244,7 @@ public class NGameUI extends GameUI
         // Timers: the store is per world, the widgets per session
         timerStore = nurgling.sessions.SessionManager.getInstance().timerStore(genus);
         timerNotifier = new nurgling.timers.TimerNotifier(this);
+        taskDeadlines = new nurgling.todo.TaskDeadlines(this);
         add(timersPanel = new nurgling.widgets.timers.TimersPanel(), new Coord(100, 100));
         add(timerBanners = new nurgling.widgets.timers.TimerBanners(), Coord.z);
         
@@ -308,6 +310,8 @@ public class NGameUI extends GameUI
             todoStore.tick();
         if(timerNotifier != null)
             timerNotifier.tick();
+        if(taskDeadlines != null)
+            taskDeadlines.tick();
     }
 
     @Override
@@ -1284,6 +1288,18 @@ public class NGameUI extends GameUI
             timersPanel.hide();
         else
             timersPanel.show();
+    }
+
+    /** Open the To-Do window on one task. */
+    public void openTodoTask(int taskId) {
+        if(todoStore == null)
+            return;
+        if(todoWnd == null || !todoWnd.visible())
+            toggleTodo();
+        if(todoWnd != null) {
+            todoWnd.focusTask(taskId);
+            todoWnd.raise();
+        }
     }
 
     public void showTimersPanel() {

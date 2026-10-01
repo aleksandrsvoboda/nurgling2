@@ -251,6 +251,9 @@ public class NConfig
         timerSoundReminder,
         timerFlashTaskbar,
         timerCombatQuiet,
+        timerMyCharacters,
+        taskHeadsUpMinutes,
+        taskNotifyDone,
         // Auto-logout settings
         autoLogoutEnabled,
         autoLogoutThreshold,
@@ -695,6 +698,9 @@ public class NConfig
         conf.put(Key.timerSoundReminder, "alarm/quest");
         conf.put(Key.timerFlashTaskbar, true);   // flash the taskbar button when the game is in the background
         conf.put(Key.timerCombatQuiet, true);    // hold banners and sound until a fight ends
+        conf.put(Key.timerMyCharacters, "");     // alts that count as "me", comma separated
+        conf.put(Key.taskHeadsUpMinutes, 60);    // heads-up banner this long before a task is due; 0 = off
+        conf.put(Key.taskNotifyDone, true);      // banner when someone finishes a task I created
 
         // Auto-logout settings
         conf.put(Key.autoLogoutEnabled, false);
