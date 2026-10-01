@@ -186,6 +186,12 @@ public class SessionContext {
         return gui != null && gui.alarmWdg != null && gui.alarmWdg.hasAlarm();
     }
 
+    /** Whether ready timers are waiting to be announced here until the user switches to this session. */
+    public boolean hasTimerAttention() {
+        NGameUI gui = getGameUI();
+        return gui != null && gui.timerNotifier != null && gui.timerNotifier.needsAttention();
+    }
+
     /**
      * Clear a latched alarm. Called when the user switches to this session - looking at it is
      * the acknowledgement.

@@ -461,10 +461,20 @@ public class NMapWnd extends MapWnd {
         placeDbButtons();
     }
     
+    /** The map view is always an NMiniMap; MapWnd only declares it as a MiniMap. */
+    private NMiniMap timerView() {
+        return (NMiniMap) view;
+    }
+
+    /** A pin picked up with the left button; it moves on release if the mouse travelled. */
+    private nurgling.timers.Timer pressedPin = null;
+    private Coord pressedAt = null;
+    private UI.Grab pinGrab = null;
+
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         // Handle alt+left-click for waypoint queueing (on button release handled below)
-        // Handle shift+right-click for resource timers
+        // Handle shift+right-click for timers
         if(view.c != null) {
             // Convert global coordinates to view coordinates
             Coord viewCoord = ev.c.sub(view.parentpos(this));
@@ -473,15 +483,25 @@ public class NMapWnd extends MapWnd {
             if(viewCoord.x >= 0 && viewCoord.x < view.sz.x &&
                viewCoord.y >= 0 && viewCoord.y < view.sz.y) {
 
-                // Shift+right-click for resource timers and tree locations
+                // Shift+right-click for tree locations and timers
                 if(ev.b == 3 && ui.modshift) {
                     // First check for tree icons
                     if(handleTreeSaveClick(viewCoord)) {
                         return true; // Consume the event
                     }
-                    // Then check if there's a resource marker at this location
-                    if(handleResourceTimerClick(viewCoord)) {
+                    if(handleTimerClick(viewCoord)) {
                         return true; // Consume the event
+                    }
+                }
+
+                // Left button on a pin picks it up: a drag moves it, a click opens it.
+                if(ev.b == 1 && !ui.modshift && !ui.modctrl && !ui.modmeta) {
+                    nurgling.timers.Timer t = timerView().timerAt(viewCoord);
+                    if(t != null && t.kind == nurgling.timers.Timer.Kind.PIN) {
+                        pressedPin = t;
+                        pressedAt = ev.c;
+                        pinGrab = ui.grabmouse(this);
+                        return true;
                     }
                 }
             }
@@ -491,7 +511,20 @@ public class NMapWnd extends MapWnd {
     }
 
     @Override
+    public void mousemove(MouseMoveEvent ev) {
+        if(pressedPin != null && pressedAt != null && ev.c.dist(pressedAt) > UI.scale(4)) {
+            timerView().dragTimer = pressedPin;
+            timerView().dragPos = ev.c.sub(view.parentpos(this));
+        }
+        super.mousemove(ev);
+    }
+
+    @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if(ev.b == 1 && pressedPin != null) {
+            dropPin(ev.c);
+            return true;
+        }
         if(view.c != null) {
             Coord viewCoord = ev.c.sub(view.parentpos(this));
 
@@ -581,23 +614,68 @@ public class NMapWnd extends MapWnd {
         return false;
     }
     
-    private boolean handleResourceTimerClick(Coord c) {
-        // Try to find a resource marker at the clicked location
-        MiniMap.Location clickLoc = view.xlate(c);
-        if(clickLoc == null) return false;
+    /** Move a dragged pin to where it was dropped, or open it if it was only clicked. */
+    private void dropPin(Coord c) {
+        nurgling.timers.Timer t = pressedPin;
+        boolean dragged = timerView().dragTimer != null;
+        pressedPin = null;
+        pressedAt = null;
+        timerView().dragTimer = null;
+        timerView().dragPos = null;
+        if(pinGrab != null) {
+            pinGrab.remove();
+            pinGrab = null;
+        }
+        NGameUI gui = (NGameUI) NUtils.getGameUI();
+        if(gui == null || gui.timerStore == null)
+            return;
+        if(!dragged) {
+            gui.showTimerPopover(nurgling.widgets.timers.TimerPopover.edit(gui, t));
+            return;
+        }
+        nurgling.timers.TimerPlacement.Spot spot = nurgling.timers.TimerPlacement.fromMap(view.file, view.xlate(c.sub(view.parentpos(this))));
+        if(spot == null)
+            return;
+        nurgling.timers.Timer cur = gui.timerStore.get(t.id);
+        if(cur != null)
+            gui.timerStore.put(cur.withLocation(spot.gridId, spot.offset.x, spot.offset.y));
+    }
 
-        MiniMap.DisplayMarker marker = view.markerat(clickLoc.tc);
-        if(marker != null && marker.m instanceof MapFile.SMarker) {
-            MapFile.SMarker smarker = (MapFile.SMarker) marker.m;
+    /**
+     * Shift+right-click on the big map: an existing timer opens for editing; a resource marker gets its
+     * timer; one of your own markers or empty ground gets a pin.
+     */
+    private boolean handleTimerClick(Coord c) {
+        NGameUI gui = (NGameUI) NUtils.getGameUI();
+        if(gui == null || gui.timerStore == null)
+            return false;
 
-            // Handle through service
-            NGameUI gui = (NGameUI) NUtils.getGameUI();
-            if(gui != null && gui.localizedResourceTimerService != null) {
-                return gui.localizedResourceTimerService.handleResourceClick(smarker);
-            }
+        nurgling.timers.Timer existing = timerView().timerAt(c);
+        if(existing != null) {
+            gui.showTimerPopover(nurgling.widgets.timers.TimerPopover.edit(gui, existing));
+            return true;
         }
 
-        return false;
+        MiniMap.Location clickLoc = view.xlate(c);
+        if(clickLoc == null)
+            return false;
+        MiniMap.DisplayMarker marker = view.markerat(clickLoc.tc);
+        if(marker != null && NMiniMap.isTimerResource(marker.m)) {
+            MapFile.SMarker smarker = (MapFile.SMarker) marker.m;
+            String name = (smarker.nm != null) ? smarker.nm : smarker.res.name;
+            gui.showTimerPopover(nurgling.widgets.timers.TimerPopover.forResource(gui, smarker, name));
+            return true;
+        }
+
+        MiniMap.Location at = clickLoc;
+        String name = "";
+        if(marker != null && marker.m instanceof MapFile.PMarker) {
+            at = new MiniMap.Location(clickLoc.seg, marker.m.tc);
+            name = marker.m.nm;
+        }
+        nurgling.timers.TimerPlacement.Spot spot = nurgling.timers.TimerPlacement.fromMap(view.file, at);
+        gui.showTimerPopover((spot == null) ? null : nurgling.widgets.timers.TimerPopover.newPin(gui, spot, name));
+        return true;
     }
 
     private boolean handleTreeSaveClick(Coord c) {

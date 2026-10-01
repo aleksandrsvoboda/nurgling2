@@ -55,6 +55,7 @@ public class SessionTabBar extends Widget {
     private static final Color ALARM_TEXT = new Color(0xFF, 0x3B, 0x3B);       // #FF3B3B
     /** Ticks per half-cycle of the alarm border pulse (~1.5Hz at 60fps). */
     private static final int ALARM_PULSE_TICKS = 20;
+    private static final Color TIMER_DOT = new Color(0xE9, 0x9C, 0x54);        // #E99C54
     private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
     private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
     private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
@@ -482,6 +483,11 @@ public class SessionTabBar extends Widget {
         g.chcolor(textColor);
         int textX = x + BUTTON_WIDTH / 2;
         g.aimage(nameText.tex(), new Coord(textX, y + BUTTON_HEIGHT / 2), 0.5, 0.5);
+
+        // Ready timers waiting in a background world: a small dot, much quieter than the alarm pulse.
+        if (!isActive && ctx.hasTimerAttention()) {
+            nurgling.widgets.timers.TimerIcons.dot(g, new Coord(x + UI.scale(7), y + UI.scale(7)), UI.scale(8), TIMER_DOT);
+        }
 
         g.chcolor();
     }

@@ -17,11 +17,8 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.IntConsumer;
 
 /**
@@ -56,6 +53,7 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
     private final Footer footer;
     private final Toast toast;
     private TodoMenu menu = null;
+    private nurgling.widgets.PersonPicker picker = null;
     /** The open name prompt, if any; there is only ever one. */
     private TextInputWindow prompt = null;
 
@@ -171,12 +169,11 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
                     counts[i]++;
         tabs.update(shown, counts, curList, !store.readOnly());
 
-        String me = store.me();
         String q = search.text().trim().toLowerCase(Locale.ROOT);
         List<TodoItem> open = new ArrayList<>();
         List<TodoItem> done = new ArrayList<>();
         for (TodoItem it : v.itemsOf(curList)) {
-            if (filter == Filter.MINE && !it.isAssignedTo(me))
+            if (filter == Filter.MINE && !store.isMine(it.assignee))
                 continue;
             if (filter == Filter.FREE && !it.assignee.isEmpty())
                 continue;
@@ -379,6 +376,21 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
 
     /* -------------------------------------------------------------- list listener */
 
+    /** Show one task: its list, selected and scrolled into view, with filters that would hide it cleared. */
+    public void focusTask(int id) {
+        TodoItem it = store.view().items.get(id);
+        if (it == null)
+            return;
+        filter = Filter.ALL;
+        search.settext("");
+        if (!it.isOpen(System.currentTimeMillis()))
+            showDone = true;
+        curList = it.listId;
+        selectedId = id;
+        revealId = id;
+        refresh();
+    }
+
     @Override
     public void toggle(TodoItem it) {
         store.setDone(it.id, it.isOpen(System.currentTimeMillis()));
@@ -481,33 +493,79 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
     }
 
     @Override
-    public List<String> assigneeCandidates() {
-        Set<String> names = new LinkedHashSet<>();
+    public void pickAssignee(Widget anchor, TodoItem it) {
+        if (menu != null)
+            menu.close();
+        if (picker != null)
+            picker.close();
+        int id = it.id;
+        picker = new nurgling.widgets.PersonPicker(people(), "anyone", name -> store.setAssignee(id, name));
+        Coord at = anchor.parentpos(this).add(0, anchor.sz.y);
+        if (at.y + picker.sz.y > H)
+            at = anchor.parentpos(this).sub(0, picker.sz.y);
+        add(picker, Coord.of(Utils.clip(at.x, 0, Math.max(0, W - picker.sz.x)), Math.max(0, at.y)));
+    }
+
+    /**
+     * Everyone the assignee picker offers, each once, in the most useful group it qualifies for: this
+     * player and their alts, villagers online now, villagers seen this week, kin, and names on tasks.
+     */
+    private List<nurgling.widgets.PersonPicker.Person> people() {
+        java.util.Map<String, nurgling.widgets.PersonPicker.Person> out = new java.util.LinkedHashMap<>();
+        java.util.function.BiConsumer<String, nurgling.widgets.PersonPicker.Person> offer = (name, p) -> {
+            if (name == null || name.isEmpty())
+                return;
+            nurgling.widgets.PersonPicker.Person cur = out.get(name);
+            if (cur == null || p.group.compareTo(cur.group) < 0)
+                out.put(name, p);
+        };
         String me = store.me();
-        if (!me.isEmpty())
-            names.add(me);
-        Set<String> others = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        try {
-            if (gui.buddies != null) {
-                for (BuddyWnd.Buddy b : gui.buddies)
-                    if (b.name != null && !b.name.isEmpty())
-                        others.add(b.name);
-            }
-        } catch (RuntimeException ignore) {
-            /* The kin list is a live widget the server mutates; missing it costs names, not the menu. */
-        }
+        offer.accept(me, new nurgling.widgets.PersonPicker.Person(me, nurgling.widgets.PersonPicker.Group.ME, "this character", true));
+        for (nurgling.sessions.SessionContext ctx : nurgling.sessions.SessionManager.getInstance().getAllSessions())
+            offer.accept(ctx.characterName, new nurgling.widgets.PersonPicker.Person(ctx.characterName,
+                nurgling.widgets.PersonPicker.Group.ME, "logged in", true));
+        for (String alt : nurgling.timers.MyCharacters.listed())
+            offer.accept(alt, new nurgling.widgets.PersonPicker.Person(alt, nurgling.widgets.PersonPicker.Group.ME, "alt", false));
         if (gui.peerPositionService != null)
             for (PeerPosition p : gui.peerPositionService.snapshot())
-                if (p.charName != null && !p.charName.isEmpty())
-                    others.add(p.charName);
-        for (TodoItem it : store.view().items.values()) {
-            for (String n : new String[] {it.assignee, it.createdBy, it.doneBy, it.touchedBy})
-                if (n != null && !n.isEmpty())
-                    others.add(n);
+                offer.accept(p.charName, new nurgling.widgets.PersonPicker.Person(p.charName,
+                    nurgling.widgets.PersonPicker.Group.ONLINE, "on the map", true));
+        if (gui.villageQuests != null)
+            for (nurgling.widgets.quest.VillageQuestStore.Villager v : gui.villageQuests.villagers().values()) {
+                boolean on = v.online();
+                offer.accept(v.name, new nurgling.widgets.PersonPicker.Person(v.name,
+                    on ? nurgling.widgets.PersonPicker.Group.ONLINE : nurgling.widgets.PersonPicker.Group.VILLAGE,
+                    on ? "village" : ago(System.currentTimeMillis() - v.ageMillis, System.currentTimeMillis()), on));
+            }
+        try {
+            if (gui.buddies != null)
+                for (BuddyWnd.Buddy b : gui.buddies) {
+                    /* Kin can be renamed locally, so a kin label may not be the character's real name.
+                     * Only a name no real source knows is listed from here, and it says so. */
+                    if (b.name != null && !out.containsKey(b.name))
+                        offer.accept(b.name, new nurgling.widgets.PersonPicker.Person(b.name,
+                            nurgling.widgets.PersonPicker.Group.KIN, "kin (may be renamed)", b.online > 0));
+                }
+        } catch (RuntimeException ignore) {
+            /* The kin list is a live widget the server mutates; missing it costs names, not the picker. */
         }
-        others.remove(me);
-        names.addAll(others);
-        return new ArrayList<>(names);
+        for (TodoItem it : store.view().items.values())
+            for (String n : new String[] {it.assignee, it.createdBy, it.doneBy, it.touchedBy})
+                offer.accept(n, new nurgling.widgets.PersonPicker.Person(n, nurgling.widgets.PersonPicker.Group.SEEN, "", false));
+        return new ArrayList<>(out.values());
+    }
+
+    @Override
+    public nurgling.timers.Timer deadline(TodoItem it) {
+        return gui.timerStore == null ? null : nurgling.todo.TaskDeadlines.find(gui.timerStore, it.id);
+    }
+
+    @Override
+    public void setDue(TodoItem it, long ms) {
+        if (gui.timerStore == null)
+            return;
+        nurgling.todo.TaskDeadlines.setDue(gui, it, ms);
+        refresh();
     }
 
     @Override
@@ -588,6 +646,8 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
             editor.flushText();
             if (menu != null)
                 menu.close();
+            if (picker != null)
+                picker.close();
             closePrompt();
             hide();
         } else {

@@ -32,6 +32,7 @@ public class DatabaseManager {
     private nurgling.db.service.FishLocationDbService fishLocationService;
     private nurgling.db.service.PeerPositionDbService peerPositionService;
     private nurgling.db.service.QuestShareDbService questShareService;
+    private nurgling.db.service.TimerSyncService timerSyncService;
     private nurgling.db.service.FishLocationSeeder fishLocationSeeder;
     private nurgling.db.service.MapDbService mapDbService;
     private nurgling.db.service.VillagerService villagerService;
@@ -429,6 +430,15 @@ public class DatabaseManager {
                 + "villagers' quests will not be shared");
         }
 
+        /* Checked like the others. Without it timers stay on their JSON file: everything works except
+         * sharing them with villagers. */
+        boolean timersOk = tableUsable("timers");
+        this.timerSyncService = timersOk ? new nurgling.db.service.TimerSyncService(this) : null;
+        if (!timersOk) {
+            System.err.println("[DatabaseManager] timers unavailable; "
+                + "timers stay on their JSON file and are not shared");
+        }
+
         boolean mapOk = tableUsable("map_grids")
             && tableUsable("map_grid_placements")
             && tableUsable("map_markers");
@@ -545,6 +555,8 @@ public class DatabaseManager {
                 feature = "Player position sharing";
             } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_QUEST_SHARES) {
                 feature = "Quest sharing";
+            } else if (e.getKey() == nurgling.db.migration.MigrationManager.MIGRATION_TIMERS) {
+                feature = "Timer sharing";
             } else {
                 feature = "Schema update " + e.getKey();
             }
@@ -821,6 +833,11 @@ public class DatabaseManager {
     /** Null when quest_shares is missing or unreadable; the tracker then shows no Village tab. */
     public nurgling.db.service.QuestShareDbService getQuestShareService() {
         return questShareService;
+    }
+
+    /** Null when the timers table is missing or unreadable; timers then stay on their file. */
+    public nurgling.db.service.TimerSyncService getTimerSyncService() {
+        return timerSyncService;
     }
 
     public nurgling.db.service.FishLocationDbService getFishLocationService() {

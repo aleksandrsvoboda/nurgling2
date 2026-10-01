@@ -19,19 +19,27 @@ import java.util.function.IntConsumer;
  * there is no Save button. Text fields commit on Enter, on losing focus, or after a pause in typing.
  */
 public class TodoEditor extends Widget {
-    public static final int H = UI.scale(236);
+    public static final int H = UI.scale(282);
     private static final int LABELW = UI.scale(62);
     private static final int ROW = UI.scale(26);
     private static final long NOTES_IDLE_MS = 1500;
     static final int[] REPEAT_HOURS = {0, 6, 12, 24, 72, 168};
+    private static final long HOUR_MS = 3_600_000L;
+    /** Deadline presets; 0 is "none". */
+    private static final long[] DUE_PRESETS = {0, 4 * HOUR_MS, 12 * HOUR_MS, 24 * HOUR_MS, 72 * HOUR_MS, 168 * HOUR_MS};
 
     public interface Host {
         TodoStore store();
         void openMenu(Widget anchor, List<String> options, boolean[] disabled, IntConsumer onPick);
-        List<String> assigneeCandidates();
+        /** Open the searchable person picker under {@code anchor} to choose who the task is for. */
+        void pickAssignee(Widget anchor, TodoItem it);
         void captureHere(TodoItem it);
         void showOnMap(TodoItem it);
         void deleteWithUndo(TodoItem it);
+        /** The task's deadline, or null when it has none. */
+        nurgling.timers.Timer deadline(TodoItem it);
+        /** Give the task a deadline this long from now; 0 removes it. */
+        void setDue(TodoItem it, long ms);
     }
 
     private final Host host;
@@ -39,6 +47,10 @@ public class TodoEditor extends Widget {
     private final HintTextEntry title;
     private final NTextArea notes;
     private final TodoChoice assignee, list, repeat;
+    private final List<PillButton> dueChips = new ArrayList<>();
+    private final HintTextEntry dueEntry;
+    private String dueText = "";
+    private boolean dueBad = false;
     private final PillButton take, here, show, clearLoc, delete;
     private final UrgentBox urgent;
     private TodoItem cur = null;
@@ -90,6 +102,23 @@ public class TodoEditor extends Widget {
 
         repeat = add(new TodoChoice(fw, this::openRepeat), Coord.of(fx, y + UI.scale(2)));
         y += ROW;
+
+        int dx = fx;
+        for (long ms : DUE_PRESETS) {
+            PillButton chip = add(new PillButton(ms == 0 ? "none" : nurgling.timers.TimerDurations.formatShort(ms), false, () -> {
+                if (cur != null)
+                    host.setDue(cur, ms);
+            }), Coord.of(dx, y));
+            dueChips.add(chip);
+            dx += chip.sz.x + UI.scale(3);
+        }
+        dueEntry = add(new HintTextEntry(Math.max(UI.scale(50), fx + fw - dx), "2h30m", () -> dueBad = false) {
+            @Override
+            public void activate(String text) {
+                commitDue();
+            }
+        }, Coord.of(dx, y + UI.scale(2)));
+        y += ROW + UI.scale(14);
 
         int bw = UI.scale(50);
         clearLoc = add(new PillButton("Clear", false, () -> {
@@ -152,6 +181,7 @@ public class TodoEditor extends Widget {
 
         for (TodoChoice c : Arrays.asList(assignee, list, repeat))
             c.enabled = editable;
+        showDue(it, now);
         take.visible = editable && !it.isAssignedTo(host.store().me());
         here.visible = editable;
         show.visible = it.hasLoc;
@@ -190,15 +220,49 @@ public class TodoEditor extends Widget {
             host.store().setNotes(cur.id, n);
     }
 
+    /** The Due row: which preset matches, and the line saying when it is due and who gets reminded. */
+    private void showDue(TodoItem it, long now) {
+        nurgling.timers.Timer d = host.deadline(it);
+        for (int i = 0; i < dueChips.size(); i++) {
+            PillButton chip = dueChips.get(i);
+            chip.visible = editable;
+            chip.expanded = (d == null) ? DUE_PRESETS[i] == 0 : DUE_PRESETS[i] == d.durationMs;
+        }
+        dueEntry.visible = editable;
+        if (dueBad)
+            return;
+        if (d == null) {
+            dueText = "No deadline";
+        } else {
+            String who = it.assignee.isEmpty() ? "you (nobody has taken it)" : it.assignee;
+            if (!it.isOpen(now))
+                dueText = "Due " + nurgling.timers.TimerDurations.formatShort(d.durationMs) + " after it reopens";
+            else if (d.isReady(now))
+                dueText = "Overdue by " + nurgling.timers.TimerDurations.format(now - d.readyAt()) + " · " + who + " was reminded";
+            else
+                dueText = "Due in " + nurgling.timers.TimerDurations.format(d.remaining(now)) + " ("
+                    + nurgling.timers.TimerDurations.formatClock(d.readyAt(), "tomorrow") + ") · reminds " + who;
+        }
+    }
+
+    private void commitDue() {
+        if (cur == null || !editable)
+            return;
+        long ms = nurgling.timers.TimerDurations.parse(dueEntry.text());
+        if (ms <= 0) {
+            dueBad = true;
+            dueText = "Could not read that, try 2h30m or 3d";
+            return;
+        }
+        dueBad = false;
+        dueEntry.settext("");
+        host.setDue(cur, ms);
+    }
+
     private void openAssignee() {
         if (cur == null)
             return;
-        List<String> names = host.assigneeCandidates();
-        List<String> opts = new ArrayList<>();
-        opts.add("anyone");
-        opts.addAll(names);
-        int id = cur.id;
-        host.openMenu(assignee, opts, null, i -> host.store().setAssignee(id, i == 0 ? "" : names.get(i - 1)));
+        host.pickAssignee(assignee, cur);
     }
 
     private void openList() {
@@ -231,11 +295,11 @@ public class TodoEditor extends Widget {
     @Override
     public void draw(GOut g) {
         CookbookTheme.fill(g, Coord.z, Coord.of(sz.x, 1), CookbookTheme.accent);
-        String[] labels = {"Title", "Notes", "Assignee", "List", "Repeat", "Location"};
-        int[] ys = {title.c.y, notes.c.y, assignee.c.y, list.c.y, repeat.c.y, here.c.y};
+        String[] labels = {"Title", "Notes", "Assignee", "List", "Repeat", "Due", "Location"};
+        int[] ys = {title.c.y, notes.c.y, assignee.c.y, list.c.y, repeat.c.y, dueChips.get(0).c.y, here.c.y};
         for (int i = 0; i < labels.length; i++) {
             Tex t = tc.get(CookbookTheme.body, labels[i], CookbookTheme.muted);
-            int rowh = i == 5 ? here.sz.y : UI.scale(19);
+            int rowh = (i == 5) ? dueChips.get(0).sz.y : (i == 6 ? here.sz.y : UI.scale(19));
             g.image(t, Coord.of(UI.scale(6), ys[i] + (rowh - t.sz().y) / 2));
         }
         int locRight = here.visible ? here.c.x : (show.visible ? show.c.x : sz.x - UI.scale(6));
@@ -243,6 +307,12 @@ public class TodoEditor extends Widget {
             CookbookTheme.ellipsize(CookbookTheme.body, locText, locRight - title.c.x - UI.scale(6)),
             cur != null && cur.hasLoc ? CookbookTheme.fg : CookbookTheme.muted);
         g.image(lt, Coord.of(title.c.x, here.c.y + (here.sz.y - lt.sz().y) / 2));
+        if (cur != null && !dueText.isEmpty()) {
+            Tex dt = tc.get(CookbookTheme.small, CookbookTheme.ellipsize(CookbookTheme.small, dueText, sz.x - title.c.x - UI.scale(6)),
+                dueBad ? CookbookTheme.warn : CookbookTheme.muted);
+            PillButton first = dueChips.get(0);
+            g.image(dt, Coord.of(title.c.x, first.c.y + first.sz.y + UI.scale(1)));
+        }
         if (!meta.isEmpty()) {
             Tex mt = tc.get(CookbookTheme.small, CookbookTheme.ellipsize(CookbookTheme.small, meta, sz.x - UI.scale(12)), CookbookTheme.muted);
             g.image(mt, Coord.of(UI.scale(6), sz.y - mt.sz().y - UI.scale(4)));

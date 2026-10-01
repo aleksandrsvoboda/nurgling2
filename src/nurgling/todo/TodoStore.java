@@ -218,6 +218,24 @@ public class TodoStore {
         return m == null ? "" : m;
     }
 
+    /**
+     * Whether a character name is this player: the character on this session, another one logged in on
+     * this client, or an alt listed in Settings → Timers.
+     */
+    public boolean isMine(String name) {
+        return name != null && !name.isEmpty() && (name.equals(me()) || nurgling.timers.MyCharacters.contains(name));
+    }
+
+    /**
+     * Whether the view reflects the whole store: the file in local mode, or the first full database load.
+     * Anything that deletes or rewrites things based on what is missing from the view waits for this.
+     */
+    public boolean settled() {
+        synchronized (lock) {
+            return loadedMode == Mode.LOCAL || (loadedMode == Mode.DB && bulkLoaded);
+        }
+    }
+
     /** Whether the user may change tasks in this list right now. Guests still own their Personal list. */
     public boolean canEdit(int listId) {
         return listId == TodoList.PERSONAL || !readOnly();
@@ -229,9 +247,8 @@ public class TodoStore {
         View v = view;
         if (badgeRevision != revision || now - badgeAt > 30_000) {
             int n = 0;
-            String me = me();
             for (TodoItem it : v.items.values())
-                if (it.isOpen(now) && it.isAssignedTo(me))
+                if (it.isOpen(now) && isMine(it.assignee))
                     n++;
             badgeCount = n;
             badgeRevision = revision;
@@ -1049,13 +1066,12 @@ public class TodoStore {
 
     /** Queues a system-log line when someone else assigns us a task or finishes one we created. */
     private void notifyChange(TodoItem old, TodoItem now) {
-        String me = me();
-        if (me.isEmpty() || now.deleted || me.equals(now.touchedBy))
+        if (me().isEmpty() || now.deleted || isMine(now.touchedBy))
             return;
-        if (now.isAssignedTo(me) && (old == null || !old.isAssignedTo(me)) && now.isOpen(System.currentTimeMillis()))
+        if (isMine(now.assignee) && (old == null || !isMine(old.assignee)) && now.isOpen(System.currentTimeMillis()))
             events.add(new Event(who(now.touchedBy) + " assigned you: " + now.title, null, 0));
-        if (now.done && old != null && (!old.done || old.doneAt != now.doneAt) && me.equals(now.createdBy)
-            && !me.equals(now.doneBy))
+        if (now.done && old != null && (!old.done || old.doneAt != now.doneAt) && isMine(now.createdBy)
+            && !isMine(now.doneBy))
             events.add(new Event(who(now.doneBy) + " finished: " + now.title, null, 0));
     }
 

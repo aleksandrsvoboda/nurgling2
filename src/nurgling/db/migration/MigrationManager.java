@@ -21,7 +21,7 @@ public class MigrationManager {
      * and this older client may not understand the new columns/tables; we
      * refuse to sync in that case rather than write incompatible rows.
      */
-    public static final int CLIENT_MAX_SCHEMA_VERSION = 13;
+    public static final int CLIENT_MAX_SCHEMA_VERSION = 14;
 
     /** Version of the migration that creates kin_secrets; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_KIN_SECRETS = 9;
@@ -37,6 +37,9 @@ public class MigrationManager {
 
     /** Version of the migration that creates quest_shares; optional, see {@link Migration#optional}. */
     public static final int MIGRATION_QUEST_SHARES = 13;
+
+    /** Version of the migration that creates timers; optional, see {@link Migration#optional}. */
+    public static final int MIGRATION_TIMERS = 14;
 
     public static class SchemaTooNewException extends SQLException {
         public final int clientVersion;
@@ -671,6 +674,50 @@ public class MigrationManager {
                     "PRIMARY KEY (profile, char_name)" +
                     ")" + (pg ? " WITH (fillfactor = 70)" : ""));
                 System.out.println("Created quest_shares table");
+            }
+        });
+
+        /* Optional: timers backs only village-shared resource timers, map pins, reminders and To-Do task
+         * deadlines, which
+         * stay on their JSON file when the table is missing. A role without CREATE on the schema must
+         * not lose area, planning and recipe sync over it. */
+        migrations.add(new Migration(MIGRATION_TIMERS, "Create timers table for shared resource timers, pins and reminders", true) {
+            @Override
+            public void run(DatabaseAdapter adapter) throws SQLException {
+                if (adapter.tableExists("timers")) {
+                    return;
+                }
+                createTable(adapter, "timers",
+                    "CREATE TABLE timers (" +
+                    /* Deterministic for resource timers (see nurgling.timers.Timer.resourceId), so two
+                     * villagers timing one resource share a row; random for pins and reminders. */
+                    "id VARCHAR(64) PRIMARY KEY, " +
+                    "profile VARCHAR(255) NOT NULL DEFAULT 'global', " +
+                    "kind VARCHAR(16) NOT NULL, " +
+                    /* Server grid id plus the tile offset inside it; NULL for reminders. */
+                    "grid_id BIGINT, " +
+                    "ox INTEGER, " +
+                    "oy INTEGER, " +
+                    "res_type VARCHAR(255), " +
+                    "name VARCHAR(255) NOT NULL, " +
+                    "icon VARCHAR(64), " +
+                    /* Epoch ms on the database's clock; clients convert with their measured offset. */
+                    "started_at BIGINT NOT NULL, " +
+                    "duration_ms BIGINT NOT NULL, " +
+                    "repeat_ms BIGINT NOT NULL DEFAULT 0, " +
+                    "set_by VARCHAR(255), " +
+                    /* Task deadlines only: the To-Do item they belong to, and who it is assigned to. */
+                    "task_id INTEGER, " +
+                    "assignee VARCHAR(255), " +
+                    "version INTEGER NOT NULL DEFAULT 1, " +
+                    "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "last_touched_by VARCHAR(255), " +
+                    "deleted_at TIMESTAMP" +
+                    ")");
+                safeCreateIndex(adapter, "CREATE INDEX idx_timers_profile ON timers (profile)");
+                safeCreateIndex(adapter, "CREATE INDEX idx_timers_deleted ON timers (profile, deleted_at)");
+                safeCreateIndex(adapter, "CREATE INDEX idx_timers_grid ON timers (profile, grid_id)");
+                System.out.println("Created timers table");
             }
         });
 

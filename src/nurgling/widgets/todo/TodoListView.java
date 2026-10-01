@@ -16,6 +16,8 @@ public class TodoListView extends Widget implements Scrollable {
     static final int ROWH = UI.scale(20);
     static final Color URGENT = new Color(224, 106, 79);
     static final Color PENDING = new Color(232, 163, 61);
+    private static final Color DUE_LATE = new Color(184, 50, 42);
+    private static final long DUE_SOON_MS = 3 * 3_600_000L;
     private static final int BOXX = UI.scale(6);
     private static final int TEXTX = UI.scale(30);
     private static final int PINW = UI.scale(16);
@@ -32,6 +34,8 @@ public class TodoListView extends Widget implements Scrollable {
         boolean isPending(int id);
         boolean canEdit();
         String me();
+        /** The task's deadline, or null when it has none. */
+        nurgling.timers.Timer deadline(TodoItem it);
     }
 
     /** One drawn line: a task, or the Done header. */
@@ -209,6 +213,11 @@ public class TodoListView extends Widget implements Scrollable {
             g.image(wt, Coord.of(right, y + (ROWH - wt.sz().y) / 2));
             right -= UI.scale(6);
         }
+        if (!shownDone) {
+            nurgling.timers.Timer d = listener.deadline(it);
+            if (d != null)
+                right = drawDue(g, d, right, y);
+        }
         if (listener.isPending(it.id)) {
             int s = UI.scale(5);
             right -= s;
@@ -228,6 +237,35 @@ public class TodoListView extends Widget implements Scrollable {
             CookbookTheme.fill(g, Coord.of(tx, y + ROWH / 2), Coord.of(tt.sz().x, 1), CookbookTheme.muted);
         if (extraTex != null)
             g.image(extraTex, Coord.of(tx + tt.sz().x, y + (ROWH - extraTex.sz().y) / 2 + UI.scale(1)));
+    }
+
+    /** "due in 3h" / "overdue 2h" / "due Fri 18:00" in a small frame, right-aligned at {@code right}. */
+    private int drawDue(GOut g, nurgling.timers.Timer d, int right, int y) {
+        long left = d.readyAt() - now;
+        String text;
+        Color fg, frame;
+        if (left <= 0) {
+            text = "overdue " + nurgling.timers.TimerDurations.format(-left);
+            fg = Color.WHITE;
+            frame = DUE_LATE;
+        } else if (left <= DUE_SOON_MS) {
+            text = "due in " + nurgling.timers.TimerDurations.format(left);
+            fg = CookbookTheme.accent;
+            frame = CookbookTheme.accent;
+        } else {
+            text = "due " + nurgling.timers.TimerDurations.formatClock(d.readyAt(), "tomorrow");
+            fg = CookbookTheme.muted;
+            frame = CookbookTheme.outline;
+        }
+        Tex t = tc.get(CookbookTheme.small, text, fg);
+        Coord sz = Coord.of(t.sz().x + UI.scale(8), t.sz().y + UI.scale(2));
+        Coord ul = Coord.of(right - sz.x, y + (ROWH - sz.y) / 2);
+        if (left <= 0)
+            CookbookTheme.fill(g, ul, sz, frame);
+        else
+            CookbookTheme.frame(g, ul, sz, frame);
+        g.image(t, ul.add(UI.scale(4), UI.scale(1)));
+        return ul.x - UI.scale(6);
     }
 
     private int rowAt(Coord c) {
