@@ -486,9 +486,7 @@ public class SessionTabBar extends Widget {
 
         // Ready timers waiting in a background world: a small dot, much quieter than the alarm pulse.
         if (!isActive && ctx.hasTimerAttention()) {
-            int r = UI.scale(3);
-            g.chcolor(TIMER_DOT);
-            g.fellipse(new Coord(x + UI.scale(7), y + UI.scale(7)), new Coord(r, r));
+            nurgling.widgets.timers.TimerIcons.dot(g, new Coord(x + UI.scale(7), y + UI.scale(7)), UI.scale(8), TIMER_DOT);
         }
 
         g.chcolor();

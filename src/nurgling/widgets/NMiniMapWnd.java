@@ -35,8 +35,6 @@ public class NMiniMapWnd extends Widget{
         private static final long SOON = 5 * 60 * 1000L;
         private int count = 0;
         private boolean soon = false;
-        private Tex badge = null;
-        private int badgeFor = 0;
 
         public TimersButton() {
             super("nurgling/hud/buttons/toggle_panel/timer", kb_resourcetimers, L10n.get("minimap.resource_timers"));
@@ -49,10 +47,6 @@ public class NMiniMapWnd extends Widget{
             long now = System.currentTimeMillis();
             count = (gui == null || gui.timerStore == null) ? 0 : gui.timerStore.unseenReadyCount(now);
             soon = gui != null && gui.timerStore != null && gui.timerStore.anyDueWithin(now, SOON);
-            if (count != badgeFor) {
-                badgeFor = count;
-                badge = (count > 0) ? nurgling.widgets.timers.TimerIcons.label(String.valueOf(count), true) : null;
-            }
         }
 
         @Override
@@ -63,8 +57,8 @@ public class NMiniMapWnd extends Widget{
                 g.rect(Coord.z, sz);
                 g.chcolor();
             }
-            if (badge != null)
-                g.image(badge, new Coord(sz.x - badge.sz().x, 0));
+            if (count > 0)
+                nurgling.widgets.timers.TimerIcons.badge(g, new Coord(sz.x, 0), count);
         }
 
         @Override

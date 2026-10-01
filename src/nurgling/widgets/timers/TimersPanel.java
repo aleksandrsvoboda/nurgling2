@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * Timers &amp; notifications: every timer of the world, ready ones first, with a one-line box for quick
- * reminders. Opened from the minimap's timers button, the bell on the alarm widget, or a banner.
+ * reminders. Opened from the minimap's timers button or a banner.
  */
 public class TimersPanel extends Window {
     public static final KeyBinding kb_quickadd = KeyBinding.get("timers_quickadd", KeyMatch.nil);
@@ -294,7 +294,7 @@ public class TimersPanel extends Window {
             Coord mid = Coord.of(bx, by);
             if(ready && !dismissed) {
                 CookbookTheme.frame(g, mid, bsz, TimerIcons.READY);
-                TimerIcons.check(g, mid, B, TimerIcons.READY);
+                TimerIcons.check(g, mid, B);
                 hits.add(new Hit(mid, bsz, () -> store.dismiss(t.id, System.currentTimeMillis()), L10n.get("timers.tip.dismiss")));
             } else {
                 boolean arming = t.id.equals(confirmRemove) && Utils.rtime() < confirmUntil;

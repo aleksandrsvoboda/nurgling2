@@ -17,13 +17,12 @@ import java.util.List;
  * Banners that drop in at the top of the screen when timers become ready, phone-notification style.
  *
  * <p>The newest banner shows in full with the older ones peeking out underneath; clicking the peek expands
- * the stack. A banner goes away by itself after {@link #SHOW_SECONDS} (hovering holds it) - the timer then
- * waits in the bell and the timers panel - or at once when the player acts on it.
+ * the stack. A banner stays until the player clicks one of its buttons, or until its timers are dealt with
+ * somewhere else - dismissed or restarted in the timers panel, or removed by a villager.
  *
  * <p>The widget is only as big as the banners it shows, so everywhere else clicks reach the map as usual.
  */
 public class TimerBanners extends Widget {
-    private static final double SHOW_SECONDS = 8;
     private static final int W = UI.scale(310);
     private static final int PAD = UI.scale(8);
     private static final int GAP = UI.scale(5);
@@ -37,12 +36,10 @@ public class TimerBanners extends Widget {
     private static final class Banner {
         final List<String> ids;
         final boolean away;
-        double shownAt;
 
-        Banner(List<String> ids, boolean away, double shownAt) {
+        Banner(List<String> ids, boolean away) {
             this.ids = ids;
             this.away = away;
-            this.shownAt = shownAt;
         }
     }
 
@@ -61,7 +58,6 @@ public class TimerBanners extends Widget {
     private final List<Banner> banners = new ArrayList<>();
     private final List<Hit> hits = new ArrayList<>();
     private boolean expanded = false;
-    private boolean hover = false;
 
     public TimerBanners() {
         super(Coord.z);
@@ -80,7 +76,7 @@ public class TimerBanners extends Widget {
         List<String> ids = new ArrayList<>();
         for(Timer t : due)
             ids.add(t.id);
-        banners.add(0, new Banner(ids, away, Utils.rtime()));
+        banners.add(0, new Banner(ids, away));
         expanded = false;
         raise();
     }
@@ -88,7 +84,6 @@ public class TimerBanners extends Widget {
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        double now = Utils.rtime();
         long ms = System.currentTimeMillis();
         TimerStore store = store();
         for(java.util.Iterator<Banner> it = banners.iterator(); it.hasNext(); ) {
@@ -101,9 +96,7 @@ public class TimerBanners extends Widget {
                 TimerStore.Local l = store.local(id);
                 return !t.isReady(ms) || l.ackedStart == t.startedAt || l.snoozeUntil > ms;
             });
-            if(hover)
-                b.shownAt = now;
-            if(b.ids.isEmpty() || now - b.shownAt > SHOW_SECONDS)
+            if(b.ids.isEmpty())
                 it.remove();
         }
         if(banners.size() <= 1)
@@ -282,11 +275,5 @@ public class TimerBanners extends Widget {
         }
         // A click on the banner itself is swallowed so it never walks the character somewhere.
         return ev.c.isect(Coord.z, sz);
-    }
-
-    @Override
-    public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
-        hover = hovering;
-        return hovering;
     }
 }

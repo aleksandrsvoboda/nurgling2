@@ -16,8 +16,9 @@ import java.util.Map;
  */
 public final class TimerIcons {
     public static final Color READY = new Color(122, 209, 122);
-    public static final Color TRACK = new Color(0, 0, 0, 110);
-    public static final Color DIM = new Color(255, 255, 255, 110);
+    /** Small enough that the badge sits on the icon's corner instead of covering it. */
+    private static final Text.Foundry BADGE_FONT =
+        new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 9, Color.WHITE).aa(true);
 
     /** Pin colours, in the order the popover offers them. The key is what gets stored. */
     public static final String[] PIN_COLORS = {"orange", "blue", "green", "red", "purple", "yellow"};
@@ -49,6 +50,14 @@ public final class TimerIcons {
     };
 
     private static Tex timerIcon, restartIcon;
+
+    /* Map and list icons, all from resources/src/nurgling/hud/icons/timers. The ring is a dark track plus
+     * one of RING_FRAMES white arcs, tinted at draw time; the pin is white and tinted too. */
+    private static final int RING_FRAMES = 24;
+    /** Height of the pin's head centre as a share of its image size (24 of 64 px). */
+    private static final double PIN_HEAD = 24.0 / 64;
+    private static Tex ringTrack, pinTex, checkTex, reminderTex, badgeTex, dotTex;
+    private static final Tex[] ringFill = new Tex[RING_FRAMES];
     private static final Map<String, Tex> resIcons = new HashMap<>();
 
     private TimerIcons() {
@@ -84,16 +93,20 @@ public final class TimerIcons {
         return t;
     }
 
-    /** The minimap button's icon, used for the bell and the notify toggle. */
+    /** The minimap button's icon, reused for the per-timer notify toggle in the panel. */
     public static Tex timerIcon() {
         if(timerIcon == null)
             timerIcon = new TexI(Resource.loadsimg("nurgling/hud/buttons/toggle_panel/timer/u"));
         return timerIcon;
     }
 
+    private static Tex icon(String name) {
+        return new TexI(Resource.loadsimg("nurgling/hud/icons/timers/" + name));
+    }
+
     public static Tex restartIcon() {
         if(restartIcon == null)
-            restartIcon = new TexI(Resource.loadsimg("nurgling/hud/buttons/reload/u"));
+            restartIcon = icon("restart");
         return restartIcon;
     }
 
@@ -111,6 +124,9 @@ public final class TimerIcons {
             tex = (img == null) ? null : img.tex();
         } catch(Loading l) {
             return null;
+        } catch(Resource.NoSuchResourceException e) {
+            // Not a Loading: left uncaught it would take down the UI thread. Fall back to a pin for good.
+            tex = null;
         }
         synchronized(resIcons) {
             resIcons.put(resType, tex);
@@ -125,79 +141,78 @@ public final class TimerIcons {
     public static void drawKindIcon(GOut g, Timer t, Coord ul, int size) {
         CookbookTheme.fill(g, ul, Coord.of(size, size), new Color(0x4a, 0x3b, 0x28));
         CookbookTheme.frame(g, ul, Coord.of(size, size), new Color(0x5b, 0x4a, 0x33));
-        Coord c = ul.add(size / 2, size / 2);
-        int r = size / 2 - UI.scale(4);
+        int in = size - UI.scale(4);
+        Coord iul = ul.add(UI.scale(2), UI.scale(2));
         if(t.kind == Timer.Kind.RESOURCE) {
             Tex icon = resourceIcon(t.resType);
             if(icon != null) {
-                int in = size - UI.scale(4);
-                g.image(icon, ul.add(UI.scale(2), UI.scale(2)), Coord.of(in, in));
+                g.image(icon, iul, Coord.of(in, in));
                 return;
             }
-            pin(g, c, r, NStyle.border);
+            pin(g, ul.add(size / 2, size / 2), in, NStyle.border);
         } else if(t.kind == Timer.Kind.PIN) {
-            pin(g, c, r, pinColor(t.icon));
+            pin(g, ul.add(size / 2, size / 2), in, pinColor(t.icon));
         } else {
-            clock(g, c, r);
+            if(reminderTex == null)
+                reminderTex = icon("reminder");
+            g.image(reminderTex, iul, Coord.of(in, in));
         }
-    }
-
-    /** A filled dot with a dark rim, the map marker for a pin. */
-    public static void pin(GOut g, Coord c, int r, Color col) {
-        g.chcolor(Color.BLACK);
-        g.fellipse(c, Coord.of(r + 1, r + 1));
-        g.chcolor(col);
-        g.fellipse(c, Coord.of(r, r));
-        g.chcolor(Color.WHITE);
-        int d = Math.max(1, r / 3);
-        g.fellipse(c, Coord.of(d, d));
-        g.chcolor();
-    }
-
-    private static void clock(GOut g, Coord c, int r) {
-        g.chcolor(new Color(0xE6, 0xE1, 0xD6));
-        g.fellipse(c, Coord.of(r, r));
-        g.chcolor(new Color(0x28, 0x34, 0x36));
-        g.line(c, c.add(0, -r + UI.scale(2)), UI.scale(1.5));
-        g.line(c, c.add(r - UI.scale(3), 0), UI.scale(1.5));
-        g.chcolor();
-    }
-
-    /** A check mark, for Dismiss. */
-    public static void check(GOut g, Coord ul, int size, Color col) {
-        g.chcolor(col);
-        double w = Math.max(1.5, UI.scale(2.0));
-        Coord a = ul.add(size * 2 / 10, size / 2);
-        Coord b = ul.add(size * 4 / 10, size * 7 / 10);
-        Coord c = ul.add(size * 8 / 10, size * 3 / 10);
-        g.line(a, b, w);
-        g.line(b, c, w);
-        g.chcolor();
     }
 
     /**
-     * A ring that fills clockwise from the top as the timer runs. Drawn as short thick segments: GOut can
-     * fill a pie but not cut a hole in one.
+     * A phone-style notification badge: a white number on a red disc, its top-right corner at the given
+     * point. Two or more digits stretch the disc sideways.
      */
-    public static void ring(GOut g, Coord c, int r, double progress, Color col) {
-        double w = Math.max(2, UI.scale(3.0));
-        arc(g, c, r, 0, 1, TRACK, w);
-        if(progress > 0)
-            arc(g, c, r, 0, progress, col, w);
+    public static void badge(GOut g, Coord topRight, int count) {
+        if(badgeTex == null)
+            badgeTex = icon("badge");
+        Tex num = text(BADGE_FONT, (count > 99) ? "99+" : String.valueOf(count), Color.WHITE);
+        int h = UI.scale(12);
+        int w = Math.max(h, num.sz().x + UI.scale(5));
+        Coord ul = topRight.sub(w, 0);
+        g.image(badgeTex, ul, Coord.of(w, h));
+        g.image(num, ul.add((w - num.sz().x) / 2, (h - num.sz().y) / 2));
     }
 
-    private static void arc(GOut g, Coord c, int r, double from, double to, Color col, double w) {
+    /** A map pin in the given colour, its head centred on {@code c}, {@code size} px tall. */
+    public static void pin(GOut g, Coord c, int size, Color col) {
+        if(pinTex == null)
+            pinTex = icon("pin");
         g.chcolor(col);
-        int steps = Math.max(2, (int) Math.ceil((to - from) * 36));
-        Coord prev = null;
-        for(int i = 0; i <= steps; i++) {
-            double f = from + (to - from) * i / steps;
-            double a = Math.PI / 2 - f * Math.PI * 2;
-            Coord p = Coord.of((int) Math.round(c.x + Math.cos(a) * r), (int) Math.round(c.y - Math.sin(a) * r));
-            if(prev != null)
-                g.line(prev, p, w);
-            prev = p;
-        }
+        g.image(pinTex, c.sub(size / 2, (int) Math.round(size * PIN_HEAD)), Coord.of(size, size));
+        g.chcolor();
+    }
+
+    /** A small dot in the given colour, centred on {@code c}; marks a session tab with waiting timers. */
+    public static void dot(GOut g, Coord c, int size, Color col) {
+        if(dotTex == null)
+            dotTex = icon("dot");
+        g.chcolor(col);
+        g.image(dotTex, c.sub(size / 2, size / 2), Coord.of(size, size));
+        g.chcolor();
+    }
+
+    /** The green check mark, for Dismiss. */
+    public static void check(GOut g, Coord ul, int size) {
+        if(checkTex == null)
+            checkTex = icon("check");
+        g.image(checkTex, ul, Coord.of(size, size));
+    }
+
+    /** A progress ring centred on {@code c}, {@code size} px across, filled clockwise from the top. */
+    public static void ring(GOut g, Coord c, int size, double progress, Color col) {
+        if(ringTrack == null)
+            ringTrack = icon("ring_track");
+        Coord ul = c.sub(size / 2, size / 2);
+        Coord sz = Coord.of(size, size);
+        g.image(ringTrack, ul, sz);
+        int frame = Math.min(RING_FRAMES, (int) Math.ceil(progress * RING_FRAMES));
+        if(frame <= 0)
+            return;
+        if(ringFill[frame - 1] == null)
+            ringFill[frame - 1] = icon(String.format("ring_fill/%02d", frame));
+        g.chcolor(col);
+        g.image(ringFill[frame - 1], ul, sz);
         g.chcolor();
     }
 }

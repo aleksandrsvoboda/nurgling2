@@ -2491,18 +2491,19 @@ NMiniMap extends MiniMap {
     private void drawTimer(GOut g, nurgling.timers.Timer t, Coord sc, long now, boolean dismissed) {
         boolean ready = t.isReady(now);
         boolean pin = t.kind == nurgling.timers.Timer.Kind.PIN;
-        int r = UI.scale(pin ? 9 : 11);
+        // Wide enough to frame the marker icon instead of running across it.
+        int size = UI.scale(pin ? 30 : 38);
         Color col = ready ? nurgling.widgets.timers.TimerIcons.READY
             : (pin ? nurgling.widgets.timers.TimerIcons.pinColor(t.icon) : NStyle.border);
         if(dismissed)
             col = new Color(col.getRed(), col.getGreen(), col.getBlue(), 110);
+        nurgling.widgets.timers.TimerIcons.ring(g, sc, size, t.progress(now), col);
         if(pin)
-            nurgling.widgets.timers.TimerIcons.pin(g, sc, UI.scale(5), nurgling.widgets.timers.TimerIcons.pinColor(t.icon));
-        nurgling.widgets.timers.TimerIcons.ring(g, sc, r, t.progress(now), col);
+            nurgling.widgets.timers.TimerIcons.pin(g, sc, size * 3 / 5, nurgling.widgets.timers.TimerIcons.pinColor(t.icon));
         String time = ready ? L10n.get("timers.map.ready") : nurgling.timers.TimerDurations.format(t.remaining(now));
         String text = pin ? (t.name + " " + time) : time;
         Tex lbl = nurgling.widgets.timers.TimerIcons.label(text, ready);
-        g.image(lbl, sc.add(-lbl.sz().x / 2, r + UI.scale(2)));
+        g.image(lbl, sc.add(-lbl.sz().x / 2, size / 2));
     }
 
     /** The timer drawn nearest to a point on this map, if any is close enough to be the one meant. */
