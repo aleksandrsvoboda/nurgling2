@@ -56,6 +56,7 @@ public class StackSupporter {
         customStackSizes.put("Aurochs Hair", 3);
         // gfx/invobjs/peapod. In no VSpec category.
         customStackSizes.put("Peapod", 3);
+        customStackSizes.put("Adder's Lying Tongue", 3);
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
