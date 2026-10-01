@@ -65,6 +65,7 @@ public class SessionManager {
 
     /** One timer store per world, shared by every session logged into it; see {@link nurgling.timers.TimerStore}. */
     private final ConcurrentHashMap<String, nurgling.timers.TimerStore> timerStores = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, nurgling.forage.ForageStore> forageStores = new ConcurrentHashMap<>();
 
     /**
      * Get the singleton SessionManager instance.
@@ -546,6 +547,18 @@ public class SessionManager {
     /** Every world that has had a timer store opened this run; the sync service walks these. */
     public Collection<nurgling.timers.TimerStore> timerStores() {
         return timerStores.values();
+    }
+
+    /** The forage finds of a world. Every session on that world gets the same instance. */
+    public nurgling.forage.ForageStore forageStore(String genus) {
+        String key = (genus == null || genus.isEmpty()) ? "" : genus;
+        return forageStores.computeIfAbsent(key, g -> new nurgling.forage.ForageStore(g,
+            nurgling.profiles.ConfigFactory.getConfig(g).getForageFindsPath()));
+    }
+
+    /** Every world that has had a forage store opened this run; the sync service walks these. */
+    public Collection<nurgling.forage.ForageStore> forageStores() {
+        return forageStores.values();
     }
 
     /**

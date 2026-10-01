@@ -79,6 +79,7 @@ public class MapToolsWindow extends Window {
                 () -> NMiniMap.showTreeIcons(), val -> NMiniMap.showTreeIcons(val), MapToolsWindow::openTreeSearch);
         y = addIconRow(tab, y, L10n.get("maptools.fish_icons"),
                 () -> NMiniMap.showFishIcons(), val -> NMiniMap.showFishIcons(val), MapToolsWindow::openFishSearch);
+        y = addForageRows(tab, y);
         CheckBox cluster = tab.add(new CheckBox(L10n.get("maptools.cluster_marks")), UI.scale(4), y);
         cluster.settip(L10n.get("maptools.cluster_marks_tip"));
         cluster.state(() -> NMiniMap.clusterMinedMarks());
@@ -143,6 +144,38 @@ public class MapToolsWindow extends Window {
             }
         }, OVERLAY_W - SEARCH_BTN_W, y);
         return y + alignRow(y, box, btn) + ROW_GAP;
+    }
+
+    /** Forage finds: show toggle with its own quality threshold and search, then the recording switch. */
+    private int addForageRows(Widget tab, int y) {
+        CheckBox box = tab.add(new CheckBox(L10n.get("maptools.forage_icons")), UI.scale(4), y);
+        box.state(() -> NMiniMap.showForageFinds());
+        box.set(val -> NMiniMap.showForageFinds(val));
+        Label lbl = tab.add(new Label(L10n.get("maptools.threshold")), ENTRY_X - UI.scale(26), y);
+        TextEntry entry = tab.add(new TextEntry(ENTRY_W, String.valueOf(NMiniMap.forageMinQuality())) {
+            @Override
+            public void changed() {
+                super.changed();
+                Integer val = parseThreshold(text());
+                if(val != null)
+                    NMiniMap.forageMinQuality(val);
+            }
+        }, ENTRY_X, y);
+        entry.settip(L10n.get("maptools.forage_min_tip"));
+        Button btn = tab.add(new Button(SEARCH_BTN_W, L10n.get("maptools.search_btn")) {
+            @Override
+            public void click() {
+                openForageSearch();
+            }
+        }, OVERLAY_W - SEARCH_BTN_W, y);
+        btn.settip(L10n.get("forage.search_tip"));
+        y += alignRow(y, box, lbl, entry, btn) + ROW_GAP;
+
+        CheckBox record = tab.add(new CheckBox(L10n.get("maptools.forage_record")), UI.scale(14), y);
+        record.settip(L10n.get("maptools.forage_record_tip"));
+        record.state(nurgling.forage.ForageRecorder::enabled);
+        record.set(nurgling.forage.ForageRecorder::enabled);
+        return y + record.sz.y + ROW_GAP;
     }
 
     /**
@@ -383,6 +416,24 @@ public class MapToolsWindow extends Window {
         gui.add(gui.mineralSearchWindow, new Coord(100, 100));
         gui.mineralSearchWindow.show();
         gui.mineralSearchWindow.preset(preset);
+    }
+
+    public static void openForageSearch() {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null)
+            return;
+        if(gui.forageSearchWindow != null) {
+            if(gui.forageSearchWindow.visible()) {
+                gui.forageSearchWindow.hide();
+            } else {
+                gui.forageSearchWindow.show();
+                gui.forageSearchWindow.raise();
+            }
+        } else {
+            gui.forageSearchWindow = new ForageSearchWindow(gui);
+            gui.add(gui.forageSearchWindow, new Coord(100, 100));
+            gui.forageSearchWindow.show();
+        }
     }
 
     public static void openFishSearch() {

@@ -51,6 +51,10 @@ public class NGameUI extends GameUI
     public DrinkMeter drinkMeter;
     /** This world's timers; the same instance for every session on the world. */
     public nurgling.timers.TimerStore timerStore;
+    /** This world's forage finds; the same instance for every session on the world. */
+    public nurgling.forage.ForageStore forageStore;
+    public nurgling.forage.ForageRecorder forageRecorder;
+    public nurgling.widgets.ForageSearchWindow forageSearchWindow = null;
     public nurgling.timers.TimerNotifier timerNotifier;
     public nurgling.todo.TaskDeadlines taskDeadlines;
     public nurgling.widgets.timers.TimerBanners timerBanners;
@@ -243,6 +247,8 @@ public class NGameUI extends GameUI
 
         // Timers: the store is per world, the widgets per session
         timerStore = nurgling.sessions.SessionManager.getInstance().timerStore(genus);
+        forageStore = nurgling.sessions.SessionManager.getInstance().forageStore(genus);
+        forageRecorder = new nurgling.forage.ForageRecorder(this);
         timerNotifier = new nurgling.timers.TimerNotifier(this);
         taskDeadlines = new nurgling.todo.TaskDeadlines(this);
         add(timersPanel = new nurgling.widgets.timers.TimersPanel(), new Coord(100, 100));
@@ -312,6 +318,8 @@ public class NGameUI extends GameUI
             timerNotifier.tick();
         if(taskDeadlines != null)
             taskDeadlines.tick();
+        if(forageRecorder != null)
+            forageRecorder.tick();
     }
 
     @Override
@@ -322,6 +330,8 @@ public class NGameUI extends GameUI
             fishLocationService.dispose();
         if(labeledMarkService != null)
             labeledMarkService.dispose();
+        if(forageStore != null)
+            forageStore.flush();
         /* Take this character's published position out on the way down. It would age out on its own
          * within the minute, but that minute is a minute of showing someone who has left, and
          * "logged out" and "standing still" are exactly the two states these markers exist to tell

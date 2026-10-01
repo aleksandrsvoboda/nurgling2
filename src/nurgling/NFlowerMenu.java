@@ -122,6 +122,8 @@ public class NFlowerMenu extends FlowerMenu
                     NUtils.getUI().core.setLastAction(option.name, actions.gob);
                 }
             }
+            if (ui != null && ui.gui != null && ui.gui.forageRecorder != null)
+                ui.gui.forageRecorder.onPetal(option.name);
         }
         if(!ui.modshift && !NUtils.getUI().core.isBotmod() && ctrlMode)
         {

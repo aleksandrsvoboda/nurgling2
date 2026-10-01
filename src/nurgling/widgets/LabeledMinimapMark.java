@@ -249,6 +249,12 @@ public class LabeledMinimapMark {
         return labelTex.computeIfAbsent(rgb + " " + label, k -> furnace(rgb).render(label));
     }
 
+    /** A white label in the mark style, shared with the marks' own renders. Used by forage finds. */
+    public static Text label(String text) {
+        int rgb = Color.WHITE.getRGB();
+        return labelTex.computeIfAbsent(rgb + " " + text, k -> labelFurnace.render(text));
+    }
+
     private static Text.Furnace furnace(int rgb) {
         if(rgb == Color.WHITE.getRGB())
             return labelFurnace;
