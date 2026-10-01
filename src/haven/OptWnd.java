@@ -862,6 +862,8 @@ public class OptWnd extends Window {
 		y = addbtn(cont, L10n.get("opt.keybind.quick_action_alt"), NMapView.kb_quickignaction, y);
 		y = addbtn(cont, L10n.get("opt.keybind.nature"), NMapView.kb_togglenature, y);
 		y = addbtn(cont, L10n.get("opt.keybind.night"), NMiniMapWnd.kb_night, y);
+		y = addbtn(cont, L10n.get("opt.keybind.timers"), NMiniMapWnd.kb_resourcetimers, y);
+		y = addbtn(cont, L10n.get("opt.keybind.timers_quickadd"), nurgling.widgets.timers.TimersPanel.kb_quickadd, y);
 		y = addbtn(cont, L10n.get("opt.keybind.sort_inventory"), GameUI.kb_sort, y);
 		y = addbtn(cont, L10n.get("opt.keybind.interrupt_bots"), nurgling.widgets.BotsInterruptWidget.kb_interrupt_bots, y);
 		y = cont.adda(new Label("Session Hotkeys"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;

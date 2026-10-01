@@ -245,6 +245,12 @@ public class NConfig
         starvationVignetteCriticalThreshold,
         starvationSoundThreshold,
         starvationSoundInterval,
+        // Timer notifications
+        timerSoundResource,
+        timerSoundPin,
+        timerSoundReminder,
+        timerFlashTaskbar,
+        timerCombatQuiet,
         // Auto-logout settings
         autoLogoutEnabled,
         autoLogoutThreshold,
@@ -682,6 +688,13 @@ public class NConfig
         conf.put(Key.starvationVignetteCriticalThreshold, 2000);  // Vignette intensifies (0 to disable)
         conf.put(Key.starvationSoundThreshold, 2000);  // Sound alarm threshold (0 to disable)
         conf.put(Key.starvationSoundInterval, 10000);  // Sound interval in milliseconds
+
+        // Timer notifications: alarm resource per kind ("none" = silent)
+        conf.put(Key.timerSoundResource, "alarm/question");
+        conf.put(Key.timerSoundPin, "alarm/quest");
+        conf.put(Key.timerSoundReminder, "alarm/quest");
+        conf.put(Key.timerFlashTaskbar, true);   // flash the taskbar button when the game is in the background
+        conf.put(Key.timerCombatQuiet, true);    // hold banners and sound until a fight ends
 
         // Auto-logout settings
         conf.put(Key.autoLogoutEnabled, false);

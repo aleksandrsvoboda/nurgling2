@@ -8,7 +8,6 @@ import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUtils;
-import nurgling.LocalizedResourceTimer;
 import nurgling.conf.NKinProp;
 import nurgling.overlays.NDirArrow;
 import nurgling.tools.Finder;
@@ -37,8 +36,10 @@ public class NAlarmWdg extends Widget
     private volatile boolean alarmActive = false;
     /** Raised when this session alarms while it is not the one on screen; cleared on acknowledge. */
     private volatile boolean alarmLatched = false;
-    final ArrayList<String> resourceTimerAlarms = new ArrayList<>(); // Resource timer IDs in alarm state
-    final ArrayList<String> resourceTimerWarnings = new ArrayList<>(); // Resource timer IDs in warning state (10min left)
+    /** Ready timers this player has not dismissed; the bell shows while there are any. */
+    private int readyTimers = 0;
+    private TexI readyBadge = null;
+    private int readyBadgeFor = -1;
     private static final Text.Furnace active_title = new PUtils.BlurFurn(new Text.Foundry(sans, 15, Color.WHITE).aa(true), 2, 1, new Color(36, 25, 25));
     TexI numberAlarm = null;
     // Cache last known group for each character to handle temporary null buddy during group changes
@@ -199,11 +200,9 @@ public class NAlarmWdg extends Widget
                 alarms.removeAll(forRemove);
             }
             
-            // Check resource timers for alarms and warnings
-            checkResourceTimers();
-            
-            // Update alarm count display (combine PvP alarms + resource alarms)
-            int totalAlarms = alarms.size() + resourceTimerAlarms.size();
+            updateReadyTimers();
+
+            int totalAlarms = alarms.size();
             if (totalAlarms > 0) {
                 numberAlarm = new TexI(active_title.render(String.valueOf(totalAlarms)).img);
             } else {
@@ -434,39 +433,26 @@ public class NAlarmWdg extends Widget
         return (ui instanceof nurgling.NUI) ? ((nurgling.NUI) ui).gui : NUtils.getGameUI();
     }
     
-    /**
-     * Check all resource timers and update alarm/warning states
-     */
-    private void checkResourceTimers() {
+    private void updateReadyTimers() {
         NGameUI gui = ownGui();
-        if (gui == null || gui.localizedResourceTimerService == null) {
-            return;
+        readyTimers = (gui == null || gui.timerStore == null) ? 0 : gui.timerStore.unseenReadyCount(System.currentTimeMillis());
+        if (readyTimers != readyBadgeFor) {
+            readyBadgeFor = readyTimers;
+            readyBadge = (readyTimers > 0) ? new TexI(active_title.render(String.valueOf(readyTimers)).img) : null;
         }
+    }
 
-        java.util.Collection<LocalizedResourceTimer> allTimers = gui.localizedResourceTimerService.getAllTimers();
-        
-        // Clear old resource timer alarms/warnings for timers that no longer exist
-        resourceTimerAlarms.removeIf(timerId -> 
-            allTimers.stream().noneMatch(t -> t.getResourceId().equals(timerId)));
-        resourceTimerWarnings.removeIf(timerId -> 
-            allTimers.stream().noneMatch(t -> t.getResourceId().equals(timerId)));
-        
-        for (LocalizedResourceTimer timer : allTimers) {
-            String timerId = timer.getResourceId();
-            
-            if (timer.isExpired()) {
-                // Timer is ready - add to alarms if not already there
-                if (!resourceTimerAlarms.contains(timerId)) {
-                    resourceTimerAlarms.add(timerId);
-                    resourceTimerWarnings.remove(timerId); // Remove from warnings
-                    NAlarmManager.play("alarm/question"); // Different sound for ready resources
-                }
-            } else {
-                // Timer has more than 10 minutes - remove from both lists
-                resourceTimerAlarms.remove(timerId);
-                resourceTimerWarnings.remove(timerId);
+    @Override
+    public boolean mousedown(MouseDownEvent ev) {
+        // The bell opens the timers panel.
+        if (ev.b == 1 && alarms.isEmpty() && readyTimers > 0) {
+            NGameUI gui = ownGui();
+            if (gui != null) {
+                gui.showTimersPanel();
+                return true;
             }
         }
+        return super.mousedown(ev);
     }
 
     @Override
@@ -480,36 +466,14 @@ public class NAlarmWdg extends Widget
                 g.image(numberAlarm, new Coord(sz.x / 2 + UI.scale(12), sz.y / 2 - UI.scale(24)));
             }
         }
-        // Show question animation for resource notifications (less urgent) with fade effect
-        else if(!resourceTimerAlarms.isEmpty()) {
-            // Create fade in/out effect using alpha (10% to 100% and back)
-            int fadeFrame = (int) (NUtils.getTickId() / 3) % 20; // Slower animation for smooth fade
-            float alpha;
-            
-            if (fadeFrame <= 10) {
-                // Fade in: 10% to 100%
-                alpha = 0.1f + (fadeFrame * 0.09f);
-            } else {
-                // Fade out: 100% to 10%
-                alpha = 1.0f - ((fadeFrame - 10) * 0.09f);
-            }
-            
-            // Apply alpha and draw question icon
-            g.chcolor(255, 255, 255, (int)(alpha * 255));
-            Coord questionPos = new Coord(sz.x / 2 - NStyle.question[0].sz().x / 2, sz.y / 2 - NStyle.question[0].sz().y / 2);
-            g.image(NStyle.question[0], questionPos);
-
-            // Place number badge in the top-right empty circle of the question mark
-            if (numberAlarm != null) {
-                // Position in top-right area where the small circle is
-                Coord numberPos = new Coord(
-                    questionPos.x + (NStyle.question[0].sz().x * 3 / 4) - numberAlarm.sz().x / 2,  // 3/4 right
-                    questionPos.y + (NStyle.question[0].sz().y / 4) - numberAlarm.sz().y / 2 - UI.scale(4)  // 1/4 down, then up 5 pixels
-                );
-                g.image(numberAlarm, numberPos);
-            }
-            
-            g.chcolor(); // Reset color
+        // Ready timers: the timers icon as a bell with a count. Less urgent, so only without a PvP alarm.
+        else if(readyTimers > 0) {
+            Tex bell = nurgling.widgets.timers.TimerIcons.timerIcon();
+            int bsz = Math.min(sz.x, sz.y) * 3 / 5;
+            Coord ul = new Coord((sz.x - bsz) / 2, (sz.y - bsz) / 2);
+            g.image(bell, ul, new Coord(bsz, bsz));
+            if (readyBadge != null)
+                g.image(readyBadge, new Coord(ul.x + bsz - readyBadge.sz().x / 2, ul.y - readyBadge.sz().y / 3));
         }
         
         super.draw(g);

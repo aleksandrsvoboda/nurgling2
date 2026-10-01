@@ -63,6 +63,9 @@ public class SessionManager {
     /** Lock for session operations */
     private final Object sessionsLock = new Object();
 
+    /** One timer store per world, shared by every session logged into it; see {@link nurgling.timers.TimerStore}. */
+    private final ConcurrentHashMap<String, nurgling.timers.TimerStore> timerStores = new ConcurrentHashMap<>();
+
     /**
      * Get the singleton SessionManager instance.
      */
@@ -531,6 +534,18 @@ public class SessionManager {
     public NUI getActiveUI() {
         SessionContext active = activeSession;
         return (active != null) ? active.ui : null;
+    }
+
+    /** The timers of a world. Every session on that world gets the same instance. */
+    public nurgling.timers.TimerStore timerStore(String genus) {
+        String key = (genus == null || genus.isEmpty()) ? "" : genus;
+        return timerStores.computeIfAbsent(key, g -> new nurgling.timers.TimerStore(g,
+            nurgling.profiles.ConfigFactory.getConfig(g).getResourceTimersPath()));
+    }
+
+    /** Every world that has had a timer store opened this run; the sync service walks these. */
+    public Collection<nurgling.timers.TimerStore> timerStores() {
+        return timerStores.values();
     }
 
     /**

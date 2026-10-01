@@ -291,7 +291,7 @@ NMiniMap extends MiniMap {
         drawtempmarks(g);
         drawLabeledMarks(g);
         drawterrainname(g);
-        drawResourceTimers(g);
+        drawTimers(g);
         drawFishLocations(g);
         drawTreeLocations(g);
         drawQueuedWaypoints(g);  // Draw waypoint visualization
@@ -2202,6 +2202,10 @@ NMiniMap extends MiniMap {
         if(peer != null)
             return(Text.render(peer));
 
+        nurgling.timers.Timer timer = timerAt(c);
+        if(timer != null)
+            return(Text.render(timerTooltip(timer)));
+
         if(dloc != null && sessloc != null) {
             Coord hsz = sz.div(2);
 
@@ -2297,6 +2301,8 @@ NMiniMap extends MiniMap {
             Coord tc = c.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
             DisplayMarker mark = markerat(tc);
             if(mark != null) {
+                if(isTimerResource(mark.m))
+                    return(Text.render(mark.m.nm + "  \u00b7  " + L10n.get("timers.map.hint")));
                 try {
                     return(new TexI(mark.tooltip()));
                 } catch(Loading l) {}
@@ -2410,47 +2416,128 @@ NMiniMap extends MiniMap {
         return name;
     }
 
-    private void drawResourceTimers(GOut g) {
-        if(dloc == null) return;
+    /** Where each timer was drawn this frame, for hover and clicks. */
+    private final java.util.List<DrawnTimer> drawnTimers = new java.util.ArrayList<>();
+    /** Grid-to-map lookups per timer; see GridLocator for why these are cached per ref. */
+    private final java.util.Map<String, nurgling.tools.GridLocator.Ref> timerRefs = new java.util.HashMap<>();
+    /** A pin being dragged on the big map; drawn at {@link #dragPos} until it is dropped. */
+    public nurgling.timers.Timer dragTimer = null;
+    public Coord dragPos = null;
 
+    private static final class DrawnTimer {
+        final nurgling.timers.Timer timer;
+        final Coord sc;
+
+        DrawnTimer(nurgling.timers.Timer timer, Coord sc) {
+            this.timer = timer;
+            this.sc = sc;
+        }
+    }
+
+    /** Resource markers that take a timer: the localized resources' map icons. */
+    public static boolean isTimerResource(MapFile.Marker m) {
+        return (m instanceof MapFile.SMarker) && ((MapFile.SMarker) m).res.name.startsWith("gfx/terobjs/mm");
+    }
+
+    /** Timers with a place on the map: a progress ring round the resource, or a pin, with the time left. */
+    private void drawTimers(GOut g) {
+        drawnTimers.clear();
+        if(dloc == null)
+            return;
         NGameUI gui = NUtils.getGameUI();
-        if(gui == null || gui.localizedResourceTimerService == null) return;
-
-        java.util.List<LocalizedResourceTimer> timers = gui.localizedResourceTimerService.getTimersForSegment(dloc.seg.id);
-
+        if(gui == null || gui.timerStore == null)
+            return;
+        MapWnd mapwnd = gui.mapfile;
+        if(mapwnd != null && Utils.eq(mapwnd.markcfg, MapWnd.MarkerConfig.hideall))
+            return;
+        String search = timerSearch();
+        long now = System.currentTimeMillis();
         Coord hsz = sz.div(2);
+        java.util.List<nurgling.timers.Timer> timers = gui.timerStore.timers();
+        if(timerRefs.size() > timers.size() + 32) {
+            java.util.Set<String> live = new java.util.HashSet<>();
+            for(nurgling.timers.Timer t : timers)
+                live.add(t.id);
+            timerRefs.keySet().retainAll(live);
+        }
+        int margin = UI.scale(40);
+        for(nurgling.timers.Timer t : timers) {
+            if(!t.hasLocation() || gui.timerStore.isStale(t, now))
+                continue;
+            if(dragTimer != null && dragTimer.id.equals(t.id))
+                continue;
+            if(search != null && !t.name.toLowerCase().contains(search))
+                continue;
+            nurgling.tools.GridLocator.Ref ref = timerRefs.get(t.id);
+            if(ref == null || ref.gid != t.gridId || ref.local.x != t.ox || ref.local.y != t.oy) {
+                ref = new nurgling.tools.GridLocator.Ref(t.gridId, Coord.of(t.ox, t.oy));
+                timerRefs.put(t.id, ref);
+            }
+            nurgling.tools.GridLocator.resolve(gui, ref);
+            Location loc = ref.loc();
+            if(loc == null || loc.seg.id != dloc.seg.id)
+                continue;
+            Coord sc = loc.tc.sub(dloc.tc).div(scalef()).add(hsz);
+            if(sc.x < -margin || sc.y < -margin || sc.x > sz.x + margin || sc.y > sz.y + margin)
+                continue;
+            boolean dismissed = t.isReady(now) && gui.timerStore.local(t.id).ackedStart == t.startedAt;
+            drawTimer(g, t, sc, now, dismissed);
+            drawnTimers.add(new DrawnTimer(t, sc));
+        }
+        if(dragTimer != null && dragPos != null)
+            drawTimer(g, dragTimer, dragPos, now, false);
+    }
 
-        // Create bordered text furnaces for timer display (like barrel names and character nicknames)
-        Text.Furnace readyTimerFurnace = new PUtils.BlurFurn(
-            new Text.Foundry(Text.dfont, UI.scale(9), Color.GREEN).aa(true),
-            2, 1, Color.BLACK
-        );
-        Text.Furnace activeTimerFurnace = new PUtils.BlurFurn(
-            new Text.Foundry(Text.dfont, UI.scale(9), Color.WHITE).aa(true),
-            2, 1, Color.BLACK
-        );
+    private void drawTimer(GOut g, nurgling.timers.Timer t, Coord sc, long now, boolean dismissed) {
+        boolean ready = t.isReady(now);
+        boolean pin = t.kind == nurgling.timers.Timer.Kind.PIN;
+        int r = UI.scale(pin ? 9 : 11);
+        Color col = ready ? nurgling.widgets.timers.TimerIcons.READY
+            : (pin ? nurgling.widgets.timers.TimerIcons.pinColor(t.icon) : NStyle.border);
+        if(dismissed)
+            col = new Color(col.getRed(), col.getGreen(), col.getBlue(), 110);
+        if(pin)
+            nurgling.widgets.timers.TimerIcons.pin(g, sc, UI.scale(5), nurgling.widgets.timers.TimerIcons.pinColor(t.icon));
+        nurgling.widgets.timers.TimerIcons.ring(g, sc, r, t.progress(now), col);
+        String time = ready ? L10n.get("timers.map.ready") : nurgling.timers.TimerDurations.format(t.remaining(now));
+        String text = pin ? (t.name + " " + time) : time;
+        Tex lbl = nurgling.widgets.timers.TimerIcons.label(text, ready);
+        g.image(lbl, sc.add(-lbl.sz().x / 2, r + UI.scale(2)));
+    }
 
-        for(LocalizedResourceTimer timer : timers) {
-            // Calculate screen position for the timer
-            Coord screenPos = timer.getTileCoords().sub(dloc.tc).div(scalef()).add(hsz);
-
-            // Only draw if on screen
-            if(screenPos.x >= 0 && screenPos.x <= sz.x &&
-               screenPos.y >= 0 && screenPos.y <= sz.y) {
-
-                String timeText = timer.getFormattedRemainingTime();
-
-                // Use appropriate furnace based on timer state
-                Text.Furnace furnace = timer.isExpired() ? readyTimerFurnace : activeTimerFurnace;
-                Text timerDisplay = furnace.render(timeText);
-
-                // Position text slightly below the resource icon
-                Coord textPos = screenPos.add(-timerDisplay.sz().x / 2, 15);
-
-                // Draw timer text with black border (no background needed)
-                g.image(timerDisplay.tex(), textPos);
+    /** The timer drawn nearest to a point on this map, if any is close enough to be the one meant. */
+    public nurgling.timers.Timer timerAt(Coord c) {
+        nurgling.timers.Timer best = null;
+        double bd = UI.scale(12);
+        for(DrawnTimer d : drawnTimers) {
+            double dist = c.dist(d.sc);
+            if(dist < bd) {
+                bd = dist;
+                best = d.timer;
             }
         }
+        return best;
+    }
+
+    private String timerTooltip(nurgling.timers.Timer t) {
+        long now = System.currentTimeMillis();
+        String when = t.isReady(now)
+            ? L10n.get("timers.ready_ago", nurgling.timers.TimerDurations.format(now - t.readyAt()))
+            : L10n.get("timers.map.tip_in", nurgling.timers.TimerDurations.format(t.remaining(now)),
+                nurgling.timers.TimerDurations.formatClock(t.readyAt(), L10n.get("timers.tomorrow")));
+        String who = nurgling.timers.TimerStore.isLocalCharacter(t.setBy) ? L10n.get("timers.by_you") : t.setBy;
+        return t.name + " \u2014 " + when + " \u00b7 " + who;
+    }
+
+    /** The big map's marker search, lowercased, or null when there is none. */
+    private String timerSearch() {
+        for(Widget w = this.parent; w != null; w = w.parent) {
+            if(w instanceof NMapWnd) {
+                String p = ((NMapWnd) w).markerSearchPattern;
+                return (p == null || p.trim().isEmpty()) ? null : p.trim().toLowerCase();
+            }
+        }
+        return null;
     }
 
     private void drawFishLocations(GOut g) {
