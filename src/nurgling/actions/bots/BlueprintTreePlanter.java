@@ -19,6 +19,8 @@ public class BlueprintTreePlanter implements Action {
 
     private static final NAlias TREE_SEEDS = VSpec.getAllPlantableSeeds();
     private static final NAlias TREE_OBJECTS = new NAlias("tree");
+    // A Treeplanter's Pot takes a 2x2 inventory slot
+    private static final Coord POT_SIZE = new Coord(2, 2);
     private BlueprintPlob blueprintPlob = null;
     private List<PlantPosition> plantPositions = new ArrayList<>();
     private NBlueprintPlanterProp prop = null;
@@ -352,47 +354,45 @@ public class BlueprintTreePlanter implements Action {
             
             int treesPlanted = 0;
             List<PlantPosition> remainingPositions = new ArrayList<>(unplantedPositions);
-            
-            // Try to collect and plant pots for each position
-            for (PlantPosition pos : new ArrayList<>(remainingPositions)) {
-                // Check if pot for this tree type is ready on any table
-                boolean potCollected = false;
+
+            // Open each table once per pass and take every ready pot some remaining position
+            // wants, then plant them all. Repeat while a pass still collects something - the
+            // inventory only holds so many 2x2 pots, so one pass may not empty the tables.
+            boolean collected;
+            do {
+                collected = false;
+                Map<String, Integer> needed = countNeededPots(gui, remainingPositions);
                 for (Container table : herbalistTables)
                 {
-                    Container.Space spaceAttr = table.getattr(Container.Space.class);
-                    if (spaceAttr != null && spaceAttr.isReady())
-                    {
-                        // If table is completely empty, skip detailed check
-                        if (spaceAttr.isEmpty())
-                        {
-                            continue;
-                        }
-                    }
-
-                    Results collectResult = collectReadyPotFromTable(gui, pos.treeType, table);
-                    if (collectResult.IsSuccess())
-                    {
-                        potCollected = true;
+                    if (needed.isEmpty() || gui.getInventory().getNumberFreeCoord(POT_SIZE) <= 0)
                         break;
-                    }
+                    Container.Space spaceAttr = table.getattr(Container.Space.class);
+                    if (spaceAttr != null && spaceAttr.isReady() && spaceAttr.isEmpty())
+                        continue;
+                    if (collectReadyPotsFromTable(gui, table, needed) > 0)
+                        collected = true;
                 }
-                
-                if (potCollected) {
-                    // Plant the tree (pot is now in inventory)
+
+                int plantedThisPass = 0;
+                for (PlantPosition pos : new ArrayList<>(remainingPositions)) {
+                    if (findReadyPotInInventory(gui, getShortTreeName(pos.treeType)) == null)
+                        continue;
                     Results plantResult = plantTreeFromPot(gui, pos.worldPos, pos.treeType);
                     if (plantResult.IsSuccess()) {
                         treesPlanted++;
+                        plantedThisPass++;
                         remainingPositions.remove(pos);
-                        
-                        // Drop empty pot after planting
-                        new FreeInventory2(context).run(gui);
-                        
+
                         if (treesPlanted % 5 == 0) {
                             NUtils.getUI().msg("Planted " + treesPlanted + " trees...");
                         }
                     }
                 }
-            }
+
+                // Put the emptied pots away
+                if (plantedThisPass > 0)
+                    new FreeInventory2(context).run(gui);
+            } while (collected && !remainingPositions.isEmpty());
             
             if (treesPlanted > 0) {
                 NUtils.getUI().msg("Planted " + treesPlanted + " trees from ready pots.");
@@ -410,7 +410,14 @@ public class BlueprintTreePlanter implements Action {
                         NUtils.getUI().msg("No more space on herbalist tables. Prepared " + seedlingsPrepared + " seedlings.");
                         break;
                     }
-                    
+
+                    // Get the pot before anything else, so running out of pots does not
+                    // strand a seed and soil in the inventory
+                    if (!getGardenPot(gui, context).IsSuccess()) {
+                        NUtils.getUI().msg("No free Treeplanter's Pot left. Prepared " + seedlingsPrepared + " seedlings.");
+                        break;
+                    }
+
                     Results seedlingResult = prepareSeedling(gui, context, pos.treeType, availableTable);
                     if (seedlingResult.IsSuccess()) {
                         seedlingsPrepared++;
@@ -451,12 +458,13 @@ public class BlueprintTreePlanter implements Action {
             
             new PathFinder(tableGob).run(gui);
             new OpenTargetContainer(table).run(gui);
-            
-            int freeSpace = gui.getInventory(table.cap).getFreeSpace();
-            
+
+            // A pot is 2x2: free cells alone don't mean one fits
+            int potSlots = gui.getInventory(table.cap).getNumberFreeCoord(POT_SIZE);
+
             new CloseTargetContainer(table).run(gui);
-            
-            if (freeSpace > 0) {
+
+            if (potSlots > 0) {
                 return table;
             }
         }
@@ -529,31 +537,87 @@ public class BlueprintTreePlanter implements Action {
         String potName = "Treeplanter's Pot";
         
         NUtils.getUI().msg("Getting garden pot...");
-        
-        // Check if high quality pot already exists in inventory
-        ArrayList<WItem> existingPots = gui.getInventory().getItems(new NAlias(potName), NInventory.QualityType.High);
-        if (!existingPots.isEmpty()) {
-            NUtils.getUI().msg("High quality treeplanter's pot already in inventory");
+
+        // Reuse a pot already in inventory, but never one holding a sapling
+        if (findUnsproutedPot(gui) != null) {
+            NUtils.getUI().msg("Treeplanter's pot already in inventory");
             return Results.SUCCESS();
         }
-        
+
+        if (gui.getInventory().getNumberFreeCoord(POT_SIZE) <= 0) {
+            return Results.ERROR("No free 2x2 space in inventory for a treeplanter's pot");
+        }
+
         // Add pot to context so TakeItems2 knows where to look for it
         context.addInItem(potName, null);
-        
+
         // Take 1 high quality pot from logistics
         Results takeResult = new TakeItems2(context, potName, 1, NInventory.QualityType.High).run(gui);
         if (!takeResult.IsSuccess()) {
             return Results.ERROR("Failed to get treeplanter's pot");
         }
-        
-        // Check that we actually have the pot
-        ArrayList<WItem> pots = gui.getInventory().getItems(new NAlias(potName), NInventory.QualityType.High);
-        if (pots.isEmpty()) {
-            return Results.ERROR("High quality treeplanter's pot not found in inventory after taking");
+
+        // An empty pot store is the normal end of a run, not an error
+        if (findUnsproutedPot(gui) == null) {
+            return Results.FAIL();
         }
-        
+
         NUtils.getUI().msg("Successfully got high quality treeplanter's pot");
         return Results.SUCCESS();
+    }
+
+    /**
+     * Highest quality Treeplanter's Pot in inventory that holds no sprouted sapling
+     */
+    private WItem findUnsproutedPot(NGameUI gui) throws InterruptedException {
+        for (WItem pot : gui.getInventory().getItems(new NAlias("Treeplanter's Pot"), NInventory.QualityType.High)) {
+            if (getTreeNameFromPot(pot) == null) {
+                return pot;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ready pot in inventory holding a sapling of the given tree (short name), or null
+     */
+    private WItem findReadyPotInInventory(NGameUI gui, String shortTreeName) throws InterruptedException {
+        for (WItem pot : gui.getInventory().getItems(new NAlias("Treeplanter's Pot"))) {
+            if (isPotReady(pot) && shortTreeName.equals(getTreeNameFromPot(pot))) {
+                return pot;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ready pots still wanted per tree type (short name): remaining positions minus ready
+     * pots already in inventory
+     */
+    private Map<String, Integer> countNeededPots(NGameUI gui, List<PlantPosition> positions) throws InterruptedException {
+        Map<String, Integer> needed = new HashMap<>();
+        for (PlantPosition pos : positions) {
+            needed.merge(getShortTreeName(pos.treeType), 1, Integer::sum);
+        }
+        for (WItem pot : gui.getInventory().getItems(new NAlias("Treeplanter's Pot"))) {
+            if (isPotReady(pot)) {
+                takeFromNeeded(needed, getTreeNameFromPot(pot));
+            }
+        }
+        return needed;
+    }
+
+    private static boolean takeFromNeeded(Map<String, Integer> needed, String treeName) {
+        Integer count = needed.get(treeName);
+        if (count == null) {
+            return false;
+        }
+        if (count <= 1) {
+            needed.remove(treeName);
+        } else {
+            needed.put(treeName, count - 1);
+        }
+        return true;
     }
     
     private Results getSoilFromZone(NGameUI gui, NContext context, int amount) throws InterruptedException {
@@ -625,12 +689,10 @@ public class BlueprintTreePlanter implements Action {
     }
     
     private Results fillPotWithSoilAndWater(NGameUI gui, NContext context, Gob waterBarrel) throws InterruptedException {
-        // Get the high quality pot
-        ArrayList<WItem> pots = gui.getInventory().getItems(new NAlias("Treeplanter's Pot"), NInventory.QualityType.High);
-        if (pots.isEmpty()) {
+        WItem pot = findUnsproutedPot(gui);
+        if (pot == null) {
             return Results.ERROR("High quality garden pot not in inventory");
         }
-        WItem pot = pots.get(0);
         
         // Get soil
         NAlias soil = new NAlias("Soil", "Mulch");
@@ -666,8 +728,7 @@ public class BlueprintTreePlanter implements Action {
         NUtils.getUI().core.addTask(new HandIsFree(gui.getInventory()));
         
         // Verify pot has water by checking text
-        ArrayList<WItem> filledPots = gui.getInventory().getItems(new NAlias("Treeplanter's Pot"), NInventory.QualityType.High);
-        if (filledPots.isEmpty()) {
+        if (findUnsproutedPot(gui) == null) {
             return Results.ERROR("High quality pot disappeared after filling");
         }
         
@@ -704,13 +765,10 @@ public class BlueprintTreePlanter implements Action {
             return Results.ERROR("Exact seed not found in inventory: " + seedName);
         }
         
-        // Get the high quality pot
-        ArrayList<WItem> pots = gui.getInventory().getItems(new NAlias("Treeplanter's Pot"), NInventory.QualityType.High);
-        if (pots.isEmpty()) {
+        WItem pot = findUnsproutedPot(gui);
+        if (pot == null) {
             return Results.ERROR("High quality pot not found in inventory");
         }
-        
-        WItem pot = pots.get(0);
         
         NUtils.getUI().msg("Putting seed in pot...");
         
@@ -887,9 +945,8 @@ public class BlueprintTreePlanter implements Action {
     }
     
     private Results placePotOnTable(NGameUI gui, Container targetTable) throws InterruptedException {
-        // Get the high quality pot
-        ArrayList<WItem> pots = gui.getInventory().getItems(new NAlias("Treeplanter's Pot"), NInventory.QualityType.High);
-        if (pots.isEmpty()) {
+        WItem pot = findUnsproutedPot(gui);
+        if (pot == null) {
             return Results.ERROR("High quality pot not found in inventory");
         }
         
@@ -907,7 +964,6 @@ public class BlueprintTreePlanter implements Action {
         new OpenTargetContainer(targetTable).run(gui);
         
         // Transfer pot to table
-        WItem pot = pots.get(0);
         NUtils.takeItemToHand(pot);
         
         // Drop pot into table inventory
@@ -927,19 +983,16 @@ public class BlueprintTreePlanter implements Action {
         return Results.SUCCESS();
     }
     
+    /**
+     * Fills the pot already in inventory (see getGardenPot) and places it on the table
+     */
     private Results prepareSeedling(NGameUI gui, NContext context, String treeType, Container targetTable) throws InterruptedException {
-        // 1. Get seed from logistics
+        // 1-2. Get seed from logistics (the pot is already in inventory)
         Results seedResult = getSeedFromLogistics(gui, context, treeType);
         if (!seedResult.IsSuccess()) {
             return seedResult;
         }
-        
-        // 2. Get pot from gardenpot zone
-        Results potResult = getGardenPot(gui, context);
-        if (!potResult.IsSuccess()) {
-            return potResult;
-        }
-        
+
         // 3. Get 4 soil from soil zone
         Results soilResult = getSoilFromZone(gui, context, 4);
         if (!soilResult.IsSuccess()) {
@@ -987,13 +1040,13 @@ public class BlueprintTreePlanter implements Action {
     }
 
     /**
-     * Collects a ready pot of specified tree type from herbalist table
+     * Takes every ready pot from the table that a remaining position still wants, as far as
+     * the inventory has 2x2 room. Decrements needed for each pot taken; returns how many.
      */
-    private Results collectReadyPotFromTable(NGameUI gui, String treeType, Container table) throws InterruptedException {
-        // Navigate to table
+    private int collectReadyPotsFromTable(NGameUI gui, Container table, Map<String, Integer> needed) throws InterruptedException {
         Gob tableGob = Finder.findGob(table.gobid);
         if (tableGob == null) {
-            return Results.ERROR("Herbalist table not found");
+            return 0;
         }
         
         new PathFinder(tableGob).run(gui);
@@ -1002,40 +1055,29 @@ public class BlueprintTreePlanter implements Action {
         NInventory tableInv = gui.getInventory(table.cap);
         if (tableInv == null) {
             new CloseTargetContainer(table).run(gui);
-            return Results.ERROR("Could not access table inventory");
+            return 0;
         }
         
-        // Find ready pots with specified tree type
-        ArrayList<WItem> pots = tableInv.getItems(new NAlias("Treeplanter's Pot"));
-        WItem readyPot = null;
-        
-        // Convert blueprint tree path to short name for comparison
-        String shortTreeName = getShortTreeName(treeType);
-        
-        for (WItem pot : pots) {
-            if (isPotReady(pot)) {
-                String potTreeName = getTreeNameFromPot(pot);
-                if (potTreeName != null && potTreeName.equals(shortTreeName)) {
-                    readyPot = pot;
-                    break;
-                }
+        int taken = 0;
+        for (WItem pot : tableInv.getItems(new NAlias("Treeplanter's Pot"))) {
+            if (needed.isEmpty() || gui.getInventory().getNumberFreeCoord(POT_SIZE) <= 0) {
+                break;
             }
+            if (!isPotReady(pot) || !takeFromNeeded(needed, getTreeNameFromPot(pot))) {
+                continue;
+            }
+            NUtils.takeItemToHand(pot);
+            NUtils.dropToInv(gui.getInventory());
+            NUtils.getUI().core.addTask(new HandIsFree(gui.getInventory()));
+            taken++;
         }
-        
-        if (readyPot == null) {
-            new CloseTargetContainer(table).run(gui);
-            return Results.ERROR("No ready pot for tree type: " + treeType);
-        }
-        
-        // Take pot to inventory
-        NUtils.takeItemToHand(readyPot);
-        NUtils.dropToInv(gui.getInventory());
-        NUtils.getUI().core.addTask(new HandIsFree(gui.getInventory()));
         
         new CloseTargetContainer(table).run(gui);
         
-        NUtils.getUI().msg("Collected ready pot for: " + treeType);
-        return Results.SUCCESS();
+        if (taken > 0) {
+            NUtils.getUI().msg("Collected " + taken + " ready pot(s)");
+        }
+        return taken;
     }
     
     /**
@@ -1043,21 +1085,7 @@ public class BlueprintTreePlanter implements Action {
      */
     private Results plantTreeFromPot(NGameUI gui, Coord2d position, String treeType) throws InterruptedException {
         try {
-            // Check if we have the pot in inventory
-            ArrayList<WItem> pots = gui.getInventory().getItems(new NAlias("Treeplanter's Pot"));
-            WItem pot = null;
-            
-            // Convert blueprint tree path to short name for comparison
-            String shortTreeName = getShortTreeName(treeType);
-            
-            for (WItem p : pots) {
-                String potTreeName = getTreeNameFromPot(p);
-                if (potTreeName != null && potTreeName.equals(shortTreeName)) {
-                    pot = p;
-                    break;
-                }
-            }
-            
+            WItem pot = findReadyPotInInventory(gui, getShortTreeName(treeType));
             if (pot == null) {
                 return Results.ERROR("No pot for tree type: " + treeType);
             }
