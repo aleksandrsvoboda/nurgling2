@@ -10,6 +10,8 @@ import static nurgling.tools.Finder.findLiftedbyPlayer;
 
 public class FindPlaceAndAction implements Action {
     boolean dynamicPf = false;
+    // Gap to keep from every other object, in world units (11 = one tile)
+    int spread = 0;
     public FindPlaceAndAction(Gob gob, Pair<Coord2d, Coord2d> rcArea) {
         this.placed = gob;
         this.area = rcArea;
@@ -35,7 +37,7 @@ public class FindPlaceAndAction implements Action {
             }
             if (area == null)
                 return Results.ERROR("Area not available");
-            Coord2d pos = Finder.getFreePlace(area, placed);
+            Coord2d pos = Finder.getFreePlace(area, placed.ngob.hitBox, 0, spread);
             if(pos!=null) {
 
                 new PlaceObject(placed, pos,0, dynamicPf).run(gui);
@@ -68,6 +70,15 @@ public class FindPlaceAndAction implements Action {
         this.narea = area;
         this.area = area.getRCArea();
         this.dynamicPf = dynamicPf;
+    }
+
+    public FindPlaceAndAction(
+            Gob gob,
+            NArea area,
+            int spread)
+    {
+        this(gob, area);
+        this.spread = spread;
     }
 
     public Gob getPlaced() {

@@ -15,6 +15,8 @@ public class NCarrierProp implements JConf
     final private String username;
     final private String chrid;
     public String object = null;
+    // Gap kept between a placed object and its neighbours, in world units (11 = one tile)
+    public int spread = 0;
 
 
     public NCarrierProp(String username, String chrid) {
@@ -28,6 +30,8 @@ public class NCarrierProp implements JConf
         username = (String) values.get("username");
         if (values.get("object") != null)
             object = (String) values.get("object");
+        if (values.get("spread") != null)
+            spread = ((Number) values.get("spread")).intValue();
     }
 
     public static void set(NCarrierProp prop)
@@ -68,6 +72,7 @@ public class NCarrierProp implements JConf
         jcarrier.put("username", username);
         jcarrier.put("chrid", chrid);
         jcarrier.put("object", object);
+        jcarrier.put("spread", spread);
         return jcarrier;
     }
 
