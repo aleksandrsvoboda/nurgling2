@@ -2548,7 +2548,9 @@ NMiniMap extends MiniMap {
             Coord tc = c.sub(sz.div(2)).mul(scalef()).add(dloc.tc);
             DisplayMarker mark = markerat(tc);
             if(mark != null) {
-                if(isTimerResource(mark.m))
+                /* Thingwalls keep the game's own tooltip, which says more than the name; the timer hint
+                 * would replace it. */
+                if(isTimerResource(mark.m) && !NParser.checkName(((MapFile.SMarker) mark.m).res.name, "thingwall"))
                     return(Text.render(mark.m.nm + "  \u00b7  " + L10n.get("timers.map.hint")));
                 try {
                     return(new TexI(mark.tooltip()));
