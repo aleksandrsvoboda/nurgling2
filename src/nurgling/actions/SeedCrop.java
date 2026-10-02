@@ -30,6 +30,9 @@ public class SeedCrop implements Action {
 
     boolean isQualityGrid = false;
 
+    /** How many times the field is walked over before planting gives up on the remainder. */
+    private static final int MAX_SWEEPS = 3;
+
     // Regular planting sources, in priority order (barrel seeds first, then
     // stockpile vegetables), derived from CropRegistry in run().
     private final ArrayList<PlantingSource> sources = new ArrayList<>();
@@ -118,13 +121,18 @@ public class SeedCrop implements Action {
 
         ArrayList<Coord2d> tiles = field.getTiles(new NAlias("field"));
 
-        Coord start = gui.map.player().rc.dist(fieldArea.br.mul(MCache.tilesz)) < gui.map.player().rc.dist(fieldArea.ul.mul(MCache.tilesz)) ? fieldArea.br.sub(1, 1) : fieldArea.ul;
-        Coord pos = new Coord(start);
-        boolean rev = (pos.equals(field.getArea().ul));
+        // Each pass starts over from the corner the player is standing in. The pass counter caps
+        // the repeats: the completion check below compares planted gobs against the field's tile
+        // count, and on a field wider than the client's load radius the far end is not in the
+        // object cache to be counted, so that equality is never reached and the loop used to
+        // repeat empty passes indefinitely.
+        for (int pass = 0; pass < MAX_SWEEPS; pass++) {
+            Coord start = gui.map.player().rc.dist(fieldArea.br.mul(MCache.tilesz)) < gui.map.player().rc.dist(fieldArea.ul.mul(MCache.tilesz)) ? fieldArea.br.sub(1, 1) : fieldArea.ul;
+            Coord pos = new Coord(start);
+            boolean rev = (pos.equals(field.getArea().ul));
 
-        boolean revdir = rev;
+            boolean revdir = rev;
 
-        do {
             if (!rev) {
                 while (pos.x >= field.getArea().ul.x) {
                     AtomicBoolean setDir = new AtomicBoolean(true);
@@ -178,7 +186,9 @@ public class SeedCrop implements Action {
                     pos.x += 2;
                 }
             }
-        } while (Finder.findGobs(field, crop).size() != tiles.size());
+            if (Finder.findGobs(field, crop).size() == tiles.size())
+                break;
+        }
 
         dropOffSeeds(gui);
 
