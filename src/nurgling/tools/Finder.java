@@ -566,6 +566,15 @@ public class Finder
     }
     
     public static Coord2d getFreePlace(Pair<Coord2d,Coord2d> area, NHitBox hitBox, double angle) {
+        return getFreePlace(area, hitBox, angle, 0);
+    }
+
+    /**
+     * Like {@link #getFreePlace(Pair, NHitBox, double)}, but the chosen spot also keeps
+     * {@code spread} world units (11 = one tile) of clear ground between the placed
+     * hitbox and every other object in the area. The zone edge needs no gap.
+     */
+    public static Coord2d getFreePlace(Pair<Coord2d,Coord2d> area, NHitBox hitBox, double angle, double spread) {
         Coord2d pos = null;
 
 
@@ -619,7 +628,7 @@ public class Finder
         for (Coord offset : placementOffsets(margin, inchMax, directionOf(area)))
         {
             boolean passed = true;
-            NHitBoxD testGobBox = new NHitBoxD(hitBox.begin, hitBox.end, area.a.add(offset.x + xOffset, offset.y + yOffset), angle);
+            NHitBoxD testGobBox = new NHitBoxD(hitBox.begin.sub(spread, spread), hitBox.end.add(spread, spread), area.a.add(offset.x + xOffset, offset.y + yOffset), angle);
             for ( NHitBoxD significantHitbox : significantGobs )
                 if(significantHitbox.intersects(testGobBox,false))
                     passed = false;
