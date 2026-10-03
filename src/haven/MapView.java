@@ -1158,7 +1158,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    directionalShadows.dispose(); directionalShadows=null;
 	}
 	boolean usesdw = ui.gprefs.lshadow.val && light != null;
-	int filter = graphics.softshadow ? (graphics.shadowq > 0 ? 2 : 1) : 0;
+	int filter = 0;
 	int sdwres = ui.gprefs.shadowres.val;
 	sdwres = (sdwres < 0) ? (2048 >> -sdwres) : (2048 << sdwres);
 	if(usesdw) {
@@ -1503,7 +1503,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if((draw == null) || !out.env().compatible(draw)) {
 		if(draw != null)
 		    dispose();
-		draw = out.env().drawlist().desc("click-list: " + this);
+		draw = out.env().drawlist().async(false).desc("click-list: " + this);
 		if(doinst) {
 		    instancer = new InstanceList(this);
 		    instancer.add(draw, Rendered.class);

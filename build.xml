@@ -442,6 +442,91 @@
     </java>
   </target>
 
+  <target name="test-fire-effects" depends="renderer-parity-compile"
+          description="Check bounded fire emission and compact ember trajectories on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.FireEffectsTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-heat-shimmer" depends="renderer-parity-compile"
+          description="Check local heat plume scaling and foreground occlusion on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.HeatShimmerTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-wet-surface" depends="renderer-parity-compile"
+          description="Check wet terrain material response and relief stability on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.WetSurfaceTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-water-surface" depends="renderer-parity-compile"
+          description="Check transparent river/ocean rendering, depth and flow continuity on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.WaterWakesTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+    <java classname="nurgling.render.WaterSurfaceTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+    <java classname="nurgling.render.WaterShoreTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-temporal-aa" depends="renderer-parity-compile"
+          description="Check TAA motion response, depth rejection and jitter on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.TemporalAATest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-vulkan-picking" depends="renderer-parity-compile"
+          description="Check first-click picking with cold Vulkan shaders and pipelines">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.VulkanPickingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
   <target name="test-vulkan-frames" depends="renderer-parity-compile"
           description="Check Vulkan frame submissions and CPU callback scheduling">
     <condition property="parity-exports"><javaversion atleast="16" /></condition>

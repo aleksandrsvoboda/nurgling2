@@ -26,7 +26,6 @@ import static haven.render.sl.Type.*;
 public class PointShadows implements Disposable {
     /* Settings: how many lights cast shadows (0 = off), and the size
      * of each side's depth map. */
-    public static volatile int count = 0, res = 512;
     static final int FACES = 6;
     static final float NEAR = 1.0f, EXCL = 3.0f, MAXREACH = 330f;
     /* About how far from the view's center the screen reaches. */

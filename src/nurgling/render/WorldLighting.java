@@ -25,7 +25,7 @@ public final class WorldLighting {
     private static final FColor HORIZON = new FColor(1f, .68f, .46f);
     private static final FColor NOON = new FColor(1f, .95f, .84f);
     // Keep shaded surfaces readable with continuous material lighting.
-    private static final FColor NIGHT_AMBIENT = new FColor(.10f, .125f, .20f);
+    private static final FColor NIGHT_AMBIENT = new FColor(.24f, .31f, .44f);
     private static final FColor DAY_AMBIENT = new FColor(.38f, .40f, .44f);
 
     public static DirLight apply(DirLight original, double fraction, float strength) {
@@ -43,7 +43,10 @@ public final class WorldLighting {
         FColor direct = spherical(MOON, sun, day).mul(.9f + .25f * noon * day);
         // Keep gloss bounded separately from the daytime diffuse-light maximum.
         FColor specular = color(original.spc).mul(direct.mul(1 / peak(direct)));
-        direct = direct.mul(Math.min(1, peak(color(original.dif)) / peak(direct)));
+        // The server's very faint night light should not cap our readable moonlit palette.
+        // Black outdoor lights (indoors/underground) were excluded above.
+        float directPeak = Math.max(peak(color(original.dif)), .60f * (1 - day));
+        direct = direct.mul(Math.min(1, directPeak / peak(direct)));
         // Concentrate the lift around midday; preserve night, horizon colors and ambient shadows.
         float middayGain = 1 + .35f * day * sunHeight * sunHeight * sunHeight * sunHeight;
         direct = direct.mul(middayGain);

@@ -56,6 +56,7 @@ public class VkDrawList implements DrawList {
     private final Map<Pipe, Object> orderidx = new IdentityHashMap<>();
     private final TreeSet<DrawSlot> order;
     private boolean disposed = false;
+    private boolean async = true;
     private static final AtomicLong uniqid = new AtomicLong();
     /* Slots whose programs should be rebuilt; see refresh(). */
     private final Set<Slot<? extends Rendered>> stale = new LinkedHashSet<>();
@@ -64,6 +65,11 @@ public class VkDrawList implements DrawList {
     VkDrawList(VkEnvironment env) {
 	this.env = env;
 	this.order = new TreeSet<>(this::compare);
+    }
+
+    public synchronized VkDrawList async(boolean enabled) {
+	async = enabled;
+	return(this);
     }
 
     private int compare(DrawSlot a, DrawSlot b) {
@@ -569,7 +575,7 @@ public class VkDrawList implements DrawList {
 		shaders[i] = (st[i] == null) ? null : st[i].shader();
 		shash ^= System.identityHashCode(shaders[i]);
 	    }
-	    VkProgram prog = env.getprogasync(shash, shaders);
+	    VkProgram prog = async ? env.getprogasync(shash, shaders) : env.getprog(shash, shaders);
 	    if(prog == null)
 		throw(new NotReady());
 	    this.prog = prog;
@@ -748,14 +754,15 @@ public class VkDrawList implements DrawList {
 	VkRender g = (VkRender)r;
 	synchronized(this) {
 	    if(!stale.isEmpty())
-		rebuild(REBUILD_PER_FRAME);
+		rebuild(async ? REBUILD_PER_FRAME : Integer.MAX_VALUE);
 	    for(DrawSlot s : order) {
 		if(s.geo == null)
 		    continue;
 		s.refresh();
 		/* A new pipeline is made in the background; the slot
 		 * shows up once it is ready. */
-		if(!s.prog.pipeready(s.key))
+		// One-shot picking must reach VkExec, which waits for the pipeline.
+		if(async && !s.prog.pipeready(s.key))
 		    continue;
 		g.draw(s.prog, s.key, s.tgt.val, s.dyn.val, s.tex, s.ubo, s.geo);
 	    }

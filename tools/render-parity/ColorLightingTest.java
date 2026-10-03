@@ -31,7 +31,14 @@ public class ColorLightingTest {
         DirLight dawn = WorldLighting.apply(original, 6.25 / 24, 1);
         require(night.dif[2] > night.dif[0] * 1.8 && dawn.dif[0] > dawn.dif[2] * 1.8,
                 "Day/night palette is not distinct");
-        require(day.amb[0] > night.amb[0] * 3, "Ambient light does not follow day/night");
+        require(day.amb[0] > night.amb[0] && night.amb[2] > night.amb[0] * 1.5,
+                "Ambient light does not distinguish warm day and cool night");
+        SceneDebug preview = new SceneDebug();
+        preview.time(0);
+        DirLight faintMoon = preview.light(), readableMoon = WorldLighting.apply(faintMoon, 0, 1);
+        require(readableMoon.dif[2] > faintMoon.dif[2] * 2 && readableMoon.amb[1] > faintMoon.amb[1] * 2,
+                "Faint source light still makes the moonlit scene unreadable");
+        require(WorldLighting.apply(faintMoon,0,0) == faintMoon, "Zero strength changes night lighting");
         DirLight previous = night;
         for(int minute = 1; minute <= 1440; minute++) {
             DirLight light = WorldLighting.apply(original, minute / 1440.0, 1);
@@ -147,4 +154,5 @@ public class ColorLightingTest {
         }
         System.exit(exit);
     }
+
 }

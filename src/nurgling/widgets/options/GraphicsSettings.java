@@ -87,12 +87,9 @@ public class GraphicsSettings extends Panel {
 	prev = slider(cont, prev, "gfx.contrast", 80, 150, s -> s.contrast, "contrast", 100);
 	prev = slider(cont, prev, "gfx.saturation", 50, 200, s -> s.saturation, "saturation", 100);
 	prev = slider(cont, prev, "gfx.warmth", -100, 100, s -> s.warmth, "warmth", 100);
-	prev = check(cont, prev, "gfx.vignette", s -> s.vignette, "vignette");
 	prev = check(cont, prev, "gfx.worldlight", s -> s.worldlight, "worldlight");
 	prev = slider(cont, prev, "gfx.worldlightstrength", 0, 100, s -> s.worldlightstrength, "worldlightstrength", 100);
 	prev = check(cont, prev, "gfx.autoexp", s -> s.autoexp, "autoexp");
-	prev = check(cont, prev, "gfx.clarity", s -> s.clarity, "clarity");
-	prev = slider(cont, prev, "gfx.claritystrength", 0, 100, s -> s.claritystrength, "claritystrength", 100);
 
 	/* Image quality */
 	cont = section("gfx.sec.image");
@@ -105,27 +102,14 @@ public class GraphicsSettings extends Panel {
 	prev = cont.add(new Label(L10n.get("gfx.aniso.note")), prev.pos("bl").adds(15, 2));
 	prev = check(cont, prev, "gfx.upscale", s -> s.upscale, "upscale");
 	prev = rscale(cont, prev);
-	prev = check(cont, prev, "gfx.tilt", s -> s.tilt, "tilt");
-	prev = slider(cont, prev, "gfx.tiltstrength", 20, 250, s -> s.tiltstrength, "tiltstrength", 100);
 
 	/* Lighting */
 	cont = section("gfx.sec.light");
 	prev = null;
-	prev = check(cont, prev, "gfx.ssao", s -> s.ssao, "ssao");
-	prev = choice(cont, prev, "gfx.aoq", new String[] {"gfx.aoq.half", "gfx.aoq.full"}, new int[] {0, 1}, s -> s.aoq, "aoq");
-	prev = slider(cont, prev, "gfx.aostrength", 20, 200, s -> s.aostrength, "aostrength", 100);
 	prev = check(cont, prev, "gfx.relief", s -> s.relief, "relief");
 	prev = slider(cont, prev, "gfx.reliefstrength", 20, 300, s -> s.reliefstrength, "reliefstrength", 100);
 	prev = check(cont, prev, "gfx.parallax", s -> s.parallax, "parallax");
-	prev = check(cont, prev, "gfx.objrelief", s -> s.objrelief, "objrelief");
-	prev = slider(cont, prev, "gfx.objreliefstrength", 10, 200, s -> s.objreliefstrength, "objreliefstrength", 100);
 	prev = check(cont, prev, "gfx.bettershadows", s -> s.bettershadows, "bettershadows");
-	prev = check(cont, prev, "gfx.softshadow", s -> s.softshadow, "softshadow");
-	prev = choice(cont, prev, "gfx.shadowq", new String[] {"gfx.shadowq.soft", "gfx.shadowq.softer"}, new int[] {0, 1}, s -> s.shadowq, "shadowq");
-	prev = choice(cont, prev, "gfx.plights", new String[] {"gfx.off", "1", "2", "4"}, new int[] {0, 1, 2, 4}, s -> s.plights, "plights");
-	prev = choice(cont, prev, "gfx.plightres", new String[] {"gfx.plightres.normal", "gfx.plightres.high"}, new int[] {0, 1}, s -> s.plightres, "plightres");
-	prev = check(cont, prev, "gfx.bloom", s -> s.bloom, "bloom");
-	prev = slider(cont, prev, "gfx.bloomstrength", 10, 150, s -> s.bloomstrength, "bloomstrength", 100);
 
 	/* Effects */
 	cont = section("gfx.sec.effects");
@@ -135,15 +119,9 @@ public class GraphicsSettings extends Panel {
 	prev = check(cont, prev, "gfx.heat", s -> s.heat, "heat");
 	prev = check(cont, prev, "gfx.glow", s -> s.glow, "glow");
 	prev = check(cont, prev, "gfx.water", s -> s.water, "water");
-	prev = check(cont, prev, "gfx.clouds", s -> s.clouds, "clouds");
+	prev = check(cont, prev, "gfx.waterreflections", s -> s.waterreflections, "waterreflections");
 	prev = check(cont, prev, "gfx.wet", s -> s.wet, "wet");
-	prev = check(cont, prev, "gfx.waterfx", s -> s.waterfx, "waterfx");
 	prev = check(cont, prev, "gfx.snow", s -> s.snow, "snow");
-	prev = check(cont, prev, "gfx.lightning", s -> s.lightning, "lightning");
-	prev = check(cont, prev, "gfx.sway", s -> s.sway, "sway");
-	prev = check(cont, prev, "gfx.particles", s -> s.particles, "particles");
-	prev = check(cont, prev, "gfx.steps", s -> s.steps, "steps");
-	prev = check(cont, prev, "gfx.wildlife", s -> s.wildlife, "wildlife");
 	prev = cont.add(new Label(L10n.get("gfx.photo")), new Coord(UI.scale(5), prev.pos("bl").y + UI.scale(8)));
 	prev = check(cont, prev, "gfx.shafts", s -> s.shafts, "shafts");
 	relayoutSections();
@@ -176,9 +154,22 @@ public class GraphicsSettings extends Panel {
     }
 
     private Widget check(Widget cont, Widget prev, String key, Function<NGfx.Settings, Boolean> get, String name) {
+        if(name.equals("snow") && !NGfx.SNOW_SETTLING_AVAILABLE) {
+            CheckBox cb = new CheckBox(L10n.get(key)) {
+                public void draw(GOut g) {
+                    g.chcolor(128,128,128,255);
+                    super.draw(g);
+                    g.chcolor();
+                }
+            };
+            cb.state(() -> false).click(() -> {});
+            cb.settip(L10n.get("gfx.snow.disabled.tip"), true);
+            return checkbox(cont,prev,cb);
+        }
 	CheckBox cb = new CheckBox(L10n.get(key));
 	if(name.equals("bettershadows")) cb.settip(L10n.get("gfx.bettershadows.tip"), true);
 	if(name.equals("worldlight")) cb.settip(L10n.get("gfx.worldlight.tip"), true);
+	if(name.equals("waterreflections")) cb.settip(L10n.get("gfx.waterreflections.tip"), true);
 	/* The shown state comes from the settings (presets change it
 	 * too), so write through on every click instead of relying on
 	 * the checkbox's own copy of the value. */

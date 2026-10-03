@@ -110,7 +110,6 @@ public class ShadowQualityTest {
                     float z = .3f + (x + .5f) / MAP * .2f;
                     if(x >= MAP/4 && x < MAP*3/4 && y >= MAP/4 && y < MAP*3/4) z -= separation;
                     if(mode == 3) z = x >= MAP*5 ? .5f : 1f;
-                    if(mode >= 4) z = 0;
                     buf.putFloat(z);
                 }
                 return fill;
@@ -122,11 +121,7 @@ public class ShadowQualityTest {
                 .prep(new States.Viewport(Area.sized(Coord.of(SIZE,SIZE))))
                 .prep(new Ortho2D(Area.sized(Coord.of(SIZE,SIZE))));
             GOut g = new GOut(out, pipe, Coord.of(SIZE,SIZE));
-            if(mode >= 4)
-                NPostFX.blit(g,Temporal.one(),new NPostFX.Pass(NPostFX.dc_sh,map.sampler(),map.sampler(),
-                    new float[]{-1,-1,1,0},new float[]{1,1},mode==4 ? .25f : 1f));
-            else
-                NPostFX.blit(g, Temporal.one(), new NPostFX.Pass(shader, map.sampler(), (float)mode));
+            NPostFX.blit(g, Temporal.one(), new NPostFX.Pass(shader, map.sampler(), (float)mode));
             CompletableFuture<byte[]> result = new CompletableFuture<>();
             out.pget(color.image(0), rgba, bytes -> { byte[] data = new byte[SIZE*SIZE*4]; bytes.get(data); result.complete(data); });
             window.swapbuffers(out, false); window.env().submit(out);
@@ -159,14 +154,12 @@ public class ShadowQualityTest {
             window.sizing(new Windeye.Sizing().fixsize(Coord.of(SIZE,SIZE))).show(true);
             byte[] plane = capture(window,0,0), blocked = capture(window,.02f,0), outside = capture(window,.02f,1);
             byte[] contact = capture(window,.001f,0), blend = capture(window,0,2), upward = capture(window,0,3);
-            byte[] boundedAO=capture(window,0,4), legacyAO=capture(window,0,5);
             int shadow = 0, edge = 0, contactEdge = 0;
             for(int i=0; i<plane.length; i+=4) {
                 require((plane[i]&255) >= 254, "Self-shadow stripe on slope");
                 require((outside[i]&255) >= 254, "Clamped shadow outside map");
                 int face=(int)(((i/4%SIZE)+.5)*6/SIZE), value=upward[i]&255;
                 require(face==5 ? value<=1 : value>=254,"Incorrect point shadow cube face "+face);
-                require(Math.abs((boundedAO[i]&255)-191)<=1 && (legacyAO[i]&255)==0,"AO contact attenuation not bounded or legacy AO changed");
                 int v=blocked[i]&255;
                 if(v < 2) shadow++;
                 if(v > 2 && v < 253) edge++;

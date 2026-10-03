@@ -10,7 +10,7 @@ import java.util.Collection;
 /** Per-view, unsaved preview. Never changes server astronomy, weather or simulation clocks. */
 public class SceneDebug implements Disposable {
     private int minutes = -1;
-    private boolean rain, snow;
+    private boolean rain, heavyRain, snow;
     private Rain rainEffect;
     private Snow snowEffect;
 
@@ -19,13 +19,15 @@ public class SceneDebug implements Disposable {
     public void time(int minutes) { this.minutes = Math.max(0, Math.min(1439, minutes)); }
     public boolean night() { return minutes < 360 || minutes >= 1080; }
     public boolean rain() { return rain; }
+    public boolean heavyRain() { return heavyRain; }
     public boolean snow() { return snow; }
-    public void rain(boolean enabled) { rain = enabled; }
+    public void rain(boolean enabled) { rain = enabled; if(!enabled) heavyRain = false; }
+    public void heavyRain(boolean enabled) { heavyRain = enabled; if(enabled) rain = true; }
     public void snow(boolean enabled) { snow = enabled; }
 
     public void reset() {
         minutes = -1;
-        rain = snow = false;
+        rain = heavyRain = snow = false;
     }
 
     /** An illustrative daily light cycle, independent of season and server updates. */
@@ -51,8 +53,11 @@ public class SceneDebug implements Disposable {
 
     /** Called on the UI tick before attaching weather nodes. Resource loads never block it. */
     public void prepare() {
-        if(rain && rainEffect == null)
-            rainEffect = new Rain(12000f);
+        if(rain) {
+            float rate = heavyRain ? 36000f : 12000f;
+            if(rainEffect == null) rainEffect = new Rain(rate);
+            else rainEffect.rate = rate;
+        }
         if(snow && snowEffect == null) {
             try {
                 Collection<Material> materials = new ArrayList<>();

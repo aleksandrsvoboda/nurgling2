@@ -285,7 +285,7 @@ public class NLoginPanel extends Widget {
         int below = (userlbl.sz.y + TIGHT) + (user.sz.y + UI.scale(8))
             + (passlbl.sz.y + TIGHT) + (pass.sz.y + UI.scale(6)) + (caps.sz.y + UI.scale(4))
             + (remember.sz.y + TIGHT) + (remhint.sz.y + GAP) + (obf.sz.y + GAP)
-            + loginbtn.sz.y + (haslist ? (UI.scale(6) + keyhint.sz.y) : 0);
+            + Math.max(loginbtn.sz.y, forget.sz.y) + (haslist ? (UI.scale(6) + keyhint.sz.y) : 0);
         int above = (err.visible ? (err.sz.y + GAP) : 0) + (info.visible ? (info.sz.y + GAP) : 0);
         int listgap = GAP + UI.scale(4);
         if (haslist) {
@@ -317,13 +317,13 @@ public class NLoginPanel extends Widget {
         y = stack(obf, y, GAP);
         /* The action row keeps its height while connecting - the spinner sits in the same slot as
          * the buttons and the hint keeps its space - so the form does not jump on submit. */
-        int barh = loginbtn.sz.y;
+        int barh = Math.max(loginbtn.sz.y, forget.sz.y);
         if (prog.visible) {
             prog.move(Coord.of(0, y + ((barh - prog.sz.y) / 2)));
         } else {
-            loginbtn.move(Coord.of(W - loginbtn.sz.x, y));
+            loginbtn.move(Coord.of(W - loginbtn.sz.x, y + ((barh - loginbtn.sz.y) / 2)));
             if (forget.visible)
-                forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y));
+                forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y + ((barh - forget.sz.y) / 2)));
         }
         y += barh;
         if (haslist) {

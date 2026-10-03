@@ -47,10 +47,14 @@ public class FpsPanel extends haven.Window {
                 .state(() -> map() != null && map().sceneDebug.rain())
                 .set(value -> { if(map() != null) map().sceneDebug.rain(value); }),
                 new Coord(UI.scale(10), timeSlider.pos("bl").y + UI.scale(8)));
+        Widget heavyRain = content.add(new CheckBox(L10n.get("fps.debug.heavyrain"))
+                .state(() -> map() != null && map().sceneDebug.heavyRain())
+                .set(value -> { if(map() != null) map().sceneDebug.heavyRain(value); }),
+                new Coord(UI.scale(10), rain.pos("bl").y + UI.scale(6)));
         Widget snow = content.add(new CheckBox(L10n.get("fps.debug.snow"))
                 .state(() -> map() != null && map().sceneDebug.snow())
                 .set(value -> { if(map() != null) map().sceneDebug.snow(value); }),
-                new Coord(UI.scale(10), rain.pos("bl").y + UI.scale(6)));
+                new Coord(UI.scale(10), heavyRain.pos("bl").y + UI.scale(6)));
         content.add(new Button(UI.scale(220), L10n.get("fps.debug.reset"), () -> {
             if(map() != null) map().sceneDebug.reset();
             refreshTime();

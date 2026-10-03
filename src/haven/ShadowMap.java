@@ -42,10 +42,6 @@ public class ShadowMap extends State {
 	};
     public final Texture2D lbuf;
     public final Texture2D.Sampler2D lsamp;
-    /* Nurgling: shadow filter (0 = classic grid, 1 = soft,
-     * 2 = softer, 3 = stable receiver-plane PCF). Maps are rebuilt
-     * when it changes; see soft. */
-    public static volatile int softness = 0;
     public final int soft;
     private final float texelWorld;
     private final Projection lproj;
@@ -64,7 +60,7 @@ public class ShadowMap extends State {
     }
 
     public ShadowMap(Coord res, float size, float depth, float dthr) {
-	this(res, size, depth, dthr, softness);
+	this(res, size, depth, dthr, 0);
     }
 
     public ShadowMap(Coord res, float size, float depth, float dthr, int filter) {
@@ -309,30 +305,6 @@ public class ShadowMap extends State {
 	public final Function.Def shcalc;
 	private final Object id;
 
-	/* Rotated Poisson-disk PCF: soft penumbras without the grid
-	 * filter's stair-stepping. The disk is rotated per pixel so the
-	 * banding turns into fine noise. */
-	private static final nurgling.render.RawFunction softpcf = new nurgling.render.RawFunction(FLOAT, "hv_softpcf", 5,
-	    "float hv_softpcf(sampler2D map, vec3 mapc, vec2 texel, float thr, float radius)\n" +
-	    "{\n" +
-	    "    const vec2 pd[16] = vec2[16](vec2(-0.94201624, -0.39906216), vec2(0.94558609, -0.76890725),\n" +
-	    "        vec2(-0.09418410, -0.92938870), vec2(0.34495938, 0.29387760), vec2(-0.91588581, 0.45771432),\n" +
-	    "        vec2(-0.81544232, -0.87912464), vec2(-0.38277543, 0.27676845), vec2(0.97484398, 0.75648379),\n" +
-	    "        vec2(0.44323325, -0.97511554), vec2(0.53742981, -0.47373420), vec2(-0.26496911, -0.41893023),\n" +
-	    "        vec2(0.79197514, 0.19090188), vec2(-0.24188840, 0.99706507), vec2(-0.81409955, 0.91437590),\n" +
-	    "        vec2(0.19984126, 0.78641367), vec2(0.14383161, -0.14100790));\n" +
-	    "    float a = 6.2831853 * fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));\n" +
-	    "    float s = sin(a), c = cos(a);\n" +
-	    "    mat2 rot = mat2(c, s, -s, c);\n" +
-	    "    float lit = 0.0;\n" +
-	    "    for(int i = 0; i < 16; i++) {\n" +
-	    "        vec2 o = (rot * pd[i]) * radius * texel;\n" +
-	    "        if(texture(map, mapc.xy + o).r + thr > mapc.z)\n" +
-	    "            lit += 1.0;\n" +
-	    "    }\n" +
-	    "    return(lit / 16.0);\n" +
-	    "}\n");
-
 	private final int soft;
 
 	/* Compare each raw depth first, then filter visibility. Receiver-plane depth
@@ -373,8 +345,6 @@ public class ShadowMap extends State {
 			Expression mapc = code.local(VEC3, div(pick(stc.ref(), "xyz"), pick(stc.ref(), "w"))).ref();
 			if(soft == 3) {
 			    code.add(new Return(stablepcf.call(map.ref(), mapc, vec2(l(xd), l(yd)), l(thr))));
-			} else if(soft > 0) {
-			    code.add(new Return(softpcf.call(map.ref(), mapc, vec2(l(xd), l(yd)), l(thr), l((soft > 1) ? 4.0 : 2.5))));
 			} else {
 			double xr = xd * (res - 1), yr = yd * (res - 1);
 			boolean unroll = false;
@@ -405,8 +375,6 @@ public class ShadowMap extends State {
 		return;
 	    if(soft == 3)
 		stablepcf.define(prog.fctx);
-	    else if(soft > 0)
-		softpcf.define(prog.fctx);
 	    
 	    ph.dolight.mod(new Runnable() {
 		    public void run() {

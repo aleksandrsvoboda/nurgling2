@@ -153,6 +153,7 @@ public abstract class TexRender implements Tex, Disposable {
 	    TexRender tex = rt.tex();
 	    buf.states.add(tex.draw);
 	    buf.states.add(clip ? tex.clip : noclip);
+	    buf.states.add(nurgling.render.WaterSurface.foamMaterial(rt.getres().name));
 	}
     }
 }

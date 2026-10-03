@@ -31,6 +31,11 @@ import haven.Disposable;
 public interface DrawList extends RenderList<Rendered>, Disposable {
     public void draw(Render out);
 
+    /** Allow draws to be omitted while their shaders/pipelines compile. Disable
+     * before adding slots for one-shot passes such as picking. Implementations
+     * that always compile synchronously need no special handling. */
+    public default DrawList async(boolean enabled) {return(this);}
+
     public default String stats() {return("");}
     public default DrawList desc(Object desc) {return(this);}
 }

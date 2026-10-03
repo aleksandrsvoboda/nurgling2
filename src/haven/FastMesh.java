@@ -221,6 +221,11 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	}
 
 	public Map<String, Object> info() {return(info.info);}
+
+	public void added(RenderTree.Slot slot) {
+	    if(nurgling.render.VolumeFire.fireResource(res.name))
+		slot.ostate(nurgling.render.VolumeFire.surface);
+	}
 	
 	public String toString() {
 	    return("FastMesh(" + res.name + ", " + id + ")");

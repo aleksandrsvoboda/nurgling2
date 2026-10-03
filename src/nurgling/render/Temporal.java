@@ -78,21 +78,31 @@ public class Temporal {
 
     /* Temporal anti-aliasing */
 
-    static final RawFunction taafn = new RawFunction(VEC4, "hv_taa", 6,
+    static final RawFunction taafn = new RawFunction(VEC4, "hv_taa", 9, DEPTHLIB +
 	"vec3 hv_ycocg(vec3 c) {return(vec3(0.25 * c.r + 0.5 * c.g + 0.25 * c.b, 0.5 * c.r - 0.5 * c.b, -0.25 * c.r + 0.5 * c.g - 0.25 * c.b));}\n" +
 	"vec3 hv_rgb(vec3 c) {return(vec3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z));}\n" +
-	"vec4 hv_taa(vec4 col, vec2 tc, sampler2D cur, sampler2D hist, sampler2D dep, mat4 rep)\n" +
+	"vec4 hv_taa(vec4 col, vec2 tc, sampler2D cur, sampler2D hist, sampler2D dep, mat4 rep, sampler2D olddep, vec2 jitterDelta, vec4 oldpp)\n" +
 	"{\n" +
 	"    ivec2 sz = textureSize(cur, 0);\n" +
 	"    vec2 px = 1.0 / vec2(sz);\n" +
-	"    vec3 c = texture(cur, tc).rgb;\n" +
+	"    vec3 c = texelFetch(cur, clamp(ivec2(tc * vec2(sz)), ivec2(0), sz - 1), 0).rgb;\n" +
+	"    if(rep[3][3] < -0.5) return vec4(c, 1.0);\n" +
 	"    /* Where this point was on screen last frame. */\n" +
 	"    ivec2 dsz = textureSize(dep, 0);\n" +
 	"    float d = texelFetch(dep, clamp(ivec2(tc * vec2(dsz)), ivec2(0), dsz - 1), 0).r;\n" +
 	"    vec4 pc = rep * vec4(tc * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);\n" +
+	"    if(pc.w <= 0.000001 || d >= 0.99999) return vec4(c, 1.0);\n" +
 	"    vec2 ptc = (pc.xy / pc.w) * 0.5 + 0.5;\n" +
-	"    if(rep[3][3] < -0.5 || (ptc.x < 0.0) || (ptc.x > 1.0) || (ptc.y < 0.0) || (ptc.y > 1.0))\n" +
+	"    if(any(lessThan(ptc, px * 0.5)) || any(greaterThan(ptc, 1.0 - px * 0.5)))\n" +
 	"        return(vec4(c, 1.0));\n" +
+	"    float expected = pc.z / pc.w * 0.5 + 0.5;\n" +
+	"    ivec2 hsz = textureSize(olddep, 0);\n" +
+	"    float oldz = texelFetch(olddep, clamp(ivec2(ptc * vec2(hsz)), ivec2(0), hsz - 1), 0).r;\n" +
+	"    if(expected <= 0.0 || expected >= 1.0 || oldz >= 0.99999) return vec4(c, 1.0);\n" +
+	"    float distance = abs(hv_lindist(expected, oldpp));\n" +
+	"    if(abs(hv_lindist(oldz, oldpp) - distance) > max(0.25, distance * 0.001)) return vec4(c, 1.0);\n" +
+	"    float motion = length((ptc - tc - jitterDelta) * vec2(sz));\n" +
+	"    float moving = smoothstep(0.5, 6.0, motion);\n" +
 	"    /* Keep the history within the colors around this pixel now,\n" +
 	"     * so things that moved do not leave trails. */\n" +
 	"    vec3 mn = vec3(1e9), mx = vec3(-1e9), m1 = vec3(0.0), m2 = vec3(0.0);\n" +
@@ -105,18 +115,31 @@ public class Temporal {
 	"    }\n" +
 	"    m1 /= 9.0; m2 /= 9.0;\n" +
 	"    vec3 sd = sqrt(max(m2 - m1 * m1, vec3(0.0)));\n" +
-	"    mn = max(mn, m1 - sd * 1.25); mx = min(mx, m1 + sd * 1.25);\n" +
+	"    float extent = mix(1.25, 0.75, moving);\n" +
+	"    mn = max(mn, m1 - sd * extent); mx = min(mx, m1 + sd * extent);\n" +
 	"    vec3 h = hv_ycocg(texture(hist, ptc).rgb);\n" +
 	"    h = clamp(h, mn, mx);\n" +
-	"    vec3 r = mix(hv_rgb(h), c, 0.12);\n" +
+	"    float disagreement = abs(h.x - hv_ycocg(c).x) / max(max(abs(h.x), abs(hv_ycocg(c).x)), 0.1);\n" +
+	"    float fresh = max(mix(0.18, 0.80, moving), 0.75 * smoothstep(0.2, 0.65, disagreement));\n" +
+	"    vec3 r = mix(hv_rgb(h), c, fresh);\n" +
 	"    return(vec4(r, 1.0));\n" +
 	"}\n");
     static final Uniform ta_cur = u(SAMPLER2D, 0), ta_hist = u(SAMPLER2D, 1), ta_dep = u(SAMPLER2D, 2), ta_rep = u(MAT4, 3);
-    static final ShaderMacro ta_sh = shader(taafn, ta_cur, ta_hist, ta_dep, ta_rep);
+    static final Uniform ta_olddep = u(SAMPLER2D,4), ta_jitter = u(VEC2,5), ta_oldpp = u(VEC4,6);
+    static final ShaderMacro ta_sh = shader(taafn, ta_cur, ta_hist, ta_dep, ta_rep, ta_olddep, ta_jitter, ta_oldpp);
+    static final RawFunction tadepthfn = new RawFunction(VEC4,"hv_taadepth",3,
+        "vec4 hv_taadepth(vec4 col, vec2 tc, sampler2D dep) {\n" +
+        " ivec2 sz=textureSize(dep,0);\n" +
+        " return vec4(texelFetch(dep,clamp(ivec2(tc*vec2(sz)),ivec2(0),sz-1),0).r,0.0,0.0,1.0);\n" +
+        "}\n");
+    static final ShaderMacro ta_depth_sh = shader(tadepthfn,ta_cur);
 
     public static class TAA extends PostProcessor {
 	final SceneFX.Depth depth;
 	private final Texture2D.Sampler2D[] hist = new Texture2D.Sampler2D[2];
+	private Texture2D.Sampler2D histDepth;
+	private float[] prevJitter = {0,0}, prevProjection = {0,0,0,0};
+	private double lastFrame;
 	private int cur = 0;
 	private Matrix4f prevvp = null;
 	private boolean valid = false;
@@ -125,21 +148,22 @@ public class Temporal {
 
 	public int order() {return(-90);}
 
-	/* The current view-projection, without this frame's jitter. */
+	/* Match the actual color/depth sample positions, including projection jitter. */
 	private Matrix4f vp() {
 	    Projection prj = depth.view.basic.state().get(Homo3D.prj);
 	    Camera cam = depth.view.basic.state().get(Homo3D.cam);
 	    if((prj == null) || (cam == null))
 		return(null);
-	    float[] j = jitterof(depth.view);
-	    Matrix4f unj = Transform.makexlate(new Matrix4f(), Coord3f.of(-j[0], -j[1], 0)).mul(prj.fin(Matrix4f.id));
-	    return(unj.mul(cam.fin(Matrix4f.id)));
+	    return(prj.fin(Matrix4f.id).mul(cam.fin(Matrix4f.id)));
 	}
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    Texture2D.Sampler2D ds = depth.samp();
 	    Coord sz = in.tex.sz();
 	    NumberFormat cf = in.tex.ifmt.cf;
+	    double now = Utils.rtime();
+	    if(now - lastFrame > .25) valid = false;
+	    lastFrame = now;
 	    for(int i = 0; i < 2; i++) {
 		if(!fits(hist[i], sz, cf)) {
 		    if(hist[i] != null)
@@ -147,6 +171,12 @@ public class Temporal {
 		    hist[i] = mktarget(sz, cf);
 		    valid = false;
 		}
+	    }
+	    if(histDepth == null || !histDepth.tex.sz().equals(sz)) {
+	        if(histDepth != null) histDepth.dispose();
+	        histDepth = new Texture2D(sz,DataBuffer.Usage.STATIC,new VectorFormat(1,NumberFormat.FLOAT32),null).sampler();
+	        histDepth.minfilter(Texture.Filter.NEAREST).magfilter(Texture.Filter.NEAREST).wrapmode(Texture.Wrapping.CLAMP);
+	        valid = false;
 	    }
 	    Matrix4f vp = vp();
 	    if((ds == null) || (vp == null)) {
@@ -162,10 +192,16 @@ public class Temporal {
 		rep = new Matrix4f(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
 	    }
 	    Texture2D.Sampler2D prev = hist[cur], next = hist[cur ^ 1];
-	    blit(target(g, next), in, new Pass(ta_sh, in, prev, ds, rep));
+	    float[] jitter = jitterof(depth.view);
+	    float[] jitterDelta = {(prevJitter[0]-jitter[0])*.5f,(prevJitter[1]-jitter[1])*.5f};
+	    blit(target(g, next), in, new Pass(ta_sh, in, prev, ds, rep, histDepth, jitterDelta, prevProjection));
+	    // Copy only after the resolve has read the preceding frame's depth.
+	    blit(target(g, histDepth), in, new Pass(ta_depth_sh, ds));
 	    g.image(new TexRaw(next, true), Coord.z, g.sz());
 	    cur ^= 1;
 	    prevvp = vp;
+	    prevJitter = jitter;
+	    prevProjection = depth.projparams()[0];
 	    valid = true;
 	}
 
@@ -175,6 +211,7 @@ public class Temporal {
 		if(h != null)
 		    h.dispose();
 	    }
+	    if(histDepth != null) histDepth.dispose();
 	}
     }
 

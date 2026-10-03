@@ -97,8 +97,7 @@ public class Flicker extends Sprite implements TickList.TickNode, TickList.Ticki
 	slot.add(l);
 	if((l != null) && (dif[0] > (dif[2] * 1.5f))) {
 	    Gob gob = owner.fcontext(Gob.class, false);
-	    float rate = Math.max(0.8f, Math.min(nurgling.render.PointShadows.reach(l) / 12f, 10f));
-	    slot.add(new nurgling.render.Embers(gob, rate));
+	    slot.add(new nurgling.render.Embers(gob, l));
 	}
     }
 
