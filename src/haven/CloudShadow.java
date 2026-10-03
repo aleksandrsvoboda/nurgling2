@@ -83,7 +83,7 @@ public class CloudShadow extends State {
 	ph.dolight.mod(new Runnable() {
 		public void run() {
 		    ph.dolight.dcalc.add(new If(eq(MapView.amblight_idx.ref(), ph.dolight.i),
-						stmt(amul(ph.dolight.dl.tgt, shval.ref()))),
+						stmt(amul(nurgling.render.WorldLighting.Smooth.active(prog) ? ph.dolight.lvl.tgt : ph.dolight.dl.tgt, shval.ref()))),
 					 ph.dolight.dcurs);
 		}
 	    }, 0);

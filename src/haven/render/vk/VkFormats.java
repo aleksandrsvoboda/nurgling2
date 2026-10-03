@@ -284,6 +284,14 @@ public class VkFormats {
 	}
     }
 
+    /* Readback bypasses image-view swizzles; restore logical RGB alpha. */
+    static void opaquealpha(ByteBuffer dst, VectorFormat fmt, int n) {
+	if(fmt.nc != 4)
+	    return;
+	for(int i = 0, off = dst.position() + 3 * fmt.cf.size; i < n; i++, off += fmt.size())
+	    putc(dst, off, fmt.cf, 1);
+    }
+
     /* Converts n texels of (snc x scf, with data component i going
      * to channel perm[i]) into (dnc x dcf). Missing channels are 0,
      * except alpha, which is one. Both buffers are addressed

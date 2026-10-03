@@ -98,6 +98,7 @@ public class UI {
     public UILoop loop;
     public UILoop getLoop() { return loop; }
     public GSettings gprefs = GSettings.load(true);
+    public final nurgling.render.FrameHistory frameHistory = new nurgling.render.FrameHistory();
     private boolean gprefsdirty = false;
     public final ActAudio.Root audio;
     public final Loader loader;

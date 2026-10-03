@@ -42,11 +42,12 @@ public class ShadowMap extends State {
 	};
     public final Texture2D lbuf;
     public final Texture2D.Sampler2D lsamp;
-    /* Nurgling: shadow softness (0 = classic grid filter, 1 = soft,
-     * 2 = softer), set from the graphics options. Maps are rebuilt
+    /* Nurgling: shadow filter (0 = classic grid, 1 = soft,
+     * 2 = softer, 3 = stable receiver-plane PCF). Maps are rebuilt
      * when it changes; see soft. */
     public static volatile int softness = 0;
     public final int soft;
+    private final float texelWorld;
     private final Projection lproj;
     private final Pipe.Op basic;
     private DirLight light;
@@ -63,10 +64,15 @@ public class ShadowMap extends State {
     }
 
     public ShadowMap(Coord res, float size, float depth, float dthr) {
+	this(res, size, depth, dthr, softness);
+    }
+
+    public ShadowMap(Coord res, float size, float depth, float dthr, int filter) {
 	lbuf = new Texture2D(res, DataBuffer.Usage.STATIC, Texture.DEPTH, new VectorFormat(1, NumberFormat.FLOAT32), null);
 	(lsamp = new Texture2D.Sampler2D(lbuf)).magfilter(Texture.Filter.LINEAR).wrapmode(Texture.Wrapping.CLAMP);
 	/* XXX: It would arguably be nice to intern the shader. */
-	soft = softness;
+	soft = filter;
+	texelWorld = 2 * size / res.x;
 	shader = Shader.get(1.0 / res.x, 1.0 / res.y, 4, dthr / depth, soft);
 	lproj = Projection.ortho(-size, size, -size, size, 1, depth);
 	basic = Pipe.Op.compose(new DepthBuffer<>(lbuf.image(0)),
@@ -79,6 +85,7 @@ public class ShadowMap extends State {
 	this.lsamp    = that.lsamp;
 	this.shader   = that.shader;
 	this.soft     = that.soft;
+	this.texelWorld = that.texelWorld;
 	this.lproj    = that.lproj;
 	this.basic    = that.basic;
 	this.light    = that.light;
@@ -245,6 +252,12 @@ public class ShadowMap extends State {
 
     public ShadowMap setpos(Coord3f base, Coord3f dir) {
 	Camera lcam = Camera.dir(base, dir);
+	if(soft == 3) {
+	    Matrix4f snapped = new Matrix4f(lcam.fin(Matrix4f.id));
+	    snapped.m[12] = Math.round(snapped.m[12] / texelWorld) * texelWorld;
+	    snapped.m[13] = Math.round(snapped.m[13] / texelWorld) * texelWorld;
+	    lcam = new Camera(snapped);
+	}
 	if(Utils.eq(this.lcam, lcam))
 	    return(this);
 	ShadowMap ret = new ShadowMap(this);
@@ -322,6 +335,35 @@ public class ShadowMap extends State {
 
 	private final int soft;
 
+	/* Compare each raw depth first, then filter visibility. Receiver-plane depth
+	 * correction keeps sloped roofs from shadowing themselves across the kernel. */
+	public static final nurgling.render.RawFunction stablepcf = new nurgling.render.RawFunction(FLOAT, "hv_stablepcf", 4,
+	    "float hv_stablepcf(sampler2D map, vec3 p, vec2 texel, float thr)\n" +
+	    "{\n" +
+	    "    vec3 dx = dFdx(p), dy = dFdy(p);\n" +
+	    "    float det = dx.x * dy.y - dx.y * dy.x;\n" +
+	    "    vec2 grad = vec2(0.0);\n" +
+	    "    if(abs(det) > 1e-12)\n" +
+	    "        grad = vec2(dy.y * dx.z - dx.y * dy.z, dx.x * dy.z - dy.x * dx.z) / det;\n" +
+	    "    grad = clamp(grad, vec2(-8.0), vec2(8.0));\n" +
+	    "    float bias = thr + min(thr * 2.0, dot(abs(grad), texel) * 0.1);\n" +
+	    "    if(any(lessThanEqual(p, vec3(0.0))) || any(greaterThanEqual(p, vec3(1.0)))) return 1.0;\n" +
+	    "    vec2 q = p.xy / texel - 0.5;\n" +
+	    "    ivec2 base = ivec2(floor(q)), size = textureSize(map, 0);\n" +
+	    "    vec2 f = fract(q);\n" +
+	    "    float lit = 0.0, weight = 0.0;\n" +
+	    "    for(int y = -1; y <= 2; y++) for(int x = -1; x <= 2; x++) {\n" +
+	    "        ivec2 tap = base + ivec2(x, y);\n" +
+	    "        vec2 w = max(vec2(0.0), vec2(1.0) - abs(vec2(x, y) - f) * 0.5);\n" +
+	    "        float z = p.z + dot(grad, (vec2(tap) + 0.5) * texel - p.xy) - bias;\n" +
+	    "        float visible = 1.0;\n" +
+	    "        if(all(greaterThanEqual(tap, ivec2(0))) && all(lessThan(tap, size)))\n" +
+	    "            visible = step(z, texelFetch(map, tap, 0).r);\n" +
+	    "        lit += visible * w.x * w.y; weight += w.x * w.y;\n" +
+	    "    }\n" +
+	    "    return lit / weight;\n" +
+	    "}\n");
+
 	private Shader(double xd, double yd, int res, double thr, int soft) {
 	    this.id = Arrays.asList(xd, yd, res, thr, soft);
 	    this.soft = soft;
@@ -329,7 +371,9 @@ public class ShadowMap extends State {
 		    {
 			LValue sdw = code.local(FLOAT, l(0.0)).ref();
 			Expression mapc = code.local(VEC3, div(pick(stc.ref(), "xyz"), pick(stc.ref(), "w"))).ref();
-			if(soft > 0) {
+			if(soft == 3) {
+			    code.add(new Return(stablepcf.call(map.ref(), mapc, vec2(l(xd), l(yd)), l(thr))));
+			} else if(soft > 0) {
 			    code.add(new Return(softpcf.call(map.ref(), mapc, vec2(l(xd), l(yd)), l(thr), l((soft > 1) ? 4.0 : 2.5))));
 			} else {
 			double xr = xd * (res - 1), yr = yd * (res - 1);
@@ -359,13 +403,15 @@ public class ShadowMap extends State {
 	    final Phong ph = prog.getmod(Phong.class);
 	    if((ph == null) || !ph.pfrag)
 		return;
-	    if(soft > 0)
+	    if(soft == 3)
+		stablepcf.define(prog.fctx);
+	    else if(soft > 0)
 		softpcf.define(prog.fctx);
 	    
 	    ph.dolight.mod(new Runnable() {
 		    public void run() {
 			ph.dolight.dcalc.add(new If(eq(sl.ref(), ph.dolight.i),
-						    stmt(amul(ph.dolight.dl.tgt, shcalc.call()))),
+						    stmt(amul((soft == 3 || nurgling.render.WorldLighting.Smooth.active(prog)) ? ph.dolight.lvl.tgt : ph.dolight.dl.tgt, shcalc.call()))),
 					     ph.dolight.dcurs);
 		    }
 		}, 0);

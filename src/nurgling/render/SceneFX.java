@@ -344,6 +344,8 @@ public class SceneFX {
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    ShadowMap sm = view.basic.state().get(ShadowMap.smap);
+	    DirectionalShadows.Sun modern = view.basic.state().get(DirectionalShadows.slot);
+	    if(modern != null) sm = modern.far;
 	    Camera cam = view.basic.state().get(Homo3D.cam);
 	    Texture2D.Sampler2D ds = depth.samp();
 	    float[] sun = this.sun, col = this.suncol;

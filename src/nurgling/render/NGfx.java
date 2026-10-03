@@ -13,10 +13,14 @@ import nurgling.NConfig;
  */
 public class NGfx {
     public static final class Settings {
+	/* Choosing Vulkan must not opt in to a different visual style. */
+	public final boolean enabled;
 	/* Tone mapping and color grading */
 	public final boolean grade;
 	public final float exposure, contrast, saturation, warmth;
 	public final boolean vignette;
+	public final boolean worldlight;
+	public final float worldlightstrength;
 	/* Anti-aliasing and sharpening */
 	public final boolean fxaa, sharpen;
 	public final float sharpness;
@@ -28,7 +32,7 @@ public class NGfx {
 	public final boolean bloom;
 	public final float bloomstrength;
 	/* Soft shadows; shadowq is 0 = soft, 1 = softer (more taps) */
-	public final boolean softshadow;
+	public final boolean softshadow, bettershadows;
 	public final int shadowq;
 	/* Anisotropic filtering level (1 = off) */
 	public final int aniso;
@@ -42,10 +46,10 @@ public class NGfx {
 	public final boolean fire, smoke;
 	/* Water reflections */
 	public final boolean water;
-	/* World: fair-weather clouds, time-of-day grading, wet ground in
+	/* World: fair-weather clouds, wet ground in
 	 * rain, fire glow, trees swaying in gusts, ambient particles,
 	 * heat shimmer, light shafts, tilt-shift. */
-	public final boolean clouds, tod, wet, glow, sway, particles, heat, shafts, tilt;
+	public final boolean clouds, wet, glow, sway, particles, heat, shafts, tilt;
 	public final float tiltstrength;
 	/* Temporal anti-aliasing, edge-aware upscaling, auto-exposure;
 	 * snow settling, parallax ground, water details (caustics, wading
@@ -54,12 +58,16 @@ public class NGfx {
 	public final boolean taa, upscale, autoexp, snow, parallax, waterfx, steps, wildlife, lightning;
 
 	private Settings(Map<String, Object> m) {
+	    enabled = b(m, "enabled", false);
 	    grade = b(m, "grade", false);
 	    exposure = f(m, "exposure", 1.0f);
 	    contrast = f(m, "contrast", 1.05f);
 	    saturation = f(m, "saturation", 1.1f);
 	    warmth = f(m, "warmth", 0.1f);
 	    vignette = b(m, "vignette", false);
+	    worldlight = b(m, "worldlight", false);
+	    float lightStrength = f(m, "worldlightstrength", 1.0f);
+	    worldlightstrength = Float.isFinite(lightStrength) ? Math.max(0, Math.min(1, lightStrength)) : 1;
 	    fxaa = b(m, "fxaa", false);
 	    sharpen = b(m, "sharpen", false);
 	    sharpness = f(m, "sharpness", 0.4f);
@@ -69,6 +77,7 @@ public class NGfx {
 	    bloom = b(m, "bloom", false);
 	    bloomstrength = f(m, "bloomstrength", 0.5f);
 	    softshadow = b(m, "softshadow", false);
+	    bettershadows = b(m, "bettershadows", false);
 	    shadowq = i(m, "shadowq", 0);
 	    aniso = i(m, "aniso", 1);
 	    water = b(m, "water", false);
@@ -82,7 +91,6 @@ public class NGfx {
 	    plightres = i(m, "plightres", 0);
 	    fire = b(m, "fire", false);
 	    clouds = b(m, "clouds", false);
-	    tod = b(m, "tod", false);
 	    wet = b(m, "wet", false);
 	    glow = b(m, "glow", false);
 	    sway = b(m, "sway", false);
@@ -105,19 +113,22 @@ public class NGfx {
 
 	public Map<String, Object> map() {
 	    Map<String, Object> m = new HashMap<>();
+	    m.put("enabled", enabled);
 	    m.put("grade", grade); m.put("exposure", exposure); m.put("contrast", contrast);
 	    m.put("saturation", saturation); m.put("warmth", warmth); m.put("vignette", vignette);
+	    m.put("worldlight", worldlight); m.put("worldlightstrength", worldlightstrength);
 	    m.put("fxaa", fxaa); m.put("sharpen", sharpen); m.put("sharpness", sharpness);
 	    m.put("ssao", ssao); m.put("aoq", aoq); m.put("aostrength", aostrength);
 	    m.put("bloom", bloom); m.put("bloomstrength", bloomstrength);
 	    m.put("softshadow", softshadow); m.put("shadowq", shadowq);
+	    m.put("bettershadows", bettershadows);
 	    m.put("aniso", aniso); m.put("water", water);
 	    m.put("relief", relief); m.put("reliefstrength", reliefstrength);
 	    m.put("clarity", clarity); m.put("claritystrength", claritystrength);
 	    m.put("objrelief", objrelief); m.put("objreliefstrength", objreliefstrength);
 	    m.put("plights", plights); m.put("plightres", plightres);
 	    m.put("fire", fire); m.put("smoke", smoke);
-	    m.put("clouds", clouds); m.put("tod", tod); m.put("wet", wet); m.put("glow", glow);
+	    m.put("clouds", clouds); m.put("wet", wet); m.put("glow", glow);
 	    m.put("sway", sway); m.put("particles", particles); m.put("heat", heat); m.put("shafts", shafts);
 	    m.put("tilt", tilt); m.put("tiltstrength", tiltstrength);
 	    m.put("taa", taa); m.put("upscale", upscale); m.put("autoexp", autoexp);
@@ -136,6 +147,10 @@ public class NGfx {
 	/* Whether the scene should be rendered in HDR (float) color. */
 	public boolean hdr() {
 	    return(grade || bloom);
+	}
+
+	public boolean colorpass() {
+	    return(grade || bloom || vignette || autoexp);
 	}
 
 	private static boolean b(Map<String, Object> m, String k, boolean def) {
@@ -158,8 +173,11 @@ public class NGfx {
 	CLASSIC, ENHANCED, ULTRA;
 
 	public Settings settings(Settings base) {
+	    if(this == CLASSIC)
+		return(classic);
 	    Map<String, Object> m = base.map();
 	    boolean on = (this != CLASSIC), ultra = (this == ULTRA);
+	    m.put("enabled", true);
 	    m.put("grade", on);
 	    m.put("vignette", ultra);
 	    m.put("fxaa", on);
@@ -179,7 +197,6 @@ public class NGfx {
 	    m.put("smoke", on);
 	    m.put("water", on);
 	    m.put("clouds", on);
-	    m.put("tod", on);
 	    m.put("wet", on);
 	    m.put("glow", on);
 	    m.put("sway", on);
@@ -196,6 +213,14 @@ public class NGfx {
 	    m.put("lightning", on);
 	    return(new Settings(m));
 	}
+    }
+
+    /* Also clears optional effects which presets do not normally change
+     * (tilt-shift and upscaling). Never derive this from saved overrides. */
+    public static final Settings classic = new Settings(Collections.emptyMap());
+
+    public static Settings effective(Settings settings, boolean supported) {
+	return((supported && settings.enabled) ? settings : classic);
     }
 
     private static volatile Settings cur = null;
@@ -230,7 +255,6 @@ public class NGfx {
 
     /* The settings in effect for a renderer. */
     public static Settings effective(haven.render.Environment env) {
-	Settings s = get();
-	return(supported(env) ? s : Preset.CLASSIC.settings(s));
+	return(effective(get(), supported(env)));
     }
 }

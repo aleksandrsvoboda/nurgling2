@@ -71,9 +71,9 @@ public class Phong extends ValBlock.Group implements Lighting{
 	    if(ph == null)
 		return;
 	    if(dif)
-		ph.bcol.mod(in -> celramp.call(in), 0);
+		ph.bcol.mod(in -> nurgling.render.WorldLighting.Smooth.active(prog) ? in : celramp.call(in), 0);
 	    if(spc)
-		ph.scol.mod(in -> celramp.call(in), 0);
+		ph.scol.mod(in -> nurgling.render.WorldLighting.Smooth.active(prog) ? in : celramp.call(in), 0);
 	}
     }
 

@@ -458,6 +458,12 @@ public abstract class UILoop implements Console.Directory {
 
     protected void framedone(Frame f) {
 	updstats(f);
+	// Use the actual clock after frame pacing, not the scheduled sleep deadline.
+	double now = Utils.rtime();
+	if((f.prev == null) || (f.prev.ui != f.ui))
+	    f.ui.frameHistory.reset(now);
+	else
+	    f.ui.frameHistory.record(now);
     }
 
     public static class Frame {

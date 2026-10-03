@@ -135,14 +135,14 @@ public class Atmos {
 	"{\n" +
 	"    if(cover <= 0.0)\n" +
 	"        return(1.0);\n" +
-	"    vec2 tc = (mp.xy + mp.z * cdir) / 600.0 + vec2(0.007, -0.004) * t;\n" +
+	"    vec2 tc = (mp.xy + mp.z * cdir) / 900.0 + vec2(0.0015, -0.0008) * t;\n" +
 	"    float c = hv_ffbm(vec3(tc, t * 0.002));\n" +
 	"    c = c * 0.75 + hv_ffbm(vec3(tc * 2.7 + vec2(3.1, 7.7), t * 0.004)) * 0.25;\n" +
 	"    /* Spread the noise's narrow range over 0..1, so cover is\n" +
 	"     * roughly the share of the sky that is cloud. */\n" +
 	"    c = clamp((c - 0.47) * 4.0 + 0.5, 0.0, 1.0);\n" +
 	"    float th = 1.0 - cover;\n" +
-	"    return(mix(1.0, 0.45, smoothstep(th - 0.08, th + 0.1, c)));\n" +
+	"    return(mix(1.0, 0.72, smoothstep(th - 0.18, th + 0.22, c)));\n" +
 	"}\n");
 
     /* Wet ground: darker, with a sky and sun sheen where it faces up. */
@@ -210,7 +210,7 @@ public class Atmos {
 		lit.force();
 		ph.dolight.mod(() -> {
 			ph.dolight.dcalc.add(new If(eq(usunidx.ref(), ph.dolight.i),
-						    stmt(amul(ph.dolight.dl.tgt, lit.ref()))),
+						    stmt(amul(ph.dolight.lvl.tgt, lit.ref()))),
 					     ph.dolight.dcurs);
 		    }, 0);
 	    }

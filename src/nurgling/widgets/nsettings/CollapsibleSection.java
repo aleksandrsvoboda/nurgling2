@@ -50,8 +50,9 @@ public class CollapsibleSection extends Widget {
         resize(new Coord(sz.x, HEADER_H + (expanded ? contentHeight : 0)));
     }
 
-    private void toggle() {
-        expanded = !expanded;
+    public void setExpanded(boolean expanded) {
+        if (this.expanded == expanded) return;
+        this.expanded = expanded;
         renderTitle(title.text.substring(2));
         content.visible = expanded;
         pack();
@@ -73,7 +74,7 @@ public class CollapsibleSection extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
         if (ev.c.y < HEADER_H) {
             if (ev.b == 1) {
-                toggle();
+                setExpanded(!expanded);
             }
             return true;
         }

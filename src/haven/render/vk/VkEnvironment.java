@@ -46,6 +46,8 @@ import static org.lwjgl.vulkan.VK13.*;
 import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.KHRPushDescriptor.*;
+import static org.lwjgl.vulkan.KHRPresentId.*;
+import static org.lwjgl.vulkan.KHRPresentWait.*;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.util.vma.Vma.*;
 
@@ -61,6 +63,7 @@ import static org.lwjgl.util.vma.Vma.*;
  */
 public class VkEnvironment implements Environment {
     public static final Config.Variable<Boolean> validate = Config.Variable.propb("haven.vkdebug", false);
+    public static final Config.Variable<Boolean> presentpacing = Config.Variable.propb("haven.vkpacing", true);
     public static final int SLOTS = 2;
     /* Images keep OpenGL's memory layout (row 0 is the bottom of
      * the GL window), which mirrors triangle winding as Vulkan sees
@@ -82,6 +85,7 @@ public class VkEnvironment implements Environment {
     public final Caps caps;
     final float linemin, linemax, maxaniso;
     final boolean wideLines, anisotropy, mirrorclamp;
+    public final boolean presentwait;
     final int ts_bits;
     final float ts_period;
     final AtomicInteger npipes = new AtomicInteger();
@@ -406,6 +410,13 @@ public class VkEnvironment implements Environment {
 		qfs.free();
 
 		VkPhysicalDeviceVulkan12Features a12 = VkPhysicalDeviceVulkan12Features.calloc(st).sType$Default();
+		Set<String> deviceexts = devexts(st, pdev);
+		boolean canwait = presentpacing.get() && deviceexts.contains(VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
+		    deviceexts.contains(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+		VkPhysicalDevicePresentIdFeaturesKHR pid = VkPhysicalDevicePresentIdFeaturesKHR.calloc(st).sType$Default();
+		VkPhysicalDevicePresentWaitFeaturesKHR pwait = VkPhysicalDevicePresentWaitFeaturesKHR.calloc(st).sType$Default().pNext(pid.address());
+		if(canwait)
+		    a12.pNext(pwait.address());
 		VkPhysicalDeviceVulkan13Features a13 = VkPhysicalDeviceVulkan13Features.calloc(st).sType$Default().pNext(a12.address());
 		VkPhysicalDeviceFeatures2 af = VkPhysicalDeviceFeatures2.calloc(st).sType$Default().pNext(a13.address());
 		vkGetPhysicalDeviceFeatures2(pdev, af);
@@ -413,9 +424,12 @@ public class VkEnvironment implements Environment {
 		this.wideLines = have.wideLines();
 		this.anisotropy = have.samplerAnisotropy();
 		this.mirrorclamp = a12.samplerMirrorClampToEdge();
+		this.presentwait = canwait && pid.presentId() && pwait.presentWait();
 
 		VkPhysicalDeviceVulkan12Features e12 = VkPhysicalDeviceVulkan12Features.calloc(st).sType$Default()
 		    .samplerMirrorClampToEdge(mirrorclamp);
+		if(presentwait)
+		    e12.pNext(pwait.address());
 		VkPhysicalDeviceVulkan13Features e13 = VkPhysicalDeviceVulkan13Features.calloc(st).sType$Default().pNext(e12.address())
 		    .dynamicRendering(true);
 		VkPhysicalDeviceFeatures2 ef = VkPhysicalDeviceFeatures2.calloc(st).sType$Default().pNext(e13.address());
@@ -424,9 +438,18 @@ public class VkEnvironment implements Environment {
 		    .fillModeNonSolid(have.fillModeNonSolid());
 		VkDeviceQueueCreateInfo.Buffer qci = VkDeviceQueueCreateInfo.calloc(1, st);
 		qci.get(0).sType$Default().queueFamilyIndex(qfam).pQueuePriorities(st.floats(1.0f));
+		List<String> enabledexts = new ArrayList<>(Arrays.asList(VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME));
+		if(presentwait) {
+		    enabledexts.add(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+		    enabledexts.add(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+		}
+		PointerBuffer enames = st.mallocPointer(enabledexts.size());
+		for(String name : enabledexts)
+		    enames.put(st.UTF8(name));
+		enames.flip();
 		VkDeviceCreateInfo dci = VkDeviceCreateInfo.calloc(st).sType$Default().pNext(ef.address())
 		    .pQueueCreateInfos(qci)
-		    .ppEnabledExtensionNames(st.pointers(st.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME), st.UTF8(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)));
+		    .ppEnabledExtensionNames(enames);
 		PointerBuffer pp = st.mallocPointer(1);
 		int rv = vkCreateDevice(pdev, dci, null, pp);
 		if(rv != VK_SUCCESS)
@@ -951,12 +974,16 @@ public class VkEnvironment implements Environment {
 	    Long ret = samplers.get(key);
 	    if(ret == null) {
 		try(MemoryStack st = stackPush()) {
+		    /* OpenGL's non-mipmapped filters still distinguish minification
+		     * from magnification. A zero maxLod forces magnification in
+		     * Vulkan; 0.25 with NEAREST mip selection keeps level zero
+		     * while allowing minFilter (VkSamplerCreateInfo specification). */
 		    VkSamplerCreateInfo ci = VkSamplerCreateInfo.calloc(st).sType$Default()
 			.magFilter(vkfilter(mag)).minFilter(vkfilter(min))
 			.mipmapMode(((mip == null) || (mip == Texture.Filter.NEAREST)) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR)
 			.addressModeU(vkwrap(smp.swrap)).addressModeV(vkwrap(smp.twrap)).addressModeW(vkwrap(smp.rwrap))
 			.mipLodBias(0).anisotropyEnable(aniso > 1).maxAnisotropy(Math.max(aniso, 1))
-			.compareEnable(false).minLod(0).maxLod((mip == null) ? 0 : VK_LOD_CLAMP_NONE)
+			.compareEnable(false).minLod(0).maxLod((mip == null) ? 0.25f : VK_LOD_CLAMP_NONE)
 			.borderColor(border).unnormalizedCoordinates(false);
 		    LongBuffer lp = st.mallocLong(1);
 		    check(vkCreateSampler(dev, ci, null, lp), "vkCreateSampler");

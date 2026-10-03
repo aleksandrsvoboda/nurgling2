@@ -45,6 +45,7 @@ import static org.lwjgl.vulkan.VK13.*;
 import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.KHRPushDescriptor.*;
+import static org.lwjgl.vulkan.KHRPresentWait.*;
 import static org.lwjgl.util.vma.Vma.*;
 
 /*
@@ -347,6 +348,9 @@ public class VkExec {
 		VkPresentInfoKHR pi = VkPresentInfoKHR.calloc(st).sType$Default()
 		    .pWaitSemaphores(st.longs(swap.done[imgidx]))
 		    .swapchainCount(1).pSwapchains(st.longs(swap.sc)).pImageIndices(st.ints(imgidx));
+		long presentid = (env.presentwait && swap.vsync) ? ++swap.presentid : 0;
+		if(presentid != 0)
+		    pi.pNext(VkPresentIdKHR.calloc(st).sType$Default().pPresentIds(st.longs(presentid)).address());
 		int rv = vkQueuePresentKHR(env.queue, pi);
 		if((rv == VK_ERROR_OUT_OF_DATE_KHR) || (rv == VK_SUBOPTIMAL_KHR))
 		    swapdirty = true;
@@ -355,6 +359,21 @@ public class VkExec {
 		else
 		    VkEnvironment.check(rv, "vkQueuePresentKHR");
 		npresent++;
+		if((rv == VK_SUCCESS) && (presentid != 0)) {
+		    /* A GPU fence only retires submitted commands, not a displayed
+		     * image. FIFO can release those fences in bursts, allowing the
+		     * UI/camera to run several ticks rapidly and then stall. Pace
+		     * vsynced frames by presentation before releasing the next
+		     * render's CPU fence. The UI can still prepare the next frame.
+		     * Bound the wait for hidden/minimized or changing surfaces. */
+		    int wr = vkWaitForPresentKHR(dev, swap.sc, presentid, 100000000L);
+		    if((wr == VK_ERROR_OUT_OF_DATE_KHR) || (wr == VK_SUBOPTIMAL_KHR))
+			swapdirty = true;
+		    else if(wr == VK_ERROR_SURFACE_LOST_KHR)
+			lostsurface();
+		    else if(wr != VK_TIMEOUT)
+			VkEnvironment.check(wr, "vkWaitForPresentKHR");
+		}
 	    }
 	}
     }
@@ -393,11 +412,19 @@ public class VkExec {
     void run(VkRender r) {
 	long pbuf = abuf;
 	int poff = aoff;
-	Slot aunit = null;
+	long aunit = -1;
 	try {
 	    for(VkRender.Cmd cmd : r.cmds) {
+		/* CPU fences (including the UI callback after a swap) and
+		 * nested renders do not need a command buffer. Beginning a
+		 * unit here can wait on an old GPU fence just to deliver a
+		 * CPU callback, then submit an otherwise empty buffer. */
+		if((cmd instanceof FenceCmd) || (cmd instanceof SubCmd)) {
+		    cmd.exec(this, r);
+		    continue;
+		}
 		begin();
-		if((unit != aunit) && (r.apos > 0)) {
+		if((cmd instanceof DrawCmd) && (nunits != aunit) && (r.apos > 0)) {
 		    /* The arena lives in the ring of the unit that
 		     * executes the commands; a swap in the middle of a
 		     * render starts a new unit. */
@@ -405,7 +432,7 @@ public class VkExec {
 		    abuf = unit.ring.rbuf;
 		    aoff = unit.ring.roff;
 		    memCopy(memAddress(r.arena, 0), unit.ring.raddr, r.apos);
-		    aunit = unit;
+		    aunit = nunits;
 		}
 		cmd.exec(this, r);
 	    }
@@ -908,8 +935,13 @@ public class VkExec {
 		    ByteBuffer srow = src.duplicate().order(ByteOrder.nativeOrder());
 		    srow.position(y * w * tsz);
 		    ByteBuffer drow = dst.duplicate().order(ByteOrder.nativeOrder());
-		    drow.position(dst.position() + ((((y + y0 - area.ul.y) * rw) + (x0 - area.ul.x)) * esz));
+		    int doff = dst.position() + ((((y + y0 - area.ul.y) * rw) + (x0 - area.ul.x)) * esz);
+		    drow.position(doff);
 		    VkFormats.convert(srow, tfmt.nc, tfmt.cf, null, drow, p.fmt.nc, p.fmt.cf, w);
+		    if(tex.rgb) {
+			drow.position(doff);
+			VkFormats.opaquealpha(drow, p.fmt, w);
+		    }
 		}
 		vmaDestroyBuffer(env.vma, rbuf, ralloc);
 		env.callback(() -> p.cb.accept(p.dst));
@@ -935,6 +967,7 @@ public class VkExec {
 	final int format, w, h;
 	final Coord want;
 	final boolean vsync;
+	long presentid = 0;
 
 	Swapchain(Swapchain old, boolean vsync, Coord want) {
 	    try(MemoryStack st = stackPush()) {

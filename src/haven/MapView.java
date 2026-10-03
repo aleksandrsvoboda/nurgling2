@@ -52,6 +52,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public long plgob = -1;
     public Coord2d cc;
     public final Glob glob;
+    public final nurgling.render.SceneDebug sceneDebug = new nurgling.render.SceneDebug();
     public int view = 2;
     private Collection<Delayed> delayed = new LinkedList<Delayed>();
     private Collection<Delayed> delayed2 = new LinkedList<Delayed>();
@@ -637,6 +638,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     
     protected void envdispose() {
+	if(directionalShadows != null) { directionalShadows.dispose(); directionalShadows = null; }
 	if(smap != null) {
 	    smap.dispose(); smap = null;
 	    slist.dispose(); slist = null;
@@ -652,6 +654,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(clobjlist!=null)
 			clobjlist.dispose();
 		super.dispose();
+		sceneDebug.dispose();
     }
 
     public boolean visol(String tag) {
@@ -1130,9 +1133,32 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private Coord3f smapcc = null;
     private ShadowMap.ShadowList slist = null;
     private ShadowMap smap = null;
+    private nurgling.render.DirectionalShadows directionalShadows;
     private double lsmch = 0;
     private void updsmap(DirLight light) {
-	boolean usesdw = ui.gprefs.lshadow.val;
+	nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
+	boolean improved = graphics.bettershadows;
+	if(improved && light != null && instancer != null) {
+	    Coord3f center;
+	    try { center = getcc().invy(); } catch(Loading loading) { return; }
+	    if(smap != null) {
+	        basic(ShadowMap.class,null);
+	        instancer.remove(slist); slist.dispose(); slist=null;
+	        smap.dispose(); smap=null; smapcc=null;
+	    }
+	    if(directionalShadows == null || directionalShadows.master() != instancer) {
+	        if(directionalShadows != null) directionalShadows.dispose();
+	        directionalShadows = new nurgling.render.DirectionalShadows(instancer);
+	    }
+	    basic(nurgling.render.DirectionalShadows.class,directionalShadows.update(light,center));
+	    return;
+	}
+	if(directionalShadows != null) {
+	    basic(nurgling.render.DirectionalShadows.class,null);
+	    directionalShadows.dispose(); directionalShadows=null;
+	}
+	boolean usesdw = ui.gprefs.lshadow.val && light != null;
+	int filter = graphics.softshadow ? (graphics.shadowq > 0 ? 2 : 1) : 0;
 	int sdwres = ui.gprefs.shadowres.val;
 	sdwres = (sdwres < 0) ? (2048 >> -sdwres) : (2048 << sdwres);
 	if(usesdw) {
@@ -1147,10 +1173,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(instancer == null)
 		    return;
 		slist = new ShadowMap.ShadowList(instancer);
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
-	    } else if((smap.lbuf.w != sdwres) || (smap.soft != ShadowMap.softness)) {
+		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
+	    } else if((smap.lbuf.w != sdwres) || (smap.soft != filter)) {
 		smap.dispose();
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
+		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
 		smapcc = null;
 		basic(ShadowMap.class, null);
 	    }
@@ -1181,6 +1207,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private void drawsmap(Render out) {
+	if(directionalShadows != null) directionalShadows.draw(out);
 	if(smap != null)
 	    smap.update(out, slist);
     }
@@ -1189,11 +1216,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private RenderTree.Slot s_amblight = null;
     private void amblight() {
 	synchronized(glob) {
-	    if(glob.lightamb != null) {
+	    if(sceneDebug.hasTime()) {
+		amblight = sceneDebug.light();
+	    } else if(glob.lightamb != null) {
 		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
 		amblight.prio(100);
 	    } else {
 		amblight = null;
+	    }
+	    nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
+	    basic(nurgling.render.WorldLighting.Smooth.class,
+	            (graphics.worldlight && graphics.worldlightstrength > 0) || graphics.bettershadows ? nurgling.render.WorldLighting.smooth : null);
+	    if(graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {
+		amblight = nurgling.render.WorldLighting.apply(amblight,
+		        sceneDebug.hasTime() ? sceneDebug.minutes() / 1440.0 : glob.ast.dt,
+		        graphics.worldlightstrength);
 	    }
 	}
 	if(s_amblight != null) {
@@ -1266,8 +1303,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}, RenderContext.slot, Light.lights);
 
     private final Map<RenderTree.Node, RenderTree.Slot> rweather = new HashMap<>();
+    public Collection<Glob.Weather> weather() {
+	return(sceneDebug.weather(glob.weather()));
+    }
+
     private void updweather() {
-	Glob.Weather[] wls = glob.weather().toArray(new Glob.Weather[0]);
+	Glob.Weather[] wls = weather().toArray(new Glob.Weather[0]);
 	Pipe.Op[] wst = new Pipe.Op[wls.length];
 	for(int i = 0; i < wls.length; i++)
 	    wst[i] = wls[i].state();
@@ -1855,7 +1896,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	basic(Camera.class, camera);
 	amblight();
 	updsmap(amblight);
+	sceneDebug.prepare();
 	updweather();
+	sceneDebug.tick(dt);
 	synchronized(glob.map) {
 	    terrain.tick();
 	    oltick();

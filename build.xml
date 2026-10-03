@@ -349,6 +349,111 @@
     </java>
   </target>
 
+  <target name="renderer-parity-compile" depends="bin">
+    <mkdir dir="build/parity-classes" />
+    <javac srcdir="tools/render-parity" destdir="build/parity-classes"
+           encoding="UTF-8" source="1.8" target="1.8" includeantruntime="no">
+      <classpath>
+        <pathelement path="bin/hafen.jar" />
+        <path refid="client.classpath" />
+      </classpath>
+      <compilerarg value="-Xlint:-options" />
+    </javac>
+  </target>
+
+  <target name="test-graphics-baseline" depends="renderer-parity-compile"
+          description="Check that graphics enhancements are opt-in and Classic resets every effect">
+    <java classname="nurgling.render.BaselineSettingsTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-renderer-parity" depends="test-graphics-baseline"
+          description="Compare OpenGL and Vulkan GPU output (opens temporary test windows)">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.RendererParity" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <arg value="build/render-parity" />
+    </java>
+  </target>
+
+  <target name="test-vulkan-pacing" depends="renderer-parity-compile"
+          description="Exercise pipelined Vulkan frame pacing, VSync and window lifecycle">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.vk.VulkanPacingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-frame-history" depends="renderer-parity-compile"
+          description="Check FPS history statistics and render diagnostic HUD previews">
+    <java classname="nurgling.render.FrameHistoryTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <arg value="build/fps-preview" />
+    </java>
+  </target>
+
+  <target name="test-scene-debug" depends="renderer-parity-compile"
+          description="Check local lighting/weather previews, reset and effect disposal">
+    <java classname="nurgling.render.SceneDebugTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-color-lighting" depends="renderer-parity-compile"
+          description="Check daily world lighting and read back standalone color grading on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.ColorLightingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-better-shadows" depends="renderer-parity-compile"
+          description="Check stable shadow projection and filtered depth comparisons on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.ShadowQualityTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-vulkan-frames" depends="renderer-parity-compile"
+          description="Check Vulkan frame submissions and CPU callback scheduling">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.vk.VulkanFrameTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
   <target name="clean">
     <delete dir="build" />
     <delete dir="lib/ext" />

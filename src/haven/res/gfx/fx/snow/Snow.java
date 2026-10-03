@@ -15,7 +15,7 @@ import haven.res.lib.env.*;
 
 /* >wtr: Snow */
 @haven.FromResource(name = "gfx/fx/snow", version = 2)
-public class Snow implements Glob.Weather, RenderTree.Node, TickList.Ticking, TickList.TickNode {
+public class Snow implements Glob.Weather, RenderTree.Node, TickList.Ticking, TickList.TickNode, Disposable {
     public static final int maxflakes = 50000;
     public static final VertexArray.Layout fmt =
 	new VertexArray.Layout(new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0,  0, 20),
@@ -283,6 +283,23 @@ public class Snow implements Glob.Weather, RenderTree.Node, TickList.Ticking, Ti
 	    mats.add(mr.get());
 	flakemats = mats.toArray(new Material[0]);
 	update(args);
+    }
+
+    /** Allows a local preview to load materials asynchronously before constructing the effect. */
+    public Snow(Material[] materials, float rate) {
+	this.flakemats = materials.clone();
+	this.rate = rate;
+    }
+
+    public void dispose() {
+	for(MSlot m : matmap.values()) {
+	    if(m.model != null) m.model.dispose();
+	    if(m.ind != null) m.ind.dispose();
+	}
+	matmap.clear();
+	if(va != null) { va.dispose(); va = null; }
+	Arrays.fill(flakes, null);
+	nf = 0;
     }
 
     public Pipe.Op state() {

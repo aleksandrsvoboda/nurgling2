@@ -386,7 +386,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /* Graphics options: shadows from torches, fires and other point lights. */
     private void updpshadows() {
-        int n = nurgling.render.PointShadows.count;
+        nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
+        int n = graphics.bettershadows ? Math.max(2, graphics.plights) : graphics.plights;
         if ((n <= 0) || (instancer == null)) {
             if (pshadows != null) {
                 basic(nurgling.render.PointShadows.class, null);
@@ -414,7 +415,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 return (-1e9f);
             }
         };
-        basic(nurgling.render.PointShadows.class, pshadows.update(lights, cc, n, nurgling.render.PointShadows.res, ground));
+        basic(nurgling.render.PointShadows.class, pshadows.update(lights, cc, n, graphics.plightres > 0 ? 1024 : 512, graphics.bettershadows ? null : ground));
     }
 
     @Override

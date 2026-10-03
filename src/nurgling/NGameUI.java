@@ -80,6 +80,7 @@ public class NGameUI extends GameUI
     public StudyDeskPlannerWidget studyDeskPlanner = null;
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
+    public FpsPanel fpsPanel;
     public nurgling.routes.ForagerPath activeBotPath = null;
     // Index into activeBotPath.waypoints Forager is currently heading toward, -1 when idle - lets NWaypointOverlay color current/passed/queued waypoints differently.
     public int activeBotWaypointIndex = -1;
@@ -257,6 +258,8 @@ public class NGameUI extends GameUI
         // Database debug overlay - shows in top-right corner
         add(dbStatsOverlay = new DbStatsOverlay(), new Coord(sz.x - 290, 10));
         dbStatsOverlay.hide(); // Hidden by default, toggle with F11 or settings
+        add(fpsPanel = new FpsPanel(), new Coord(Math.max(0, sz.x - UI.scale(450)), UI.scale(150)));
+        fpsPanel.keepOnScreen();
 
         // Profile-aware components are now initialized in attached() before super.attached()
 
@@ -312,6 +315,13 @@ public class NGameUI extends GameUI
     @Override
     public void tick(double dt) {
         super.tick(dt);
+        if(fpsPanel != null) {
+            boolean show = FpsPanel.enabled() && !nurgling.render.Photo.on;
+            if(fpsPanel.visible() != show) {
+                fpsPanel.show(show);
+                if(show) { fpsPanel.keepOnScreen(); fpsPanel.raise(); }
+            }
+        }
         if(todoStore != null)
             todoStore.tick();
         if(timerNotifier != null)
@@ -643,6 +653,7 @@ public class NGameUI extends GameUI
     public void resize(Coord sz)
     {
         super.resize(sz);
+        if(fpsPanel != null) fpsPanel.keepOnScreen();
         if(guiinfo != null)
             guiinfo.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
         if(areas != null)
@@ -1255,6 +1266,10 @@ public class NGameUI extends GameUI
 
     @Override
     public boolean globtype(GlobKeyEvent ev) {
+        if (FpsPanel.toggle.key().match(ev.awt)) {
+            FpsPanel.enabled(!FpsPanel.enabled());
+            return true;
+        }
         if (kb_photo.key().match(ev.awt)) {
             photomode(!nurgling.render.Photo.on);
             return true;

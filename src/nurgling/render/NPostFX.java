@@ -140,8 +140,8 @@ public class NPostFX {
     static final Uniform ao_dep = u(SAMPLER2D, 0), ao_pp = u(VEC4, 1), ao_pr = u(VEC2, 2), ao_par = u(VEC2, 3);
     static final ShaderMacro ao_sh = shader(aofn, ao_dep, ao_pp, ao_pr, ao_par);
 
-    static final RawFunction dcompfn = new RawFunction(VEC4, "hv_dcomp", 6, DEPTHLIB +
-	"vec4 hv_dcomp(vec4 col, vec2 tc, sampler2D dep, sampler2D ao, vec4 pp, vec2 pr)\n" +
+    static final RawFunction dcompfn = new RawFunction(VEC4, "hv_dcomp", 7, DEPTHLIB +
+	"vec4 hv_dcomp(vec4 col, vec2 tc, sampler2D dep, sampler2D ao, vec4 pp, vec2 pr, float ambient)\n" +
 	"{\n" +
 	"    ivec2 sz = textureSize(dep, 0);\n" +
 	"    float d = texelFetch(dep, clamp(ivec2(tc * vec2(sz)), ivec2(0), sz - 1), 0).r;\n" +
@@ -161,17 +161,18 @@ public class NPostFX {
 	"                wsum += w;\n" +
 	"            }\n" +
 	"        }\n" +
-	"        c *= sum / wsum;\n" +
+	"        c *= mix(1.0, sum / wsum, ambient);\n" +
 	"    }\n" +
 	"    return(vec4(c, col.a));\n" +
 	"}\n");
-    static final Uniform dc_dep = u(SAMPLER2D, 0), dc_ao = u(SAMPLER2D, 1), dc_pp = u(VEC4, 2), dc_pr = u(VEC2, 3);
-    static final ShaderMacro dc_sh = shader(dcompfn, dc_dep, dc_ao, dc_pp, dc_pr);
+    static final Uniform dc_dep = u(SAMPLER2D, 0), dc_ao = u(SAMPLER2D, 1), dc_pp = u(VEC4, 2), dc_pr = u(VEC2, 3), dc_ambient = u(FLOAT,4);
+    static final ShaderMacro dc_sh = shader(dcompfn, dc_dep, dc_ao, dc_pp, dc_pr, dc_ambient);
 
     public static class DepthFX extends PostProcessor {
 	final PView view;
 	int aoq;
 	float aostr;
+	float radius = 7, ambient = 1;
 	private Texture2D.Sampler2D aobuf, dsamp;
 	private Texture dtex;
 
@@ -210,9 +211,9 @@ public class NPostFX {
 			aobuf.dispose();
 		    aobuf = mktarget(sz, NumberFormat.UNORM8);
 		}
-		blit(target(g, aobuf), in, new Pass(ao_sh, dsamp, pp[0], pp[1], new float[] {aostr, 7.0f}));
+		blit(target(g, aobuf), in, new Pass(ao_sh, dsamp, pp[0], pp[1], new float[] {aostr, radius}));
 	    }
-	    blit(g, in, new Pass(dc_sh, dsamp, aobuf, pp[0], pp[1]));
+	    blit(g, in, new Pass(dc_sh, dsamp, aobuf, pp[0], pp[1], ambient));
 	}
 
 	public void dispose() {
@@ -364,11 +365,13 @@ public class NPostFX {
 	    dfx = toggle(dfx, s.ssao, () -> new DepthFX(view));
 	    if(dfx != null) {
 		dfx.aoq = s.aoq; dfx.aostr = s.aostrength;
+		dfx.radius = s.bettershadows ? 2.0f : 7.0f;
+		if(!s.bettershadows) dfx.ambient = 1;
 	    }
 	    bloom = toggle(bloom, s.bloom, Bloom::new);
 	    if(bloom != null)
 		bloom.strength = s.bloomstrength;
-	    boolean wantg = s.grade || s.bloom || s.vignette;
+	    boolean wantg = s.colorpass();
 	    if(wantg && (grade == null)) {
 		grade = new Grade();
 		view.tonemap(grade);
@@ -381,6 +384,7 @@ public class NPostFX {
 	    }
 	    if(grade != null) {
 		grade.grade = s.grade; grade.vignette = s.vignette;
+		grade.tonemap = s.grade || s.bloom;
 		grade.exposure = s.exposure; grade.contrast = s.contrast;
 		grade.saturation = s.saturation; grade.warmth = s.warmth;
 	    }
@@ -445,9 +449,15 @@ public class NPostFX {
 	    last = now;
 	    Glob glob = mv.glob;
 	    DirLight sun = mv.amblight;
+	    if(dfx != null && s.bettershadows) {
+	        // Screen-space AO is only a bounded contact approximation, not a second cast shadow.
+	        float ambient = sun == null ? .2f : sun.amb[0]+sun.amb[1]+sun.amb[2];
+	        float direct = sun == null ? 1 : sun.dif[0]+sun.dif[1]+sun.dif[2];
+	        dfx.ambient = Math.max(.10f,Math.min(.35f,ambient/Math.max(.001f,ambient+direct)));
+	    }
 	    boolean raining = false, sclouds = false, snowing = false;
 	    float rainrate = 0;
-	    for(Glob.Weather w : glob.weather()) {
+	    for(Glob.Weather w : mv.weather()) {
 		if((w instanceof haven.res.gfx.fx.rain.Rain) && (((haven.res.gfx.fx.rain.Rain)w).rate > 0)) {
 		    raining = true;
 		    rainrate = ((haven.res.gfx.fx.rain.Rain)w).rate;
@@ -512,7 +522,7 @@ public class NPostFX {
 		view.basic(Atmos.class, ne);
 	    }
 	    if(grade != null) {
-		float[] tt = s.tod ? todtint(glob, sun, raining) : new float[] {1, 1, 1, 1};
+		float[] tt = new float[] {1, 1, 1, 1};
 		/* Lightning lights up the whole scene for a moment. */
 		float fl = AmbientFX.flash;
 		if(fl > 0)
@@ -539,37 +549,15 @@ public class NPostFX {
 	    }
 	}
 
-	/* Warm and golden near sunrise and sunset, cool and a little
-	 * muted at night, grey in rain. */
-	static float[] todtint(Glob glob, DirLight sun, boolean raining) {
-	    float r = 1, g = 1, b = 1, sat = 1;
-	    Astronomy ast = glob.ast;
-	    if((ast != null) && (sun != null)) {
-		float l = (float)Math.sqrt(sun.dir[0] * sun.dir[0] + sun.dir[1] * sun.dir[1] + sun.dir[2] * sun.dir[2]);
-		float elev = sun.dir[2] / Math.max(l, 1e-5f);
-		if(!ast.night) {
-		    float gold = 1 - Math.max(0, Math.min(1, (elev - 0.05f) / 0.4f));
-		    r += 0.10f * gold; g += 0.01f * gold; b -= 0.12f * gold;
-		    sat += 0.12f * gold;
-		} else {
-		    r -= 0.08f; g -= 0.02f; b += 0.10f;
-		    sat -= 0.18f;
-		}
-	    }
-	    if(raining) {
-		r -= 0.03f; b += 0.02f;
-		sat -= 0.15f;
-	    }
-	    return(new float[] {r, g, b, sat});
-	}
+
     }
 
     /* Tone mapping and color grading */
 
     static final RawFunction gradefn = new RawFunction(VEC4, "hv_grade", 6,
-	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec2 v, vec4 tod, sampler2D expo)\n" +
+	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec3 v, vec4 tod, sampler2D expo)\n" +
 	"{\n" +
-	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, vignette);\n" +
+	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, vignette, tonemap);\n" +
 	"     * tod = time-of-day tint and saturation */\n" +
 	"    vec3 x = col.rgb * tod.rgb * texture(expo, vec2(0.5)).r;\n" +
 	"    x = mix(vec3(dot(x, vec3(0.2126, 0.7152, 0.0722))), x, tod.w);\n" +
@@ -583,19 +571,21 @@ public class NPostFX {
 	"    }\n" +
 	"    /* Soft shoulder: values above 0.8 roll off towards 1 instead of clipping. */\n" +
 	"    x = max(x, vec3(0.0));\n" +
-	"    vec3 hi = 0.8 + 0.2 * (1.0 - exp(-(x - 0.8) / 0.2));\n" +
-	"    x = mix(x, hi, step(vec3(0.8), x));\n" +
+	"    if(v.z > 0.5) {\n" +
+	"        vec3 hi = 0.8 + 0.2 * (1.0 - exp(-(x - 0.8) / 0.2));\n" +
+	"        x = mix(x, hi, step(vec3(0.8), x));\n" +
+	"    }\n" +
 	"    if(v.y > 0.5) {\n" +
 	"        vec2 d = tc - 0.5;\n" +
 	"        x *= mix(0.72, 1.0, smoothstep(0.85, 0.3, length(d * vec2(1.0, 0.8)) * 1.2));\n" +
 	"    }\n" +
 	"    return(vec4(clamp(x, 0.0, 1.0), col.a));\n" +
 	"}\n");
-    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC2, 1), gr_tod = u(VEC4, 2), gr_expo = u(SAMPLER2D, 3);
+    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC3, 1), gr_tod = u(VEC4, 2), gr_expo = u(SAMPLER2D, 3);
     static final ShaderMacro gr_sh = shader(gradefn, gr_g, gr_v, gr_tod, gr_expo);
 
     public static class Grade extends PostProcessor {
-	boolean grade, vignette;
+	boolean grade, vignette, tonemap;
 	float exposure, contrast, saturation, warmth;
 	volatile float[] tod = {1, 1, 1, 1};
 	volatile Texture2D.Sampler2D expo = null;
@@ -610,7 +600,7 @@ public class NPostFX {
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    blit(g, in, new Pass(gr_sh, new float[] {exposure, contrast, saturation, warmth},
-				 new float[] {grade ? 1 : 0, vignette ? 1 : 0}, tod,
+				 new float[] {grade ? 1 : 0, vignette ? 1 : 0, tonemap ? 1 : 0}, tod,
 				 (expo == null) ? Temporal.one() : expo));
 	}
     }
