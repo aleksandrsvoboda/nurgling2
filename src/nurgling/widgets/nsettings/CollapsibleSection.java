@@ -30,7 +30,7 @@ public class CollapsibleSection extends Widget {
         if (title != null) {
             title.dispose();
         }
-        this.title = Text.render((expanded ? "▼ " : "▶ ") + text);
+        this.title = Text.render(text);
     }
 
     /** Notified after every expand/collapse, so the owning panel can reposition what follows. */
@@ -53,7 +53,6 @@ public class CollapsibleSection extends Widget {
     public void setExpanded(boolean expanded) {
         if (this.expanded == expanded) return;
         this.expanded = expanded;
-        renderTitle(title.text.substring(2));
         content.visible = expanded;
         pack();
         if (onToggle != null) {
@@ -66,7 +65,10 @@ public class CollapsibleSection extends Widget {
         g.chcolor(HEADER_BG);
         g.frect(Coord.z, new Coord(sz.x, HEADER_H));
         g.chcolor();
-        g.image(title.tex(), new Coord(UI.scale(5), (HEADER_H - title.sz().y) / 2));
+        int side = UI.scale(7);
+        nurgling.styles.GeneratedButtons.icon(g, expanded ? "triangle-down" : "triangle-right",
+            new Coord(UI.scale(5), (HEADER_H - side) / 2), side);
+        g.image(title.tex(), new Coord(UI.scale(17), (HEADER_H - title.sz().y) / 2));
         super.draw(g);
     }
 

@@ -791,9 +791,9 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
         public void draw(GOut g) {
             CookbookTheme.fill(g, Coord.z, sz, CookbookTheme.popBg);
             CookbookTheme.frame(g, Coord.z, sz, CookbookTheme.accent);
-            Tex x = tc.get(CookbookTheme.bold, "x", CookbookTheme.muted);
-            int right = sz.x - x.sz().x - UI.scale(8);
-            g.image(x, Coord.of(right, (sz.y - x.sz().y) / 2));
+            int cross = UI.scale(16);
+            int right = sz.x - cross - UI.scale(8);
+            nurgling.styles.GeneratedButtons.close(g, Coord.of(right, (sz.y - cross) / 2), cross);
             actionX = right;
             if (action != null) {
                 Tex a = tc.get(CookbookTheme.bold, action, CookbookTheme.accent);
@@ -808,7 +808,7 @@ public class TodoWindow extends Window implements TodoListView.Listener, TodoEdi
         public boolean mousedown(MouseDownEvent ev) {
             if (ev.b != 1)
                 return true;
-            int closeX = sz.x - UI.scale(18);
+            int closeX = sz.x - UI.scale(24);
             if (ev.c.x >= closeX) {
                 undoText = null;
                 store.clearToast();

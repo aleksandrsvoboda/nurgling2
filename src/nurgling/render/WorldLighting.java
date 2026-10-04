@@ -10,6 +10,13 @@ import haven.render.sl.ShaderMacro;
 
 /** Optional daily palette for sunlight and ambient world lighting. */
 public final class WorldLighting {
+    /** Use server light before night vision or debug overrides. The target switches
+     * environments immediately, without waiting for the light transition to finish. */
+    public static boolean outdoors(java.awt.Color current, java.awt.Color target) {
+        java.awt.Color raw = target != null ? target : current;
+        return raw != null && (raw.getRGB() & 0xffffff) != 0;
+    }
+
     /** Per-view marker; classic materials keep their original cel ramp when absent. */
     public static final class Smooth extends State {
         public static final Slot<Smooth> slot = new Slot<>(Slot.Type.DRAW, Smooth.class);
@@ -29,6 +36,16 @@ public final class WorldLighting {
     private static final FColor DAY_AMBIENT = new FColor(.38f, .40f, .44f);
 
     public static DirLight apply(DirLight original, double fraction, float strength) {
+        return apply(original, fraction, strength, 0, false);
+    }
+
+    /** Smoothly remove the clear-weather lift in any rain, restore it after rain stops. */
+    public static float approachClearWeather(float current, float rain, double dt) {
+        float target = rain > 0 ? 0 : 1;
+        return current + (target - current) * (float)(1 - Math.exp(-Math.max(0, Math.min(dt, 1)) / (target < current ? 2 : 6)));
+    }
+
+    public static DirLight apply(DirLight original, double fraction, float strength, float clearWeather, boolean autoExposure) {
         if(original == null || !Double.isFinite(fraction) || !Float.isFinite(strength) || strength <= 0)
             return original;
         // A black outdoor light is also used underground; do not manufacture daylight there.
@@ -51,6 +68,13 @@ public final class WorldLighting {
         float middayGain = 1 + .35f * day * sunHeight * sunHeight * sunHeight * sunHeight;
         direct = direct.mul(middayGain);
         FColor ambient = spherical(NIGHT_AMBIENT, DAY_AMBIENT, day);
+        // Auto-exposure already lifts dark scenes. Without it, clear skies need
+        // more ambient fill and sunlight; preserve the existing rainy palette.
+        if(!autoExposure && Float.isFinite(clearWeather)) {
+            float lift = Math.max(0, Math.min(1, clearWeather)) * (.5f + .5f * day);
+            ambient = ambient.mul(1 + .40f * lift);
+            direct = direct.mul(1 + .25f * lift);
+        }
         float amount = Math.min(strength, 1);
         DirLight result = new DirLight(color(original.amb).blend(ambient, amount),
                 color(original.dif).blend(direct, amount), color(original.spc).blend(specular, amount),

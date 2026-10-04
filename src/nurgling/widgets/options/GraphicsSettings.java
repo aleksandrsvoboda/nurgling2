@@ -124,6 +124,8 @@ public class GraphicsSettings extends Panel {
 	prev = check(cont, prev, "gfx.rainripples", s -> s.rainripples, "rainripples");
 	prev = check(cont, prev, "gfx.lightningbolts", s -> s.lightning, "lightningbolts");
 	prev = check(cont, prev, "gfx.animatedgrass", s -> s.grass, "animatedgrass");
+	prev = slider(cont, prev, "gfx.grassdistance", 4, 24, s -> s.grassdistance, "grassdistance", 1);
+	prev = slider(cont, prev, "gfx.grassdensity", 25, 200, s -> s.grassdensity, "grassdensity", 100);
 	prev = check(cont, prev, "gfx.wet", s -> s.wet, "wet");
 	prev = check(cont, prev, "gfx.snow", s -> s.snow, "snow");
 	prev = cont.add(new Label(L10n.get("gfx.photo")), new Coord(UI.scale(5), prev.pos("bl").y + UI.scale(8)));
@@ -190,11 +192,16 @@ public class GraphicsSettings extends Panel {
 	return(cont.add(cb, new Coord(UI.scale(5), prev == null ? UI.scale(8) : prev.pos("bl").y + UI.scale(5))));
     }
 
+    private static String sliderValue(String name,int value,int scale) {
+        if(name.equals("grassdensity")) return value+"%";
+        if(name.equals("grassdistance")) return Integer.toString(value);
+        return String.format("%.2f",value/(double)scale);
+    }
     private Widget slider(Widget cont, Widget prev, String key, int min, int max, Function<NGfx.Settings, Float> get, String name, int scale) {
 	Widget lbl = cont.add(new Label(L10n.get(key)), new Coord(UI.scale(25), prev.pos("bl").y + UI.scale(4)));
 	Label vlbl = new Label("");
 	HSlider sl = new HSlider(UI.scale(200), min, max, Math.round(get.apply(NGfx.get()) * scale)) {
-		void dpy() {vlbl.settext(String.format("%.2f", this.val / (double)scale));}
+		void dpy() {vlbl.settext(sliderValue(name,this.val,scale));}
 		protected void added() {dpy();}
 		public void changed() {
 		    dpy();
@@ -206,7 +213,7 @@ public class GraphicsSettings extends Panel {
 	cont.add(vlbl, new Coord(UI.scale(370), lbl.c.y));
 	refresh.add(() -> {
 		sl.val = Math.round(get.apply(NGfx.get()) * scale);
-		vlbl.settext(String.format("%.2f", sl.val / (double)scale));
+		vlbl.settext(sliderValue(name,sl.val,scale));
 	    });
 	return(lbl);
     }

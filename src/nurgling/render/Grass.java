@@ -10,13 +10,14 @@ import static haven.render.sl.Type.*;
 /** Short segmented blades, inspired by Shrine's procedural grass. Geometry is
  * cached in small terrain patches; wind and a decaying player trail run on GPU. */
 public class Grass extends RenderContext.PostProcessor {
-    static final int TILES=4, RADIUS=2;
+    static final int TILES=4;
     static final float SPAN=44, MAX_HEIGHT=3.4f;
     static final Attribute root=new Attribute(VEC4,"grassRoot"),shape=new Attribute(VEC4,"grassShape");
     static final MeshBuf.LayerID<MeshBuf.Vec4Layer> roots=new MeshBuf.V4LayerID(root),shapes=new MeshBuf.V4LayerID(shape);
     static final AutoVarying vshape=WaterWakes.varying(shape);
     static final Uniform trailA=NPostFX.u(MAT4,0),trailB=NPostFX.u(MAT4,1),viewer=NPostFX.u(VEC3,2);
-    static final RawFunction position=new RawFunction(VEC4,"grass_position",6,WaterSurface.source("grass.glsl"));
+    static final Uniform distanceLimit=NPostFX.u(FLOAT,3);
+    static final RawFunction position=new RawFunction(VEC4,"grass_position",7,WaterSurface.source("grass.glsl"));
     static final RawFunction color=new RawFunction(VEC4,"grass_color",3,
         "vec4 grass_color(vec4 s,vec3 sun,vec3 sky) {\n"+
         " vec3 base=mix(vec3(.12,.20,.035),vec3(.32,.40,.075),s.x);\n"+
@@ -24,7 +25,7 @@ public class Grass extends RenderContext.PostProcessor {
         " return vec4(base*(sky*.75+sun*.35)*mix(.55,1.0,smoothstep(0.0,.4,s.x)),1); }\n");
     static final ShaderMacro shader=p->{
         position.define(p.vctx);color.define(p.fctx);
-        Homo3D.get(p).mapv.mod(in->position.call(root.ref(),shape.ref(),WaterSurface.time.ref(),trailA.ref(),trailB.ref(),viewer.ref()),20);
+        Homo3D.get(p).mapv.mod(in->position.call(root.ref(),shape.ref(),WaterSurface.time.ref(),trailA.ref(),trailB.ref(),viewer.ref(),distanceLimit.ref()),20);
         FragColor.fragcol(p.fctx).mod(in->color.call(vshape.ref(),Atmos.usuncol.ref(),Atmos.uskycol.ref()),2000);
     };
     interface Terrain { boolean grass(double x,double y); float height(double x,double y); }
@@ -47,17 +48,24 @@ public class Grass extends RenderContext.PostProcessor {
         return .015+.82*best*best;
     }
     static FastMesh build(Coord patch,Terrain terrain) {
+        return build(patch,terrain,1);
+    }
+    static FastMesh build(Coord patch,Terrain terrain,float amount) {
         MeshBuf buf=new MeshBuf();MeshBuf.Vec4Layer r=buf.layer(roots),s=buf.layer(shapes);
+        int candidates=Math.round(70*amount),blades=0;
         for(int ty=patch.y*TILES;ty<(patch.y+1)*TILES;ty++)for(int tx=patch.x*TILES;tx<(patch.x+1)*TILES;tx++) {
             if(Thread.currentThread().isInterrupted())throw new CancellationException();
             if(!terrain.grass(tx*11+5.5,ty*11+5.5))continue;
             Random random=new Random(seed(tx,ty,113));
-            for(int tuft=0;tuft<70;tuft++) {
+            // Extend a deterministic sequence: changing quantity adds/removes
+            // tufts, but never relocates the existing ones or their clusters.
+            for(int tuft=0;tuft<candidates;tuft++) {
                 double x=tx*11+.8+random.nextDouble()*9.4,y=ty*11+.8+random.nextDouble()*9.4;
                 if(random.nextDouble()>density(x,y))continue;
                 for(int blade=0;blade<4;blade++) {
                     double bx=x+(random.nextDouble()-.5)*1.3,by=y+(random.nextDouble()-.5)*1.3;
                     if(!terrain.grass(bx,by))continue;
+                    if(blades++>=8000)return buf.mkmesh(); // Stay below 16-bit vertex indices.
                     float z=terrain.height(bx,by)+.015f,h=1.3f+random.nextFloat()*(MAX_HEIGHT-1.3f);
                     float angle=random.nextFloat()*(float)Math.PI*2,width=.10f+random.nextFloat()*.12f;
                     float[] rt={(float)bx,(float)-by,z,h};MeshBuf.Vertex[][] verts=new MeshBuf.Vertex[4][2];
@@ -106,8 +114,9 @@ public class Grass extends RenderContext.PostProcessor {
         }
     }
     static final class Patch implements Disposable {
-        final Coord key;final MapMesh[] revision;final FastMesh mesh;
-        Patch(Coord key,MapMesh[] revision,FastMesh mesh){this.key=key;this.revision=revision;this.mesh=mesh;}
+        final Coord key;final MapMesh[] revision;final FastMesh mesh;final float amount;
+        Patch(Coord key,MapMesh[] revision,FastMesh mesh){this(key,revision,mesh,1);}
+        Patch(Coord key,MapMesh[] revision,FastMesh mesh,float amount){this.key=key;this.revision=revision;this.mesh=mesh;this.amount=amount;}
         public void dispose(){if(mesh!=null)mesh.dispose();}
     }
     final PView view;final Trail trail=new Trail();
@@ -116,15 +125,21 @@ public class Grass extends RenderContext.PostProcessor {
     final ExecutorService worker=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"grass-patches");t.setDaemon(true);return t;});
     CompletableFuture<Patch> pending;Coord pendingKey;volatile boolean closed;
     Coord center;Coord3f eye=Coord3f.o;double nextScan;
+    float distance=88,amount=1;
     Texture2D.Sampler2D result;
     public Grass(PView view){this.view=view;}
+    public void configure(float tiles,float quantity) {
+        if(distance!=tiles*11 || amount!=quantity)nextScan=0;
+        distance=tiles*11;amount=quantity;
+    }
     public int order(){return -220;}
     static MapMesh[] revision(MCache map,Coord p) {
         Coord lo=p.mul(TILES),hi=lo.add(TILES-1,TILES-1);
         return new MapMesh[]{map.getcut(lo.div(MCache.cutsz)),map.getcut(Coord.of(hi.x,lo.y).div(MCache.cutsz)),
             map.getcut(Coord.of(lo.x,hi.y).div(MCache.cutsz)),map.getcut(hi.div(MCache.cutsz))};
     }
-    boolean near(Coord p){return center!=null&&Math.abs(p.x-center.x)<=RADIUS&&Math.abs(p.y-center.y)<=RADIUS;}
+    int radius(){return (int)Math.ceil(distance/SPAN);}
+    boolean near(Coord p){return center!=null&&Math.abs(p.x-center.x)<=radius()&&Math.abs(p.y-center.y)<=radius();}
     public void tick(MapView mv,double now) {
         try {
             Coord3f cc=mv.getcc();eye=Coord3f.of(cc.x,-cc.y,cc.z);center=Coord.of((int)Math.floor(cc.x/SPAN),(int)Math.floor(cc.y/SPAN));
@@ -138,7 +153,7 @@ public class Grass extends RenderContext.PostProcessor {
                 if(p==null)retry.put(pendingKey,now+1);
                 else {
                     boolean current=false;
-                    try {current=near(p.key)&&Arrays.equals(p.revision,revision(mv.glob.map,p.key));}catch(Loading ignored){}
+                    try {current=near(p.key)&&p.amount==amount&&Arrays.equals(p.revision,revision(mv.glob.map,p.key));}catch(Loading ignored){}
                     if(current){Patch old=patches.put(p.key,p);if(old!=null)old.dispose();}
                     else p.dispose();
                 }
@@ -148,23 +163,27 @@ public class Grass extends RenderContext.PostProcessor {
         if(pending!=null||now<nextScan)return;
         nextScan=now+.05;
         List<Coord> desired=new ArrayList<>();
-        for(int y=-RADIUS;y<=RADIUS;y++)for(int x=-RADIUS;x<=RADIUS;x++)desired.add(center.add(x,y));
+        int radius=radius();
+        for(int y=-radius;y<=radius;y++)for(int x=-radius;x<=radius;x++)desired.add(center.add(x,y));
         desired.sort(Comparator.comparingDouble(c->c.dist(center)));
         for(Coord key:desired)try {
             if(retry.getOrDefault(key,0.0)>now)continue;
             MapMesh[] revision=revision(mv.glob.map,key);Patch current=patches.get(key);
-            if(current!=null&&Arrays.equals(current.revision,revision))continue;
+            boolean sameTerrain=current!=null&&Arrays.equals(current.revision,revision);
+            if(sameTerrain&&current.amount==amount)continue;
             // Stale terrain must stop drawing immediately (paving/plowing updates).
-            if(current!=null){patches.remove(key);current.dispose();}
+            // Keep old density visible until its background replacement is ready.
+            if(current!=null&&!sameTerrain){patches.remove(key);current.dispose();}
             MCache map=mv.glob.map;
+            float requestedAmount=amount;
             pendingKey=key;
             pending=CompletableFuture.supplyAsync(()->{
                 try {
                     FastMesh mesh=build(key,new Terrain(){
                         public boolean grass(double x,double y){Resource tile=map.tilesetr(map.gettile(Coord2d.of(x,y).floor(MCache.tilesz)));return tile!=null&&eligible(tile.name);}
                         public float height(double x,double y){return (float)map.getz(MCache.SurfaceID.trn,Coord2d.of(x,y));}
-                    });
-                    Patch p=new Patch(key,revision,mesh);
+                    },requestedAmount);
+                    Patch p=new Patch(key,revision,mesh,requestedAmount);
                     synchronized(this){if(closed){p.dispose();return null;}}
                     return p;
                 }catch(Loading|CancellationException ignored){return null;}
@@ -179,7 +198,7 @@ public class Grass extends RenderContext.PostProcessor {
         Pipe state=view.basic.state().copy().prep(Homo3D.state).prep(new FragColor<>(result.tex.image(0)))
             .prep(new DepthBuffer<>(Utils.el(view.depth.images()))).prep(new States.Viewport(Area.sized(in.tex.sz())))
             .prep(new States.Depthtest(States.Depthtest.Test.LE)).prep(States.asynccompile)
-            .prep(new NPostFX.Pass(shader,trail.matrix(0),trail.matrix(4),eye));
+            .prep(new NPostFX.Pass(shader,trail.matrix(0),trail.matrix(4),eye,distance));
         state.put(States.maskdepth.slot,null);state.put(States.facecull,null);state.put(FragColor.blend,null);
         for(Patch p:patches.values())if(p.mesh!=null)p.mesh.draw(state,g.out);
         g.image(new TexRaw(result,true),Coord.z,g.sz());

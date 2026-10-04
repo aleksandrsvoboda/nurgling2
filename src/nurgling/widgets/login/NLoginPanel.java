@@ -23,6 +23,7 @@ import java.util.function.BiConsumer;
 public class NLoginPanel extends Widget {
     public static final int W = UI.scale(300);
     private static final int GAP = UI.scale(12), TIGHT = UI.scale(3);
+    private static final int ACTION_WIDTH = UI.scale(110);
     /** The list keeps at least this many rows even when the window is very short. */
     private static final int MINROWS = 3;
 
@@ -106,8 +107,8 @@ public class NLoginPanel extends Widget {
         obf.changed = a -> NConfig.set(NConfig.Key.alwaysObfuscate, a);
         prog = add(new Progress());
         keyhint = add(new ILabel(L10n.get("login.keys_hint"), NLoginTheme.hint));
-        forget = add(new Button(UI.scale(80), L10n.get("login.forget_me"), this::forgetcur));
-        loginbtn = add(new Button(UI.scale(110), L10n.get("login.button"), this::enter));
+        forget = add(new Button(ACTION_WIDTH, L10n.get("login.forget_me"), true, this::forgetcur));
+        loginbtn = add(new Button(ACTION_WIDTH, L10n.get("login.button"), true, this::enter));
 
         int running = SessionManager.getInstance().getAllSessions().size();
         if (running > 0)

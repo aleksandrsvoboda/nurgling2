@@ -13,7 +13,7 @@ import java.util.HashSet;
 
 public class NQuestGiver extends Sprite implements RenderTree.Node, PView.Render2D
 {
-    public static final Font bsans  = new Font("Sans", Font.BOLD, 10);
+    public static final Font bsans = nurgling.styles.UIFont.sans.deriveFont(Font.BOLD, 10f);
     private static final Text.Furnace active_title = new PUtils.BlurFurn(new Text.Foundry(bsans, 20, Color.WHITE).aa(true), 2, 1, new Color(36, 25, 25));
 
     static Tex qrage = Resource.loadtex("nurgling/hud/quest/qrage");

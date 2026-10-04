@@ -1,0 +1,93 @@
+[
+  {
+    "key": "maptools",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a mechanical settings gear icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/maptools.png"
+    ]
+  },
+  {
+    "key": "fish",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a horizontal fish icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/fish.png"
+    ]
+  },
+  {
+    "key": "tree",
+    "prompt": "Edit the supplied game UI reference into ONE isolated two evergreen pine trees icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/tree.png"
+    ]
+  },
+  {
+    "key": "ores",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a jagged ore crystal cluster icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/ores.png"
+    ]
+  },
+  {
+    "key": "gems",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a faceted diamond gemstone icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/gems.png"
+    ]
+  },
+  {
+    "key": "stone",
+    "prompt": "Edit the supplied game UI reference into ONE isolated an angular standing rock icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/stone.png"
+    ]
+  },
+  {
+    "key": "forage",
+    "prompt": "Edit the supplied game UI reference into ONE isolated three berries with a leaf icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/forage.png"
+    ]
+  },
+  {
+    "key": "vector",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a navigation arrow with two bearing rays (no text or numerals) icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/vector.png"
+    ]
+  },
+  {
+    "key": "home",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a small cottage/house, the FIRST symbol in the supplied horizontal strip icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/home.png"
+    ]
+  },
+  {
+    "key": "mark",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a planted flag, the SECOND symbol position in the strip (create-marker tool) icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/mark.png"
+    ]
+  },
+  {
+    "key": "hmark",
+    "prompt": "Edit the supplied game UI reference into ONE isolated an eye crossed by a diagonal slash, indicating hide map markers icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/hmark.png"
+    ]
+  },
+  {
+    "key": "wnd",
+    "prompt": "Edit the supplied game UI reference into ONE isolated two overlapping window rectangles with a diagonal inward arrow, indicating compact map mode icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/wnd.png"
+    ]
+  },
+  {
+    "key": "prov",
+    "prompt": "Edit the supplied game UI reference into ONE isolated a three-point royal crown, the LAST symbol in the supplied strip icon. Preserve recognizable subject, simplify it into clean bold warm orange (#e99c54) flat linework and solid details, matching a dark teal fantasy game's restrained orange UI. Remove every old round medallion, brown disc, background, frame and other symbols. Output ONLY the requested single glyph centered with generous transparent margin on a square canvas. True alpha transparency, no white background, no shadow, no glow, no texture, no border, no text. Strong readable silhouette at 18 pixels; few thick strokes, consistent 2px-equivalent strokes. The application will add its own identical square frame.",
+    "referenced_image_paths": [
+      "C:/Users/katodiy/.codex/worktrees/1b5f/nurgling2/art/ui/imagegen/map-references/prov.png"
+    ]
+  }
+]

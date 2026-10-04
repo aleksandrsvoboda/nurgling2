@@ -336,13 +336,16 @@ public class NSkillWnd extends SkillWnd {
 
 	// Buy bar below entries box — only visible on skills tab
 	int buyY = entriesPos.y + ENTRIES_H_SKILLS + UI.scale(5);
-	int buyH = UI.scale(30);
-	buyBar = add(new Widget(new Coord(ENTRIES_W, buyH)), entriesPos.x, buyY);
-	int bmid = buyH / 2;
-	Button bbtn = buyBar.adda(new Button(UI.scale(69), L10n.get("char.skill.buy")).action(() -> {
+	Button bbtn = new Button(UI.scale(69), L10n.get("char.skill.buy")).action(() -> {
 		    if(skg.sel != null)
 			skill.wdgmsg("buy", skg.sel.nm);
-	}), ENTRIES_W - UI.scale(10), bmid, 1.0, 0.5);
+	});
+	// The skinned button can be taller than the old fixed 30px bar. Keep its
+	// complete frame inside the parent's clip, including at fractional UI scales.
+	int buyH = Math.max(UI.scale(30), bbtn.sz.y + UI.scale(4));
+	buyBar = add(new Widget(new Coord(ENTRIES_W, buyH)), entriesPos.x, buyY);
+	int bmid = buyH / 2;
+	buyBar.adda(bbtn, ENTRIES_W - UI.scale(10), bmid, 1.0, 0.5);
 	Label clbl = buyBar.adda(new Label(L10n.get("char.skill.cost")), UI.scale(10), bmid, 0, 0.5);
 	Color lpColor = new Color(0xD2, 0xB2, 0xFF);
 	buyBar.adda(new RLabel<Pair<Integer, Integer>>(() -> new Pair<>(((skg.sel == null) || skg.sel.has) ? null : skg.sel.cost, this.chr.exp),

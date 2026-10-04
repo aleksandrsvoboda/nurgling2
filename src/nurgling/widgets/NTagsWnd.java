@@ -3,6 +3,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.conf.NCharTags;
 import nurgling.i18n.L10n;
+import nurgling.styles.UITheme;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -90,17 +91,15 @@ public class NTagsWnd extends Window {
         }
 
         prev = add(new Label(L10n.get("chartag.newtag")), prev.pos("bl").adds(0, 8));
-        newtag = add(new TextEntry(UI.scale(140), "") {
+        swatch = new Swatches();
+        newtag = add(new TextEntry(WIDTH - swatch.sz.x - UI.scale(8), "") {
             public void activate(String text) {
                 addtag();
             }
         }, prev.pos("bl").adds(0, 2));
-        swatch = add(new Swatches(), newtag.pos("ur").adds(6, 2));
-        add(new Button(UI.scale(60), L10n.get("chartag.add")).action(this::addtag),
-            swatch.pos("ur").adds(6, -3));
-
-        add(new Button(UI.scale(80), L10n.get("chartag.close")).action(NTagsWnd::close),
-            Coord.of(WIDTH - UI.scale(80), newtag.c.y + newtag.sz.y + UI.scale(8)));
+        add(swatch, Coord.of(WIDTH - swatch.sz.x, newtag.c.y + (newtag.sz.y - swatch.sz.y) / 2));
+        Button addButton = new Button(UI.scale(90), L10n.get("chartag.add"), this::addtag);
+        add(addButton, Coord.of(WIDTH - addButton.sz.x, newtag.c.y + newtag.sz.y + UI.scale(8)));
         pack();
     }
 
@@ -182,9 +181,7 @@ public class NTagsWnd extends Window {
             g.rect(Coord.of(cx, cy), Coord.of(cw, ch));
             g.chcolor();
             g.image(label.tex(), Coord.of(cx + UI.scale(4), cy + UI.scale(1)));
-            g.chcolor(new Color(190, 120, 120));
-            g.atext("x", Coord.of(delx() + UI.scale(4), sz.y / 2), 0.5, 0.5);
-            g.chcolor();
+            nurgling.styles.GeneratedButtons.close(g, Coord.of(delx(), (sz.y - UI.scale(16)) / 2), UI.scale(16));
         }
 
         public Object tooltip(Coord c, Widget prev) {
@@ -229,7 +226,7 @@ public class NTagsWnd extends Window {
             for (int i = 0; i < NCharTags.tagcol.length; i++) {
                 Coord c = Coord.of(i * CELL, 0);
                 if (i == sel) {
-                    g.chcolor(Color.WHITE);
+                    g.chcolor(UITheme.ACCENT);
                     g.frect(c, Coord.of(CELL, CELL));
                 }
                 g.chcolor(NCharTags.tagcol[i]);

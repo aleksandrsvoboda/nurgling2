@@ -96,17 +96,9 @@ public interface IBox {
 	}
 
 
-    public void draw(GOut g, Coord tl, Coord sz)
-	{
-		g.image(bt, tl.add(new Coord(ctl.sz().x + ctl.sz().x / 2 - ctl.sz().x / 4, ctl.sz().y / 2 - ctl.sz().x / 4)), new Coord(sz.x - ctr.sz().x - ctl.sz().x - ctl.sz().x + ctl.sz().x / 2, bt.sz().y));
-		g.image(bb, tl.add(new Coord(cbl.sz().x + cbl.sz().x / 2 - ctl.sz().x / 4, sz.y - bb.sz().y - cbl.sz().y / 2 + ctl.sz().x / 4)), new Coord(sz.x - cbr.sz().x - cbl.sz().x - ctl.sz().x + ctl.sz().x / 2, bb.sz().y));
-		g.image(bl, tl.add(new Coord(cbl.sz().x / 2 - ctl.sz().y / 4, ctl.sz().y + cbl.sz().y / 2 - ctl.sz().y / 4)), new Coord(bl.sz().x, sz.y - cbl.sz().y - ctl.sz().y - cbl.sz().y + ctl.sz().y / 2));
-		g.image(br, tl.add(new Coord(sz.x - br.sz().x - cbl.sz().x / 2 + ctl.sz().y / 4, ctr.sz().y + cbl.sz().y / 2 - ctl.sz().y / 4)), new Coord(br.sz().x, sz.y - cbr.sz().y - ctr.sz().y - cbl.sz().y + ctl.sz().y / 2));
-		g.image(ctl, tl.add(new Coord(ctl.sz().x / 2 - ctl.sz().x / 4, ctl.sz().y / 2 - ctl.sz().x / 4)));
-		g.image(ctr, tl.add(sz.x - ctr.sz().x - ctl.sz().x / 2 + ctl.sz().x / 4, ctl.sz().y / 2 - ctl.sz().x / 4));
-		g.image(cbl, tl.add(ctl.sz().x / 2 - ctl.sz().x / 4, sz.y - cbl.sz().y - ctl.sz().y / 2 + ctl.sz().x / 4));
-		g.image(cbr, new Coord(sz.x - cbr.sz().x + tl.x - ctl.sz().x / 2 + ctl.sz().x / 4, sz.y - cbr.sz().y + tl.y - ctl.sz().y / 2 + ctl.sz().x / 4));
-	}
+    public void draw(GOut g, Coord tl, Coord sz) {
+        nurgling.styles.UITheme.panel(g, tl, sz, null, nurgling.styles.UITheme.ACCENT);
+    }
 }
 }
 

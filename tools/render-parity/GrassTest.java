@@ -28,6 +28,17 @@ public class GrassTest {
         require(a!=null&&a.vert.num<65536,"Empty or oversized patch");
         FloatBuffer roots=attr(a,Grass.root),other=attr(b,Grass.root),shapes=attr(a,Grass.shape);
         require(roots.equals(other),"Grass changes layout on rebuild");
+        FastMesh sparse=Grass.build(Coord.z,terrain,.25f),thick=Grass.build(Coord.z,terrain,2);
+        require(sparse.vert.num<a.vert.num&&thick.vert.num>a.vert.num&&thick.vert.num<65536,"Density does not change geometry safely");
+        Set<String> fullRoots=new HashSet<>();
+        FloatBuffer denseRoots=attr(thick,Grass.root);
+        for(int i=0;i<denseRoots.capacity();i+=32)fullRoots.add(denseRoots.get(i)+":"+denseRoots.get(i+1));
+        for(int i=0;i<roots.capacity();i+=32)require(fullRoots.contains(roots.get(i)+":"+roots.get(i+1)),"Density relocates existing grass");
+        NGfx.Settings custom=NGfx.classic.with("grassdistance",24).with("grassdensity",2);
+        require(custom.grassdistance==24&&custom.grassdensity==2&&((Number)custom.map().get("grassdensity")).floatValue()==2,"Grass sliders not persisted");
+        require(custom.with("grassdistance",Float.NaN).grassdistance==8&&custom.with("grassdensity",99).grassdensity==2,"Unsafe grass setting bounds");
+        require(custom.with("grassdistance",0).grassdistance==4&&custom.with("grassdensity",0).grassdensity==.25f,"Grass lower bounds");
+        sparse.dispose();thick.dispose();
         for(int i=0;i<roots.capacity();i+=4) {
             float x=roots.get(i),y=-roots.get(i+1),z=roots.get(i+2),h=roots.get(i+3);
             require(x<33&&h>0&&h<=Grass.MAX_HEIGHT,"Grass crosses paving or knee-height cap");
@@ -56,11 +67,16 @@ public class GrassTest {
         a.dispose();b.dispose();
     }
     static float[] capture(Windeye window,double time,boolean contact,boolean blocked) throws Exception {
+        return capture(window,time,contact,blocked,8,1,0);
+    }
+    static float[] capture(Windeye window,double time,boolean contact,boolean blocked,float distance,float quantity,float viewerShift) throws Exception {
         PView view=new PView(SIZE){protected void basic(){}};
         Texture2D scene=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null),output=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
         Texture2D depth=new Texture2D(SIZE,DataBuffer.Usage.STATIC,Texture.DEPTH,null);view.depth=depth;
-        Grass grass=new Grass(view);FastMesh mesh=Grass.build(Coord.z,terrain);
-        grass.patches.put(Coord.z,new Grass.Patch(Coord.z,new MapMesh[0],mesh));grass.eye=Coord3f.of(22,-22,0);
+        Grass grass=new Grass(view);grass.configure(distance,quantity);FastMesh mesh=Grass.build(Coord.z,terrain,quantity);
+        grass.patches.put(Coord.z,new Grass.Patch(Coord.z,new MapMesh[0],mesh,quantity));grass.eye=Coord3f.of(22+viewerShift,-22,0);
+        grass.center=Coord.z;
+        require(grass.near(Coord.of((int)Math.ceil(distance/4),0))&&!grass.near(Coord.of((int)Math.ceil(distance/4)+1,0)),"Cache radius ignores draw-distance setting");
         FloatBuffer roots=attr(mesh,Grass.root);int contactIndex=(mesh.vert.num/16)*4;
         float cx=roots.get(contactIndex),cy=-roots.get(contactIndex+1),cz=roots.get(contactIndex+2);
         if(contact)for(int i=0;i<=8;i++)grass.trail.sample(Coord3f.of(cx-3.2f+i*.8f,cy,cz),WaterSurface.epoch+10-.3+i*.035);
@@ -101,6 +117,12 @@ public class GrassTest {
             window.title("Grass Vulkan regression");window.sizing(new Windeye.Sizing().fixsize(SIZE)).show(true);
             float[] still=capture(window,10,false,false),wind=capture(window,10.8,false,false),bend=capture(window,10,true,false);
             float[] recovered=capture(window,12,true,false),noTrail=capture(window,12,false,false),blocked=capture(window,10,true,true);
+            float[] shortRange=capture(window,10,false,false,4,1,100),longRange=capture(window,10,false,false,24,1,100);
+            float[] sparse=capture(window,10,false,false,8,.25f,0),thick=capture(window,10,false,false,8,2,0);
+            require(difference(shortRange,blocked)<.000001,"Grass remains beyond the configured distance");
+            require(difference(longRange,blocked)>.0001,"Extended draw distance has no visible grass");
+            require(difference(sparse,blocked)<difference(thick,blocked)*.5,"Quantity slider does not visibly change coverage");
+            save(sparse,"quantity-25");save(thick,"quantity-200");
             save(still,"grass");save(bend,"bent");
             System.out.printf("Grass differences: wind %.8f, contact %.8f%n",difference(still,wind),difference(still,bend));
             require(difference(still,wind)>.0001,"Wind not animated");
@@ -109,7 +131,7 @@ public class GrassTest {
             for(int i=0;i<blocked.length;i+=4)require(Math.abs(blocked[i]-.07)<.00001&&Math.abs(blocked[i+1]-.10)<.00001&&Math.abs(blocked[i+3]-1)<.00001,"Grass renders through foreground");
             save(still,"grass");save(bend,"bent");
             if(Arrays.asList(args).contains("--preview"))for(int i=0;i<32;i++)save(capture(window,10+i/16.0,true,false),String.format("frame-%02d",i));
-            System.out.printf("Grass Vulkan PASS: wind %.6f, bending %.6f, recovery, depth occlusion%n",difference(still,wind),difference(still,bend));
+            System.out.printf("Grass Vulkan PASS: wind %.6f, bending %.6f, recovery, depth occlusion, distance and quantity sliders%n",difference(still,wind),difference(still,bend));
         }catch(Throwable failure){failure.printStackTrace();status=1;}finally{window.dispose();toolkit.dispose();}
         System.exit(status);
     }

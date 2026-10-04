@@ -897,6 +897,7 @@ public class VkProgram extends VkObject {
 		.pDynamicState(dyn).layout(layout);
 	    LongBuffer lp = st.mallocLong(1);
 	    VkEnvironment.check(vkCreateGraphicsPipelines(env.dev, env.pipecache, pci, null, lp), "vkCreateGraphicsPipelines");
+	    env.pipecachewriter.changed();
 	    key.pipe = lp.get(0);
 	    env.npipes.incrementAndGet();
 	}

@@ -89,9 +89,10 @@ public class Button extends SIWidget {
     public BufferedImage cont;
     public Runnable action = null;
     public Color tint = null;
-    static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
-    static Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
-    private boolean a = false, dis = false;
+    static Text.Foundry tf = new Text.Foundry(nurgling.styles.UIFont.semibold, 12).aa(true);
+    static Text.Furnace nf = tf;
+    private boolean a = false, dis = false, hover = false;
+    protected boolean selected() { return false; }
     private UI.Grab d = null;
 	
     @RName("btn")
@@ -161,31 +162,17 @@ public class Button extends SIWidget {
     }
 
     public void draw(BufferedImage img) {
-	Graphics g = img.getGraphics();
-	int yo = lg?((hl - hs) / 2):0;
-
-	g.drawImage(a?dt:ut, UI.scale(4), yo + UI.scale(4), sz.x - UI.scale(8), hs - UI.scale(8), null);
-
-	Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
-	if(a)
-	    tc = tc.add(UI.scale(1), UI.scale(1));
-	g.drawImage(cont, tc.x, tc.y, null);
-
-	g.drawImage(bl, 0, yo, null);
-	g.drawImage(br, sz.x - br.getWidth(), yo, null);
-	g.drawImage(bt, bl.getWidth(), yo, sz.x - bl.getWidth() - br.getWidth(), bt.getHeight(), null);
-	g.drawImage(bb, bl.getWidth(), yo + hs - bb.getHeight(), sz.x - bl.getWidth() - br.getWidth(), bb.getHeight(), null);
-	if(lg)
-	    g.drawImage(bm, (sz.x - bm.getWidth()) / 2, 0, null);
-
-	g.dispose();
-
-	if(dis)
-	    PUtils.monochromize(img, Color.LIGHT_GRAY);
-	if(tint != null)
-	    PUtils.colmul(img.getRaster(), tint);
+        java.awt.Graphics2D g = img.createGraphics();
+        nurgling.styles.GeneratedButtons.plate(g, sz.x, sz.y,
+            nurgling.styles.GeneratedButtons.state(hover, a, selected(), dis));
+        Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
+        if(a) tc = tc.add(UI.scale(1), UI.scale(1));
+        if(dis) g.setComposite(java.awt.AlphaComposite.SrcOver.derive(0.42f));
+        g.drawImage(cont, tc.x, tc.y, null);
+        g.dispose();
+        if(tint != null) PUtils.colmul(img.getRaster(), tint);
     }
-	
+
     public void change(String text, Color col) {
 	this.text = tf.render(text, col);
 	this.cont = this.text.img;
@@ -209,6 +196,7 @@ public class Button extends SIWidget {
     }
 
     public boolean gkeytype(GlobKeyEvent ev) {
+        if(dis) return false;
 	click();
 	return(true);
     }
@@ -220,7 +208,7 @@ public class Button extends SIWidget {
 	    else
 		change((String)args[0]);
 	} else if(msg == "dis") {
-	    disable(Utils.bv(args[1]));
+	    disable(Utils.bv(args[0]));
 	} else {
 	    super.uimsg(msg, args);
 	}
@@ -228,6 +216,8 @@ public class Button extends SIWidget {
     
     public void mousemove(MouseMoveEvent ev) {
 	super.mousemove(ev);
+        boolean inside = ev.c.isect(Coord.z, sz);
+        if(hover != inside) { hover = inside; redraw(); }
 	if(d != null) {
 	    boolean a = ev.c.isect(Coord.z, sz);
 	    if(a != this.a) {
@@ -261,7 +251,7 @@ public class Button extends SIWidget {
 	    d = null;
 	    a = false;
 	    redraw();
-	    if(ev.c.isect(Coord.z, sz)) {
+	    if(!dis && ev.c.isect(Coord.z, sz)) {
 		unpress();
 		click();
 	    }

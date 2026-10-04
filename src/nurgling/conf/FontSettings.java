@@ -8,36 +8,12 @@ import java.awt.*;
 import java.util.*;
 
 public class FontSettings implements JConf {
-    private static final Font serif = new Font("Serif", Font.PLAIN, 10);
-    private static final Font sans  = new Font("Sans", Font.PLAIN, 10);
-    private static final Font fraktur = Resource.local().loadwait("ui/fraktur").flayer(Resource.Font.class).font;
-    private static final Font roboto = Resource.local().loadwait("nurgling/font/roboto").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
-
-    private static final Font helvetica = Resource.local().loadwait("nurgling/font/helvetica").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
-    private static final Font opensans = Resource.local().loadwait("nurgling/font/opensans").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
-    private static final Font opensansSemibold = Resource.local().loadwait("nurgling/font/opensans-semibold").flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
-    public static Font getOpenSans() { return opensans; }
-    public static Font getOpenSansSemibold() { return opensansSemibold; }
+    public static Font getOpenSans() { return nurgling.styles.UIFont.regular; }
+    public static Font getOpenSansSemibold() { return nurgling.styles.UIFont.semibold; }
 
     public Font getFont(String name)
     {
-        if (name == null)
-            return sans;
-        if(name.equals( "Inter"))
-            return helvetica;
-        else if(name.equals("Roboto"))
-            return roboto;
-        else if(name.equals("Open Sans"))
-            return opensans;
-        else if(name.equals("Open Sans Semibold"))
-            return opensansSemibold;
-        else if(name.equals("Sans"))
-            return sans;
-        else if(name.equals("Serif"))
-            return serif;
-        else if(name.equals("Fractur"))
-            return fraktur;
-        return sans;
+        return nurgling.styles.UIFont.named(name);
     }
 
     public Text.Foundry getFoundary(Fonts.FontType fontType) {
@@ -75,12 +51,12 @@ public class FontSettings implements JConf {
 
         public FontConfig() {}
         public FontConfig(String family, int size) {
-            this.family = family;
+            this.family = nurgling.styles.UIFont.family(family);
             this.size = size;
         }
 
         public FontConfig(String family, int size, boolean isColorable, Color color) {
-            this.family = family;
+            this.family = nurgling.styles.UIFont.family(family);
             this.size = size;
             this.isColorable = isColorable;
             this.color = color;
@@ -101,7 +77,7 @@ public class FontSettings implements JConf {
         }
 
         public FontConfig(Map<String, Object> map) {
-            this.family = (String)map.get("family");
+            this.family = nurgling.styles.UIFont.family((String)map.get("family"));
             this.size = ((Number)map.get("size")).intValue();
             if(map.containsKey("isColorable"))
             {

@@ -41,9 +41,10 @@ import java.util.*;
 import java.util.function.*;
 
 public class Text implements Disposable {
-    public static final Font serif = new Font("Serif", Font.PLAIN, 10);
-    public static final Font sans  = new Font("Sans", Font.PLAIN, 10);
-    public static final Font mono  = new Font("Monospaced", Font.PLAIN, 10);
+    public static final Font sans = nurgling.styles.UIFont.sans;
+    // Legacy aliases remain available to downloaded resource widgets.
+    public static final Font serif = nurgling.styles.UIFont.regular.deriveFont(10f);
+    public static final Font mono = sans;
 	public static Font fraktur;
     public static final Font dfont = sans;
     public static final Foundry std;
@@ -140,12 +141,13 @@ public class Text implements Disposable {
 	private RichText.Foundry wfnd = null;
 		
 	public Foundry(Font f, Color defcol) {
-	    font = f;
+	    font = nurgling.styles.UIFont.normalize(f);
 	    this.defcol = defcol;
 	    BufferedImage junk = TexI.mkbuf(new Coord(10, 10));
 	    java.awt.Graphics tmpl = junk.getGraphics();
-	    tmpl.setFont(f);
+	    tmpl.setFont(font);
 	    m = tmpl.getFontMetrics();
+	    tmpl.dispose();
 	}
 		
 	public Foundry(Font f) {

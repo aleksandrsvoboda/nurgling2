@@ -1142,7 +1142,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private double lsmch = 0;
     private void updsmap(DirLight light) {
 	nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
-	boolean improved = graphics.bettershadows;
+	boolean improved = graphics.bettershadows && outdoorLighting();
 	if(improved && light != null && instancer != null) {
 	    Coord3f center;
 	    try { center = getcc().invy(); } catch(Loading loading) { return; }
@@ -1219,10 +1219,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public DirLight amblight = null;
     private float rainCloudCover = 0;
+    private float clearWeatherLight = 0;
     private RenderTree.Slot s_amblight = null;
+    private final nurgling.render.InteriorTiles interiorTiles = new nurgling.render.InteriorTiles();
+    public boolean outdoorLighting() {
+	Gob player = player();
+	Coord2d position = (player == null) ? cc : player.rc;
+	Boolean inside = (position == null) ? null : interiorTiles.inside(glob.map, position.floor(MCache.tilesz));
+	if(Boolean.TRUE.equals(inside) || (inside == null && plgob >= 0)) return false;
+	synchronized(glob) {
+	    return nurgling.render.WorldLighting.outdoors(glob.lightdif, glob.tlightdif);
+	}
+    }
     private void amblight() {
 	synchronized(glob) {
-	    if(sceneDebug.hasTime()) {
+	    boolean outdoors = outdoorLighting();
+	    if(outdoors && sceneDebug.hasTime()) {
 		amblight = sceneDebug.light();
 	    } else if(glob.lightamb != null) {
 		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
@@ -1232,13 +1244,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	    nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
 	    basic(nurgling.render.WorldLighting.Smooth.class,
-	            (graphics.worldlight && graphics.worldlightstrength > 0) || graphics.bettershadows ? nurgling.render.WorldLighting.smooth : null);
-	    if(graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {
+	            outdoors && ((graphics.worldlight && graphics.worldlightstrength > 0) || graphics.bettershadows) ? nurgling.render.WorldLighting.smooth : null);
+	    if(outdoors && graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {
 		amblight = nurgling.render.WorldLighting.apply(amblight,
 		        sceneDebug.hasTime() ? sceneDebug.minutes() / 1440.0 : glob.ast.dt,
-		        graphics.worldlightstrength);
+		        graphics.worldlightstrength, clearWeatherLight, graphics.autoexp);
 	    }
-	    if(graphics.enabled)
+	    if(outdoors && graphics.enabled)
 		amblight = nurgling.render.RainLighting.apply(amblight, rainCloudCover);
 	}
 	if(s_amblight != null) {
@@ -1312,7 +1324,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private final Map<RenderTree.Node, RenderTree.Slot> rweather = new HashMap<>();
     public Collection<Glob.Weather> weather() {
-	return(sceneDebug.weather(glob.weather()));
+	return(outdoorLighting() ? sceneDebug.weather(glob.weather()) : glob.weather());
     }
 
     private void updweather() {
@@ -1910,8 +1922,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "lighting-weather")) {
 		sceneDebug.prepare();
-		rainCloudCover = nurgling.render.RainLighting.approach(rainCloudCover,
-		        nurgling.render.RainLighting.intensity(weather()), dt);
+		boolean outdoors = outdoorLighting();
+		float rain = outdoors ? nurgling.render.RainLighting.intensity(weather()) : 0;
+		rainCloudCover = outdoors ? nurgling.render.RainLighting.approach(rainCloudCover, rain, dt) : 0;
+		clearWeatherLight = outdoors ? nurgling.render.WorldLighting.approachClearWeather(clearWeatherLight, rain, dt) : 0;
 		amblight();
 		updsmap(amblight);
 		updweather();

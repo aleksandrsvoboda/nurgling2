@@ -1,0 +1,5 @@
+{
+  "mode": "built-in image_gen",
+  "prompt": "Create ONE minimal solid orange resize-corner triangle sprite, perfectly flat 2D silhouette, on transparent background. The exact shape is a RIGHT-ANGLED ISOSCELES TRIANGLE with vertices at top-right, bottom-right, bottom-left of a square canvas. It fills the complete lower-right diagonal half. Every pixel INSIDE the triangle must have FULL opacity 255 and a SINGLE uniform bright orange color #E99C54. Absolutely NO HOLES in triangle. No mottling, no material, no texture, no shadows, no gradients, no lighting. Do not render any paper, metal, wood, 3D or bevel. This is a flat solid geometric silhouette sprite for a game UI. Transparent upper-left triangle, solid orange lower-right triangle. All edges straight, sharp right bottom corner. No words. Treat the entire orange triangle as one continuous foreground object with uniform color, not a frame.",
+  "transparent_background": true
+}

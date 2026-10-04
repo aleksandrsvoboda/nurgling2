@@ -92,7 +92,7 @@ public class VkEnvironment implements Environment {
     /* Device objects (buffers, textures, programs) not yet destroyed. */
     final AtomicInteger live = new AtomicInteger();
     final Surface wsys;
-    private final Path pipecachefile;
+    final PipelineCacheWriter pipecachewriter;
     private Area wnd;
 
     public interface Surface {
@@ -468,7 +468,6 @@ public class VkEnvironment implements Environment {
 
 	    this.compiler = new VkShaderCompiler();
 	    Path pcf = (compiler.cachedir() == null) ? null : compiler.cachedir().resolve("pipelines.bin");
-	    this.pipecachefile = pcf;
 	    ByteBuffer init = null;
 	    if(pcf != null) {
 		try {
@@ -496,6 +495,7 @@ public class VkEnvironment implements Environment {
 		    MemoryUtil.memFree(init);
 	    }
 	    this.exec = new VkExec(this, surface);
+	    this.pipecachewriter = new PipelineCacheWriter(pcf, this::pipecachesnapshot);
 	    surface = 0;
 	} catch(RuntimeException e) {
 	    if(surface != 0)
@@ -650,7 +650,9 @@ public class VkEnvironment implements Environment {
     }
 
     public void dispose() {
-	builders.shutdownNow();
+	// Finish queued/native builds before extracting the last cache or destroying its device.
+	builders.shutdown();
+	PipelineCacheWriter.await(builders);
 	Collection<VkRender> copy;
 	synchronized(submitted) {
 	    copy = new ArrayList<>(submitted);
@@ -664,7 +666,7 @@ public class VkEnvironment implements Environment {
 	synchronized(exec) {
 	    exec.dispose();
 	}
-	savepipecache();
+	pipecachewriter.close();
 	synchronized(pmon) {
 	    for(SavedProg s : ptab) {
 		for(; s != null; s = s.next)
@@ -692,23 +694,26 @@ public class VkEnvironment implements Environment {
 	    msgcb.free();
     }
 
-    private void savepipecache() {
-	if(pipecachefile == null)
-	    return;
+    private PipelineCacheWriter.Snapshot pipecachesnapshot() {
+	// Cache flags are zero: Vulkan internally synchronizes cache access with pipeline
+	// creation. Do not take a render-thread lock here; only the save worker calls this.
 	try(MemoryStack st = stackPush()) {
 	    PointerBuffer sz = st.mallocPointer(1);
 	    if(vkGetPipelineCacheData(dev, pipecache, sz, null) != VK_SUCCESS)
-		return;
+		return null;
+	    if(sz.get(0) <= 0 || sz.get(0) > Integer.MAX_VALUE)
+		return null;
 	    ByteBuffer data = MemoryUtil.memAlloc((int)sz.get(0));
+	    boolean retained = false;
 	    try {
 		if(vkGetPipelineCacheData(dev, pipecache, sz, data) != VK_SUCCESS)
-		    return;
-		byte[] buf = new byte[(int)sz.get(0)];
-		data.get(buf);
-		Files.write(pipecachefile, buf);
-	    } catch(java.io.IOException e) {
+		    return null;
+		data.limit(Math.toIntExact(sz.get(0)));
+		PipelineCacheWriter.Snapshot snapshot = new PipelineCacheWriter.Snapshot(data, () -> MemoryUtil.memFree(data));
+		retained = true;
+		return snapshot;
 	    } finally {
-		MemoryUtil.memFree(data);
+		if(!retained) MemoryUtil.memFree(data);
 	    }
 	}
     }
@@ -1250,7 +1255,7 @@ public class VkEnvironment implements Environment {
 	    lastpclean = now;
 	}
 	if(now - lastpsave > 300) {
-	    savepipecache();
+	    pipecachewriter.request();
 	    lastpsave = now;
 	}
     }

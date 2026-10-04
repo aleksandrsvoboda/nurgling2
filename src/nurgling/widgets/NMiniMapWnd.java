@@ -7,6 +7,7 @@ import nurgling.NGameUI;
 import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.i18n.L10n;
+import nurgling.render.NGfx;
 import nurgling.tools.ExploredArea;
 
 import java.net.MalformedURLException;
@@ -24,6 +25,31 @@ public class NMiniMapWnd extends Widget{
             super(base, "/u", "/d", "/h", "/dh");
             setgkey(gkey);
             settip(tooltip);
+        }
+    }
+
+    public static class NightVisionButton extends NMenuCheckBox {
+        public NightVisionButton() {
+            super("nurgling/hud/buttons/toggle_panel/daynight", kb_night, L10n.get("minimap.night_vision"));
+            state(() -> usesAutoExposure() ? NGfx.get().autoexp : (Boolean)NConfig.get(NConfig.Key.nightVision));
+            set(value -> {
+                if(usesAutoExposure()) {
+                    NGfx.set(NGfx.get().with("autoexp", value));
+                } else {
+                    NConfig.set(NConfig.Key.nightVision, value);
+                    if(ui != null && ui.sess != null && ui.sess.glob != null)
+                        ui.sess.glob.brighten();
+                }
+            });
+        }
+
+        private boolean usesAutoExposure() {
+            return ui != null && NGfx.supported(ui.getenv());
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev) {
+            return usesAutoExposure() ? L10n.get("gfx.autoexp") : super.tooltip(c, prev);
         }
     }
     
@@ -139,7 +165,6 @@ public class NMiniMapWnd extends Widget{
     public static final KeyBinding kb_hidenature = KeyBinding.get("ol-hidenature", KeyMatch.nil);
     public static final KeyBinding kb_minesup = KeyBinding.get("ol-minesup", KeyMatch.nil);
     public static final KeyBinding kb_toggles = KeyBinding.get("mwnd_toggles", KeyMatch.nil);
-    final Coord marg = UI.scale(new Coord(5,5));
     public NMiniMapWnd(String name, NMapView map, MapFile file) {
         super(new Coord(UI.scale(133),UI.scale(133)));
         this.map = map;
@@ -244,9 +269,7 @@ public class NMiniMapWnd extends Widget{
         natura.a = !nurgling.tools.GobHide.isEnabled();
         buttons.add(natura);
 
-        nightvision = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/daynight", kb_night, L10n.get("minimap.night_vision"));
-        nightvision.changed(a -> switchStatus("night", a));
-        nightvision.a = (Boolean) NConfig.get(NConfig.Key.nightVision);
+        nightvision = new NightVisionButton();
         buttons.add(nightvision);
 
         fog = new ExploredAreaCheckBox("nurgling/hud/buttons/toggle_panel/fog", kb_fog, L10n.get("minimap.explored_area"));
@@ -346,11 +369,7 @@ public class NMiniMapWnd extends Widget{
             }
             case "night":
             {
-                NConfig.set(NConfig.Key.nightVision, a);
-                if (ui.sess != null && ui.sess.glob != null)
-                {
-                    ui.sess.glob.brighten();
-                }
+                nightvision.set(a);
                 break;
             }
         }
@@ -359,10 +378,11 @@ public class NMiniMapWnd extends Widget{
     public void draw(GOut g, boolean strict)
     {
         drawWidget(g,strict,miniMap);
-        pbox.draw(g, miniMap.c.sub(marg), miniMap.sz.add(marg.mul(2)));
         drawWidget(g,strict,toggle_panel);
         drawWidget(g,strict,map_box);
         drawWidget(g,strict,swdg);
+        // Keep every edge inside the clipped map bounds, above the map and its controls.
+        pbox.draw(g, miniMap.c, miniMap.sz);
     }
 
     void drawWidget(GOut g, boolean strict, Widget wdg)

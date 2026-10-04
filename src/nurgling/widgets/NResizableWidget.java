@@ -28,11 +28,20 @@ public class NResizableWidget extends NDraggableWidget
 
     boolean isHighlighted = false;
 
+    /** Shared location for the visible corner and its triangular mouse target. */
+    private Coord resizePosition() {
+        return sz.sub(sizeru.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8));
+    }
+
+    private boolean resizeHit(Coord c) {
+        Coord p = c.sub(resizePosition());
+        Coord size = sizeru.sz();
+        return p.isect(Coord.z, size) && p.x * size.y + p.y * size.x >= size.x * size.y;
+    }
     @Override
     public boolean mousedown(MouseDownEvent ev) {
-        if (!btnLock.a) {
-            int d = (ev.c.x - (sz.x - sizeru.sz().x/2 - UI.scale(15))) * ( - sizeru.sz().x/2) - (ev.c.y - (sz.y - sizeru.sz().y/2)) * ( sizeru.sz().y/2);
-            if ((ev.b == 1) && d <= 0) {
+        if (ui.core.mode == NCore.Mode.DRAG && !btnLock.a) {
+            if ((ev.b == 1) && resizeHit(ev.c)) {
                 if (drag == null) {
                     drag = ui.grabmouse(this);
                     dragc = sz.sub(ev.c);
@@ -54,8 +63,7 @@ public class NResizableWidget extends NDraggableWidget
         }
         else
         {
-            Coord cc = xlate(ev.c, true);
-            isHighlighted = ((ev.c.x - (sz.x - sizeru.sz().x/2 - UI.scale(15))) * ( - sizeru.sz().x/2) - (ev.c.y - (sz.y - sizeru.sz().y/2)) * ( sizeru.sz().y/2))<0 && ev.c.isect(Coord.z, sz);
+            isHighlighted = resizeHit(ev.c);
 
         }
         super.mousemove(ev);
@@ -101,14 +109,14 @@ public class NResizableWidget extends NDraggableWidget
             if (drag != null)
             {
                 if (!btnLock.a)
-                    g.image(sizerd, sz.sub(sizerd.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8)));
+                    g.image(sizerd, resizePosition());
             }
             else if (isHighlighted)
             {
-                g.image(sizerh, sz.sub(sizerd.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8)));
+                g.image(sizerh, resizePosition());
             }
             else
-                g.image(sizeru, sz.sub(sizerd.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8)));
+                g.image(sizeru, resizePosition());
         }
     }
 

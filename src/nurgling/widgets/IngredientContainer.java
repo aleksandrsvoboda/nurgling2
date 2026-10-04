@@ -21,7 +21,7 @@ public class IngredientContainer extends BaseIngredientContainer {
         super(type);
     }
 
-    public static class RuleButton extends Button {
+    public static class RuleButton extends NIconButton {
         NFlowerMenu menu;
         final IngredientContainer ic;
         
@@ -31,8 +31,15 @@ public class IngredientContainer extends BaseIngredientContainer {
         private static final String OPT_CLEAR = "ingredient.clear";
 
         public RuleButton(IngredientContainer ing) {
-            super(UI.scale(30), Resource.loadsimg("nurgling/hud/buttons/settings/u"));
+            super("settings", 20, 14);
+            settip(L10n.get("area.btn.item_rules"));
             this.ic = ing;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            super.draw(g);
+            nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
         }
 
         @Override
@@ -46,13 +53,6 @@ public class IngredientContainer extends BaseIngredientContainer {
             add(L10n.get(OPT_DELETE_THRESHOLDS));
             add(L10n.get(OPT_CLEAR));
         }};
-
-        public void draw(BufferedImage img) {
-            Graphics g = img.getGraphics();
-            Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
-            g.drawImage(cont, tc.x, tc.y, null);
-            g.dispose();
-        }
 
         class SetThreshold extends Window {
             public SetThreshold(int val) {

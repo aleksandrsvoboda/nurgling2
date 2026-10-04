@@ -126,12 +126,7 @@ public class NTabStrip<T> extends Widget {
 
         @Override
         public void draw(GOut g) {
-            if(active) {
-                g.chcolor(bg);
-                g.frect(Coord.z, sz);
-                g.chcolor();
-            }
-//            frame.draw(g, Coord.z, sz);
+            nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz, active ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
             if(image != null) {g.image(image, padding);}
         }
 

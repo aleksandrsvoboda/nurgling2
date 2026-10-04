@@ -31,11 +31,11 @@ public class NMapWnd extends MapWnd {
     private static final int btnw = UI.scale(95);
     private static final int dbbtnw = UI.scale(110);
 
-    public class MapToggleButton extends ICheckBox {
+    public class MapToggleButton extends NMapIcon {
         private final Runnable rightClickAction;
         
         public MapToggleButton(String base, String tooltip, Runnable rightClickAction) {
-            super("nurgling/hud/buttons/" + base + "/", "u", "d", "h", "dh");
+            super(base);
             this.rightClickAction = rightClickAction;
             settip(tooltip);
         }
@@ -110,7 +110,8 @@ public class NMapWnd extends MapWnd {
                 }
                 return super.keydown(ev);
             }
-        }, view.pos("br").sub(UI.scale(205), UI.scale(5)));
+        });
+        layoutMarkerSearch();
 
         /* The stock Export.../Import... buttons in the marker panel move a .hmap file; these move
          * the same data through the village database. Hidden unless a shared PostgreSQL is
@@ -358,10 +359,11 @@ public class NMapWnd extends MapWnd {
         if((dbExportBtn == null) || (dbImportBtn == null))
             return;
         int spacing = UI.scale(5);
-        int y = view.c.y + view.sz.y - UI.scale(25) - dbExportBtn.sz.y - spacing;
-        int x = view.c.x + view.sz.x - UI.scale(5) - (dbbtnw * 2) - spacing;
+        Coord origin = mapContentOrigin();
+        int y = markerSearchField.c.y - dbExportBtn.sz.y - spacing;
+        int x = origin.x + view.sz.x - UI.scale(5) - (dbbtnw * 2) - spacing;
         /* A window narrow enough to leave no room would otherwise push them off the left edge. */
-        int lx = Math.max(view.c.x, x);
+        int lx = Math.max(origin.x, x);
         dbExportBtn.c = new Coord(lx, y);
         dbImportBtn.c = new Coord(lx + dbbtnw + spacing, y);
         /* Stacked directly on top of the buttons and growing upward, so the list expanding never
@@ -439,10 +441,11 @@ public class NMapWnd extends MapWnd {
                 return;
         }
         int spacing = UI.scale(5);
-        int right = view.c.x + view.sz.x - UI.scale(35);
-        int left = view.c.x + UI.scale(5);
+        Coord origin = mapContentOrigin();
+        int right = origin.x + view.sz.x - UI.scale(5) - btns[0].sz.x;
+        int left = origin.x + UI.scale(5);
         int x = right;
-        int y = view.c.y + UI.scale(15);
+        int y = origin.y + UI.scale(5);
         for(MapToggleButton btn : btns) {
             if(x < left) {
                 x = right;
@@ -453,6 +456,18 @@ public class NMapWnd extends MapWnd {
         }
     }
 
+    private void layoutMarkerSearch() {
+        if(markerSearchField == null) return;
+        int gap = UI.scale(5);
+        // Keep search above the toolbar when a narrow map cannot fit both on one row.
+        int available = view.sz.x - gap * 2;
+        markerSearchField.resize(Math.min(UI.scale(200), Math.max(UI.scale(60), available)));
+        int bottom = view.sz.y - gap - (compact() ? UI.scale(29) : 0);
+        if(!compact() && view.sz.x < UI.scale(355)) bottom -= UI.scale(29);
+        markerSearchField.c = mapContentOrigin().add(view.sz.x - gap - markerSearchField.sz.x,
+                                                      bottom - markerSearchField.sz.y);
+    }
+
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
@@ -460,8 +475,7 @@ public class NMapWnd extends MapWnd {
         layoutMapButtons();
         
         // Keep marker search field at bottom-right
-        if(markerSearchField != null)
-            markerSearchField.c = view.c.add(view.sz.x - UI.scale(205), view.sz.y - UI.scale(25));
+        layoutMarkerSearch();
 
         placeDbButtons();
     }

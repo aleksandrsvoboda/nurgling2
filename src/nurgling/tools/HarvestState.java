@@ -374,7 +374,7 @@ public class HarvestState {
             g.setColor(Color.DARK_GRAY);
             g.fillRect(0, 0, sz.x, sz.y);
             g.setColor(Color.WHITE);
-            g.setFont(g.getFont().deriveFont(Font.BOLD, sz.y * 0.75f));
+            g.setFont(nurgling.styles.UIFont.semibold.deriveFont(sz.y * 0.75f));
             FontMetrics fm = g.getFontMetrics();
             String s = "?";
             int x = (sz.x - fm.stringWidth(s)) / 2;

@@ -266,10 +266,10 @@ public class TimerBanners extends Widget {
         else
             TimerIcons.drawTaskIcon(g, iul, icon);
         g.image(TimerIcons.text(CookbookTheme.small, c.kind.toUpperCase(), c.kindColor), Coord.of(PAD + icon + UI.scale(5), iy));
-        Tex close = TimerIcons.text(CookbookTheme.bold, "✕", CookbookTheme.fg);
-        Coord cul = Coord.of(W - PAD - close.sz().x, iy - UI.scale(2));
-        g.image(close, cul);
-        hits.add(new Hit(cul.sub(UI.scale(3), UI.scale(3)), close.sz().add(UI.scale(6), UI.scale(6)), () -> dismissAll(b)));
+        Coord closeSize = UI.scale(16, 16);
+        Coord cul = Coord.of(W - PAD - closeSize.x, iy + (CookbookTheme.small.height() - closeSize.y) / 2);
+        nurgling.styles.GeneratedButtons.close(g, cul, closeSize.x);
+        hits.add(new Hit(cul.sub(UI.scale(3), UI.scale(3)), closeSize.add(UI.scale(6), UI.scale(6)), () -> dismissAll(b)));
         if(c.since >= 0) {
             Tex ageTex = TimerIcons.text(CookbookTheme.small, L10n.get("timers.ago", TimerDurations.format(c.since)), CookbookTheme.muted);
             g.image(ageTex, Coord.of(cul.x - UI.scale(8) - ageTex.sz().x, iy));

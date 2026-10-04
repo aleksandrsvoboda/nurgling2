@@ -67,7 +67,7 @@ public class Rain implements Glob.Weather, RenderTree.Node, Disposable {
 	public DropSprite() {
 	    super(null, null);
 	    ostate(VertexColor.instance, new States.LineWidth(1),
-		   mat, draworder, States.maskdepth);
+		   mat, draworder, States.maskdepth, nurgling.render.WaterSurface.precipitation);
 	}
 
 	public void draw(Pipe state, Render out) {
@@ -121,7 +121,7 @@ public class Rain implements Glob.Weather, RenderTree.Node, Disposable {
 	public SplashSprite() {
 	    super(null, null);
 	    ostate(VertexColor.instance, new States.LineWidth(1),
-		   mat, draworder, States.maskdepth);
+		   mat, draworder, States.maskdepth, nurgling.render.WaterSurface.precipitation);
 	}
 
 	public void draw(Pipe state, Render out) {

@@ -38,6 +38,13 @@ public class WaterSurface extends RenderContext.PostProcessor {
         public ShaderMacro shader(){return Atmos.water?hidden:null;}
     }
     public static final Foam foam=new Foam();
+    /** Transparent precipitation must not be included in refracted scene color. */
+    public static final class Precipitation extends State {
+        static final Slot<Precipitation> slot=new Slot<>(Slot.Type.DRAW,Precipitation.class);
+        public void apply(Pipe p){p.put(slot,this);}
+        public ShaderMacro shader(){return Atmos.water?hidden:null;}
+    }
+    public static final Precipitation precipitation=new Precipitation();
     public static Pipe.Op foamMaterial(String texture) {
         return "gfx/fx/oarsplash".equals(texture)?foam:p->p.put(Foam.slot,null);
     }
@@ -77,7 +84,7 @@ public class WaterSurface extends RenderContext.PostProcessor {
             this.wakes=wakes;
             this.reflections=reflections?1:0;
             this.rainfall=new float[]{rain,ripples?1:0};
-            this.waveStrength=sheltered?new float[]{.25f,.35f}:new float[]{1,1};
+            this.waveStrength=sheltered?new float[]{0,0}:new float[]{1,1};
         }
         public ShaderMacro shader() {return surface?shader:foamShader;}
         public void apply(Pipe p) {p.put(slot,this);}
@@ -108,6 +115,27 @@ public class WaterSurface extends RenderContext.PostProcessor {
         FragColor.fragcol(prog.fctx).mod(in->foamColor.call(in,Homo3D.frageyev.ref(),
             depthtex.ref(),pp.ref(),pr.ref()),2000);
     };
+    static final RawFunction rainColor=new RawFunction(VEC4,"water_rain_color",2,
+        "vec4 water_rain_color(vec4 color,vec3 sky) {\n"+
+        " float light=clamp(dot(max(sky,vec3(0)),vec3(.2126,.7152,.0722)),0.0,1.2);\n"+
+        " return vec4(vec3(.72,.86,1.0)*(.16+.84*light),clamp(color.a*1.65,0.0,1.0)); }\n");
+    static final ShaderMacro rainShader=prog->{
+        rainColor.define(prog.fctx);
+        FragColor.fragcol(prog.fctx).mod(in->rainColor.call(in,Atmos.uskycol.ref()),2000);
+    };
+    static final RUtils.AdHoc rainMaterial=new RUtils.AdHoc(rainShader);
+    static final class RainSources implements RenderList<Rendered> {
+        final Set<RenderList.Slot<? extends Rendered>> slots=new HashSet<>();
+        public void add(RenderList.Slot<? extends Rendered> s) {
+            // DynSprite installs its state after list registration.
+            if(s.obj() instanceof haven.res.gfx.fx.rain.Rain.DropSprite ||
+               s.obj() instanceof haven.res.gfx.fx.rain.Rain.SplashSprite)
+                synchronized(slots){slots.add(s);}
+        }
+        public void remove(RenderList.Slot<? extends Rendered> s){synchronized(slots){slots.remove(s);}}
+        public void update(RenderList.Slot<? extends Rendered> s){remove(s);add(s);}
+        public void update(Pipe group,int[] mask){}
+    }
     static final class Sources implements RenderList<Rendered> {
         final Set<RenderList.Slot<? extends Rendered>> slots=new HashSet<>();
         final boolean foam;
@@ -130,10 +158,12 @@ public class WaterSurface extends RenderContext.PostProcessor {
     final SceneFX.Depth depth;
     final Sources sources=new Sources();
     final Sources foamSources=new Sources(true);
+    final RainSources rainSources=new RainSources();
     Texture2D.Sampler2D result, sceneDepth;
     public WaterSurface(PView view) {
         this.view=view;depth=new SceneFX.Depth(view);sources.syncadd(view.tree,Rendered.class);
         foamSources.syncadd(view.tree,Rendered.class);
+        rainSources.syncadd(view.tree,Rendered.class);
     }
     public int order() {return -210;}
     public void run(GOut g,Texture2D.Sampler2D in) {
@@ -142,7 +172,12 @@ public class WaterSurface extends RenderContext.PostProcessor {
         synchronized(sources.slots){copy=new ArrayList<>(sources.slots);}
         boolean noFoam;
         synchronized(foamSources.slots){noFoam=foamSources.slots.isEmpty();}
-        if(ds==null || (copy.isEmpty() && noFoam)) {g.image(new TexRaw(in,true),Coord.z,g.sz());return;}
+        boolean noRain;
+        synchronized(rainSources.slots){noRain=rainSources.slots.stream().noneMatch(s->{
+            Model model=((haven.res.lib.vertspr.DynSprite)s.obj()).model;
+            return model!=null && model.n>0;
+        });}
+        if(ds==null || (copy.isEmpty() && noFoam && noRain)) {g.image(new TexRaw(in,true),Coord.z,g.sz());return;}
         Coord size=in.tex.sz();
         if(!NPostFX.fits(result,size,in.tex.ifmt.cf)) {
             if(result!=null) result.dispose();
@@ -198,12 +233,30 @@ public class WaterSurface extends RenderContext.PostProcessor {
                 st.prep(States.asynccompile);
                 s.obj().draw(st,g.out);
             }
+            // Replay the existing particles once, after water has written real
+            // depth. No refraction/tinting of airborne drops or extra emission.
+            List<RenderList.Slot<? extends Rendered>> rainCopy;
+            synchronized(rainSources.slots){rainCopy=new ArrayList<>(rainSources.slots);}
+            for(RenderList.Slot<? extends Rendered> s:rainCopy) {
+                Pipe st=s.state().copy();
+                st.put(Precipitation.slot,null);
+                st.put(Light.lighting,null);
+                st.put(FragColor.slot,new FragColor<>(result.tex.image(0)));
+                st.prep(new States.Depthtest(States.Depthtest.Test.LE));
+                st.prep(States.maskdepth);
+                st.prep(FragColor.blend(new BlendMode(BlendMode.Factor.SRC_ALPHA,BlendMode.Factor.INV_SRC_ALPHA,
+                    BlendMode.Factor.ZERO,BlendMode.Factor.ONE)));
+                st.prep(rainMaterial);
+                st.prep(States.asynccompile);
+                s.obj().draw(st,g.out);
+            }
         }
         g.image(new TexRaw(result,true),Coord.z,g.sz());
     }
     public void dispose() {
         view.tree.remove(sources);
         view.tree.remove(foamSources);
+        view.tree.remove(rainSources);
         wakes.dispose();
         if(result!=null) result.dispose();
         if(sceneDepth!=null) sceneDepth.dispose();

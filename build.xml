@@ -450,6 +450,18 @@
     </java>
   </target>
 
+  <target name="test-ui-typography" depends="renderer-parity-compile"
+          description="Check UI font families, legacy migration, rich text and Cyrillic rendering">
+    <java classname="haven.UiTypographyTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Djava.awt.headless=true" />
+      <jvmarg value="-Dhaven.uiscale=1" />
+    </java>
+  </target>
+
   <target name="test-lightning" depends="renderer-parity-compile"
           description="Check procedural lightning geometry, animation, depth occlusion and Vulkan rendering">
     <java classname="nurgling.render.LightningTest" fork="true" failonerror="true">

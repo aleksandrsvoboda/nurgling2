@@ -62,6 +62,7 @@ float water_activity(vec2 p,float t) {
     return .15+.70*(broad*.72+detail*.28);
 }
 vec4 water_position(vec4 p, vec4 data, float t, float strength) {
+    if(strength <= 0.0) return p;
     float shore = smoothstep(0.0,5.0,data.x);
     vec3 displacement = vec3(0.0);
     for(int i=0;i<4;i++) {
@@ -80,14 +81,24 @@ vec4 water_position(vec4 p, vec4 data, float t) {
 }
 // Return derivatives of the displaced surface. Separate the short waves from
 // geometry, and attenuate them analytically at their pixel footprint.
-vec3 water_normals(vec2 p, vec4 data, float t, float footprint, vec2 strength, out vec3 rippleNormal) {
+vec3 water_normals(vec2 p, vec4 data, float t, float footprint, vec2 strength, out vec3 rippleNormal, out float crest) {
+    if(max(strength.x,strength.y) <= 0.0) {
+        rippleNormal=vec3(0,0,1); crest=0.0;
+        return vec3(0,0,1);
+    }
     float shore=smoothstep(0.0,5.0,data.x);
+    float crestRidges=0.0;
     vec3 dx=vec3(1,0,0),dy=vec3(0,1,0);
     for(int i=0;i<4;i++) {
         vec2 d; float k,a,w; water_wave(i,data.y,d,k,a,w);
         float phase,envelope;vec2 gradient,amplitudeGradient;
         water_packet(p,d,k,w,t,float(i),phase,gradient,envelope,amplitudeGradient);
         a*=strength.x*shore*(1.0-smoothstep(.65,2.8,length(gradient)*footprint));
+        // Narrow tops of the actual travelling waves, broken into packets by
+        // their existing amplitude envelope. A threshold on total height alone
+        // creates round bright blobs where crossing waves add together.
+        float ridge=smoothstep(.90,.995,sin(phase))*smoothstep(.85,1.40,envelope);
+        crestRidges+=ridge*pow(.62,float(i))*(1.0-smoothstep(.65,2.8,length(gradient)*footprint));
         vec2 vertical=a*(amplitudeGradient*sin(phase)+envelope*cos(phase)*gradient);
         dx.z+=vertical.x;
         dy.z+=vertical.y;
@@ -98,6 +109,10 @@ vec3 water_normals(vec2 p, vec4 data, float t, float footprint, vec2 strength, o
     // and its reset occurs at zero weight (the useful part of newgame's water).
     float phase=fract(t/7.0), other=fract(phase+.5), blend=abs(phase-.5)*2.0;
     vec2 slope=vec2(0);
+    // Wind ripples settle over the shallow bed before reaching the waterline.
+    // Depth is shared/interpolated across map sections; do not use view depth
+    // or a per-tile switch. The travelling geometry waves keep their old shape.
+    float rippleShore=smoothstep(0.0,12.0,data.x);
     for(int i=0;i<5;i++) {
         // Log-spaced intermediate scales bridge the geometry waves and fine
         // ripples. Each band has its own softly varying activity, so all detail
@@ -112,11 +127,24 @@ vec3 water_normals(vec2 p, vec4 data, float t, float footprint, vec2 strength, o
         water_packet(p-flow*other*7.0,d,k,sqrt(29.43*k),t,fi+7.0,b,gb,eb,ab);
         float resolved=1.0-smoothstep(.65,2.8,max(length(ga),length(gb))*footprint);
         vec2 sa=aa*sin(a)+ea*cos(a)*ga,sb=ab*sin(b)+eb*cos(b)*gb;
-        slope+=mix(sa,sb,blend)*(mix(.044,.048,data.y)/k)*resolved*shore*ripples*strength.y;
+        slope+=mix(sa,sb,blend)*(mix(.044,.048,data.y)/k)*resolved*rippleShore*ripples*strength.y;
+        // Only the two resolved middle bands contribute smaller crestlets;
+        // lighting all five fine bands recreates a dense worm-like pattern.
+        if(i<2) {
+            float ra=smoothstep(.90,.995,sin(a))*smoothstep(.85,1.40,ea);
+            float rb=smoothstep(.90,.995,sin(b))*smoothstep(.85,1.40,eb);
+            crestRidges+=mix(ra,rb,blend)*(.28-.10*fi)*resolved*ripples;
+        }
     }
+    crest=(1.0-exp(-crestRidges*1.5))*smoothstep(0.0,12.0,data.x);
+    crest*=min(strength.x,strength.y)*(1.0-smoothstep(.65,1.8,footprint));
     vec3 n=normalize(cross(dx,dy));
     rippleNormal=normalize(vec3(-slope,1));
     return normalize(n-vec3(slope,0));
+}
+vec3 water_normals(vec2 p, vec4 data, float t, float footprint, vec2 strength, out vec3 rippleNormal) {
+    float crest;
+    return water_normals(p,data,t,footprint,strength,rippleNormal,crest);
 }
 vec3 water_normals(vec2 p, vec4 data, float t, float footprint, out vec3 rippleNormal) {
     return water_normals(p,data,t,footprint,vec2(1),rippleNormal);

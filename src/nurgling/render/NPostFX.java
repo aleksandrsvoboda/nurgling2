@@ -175,6 +175,7 @@ public class NPostFX {
 	    if(waterSurface != null) waterSurface.rainRipples = s.rainripples;
 	    lightning = toggle(lightning, s.lightning, () -> new Lightning(view));
 	    grass = toggle(grass, s.grass, () -> new Grass(view));
+	    if(grass != null) grass.configure(s.grassdistance,s.grassdensity);
 	    rp |= (s.snow != Atmos.snow);
 	    Atmos.snow = s.snow;
 	    hist = toggle(hist, s.smoke, () -> new SceneFX.History(view));
@@ -224,12 +225,12 @@ public class NPostFX {
 	    float dt = (float)Math.min(Math.max(now - last, 0), 1.0);
 	    last = now;
 	    DirLight sun = mv.amblight;
+	    boolean outdoors = mv.outdoorLighting();
 	    if(waterSurface != null) {
-		synchronized(mv.glob) {
-		    waterSurface.sheltered = WaterSurface.sheltered(mv.glob.tlightdif != null ? mv.glob.tlightdif : mv.glob.lightdif);
-		}
-		float rainTarget = RainLighting.intensity(mv.weather());
+		waterSurface.sheltered = !outdoors;
+		float rainTarget = outdoors ? RainLighting.intensity(mv.weather()) : 0;
 		waterSurface.rainIntensity += (rainTarget - waterSurface.rainIntensity) * (1 - (float)Math.exp(-dt / .6f));
+		if(!outdoors) waterSurface.rainIntensity = 0;
 	    }
 	    boolean raining = false, snowing = false;
 	    for(Glob.Weather w : mv.weather()) {
@@ -242,13 +243,13 @@ public class NPostFX {
 	    /* Wet in about half a minute of rain, dry over a few. */
 	    float tgt = (s.wet && raining) ? 1 : 0;
 	    wetness += (tgt - wetness) * Math.min(1, dt / ((tgt > wetness) ? 25f : 150f));
-	    if(!s.wet)
+	    if(!s.wet || !outdoors)
 		wetness = 0;
 	    /* Snow settles over about a minute of snowfall and melts
 	     * over several. */
 	    float stgt = (s.snow && snowing) ? 1 : 0;
 	    snowcover += (stgt - snowcover) * Math.min(1, dt / ((stgt > snowcover) ? 50f : 400f));
-	    if(!s.snow)
+	    if(!s.snow || !outdoors)
 		snowcover = 0;
 	    float[] sdir = {0, 0, 1}, scol = {0, 0, 0}, sky = {0.5f, 0.5f, 0.5f};
 	    if(sun != null) {
@@ -274,7 +275,7 @@ public class NPostFX {
 	    }
 	    if(shafts != null) {
 		Camera cam = view.basic.state().get(Homo3D.cam);
-		if((sun == null) || (cam == null)) {
+		if(!outdoors || (sun == null) || (cam == null)) {
 		    shafts.sun = null;
 		} else {
 		    float[] e = cam.fin(Matrix4f.id).mul4(new float[] {sun.dir[0], sun.dir[1], sun.dir[2], 0});

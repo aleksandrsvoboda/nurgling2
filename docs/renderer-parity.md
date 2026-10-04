@@ -68,6 +68,10 @@ and explicit null overrides remain supported. `test-weather-state` reproduces th
 old 10,000-node rebuild, asserts zero unrelated descendant reevaluations after the
 fix, and verifies add/change/remove uniform updates by Vulkan readback. New shader
 variants may still need asynchronous preparation; this change targets CPU tree work.
+Vulkan tracks shader changes in stable weather groups and retains valid uniforms
+for the old program until its replacement is ready. This prevents Wet.param from
+reading a removed Wet state. The GPU weather test exercises real Wet.param
+transitions with synchronous and cold asynchronous shader variants.
 Each archive also contains `frame-summary.txt` (average FPS, 1%/0.1% lows,
 nearest-rank frame-time percentiles, worst duration and counts above 20/33.3/50/100 ms)
 and `slow-frames.csv` (up to 32 worst frames, same schema, longest first).
@@ -190,17 +194,31 @@ also verifies brick and stone paving base/variant profiles in actual cached reso
 Debug's Heavy rain option enables local rain at three times the ordinary preview
 rate, updates the existing particle source in place, and restores ordinary rain
 when unchecked. Disabling rain or restoring server weather also clears Heavy rain.
-The former lightning screen-flash effect and its setting have been removed.
-The separate **Lightning bolts during rain** option now renders branching world-space
-discharges, with a white core, blue halo, a descending leader and repeated strokes
-through the same channel. It is off by default and independent of water effects.
+The former independent lightning screen-flash setting has been removed. World-space
+bolts now include a short cool-white scene-lighting flash synchronized with the same
+stroke envelope. It preserves scene alpha and visible detail, skips empty depth,
+and runs after temporal accumulation; `LightningFlashTest` checks its GPU output.
+The separate **Lightning bolts during heavy rain** option renders branching world-space
+discharges, with an antialiased white core, plasma sheath, blue halo, a descending
+leader and repeated strokes through the same channel. Each strike has 416–528
+segments, tapered branches/sub-branches, randomized shape and stroke timing, plus a
+small contact corona. It is off by default and independent of water effects.
 It uses CPU fractal subdivision and camera-facing triangles following
 [NVIDIA's Lightning SDK](https://developer.download.nvidia.com/SDK/10.5/direct3d/Source/Lightning/doc/lightning_doc.pdf),
 with core Vulkan rendering and no CUDA, RTX or vendor-specific extensions.
 Scene depth hides occluded channels; the pass runs after temporal accumulation and
 tonemapping to avoid trails and exposure pumping. Shader/pipeline preparation uses
-the asynchronous draw path and starts before the first strike. Dry weather and
-black indoor lighting suppress strikes; Debug Heavy rain previews them every 2–3 s.
+the asynchronous draw path and starts before the first strike. Rain intensity below
+1.8 (ordinary preview = 1, heavy preview = 3) and black indoor lighting suppress
+strikes. Impact candidates are uniform by area in an 18–40 tile annulus around the
+current session's player, restricted to visible loaded terrain. `LightningPlacementTest`
+checks radius boundaries and 30,000 samples. Debug Heavy rain previews them
+every 2–3 s; server storms use randomized intervals of roughly 7–16 s.
+The cloud endpoint is fitted beyond the upper screen edge using the current
+camera/projection, instead of a fixed world height. Near top-down views use an
+up-screen cloud offset while keeping the impact anchored in the world. Tests
+cover both projection types, three zooms, four elevations and three azimuths,
+plus a GPU check that the bright channel reaches the top edge.
 `test-lightning` checks bounded geometry across 100 seeds and four camera angles,
 settings isolation, rain gates, GPU depth occlusion, animation, expiry and scene
 alpha. `LightningTest --preview` also exports frames for a short animation preview.
@@ -213,18 +231,28 @@ The separate **Rain ripples on water** option requires Transparent water and wor
 with Water reflections off. Small randomized impacts expand and fade over 1.6 s
 in world space, sampling neighbouring cells to avoid cut circles or section seams.
 Heavy rain increases their density. Normals distort refraction and highlights;
-subtle sky-lit crests keep rings readable without reflections. Pixel-footprint
+Sky-lit crests use a 0.42 gain (formerly 0.13) for clearer rings without changing
+their radius, density, lifetime or normal displacement. Pixel-footprint
 filtering removes unresolved circles at distance. Current rain has its own uniform,
 so lingering wet ground cannot spawn drops, and toggling rings does not recompile
 the water shader. `test-water-surface` includes day/night lighting checks and GPU
 checks for dry/off isolation, rain density, motion, section seams and occlusion.
-Enclosed-map water uses 25% of surface swell amplitude and 35% of wind-ripple
-strength, retaining animation and object wakes. The raw server outdoor-light
-target selects this profile independently of brightness controls and Debug time;
-faint nonzero night lighting retains normal surface waves. Both displaced geometry
-and shading derivatives use the same strength, passed as uniforms without changing
-shader variants. `test-water-surface` verifies weaker but nonzero motion and the
-complete sheltered-water resolve on Vulkan.
+With Transparent water enabled, existing rain drop/splash sprites are suppressed
+in the scene color used for refraction and replayed after the water resolve. They
+test the real scene/water depth, preserve framebuffer alpha and use a pale
+sky-scaled color with 1.65 times the original vertex alpha. Thus airborne drops
+remain straight and readable above deep water, without shining through foreground
+objects or from below the surface. Empty rain models do not force an extra water
+resolve. Classic water keeps its original precipitation path. GPU checks cover
+rain above/below water, foreground occlusion and scenes containing no water mesh.
+Enclosed-map water disables ambient swell and wind ripples, while retaining object
+wakes. Interior detection recognizes mine, cave, nil, deepcave and deeptangle tiles,
+including loaded neighboring grids around paved areas. Interior lighting uses the
+standard model independently of outdoor enhancements and Debug time. Both displaced
+geometry and shading derivatives use zero sheltered strength, passed as uniforms
+without changing shader variants. `WaterSurfaceTest` verifies no ambient underground
+waves and the complete sheltered-water resolve on Vulkan; `InteriorLightingTest`
+checks the lighting gate.
 The optional gust-driven tree sway, ambient dust/fireflies/leaves, footsteps
 and butterflies have also been removed, including their settings and presets.
 The game's original vegetation animation, weather, smoke and fire embers remain.
@@ -233,16 +261,22 @@ The separate **Animated grass** option adds short segmented blades exclusively t
 blade/root weighting and GaussianPatch grouping, with deterministic jittered tufts,
 elongated groups and sparse margins. Heights range from 1.3 to 3.4 Haven units;
 roots sample the actual terrain surface. Grass does not change movement or picking.
-Geometry is built by one background worker in bounded 4x4-tile patches (at most 25
-resident patches), invalidated when source map meshes change. Missing resources
+Draw distance is adjustable from 4 to 24 tiles (default 8), and quantity from
+25% to 200% (default 100%). Both persist and apply when the slider is released.
+Geometry is built by one background worker in bounded 4x4-tile patches (25 at
+default range, at most 169 at maximum), invalidated when source map meshes change. Missing resources
 retry without waiting on the frame thread. The Vulkan pass uses asynchronous
 pipeline preparation, writes depth before water and temporal accumulation, and
 uses no vendor-specific APIs or per-blade CPU animation. Distant blades smoothly
-shrink between 72 and 87 world units. Wind and distance-sampled player contacts bend
+shrink over the final 18% of the selected range. Quantity extends a deterministic
+tuft sequence, preserving existing positions and grouping. Density changes keep
+old meshes visible until replacements are ready; stale-density jobs are discarded.
+Each patch is capped below 16-bit vertex indices. Wind and distance-sampled player contacts bend
 only the upper blade; the strongest nearby contact wins, and the trail relaxes in
 1.4 seconds. Teleports clear the trail. `test-grass` covers placement, slope/root
 height, repeatability, bounded geometry, distance sampling, wind, contact, recovery
-and foreground occlusion; `GrassTest --preview` writes rendered animation frames.
+foreground occlusion, saved slider values, density coverage and distance culling;
+`GrassTest --preview` writes rendered animation frames.
 Contact sampling carries residual path length across frames and interpolates birth
 times, so equal trajectories at different frame rates produce the same contacts.
 Completed background patches are checked against current map meshes before adoption;
@@ -304,14 +338,22 @@ the existing world-space normals and light direction. This leaves the wave
 geometry, spectrum and animation intact while avoiding flat blue water away
 from the sun. Specular energy is concentrated on resolved tilted facets; a faint
 broad sheen remains instead of saturating the entire patch near the mirror angle.
-An additional bounded artistic skylight sparkle uses only the short-wave slopes,
-computed alongside the full normal without another wave evaluation. It remains
-visible around the camera orbit, scales with skylight, and fades with unresolved
-normal variance. The existing directional sun lobe is unchanged. Both contributions
-obey the Water reflections switch and shoreline coverage.
+The former additive skylight sparkle on short-wave slopes has been removed: it
+lit too many facets independently of the reflection direction, producing dense
+worm-like streaks. Directional GGX is now supplemented by a bounded sky sheen
+on the narrow positive tops of the existing travelling wave packets, including
+only the two coarsest ripple bands. Their original phases and envelopes place
+and animate the highlights; there is no independent noise/slope sparkle mask.
+This artistic sky response stays visible around a full camera orbit, follows
+skylight intensity, and fades with bed depth and sheltered-water strength.
+Short-wave slopes smoothly settle over depth 0–12 world units (half strength at
+the usual shallow river depth of 6), using interpolated bed depth shared across
+map sections. The travelling geometry waves, open-water spectrum, rain rings and
+wakes retain their existing behavior.
 Normal variance fades unresolved sparkles. A 24-azimuth, three-elevation sweep
 for river and ocean checks stable average brightness, readable relief at every
-angle, minimum visible glint coverage, sparse bright highlights and retained local peaks. Bed transmission is
+angle, bounded visible glint coverage, sparse bright highlights and retained local peaks. Shore tests check
+quieter shallows, continuing ripple motion and unchanged geometry/open-water slopes. Bed transmission is
 checked against a black-bed reference, separately from the added surface relief.
 Facets fade across the light/view horizon. The GPU regression sweeps six elevations
 for both river and ocean under a bright sun, checking highlight range and gradients.
@@ -517,6 +559,19 @@ preparation stages, state recovery, error propagation and immediate warm reuse.
 Water/shore GPU image tests retry incomplete preparation before comparing pixels.
 
 ## Compatibility fixes covered
+
+Better lighting without automatic exposure now lifts ambient and direct light in
+dry weather. Rain retains the existing darker palette; the transition is smoothed,
+and interior lighting and specular light are unchanged. `DryWeatherLightingTest`
+checks the daily cycle, rain and exposure gates, and transition behavior.
+
+Vulkan pipeline-cache extraction and disk writes run on a dedicated background
+worker. The render loop only requests a save when the cache revision changes, with
+at most one pending job. Snapshots use native buffers without a second large heap
+copy, and atomic replacement preserves the previous file on write failure. Shutdown
+waits for builders and the final save before destroying the native cache.
+`PipelineCacheWriterTest` covers blocked saves, concurrent revisions and failures;
+`VulkanPipelineCacheTest` verifies continued rendering during a real cache save.
 
 - Non-mipmapped textures use `maxLod = 0.25` with nearest mip selection. Zero
   incorrectly forced the magnification filter when minifying. This follows the

@@ -128,6 +128,54 @@ public class WeatherStateTest {
                 for(int c=0;c<4;c++)require(Math.abs(rgba[c]-expected[c])<.0001,"Stale GPU weather on transition "+i+", channel "+c+": "+rgba[c]+" vs "+expected[c]);
             }
             System.out.println("Weather Vulkan PASS: 12 wet/cloud add/change/remove transitions read back without rebuilding the draw list");
+            // The original test above used a null-safe synthetic uniform, which
+            // missed the crash in the real Wet.param when its shader disappears.
+            ShaderMacro dry=p->FragColor.fragcol(p.fctx).mod(in->haven.render.sl.Cons.vec4(
+                haven.render.sl.Cons.l(.03),haven.render.sl.Cons.l(.04),
+                haven.render.sl.Cons.l(.05),haven.render.sl.Cons.l(1)),100);
+            ShaderMacro wetShader=p->FragColor.fragcol(p.fctx).mod(in->Wet.param.ref(),200);
+            view.basic("target",Pipe.Op.compose(new FragColor<>(image.image(0)),
+                new States.Viewport(Area.sized(Coord.of(32,32))),new RUtils.AdHoc(dry)));
+            view.basic(Glob.Weather.class,WeatherState.compose(new Wet(new FColor(.15f,.3f,.4f),10) {
+                public ShaderMacro shader(){return wetShader;}
+            }));
+            ((haven.render.vk.VkDrawList)list).refresh(); // Only seed the initial wet scene.
+            for(boolean asynchronous:new boolean[]{false,true}) {
+                list.async(asynchronous);
+                if(asynchronous) {
+                    // Fresh macro identity: neither program variant is warm in
+                    // the program cache for this asynchronous transition set.
+                    ShaderMacro coldDry=p->dry.modify(p);
+                    view.basic("target",Pipe.Op.compose(new FragColor<>(image.image(0)),
+                        new States.Viewport(Area.sized(Coord.of(32,32))),new RUtils.AdHoc(coldDry)));
+                }
+                for(int i=0;i<12;i++) {
+                    Wet wet=(i%3==2)?null:new Wet(new FColor(.15f+i*.025f,.3f,.4f),10+i) {
+                        public ShaderMacro shader(){return wetShader;}
+                    };
+                    view.basic(Glob.Weather.class,WeatherState.compose(wet));
+                    float[] expected=wet==null?new float[]{.03f,.04f,.05f,1}:
+                        new float[]{wet.col.r,wet.col.g,wet.col.b,wet.shine};
+                    long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+                    while(true) {
+                        Render out=window.env().render();
+                        out.clear(new BufPipe().prep(target),FragColor.fragcol,new FColor(0,0,0,1));
+                        list.draw(out);
+                        CompletableFuture<float[]> result=new CompletableFuture<>();
+                        out.pget(image.image(0),format,bytes->{float[] rgba=new float[4];bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().get(rgba);result.complete(rgba);});
+                        window.swapbuffers(out,false);window.env().submit(out);
+                        while(!result.isDone()&&System.nanoTime()<deadline) {
+                            Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(5);
+                        }
+                        float[] rgba=result.get(1,TimeUnit.SECONDS);boolean matches=true;
+                        for(int c=0;c<4;c++)matches&=Math.abs(rgba[c]-expected[c])<.0001;
+                        if(matches)break;
+                        require(asynchronous&&System.nanoTime()<deadline,"Wet shader was not replaced on transition "+i);
+                        Thread.sleep(5);
+                    }
+                }
+            }
+            System.out.println("Real Wet.param PASS: wet/change/dry shader transitions, synchronous and asynchronous draw lists");
         } finally {view.tree.remove(list);list.dispose();view.dispose();image.dispose();window.dispose();toolkit.dispose();}
     }
     public static void main(String[] args) throws Exception {

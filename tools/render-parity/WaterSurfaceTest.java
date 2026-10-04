@@ -59,6 +59,9 @@ public class WaterSurfaceTest {
         return capture(window,bed,kind,flow,seconds,front,perspective,foamAlpha,reflections,wakeMode,rain,ripples,false);
     }
     static float[] capture(Windeye window,float bed,float kind,float flow,double seconds,boolean front,boolean perspective,float foamAlpha,boolean reflections,int wakeMode,float rain,boolean ripples,boolean sheltered) throws Exception {
+        return capture(window,bed,kind,flow,seconds,front,perspective,foamAlpha,reflections,wakeMode,rain,ripples,sheltered,0);
+    }
+    static float[] capture(Windeye window,float bed,float kind,float flow,double seconds,boolean front,boolean perspective,float foamAlpha,boolean reflections,int wakeMode,float rain,boolean ripples,boolean sheltered,int precipitation) throws Exception {
         PView view=new PView(SIZE){protected void basic(){}};
         Texture2D scene=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
         Texture2D output=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
@@ -79,7 +82,15 @@ public class WaterSurfaceTest {
             left=plane(0,true,kind,flow,0,16,-16);right=plane(0,true,kind,flow,16,32,16);
             view.basic.add(left,Pipe.Op.compose(Location.xlate(Coord3f.of(-16,0,0)),WaterTile.surfmat));
             view.basic.add(right,Pipe.Op.compose(Location.xlate(Coord3f.of(16,0,0)),WaterTile.surfmat));
-        } else view.basic.add(WaterTile.surfmat.apply(water));
+        } else if(precipitation!=3) view.basic.add(WaterTile.surfmat.apply(water));
+        haven.res.gfx.fx.rain.Rain particles=precipitation==0?null:new haven.res.gfx.fx.rain.Rain(0);
+        byte[] rainVertices=new byte[5*2*20];
+        if(particles!=null) {
+            view.basic.add(particles.dropspr);
+            java.nio.ByteBuffer vertices=java.nio.ByteBuffer.wrap(rainVertices).order(ByteOrder.nativeOrder());
+            for(int x=-10;x<=10;x+=5)for(int y:new int[]{-5,5})
+                vertices.putFloat(x).putFloat(y).putFloat(precipitation==2?-2:2).putInt(0x007f0000).putInt(0x80ffffff);
+        }
         FastMesh foam=plane(.1f,false,0,0);
         Pipe.Op foamMaterial=Pipe.Op.compose(WaterSurface.foam,new BaseColor(new FColor(.7f,.85f,1,foamAlpha)),
             FragColor.blend(new BlendMode(BlendMode.Factor.SRC_ALPHA,BlendMode.Factor.INV_SRC_ALPHA)));
@@ -93,7 +104,8 @@ public class WaterSurfaceTest {
             double y=wakeMode==2?9*Math.sin(i*.18)-5:0;
             renderer.wakes.sample(1,x,y,0,1.5f,1.8f,WaterSurface.epoch+10-2.24+i*.16);
         }
-        require(renderer.sources.slots.size()==(wakeMode==4?2:1),"Map water source not registered");
+        require(renderer.sources.slots.size()==(precipitation==3?0:wakeMode==4?2:1),"Map water source not registered");
+        require(renderer.rainSources.slots.size()==(particles==null?0:1),"Rain sprite not registered before state installation");
         require(renderer.foamSources.slots.size()==(foamAlpha>=0?1:0),"Object foam source not registered separately");
         try {
             long preparationDeadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
@@ -104,6 +116,12 @@ public class WaterSurfaceTest {
             if(front)foreground.draw(base.copy().prep(new BaseColor(new FColor(.8f,.04f,.02f,1))),out);
             Pipe hidden=base.copy().prep(WaterTile.surfmat);water.draw(hidden,out);
             if(foamAlpha>=0)foam.draw(base.copy().prep(foamMaterial),out);
+            if(particles!=null) {
+                particles.dropspr.update(out,rainVertices);
+                Pipe rainState=base.copy().prep(particles.dropspr.state);
+                rainState.put(Light.lighting,null);
+                particles.dropspr.draw(rainState,out);
+            }
             Pipe target=new BufPipe().prep(new FragColor<>(output.image(0))).prep(new States.Viewport(Area.sized(SIZE))).prep(new Ortho2D(Area.sized(SIZE)));
             renderer.run(new GOut(out,target,SIZE),scene.sampler());
             CompletableFuture<float[]> result=new CompletableFuture<>();
@@ -116,7 +134,7 @@ public class WaterSurfaceTest {
             require(System.nanoTime()<preparationDeadline,"Water shaders/pipelines never became ready");
             Thread.sleep(10);
             }
-        } finally {renderer.dispose();water.dispose();if(left!=null){left.dispose();right.dispose();}bottom.dispose();foreground.dispose();foam.dispose();view.dispose();scene.dispose();output.dispose();depth.dispose();}
+        } finally {renderer.dispose();if(particles!=null)particles.dispose();water.dispose();if(left!=null){left.dispose();right.dispose();}bottom.dispose();foreground.dispose();foam.dispose();view.dispose();scene.dispose();output.dispose();depth.dispose();}
     }
     static double difference(float[] a,float[] b) {double s=0;for(int i=0;i<a.length;i++)if(i%4!=3)s+=Math.abs(a[i]-b[i]);return s/(a.length*.75);}
     static double contrast(float[] a) {
@@ -223,7 +241,8 @@ public class WaterSurfaceTest {
                 try {
                     Render out=window.env().render();
                     Pipe target=new BufPipe().prep(new FragColor<>(output.image(0))).prep(new States.Viewport(Area.sized(SIZE))).prep(new Ortho2D(Area.sized(SIZE)));
-                    NPostFX.blit(new GOut(out,target,SIZE),Temporal.one(),new NPostFX.Pass(shader,new float[]{cave==0?1:.25f,cave==0?1:.35f,kind,0}));
+                    float[] strength=new WaterSurface.WaterPass(null,null,null,null,null,true,true,0,false,cave!=0).waveStrength;
+                    NPostFX.blit(new GOut(out,target,SIZE),Temporal.one(),new NPostFX.Pass(shader,new float[]{strength[0],strength[1],kind,0}));
                     CompletableFuture<float[]> result=new CompletableFuture<>();
                     out.pget(output.image(0),RGBA,bytes->{float[] a=new float[SIZE.x*SIZE.y*4];bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().get(a);result.complete(a);});
                     window.swapbuffers(out,false);window.env().submit(out);
@@ -237,18 +256,60 @@ public class WaterSurfaceTest {
                 }finally{output.dispose();}
             }
             for(int channel=0;channel<4;channel++) {
-                double ratio=energy[1][channel]/energy[0][channel];
-                require(ratio>.20&&ratio<.40,"Sheltered waves too rough or motionless: "+ratio);
+                require(energy[0][channel]>.00001,"Outdoor wave channel disabled: "+channel);
+                require(Math.abs(energy[1][channel])<.000001,"Underground water still has waves: "+channel);
             }
-            require(energy[1][3]>.001,"Sheltered water animation vanished");
         }
         float[] cave=capture(window,8,0,1,10,false,true,-1,true,0,0,false,true);
         float[] later=capture(window,8,0,1,10.4,false,true,-1,true,0,0,false,true);
         float[] surface=capture(window,8,0,1,10,false,true);
-        require(difference(cave,later)>.00001,"Cave resolve lost animation");
+        require(difference(cave,later)<.000001,"Cave resolve still has ambient wave animation");
         require(difference(cave,surface)>.0001,"Cave strength not connected to water resolve");
         save(cave,"sheltered-water");
-        System.out.println("Sheltered water PASS: weaker height/slopes/ripples, continuing animation, surface/night isolation");
+        System.out.println("Sheltered water PASS: flat surface, no wind ripples or crest animation, outdoor waves preserved");
+    }
+    static void shoreRipples(Windeye window)throws Exception {
+        RawFunction sample=new RawFunction(VEC4,"water_shore_test",3,
+            "vec4 water_shore_test(vec4 c,vec2 tc,vec4 s) {\n"+
+            " vec2 p=tc*120.0; vec4 data=vec4(s.x,s.y,1,0); vec3 ripple; float crest;\n"+
+            " vec3 n=water_normals(p,data,10.0,.2,vec2(1),ripple,crest);\n"+
+            " vec3 later; water_normals(p,data,10.4,.2,vec2(1),later);\n"+
+            " float z=water_position(vec4(p,0,1),data,10.0).z;\n"+
+            " return vec4(length(ripple.xy)/ripple.z,abs(z),length(later-ripple),crest); }\n");
+        ShaderMacro shader=p->{WaterSurface.waves.define(p.fctx);NPostFX.shader(sample,NPostFX.u(VEC4,0)).modify(p);};
+        for(float kind:new float[]{0,1}) {
+            float[] depths={0,1,3,6,9,12,30};
+            double[][] signal=new double[depths.length][4];
+            for(int d=0;d<depths.length;d++) {
+                Texture2D output=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
+                try {
+                    Render out=window.env().render();
+                    Pipe target=new BufPipe().prep(new FragColor<>(output.image(0))).prep(new States.Viewport(Area.sized(SIZE))).prep(new Ortho2D(Area.sized(SIZE)));
+                    NPostFX.blit(new GOut(out,target,SIZE),Temporal.one(),new NPostFX.Pass(shader,new float[]{depths[d],kind,0,0}));
+                    CompletableFuture<float[]> result=new CompletableFuture<>();
+                    out.pget(output.image(0),RGBA,bytes->{float[] a=new float[SIZE.x*SIZE.y*4];bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().get(a);result.complete(a);});
+                    window.swapbuffers(out,false);window.env().submit(out);
+                    long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+                    while(!result.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
+                    float[] pixels=result.get(1,TimeUnit.SECONDS);
+                    for(int i=0;i<pixels.length;i+=4)for(int c=0;c<4;c++) {
+                        require(Float.isFinite(pixels[i+c]),"Invalid shoreline wave");
+                        signal[d][c]+=pixels[i+c]/(SIZE.x*SIZE.y);
+                    }
+                } finally {output.dispose();}
+            }
+            require(signal[0][0]<.000001,"Ripples move the dry edge");
+            for(int d=1;d<6;d++)require(signal[d][0]>signal[d-1][0],"Abrupt or inverted shore attenuation");
+            require(signal[2][0]<signal[6][0]*.25,"Near-bank ripples are still as rough as open water");
+            require(signal[3][0]>signal[6][0]*.35&&signal[3][0]<signal[6][0]*.65,"Shallow water ripples invisible or too strong");
+            require(Math.abs(signal[5][0]-signal[6][0])<.000001,"Open-water ripple spectrum changed");
+            require(Math.abs(signal[3][1]-signal[6][1])<.000001,"Shore damping changed the accepted travelling waves");
+            require(signal[3][2]>.0001,"Shallow ripples stopped animating");
+            require(signal[0][3]<.000001,"Crest sheen lights the dry edge");
+            require(signal[2][3]<signal[6][3]*.3,"Crest sheen is too strong by the bank");
+            require(signal[3][3]>.001,"Shallow crests disappeared");
+            System.out.printf("Shore ripple PASS (profile %.0f): near-bank %.1f%%, shallow %.1f%% of open-water slopes; geometry retained%n",kind,signal[2][0]/signal[6][0]*100,signal[3][0]/signal[6][0]*100);
+        }
     }
     static void glintAngles(Windeye window)throws Exception {
         RawFunction sample=new RawFunction(VEC4,"water_glint_test",3,
@@ -292,16 +353,16 @@ public class WaterSurfaceTest {
     static void lightingOrbit(Windeye window)throws Exception {
         RawFunction sample=new RawFunction(VEC4,"water_lighting_orbit",3,
             "vec4 water_lighting_orbit(vec4 c,vec2 tc,vec4 p) {\n"+
-            " vec3 ripple; vec3 n=water_normals(tc*64.0,vec4(30,p.z,1,0),10.0,64.0/192.0,ripple);\n"+
+            " vec3 ripple; float crest; vec3 n=water_normals(tc*64.0,vec4(30,p.z,1,0),10.0,64.0/192.0,vec2(1),ripple,crest);\n"+
             " vec3 v=vec3(cos(p.x)*cos(p.y),sin(p.x)*cos(p.y),sin(p.y));\n"+
             " vec3 light=normalize(vec3(-.6,.2,.77)),sky=vec3(.7,.8,1.0);\n"+
             " vec3 body=water_body(mix(vec3(.050,.110,.190),vec3(.020,.220,.180),p.z)*sky,n,light,sky);\n"+
             " vec3 result=mix(body,sky*.3,water_reflectance(dot(n,v),p.z));\n"+
             " vec3 glint=water_glint(n,v,light,vec3(0,0,1),vec3(1,.88,.7),p.z,0);\n"+
-            " glint+=water_ripple_glint(ripple,v,vec3(0,0,1),sky);\n"+
+            " glint+=water_crest_glint(crest,n,v,vec3(0,0,1),sky);\n"+
             " return vec4(result+glint,glint.r); }\n");
         ShaderMacro shader=p->{WaterSurface.waves.define(p.fctx);WaterSurface.shade.define(p.fctx);NPostFX.shader(sample,NPostFX.u(VEC4,0)).modify(p);};
-        double worstMeanRange=0,worstBrightCoverage=0,minDetail=1,peakGlint=0,minGlintCoverage=1;
+        double worstMeanRange=0,worstBrightCoverage=0,minDetail=1,peakGlint=0,maxGlintCoverage=0;
         for(float kind:new float[]{0,1})for(float elevation:new float[]{.35f,.75f,1.15f}) {
             double low=1,high=0;
             for(int step=0;step<24;step++) {
@@ -327,7 +388,8 @@ public class WaterSurfaceTest {
                     low=Math.min(low,mean);high=Math.max(high,mean);
                     minDetail=Math.min(minDetail,Math.sqrt(Math.max(0,sq/count-mean*mean)));
                     worstBrightCoverage=Math.max(worstBrightCoverage,bright/(double)count);
-                    minGlintCoverage=Math.min(minGlintCoverage,visible/(double)count);
+                    maxGlintCoverage=Math.max(maxGlintCoverage,visible/(double)count);
+                    require(visible/(double)count>.005,"Crest glints vanished outside the sun cone at orbit step "+step);
                     if(kind==0 && elevation==.75f && step%3==0)save(pixels,"lighting-orbit-"+step);
                 } finally {output.dispose();}
             }
@@ -336,10 +398,12 @@ public class WaterSurfaceTest {
         System.out.printf("Water orbit: mean range %.5f, minimum wave detail %.5f, bright coverage %.1f%%, glint peak %.4f%n",worstMeanRange,minDetail,worstBrightCoverage*100,peakGlint);
         require(worstMeanRange<.035,"Camera orbit changes the whole water body's brightness");
         require(minDetail>.0025,"Waves disappear outside the sun reflection cone");
-        require(worstBrightCoverage<.12,"Bright glints form a silver carpet");
+        require(worstBrightCoverage<.05,"Bright glints form a silver carpet");
         require(peakGlint>.08,"Local bright glints disappeared");
-        System.out.printf("Water glints through full camera orbit: minimum visible coverage %.1f%%%n",minGlintCoverage*100);
-        require(minGlintCoverage>.025,"Ripple glints disappear away from the sun at some camera angles");
+        System.out.printf("Water glints through full camera orbit: maximum visible coverage %.1f%%%n",maxGlintCoverage*100);
+        // The broader, dim skirt of the reflection lobe may cover more water
+        // near the mirror angle; bright crests above are capped separately.
+        require(maxGlintCoverage<.25,"Medium-bright glints form a dense pattern");
     }
     // Sample the actual accumulated field along both crests. This catches dark
     // gaps between packets and procedural checker modulation independently of
@@ -399,6 +463,7 @@ public class WaterSurfaceTest {
             wakeContinuity(window);
             patternPreview(window);
             shelteredWaves(window);
+            shoreRipples(window);
             glintAngles(window);
             lightingOrbit(window);
             float[] shallow=capture(window,1,0,1,10,false,false),deep=capture(window,70,0,1,10,false,false);
@@ -410,6 +475,22 @@ public class WaterSurfaceTest {
             float[] visibleFoam=capture(window,6,0,1,10,false,false,.5f);
             float[] occludedFoam=capture(window,12,1,0,10,true,false,.5f);
             float[] foreground=capture(window,12,1,0,10,true,false),perspective=capture(window,8,0,1,10,false,true);
+            float[] rainAbove=capture(window,70,0,1,10,false,false,-1,true,0,0,false,false,1);
+            float[] rainBelow=capture(window,70,0,1,10,false,false,-1,true,0,0,false,false,2);
+            float[] rainBlocked=capture(window,12,1,0,10,true,false,-1,true,0,0,false,false,1);
+            float[] rainLand=capture(window,70,0,1,10,false,false,-1,true,0,0,false,false,3);
+            require(difference(deep,rainAbove)>.002,"Airborne rain is lost in the water resolve");
+            require(difference(deep,rainBelow)<.000001,"Rain shines through water from below");
+            require(difference(foreground,rainBlocked)<.000001,"Rain draws over foreground objects");
+            int brightDrops=0,landDrops=0;
+            for(int i=0;i<rainAbove.length;i+=4) {
+                if(rainAbove[i+2]>.65)brightDrops++;
+                if(rainLand[i+2]>.65)landDrops++;
+                require(Math.abs(rainAbove[i+3]-1)<.000001,"Rain changes scene alpha");
+            }
+            require(brightDrops>150&&landDrops>=brightDrops,"Rain not readable over deep water or without water geometry");
+            save(rainAbove,"rain-above-water");save(rainLand,"rain-over-land");
+            System.out.println("Airborne rain PASS: bright above water, hidden below/behind objects, visible over land, scene alpha preserved");
             float[] noReflections=capture(window,8,0,1,10,false,true,-1,false);
             float[] splitSections=capture(window,8,0,1,10,false,true,-1,true,4);
             float[] rainy=capture(window,8,0,1,10,false,true,-1,true,0,1,true);
@@ -421,7 +502,9 @@ public class WaterSurfaceTest {
             require(difference(dryEnabled,noReflections)<.000001,"Rain rings appear in dry weather");
             require(difference(rainyOff,noReflections)<.000001,"Rain ring switch leaks with reflections off");
             double ringSignal=difference(rainyOn,rainyOff);
-            require(ringSignal>.0001,"Rain rings invisible without reflections: "+ringSignal);
+            // This image difference includes refraction as well as crest light;
+            // the old faint crest measured .000415 with this fixed scene.
+            require(ringSignal>.0007,"Rain rings too faint without reflections: "+ringSignal);
             float[] heavyRain=capture(window,8,0,1,10,false,true,-1,false,0,3,true);
             require(difference(heavyRain,rainyOff)>ringSignal*1.1,"Heavy rain does not add impacts");
             float[] rainForeground=capture(window,12,1,0,10,true,false,-1,true,0,3,true);
