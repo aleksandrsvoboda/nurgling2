@@ -629,6 +629,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.glob = glob;
 	this.cc = cc;
 	this.plgob = plgob;
+	basic(Glob.Weather.class, WeatherState.compose());
 	basic.add(new Outlines(false));
 	basic.add(this.gobs = new Gobs());
 	basic.add(this.terrain = new Terrain());
@@ -888,8 +889,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void tick() {
 	    super.tick();
 	    if(area != null) {
-		main.tick();
-		flavobjs.tick();
+		try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-meshes")) {
+		    main.tick();
+		}
+		try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-decoration")) {
+		    flavobjs.tick();
+		}
 	    }
 	}
 
@@ -1213,6 +1218,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public DirLight amblight = null;
+    private float rainCloudCover = 0;
     private RenderTree.Slot s_amblight = null;
     private void amblight() {
 	synchronized(glob) {
@@ -1232,6 +1238,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		        sceneDebug.hasTime() ? sceneDebug.minutes() / 1440.0 : glob.ast.dt,
 		        graphics.worldlightstrength);
 	    }
+	    if(graphics.enabled)
+		amblight = nurgling.render.RainLighting.apply(amblight, rainCloudCover);
 	}
 	if(s_amblight != null) {
 	    s_amblight.remove();
@@ -1312,8 +1320,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Pipe.Op[] wst = new Pipe.Op[wls.length];
 	for(int i = 0; i < wls.length; i++)
 	    wst[i] = wls[i].state();
-	try {
-	    basic(Glob.Weather.class, Pipe.Op.compose(wst));
+	try(nurgling.diagnostics.MovementTrace.Stage stage = nurgling.diagnostics.MovementTrace.stage(ui, "weather-state")) {
+	    basic(Glob.Weather.class, WeatherState.compose(wst));
 	} catch(Loading l) {
 	}
 	Collection<RenderTree.Node> old =new ArrayList<>(rweather.keySet());
@@ -1344,7 +1352,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public Coord3f getcc() {
 	Gob pl = NUtils.player();
 	if(pl != null)
-	    return(pl.getc());
+	    return(pl.getrenderc());
 	else
 		return(glob.map.getzp(cc));
 	}
@@ -1880,32 +1888,55 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public void tick(double dt) {
 	super.tick(dt);
-	checkload();
-	camload = null;
-	try {
-	    if((shake = shake * Math.pow(100, -dt)) < 0.01)
-		shake = 0;
-	    camoff.x = (float)((Math.random() - 0.5) * shake);
-	    camoff.y = (float)((Math.random() - 0.5) * shake);
-	    camoff.z = (float)((Math.random() - 0.5) * shake);
-	    camera.tick(dt);
-	} catch(Loading e) {
-	    e.boostprio(5);
-	    camload = e;
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "map-checkload")) {
+		checkload();
 	}
-	basic(Camera.class, camera);
-	amblight();
-	updsmap(amblight);
-	sceneDebug.prepare();
-	updweather();
-	sceneDebug.tick(dt);
-	synchronized(glob.map) {
-	    terrain.tick();
-	    oltick();
-	    if(gridlines != null)
-		gridlines.tick();
-	    clickmap.tick();
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "camera-tick")) {
+		camload = null;
+		try {
+		    if((shake = shake * Math.pow(100, -dt)) < 0.01)
+			shake = 0;
+		    camoff.x = (float)((Math.random() - 0.5) * shake);
+		    camoff.y = (float)((Math.random() - 0.5) * shake);
+		    camoff.z = (float)((Math.random() - 0.5) * shake);
+		    camera.tick(dt);
+		} catch(Loading e) {
+		    e.boostprio(5);
+		    camload = e;
+		}
+		basic(Camera.class, camera);
 	}
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "lighting-weather")) {
+		sceneDebug.prepare();
+		rainCloudCover = nurgling.render.RainLighting.approach(rainCloudCover,
+		        nurgling.render.RainLighting.intensity(weather()), dt);
+		amblight();
+		updsmap(amblight);
+		updweather();
+		sceneDebug.tick(dt);
+	}
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "map-terrain-overlays")) {
+		synchronized(glob.map) {
+		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-update")) {
+			terrain.tick();
+		    }
+		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-overlays")) {
+			oltick();
+		    }
+		    if(gridlines != null) {
+			try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-gridlines")) {
+			    gridlines.tick();
+			}
+		    }
+		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-picking")) {
+			clickmap.tick();
+		    }
+		}
+	}
+
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done()) {
 	    Plob ob = placing.get();

@@ -315,6 +315,7 @@ public class NGameUI extends GameUI
     @Override
     public void tick(double dt) {
         super.tick(dt);
+        nurgling.diagnostics.MovementTrace.poll(ui);
         if(fpsPanel != null) {
             boolean show = FpsPanel.enabled() && !nurgling.render.Photo.on;
             if(fpsPanel.visible() != show) {
@@ -1266,6 +1267,10 @@ public class NGameUI extends GameUI
 
     @Override
     public boolean globtype(GlobKeyEvent ev) {
+        if (nurgling.diagnostics.MovementTrace.capture.key().match(ev.awt)) {
+            nurgling.diagnostics.MovementTrace.trigger(ui);
+            return true;
+        }
         if (FpsPanel.toggle.key().match(ev.awt)) {
             FpsPanel.enabled(!FpsPanel.enabled());
             return true;

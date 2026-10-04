@@ -627,7 +627,12 @@ public class VkEnvironment implements Environment {
 	}
     }
 
+    private volatile Thread processingThread;
+    /** Diagnostic snapshots only; never wait for these threads from the UI. */
+    public Thread[] diagnosticThreads() {return new Thread[]{processingThread, cbthread};}
+
     public void process() {
+	processingThread = Thread.currentThread();
 	List<VkRender> copy;
 	List<Consumer<VkExec>> prep;
 	synchronized(submitted) {
@@ -711,7 +716,7 @@ public class VkEnvironment implements Environment {
     /* Callbacks */
 
     final Queue<Runnable> callbacks = new LinkedList<>();
-    private Thread cbthread = null;
+    private volatile Thread cbthread = null;
 
     private void ckcbt() {
 	synchronized(callbacks) {

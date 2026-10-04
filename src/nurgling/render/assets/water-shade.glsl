@@ -54,9 +54,52 @@ vec3 water_glint(vec3 N, vec3 V, vec3 L, vec3 up, vec3 sun, float ocean, float r
     float sparkle=facet*facet/(1.0+variance*80.0);
     return specular*(limit/(limit+peak))*horizon*1.30*(.07+.93*sparkle);
 }
+// Artistic skylight sparkle on the resolved short-wave slopes. An extended sky
+// supplies a restrained highlight at every azimuth; the directional sun lobe
+// above stays intact. Do not use the broad swell normal or a screen-space mask:
+// those turn entire waves silver or make the pattern follow the camera.
+vec3 water_ripple_glint(vec3 N, vec3 V, vec3 up, vec3 skylight) {
+    vec3 slope=N-up*dot(N,up);
+    float tilt=length(slope);
+    float crest=smoothstep(.012,.065,tilt);
+    vec3 tangent=V-up*dot(V,up);
+    float facing=dot(slope,tangent)/max(tilt*length(tangent),.001);
+    float directional=.70+.30*facing*facing;
+    vec3 nx=dFdx(N),ny=dFdy(N);
+    float resolved=1.0/(1.0+100.0*max(dot(nx,nx),dot(ny,ny)));
+    return max(skylight,vec3(0))*.10*crest*crest*directional*resolved;
+}
+// World-space impacts: neighbouring cells are evaluated too, so a ring is never
+// cut at a grid/map-section edge. Each birth changes its centre and phase. Rings
+// live for 1.6 seconds; the envelope is zero before the next random birth.
+vec3 water_rain_rings(vec2 p,float t,float rain,float footprint) {
+    vec3 rings=vec3(0);
+    float resolved=1.0-smoothstep(.12,.70,footprint);
+    if(rain<.001 || resolved<=0.0) return rings;
+    vec2 cell=floor(p/4.5);
+    for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
+        vec2 id=cell+vec2(x,y);
+        float period=mix(1.9,3.0,water_hash(id+17.8));
+        float clock=t/period+water_hash(id+61.3);
+        float birth=floor(clock),age=fract(clock)*period/1.6;
+        if(age>=1.0) continue;
+        vec2 seed=id+vec2(birth*13.7,birth*7.1);
+        float probability=min(.90,rain*.36);
+        float emission=smoothstep(0.0,.12,probability-water_hash(seed+41.6));
+        vec2 center=(id+.12+.76*vec2(water_hash(seed+3.2),water_hash(seed+29.1)))*4.5;
+        vec2 delta=p-center;
+        float distance=length(delta),d=distance-(.10+age*2.0);
+        float packet=exp(-d*d/.07)*(1.0-smoothstep(.4,.6,abs(d)));
+        float envelope=emission*smoothstep(0.0,.10,age)*(1.0-smoothstep(.70,1.0,age))*exp(-age*2.0)*resolved;
+        float slope=packet*(18.0*cos(d*18.0)-2.0*d/.07*sin(d*18.0))*.008*envelope;
+        rings.xy+=delta/max(distance,.001)*slope;
+        rings.z+=packet*max(cos(d*18.0),0.0)*envelope;
+    }
+    return rings;
+}
 vec4 water_color(vec3 rest, vec3 ep, vec4 data, float t, mat4 camera,
                  sampler2D scene, sampler2D depths, vec4 pp, vec4 pr, samplerCube sky,
-                 vec3 L, vec3 sun, vec3 skylight, float rain, float reflections, sampler2D wakes) {
+                 vec3 L, vec3 sun, vec3 skylight, vec2 rainfall, float reflections, sampler2D wakes, vec2 waveStrength) {
     vec2 uv=water_project(ep,pp,pr);
     vec2 pixel=1.0/vec2(textureSize(scene,0));
     float surfaceDepth=-ep.z;
@@ -64,7 +107,13 @@ vec4 water_color(vec3 rest, vec3 ep, vec4 data, float t, mat4 camera,
     // This also protects foliage, people and boats in front of the water.
     if(backgroundDepth<surfaceDepth-.025) discard;
     float footprint=max(length(dFdx(rest.xy)),length(dFdy(rest.xy)));
-    vec3 worldN=water_normal(rest.xy,data,t,footprint);
+    vec3 rippleNormal;
+    vec3 worldN=water_normals(rest.xy,data,t,footprint,waveStrength,rippleNormal);
+    float rain=clamp(rainfall.x,0.0,1.0);
+    vec3 rings=vec3(0);
+    if(rainfall.y>.5) rings=water_rain_rings(rest.xy,t,rainfall.x,footprint)*smoothstep(0.0,1.0,data.x);
+    worldN=normalize(worldN-vec3(rings.xy,0));
+    rippleNormal=normalize(rippleNormal-vec3(rings.xy,0));
     vec3 wake=texture(wakes,uv).rgb;
     worldN=normalize(worldN-vec3(clamp(wake.xy,vec2(-.22),vec2(.22)),0));
     vec3 N=normalize(mat3(camera)*worldN);
@@ -90,6 +139,8 @@ vec4 water_color(vec3 rest, vec3 ep, vec4 data, float t, mat4 camera,
     vec3 scatter=mix(vec3(.050,.110,.190),vec3(.020,.220,.180),data.y)*skylight;
     scatter=water_body(scatter,worldN,transpose(mat3(camera))*L,skylight);
     vec3 below=texture(scene,refracted).rgb*trans+scatter*(1.0-trans);
+    // A restrained sky-lit crest remains readable with reflections disabled.
+    below+=skylight*.13*rings.z*smoothstep(0.0,.28,path);
     vec3 foamColor=vec3(.50,.62,.66)*skylight;
     // Smooth overlap compression preserves crest variation instead of clipping
     // the stronger continuous foam into a flat, uniformly bright stripe.
@@ -132,6 +183,7 @@ vec4 water_color(vec3 rest, vec3 ep, vec4 data, float t, mat4 camera,
     }
     float fresnel=water_reflectance(nv,data.y);
     vec3 specular=water_glint(N,V,L,up,sun,data.y,rain);
+    specular+=water_ripple_glint(normalize(mat3(camera)*rippleNormal),V,up,skylight);
     // Close to a bank reflection fades with water thickness, joining dry land.
     float coverage=smoothstep(0.0,.28,path);
     vec3 result=mix(below,reflection,fresnel*coverage)+specular*coverage;

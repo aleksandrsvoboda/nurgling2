@@ -305,9 +305,9 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	this.base = base;
 	/* Nurgling: GroundRelief only adds a shader while the graphics
 	 * option is on. */
-	this.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state, wetSurface);
+	this.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state(wetSurface), wetSurface);
 	for(Var v : this.var = var)
-	    v.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state, wetSurface);
+	    v.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state(wetSurface), wetSurface);
 	this.transset = transset;
     }
 

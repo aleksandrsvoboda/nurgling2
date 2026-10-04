@@ -77,13 +77,15 @@ public class GroundTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	else
 	    throw(new RuntimeException("Cannot use texture for ground-tile rendering: " + tex));
 	Pipe.Op ret;
+	nurgling.render.Atmos.WetSurface surface = nurgling.render.Atmos.WetSurface.ground(set.getres().name);
+	State relief = nurgling.render.GroundRelief.state(surface);
 	/* Nurgling: GroundRelief only adds a shader while the graphics
 	 * option is on. */
 	if(clip)
-	    ret = Pipe.Op.compose(gcol, gt.draw, gt.clip, new MapMesh.MLOrder(z), nurgling.render.GroundRelief.state);
+	    ret = Pipe.Op.compose(gcol, gt.draw, gt.clip, new MapMesh.MLOrder(z), relief);
 	else
-	    ret = Pipe.Op.compose(gcol, gt.draw, new MapMesh.MLOrder(z), nurgling.render.GroundRelief.state);
-	return(Pipe.Op.compose(ret, nurgling.render.Atmos.WetSurface.ground(set.getres().name)));
+	    ret = Pipe.Op.compose(gcol, gt.draw, new MapMesh.MLOrder(z), relief);
+	return(Pipe.Op.compose(ret, surface));
     }
 
     /* XXX: Some strange javac bug seems to make it resolve the

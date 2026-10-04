@@ -336,33 +336,14 @@ public class WaterTile extends Tiler {
 	public static final MapMesh.DataID<Bottom> id = MapMesh.makeid(Bottom.class);
     }
 
-    /** Both versions stay in the mesh so switching water needs no map reload.
-     * GEOM also selects the matching bank in the shadow pass. */
-    public static class Shoreline extends State {
-	public static final Slot<Shoreline> slot = new Slot<>(Slot.Type.GEOM, Shoreline.class);
-	public final boolean submerged;
-	private Shoreline(boolean submerged) {this.submerged = submerged;}
-	public void apply(Pipe p) {p.put(slot, this);}
-	public ShaderMacro shader() {
-	    return(nurgling.render.Atmos.water == submerged ? null : nurgling.render.WaterSurface.hidden);
-	}
-    }
-    public static final Shoreline dryshore = new Shoreline(false), wetshore = new Shoreline(true);
-
     public void laytrans(MapMesh m, Coord lc, Coord gc, MCons cons) {
-	MapMesh.MapSurface s = m.data(MapMesh.gnd);
-	MPart dry = MPart.splitquad(lc, gc, s.fortilea(lc), s.split[s.bs.o(lc)]);
-	dry.mat = dryshore;
-	cons.faces(m, dry);
-	/* Share the actual bottom vertices and diagonal: the grass/sand fringe
-	 * follows the bed, including zero-depth shoreline vertices. A suspended
-	 * surface-level cutout otherwise occludes the transparent water and
-	 * casts a dark line onto the bed. */
-	MPart wet = MPart.splitquad(lc, gc, m.data(Bottom.id).fortilea(lc), s.split[s.bs.o(lc)]);
-	/* Draw on top of either bottom material (TerrainTile or GroundTile),
-	 * without physically lifting the fringe off the slope. */
-	wet.mat = Pipe.Op.compose(wetshore, new States.DepthBias(-1, -1));
-	cons.faces(m, wet);
+	/* Keep the author's surface-level land fringe. Projecting it onto the bed
+	 * stretches it into visible patches in transparent shallows. Only suppress
+	 * its cast shadow; the bank still receives lighting and other objects' shadows. */
+	super.laytrans(m, lc, gc, (mesh, part) -> {
+	    part.mat = Pipe.Op.compose(part.mat, ShadowMap.maskshadow);
+	    cons.faces(mesh, part);
+	});
     }
 
     public void model(MapMesh m, Random rnd, Coord lc, Coord gc) {
@@ -386,17 +367,17 @@ public class WaterTile extends Tiler {
 	}
     }
 
-    static final SamplerCube sky = new SamplerCube(new RUtils.CubeFill(() -> Resource.local().load("gfx/tiles/skycube").get().layer(Resource.imgc).img).mktex());
+    static final WaterSky sky = WaterSky.shared;
     static final TexRender nrm = Resource.local().loadwait("gfx/tiles/wnrm").layer(TexR.class).tex();
     static final TexRender flow = Resource.local().loadwait("gfx/tiles/wfoam").layer(TexR.class).tex();
 
     private static final State.Slot<State> surfslot = new State.Slot<>(State.Slot.Type.DRAW, State.class);
-    public static SamplerCube waterSky() {return sky;}
+    public static SamplerCube waterSky() {return sky.get();}
     public static void clearSurface(Pipe p) {p.put(surfslot, null);}
     private static final Pipe.Op surfextra = Pipe.Op.compose(new States.DepthBias(2, 2), new States.Facecull());
     private static final Pipe.Op baseextra = Pipe.Op.compose(surfextra, FragColor.blend(new BlendMode(BlendMode.Factor.ONE, BlendMode.Factor.ONE)));
     public static class BaseSurface extends State {
-	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> sky);
+	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> waterSky(), FrameInfo.slot);
 	private final Uniform snrm = new Uniform(Type.SAMPLER2D, p -> nrm.img);
 	private final Uniform icam = new Uniform(Type.MAT3, p -> Homo3D.camxf(p).transpose(), Homo3D.cam);
 
@@ -499,7 +480,7 @@ public class WaterTile extends Tiler {
 	public static final AutoVarying[] vverti = new AutoVarying[4];
 	public static final Attribute vipol = new Attribute(Type.VEC2);
 	public static final MeshBuf.LayerID<MeshBuf.Vec2Layer> lvipol = new MeshBuf.V2LayerID(vipol);
-	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> sky);
+	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> waterSky(), FrameInfo.slot);
 	private final Uniform snrm = new Uniform(Type.SAMPLER2D, p -> nrm.img);
 	private final Uniform sflow = new Uniform(Type.SAMPLER2D, p -> flow.img);
 	private final Uniform icam = new Uniform(Type.MAT3, p -> Homo3D.camxf(p).transpose(), Homo3D.cam);

@@ -61,7 +61,7 @@ float water_activity(vec2 p,float t) {
     // Continuous energy distribution, not a near-binary calm/rough mask.
     return .15+.70*(broad*.72+detail*.28);
 }
-vec4 water_position(vec4 p, vec4 data, float t) {
+vec4 water_position(vec4 p, vec4 data, float t, float strength) {
     float shore = smoothstep(0.0,5.0,data.x);
     vec3 displacement = vec3(0.0);
     for(int i=0;i<4;i++) {
@@ -73,18 +73,21 @@ vec4 water_position(vec4 p, vec4 data, float t) {
         // unsuitable for separately resolved terrain sections and shore edges.
         displacement.z += a*sin(phase);
     }
-    return vec4(p.xyz+displacement*shore,p.w);
+    return vec4(p.xyz+displacement*shore*strength,p.w);
+}
+vec4 water_position(vec4 p, vec4 data, float t) {
+    return water_position(p,data,t,1.0);
 }
 // Return derivatives of the displaced surface. Separate the short waves from
 // geometry, and attenuate them analytically at their pixel footprint.
-vec3 water_normal(vec2 p, vec4 data, float t, float footprint) {
+vec3 water_normals(vec2 p, vec4 data, float t, float footprint, vec2 strength, out vec3 rippleNormal) {
     float shore=smoothstep(0.0,5.0,data.x);
     vec3 dx=vec3(1,0,0),dy=vec3(0,1,0);
     for(int i=0;i<4;i++) {
         vec2 d; float k,a,w; water_wave(i,data.y,d,k,a,w);
         float phase,envelope;vec2 gradient,amplitudeGradient;
         water_packet(p,d,k,w,t,float(i),phase,gradient,envelope,amplitudeGradient);
-        a*=shore*(1.0-smoothstep(.65,2.8,length(gradient)*footprint));
+        a*=strength.x*shore*(1.0-smoothstep(.65,2.8,length(gradient)*footprint));
         vec2 vertical=a*(amplitudeGradient*sin(phase)+envelope*cos(phase)*gradient);
         dx.z+=vertical.x;
         dy.z+=vertical.y;
@@ -109,8 +112,16 @@ vec3 water_normal(vec2 p, vec4 data, float t, float footprint) {
         water_packet(p-flow*other*7.0,d,k,sqrt(29.43*k),t,fi+7.0,b,gb,eb,ab);
         float resolved=1.0-smoothstep(.65,2.8,max(length(ga),length(gb))*footprint);
         vec2 sa=aa*sin(a)+ea*cos(a)*ga,sb=ab*sin(b)+eb*cos(b)*gb;
-        slope+=mix(sa,sb,blend)*(mix(.044,.048,data.y)/k)*resolved*shore*ripples;
+        slope+=mix(sa,sb,blend)*(mix(.044,.048,data.y)/k)*resolved*shore*ripples*strength.y;
     }
     vec3 n=normalize(cross(dx,dy));
+    rippleNormal=normalize(vec3(-slope,1));
     return normalize(n-vec3(slope,0));
+}
+vec3 water_normals(vec2 p, vec4 data, float t, float footprint, out vec3 rippleNormal) {
+    return water_normals(p,data,t,footprint,vec2(1),rippleNormal);
+}
+vec3 water_normal(vec2 p, vec4 data, float t, float footprint) {
+    vec3 rippleNormal;
+    return water_normals(p,data,t,footprint,rippleNormal);
 }

@@ -11,7 +11,7 @@ import java.util.concurrent.*;
 import static haven.render.sl.Cons.*;
 import static haven.render.sl.Type.*;
 
-/** Actual map fringes must follow the bed, but leave overlays and Classic intact. */
+/** Preserve the original bank geometry while excluding only its cast shadow. */
 public class WaterShoreTest {
     static void require(boolean ok,String message){if(!ok)throw new AssertionError(message);}
     static final RawFunction fringe=new RawFunction(VEC4,"shore_test_fringe",2,
@@ -33,20 +33,19 @@ public class WaterShoreTest {
                 if(!(gt instanceof WaterTile))return;
                 List<MPart> parts=new ArrayList<>();
                 gt.laytrans(m,lc,gc,(mesh,d)->parts.add(d));
-                require(parts.size()==2,"Shore must retain Classic and submerged geometry");
-                MPart dry=parts.get(0),wet=parts.get(1);
-                require(Arrays.equals(dry.f,wet.f),"Shore and bottom use different diagonals");
-                require(Arrays.equals(dry.tcx,wet.tcx)&&Arrays.equals(dry.tcy,wet.tcy),"Shore texture moved");
-                int submerged=0;
+                require(parts.size()==1,"Shore must not have a second submerged mesh");
+                MPart dry=parts.get(0);
+                MapMesh.MapSurface surface=m.data(MapMesh.gnd);
+                MPart original=MPart.splitquad(lc,gc,surface.fortilea(lc),surface.split[surface.bs.o(lc)]);
+                require(Arrays.equals(dry.f,original.f),"Original bank triangulation changed");
+                require(Arrays.equals(dry.tcx,original.tcx)&&Arrays.equals(dry.tcy,original.tcy),"Shore texture moved");
                 for(int i=0;i<4;i++) {
-                    WaterTile.Bottom.BottomVertex bed=(WaterTile.Bottom.BottomVertex)wet.v[i];
-                    require(Math.abs(dry.v[i].z-bed.z-bed.d)<.0001,"Fringe is suspended above bed");
-                    require(dry.v[i].x==bed.x&&dry.v[i].y==bed.y,"Shore footprint moved");
-                    if(bed.d>0)submerged++;
+                    require(dry.v[i]==original.v[i],"Original bank vertex was replaced or moved underwater");
                 }
-                require(submerged>0,"Bank has no submerged continuation");
+                require(new BufPipe().prep(dry.mat).get(ShadowMap.maskshadow.slot)!=null,"Bank still casts a shadow");
                 gt.lay(m,lc,gc,(mesh,d)->{
                     for(int i=0;i<4;i++)require(d.v[i]==dry.v[i],"Ground overlay was moved underwater");
+                    require(new BufPipe().prep(d.mat).get(ShadowMap.maskshadow.slot)==null,"Bank shadow mask leaked to ground overlays");
                 },false);
                 if(legacy){dry.mat=null;faces(m,dry,edge);}else for(MPart d:parts)faces(m,d,edge);
                 checked[0]++;
@@ -77,6 +76,8 @@ public class WaterShoreTest {
         view.basic.add(mesh,Location.xlate(Coord3f.of(-11,11,0)));
         WaterSurface renderer=new WaterSurface(view);
         try {
+            long preparationDeadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
+            while(true) {
             Render out=window.env().render();out.clear(base,FragColor.fragcol,new FColor(.06f,.08f,.1f,1));out.clear(base,1.0);
             List<RenderTree.Slot> slots=new ArrayList<>();
             for(RenderTree.Slot slot:view.tree.slots())if(slot.obj() instanceof FastMesh)slots.add(slot);
@@ -94,24 +95,28 @@ public class WaterShoreTest {
             window.swapbuffers(out,false);window.env().submit(out);
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
             while(!read.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
-            return read.get(1,TimeUnit.SECONDS);
+            float[] pixels=read.get(1,TimeUnit.SECONDS);
+            if(!(out instanceof haven.render.vk.VkRender) || ((haven.render.vk.VkRender)out).pendingDraws()==0) return pixels;
+            require(System.nanoTime()<preparationDeadline,"Bank water shaders/pipelines never became ready");
+            Thread.sleep(10);
+            }
         } finally {renderer.dispose();view.dispose();scene.dispose();result.dispose();depth.dispose();}
     }
     public static void main(String[] args)throws Exception {
         nurgling.NConfig.getGlobalInstance();
         Toolkit toolkit=Toolkit.toolkits().get("vulkan").open();Windeye window=toolkit.window();int exit=0;
         try {
-            window.title("Submerged shoreline regression");window.sizing(new Windeye.Sizing().fixsize(WaterSurfaceTest.SIZE)).show(true);
+            window.title("Original shoreline without cast shadows");window.sizing(new Windeye.Sizing().fixsize(WaterSurfaceTest.SIZE)).show(true);
             MapMesh mesh=map(false,false),legacy=map(false,true),corner=map(true,false);
             try {
                 float[] before=capture(window,legacy,true),after=capture(window,mesh,true);
                 float[] classic=capture(window,mesh,false),original=capture(window,legacy,false);
                 require(WaterSurfaceTest.difference(classic,original)<.000001,"Classic shoreline changed");
-                require(WaterSurfaceTest.difference(before,after)>.001,"Submerged shoreline has no visible effect");
+                require(WaterSurfaceTest.difference(before,after)<.000001,"Transparent water changed the original bank geometry");
                 require(WaterSurfaceTest.difference(after,capture(window,mesh,true))<.000001,"Water toggle does not restore bank");
-                WaterSurfaceTest.save(before,"shore-before");WaterSurfaceTest.save(after,"shore-submerged");
+                WaterSurfaceTest.save(before,"shore-original");WaterSurfaceTest.save(after,"shore-no-cast-shadow");
                 WaterSurfaceTest.save(capture(window,corner,true),"shore-corner");
-                System.out.printf("Shoreline PASS: bed-following edge, fixed footprint/UVs/overlays, Classic delta %.8f; wet delta %.5f%n",WaterSurfaceTest.difference(classic,original),WaterSurfaceTest.difference(before,after));
+                System.out.printf("Shoreline PASS: original vertices/UVs/overlays, one bank mesh, cast-shadow mask; Classic delta %.8f; transparent delta %.8f%n",WaterSurfaceTest.difference(classic,original),WaterSurfaceTest.difference(before,after));
             } finally {mesh.dispose();legacy.dispose();corner.dispose();}
         }catch(Throwable t){t.printStackTrace();exit=1;}finally{window.dispose();toolkit.dispose();}
         System.exit(exit);

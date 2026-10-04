@@ -107,6 +107,7 @@ public class GraphicsSettings extends Panel {
 	cont = section("gfx.sec.light");
 	prev = null;
 	prev = check(cont, prev, "gfx.relief", s -> s.relief, "relief");
+	prev = check(cont, prev, "gfx.reliefpavingonly", s -> s.reliefpavingonly, "reliefpavingonly");
 	prev = slider(cont, prev, "gfx.reliefstrength", 20, 300, s -> s.reliefstrength, "reliefstrength", 100);
 	prev = check(cont, prev, "gfx.parallax", s -> s.parallax, "parallax");
 	prev = check(cont, prev, "gfx.bettershadows", s -> s.bettershadows, "bettershadows");
@@ -120,6 +121,9 @@ public class GraphicsSettings extends Panel {
 	prev = check(cont, prev, "gfx.glow", s -> s.glow, "glow");
 	prev = check(cont, prev, "gfx.water", s -> s.water, "water");
 	prev = check(cont, prev, "gfx.waterreflections", s -> s.waterreflections, "waterreflections");
+	prev = check(cont, prev, "gfx.rainripples", s -> s.rainripples, "rainripples");
+	prev = check(cont, prev, "gfx.lightningbolts", s -> s.lightning, "lightningbolts");
+	prev = check(cont, prev, "gfx.animatedgrass", s -> s.grass, "animatedgrass");
 	prev = check(cont, prev, "gfx.wet", s -> s.wet, "wet");
 	prev = check(cont, prev, "gfx.snow", s -> s.snow, "snow");
 	prev = cont.add(new Label(L10n.get("gfx.photo")), new Coord(UI.scale(5), prev.pos("bl").y + UI.scale(8)));
@@ -170,6 +174,10 @@ public class GraphicsSettings extends Panel {
 	if(name.equals("bettershadows")) cb.settip(L10n.get("gfx.bettershadows.tip"), true);
 	if(name.equals("worldlight")) cb.settip(L10n.get("gfx.worldlight.tip"), true);
 	if(name.equals("waterreflections")) cb.settip(L10n.get("gfx.waterreflections.tip"), true);
+	if(name.equals("rainripples")) cb.settip(L10n.get("gfx.rainripples.tip"), true);
+	if(name.equals("lightningbolts")) cb.settip(L10n.get("gfx.lightningbolts.tip"), true);
+	if(name.equals("animatedgrass")) cb.settip(L10n.get("gfx.animatedgrass.tip"), true);
+	if(name.equals("reliefpavingonly")) cb.settip(L10n.get("gfx.reliefpavingonly.tip"), true);
 	/* The shown state comes from the settings (presets change it
 	 * too), so write through on every click instead of relying on
 	 * the checkbox's own copy of the value. */

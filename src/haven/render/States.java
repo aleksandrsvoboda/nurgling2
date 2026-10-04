@@ -148,6 +148,12 @@ public abstract class States {
 	    public String toString() {return(String.format("#<maskdepth>"));}
 	};
 
+    /** Optional draws may wait for background shader/pipeline preparation on
+     * supporting backends. They are retried by the caller on the next frame. */
+    public static final State.StandAlone asynccompile = new State.StandAlone(Slot.Type.DRAW) {
+	public ShaderMacro shader() {return(null);}
+    };
+
     public static final Slot<LineWidth> linewidth = new Slot<LineWidth>(Slot.Type.GEOM, LineWidth.class);
     public static class LineWidth extends Builtin {
 	public final float w;

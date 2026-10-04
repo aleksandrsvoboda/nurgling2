@@ -53,6 +53,12 @@ public class WaterSurfaceTest {
         return capture(window,bed,kind,flow,seconds,front,perspective,foamAlpha,reflections,wake?1:0);
     }
     static float[] capture(Windeye window,float bed,float kind,float flow,double seconds,boolean front,boolean perspective,float foamAlpha,boolean reflections,int wakeMode) throws Exception {
+        return capture(window,bed,kind,flow,seconds,front,perspective,foamAlpha,reflections,wakeMode,0,false);
+    }
+    static float[] capture(Windeye window,float bed,float kind,float flow,double seconds,boolean front,boolean perspective,float foamAlpha,boolean reflections,int wakeMode,float rain,boolean ripples) throws Exception {
+        return capture(window,bed,kind,flow,seconds,front,perspective,foamAlpha,reflections,wakeMode,rain,ripples,false);
+    }
+    static float[] capture(Windeye window,float bed,float kind,float flow,double seconds,boolean front,boolean perspective,float foamAlpha,boolean reflections,int wakeMode,float rain,boolean ripples,boolean sheltered) throws Exception {
         PView view=new PView(SIZE){protected void basic(){}};
         Texture2D scene=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
         Texture2D output=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
@@ -80,6 +86,8 @@ public class WaterSurfaceTest {
         if(foamAlpha>=0)view.basic.add(foam,foamMaterial);
         WaterSurface renderer=new WaterSurface(view);
         renderer.reflections=reflections;
+        renderer.sheltered=sheltered;
+        renderer.rainIntensity=rain;renderer.rainRipples=ripples;
         if(wakeMode>0 && wakeMode<4)for(int i=0;i<=14;i++) {
             double x=wakeMode==2?9*Math.cos(i*.18):-12+i*1.6;
             double y=wakeMode==2?9*Math.sin(i*.18)-5:0;
@@ -88,6 +96,8 @@ public class WaterSurfaceTest {
         require(renderer.sources.slots.size()==(wakeMode==4?2:1),"Map water source not registered");
         require(renderer.foamSources.slots.size()==(foamAlpha>=0?1:0),"Object foam source not registered separately");
         try {
+            long preparationDeadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
+            while(true) {
             Render out=window.env().render();
             out.clear(base,FragColor.fragcol,new FColor(.1f,.12f,.15f,1));out.clear(base,1.0);
             Pipe ground=base.copy().prep(wakeMode==5?new BaseColor(new FColor(0,0,0,1)):new RUtils.AdHoc(floorShader));bottom.draw(ground,out);
@@ -101,7 +111,11 @@ public class WaterSurfaceTest {
             window.swapbuffers(out,false);window.env().submit(out);
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
             while(!result.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
-            return result.get(1,TimeUnit.SECONDS);
+            float[] pixels=result.get(1,TimeUnit.SECONDS);
+            if(!(out instanceof haven.render.vk.VkRender) || ((haven.render.vk.VkRender)out).pendingDraws()==0) return pixels;
+            require(System.nanoTime()<preparationDeadline,"Water shaders/pipelines never became ready");
+            Thread.sleep(10);
+            }
         } finally {renderer.dispose();water.dispose();if(left!=null){left.dispose();right.dispose();}bottom.dispose();foreground.dispose();foam.dispose();view.dispose();scene.dispose();output.dispose();depth.dispose();}
     }
     static double difference(float[] a,float[] b) {double s=0;for(int i=0;i<a.length;i++)if(i%4!=3)s+=Math.abs(a[i]-b[i]);return s/(a.length*.75);}
@@ -190,6 +204,52 @@ public class WaterSurfaceTest {
             save(image,"wave-pattern");
         } finally {output.dispose();}
     }
+    static void shelteredWaves(Windeye window)throws Exception {
+        require(WaterSurface.sheltered(java.awt.Color.BLACK),"Enclosed water not detected");
+        require(!WaterSurface.sheltered(null)&&!WaterSurface.sheltered(new java.awt.Color(1,1,2))&&
+                !WaterSurface.sheltered(java.awt.Color.WHITE),"Unknown/night/day water treated as underground");
+        RawFunction sample=new RawFunction(VEC4,"water_cave_test",3,
+            "vec4 water_cave_test(vec4 c,vec2 tc,vec4 s) {\n"+
+            " vec2 p=tc*120.0; vec4 data=vec4(30,s.z,1,0); vec3 ripple,n;\n"+
+            " n=water_normals(p,data,10.0,.2,s.xy,ripple);\n"+
+            " float z=water_position(vec4(p,0,1),data,10.0,s.x).z;\n"+
+            " float later=water_position(vec4(p,0,1),data,10.4,s.x).z;\n"+
+            " return vec4(abs(z),length(n.xy)/n.z,length(ripple.xy)/ripple.z,abs(later-z)); }\n");
+        ShaderMacro shader=p->{WaterSurface.waves.define(p.fctx);NPostFX.shader(sample,NPostFX.u(VEC4,0)).modify(p);};
+        for(float kind:new float[]{0,1}) {
+            double[][] energy=new double[2][4];
+            for(int cave=0;cave<2;cave++) {
+                Texture2D output=new Texture2D(SIZE,DataBuffer.Usage.STATIC,RGBA,null);
+                try {
+                    Render out=window.env().render();
+                    Pipe target=new BufPipe().prep(new FragColor<>(output.image(0))).prep(new States.Viewport(Area.sized(SIZE))).prep(new Ortho2D(Area.sized(SIZE)));
+                    NPostFX.blit(new GOut(out,target,SIZE),Temporal.one(),new NPostFX.Pass(shader,new float[]{cave==0?1:.25f,cave==0?1:.35f,kind,0}));
+                    CompletableFuture<float[]> result=new CompletableFuture<>();
+                    out.pget(output.image(0),RGBA,bytes->{float[] a=new float[SIZE.x*SIZE.y*4];bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().get(a);result.complete(a);});
+                    window.swapbuffers(out,false);window.env().submit(out);
+                    long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+                    while(!result.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
+                    float[] pixels=result.get(1,TimeUnit.SECONDS);
+                    for(int i=0;i<pixels.length;i++) {
+                        require(Float.isFinite(pixels[i]),"Invalid sheltered wave");
+                        energy[cave][i%4]+=pixels[i]/(SIZE.x*SIZE.y);
+                    }
+                }finally{output.dispose();}
+            }
+            for(int channel=0;channel<4;channel++) {
+                double ratio=energy[1][channel]/energy[0][channel];
+                require(ratio>.20&&ratio<.40,"Sheltered waves too rough or motionless: "+ratio);
+            }
+            require(energy[1][3]>.001,"Sheltered water animation vanished");
+        }
+        float[] cave=capture(window,8,0,1,10,false,true,-1,true,0,0,false,true);
+        float[] later=capture(window,8,0,1,10.4,false,true,-1,true,0,0,false,true);
+        float[] surface=capture(window,8,0,1,10,false,true);
+        require(difference(cave,later)>.00001,"Cave resolve lost animation");
+        require(difference(cave,surface)>.0001,"Cave strength not connected to water resolve");
+        save(cave,"sheltered-water");
+        System.out.println("Sheltered water PASS: weaker height/slopes/ripples, continuing animation, surface/night isolation");
+    }
     static void glintAngles(Windeye window)throws Exception {
         RawFunction sample=new RawFunction(VEC4,"water_glint_test",3,
             "vec4 water_glint_test(vec4 color,vec2 tc,vec4 params) {\n"+
@@ -232,15 +292,16 @@ public class WaterSurfaceTest {
     static void lightingOrbit(Windeye window)throws Exception {
         RawFunction sample=new RawFunction(VEC4,"water_lighting_orbit",3,
             "vec4 water_lighting_orbit(vec4 c,vec2 tc,vec4 p) {\n"+
-            " vec3 n=water_normal(tc*64.0,vec4(30,p.z,1,0),10.0,64.0/192.0);\n"+
+            " vec3 ripple; vec3 n=water_normals(tc*64.0,vec4(30,p.z,1,0),10.0,64.0/192.0,ripple);\n"+
             " vec3 v=vec3(cos(p.x)*cos(p.y),sin(p.x)*cos(p.y),sin(p.y));\n"+
             " vec3 light=normalize(vec3(-.6,.2,.77)),sky=vec3(.7,.8,1.0);\n"+
             " vec3 body=water_body(mix(vec3(.050,.110,.190),vec3(.020,.220,.180),p.z)*sky,n,light,sky);\n"+
             " vec3 result=mix(body,sky*.3,water_reflectance(dot(n,v),p.z));\n"+
             " vec3 glint=water_glint(n,v,light,vec3(0,0,1),vec3(1,.88,.7),p.z,0);\n"+
+            " glint+=water_ripple_glint(ripple,v,vec3(0,0,1),sky);\n"+
             " return vec4(result+glint,glint.r); }\n");
         ShaderMacro shader=p->{WaterSurface.waves.define(p.fctx);WaterSurface.shade.define(p.fctx);NPostFX.shader(sample,NPostFX.u(VEC4,0)).modify(p);};
-        double worstMeanRange=0,worstBrightCoverage=0,minDetail=1,peakGlint=0;
+        double worstMeanRange=0,worstBrightCoverage=0,minDetail=1,peakGlint=0,minGlintCoverage=1;
         for(float kind:new float[]{0,1})for(float elevation:new float[]{.35f,.75f,1.15f}) {
             double low=1,high=0;
             for(int step=0;step<24;step++) {
@@ -254,17 +315,19 @@ public class WaterSurfaceTest {
                     window.swapbuffers(out,false);window.env().submit(out);
                     long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
                     while(!result.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
-                    float[] pixels=result.get(1,TimeUnit.SECONDS);double mean=0,sq=0;int bright=0;
+                    float[] pixels=result.get(1,TimeUnit.SECONDS);double mean=0,sq=0;int bright=0,visible=0;
                     for(int i=0;i<pixels.length;i+=4) {
                         double lum=pixels[i]*.2126+pixels[i+1]*.7152+pixels[i+2]*.0722;
                         require(Double.isFinite(lum)&&lum>=0&&lum<1,"Invalid orbit radiance");
                         mean+=lum;sq+=lum*lum;if(pixels[i+3]>.08)bright++;
+                        if(pixels[i+3]>.02)visible++;
                         peakGlint=Math.max(peakGlint,pixels[i+3]);
                     }
                     int count=SIZE.x*SIZE.y;mean/=count;
                     low=Math.min(low,mean);high=Math.max(high,mean);
                     minDetail=Math.min(minDetail,Math.sqrt(Math.max(0,sq/count-mean*mean)));
                     worstBrightCoverage=Math.max(worstBrightCoverage,bright/(double)count);
+                    minGlintCoverage=Math.min(minGlintCoverage,visible/(double)count);
                     if(kind==0 && elevation==.75f && step%3==0)save(pixels,"lighting-orbit-"+step);
                 } finally {output.dispose();}
             }
@@ -275,6 +338,8 @@ public class WaterSurfaceTest {
         require(minDetail>.0025,"Waves disappear outside the sun reflection cone");
         require(worstBrightCoverage<.12,"Bright glints form a silver carpet");
         require(peakGlint>.08,"Local bright glints disappeared");
+        System.out.printf("Water glints through full camera orbit: minimum visible coverage %.1f%%%n",minGlintCoverage*100);
+        require(minGlintCoverage>.025,"Ripple glints disappear away from the sun at some camera angles");
     }
     // Sample the actual accumulated field along both crests. This catches dark
     // gaps between packets and procedural checker modulation independently of
@@ -333,6 +398,7 @@ public class WaterSurfaceTest {
             window.title("Water rendering regression");window.sizing(new Windeye.Sizing().fixsize(SIZE)).show(true);
             wakeContinuity(window);
             patternPreview(window);
+            shelteredWaves(window);
             glintAngles(window);
             lightingOrbit(window);
             float[] shallow=capture(window,1,0,1,10,false,false),deep=capture(window,70,0,1,10,false,false);
@@ -346,6 +412,30 @@ public class WaterSurfaceTest {
             float[] foreground=capture(window,12,1,0,10,true,false),perspective=capture(window,8,0,1,10,false,true);
             float[] noReflections=capture(window,8,0,1,10,false,true,-1,false);
             float[] splitSections=capture(window,8,0,1,10,false,true,-1,true,4);
+            float[] rainy=capture(window,8,0,1,10,false,true,-1,true,0,1,true);
+            float[] rainySplit=capture(window,8,0,1,10,false,true,-1,true,4,1,true);
+            require(difference(rainy,rainySplit)<.00001,"Rain rings have a map-section seam");
+            float[] rainyOff=capture(window,8,0,1,10,false,true,-1,false,0,1,false);
+            float[] rainyOn=capture(window,8,0,1,10,false,true,-1,false,0,1,true);
+            float[] dryEnabled=capture(window,8,0,1,10,false,true,-1,false,0,0,true);
+            require(difference(dryEnabled,noReflections)<.000001,"Rain rings appear in dry weather");
+            require(difference(rainyOff,noReflections)<.000001,"Rain ring switch leaks with reflections off");
+            double ringSignal=difference(rainyOn,rainyOff);
+            require(ringSignal>.0001,"Rain rings invisible without reflections: "+ringSignal);
+            float[] heavyRain=capture(window,8,0,1,10,false,true,-1,false,0,3,true);
+            require(difference(heavyRain,rainyOff)>ringSignal*1.1,"Heavy rain does not add impacts");
+            float[] rainForeground=capture(window,12,1,0,10,true,false,-1,true,0,3,true);
+            require(difference(foreground,rainForeground)<.000001,"Rain rings draw over foreground objects");
+            save(rainyOn,"rain-rings-no-reflections");save(heavyRain,"rain-rings-heavy");
+            save(capture(window,8,0,1,10,false,false,-1,false,0,3,true),"rain-rings-top");
+            save(capture(window,30,0,1,10,false,false,-1,true,0,3,true),"rain-rings-deep");
+            float[] rainLater=capture(window,8,0,1,10.4,false,true,-1,false,0,1,true);
+            float[] dryLater=capture(window,8,0,1,10.4,false,true,-1,false,0,1,false);
+            double ringMotion=0;
+            for(int i=0;i<rainLater.length;i++) if(i%4!=3)
+                ringMotion+=Math.abs((rainLater[i]-dryLater[i])-(rainyOn[i]-rainyOff[i]));
+            require(ringMotion/(rainLater.length*.75)>.0001,"Rain rings do not expand/age independently of the waves");
+            System.out.printf("Rain rings PASS: normal %.6f, heavy %.6f; dry/off isolation, foreground and section seams%n",ringSignal,difference(heavyRain,rainyOff));
             require(difference(perspective,splitSections)<.00001,"Separately located water sections overlap or change shading at their boundary");
             System.out.printf("Separate water sections vs continuous mesh PASS: %.8f%n",difference(perspective,splitSections));
             float[] movingNoReflections=capture(window,8,0,1,10.4,false,true,-1,false);

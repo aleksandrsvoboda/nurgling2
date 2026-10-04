@@ -464,6 +464,7 @@ public abstract class UILoop implements Console.Directory {
 	    f.ui.frameHistory.reset(now);
 	else
 	    f.ui.frameHistory.record(now);
+	if(f.movementTrace != null) f.movementTrace.finish(f, now);
     }
 
     public static class Frame {
@@ -477,6 +478,10 @@ public abstract class UILoop implements Console.Directory {
 	public GPUProfile.Frame gprof = null;
 	public RenderProfile rprofc = null;
 	public double ttime, ftime, waited;
+	public nurgling.diagnostics.MovementTrace movementTrace;
+	public double[] movementSample;
+	public double worldMs, graphicsMs, uiMs, drawMs, syncMs;
+	private void movementPhase(String name) { if(movementTrace != null) movementTrace.phase(name); }
 
 	public Frame(UILoop loop, UI ui, Render out, Frame prev) {
 	    this.loop = loop;
@@ -487,34 +492,58 @@ public abstract class UILoop implements Console.Directory {
 	}
 
 	protected void tick() {
+	    movementPhase("ui-lock");
 	    synchronized(ui) {
 		CPUProfile.phase(prof, "dwait");
 		if(rprofc != null) rprofc.new Part("tick", out);
 		if(gprof  != null) gprof.part(out, "tick");
+		movementPhase("input-dispatch");
 		loop.dispatch(ui);
 		CPUProfile.phase(prof, "stick");
 		if(ui.sess != null) {
+		    movementPhase("world-tick");
+		    double start = Utils.rtime();
 		    ui.sess.glob.ctick();
+		    worldMs = (Utils.rtime() - start) * 1000;
+		    movementPhase("graphics-tick"); start = Utils.rtime();
 		    ui.sess.glob.gtick(out);
+		    graphicsMs = (Utils.rtime() - start) * 1000;
 		}
 		CPUProfile.phase(prof, "utick");
-		ui.tick();
-		ui.gtick(out);
-		ui.mousehover(ui.mc);
+		movementPhase("ui-tick");
+		double start = Utils.rtime();
+		try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "ui-widgets")) {
+			ui.tick();
+		}
+
+		try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "ui-graphics")) {
+			ui.gtick(out);
+		}
+
+		try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "ui-hover")) {
+			ui.mousehover(ui.mc);
+		}
+
 		Coord sz = loop.wnd.size();
 		if(!ui.root.sz.equals(sz))
 		    ui.root.resize(sz);
+		uiMs = (Utils.rtime() - start) * 1000;
 	    }
 	}
 
 	protected void display() {
+	    movementPhase("draw");
+	    if(movementTrace != null) movementSample = movementTrace.sample(this);
+	    double start = Utils.rtime();
 	    CPUProfile.phase(prof, "draw");
 	    if(rprofc != null) rprofc.new Part("draw", out);
 	    if(gprof  != null) gprof.part(out, "draw");
 	    loop.display(ui, out);
+	    drawMs = (Utils.rtime() - start) * 1000;
 	}
 
 	protected void swapbuffers() {
+	    movementPhase("submit-present");
 	    if(rprofc != null) rprofc.new Part("swap", out);
 	    if(gprof  != null) gprof.part(out, "swap");
 	    loop.wnd.swapbuffers(out, ui.gprefs.vsync.val);
@@ -523,6 +552,7 @@ public abstract class UILoop implements Console.Directory {
 	}
 
 	protected void fin() throws InterruptedException {
+	    movementPhase("frame-limit");
 	    CPUProfile.phase(prof, "wait");
 	    double now = Utils.rtime();
 	    double fd = loop.framedur();
@@ -538,15 +568,18 @@ public abstract class UILoop implements Console.Directory {
 	}
 
 	protected void syncwait() throws InterruptedException {
+	    movementPhase("previous-frame-wait");
 	    CPUProfile.phase(prof, "dwait");
 	    if(prev != null) {
 		double then = Utils.rtime();
 		prev.sync.waitfor();
+		syncMs += (Utils.rtime() - then) * 1000;
 		waited += Utils.rtime() - then;
 	    }
 	}
 
 	public void run() throws InterruptedException {
+	    movementTrace = nurgling.diagnostics.MovementTrace.begin(this);
 	    this.prof   = profile.get() ? CPUProfile.set(loop.uprof.new Frame()) : null;
 	    this.gprof  = profile.get() ? loop.gprof.new Frame(out) : null;
 	    this.rprofc = profile.get() ? new RenderProfile(loop.rprof, (prev == null) ? null : prev.rprofc, out) : null;

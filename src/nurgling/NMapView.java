@@ -1290,38 +1290,56 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     @Override
     public void tick(double dt)
     {
-        checkTempMarks();
-        synchronized (glob.map.areas)
-        {
-            for (NArea area : glob.map.areas.values())
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "area-overlays")) {
+            checkTempMarks();
+            synchronized (glob.map.areas)
             {
-                area.tick(dt);
+                for (NArea area : glob.map.areas.values())
+                {
+                    area.tick(dt);
+                }
             }
         }
+
         // Update marker line overlay (follows player)
         if(markerLineOverlay != null) {
             markerLineOverlay.tick();
         }
 
         // Refresh the movement-waypoint geometry
-        tickWorldOverlays();
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "waypoint-overlays")) {
+            tickWorldOverlays();
+        }
+
 
         // Keep following the pointer while the left button is held
-        tickHoldSteer();
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "hold-steering")) {
+            tickHoldSteer();
+        }
+
 
         // Reconcile per-grid wall overlays against currently loaded grids
-        updateGridWalls();
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "grid-walls")) {
+            updateGridWalls();
+        }
+
 
         // Tick chunk navigation system for recording
-        if (chunkNavManager != null) {
-            chunkNavManager.tick();
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "navigation-trackers")) {
+            if (chunkNavManager != null) {
+                chunkNavManager.tick();
+            }
+            milestoneTracker.tick();
         }
-        milestoneTracker.tick();
 
-        if (minesweeperOverlay == null) {
-            minesweeperOverlay = new MinesweeperOverlay();
+
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "minesweeper")) {
+            if (minesweeperOverlay == null) {
+                minesweeperOverlay = new MinesweeperOverlay();
+            }
+            minesweeperOverlay.tick(dt);
         }
-        minesweeperOverlay.tick(dt);
+
 
         ArrayList<Long> forRemove = new ArrayList<>();
 //        for(Gob dummy : dummys.values())

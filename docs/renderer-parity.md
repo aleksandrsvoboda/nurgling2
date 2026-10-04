@@ -30,6 +30,86 @@ intact. Collapsing or hiding the panel keeps previews active; leaving the sessio
 discards them. `ant test-scene-debug` checks defaults, the daily light cycle,
 weather replacement, reset and effect disposal.
 
+## Movement hiccup capture (OpenGL and Vulkan)
+
+Press **Ctrl+F9** immediately after a movement hitch. The client keeps a bounded
+in-memory trace and saves ten seconds before the keypress plus two seconds after
+it to `diagnostics/movement-*.zip` relative to the client's working directory
+(`bin/diagnostics` for the development launcher). A game message confirms the
+absolute path or reports a write error. Repeated presses during capture are ignored.
+The capture itself does not change movement or continuously write to disk.
+
+The archive contains `trace.csv` and a schema/context `README.txt`: applied server
+movement deltas, predicted and scene-placed coordinates, rider/mount IDs, camera
+matrix, frame cadence and CPU stage timings, collector notifications, and UI-thread
+stack samples during stages exceeding 20 ms. GC event duration is collector-specific
+and is not always a stop-the-world pause. Frame cadence is not GPU presentation time;
+stack sampling is not a complete CPU profile. The trace records only the foreground
+session's player/mount; login starts a fresh buffer. Insufficient history, unavailable
+positions and capacity truncation are documented in the archive.
+Schema v2 also records socket-read completion (before decrypt/parse), object dispatch,
+queue entry, delta attempt start, gob-monitor wait and handler duration. Packet ID,
+server frame, attribute type and actor ID correlate loader retries with receipt.
+Socket-read completion does not measure kernel arrival or server send time: a burst
+already present at that boundary can still be receiver scheduling, OS buffering or
+network/server timing. Rejected/stale object deltas have a receive event without an
+apply event. Missing timestamps remain blank (e.g. replay transports).
+Nested `stage` events retain UI/graphics/hover, core tasks, scene placement, camera,
+terrain, lighting/weather and overlay scopes lasting at least 1 ms. They are inclusive;
+do not add a parent to its children. The watchdog reports the innermost active scope.
+Terrain timings separate mesh updates, decoration, overlays, gridlines and picking;
+time spent waiting for the map monitor remains in the enclosing scope.
+`weather-state` isolates applying the global weather state inside `lighting-weather`.
+MapView reserves the Wet and CloudShadow slots before attaching the scene. Weather
+resource operations remain live, but disabling/removing them restores the incoming
+value (normally null) without dropping a slot definition. This uses RenderTree's
+group/mask updates instead of `updtotal` across every descendant; parent dependencies
+and explicit null overrides remain supported. `test-weather-state` reproduces the
+old 10,000-node rebuild, asserts zero unrelated descendant reevaluations after the
+fix, and verifies add/change/remove uniform updates by Vulkan readback. New shader
+variants may still need asynchronous preparation; this change targets CPU tree work.
+Each archive also contains `frame-summary.txt` (average FPS, 1%/0.1% lows,
+nearest-rank frame-time percentiles, worst duration and counts above 20/33.3/50/100 ms)
+and `slow-frames.csv` (up to 32 worst frames, same schema, longest first).
+Lows are 1000 divided by the mean duration of the slowest ceil(N * fraction) frames;
+sample counts are included because 0.1% of a short capture may be just one frame.
+These describe CPU submission/pacing cadence, not measured GPU presentation. All
+statistics and sorting happen on export, with no extra per-frame history or disk IO.
+During a Vulkan stall, stacks also include that environment's render and callback
+threads (and monitor owners), to distinguish UI fence waits from renderer work.
+`render-stage` events additionally time Vulkan ring allocation/reset, queue-present
+and present-wait calls taking at least 2 ms. They use `stage_start_s`/`stage_ms`,
+include return codes or buffer sizes, and describe CPU call time rather than GPU
+execution time. This separates a long native wait from a chance stack sample.
+`MovementTraceTest` checks retention, wraparound, actor/session isolation, the hotkey,
+pre/post capture, repeat handling, archive encoding, network timestamp cloning and export,
+queue/lock timings, nested stage restoration and disposal without a game server.
+
+Movement prediction integrates a per-trajectory monotonic clock. Both `ctick` and
+server `sett` consume that clock before advancing/correcting `t`, so a frame stall
+is not added again after a correction and new trajectories do not inherit an old
+frame's duration. `test-movement-timing` replays the recorded GL/Vulkan stalls and
+checks cadence, late updates, prediction limits and end times. Authoritative
+trajectory replacement is still respected by the gameplay coordinates.
+
+Rendering reconciles small `linbeg`/`linstep`/stop corrections separately: a visual
+offset decays with a 120 ms time constant, without filtering ordinary movement.
+The world tick publishes one XY position used by scene placement and the camera,
+including the mount followed by a rider. Network changes between world tick and
+rendering cannot replace that published position. `Gob.getc()` and authoritative
+movement remain unchanged. Corrections over 55 world units snap (teleports), and
+switching to other movement modes clears reconciliation. This path is shared by
+OpenGL and Vulkan. `test-movement-smoothing` checks captured-size correction bursts,
+frame stability, steady motion without lag, settling after stopping and teleports.
+`predicted_*` remains unsmoothed in diagnostics; a temporary difference from
+`placed_*` is now expected during reconciliation.
+
+Water sky image decoding and all six RGBA face conversions run on a dedicated
+daemon thread. A tiny fallback is used until ready; the sampler refreshes via
+`FrameInfo` on both renderers. GPU upload remains on the renderer, using immutable
+prepared bytes that also survive context recreation. `test-water-sky` checks the
+nonblocking path and byte-for-byte parity with the former cubemap conversion.
+
 ## Baseline visuals
 
 Selecting Vulkan changes the rendering backend, without opting into a new visual
@@ -87,7 +167,13 @@ production volume shaders on Vulkan (rotation, animation, depth occlusion and th
 lower-step approximation and colored fire), saves diagnostic images and checks particle trajectories.
 GPU tests on the development machine do not constitute AMD/Intel driver testing.
 Wet terrain uses explicit surface profiles: vegetation stays matte, soil darkens
-with a restrained sheen, and paving has a broad, bounded highlight. At full
+with a restrained sheen, and paving has a broad, bounded highlight. The separate
+**Relief only on bricks and paving** preference restricts both Ground relief and
+its parallax to the paving material profile. GroundTile transitions and TerrainTile
+base/variant materials retain their classification when settings change, so existing
+terrain responds without reloading the map. Master relief and depth controls still
+apply; disabling the restriction restores relief on natural terrain.
+At full
 wetness, vegetation darkens by 22%, soil by 32% and paving by 28% before adding
 the sheen. Paving's reflected-light gain is 1.10 (twice the previous 0.55).
 Paving highlights follow the existing stone relief rather than a
@@ -105,9 +191,62 @@ Debug's Heavy rain option enables local rain at three times the ordinary preview
 rate, updates the existing particle source in place, and restores ordinary rain
 when unchecked. Disabling rain or restoring server weather also clears Heavy rain.
 The former lightning screen-flash effect and its setting have been removed.
+The separate **Lightning bolts during rain** option now renders branching world-space
+discharges, with a white core, blue halo, a descending leader and repeated strokes
+through the same channel. It is off by default and independent of water effects.
+It uses CPU fractal subdivision and camera-facing triangles following
+[NVIDIA's Lightning SDK](https://developer.download.nvidia.com/SDK/10.5/direct3d/Source/Lightning/doc/lightning_doc.pdf),
+with core Vulkan rendering and no CUDA, RTX or vendor-specific extensions.
+Scene depth hides occluded channels; the pass runs after temporal accumulation and
+tonemapping to avoid trails and exposure pumping. Shader/pipeline preparation uses
+the asynchronous draw path and starts before the first strike. Dry weather and
+black indoor lighting suppress strikes; Debug Heavy rain previews them every 2–3 s.
+`test-lightning` checks bounded geometry across 100 seeds and four camera angles,
+settings isolation, rain gates, GPU depth occlusion, animation, expiry and scene
+alpha. `LightningTest --preview` also exports frames for a short animation preview.
+With Vulkan effects enabled, rain smoothly desaturates and dims the existing
+outdoor ambient/direct light (including the optional daily palette). It preserves
+time-of-day luminance, black indoor light, light direction and warm local lights;
+it does not apply a gray fullscreen filter. Cloud cover follows current rain,
+independently of ground wetness, with a slower clearing transition.
+The separate **Rain ripples on water** option requires Transparent water and works
+with Water reflections off. Small randomized impacts expand and fade over 1.6 s
+in world space, sampling neighbouring cells to avoid cut circles or section seams.
+Heavy rain increases their density. Normals distort refraction and highlights;
+subtle sky-lit crests keep rings readable without reflections. Pixel-footprint
+filtering removes unresolved circles at distance. Current rain has its own uniform,
+so lingering wet ground cannot spawn drops, and toggling rings does not recompile
+the water shader. `test-water-surface` includes day/night lighting checks and GPU
+checks for dry/off isolation, rain density, motion, section seams and occlusion.
+Enclosed-map water uses 25% of surface swell amplitude and 35% of wind-ripple
+strength, retaining animation and object wakes. The raw server outdoor-light
+target selects this profile independently of brightness controls and Debug time;
+faint nonzero night lighting retains normal surface waves. Both displaced geometry
+and shading derivatives use the same strength, passed as uniforms without changing
+shader variants. `test-water-surface` verifies weaker but nonzero motion and the
+complete sheltered-water resolve on Vulkan.
 The optional gust-driven tree sway, ambient dust/fireflies/leaves, footsteps
 and butterflies have also been removed, including their settings and presets.
 The game's original vegetation animation, weather, smoke and fire embers remain.
+The separate **Animated grass** option adds short segmented blades exclusively to
+`gfx/tiles/grass`. It defaults off. The implementation follows Shrine's procedural
+blade/root weighting and GaussianPatch grouping, with deterministic jittered tufts,
+elongated groups and sparse margins. Heights range from 1.3 to 3.4 Haven units;
+roots sample the actual terrain surface. Grass does not change movement or picking.
+Geometry is built by one background worker in bounded 4x4-tile patches (at most 25
+resident patches), invalidated when source map meshes change. Missing resources
+retry without waiting on the frame thread. The Vulkan pass uses asynchronous
+pipeline preparation, writes depth before water and temporal accumulation, and
+uses no vendor-specific APIs or per-blade CPU animation. Distant blades smoothly
+shrink between 72 and 87 world units. Wind and distance-sampled player contacts bend
+only the upper blade; the strongest nearby contact wins, and the trail relaxes in
+1.4 seconds. Teleports clear the trail. `test-grass` covers placement, slope/root
+height, repeatability, bounded geometry, distance sampling, wind, contact, recovery
+and foreground occlusion; `GrassTest --preview` writes rendered animation frames.
+Contact sampling carries residual path length across frames and interpolates birth
+times, so equal trajectories at different frame rates produce the same contacts.
+Completed background patches are checked against current map meshes before adoption;
+only failed/missing-resource builds are delayed for retry, not valid terrain updates.
 The former Water details (lake-bed caustics and rings around waders) implementation
 and its setting have been removed, including the old source texture upload.
 
@@ -165,9 +304,14 @@ the existing world-space normals and light direction. This leaves the wave
 geometry, spectrum and animation intact while avoiding flat blue water away
 from the sun. Specular energy is concentrated on resolved tilted facets; a faint
 broad sheen remains instead of saturating the entire patch near the mirror angle.
+An additional bounded artistic skylight sparkle uses only the short-wave slopes,
+computed alongside the full normal without another wave evaluation. It remains
+visible around the camera orbit, scales with skylight, and fades with unresolved
+normal variance. The existing directional sun lobe is unchanged. Both contributions
+obey the Water reflections switch and shoreline coverage.
 Normal variance fades unresolved sparkles. A 24-azimuth, three-elevation sweep
 for river and ocean checks stable average brightness, readable relief at every
-angle, sparse bright highlights and retained local peaks. Bed transmission is
+angle, minimum visible glint coverage, sparse bright highlights and retained local peaks. Bed transmission is
 checked against a black-bed reference, separately from the added surface relief.
 Facets fade across the light/view horizon. The GPU regression sweeps six elevations
 for both river and ocean under a bright sun, checking highlight range and gradients.
@@ -181,13 +325,14 @@ Classic water retains the resource's original pass. GPU regression checks that
 zero-alpha foam leaves water unchanged, visible foam blends, and solid foreground
 objects still occlude it.
 
-Land texture fringes over water now share the bed's vertices, UVs and triangle
-diagonal. They descend from the pinned shoreline into the shallows instead of
-forming a surface-level cutout with a shadow underneath. A geometry state selects
-the submerged fringe for transparent water, including its shadow pass, and the
-original fringe for Classic; ground overlays and picking retain their surface.
-`WaterShoreTest` exercises straight/corner banks, checks their depth and footprint,
-renders the water resolve and compares Classic against the original geometry.
+Land texture fringes over water use the original surface vertices, UVs and triangle
+diagonal in both water modes. There is no second submerged bank mesh: projecting
+the texture onto the bed caused stretched patches in shallow water. Only these
+fringes carry `ShadowMap.maskshadow`, excluding them from directional and point-light
+shadow casting while retaining lighting and received shadows. Ground overlays,
+the actual terrain and picking retain their original geometry and shadow settings.
+`WaterShoreTest` exercises straight/corner banks, checks original vertex identity,
+the isolated shadow mask and a single mesh, and compares both modes to the original.
 It is included in `test-water-surface`; previews are in `build/water-preview/shore-*`.
 
 Four wave components displace a 4x4 subdivision of each tile vertically; their
@@ -348,6 +493,28 @@ must produce none. The previous executor submitted twice per frame and copied
 the parent arena again after presentation, potentially waiting for a GPU slot
 before delivering the UI callback. Frame-time statistics are diagnostic only;
 this small scene does not measure in-game camera smoothness.
+
+The Vulkan upload ring retains a recently used working set up to 64 MiB per
+submission slot (three slots, up to 192 MiB retained). Active submissions may
+temporarily exceed that cache budget. Reuse and eviction happen only after that
+slot's fence has retired. Empty blocks are searched by size before allocating;
+new blocks are rounded to 4 MiB so small size changes do not repeatedly allocate.
+Unused blocks expire after 120 slot resets, leaving at most a 16 MiB idle reserve
+per slot. Ring teardown still frees everything. Presentation pacing is unchanged.
+`ant test-vulkan-ring` verifies reuse under changing request order, alignment,
+non-overlap, cache bounds and expiry, then uploads and reads back 18 pairs of
+8/6 MiB textures across real GPU submissions with no ring allocations after warmup.
+
+Water surface and object-foam resolve draws opt into `States.asynccompile`.
+On Vulkan, the immediate draw path uses the same background program and pipeline
+builders as draw lists. An unready draw records no command and is retried next
+frame; uniforms and geometry are not committed to a partially prepared command.
+The new effect can appear a few frames late on its first encounter, while the
+rest of the frame continues. OpenGL and unmarked immediate draws are unchanged.
+Pipeline build failures are reported instead of leaving a permanently missing
+effect. `ant test-vulkan-async-draw` blocks the compiler workers to check both
+preparation stages, state recovery, error propagation and immediate warm reuse.
+Water/shore GPU image tests retry incomplete preparation before comparing pixels.
 
 ## Compatibility fixes covered
 

@@ -30,6 +30,7 @@ import static haven.render.sl.Type.*;
  */
 public class GroundRelief {
     public static volatile boolean enabled = false;
+    private static volatile boolean pavingOnly = false;
     private static volatile float strength = 1.0f;
 
     /* The stone normal, from a smooth height (in world units): the
@@ -408,23 +409,36 @@ public class GroundRelief {
     }
 
     public static final State.Slot<State> slot = new State.Slot<>(State.Slot.Type.DRAW, State.class);
-    public static final State state = new State() {
+
+    private static State material(boolean paving) {
+        return new State() {
 	    public ShaderMacro shader() {
-		return(enabled ? macro(strength) : null);
+		return(enabled && (!pavingOnly || paving) ? macro(strength) : null);
 	    }
 
 	    public void apply(Pipe p) {
 		p.put(slot, this);
 	    }
 
-	    public String toString() {return("#<ground-relief>");}
+	    public String toString() {return(paving ? "#<paving-relief>" : "#<ground-relief>");}
 	};
+    }
+    public static final State state = material(false);
+    private static final State pavingState = material(true);
+
+    public static State state(Atmos.WetSurface surface) {
+        return surface == Atmos.WetSurface.PAVING ? pavingState : state;
+    }
 
     /* Returns whether anything changed (and programs must be rebuilt). */
     public static boolean set(boolean ground, float k, boolean pom) {
+        return set(ground, k, pom, false);
+    }
+    public static boolean set(boolean ground, float k, boolean pom, boolean onlyPaving) {
 	k = Math.round(k * 20) / 20.0f;
 	boolean ch = (ground != enabled) || (ground && (k != strength)) ||
-	    (ground && (pom != parallax));
+	    (ground && (pom != parallax)) || (ground && (onlyPaving != pavingOnly));
+	pavingOnly = onlyPaving;
 	parallax = pom;
 	enabled = ground;
 	strength = k;

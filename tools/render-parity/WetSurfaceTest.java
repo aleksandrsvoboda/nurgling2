@@ -41,6 +41,15 @@ public class WetSurfaceTest {
         } finally {output.dispose();}
     }
     public static void main(String[] args) throws Exception {
+        GroundRelief.set(true,.9f,true,true);
+        State natural=GroundRelief.state(Atmos.WetSurface.SOIL),paving=GroundRelief.state(Atmos.WetSurface.PAVING);
+        require(natural.shader()==null&&GroundRelief.state(Atmos.WetSurface.VEGETATION).shader()==null,"Paving-only relief leaks onto natural terrain");
+        require(paving.shader()!=null,"Paving-only relief also disables paving");
+        require(GroundRelief.set(true,.9f,true,false),"Scope change did not request shader refresh");
+        require(natural.shader()!=null&&natural.shader()==paving.shader(),"Existing materials do not restore full-terrain relief");
+        GroundRelief.set(false,.9f,true,true);
+        require(paving.shader()==null&&natural.shader()==null,"Paving-only setting overrides master relief switch");
+        GroundRelief.set(true,.9f,true,true);
         if(args.length>0 && args[0].equals("--cached-resources")) {
             Resource.setcache(ResCache.global);
             for(String name:new String[]{"ballbrick","graywacke","soapstone"}) {
@@ -51,9 +60,11 @@ public class WetSurfaceTest {
                 haven.resutil.TerrainTile terrain=(haven.resutil.TerrainTile)tile;
                 Pipe state=new BufPipe();terrain.draw.apply(state);
                 require(state.get(Atmos.WetSurface.slot)==Atmos.WetSurface.PAVING,"Actual paving base has wrong wet profile: "+name);
+                require(state.get(GroundRelief.slot).shader()!=null,"Actual brick/stone paving lost relief in paving-only mode: "+name);
                 for(haven.resutil.TerrainTile.Var variant:terrain.var) {
                     state=new BufPipe();variant.draw.apply(state);
                     require(state.get(Atmos.WetSurface.slot)==Atmos.WetSurface.PAVING,"Paving variant has wrong wet profile: "+name);
+                    require(state.get(GroundRelief.slot).shader()!=null,"Paving variant lost relief in paving-only mode: "+name);
                 }
             }
             System.out.println("Cached brick/stone paving base and variant profiles: PASS");
@@ -61,6 +72,8 @@ public class WetSurfaceTest {
         require(Atmos.WetSurface.ground("gfx/tiles/paving/brick")==Atmos.WetSurface.PAVING,"Paving profile lost");
         require(Atmos.WetSurface.terrain("gfx/tiles/grass")==Atmos.WetSurface.VEGETATION,"Grass gets a reflective film");
         require(Atmos.WetSurface.ground("gfx/tiles/dirt")==Atmos.WetSurface.SOIL,"Soil profile lost");
+        GroundRelief.set(false,1,false,false);
+        System.out.println("Relief scope: PASS (paving, natural terrain, existing materials, parallax and master switch)");
         Toolkit toolkit=Toolkit.toolkits().get("vulkan").open();Windeye window=toolkit.window();int exit=0;
         try {
             window.title("Wet surface regression");window.sizing(new Windeye.Sizing().fixsize(SIZE)).show(true);

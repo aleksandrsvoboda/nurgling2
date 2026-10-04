@@ -388,12 +388,23 @@ public class OCache implements Iterable<Gob> {
 		}
 		while(true) {
 		    AttrDelta d;
+		    int queued;
 		    synchronized(this) {
 			if((d = pending.peek()) == null)
 			    break;
+			queued = pending.size();
 		    }
+		    boolean tracing = nurgling.diagnostics.MovementTrace.tracks(glob, id);
+		    double attempt = tracing ? Utils.rtime() : 0;
 		    synchronized(gob) {
-			deltas.get(d.type).apply(gob, d.clone());
+			double locked = tracing ? Utils.rtime() : 0;
+			boolean complete = false;
+			try {
+			    deltas.get(d.type).apply(gob, d.clone());
+			    complete = true;
+			} finally {
+			    if(tracing) nurgling.diagnostics.MovementTrace.applied(glob, id, d, attempt, locked, queued, complete);
+			}
 		    }
 		    synchronized(this) {
 			if((pending.poll()) != d)
@@ -462,6 +473,8 @@ public class OCache implements Iterable<Gob> {
     }
 
     public static class ObjDelta {
+	public double receivedAt = Double.NaN;
+	public long packet = -1;
 	public int fl, frame;
 	public int initframe;
 	public long id;
@@ -475,6 +488,8 @@ public class OCache implements Iterable<Gob> {
 	}
 
 	public ObjDelta(ObjDelta from) {
+	    this.receivedAt = from.receivedAt;
+	    this.packet = from.packet;
 	    this.fl = from.fl;
 	    this.id = from.id;
 	    this.frame = from.frame;
@@ -493,10 +508,16 @@ public class OCache implements Iterable<Gob> {
 
     public static class AttrDelta extends PMessage {
 	public boolean old;
+	public double receivedAt, queuedAt = Double.NaN;
+	public int frame;
+	public long packet;
 
 	public AttrDelta(ObjDelta od, int type, byte[] blob) {
 	    super(type, blob);
 	    this.old = ((od.fl & 4) != 0);
+	    this.receivedAt = od.receivedAt;
+	    this.frame = od.frame;
+	    this.packet = od.packet;
 	}
 
 	public AttrDelta(ObjDelta od, int type, Message blob, int len) {
@@ -506,6 +527,10 @@ public class OCache implements Iterable<Gob> {
 	public AttrDelta(AttrDelta from) {
 	    super(from);
 	    this.old = from.old;
+	    this.receivedAt = from.receivedAt;
+	    this.queuedAt = from.queuedAt;
+	    this.frame = from.frame;
+	    this.packet = from.packet;
 	}
 
 	public AttrDelta clone() {
@@ -514,6 +539,7 @@ public class OCache implements Iterable<Gob> {
     }
 
     public GobInfo receive(ObjDelta delta) {
+	nurgling.diagnostics.MovementTrace.received(glob, delta);
 	if(delta.rem)
 	    return(netremove(delta.id, delta.frame - 1));
 	synchronized(netinfo) {
@@ -524,6 +550,8 @@ public class OCache implements Iterable<Gob> {
 		synchronized(ng) {
 		    ng.frame = delta.frame;
 		    ng.virtual = ((delta.fl & 2) != 0);
+		    double queuedAt = Utils.rtime();
+		    for(AttrDelta attr : delta.attrs) attr.queuedAt = queuedAt;
 		    ng.pending.addAll(delta.attrs);
 		    ng.checkdirty(false);
 		}

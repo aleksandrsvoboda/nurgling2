@@ -31,15 +31,15 @@ public class NGfx {
 	/* Anisotropic filtering level (1 = off) */
 	public final int aniso;
 	/* Terrain relief */
-	public final boolean relief;
+	public final boolean relief, reliefpavingonly;
 	public final float reliefstrength;
 	/* Realistic fire (flames, embers) and smoke */
 	public final boolean fire, smoke;
 	/* Transparent water and its independently switchable reflections. */
-	public final boolean water, waterreflections;
+	public final boolean water, waterreflections, rainripples;
 	/* World: wet ground in
 	 * rain, fire glow, heat shimmer and light shafts. */
-	public final boolean wet, glow, heat, shafts;
+	public final boolean wet, glow, heat, shafts, lightning, grass;
 	/* Temporal anti-aliasing, edge-aware upscaling, auto-exposure;
 	 * snow settling and parallax ground. */
 	public final boolean taa, upscale, autoexp, snow, parallax;
@@ -61,10 +61,14 @@ public class NGfx {
 	    aniso = i(m, "aniso", 1);
 	    water = b(m, "water", false);
 	    waterreflections = b(m, "waterreflections", water);
+	    rainripples = b(m, "rainripples", false);
 	    relief = b(m, "relief", false);
+	    reliefpavingonly = b(m, "reliefpavingonly", false);
 	    reliefstrength = f(m, "reliefstrength", 1.0f);
 	    fire = b(m, "fire", false);
 	    wet = b(m, "wet", false);
+	    lightning = b(m, "lightningbolts", false);
+	    grass = b(m, "animatedgrass", false);
 	    glow = b(m, "glow", false);
 	    heat = b(m, "heat", false);
 	    shafts = b(m, "shafts", false);
@@ -86,9 +90,13 @@ public class NGfx {
 	    m.put("bettershadows", bettershadows);
 	    m.put("aniso", aniso); m.put("water", water);
 	    m.put("waterreflections", waterreflections);
+	    m.put("rainripples", rainripples);
 	    m.put("relief", relief); m.put("reliefstrength", reliefstrength);
+	    m.put("reliefpavingonly", reliefpavingonly);
 	    m.put("fire", fire); m.put("smoke", smoke);
 	    m.put("wet", wet); m.put("glow", glow);
+	    m.put("lightningbolts", lightning);
+	    m.put("animatedgrass", grass);
 	    m.put("heat", heat); m.put("shafts", shafts);
 	    m.put("taa", taa); m.put("upscale", upscale); m.put("autoexp", autoexp);
 	    m.put("snow", snow);
@@ -145,6 +153,7 @@ public class NGfx {
 	    m.put("smoke", on);
 	    m.put("water", on);
 	    m.put("waterreflections", on);
+	    m.put("rainripples", on);
 	    m.put("wet", on);
 	    m.put("glow", on);
 	    m.put("heat", on);

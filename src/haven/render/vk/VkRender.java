@@ -481,6 +481,10 @@ public class VkRender implements Render, Disposable {
     private Dyn dyn = null;
 
     private void apply(Pipe to) {
+	apply(to, false);
+    }
+
+    private boolean apply(Pipe to, boolean async) {
 	State[] ns = to.states();
 	if(cur.length < ns.length) {
 	    cur = Arrays.copyOf(cur, ns.length);
@@ -500,7 +504,7 @@ public class VkRender implements Render, Disposable {
 	    }
 	}
 	if((pn == 0) && (prog != null))
-	    return;
+	    return(true);
 	int shash = this.shash;
 	boolean schanged = false;
 	ShaderMacro[] nshaders = shaders;
@@ -519,7 +523,9 @@ public class VkRender implements Render, Disposable {
 	}
 	VkProgram prog = this.prog;
 	if(schanged || (prog == null))
-	    prog = env.getprog(shash, nshaders);
+	    prog = async ? env.getprogasync(shash, nshaders) : env.getprog(shash, nshaders);
+	if(prog == null)
+	    return(false); // Do not commit partial state while the shader is pending.
 	boolean pchanged = (prog != this.prog);
 	Object[] nuvals = pchanged ? new Object[prog.uniforms.length] : uvals;
 	boolean fdirty = pchanged, ddirty = pchanged;
@@ -572,6 +578,7 @@ public class VkRender implements Render, Disposable {
 	this.uvals = nuvals;
 	this.tgt = ntgt;
 	this.dyn = ndyn;
+	return(true);
     }
 
     private Object getuval(VkProgram prog, int ui, Pipe pipe) {
@@ -608,10 +615,21 @@ public class VkRender implements Render, Disposable {
 
     /* Render interface */
 
+    private int pendingDraws;
+    public int pendingDraws() {return(pendingDraws);}
+
     public void draw(Pipe pipe, Model data) {
-	apply(pipe);
-	Geometry geo = ephgeometry(data);
+	boolean async = pipe.get(States.asynccompile.slot) != null;
+	if(!apply(pipe, async)) {
+	    pendingDraws++;
+	    return;
+	}
 	PipeKey key = prog.pipekey(prog.vkey(data.va.fmt), topology(data.mode), tgt.cfmt, tgt.dfmt, tgt.blend, tgt.cmask);
+	if(async && !prog.pipeready(key)) {
+	    pendingDraws++;
+	    return;
+	}
+	Geometry geo = ephgeometry(data);
 	cmds.add(new DrawCmd(prog, key, tgt, dyn, tex(), ubo(), geo));
     }
 

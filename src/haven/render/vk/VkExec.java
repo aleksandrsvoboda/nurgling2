@@ -62,6 +62,8 @@ public class VkExec {
     public static final int SLOTS = 3;
     public static final int QUERIES = 64;
     public static final int CHUNK = 4 << 20;
+    static final long RING_CACHE_BYTES = 64L << 20;
+    static final int RING_IDLE_RESETS = 120;
     final VkEnvironment env;
     final VkDevice dev;
     private final Slot[] slots = new Slot[SLOTS];
@@ -77,11 +79,13 @@ public class VkExec {
     private final VkBuf dummyvtx;
     private final long dummysmp;
     private long nunits = 0, npresent = 0;
+    long ringAllocations = 0, ringDestructions = 0;
 
     static class Chunk {
 	final long buf, alloc, addr;
 	final int size;
 	int pos = 0;
+	int idle = 0;
 
 	Chunk(long buf, long alloc, long addr, int size) {
 	    this.buf = buf;
@@ -99,50 +103,80 @@ public class VkExec {
 	int roff;
 
 	void alloc(int sz, int align) {
-	    while(true) {
-		if(cur >= chunks.size())
-		    chunks.add(mkchunk(Math.max(CHUNK, sz + align)));
+	    if(sz < 0 || align <= 0 || (align & (align - 1)) != 0)
+		throw(new IllegalArgumentException("Invalid ring allocation"));
+	    if(cur < chunks.size() && chunks.get(cur).pos > 0) {
 		Chunk c = chunks.get(cur);
-		int off = (c.pos + align - 1) & ~(align - 1);
+		long off = ((long)c.pos + align - 1) & -(long)align;
 		if(off + sz <= c.size) {
-		    c.pos = off + sz;
-		    rbuf = c.buf;
-		    roff = off;
-		    raddr = c.addr + off;
+		    use(c, (int)off, sz);
 		    return;
-		}
-		if((c.pos == 0) && (sz + align > c.size)) {
-		    /* Too big for this chunk even when empty. */
-		    Chunk n = mkchunk(sz + align);
-		    chunks.add(cur, n);
-		    continue;
 		}
 		cur++;
 	    }
+	    /* The unused tail is empty. Choose the smallest fitting block before
+	     * allocating; inserting in front of a small block used to miss larger
+	     * cached blocks further down the list. */
+	    int best = -1;
+	    for(int i = cur; i < chunks.size(); i++) {
+		Chunk c = chunks.get(i);
+		if(c.size >= sz && (best < 0 || c.size < chunks.get(best).size)) best = i;
+	    }
+	    if(best >= 0) {
+		Collections.swap(chunks, cur, best);
+	    } else {
+		long rounded = Math.max(CHUNK, ((long)sz + CHUNK - 1) / CHUNK * CHUNK);
+		chunks.add(cur, mkchunk((int)Math.min(Integer.MAX_VALUE, rounded)));
+	    }
+	    use(chunks.get(cur), 0, sz);
+	}
+
+	private void use(Chunk c, int off, int sz) {
+	    c.pos = off + sz;
+	    rbuf = c.buf;
+	    roff = off;
+	    raddr = c.addr + off;
 	}
 
 	void reset() {
-	    for(Chunk c : chunks)
+	    double started = Utils.rtime();
+	    long freed = ringDestructions;
+	    long bytes = 0;
+	    for(Chunk c : chunks) {
+		c.idle = c.pos > 0 ? 0 : Math.min(RING_IDLE_RESETS, c.idle + 1);
 		c.pos = 0;
+		bytes += c.size;
+	    }
 	    cur = 0;
-	    /* Drop oversized chunks, keep a few normal ones. */
+	    /* begin() has retired this slot's fence. Keep its recent working set,
+	     * bounded per slot, rather than destroying every block larger than 4 MiB
+	     * on every frame. Trim old blocks first; preserve a small idle reserve. */
+	    chunks.sort(Comparator.comparingInt((Chunk c) -> c.idle).reversed()
+		.thenComparing(Comparator.comparingInt((Chunk c) -> c.size).reversed()));
 	    for(Iterator<Chunk> i = chunks.iterator(); i.hasNext();) {
 		Chunk c = i.next();
-		if((c.size > CHUNK) || (chunks.size() > 4)) {
+		if(bytes > RING_CACHE_BYTES || (c.idle >= RING_IDLE_RESETS && bytes > 4L * CHUNK)) {
 		    vmaDestroyBuffer(env.vma, c.buf, c.alloc);
+		    ringDestructions++;
+		    bytes -= c.size;
 		    i.remove();
 		}
 	    }
+	    nurgling.diagnostics.MovementTrace.renderStage(env, "ring-reset", started,
+		"freed=" + (ringDestructions - freed) + " retained_bytes=" + bytes);
 	}
 
 	void destroy() {
-	    for(Chunk c : chunks)
+	    for(Chunk c : chunks) {
 		vmaDestroyBuffer(env.vma, c.buf, c.alloc);
+		ringDestructions++;
+	    }
 	    chunks.clear();
 	}
     }
 
     private Chunk mkchunk(int size) {
+	double started = Utils.rtime();
 	try(MemoryStack st = stackPush()) {
 	    VkBufferCreateInfo bci = VkBufferCreateInfo.calloc(st).sType$Default().size(size)
 		.usage(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT)
@@ -154,6 +188,8 @@ public class VkExec {
 	    PointerBuffer ap = st.mallocPointer(1);
 	    VmaAllocationInfo info = VmaAllocationInfo.calloc(st);
 	    VkEnvironment.check(vmaCreateBuffer(env.vma, bci, aci, bp, ap, info), "vmaCreateBuffer (ring)");
+	    ringAllocations++;
+	    nurgling.diagnostics.MovementTrace.renderStage(env, "ring-allocate", started, "bytes=" + size);
 	    return(new Chunk(bp.get(0), ap.get(0), info.pMappedData(), size));
 	}
     }
@@ -351,7 +387,9 @@ public class VkExec {
 		long presentid = (env.presentwait && swap.vsync) ? ++swap.presentid : 0;
 		if(presentid != 0)
 		    pi.pNext(VkPresentIdKHR.calloc(st).sType$Default().pPresentIds(st.longs(presentid)).address());
+		double queuedAt = Utils.rtime();
 		int rv = vkQueuePresentKHR(env.queue, pi);
+		nurgling.diagnostics.MovementTrace.renderStage(env, "queue-present", queuedAt, "result=" + rv);
 		if((rv == VK_ERROR_OUT_OF_DATE_KHR) || (rv == VK_SUBOPTIMAL_KHR))
 		    swapdirty = true;
 		else if(rv == VK_ERROR_SURFACE_LOST_KHR)
@@ -366,7 +404,10 @@ public class VkExec {
 		     * vsynced frames by presentation before releasing the next
 		     * render's CPU fence. The UI can still prepare the next frame.
 		     * Bound the wait for hidden/minimized or changing surfaces. */
+		    double waitAt = Utils.rtime();
 		    int wr = vkWaitForPresentKHR(dev, swap.sc, presentid, 100000000L);
+		    nurgling.diagnostics.MovementTrace.renderStage(env, "present-wait", waitAt,
+			"id=" + presentid + " result=" + wr);
 		    if((wr == VK_ERROR_OUT_OF_DATE_KHR) || (wr == VK_SUBOPTIMAL_KHR))
 			swapdirty = true;
 		    else if(wr == VK_ERROR_SURFACE_LOST_KHR)
@@ -1188,8 +1229,8 @@ public class VkExec {
 		ringsz += c.size;
 	    }
 	}
-	return(String.format("units %,d, presents %,d, ring %d chunks / %,d kB, swap %s",
-			     nunits, npresent, nring, ringsz / 1024,
+	return(String.format("units %,d, presents %,d, ring %d chunks / %,d kB (alloc %,d / free %,d), swap %s",
+			     nunits, npresent, nring, ringsz / 1024, ringAllocations, ringDestructions,
 			     (swap == null) ? "none" : String.format("%dx%d%s", swap.w, swap.h, swap.vsync ? " vsync" : "")));
     }
 

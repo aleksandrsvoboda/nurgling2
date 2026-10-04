@@ -110,6 +110,8 @@ public class NPostFX {
 	private SceneFX.Heat heat;
 	private VolumeFire volumeFire;
 	private WaterSurface waterSurface;
+	private Lightning lightning;
+	private Grass grass;
 	private SceneFX.Shafts shafts;
 	private Temporal.TAA taa;
 	private Temporal.AutoExposure autoexp;
@@ -164,12 +166,15 @@ public class NPostFX {
 		grade.exposure = s.exposure; grade.contrast = s.contrast;
 		grade.saturation = s.saturation; grade.warmth = s.warmth;
 	    }
-	    boolean rp = GroundRelief.set(s.relief, s.reliefstrength, s.parallax);
+	    boolean rp = GroundRelief.set(s.relief, s.reliefstrength, s.parallax, s.reliefpavingonly);
 	    volumeFire = toggle(volumeFire, s.fire, () -> new VolumeFire(view));
 	    rp |= FireFX.set(s.fire, s.smoke, s.hdr());
 	    rp |= Atmos.set(s.wet, s.glow, s.water);
 	    waterSurface = toggle(waterSurface, s.water, () -> new WaterSurface(view));
 	    if(waterSurface != null) waterSurface.reflections = s.waterreflections;
+	    if(waterSurface != null) waterSurface.rainRipples = s.rainripples;
+	    lightning = toggle(lightning, s.lightning, () -> new Lightning(view));
+	    grass = toggle(grass, s.grass, () -> new Grass(view));
 	    rp |= (s.snow != Atmos.snow);
 	    Atmos.snow = s.snow;
 	    hist = toggle(hist, s.smoke, () -> new SceneFX.History(view));
@@ -194,7 +199,7 @@ public class NPostFX {
 	}
 
 	public void dispose() {
-	    for(PostProcessor effect : new PostProcessor[]{waterSurface,volumeFire,hist,heat,shafts,taa,autoexp,sharp,fxaa,dof}) {
+	    for(PostProcessor effect : new PostProcessor[]{grass,lightning,waterSurface,volumeFire,hist,heat,shafts,taa,autoexp,sharp,fxaa,dof}) {
 	        if(effect != null) {view.remove(effect);effect.dispose();}
 	    }
 	    if(grade != null) {view.tonemap(null);grade.dispose();}
@@ -214,9 +219,18 @@ public class NPostFX {
 	    dof = toggle(dof, Photo.on, () -> new SceneFX.DoF(view));
 	    double now = Utils.rtime();
 	    if(waterSurface != null) waterSurface.wakes.tick(mv,now);
+	    if(lightning != null) lightning.tick(mv,now);
+	    if(grass != null) grass.tick(mv,now);
 	    float dt = (float)Math.min(Math.max(now - last, 0), 1.0);
 	    last = now;
 	    DirLight sun = mv.amblight;
+	    if(waterSurface != null) {
+		synchronized(mv.glob) {
+		    waterSurface.sheltered = WaterSurface.sheltered(mv.glob.tlightdif != null ? mv.glob.tlightdif : mv.glob.lightdif);
+		}
+		float rainTarget = RainLighting.intensity(mv.weather());
+		waterSurface.rainIntensity += (rainTarget - waterSurface.rainIntensity) * (1 - (float)Math.exp(-dt / .6f));
+	    }
 	    boolean raining = false, snowing = false;
 	    for(Glob.Weather w : mv.weather()) {
 		if((w instanceof haven.res.gfx.fx.rain.Rain) && (((haven.res.gfx.fx.rain.Rain)w).rate > 0)) {

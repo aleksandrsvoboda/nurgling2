@@ -384,6 +384,26 @@
     </java>
   </target>
 
+  <target name="test-vulkan-async-draw" depends="renderer-parity-compile"
+          description="Verify optional immediate draws never compile shaders or pipelines on frame threads">
+    <java classname="haven.render.vk.VulkanAsyncDrawTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-vulkan-ring" depends="renderer-parity-compile"
+          description="Check bounded Vulkan upload-buffer reuse and GPU readback across fenced slots">
+    <java classname="haven.render.vk.VulkanRingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
   <target name="test-vulkan-pacing" depends="renderer-parity-compile"
           description="Exercise pipelined Vulkan frame pacing, VSync and window lifecycle">
     <condition property="parity-exports"><javaversion atleast="16" /></condition>
@@ -411,6 +431,81 @@
   <target name="test-scene-debug" depends="renderer-parity-compile"
           description="Check local lighting/weather previews, reset and effect disposal">
     <java classname="nurgling.render.SceneDebugTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-weather-state" depends="renderer-parity-compile"
+          description="Check weather transitions avoid a full scene rebuild and update Vulkan uniforms">
+    <java classname="haven.WeatherStateTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <arg value="--gpu" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-lightning" depends="renderer-parity-compile"
+          description="Check procedural lightning geometry, animation, depth occlusion and Vulkan rendering">
+    <java classname="nurgling.render.LightningTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-grass" depends="renderer-parity-compile"
+          description="Check grass grouping, height, rooted deformation and Vulkan animation">
+    <java classname="nurgling.render.GrassTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-movement-trace" depends="renderer-parity-compile"
+          description="Check movement diagnostic retention, isolation and asynchronous capture">
+    <java classname="nurgling.diagnostics.MovementTraceTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-movement-timing" depends="renderer-parity-compile"
+          description="Replay stalled frames and server movement corrections with a deterministic clock">
+    <java classname="haven.LinMoveTimingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-movement-smoothing" depends="renderer-parity-compile"
+          description="Replay trajectory bursts and check shared render positions and correction settling">
+    <java classname="haven.MovementSmoothingTest" fork="true" failonerror="true">
+      <arg value="--integration" />
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-water-sky" depends="renderer-parity-compile"
+          description="Check nonblocking water sky preparation and cubemap pixel parity">
+    <java classname="haven.resutil.WaterSkyTest" fork="true" failonerror="true">
       <classpath>
         <pathelement path="build/parity-classes" />
         <fileset dir="bin" includes="*.jar" />
@@ -481,6 +576,12 @@
   <target name="test-water-surface" depends="renderer-parity-compile"
           description="Check transparent river/ocean rendering, depth and flow continuity on Vulkan">
     <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.RainLightingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
     <java classname="nurgling.render.WaterWakesTest" fork="true" failonerror="true">
       <classpath>
         <pathelement path="build/parity-classes" />

@@ -13,6 +13,11 @@ import static haven.render.sl.Type.*;
  * copy of THIS frame's scene; water writes the real depth for subsequent effects.
  * No compute, tessellation, ray-tracing or vendor extensions are required. */
 public class WaterSurface extends RenderContext.PostProcessor {
+    /** Server outdoor light is black in enclosed maps; use the raw value so
+     * brightness adjustments and Debug time cannot turn cave waves into swell. */
+    static boolean sheltered(java.awt.Color outdoorDiffuse) {
+        return outdoorDiffuse!=null && (outdoorDiffuse.getRGB()&0xffffff)==0;
+    }
     public static boolean ocean(String name) {
         return name.equals("gfx/tiles/owater") || name.equals("gfx/tiles/odeep") ||
             name.equals("gfx/tiles/odeeper") || name.startsWith("gfx/tiles/ocean");
@@ -44,8 +49,8 @@ public class WaterSurface extends RenderContext.PostProcessor {
             return new String(out.toByteArray(),StandardCharsets.UTF_8);
         } catch(IOException e) {throw new RuntimeException(e);}
     }
-    static final RawFunction waves=new RawFunction(VEC4,"water_position",3,source("water-waves.glsl"));
-    static final RawFunction shade=new RawFunction(VEC4,"water_color",16,source("water-shade.glsl"));
+    static final RawFunction waves=new RawFunction(VEC4,"water_position",4,source("water-waves.glsl"));
+    static final RawFunction shade=new RawFunction(VEC4,"water_color",17,source("water-shade.glsl"));
     static final RawFunction foamColor=new RawFunction(VEC4,"water_foam",5,
         "vec4 water_foam(vec4 color,vec3 ep,sampler2D depths,vec4 pp,vec4 pr) {\n"+
         " vec2 uv=(ep.xy*pr.xy/(pp.z>.5?1.0:max(-ep.z,.001))+pr.zw)*.5+.5;\n"+
@@ -65,10 +70,14 @@ public class WaterSurface extends RenderContext.PostProcessor {
         final float[] pp, pr;
         final boolean surface;
         final float reflections;
-        WaterPass(Texture2D.Sampler2D color,Texture2D.Sampler2D depth,Texture2D.Sampler2D wakes,float[] pp,float[] pr,boolean surface,boolean reflections) {
+        final float[] rainfall;
+        final float[] waveStrength;
+        WaterPass(Texture2D.Sampler2D color,Texture2D.Sampler2D depth,Texture2D.Sampler2D wakes,float[] pp,float[] pr,boolean surface,boolean reflections,float rain,boolean ripples,boolean sheltered) {
             this.color=color;this.depth=depth;this.pp=pp;this.pr=pr;this.surface=surface;
             this.wakes=wakes;
             this.reflections=reflections?1:0;
+            this.rainfall=new float[]{rain,ripples?1:0};
+            this.waveStrength=sheltered?new float[]{.25f,.35f}:new float[]{1,1};
         }
         public ShaderMacro shader() {return surface?shader:foamShader;}
         public void apply(Pipe p) {p.put(slot,this);}
@@ -78,19 +87,21 @@ public class WaterSurface extends RenderContext.PostProcessor {
     static final Uniform pp=new Uniform(VEC4,p->p.get(WaterPass.slot).pp,WaterPass.slot);
     static final Uniform pr=new Uniform(VEC4,p->p.get(WaterPass.slot).pr,WaterPass.slot);
     static final Uniform reflect=new Uniform(FLOAT,p->p.get(WaterPass.slot).reflections,WaterPass.slot);
+    static final Uniform rainfall=new Uniform(VEC2,p->p.get(WaterPass.slot).rainfall,WaterPass.slot);
+    static final Uniform waveStrength=new Uniform(VEC2,p->p.get(WaterPass.slot).waveStrength,WaterPass.slot);
     static final Uniform wakeField=new Uniform(SAMPLER2D,p->p.get(WaterPass.slot).wakes,WaterPass.slot);
     static final Uniform camera=new Uniform(MAT4,Homo3D::camxf,Homo3D.cam);
-    static final Uniform sky=new Uniform(SAMPLERCUBE,p->haven.resutil.WaterTile.waterSky());
+    static final Uniform sky=new Uniform(SAMPLERCUBE,p->haven.resutil.WaterTile.waterSky(),FrameInfo.slot);
     // Unlike FrameInfo's modulo clock this has no 50-minute discontinuity.
     static final double epoch=Utils.rtime();
     static final Uniform time=new Uniform(FLOAT,p->{FrameInfo f=p.get(FrameInfo.slot);return(float)((f==null?Utils.rtime():f.time)-epoch);},FrameInfo.slot);
     static final ShaderMacro shader=prog->{
         waves.define(prog.vctx); waves.define(prog.fctx); shade.define(prog.fctx);
         Homo3D h=Homo3D.get(prog);
-        h.mapv.mod(in->waves.call(in,data.ref(),time.ref()),10);
+        h.mapv.mod(in->waves.call(in,data.ref(),time.ref(),pick(waveStrength.ref(),"x")),10);
         FragColor.fragcol(prog.fctx).mod(in->shade.call(rest.ref(),Homo3D.frageyev.ref(),vdata.ref(),
             time.ref(),camera.ref(),color.ref(),depthtex.ref(),pp.ref(),pr.ref(),sky.ref(),
-            GroundRelief.usun.ref(),Atmos.usuncol.ref(),Atmos.uskycol.ref(),Atmos.uwet.ref(),reflect.ref(),wakeField.ref()),2000);
+            GroundRelief.usun.ref(),Atmos.usuncol.ref(),Atmos.uskycol.ref(),rainfall.ref(),reflect.ref(),wakeField.ref(),waveStrength.ref()),2000);
     };
     static final ShaderMacro foamShader=prog->{
         foamColor.define(prog.fctx);
@@ -113,6 +124,9 @@ public class WaterSurface extends RenderContext.PostProcessor {
     final PView view;
     final WaterWakes wakes=new WaterWakes();
     public boolean reflections=true;
+    public boolean rainRipples=false;
+    public float rainIntensity=0;
+    public boolean sheltered=false;
     final SceneFX.Depth depth;
     final Sources sources=new Sources();
     final Sources foamSources=new Sources(true);
@@ -149,8 +163,8 @@ public class WaterSurface extends RenderContext.PostProcessor {
         float[] screen={matrix.m[0],matrix.m[5],ortho?matrix.m[12]:-matrix.m[8],ortho?matrix.m[13]:-matrix.m[9]};
         FrameInfo frame=view.basic.state().get(FrameInfo.slot);
         Texture2D.Sampler2D wakeTexture=wakes.render(g,view.basic.state(),size,frame==null?Utils.rtime():frame.time);
-        WaterPass pass=new WaterPass(in,sceneDepth,wakeTexture,projection[0],screen,true,reflections);
-        WaterPass foamUniforms=new WaterPass(in,sceneDepth,wakeTexture,projection[0],screen,false,false);
+        WaterPass pass=new WaterPass(in,sceneDepth,wakeTexture,projection[0],screen,true,reflections,rainIntensity,rainRipples,sheltered);
+        WaterPass foamUniforms=new WaterPass(in,sceneDepth,wakeTexture,projection[0],screen,false,false,0,false,sheltered);
         try(Locked lock=view.tree.lock()) {
             // Map cuts may have unloaded while the snapshot targets were prepared.
             synchronized(sources.slots){copy=new ArrayList<>(sources.slots);}
@@ -162,6 +176,7 @@ public class WaterSurface extends RenderContext.PostProcessor {
                 st.put(States.depthbias,null);
                 st.put(States.maskdepth.slot,null);
                 st.prep(pass);
+                st.prep(States.asynccompile);
                 s.obj().draw(st,g.out);
             }
             List<RenderList.Slot<? extends Rendered>> foamCopy;
@@ -180,6 +195,7 @@ public class WaterSurface extends RenderContext.PostProcessor {
                 st.prep(FragColor.blend(new BlendMode(BlendMode.Factor.SRC_ALPHA,BlendMode.Factor.INV_SRC_ALPHA)));
                 // The foam variant retains the object's geometry and animation.
                 st.put(WaterPass.slot,foamUniforms);
+                st.prep(States.asynccompile);
                 s.obj().draw(st,g.out);
             }
         }

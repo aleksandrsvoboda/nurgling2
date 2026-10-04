@@ -26,16 +26,25 @@
 
 package haven;
 
-import nurgling.*;
+import java.util.function.DoubleSupplier;
 
 public class LinMove extends Moving {
     public static final double MAXOVER = 0.5;
     public Coord2d s, v;
     public double t, lt, e;
     public boolean ts = false;
+    private final DoubleSupplier clock;
+    private double advancedAt;
 
     public LinMove(Gob gob, Coord2d s, Coord2d v) {
+	this(gob, s, v, Utils::rtime);
+    }
+
+    /* The injected clock also permits deterministic replay of network/frame stalls. */
+    LinMove(Gob gob, Coord2d s, Coord2d v, DoubleSupplier clock) {
 	super(gob);
+	this.clock = clock;
+	this.advancedAt = clock.getAsDouble();
 	this.s = s;
 	this.v = v;
 	this.t = 0;
@@ -43,14 +52,24 @@ public class LinMove extends Moving {
     }
 
     public Coord3f getc() {
-	return(gob.placer().getc(s.add(v.mul(t)), gob.a));
+	return(gob.placer().getc(position(), gob.a));
     }
+
+    Coord2d position() { return(s.add(v.mul(t))); }
 
     public double getv() {
 	return(v.abs());
     }
 
     public void ctick(double dt) {
+	advance(clock.getAsDouble());
+    }
+
+    private void advance(double now) {
+	/* Glob's dt can begin before this trajectory or a server correction existed.
+	 * Integrate only the interval not already consumed by this movement. */
+	double dt = Math.max(0, now - advancedAt);
+	advancedAt = Math.max(advancedAt, now);
 	if(!ts) {
 	    t += dt * 0.9;
 	    if(!Double.isNaN(e) && (t > e)) {
@@ -63,10 +82,15 @@ public class LinMove extends Moving {
     }
 
     public void sett(double t) {
+	/* Consume elapsed prediction before comparing the authoritative time. This
+	 * also prevents a delayed but older update from rewinding our prediction. */
+	advance(clock.getAsDouble());
 	lt = t;
 	if(t > this.t) {
+	    Coord2d before = position();
 	    this.t = t;
 	    ts = false;
+	    if(gob != null) gob.correctMovement(before, position());
 	}
     }
 
@@ -77,7 +101,10 @@ public class LinMove extends Moving {
 	    Coord2d v = msg.coord().mul(OCache.posres);
 	    LinMove lm = g.getattr(LinMove.class);
 	    if((lm == null) || !lm.s.equals(s) || !lm.v.equals(v)) {
+		if(lm != null) lm.advance(lm.clock.getAsDouble());
+		g.correctMovement(lm == null ? g.rc : lm.position(), s);
 		g.setattr(new LinMove(g, s, v));
+		nurgling.diagnostics.MovementTrace.server(g, "linbeg", s, v, lm == null ? Double.NaN : lm.t, 0, Double.NaN);
 	    }
 	}
     }
@@ -101,14 +128,18 @@ public class LinMove extends Moving {
 	    if((m == null) || !(m instanceof LinMove))
 		return;
 	    LinMove lm = (LinMove)m;
-	    if(t < 0)
+	    double before = lm.t;
+	    if(t < 0) {
+		lm.advance(lm.clock.getAsDouble());
+		g.correctMovement(lm.position(), g.rc);
 		g.delattr(Moving.class);
-	    else
+	    } else
 			lm.sett(t);
 	    if(e >= 0)
 		lm.e = e;
 	    else
 		lm.e = Double.NaN;
+	    nurgling.diagnostics.MovementTrace.server(g, "linstep", null, null, before, t, e);
 	}
     }
 

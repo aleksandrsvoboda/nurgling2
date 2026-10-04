@@ -130,6 +130,12 @@ public class NUI extends UI
     @Override
     public void tick()
     {
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(this, "widget-dispatch")) {
+            tickMeasured();
+        }
+    }
+
+    private void tickMeasured() {
         tickId += 1;
         periodicCheckTick++;
 
@@ -490,7 +496,6 @@ public class NUI extends UI
     private int cachedModFlags = -1;
     /** Last modifier state to detect changes */
     private int lastModifiersNUI = -1;
-    
     /** Timestamp of last inspect call */
     private long lastInspectTime = 0;
     /** Last coordinates of inspect call */

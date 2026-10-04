@@ -466,6 +466,13 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     public void ctick(double dt) {
 	for(GAttrib a : new ArrayList<>(attr.values()))
 		a.ctick(dt);
+	if(renderMovement != null) {
+	    Moving m = getattr(Moving.class);
+	    if((m == null) || (m instanceof LinMove))
+		renderMovement.publish(m == null ? rc : ((LinMove)m).position(), Utils.rtime());
+	    else
+		renderMovement.reset();
+	}
 	List<Overlay> toRemove = new ArrayList<>();
 	for(Overlay ol : ols) {
 	    if(ol.slots == null) {
@@ -622,11 +629,14 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	Moving m = getattr(Moving.class);
 	if(m != null)
 	    m.move(c);
+	else if(renderMovement != null)
+	    renderMovement.correct(rc, c, Utils.rtime());
 	this.rc = c;
 	if(NUtils.playerID()!=-1 && id == NUtils.playerID())  {
 		new Thread(new CheckGridsState(), "plgob_move").start();
 	}
 	this.a = a;
+        nurgling.diagnostics.MovementTrace.server(this, "move", c, null, Double.NaN, Double.NaN, Double.NaN);
     }
 
     public Placer placer() {
@@ -646,6 +656,33 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	if(df != null)
 	    ret = ret.add(df.off);
 	return(ret);
+    }
+
+    private volatile MovementSmoothing renderMovement;
+
+    void correctMovement(Coord2d before, Coord2d after) {
+	if(renderMovement == null) renderMovement = new MovementSmoothing();
+	renderMovement.correct(before, after, Utils.rtime());
+    }
+
+    /** Scene and camera share a position published by the world tick. Gameplay
+     * continues to use getc(), without reconciliation offsets. */
+    public Coord3f getrenderc() {
+	Gob target = this;
+	for(int i = 0; i < 8; i++) {
+	    Following following = target.getattr(Following.class);
+	    Gob next = following == null ? null : following.tgt();
+	    if(next == null) break;
+	    target = next;
+	}
+	MovementSmoothing smoothing = target.renderMovement;
+	Coord2d pos = smoothing == null ? null : smoothing.position();
+	Moving moving = target.getattr(Moving.class);
+	if(pos == null || (moving != null && !(moving instanceof LinMove)))
+	    return(target.getc());
+	Coord3f ret = target.placer().getc(pos, target.a);
+	DrawOffset df = target.getattr(DrawOffset.class);
+	return(df == null ? ret : ret.add(df.off));
     }
 
     public Coord3f getrc() {
@@ -940,7 +977,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		    Pipe.Op flwxf = (flw == null) ? null : flw.xf();
 		    Pipe.Op tilestate = null;
 		    if(flwxf == null) {
-			Coord3f oc = Gob.this.getc();
+			Coord3f oc = Gob.this.getrenderc();
 			Coord3f rc = new Coord3f(oc);
 			rc.y = -rc.y;
 			this.flw = null;
