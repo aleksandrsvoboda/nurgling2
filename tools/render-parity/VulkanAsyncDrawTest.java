@@ -60,6 +60,8 @@ public class VulkanAsyncDrawTest {
             try(Gate gate = new Gate(env)) {
                 VkRender out = (VkRender)env.render();
                 try {
+                    out.clear(optional,FragColor.fragcol,FColor.BLACK);
+                    require(threads.isEmpty(),"Attachment clear evaluated a material shader");
                     skipped(out,optional,model);
                     require(threads.isEmpty(),"Shader macro ran inline despite occupied workers");
                     out.draw(base,model); // A pending draw must not corrupt the next synchronous draw.

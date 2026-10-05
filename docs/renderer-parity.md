@@ -689,7 +689,7 @@ for every game material or animated scene. For an in-game comparison, disable
 enhancements, use the same video settings, camera, scale, place and lighting,
 and account for animation and world-time changes between captures.
 
-The October 5 stationary-scene capture showed five GC pauses of 17–19 ms beside
+The October 5 stationary-scene capture showed five GC pauses of 17â€“19 ms beside
 its five frames over 20 ms. A live JFR allocation sample identified recurring
 FPS HUD rasters and Vulkan draw recording among the allocation sources. The HUD
 now reuses its worker-owned ARGB image (clearing alpha before every raster), while
@@ -710,3 +710,16 @@ for every invalidation case and checks allocation in a stationary scene (440 byt
 per compile in the fixture, without another 512 KiB grid). Vulkan draw lists also
 retain equivalent pipeline keys across attachment swaps and immutable sampler
 snapshots when their bindings are unchanged.
+
+The 20:08 October 5 capture identified two further cold paths on the UI thread:
+icon-archive inflation from craft-menu scanning (176 ms UI tick), and a Vulkan
+water-wake shader-cache read from attachment clear (311 ms draw). Icon indexing
+now publishes a completed background catalog, independently retaining native
+registrations and lower-priority menu fallbacks. `test-item-icons-async` blocks
+all loader workers to verify callers return placeholders and registrations survive.
+Vulkan clears now resolve only the requested color/depth attachment and scissor,
+without evaluating material shaders or changing cached draw state. Water wakes
+request async draw preparation; until ready their field clears to neutral zero.
+Compiler-gate, GL/Vulkan parity, full water GPU and atlas rendering tests cover
+these changes. The later 20:09 capture has a separate 42.9 ms frame with a toolbar
+render sample; that sample alone does not establish its precise cause.

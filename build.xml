@@ -396,6 +396,17 @@
     </java>
   </target>
 
+  <target name="test-item-icons-async" depends="renderer-parity-compile"
+          description="Check cold icon indexing never blocks the UI or loses descriptor priority">
+    <java classname="nurgling.tools.ItemIconsAsyncTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.prefs.itemiconsasync=true" />
+    </java>
+  </target>
+
   <target name="test-light-grid-cache" depends="renderer-parity-compile"
           description="Verify light-grid cache invalidation, GPU data and stationary-scene allocation">
     <java classname="haven.render.LightGridCacheTest" fork="true" failonerror="true">
