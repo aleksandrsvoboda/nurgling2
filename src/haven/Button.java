@@ -208,7 +208,7 @@ public class Button extends SIWidget {
 	    else
 		change((String)args[0]);
 	} else if(msg == "dis") {
-	    disable(Utils.bv(args[0]));
+	    disable(Utils.bv(args[1]));
 	} else {
 	    super.uimsg(msg, args);
 	}
