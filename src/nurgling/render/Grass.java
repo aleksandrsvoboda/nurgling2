@@ -35,26 +35,38 @@ public class Grass extends RenderContext.PostProcessor {
         long h=x*0x9e3779b97f4a7c15L+y*0xc2b2ae3d27d4eb4fL+salt;
         h=(h^(h>>>30))*0xbf58476d1ce4e5b9L;h=(h^(h>>>27))*0x94d049bb133111ebL;return h^(h>>>31);
     }
+    static double unit(long h){return (h>>>11)*0x1.0p-53;}
+    // Jittered Gaussian groups (Shrine GaussianPatch), with elongated patches
+    // and sparse margins, rather than one identical tuft per terrain square.
+    static double density(double x,double y) {
+        int cx=(int)Math.floor(x/32),cy=(int)Math.floor(y/32);double best=0;
+        for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++) {
+            int a=cx+i,b=cy+j;double px=(a+.15+.7*unit(seed(a,b,31)))*32,py=(b+.15+.7*unit(seed(a,b,53)))*32;
+            double radius=5+8*unit(seed(a,b,71)),angle=unit(seed(a,b,89))*Math.PI*2;
+            double dx=x-px,dy=y-py,u=dx*Math.cos(angle)+dy*Math.sin(angle),v=-dx*Math.sin(angle)+dy*Math.cos(angle);
+            best=Math.max(best,Math.exp(-(u*u+v*v*1.8)/(2*radius*radius)));
+        }
+        return .015+.82*best*best;
+    }
     static FastMesh build(Coord patch,Terrain terrain) {
         return build(patch,terrain,1);
     }
     static FastMesh build(Coord patch,Terrain terrain,float amount) {
         MeshBuf buf=new MeshBuf();MeshBuf.Vec4Layer r=buf.layer(roots),s=buf.layer(shapes);
-        int candidates=Math.round(32*amount),blades=0;
+        int candidates=Math.round(70*amount),blades=0;
         for(int ty=patch.y*TILES;ty<(patch.y+1)*TILES;ty++)for(int tx=patch.x*TILES;tx<(patch.x+1)*TILES;tx++) {
             if(Thread.currentThread().isInterrupted())throw new CancellationException();
             if(!terrain.grass(tx*11+5.5,ty*11+5.5))continue;
             Random random=new Random(seed(tx,ty,113));
-            // Cover every tile with jittered strata, including at 25% density.
-            // Extending this sequence adds tufts without relocating existing roots.
-            for(int tuft=0;tuft<candidates;tuft++) {
-                int cell=(tuft*5)&7;
-                double x=tx*11+((cell%4)+random.nextDouble())*2.75;
-                double y=ty*11+((cell/4)+random.nextDouble())*5.5;
-                double left=Math.max(tx*11,x-.65),top=Math.max(ty*11,y-.65);
-                double right=Math.min((tx+1)*11,x+.65),bottom=Math.min((ty+1)*11,y+.65);
+            // Preserve the original world-space groups across patch borders.
+            // Cap each tile independently so dense groups cannot truncate a patch.
+            int tufts=0;
+            for(int tuft=0;tuft<candidates&&tufts<64;tuft++) {
+                double x=tx*11+.8+random.nextDouble()*9.4,y=ty*11+.8+random.nextDouble()*9.4;
+                if(random.nextDouble()>density(x,y))continue;
+                tufts++;
                 for(int blade=0;blade<4;blade++) {
-                    double bx=left+random.nextDouble()*(right-left),by=top+random.nextDouble()*(bottom-top);
+                    double bx=x+(random.nextDouble()-.5)*1.3,by=y+(random.nextDouble()-.5)*1.3;
                     if(!terrain.grass(bx,by))continue;
                     if(blades++>=8000)return buf.mkmesh(); // Stay below 16-bit vertex indices.
                     float z=terrain.height(bx,by)+.015f,h=1.3f+random.nextFloat()*(MAX_HEIGHT-1.3f);
@@ -117,17 +129,21 @@ public class Grass extends RenderContext.PostProcessor {
     final Map<Coord,Patch> patches=new HashMap<>();
     final Map<Coord,Double> retry=new HashMap<>();
     final ExecutorService worker=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"grass-patches");t.setDaemon(true);return t;});
-    CompletableFuture<Patch> pending;Coord pendingKey;volatile boolean closed;
+    // Keep the worker supplied without a per-patch timer or waiting for a UI tick.
+    // Bound both queued geometry and the amount adopted/uploaded by one frame.
+    static final int MAX_PENDING=4;
+    final Map<Coord,CompletableFuture<Patch>> pending=new LinkedHashMap<>();
+    volatile boolean closed;
+    Area retained;
     CompletableFuture<Map<Coord,Bounds>> selection;
     Map<Coord,Bounds> wanted=Collections.emptyMap();
     // Accessed only by the worker. Bounds are invalidated with terrain meshes.
     final Map<Coord,Bounds> bounds=new HashMap<>();
-    Coord center;double nextScan,nextSelection;
+    Coord center;double nextSelection;
     float amount=1;
     Texture2D.Sampler2D result;
     public Grass(PView view){this.view=view;}
     public void configure(float quantity) {
-        if(amount!=quantity)nextScan=0;
         amount=quantity;
     }
     public int order(){return -220;}
@@ -183,12 +199,13 @@ public class Grass extends RenderContext.PostProcessor {
         }catch(Loading ignored){}
         return selected;
     }
-    boolean near(Coord p){return wanted.containsKey(p);}
+    boolean near(Coord p){return retained!=null&&retained.contains(p);}
     public void tick(MapView mv,double now) {
         try {
             Coord3f cc=mv.getcc();center=Coord.of((int)Math.floor(cc.x/SPAN),(int)Math.floor(cc.y/SPAN));
             Gob player=mv.player();if(player!=null)trail.sample(player.getrenderc(),now);
         }catch(Loading ignored){return;}
+        if(mv.terrain.area!=null)retained=patchArea(mv.terrain.area);
         if(selection!=null&&selection.isDone()) {
             try {wanted=selection.join();}
             catch(CompletionException e){new Warning(e.getCause(),"Grass visibility scan failed").issue();}
@@ -201,9 +218,12 @@ public class Grass extends RenderContext.PostProcessor {
         }
         for(Iterator<Patch> it=patches.values().iterator();it.hasNext();) {Patch p=it.next();if(!near(p.key)){p.dispose();it.remove();}}
         retry.keySet().removeIf(p->!near(p));
-        if(pending!=null&&pending.isDone()) {
+        for(Iterator<Map.Entry<Coord,CompletableFuture<Patch>>> it=pending.entrySet().iterator();it.hasNext();) {
+            Map.Entry<Coord,CompletableFuture<Patch>> entry=it.next();
+            if(!entry.getValue().isDone())continue;
+            Coord pendingKey=entry.getKey();
             try {
-                Patch p=pending.join();
+                Patch p=entry.getValue().join();
                 if(p==null)retry.put(pendingKey,now+1);
                 else {
                     boolean current=false;
@@ -212,14 +232,13 @@ public class Grass extends RenderContext.PostProcessor {
                     else p.dispose();
                 }
             }catch(CompletionException e){retry.put(pendingKey,now+1);new Warning(e.getCause(),"Grass patch generation failed").issue();}
-            pending=null;
+            it.remove();
         }
-        if(pending!=null||now<nextScan)return;
-        nextScan=now+.05;
+        if(pending.size()>=MAX_PENDING)return;
         List<Coord> desired=new ArrayList<>(wanted.keySet());
         desired.sort(Comparator.comparingDouble(c->c.dist(center)));
         for(Coord key:desired)try {
-            if(retry.getOrDefault(key,0.0)>now)continue;
+            if(!near(key)||pending.containsKey(key)||retry.getOrDefault(key,0.0)>now)continue;
             MapMesh[] revision=wanted.get(key).revision;Patch current=patches.get(key);
             boolean sameTerrain=current!=null&&Arrays.equals(current.revision,revision);
             if(sameTerrain&&current.amount==amount)continue;
@@ -228,8 +247,7 @@ public class Grass extends RenderContext.PostProcessor {
             if(current!=null&&!sameTerrain){patches.remove(key);current.dispose();}
             MCache map=mv.glob.map;
             float requestedAmount=amount;
-            pendingKey=key;
-            pending=CompletableFuture.supplyAsync(()->{
+            pending.put(key,CompletableFuture.supplyAsync(()->{
                 try {
                     FastMesh mesh=build(key,new Terrain(){
                         public boolean grass(double x,double y){Resource tile=map.tilesetr(map.gettile(Coord2d.of(x,y).floor(MCache.tilesz)));return tile!=null&&eligible(tile.name);}
@@ -239,8 +257,8 @@ public class Grass extends RenderContext.PostProcessor {
                     synchronized(this){if(closed){p.dispose();return null;}}
                     return p;
                 }catch(Loading|CancellationException ignored){return null;}
-            },worker);
-            break;
+            },worker));
+            if(pending.size()>=MAX_PENDING)break;
         }catch(Loading ignored){}
     }
     public void run(GOut g,Texture2D.Sampler2D in) {
@@ -258,7 +276,8 @@ public class Grass extends RenderContext.PostProcessor {
     }
     public synchronized void dispose() {
         closed=true;worker.shutdownNow();
-        if(pending!=null)pending.thenAccept(p->{if(p!=null)p.dispose();});
+        for(CompletableFuture<Patch> job:pending.values())job.thenAccept(p->{if(p!=null)p.dispose();});
+        pending.clear();
         for(Patch p:patches.values())p.dispose();patches.clear();
         if(result!=null)result.dispose();super.dispose();
     }

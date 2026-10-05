@@ -65,8 +65,8 @@ public class GrassTest {
             public boolean grass(double x,double y){return true;}
             public float height(double x,double y){return 0;}
         };
-        // An entire meadow must remain covered, including negative coordinates
-        // and patch borders, without truncating the last tiles at high density.
+        // Clusters must extend over the entire selected area, including negative
+        // coordinates and the last tiles, without becoming uniform carpet.
         for(float quantity:new float[]{.25f,1,2})for(Coord key:new Coord[]{Coord.z,Coord.of(-1,-1),Coord.of(2,3)}) {
             FastMesh patch=Grass.build(key,meadow,quantity);
             FloatBuffer positions=attr(patch,Grass.root);int[] counts=new int[Grass.TILES*Grass.TILES];
@@ -76,11 +76,21 @@ public class GrassTest {
                 require(x>=0&&x<Grass.TILES&&y>=0&&y<Grass.TILES,"Roots spill across patch boundaries");
                 counts[y*Grass.TILES+x]++;
             }
-            for(int count:counts)require(count==Math.round(32*quantity)*4,"Grass leaves empty or truncated terrain tiles");
+            int min=Integer.MAX_VALUE,max=0;
+            for(int count:counts){min=Math.min(min,count);max=Math.max(max,count);require(count<=256,"Tile exceeds safe tuft limit");}
+            require(max>min*2,"Grass loses its clustered distribution");
+            // Building the last tile alone must produce the same geometry as in
+            // a whole patch, even when earlier tiles have dense groups.
+            int lastX=(key.x+1)*Grass.TILES-1,lastY=(key.y+1)*Grass.TILES-1;
+            FastMesh last=Grass.build(key,new Grass.Terrain(){
+                public boolean grass(double x,double y){return (int)Math.floor(x/11)==lastX&&(int)Math.floor(y/11)==lastY;}
+                public float height(double x,double y){return 0;}
+            },quantity);
+            require(counts[counts.length-1]==(last==null?0:last.vert.num/8),"Grass truncates the last tile");
+            if(last!=null)last.dispose();
             require(patch.vert.num<65536,"Full coverage exceeds mesh index limit");
             // Exercise the same bounds calculation used by the background job.
-            // A fully grassy patch at 200% contains 51,200 vertices.
-            if(quantity==2)require(patch.vert.num>32768,"Dense fixture misses unsigned index boundary");
+            // The generic unsignedBounds fixture covers dense index boundaries.
             Grass.Patch cached=new Grass.Patch(key,new MapMesh[0],patch,quantity);
             require(Math.abs(cached.low-.015f)<.00001f&&cached.high>cached.low&&
                     cached.high<=Grass.MAX_HEIGHT+.016f,"Invalid dense grass bounds");
@@ -111,7 +121,7 @@ public class GrassTest {
         require(Grass.visible(perspective,Coord.z,-100,-96),"Perspective camera loses visible terrain");
         require(!Grass.visible(perspective,Coord.z,100,104),"Grass behind perspective camera is selected");
         require(!Grass.visible(perspective,Coord.of(20,0),-100,-96),"Perspective camera keeps offscreen grass");
-        System.out.printf("Grass geometry PASS: %d blades, full terrain coverage, grass mask, height cap, rooted slope, distance trail and recovery%n",a.vert.num/8);
+        System.out.printf("Grass geometry PASS: %d blades, clustered terrain coverage, grass mask, height cap, rooted slope, distance trail and recovery%n",a.vert.num/8);
         a.dispose();b.dispose();
     }
     static float[] capture(Windeye window,double time,boolean contact,boolean blocked) throws Exception {

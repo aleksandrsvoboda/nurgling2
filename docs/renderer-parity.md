@@ -271,8 +271,8 @@ and butterflies have also been removed, including their settings and presets.
 The game's original vegetation animation, weather, smoke and fire embers remain.
 The separate **Animated grass** option adds short segmented blades exclusively to
 `gfx/tiles/grass`. It defaults off. The implementation follows Shrine's procedural
-blade/root weighting, with deterministic jittered tufts distributed across every
-grass tile instead of separated Gaussian groups. Heights range from 1.3 to 3.4 Haven units;
+blade/root weighting, with deterministic elongated Gaussian groups and sparse
+margins across the grassy terrain. Heights range from 1.3 to 3.4 Haven units;
 roots sample the actual terrain surface. Grass does not change movement or picking.
 Grass covers the visible grassy terrain within the map's rendered cuts, without
 a distance limit around the player. Quantity remains adjustable from 25% to 200%
@@ -280,9 +280,11 @@ a distance limit around the player. Quantity remains adjustable from 25% to 200%
 One background worker selects patches against a snapshot of the camera frustum
 using cached terrain height bounds, and builds geometry in 5x5-tile patches
 aligned with the map cuts, without requesting neighboring cuts outside that area.
-There is at most one pending visibility scan and one pending mesh build. Visibility
+There is at most one pending visibility scan and four pending mesh builds. The
+worker consumes these builds continuously, without a timer between patches. Visibility
 is refreshed at 5 Hz, with a screen margin; draws are culled against the current
-camera each frame. Meshes outside the selected area are released, and meshes are
+camera each frame. Cached meshes are retained outside the camera until they leave
+the rendered map cuts, avoiding rebuilds when the camera turns back. Meshes are
 invalidated when source map meshes change. Missing resources
 retry without waiting on the frame thread. The Vulkan pass uses asynchronous
 pipeline preparation, writes depth before water and temporal accumulation, and
@@ -290,11 +292,12 @@ uses no vendor-specific APIs or per-blade CPU animation. Quantity extends a dete
 tuft sequence, preserving existing positions. Each tile has 8–64 tufts across
 the quantity range; roots stay within their tile, without a bare border. Density changes keep
 old meshes visible until replacements are ready; stale-density jobs are discarded.
-Each patch is capped below 16-bit vertex indices. Wind and distance-sampled player contacts bend
+Each patch is capped below 16-bit vertex indices; mesh bounds interpret those indices as unsigned. Wind and distance-sampled player contacts bend
 only the upper blade; the strongest nearby contact wins, and the trail relaxes in
 1.4 seconds. Teleports clear the trail. `test-grass` covers placement, slope/root
 height, repeatability, bounded geometry, distance sampling, wind, contact, recovery
-foreground occlusion, saved quantity values, full tile coverage, camera culling
+foreground occlusion, saved quantity values, clustered coverage without truncated
+tiles, unsigned bounds through index 65535, camera culling
 and visible terrain far from the player;
 `GrassTest --preview` writes rendered animation frames.
 Contact sampling carries residual path length across frames and interpolates birth
