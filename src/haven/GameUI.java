@@ -207,7 +207,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			    protected void hit(Coord pc, Coord2d mc, ClickData inf) {
 				act(slot, new MenuGrid.Interaction(1, ui.modflags(), mc, inf));
 			    }
-			    
+
 			    protected void nohit(Coord pc) {
 				act(slot, new MenuGrid.Interaction(1, ui.modflags()));
 			    }
@@ -244,6 +244,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public boolean dropthing(Coord c, Object thing) {
 	    int slot = beltslot(c);
 	    if(slot != -1) {
+		if(thing instanceof nurgling.craft.RecipeTransfer)
+		    thing = ((nurgling.craft.RecipeTransfer)thing).page();
 		if(thing instanceof MenuGrid.Pagina) {
 		    MenuGrid.Pagina pag = (MenuGrid.Pagina)thing;
 		    try {
@@ -296,7 +298,15 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	rbtnimg.hide();
 	add(new NDraggableWidget(new MainMenu(), "mainmenu", UI.scale(270,109)));
 	menubuttons(rbtnimg);
-	portrait = add(new NDraggableWidget(Frame.with(new Avaview(Avaview.dasz, plid, "avacam"), false),"portrait", UI.scale(120, 108)));
+	Coord portraitInset = UI.scale(1, 1);
+	Widget portraitFrame = new Widget(Avaview.dasz.add(portraitInset.mul(2))) {
+	    public void draw(GOut g) {
+		super.draw(g);
+		nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
+	    }
+	};
+	portraitFrame.add(new Avaview(Avaview.dasz, plid, "avacam"), portraitInset);
+	portrait = add(new NDraggableWidget(portraitFrame, "portrait", portraitFrame.sz.add(NDraggableWidget.delta)));
 	add(new NDraggableWidget(buffs = new Bufflist(),"bufflist",Coord.z));
 	add(new NDraggableWidget(calendar = new Cal(),"Calendar",UI.scale(240,90)));
 	syslog = chat.add(new ChatUI.Log("System"));
@@ -305,7 +315,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	zerg = add(new NZergwnd(), Utils.getprefc("wndc-zerg", UI.scale(new Coord(187, 50))));
 	zerg.hide();
     }
-    
+
     private void initHeavyWidgets() {
 	// Heavy custom widgets - created in attached() to avoid multiple initialization
 	add(areas = new NAreasWidget(),new Coord(sz.x/2 - NGUIInfo.xs/2,sz.y/5 ));
@@ -348,7 +358,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	resize(parent.sz);
 	ui.cons.out = new java.io.PrintWriter(new java.io.Writer() {
 		StringBuilder buf = new StringBuilder();
-		
+
 		public void write(char[] src, int off, int len) {
 		    List<String> lines = new ArrayList<String>();
 		    synchronized(this) {
@@ -364,7 +374,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			syslog.append(ln, Color.WHITE);
 		    }
 		}
-		
+
 		public void close() {}
 		public void flush() {}
 	    });
@@ -1034,7 +1044,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
-	public static final Tex cells = Resource.loadtex("nurgling/hud/cell");
+
 
     public void draw(GOut g) {
 	Widget next;
@@ -1054,38 +1064,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		{
 			if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid)
 			{
-				// Calculate center of screen
-				int centerX = sz.x / 2;
-				int centerY = sz.y / 2;
-				
-				// Calculate offset so that center of screen becomes coordinate origin
-				// For center textures, this will be their corner
-				int cellSizeX = cells.sz().x;
-				int cellSizeY = cells.sz().y;
-				
-				// Calculate starting position so grid aligns with center
-				int startX = centerX % cellSizeX;
-				int startY = centerY % cellSizeY;
-				
-				// Draw grid with adjusted positioning
-				for (int x = -cellSizeX + startX; x < sz.x; x += cellSizeX)
-				{
-					for (int y = -cellSizeY + startY; y < sz.y; y += cellSizeY)
-					{
-						if(x >= 0 && y >= 0)
-						{
-							g.image(cells, new Coord(x, y));
-						}
-					}
-				}
-				
-				// Draw center crosshair lines (red)
-				g.chcolor(255, 0, 0, 255);
-				// Vertical center line
-				g.line(new Coord(centerX, 0), new Coord(centerX, sz.y), 2.0);
-				// Horizontal center line
-				g.line(new Coord(0, centerY), new Coord(sz.x, centerY), 2.0);
-				g.chcolor();
+				nurgling.styles.DragGrid.draw(g, sz);
 			}
 			mapViewReady = false;
 		}
@@ -1109,7 +1088,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	}
     }
-    
+
     private String iconconfname() {
 	StringBuilder buf = new StringBuilder();
 	buf.append("data/mm-icons-2");
@@ -1245,7 +1224,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 	mapfiletick();
     }
-    
+
     public void uimsg(String msg, Object... args) {
 	if(msg == "err") {
 	    String err = (String)args[0];
@@ -1409,7 +1388,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     public static class MenuCheckBox extends ICheckBox {
 	MenuCheckBox(String base, KeyBinding gkey, String tooltip) {
-	    super("nurgling/hud/buttons/" + base, "u", "d", "h", "dh");
+	    // The common plate provides state feedback; keep the coloured glyph in every state.
+	    super("nurgling/hud/buttons/" + base, "u", "u", "u", "u");
 	    setgkey(gkey);
 	    settip(tooltip);
 	}
@@ -1430,11 +1410,16 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public class MainMenu extends Widget {
 	public MainMenu() {
 	    super(Coord.z);
-	    // Top row - 5 buttons: Inventory, Equipment, Character Sheet, Kith & Kin, Options
+	    // Top row: Inventory, Equipment, Character Sheet, Kith & Kin, Atlas, Options.
 	    Widget firstButton = prev = add(new MenuCheckBox("rbtn/inv/", kb_inv, L10n.get("inventory.window_title")), 0, 0).state(() -> wndstate(invwnd)).click(() -> togglewnd(invwnd));
 	    prev = add(new MenuCheckBox("rbtn/equ/", kb_equ, L10n.get("equipment.window_title")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(equwnd)).click(() -> togglewnd(equwnd));
 	    prev = add(new MenuCheckBox("rbtn/chr/", kb_chr, L10n.get("opt.keybind.character")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(chrwdg)).click(() -> togglewnd(chrwdg));
 	    prev = add(new MenuCheckBox("rbtn/bud/", kb_bud, L10n.get("opt.keybind.kith_kin")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(zerg)).click(() -> togglewnd(zerg));
+            prev = add(new nurgling.widgets.NAtlasToggle(firstButton.sz), prev.pos("ur").add(UI.scale(10), 0))
+                .state(() -> GameUI.this instanceof NGameUI && wndstate(((NGameUI)GameUI.this).atlasWindow))
+                .click(() -> { if(GameUI.this instanceof NGameUI) ((NGameUI)GameUI.this).toggleCraftAtlas(); });
+            prev.setgkey(NGameUI.kb_atlas);
+            prev.settip(L10n.get("atlas.title"));
 	    prev = add(new MenuCheckBox("rbtn/opt/", kb_opt, L10n.get("opt.keybind.options")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(opts)).click(() -> togglewnd(opts));
 
 		// Bottom row - buttons: Areas, Cook Book, Blueprints, Base Planner, Storage
@@ -1605,7 +1590,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public void presize() {
 	resize(parent.sz);
     }
-    
+
     public static interface LogMessage extends UI.Notice {
 	public ChatUI.Channel.Message logmessage();
     }
@@ -1641,7 +1626,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public void error(String msg) {
 	ui.error(msg);
     }
-    
+
     public void act(String... args) {
 	wdgmsg("act", (Object[])args);
     }
@@ -1676,7 +1661,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	private Coord beltc(int i) {
 	    return(new Coord((((invsq.sz().x + UI.scale(2)) * i) + (10 * (i / 4))), 0));
 	}
-    
+
 	public int beltslot(Coord c) {
 	    for(int i = 0; i < 12; i++) {
 		if(c.isect(beltc(i), invsq.sz()))
@@ -1684,7 +1669,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	    return(-1);
 	}
-    
+
 	public void draw(GOut g) {
 	    for(int i = 0; i < 12; i++) {
 		int slot = i + (curbelt * 12);
@@ -1699,7 +1684,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		g.chcolor();
 	    }
 	}
-	
+
 	public boolean globtype(GlobKeyEvent ev) {
 	    boolean M = (ev.mods & KeyMatch.M) != 0;
 	    for(int i = 0; i < beltkeys.length; i++) {
@@ -1716,7 +1701,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    return(super.globtype(ev));
 	}
     }
-    
+
     private static final Tex nkeybg = Resource.loadtex("gfx/hud/hb-main");
     public class NKeyBelt extends Belt {
 	public int curbelt = 0;
@@ -1725,11 +1710,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public NKeyBelt() {
 	    super(nkeybg.sz());
 	}
-	
+
 	private Coord beltc(int i) {
 	    return(pagoff.add(UI.scale((36 * i) + (10 * (i / 5))), 0));
 	}
-    
+
 	public int beltslot(Coord c) {
 	    for(int i = 0; i < 10; i++) {
 		if(c.isect(beltc(i), invsq.sz()))
@@ -1737,7 +1722,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	    return(-1);
 	}
-    
+
 	public void draw(GOut g) {
 	    g.image(nkeybg, Coord.z);
 	    for(int i = 0; i < 10; i++) {
@@ -1755,7 +1740,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	    super.draw(g);
 	}
-	
+
 	public boolean globtype(GlobKeyEvent ev) {
 	    if((ev.code < KeyEvent.VK_0) || (ev.code > KeyEvent.VK_9))
 		return(super.globtype(ev));

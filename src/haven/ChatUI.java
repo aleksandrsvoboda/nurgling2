@@ -938,15 +938,20 @@ public class ChatUI extends Widget
 	    add(this.in);
 	}
 
+	private int inputPadding() {
+	    return(parent instanceof NChatUI ? UI.scale(4) : 0);
+	}
+
 	public int ih() {
-	    return(sz.y - in.sz.y);
+	    return(Math.max(0, sz.y - in.sz.y - inputPadding() * 2));
 	}
 
 	public void resize(Coord sz) {
 	    super.resize(sz);
 	    if(in != null) {
-		in.c = new Coord(0, this.sz.y - in.sz.y);
-		in.resize(this.sz.x);
+		int pad = inputPadding();
+		in.c = new Coord(pad, Math.max(pad, this.sz.y - pad - in.sz.y));
+		in.resize(Math.max(0, this.sz.x - pad * 2));
 	    }
 	}
 

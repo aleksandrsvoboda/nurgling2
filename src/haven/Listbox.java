@@ -13,13 +13,11 @@ public abstract class Listbox<T> extends ListWidget<T> {
     }
 
     protected void drawsel(GOut g) {
-        g.chcolor(255, 255, 0, 128);
-        g.frect(Coord.z, g.sz());
-        g.chcolor();
+        nurgling.styles.UITheme.selection(g, g.sz());
     }
 
     protected void drawbg(GOut g) {
-        g.chcolor(Color.BLACK);
+        g.chcolor(nurgling.styles.UITheme.PANEL);
         g.frect(Coord.z, sz);
         g.chcolor();
     }
@@ -37,6 +35,7 @@ public abstract class Listbox<T> extends ListWidget<T> {
             T item = listitem(idx);
             int w = sz.x - (sb.vis()?sb.sz.x:0);
             GOut ig = g.reclip(new Coord(0, i * itemh), new Coord(w, itemh));
+            if((idx & 1) != 0) { ig.chcolor(nurgling.styles.UITheme.ROW); ig.frect(Coord.z, ig.sz()); ig.chcolor(); }
             if(item == sel)
                 drawsel(ig);
             drawitem(ig, item, idx);
@@ -74,7 +73,10 @@ public abstract class Listbox<T> extends ListWidget<T> {
     }
 
     public boolean mousedown(MouseDownEvent ev) {
-        if(super.mousedown(ev))
+        // Widget.mousedown does not dispatch children in the event API. Give the scrollbar
+        // its turn before consuming the click as a row selection.
+        sb.max = Math.max(0, listitems() - h);
+        if(ev.propagate(this))
             return(true);
         int idx = idxat(ev.c);
         T item = (idx < 0 || idx >= listitems()) ? null : listitem(idx);

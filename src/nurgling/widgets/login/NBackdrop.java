@@ -40,7 +40,9 @@ public class NBackdrop extends Widget {
                 double a = (t < 0.6) ? (0.93 - (0.07 * (t / 0.6))) : (0.86 * (1.0 - ((t - 0.6) / 0.4)));
                 img.setRGB(x, 0, ((int) Math.round(a * 255) << 24) | (SCRIM.getRGB() & 0xffffff));
             }
-            ramp = new TexI(img).magfilter(Texture.Filter.LINEAR);
+            /* Do not wrap the transparent right edge back onto the opaque left edge when
+             * linear filtering samples across the border of this stretched texture. */
+            ramp = new TexI(img).magfilter(Texture.Filter.LINEAR).wrapmode(Texture.Wrapping.CLAMP);
         }
         return (ramp);
     }

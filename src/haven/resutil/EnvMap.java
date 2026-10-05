@@ -30,17 +30,15 @@ import haven.*;
 import haven.render.*;
 import haven.render.sl.*;
 import java.awt.Color;
-import haven.render.TextureCube.SamplerCube;
 import static haven.render.sl.Cons.*;
 import static haven.render.sl.Function.PDir.*;
 import static haven.render.sl.Type.*;
 
 public class EnvMap extends State {
     public static final Slot<EnvMap> slot = new Slot<EnvMap>(Slot.Type.DRAW, EnvMap.class);
-    private static final Uniform csky = new Uniform(SAMPLERCUBE, p -> p.get(slot).sky, slot);
+    private static final Uniform csky = new Uniform(SAMPLERCUBE, p -> WaterTile.waterSky(), FrameInfo.slot);
     private static final Uniform ccol = new Uniform(VEC3, p -> p.get(slot).col, slot);
     private static final Uniform icam = new Uniform(MAT3, p -> Homo3D.camxf(p).transpose().trim3(), Homo3D.cam);
-    private static final SamplerCube sky = WaterTile.sky;
     public final float[] col;
     
     public EnvMap(Color col) {

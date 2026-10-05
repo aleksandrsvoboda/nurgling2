@@ -49,11 +49,8 @@ public class GobSvaj extends GAttrib implements Gob.SetupMod {
 	    return(cur);
 	}
 	origin.y = -origin.y;
-	/* Nurgling: trees alone bend in gusts (a graphics option). */
-	String nm = (gob.ngob == null) ? null : gob.ngob.name;
-	boolean tree = (nm != null) && nm.startsWith("gfx/terobjs/trees/");
-	if((cur == null) || !Utils.eq(origin, cur.origin) || (cur.tree != tree)) {
-	    cur = new Svaj(zhvec, zhfreq, chvec, chfreq, origin, tree);
+	if((cur == null) || !Utils.eq(origin, cur.origin)) {
+	    cur = new Svaj(zhvec, zhfreq, chvec, chfreq, origin);
 	}
 	return(cur);
     }

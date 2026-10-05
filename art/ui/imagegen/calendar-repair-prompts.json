@@ -1,0 +1,11 @@
+{
+  "mode": "built-in image_gen edit",
+  "prompt": "Edit this exact supplied game HUD button. Preserve the central orange pictogram, its composition, its recognizable silhouette, and the simple sharp-corner square orange frame. Repair the defective dark panel: completely remove every transparent hole, pale spot, black blotch and mottled patch. The entire interior must be one perfectly uniform opaque charcoal teal #1c2526. The frame and glyph are flat orange #e99c54, no rust, texture, gradient, glow or bevel. Render the square button full bleed, outer frame exactly flush to all four canvas edges, no outside margin. Output a fully opaque square image; every pixel including all dark negative spaces is opaque. No transparency at all, no checkerboard, no added symbols or text. Keep the existing glyph shape; this is a repair of the reference, not a redesign.",
+  "transparent_background": false,
+  "files": {
+    "rain": "C:\\Users\\katodiy\\.codex\\generated_images\\01a106eb-20c4-7870-a806-a5a0d26d7c2f\\exec-a843284a-bfce-444c-af10-9d67d0077950.png",
+    "wolf": "C:\\Users\\katodiy\\.codex\\generated_images\\01a106eb-20c4-7870-a806-a5a0d26d7c2f\\exec-1296265c-c40a-460d-8e36-f792db983206.png",
+    "dawn": "C:\\Users\\katodiy\\.codex\\generated_images\\01a106eb-20c4-7870-a806-a5a0d26d7c2f\\exec-993bc61e-26d4-423e-a969-ecd40b1fa0f3.png",
+    "mantle": "C:\\Users\\katodiy\\.codex\\generated_images\\01a106eb-20c4-7870-a806-a5a0d26d7c2f\\exec-c6f77a65-7ee9-42b9-a977-43f66cbf5ae3.png"
+  }
+}

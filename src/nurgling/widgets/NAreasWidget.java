@@ -59,7 +59,7 @@ public class NAreasWidget extends Window
         super(UI.scale(new Coord(700,500)), get("area.title"));
 
         IButton createNewFolder;
-        prev = add(createNewFolder = new IButton(NStyle.addfolder[0].back,NStyle.addfolder[1].back,NStyle.addfolder[2].back){
+        prev = add(createNewFolder = new NIconButton("area-folder", 32, 20){
             @Override
             public void click()
             {
@@ -70,7 +70,7 @@ public class NAreasWidget extends Window
         createNewFolder.settip(get("area.btn.create_folder"));
 
         IButton create;
-        add(create = new IButton(NStyle.addarea[0].back,NStyle.addarea[1].back,NStyle.addarea[2].back){
+        add(create = new NIconButton("area-add", 32, 20){
             @Override
             public void click()
             {
@@ -78,11 +78,11 @@ public class NAreasWidget extends Window
                 NUtils.getGameUI().msg(get("area.msg.select_area"));
                 new Thread(new NAreaSelector(NAreaSelector.Mode.CREATE)).start();
             }
-        },prev.pos("ur").adds(UI.scale(5,0)));
+        },prev.pos("ur").adds(5, 0));
         create.settip(get("area.btn.create_area"));
 
         IButton showCat;
-        add(showCat = new IButton(NStyle.catmenu[0].back,NStyle.catmenu[1].back,NStyle.catmenu[2].back){
+        add(showCat = new NIconButton("area-categories", 32, 20){
             @Override
             public void click()
             {
@@ -94,11 +94,11 @@ public class NAreasWidget extends Window
                     catSelection.visible = true;
                 }
             }
-        },create.pos("ur").adds(UI.scale(5,0)));
+        },create.pos("ur").adds(5, 0));
         showCat.settip(get("area.btn.show_categories"));
 
         IButton importbt;
-        add(importbt = new IButton(NStyle.importb[0].back,NStyle.importb[1].back,NStyle.importb[2].back){
+        add(importbt = new NIconButton("area-import", 32, 20){
             @Override
             public void click()
             {
@@ -115,11 +115,11 @@ public class NAreasWidget extends Window
                     }
                 });
             }
-        },showCat.pos("ur").adds(UI.scale(25,0)));
+        },showCat.pos("ur").adds(5, 0));
         importbt.settip(get("area.btn.import"));
 
         IButton exportbt;
-        add(exportbt = new IButton(NStyle.exportb[0].back,NStyle.exportb[1].back,NStyle.exportb[2].back){
+        add(exportbt = new NIconButton("area-export", 32, 20){
             @Override
             public void click()
             {
@@ -132,17 +132,18 @@ public class NAreasWidget extends Window
                     NUtils.getUI().core.config.writeAreas(fc.getSelectedFile().getAbsolutePath()+".json");
                 });
             }
-        },importbt.pos("ur").adds(UI.scale(5,0)));
+        },importbt.pos("ur").adds(5, 0));
         exportbt.settip(get("area.btn.export"));
 
-        haven.Button syncLogBtn = add(new haven.Button(UI.scale(70), "Sync log") {
+        haven.Button syncLogBtn = add(new haven.Button(UI.scale(90), get("area.btn.sync_log")) {
             @Override
             public void click() {
                 super.click();
                 nurgling.widgets.NAreaSyncHistoryWidget.open();
             }
-        }, exportbt.pos("ur").adds(UI.scale(10, 0)));
-        syncLogBtn.settip("Recent area sync events (auto-merges, conflicts, deletes)");
+        }, exportbt.pos("ur").adds(10, 0));
+        syncLogBtn.move(new Coord(exportbt.c.x + exportbt.sz.x + UI.scale(10), createNewFolder.c.y + (createNewFolder.sz.y - syncLogBtn.sz.y) / 2));
+        syncLogBtn.settip(get("area.btn.sync_log_tip"));
 
 //        // Export to Database button
 //        haven.Button exportDbBtn;
@@ -152,7 +153,7 @@ public class NAreasWidget extends Window
 //                super.click();
 //                exportAreasToDatabase();
 //            }
-//        }, exportbt.pos("ur").adds(UI.scale(10, 0)));
+//        }, exportbt.pos("ur").adds(10, 0));
 //        exportDbBtn.settip("Export all areas to database for sharing");
 
         TextEntry searchField;
@@ -164,10 +165,10 @@ public class NAreasWidget extends Window
                 updateFilteredList();
                 return result;
             }
-        }, createNewFolder.pos("bl").adds(0, 10));
+        }, new Coord(0, Math.max(createNewFolder.c.y + createNewFolder.sz.y, syncLogBtn.c.y + syncLogBtn.sz.y) + UI.scale(8)));
         searchField.settip(get("area.search.placeholder"));
 
-        prev = add(al = new AreaList(UI.scale(new Coord(400,170))), searchField.pos("bl").adds(0, 25));
+        prev = add(al = new AreaList(UI.scale(new Coord(400,170))), searchField.pos("bl").adds(0, 29));
         Widget lab = add(new Label(get("area.label.specialisation"),NStyle.areastitle), prev.pos("bl").add(UI.scale(0,5)));
 
         /* Same width as the area list above it, which AreaList.resize pins to 164 px whatever
@@ -175,7 +176,7 @@ public class NAreasWidget extends Window
          * down past this list, so anything wider slides underneath them. Long names are
          * shortened instead - see SpecialisationItem.setLabel. */
         add(csl = new CurrentSpecialisationList(UI.scale(SPEC_COLUMN_W,190)),lab.pos("bl").add(UI.scale(0,5)));
-        add(new IButton(NStyle.add[0].back,NStyle.add[1].back,NStyle.add[2].back){
+        IButton addSpec = add(new IButton("gfx/hud/buttons/add", "u", "d", "h"){
             @Override
             public void click()
             {
@@ -185,7 +186,7 @@ public class NAreasWidget extends Window
             }
         },prev.pos("br").sub(UI.scale(40,-5)));
 
-        add(new IButton(NStyle.remove[0].back,NStyle.remove[1].back,NStyle.remove[2].back){
+        IButton removeSpec = add(new IButton("gfx/hud/buttons/sub", "u", "d", "h"){
             @Override
             public void click()
             {
@@ -214,13 +215,18 @@ public class NAreasWidget extends Window
                 }
             }
         },prev.pos("br").sub(UI.scale(17,-5)));
+        addSpec.move(new Coord(addSpec.c.x, lab.c.y + (lab.sz.y - addSpec.sz.y) / 2));
+        removeSpec.move(new Coord(removeSpec.c.x, lab.c.y + (lab.sz.y - removeSpec.sz.y) / 2));
 
         prev = add(Frame.with(in_items = new IngredientContainer("in"),true), prev.pos("ur").add(UI.scale(5,-5)));
         add(new Label(get("area.label.take"),NStyle.areastitle),prev.pos("ul").sub(UI.scale(-5,20)));
-        add(new IngredientContainer.RuleButton(in_items ),prev.pos("ur").sub(UI.scale(30,20)));
-        prev = add(Frame.with(out_items = new IngredientContainer("out"),true), prev.pos("ur").adds(UI.scale(5, 0)));
+        IngredientContainer.RuleButton takeRules = new IngredientContainer.RuleButton(in_items);
+        add(takeRules, prev.pos("ur").sub(takeRules.sz.x, takeRules.sz.y + UI.scale(2)));
+        prev = add(Frame.with(out_items = new IngredientContainer("out"),true), prev.pos("ur").adds(5, 0));
         add(new Label(get("area.label.put"),NStyle.areastitle),prev.pos("ul").sub(UI.scale(-5,20)));
-        add(new IngredientContainer.RuleButton(out_items ),prev.pos("ur").sub(UI.scale(30,20)));
+        IngredientContainer.RuleButton putRules = new IngredientContainer.RuleButton(out_items);
+        add(putRules, prev.pos("ur").sub(putRules.sz.x, putRules.sz.y + UI.scale(2)));
+        searchField.resize(new Coord(prev.c.x + prev.sz.x - searchField.c.x, searchField.sz.y));
         pack();
     }
 

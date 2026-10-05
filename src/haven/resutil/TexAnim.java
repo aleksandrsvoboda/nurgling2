@@ -54,9 +54,7 @@ public class TexAnim extends State {
     private static final ShaderMacro shader = prog -> {
 	Tex2D.rtexcoord.value(prog.vctx).mod(in -> add(in, mul(cax.ref(), FrameInfo.time())), 0);
     };
-    /* Nurgling: realistic fire (a graphics option) for the unlit
-     * flame materials that use this. */
-    public ShaderMacro shader() {return(nurgling.render.FireFX.flame(shader));}
+    public ShaderMacro shader() {return(shader);}
 
     public void apply(Pipe buf) {
 	buf.put(slot, this);

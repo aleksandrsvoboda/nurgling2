@@ -288,20 +288,26 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	     * that. Also arguably nice to be able to set terrain and
 	     * flavobj materials in one go. */
 	    set.flavobjmat = commat;
-	    return(new TerrainTile(id, new SNoise3(res.name.hashCode()), base, var.toArray(new Var[0]), trans));
+	    return(new TerrainTile(id, new SNoise3(res.name.hashCode()), base, var.toArray(new Var[0]), trans,
+	                           nurgling.render.Atmos.WetSurface.terrain(res.name)));
 	}
     }
 
     public TerrainTile(int id, SNoise3 noise, NodeWrap base, Var[] var, Tileset transset) {
+        this(id, noise, base, var, transset, nurgling.render.Atmos.WetSurface.VEGETATION);
+    }
+
+    public TerrainTile(int id, SNoise3 noise, NodeWrap base, Var[] var, Tileset transset,
+                       nurgling.render.Atmos.WetSurface wetSurface) {
 	super(id);
 	this.noise = noise;
 	int z = 0;
 	this.base = base;
 	/* Nurgling: GroundRelief only adds a shader while the graphics
 	 * option is on. */
-	this.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state);
+	this.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state(wetSurface), wetSurface);
 	for(Var v : this.var = var)
-	    v.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state);
+	    v.draw = Pipe.Op.compose(new MapMesh.MLOrder(0, z++), VertexColor.instance, nurgling.render.GroundRelief.state(wetSurface), wetSurface);
 	this.transset = transset;
     }
 
@@ -401,9 +407,9 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	if(m.map.gettile(gc) <= id)
 	    return;
 	if((transset.btrans != null) && (bmask > 0))
-	    gt.lay(m, lc, gc, tcons(z, transset.btrans[bmask - 1].pick(rnd)), false);
+	    gt.laytrans(m, lc, gc, tcons(z, transset.btrans[bmask - 1].pick(rnd)));
 	if((transset.ctrans != null) && (cmask > 0))
-	    gt.lay(m, lc, gc, tcons(z, transset.ctrans[cmask - 1].pick(rnd)), false);
+	    gt.laytrans(m, lc, gc, tcons(z, transset.ctrans[cmask - 1].pick(rnd)));
     }
 
     public static class RidgeTile extends TerrainTile implements Ridges.RidgeTile {

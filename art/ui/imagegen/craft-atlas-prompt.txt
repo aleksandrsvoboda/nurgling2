@@ -1,0 +1,5 @@
+Mode: built-in image_gen, transparent background.
+Final asset: src/nurgling/styles/assets/buttons/craft-atlas.png
+References: resources/src/nurgling/hud/buttons/rbtn/{inv,equ,opt}/u.res/image/image_0.png
+
+Use case: stylized-concept. Create ONE new square game HUD icon for a crafting recipe atlas. The three input images are STYLE REFERENCES ONLY: match their chunky hand-painted Haven & Hearth fantasy inventory art, thick dark brown outlines, softly shaded warm ivory and muted red, strong silhouette legible at 32 pixels. Subject: a small open parchment recipe book with a muted red leather cover, one simple golden crafting symbol stamped on the right-hand page and a red bookmark. Three-quarter overhead view, chunky pages, no lettering or small details. Object centered, fills 85% of square canvas. Transparent background; NO button frame, NO colored background plate, NO grid, NO other icons, no text. The application supplies the same button plate as the reference buttons.

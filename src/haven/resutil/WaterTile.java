@@ -43,10 +43,14 @@ public class WaterTile extends Tiler {
     public final int depth;
     public final Tiler.MCons bottom;
     private final boolean isDeep;
+    public final boolean isOcean;
 
     public static class FlowData {
 	public static final float[] nxpcw, nypcw;
 	public static final int I = 10;
+	/* Pressure divergence and redistribution each reach one neighbour per
+	 * iteration. A one-I halo leaks cut boundaries into the current field. */
+	private static final int P = I * 2 + 2;
 	public final float[] xv, yv;
 	public final Scan vs;
 
@@ -72,8 +76,8 @@ public class WaterTile extends Tiler {
 		this.m = m;
 		map = m.map;
 		vs = new Scan(Coord.z, m.sz.add(1, 1));
-		fs = new Scan(Coord.of(-I, -I), m.sz.add(1 + (I * 2), 1 + (I * 2)));
-		ts = new Scan(Coord.of(-I - 1, -I - 1), m.sz.add(3 + (I * 2), 3 + (I * 2)));
+		fs = new Scan(Coord.of(-P, -P), m.sz.add(1 + (P * 2), 1 + (P * 2)));
+		ts = new Scan(Coord.of(-P - 1, -P - 1), m.sz.add(3 + (P * 2), 3 + (P * 2)));
 		xs = new float[fs.l];
 		ys = new float[fs.l];
 		xv = new float[fs.l];
@@ -89,8 +93,8 @@ public class WaterTile extends Tiler {
 	    }
 
 	    private void water() {
-		for(int y = -I - 1; y < m.sz.y + I + 1; y++) {
-		    for(int x = -I - 1; x < m.sz.x + I + 1; x++) {
+		for(int y = -P - 1; y < m.sz.y + P + 1; y++) {
+		    for(int x = -P - 1; x < m.sz.x + P + 1; x++) {
 			if(map.tiler(map.gettile(m.ul.add(x, y))) instanceof WaterTile) {
 			    wv[ts.o(x + 0, y + 0)] = true;
 			    wv[ts.o(x + 1, y + 0)] = true;
@@ -102,8 +106,8 @@ public class WaterTile extends Tiler {
 	    }
 
 	    private void slopes() {
-		for(int y = -I; y <= m.sz.y + I; y++) {
-		    for(int x = -I; x <= m.sz.x + I; x++) {
+		for(int y = -P; y <= m.sz.y + P; y++) {
+		    for(int x = -P; x <= m.sz.x + P; x++) {
 			if(!wv[ts.o(x, y)])
 			    continue;
 			double tz = map.getfz(m.ul.add(x, y));
@@ -123,8 +127,8 @@ public class WaterTile extends Tiler {
 		float[] nxv = new float[fs.l];
 		float[] nyv = new float[fs.l];
 		float[] p = new float[fs.l];
-		for(int y = -I; y <= m.sz.y + I; y++) {
-		    for(int x = -I; x <= m.sz.x + I; x++) {
+		for(int y = -P; y <= m.sz.y + P; y++) {
+		    for(int x = -P; x <= m.sz.x + P; x++) {
 			int O = fs.o(x, y);
 			if(!wv[ts.o(x, y)])
 			    continue;
@@ -140,8 +144,8 @@ public class WaterTile extends Tiler {
 			}
 		    }
 		}
-		for(int y = -I; y <= m.sz.y + I; y++) {
-		    for(int x = -I; x <= m.sz.x + I; x++) {
+		for(int y = -P; y <= m.sz.y + P; y++) {
+		    for(int x = -P; x <= m.sz.x + P; x++) {
 			int O = fs.o(x, y);
 			if(!wv[ts.o(x, y)])
 			    continue;
@@ -153,8 +157,8 @@ public class WaterTile extends Tiler {
 		    }
 		}
 		float PF = 0.75f;
-		for(int y = -I; y <= m.sz.y + I; y++) {
-		    for(int x = -I; x <= m.sz.x + I; x++) {
+		for(int y = -P; y <= m.sz.y + P; y++) {
+		    for(int x = -P; x <= m.sz.x + P; x++) {
 			int O = fs.o(x, y);
 			if(!wv[ts.o(x, y)])
 			    continue;
@@ -332,6 +336,16 @@ public class WaterTile extends Tiler {
 	public static final MapMesh.DataID<Bottom> id = MapMesh.makeid(Bottom.class);
     }
 
+    public void laytrans(MapMesh m, Coord lc, Coord gc, MCons cons) {
+	/* Keep the author's surface-level land fringe. Projecting it onto the bed
+	 * stretches it into visible patches in transparent shallows. Only suppress
+	 * its cast shadow; the bank still receives lighting and other objects' shadows. */
+	super.laytrans(m, lc, gc, (mesh, part) -> {
+	    part.mat = Pipe.Op.compose(part.mat, ShadowMap.maskshadow);
+	    cons.faces(mesh, part);
+	});
+    }
+
     public void model(MapMesh m, Random rnd, Coord lc, Coord gc) {
 	super.model(m, rnd, lc, gc);
 	Bottom b = m.data(Bottom.id);
@@ -353,15 +367,17 @@ public class WaterTile extends Tiler {
 	}
     }
 
-    static final SamplerCube sky = new SamplerCube(new RUtils.CubeFill(() -> Resource.local().load("gfx/tiles/skycube").get().layer(Resource.imgc).img).mktex());
+    static final WaterSky sky = WaterSky.shared;
     static final TexRender nrm = Resource.local().loadwait("gfx/tiles/wnrm").layer(TexR.class).tex();
     static final TexRender flow = Resource.local().loadwait("gfx/tiles/wfoam").layer(TexR.class).tex();
 
     private static final State.Slot<State> surfslot = new State.Slot<>(State.Slot.Type.DRAW, State.class);
+    public static SamplerCube waterSky() {return sky.get();}
+    public static void clearSurface(Pipe p) {p.put(surfslot, null);}
     private static final Pipe.Op surfextra = Pipe.Op.compose(new States.DepthBias(2, 2), new States.Facecull());
     private static final Pipe.Op baseextra = Pipe.Op.compose(surfextra, FragColor.blend(new BlendMode(BlendMode.Factor.ONE, BlendMode.Factor.ONE)));
     public static class BaseSurface extends State {
-	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> sky);
+	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> waterSky(), FrameInfo.slot);
 	private final Uniform snrm = new Uniform(Type.SAMPLER2D, p -> nrm.img);
 	private final Uniform icam = new Uniform(Type.MAT3, p -> Homo3D.camxf(p).transpose(), Homo3D.cam);
 
@@ -444,14 +460,14 @@ public class WaterTile extends Tiler {
 	    };
 
 	/* Nurgling: better water (a graphics option). */
-	public ShaderMacro shader() {return(nurgling.render.Atmos.water(shader));}
+	public ShaderMacro shader() {return(nurgling.render.Atmos.water ? nurgling.render.WaterSurface.hidden : shader);}
 
 	public void apply(Pipe buf) {
 	    buf.put(surfslot, this);
 	    baseextra.apply(buf);
 	}
     }
-    public static final Pipe.Op surfmat = Pipe.Op.compose(new BaseSurface(), new Rendered.Order.Default(6000));
+    public static final Pipe.Op surfmat = Pipe.Op.compose(new BaseSurface(), nurgling.render.WaterSurface.marker, new Rendered.Order.Default(6000));
 
     private static final Pipe.Op foamextra = Pipe.Op.compose(surfextra, FragColor.blend(new BlendMode(BlendMode.Factor.ONE, BlendMode.Factor.ONE)),
 							     new Light.PhongLight(true, new Color(255, 255, 255), new Color(128, 128, 128), new Color(0, 0, 0), new Color(0, 0, 0), 0),
@@ -464,7 +480,7 @@ public class WaterTile extends Tiler {
 	public static final AutoVarying[] vverti = new AutoVarying[4];
 	public static final Attribute vipol = new Attribute(Type.VEC2);
 	public static final MeshBuf.LayerID<MeshBuf.Vec2Layer> lvipol = new MeshBuf.V2LayerID(vipol);
-	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> sky);
+	private final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> waterSky(), FrameInfo.slot);
 	private final Uniform snrm = new Uniform(Type.SAMPLER2D, p -> nrm.img);
 	private final Uniform sflow = new Uniform(Type.SAMPLER2D, p -> flow.img);
 	private final Uniform icam = new Uniform(Type.MAT3, p -> Homo3D.camxf(p).transpose(), Homo3D.cam);
@@ -529,7 +545,7 @@ public class WaterTile extends Tiler {
 		}
 	    };
 
-	public ShaderMacro shader() {return(shader);}
+	public ShaderMacro shader() {return(nurgling.render.Atmos.water ? nurgling.render.WaterSurface.hidden : shader);}
 
 
 	public void apply(Pipe buf) {
@@ -577,8 +593,7 @@ public class WaterTile extends Tiler {
 	    };
 	}
 
-	/* Nurgling: caustics on the lake bed (a graphics option). */
-	public ShaderMacro shader() {return(nurgling.render.Atmos.caustics(shader));}
+	public ShaderMacro shader() {return(nurgling.render.Atmos.water ? null : shader);}
     }
     public static final BottomFog waterfog = new BottomFog();
     public static final BottomFog deepfog = new BottomFog(col3(BottomFog.deepfogcolor));
@@ -612,14 +627,14 @@ public class WaterTile extends Tiler {
 	private static final ShaderMacro shader = prog -> {
 	    FragColor.fragcol(prog.fctx).mod(in -> BottomFog.rgbmix.call(in, BottomFog.mfogcolor, clamp(div(fragd.ref(), l(BottomFog.maxdepth)), l(0.0), l(1.0))), 1000);
 	};
-	public ShaderMacro shader() {return(shader);}
+	public ShaderMacro shader() {return(nurgling.render.Atmos.water ? null : shader);}
 
 	public void apply(Pipe p) {p.put(slot, this);}
 
 	private static final Instancer<ObFog> instancer = new Instancer<ObFog>() {
 		final ObFog instanced = new ObFog(0) {
 		    final ShaderMacro shader = ShaderMacro.compose(mkinstanced, ObFog.shader);
-		    public ShaderMacro shader() {return(shader);}
+		    public ShaderMacro shader() {return(nurgling.render.Atmos.water ? mkinstanced : shader);}
 		};
 
 		public ObFog inststate(ObFog uinst, InstanceBatch bat) {
@@ -656,20 +671,14 @@ public class WaterTile extends Tiler {
 	this.bottom = bottom;
 	this.depth = depth;
 	this.isDeep = name.equals("gfx/tiles/odeeper");
+	this.isOcean = nurgling.render.WaterSurface.ocean(name);
     }
 
     public void lay(MapMesh m, Random rnd, Coord lc, Coord gc) {
 	MapMesh.MapSurface ms = m.data(MapMesh.gnd);
 	MPart d = MPart.splitquad(lc, gc, ms.fortilea(lc), ms.split[ms.bs.o(lc)]);
 
-	{
-	    MeshBuf mesh = MapMesh.Model.get(m, surfmat);
-	    MeshVertex[] mv = new MeshVertex[d.v.length];
-	    for(int i = 0; i < d.v.length; i++)
-		mv[i] = new MeshVertex(mesh, d.v[i]);
-	    for(int i = 0; i < d.f.length; i += 3)
-		mesh.new Face(mv[d.f[i]], mv[d.f[i + 1]], mv[d.f[i + 2]]);
-	}
+	watermesh(m, lc, gc);
 
 	foam: {
 	    FlowData sd = m.data(FlowData.id);
@@ -700,6 +709,46 @@ public class WaterTile extends Tiler {
 	MPart bd = MPart.splitquad(lc, gc, b.fortilea(lc), ms.split[ms.bs.o(lc)]);
 	bd.mat = botmat();
 	bottom.faces(m, bd);
+    }
+
+    /** Continuous vertex data across tile and mesh-cut boundaries. Four samples
+     * per tile edge resolve the ocean geometry without hardware tessellation. */
+    private void watermesh(MapMesh m, Coord lc, Coord gc) {
+        MeshBuf mesh=MapMesh.Model.get(m,surfmat);
+        MeshBuf.Vec4Layer values=mesh.layer(nurgling.render.WaterSurface.layer);
+        Vertex[] corners=m.data(MapMesh.gnd).fortilea(lc);
+        Bottom bottom=m.data(Bottom.id);
+        FlowData flows=m.data(FlowData.id);
+        float[][] attr=new float[4][4];
+        for(int i=0;i<4;i++) {
+            Coord offset=Coord.of((i==2 || i==3)?1:0,(i==1 || i==2)?1:0);
+            Coord local=lc.add(offset),world=gc.add(offset);
+            Coord3f flow=flows.vel(local);
+            float ocean=0,count=0;
+            for(int y=-1;y<=0;y++) for(int x=-1;x<=0;x++) {
+                Tiler tile=m.map.tiler(m.map.gettile(world.add(x,y)));
+                if(tile instanceof WaterTile) {count++;if(((WaterTile)tile).isOcean) ocean++;}
+            }
+            attr[i]=new float[]{bottom.d(local.x,local.y),count==0?0:ocean/count,flow.x,flow.y};
+        }
+        int steps=4;
+        MeshBuf.Vertex[][] vertices=new MeshBuf.Vertex[steps+1][steps+1];
+        for(int y=0;y<=steps;y++) for(int x=0;x<=steps;x++) {
+            float u=x/(float)steps,v=y/(float)steps;
+            float[] weights={(1-u)*(1-v),(1-u)*v,u*v,u*(1-v)};
+            Coord3f pos=Coord3f.o;
+            float[] data=new float[4];
+            for(int i=0;i<4;i++) {
+                pos=pos.add(corners[i].mul(weights[i]));
+                for(int j=0;j<4;j++) data[j]+=attr[i][j]*weights[i];
+            }
+            MeshBuf.Vertex vertex=mesh.new Vertex(pos,Coord3f.zu);
+            values.set(vertex,data);vertices[y][x]=vertex;
+        }
+        for(int y=0;y<steps;y++) for(int x=0;x<steps;x++) {
+            mesh.new Face(vertices[y][x],vertices[y+1][x],vertices[y+1][x+1]);
+            mesh.new Face(vertices[y][x],vertices[y+1][x+1],vertices[y][x+1]);
+        }
     }
 
     public void trans(MapMesh m, Random rnd, Tiler gt, Coord lc, Coord gc, int z, int bmask, int cmask) {

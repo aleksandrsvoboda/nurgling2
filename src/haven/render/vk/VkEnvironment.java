@@ -46,6 +46,8 @@ import static org.lwjgl.vulkan.VK13.*;
 import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.KHRPushDescriptor.*;
+import static org.lwjgl.vulkan.KHRPresentId.*;
+import static org.lwjgl.vulkan.KHRPresentWait.*;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.util.vma.Vma.*;
 
@@ -61,6 +63,7 @@ import static org.lwjgl.util.vma.Vma.*;
  */
 public class VkEnvironment implements Environment {
     public static final Config.Variable<Boolean> validate = Config.Variable.propb("haven.vkdebug", false);
+    public static final Config.Variable<Boolean> presentpacing = Config.Variable.propb("haven.vkpacing", true);
     public static final int SLOTS = 2;
     /* Images keep OpenGL's memory layout (row 0 is the bottom of
      * the GL window), which mirrors triangle winding as Vulkan sees
@@ -82,13 +85,14 @@ public class VkEnvironment implements Environment {
     public final Caps caps;
     final float linemin, linemax, maxaniso;
     final boolean wideLines, anisotropy, mirrorclamp;
+    public final boolean presentwait;
     final int ts_bits;
     final float ts_period;
     final AtomicInteger npipes = new AtomicInteger();
     /* Device objects (buffers, textures, programs) not yet destroyed. */
     final AtomicInteger live = new AtomicInteger();
     final Surface wsys;
-    private final Path pipecachefile;
+    final PipelineCacheWriter pipecachewriter;
     private Area wnd;
 
     public interface Surface {
@@ -406,6 +410,13 @@ public class VkEnvironment implements Environment {
 		qfs.free();
 
 		VkPhysicalDeviceVulkan12Features a12 = VkPhysicalDeviceVulkan12Features.calloc(st).sType$Default();
+		Set<String> deviceexts = devexts(st, pdev);
+		boolean canwait = presentpacing.get() && deviceexts.contains(VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
+		    deviceexts.contains(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+		VkPhysicalDevicePresentIdFeaturesKHR pid = VkPhysicalDevicePresentIdFeaturesKHR.calloc(st).sType$Default();
+		VkPhysicalDevicePresentWaitFeaturesKHR pwait = VkPhysicalDevicePresentWaitFeaturesKHR.calloc(st).sType$Default().pNext(pid.address());
+		if(canwait)
+		    a12.pNext(pwait.address());
 		VkPhysicalDeviceVulkan13Features a13 = VkPhysicalDeviceVulkan13Features.calloc(st).sType$Default().pNext(a12.address());
 		VkPhysicalDeviceFeatures2 af = VkPhysicalDeviceFeatures2.calloc(st).sType$Default().pNext(a13.address());
 		vkGetPhysicalDeviceFeatures2(pdev, af);
@@ -413,9 +424,12 @@ public class VkEnvironment implements Environment {
 		this.wideLines = have.wideLines();
 		this.anisotropy = have.samplerAnisotropy();
 		this.mirrorclamp = a12.samplerMirrorClampToEdge();
+		this.presentwait = canwait && pid.presentId() && pwait.presentWait();
 
 		VkPhysicalDeviceVulkan12Features e12 = VkPhysicalDeviceVulkan12Features.calloc(st).sType$Default()
 		    .samplerMirrorClampToEdge(mirrorclamp);
+		if(presentwait)
+		    e12.pNext(pwait.address());
 		VkPhysicalDeviceVulkan13Features e13 = VkPhysicalDeviceVulkan13Features.calloc(st).sType$Default().pNext(e12.address())
 		    .dynamicRendering(true);
 		VkPhysicalDeviceFeatures2 ef = VkPhysicalDeviceFeatures2.calloc(st).sType$Default().pNext(e13.address());
@@ -424,9 +438,18 @@ public class VkEnvironment implements Environment {
 		    .fillModeNonSolid(have.fillModeNonSolid());
 		VkDeviceQueueCreateInfo.Buffer qci = VkDeviceQueueCreateInfo.calloc(1, st);
 		qci.get(0).sType$Default().queueFamilyIndex(qfam).pQueuePriorities(st.floats(1.0f));
+		List<String> enabledexts = new ArrayList<>(Arrays.asList(VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME));
+		if(presentwait) {
+		    enabledexts.add(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+		    enabledexts.add(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+		}
+		PointerBuffer enames = st.mallocPointer(enabledexts.size());
+		for(String name : enabledexts)
+		    enames.put(st.UTF8(name));
+		enames.flip();
 		VkDeviceCreateInfo dci = VkDeviceCreateInfo.calloc(st).sType$Default().pNext(ef.address())
 		    .pQueueCreateInfos(qci)
-		    .ppEnabledExtensionNames(st.pointers(st.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME), st.UTF8(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)));
+		    .ppEnabledExtensionNames(enames);
 		PointerBuffer pp = st.mallocPointer(1);
 		int rv = vkCreateDevice(pdev, dci, null, pp);
 		if(rv != VK_SUCCESS)
@@ -445,7 +468,6 @@ public class VkEnvironment implements Environment {
 
 	    this.compiler = new VkShaderCompiler();
 	    Path pcf = (compiler.cachedir() == null) ? null : compiler.cachedir().resolve("pipelines.bin");
-	    this.pipecachefile = pcf;
 	    ByteBuffer init = null;
 	    if(pcf != null) {
 		try {
@@ -473,6 +495,7 @@ public class VkEnvironment implements Environment {
 		    MemoryUtil.memFree(init);
 	    }
 	    this.exec = new VkExec(this, surface);
+	    this.pipecachewriter = new PipelineCacheWriter(pcf, this::pipecachesnapshot);
 	    surface = 0;
 	} catch(RuntimeException e) {
 	    if(surface != 0)
@@ -604,7 +627,12 @@ public class VkEnvironment implements Environment {
 	}
     }
 
+    private volatile Thread processingThread;
+    /** Diagnostic snapshots only; never wait for these threads from the UI. */
+    public Thread[] diagnosticThreads() {return new Thread[]{processingThread, cbthread};}
+
     public void process() {
+	processingThread = Thread.currentThread();
 	List<VkRender> copy;
 	List<Consumer<VkExec>> prep;
 	synchronized(submitted) {
@@ -622,7 +650,9 @@ public class VkEnvironment implements Environment {
     }
 
     public void dispose() {
-	builders.shutdownNow();
+	// Finish queued/native builds before extracting the last cache or destroying its device.
+	builders.shutdown();
+	PipelineCacheWriter.await(builders);
 	Collection<VkRender> copy;
 	synchronized(submitted) {
 	    copy = new ArrayList<>(submitted);
@@ -636,7 +666,7 @@ public class VkEnvironment implements Environment {
 	synchronized(exec) {
 	    exec.dispose();
 	}
-	savepipecache();
+	pipecachewriter.close();
 	synchronized(pmon) {
 	    for(SavedProg s : ptab) {
 		for(; s != null; s = s.next)
@@ -664,23 +694,26 @@ public class VkEnvironment implements Environment {
 	    msgcb.free();
     }
 
-    private void savepipecache() {
-	if(pipecachefile == null)
-	    return;
+    private PipelineCacheWriter.Snapshot pipecachesnapshot() {
+	// Cache flags are zero: Vulkan internally synchronizes cache access with pipeline
+	// creation. Do not take a render-thread lock here; only the save worker calls this.
 	try(MemoryStack st = stackPush()) {
 	    PointerBuffer sz = st.mallocPointer(1);
 	    if(vkGetPipelineCacheData(dev, pipecache, sz, null) != VK_SUCCESS)
-		return;
+		return null;
+	    if(sz.get(0) <= 0 || sz.get(0) > Integer.MAX_VALUE)
+		return null;
 	    ByteBuffer data = MemoryUtil.memAlloc((int)sz.get(0));
+	    boolean retained = false;
 	    try {
 		if(vkGetPipelineCacheData(dev, pipecache, sz, data) != VK_SUCCESS)
-		    return;
-		byte[] buf = new byte[(int)sz.get(0)];
-		data.get(buf);
-		Files.write(pipecachefile, buf);
-	    } catch(java.io.IOException e) {
+		    return null;
+		data.limit(Math.toIntExact(sz.get(0)));
+		PipelineCacheWriter.Snapshot snapshot = new PipelineCacheWriter.Snapshot(data, () -> MemoryUtil.memFree(data));
+		retained = true;
+		return snapshot;
 	    } finally {
-		MemoryUtil.memFree(data);
+		if(!retained) MemoryUtil.memFree(data);
 	    }
 	}
     }
@@ -688,7 +721,7 @@ public class VkEnvironment implements Environment {
     /* Callbacks */
 
     final Queue<Runnable> callbacks = new LinkedList<>();
-    private Thread cbthread = null;
+    private volatile Thread cbthread = null;
 
     private void ckcbt() {
 	synchronized(callbacks) {
@@ -842,6 +875,7 @@ public class VkEnvironment implements Environment {
 		throw(new IllegalArgumentException("ephemeral buffers have no device object"));
 	    VkBuf ret = VkReference.get(buf.ro, VkBuf.class);
 	    if((ret == null) || (ret.env != this)) {
+		double started = Utils.rtime();
 		if(buf.ro != null)
 		    buf.ro.dispose();
 		ret = new VkBuf(this, buf.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -850,6 +884,7 @@ public class VkEnvironment implements Environment {
 		    FillBuffer data = buf.init.fill(buf, this);
 		    ret.upload(0, data);
 		}
+		nurgling.diagnostics.MovementTrace.renderStage(this, "vertex-buffer-prepare", started, "bytes=" + buf.size());
 	    }
 	    return(ret);
 	}
@@ -861,6 +896,7 @@ public class VkEnvironment implements Environment {
 		throw(new IllegalArgumentException("ephemeral buffers have no device object"));
 	    VkBuf ret = VkReference.get(buf.ro, VkBuf.class);
 	    if((ret == null) || (ret.env != this)) {
+		double started = Utils.rtime();
 		if(buf.ro != null)
 		    buf.ro.dispose();
 		boolean wide = (buf.fmt == NumberFormat.UINT8);
@@ -871,6 +907,7 @@ public class VkEnvironment implements Environment {
 		    FillBuffer data = buf.init.fill(buf, this);
 		    ret.upload(0, data);
 		}
+		nurgling.diagnostics.MovementTrace.renderStage(this, "index-buffer-prepare", started, "bytes=" + buf.size());
 	    }
 	    return(ret);
 	}
@@ -882,10 +919,13 @@ public class VkEnvironment implements Environment {
 	synchronized(tex) {
 	    VkTexture ret = VkReference.get(tex.ro, VkTexture.class);
 	    if((ret == null) || (ret.env != this)) {
+		double started = Utils.rtime();
 		if(tex.ro != null)
 		    tex.ro.dispose();
 		ret = VkTexture.create(this, tex);
 		tex.ro = new VkReference<>(ret);
+		nurgling.diagnostics.MovementTrace.renderStage(this, "texture-prepare", started,
+		    "size=" + ret.w + "x" + ret.h + " levels=" + ret.levels);
 	    }
 	    return(ret);
 	}
@@ -951,12 +991,16 @@ public class VkEnvironment implements Environment {
 	    Long ret = samplers.get(key);
 	    if(ret == null) {
 		try(MemoryStack st = stackPush()) {
+		    /* OpenGL's non-mipmapped filters still distinguish minification
+		     * from magnification. A zero maxLod forces magnification in
+		     * Vulkan; 0.25 with NEAREST mip selection keeps level zero
+		     * while allowing minFilter (VkSamplerCreateInfo specification). */
 		    VkSamplerCreateInfo ci = VkSamplerCreateInfo.calloc(st).sType$Default()
 			.magFilter(vkfilter(mag)).minFilter(vkfilter(min))
 			.mipmapMode(((mip == null) || (mip == Texture.Filter.NEAREST)) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR)
 			.addressModeU(vkwrap(smp.swrap)).addressModeV(vkwrap(smp.twrap)).addressModeW(vkwrap(smp.rwrap))
 			.mipLodBias(0).anisotropyEnable(aniso > 1).maxAnisotropy(Math.max(aniso, 1))
-			.compareEnable(false).minLod(0).maxLod((mip == null) ? 0 : VK_LOD_CLAMP_NONE)
+			.compareEnable(false).minLod(0).maxLod((mip == null) ? 0.25f : VK_LOD_CLAMP_NONE)
 			.borderColor(border).unnormalizedCoordinates(false);
 		    LongBuffer lp = st.mallocLong(1);
 		    check(vkCreateSampler(dev, ci, null, lp), "vkCreateSampler");
@@ -1218,7 +1262,7 @@ public class VkEnvironment implements Environment {
 	    lastpclean = now;
 	}
 	if(now - lastpsave > 300) {
-	    savepipecache();
+	    pipecachewriter.request();
 	    lastpsave = now;
 	}
     }

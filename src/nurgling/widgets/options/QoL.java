@@ -61,6 +61,7 @@ public class QoL extends Panel {
     private CheckBox stoneHarvestOverlay;
     private CheckBox oldtrunkHarvestOverlay;
     private CheckBox syncCamera;
+    private CheckBox sessionBarBackground;
     private CheckBox invGilding;
     private CheckBox invVarOverlay;
     private CheckBox invSlotNumbers;
@@ -127,6 +128,13 @@ public class QoL extends Panel {
 
         // LEFT COLUMN - Visual & Interface Settings
         Widget leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.visual")), new Coord(5, 5));
+        leftPrev = leftColumn.add(new CheckBox(L10n.get("compass.setting")) {
+            { a = Utils.getprefb("navigation-compass", true); }
+            public void changed(boolean value) {
+                super.changed(value);
+                Utils.setprefb("navigation-compass", value);
+            }
+        }, leftPrev.pos("bl").adds(0, 10));
         leftPrev = showCropStage = leftColumn.add(new CheckBox(L10n.get("qol.show_crop_stage")), leftPrev.pos("bl").adds(0, 10));
         leftPrev = simpleCrops = leftColumn.add(new CheckBox(L10n.get("qol.simple_crops")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = nightVision = leftColumn.add(new CheckBox(L10n.get("qol.night_vision")), leftPrev.pos("bl").adds(0, 5));
@@ -329,6 +337,7 @@ public class QoL extends Panel {
         rightPrev = disableDrugEffects = rightColumn.add(new CheckBox(L10n.get("qol.disable_drugs")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = randomAreaColor = rightColumn.add(new CheckBox(L10n.get("qol.random_area_color")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = syncCamera = rightColumn.add(new CheckBox("Sync camera across sessions"), rightPrev.pos("bl").adds(0, 5));
+        rightPrev = sessionBarBackground = rightColumn.add(new CheckBox(L10n.get("qol.session_bar_background")), rightPrev.pos("bl").adds(0, 5));
 
         rightPrev = rightColumn.add(new Label("● " + L10n.get("qol.section.inventory")), rightPrev.pos("bl").adds(0, 15));
         rightPrev = invGilding = rightColumn.add(new CheckBox(L10n.get("qol.inv_gilding_overlay")), rightPrev.pos("bl").adds(0, 5));
@@ -423,6 +432,7 @@ public class QoL extends Panel {
         stoneHarvestOverlay.a = getBool(NConfig.Key.stoneHarvestOverlay);
         oldtrunkHarvestOverlay.a = getBool(NConfig.Key.oldtrunkHarvestOverlay);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
+        sessionBarBackground.a = Utils.getprefb(nurgling.sessions.SessionTabBar.BACKGROUND_PREF, true);
 
         invGilding.a = getBool(NConfig.Key.showGilding);
         invVarOverlay.a = getBool(NConfig.Key.showVarity);
@@ -659,6 +669,7 @@ public class QoL extends Panel {
         }
 
         NConfig.set(NConfig.Key.sync_camera, syncCamera.a);
+        Utils.setprefb(nurgling.sessions.SessionTabBar.BACKGROUND_PREF, sessionBarBackground.a);
 
         int oldTreeDisplayScale = 100;
         Object oldTreeDisplayScaleObj = NConfig.get(NConfig.Key.treeDisplayScale);

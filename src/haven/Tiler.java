@@ -211,6 +211,11 @@ public abstract class Tiler {
 	cons.faces(m, MPart.splitquad(lc, gc, s.fortilea(lc), s.split[s.bs.o(lc)]));
     }
 
+    /** Lay a neighbouring terrain's texture fringe, independently of ground overlays. */
+    public void laytrans(MapMesh m, Coord lc, Coord gc, MCons cons) {
+	lay(m, lc, gc, cons, false);
+    }
+
     public abstract void lay(MapMesh m, Random rnd, Coord lc, Coord gc);
     public abstract void trans(MapMesh m, Random rnd, Tiler gt, Coord lc, Coord gc, int z, int bmask, int cmask);
 

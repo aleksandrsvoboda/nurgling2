@@ -284,6 +284,8 @@ public class Connection implements Transport {
     }
 
     private final ByteBuffer recvbuf = ByteBuffer.allocate(65536);
+    private double movementReceivedAt = Double.NaN;
+    private long movementPacket;
     private PMessage recv() throws IOException {
 	recvbuf.clear();
 	int ret = sk.read(recvbuf);
@@ -292,6 +294,8 @@ public class Connection implements Transport {
 	} else if(ret == 0) {
 	    return(null);
 	} else {
+	    movementReceivedAt = Utils.rtime();
+	    movementPacket++;
 	    recvbuf.flip();
 	    byte type = recvbuf.get();
 	    byte[] buf = new byte[recvbuf.remaining()];
@@ -548,6 +552,8 @@ public class Connection implements Transport {
 		long id = msg.uint32();
 		int fr = msg.int32();
 		OCache.ObjDelta delta = new OCache.ObjDelta(fl, id, fr);
+		delta.receivedAt = movementReceivedAt;
+		delta.packet = movementPacket;
 		if((fl & 1) != 0)
 		    delta.initframe = fr;
 		if((fl & 8) != 0)

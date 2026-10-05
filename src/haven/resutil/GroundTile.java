@@ -68,7 +68,7 @@ public class GroundTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	throw(new RuntimeException("Cannot use texture for ground-tile rendering: " + t));
     }
 
-    private static Pipe.Op stfor(Tex tex, int z, boolean clip) {
+    private Pipe.Op stfor(Tex tex, int z, boolean clip) {
 	TexRender gt;
 	if(tex instanceof TexRender)
 	    gt = (TexRender)tex;
@@ -77,22 +77,28 @@ public class GroundTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	else
 	    throw(new RuntimeException("Cannot use texture for ground-tile rendering: " + tex));
 	Pipe.Op ret;
+	nurgling.render.Atmos.WetSurface surface = nurgling.render.Atmos.WetSurface.ground(set.getres().name);
+	State relief = nurgling.render.GroundRelief.state(surface);
 	/* Nurgling: GroundRelief only adds a shader while the graphics
 	 * option is on. */
 	if(clip)
-	    ret = Pipe.Op.compose(gcol, gt.draw, gt.clip, new MapMesh.MLOrder(z), nurgling.render.GroundRelief.state);
+	    ret = Pipe.Op.compose(gcol, gt.draw, gt.clip, new MapMesh.MLOrder(z), relief);
 	else
-	    ret = Pipe.Op.compose(gcol, gt.draw, new MapMesh.MLOrder(z), nurgling.render.GroundRelief.state);
-	return(ret);
+	    ret = Pipe.Op.compose(gcol, gt.draw, new MapMesh.MLOrder(z), relief);
+	return(Pipe.Op.compose(ret, surface));
     }
 
     /* XXX: Some strange javac bug seems to make it resolve the
      * trans() references to the wrong signature, thus the name
      * distinction. */
     public void _faces(MapMesh m, Tile t, int z, Surface.Vertex[] v, float[] tcx, float[] tcy, int[] f) {
+	_faces(m, t, z, v, tcx, tcy, f, null);
+    }
+
+    private void _faces(MapMesh m, Tile t, int z, Surface.Vertex[] v, float[] tcx, float[] tcy, int[] f, Pipe.Op extra) {
 	Tex tex = t.tex();
 	float tl = tcx(tex, 0), tt = tcy(tex, 0), tw = tcx(tex, tex.sz().x) - tl, th = tcy(tex, tex.sz().y) - tt;
-	Pipe.Op st = stfor(tex, z, t.t != 'g');
+	Pipe.Op st = Pipe.Op.compose(stfor(tex, z, t.t != 'g'), extra);
 	MeshBuf buf = MapMesh.Model.get(m, st);
 
 	MeshBuf.Tex btex = buf.layer(MeshBuf.tex);
@@ -116,7 +122,7 @@ public class GroundTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
     private MCons tcons(final int z, final Tile t) {
 	return(new MCons() {
 		public void faces(MapMesh m, MPart d) {
-		    _faces(m, t, z, d.v, d.tcx, d.tcy, d.f);
+		    _faces(m, t, z, d.v, d.tcx, d.tcy, d.f, d.mat);
 		}
 	    });
     }
@@ -139,8 +145,8 @@ public class GroundTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	if(m.map.gettile(gc) <= id)
 	    return;
 	if((set.btrans != null) && (bmask > 0))
-	    gt.lay(m, lc, gc, tcons(z, set.btrans[bmask - 1].pick(rnd)), false);
+	    gt.laytrans(m, lc, gc, tcons(z, set.btrans[bmask - 1].pick(rnd)));
 	if((set.ctrans != null) && (cmask > 0))
-	    gt.lay(m, lc, gc, tcons(z, set.ctrans[cmask - 1].pick(rnd)), false);
+	    gt.laytrans(m, lc, gc, tcons(z, set.ctrans[cmask - 1].pick(rnd)));
     }
 }

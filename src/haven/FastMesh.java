@@ -74,7 +74,8 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	    }
 	}
 	for(int i = 0; i < indb.capacity(); i++) {
-	    int vi = indb.get(i) * 3;
+	    // Mesh indices are UINT16, even though ShortBuffer exposes signed values.
+	    int vi = (indb.get(i) & 0xffff) * 3;
 	    float x = vbuf.data.get(vi), y = vbuf.data.get(vi + 1), z = vbuf.data.get(vi + 2);
 	    if(nb == null) {
 		nb = new Coord3f(x, y, z);
@@ -221,6 +222,11 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	}
 
 	public Map<String, Object> info() {return(info.info);}
+
+	public void added(RenderTree.Slot slot) {
+	    if(nurgling.render.VolumeFire.fireResource(res.name))
+		slot.ostate(nurgling.render.VolumeFire.surface);
+	}
 	
 	public String toString() {
 	    return("FastMesh(" + res.name + ", " + id + ")");

@@ -21,14 +21,7 @@ import static haven.render.sl.Type.*;
  * direction (and less light in the deep veins) keeps the relief
  * readable in any lighting.
  *
- * Terrain: GroundTile and TerrainTile add the state to every ground
- * material. World objects (houses, ovens, barrels; resources under
- * gfx/terobjs/): the per-pixel Phong lighting state adds the same
- * shader through phong(), as do the tile textures (brick, stone)
- * objects are built from. Metal is kept smooth and given a sheen
- * instead; cel-shaded materials get a stronger sun term (cel()), and
- * damage cracks are cut in (CrackTex). Characters, animals and items
- * are left alone, since painted faces and clothing would turn lumpy.
+ * Terrain: GroundTile and TerrainTile add the state to each ground material.
  *
  * Height maps are built on the background loader; materials wait for
  * theirs the same way they wait for their textures. The shaders are
@@ -36,8 +29,9 @@ import static haven.render.sl.Type.*;
  * lists' programs.
  */
 public class GroundRelief {
-    public static volatile boolean enabled = false, objects = false;
-    private static volatile float strength = 1.0f, ostrength = 0.6f;
+    public static volatile boolean enabled = false;
+    private static volatile boolean pavingOnly = false;
+    private static volatile float strength = 1.0f;
 
     /* The stone normal, from a smooth height (in world units): the
      * screen-space derivatives of a smooth height give a smooth,
@@ -54,21 +48,6 @@ public class GroundRelief {
 	"    float l = length(m);\n" +
 	"    return((l > 0.0) ? (m / l) : n);\n" +
 	"}\n" +
-	/* Height in world units. Ground (sc < 0) uses a fixed depth.
-	 * Objects measure depth in texels of their own texture (sc,
-	 * calibrated per texture), so a texture squeezed onto a small
-	 * barrel and one stretched over a roof get the same slopes. */
-	"float hv_rdepth(sampler2D hm, vec2 tc, vec3 p, float h, float k, float sc)\n" +
-	"{\n" +
-	"    if(sc < 0.0)\n" +
-	"        return(h * k * 0.8);\n" +
-	"    vec2 dx = dFdx(tc), dy = dFdy(tc);\n" +
-	"    vec2 ts = vec2(textureSize(hm, 0));\n" +
-	"    float uva = abs(dx.x * dy.y - dx.y * dy.x) * ts.x * ts.y;\n" +
-	"    float wa = length(cross(dFdx(p), dFdy(p)));\n" +
-	"    float wpt = sqrt(wa / max(uva, 1e-12));\n" +
-	"    return(h * k * sc * wpt);\n" +
-	"}\n" +
 	"vec3 hv_rfacen(vec3 p)\n" +
 	"{\n" +
 	"    vec3 n = normalize(cross(dFdx(p), dFdy(p)));\n" +
@@ -84,64 +63,24 @@ public class GroundRelief {
 
     /* Bends the normal the game's own lighting uses, so the sun,
      * moon, fires and torches all shade the stones. */
-    static final RawFunction nfn = new RawFunction(VEC3, "hv_rnorm", 6,
-	"vec3 hv_rnorm(vec3 n, vec3 p, sampler2D hm, vec2 tc, float k, float sc)\n" +
+    static final RawFunction nfn = new RawFunction(VEC3, "hv_rnorm", 5,
+	"vec3 hv_rnorm(vec3 n, vec3 p, sampler2D hm, vec2 tc, float k)\n" +
 	"{\n" +
-	"    return(hv_rbump(n, p, hv_rdepth(hm, tc, p, texture(hm, tc).r, k, sc)));\n" +
+	"    return(hv_rbump(n, p, texture(hm, tc).r * k * 0.8));\n" +
 	"}\n");
 
     /* Keeps the relief readable when the light is mostly ambient
      * (night, night vision): a little extra shading from the sun or
      * moon direction (gain g), and deep veins get less light. */
-    static final RawFunction cfn = new RawFunction(VEC4, "hv_rcol", 8,
-	"vec4 hv_rcol(vec4 col, vec3 p, sampler2D hm, vec2 tc, vec3 L, float k, float g, float sc)\n" +
+    static final RawFunction cfn = new RawFunction(VEC4, "hv_rcol", 7,
+	"vec4 hv_rcol(vec4 col, vec3 p, sampler2D hm, vec2 tc, vec3 L, float k, float g)\n" +
 	"{\n" +
 	"    vec3 n = hv_rfacen(p);\n" +
 	"    float hw = texture(hm, tc).r;\n" +
-	"    vec3 bn = hv_rbump(n, p, hv_rdepth(hm, tc, p, hw, k, sc));\n" +
+	"    vec3 bn = hv_rbump(n, p, hw * k * 0.8);\n" +
 	"    float s = 1.0 + g * (dot(bn, L) - dot(n, L));\n" +
 	"    s *= mix(1.0 - 0.22 * min(k, 1.5), 1.0, smoothstep(0.0, 0.6, hw));\n" +
 	"    return(vec4(col.rgb * clamp(s, 0.5, 1.35), col.a));\n" +
-	"}\n");
-
-    /* Metal sheen: a sharp highlight from the sun or moon, a sky
-     * reflection that is brighter facing up, and a bright rim at
-     * grazing angles, all tinted by the metal's own color. */
-    static final RawFunction mfn = new RawFunction(VEC4, "hv_rmetal", 5,
-	"vec4 hv_rmetal(vec4 col, vec3 p, vec3 n, vec3 L, float m)\n" +
-	"{\n" +
-	"    if(m <= 0.0)\n" +
-	"        return(col);\n" +
-	"    vec3 v = normalize(-p);\n" +
-	"    n = normalize(n);\n" +
-	"    if(dot(n, v) < 0.0)\n" +
-	"        n = -n;\n" +
-	"    vec3 r = reflect(-v, n);\n" +
-	"    float sp = pow(max(dot(r, L), 0.0), 24.0);\n" +
-	"    float sky = 0.5 + 0.5 * r.y;\n" +
-	"    float fr = pow(1.0 - max(dot(n, v), 0.0), 3.0);\n" +
-	"    vec3 c = col.rgb * (0.75 + 0.6 * sky * sky) + col.rgb * (sp * 1.8 + fr * 0.6) + vec3(sp * 0.3);\n" +
-	"    return(vec4(mix(col.rgb, c, m), col.a));\n" +
-	"}\n");
-
-    /* Damage cracks are cut into the surface: a softened copy of
-     * the crack pattern is a groove whose edges catch the light on
-     * one side and fall into shadow on the other. */
-    public static final RawFunction crackn = new RawFunction(VEC3, "hv_crackn", 5,
-	"vec3 hv_crackn(vec3 n, vec3 p, sampler3D t, vec3 c, float k)\n" +
-	"{\n" +
-	"    float a = 0.6 * texture(t, c, 2.0).r + 0.4 * texture(t, c).r;\n" +
-	"    return(hv_rbump(n, p, -a * k));\n" +
-	"}\n");
-    public static final RawFunction crackc = new RawFunction(VEC4, "hv_crackc", 6,
-	"vec4 hv_crackc(vec4 col, vec3 p, sampler3D t, vec3 c, vec3 L, float k)\n" +
-	"{\n" +
-	"    vec3 n = hv_rfacen(p);\n" +
-	"    float a = 0.6 * texture(t, c, 2.0).r + 0.4 * texture(t, c).r;\n" +
-	"    vec3 bn = hv_rbump(n, p, -a * k);\n" +
-	"    float s = 1.0 + 1.3 * (dot(bn, L) - dot(n, L));\n" +
-	"    s *= 1.0 - 0.45 * smoothstep(0.1, 0.7, a);\n" +
-	"    return(vec4(col.rgb * clamp(s, 0.3, 1.5), col.a));\n" +
 	"}\n");
 
     /* Direction towards the sun or moon, in view space. */
@@ -170,11 +109,10 @@ public class GroundRelief {
 
     /* Height maps */
 
-    /* A texture's height map and its object calibration. */
+    /* A terrain texture's height map. */
     static class Relief {
 	final Texture2D.Sampler2D map;
-	final float scale;
-	Relief(Texture2D.Sampler2D map, float scale) {this.map = map; this.scale = scale;}
+	Relief(Texture2D.Sampler2D map) {this.map = map;}
     }
 
     private static final Map<TexRender, Relief> heights = new WeakHashMap<>();
@@ -183,7 +121,7 @@ public class GroundRelief {
 
     private static synchronized Relief flatr() {
 	if(flatr == null)
-	    flatr = new Relief(flat(), 0);
+	    flatr = new Relief(flat());
 	return(flatr);
     }
 
@@ -236,17 +174,7 @@ public class GroundRelief {
 	return(t * t * (3 - 2 * t));
     }
 
-    /* Target mean slope of object relief at strength 1. */
-    static final float SLOPE = 1.0f;
-
     static float[] heightmap(BufferedImage img) {
-	return(heightmap(img, null));
-    }
-
-    /* stats, if given, receives the calibration for object relief:
-     * the depth (in texels) giving the target mean slope, less for
-     * faint textures whose painted detail is subtle. */
-    static float[] heightmap(BufferedImage img, float[] stats) {
 	int w = img.getWidth(), h = img.getHeight();
 	float[] lum = new float[w * h];
 	for(int y = 0; y < h; y++) {
@@ -293,66 +221,12 @@ public class GroundRelief {
 	float range = Math.max(hi - lo, 0.0001f);
 	for(int i = 0; i < s.length; i++)
 	    s[i] = (s[i] - lo) / range;
-	if(stats != null) {
-	    double g = 0;
-	    for(int y = 0; y < h; y++) {
-		for(int x = 0; x < w; x++) {
-		    float c = s[y * w + x];
-		    float dx = s[y * w + ((x + 1) % w)] - c, dy = s[((y + 1) % h) * w + x] - c;
-		    g += Math.sqrt((dx * dx) + (dy * dy));
-		}
-	    }
-	    g /= (w * h);
-	    float depth = (g > 1e-5) ? (float)Math.min(SLOPE / g, 80) : 0;
-	    float contrast = (float)Math.sqrt(m2);
-	    stats[0] = depth * Math.max(0.35f, Math.min(1.0f, contrast / 0.07f));
-	}
 	return(s);
     }
 
-    static float[] luminance(BufferedImage img) {
+    private static Relief mkheight(BufferedImage img) {
 	int w = img.getWidth(), h = img.getHeight();
-	float[] lum = new float[w * h];
-	for(int y = 0; y < h; y++) {
-	    for(int x = 0; x < w; x++) {
-		int c = img.getRGB(x, y);
-		lum[y * w + x] = (0.299f * ((c >> 16) & 255) + 0.587f * ((c >> 8) & 255) + 0.114f * (c & 255)) / 255f;
-	    }
-	}
-	return(lum);
-    }
-
-    /* The depth (in texels) giving a height map the target mean slope. */
-    static float calibrate(float[] s, int w, int h) {
-	double g = 0;
-	for(int y = 0; y < h; y++) {
-	    for(int x = 0; x < w; x++) {
-		float c = s[y * w + x];
-		float dx = s[y * w + ((x + 1) % w)] - c, dy = s[((y + 1) % h) * w + x] - c;
-		g += Math.sqrt((dx * dx) + (dy * dy));
-	    }
-	}
-	g /= (w * h);
-	return((g > 1e-5) ? (float)Math.min(SLOPE / g, 80) : 0);
-    }
-
-    /* name: the texture's resource, to tell what it is made of (see
-     * Materials); objects only, the ground is all stone and soil. */
-    private static Relief mkheight(BufferedImage img, String name, boolean objs) {
-	int w = img.getWidth(), h = img.getHeight();
-	float[] stats = new float[1];
-	Materials.Kind kind = objs ? Materials.classify(name, img, luminance(img)) : Materials.Kind.STONE;
-	if(kind == Materials.Kind.FLAT)
-	    return(flatr());
-	float[] hm;
-	if(kind == Materials.Kind.STONE) {
-	    hm = heightmap(img, stats);
-	} else {
-	    float[] lum = luminance(img);
-	    hm = (kind == Materials.Kind.WOOD) ? Materials.wood(lum, w, h) : Materials.fine(lum, w, h);
-	    stats[0] = calibrate(hm, w, h);
-	}
-	stats[0] *= kind.depth;
+	float[] hm = heightmap(img);
 	boolean pot = ((w & (w - 1)) == 0) && ((h & (h - 1)) == 0);
 	List<byte[]> levels = new ArrayList<>();
 	float[] cur = hm;
@@ -386,25 +260,16 @@ public class GroundRelief {
 					  buf.pull(ByteBuffer.wrap(levels.get(img2.level)));
 					  return(buf);
 				      });
-	return(new Relief(sampler(tex), stats[0]));
+	return(new Relief(sampler(tex)));
     }
 
     private static final Map<TexRender, Defer.Future<Relief>> pending = new WeakHashMap<>();
 
-    /* objs: only world-object textures get a height map. Throws
-     * Loading until the map is built. */
-    static Relief heightfor(TexRender.TexDraw draw, boolean objs) {
+    /* Throws Loading until the terrain height map is built. */
+    static Relief heightfor(TexRender.TexDraw draw) {
 	if((draw == null) || !(draw.tex instanceof TexL))
 	    return(flatr());
 	TexL tex = (TexL)draw.tex;
-	if(objs) {
-	    /* World objects, and the tile textures (brick, stone)
-	     * that ovens and smelters are built from. Metal is kept
-	     * smooth and made shiny instead. */
-	    String nm = tex.loadname();
-	    if((nm == null) || !(nm.contains("gfx/terobjs/") || nm.contains("gfx/tiles/")) || metal(nm))
-		return(flatr());
-	}
 	synchronized(heights) {
 	    Relief ret = heights.get(tex);
 	    if(ret != null)
@@ -417,7 +282,7 @@ public class GroundRelief {
 		pending.put(tex, f = Defer.later(() -> {
 			    try {
 				BufferedImage img = tex.fill();
-				return((img == null) ? flatr() : mkheight(img, tex.loadname(), objs));
+				return((img == null) ? flatr() : mkheight(img));
 			    } catch(Loading l) {
 				throw(l);
 			    } catch(RuntimeException e) {
@@ -437,103 +302,25 @@ public class GroundRelief {
 	return(ret);
     }
 
-    private static final String[] metals = {
-	"iron", "bronze", "copper", "gold", "silver", "steel", "tin", "lead", "metal", "zinc", "brass",
-    };
-
-    static boolean metal(String nm) {
-	if((nm == null) || !nm.contains("gfx/terobjs/subst/"))
-	    return(false);
-	String sub = nm.substring(nm.lastIndexOf('/') + 1);
-	for(String m : metals) {
-	    if(sub.contains(m))
-		return(true);
-	}
-	return(false);
-    }
-
-    private static float metalfor(TexRender.TexDraw draw) {
-	if((draw == null) || !(draw.tex instanceof TexL))
-	    return(0);
-	return(metal(((TexL)draw.tex).loadname()) ? 1 : 0);
-    }
-
-    static final Uniform uheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), false).map, TexRender.TexDraw.slot);
-    static final Uniform uoheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot), true).map, TexRender.TexDraw.slot);
-    static final Uniform uoscale = new Uniform(FLOAT, p -> heightfor(p.get(TexRender.TexDraw.slot), true).scale, TexRender.TexDraw.slot);
-    static final Uniform umetal = new Uniform(FLOAT, p -> metalfor(p.get(TexRender.TexDraw.slot)), TexRender.TexDraw.slot);
+    static final Uniform uheight = new Uniform(SAMPLER2D, p -> heightfor(p.get(TexRender.TexDraw.slot)).map, TexRender.TexDraw.slot);
 
     private static final Map<Float, ShaderMacro> macros = new HashMap<>();
 
-    private static ShaderMacro mkmacro(Uniform hm, float k, boolean objs) {
-	java.util.function.Supplier<Expression> sc = () -> objs ? uoscale.ref() : Cons.l(-1.0);
+    private static ShaderMacro mkmacro(Uniform hm, float k) {
 	return(prog -> {
 		define(prog.fctx, nfn);
 		define(prog.fctx, cfn);
 		Homo3D.frageyen(prog.fctx).mod(in -> {
 			if(!textured(prog))
 			    return(in);
-			return(nfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), Cons.l(k), sc.get()));
+			return(nfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), Cons.l(k)));
 		    }, 10);
 		FragColor.fragcol(prog.fctx).mod(in -> {
 			if(!textured(prog))
 			    return(in);
-			return(cfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(0.55), sc.get()));
+			return(cfn.call(in, Homo3D.frageyev.ref(), hm.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(0.55)));
 		    }, 1000);
-		if(objs) {
-		    mfn.define(prog.fctx);
-		    FragColor.fragcol(prog.fctx).mod(in -> {
-			    if(!textured(prog))
-				return(in);
-			    return(mfn.call(in, Homo3D.frageyev.ref(), Homo3D.frageyen(prog.fctx).depref(), usun.ref(), umetal.ref()));
-			}, 1010);
-		}
 	    });
-    }
-
-    /* Cel-shaded materials (barrels and the like) flatten their
-     * light into bands, which leaves no room for the bent normal;
-     * they get their relief from the sun-direction shading alone,
-     * at a higher gain. */
-    private static ShaderMacro mkcel(float k) {
-	return(prog -> {
-		define(prog.fctx, cfn);
-		FragColor.fragcol(prog.fctx).mod(in -> {
-			if(!textured(prog))
-			    return(in);
-			return(cfn.call(in, Homo3D.frageyev.ref(), uoheight.ref(), Tex2D.rtexcoord.ref(), usun.ref(), Cons.l(k), Cons.l(1.3), uoscale.ref()));
-		    }, 1001);
-	    });
-    }
-
-    private static final Map<List<Object>, ShaderMacro> cels = new HashMap<>();
-
-    /* Hook for Light.CelShade. */
-    public static ShaderMacro cel(ShaderMacro base) {
-	if(!objects)
-	    return(base);
-	float k = ostrength;
-	synchronized(cels) {
-	    return(cels.computeIfAbsent(Arrays.asList(base, k), key -> ShaderMacro.compose(base, mkcel(k))));
-	}
-    }
-
-    /* Hook for CrackTex: whether damage cracks are cut in. */
-    public static boolean cracks() {
-	return(objects);
-    }
-
-    public static void defcracks(Context ctx) {
-	define(ctx, crackn);
-	define(ctx, crackc);
-    }
-
-    public static float crackdepth() {
-	return(0.8f * ostrength / 0.6f);
-    }
-
-    public static Uniform sun() {
-	return(usun);
     }
 
     private static boolean textured(ProgramContext prog) {
@@ -613,64 +400,48 @@ public class GroundRelief {
     private static ShaderMacro macro(float k) {
 	if(parallax) {
 	    synchronized(pmacros) {
-		return(pmacros.computeIfAbsent(k, key -> ShaderMacro.compose(mkmacro(uheight, key, false), mkpom(key))));
+		return(pmacros.computeIfAbsent(k, key -> ShaderMacro.compose(mkmacro(uheight, key), mkpom(key))));
 	    }
 	}
 	synchronized(macros) {
-	    return(macros.computeIfAbsent(k, key -> mkmacro(uheight, key, false)));
+	    return(macros.computeIfAbsent(k, key -> mkmacro(uheight, key)));
 	}
     }
-
-    private static final Map<List<Object>, ShaderMacro> phongs = new HashMap<>();
-
-    /* Hook for Light.PhongLight: per-pixel lit materials get object
-     * relief while it is on. */
-    public static ShaderMacro phong(ShaderMacro base) {
-	if(!objects || (base != Light.PhongLight.flight))
-	    return(base);
-	float k = ostrength;
-	PhongCache c = lastphong;
-	if((c != null) && (c.k == k))
-	    return(c.macro);
-	ShaderMacro ret;
-	synchronized(phongs) {
-	    ret = phongs.computeIfAbsent(Arrays.asList(base, k), key -> ShaderMacro.compose(base, mkmacro(uoheight, k, true)));
-	}
-	lastphong = new PhongCache(k, ret);
-	return(ret);
-    }
-
-    private static class PhongCache {
-	final float k;
-	final ShaderMacro macro;
-	PhongCache(float k, ShaderMacro macro) {this.k = k; this.macro = macro;}
-    }
-    private static volatile PhongCache lastphong = null;
 
     public static final State.Slot<State> slot = new State.Slot<>(State.Slot.Type.DRAW, State.class);
-    public static final State state = new State() {
+
+    private static State material(boolean paving) {
+        return new State() {
 	    public ShaderMacro shader() {
-		return(enabled ? macro(strength) : null);
+		return(enabled && (!pavingOnly || paving) ? macro(strength) : null);
 	    }
 
 	    public void apply(Pipe p) {
 		p.put(slot, this);
 	    }
 
-	    public String toString() {return("#<ground-relief>");}
+	    public String toString() {return(paving ? "#<paving-relief>" : "#<ground-relief>");}
 	};
+    }
+    public static final State state = material(false);
+    private static final State pavingState = material(true);
+
+    public static State state(Atmos.WetSurface surface) {
+        return surface == Atmos.WetSurface.PAVING ? pavingState : state;
+    }
 
     /* Returns whether anything changed (and programs must be rebuilt). */
-    public static boolean set(boolean ground, float k, boolean objs, float ok, boolean pom) {
+    public static boolean set(boolean ground, float k, boolean pom) {
+        return set(ground, k, pom, false);
+    }
+    public static boolean set(boolean ground, float k, boolean pom, boolean onlyPaving) {
 	k = Math.round(k * 20) / 20.0f;
-	ok = Math.round(ok * 20) / 20.0f;
 	boolean ch = (ground != enabled) || (ground && (k != strength)) ||
-	    (objs != objects) || (objs && (ok != ostrength)) || (ground && (pom != parallax));
+	    (ground && (pom != parallax)) || (ground && (onlyPaving != pavingOnly));
+	pavingOnly = onlyPaving;
 	parallax = pom;
 	enabled = ground;
 	strength = k;
-	objects = objs;
-	ostrength = ok;
 	return(ch);
     }
 }

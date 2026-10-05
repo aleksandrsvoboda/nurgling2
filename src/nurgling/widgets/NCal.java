@@ -6,6 +6,8 @@ import nurgling.NGameUI;
 import nurgling.NUI;
 import nurgling.conf.FontSettings;
 import nurgling.i18n.L10n;
+import nurgling.styles.GeneratedButtons;
+import nurgling.styles.UITheme;
 
 import java.awt.Color;
 import java.net.URI;
@@ -41,12 +43,17 @@ public class NCal extends Cal {
     private static final Text.Furnace fnd = new PUtils.BlurFurn(
         new Text.Foundry(FontSettings.getOpenSansSemibold(), 12, Color.WHITE).aa(true), 2, 1, Color.BLACK);
 
-    /* The event icons are plain 32x32 TexI, not UI-scaled resources, so their
-     * grid spacing is in raw pixels the way Cal has always drawn them. */
-    private static final int ICON_SZ = 32;
-    private static final int ICON_STEP = 30;
+    /* Square status buttons scale with the rest of the HUD. */
+    private static final int ICON_SZ = UI.scale(24);
+    private static final int ICON_BORDER = Math.max(1, UI.scale(1));
+    private static final int ICON_STEP = UI.scale(28);
     private static final int ICON_COLS = 2;
     private static final int ICON_GAP = UI.scale(2);
+    private static final java.util.Map<String, Tex> EVENT_ICONS = new java.util.HashMap<>();
+    static {
+        for(String key : new String[]{"rain", "wolf", "dawn", "mantle"})
+            EVENT_ICONS.put(key, new TexI(GeneratedButtons.squareButtonImage("calendar-" + key, ICON_SZ - 2 * ICON_BORDER)));
+    }
     private static final int PAD = UI.scale(8);
     private static final int COLPAD = UI.scale(16);
     private static final int LINE_H = UI.scale(16);
@@ -108,7 +115,7 @@ public class NCal extends Cal {
     @Override
     public boolean checkhit(Coord c) {
         Coord ul = imgCenter(verboseMode()).sub(bg.sz().div(2));
-        return Utils.checkhit(dsky.scaled(), c.sub(ul).sub(dsky.o));
+        return eventAt(c) != null || Utils.checkhit(dsky.scaled(), c.sub(ul).sub(dsky.o));
     }
 
     @Override
@@ -122,11 +129,11 @@ public class NCal extends Cal {
 
         drawGraphic(g, a, ic, mp);
         if(verbose) {
-            drawIconRow(g, ic);
+            drawEvents(g, true);
             drawTimeColumn(g, a, mp);
             drawStatusColumn(g, ic.x + (bg.sz().x / 2) + COLPAD);
         } else {
-            drawIconGrid(g, ic);
+            drawEvents(g, false);
         }
     }
 
@@ -144,41 +151,42 @@ public class NCal extends Cal {
         g.image(bg, ul);
     }
 
-    /** Compact mode: 2-column event icon grid beside the graphic. */
-    private void drawIconGrid(GOut g, Coord ic) {
-        int x0 = ic.x + (bg.sz().x / 2) + PAD;
-        int y0 = sz.y / 2 - UI.scale(10);
-        int i = 0;
-        for(String key : eventNames) {
-            TexI icon = events.get(key);
-            if(icon == null)
-                continue;
-            g.aimage(icon, new Coord(x0 + ((i % ICON_COLS) * ICON_STEP), y0 + ((i / ICON_COLS) * ICON_STEP)), 0.5, 0.5);
-            i++;
+    /** Shared coordinates keep the drawn squares and their tooltip hit areas aligned. */
+    private Coord eventPosition(int index, boolean verbose) {
+        Coord ic = imgCenter(verbose);
+        if(verbose) {
+            int width = (eventNames.size() - 1) * ICON_STEP + ICON_SZ;
+            return new Coord(ic.x - width / 2 + index * ICON_STEP,
+                             ic.y + bg.sz().y / 2 + ICON_GAP);
+        }
+        return new Coord(ic.x + bg.sz().x / 2 - ICON_SZ + (index % ICON_COLS) * ICON_STEP,
+                         ic.y - ICON_SZ - ICON_GAP + (index / ICON_COLS) * ICON_STEP);
+    }
+
+    private void drawEvents(GOut g, boolean verbose) {
+        for(int i = 0; i < eventNames.size(); i++) {
+            Coord pos = eventPosition(i, verbose);
+            g.image(EVENT_ICONS.get(eventNames.get(i)), pos.add(ICON_BORDER, ICON_BORDER));
+            UITheme.panel(g, pos, new Coord(ICON_SZ, ICON_SZ), null, UITheme.ACCENT);
         }
     }
 
-    /** Verbose mode: single centered row of event icons under the graphic, so
-     *  they don't push the status column away from the calendar. */
-    private void drawIconRow(GOut g, Coord ic) {
-        int n = 0;
-        for(String key : eventNames) {
-            if(events.get(key) != null)
-                n++;
+    private String eventAt(Coord c) {
+        boolean verbose = verboseMode();
+        for(int i = 0; i < eventNames.size(); i++) {
+            if(c.isect(eventPosition(i, verbose), new Coord(ICON_SZ, ICON_SZ)))
+                return eventNames.get(i);
         }
-        if(n == 0)
-            return;
-        int y = ic.y + (bg.sz().y / 2) + ICON_GAP + (ICON_SZ / 2);
-        int x = ic.x - (((n - 1) * ICON_STEP) / 2);
-        for(String key : eventNames) {
-            TexI icon = events.get(key);
-            if(icon == null)
-                continue;
-            g.aimage(icon, new Coord(x, y), 0.5, 0.5);
-            x += ICON_STEP;
-        }
+        return null;
     }
 
+    @Override
+    public Object tooltip(Coord c, Widget prev) {
+        String event = eventAt(c);
+        if(event != null)
+            return L10n.get("calendar.event." + event);
+        return super.tooltip(c, prev);
+    }
     /** World time, right-aligned so it reads as pointing at the calendar beside it. */
     private void drawTimeColumn(GOut g, Astronomy a, int mp) {
         int y = TOP_PAD;

@@ -5,6 +5,8 @@ import haven.res.ui.tt.gast.Gast;
 import haven.res.ui.tt.wear.Wear;
 import nurgling.*;
 import nurgling.i18n.L10n;
+import nurgling.styles.UIFont;
+import nurgling.styles.UITheme;
 import nurgling.tasks.GetItem;
 import nurgling.tasks.WaitItemSpr;
 import nurgling.tools.NAlias;
@@ -18,20 +20,22 @@ import static haven.Inventory.invsq;
 
 public class NEquipory extends Equipory
 {
-    public static Text.Furnace fnd = new PUtils.BlurFurn(new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 12).aa(true), UI.scale(1), UI.scale(1), Color.BLACK);
+    public static Text.Furnace fnd = new Text.Foundry(UIFont.semibold, 12, UITheme.TEXT).aa(true);
     final TexI eye = new TexI(Resource.loadsimg("nurgling/hud/eye"));
     final TexI armor = new TexI(Resource.loadsimg("nurgling/hud/armor"));
+    private final int eyeInset = statIconInset(eye.back);
+    private final int armorInset = statIconInset(armor.back);
+
+    private static int statIconInset(BufferedImage image) {
+        for(int x = 0; x < image.getWidth(); x++)
+            for(int y = 0; y < image.getHeight(); y++)
+                if((image.getRGB(x, y) >>> 24) >= 128)
+                    return x;
+        return 0;
+    }
     int percExp = -1;
     int hardArmor = -1;
     int softArmor = -1;
-
-    // Toggle button textures for quick slot configuration
-    private static final Tex addUp = new TexI(Resource.loadsimg("nurgling/hud/buttons/add/u"));
-    private static final Tex addDown = new TexI(Resource.loadsimg("nurgling/hud/buttons/add/d"));
-    private static final Tex addHover = new TexI(Resource.loadsimg("nurgling/hud/buttons/add/h"));
-    private static final Tex removeUp = new TexI(Resource.loadsimg("nurgling/hud/buttons/remove/u"));
-    private static final Tex removeDown = new TexI(Resource.loadsimg("nurgling/hud/buttons/remove/d"));
-    private static final Tex removeHover = new TexI(Resource.loadsimg("nurgling/hud/buttons/remove/h"));
 
     // Toggle buttons for each equipment slot
     private final SlotToggleButton[] toggleButtons = new SlotToggleButton[ecoords.length];
@@ -65,11 +69,11 @@ public class NEquipory extends Equipory
      */
     private void initToggleButtons() {
         // Button size and spacing from slot
-        int btnSize = UI.scale(12);
         int spacing = UI.scale(4);  // Extra spacing from the slot edge
 
         for (int i = 0; i < ecoords.length; i++) {
             final int slotIdx = i;
+            SlotToggleButton button = new SlotToggleButton(slotIdx);
             Coord slotCoord = getSlotDisplayCoord(i);
 
             // Determine if this is a right column slot by checking x position
@@ -81,13 +85,13 @@ public class NEquipory extends Equipory
             Coord btnPos;
             if (isRightColumn) {
                 // Right column: button on left side of slot
-                btnPos = new Coord(slotCoord.x - btnSize - spacing, slotCoord.y + (invsq.sz().y - btnSize) / 2);
+                btnPos = new Coord(slotCoord.x - button.sz.x - spacing, slotCoord.y + (invsq.sz().y - button.sz.y) / 2);
             } else {
                 // Left column or STORE_HAT: button on right side of slot
-                btnPos = new Coord(slotCoord.x + invsq.sz().x + spacing, slotCoord.y + (invsq.sz().y - btnSize) / 2);
+                btnPos = new Coord(slotCoord.x + invsq.sz().x + spacing, slotCoord.y + (invsq.sz().y - button.sz.y) / 2);
             }
 
-            toggleButtons[i] = add(new SlotToggleButton(slotIdx), btnPos);
+            toggleButtons[i] = add(button, btnPos);
         }
     }
 
@@ -144,72 +148,32 @@ public class NEquipory extends Equipory
     /**
      * Custom button for toggling slot in/out of quick access bar
      */
-    private class SlotToggleButton extends Widget {
+    private class SlotToggleButton extends IButton {
         private final int slotIdx;
-        private boolean hovering = false;
-        private boolean pressed = false;
-        private UI.Grab grab = null;
+        private boolean lastInQuickBar;
 
         public SlotToggleButton(int slotIdx) {
-            super(UI.scale(new Coord(12, 12)));
+            super("gfx/hud/buttons/add", "u", "d", "h");
             this.slotIdx = slotIdx;
         }
 
         @Override
+        protected int stepSign() { return isSlotInQuickBar(slotIdx) ? -1 : 1; }
+
+        @Override
         public void draw(GOut g) {
             boolean inQuickBar = isSlotInQuickBar(slotIdx);
-            Tex img;
-
-            if (inQuickBar) {
-                // Show remove button
-                if (pressed && hovering) {
-                    img = removeDown;
-                } else if (hovering) {
-                    img = removeHover;
-                } else {
-                    img = removeUp;
-                }
-            } else {
-                // Show add button
-                if (pressed && hovering) {
-                    img = addDown;
-                } else if (hovering) {
-                    img = addHover;
-                } else {
-                    img = addUp;
-                }
+            if(inQuickBar != lastInQuickBar) {
+                lastInQuickBar = inQuickBar;
+                redraw();
             }
-
-            g.image(img, Coord.z, sz);
+            super.draw(g);
         }
 
         @Override
-        public boolean mousedown(MouseDownEvent ev) {
-            if (ev.b == 1) {
-                pressed = true;
-                grab = ui.grabmouse(this);
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public boolean mouseup(MouseUpEvent ev) {
-            if (grab != null && ev.b == 1) {
-                grab.remove();
-                grab = null;
-                if (pressed && hovering) {
-                    toggleSlotInQuickBar(slotIdx);
-                }
-                pressed = false;
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public void mousemove(MouseMoveEvent ev) {
-            hovering = ev.c.isect(Coord.z, sz);
+        public void click() {
+            toggleSlotInQuickBar(slotIdx);
+            redraw();
         }
 
         @Override
@@ -460,25 +424,38 @@ public class NEquipory extends Equipory
                 g.chcolor();
             }
             g.image(invsq, slotCoord);
-            if(ebgs[i] != null)
-                g.image(ebgs[i], slotCoord);
+            if (quickslots[i] == null)
+                drawSlotHint(g, i, slotCoord);
         }
     }
 
     @Override
     public void draw(GOut g) {
         super.draw(g);
-        Coord textCoord = new Coord(sz.x - UI.scale(85), UI.scale(3));
-        if (percExpText != null) {
-            textCoord = textCoord.sub(percExpText.getWidth(), 0);
-            g.image(eye, textCoord, UI.scale(20,20));
-            g.image(percExpText, textCoord.add(UI.scale(21, -1)));
+        if(percExpText == null && hardSoft == null) return;
+        int pad = UI.scale(4), gap = UI.scale(4), icon = UI.scale(20);
+        int textW = Math.max(percExpText == null ? 0 : percExpText.getWidth(), hardSoft == null ? 0 : hardSoft.getWidth());
+        int textH = Math.max(percExpText == null ? 0 : percExpText.getHeight(), hardSoft == null ? 0 : hardSoft.getHeight());
+        int rowH = Math.max(icon, textH);
+        int rows = (percExpText == null ? 0 : 1) + (hardSoft == null ? 0 : 1);
+        Coord panelSize = new Coord(pad * 2 + icon + gap + textW, pad * 2 + rows * rowH);
+        int right = toggleButtons[Slots.SHOULDER.idx].c.x - UI.scale(6);
+        Coord panelPos = new Coord(right - panelSize.x, UI.scale(3));
+        UITheme.panel(g, panelPos, panelSize, UITheme.PANEL, UITheme.LINE);
+        int y = panelPos.y + pad;
+        if(percExpText != null) {
+            drawStat(g, eye, eyeInset, percExpText, panelPos.x + pad, right - pad, y, icon, rowH);
+            y += rowH;
         }
-        if(hardSoft!=null) {
-            textCoord = textCoord.add(UI.scale(0, 18));
-            g.image(armor, textCoord, UI.scale(20, 20));
-            g.image(hardSoft, textCoord.add(UI.scale(21, -1)));
-        }
+        if(hardSoft != null)
+            drawStat(g, armor, armorInset, hardSoft, panelPos.x + pad, right - pad, y, icon, rowH);
+    }
+
+    private void drawStat(GOut g, Tex icon, int sourceInset, BufferedImage value, int left, int right, int y, int iconSize, int rowH) {
+        // Match the text's right padding using the visible icon edge, not its transparent canvas.
+        int inset = Math.round((float)sourceInset * iconSize / icon.sz().x);
+        g.image(icon, new Coord(left - inset, y + (rowH - iconSize) / 2), new Coord(iconSize, iconSize));
+        g.image(value, new Coord(right - value.getWidth(), y + (rowH - value.getHeight()) / 2));
     }
 
     public WItem findItem(int id) throws InterruptedException {

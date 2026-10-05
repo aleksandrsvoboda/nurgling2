@@ -129,13 +129,17 @@ public class VkRender implements Render, Disposable {
     }
 
     static Targets mktargets(VkEnvironment env, VkProgram prog, Pipe pipe) {
-	int n = prog.fragdata.length;
+        return mktargets(env, prog.fragdata, pipe, false);
+    }
+
+    static Targets mktargets(VkEnvironment env, FragData[] outputs, Pipe pipe, boolean allowEmpty) {
+        int n = outputs.length;
 	Object[] color = new Object[n];
 	BlendMode[] blend = new BlendMode[n];
 	int[] cmask = new int[n], cfmt = new int[n];
 	boolean any = false;
 	for(int i = 0; i < n; i++) {
-	    Object fval = prog.fragdata[i].value.apply(pipe);
+	    Object fval = outputs[i].value.apply(pipe);
 	    FragTarget ft = null;
 	    if(fval instanceof FragTarget)
 		fval = (ft = (FragTarget)fval).buf;
@@ -164,7 +168,7 @@ public class VkRender implements Render, Disposable {
 	    any = true;
 	    dfmt = (depth == VkEnvironment.DEFDEPTH) ? VkEnvironment.DEPTH_FORMAT : ((Attach)depth).tex.fmt.vk;
 	}
-	if(!any)
+	if(!any && !allowEmpty)
 	    throw(new IllegalArgumentException("empty framebuffer"));
 	return(new Targets(color, depth, blend, cmask, cfmt, dfmt));
     }
@@ -470,6 +474,7 @@ public class VkRender implements Render, Disposable {
     /* State application, as in the GL Applier */
 
     private State[] cur = new State[0];
+    private int[] pdirty = new int[0];
     private ShaderMacro[] shaders = new ShaderMacro[0];
     private int shash = 0;
     private VkProgram prog = null;
@@ -481,12 +486,17 @@ public class VkRender implements Render, Disposable {
     private Dyn dyn = null;
 
     private void apply(Pipe to) {
+	apply(to, false);
+    }
+
+    private boolean apply(Pipe to, boolean async) {
 	State[] ns = to.states();
 	if(cur.length < ns.length) {
 	    cur = Arrays.copyOf(cur, ns.length);
 	    shaders = Arrays.copyOf(shaders, ns.length);
 	}
-	int[] pdirty = new int[cur.length];
+	if(pdirty.length < cur.length)
+	    pdirty = new int[cur.length];
 	int pn = 0;
 	{
 	    int i = 0;
@@ -500,7 +510,7 @@ public class VkRender implements Render, Disposable {
 	    }
 	}
 	if((pn == 0) && (prog != null))
-	    return;
+	    return(true);
 	int shash = this.shash;
 	boolean schanged = false;
 	ShaderMacro[] nshaders = shaders;
@@ -519,7 +529,9 @@ public class VkRender implements Render, Disposable {
 	}
 	VkProgram prog = this.prog;
 	if(schanged || (prog == null))
-	    prog = env.getprog(shash, nshaders);
+	    prog = async ? env.getprogasync(shash, nshaders) : env.getprog(shash, nshaders);
+	if(prog == null)
+	    return(false); // Do not commit partial state while the shader is pending.
 	boolean pchanged = (prog != this.prog);
 	Object[] nuvals = pchanged ? new Object[prog.uniforms.length] : uvals;
 	boolean fdirty = pchanged, ddirty = pchanged;
@@ -572,6 +584,7 @@ public class VkRender implements Render, Disposable {
 	this.uvals = nuvals;
 	this.tgt = ntgt;
 	this.dyn = ndyn;
+	return(true);
     }
 
     private Object getuval(VkProgram prog, int ui, Pipe pipe) {
@@ -608,10 +621,21 @@ public class VkRender implements Render, Disposable {
 
     /* Render interface */
 
+    private int pendingDraws;
+    public int pendingDraws() {return(pendingDraws);}
+
     public void draw(Pipe pipe, Model data) {
-	apply(pipe);
-	Geometry geo = ephgeometry(data);
+	boolean async = pipe.get(States.asynccompile.slot) != null;
+	if(!apply(pipe, async)) {
+	    pendingDraws++;
+	    return;
+	}
 	PipeKey key = prog.pipekey(prog.vkey(data.va.fmt), topology(data.mode), tgt.cfmt, tgt.dfmt, tgt.blend, tgt.cmask);
+	if(async && !prog.pipeready(key)) {
+	    pendingDraws++;
+	    return;
+	}
+	Geometry geo = ephgeometry(data);
 	cmds.add(new DrawCmd(prog, key, tgt, dyn, tex(), ubo(), geo));
     }
 
@@ -620,30 +644,26 @@ public class VkRender implements Render, Disposable {
 	int uoff = -1;
 	if(ubo != null) {
 	    uoff = alloc(prog.ubosize, 256);
-	    ByteBuffer dst = arena.duplicate();
-	    dst.position(uoff);
-	    dst.put(ubo.duplicate());
+	    // Absolute copy preserves both cursors without two wrappers per draw.
+	    arena.put(uoff, ubo, ubo.position(), ubo.remaining());
 	}
 	cmds.add(new DrawCmd(prog, key, tgt, dyn, tex, uoff, geo));
     }
 
     public void clear(Pipe pipe, FragData buf, FColor val) {
-	apply(pipe);
-	int loc = prog.fragidx(buf);
-	if(loc < 0)
-	    throw(new IllegalArgumentException(String.format("%s is not on current framebuffer", buf)));
-	if((tgt.color[loc] == null) || (tgt.cmask[loc] == 0))
-	    return;
-	cmds.add(new ClearCmd(tgt, loc, val, 0, dyn.sc));
+        // Clearing an attachment needs no material shader or draw pipeline.
+        // Resolving a program here can perform cold shader-cache I/O on the UI.
+        Targets target=mktargets(env,new FragData[]{buf},pipe,true);
+        if(target.color[0]==null||target.cmask[0]==0)return;
+        cmds.add(new ClearCmd(target,0,val,0,new Dyn(pipe).sc));
     }
 
     public void clear(Pipe pipe, double val) {
-	apply(pipe);
-	if(tgt.depth == null)
-	    throw(new IllegalArgumentException("current framebuffer has no depthbuffer"));
-	if(!dyn.dwrite)
-	    return;
-	cmds.add(new ClearCmd(tgt, -1, null, val, dyn.sc));
+        Targets target=mktargets(env,new FragData[0],pipe,true);
+        if(target.depth==null)throw(new IllegalArgumentException("current framebuffer has no depthbuffer"));
+        Dyn state=new Dyn(pipe);
+        if(!state.dwrite)return;
+        cmds.add(new ClearCmd(target,-1,null,val,state.sc));
     }
 
     public <T extends DataBuffer> void update(T buf, DataBuffer.Filler<? super T> fill) {

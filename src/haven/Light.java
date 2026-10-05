@@ -172,7 +172,7 @@ public abstract class Light implements RenderTree.Node {
 
 	/* Nurgling: object relief (a graphics option) extends the
 	 * per-pixel lighting shader while it is on. */
-	public ShaderMacro shader() {return(nurgling.render.GroundRelief.phong(shader));}
+	public ShaderMacro shader() {return(shader);}
 
 	public void apply(Pipe p) {p.put(lighting, this);}
     }
@@ -210,7 +210,7 @@ public abstract class Light implements RenderTree.Node {
 	private final ShaderMacro shader;
 	/* Nurgling: object relief for cel-shaded materials. */
 	public ShaderMacro shader() {
-	    return(nurgling.render.GroundRelief.cel(shader));
+	    return(shader);
 	}
 	public void apply(Pipe p) {p.put(slot, this);}
     }

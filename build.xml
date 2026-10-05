@@ -11,6 +11,7 @@
   <property name="lwjgl-vk.jars" value="lwjgl-vulkan-${lwjgl-vk.version}.jar lwjgl-shaderc-${lwjgl-vk.version}.jar lwjgl-shaderc-${lwjgl-vk.version}-natives-windows.jar lwjgl-shaderc-${lwjgl-vk.version}-natives-linux.jar lwjgl-vma-${lwjgl-vk.version}.jar lwjgl-vma-${lwjgl-vk.version}-natives-windows.jar lwjgl-vma-${lwjgl-vk.version}-natives-linux.jar" />
 
   <path id="client.classpath">
+    <pathelement path="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" />
 	<pathelement path="lib/ext/jogl/jogl-all.jar" />
 	<pathelement path="lib/ext/jogl/gluegen-rt.jar" />
 	<pathelement path="lib/ext/lwjgl/lwjgl-fat.jar" />
@@ -159,7 +160,16 @@
         </unjar>
     </target>
 
-  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/lwjgl-vk, extlib/steamworks, resources">
+  <target name="extlib/jlatexmath">
+    <mkdir dir="lib/ext/jlatexmath" />
+    <get src="https://repo.maven.apache.org/maven2/org/scilab/forge/jlatexmath/1.0.7/jlatexmath-1.0.7.jar"
+         dest="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" skipexisting="true" />
+    <checksum file="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" algorithm="SHA-256"
+              property="6d04c3843fc98d2eea9ba4cff0be7b80540ca75c5a4e0b3463fd1219c48cc65d" verifyproperty="jlatexmath.ok" />
+    <fail unless="jlatexmath.ok" message="JLaTeXMath checksum mismatch" />
+  </target>
+
+  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/lwjgl-vk, extlib/steamworks, extlib/jlatexmath, resources">
     <condition property="explicit-annotations">
       <javaversion atleast="21" />
     </condition>
@@ -175,7 +185,7 @@
       <!-- <compilerarg value="-Xbarda" /> -->
     </javac>
     <copy todir="build/classes">
-      <fileset dir="src" excludes="**/*.java" />
+      <fileset dir="src" excludes="**/*.java,**/*.bak" />
     </copy>
     <copy todir="build/classes/haven" file="etc/ressrv.crt" />
     <copy todir="build/classes/haven" file="etc/authsrv.crt" />
@@ -202,7 +212,7 @@
     </jar>
   </target>
 
-  <target name="lib-classes" depends="build-env" unless="unpacked-lib">
+  <target name="lib-classes" depends="build-env, extlib/jlatexmath" unless="unpacked-lib">
     <mkdir dir="build/classes-lib" />
     <unjar src="lib/jglob.jar" dest="build/classes-lib">
       <patternset excludes="META-INF/**" />
@@ -210,9 +220,10 @@
   </target>
 
   <target name="jar" depends="hafen-client, buildinfo, lib-classes">
-    <jar destfile="build/hafen.jar" update="true">
-      <fileset dir="build/classes" />
+    <jar destfile="build/hafen.jar" update="false">
+      <fileset dir="build/classes" excludes="**/*.bak" />
       <fileset dir="build/classes-lib" />
+      <zipfileset src="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" excludes="META-INF/MANIFEST.MF" />
       <manifest>
 	<attribute name="Main-Class" value="haven.MainFrame" />
 	<attribute name="Class-Path" value="hafen-panama.jar jogl-all.jar gluegen-rt.jar lwjgl-fat.jar lwjgl-awt.jar lwjgl-opengl-fat.jar ${lwjgl-vk.jars} steamworks4j.jar builtin-res.jar hafen-res.jar nurgling-res.jar json-java.jar postgresql-42.7.5.jar sqlite-jdbc-3.49.1.0.jar" />
@@ -251,6 +262,7 @@
 
   <target name="bin" depends="jar, extlib/jogl-arm, extlib/lwjgl-gl, extlib/steamworks, res-jar">
     <mkdir dir="bin" />
+    <copy file="src/nurgling/craft/recipes.bin" tofile="bin/recipes.bin" />
     <copy todir="bin">
       <fileset dir="build">
 	<include name="hafen.jar" />
@@ -346,6 +358,409 @@
       <arg value="--scan-class-path=build/test-classes" />
       <arg value="--fail-if-no-tests" />
       <arg value="--details=summary" />
+    </java>
+  </target>
+
+  <target name="renderer-parity-compile" depends="bin">
+    <mkdir dir="build/parity-classes" />
+    <javac srcdir="tools/render-parity" destdir="build/parity-classes"
+           encoding="UTF-8" source="1.8" target="1.8" includeantruntime="no">
+      <classpath>
+        <pathelement path="bin/hafen.jar" />
+        <path refid="client.classpath" />
+      </classpath>
+      <compilerarg value="-Xlint:-options" />
+    </javac>
+  </target>
+
+  <target name="test-graphics-baseline" depends="renderer-parity-compile"
+          description="Check that graphics enhancements are opt-in and Classic resets every effect">
+    <java classname="nurgling.render.BaselineSettingsTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-renderer-parity" depends="test-graphics-baseline"
+          description="Compare OpenGL and Vulkan GPU output (opens temporary test windows)">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.RendererParity" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <arg value="build/render-parity" />
+    </java>
+  </target>
+
+  <target name="test-item-icons-async" depends="renderer-parity-compile"
+          description="Check cold icon indexing never blocks the UI or loses descriptor priority">
+    <java classname="nurgling.tools.ItemIconsAsyncTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.prefs.itemiconsasync=true" />
+    </java>
+  </target>
+
+  <target name="test-light-grid-cache" depends="renderer-parity-compile"
+          description="Verify light-grid cache invalidation, GPU data and stationary-scene allocation">
+    <java classname="haven.render.LightGridCacheTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.prefs.lightgridcache=true" />
+    </java>
+  </target>
+
+  <target name="test-vulkan-async-draw" depends="renderer-parity-compile"
+          description="Verify optional immediate draws never compile shaders or pipelines on frame threads">
+    <java classname="haven.render.vk.VulkanAsyncDrawTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-vulkan-ring" depends="renderer-parity-compile"
+          description="Check bounded Vulkan upload-buffer reuse and GPU readback across fenced slots">
+    <java classname="haven.render.vk.VulkanRingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-vulkan-pacing" depends="renderer-parity-compile"
+          description="Exercise pipelined Vulkan frame pacing, VSync and window lifecycle">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.vk.VulkanPacingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-vulkan-cut-streaming" depends="renderer-parity-compile"
+          description="Verify warm cut publication uses a bounded Vulkan preparation budget">
+    <java classname="haven.render.vk.VulkanCutStreamingTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+      <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-exploration-performance" depends="renderer-parity-compile"
+          description="Check background exploration persistence and bounded overlay preparation">
+    <java classname="nurgling.overlays.map.ExplorationPerformanceTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+    </java>
+  </target>
+
+  <target name="test-frame-history" depends="renderer-parity-compile"
+          description="Check FPS history statistics and render diagnostic HUD previews">
+    <java classname="nurgling.render.FrameHistoryTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <arg value="build/fps-preview" />
+    </java>
+  </target>
+
+  <target name="test-fps-graph-texture" depends="renderer-parity-compile"
+          description="Check background FPS graph raster and persistent GPU texture updates on both backends">
+    <java classname="nurgling.render.FpsGraphTextureTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+      <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-scene-debug" depends="renderer-parity-compile"
+          description="Check local lighting/weather previews, reset and effect disposal">
+    <java classname="nurgling.render.SceneDebugTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-weather-state" depends="renderer-parity-compile"
+          description="Check weather transitions avoid a full scene rebuild and update Vulkan uniforms">
+    <java classname="haven.WeatherStateTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <arg value="--gpu" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-ui-typography" depends="renderer-parity-compile"
+          description="Check UI font families, legacy migration, rich text and Cyrillic rendering">
+    <java classname="haven.UiTypographyTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Djava.awt.headless=true" />
+      <jvmarg value="-Dhaven.uiscale=1" />
+    </java>
+  </target>
+
+  <target name="test-lightning" depends="renderer-parity-compile"
+          description="Check procedural lightning geometry, animation, depth occlusion and Vulkan rendering">
+    <java classname="nurgling.render.LightningTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-grass" depends="renderer-parity-compile"
+          description="Check grass grouping, height, rooted deformation and Vulkan animation">
+    <java classname="nurgling.render.GrassTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-movement-trace" depends="renderer-parity-compile"
+          description="Check movement diagnostic retention, isolation and asynchronous capture">
+    <java classname="nurgling.diagnostics.MovementTraceTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-movement-timing" depends="renderer-parity-compile"
+          description="Replay stalled frames and server movement corrections with a deterministic clock">
+    <java classname="haven.LinMoveTimingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-movement-smoothing" depends="renderer-parity-compile"
+          description="Replay trajectory bursts and check shared render positions and correction settling">
+    <java classname="haven.MovementSmoothingTest" fork="true" failonerror="true">
+      <arg value="--integration" />
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-water-sky" depends="renderer-parity-compile"
+          description="Check nonblocking water sky preparation and cubemap pixel parity">
+    <java classname="haven.resutil.WaterSkyTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-color-lighting" depends="renderer-parity-compile"
+          description="Check daily world lighting and read back standalone color grading on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.ColorLightingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-auto-exposure" depends="renderer-parity-compile"
+          description="Check Vulkan interior exposure, void exclusion and highlight protection">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.AutoExposureTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-better-shadows" depends="renderer-parity-compile"
+          description="Check stable shadow projection and filtered depth comparisons on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.ShadowQualityTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-fire-effects" depends="renderer-parity-compile"
+          description="Check bounded fire emission and compact ember trajectories on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.FireEffectsTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-heat-shimmer" depends="renderer-parity-compile"
+          description="Check local heat plume scaling and foreground occlusion on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.HeatShimmerTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-wet-surface" depends="renderer-parity-compile"
+          description="Check wet terrain material response and relief stability on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.WetSurfaceTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-water-surface" depends="renderer-parity-compile"
+          description="Check transparent river/ocean rendering, depth and flow continuity on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.RainLightingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+    <java classname="nurgling.render.WaterWakesTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+    <java classname="nurgling.render.WaterSurfaceTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+    <java classname="nurgling.render.WaterShoreTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-temporal-aa" depends="renderer-parity-compile"
+          description="Check TAA motion response, depth rejection and jitter on Vulkan">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.TemporalAATest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-compass-atlas" depends="renderer-parity-compile"
+          description="Check compass bearings, craft atlas data and real UI rendering without a server">
+    <mkdir dir="build/compass-atlas-test-profile" />
+    <property name="compass-atlas.scale" value="1" />
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.CompassAtlasTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.prefspec=compass-atlas-tests" />
+      <jvmarg value="-Dhaven.uiscale=${compass-atlas.scale}" />
+      <env key="APPDATA" path="build/compass-atlas-test-profile" />
+      <arg value="--render" />
+    </java>
+  </target>
+
+  <target name="test-craft-flow" depends="renderer-parity-compile" description="Validate quality DAG and native calculator UI">
+    <mkdir dir="build/compass-atlas-test-profile" />
+    <property name="compass-atlas.scale" value="1" />
+    <java classname="haven.CraftFlowTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+      <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.prefspec=compass-atlas-tests" />
+      <jvmarg value="-Dhaven.uiscale=${compass-atlas.scale}" />
+      <env key="APPDATA" path="build/compass-atlas-test-profile" />
+      <arg value="--render" />
+    </java>
+  </target>
+
+  <target name="test-wiki-recipes" depends="renderer-parity-compile"
+          description="Validate the shipped binary recipe database and character journal overlays">
+    <java classname="nurgling.craft.WikiRecipesTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <target name="test-vulkan-picking" depends="renderer-parity-compile"
+          description="Check first-click picking with cold Vulkan shaders and pipelines">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.VulkanPickingTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-vulkan-frames" depends="renderer-parity-compile"
+          description="Check Vulkan frame submissions and CPU callback scheduling">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.render.vk.VulkanFrameTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
     </java>
   </target>
 

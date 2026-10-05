@@ -52,6 +52,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public long plgob = -1;
     public Coord2d cc;
     public final Glob glob;
+    public final nurgling.render.SceneDebug sceneDebug = new nurgling.render.SceneDebug();
     public int view = 2;
     private Collection<Delayed> delayed = new LinkedList<Delayed>();
     private Collection<Delayed> delayed2 = new LinkedList<Delayed>();
@@ -637,6 +638,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     
     protected void envdispose() {
+	if(directionalShadows != null) { directionalShadows.dispose(); directionalShadows = null; }
 	if(smap != null) {
 	    smap.dispose(); smap = null;
 	    slist.dispose(); slist = null;
@@ -652,6 +654,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(clobjlist!=null)
 			clobjlist.dispose();
 		super.dispose();
+		sceneDebug.dispose();
     }
 
     public boolean visol(String tag) {
@@ -813,6 +816,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			T cut = getcut(cc);
 			Pair<T, RenderTree.Slot> cur = cuts.get(cc);
 			if((cur == null) || (cur.a != cut)) {
+			    double started = Utils.rtime();
 			    Coord2d pc = cc.mul(MCache.cutsz).mul(tilesz);
 			    RenderTree.Node draw = produce(cut);
 			    Pipe.Op cs = null;
@@ -821,6 +825,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    cuts.put(cc, new Pair<>(cut, slot.add(draw, cs)));
 			    if(cur != null)
 				cur.b.remove();
+			    nurgling.diagnostics.MovementTrace.mapCut(map, cc, started,
+				"attach " + getClass().getName());
 			}
 		    } catch(Loading l) {
 			l.boostprio(5);
@@ -831,7 +837,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		for(Iterator<Map.Entry<Coord, Pair<T, RenderTree.Slot>>> i = cuts.entrySet().iterator(); i.hasNext();) {
 		    Map.Entry<Coord, Pair<T, RenderTree.Slot>> ent = i.next();
 		    if(!area.contains(ent.getKey())) {
+			double started = Utils.rtime();
 			ent.getValue().b.remove();
+			nurgling.diagnostics.MovementTrace.mapCut(map, ent.getKey(), started,
+			    "remove " + getClass().getName());
 			i.remove();
 		    }
 		}
@@ -885,8 +894,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void tick() {
 	    super.tick();
 	    if(area != null) {
-		main.tick();
-		flavobjs.tick();
+		try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-meshes")) {
+		    main.tick();
+		}
+		try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-decoration")) {
+		    flavobjs.tick();
+		}
 	    }
 	}
 
@@ -1130,9 +1143,32 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private Coord3f smapcc = null;
     private ShadowMap.ShadowList slist = null;
     private ShadowMap smap = null;
+    private nurgling.render.DirectionalShadows directionalShadows;
     private double lsmch = 0;
     private void updsmap(DirLight light) {
-	boolean usesdw = ui.gprefs.lshadow.val;
+	nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
+	boolean improved = graphics.bettershadows && outdoorLighting();
+	if(improved && light != null && instancer != null) {
+	    Coord3f center;
+	    try { center = getcc().invy(); } catch(Loading loading) { return; }
+	    if(smap != null) {
+	        basic(ShadowMap.class,null);
+	        instancer.remove(slist); slist.dispose(); slist=null;
+	        smap.dispose(); smap=null; smapcc=null;
+	    }
+	    if(directionalShadows == null || directionalShadows.master() != instancer) {
+	        if(directionalShadows != null) directionalShadows.dispose();
+	        directionalShadows = new nurgling.render.DirectionalShadows(instancer);
+	    }
+	    basic(nurgling.render.DirectionalShadows.class,directionalShadows.update(light,center));
+	    return;
+	}
+	if(directionalShadows != null) {
+	    basic(nurgling.render.DirectionalShadows.class,null);
+	    directionalShadows.dispose(); directionalShadows=null;
+	}
+	boolean usesdw = ui.gprefs.lshadow.val && light != null;
+	int filter = 0;
 	int sdwres = ui.gprefs.shadowres.val;
 	sdwres = (sdwres < 0) ? (2048 >> -sdwres) : (2048 << sdwres);
 	if(usesdw) {
@@ -1147,10 +1183,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(instancer == null)
 		    return;
 		slist = new ShadowMap.ShadowList(instancer);
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
-	    } else if((smap.lbuf.w != sdwres) || (smap.soft != ShadowMap.softness)) {
+		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
+	    } else if((smap.lbuf.w != sdwres) || (smap.soft != filter)) {
 		smap.dispose();
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
+		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
 		smapcc = null;
 		basic(ShadowMap.class, null);
 	    }
@@ -1181,20 +1217,52 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private void drawsmap(Render out) {
+	if(directionalShadows != null) directionalShadows.draw(out);
 	if(smap != null)
 	    smap.update(out, slist);
     }
 
     public DirLight amblight = null;
+    private float rainCloudCover = 0;
+    private float clearWeatherLight = 0;
     private RenderTree.Slot s_amblight = null;
+    private final nurgling.render.InteriorTiles interiorTiles = new nurgling.render.InteriorTiles();
+    public boolean outdoorLighting() {
+	Gob player = player();
+	Coord2d position = (player == null) ? cc : player.rc;
+	Boolean inside = (position == null) ? null : interiorTiles.inside(glob.map, position.floor(MCache.tilesz));
+	if(Boolean.TRUE.equals(inside) || (inside == null && plgob >= 0)) return false;
+	synchronized(glob) {
+	    return nurgling.render.WorldLighting.outdoors(glob.lightdif, glob.tlightdif);
+	}
+    }
     private void amblight() {
 	synchronized(glob) {
-	    if(glob.lightamb != null) {
-		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
+	    boolean outdoors = outdoorLighting();
+	    nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
+	    if(outdoors && sceneDebug.hasTime()) {
+		amblight = sceneDebug.light();
+	    } else if(glob.lightamb != null) {
+		// Vulkan's night-vision button controls exposure, never the legacy light boost.
+		// Keep the same baseline when exposure is disabled (including Classic).
+		boolean vulkan = nurgling.render.NGfx.supported(ui.getenv());
+		amblight = new DirLight(vulkan ? glob.lightamb : glob.blightamb,
+		        vulkan ? glob.lightdif : glob.blightdif,
+		        vulkan ? glob.lightspc : glob.blightspc,
+		        Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
 		amblight.prio(100);
 	    } else {
 		amblight = null;
 	    }
+	    basic(nurgling.render.WorldLighting.Smooth.class,
+	            outdoors && ((graphics.worldlight && graphics.worldlightstrength > 0) || graphics.bettershadows) ? nurgling.render.WorldLighting.smooth : null);
+	    if(outdoors && graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {
+		amblight = nurgling.render.WorldLighting.apply(amblight,
+		        sceneDebug.hasTime() ? sceneDebug.minutes() / 1440.0 : glob.ast.dt,
+		        graphics.worldlightstrength, clearWeatherLight, graphics.autoexp);
+	    }
+	    if(outdoors && graphics.enabled)
+		amblight = nurgling.render.RainLighting.apply(amblight, rainCloudCover);
 	}
 	if(s_amblight != null) {
 	    s_amblight.remove();
@@ -1266,13 +1334,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}, RenderContext.slot, Light.lights);
 
     private final Map<RenderTree.Node, RenderTree.Slot> rweather = new HashMap<>();
+    public Collection<Glob.Weather> weather() {
+	return(outdoorLighting() ? sceneDebug.weather(glob.weather()) : glob.weather());
+    }
+
     private void updweather() {
-	Glob.Weather[] wls = glob.weather().toArray(new Glob.Weather[0]);
+	Glob.Weather[] wls = weather().toArray(new Glob.Weather[0]);
 	Pipe.Op[] wst = new Pipe.Op[wls.length];
 	for(int i = 0; i < wls.length; i++)
 	    wst[i] = wls[i].state();
-	try {
-	    basic(Glob.Weather.class, Pipe.Op.compose(wst));
+	try(nurgling.diagnostics.MovementTrace.Stage stage = nurgling.diagnostics.MovementTrace.stage(ui, "weather-state")) {
+	    /* Only Vulkan rebuilds programs when a reserved weather slot changes to or
+	     * from null; OpenGL updates uniforms alone and then reads the missing state
+	     * (CloudShadow.cdir NPE), so it keeps the plain definition-change path. */
+	    boolean gl = (ui != null) && (ui.getenv() instanceof haven.render.gl.GLEnvironment);
+	    basic(Glob.Weather.class, gl ? Pipe.Op.compose(wst) : WeatherState.compose(wst));
 	} catch(Loading l) {
 	}
 	Collection<RenderTree.Node> old =new ArrayList<>(rweather.keySet());
@@ -1303,7 +1379,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public Coord3f getcc() {
 	Gob pl = NUtils.player();
 	if(pl != null)
-	    return(pl.getc());
+	    return(pl.getrenderc());
 	else
 		return(glob.map.getzp(cc));
 	}
@@ -1462,7 +1538,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if((draw == null) || !out.env().compatible(draw)) {
 		if(draw != null)
 		    dispose();
-		draw = out.env().drawlist().desc("click-list: " + this);
+		draw = out.env().drawlist().async(false).desc("click-list: " + this);
 		if(doinst) {
 		    instancer = new InstanceList(this);
 		    instancer.add(draw, Rendered.class);
@@ -1839,30 +1915,57 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public void tick(double dt) {
 	super.tick(dt);
-	checkload();
-	camload = null;
-	try {
-	    if((shake = shake * Math.pow(100, -dt)) < 0.01)
-		shake = 0;
-	    camoff.x = (float)((Math.random() - 0.5) * shake);
-	    camoff.y = (float)((Math.random() - 0.5) * shake);
-	    camoff.z = (float)((Math.random() - 0.5) * shake);
-	    camera.tick(dt);
-	} catch(Loading e) {
-	    e.boostprio(5);
-	    camload = e;
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "map-checkload")) {
+		checkload();
 	}
-	basic(Camera.class, camera);
-	amblight();
-	updsmap(amblight);
-	updweather();
-	synchronized(glob.map) {
-	    terrain.tick();
-	    oltick();
-	    if(gridlines != null)
-		gridlines.tick();
-	    clickmap.tick();
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "camera-tick")) {
+		camload = null;
+		try {
+		    if((shake = shake * Math.pow(100, -dt)) < 0.01)
+			shake = 0;
+		    camoff.x = (float)((Math.random() - 0.5) * shake);
+		    camoff.y = (float)((Math.random() - 0.5) * shake);
+		    camoff.z = (float)((Math.random() - 0.5) * shake);
+		    camera.tick(dt);
+		} catch(Loading e) {
+		    e.boostprio(5);
+		    camload = e;
+		}
+		basic(Camera.class, camera);
 	}
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "lighting-weather")) {
+		sceneDebug.prepare();
+		boolean outdoors = outdoorLighting();
+		float rain = outdoors ? nurgling.render.RainLighting.intensity(weather()) : 0;
+		rainCloudCover = outdoors ? nurgling.render.RainLighting.approach(rainCloudCover, rain, dt) : 0;
+		clearWeatherLight = outdoors ? nurgling.render.WorldLighting.approachClearWeather(clearWeatherLight, rain, dt) : 0;
+		amblight();
+		updsmap(amblight);
+		updweather();
+		sceneDebug.tick(dt);
+	}
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "map-terrain-overlays")) {
+		synchronized(glob.map) {
+		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-update")) {
+			terrain.tick();
+		    }
+		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-overlays")) {
+			oltick();
+		    }
+		    if(gridlines != null) {
+			try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-gridlines")) {
+			    gridlines.tick();
+			}
+		    }
+		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-picking")) {
+			clickmap.tick();
+		    }
+		}
+	}
+
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done()) {
 	    Plob ob = placing.get();

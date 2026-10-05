@@ -16,7 +16,7 @@ import static haven.Utils.sb;
 /* XXX: Remove me as soon as custom clients can be expected to have
  * merged the fixes from mainline. */
 @haven.FromResource(name = "gfx/fx/rain", version = 2)
-public class Rain implements Glob.Weather, RenderTree.Node {
+public class Rain implements Glob.Weather, RenderTree.Node, Disposable {
     public static final float sz = 75 * 11;
     public static final float ft = 0.03f;
     public static final float droplife = 1.5f, splashlife = 0.15f;
@@ -67,7 +67,7 @@ public class Rain implements Glob.Weather, RenderTree.Node {
 	public DropSprite() {
 	    super(null, null);
 	    ostate(VertexColor.instance, new States.LineWidth(1),
-		   mat, draworder, States.maskdepth);
+		   mat, draworder, States.maskdepth, nurgling.render.WaterSurface.precipitation);
 	}
 
 	public void draw(Pipe state, Render out) {
@@ -121,7 +121,7 @@ public class Rain implements Glob.Weather, RenderTree.Node {
 	public SplashSprite() {
 	    super(null, null);
 	    ostate(VertexColor.instance, new States.LineWidth(1),
-		   mat, draworder, States.maskdepth);
+		   mat, draworder, States.maskdepth, nurgling.render.WaterSurface.precipitation);
 	}
 
 	public void draw(Pipe state, Render out) {
@@ -160,6 +160,13 @@ public class Rain implements Glob.Weather, RenderTree.Node {
 
     public Rain(Object... args) {
 	update(args);
+    }
+
+    public void dispose() {
+	dropspr.dispose();
+	splashspr.dispose();
+	drops.clear();
+	splashes.clear();
     }
 
     public Pipe.Op state() {return(null);}

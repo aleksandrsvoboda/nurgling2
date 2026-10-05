@@ -333,7 +333,7 @@ public class CheeseRackCalculatorPanel extends Widget {
             row.expanded = !row.expanded;
             rebuildPending = true;
         }), new Coord(X_STAGES_BTN, y + UI.scale(3)));
-        content.add(new Button(SMALL_BTN_W, "x", () -> {
+        content.add(new Button(SMALL_BTN_W, nurgling.styles.GeneratedButtons.iconImage("close", UI.scale(16))).action(() -> {
             rows.remove(row);
             save();
             rebuildPending = true;

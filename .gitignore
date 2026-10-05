@@ -1,4 +1,5 @@
 /build
+/diagnostics/
 /bin
 /local-config.properties
 /local-boot.properties

@@ -29,7 +29,15 @@ public abstract class Dropbox<T> extends ListWidget<T> {
 
         protected T listitem(int i) {return(Dropbox.this.listitem(i));}
         protected int listitems() {return(Dropbox.this.listitems());}
-        protected void drawitem(GOut g, T item, int idx) {Dropbox.this.drawitem(g, item, idx);}
+        protected void drawitem(GOut g, T item, int idx) {Dropbox.this.drawlistitem(g, item, idx);}
+
+        protected void itemclick(T item, Coord c, int button) {
+            int width = sz.x - (sb.vis() ? sb.sz.x : 0);
+            if(Dropbox.this.listitemclick(item, c, button, width))
+                reqdestroy();
+            else
+                super.itemclick(item, c, button);
+        }
 
         public void destroy() {
             grab.remove();
@@ -43,14 +51,19 @@ public abstract class Dropbox<T> extends ListWidget<T> {
         }
     }
 
-    public static Color bgColor = Color.BLACK;
+    /** Popup rows may have actions separate from selecting the item. */
+    protected void drawlistitem(GOut g, T item, int idx) { drawitem(g, item, idx); }
+    protected boolean listitemclick(T item, Coord c, int button, int width) { return false; }
+
+    public static Color bgColor = nurgling.styles.UITheme.INPUT;
     public void draw(GOut g) {
-        g.chcolor(bgColor);
-        g.frect(Coord.z, sz);
-        g.chcolor();
+        nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+            dl != null ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
         if(sel != null)
             drawitem(g.reclip(Coord.z, new Coord(sz.x - drop.sz().x, itemh)), sel, 0);
-        g.image(drop, dropc);
+        int side = UI.scale(10);
+        nurgling.styles.GeneratedButtons.icon(g, "down",
+            new Coord(sz.x - drop.sz().x / 2 - side / 2, (sz.y - side) / 2), side);
         super.draw(g);
     }
 

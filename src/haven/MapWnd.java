@@ -42,6 +42,7 @@ import haven.MapFile.SMarker;
 import haven.MiniMap.*;
 import haven.BuddyWnd.GroupSelector;
 import nurgling.widgets.NMiniMap;
+import nurgling.widgets.NMapIcon;
 import haven.MiniMap.Location;
 import static haven.MCache.tilesz;
 import static haven.MCache.cmaps;
@@ -89,23 +90,14 @@ public class MapWnd extends Window implements Console.Directory {
 	view = viewf.add(new View(file));
 	recenter();
 	toolbar = add(new Widget(Coord.z));
-	toolbar.add(new Img(Resource.loadtex("gfx/hud/mmap/fgwdg")) {
-		public boolean mousedown(MouseDownEvent ev) {
-		    if((ev.b == 1) && checkhit(ev.c)) {
-			MapWnd.this.drag(parentpos(MapWnd.this, ev.c));
-			return(true);
-		    }
-		    return(super.mousedown(ev));
-		}
-	    }, Coord.z);
-	toolbar.add(new IButton("gfx/hud/mmap/home", "", "-d", "-h") {
+	toolbar.add(new NMapIcon("home") {
 		{settip("Follow"); setgkey(kb_home);}
 		public void click() {
 		    recenter();
 		}
 	    }, Coord.z);
 	toolbar.add(new MarkButton(), Coord.z).setgkey(kb_mark);
-	toolbar.add(new ICheckBox("gfx/hud/mmap/hmark", "", "-d", "-h", "-dh"))
+	toolbar.add(new NMapIcon("hmark"))
 	    .state(() -> Utils.eq(markcfg, MarkerConfig.hideall)).click(() -> {
 		    if(Utils.eq(markcfg, MarkerConfig.hideall))
 			markcfg = MarkerConfig.showall;
@@ -115,13 +107,13 @@ public class MapWnd extends Window implements Console.Directory {
 			markcfg = MarkerConfig.hideall;
 		})
 	    .settip("Hide markers").setgkey(kb_hmark);
-	toolbar.add(new ICheckBox("gfx/hud/mmap/wnd", "", "-d", "-h", "-dh"))
+	toolbar.add(new NMapIcon("wnd"))
 	    .state(this::compact).set(a -> {
 		    compact(a);
 		    Utils.setprefb("compact-map", a);
 		})
 	    .settip("Compact mode").setgkey(kb_compact);
-	toolbar.add(new ICheckBox("gfx/hud/mmap/prov", "", "-d", "-h", "-dh") {
+	toolbar.add(new NMapIcon("prov") {
 		public boolean mousewheel(MouseWheelEvent ev) {
 		    if(!checkhit(ev.c) || !ui.modshift || !a)
 			return(super.mousewheel(ev));
@@ -131,6 +123,11 @@ public class MapWnd extends Window implements Console.Directory {
 	    })
 	    .changed(a -> toggleol("realm", a))
 	    .settip("Display provinces").setgkey(kb_prov);
+	int tx = 0;
+	for(Widget button = toolbar.child; button != null; button = button.next) {
+	    button.c = new Coord(tx, 0);
+	    tx += button.sz.x + UI.scale(5);
+	}
 	toolbar.pack();
 	tool = add(new Toolbox());
 	compact(Utils.getprefb("compact-map", false));
@@ -262,23 +259,27 @@ public class MapWnd extends Window implements Console.Directory {
 
 	public void resize(int h) {
 	    super.resize(new Coord(sz.x, h));
-	    listf.resize(listf.sz.x, sz.y - UI.scale(250));
-	    listf.c = new Coord(sz.x - listf.sz.x, 0);
-	    list.resize(listf.inner().sub(0,UI.scale(50)));
 	    mebtn.c = new Coord(0, sz.y - mebtn.sz.y);
 	    mibtn.c = new Coord(sz.x - btnw, sz.y - mibtn.sz.y);
 	    nobtn.c = new Coord(0, mebtn.c.y - UI.scale(30) - nobtn.sz.y);
 	    tobtn.c = new Coord(sz.x - btnw, mibtn.c.y - UI.scale(30) - tobtn.sz.y);
 	    pmbtn.c = new Coord(0, nobtn.c.y - UI.scale(5) - pmbtn.sz.y);
 	    smbtn.c = new Coord(sz.x - btnw, tobtn.c.y - UI.scale(5) - smbtn.sz.y);
+	    int listBottom = pmbtn.c.y - UI.scale(10);
 	    if(namesel != null) {
-		namesel.c = listf.c.add(0, listf.sz.y + UI.scale(10));
-		mremove.c = pmbtn.c.sub(0, mremove.sz.y + UI.scale(10));
+		mremove.c = new Coord(0, listBottom - mremove.sz.y);
+		int top = mremove.c.y - UI.scale(5);
 		if(colsel != null) {
-		    colsel.c   = namesel.c.add(0, namesel.sz.y + UI.scale(10));
-		    onmapbtn.c =  colsel.c.add(0,  colsel.sz.y + UI.scale(5));
+		    onmapbtn.c = new Coord(0, top - onmapbtn.sz.y);
+		    colsel.c = new Coord(0, onmapbtn.c.y - UI.scale(5) - colsel.sz.y);
+		    top = colsel.c.y - UI.scale(10);
 		}
+		namesel.c = new Coord(0, top - namesel.sz.y);
+		listBottom = namesel.c.y - UI.scale(10);
 	    }
+	    listf.resize(listf.sz.x, Math.max(UI.scale(40), listBottom));
+	    listf.c = new Coord(sz.x - listf.sz.x, 0);
+	    list.resize(listf.inner());
 	}
     }
 
@@ -422,11 +423,11 @@ public class MapWnd extends Window implements Console.Directory {
 	}.run();
     }
 
-    public class MarkButton extends ICheckBox implements CursorQuery.Handler {
+    public class MarkButton extends NMapIcon implements CursorQuery.Handler {
 	private UI.Grab grab = null;
 
 	private MarkButton() {
-	    super("gfx/hud/mmap/mark", "", "-d", "-h", "-dh");
+	    super("mark");
 	}
 
 	public boolean state() {
@@ -855,13 +856,13 @@ public class MapWnd extends Window implements Console.Directory {
 			    change2(null);
 			}
 		    });
-		MapWnd.this.resize(csz());
 	    }
+	    MapWnd.this.resize(csz());
 	}
     }
 
     public void resize(Coord sz) {
-	sz = sz.max(compact() ? UI.scale(150, 150) : UI.scale(350, 255));
+	sz = sz.max(compact() ? UI.scale(160, 150) : UI.scale(380, 360));
 	super.resize(sz);
 	tool.resize(sz.y);
 	if(!compact()) {
@@ -872,10 +873,15 @@ public class MapWnd extends Window implements Console.Directory {
 	    tool.c = viewf.pos("ur").adds(10, 0);
 	}
 	view.resize(viewf.inner());
-	toolbar.c = viewf.c.add(0, viewf.sz.y - toolbar.sz.y).add(UI.scale(2), UI.scale(-2));
+	toolbar.c = mapContentOrigin().add(UI.scale(5), view.sz.y - toolbar.sz.y - UI.scale(5));
     }
 
-    private boolean compact() {
+    /** Map origin in child-placement coordinates, excluding this window's decoration. */
+    protected Coord mapContentOrigin() {
+	return xlate(view.parentpos(this), false);
+    }
+
+    protected boolean compact() {
 	return(deco == null);
     }
 

@@ -181,7 +181,6 @@ public class NCore extends Widget
         }
     }
     private final LinkedList<PendingTask> pending_notify = new LinkedList<>();
-    
     /**
      * Get list of active task names for debug display
      */
@@ -222,7 +221,6 @@ public class NCore extends Widget
                 .toArray(String[]::new);
         }
     }
-    
     /**
      * Get count of active tasks
      */
@@ -266,6 +264,12 @@ public class NCore extends Widget
     @Override
     public void tick(double dt)
     {
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "nurgling-core")) {
+            tickMeasured(dt);
+        }
+    }
+
+    private void tickMeasured(double dt) {
         if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager == null)
         {
             synchronized (dbLock) {
@@ -571,35 +575,29 @@ public class NCore extends Widget
     // In-memory cache of recently sent recipe hashes to avoid duplicate DB writes
     private static final Set<String> sentRecipeHashes = ConcurrentHashMap.newKeySet();
     private static final int MAX_RECIPE_CACHE_SIZE = 5000;
-    
     // Quick cache for early filtering (name + energy) - checked BEFORE creating task
     private static final Set<String> recipeQuickCache = ConcurrentHashMap.newKeySet();
     private static final int MAX_QUICK_CACHE_SIZE = 2000;
-    
     // Pending recipe tasks counter for debug
     private static final java.util.concurrent.atomic.AtomicInteger pendingRecipeTasks = new java.util.concurrent.atomic.AtomicInteger(0);
-    
     /**
      * Get current recipe cache size for debug display
      */
     public static int getRecipeCacheSize() {
         return sentRecipeHashes.size();
     }
-    
     /**
      * Get pending recipe tasks count for debug
      */
     public static int getPendingRecipeTasks() {
         return pendingRecipeTasks.get();
     }
-    
     /**
      * Check if recipe hash is already in cache (call from main thread before creating task)
      */
     public static boolean isRecipeInCache(String recipeHash) {
         return sentRecipeHashes.contains(recipeHash);
     }
-    
     /**
      * Add recipe hash to cache
      */
@@ -616,14 +614,12 @@ public class NCore extends Widget
         }
         sentRecipeHashes.add(recipeHash);
     }
-    
     /**
      * Check if recipe is in quick cache (early filtering before creating task)
      */
     public static boolean isRecipeQuickCached(String quickKey) {
         return recipeQuickCache.contains(quickKey);
     }
-    
     /**
      * Add to quick cache
      */
@@ -640,14 +636,12 @@ public class NCore extends Widget
         }
         recipeQuickCache.add(quickKey);
     }
-    
     /**
      * Get quick cache size for debug
      */
     public static int getRecipeQuickCacheSize() {
         return recipeQuickCache.size();
     }
-    
     public static class NGItemWriter implements Runnable {
         private final NGItem item;
         private final nurgling.db.DatabaseManager databaseManager;

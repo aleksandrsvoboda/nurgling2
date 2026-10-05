@@ -54,7 +54,7 @@ public class NGobHealthOverlay extends NObjectTexLabel
     static TexI lvl50text = null;
     static TexI lvl75text = null;
 
-    public static final Font bsans  = new Font("Sans", Font.BOLD, 10);
+    public static final Font bsans = nurgling.styles.UIFont.sans.deriveFont(Font.BOLD, 10f);
     private static final Text.Furnace active_title = new PUtils.BlurFurn(new Text.Foundry(bsans, 15, Color.WHITE).aa(true), 2, 1, new Color(36, 25, 25));
     static TexI init(float lvl ,TexI img)
     {

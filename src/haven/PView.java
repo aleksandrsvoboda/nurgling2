@@ -199,7 +199,10 @@ public abstract class PView extends Widget {
 	    disposed = true;
 	    return;
 	}
-	ticklist.tick(dt);
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "scene-placement-tick")) {
+		ticklist.tick(dt);
+	}
+
 	if(audio != null)
 	    audio.cycle();
     }
@@ -344,7 +347,10 @@ public abstract class PView extends Widget {
     }
 
     public void gtick(Render out) {
-	ticklist.gtick(out);
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "scene-graphics-tick")) {
+		ticklist.gtick(out);
+	}
+
     }
 
     public void draw(GOut g) {

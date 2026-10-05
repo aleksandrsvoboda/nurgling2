@@ -50,6 +50,7 @@ public class VkTexture extends VkObject {
     public final int viewtype;
     public final int w, h, d, layers, levels;
     public final long image, alloc, view;
+    final boolean rgb;
     private final long[] attviews;
     private final WeakReference<Texture> desc;
     /* Render thread only */
@@ -67,6 +68,7 @@ public class VkTexture extends VkObject {
 	this.layers = layers;
 	this.levels = Math.max(levels, 1);
 	this.desc = (desc == null) ? null : new WeakReference<>(desc);
+	this.rgb = (desc != null) && (desc.ifmt.nc == 3) && (fmt.nc == 4);
 	this.steady = (general || fmt.depth) ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	this.attviews = new long[this.levels];
 	int usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -87,7 +89,7 @@ public class VkTexture extends VkObject {
 	    VkEnvironment.check(vmaCreateImage(env.vma, ici, aci, ip, ap, null), "vmaCreateImage");
 	    this.image = ip.get(0);
 	    this.alloc = ap.get(0);
-	    this.view = mkview(st, viewtype, 0, this.levels);
+	    this.view = mkview(st, viewtype, 0, this.levels, true);
 	}
     }
 
@@ -95,11 +97,15 @@ public class VkTexture extends VkObject {
 	return(fmt.depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
-    private long mkview(MemoryStack st, int type, int level, int nlevels) {
+    private long mkview(MemoryStack st, int type, int level, int nlevels, boolean sampling) {
 	VkImageViewCreateInfo vci = VkImageViewCreateInfo.calloc(st).sType$Default()
 	    .image(image).viewType(type).format(fmt.vk);
-	if(fmt.depth)
+	if(sampling && fmt.depth)
 	    vci.components().set(VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_ZERO, VK_COMPONENT_SWIZZLE_ZERO, VK_COMPONENT_SWIZZLE_ONE);
+	else if(sampling && rgb)
+	    /* RGB textures sample with alpha one in OpenGL, even after a
+	     * vec3 fragment output has left the padded fourth channel undefined. */
+	    vci.components().a(VK_COMPONENT_SWIZZLE_ONE);
 	vci.subresourceRange().set(aspect(), level, nlevels, 0, (type == VK_IMAGE_VIEW_TYPE_2D) ? 1 : layers);
 	LongBuffer lp = st.mallocLong(1);
 	VkEnvironment.check(vkCreateImageView(env.dev, vci, null, lp), "vkCreateImageView");
@@ -110,11 +116,12 @@ public class VkTexture extends VkObject {
     long attview(int level) {
 	synchronized(attviews) {
 	    if(attviews[level] == 0) {
-		if((level == 0) && (levels == 1) && (viewtype == VK_IMAGE_VIEW_TYPE_2D)) {
+		if((level == 0) && (levels == 1) && (viewtype == VK_IMAGE_VIEW_TYPE_2D) && !rgb && !fmt.depth) {
 		    attviews[level] = view;
 		} else {
 		    try(MemoryStack st = stackPush()) {
-			attviews[level] = mkview(st, VK_IMAGE_VIEW_TYPE_2D, level, 1);
+			/* Attachment views must have identity component mappings. */
+			attviews[level] = mkview(st, VK_IMAGE_VIEW_TYPE_2D, level, 1, false);
 		    }
 		}
 	    }

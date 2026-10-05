@@ -170,17 +170,11 @@ public class NFlowerMenu extends FlowerMenu
 
         public void draw(GOut g)
         {
-            g.image((isHighligted) ? bhl : bl, new Coord(0, 0));
-
-            Coord pos = new Coord(0, 0);
-            for (pos.x = bl.sz().x; pos.x + bm.sz().x <= len - br.sz().x; pos.x += bm.sz().x)
-            {
-                g.image((isHighligted) ? bhm : bm, pos);
-            }
-            g.image((isHighligted) ? bhm : bm, pos, new Coord(sz.x - pos.x - br.sz().x, br.sz().y));
-            g.image(textnum.tex(), new Coord(bl.sz().x/2 - textnum.tex().sz().x/2 - UI.scale(1), br.sz().y / 2 - textnum.tex().sz().y / 2));
-            g.image(text.tex(), new Coord(br.sz().x + bl.sz().x + UI.scale(10), br.sz().y / 2 - text.tex().sz().y / 2));
-            g.image((isHighligted) ? bhr : br, new Coord(len - br.sz().x, 0));
+            nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz, isHighligted ? nurgling.styles.GeneratedButtons.State.HOVER : nurgling.styles.GeneratedButtons.State.NORMAL);
+            g.chcolor(nurgling.styles.UITheme.MUTED);
+            g.image(textnum.tex(), Coord.of(UI.scale(8), (sz.y - textnum.sz().y) / 2));
+            g.chcolor();
+            g.image(text.tex(), Coord.of(UI.scale(30), (sz.y - text.sz().y) / 2));
         }
 
         @Override

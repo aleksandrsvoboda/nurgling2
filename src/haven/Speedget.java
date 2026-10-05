@@ -41,10 +41,11 @@ public class Speedget extends Widget {
 	int w = 0;
 	for(int i = 0; i < names.length; i++) {
 	    for(int o = 0; o < vars.length; o++)
-		imgs[i][o] = Resource.loadtex("nurgling/hud/rmeter/" + names[i] + "-" + vars[o]);
+		imgs[i][o] = new TexI(nurgling.styles.GeneratedButtons.squareButtonImage(
+                    "speed-" + i + "-" + vars[o], UI.scale(24)));
 	    w += imgs[i][0].sz().x + marg;
 	}
-	tsz = new Coord(w, imgs[0][0].sz().y);
+	tsz = new Coord(w - marg, imgs[0][0].sz().y);
 	tips = new String[names.length];
 	for(int i = 0; i < names.length; i++) {
 	    tips[i] = Resource.local().loadwait("gfx/hud/meter/rmeter/" + names[i] + "-on").flayer(Resource.tooltip).text();
@@ -95,11 +96,11 @@ public class Speedget extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
 	int x = 0;
 	for(int i = 0; i < 4; i++) {
-	    x += imgs[i][0].sz().x;
-	    if(ev.c.x < x) {
+	    if(ev.c.isect(new Coord(x, 0), imgs[i][0].sz())) {
 		set(i);
 		break;
 	    }
+	    x += imgs[i][0].sz().x + marg;
 	}
 	return(true);
     }

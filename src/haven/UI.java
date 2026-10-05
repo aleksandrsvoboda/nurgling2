@@ -98,6 +98,8 @@ public class UI {
     public UILoop loop;
     public UILoop getLoop() { return loop; }
     public GSettings gprefs = GSettings.load(true);
+    public final nurgling.render.FrameHistory frameHistory = new nurgling.render.FrameHistory();
+    public nurgling.diagnostics.MovementTrace movementTrace;
     private boolean gprefsdirty = false;
     public final ActAudio.Root audio;
     public final Loader loader;
@@ -1010,6 +1012,7 @@ public class UI {
     }
 
     public void destroy() {
+	if(movementTrace != null) movementTrace.dispose();
 	queue.drain();
 	synchronized(this) {
 	    root.destroy();

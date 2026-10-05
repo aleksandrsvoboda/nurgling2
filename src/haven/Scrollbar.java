@@ -31,7 +31,7 @@ public class Scrollbar extends Widget {
     public static final Tex sflarp = Resource.loadtex("gfx/hud/sflarp");
     public static final int chcut = UI.scale(7);
     public static final int width = sflarp.sz().x;
-    public static int customWidth = 0; // If > 0, overrides default width
+    public static int customWidth = UI.scale(8); // If > 0, overrides default width
     public static java.util.function.BiConsumer<Scrollbar, GOut> customDraw = null;
     public Scrollable ctl;
     public int val, min, max;
@@ -69,20 +69,17 @@ public class Scrollbar extends Widget {
 	    customDraw.accept(this, g);
 	    return;
 	}
-	if(vis()) {
-	    int cx = (sflarp.sz().x / 2) - (schain.sz().x / 2);
-	    int eh = sz.y + chcut, ch = schain.sz().y;
-	    int n = Math.max((eh + ch - 1) / ch, 2);
-	    for(int i = 0; i < n; i++)
-		g.image(schain, Coord.of(cx, ((eh - ch) * i) / (n - 1)));
-	    double a = (double)val / (double)(max - min);
-	    int fy = (int)((sz.y - sflarp.sz().y) * a);
-	    g.image(sflarp, new Coord(0, fy));
-	}
+        if(vis()) {
+            int y = (int)Math.round((sz.y - thumbHeight()) * nurgling.styles.UITheme.fraction(val, min, max));
+            nurgling.styles.UITheme.panel(g, Coord.z, sz, nurgling.styles.UITheme.PANEL, null);
+            nurgling.styles.UITheme.panel(g, Coord.of(0, y), Coord.of(sz.x, thumbHeight()), nurgling.styles.UITheme.ACCENT, null);
+        }
     }
 
+    public int thumbHeight() { return Math.min(sz.y, Math.max(UI.scale(10), Math.min(UI.scale(28), sz.y / 5))); }
+
     private void update(Coord c) {
-	double a = (double)(c.y - (sflarp.sz().y / 2)) / (double)(sz.y - sflarp.sz().y);
+	double a = (double)(c.y - (thumbHeight() / 2)) / (double)Math.max(1, sz.y - thumbHeight());
 	if(a < 0)
 	    a = 0;
 	if(a > 1)

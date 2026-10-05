@@ -30,7 +30,7 @@ import java.util.*;
 import java.awt.Color;
 
 public abstract class SListBox<I, W extends Widget> extends SListWidget<I, W> implements Scrollable {
-    public static final Color every = new Color(255, 255, 255, 16), other = new Color(255, 255, 255, 32);
+    public static final Color every = nurgling.styles.UITheme.PANEL, other = nurgling.styles.UITheme.ROW;
     public final int itemh, marg;
     public final Scrollbar sb;
     private Map<I, W> curw = new IdentityHashMap<>();
@@ -165,9 +165,7 @@ public abstract class SListBox<I, W extends Widget> extends SListWidget<I, W> im
     }
 
     protected void drawsel(GOut g, I item, int idx, Area area) {
-	g.chcolor(255, 255, 0, 128);
-	g.frect2(area.ul, area.br);
-	g.chcolor();
+        nurgling.styles.UITheme.selection(g.reclip(area.ul, area.sz()), area.sz());
     }
 
     protected void drawslot(GOut g, I item, int idx, Area area) {

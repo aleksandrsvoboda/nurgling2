@@ -15,8 +15,7 @@ import static nurgling.render.NPostFX.*;
  *
  *   history (last frame's color and depth)   -200
  *   light shafts                              -140
- *   heat shimmer                              -130
- *   tilt-shift                                   3
+     *   heat shimmer (after temporal AA)           -88
  */
 public class SceneFX {
     /* Linear view distance of the scene depth, far for the sky. */
@@ -69,8 +68,8 @@ public class SceneFX {
 	}
     }
 
-    /* Keeps the last frame's picture and depth for effects drawn in
-     * the scene (water reflections, soft smoke). */
+    /* Keeps the last frame's picture and depth for soft smoke. Water has
+     * its own immutable current-frame inputs, before this pass. */
     public static class History extends PostProcessor {
 	final Depth depth;
 	private Texture2D.Sampler2D col, dep;
@@ -114,130 +113,110 @@ public class SceneFX {
 	}
     }
 
-    /* Tilt-shift: the top and bottom of the view go soft, for a
-     * miniature, diorama look. Two passes (across, then down). */
-    static final RawFunction tiltfn = new RawFunction(VEC4, "hv_tilt", 4,
-	"vec4 hv_tilt(vec4 col, vec2 tc, sampler2D src, vec3 par)\n" +
-	"{\n" +
-	"    /* par = (step x, step y, strength) */\n" +
-	"    float d = abs(tc.y - 0.55);\n" +
-	"    float r = par.z * smoothstep(0.08, 0.45, d) * 2.2;\n" +
-	"    vec2 px = 1.0 / vec2(textureSize(src, 0));\n" +
-	"    vec2 dir = par.xy * px * r;\n" +
-	"    vec3 sum = vec3(0.0);\n" +
-	"    float ws = 0.0;\n" +
-	"    for(int i = -6; i <= 6; i++) {\n" +
-	"        float w = exp(-float(i * i) / 18.0);\n" +
-	"        sum += texture(src, tc + dir * float(i)).rgb * w;\n" +
-	"        ws += w;\n" +
-	"    }\n" +
-	"    return(vec4(sum / ws, 1.0));\n" +
-	"}\n");
-    static final Uniform ti_src = u(SAMPLER2D, 0), ti_par = u(VEC3, 1);
-    static final ShaderMacro ti_sh = shader(tiltfn, ti_src, ti_par);
-
-    public static class TiltShift extends PostProcessor {
-	float strength = 1;
-	private Texture2D.Sampler2D mid;
-
-	public int order() {return(3);}
-
-	public void run(GOut g, Texture2D.Sampler2D in) {
-	    Coord sz = in.tex.sz();
-	    NumberFormat cf = in.tex.ifmt.cf;
-	    if(!fits(mid, sz, cf)) {
-		if(mid != null) mid.dispose();
-		mid = mktarget(sz, cf);
-	    }
-	    blit(target(g, mid), in, new Pass(ti_sh, in, new float[] {1, 0, strength}));
-	    blit(g, mid, new Pass(ti_sh, mid, new float[] {0, 1, strength}));
-	}
-
-	public void dispose() {
-	    super.dispose();
-	    if(mid != null) mid.dispose();
-	}
-    }
-
-    /* Heat shimmer above fires. Each source is (x, y, ux, uy) in
-     * screen coordinates: where the fire is, and the offset to a
-     * point some way above it. */
+    /* Heat shimmer follows flame geometry, not the point light's radius/offset. */
     static final int NHEAT = 6;
-    static final RawFunction heatfn = new RawFunction(VEC4, "hv_heat", 10, FireFX.NOISE +
-	"vec4 hv_heat(vec4 col, vec2 tc, sampler2D src, float t, vec4 s0, vec4 s1, vec4 s2, vec4 s3, vec4 s4, vec4 s5)\n" +
+    static final RawFunction heatfn = new RawFunction(VEC4, "hv_heat", 17, FireFX.NOISE +
+	"vec4 hv_heat(vec4 col, vec2 tc, sampler2D src, float t, sampler2D dep, vec4 s0, vec4 s1, vec4 s2, vec4 s3, vec4 s4, vec4 s5, vec4 p0, vec4 p1, vec4 p2, vec4 p3, vec4 p4, vec4 p5)\n" +
 	"{\n" +
 	"    vec4 s[6] = vec4[6](s0, s1, s2, s3, s4, s5);\n" +
+	"    vec4 shape[6] = vec4[6](p0, p1, p2, p3, p4, p5);\n" +
+	"    vec2 size = vec2(textureSize(src,0));\n" +
+	"    float sceneDepth = texture(dep,tc).r;\n" +
 	"    vec2 disp = vec2(0.0);\n" +
 	"    for(int i = 0; i < 6; i++) {\n" +
-	"        vec2 up = s[i].zw;\n" +
+	"        vec2 up = s[i].zw * size;\n" +
 	"        float ul = dot(up, up);\n" +
 	"        if(ul < 1e-8)\n" +
 	"            continue;\n" +
-	"        vec2 rel = tc - s[i].xy;\n" +
+	"        vec2 rel = (tc - s[i].xy) * size;\n" +
 	"        float h = dot(rel, up) / ul;\n" +
+	"        if(h <= 0.0 || h >= 1.0) continue;\n" +
+	"        float plumeDepth = mix(shape[i].y,shape[i].z,h);\n" +
+	"        if(sceneDepth + 0.00001 < plumeDepth) continue;\n" +
 	"        vec2 perp = rel - up * h;\n" +
-	"        float w = sqrt(ul) * (0.22 + 0.3 * clamp(h, 0.0, 1.5));\n" +
-	"        float fall = (1.0 - smoothstep(0.0, w, length(perp))) * smoothstep(0.0, 0.2, h) * (1.0 - smoothstep(0.7, 1.6, h));\n" +
+	"        float w = shape[i].x * (0.65 + 0.25*h);\n" +
+	"        float fall = (1.0 - smoothstep(0.0, w, length(perp))) * smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.45, 1.0, h));\n" +
 	"        if(fall <= 0.0)\n" +
 	"            continue;\n" +
-	"        vec2 q = rel / sqrt(ul) * 7.0;\n" +
+	"        vec2 q = rel / max(shape[i].x,1.0) * 2.0 + shape[i].w;\n" +
 	"        float nx = hv_fnoise(vec3(q.x, q.y + t * 3.5, t * 0.8)) - 0.5;\n" +
 	"        float ny = hv_fnoise(vec3(q.x + 9.1, q.y + t * 3.5, t * 0.8 + 4.0)) - 0.5;\n" +
-	"        disp += vec2(nx, ny) * fall * sqrt(ul) * 0.0175;\n" +
+	"        float strength = min(shape[i].x * 0.45, clamp(shape[i].x * 0.28, 0.8, 3.5));\n" +
+	"        vec2 delta = vec2(nx, ny) * fall * strength / size;\n" +
+	"        if(texture(dep,tc+delta).r + 0.00001 >= plumeDepth) disp += delta;\n" +
 	"    }\n" +
 	"    return(vec4(texture(src, tc + disp).rgb, col.a));\n" +
 	"}\n");
-    static final Uniform ht_src = u(SAMPLER2D, 0), ht_t = u(FLOAT, 1);
+    static final Uniform ht_src = u(SAMPLER2D, 0), ht_t = u(FLOAT, 1), ht_dep=u(SAMPLER2D,2);
     static final Uniform[] ht_s = new Uniform[NHEAT];
+    static final Uniform[] ht_p = new Uniform[NHEAT];
     static {
 	for(int i = 0; i < NHEAT; i++)
-	    ht_s[i] = u(VEC4, 2 + i);
+	    ht_s[i] = u(VEC4, 3 + i);
+        for(int i=0;i<NHEAT;i++) ht_p[i]=u(VEC4,3+NHEAT+i);
     }
-    static final ShaderMacro ht_sh = shader(heatfn, ht_src, ht_t, ht_s[0], ht_s[1], ht_s[2], ht_s[3], ht_s[4], ht_s[5]);
+    static final ShaderMacro ht_sh = shader(heatfn, ht_src, ht_t, ht_dep, ht_s[0], ht_s[1], ht_s[2], ht_s[3], ht_s[4], ht_s[5],ht_p[0],ht_p[1],ht_p[2],ht_p[3],ht_p[4],ht_p[5]);
 
     public static class Heat extends PostProcessor {
 	final PView view;
-	volatile List<Coord3f> fires = Collections.emptyList();
+        final Depth depth;
+        final VolumeFire.Sources sources=new VolumeFire.Sources();
 
-	public Heat(PView view) {this.view = view;}
+	public Heat(PView view) {this.view = view;depth=new Depth(view);sources.syncadd(view.tree,Rendered.class);}
 
-	public int order() {return(-130);}
+        /* Refraction has no motion vectors: accumulating it in TAA erases small ripples. */
+	public int order() {return(-88);}
 
-	private float[] project(Matrix4f pm, Coord3f p) {
+	private static float[] project(Matrix4f pm, Coord3f p) {
 	    float[] c = pm.mul4(new float[] {p.x, p.y, p.z, 1});
 	    if(c[3] <= 0.01f)
 		return(null);
-	    return(new float[] {(c[0] / c[3]) * 0.5f + 0.5f, (c[1] / c[3]) * 0.5f + 0.5f});
+	    return(new float[] {(c[0] / c[3]) * 0.5f + 0.5f, (c[1] / c[3]) * 0.5f + 0.5f,(c[2]/c[3])*.5f+.5f});
 	}
 
+        static float[][] plume(Matrix4f mvp,float[][] bounds,Coord size) {
+            float[] lo=bounds[0],span=bounds[1];
+            Coord3f origin=new Coord3f(lo[0]+span[0]*.5f,lo[1]+span[1]*.5f,lo[2]+span[2]*.35f);
+            float[] a=project(mvp,origin),b=project(mvp,origin.add(0,0,span[2]*.85f));
+            float[] x=project(mvp,origin.add(span[0]*.3f,0,0)),y=project(mvp,origin.add(0,span[1]*.3f,0));
+            if(a==null || b==null || x==null || y==null) return null;
+            float radius=(float)Math.max(Math.hypot((x[0]-a[0])*size.x,(x[1]-a[1])*size.y),Math.hypot((y[0]-a[0])*size.x,(y[1]-a[1])*size.y));
+            if(radius<.25f) return null;
+            float margin=radius/Math.min(size.x,size.y);
+            if(Math.max(a[0],b[0])+margin<0 || Math.min(a[0],b[0])-margin>1 || Math.max(a[1],b[1])+margin<0 || Math.min(a[1],b[1])-margin>1) return null;
+            return new float[][]{{a[0],a[1],b[0]-a[0],b[1]-a[1]},{radius,a[2],b[2],0}};
+        }
+
 	public void run(GOut g, Texture2D.Sampler2D in) {
-	    Object[] vals = new Object[2 + NHEAT];
+	    Object[] vals = new Object[3 + NHEAT*2];
 	    vals[0] = in;
 	    vals[1] = (float)(Utils.rtime() % 3000.0);
-	    for(int i = 0; i < NHEAT; i++)
-		vals[2 + i] = new float[4];
-	    Camera cam = view.basic.state().get(Homo3D.cam);
-	    Projection prj = view.basic.state().get(Homo3D.prj);
-	    if((cam != null) && (prj != null)) {
-		Matrix4f pm = prj.fin(Matrix4f.id).mul(cam.fin(Matrix4f.id));
-		int n = 0;
-		for(Coord3f f : fires) {
-		    if(n >= NHEAT)
-			break;
-		    float[] a = project(pm, f), b = project(pm, f.add(0, 0, 30));
-		    if((a == null) || (b == null))
-			continue;
-		    if((a[0] < -0.2f) || (a[0] > 1.2f) || (a[1] < -0.2f) || (a[1] > 1.2f))
-			continue;
-		    vals[2 + n++] = new float[] {a[0], a[1], b[0] - a[0], b[1] - a[1]};
-		}
-		if(n == 0) {
+            vals[2]=depth.samp();
+            for(int i=3;i<vals.length;i++) vals[i]=new float[4];
+            List<RenderList.Slot<? extends Rendered>> copy;
+            synchronized(sources.slots) {copy=new ArrayList<>(sources.slots);}
+            List<float[][]> plumes=new ArrayList<>();
+            Set<String> seen=new HashSet<>();
+            try(Locked lock=view.tree.lock()) {
+                for(RenderList.Slot<? extends Rendered> source:copy) {
+                    Pipe st=source.state();
+                    if(!VolumeFire.candidate(source.obj(),st)) continue;
+                    float[][] bounds=VolumeFire.bounds((FastMesh)source.obj());
+                    Matrix4f loc=Homo3D.locxf(st);
+                    if(!seen.add(Arrays.toString(loc.m)+Arrays.deepToString(bounds))) continue;
+                    float[][] plume=plume(Homo3D.prjxf(st).mul(Homo3D.camxf(st)).mul(loc),bounds,in.tex.sz());
+                    if(plume!=null) {plume[1][3]=loc.m[12]*.13f+loc.m[13]*.17f;plumes.add(plume);}
+                }
+            }
+            plumes.sort((a,b)->Float.compare(b[1][0],a[1][0]));
+            for(int i=0;i<Math.min(NHEAT,plumes.size());i++) {vals[3+i]=plumes.get(i)[0];vals[3+NHEAT+i]=plumes.get(i)[1];}
+		if(plumes.isEmpty() || vals[2]==null) {
 		    g.image(new TexRaw(in, true), Coord.z, g.sz());
 		    return;
 		}
-	    }
 	    blit(g, in, new Pass(ht_sh, vals));
 	}
+        public void dispose() {view.tree.remove(sources);synchronized(sources.slots){sources.slots.clear();}super.dispose();}
     }
 
     /* Depth of field for photo mode: what is nearer or further than
@@ -344,6 +323,8 @@ public class SceneFX {
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    ShadowMap sm = view.basic.state().get(ShadowMap.smap);
+	    DirectionalShadows.Sun modern = view.basic.state().get(DirectionalShadows.slot);
+	    if(modern != null) sm = modern.far;
 	    Camera cam = view.basic.state().get(Homo3D.cam);
 	    Texture2D.Sampler2D ds = depth.samp();
 	    float[] sun = this.sun, col = this.suncol;

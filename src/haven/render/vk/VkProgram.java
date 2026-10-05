@@ -715,6 +715,7 @@ public class VkProgram extends VkObject {
 	final int[] cmask;
 	private final int hash;
 	volatile long pipe = 0;
+	volatile Throwable failure;
 	final java.util.concurrent.atomic.AtomicBoolean building = new java.util.concurrent.atomic.AtomicBoolean();
 
 	PipeKey(VkProgram prog, VertexKey vk, int topo, int[] cfmt, int dfmt, BlendMode[] blend, int[] cmask) {
@@ -794,9 +795,11 @@ public class VkProgram extends VkObject {
 	VK_DYNAMIC_STATE_DEPTH_COMPARE_OP, VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE,
     };
 
-    /* Whether key's pipeline is made; if not, it is started on the
-     * compiler threads. For draw lists, which skip a draw until then. */
+    /* Whether key's pipeline is made; if not, it is started on the compiler
+     * threads. Draw lists and optional immediate draws retry when ready. */
     boolean pipeready(PipeKey key) {
+	if(key.failure != null)
+	    throw(new RuntimeException("Asynchronous Vulkan pipeline creation failed", key.failure));
 	if(key.pipe != 0)
 	    return(true);
 	/* Not synchronized on key: pipeline() holds that for the whole
@@ -806,16 +809,24 @@ public class VkProgram extends VkObject {
 	     * unused programs does not destroy its shader modules and
 	     * layout under the driver. */
 	    lock();
-	    env.builders.submit(() -> {
+	    try {
+		env.builders.submit(() -> {
 		    try {
 			synchronized(buildlock) {
 			    if(!disposed())
 				pipeline(key);
 			}
+		    } catch(RuntimeException | Error failure) {
+			key.failure = failure;
 		    } finally {
 			unlock();
 		    }
 		});
+	    } catch(RuntimeException failure) {
+		key.failure = failure;
+		unlock();
+		throw(failure);
+	    }
 	}
 	return(false);
     }
@@ -886,6 +897,7 @@ public class VkProgram extends VkObject {
 		.pDynamicState(dyn).layout(layout);
 	    LongBuffer lp = st.mallocLong(1);
 	    VkEnvironment.check(vkCreateGraphicsPipelines(env.dev, env.pipecache, pci, null, lp), "vkCreateGraphicsPipelines");
+	    env.pipecachewriter.changed();
 	    key.pipe = lp.get(0);
 	    env.npipes.incrementAndGet();
 	}

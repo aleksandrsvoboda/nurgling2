@@ -9,12 +9,12 @@ import java.util.*;
 
 public class NStyle {
     // === Theme colors ===
-    public static final Color rowOdd   = new Color(0x28, 0x30, 0x31); // #283031
-    public static final Color rowEven  = new Color(0x1C, 0x25, 0x26); // #1C2526
-    public static final Color infoBg   = new Color(0x1C, 0x25, 0x26); // #1C2526
-    public static final Color border   = new Color(233, 156, 84);     // #E99C54
-    public static final Color windowBg = new Color(40, 52, 54, 245);  // content area bg
-    public static final Color titleBg  = new Color(0x1C, 0x25, 0x26); // title bar bg
+    public static final Color rowOdd   = nurgling.styles.UITheme.ROW; // #283031
+    public static final Color rowEven  = nurgling.styles.UITheme.PANEL; // #1C2526
+    public static final Color infoBg   = nurgling.styles.UITheme.PANEL; // #1C2526
+    public static final Color border   = nurgling.styles.UITheme.ACCENT;     // #E99C54
+    public static final Color windowBg = nurgling.styles.UITheme.WINDOW;  // content area bg
+    public static final Color titleBg  = nurgling.styles.UITheme.PANEL; // title bar bg
     public static final Color separator = new Color(40, 52, 54);      // #283436
 
     // === Quest tracker ===
@@ -61,22 +61,7 @@ public class NStyle {
 
     static {
 	haven.Scrollbar.customWidth = haven.UI.scale(8);
-	haven.Scrollbar.customDraw = (sb, g) -> {
-	    if(!sb.vis()) return;
-	    int w = sb.sz.x;
-	    int x = 0;
-	    // Fill full widget width with track color (eliminates gap between list items and scrollbar)
-	    g.chcolor(0x33, 0x3E, 0x40, 0xFF);
-	    g.frect(haven.Coord.of(0, 0), new haven.Coord(sb.sz.x, sb.sz.y));
-	    g.chcolor();
-	    // Handle (right-aligned, 8px wide)
-	    int handleH = haven.UI.scale(10);
-	    double a = (sb.max > sb.min) ? (double)sb.val / (double)(sb.max - sb.min) : 0;
-	    int fy = (int)((sb.sz.y - handleH) * a);
-	    g.chcolor(border);
-	    g.frect(haven.Coord.of(x, fy), new haven.Coord(w, handleH));
-	    g.chcolor();
-	};
+	haven.Scrollbar.customDraw = null;
 	haven.Dropbox.bgColor = infoBg;
     }
 
@@ -85,7 +70,7 @@ public class NStyle {
     public static Text.Furnace gmeter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, new Color(102, 178, 12)).aa(true), 2, 1, new Color(60, 30, 30));
     public static Text.Furnace cmeter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, new Color(0, 255, 255)).aa(true), 2, 1, new Color(0, 0, 0));
     public static Text.Foundry areastitle = new Text.Foundry(Text.serif, 15, Color.WHITE);
-    public static Text.Foundry flower = new Text.Foundry(Text.sans, 12, new Color(255, 250, 205)).aa(true);
+    public static Text.Foundry flower = new Text.Foundry(Text.sans, 12, nurgling.styles.UITheme.TEXT).aa(true);
     public static Text.Foundry iiqual = new Text.Foundry(Text.sans, 12, new Color(0, 0, 0)).aa(true);
 
     public static final RichText.Foundry nifnd = new RichText.Foundry(Resource.remote(), java.awt.font.TextAttribute.FAMILY, "SansSerif", java.awt.font.TextAttribute.SIZE, UI.scale(14)).aa(true);
@@ -102,9 +87,9 @@ public class NStyle {
             new TexI(Resource.loadsimg("nurgling/hud/buttons/removeItem/h"))};
 
     public static final BufferedImage[] cbtni = new BufferedImage[]{
-            Resource.loadsimg("nurgling/hud/icons/close/cross"),
-            Resource.loadsimg("nurgling/hud/icons/close/cross_push"),
-            Resource.loadsimg("nurgling/hud/icons/close/cross_hover")};
+            nurgling.styles.GeneratedButtons.iconImage("close", UI.scale(16)),
+            nurgling.styles.GeneratedButtons.iconImage("close", UI.scale(16)),
+            nurgling.styles.GeneratedButtons.iconImage("close", UI.scale(16))};
 
     public static final BufferedImage[] plusbtni = new BufferedImage[]{
             Resource.loadsimg("nurgling/hud/icons/ability/plus"),
@@ -273,9 +258,9 @@ public class NStyle {
 
 
     public static final TexI[] crossSquare = new TexI[]{
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/square/cross/u")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/square/cross/d")),
-            new TexI(Resource.loadsimg("nurgling/hud/buttons/square/cross/h")),
+            new TexI(cbtni[0]),
+            new TexI(cbtni[1]),
+            new TexI(cbtni[2]),
     };
 
     private final static ArrayList<BufferedImage> hlight = new ArrayList<>();
