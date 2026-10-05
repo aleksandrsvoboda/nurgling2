@@ -11,6 +11,10 @@ import java.util.concurrent.TimeUnit;
 /** Reproduces FRAME-mode pipelining: UI work overlaps the previous GPU frame. */
 public class VulkanPacingTest {
     private static double[] frames(Windeye window, boolean vsync, int count) throws Exception {
+        return frames(window, vsync, count, false);
+    }
+
+    private static double[] frames(Windeye window, boolean vsync, int count, boolean spikes) throws Exception {
         VkEnvironment env = (VkEnvironment)window.env();
         Pipe pipe = new BufPipe().prep(window.fbstate());
         CompletableFuture<Void> previous = CompletableFuture.completedFuture(null), done = previous;
@@ -22,6 +26,15 @@ public class VulkanPacingTest {
             // Simulated tick, before waiting for the previous frame's CPU fence.
             Thread.sleep(i % 13 == 0 ? 6 : 3);
             previous.get(10, TimeUnit.SECONDS);
+            if(spikes) {
+                // Model occasional command preparation spikes on the render
+                // thread, with ample average headroom for a 60 Hz display.
+                final int work = i % 13 == 0 ? 20 : 4;
+                out.fence(() -> {
+                    try {Thread.sleep(work);}
+                    catch(InterruptedException e) {Thread.currentThread().interrupt();}
+                });
+            }
             out.clear(pipe, FragColor.fragcol, new FColor(.2f, .3f, .4f, 1));
             window.swapbuffers(out, vsync);
             CompletableFuture<Void> end = new CompletableFuture<>();
@@ -55,6 +68,12 @@ public class VulkanPacingTest {
             // displays it can itself become the limiting stage.
             if(env.presentwait && median >= 10 && p95 > median * 1.75)
                 throw(new AssertionError("Bursty FRAME pacing: p95 exceeds 1.75x median"));
+            double[] stressed = frames(window, true, 180, true);
+            double stressedMedian = stressed[stressed.length / 2], stressed95 = stressed[(int)(stressed.length * .95)];
+            System.out.printf("Render preparation spikes: median %.2f ms, p95 %.2f ms, max %.2f ms, mean %.2f ms%n",
+                              stressedMedian, stressed95, stressed[stressed.length - 1], Arrays.stream(stressed).average().getAsDouble());
+            if(env.presentwait && stressedMedian >= 14 && stressed95 > stressedMedian * 1.75)
+                throw(new AssertionError("Presentation wait amplified isolated render preparation spikes"));
             frames(window, false, 12);
             window.sizing(new Windeye.Sizing().fixsize(Coord.of(160,144)));
             frames(window, true, 12); // new swapchain and fresh present IDs

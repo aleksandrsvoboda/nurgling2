@@ -60,6 +60,8 @@ public class VulkanAsyncDrawTest {
             try(Gate gate = new Gate(env)) {
                 VkRender out = (VkRender)env.render();
                 try {
+                    out.clear(optional,FragColor.fragcol,FColor.BLACK);
+                    require(threads.isEmpty(),"Attachment clear evaluated a material shader");
                     skipped(out,optional,model);
                     require(threads.isEmpty(),"Shader macro ran inline despite occupied workers");
                     out.draw(base,model); // A pending draw must not corrupt the next synchronous draw.
@@ -93,7 +95,22 @@ public class VulkanAsyncDrawTest {
             require(ready,"Pipeline never became ready");
             // A repeated draw uses the already prepared program and pipeline immediately.
             VkRender repeat = (VkRender)env.render();
-            repeat.draw(optional,model); require(repeat.pendingDraws()==0 && drawcmd(repeat).key.pipe!=0,"Warm draw not ready"); repeat.dispose();
+            repeat.draw(optional,model); require(repeat.pendingDraws()==0 && drawcmd(repeat).key.pipe!=0,"Warm draw not ready");
+            VkRender.DrawCmd template=drawcmd(repeat);
+            int bytes=template.prog.ubosize;
+            require(bytes>0,"Uniform copy fixture has no data");
+            java.nio.ByteBuffer source=java.nio.ByteBuffer.allocate(bytes+8);
+            for(int i=0;i<bytes;i++)source.put(4+i,(byte)i);
+            source.position(4).limit(4+bytes);
+            repeat.draw(template.prog,template.key,template.tgt,template.dyn,template.tex,source,template.geo);
+            VkRender.DrawCmd first=(VkRender.DrawCmd)repeat.cmds.get(repeat.cmds.size()-1);
+            require(source.position()==4&&source.limit()==4+bytes,"Uniform copy moves source cursor");
+            source.put(4,(byte)99);
+            repeat.draw(template.prog,template.key,template.tgt,template.dyn,template.tex,source,template.geo);
+            VkRender.DrawCmd second=(VkRender.DrawCmd)repeat.cmds.get(repeat.cmds.size()-1);
+            require(repeat.arena.get(first.ubo)==0&&repeat.arena.get(second.ubo)==99,"Uniform snapshots share mutable input");
+            for(int i=1;i<bytes;i++)require(repeat.arena.get(first.ubo+i)==(byte)i,"Uniform source offset or length corrupted");
+            repeat.dispose();
             System.out.println("Async draw PASS: blocked shader/pipeline workers never block frame; ready pipeline recorded; state retry, errors and warm reuse");
         } catch(Throwable failure) { failure.printStackTrace(); exit=1; }
         finally { if(model!=null)model.dispose(); window.dispose(); toolkit.dispose(); }

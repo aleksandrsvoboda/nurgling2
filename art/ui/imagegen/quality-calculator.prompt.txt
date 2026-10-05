@@ -1,0 +1,8 @@
+Tool: built-in image_gen; transparent_background=true.
+Prompt:
+Create ONE production UI icon for a game crafting quality calculator. A flat front-facing pocket calculator silhouette with an outlined rectangular body, a wide empty display near top, and a clear 2-by-3 grid of simple square keys below. Use a SINGLE solid warm orange #F59A42 color. Simple bold strokes, slightly softened corners. Minimal flat 2D interface glyph, readable at 40 pixels. Transparent background including all negative space inside the outline. No text, letters or numbers. No 3D, perspective, bevel, lighting, gradients, texture, shadow, glow or button plate. Center the whole calculator icon with modest transparent margin in a square image. Match the restrained orange outline icon language of inventory/area settings controls.
+
+Master: quality-calculator-master.png
+Extraction: java tools/render-parity/PackGeneratedButtons.java --calculator
+Runtime asset: src/nurgling/styles/assets/buttons/quality-calculator.png
+The button reuses the existing theme plate and tints the glyph to UITheme.ACCENT.

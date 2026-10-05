@@ -552,15 +552,27 @@ public abstract class UILoop implements Console.Directory {
 	}
 
 	protected void fin() throws InterruptedException {
-	    movementPhase("frame-limit");
 	    CPUProfile.phase(prof, "wait");
 	    double now = Utils.rtime();
 	    double fd = loop.framedur();
+	    movementPhase("frame-limit background=" + loop.bgmode() + " limit_ms=" + fd * 1000);
 	    if((prev != null) && (prev.ftime + fd > now)) {
 		this.ftime = prev.ftime + fd;
-		long nanos = (long)((this.ftime - now) * 1e9);
-		Thread.sleep(nanos / 1000000, (int)(nanos % 1000000));
-		waited += this.ftime - now;
+		double start = now;
+		while(this.ftime > now) {
+		    // Recheck focus/limit changes instead of sleeping through a whole
+		    // background frame (200 ms at 5 FPS) after the game regains focus.
+		    long nanos = Math.max(1, (long)(Math.min(this.ftime - now, .010) * 1e9));
+		    Thread.sleep(nanos / 1000000, (int)(nanos % 1000000));
+		    now = Utils.rtime();
+		    double nextfd = loop.framedur();
+		    if(nextfd != fd) {
+		        fd = nextfd;
+		        this.ftime = Math.max(now, prev.ftime + fd);
+		        movementPhase("frame-limit background=" + loop.bgmode() + " limit_ms=" + fd * 1000);
+		    }
+		}
+		waited += now - start;
 	    } else {
 		this.ftime = now;
 	    }

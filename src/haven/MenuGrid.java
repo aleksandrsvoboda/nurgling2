@@ -53,6 +53,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     public int pagseq = 0;
     private final Map<Object, Pagina> pmap = new CacheMap<>(CacheMap.RefType.WEAK);
     private Pagina dragging;
+    private Coord dragStart;
     private Collection<PagButton> curbtns = Collections.emptyList();
     private PagButton pressed, layout[][] = new PagButton[gsz.x][gsz.y];
     private UI.Grab grab;
@@ -526,6 +527,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     }
 
     private PagButton bhit(Coord c) {
+	if(!c.isect(Coord.z, sz)) return(null);
 	Coord bc = c.div(bgsz);
 	if((bc.x >= 0) && (bc.y >= 0) && (bc.x < gsz.x) && (bc.y < gsz.y))
 	    return(layout[bc.x][bc.y]);
@@ -536,8 +538,12 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     public boolean mousedown(MouseDownEvent ev) {
 	PagButton h = bhit(ev.c);
 	if((ev.b == 1) && (h != null)) {
+	    if(grab != null) grab.remove();
+	    dragging = null;
+	    dragStart = ev.c;
 	    pressed = h;
 	    grab = ui.grabmouse(this);
+	    return(true);
 	}
 	return(super.mousedown(ev));
     }
@@ -545,9 +551,10 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     public void mousemove(MouseMoveEvent ev) {
 	if((dragging == null) && (pressed != null)) {
 	    PagButton h = bhit(ev.c);
-	    if(h != pressed)
+	    if(h != pressed && dragStart != null && ev.c.dist(dragStart) > UI.scale(4))
 			dragging = pressed.pag;
 	}
+	if(dragging != null) DropTarget.drophover(ui.root, rootpos().add(ev.c), dragging);
 	super.mousemove(ev);
     }
 
@@ -597,17 +604,23 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     public boolean mouseup(MouseUpEvent ev) {
 	PagButton h = bhit(ev.c);
 	if((ev.b == 1) && (grab != null)) {
-	    if(dragging != null) {
-		DropTarget.dropthing(ui.root, ui.mc, dragging);
-		pressed = null;
-		dragging = null;
-	    } else if(pressed != null) {
-		if(pressed == h)
-		    use(h, new Interaction(), false);
-		pressed = null;
-	    }
+	    Pagina dropped = dragging;
+	    PagButton clicked = pressed;
+	    pressed = null;
+	    dragging = null;
+	    dragStart = null;
 	    grab.remove();
 	    grab = null;
+	    if(dropped != null) {
+		try {
+		    DropTarget.dropthing(ui.root, rootpos().add(ev.c), dropped);
+		} finally {
+		    ui.dispatch(ui.root, new DropTarget.Hover(Coord.z, dropped).hovering(false));
+		}
+	    } else if(clicked != null && clicked == h) {
+		use(clicked, new Interaction(), false);
+	    }
+	    return(true);
 	}
 	return(super.mouseup(ev));
     }

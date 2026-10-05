@@ -167,7 +167,7 @@ public class WaterWakes implements Disposable {
         }
         // Only camera/projection are inherited: no object materials, depth or lights.
         Pipe state=new BufPipe().prep(Homo3D.state).prep(new FragColor<>(field.tex.image(0)))
-            .prep(new States.Viewport(Area.sized(half))).prep(shader)
+            .prep(new States.Viewport(Area.sized(half))).prep(shader).prep(States.asynccompile)
             .prep(FragColor.blend(new BlendMode(BlendMode.Factor.ONE,BlendMode.Factor.ONE)));
         state.put(Homo3D.cam,scene.get(Homo3D.cam));state.put(Homo3D.prj,scene.get(Homo3D.prj));
         g.out.clear(state,FragColor.fragcol,new FColor(0,0,0,0));

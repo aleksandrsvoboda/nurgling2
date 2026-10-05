@@ -44,6 +44,9 @@ public class NMakewindow extends Widget {
     public static final Coord boff = UI.scale(new Coord(7, 9));
     public String rcpnm;
     public String recipeResource;
+    public boolean atlasInputsReceived, atlasOutputsReceived;
+    private boolean atlasDirty = true;
+    private double atlasRetry;
     public List<Spec> inputs = Collections.emptyList();
     public List<Spec> outputs = Collections.emptyList();
     public List<Indir<Resource>> qmod = Collections.emptyList();
@@ -260,6 +263,19 @@ public class NMakewindow extends Widget {
         if (savePresetBtn != null) {
             savePresetBtn.visible = autoMode && allInputsConfigured();
         }
+        atlasRetry -= dt;
+        if(atlasDirty && atlasRetry <= 0) {
+            atlasRetry = .5;
+            NGameUI owner = getparent(NGameUI.class);
+            if(owner != null && owner.atlas != null) try {
+                if(owner.atlas.observe(this)) atlasDirty = false;
+            } catch(Loading ignored) {
+                // Resource-backed names and optional flags may arrive after the specs.
+            } catch(RuntimeException e) {
+                atlasDirty = false;
+                System.err.println("[CraftAtlas] Cannot record " + rcpnm + ": " + e);
+            }
+        }
     }
 
     /**
@@ -442,6 +458,7 @@ public class NMakewindow extends Widget {
                     inputs.add(parsespec(OBJS.of(args[i])));
             }
             this.inputs = inputs;
+            atlasInputsReceived = atlasDirty = true;
         } else if(msg == "opop") {
             List<Spec> outputs;
             if(INT.is(args, 0)) {
@@ -454,13 +471,16 @@ public class NMakewindow extends Widget {
                     outputs.add(parsespec(OBJS.of(args[i])));
             }
             this.outputs = outputs;
+            atlasOutputsReceived = atlasDirty = true;
         } else if(msg == "qmod") {
             List<Indir<Resource>> qmod = new ArrayList<Indir<Resource>>();
             for(Object arg : args)
                 qmod.add(ui.sess.getres((Integer)arg));
             this.qmod = qmod;
+            atlasDirty = true;
         } else if(msg == "tool") {
             tools.add(ui.sess.getres((Integer)args[0]));
+            atlasDirty = true;
         } else if(msg == "use") {
             inputs.get(Utils.iv(args[0])).using = Utils.iv(args[1]);
         } else if(msg == "inprcps") {

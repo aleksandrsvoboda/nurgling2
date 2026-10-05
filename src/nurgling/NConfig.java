@@ -771,6 +771,8 @@ public class NConfig
     private boolean isUpd = false;
     private boolean isExploredUpd = false;
     private long lastExploredChangeTime = 0;
+    private long exploredRevision, exploredSaveAttempt;
+    private boolean exploredSavePending;
     private static final long EXPLORED_DEBOUNCE_MS = 5000; // 5 seconds debounce for explored area changes
     private boolean isRoutesUpd = false;
     private boolean isScenariosUpd = false;
@@ -789,14 +791,21 @@ public class NConfig
         return isScenariosUpd;
     }
 
-    public boolean isExploredUpdated() {
+    public synchronized boolean isExploredUpdated() {
         // Only return true if explored area changed AND debounce period has passed
         // This batches multiple rapid changes into a single file update
-        if (isExploredUpd && lastExploredChangeTime > 0) {
+        if (!exploredSavePending && isExploredUpd && lastExploredChangeTime > 0 &&
+                System.currentTimeMillis() - exploredSaveAttempt >= EXPLORED_DEBOUNCE_MS) {
             long elapsed = System.currentTimeMillis() - lastExploredChangeTime;
             return elapsed >= EXPLORED_DEBOUNCE_MS;
         }
         return false;
+    }
+
+    private synchronized void exploredChanged(long now) {
+        isExploredUpd = true;
+        lastExploredChangeTime = now;
+        exploredRevision++;
     }
 
     /**
@@ -950,15 +959,13 @@ public class NConfig
         long now = System.currentTimeMillis();
         try {
             if (nurgling.NUtils.getGameUI() != null && nurgling.NUtils.getUI() != null && nurgling.NUtils.getUI().core != null) {
-                nurgling.NUtils.getUI().core.config.isExploredUpd = true;
-                nurgling.NUtils.getUI().core.config.lastExploredChangeTime = now;
+                nurgling.NUtils.getUI().core.config.exploredChanged(now);
             }
         } catch (Exception e) {
             // Fallback to global config if profile config not available
             if (current != null)
             {
-                current.isExploredUpd = true;
-                current.lastExploredChangeTime = now;
+                current.exploredChanged(now);
             }
         }
     }
@@ -1699,13 +1706,28 @@ public class NConfig
             try
             {
                 String filePath = customPath == null ? getExploredPath() : customPath;
-                // Merge with existing data on disk to prevent data loss when multiple clients run
-                ((NCornerMiniMap)NUtils.getGameUI().mmap).exploredArea.mergeAndSaveToFile(filePath);
-                this.isExploredUpd = false;
-                this.lastExploredChangeTime = 0;
+                nurgling.tools.ExploredArea area = ((NCornerMiniMap)NUtils.getGameUI().mmap).exploredArea;
+                final long revision;
+                synchronized(this) {
+                    if(exploredSavePending) return;
+                    exploredSavePending = true;
+                    exploredSaveAttempt = System.currentTimeMillis();
+                    revision = exploredRevision;
+                }
+                area.saveAsync(filePath).whenComplete((unused, failure) -> {
+                    synchronized(this) {
+                        exploredSavePending = false;
+                        if(failure == null && revision == exploredRevision) {
+                            isExploredUpd = false;
+                            lastExploredChangeTime = 0;
+                        }
+                    }
+                    if(failure != null) System.err.println("Error saving explored area: " + failure.getMessage());
+                });
             }
             catch (Exception e)
             {
+                synchronized(this) {exploredSavePending = false;}
                 // Log error but don't crash
                 System.err.println("Error saving explored area: " + e.getMessage());
             }

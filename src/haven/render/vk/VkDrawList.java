@@ -62,6 +62,7 @@ public class VkDrawList implements DrawList {
     /* Slots whose programs should be rebuilt; see refresh(). */
     private final Set<Slot<? extends Rendered>> stale = new LinkedHashSet<>();
     private static final int REBUILD_PER_FRAME = 300;
+    private static final long REBUILD_NANOS = 2_000_000;
 
     private class ShaderGroup {
 	final Set<DrawSlot> users = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -675,14 +676,20 @@ public class VkDrawList implements DrawList {
 	void refresh() {
 	    Targets tv = tgt.val;
 	    if(keyver != tgt.ver) {
-		key = prog.pipekey(vk, topo, tv.cfmt, tv.dfmt, tv.blend, tv.cmask);
+		// Shadow attachments can change every frame without changing the
+		// pipeline format. Avoid allocating a lookup key for every caster.
+		if(key == null || key.vk != vk || key.topo != topo || key.dfmt != tv.dfmt ||
+		   !Arrays.equals(key.cfmt, tv.cfmt) || !Arrays.equals(key.blend, tv.blend) ||
+		   !Arrays.equals(key.cmask, tv.cmask))
+		    key = prog.pipekey(vk, topo, tv.cfmt, tv.dfmt, tv.blend, tv.cmask);
 		keyver = tgt.ver;
 	    }
 	    boolean tch = false;
 	    for(int i = 0; i < prog.samplers.length; i++) {
 		UniformSetting u = unis[prog.samplers[i]];
 		if(tver[i] != u.ver) {
-		    tch = true;
+		    // Equal bindings are immutable and remain valid for queued draws.
+		    if(tex == null || !Objects.deepEquals(tex[i], u.val)) tch = true;
 		    tver[i] = u.ver;
 		}
 	    }
@@ -818,8 +825,12 @@ public class VkDrawList implements DrawList {
 	    throw(new IllegalArgumentException());
 	VkRender g = (VkRender)r;
 	synchronized(this) {
-	    if(!stale.isEmpty())
+	    if(!stale.isEmpty()) {
+		double started = Utils.rtime();
 		rebuild(async ? REBUILD_PER_FRAME : Integer.MAX_VALUE);
+		nurgling.diagnostics.MovementTrace.renderStage(env, "drawlist-prepare", started,
+		    "pending=" + stale.size());
+	    }
 	    for(DrawSlot s : order) {
 		if(s.geo == null)
 		    continue;
@@ -843,9 +854,14 @@ public class VkDrawList implements DrawList {
     }
 
     private void rebuild(int max) {
+	long start = System.nanoTime();
 	List<Slot<? extends Rendered>> retry = new ArrayList<>();
 	Iterator<Slot<? extends Rendered>> it = stale.iterator();
 	for(int n = 0; it.hasNext() && (n < max); n++) {
+	    // A warm program can still need buffer allocation and uniform
+	    // preparation. Bound that work too, including a whole row of cuts.
+	    if(async && n > 0 && System.nanoTime() - start >= REBUILD_NANOS)
+		break;
 	    Slot<? extends Rendered> slot = it.next();
 	    it.remove();
 	    if(!slotmap.containsKey(slot))
@@ -870,7 +886,13 @@ public class VkDrawList implements DrawList {
 	     * a placeholder drawing nothing and retried each frame; the
 	     * list never throws Loading at those adding to it. */
 	    DrawSlot dslot;
-	    try {
+	    if(async) {
+		// Attaching a ready cut must not prepare all its geometry inline.
+		// draw() drains this queue within its preparation budget. Picking
+		// lists use async(false), so one-shot queries remain complete.
+		dslot = new DrawSlot(slot, true);
+		stale.add(slot);
+	    } else try {
 		dslot = new DrawSlot(slot);
 	    } catch(NotReady | Loading e) {
 		dslot = new DrawSlot(slot, true);
@@ -895,6 +917,10 @@ public class VkDrawList implements DrawList {
 
     public void update(Slot<? extends Rendered> slot) {
 	synchronized(this) {
+	    if(async) {
+		stale.add(slot);
+		return;
+	    }
 	    /* Until the new program is built, or what the slot's
 	     * uniforms wait for has loaded, it keeps drawing as before
 	     * and is retried each frame. */

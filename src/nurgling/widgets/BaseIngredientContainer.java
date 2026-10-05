@@ -4,7 +4,6 @@ import haven.*;
 import haven.Button;
 import haven.Scrollbar;
 import haven.Window;
-import haven.res.lib.itemtex.*;
 import nurgling.*;
 import nurgling.areas.*;
 import nurgling.i18n.L10n;
@@ -116,7 +115,8 @@ public class BaseIngredientContainer extends Widget implements DTarget, Scrollab
     public void addIcon(JSONObject res) {
         if(res != null && res.get("name") != null) {
             Ingredient ing;
-            items.add(ing = new Ingredient((String)res.get("name"), ItemTex.create(res)));
+            nurgling.tools.ItemIcons.register((String)res.get("name"), res);
+            items.add(ing = new Ingredient((String)res.get("name"), nurgling.tools.ItemResources.image(res)));
             IconItem it = add(new IconItem(ing.name, ing.image, this), gridPos(items.size()-1));
             it.basec = new Coord(it.c);
             icons.add(it);

@@ -14,10 +14,18 @@ public class FpsGraph {
     /** Also used by the offline preview; graph coordinates represent elapsed time. */
     public static BufferedImage render(FrameHistory.Snapshot s, String backend, int width, int height) {
         BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        render(s,backend,img);
+        return img;
+    }
+    /** Worker-owned raster can be reused; reset alpha as well as RGB each time. */
+    static void render(FrameHistory.Snapshot s,String backend,BufferedImage img) {
+        int width=img.getWidth(),height=img.getHeight();
         Graphics2D g = img.createGraphics();
         try {
             g.scale(width / (double)W, height / (double)H);
+            g.setComposite(java.awt.AlphaComposite.Src);
             g.setColor(new Color(17, 20, 24, 245)); g.fillRect(0, 0, W, H);
+            g.setComposite(java.awt.AlphaComposite.SrcOver);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setFont(new Font("SansSerif", Font.BOLD, 16));
             g.setColor(new Color(105, 214, 155));
@@ -44,7 +52,6 @@ public class FpsGraph {
         } finally {
             g.dispose();
         }
-        return(img);
     }
 
     private static void graph(Graphics2D g, FrameHistory.Snapshot s, int top, int height, double limit, boolean ms) {

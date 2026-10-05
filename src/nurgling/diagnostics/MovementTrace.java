@@ -71,13 +71,22 @@ public final class MovementTrace implements Disposable {
         t.ring.add(complete ? "net-applied" : "net-retry", r, null);
     }
 
-    /** Slow native operations from the foreground session's rendering environment. */
+    /** Slow CPU/native operations from the foreground session's rendering environment. */
     public static void renderStage(haven.render.Environment env, String name, double start, String detail) {
         MovementTrace t = active;
         double now = Utils.rtime();
         if(t == null || t.disposed || env == null || t.renderer != env || now - start < .002) return;
         double[] r = row(now); r[58] = start; r[59] = (now - start) * 1000;
         t.ring.add("render-stage", r, name + (detail == null ? "" : " " + detail));
+    }
+
+    /** Cut publication, including fast ones, to correlate boundary crossings with later uploads. */
+    public static void mapCut(MCache map, Coord cc, double start, String detail) {
+        MovementTrace t = active;
+        if(t == null || t.disposed || t.glob.map != map || Thread.currentThread() != t.thread) return;
+        double now = Utils.rtime();
+        double[] r = row(now); r[58] = start; r[59] = (now - start) * 1000;
+        t.ring.add("map-cut", r, "cut=" + cc + " " + detail);
     }
 
     /** Nested inclusive stage timings, restricted to the foreground UI thread. */
@@ -243,6 +252,7 @@ public final class MovementTrace implements Disposable {
         for(int i = 0; i < 16; i++) r[27+i] = camera.m[i];
         if(metadata.isEmpty() || f.frameno % 60 == 0) metadata = "renderer=" + f.out.env().getClass().getName() + "\ncamera=" + map.camera.getClass().getName() +
             "\nsync=" + f.ui.gprefs.syncmode.val + "\nfps_limit=" + f.ui.gprefs.hz.val +
+            "\nbackground_fps_limit=" + f.ui.gprefs.bghz.val + "\nvsync=" + f.ui.gprefs.vsync.val +
             "\nparallel=" + Config.par.get() + "\ntaa=" + nurgling.render.Temporal.taa + "\nrender_reconciliation=true\n";
     }
     private static void position(double[] row, int offset, Coord3f c) {
@@ -308,7 +318,8 @@ public final class MovementTrace implements Disposable {
                 "Blank fields mean unavailable/not applicable. GC duration is collector-event duration, not necessarily an STW pause.\n" +
                 "net-applied/net-retry: stage_start_s is attempt start, queued_s is enqueue time, gob_lock_ms is monitor wait, apply_ms is delta handler time; correlate by subject_id/server_frame/packet_id/delta_type. Retry includes failed or Loading attempts.\n" +
                 "stage rows are inclusive nested UI timings >=1ms, ending at time_s; do not sum parents and children.\n" +
-                "render-stage rows time native ring allocation/reset and presentation calls >=2ms; stage_start_s/stage_ms hold their interval, detail includes result codes or allocation sizes. These are CPU call durations, not GPU execution times.\n" +
+                "map-cut rows record cut attachment/replacement/removal with coordinates, grid class and stage_start_s/stage_ms, including fast operations.\n" +
+                "render-stage rows time buffer/texture and draw-list preparation, upload batches, ring allocation/reset, GPU-fence and presentation waits >=2ms; stage_start_s/stage_ms hold their interval, detail includes result codes or allocation sizes. These are CPU call durations, not GPU execution times.\n" +
                 "Stacks sample the UI thread/monitor owner and this Vulkan environment's render/callback threads during phases over 20ms (at most 10Hz). They are not a full CPU profile.\n" +
                 "The bounded ring can truncate history at extreme frame/event rates; ring_overwrites reports capacity loss.\n";
             zip.write(readme.getBytes(StandardCharsets.UTF_8)); zip.closeEntry();

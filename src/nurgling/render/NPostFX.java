@@ -17,6 +17,7 @@ import static haven.render.sl.Type.*;
  *   tone mapping and grading               -100 (PView.tonemap: HDR to LDR)
  *   FXAA                                     10
  *   sharpening                               20
+ *   TAA resolve (stable display and history)  90
  *   PView's own resampling                  100
  */
 public class NPostFX {
@@ -162,7 +163,7 @@ public class NPostFX {
 	    }
 	    if(grade != null) {
 		grade.grade = s.grade;
-		grade.tonemap = s.grade;
+		grade.tonemap = s.grade || s.autoexp;
 		grade.exposure = s.exposure; grade.contrast = s.contrast;
 		grade.saturation = s.saturation; grade.warmth = s.warmth;
 	    }
@@ -175,7 +176,7 @@ public class NPostFX {
 	    if(waterSurface != null) waterSurface.rainRipples = s.rainripples;
 	    lightning = toggle(lightning, s.lightning, () -> new Lightning(view));
 	    grass = toggle(grass, s.grass, () -> new Grass(view));
-	    if(grass != null) grass.configure(s.grassdistance,s.grassdensity);
+	    if(grass != null) grass.configure(s.grassdensity);
 	    rp |= (s.snow != Atmos.snow);
 	    Atmos.snow = s.snow;
 	    hist = toggle(hist, s.smoke, () -> new SceneFX.History(view));
@@ -190,7 +191,7 @@ public class NPostFX {
 	    taa = toggle(taa, s.taa, () -> new Temporal.TAA(view));
 	    Temporal.taa = s.taa;
 	    Temporal.upscale = s.upscale;
-	    autoexp = toggle(autoexp, s.autoexp, Temporal.AutoExposure::new);
+	    autoexp = toggle(autoexp, s.autoexp, () -> new Temporal.AutoExposure(view));
 	    sharp = toggle(sharp, s.sharpen, Sharpen::new);
 	    if(sharp != null)
 		sharp.amount = s.sharpness;
@@ -226,6 +227,7 @@ public class NPostFX {
 	    last = now;
 	    DirLight sun = mv.amblight;
 	    boolean outdoors = mv.outdoorLighting();
+	    if(autoexp != null) autoexp.outdoors = outdoors;
 	    if(waterSurface != null) {
 		waterSurface.sheltered = !outdoors;
 		float rainTarget = outdoors ? RainLighting.intensity(mv.weather()) : 0;
@@ -272,6 +274,7 @@ public class NPostFX {
 	    }
 	    if(grade != null) {
 		grade.expo = (autoexp == null) ? null : autoexp.exposure;
+		grade.nightvision = autoexp != null && !outdoors;
 	    }
 	    if(shafts != null) {
 		Camera cam = view.basic.state().get(Homo3D.cam);
@@ -296,11 +299,19 @@ public class NPostFX {
     /* Tone mapping and color grading */
 
     static final RawFunction gradefn = new RawFunction(VEC4, "hv_grade", 6,
-	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec2 v, vec4 tod, sampler2D expo)\n" +
+	"vec4 hv_grade(vec4 col, vec2 tc, vec4 g, vec4 v, vec4 tod, sampler2D expo)\n" +
 	"{\n" +
-	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, tonemap);\n" +
+	"    /* g = (exposure, contrast, saturation, warmth); v = (grade on, tonemap, indoor exposure, brightness);\n" +
 	"     * tod = time-of-day tint and saturation */\n" +
-	"    vec3 x = col.rgb * tod.rgb * texture(expo, vec2(0.5)).r;\n" +
+	"    vec3 x = col.rgb * tod.rgb;\n" +
+	"    float gain = texture(expo, vec2(0.5)).r;\n" +
+	"    if(v.z > 0.5 && gain > 1.0) {\n" +
+	"        /* Lift darkness without multiplying already bright lamps/floors into white.\n" +
+	"         * One RGB gain preserves hue; the quadratic curve stays monotonic at gain <= 2.2. */\n" +
+	"        float room = max(0.0, 1.0 - max(x.r, max(x.g, x.b)));\n" +
+	"        gain = 1.0 + (gain - 1.0) * room * room;\n" +
+	"    }\n" +
+	"    x *= gain;\n" +
 	"    x = mix(vec3(dot(x, vec3(0.2126, 0.7152, 0.0722))), x, tod.w);\n" +
 	"    if(v.x > 0.5) {\n" +
 	"        x *= g.x;\n" +
@@ -311,18 +322,18 @@ public class NPostFX {
 	"        x = (x - 0.5) * g.y + 0.5;\n" +
 	"    }\n" +
 	"    /* Soft shoulder: values above 0.8 roll off towards 1 instead of clipping. */\n" +
-	"    x = max(x, vec3(0.0));\n" +
+	"    x = max(x, vec3(0.0)) * v.w;\n" +
 	"    if(v.y > 0.5) {\n" +
 	"        vec3 hi = 0.8 + 0.2 * (1.0 - exp(-(x - 0.8) / 0.2));\n" +
 	"        x = mix(x, hi, step(vec3(0.8), x));\n" +
 	"    }\n" +
 	"    return(vec4(clamp(x, 0.0, 1.0), col.a));\n" +
 	"}\n");
-    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC2, 1), gr_tod = u(VEC4, 2), gr_expo = u(SAMPLER2D, 3);
+    static final Uniform gr_g = u(VEC4, 0), gr_v = u(VEC4, 1), gr_tod = u(VEC4, 2), gr_expo = u(SAMPLER2D, 3);
     static final ShaderMacro gr_sh = shader(gradefn, gr_g, gr_v, gr_tod, gr_expo);
 
     public static class Grade extends PostProcessor {
-	boolean grade, tonemap;
+	boolean grade, tonemap, nightvision;
 	float exposure, contrast, saturation, warmth;
 	volatile float[] tod = {1, 1, 1, 1};
 	volatile Texture2D.Sampler2D expo = null;
@@ -337,7 +348,7 @@ public class NPostFX {
 
 	public void run(GOut g, Texture2D.Sampler2D in) {
 	    blit(g, in, new Pass(gr_sh, new float[] {exposure, contrast, saturation, warmth},
-				 new float[] {grade ? 1 : 0, tonemap ? 1 : 0}, tod,
+				 new float[] {grade ? 1 : 0, tonemap ? 1 : 0, nightvision ? 1 : 0, expo == null ? 1f : 1.15f}, tod,
 				 (expo == null) ? Temporal.one() : expo));
 	}
     }

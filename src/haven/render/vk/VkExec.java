@@ -275,6 +275,7 @@ public class VkExec {
     private void retire(Slot s) {
 	if(!s.inflight)
 	    return;
+	double waitAt = Utils.rtime();
 	while(true) {
 	    int rv = vkWaitForFences(dev, s.fence, true, 1000000000L);
 	    if(rv == VK_SUCCESS)
@@ -282,6 +283,7 @@ public class VkExec {
 	    if(rv != VK_TIMEOUT)
 		throw(new VkEnvironment.VkException("vkWaitForFences", rv));
 	}
+	nurgling.diagnostics.MovementTrace.renderStage(env, "gpu-fence-wait", waitAt, null);
 	s.inflight = false;
 	for(Runnable r : s.completions)
 	    r.run();
@@ -397,17 +399,20 @@ public class VkExec {
 		else
 		    VkEnvironment.check(rv, "vkQueuePresentKHR");
 		npresent++;
-		if((rv == VK_SUCCESS) && (presentid != 0)) {
+		if((rv == VK_SUCCESS) && (presentid > 1)) {
 		    /* A GPU fence only retires submitted commands, not a displayed
-		     * image. FIFO can release those fences in bursts, allowing the
-		     * UI/camera to run several ticks rapidly and then stall. Pace
-		     * vsynced frames by presentation before releasing the next
-		     * render's CPU fence. The UI can still prepare the next frame.
+		     * image. Keep presentation pacing, but wait for N-1 after
+		     * submitting N. Waiting for N itself empties the presentation
+		     * queue on every frame; a short recording/GPU spike then misses
+		     * a refresh with no ready frame to cover it. One frame of
+		     * headroom lets GPU work overlap display without letting FIFO
+		     * run an unbounded queue ahead of the UI/camera.
+		     * IDs restart with each swapchain (including VSync changes).
 		     * Bound the wait for hidden/minimized or changing surfaces. */
 		    double waitAt = Utils.rtime();
-		    int wr = vkWaitForPresentKHR(dev, swap.sc, presentid, 100000000L);
+		    int wr = vkWaitForPresentKHR(dev, swap.sc, presentid - 1, 100000000L);
 		    nurgling.diagnostics.MovementTrace.renderStage(env, "present-wait", waitAt,
-			"id=" + presentid + " result=" + wr);
+			"id=" + (presentid - 1) + " queued=" + presentid + " result=" + wr);
 		    if((wr == VK_ERROR_OUT_OF_DATE_KHR) || (wr == VK_SUBOPTIMAL_KHR))
 			swapdirty = true;
 		    else if(wr == VK_ERROR_SURFACE_LOST_KHR)
@@ -423,8 +428,10 @@ public class VkExec {
 	retire(false);
 	if((wsz != null) && (wsz.x > 0) && (wsz.y > 0) && !wsz.equals(bsize))
 	    resizeback(wsz);
+	double prepareAt = Utils.rtime();
 	for(Consumer<VkExec> item : prep)
 	    item.accept(this);
+	nurgling.diagnostics.MovementTrace.renderStage(env, "resource-uploads", prepareAt, "count=" + prep.size());
 	for(VkRender r : renders) {
 	    try {
 		run(r);

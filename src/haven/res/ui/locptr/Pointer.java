@@ -24,6 +24,44 @@ public class Pointer extends Widget {
     public boolean click;
     private Tex licon;
 	private String tip = null;
+    private nurgling.widgets.NCompass compass;
+
+    private void registerCompass() {
+        NGameUI gui = getparent(NGameUI.class);
+        nurgling.widgets.NCompass next = gui == null ? null : gui.compass;
+        if(compass != next) {
+            if(compass != null) compass.unregister(this);
+            compass = next;
+            if(compass != null) compass.register(this);
+        }
+    }
+
+    public Coord2d compassPosition() {
+        if(tc == null && marker == null) return null;
+        Gob target = getGob();
+        return target != null ? target.rc : tc();
+    }
+
+    public String compassLabel() {
+        return tip != null ? tip : nurgling.i18n.L10n.get("compass.target");
+    }
+
+    public boolean compassApproximate() { return triangulating; }
+
+    public void compassClick(int button) {
+        if(button == 3) {
+            Coord2d position = compassPosition();
+            if(position != null)
+                nurgling.tools.NPointerClickHandler.handleRightClick(getparent(GameUI.class), position, tip, gobid);
+        } else if(click) {
+            wdgmsg("click", button, ui.modflags());
+        }
+    }
+
+    @Override public void dispose() {
+        if(compass != null) compass.unregister(this);
+        super.dispose();
+    }
 
     public Pointer(Indir<Resource> icon) {
 	super(Coord.z);
@@ -42,6 +80,7 @@ public class Pointer extends Widget {
     protected void added() {
 	presize();
 	super.added();
+        registerCompass();
     }
 
     private int signum(int a) {
@@ -89,6 +128,8 @@ public class Pointer extends Widget {
 
     public void draw(GOut g) {
 	this.lc = null;
+        registerCompass();
+        if(compass != null && compass.enabled() && compass.visible) return;
 	if(tc == null)
 	    return;
 	Gob gob = (gobid < 0) ? null : ui.sess.glob.oc.getgob(gobid);
@@ -109,6 +150,7 @@ public class Pointer extends Widget {
     public void update(Coord2d tc, long gobid) {
 	this.tc = tc;
 	this.gobid = gobid;
+        this.mc = null;
     }
 
     public boolean mousedown(MouseDownEvent ev) {
@@ -117,7 +159,7 @@ public class Pointer extends Widget {
 	    try {
 		Coord2d targetCoords = tc();
 		if(targetCoords != null) {
-		    nurgling.tools.NPointerClickHandler.handleRightClick(targetCoords, tip, gobid);
+		    nurgling.tools.NPointerClickHandler.handleRightClick(getparent(GameUI.class), targetCoords, tip, gobid);
 		    return(true);
 		}
 	    } catch(Exception e) {
@@ -216,7 +258,7 @@ public class Pointer extends Widget {
 		mc = null;
 		tc();
 		if(!triangulating) {return;}
-		NGameUI gui = NUtils.getGameUI();
+		NGameUI gui = getparent(NGameUI.class);
 		if(gui == null || gui.mapfile == null) {return;}
 		long curseg = gui.mapfile.playerSegmentId();
 		Gob player = gui.map.player();
@@ -235,17 +277,18 @@ public class Pointer extends Widget {
 	}
 
 	public Coord2d tc() {
-		NGameUI gui = NUtils.getGameUI();
-		if(gui == null || gui.mapfile == null) {return null;}
+		NGameUI gui = getparent(NGameUI.class);
+		if(gui == null || gui.mapfile == null) {return marker == null ? tc : null;}
 		return tc(gui.mapfile.playerSegmentId());
 	}
 
 	public Coord2d tc(long id) {
 		if(marker != null) {
 			triangulating = false;
-			NGameUI gui = NUtils.getGameUI();
+			NGameUI gui = getparent(NGameUI.class);
 			if(gui == null || gui.mapfile == null) {return null;}
 			MiniMap.Location loc = gui.mapfile.view.sessloc;
+			if(loc == null) return null;
 			if(id == marker.seg) {
 				Coord2d tmp = mc = marker.tc.sub(loc.tc).mul(tilesz).add(6, 6);
 				tc = tmp;
@@ -258,11 +301,12 @@ public class Pointer extends Widget {
 			return null;
 		} else if(mc == null) {
 			GameUI gui = getparent(GameUI.class);
+			if(gui == null || gui.map == null) return tc;
 			Gob player = gui.map.player();
 			if(player != null) {
 				double d = player.rc.dist(tc) / 11.0;
 				if(d > 990) {
-					mc = gui.mapfile.findMarkerPosition(tip);
+					mc = gui.mapfile == null ? null : gui.mapfile.findMarkerPosition(tip);
 					triangulating = mc == null;
 					if(mc != null) {
 						return mc;

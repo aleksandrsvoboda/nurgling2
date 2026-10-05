@@ -2,20 +2,18 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.i18n.L10n;
-import nurgling.render.FpsGraph;
 import nurgling.render.SceneDebug;
 import nurgling.widgets.nsettings.CollapsibleSection;
 import static nurgling.render.FpsGraph.W;
 import static nurgling.render.FpsGraph.H;
-import java.awt.image.BufferedImage;
+import nurgling.render.FpsGraphTexture;
 import java.awt.event.KeyEvent;
 
 /** Cached diagnostics HUD: sampling allocates nothing; drawing refreshes at 10 Hz. */
 public class FpsPanel extends haven.Window {
     public static final KeyBinding toggle = KeyBinding.get("fps-graph", KeyMatch.forcode(KeyEvent.VK_F10, KeyMatch.C));
     private static boolean enabled = Boolean.getBoolean("haven.fpsgraph") || Utils.getprefb("fpsgraph", false);
-    private double nextUpdate;
-    private Tex image;
+    private final FpsGraphTexture graph = new FpsGraphTexture();
     private final CollapsibleSection debug;
     private final Label timeLabel;
     private final HSlider timeSlider;
@@ -97,15 +95,11 @@ public class FpsPanel extends haven.Window {
     }
 
     private void drawGraph(GOut g) {
-        double now = Utils.rtime();
-        if(image == null || now >= nextUpdate) {
-            nextUpdate = now + .1;
+        try(nurgling.diagnostics.MovementTrace.Stage stage=nurgling.diagnostics.MovementTrace.stage(ui,"fps-panel")) {
             String backend = ui.getenv() instanceof haven.render.vk.VkEnvironment ? "Vulkan" : "OpenGL";
-            BufferedImage pixels = FpsGraph.render(ui.frameHistory.snapshot(now), backend, UI.scale(W), UI.scale(H));
-            if(image != null) image.dispose();
-            image = new TexI(pixels);
+            graph.update(g.out,ui.frameHistory,Utils.rtime(),backend,UI.scale(new Coord(W,H)));
+            graph.draw(g);
         }
-        g.image(image, Coord.z);
     }
 
     @Override
@@ -116,7 +110,7 @@ public class FpsPanel extends haven.Window {
 
     @Override
     public void dispose() {
-        if(image != null) { image.dispose(); image = null; }
+        graph.dispose();
         super.dispose();
     }
 

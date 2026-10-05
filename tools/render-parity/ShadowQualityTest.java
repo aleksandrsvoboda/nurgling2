@@ -23,6 +23,10 @@ public class ShadowQualityTest {
         "  const vec3 directions[6]=vec3[6](vec3(10,0,0),vec3(-10,0,0),vec3(0,10,0),vec3(0,-10,0),vec3(0,0,-10),vec3(0,0,10));\n" +
         "  v=hv_pshadow(map,directions[clamp(int(tc.x*6.0),0,5)],1.0,100.0,1.0/vec2(textureSize(map,0)));\n" +
         " }\n" +
+        " if(outside == 4.0 || outside == 5.0) {\n" +
+        "  vec2 q=vec2(tc.x*1.6-0.8,tc.y*0.7-0.85); float m=-5.0/q.y;\n" +
+        "  v=hv_pshadow(map,vec3(m,-q.x*m,-5.0),1.0,100.0,1.0/vec2(textureSize(map,0)));\n" +
+        " }\n" +
         " return vec4(v, v, v, 1.0);\n" +
         "}\n");
     private static final ShaderMacro shader = prog -> {
@@ -100,7 +104,7 @@ public class ShadowQualityTest {
 
     private static byte[] capture(Windeye window, float separation, int mode) throws Exception {
         VectorFormat rgba = new VectorFormat(4, NumberFormat.UNORM8);
-        int width = mode == 3 ? MAP * 6 : MAP;
+        int width = mode >= 3 ? MAP * 6 : MAP;
         Texture2D map = new Texture2D(width, MAP, DataBuffer.Usage.STATIC,
             new VectorFormat(1, NumberFormat.FLOAT32), (image, env) -> {
                 if(image.level != 0) return null;
@@ -110,6 +114,11 @@ public class ShadowQualityTest {
                     float z = .3f + (x + .5f) / MAP * .2f;
                     if(x >= MAP/4 && x < MAP*3/4 && y >= MAP/4 && y < MAP*3/4) z -= separation;
                     if(mode == 3) z = x >= MAP*5 ? .5f : 1f;
+                    if(mode >= 4) {
+                        // A floor 5 units below the lamp, projected into the +X face.
+                        z=100f/99f + 100f/(99f*5f)*((y+.5f)/MAP*2-1);
+                        if(mode==5 && x>=MAP/4 && x<MAP*3/4 && y>=MAP/4 && y<MAP*3/4) z-=separation;
+                    }
                     buf.putFloat(z);
                 }
                 return fill;
@@ -154,6 +163,14 @@ public class ShadowQualityTest {
             window.sizing(new Windeye.Sizing().fixsize(Coord.of(SIZE,SIZE))).show(true);
             byte[] plane = capture(window,0,0), blocked = capture(window,.02f,0), outside = capture(window,.02f,1);
             byte[] contact = capture(window,.001f,0), blend = capture(window,0,2), upward = capture(window,0,3);
+            byte[] floor = capture(window,0,4), floorBlocked = capture(window,.02f,5);
+            int floorShadow=0;
+            for(int i=0;i<floor.length;i+=4) {
+                require((floor[i]&255)>=254,"Point-light self-shadow stripes on floor: "+(floor[i]&255));
+                if((floorBlocked[i]&255)<10)floorShadow++;
+            }
+            require(floorShadow>100,"Point-light correction erased real blockers");
+            System.out.println("Point-light floor: no self-shadow stripes; blocker pixels="+floorShadow);
             int shadow = 0, edge = 0, contactEdge = 0;
             for(int i=0; i<plane.length; i+=4) {
                 require((plane[i]&255) >= 254, "Self-shadow stripe on slope");

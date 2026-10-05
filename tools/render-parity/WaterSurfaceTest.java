@@ -414,15 +414,23 @@ public class WaterSurfaceTest {
             for(int i=0;i<=14;i++)wakes.sample(1,-12+i*1.6,0,0,1.5f,1.8f,10-2.24+i*.16);
             Pipe base=new BufPipe().prep(Homo3D.state).prep(Projection.ortho(-16,16,-16,16,1,100))
                 .prep(new Camera(Transform.makexlate(new Matrix4f(),Coord3f.of(0,0,-50))));
-            Render out=window.env().render();
-            Texture2D.Sampler2D field=wakes.render(new GOut(out,base,SIZE),base,SIZE,10);
-            Coord sz=field.tex.sz();
-            CompletableFuture<float[]> result=new CompletableFuture<>();
-            out.pget(field.tex.image(0),RGBA,bytes->{float[] a=new float[sz.x*sz.y*4];bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().get(a);result.complete(a);});
-            window.swapbuffers(out,false);window.env().submit(out);
+            float[] image;Coord sz;
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
-            while(!result.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
-            float[] image=result.get(1,TimeUnit.SECONDS);
+            while(true) {
+                Render out=window.env().render();
+                Texture2D.Sampler2D field=wakes.render(new GOut(out,base,SIZE),base,SIZE,10);
+                Coord sampleSize=field.tex.sz();sz=sampleSize;
+                CompletableFuture<float[]> result=new CompletableFuture<>();
+                out.pget(field.tex.image(0),RGBA,bytes->{float[] pixels=new float[sampleSize.x*sampleSize.y*4];bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().get(pixels);result.complete(pixels);});
+                window.swapbuffers(out,false);window.env().submit(out);
+                while(!result.isDone()&&System.nanoTime()<deadline){Render pump=window.env().render();window.swapbuffers(pump,false);window.env().submit(pump);Thread.sleep(10);}
+                image=result.get(1,TimeUnit.SECONDS);
+                if(!(out instanceof haven.render.vk.VkRender)||((haven.render.vk.VkRender)out).pendingDraws()==0)break;
+                require(System.nanoTime()<deadline,"Wake shader/pipeline never became ready");
+                // Until the optional pass is ready, its field must be cleared,
+                // not stale/uninitialized data that distorts the water surface.
+                for(float value:image)require(value==0,"Pending wake field is not neutral");
+            }
             double minimum=1,maximumJump=0;
             for(int side:new int[]{-1,1}) {
                 float previous=-1;

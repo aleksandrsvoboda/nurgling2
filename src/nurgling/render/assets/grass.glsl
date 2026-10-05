@@ -1,9 +1,7 @@
-vec4 grass_position(vec4 root,vec4 shape,float time,mat4 trailA,mat4 trailB,vec3 viewer,float distanceLimit) {
+vec4 grass_position(vec4 root,vec4 shape,float time,mat4 trailA,mat4 trailB) {
     float t=shape.x;
     vec2 forward=vec2(cos(shape.z),sin(shape.z)),right=vec2(-forward.y,forward.x);
-    // Fade the outer patch margin by height, without alpha noise or moving roots.
-    float lod=1.0-smoothstep(distanceLimit*.82,distanceLimit,length(root.xy-viewer.xy));
-    float height=root.w*lod;
+    float height=root.w;
     float wind=sin(time*1.35+root.x*.11+root.y*.07+shape.z*.3)*.16;
     wind+=sin(time*2.2+root.x*.31-root.y*.2+shape.z)*.055;
     vec2 offset=(forward*.20+vec2(1,.35)*wind)*height*t*t;
@@ -20,6 +18,6 @@ vec4 grass_position(vec4 root,vec4 shape,float time,mat4 trailA,mat4 trailB,vec3
     }
     offset+=push*height*.85*t*t;
     float z=height*t*(1.0-weight*.48*t);
-    vec2 width=right*shape.y*shape.w*(1.0-t)*lod;
+    vec2 width=right*shape.y*shape.w*(1.0-t);
     return vec4(root.xyz+vec3(offset+width,z),1);
 }

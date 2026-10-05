@@ -128,6 +128,13 @@ public class QoL extends Panel {
 
         // LEFT COLUMN - Visual & Interface Settings
         Widget leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.visual")), new Coord(5, 5));
+        leftPrev = leftColumn.add(new CheckBox(L10n.get("compass.setting")) {
+            { a = Utils.getprefb("navigation-compass", true); }
+            public void changed(boolean value) {
+                super.changed(value);
+                Utils.setprefb("navigation-compass", value);
+            }
+        }, leftPrev.pos("bl").adds(0, 10));
         leftPrev = showCropStage = leftColumn.add(new CheckBox(L10n.get("qol.show_crop_stage")), leftPrev.pos("bl").adds(0, 10));
         leftPrev = simpleCrops = leftColumn.add(new CheckBox(L10n.get("qol.simple_crops")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = nightVision = leftColumn.add(new CheckBox(L10n.get("qol.night_vision")), leftPrev.pos("bl").adds(0, 5));

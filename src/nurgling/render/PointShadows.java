@@ -70,8 +70,10 @@ public class PointShadows implements Disposable {
     /* The shadow lookup. v is the vector from the light to the
      * point, in world space; the side is picked by its major axis. */
     static final RawFunction look = new RawFunction(FLOAT, "hv_pshadow", 5,
-	"float hv_pcompare(sampler2D map, ivec2 at, ivec2 low, ivec2 high, float receiver) {\n" +
-	"    return step(receiver, texelFetch(map, clamp(at,low,high), 0).r);\n" +
+	"float hv_pcompare(sampler2D map, ivec2 at, ivec2 low, ivec2 high, vec3 receiver, vec2 grad, vec2 ts) {\n" +
+	"    ivec2 tap = clamp(at,low,high);\n" +
+	"    float z = receiver.z + dot(grad, (vec2(tap) + 0.5) * ts - receiver.xy);\n" +
+	"    return step(z, texelFetch(map, tap, 0).r);\n" +
 	"}\n" +
 	"float hv_pshadow(sampler2D map, vec3 v, float n, float f, vec2 ts)\n" +
 	"{\n" +
@@ -88,14 +90,22 @@ public class PointShadows implements Disposable {
 	"        if(v.y > 0.0) {m = v.y; q = vec2(v.x, v.z); face = 2.0;}\n" +
 	"        else {m = -v.y; q = vec2(-v.x, v.z); face = 3.0;}\n" +
 	"    }\n" +
-	"    if((m >= f) || (m <= n))\n" +
-	"        return(1.0);\n" +
-	"    q /= m;\n" +
+	"    q /= max(m, n);\n" +
 	"    vec2 base = vec2((face + 0.5 + 0.5 * q.x) / 6.0, 0.5 + 0.5 * q.y);\n" +
 	"    int size = textureSize(map,0).y;\n" +
 	"    ivec2 low=ivec2(int(face)*size,0), high=low+ivec2(size-1);\n" +
 	"    float bias = 0.08 + 0.003 * m;\n" +
 	"    float receiver = 0.5 + 0.5 * ((f+n)/(f-n) - (2.0*f*n)/((f-n)*max(n,m-bias)));\n" +
+	"    float plane = 0.5 + 0.5 * ((f+n)/(f-n) - (2.0*f*n)/((f-n)*max(n,m)));\n" +
+	"    vec3 p = vec3(base, plane), dx = dFdx(p), dy = dFdy(p);\n" +
+	"    float det = dx.x * dy.y - dx.y * dy.x;\n" +
+	"    vec2 grad = vec2(0.0);\n" +
+	"    /* Depth is planar in each perspective face. Correct every PCF texel\n" +
+	"     * separately, including bilinear taps, to avoid striped self-shadowing. */\n" +
+	"    if(abs(det) > 1e-12 && abs(dFdx(face)) < 0.5 && abs(dFdy(face)) < 0.5)\n" +
+	"        grad = clamp(vec2(dy.y * dx.z - dx.y * dy.z, dx.x * dy.z - dy.x * dx.z) / det, vec2(-8.0), vec2(8.0));\n" +
+	"    if((m >= f) || (m <= n)) return 1.0;\n" +
+	"    vec3 ref = vec3(base, receiver);\n" +
 	"    const vec2 pd[8] = vec2[8](vec2(-0.613, 0.354), vec2(0.170, -0.713), vec2(0.747, 0.271), vec2(-0.259, -0.281),\n" +
 	"        vec2(0.320, 0.815), vec2(-0.859, -0.338), vec2(0.536, -0.183), vec2(-0.110, 0.290));\n" +
 	"    float r = clamp(0.75 + 0.008 * m, 0.75, 2.5);\n" +
@@ -103,8 +113,8 @@ public class PointShadows implements Disposable {
 	"    for(int i = 0; i < 8; i++) {\n" +
 	"        vec2 uv = base + pd[i] * ts * r;\n" +
 	"        vec2 grid=uv/ts-0.5, w=fract(grid); ivec2 at=ivec2(floor(grid));\n" +
-	"        lit += mix(mix(hv_pcompare(map,at,low,high,receiver),hv_pcompare(map,at+ivec2(1,0),low,high,receiver),w.x),\n" +
-	"                   mix(hv_pcompare(map,at+ivec2(0,1),low,high,receiver),hv_pcompare(map,at+ivec2(1),low,high,receiver),w.x),w.y);\n" +
+	"        lit += mix(mix(hv_pcompare(map,at,low,high,ref,grad,ts),hv_pcompare(map,at+ivec2(1,0),low,high,ref,grad,ts),w.x),\n" +
+	"                   mix(hv_pcompare(map,at+ivec2(0,1),low,high,ref,grad,ts),hv_pcompare(map,at+ivec2(1),low,high,ref,grad,ts),w.x),w.y);\n" +
 	"    }\n" +
 	"    return(lit / 8.0);\n" +
 	"}\n");

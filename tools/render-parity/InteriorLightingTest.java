@@ -28,10 +28,12 @@ public class InteriorLightingTest {
             Method update = MapView.class.getDeclaredMethod("amblight"); update.setAccessible(true);
             glob.lightamb = new Color(30,25,20);
             glob.lightdif = glob.tlightdif = Color.BLACK;
+            glob.lightspc = new Color(10,8,6);
             glob.blightamb = new Color(160,150,140);
             glob.blightdif = new Color(130,120,110); // Black raw diffuse lifted by night vision.
             glob.blightspc = new Color(40,35,30);
-            DirLight baseline = new DirLight(glob.blightamb,glob.blightdif,glob.blightspc,Coord3f.zu);
+            // Vulkan uses raw server light; legacy night-vision values deliberately differ.
+            DirLight baseline = new DirLight(glob.lightamb,glob.lightdif,glob.lightspc,Coord3f.zu);
             field(MapView.class,"rainCloudCover").setFloat(view,1);
             field(MapView.class,"clearWeatherLight").setFloat(view,1);
             view.sceneDebug.rain(true);
@@ -46,6 +48,7 @@ public class InteriorLightingTest {
             }
             // Interior server light can be non-black: terrain must take precedence.
             glob.lightdif = glob.tlightdif = Color.WHITE;
+            baseline = new DirLight(glob.lightamb,glob.lightdif,glob.lightspc,Coord3f.zu);
             glob.map.sets[0] = new Resource.Spec(Resource.local(), "gfx/tiles/field");
             glob.map.sets[1] = new Resource.Spec(Resource.local(), "gfx/tiles/mine");
             MCache.Grid grid = glob.map.new Grid(Coord.z);

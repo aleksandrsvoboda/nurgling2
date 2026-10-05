@@ -117,10 +117,11 @@ public class TextEntry extends Widget implements ReadLine.Owner {
 	}
     }
 
+    protected Color textcolor() { return (dshow && dirty) ? dirtycol : defcol; }
     public void draw(GOut g) {
 	Text.Line tcache = this.tcache;
 	if(tcache == null)
-	    this.tcache = tcache = fnd.render(dtext(), (dshow && dirty) ? dirtycol : defcol);
+            this.tcache = tcache = fnd.render(dtext(), textcolor());
 	int point = buf.point(), mark = buf.mark();
 	nurgling.styles.UITheme.panel(g, Coord.z, sz, nurgling.styles.UITheme.INPUT, hasfocus ? nurgling.styles.UITheme.ACCENT : nurgling.styles.UITheme.LINE);
         GOut content = g.reclip(Coord.of(toffx, 1), Coord.of(Math.max(0, sz.x - wmarg), sz.y - 2));
