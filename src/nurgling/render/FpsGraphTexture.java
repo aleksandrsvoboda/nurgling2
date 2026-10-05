@@ -11,6 +11,9 @@ public final class FpsGraphTexture implements Disposable {
     static final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS,
         new ArrayBlockingQueue<>(8), r -> {Thread t=new Thread(r,"fps-graph");t.setDaemon(true);return t;});
     private java.util.concurrent.Future<byte[]> pending;
+    // Only accessed by this panel's single pending worker job. Pixel snapshots
+    // remain independent because submitted GPU uploads may still consume them.
+    private java.awt.image.BufferedImage rasterImage;
     private Coord pendingSize;
     private double nextUpdate;
     private boolean disposed;
@@ -32,15 +35,24 @@ public final class FpsGraphTexture implements Disposable {
             FrameHistory.Snapshot snapshot=history.snapshot(now);
             Coord requested=new Coord(size);
             try {
-                pending=worker.submit(() -> raster(snapshot,backend,requested));
+                pending=worker.submit(() -> rasterFrame(snapshot,backend,requested));
                 pendingSize=requested;
                 nextUpdate=now+.1;
             } catch(RejectedExecutionException busy) { /* Retry without running CPU raster inline. */ }
         }
     }
 
+    byte[] rasterFrame(FrameHistory.Snapshot snapshot,String backend,Coord size) {
+        if(rasterImage==null||rasterImage.getWidth()!=size.x||rasterImage.getHeight()!=size.y)
+            rasterImage=new java.awt.image.BufferedImage(size.x,size.y,java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        FpsGraph.render(snapshot,backend,rasterImage);
+        return pixels(rasterImage);
+    }
     static byte[] raster(FrameHistory.Snapshot snapshot,String backend,Coord size) {
-        int[] argb=((DataBufferInt)FpsGraph.render(snapshot,backend,size.x,size.y).getRaster().getDataBuffer()).getData();
+        return pixels(FpsGraph.render(snapshot,backend,size.x,size.y));
+    }
+    private static byte[] pixels(java.awt.image.BufferedImage image) {
+        int[] argb=((DataBufferInt)image.getRaster().getDataBuffer()).getData();
         byte[] rgba=new byte[argb.length*4];
         for(int i=0,j=0;i<argb.length;i++) {
             int pixel=argb[i];

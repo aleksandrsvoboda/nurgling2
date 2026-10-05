@@ -29,6 +29,17 @@ public class FpsGraphTextureTest {
             byte[] rgba=FpsGraphTexture.raster(history.snapshot(10),"Vulkan",size);
             byte[] reference=TexI.convert(FpsGraph.render(history.snapshot(10),"Vulkan",size.x,size.y),size);
             for(int i=0;i<rgba.length;i++)check(Math.abs((rgba[i]&255)-(reference[i]&255))<=1,"Graph raster changed at "+i);
+            FpsGraphTexture raster=new FpsGraphTexture();
+            byte[] firstRaster=raster.rasterFrame(history.snapshot(10),"Vulkan",size),saved=firstRaster.clone();
+            history.record(10.12);
+            byte[] nextRaster=raster.rasterFrame(history.snapshot(10.12),"Vulkan",size);
+            check(Arrays.equals(firstRaster,saved),"Worker overwrites a pending GPU upload");
+            check(Arrays.equals(nextRaster,FpsGraphTexture.raster(history.snapshot(10.12),"Vulkan",size)),"Reused graph retains old lines or accumulates alpha");
+            Coord resizedRaster=Coord.of(200,170);
+            check(Arrays.equals(raster.rasterFrame(history.snapshot(10.12),"OpenGL",resizedRaster),
+                    FpsGraphTexture.raster(history.snapshot(10.12),"OpenGL",resizedRaster)),"CPU raster resize corrupts graph");
+            raster.dispose();
+            history.reset(0);for(int i=1;i<=600;i++)history.record(i/60.0);
             for(String backend:new String[]{"vulkan","jogl"}) {
                 Toolkit toolkit=Toolkit.toolkits().get(backend).open();Windeye window=toolkit.window();
                 FpsGraphTexture graph=new FpsGraphTexture();CountDownLatch gate=new CountDownLatch(1);

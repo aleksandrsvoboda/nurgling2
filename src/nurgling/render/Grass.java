@@ -36,17 +36,36 @@ public class Grass extends RenderContext.PostProcessor {
         h=(h^(h>>>30))*0xbf58476d1ce4e5b9L;h=(h^(h>>>27))*0x94d049bb133111ebL;return h^(h>>>31);
     }
     static double unit(long h){return (h>>>11)*0x1.0p-53;}
-    // Jittered Gaussian groups (Shrine GaussianPatch), with elongated patches
-    // and sparse margins, rather than one identical tuft per terrain square.
-    static double density(double x,double y) {
-        int cx=(int)Math.floor(x/32),cy=(int)Math.floor(y/32);double best=0;
-        for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++) {
-            int a=cx+i,b=cy+j;double px=(a+.15+.7*unit(seed(a,b,31)))*32,py=(b+.15+.7*unit(seed(a,b,53)))*32;
-            double radius=5+8*unit(seed(a,b,71)),angle=unit(seed(a,b,89))*Math.PI*2;
-            double dx=x-px,dy=y-py,u=dx*Math.cos(angle)+dy*Math.sin(angle),v=-dx*Math.sin(angle)+dy*Math.cos(angle);
-            best=Math.max(best,Math.exp(-(u*u+v*v*1.8)/(2*radius*radius)));
+    // A spatial Poisson-like population: empty cells and multiple sites remove
+    // the one-clump-per-cell lattice. Sites use world coordinates, so patch
+    // borders only partition storage and never shape the vegetation.
+    static final class Density {
+        final List<double[]> groups=new ArrayList<>();
+        Density(Coord patch) {
+            int loX=(int)Math.floor(patch.x*SPAN/32)-2,loY=(int)Math.floor(patch.y*SPAN/32)-2;
+            int hiX=(int)Math.floor((patch.x+1)*SPAN/32)+2,hiY=(int)Math.floor((patch.y+1)*SPAN/32)+2;
+            for(int y=loY;y<=hiY;y++)for(int x=loX;x<=hiX;x++) {
+                double n=unit(seed(x,y,17));
+                int count=n<.35?0:n<.72?1:n<.92?2:n<.985?3:4;
+                for(int i=0;i<count;i++) {
+                    int salt=i*137;
+                    double px=(x+unit(seed(x,y,31+salt)))*32,py=(y+unit(seed(x,y,53+salt)))*32;
+                    double radius=6+11*unit(seed(x,y,71+salt)),angle=unit(seed(x,y,89+salt))*Math.PI*2;
+                    groups.add(new double[]{px,py,Math.cos(angle),Math.sin(angle),radius*radius,
+                            1.2+2*unit(seed(x,y,107+salt)),.55+.4*unit(seed(x,y,127+salt))});
+                }
+            }
         }
-        return .015+.82*best*best;
+        double at(double x,double y) {
+            double best=0;
+            for(double[] g:groups) {
+                double dx=x-g[0],dy=y-g[1];
+                if(dx*dx+dy*dy>9*g[4])continue;
+                double u=dx*g[2]+dy*g[3],v=-dx*g[3]+dy*g[2];
+                best=Math.max(best,g[6]*Math.exp(-(u*u+v*v*g[5])/g[4]));
+            }
+            return .008+best;
+        }
     }
     static FastMesh build(Coord patch,Terrain terrain) {
         return build(patch,terrain,1);
@@ -54,6 +73,7 @@ public class Grass extends RenderContext.PostProcessor {
     static FastMesh build(Coord patch,Terrain terrain,float amount) {
         MeshBuf buf=new MeshBuf();MeshBuf.Vec4Layer r=buf.layer(roots),s=buf.layer(shapes);
         int candidates=Math.round(70*amount),blades=0;
+        Density density=new Density(patch);
         for(int ty=patch.y*TILES;ty<(patch.y+1)*TILES;ty++)for(int tx=patch.x*TILES;tx<(patch.x+1)*TILES;tx++) {
             if(Thread.currentThread().isInterrupted())throw new CancellationException();
             if(!terrain.grass(tx*11+5.5,ty*11+5.5))continue;
@@ -62,11 +82,13 @@ public class Grass extends RenderContext.PostProcessor {
             // Cap each tile independently so dense groups cannot truncate a patch.
             int tufts=0;
             for(int tuft=0;tuft<candidates&&tufts<64;tuft++) {
-                double x=tx*11+.8+random.nextDouble()*9.4,y=ty*11+.8+random.nextDouble()*9.4;
-                if(random.nextDouble()>density(x,y))continue;
+                double x=tx*11+random.nextDouble()*11,y=ty*11+random.nextDouble()*11;
+                if(random.nextDouble()>density.at(x,y))continue;
                 tufts++;
                 for(int blade=0;blade<4;blade++) {
-                    double bx=x+(random.nextDouble()-.5)*1.3,by=y+(random.nextDouble()-.5)*1.3;
+                    double left=Math.max(tx*11,x-.65),top=Math.max(ty*11,y-.65);
+                    double bx=left+random.nextDouble()*(Math.min((tx+1)*11,x+.65)-left);
+                    double by=top+random.nextDouble()*(Math.min((ty+1)*11,y+.65)-top);
                     if(!terrain.grass(bx,by))continue;
                     if(blades++>=8000)return buf.mkmesh(); // Stay below 16-bit vertex indices.
                     float z=terrain.height(bx,by)+.015f,h=1.3f+random.nextFloat()*(MAX_HEIGHT-1.3f);

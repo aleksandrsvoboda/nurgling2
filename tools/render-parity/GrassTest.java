@@ -124,6 +124,36 @@ public class GrassTest {
         System.out.printf("Grass geometry PASS: %d blades, clustered terrain coverage, grass mask, height cap, rooted slope, distance trail and recovery%n",a.vert.num/8);
         a.dispose();b.dispose();
     }
+    static void layout() throws Exception {
+        BufferedImage image=new BufferedImage(768,768,BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g=image.createGraphics();g.setColor(new java.awt.Color(40,37,25));g.fillRect(0,0,768,768);
+        g.setColor(new java.awt.Color(128,158,64));
+        Grass.Terrain meadow=new Grass.Terrain(){
+            public boolean grass(double x,double y){return true;}
+            public float height(double x,double y){return 0;}
+        };
+        int edges=0,total=0;
+        for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++) {
+            Coord key=Coord.of(x,y);Grass.Density a=new Grass.Density(key),b=new Grass.Density(key.add(1,0));
+            for(int i=0;i<50;i++) {
+                double px=(x+1)*Grass.SPAN,py=(y+i/50.0)*Grass.SPAN;
+                require(Math.abs(a.at(px,py)-b.at(px,py))<1e-12,"Group field changes across patch borders");
+            }
+            FastMesh mesh=Grass.build(key,meadow);if(mesh==null)continue;
+            FloatBuffer roots=attr(mesh,Grass.root);
+            for(int i=0;i<roots.capacity();i+=32) {
+                double px=roots.get(i),py=-roots.get(i+1),fx=px-Math.floor(px/11)*11,fy=py-Math.floor(py/11)*11;
+                if(fx<.1||fx>10.9||fy<.1||fy>10.9)edges++;
+                total++;
+                g.fillRect((int)((px+Grass.SPAN)*768/(Grass.SPAN*3)),(int)((py+Grass.SPAN)*768/(Grass.SPAN*3)),1,1);
+            }
+            mesh.dispose();
+        }
+        require(edges>total*.005,"Tile margins form empty grid lines");
+        g.dispose();new File("build/grass-preview").mkdirs();
+        ImageIO.write(image,"png",new File("build/grass-preview/cluster-layout.png"));
+        System.out.printf("Grass layout PASS: %d roots, %d at tile edges, continuous world-space groups%n",total,edges);
+    }
     static float[] capture(Windeye window,double time,boolean contact,boolean blocked) throws Exception {
         return capture(window,time,contact,blocked,1,Coord.z);
     }
@@ -174,7 +204,7 @@ public class GrassTest {
         new File("build/grass-preview").mkdirs();ImageIO.write(image,"png",new File("build/grass-preview/"+name+".png"));
     }
     public static void main(String[] args)throws Exception {
-        geometry();Toolkit toolkit=Toolkit.toolkits().get("vulkan").open();Windeye window=toolkit.window();int status=0;
+        geometry();layout();Toolkit toolkit=Toolkit.toolkits().get("vulkan").open();Windeye window=toolkit.window();int status=0;
         try {
             window.title("Grass Vulkan regression");window.sizing(new Windeye.Sizing().fixsize(SIZE)).show(true);
             float[] still=capture(window,10,false,false),wind=capture(window,10.8,false,false),bend=capture(window,10,true,false);

@@ -271,8 +271,9 @@ and butterflies have also been removed, including their settings and presets.
 The game's original vegetation animation, weather, smoke and fire embers remain.
 The separate **Animated grass** option adds short segmented blades exclusively to
 `gfx/tiles/grass`. It defaults off. The implementation follows Shrine's procedural
-blade/root weighting, with deterministic elongated Gaussian groups and sparse
-margins across the grassy terrain. Heights range from 1.3 to 3.4 Haven units;
+blade/root weighting, with deterministic elongated groups of varying size and
+strength. World-space cells may contain zero or multiple group centers, placed
+without an inset, so there is no one-group-per-cell lattice or empty tile-border grid. Heights range from 1.3 to 3.4 Haven units;
 roots sample the actual terrain surface. Grass does not change movement or picking.
 Grass covers the visible grassy terrain within the map's rendered cuts, without
 a distance limit around the player. Quantity remains adjustable from 25% to 200%
@@ -687,3 +688,14 @@ These checks catch backend regressions; they do not establish pixel identity
 for every game material or animated scene. For an in-game comparison, disable
 enhancements, use the same video settings, camera, scale, place and lighting,
 and account for animation and world-time changes between captures.
+
+The October 5 stationary-scene capture showed five GC pauses of 17–19 ms beside
+its five frames over 20 ms. A live JFR allocation sample identified recurring
+FPS HUD rasters and Vulkan draw recording among the allocation sources. The HUD
+now reuses its worker-owned ARGB image (clearing alpha before every raster), while
+keeping immutable RGBA upload snapshots. Vulkan records draw-list uniform blocks
+with absolute buffer copies instead of two duplicate wrappers per draw, and
+reuses its state-change index scratch array. GPU readback checks cover HUD refresh,
+alpha/resize, uniform snapshot isolation, async retries, and GL/Vulkan parity.
+These changes reduce allocation; they do not establish that all gameplay GC pauses
+are eliminated.

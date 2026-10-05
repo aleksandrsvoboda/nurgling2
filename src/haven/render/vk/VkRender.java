@@ -470,6 +470,7 @@ public class VkRender implements Render, Disposable {
     /* State application, as in the GL Applier */
 
     private State[] cur = new State[0];
+    private int[] pdirty = new int[0];
     private ShaderMacro[] shaders = new ShaderMacro[0];
     private int shash = 0;
     private VkProgram prog = null;
@@ -490,7 +491,8 @@ public class VkRender implements Render, Disposable {
 	    cur = Arrays.copyOf(cur, ns.length);
 	    shaders = Arrays.copyOf(shaders, ns.length);
 	}
-	int[] pdirty = new int[cur.length];
+	if(pdirty.length < cur.length)
+	    pdirty = new int[cur.length];
 	int pn = 0;
 	{
 	    int i = 0;
@@ -638,9 +640,8 @@ public class VkRender implements Render, Disposable {
 	int uoff = -1;
 	if(ubo != null) {
 	    uoff = alloc(prog.ubosize, 256);
-	    ByteBuffer dst = arena.duplicate();
-	    dst.position(uoff);
-	    dst.put(ubo.duplicate());
+	    // Absolute copy preserves both cursors without two wrappers per draw.
+	    arena.put(uoff, ubo, ubo.position(), ubo.remaining());
 	}
 	cmds.add(new DrawCmd(prog, key, tgt, dyn, tex, uoff, geo));
     }
