@@ -629,7 +629,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.glob = glob;
 	this.cc = cc;
 	this.plgob = plgob;
-	basic(Glob.Weather.class, WeatherState.compose());
 	basic.add(new Outlines(false));
 	basic.add(this.gobs = new Gobs());
 	basic.add(this.terrain = new Terrain());
@@ -1345,7 +1344,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	for(int i = 0; i < wls.length; i++)
 	    wst[i] = wls[i].state();
 	try(nurgling.diagnostics.MovementTrace.Stage stage = nurgling.diagnostics.MovementTrace.stage(ui, "weather-state")) {
-	    basic(Glob.Weather.class, WeatherState.compose(wst));
+	    /* Only Vulkan rebuilds programs when a reserved weather slot changes to or
+	     * from null; OpenGL updates uniforms alone and then reads the missing state
+	     * (CloudShadow.cdir NPE), so it keeps the plain definition-change path. */
+	    boolean gl = (ui != null) && (ui.getenv() instanceof haven.render.gl.GLEnvironment);
+	    basic(Glob.Weather.class, gl ? Pipe.Op.compose(wst) : WeatherState.compose(wst));
 	} catch(Loading l) {
 	}
 	Collection<RenderTree.Node> old =new ArrayList<>(rweather.keySet());

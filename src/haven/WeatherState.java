@@ -8,9 +8,10 @@ public final class WeatherState {
     private WeatherState() {}
 
     /* These are the global draw slots supplied by the normal weather resources.
-     * Reserve them before any map objects are attached. Removing a definition
-     * forces RenderTree.updtotal over every descendant; changing its value to
-     * null instead uses the existing group/mask update path in both renderers.
+     * Removing a definition forces RenderTree.updtotal over every descendant;
+     * changing its value to null instead uses the group/mask update path.
+     * Vulkan only: OpenGL's mask path updates uniforms without rebuilding the
+     * program, so MapView uses plain composition there.
      * Read the incoming value, rather than blindly clearing it, so a state
      * inherited from outside this weather operation still works normally.
      */
