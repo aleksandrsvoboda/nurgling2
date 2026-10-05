@@ -258,55 +258,9 @@ public class NCatSelection extends Window {
         }
     }
 
-    private static Tex missingIcon = null;
-    private static final Map<String, Defer.Future<Tex>> iconCache = new HashMap<>();
-
-    // Иконка элемента. ItemTex.create() блокирует поток на загрузке ресурса, поэтому
-    // грузим в фоне: пока не готово - возвращаем null (иконка просто не рисуется).
+    // The atlas, area catalog and cookbook share resource identities and pending loads.
     private static Tex icon(Element item) {
-        String key = item.res.toString();
-        Defer.Future<Tex> f;
-        synchronized(iconCache) {
-            f = iconCache.get(key);
-            if(f == null)
-                iconCache.put(key, f = Defer.later(() -> loadIcon(item)));
-        }
-        try {
-            return f.get();
-        } catch(Loading l) {
-            return null;
-        } catch(Defer.DeferredException e) {
-            return missingIcon();
-        }
-    }
-
-    // Битый или удаленный с сервера ресурс не должен ронять UI-поток, поэтому вместо
-    // иконки подставляем заглушку. NoSuchResourceException - это BadResourceException,
-    // а не LoadException, так что ловить надо оба дерева.
-    private static Tex loadIcon(Element item) {
-        try {
-            BufferedImage img = ItemTex.create(item.res);
-            if(img != null)
-                return new TexI(img);
-        } catch(Resource.LoadException | Resource.BadResourceException | NullPointerException e) {
-            System.out.println("NCatSelection: failed to load icon for '" + item.getName() + "' (" + item.res + "): " + e.getMessage());
-        }
-        return missingIcon();
-    }
-
-    private static synchronized Tex missingIcon() {
-        if(missingIcon == null) {
-            Coord sz = UI.scale(new Coord(32, 32));
-            BufferedImage img = TexI.mkbuf(sz);
-            Graphics g = img.getGraphics();
-            g.setColor(new java.awt.Color(255, 64, 64, 160));
-            g.drawRect(1, 1, sz.x - 3, sz.y - 3);
-            g.drawLine(1, 1, sz.x - 2, sz.y - 2);
-            g.drawLine(1, sz.y - 2, sz.x - 2, 1);
-            g.dispose();
-            missingIcon = new TexI(img);
-        }
-        return missingIcon;
+        return nurgling.tools.ItemIcons.get(item.res);
     }
 
     public class ElementList extends SListBox<Element, Widget> {

@@ -17,8 +17,11 @@ public class NPointerClickHandler {
      * @param gobid Gob ID if target is a gob, -1 otherwise
      */
     public static void handleRightClick(Coord2d worldCoords, String targetName, long gobid) {
+        handleRightClick(NUtils.getGameUI(), worldCoords, targetName, gobid);
+    }
+
+    public static void handleRightClick(GameUI gui, Coord2d worldCoords, String targetName, long gobid) {
         try {
-            GameUI gui = NUtils.getGameUI();
             if(gui == null || gui.map == null || !(gui.map instanceof NMapView)) {
                 return;
             }

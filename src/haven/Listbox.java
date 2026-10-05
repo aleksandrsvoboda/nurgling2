@@ -73,7 +73,10 @@ public abstract class Listbox<T> extends ListWidget<T> {
     }
 
     public boolean mousedown(MouseDownEvent ev) {
-        if(super.mousedown(ev))
+        // Widget.mousedown does not dispatch children in the event API. Give the scrollbar
+        // its turn before consuming the click as a row selection.
+        sb.max = Math.max(0, listitems() - h);
+        if(ev.propagate(this))
             return(true);
         int idx = idxat(ev.c);
         T item = (idx < 0 || idx >= listitems()) ? null : listitem(idx);

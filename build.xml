@@ -11,6 +11,7 @@
   <property name="lwjgl-vk.jars" value="lwjgl-vulkan-${lwjgl-vk.version}.jar lwjgl-shaderc-${lwjgl-vk.version}.jar lwjgl-shaderc-${lwjgl-vk.version}-natives-windows.jar lwjgl-shaderc-${lwjgl-vk.version}-natives-linux.jar lwjgl-vma-${lwjgl-vk.version}.jar lwjgl-vma-${lwjgl-vk.version}-natives-windows.jar lwjgl-vma-${lwjgl-vk.version}-natives-linux.jar" />
 
   <path id="client.classpath">
+    <pathelement path="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" />
 	<pathelement path="lib/ext/jogl/jogl-all.jar" />
 	<pathelement path="lib/ext/jogl/gluegen-rt.jar" />
 	<pathelement path="lib/ext/lwjgl/lwjgl-fat.jar" />
@@ -159,7 +160,16 @@
         </unjar>
     </target>
 
-  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/lwjgl-vk, extlib/steamworks, resources">
+  <target name="extlib/jlatexmath">
+    <mkdir dir="lib/ext/jlatexmath" />
+    <get src="https://repo.maven.apache.org/maven2/org/scilab/forge/jlatexmath/1.0.7/jlatexmath-1.0.7.jar"
+         dest="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" skipexisting="true" />
+    <checksum file="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" algorithm="SHA-256"
+              property="6d04c3843fc98d2eea9ba4cff0be7b80540ca75c5a4e0b3463fd1219c48cc65d" verifyproperty="jlatexmath.ok" />
+    <fail unless="jlatexmath.ok" message="JLaTeXMath checksum mismatch" />
+  </target>
+
+  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/lwjgl-vk, extlib/steamworks, extlib/jlatexmath, resources">
     <condition property="explicit-annotations">
       <javaversion atleast="21" />
     </condition>
@@ -175,7 +185,7 @@
       <!-- <compilerarg value="-Xbarda" /> -->
     </javac>
     <copy todir="build/classes">
-      <fileset dir="src" excludes="**/*.java" />
+      <fileset dir="src" excludes="**/*.java,**/*.bak" />
     </copy>
     <copy todir="build/classes/haven" file="etc/ressrv.crt" />
     <copy todir="build/classes/haven" file="etc/authsrv.crt" />
@@ -202,7 +212,7 @@
     </jar>
   </target>
 
-  <target name="lib-classes" depends="build-env" unless="unpacked-lib">
+  <target name="lib-classes" depends="build-env, extlib/jlatexmath" unless="unpacked-lib">
     <mkdir dir="build/classes-lib" />
     <unjar src="lib/jglob.jar" dest="build/classes-lib">
       <patternset excludes="META-INF/**" />
@@ -210,9 +220,10 @@
   </target>
 
   <target name="jar" depends="hafen-client, buildinfo, lib-classes">
-    <jar destfile="build/hafen.jar" update="true">
-      <fileset dir="build/classes" />
+    <jar destfile="build/hafen.jar" update="false">
+      <fileset dir="build/classes" excludes="**/*.bak" />
       <fileset dir="build/classes-lib" />
+      <zipfileset src="lib/ext/jlatexmath/jlatexmath-1.0.7.jar" excludes="META-INF/MANIFEST.MF" />
       <manifest>
 	<attribute name="Main-Class" value="haven.MainFrame" />
 	<attribute name="Class-Path" value="hafen-panama.jar jogl-all.jar gluegen-rt.jar lwjgl-fat.jar lwjgl-awt.jar lwjgl-opengl-fat.jar ${lwjgl-vk.jars} steamworks4j.jar builtin-res.jar hafen-res.jar nurgling-res.jar json-java.jar postgresql-42.7.5.jar sqlite-jdbc-3.49.1.0.jar" />
@@ -251,6 +262,7 @@
 
   <target name="bin" depends="jar, extlib/jogl-arm, extlib/lwjgl-gl, extlib/steamworks, res-jar">
     <mkdir dir="bin" />
+    <copy file="src/nurgling/craft/recipes.bin" tofile="bin/recipes.bin" />
     <copy todir="bin">
       <fileset dir="build">
 	<include name="hafen.jar" />
@@ -662,6 +674,47 @@
         <fileset dir="bin" includes="*.jar" />
       </classpath>
       <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
+  <target name="test-compass-atlas" depends="renderer-parity-compile"
+          description="Check compass bearings, craft atlas data and real UI rendering without a server">
+    <mkdir dir="build/compass-atlas-test-profile" />
+    <property name="compass-atlas.scale" value="1" />
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="haven.CompassAtlasTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.prefspec=compass-atlas-tests" />
+      <jvmarg value="-Dhaven.uiscale=${compass-atlas.scale}" />
+      <env key="APPDATA" path="build/compass-atlas-test-profile" />
+      <arg value="--render" />
+    </java>
+  </target>
+
+  <target name="test-craft-flow" depends="renderer-parity-compile" description="Validate quality DAG and native calculator UI">
+    <mkdir dir="build/compass-atlas-test-profile" />
+    <property name="compass-atlas.scale" value="1" />
+    <java classname="haven.CraftFlowTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+      <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.prefspec=compass-atlas-tests" />
+      <jvmarg value="-Dhaven.uiscale=${compass-atlas.scale}" />
+      <env key="APPDATA" path="build/compass-atlas-test-profile" />
+      <arg value="--render" />
+    </java>
+  </target>
+
+  <target name="test-wiki-recipes" depends="renderer-parity-compile"
+          description="Validate the shipped binary recipe database and character journal overlays">
+    <java classname="nurgling.craft.WikiRecipesTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
     </java>
   </target>
 

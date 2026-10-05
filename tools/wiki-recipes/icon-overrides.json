@@ -1,0 +1,431 @@
+{
+  "Alchemist's Table": {
+    "static": "paginae/bld/alchemiststable"
+  },
+  "Anvil": {
+    "static": "paginae/bld/anvil"
+  },
+  "Arched Chair": {
+    "static": "paginae/bld/archedchair"
+  },
+  "Barrel": {
+    "static": "paginae/bld/barrel"
+  },
+  "Bell Fountain": {
+    "static": "paginae/bld/bellfountain"
+  },
+  "Bell Tower": {
+    "static": "paginae/bld/belltower"
+  },
+  "Birdhouse": {
+    "static": "paginae/bld/birdhouse"
+  },
+  "Bone Chest": {
+    "static": "paginae/bld/bonechest"
+  },
+  "Brazier": {
+    "static": "paginae/bld/brazier"
+  },
+  "Candelabrum": {
+    "static": "paginae/bld/candelabrum"
+  },
+  "Cart": {
+    "static": "paginae/bld/cart"
+  },
+  "Catapult": {
+    "static": "paginae/bld/catapult"
+  },
+  "Cheese Rack": {
+    "static": "paginae/bld/cheeserack"
+  },
+  "Chicken Coop": {
+    "static": "paginae/bld/chickencoop"
+  },
+  "Churn": {
+    "static": "paginae/bld/churn"
+  },
+  "Cistern": {
+    "static": "paginae/bld/cistern"
+  },
+  "Cloth Armchair": {
+    "static": "paginae/bld/clotharmchair"
+  },
+  "Cloth Chair": {
+    "static": "paginae/bld/clothchair"
+  },
+  "Cloth Footstool": {
+    "static": "paginae/bld/clothfootstool"
+  },
+  "Coffer": {
+    "static": "paginae/bld/coffer"
+  },
+  "Coinpress": {
+    "static": "paginae/bld/coinpress"
+  },
+  "Compost Bin": {
+    "static": "paginae/bld/compostbin"
+  },
+  "Conch Chair": {
+    "static": "paginae/bld/conchchair"
+  },
+  "Coracle": {
+    "static": "paginae/bld/coracle"
+  },
+  "Cottage Table": {
+    "static": "paginae/bld/cottagetable"
+  },
+  "Cottage Throne": {
+    "static": "paginae/bld/cottagethrone"
+  },
+  "Crate": {
+    "static": "paginae/bld/crate"
+  },
+  "Crucible": {
+    "static": "paginae/bld/crucible"
+  },
+  "Cupboard": {
+    "static": "paginae/bld/cupboard"
+  },
+  "Cushioned Bench": {
+    "static": "paginae/bld/cushionedbench"
+  },
+  "Cushioned Stool": {
+    "static": "paginae/bld/cushionedstool"
+  },
+  "Demijohn": {
+    "static": "paginae/bld/demijohn"
+  },
+  "Display Case": {
+    "static": "paginae/bld/displaycase"
+  },
+  "Dovecote": {
+    "static": "paginae/bld/dovecote"
+  },
+  "Dressing Table": {
+    "static": "paginae/bld/dressingtable"
+  },
+  "Dugout": {
+    "static": "paginae/bld/dugout"
+  },
+  "Easel": {
+    "static": "paginae/bld/easel"
+  },
+  "Elegant Table": {
+    "static": "paginae/bld/eleganttable"
+  },
+  "Exquisite Chest": {
+    "static": "paginae/bld/exquisitechest"
+  },
+  "Face Cutout Standee": {
+    "static": "paginae/bld/facecutoutstandee"
+  },
+  "Fine Sled": {
+    "static": "paginae/bld/finesled"
+  },
+  "Fine Sofa": {
+    "static": "paginae/bld/finesofa"
+  },
+  "Fine Study Desk": {
+    "static": "paginae/bld/finestudydesk"
+  },
+  "Finery Forge": {
+    "static": "paginae/bld/fineryforge"
+  },
+  "Fireplace": {
+    "static": "paginae/bld/fireplace"
+  },
+  "Flagpole": {
+    "static": "paginae/bld/flagpole"
+  },
+  "Foldup Sign": {
+    "static": "paginae/bld/foldupsign"
+  },
+  "Garden Bench": {
+    "static": "paginae/bld/gardenbench"
+  },
+  "Glass Pane Frame": {
+    "static": "paginae/bld/glasspaneframe"
+  },
+  "Gong Stand": {
+    "static": "paginae/bld/gongstand"
+  },
+  "Granary": {
+    "static": "paginae/bld/granary"
+  },
+  "Grand Study Desk": {
+    "static": "paginae/bld/grandstudydesk"
+  },
+  "Grave Cairn": {
+    "static": "paginae/bld/gravecairn"
+  },
+  "Great Hall": {
+    "static": "paginae/bld/greathall"
+  },
+  "Greenhouse": {
+    "static": "paginae/bld/greenhouse"
+  },
+  "Hatrack": {
+    "static": "paginae/bld/hatrack"
+  },
+  "Hitching Post": {
+    "static": "paginae/bld/hitchingpost"
+  },
+  "Hookah": {
+    "static": "paginae/bld/hookah"
+  },
+  "Igloo": {
+    "static": "paginae/bld/igloo"
+  },
+  "Kiln": {
+    "static": "paginae/bld/kiln"
+  },
+  "Knarr": {
+    "static": "paginae/bld/knarr"
+  },
+  "Knarr Sail": {
+    "static": "paginae/bld/knarrsail"
+  },
+  "Lantern Hanger": {
+    "static": "paginae/bld/lanternhanger"
+  },
+  "Lantern Post": {
+    "static": "paginae/bld/lanternpost"
+  },
+  "Lantern Stand": {
+    "static": "paginae/bld/lanternstand"
+  },
+  "Large Chest": {
+    "static": "paginae/bld/largechest"
+  },
+  "Leanto": {
+    "static": "paginae/bld/leanto"
+  },
+  "Leather Basket": {
+    "static": "paginae/bld/leatherbasket"
+  },
+  "Linen Crate": {
+    "static": "paginae/bld/linencrate"
+  },
+  "Log Cabin": {
+    "static": "paginae/bld/logcabin"
+  },
+  "Long Bench": {
+    "static": "paginae/bld/longbench"
+  },
+  "Loom": {
+    "static": "paginae/bld/loom"
+  },
+  "Mannequin": {
+    "static": "paginae/bld/mannequin"
+  },
+  "Meatgrinder": {
+    "static": "paginae/bld/meatgrinder"
+  },
+  "Metal Cabinet": {
+    "static": "paginae/bld/metalcabinet"
+  },
+  "Metal Plow": {
+    "static": "paginae/bld/metalplow"
+  },
+  "Mine Beam": {
+    "static": "paginae/bld/minebeam"
+  },
+  "Mine Hole": {
+    "static": "paginae/bld/minehole"
+  },
+  "Mine Pyre": {
+    "static": "paginae/bld/minepyre"
+  },
+  "Mine Support": {
+    "static": "paginae/bld/minesupport"
+  },
+  "Monumental Column": {
+    "static": "paginae/bld/monumentalcolumn"
+  },
+  "Mound Bed": {
+    "static": "paginae/bld/moundbed"
+  },
+  "Notice Board": {
+    "static": "paginae/bld/noticeboard"
+  },
+  "Oven": {
+    "static": "paginae/bld/oven"
+  },
+  "Pickling Crock": {
+    "static": "paginae/bld/picklingcrock"
+  },
+  "Postbox": {
+    "static": "paginae/bld/postbox"
+  },
+  "Potter's Wheel": {
+    "static": "paginae/bld/potterswheel"
+  },
+  "Pumpkin Lantern": {
+    "static": "paginae/bld/pumpkinlantern"
+  },
+  "Quern": {
+    "static": "paginae/bld/quern"
+  },
+  "Rabbit Hutch": {
+    "static": "paginae/bld/rabbithutch"
+  },
+  "Raft": {
+    "static": "paginae/bld/raft"
+  },
+  "Ram Chair": {
+    "static": "paginae/bld/ramchair"
+  },
+  "Reinforced Tunnel": {
+    "static": "paginae/bld/reinforcedtunnel"
+  },
+  "Rocking Chair": {
+    "static": "paginae/bld/rockingchair"
+  },
+  "Rocking Horse": {
+    "static": "paginae/bld/rockinghorse"
+  },
+  "Rope Walk": {
+    "static": "paginae/bld/ropewalk"
+  },
+  "Rowboat": {
+    "static": "paginae/bld/rowboat"
+  },
+  "Royal Stool": {
+    "static": "paginae/bld/royalstool"
+  },
+  "Royal Throne": {
+    "static": "paginae/bld/royalthrone"
+  },
+  "Runestone": {
+    "static": "paginae/bld/runestone"
+  },
+  "Rustic Chair": {
+    "static": "paginae/bld/rusticchair"
+  },
+  "Rustic Table": {
+    "static": "paginae/bld/rustictable"
+  },
+  "Sawmill": {
+    "static": "paginae/bld/sawmill"
+  },
+  "Signboard": {
+    "static": "paginae/bld/signboard"
+  },
+  "Skull Throne": {
+    "static": "paginae/bld/skullthrone"
+  },
+  "Skullpole": {
+    "static": "paginae/bld/skullpole"
+  },
+  "Sleigh": {
+    "static": "paginae/bld/sleigh"
+  },
+  "Smoke Shed": {
+    "static": "paginae/bld/smokeshed"
+  },
+  "Snekkja": {
+    "static": "paginae/bld/snekkja"
+  },
+  "Snekkja Sail": {
+    "static": "paginae/bld/snekkjasail"
+  },
+  "Snow Lantern": {
+    "static": "paginae/bld/snowlantern"
+  },
+  "Snowman": {
+    "static": "paginae/bld/snowman"
+  },
+  "Standing Flag": {
+    "static": "paginae/bld/standingflag"
+  },
+  "Steel Crucible": {
+    "static": "paginae/bld/steelcrucible"
+  },
+  "Stone Arch Tunnel": {
+    "static": "paginae/bld/stonearchtunnel"
+  },
+  "Stone Bench": {
+    "static": "paginae/bld/stonebench"
+  },
+  "Stone Casket": {
+    "static": "paginae/bld/stonecasket"
+  },
+  "Stone Mansion": {
+    "static": "paginae/bld/stonemansion"
+  },
+  "Stone Table": {
+    "static": "paginae/bld/stonetable"
+  },
+  "Stone Throne": {
+    "static": "paginae/bld/stonethrone"
+  },
+  "Stone Tower": {
+    "static": "paginae/bld/stonetower"
+  },
+  "Stonehut": {
+    "static": "paginae/bld/stonehut"
+  },
+  "Stonestead": {
+    "static": "paginae/bld/stonestead"
+  },
+  "Straw Basket": {
+    "static": "paginae/bld/strawbasket"
+  },
+  "Strongbox": {
+    "static": "paginae/bld/strongbox"
+  },
+  "Study Desk": {
+    "static": "paginae/bld/studydesk"
+  },
+  "Sturdy Bed": {
+    "static": "paginae/bld/sturdybed"
+  },
+  "Tar Kiln": {
+    "static": "paginae/bld/tarkiln"
+  },
+  "Thatch Basket": {
+    "static": "paginae/bld/thatchbasket"
+  },
+  "Thatched Chair": {
+    "static": "paginae/bld/thatchedchair"
+  },
+  "Thatched Hut": {
+    "static": "paginae/bld/thatchedhut"
+  },
+  "Timber House": {
+    "static": "paginae/bld/timberhouse"
+  },
+  "Timber Tunnel": {
+    "static": "paginae/bld/timbertunnel"
+  },
+  "Torchpost": {
+    "static": "paginae/bld/torchpost"
+  },
+  "Trellis": {
+    "static": "paginae/bld/trellis"
+  },
+  "Wagon": {
+    "static": "paginae/bld/wagon"
+  },
+  "Wagon Station": {
+    "static": "paginae/bld/wagonstation"
+  },
+  "Wardrobe": {
+    "static": "paginae/bld/wardrobe"
+  },
+  "Watermill": {
+    "static": "paginae/bld/watermill"
+  },
+  "Well": {
+    "static": "paginae/bld/well"
+  },
+  "Wheelbarrow": {
+    "static": "paginae/bld/wheelbarrow"
+  },
+  "Windmill": {
+    "static": "paginae/bld/windmill"
+  },
+  "Wooden Plow": {
+    "static": "paginae/bld/woodenplow"
+  }
+}

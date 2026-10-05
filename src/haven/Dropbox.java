@@ -29,7 +29,15 @@ public abstract class Dropbox<T> extends ListWidget<T> {
 
         protected T listitem(int i) {return(Dropbox.this.listitem(i));}
         protected int listitems() {return(Dropbox.this.listitems());}
-        protected void drawitem(GOut g, T item, int idx) {Dropbox.this.drawitem(g, item, idx);}
+        protected void drawitem(GOut g, T item, int idx) {Dropbox.this.drawlistitem(g, item, idx);}
+
+        protected void itemclick(T item, Coord c, int button) {
+            int width = sz.x - (sb.vis() ? sb.sz.x : 0);
+            if(Dropbox.this.listitemclick(item, c, button, width))
+                reqdestroy();
+            else
+                super.itemclick(item, c, button);
+        }
 
         public void destroy() {
             grab.remove();
@@ -42,6 +50,10 @@ public abstract class Dropbox<T> extends ListWidget<T> {
             reqdestroy();
         }
     }
+
+    /** Popup rows may have actions separate from selecting the item. */
+    protected void drawlistitem(GOut g, T item, int idx) { drawitem(g, item, idx); }
+    protected boolean listitemclick(T item, Coord c, int button, int width) { return false; }
 
     public static Color bgColor = nurgling.styles.UITheme.INPUT;
     public void draw(GOut g) {

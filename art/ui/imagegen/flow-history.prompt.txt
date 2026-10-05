@@ -1,0 +1,7 @@
+Tool: built-in image_gen; transparent_background=true.
+Final accepted master: flow-history-atlas.png (two cells, undo / redo).
+Runtime sprites: src/nurgling/styles/assets/buttons/flow-undo.png and flow-redo.png.
+Extraction: java tools/render-parity/PackGeneratedButtons.java --flow-history
+Existing add/output/fit/delete sprites are reused; NIconButton applies the same flat accent tint as Area Settings.
+
+A minimal flat 2D UI sprite sheet with ONLY TWO simple icons. Plain SVG-like vector appearance rendered to PNG. True transparent alpha background. Two equal square cells side by side. Left cell: UNDO icon, a single thick curved stroke with arrowhead pointing LEFT. Right cell: REDO icon, its horizontal mirror, arrowhead pointing RIGHT. Exactly ONE uniform solid color #efa04c for both symbols. Smooth antialiased edges. The inside and outside of the curves are empty transparent space. Large clear symbols centered in each cell with generous empty margins. No shading, no gradients, no bevel, no highlights, no depth, no texture, no shadows, no glow, no lighting, no button bodies, no outlines around strokes, no text, no labels. Think basic flat toolbar symbols in an inventory UI, extremely simple clean single-color silhouettes.

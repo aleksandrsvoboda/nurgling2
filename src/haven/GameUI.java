@@ -244,6 +244,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public boolean dropthing(Coord c, Object thing) {
 	    int slot = beltslot(c);
 	    if(slot != -1) {
+		if(thing instanceof nurgling.craft.RecipeTransfer)
+		    thing = ((nurgling.craft.RecipeTransfer)thing).page();
 		if(thing instanceof MenuGrid.Pagina) {
 		    MenuGrid.Pagina pag = (MenuGrid.Pagina)thing;
 		    try {
@@ -1408,11 +1410,16 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public class MainMenu extends Widget {
 	public MainMenu() {
 	    super(Coord.z);
-	    // Top row - 5 buttons: Inventory, Equipment, Character Sheet, Kith & Kin, Options
+	    // Top row: Inventory, Equipment, Character Sheet, Kith & Kin, Atlas, Options.
 	    Widget firstButton = prev = add(new MenuCheckBox("rbtn/inv/", kb_inv, L10n.get("inventory.window_title")), 0, 0).state(() -> wndstate(invwnd)).click(() -> togglewnd(invwnd));
 	    prev = add(new MenuCheckBox("rbtn/equ/", kb_equ, L10n.get("equipment.window_title")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(equwnd)).click(() -> togglewnd(equwnd));
 	    prev = add(new MenuCheckBox("rbtn/chr/", kb_chr, L10n.get("opt.keybind.character")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(chrwdg)).click(() -> togglewnd(chrwdg));
 	    prev = add(new MenuCheckBox("rbtn/bud/", kb_bud, L10n.get("opt.keybind.kith_kin")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(zerg)).click(() -> togglewnd(zerg));
+            prev = add(new nurgling.widgets.NAtlasToggle(firstButton.sz), prev.pos("ur").add(UI.scale(10), 0))
+                .state(() -> GameUI.this instanceof NGameUI && wndstate(((NGameUI)GameUI.this).atlasWindow))
+                .click(() -> { if(GameUI.this instanceof NGameUI) ((NGameUI)GameUI.this).toggleCraftAtlas(); });
+            prev.setgkey(NGameUI.kb_atlas);
+            prev.settip(L10n.get("atlas.title"));
 	    prev = add(new MenuCheckBox("rbtn/opt/", kb_opt, L10n.get("opt.keybind.options")), prev.pos("ur").add(UI.scale(10),0)).state(() -> wndstate(opts)).click(() -> togglewnd(opts));
 
 		// Bottom row - buttons: Areas, Cook Book, Blueprints, Base Planner, Storage

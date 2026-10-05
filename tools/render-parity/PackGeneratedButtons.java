@@ -27,6 +27,19 @@ public class PackGeneratedButtons {
     }
     public static void main(String[] args) throws Exception {
         Files.createDirectories(OUT);
+        if(args.length == 1 && args[0].equals("--flow-canvases")) {
+            cells("flow-new-canvas-master.png",1,1,new String[]{"flow-new-canvas"});
+            cells("flow-rename-canvas-master.png",1,1,new String[]{"flow-rename-canvas"});
+            return;
+        }
+        if(args.length == 1 && args[0].equals("--calculator")) {
+            cells("quality-calculator-master.png",1,1,new String[]{"quality-calculator"});
+            return;
+        }
+        if(args.length == 1 && args[0].equals("--flow-history")) {
+            cells("flow-history-atlas.png", 2, 1, new String[]{"flow-undo", "flow-redo"});
+            return;
+        }
         if(args.length > 0 && args[0].equals("storage")) {
             cells("storage-items.png", 1, 1, new String[]{"storage-items"});
             return;
