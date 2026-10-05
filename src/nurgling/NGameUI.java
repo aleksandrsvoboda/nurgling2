@@ -172,7 +172,15 @@ public class NGameUI extends GameUI
 
     private void initHeavyWidgets() {
         atlas = new nurgling.craft.CraftAtlas(this);
-        add(compass = new NCompass(this));
+        // Draggable in drag mode; first placement is top centre, then wherever the user drops it
+        compass = new NCompass(this);
+        boolean compassPlaced = NDragProp.get("Compass").c != Coord.z;
+        NDraggableWidget compassWdg = add(new NDraggableWidget(compass, "Compass", compass.sz.add(NDraggableWidget.delta)));
+        if(!compassPlaced)
+            compassWdg.target_c = new Coord((sz.x - compassWdg.sz.x) / 2, UI.scale(28) - NDraggableWidget.off.y);
+        // The wrapper shows its content by default; keep a disabled compass hidden
+        if(!compass.enabled())
+            compass.hide();
         itemsForSearch = new NSearchItem();
         // Replace Cal with NCal to keep calendar customizations in nurgling package
         Widget oldCalendarWidget = null;

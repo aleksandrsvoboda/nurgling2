@@ -302,20 +302,11 @@ public class CompassAtlasTest {
                     check(toggled[0], "Atlas icon button not clickable");
                     capture(window, menuPreview, UI.scale(320, 85), "atlas-menu"); menuPreview.destroy();
                     System.out.println("PASS: wiki atlas, scrollbar click/drag, " + formulas + " TeX formulas, resource icons and menu toggle");
-                    final Area[] calendarObstacle = {null};
                     NCompass compass = ui.root.add(new NCompass(null) {
                         protected Coord2d playerPosition() { return Coord2d.z; }
                         protected double cameraAngle() { return 0; }
-                        protected Area calendarBounds() { return calendarObstacle[0]; }
                     });
                     capture(window, compass, UI.scale(980, 145), "compass-empty");
-                    calendarObstacle[0] = Area.sized(UI.scale(230, 20), UI.scale(70, 70));
-                    compass.presize();
-                    check(compass.c.x >= calendarObstacle[0].br.x + UI.scale(12), "Compass overlaps calendar at left edge");
-                    calendarObstacle[0] = Area.sized(UI.scale(450, 20), UI.scale(70, 70));
-                    compass.presize();
-                    check(compass.c.y >= calendarObstacle[0].br.y + UI.scale(8), "Compass overlaps centred calendar");
-                    calendarObstacle[0] = null; compass.presize();
                     final int[] hits = new int[3];
                     Pointer[] pointers = new Pointer[3];
                     for(int i = 0; i < pointers.length; i++) {

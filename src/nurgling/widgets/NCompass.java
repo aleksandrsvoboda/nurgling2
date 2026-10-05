@@ -54,40 +54,14 @@ public class NCompass extends Widget {
     }
     @Override public void tick(double dt) {
         super.tick(dt);
-        presize(); // The calendar can be dragged or expanded independently of the compass.
         boolean preference = Utils.getprefb("navigation-compass", true);
         if(preference != enabled) { enabled = preference; show(enabled && !nurgling.render.Photo.on); }
     }
 
-    @Override public void presize() {
-        if(parent == null) return;
-        int width = Math.min(UI.scale(520), Math.max(UI.scale(200), parent.sz.x - UI.scale(40)));
-        int top = UI.scale(28);
-        Area obstacle = calendarBounds();
-        if(obstacle != null && obstacle.ul.y < top + UI.scale(78) && obstacle.br.y > top) {
-            int centre = parent.sz.x / 2;
-            int freeHalf = obstacle.br.x < centre ? centre - obstacle.br.x - UI.scale(12)
-                : obstacle.ul.x > centre ? obstacle.ul.x - centre - UI.scale(12) : 0;
-            if(freeHalf * 2 >= UI.scale(320)) width = Math.min(width, freeHalf * 2);
-            else if(obstacle.br.x > centre - width / 2 && obstacle.ul.x < centre + width / 2)
-                top = obstacle.br.y + UI.scale(8);
-        }
-        Coord size = new Coord(width, UI.scale(78));
-        if(!size.equals(sz)) resize(size);
-        move(new Coord((parent.sz.x - sz.x) / 2, top));
-    }
-    protected Area calendarBounds() {
-        if(gui == null || !(gui.calendar instanceof NCal) || !gui.calendar.visible() || gui.calendar.parent == null || !gui.calendar.parent.visible()) return null;
-        NCal calendar = (NCal)gui.calendar;
-        Area local = calendar.hudBounds();
-        Coord position = calendar.rootpos().sub(parent.rootpos());
-        return new Area(local.ul.add(position), local.br.add(position));
-    }
     @Override public void resize(Coord size) {
         if(shade != null) { shade.dispose(); shade = null; }
         super.resize(size);
     }
-    @Override protected void added() { super.added(); presize(); }
 
     private Tex label(String value) {
         return label(value, false, UITheme.TEXT);

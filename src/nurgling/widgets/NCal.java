@@ -112,19 +112,6 @@ public class NCal extends Cal {
         return new Coord(TIME_COL_W + PAD + (bg.sz().x / 2), top + (bg.sz().y / 2));
     }
 
-    /** Visible footprint for neighbouring HUD widgets; compact mode has a large transparent margin. */
-    public Area hudBounds() {
-        if(verboseMode()) return Area.sized(sz);
-        Coord top = imgCenter(false).sub(bg.sz().div(2));
-        Coord bottom = top.add(bg.sz());
-        for(int i = 0; i < eventNames.size(); i++) {
-            Coord at = eventPosition(i, false);
-            top = new Coord(Math.min(top.x, at.x), Math.min(top.y, at.y));
-            bottom = new Coord(Math.max(bottom.x, at.x + ICON_SZ), Math.max(bottom.y, at.y + ICON_SZ));
-        }
-        return new Area(top, bottom);
-    }
-
     @Override
     public boolean checkhit(Coord c) {
         Coord ul = imgCenter(verboseMode()).sub(bg.sz().div(2));
