@@ -22,7 +22,22 @@ public class GrassTest {
         for(VertexBuf.AttribData data:mesh.vert.bufs)if(data.attr==name)return ((VertexBuf.FloatData)data).data;
         throw new AssertionError("Missing blade attribute");
     }
+    static void unsignedBounds() {
+        FloatBuffer vertices=FloatBuffer.allocate(65536*3);
+        vertices.put(0,9999); // Unreferenced vertices must not affect bounds.
+        int[] ids={32767,32768,65535};
+        float[][] points={{-5,2,3},{4,-7,19},{13,17,-11}};
+        for(int i=0;i<ids.length;i++)for(int c=0;c<3;c++)vertices.put(ids[i]*3+c,points[i][c]);
+        FastMesh mesh=new FastMesh(new VertexBuf(new VertexBuf.VertexData(vertices)),
+                new short[]{(short)32767,(short)32768,(short)65535});
+        try {
+            require(mesh.nbounds().equals(Coord3f.of(-5,-7,-11)),"Unsigned mesh minimum bounds");
+            require(mesh.pbounds().equals(Coord3f.of(13,17,19)),"Unsigned mesh maximum bounds");
+            require(vertices.position()==0&&mesh.indb.position()==0,"Bounds calculation moves input buffers");
+        }finally{mesh.dispose();}
+    }
     static void geometry() {
+        unsignedBounds();
         require(Grass.eligible("gfx/tiles/grass")&&!Grass.eligible("gfx/tiles/dirt")&&!Grass.eligible("gfx/tiles/ballbrick"),"Terrain filtering");
         FastMesh a=Grass.build(Coord.z,terrain),b=Grass.build(Coord.z,terrain);
         require(a!=null&&a.vert.num<65536,"Empty or oversized patch");
@@ -63,7 +78,13 @@ public class GrassTest {
             }
             for(int count:counts)require(count==Math.round(32*quantity)*4,"Grass leaves empty or truncated terrain tiles");
             require(patch.vert.num<65536,"Full coverage exceeds mesh index limit");
-            patch.dispose();
+            // Exercise the same bounds calculation used by the background job.
+            // A fully grassy patch at 200% contains 51,200 vertices.
+            if(quantity==2)require(patch.vert.num>32768,"Dense fixture misses unsigned index boundary");
+            Grass.Patch cached=new Grass.Patch(key,new MapMesh[0],patch,quantity);
+            require(Math.abs(cached.low-.015f)<.00001f&&cached.high>cached.low&&
+                    cached.high<=Grass.MAX_HEIGHT+.016f,"Invalid dense grass bounds");
+            cached.dispose();
         }
         Grass.Trail slow=new Grass.Trail(),fast=new Grass.Trail();
         double now=WaterSurface.epoch+10;
