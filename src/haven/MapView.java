@@ -1240,15 +1240,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private void amblight() {
 	synchronized(glob) {
 	    boolean outdoors = outdoorLighting();
+	    nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
 	    if(outdoors && sceneDebug.hasTime()) {
 		amblight = sceneDebug.light();
 	    } else if(glob.lightamb != null) {
-		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
+		// Vulkan's night-vision button controls exposure, never the legacy light boost.
+		// Keep the same baseline when exposure is disabled (including Classic).
+		boolean vulkan = nurgling.render.NGfx.supported(ui.getenv());
+		amblight = new DirLight(vulkan ? glob.lightamb : glob.blightamb,
+		        vulkan ? glob.lightdif : glob.blightdif,
+		        vulkan ? glob.lightspc : glob.blightspc,
+		        Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
 		amblight.prio(100);
 	    } else {
 		amblight = null;
 	    }
-	    nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
 	    basic(nurgling.render.WorldLighting.Smooth.class,
 	            outdoors && ((graphics.worldlight && graphics.worldlightstrength > 0) || graphics.bettershadows) ? nurgling.render.WorldLighting.smooth : null);
 	    if(outdoors && graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {

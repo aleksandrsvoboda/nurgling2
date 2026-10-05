@@ -40,7 +40,7 @@ public class NGfx {
 	/* World: wet ground in
 	 * rain, fire glow, heat shimmer and light shafts. */
 	public final boolean wet, glow, heat, shafts, lightning, grass;
-	public final float grassdistance, grassdensity;
+	public final float grassdensity;
 	/* Temporal anti-aliasing, edge-aware upscaling, auto-exposure;
 	 * snow settling and parallax ground. */
 	public final boolean taa, upscale, autoexp, snow, parallax;
@@ -70,7 +70,6 @@ public class NGfx {
 	    wet = b(m, "wet", false);
 	    lightning = b(m, "lightningbolts", false);
 	    grass = b(m, "animatedgrass", false);
-	    grassdistance = bounded(f(m,"grassdistance",8),4,24,8);
 	    grassdensity = bounded(f(m,"grassdensity",1),.25f,2,1);
 	    glow = b(m, "glow", false);
 	    heat = b(m, "heat", false);
@@ -100,7 +99,7 @@ public class NGfx {
 	    m.put("wet", wet); m.put("glow", glow);
 	    m.put("lightningbolts", lightning);
 	    m.put("animatedgrass", grass);
-	    m.put("grassdistance",grassdistance); m.put("grassdensity",grassdensity);
+	    m.put("grassdensity",grassdensity);
 	    m.put("heat", heat); m.put("shafts", shafts);
 	    m.put("taa", taa); m.put("upscale", upscale); m.put("autoexp", autoexp);
 	    m.put("snow", snow);

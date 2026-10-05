@@ -562,6 +562,18 @@
     </java>
   </target>
 
+  <target name="test-auto-exposure" depends="renderer-parity-compile"
+          description="Check Vulkan interior exposure, void exclusion and highlight protection">
+    <condition property="parity-exports"><javaversion atleast="16" /></condition>
+    <java classname="nurgling.render.AutoExposureTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg if:set="parity-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+    </java>
+  </target>
+
   <target name="test-better-shadows" depends="renderer-parity-compile"
           description="Check stable shadow projection and filtered depth comparisons on Vulkan">
     <condition property="parity-exports"><javaversion atleast="16" /></condition>

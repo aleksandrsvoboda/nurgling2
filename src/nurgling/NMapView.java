@@ -234,15 +234,6 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.render.NPostFX.Manager postfx = null;
     private nurgling.render.PointShadows pshadows = null;
 
-    /* Graphics options: temporal anti-aliasing nudges the camera by a
-     * fraction of a pixel every frame. */
-    @Override
-    public void basic(Object id, haven.render.Pipe.Op state) {
-        if ((id == Camera.class) && (state != null) && nurgling.render.Temporal.taa)
-            state = haven.render.Pipe.Op.compose(state, nurgling.render.Temporal.jitter(this, rendersz()));
-        super.basic(id, state);
-    }
-
     /* Photo mode: focus on the clicked point of the map. */
     private void photofocus(Coord2d mc) {
         try {
@@ -333,6 +324,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                     ((haven.render.vk.VkDrawList) back).refresh();
             });
         postfx.sync(g.out.env());
+        // Use this view's effective settings and one immutable camera per draw.
+        // UI ticks do not advance the temporal sampling sequence.
+        super.basic(Camera.class, nurgling.render.Temporal.cameraFrame(this, rendersz(), camera,
+                nurgling.render.NGfx.effective(g.out.env()).taa));
         updpshadows();
         postfx.tick(this, (amblight == null) ? -1 : lights.index(amblight));
 

@@ -124,7 +124,6 @@ public class GraphicsSettings extends Panel {
 	prev = check(cont, prev, "gfx.rainripples", s -> s.rainripples, "rainripples");
 	prev = check(cont, prev, "gfx.lightningbolts", s -> s.lightning, "lightningbolts");
 	prev = check(cont, prev, "gfx.animatedgrass", s -> s.grass, "animatedgrass");
-	prev = slider(cont, prev, "gfx.grassdistance", 4, 24, s -> s.grassdistance, "grassdistance", 1);
 	prev = slider(cont, prev, "gfx.grassdensity", 25, 200, s -> s.grassdensity, "grassdensity", 100);
 	prev = check(cont, prev, "gfx.wet", s -> s.wet, "wet");
 	prev = check(cont, prev, "gfx.snow", s -> s.snow, "snow");
@@ -194,7 +193,6 @@ public class GraphicsSettings extends Panel {
 
     private static String sliderValue(String name,int value,int scale) {
         if(name.equals("grassdensity")) return value+"%";
-        if(name.equals("grassdistance")) return Integer.toString(value);
         return String.format("%.2f",value/(double)scale);
     }
     private Widget slider(Widget cont, Widget prev, String key, int min, int max, Function<NGfx.Settings, Float> get, String name, int scale) {

@@ -15,10 +15,19 @@ duration of the slowest 1% of frames), p99/max duration, and frames over 50 ms.
 Times include simulation, render waiting and the FPS limiter; they are client
 frame cadence, not GPU execution time or measured monitor presentation. A new
 session or session switch resets the history. Recording uses a bounded ring
-without per-frame allocations; the visible panel refreshes its texture at 10 Hz.
+without per-frame allocations. At 10 Hz the visible panel requests a background
+raster and RGBA conversion, then uploads finished pixels into one persistent,
+exact-size streaming texture. There is at most one pending raster per panel;
+the UI never waits for it. Hidden panels stop requesting work. This avoids doing
+Java2D conversion into a new power-of-two texture on every graph refresh, which
+can itself create the frame spikes being measured. `fps-panel` diagnostic scopes
+measure remaining UI-side publication/upload work.
 
 `ant test-frame-history` checks the statistics and writes English/Russian
 previews at 1x/2x scale to `build/fps-preview/`.
+`ant test-fps-graph-texture` additionally blocks the raster worker to verify that
+the UI stays nonblocking, and checks GPU pixels, native texture reuse, resize and
+disposal with both Vulkan and OpenGL.
 
 The collapsed **Debug** section offers a local time-of-day slider and independent
 rain/snow previews, using the normal weather particles on both renderers. Moving
@@ -81,8 +90,12 @@ These describe CPU submission/pacing cadence, not measured GPU presentation. All
 statistics and sorting happen on export, with no extra per-frame history or disk IO.
 During a Vulkan stall, stacks also include that environment's render and callback
 threads (and monitor owners), to distinguish UI fence waits from renderer work.
-`render-stage` events additionally time Vulkan ring allocation/reset, queue-present
-and present-wait calls taking at least 2 ms. They use `stage_start_s`/`stage_ms`,
+`map-cut` events record each cut attachment/replacement/removal, its coordinates,
+grid class and CPU duration, including operations shorter than 1 ms. They let a
+boundary crossing be correlated with work on the following frames.
+`render-stage` events additionally time Vulkan ring allocation/reset, new buffer
+and texture preparation, draw-list preparation, queued uploads, GPU-fence waits,
+queue-present and present-wait calls taking at least 2 ms. They use `stage_start_s`/`stage_ms`,
 include return codes or buffer sizes, and describe CPU call time rather than GPU
 execution time. This separates a long native wait from a chance stack sample.
 `MovementTraceTest` checks retention, wraparound, actor/session isolation, the hotkey,
@@ -258,24 +271,31 @@ and butterflies have also been removed, including their settings and presets.
 The game's original vegetation animation, weather, smoke and fire embers remain.
 The separate **Animated grass** option adds short segmented blades exclusively to
 `gfx/tiles/grass`. It defaults off. The implementation follows Shrine's procedural
-blade/root weighting and GaussianPatch grouping, with deterministic jittered tufts,
-elongated groups and sparse margins. Heights range from 1.3 to 3.4 Haven units;
+blade/root weighting, with deterministic jittered tufts distributed across every
+grass tile instead of separated Gaussian groups. Heights range from 1.3 to 3.4 Haven units;
 roots sample the actual terrain surface. Grass does not change movement or picking.
-Draw distance is adjustable from 4 to 24 tiles (default 8), and quantity from
-25% to 200% (default 100%). Both persist and apply when the slider is released.
-Geometry is built by one background worker in bounded 4x4-tile patches (25 at
-default range, at most 169 at maximum), invalidated when source map meshes change. Missing resources
+Grass covers the visible grassy terrain within the map's rendered cuts, without
+a distance limit around the player. Quantity remains adjustable from 25% to 200%
+(default 100%), persisted and applied when the slider is released.
+One background worker selects patches against a snapshot of the camera frustum
+using cached terrain height bounds, and builds geometry in 5x5-tile patches
+aligned with the map cuts, without requesting neighboring cuts outside that area.
+There is at most one pending visibility scan and one pending mesh build. Visibility
+is refreshed at 5 Hz, with a screen margin; draws are culled against the current
+camera each frame. Meshes outside the selected area are released, and meshes are
+invalidated when source map meshes change. Missing resources
 retry without waiting on the frame thread. The Vulkan pass uses asynchronous
 pipeline preparation, writes depth before water and temporal accumulation, and
-uses no vendor-specific APIs or per-blade CPU animation. Distant blades smoothly
-shrink over the final 18% of the selected range. Quantity extends a deterministic
-tuft sequence, preserving existing positions and grouping. Density changes keep
+uses no vendor-specific APIs or per-blade CPU animation. Quantity extends a deterministic
+tuft sequence, preserving existing positions. Each tile has 8–64 tufts across
+the quantity range; roots stay within their tile, without a bare border. Density changes keep
 old meshes visible until replacements are ready; stale-density jobs are discarded.
 Each patch is capped below 16-bit vertex indices. Wind and distance-sampled player contacts bend
 only the upper blade; the strongest nearby contact wins, and the trail relaxes in
 1.4 seconds. Teleports clear the trail. `test-grass` covers placement, slope/root
 height, repeatability, bounded geometry, distance sampling, wind, contact, recovery
-foreground occlusion, saved slider values, density coverage and distance culling;
+foreground occlusion, saved quantity values, full tile coverage, camera culling
+and visible terrain far from the player;
 `GrassTest --preview` writes rendered animation frames.
 Contact sampling carries residual path length across frames and interpolates birth
 times, so equal trajectories at different frame rates produce the same contacts.
@@ -421,8 +441,8 @@ Heat shimmer uses the same flame geometry and fixture alignment, independently o
 the realistic-fire toggle. It starts within the upper flame and fades shortly above
 it, with width derived from the projected flame footprint in pixels. The old fixed
 30-unit plume attached to warm point lights is removed. Current depth excludes
-foreground objects. Refraction runs after TAA so temporal accumulation cannot erase
-the ripples; its strength scales with the footprint, capped below 2.5 pixels per
+foreground objects. Refraction runs on the jittered raster grid before the final
+TAA resolve; its strength scales with the footprint, capped below 2.5 pixels per
 source, with subpixel motion for small candles.
 `ant test-heat-shimmer` checks the actual GPU shader's footprint, distortion and
 occlusion, plus candle/campfire scaling.
@@ -431,12 +451,30 @@ The optional `FireEffectsTest --cached-resources` mode also verifies cold render
 registration, original orange/green/blue materials and candelabrum wick alignment
 using the configured client resource cache.
 
-TAA reprojection uses the actual jittered view/projection matrices. History weight
-falls from 82% at rest to 20% during fast screen-space motion, excluding the sampling
-jitter itself. Luminance disagreement and a tighter moving neighborhood limit trails.
+TAA resolves after depth-dependent effects and sharpening, before resampling.
+Color history and output use the stable display grid; current color and both depth
+frames use their own jittered raster coordinates. Reprojection uses the actual
+view/projection matrices and removes the preceding frame's jitter when sampling
+color history. This avoids repeatedly shifting and filtering stationary detail.
+History weight falls from 92% at rest to 20% during fast screen-space motion.
+Neighborhood color bounds and a tighter moving neighborhood limit trails; static
+subpixel coverage changes no longer trigger aggressive history rejection.
 A single R32F depth-history texture rejects newly visible surfaces; history resets
 after resizing or a frame gap over 250 ms. `ant test-temporal-aa` checks these shader
-rules and the depth-copy pass on GPU. Reprojection still lacks per-object motion
+rules, depth copying, and stationary marker centroids over all eight Halton offsets
+at native and doubled output resolution. A 96-frame fine-line scene also checks
+temporal variation and preserved spatial contrast at both scales: the old pipeline
+passed centroid checks while still producing 21.93/255 temporal RMS shimmer; the
+stable history resolves that forced-jitter fixture at 3.84/255 at native resolution.
+The live camera advances its sampling offset only when the unjittered camera
+matrix changes, retaining a fixed offset at rest. This deliberately stops cycling
+subpixel samples in a stationary scene. Camera and projection are snapshotted once
+per view draw, after settings sync; UI ticks do not advance jitter. Disabling TAA
+clears its correction immediately, and resizing starts at zero offset. The GPU
+move/stop fixture now measures 0/255 temporal RMS at both output scales, with
+spatial contrast retained. CPU checks cover immutable camera snapshots, two views,
+toggle/reset behavior and resizing.
+Reprojection still lacks per-object motion
 vectors, so moving/animated objects use depth and color rejection heuristics.
 
 `ant test-vulkan-picking` reproduces a dropped first click with cold asynchronous
@@ -454,7 +492,35 @@ palette (1). The server's shadow direction is retained. Missing or black outdoor
 lights are left alone, including underground. Debug's time slider previews the
 cycle. The old time-of-day tint checkbox and saved `tod` flag have been removed;
 there is no hidden tint stacked over the lighting option. Auto-exposure activates
-the color pass independently. Highlight compression applies only with tone mapping. `ant test-color-lighting` checks this contract and GPU grading output.
+the color pass independently, including its highlight shoulder even when color
+grading is disabled. `ant test-color-lighting` checks the grading contract and GPU output.
+
+Auto-exposure meters only rendered geometry using scene depth, so the black void
+around caves and houses does not increase their brightness. Weighted luminance
+and coverage survive every reduction level; dark geometry still contributes.
+An RMS luminance limit protects lit surfaces when deep shadows dominate the
+frame. Empty scenes use neutral exposure. `ant test-auto-exposure` checks actual
+Vulkan readbacks with 50–94% void, lit interiors, night, shadows and missing depth.
+Vulkan always uses the server's original ambient, diffuse and specular light,
+including when auto-exposure or graphics enhancements are disabled. The saved
+legacy Night vision boost applies only to OpenGL. Toggling Vulkan auto-exposure
+therefore leaves the scene's base lighting unchanged. Indoors, exposure is bounded
+to 1–2.2, even during adaptation after entering from outdoors. The applied gain
+falls smoothly towards one for already bright pixels, using their peak RGB
+channel so a saturated lamp is protected too. This lifts darkness while avoiding
+full-scene amplification of small bright areas. A soft shoulder above 0.8 retains
+highlight gradations; it can compress bright pixels but does not dim the shadows.
+The GPU test checks a monotonic dark-to-HDR ramp, dark-region lift, preserved
+highlight differences and the neutral disabled path. Outdoor exposure retains
+its 0.75 lower bound.
+
+Point-light shadow comparisons correct receiver depth at every PCF texel,
+including the four bilinear taps. Previously a single center depth was compared
+with all nearby samples; at grazing angles a basement floor shadowed itself in
+bands and blocks. The correction uses the receiver-plane gradient within each
+cube face, falling back to the existing bias across a face seam. The shadow GPU
+test reproduces the old floor artifact and checks that the fixed flat floor stays
+lit while a genuine blocker still casts a shadow.
 
 **Lighting > Better shadows** replaces the directional shadow path with two
 world-stable 2048-square maps: a detailed 440-unit-wide region around the player
@@ -513,6 +579,38 @@ feature bits are checked before enabling this path. Waits are bounded to 100 ms
 for hidden/changing surfaces. Without support, or with VSync disabled, the prior
 queue path remains available; `-Dhaven.vkpacing=false` provides an A/B diagnostic
 override. The extension does not promise an exact physical scanout timestamp.
+
+Presentation pacing waits for N-1 after submitting N, leaving one frame of
+headroom instead of draining the display queue after every submission. Present
+IDs restart on swapchain recreation. The pacing test also injects isolated render
+preparation spikes; its client timing does not establish physical scanout cadence.
+The frame limiter rechecks focus and FPS settings at most every 10 ms while
+sleeping, so returning from the 5 FPS background mode need not wait out 200 ms.
+
+## Cut streaming and exploration work
+
+Terrain meshes already build on Defer workers. Vulkan used to prepare all newly
+attached draw slots synchronously, even when an entire row of cuts arrived at
+once. Regular asynchronous draw lists now queue both additions and replacements.
+Each draw drains at most 300 attempts and stops starting new work after 2 ms.
+This is a soft budget per draw list: a single allocation/preparation can exceed
+it, and a frame may contain multiple lists. New parts may appear over several
+frames; existing drawing remains until its replacement is ready. Uniform-only
+updates remain immediate. Synchronous picking keeps its complete one-shot path.
+`ant test-vulkan-cut-streaming` exercises expensive warm preparation, blocked cold
+shader workers, queued removal, latest state and synchronous lists. The test's
+synthetic preparation delays are not an in-game FPS benchmark.
+
+Exploration persistence (merge, RLE/JSON, locking and disk writes) uses a daemon
+worker; profile paths are captured before dispatch. Mask arrays are immutable
+per-grid snapshots, so visiting one grid no longer invalidates every visible
+overlay. Overlay rasters use a bounded worker queue and a per-widget LRU cache;
+each map publishes at most two finished textures per draw. Workers never access
+render-tree/UI state. File-lock failures retain dirty state for retry instead of
+overwriting without the merge. `ant test-exploration-performance` checks snapshot
+identity, texture reuse, upload/cache bounds, asynchronous persistence and session
+write/delete ordering. Diagnostics distinguish `minimap-map` and
+`minimap-exploration`; metadata includes VSync and the background FPS limit.
 
 Run `ant test-graphics-baseline` for the configuration contract, or
 `ant test-renderer-parity` for that check plus the GPU comparison. The latter
