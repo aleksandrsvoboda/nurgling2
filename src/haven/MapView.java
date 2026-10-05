@@ -817,6 +817,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			T cut = getcut(cc);
 			Pair<T, RenderTree.Slot> cur = cuts.get(cc);
 			if((cur == null) || (cur.a != cut)) {
+			    double started = Utils.rtime();
 			    Coord2d pc = cc.mul(MCache.cutsz).mul(tilesz);
 			    RenderTree.Node draw = produce(cut);
 			    Pipe.Op cs = null;
@@ -825,6 +826,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    cuts.put(cc, new Pair<>(cut, slot.add(draw, cs)));
 			    if(cur != null)
 				cur.b.remove();
+			    nurgling.diagnostics.MovementTrace.mapCut(map, cc, started,
+				"attach " + getClass().getName());
 			}
 		    } catch(Loading l) {
 			l.boostprio(5);
@@ -835,7 +838,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		for(Iterator<Map.Entry<Coord, Pair<T, RenderTree.Slot>>> i = cuts.entrySet().iterator(); i.hasNext();) {
 		    Map.Entry<Coord, Pair<T, RenderTree.Slot>> ent = i.next();
 		    if(!area.contains(ent.getKey())) {
+			double started = Utils.rtime();
 			ent.getValue().b.remove();
+			nurgling.diagnostics.MovementTrace.mapCut(map, ent.getKey(), started,
+			    "remove " + getClass().getName());
 			i.remove();
 		    }
 		}

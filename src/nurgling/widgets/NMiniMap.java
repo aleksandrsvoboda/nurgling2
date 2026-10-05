@@ -26,6 +26,7 @@ NMiniMap extends MiniMap {
     public static final Color VIEW_BG_COLOR = new Color(255, 255, 255, 60);
     public static final Color VIEW_BORDER_COLOR = new Color(0, 0, 0, 128);
     public final ExploredArea exploredArea = new ExploredArea(this);
+    private final MinimapExploredAreaRenderer exploredRenderer = new MinimapExploredAreaRenderer();
 
     private String currentTerrainName = null;
 
@@ -277,13 +278,17 @@ NMiniMap extends MiniMap {
     public void drawparts(GOut g) {
         if(NUtils.getGameUI()==null)
             return;
-        drawmap(g);
+        try(nurgling.diagnostics.MovementTrace.Stage stage = nurgling.diagnostics.MovementTrace.stage(ui, "minimap-map")) {
+            drawmap(g);
+        }
         
         // Draw tile highlight overlay
         drawTileHighlightOverlay(g);
 
         // Render explored area overlay (yellow semi-transparent)
-        MinimapExploredAreaRenderer.renderExploredArea(this, g);
+        try(nurgling.diagnostics.MovementTrace.Stage stage = nurgling.diagnostics.MovementTrace.stage(ui, "minimap-exploration")) {
+            exploredRenderer.renderExploredArea(this, g);
+        }
         
         // Render claim overlays (personal, village, realm)
         MinimapClaimRenderer.renderClaims(this, g);
@@ -1157,6 +1162,7 @@ NMiniMap extends MiniMap {
 
     @Override
     public void destroy() {
+        exploredRenderer.dispose();
         // Never leave the movement queue paused because the map went away mid-steer.
         if(holdGrab != null)
             endHoldSteer();

@@ -417,6 +417,22 @@
     </java>
   </target>
 
+  <target name="test-vulkan-cut-streaming" depends="renderer-parity-compile"
+          description="Verify warm cut publication uses a bounded Vulkan preparation budget">
+    <java classname="haven.render.vk.VulkanCutStreamingTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+      <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
+    </java>
+  </target>
+
+  <target name="test-exploration-performance" depends="renderer-parity-compile"
+          description="Check background exploration persistence and bounded overlay preparation">
+    <java classname="nurgling.overlays.map.ExplorationPerformanceTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+    </java>
+  </target>
+
   <target name="test-frame-history" depends="renderer-parity-compile"
           description="Check FPS history statistics and render diagnostic HUD previews">
     <java classname="nurgling.render.FrameHistoryTest" fork="true" failonerror="true">
@@ -425,6 +441,15 @@
         <fileset dir="bin" includes="*.jar" />
       </classpath>
       <arg value="build/fps-preview" />
+    </java>
+  </target>
+
+  <target name="test-fps-graph-texture" depends="renderer-parity-compile"
+          description="Check background FPS graph raster and persistent GPU texture updates on both backends">
+    <java classname="nurgling.render.FpsGraphTextureTest" fork="true" failonerror="true">
+      <classpath><pathelement path="build/parity-classes" /><fileset dir="bin" includes="*.jar" /></classpath>
+      <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
+      <jvmarg value="-Dhaven.vkdebug=true" />
     </java>
   </target>
 

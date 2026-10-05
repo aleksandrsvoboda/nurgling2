@@ -17,6 +17,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 
 /**
@@ -28,6 +31,19 @@ import java.util.stream.Stream;
  * and deleted without affecting the main persistent explored area.
  */
 public class ExploredArea {
+    private static final ExecutorService io = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "exploration-save"); t.setDaemon(true); return t;
+    });
+    private final Object dataLock = new Object();
+    private long dataEpoch;
+
+    /** The caller captures its profile path; the worker never consults UI globals. */
+    public CompletableFuture<Void> saveAsync(String path) {
+        return CompletableFuture.runAsync(() -> {
+            try {mergeAndSaveToFile(path);}
+            catch(IOException e) {throw new java.util.concurrent.CompletionException(e);}
+        }, io);
+    }
     // Version tracking for cache invalidation (similar to TileHighlight.seq)
     public static volatile long seq = 0;
     // Separate version tracking for session layer
@@ -77,6 +93,8 @@ public class ExploredArea {
      * Get the appropriate NConfig instance (profile-specific if available)
      */
     private NConfig getConfig() {
+        if(miniMap != null && miniMap.ui != null && miniMap.ui.core != null)
+            return miniMap.ui.core.config;
         try {
             if (nurgling.NUtils.getUI() != null && nurgling.NUtils.getUI().core != null) {
                 return nurgling.NUtils.getUI().core.config;
@@ -127,15 +145,6 @@ public class ExploredArea {
                 Coord gridCoord = new Coord(gx, gy);
                 GridKey key = new GridKey(segmentId, gridCoord);
                 
-                // Get or create mask for this grid (main persistent layer)
-                boolean[] mask = gridMasks.computeIfAbsent(key, k -> new boolean[MASK_SIZE]);
-                
-                // Get or create mask for session layer if active
-                boolean[] sessionMask = null;
-                if (sessionActive) {
-                    sessionMask = sessionGridMasks.computeIfAbsent(key, k -> new boolean[MASK_SIZE]);
-                }
-                
                 // Calculate tile bounds within this grid
                 Coord gridTileStart = gridCoord.mul(GRID_SIZE);
                 int localULX = Math.max(0, tileUL.x - gridTileStart.x);
@@ -143,20 +152,14 @@ public class ExploredArea {
                 int localBRX = Math.min(GRID_SIZE, tileBR.x - gridTileStart.x);
                 int localBRY = Math.min(GRID_SIZE, tileBR.y - gridTileStart.y);
                 
-                // Mark tiles as explored
-                for (int y = localULY; y < localBRY; y++) {
-                    for (int x = localULX; x < localBRX; x++) {
-                        int idx = x + y * GRID_SIZE;
-                        // Update main layer
-                        if (!mask[idx]) {
-                            mask[idx] = true;
-                            changed = true;
-                        }
-                        // Update session layer if active
-                        if (sessionMask != null && !sessionMask[idx]) {
-                            sessionMask[idx] = true;
-                            sessionChanged = true;
-                        }
+                synchronized(dataLock) {
+                    boolean[] old = gridMasks.get(key);
+                    boolean[] mask = reveal(old, localULX, localULY, localBRX, localBRY);
+                    if(mask != old) {gridMasks.put(key, mask); changed = true;}
+                    if(sessionActive) {
+                        old = sessionGridMasks.get(key);
+                        mask = reveal(old, localULX, localULY, localBRX, localBRY);
+                        if(mask != old) {sessionGridMasks.put(key, mask); sessionChanged = true;}
                     }
                 }
             }
@@ -170,6 +173,30 @@ public class ExploredArea {
             sessionSeq++;
             needSessionUpdate = true;
         }
+    }
+
+    /* Published masks are immutable snapshots. Identity is a per-grid revision:
+     * revealing another grid must not invalidate every visible overlay. */
+    private static boolean[] reveal(boolean[] original, int x0, int y0, int x1, int y1) {
+        boolean[] result = original;
+        for(int y = y0; y < y1; y++) for(int x = x0; x < x1; x++) {
+            int i = x + y * GRID_SIZE;
+            if(result == null || !result[i]) {
+                if(result == original) result = original == null ? new boolean[MASK_SIZE] : original.clone();
+                result[i] = true;
+            }
+        }
+        return result;
+    }
+
+    private static boolean[] union(boolean[] original, boolean[] extra) {
+        if(original == null) return extra;
+        boolean[] result = original;
+        for(int i = 0; i < MASK_SIZE; i++) if(extra[i] && !result[i]) {
+            if(result == original) result = original.clone();
+            result[i] = true;
+        }
+        return result;
     }
     
     // Flag for session save
@@ -196,6 +223,8 @@ public class ExploredArea {
      * Clear all explored data.
      */
     public void clear() {
+        synchronized(dataLock) {
+        dataEpoch++;
         if (!gridMasks.isEmpty()) {
             gridMasks.clear();
             lastTileUL = null;
@@ -203,6 +232,7 @@ public class ExploredArea {
             lastSegmentId = -1;
             seq++;
             NConfig.needExploredUpdate();
+        }
         }
     }
     
@@ -266,9 +296,9 @@ public class ExploredArea {
         if (needSessionUpdate && sessionActive) {
             long now = System.currentTimeMillis();
             if (now - lastSessionSaveTime > SESSION_SAVE_INTERVAL) {
-                saveSessionToFile();
                 needSessionUpdate = false;
                 lastSessionSaveTime = now;
+                saveSessionToFile();
             }
         }
     }
@@ -279,6 +309,7 @@ public class ExploredArea {
      * Merges file data with any in-memory data (in case exploration happened before profile init).
      */
     public void reloadFromFile() {
+        synchronized(dataLock) {dataEpoch++;}
         // Save current in-memory data before loading
         Map<GridKey, boolean[]> currentData = new HashMap<>(gridMasks);
         
@@ -297,9 +328,7 @@ public class ExploredArea {
                 gridMasks.put(key, memoryMask);
             } else {
                 // Merge: OR the masks
-                for (int i = 0; i < MASK_SIZE; i++) {
-                    fileMask[i] = fileMask[i] || memoryMask[i];
-                }
+                gridMasks.put(key, union(fileMask, memoryMask));
             }
         }
         
@@ -387,10 +416,10 @@ public class ExploredArea {
     /**
      * Convert session data to JSON for saving.
      */
-    private JSONObject sessionToJson() {
+    private JSONObject sessionToJson(Map<GridKey, boolean[]> data, boolean active) {
         JSONArray gridsArray = new JSONArray();
         
-        for (Map.Entry<GridKey, boolean[]> entry : sessionGridMasks.entrySet()) {
+        for (Map.Entry<GridKey, boolean[]> entry : data.entrySet()) {
             GridKey key = entry.getKey();
             boolean[] mask = entry.getValue();
             
@@ -411,7 +440,7 @@ public class ExploredArea {
         }
         
         JSONObject doc = new JSONObject();
-        doc.put("active", sessionActive);
+        doc.put("active", active);
         doc.put("grids", gridsArray);
         return doc;
     }
@@ -420,12 +449,34 @@ public class ExploredArea {
      * Save session data to file.
      */
     private void saveSessionToFile() {
-        NConfig config = getConfig();
-        try {
-            NFileUtils.writeAtomically(config.getSessionExploredPath(), sessionToJson().toString());
-        } catch (IOException e) {
-            // Ignore save errors
-        }
+        String path = getConfig().getSessionExploredPath();
+        Map<GridKey, boolean[]> snapshot = new HashMap<>(sessionGridMasks);
+        boolean active = sessionActive;
+        queueSessionWrite(() -> {
+            try {NFileUtils.writeAtomically(path, sessionToJson(snapshot, active).toString());}
+            catch(IOException e) {needSessionUpdate = true; System.err.println("Session exploration save failed: " + e.getMessage());}
+        });
+    }
+
+    private Runnable pendingSessionWrite;
+    private boolean sessionWriterRunning;
+    /** One running and one replaceable request: slow disks cannot grow a task backlog. */
+    private synchronized void queueSessionWrite(Runnable action) {
+        pendingSessionWrite = action;
+        if(sessionWriterRunning) return;
+        sessionWriterRunning = true;
+        io.execute(() -> {
+            while(true) {
+                Runnable next;
+                synchronized(ExploredArea.this) {
+                    next = pendingSessionWrite;
+                    pendingSessionWrite = null;
+                    if(next == null) {sessionWriterRunning = false; return;}
+                }
+                try {next.run();}
+                catch(RuntimeException e) {System.err.println("Session exploration write failed: " + e.getMessage());}
+            }
+        });
     }
     
     /**
@@ -480,15 +531,11 @@ public class ExploredArea {
      * Delete session file.
      */
     private void deleteSessionFile() {
-        NConfig config = getConfig();
-        try {
-            File file = new File(config.getSessionExploredPath());
-            if (file.exists()) {
-                file.delete();
-            }
-        } catch (Exception e) {
-            // Ignore delete errors
-        }
+        String path = getConfig().getSessionExploredPath();
+        queueSessionWrite(() -> {
+            try {Files.deleteIfExists(Paths.get(path));}
+            catch(IOException e) {System.err.println("Session exploration delete failed: " + e.getMessage());}
+        });
     }
     
     /**
@@ -575,6 +622,8 @@ public class ExploredArea {
      * 6. Release lock
      */
     public void mergeAndSaveToFile(String filePath) throws IOException {
+        final long epoch;
+        synchronized(dataLock) {epoch = dataEpoch;}
         File file = new File(filePath);
         File parentDir = file.getParentFile();
         if (parentDir != null && !parentDir.exists()) {
@@ -602,10 +651,7 @@ public class ExploredArea {
                 }
                 
                 if (lock == null) {
-                    // Still no lock, fall back to simple save
-                    System.err.println("Could not acquire file lock, saving without merge");
-                    saveWithoutMerge(filePath);
-                    return;
+                    throw new IOException("Exploration file is busy; retry without overwriting another client's data");
                 }
                 
                 // Read existing data from file
@@ -648,16 +694,10 @@ public class ExploredArea {
                 for (Map.Entry<GridKey, boolean[]> entry : mergedData.entrySet()) {
                     GridKey key = entry.getKey();
                     boolean[] mergedMask = entry.getValue();
-                    boolean[] currentMask = gridMasks.get(key);
-                    
-                    if (currentMask == null) {
-                        // Grid from disk that we didn't have
-                        gridMasks.put(key, mergedMask);
-                    } else {
-                        // Update our mask with merged data
-                        for (int i = 0; i < MASK_SIZE; i++) {
-                            currentMask[i] = mergedMask[i];
-                        }
+                    synchronized(dataLock) {
+                        if(dataEpoch != epoch) break;
+                        // Preserve exploration revealed while the worker was saving.
+                        gridMasks.put(key, union(gridMasks.get(key), mergedMask));
                     }
                 }
                 
@@ -671,17 +711,8 @@ public class ExploredArea {
                 }
             }
         } catch (Exception e) {
-            // If locking fails, fall back to simple save
-            System.err.println("Error during merge-save, falling back to simple save: " + e.getMessage());
-            saveWithoutMerge(filePath);
+            throw e instanceof IOException ? (IOException)e : new IOException("Exploration save failed", e);
         }
-    }
-    
-    /**
-     * Simple save without merge (fallback when locking fails).
-     */
-    private void saveWithoutMerge(String filePath) throws IOException {
-        NFileUtils.writeAtomically(filePath, toJson().toString());
     }
     
     /**

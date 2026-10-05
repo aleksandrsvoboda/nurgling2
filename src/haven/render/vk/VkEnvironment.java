@@ -875,6 +875,7 @@ public class VkEnvironment implements Environment {
 		throw(new IllegalArgumentException("ephemeral buffers have no device object"));
 	    VkBuf ret = VkReference.get(buf.ro, VkBuf.class);
 	    if((ret == null) || (ret.env != this)) {
+		double started = Utils.rtime();
 		if(buf.ro != null)
 		    buf.ro.dispose();
 		ret = new VkBuf(this, buf.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -883,6 +884,7 @@ public class VkEnvironment implements Environment {
 		    FillBuffer data = buf.init.fill(buf, this);
 		    ret.upload(0, data);
 		}
+		nurgling.diagnostics.MovementTrace.renderStage(this, "vertex-buffer-prepare", started, "bytes=" + buf.size());
 	    }
 	    return(ret);
 	}
@@ -894,6 +896,7 @@ public class VkEnvironment implements Environment {
 		throw(new IllegalArgumentException("ephemeral buffers have no device object"));
 	    VkBuf ret = VkReference.get(buf.ro, VkBuf.class);
 	    if((ret == null) || (ret.env != this)) {
+		double started = Utils.rtime();
 		if(buf.ro != null)
 		    buf.ro.dispose();
 		boolean wide = (buf.fmt == NumberFormat.UINT8);
@@ -904,6 +907,7 @@ public class VkEnvironment implements Environment {
 		    FillBuffer data = buf.init.fill(buf, this);
 		    ret.upload(0, data);
 		}
+		nurgling.diagnostics.MovementTrace.renderStage(this, "index-buffer-prepare", started, "bytes=" + buf.size());
 	    }
 	    return(ret);
 	}
@@ -915,10 +919,13 @@ public class VkEnvironment implements Environment {
 	synchronized(tex) {
 	    VkTexture ret = VkReference.get(tex.ro, VkTexture.class);
 	    if((ret == null) || (ret.env != this)) {
+		double started = Utils.rtime();
 		if(tex.ro != null)
 		    tex.ro.dispose();
 		ret = VkTexture.create(this, tex);
 		tex.ro = new VkReference<>(ret);
+		nurgling.diagnostics.MovementTrace.renderStage(this, "texture-prepare", started,
+		    "size=" + ret.w + "x" + ret.h + " levels=" + ret.levels);
 	    }
 	    return(ret);
 	}
