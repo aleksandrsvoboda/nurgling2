@@ -699,3 +699,14 @@ reuses its state-change index scratch array. GPU readback checks cover HUD refre
 alpha/resize, uniform snapshot isolation, async retries, and GL/Vulkan parity.
 These changes reduce allocation; they do not establish that all gameplay GC pauses
 are eliminated.
+
+The follow-up allocation pass also retains immutable light-grid topology while
+projection, light positions/ranges/order/count and the per-cell limit are unchanged.
+Color and directional-light direction updates still produce current light data;
+they do not require another 64x64x64 CPU grid. A changed topology gets new arrays,
+so delayed texture uploads cannot observe a later frame mutating their source.
+`test-light-grid-cache` compares Vulkan texture readback against uncached compilation
+for every invalidation case and checks allocation in a stationary scene (440 bytes
+per compile in the fixture, without another 512 KiB grid). Vulkan draw lists also
+retain equivalent pipeline keys across attachment swaps and immutable sampler
+snapshots when their bindings are unchanged.

@@ -396,6 +396,17 @@
     </java>
   </target>
 
+  <target name="test-light-grid-cache" depends="renderer-parity-compile"
+          description="Verify light-grid cache invalidation, GPU data and stationary-scene allocation">
+    <java classname="haven.render.LightGridCacheTest" fork="true" failonerror="true">
+      <classpath>
+        <pathelement path="build/parity-classes" />
+        <fileset dir="bin" includes="*.jar" />
+      </classpath>
+      <jvmarg value="-Dhaven.prefs.lightgridcache=true" />
+    </java>
+  </target>
+
   <target name="test-vulkan-async-draw" depends="renderer-parity-compile"
           description="Verify optional immediate draws never compile shaders or pipelines on frame threads">
     <java classname="haven.render.vk.VulkanAsyncDrawTest" fork="true" failonerror="true">

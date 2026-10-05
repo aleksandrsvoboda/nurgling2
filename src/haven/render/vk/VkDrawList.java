@@ -676,14 +676,20 @@ public class VkDrawList implements DrawList {
 	void refresh() {
 	    Targets tv = tgt.val;
 	    if(keyver != tgt.ver) {
-		key = prog.pipekey(vk, topo, tv.cfmt, tv.dfmt, tv.blend, tv.cmask);
+		// Shadow attachments can change every frame without changing the
+		// pipeline format. Avoid allocating a lookup key for every caster.
+		if(key == null || key.vk != vk || key.topo != topo || key.dfmt != tv.dfmt ||
+		   !Arrays.equals(key.cfmt, tv.cfmt) || !Arrays.equals(key.blend, tv.blend) ||
+		   !Arrays.equals(key.cmask, tv.cmask))
+		    key = prog.pipekey(vk, topo, tv.cfmt, tv.dfmt, tv.blend, tv.cmask);
 		keyver = tgt.ver;
 	    }
 	    boolean tch = false;
 	    for(int i = 0; i < prog.samplers.length; i++) {
 		UniformSetting u = unis[prog.samplers[i]];
 		if(tver[i] != u.ver) {
-		    tch = true;
+		    // Equal bindings are immutable and remain valid for queued draws.
+		    if(tex == null || !Objects.deepEquals(tex[i], u.val)) tch = true;
 		    tver[i] = u.ver;
 		}
 	    }
