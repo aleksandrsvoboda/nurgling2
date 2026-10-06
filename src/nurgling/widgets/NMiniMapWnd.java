@@ -379,10 +379,15 @@ public class NMiniMapWnd extends Widget{
     public void draw(GOut g, boolean strict)
     {
         drawWidget(g,strict,miniMap);
-        pbox.draw(g, miniMap.c.sub(marg), miniMap.sz.add(marg.mul(2)));
+        boolean flat = nurgling.styles.UITheme.on();
+        if(!flat)
+            pbox.draw(g, miniMap.c.sub(marg), miniMap.sz.add(marg.mul(2)));
         drawWidget(g,strict,toggle_panel);
         drawWidget(g,strict,map_box);
         drawWidget(g,strict,swdg);
+        // New UI: keep every edge inside the clipped map bounds, above the map and its controls.
+        if(flat)
+            pbox.draw(g, miniMap.c, miniMap.sz);
     }
 
     void drawWidget(GOut g, boolean strict, Widget wdg)

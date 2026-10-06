@@ -298,7 +298,20 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	rbtnimg.hide();
 	add(new NDraggableWidget(new MainMenu(), "mainmenu", UI.scale(270,109)));
 	menubuttons(rbtnimg);
-	portrait = add(new NDraggableWidget(Frame.with(new Avaview(Avaview.dasz, plid, "avacam"), false),"portrait", UI.scale(120, 108)));
+	Avaview ava = new Avaview(Avaview.dasz, plid, "avacam");
+	Frame portraitFrame = new Frame(ava.sz, true) {
+	    public void drawframe(GOut g) {
+		if(nurgling.styles.UITheme.on()) {
+		    // New UI: a flat accent line hugging the avatar instead of the ornate inset frame.
+		    Coord inset = UI.scale(1, 1);
+		    nurgling.styles.UITheme.panel(g, ava.c.add(box.btloff()).sub(inset), ava.sz.add(inset.mul(2)), null, nurgling.styles.UITheme.ACCENT);
+		} else {
+		    super.drawframe(g);
+		}
+	    }
+	};
+	portraitFrame.add(ava, 0, 0);
+	portrait = add(new NDraggableWidget(portraitFrame,"portrait", UI.scale(120, 108)));
 	add(new NDraggableWidget(buffs = new Bufflist(),"bufflist",Coord.z));
 	add(new NDraggableWidget(calendar = new Cal(),"Calendar",UI.scale(240,90)));
 	syslog = chat.add(new ChatUI.Log("System"));
@@ -1054,7 +1067,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		wdg.draw(g2);
 		if(mapViewReady)
 		{
-			if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid)
+			if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid && nurgling.styles.UITheme.on())
+			{
+				nurgling.styles.DragGrid.draw(g, sz);
+			}
+			else if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid)
 			{
 				// Calculate center of screen
 				int centerX = sz.x / 2;

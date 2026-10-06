@@ -152,6 +152,10 @@ public class NDraggableWidget extends Widget
     }
 
     public static void drawBg(GOut g, Coord sz, UI ui) {
+        if(nurgling.styles.UITheme.on()) {
+            drawFlatBg(g, sz, ui);
+            return;
+        }
         Coord bgUl = new Coord(ctl.sz().x / 2, ctl.sz().y / 2);
         Coord bgSz = new Coord(sz.x - ctl.sz().x, sz.y - ctl.sz().y);
         
@@ -206,6 +210,24 @@ public class NDraggableWidget extends Widget
                 g.image(bg, new Coord(x_pos, y_pos), new Coord(sz.x - x_pos - ctl.sz().x / 2, sz.y - y_pos - ctl.sz().y / 2));
             }
         }
+    }
+
+    /** New UI: the flat frame lies on the outer bounds, so fill up to those same bounds. */
+    private static void drawFlatBg(GOut g, Coord sz, UI ui) {
+        nurgling.NUI nui = ui instanceof nurgling.NUI ? (nurgling.NUI)ui : null;
+        int alpha = nui == null ? 255 : (int)(255 * nui.getUIOpacity());
+        if(nui != null && nui.getUseSolidBackground()) {
+            Color color = nui.getWindowBackgroundColor();
+            g.chcolor(color.getRed(), color.getGreen(), color.getBlue(), alpha);
+            g.frect(Coord.z, sz);
+        } else {
+            g.chcolor(255, 255, 255, alpha);
+            Tex texture = nui == null ? bg : Window.bg;
+            for(int y = 0; y < sz.y; y += texture.sz().y)
+                for(int x = 0; x < sz.x; x += texture.sz().x)
+                    g.image(texture, new Coord(x, y), Coord.z, sz);
+        }
+        g.chcolor();
     }
 
     /**
@@ -273,7 +295,7 @@ public class NDraggableWidget extends Widget
             if (dm != null)
             {
                 Coord prepc = this.c.add(ev.c.add(doff.inv()));
-                Coord newc = prepc.div(UI.scale(8)).mul(UI.scale(8)).sub(UI.scale(4),UI.scale(4));
+                Coord newc = nurgling.styles.DragGrid.snap(prepc);
                 
                 // Snap to screen edges
                 if(NUtils.getGameUI() != null && NUtils.getGameUI().sz != Coord.z) {
