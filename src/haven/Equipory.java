@@ -191,7 +191,7 @@ public class Equipory extends Widget implements DTarget {
 		g.frect(ecoords[i].add(1, 1), invsq.sz().sub(2, 2));
 		g.chcolor();
 	    }
-	    g.image(invsq, ecoords[i]);
+	    g.image(Inventory.slotsq, ecoords[i]);
 	    if(ebgs[i] != null)
 		g.image(ebgs[i], ecoords[i]);
 	}

@@ -79,7 +79,7 @@ public class NEquipProxy extends Widget implements DTarget {
             for (NEquipory.Slots slot : slots) {
                 c0.x = k;
                 Coord c1 = sqoff(c0);
-                g.image(invsq, c1);
+                g.image(Inventory.slotsq, c1);
                 WItem w = NUtils.getEquipment().quickslots[slot.idx];
                 if(w != null) {
                     w.draw(g.reclipl(c1, invsq.sz()));

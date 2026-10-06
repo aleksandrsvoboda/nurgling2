@@ -459,7 +459,7 @@ public class NEquipory extends Equipory
                 g.frect(slotCoord.add(1, 1), invsq.sz().sub(2, 2));
                 g.chcolor();
             }
-            g.image(invsq, slotCoord);
+            g.image(Inventory.slotsq, slotCoord);
             if(ebgs[i] != null)
                 g.image(ebgs[i], slotCoord);
         }

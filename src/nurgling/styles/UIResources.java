@@ -24,11 +24,12 @@ public final class UIResources {
     }
 
     private static final Color HOVER = new Color(255, 187, 112), PRESSED = new Color(201, 126, 59);
+    private static final Color SQUARE_HIT = new Color(UITheme.PANEL.getRed(), UITheme.PANEL.getGreen(), UITheme.PANEL.getBlue(), 128);
 
     /* Textured backgrounds that become the flat panel colour. */
     private static final java.util.Set<String> PANELS = new java.util.HashSet<>(java.util.Arrays.asList(
         "nurgling/hud/wnd/bg", "nurgling/hud/wnd/bgl", "nurgling/hud/wnd/bgr",
-        "gfx/hud/equip/bg", "gfx/hud/chantex", "gfx/hud/csearch-bg", "gfx/hud/lbtn-bg",
+        "gfx/hud/chantex", "gfx/hud/csearch-bg", "gfx/hud/lbtn-bg",
         "gfx/hud/hb-main", "gfx/hud/mmap/fgwdg", "nurgling/hud/chat/cbtng"));
     /* Ornate frames that become a flat 1px line. */
     private static final java.util.Set<String> FRAMES = new java.util.HashSet<>(java.util.Arrays.asList(
@@ -96,6 +97,10 @@ public final class UIResources {
         if(glyph != null) {
             BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
             Graphics2D g = result.createGraphics();
+            // Clicks are tested against image opacity: a half-opaque backing makes the whole
+            // square clickable, not just the glyph's own pixels.
+            g.setColor(SQUARE_HIT);
+            g.fillRect(0, 0, w, h);
             int side = Math.min(w, h);
             BufferedImage icon = GeneratedButtons.iconImage(glyph, side);
             Color state = glyph.equals("close") ? closeTint(name) : null;

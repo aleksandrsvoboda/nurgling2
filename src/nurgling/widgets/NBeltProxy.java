@@ -87,7 +87,7 @@ public class NBeltProxy extends Widget implements DTarget {
             // Draw slots
             for (int i = 0; i < totalSlots; i++) {
                 Coord slotPos = sqoff(slotCoord(i));
-                g.image(invsq, slotPos);
+                g.image(Inventory.slotsq, slotPos);
             }
             
             // Draw items

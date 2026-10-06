@@ -940,7 +940,7 @@ public class NGameUI extends GameUI
             for (int i = 0; i < size; i++) {
                 Coord c = beltc(i);
                 int slot = slot(i);
-                g.image(invsq, c);
+                g.image(Inventory.slotsq, c);
                 try {
                     Object item = belt(slot);
                     if (item != null) {

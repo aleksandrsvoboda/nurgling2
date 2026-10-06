@@ -36,6 +36,8 @@ import java.awt.image.WritableRaster;
 public class Inventory extends Widget implements DTarget {
     public static final Coord sqsz = UI.scale(new Coord(32, 32)).add(1, 1);
     public static final Tex invsq;
+    /** Hotbar, belt and equipment slots: New UI draws these without an outline. */
+    public static final Tex slotsq;
     public boolean dropul = true;
     public Coord isz;
     public boolean[] sqmask = null;
@@ -68,6 +70,7 @@ public class Inventory extends Widget implements DTarget {
 	// New UI (decided at client start, like the other image swaps): flat plate cells.
 	invsq = nurgling.styles.UIResources.active() ? new TexI(nurgling.styles.UITheme.cell(sz.x, sz.y))
 	                                              : new TexI(PUtils.rasterimg(buf));
+	slotsq = nurgling.styles.UIResources.active() ? new TexI(nurgling.styles.UITheme.slot(sz.x, sz.y)) : invsq;
     }
 
     @RName("inv")

@@ -1719,7 +1719,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    for(int i = 0; i < 12; i++) {
 		int slot = i + (curbelt * 12);
 		Coord c = beltc(i);
-		g.image(invsq, beltc(i));
+		g.image(Inventory.slotsq, beltc(i));
 		try {
 		    if(belt[slot] != null)
 			belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));
@@ -1773,7 +1773,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    for(int i = 0; i < 10; i++) {
 		int slot = i + (curbelt * 12);
 		Coord c = beltc(i);
-		g.image(invsq, beltc(i));
+		g.image(Inventory.slotsq, beltc(i));
 		try {
 		    if(belt[slot] != null) {
 			belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));

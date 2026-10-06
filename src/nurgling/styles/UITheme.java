@@ -69,6 +69,16 @@ public final class UITheme {
         return max <= min ? 0 : Math.max(0, Math.min(1, (value - (double)min) / (max - (double)min)));
     }
 
+    /** A cell's fill without its outline. */
+    public static BufferedImage slot(int width, int height) {
+        BufferedImage image = cell(width, height);
+        int fill = image.getRGB(width / 2, height / 2);
+        for(int y = 0; y < height; y++)
+            for(int x = 0; x < width; x++)
+                image.setRGB(x, y, fill);
+        return image;
+    }
+
     public static BufferedImage cell(int width, int height) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
