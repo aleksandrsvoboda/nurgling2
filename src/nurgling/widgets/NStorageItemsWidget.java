@@ -118,7 +118,7 @@ public class NStorageItemsWidget extends Window {
         int margin = UI.scale(10);
 
         // Row 1: Search field + Grouping dropdown
-        Label searchLabel = add(new Label(L10n.get("storage.search")), new Coord(margin, y));
+        prev = add(new Label(L10n.get("storage.search")), new Coord(margin, y + UI.scale(3)));
         searchField = add(new TextEntry(UI.scale(120), "") {
             @Override
             public boolean keydown(KeyDownEvent e) {
@@ -161,7 +161,7 @@ public class NStorageItemsWidget extends Window {
 
         // Quality filter
         int qualityX = UI.scale(290);
-        Label qualityLabel = add(new Label("Q>="), new Coord(qualityX, y));
+        add(new Label("Q>="), new Coord(qualityX, y + UI.scale(3)));
         qualityFilterEntry = add(new TextEntry(UI.scale(40), "") {
             @Override
             public void changed() {
@@ -173,20 +173,14 @@ public class NStorageItemsWidget extends Window {
         qualityFilterEntry.settip(L10n.get("storage.quality_filter_tip"));
 
         // Refresh button
-        Button refreshButton = add(new Button(UI.scale(70), L10n.get("storage.refresh")) {
+        add(new Button(UI.scale(70), L10n.get("storage.refresh")) {
             @Override
             public void click() {
                 loadItems();
             }
         }, new Coord(UI.scale(WINDOW_WIDTH - 90), y));
 
-        Widget[] filterRow = {searchLabel, searchField, groupingDropbox, qualityLabel, qualityFilterEntry, refreshButton};
-        int rowHeight = 0;
-        for (Widget control : filterRow)
-            rowHeight = Math.max(rowHeight, control.sz.y);
-        for (Widget control : filterRow)
-            control.move(new Coord(control.c.x, y + (rowHeight - control.sz.y) / 2));
-        y += rowHeight + UI.scale(5);
+        y += UI.scale(30);
 
         // Column headers (clickable for sorting)
         int headerY = y;

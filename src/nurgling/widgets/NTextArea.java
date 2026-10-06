@@ -22,10 +22,10 @@ import java.util.List;
  */
 public class NTextArea extends Widget implements ReadLine.Owner {
     public static final Text.Foundry fnd = new Text.Foundry(Text.sans, 12).aa(true);
-    public static final Color defcol = nurgling.styles.UITheme.TEXT;
-    public static final Color selcol = TextEntry.selcol;
-    public static final Color bgcol = nurgling.styles.UITheme.INPUT;
-    public static final Color brdcol = nurgling.styles.UITheme.LINE;
+    public static final Color defcol = new Color(255, 205, 109);
+    public static final Color selcol = new Color(24, 80, 192);
+    public static final Color bgcol = new Color(22, 27, 29, 255);
+    public static final Color brdcol = new Color(96, 100, 96);
     public static final int pad = UI.scale(3);
     public static final Tex caret = Resource.loadtex("nurgling/hud/text/caret");
 
@@ -222,7 +222,7 @@ public class NTextArea extends Widget implements ReadLine.Owner {
         ckscroll();
         g.chcolor(bgcol);
         g.frect(Coord.z, sz);
-        g.chcolor(hasfocus ? nurgling.styles.UITheme.ACCENT : brdcol);
+        g.chcolor(brdcol);
         g.rect(Coord.z, sz);
         g.chcolor();
 
@@ -251,11 +251,8 @@ public class NTextArea extends Widget implements ReadLine.Owner {
             Seg s = lines.get(li);
             int cx = pad + rend(s).advance(point - s.start);
             int cy = pad + (li * lineh) - scroll;
-            if (((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5) {
-                g.chcolor(nurgling.styles.UITheme.ACCENT);
-                g.frect(Coord.of(cx, cy), Coord.of(Math.max(1, UI.scale(1)), lineh));
-                g.chcolor();
-            }
+            if (((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5)
+                g.image(caret, Coord.of(cx - UI.scale(2), cy));
         }
         int total = lines.size() * lineh;
         if (total > vh) {

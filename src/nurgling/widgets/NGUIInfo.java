@@ -1,68 +1,62 @@
 package nurgling.widgets;
 
 import haven.*;
+import static haven.CharWnd.attrw;
+import static haven.CharWnd.ifnd;
 import nurgling.*;
-import nurgling.i18n.L10n;
+import static nurgling.NStyle.nifnd;
 
-import nurgling.tools.MarkdownToImageRenderer;
+public class NGUIInfo extends Window
+{
 
-/** Instructions for the HUD editor, rendered with the shared Markdown renderer. */
-public class NGUIInfo extends Window {
-    public static final int xs = UI.scale(500); // Legacy centering width used by other HUD windows.
-    private static final int CONTENT_W = UI.scale(520);
-    private static final int PAD = UI.scale(20);
+    public static final int xs = UI.scale(500);
+    public static final int ys = UI.scale(200);
+    public NGUIInfo()
+    {
+        super(new Coord(xs,ys), "Nurgling GUI settings");
 
-    public NGUIInfo() {
-        super(new Coord(CONTENT_W + PAD * 2, UI.scale(200)), L10n.get("draghelp.title"));
-        String path = L10n.get("opt.title") + " > " + L10n.get("opt.main.interface") + " > " + L10n.get("opt.interface.drag_mode");
-        String markdown = "# " + L10n.get("draghelp.heading") + "\n"
-            + L10n.get("draghelp.intro") + "\n\n"
-            + "- " + L10n.get("draghelp.move") + "\n"
-            + "- " + L10n.get("draghelp.resize") + "\n"
-            + "- " + L10n.get("draghelp.visibility") + "\n"
-            + "- " + L10n.get("draghelp.lock") + "\n"
-            + "# " + L10n.get("draghelp.reopen") + "\n"
-            + "**" + path + "**\n\n"
-            + L10n.get("draghelp.finish");
-        final TexI tex = new TexI(MarkdownToImageRenderer.renderHelp(markdown, CONTENT_W));
-        Widget instructions = add(new Widget(tex.sz()) {
-            @Override public void draw(GOut g) { g.image(tex, Coord.z); }
-            @Override public void dispose() { tex.dispose(); super.dispose(); }
-        }, new Coord(PAD, UI.scale(8)));
-        int width = CONTENT_W + PAD * 2;
-        add(new Button(UI.scale(240), L10n.get("draghelp.done")) {
-            @Override public void click() { closeEvent(); }
-        }, new Coord((width - UI.scale(240)) / 2, instructions.c.y + instructions.sz.y + UI.scale(4)));
+        RichTextBox rb;
+        prev = add(rb = new RichTextBox(UI.scale(new Coord(500, 180)), "$img[nurgling/hud/dragmode/title] Welcome to custom client Nurgling! \n" +
+                    "Arrange widgets as you wish. You can adjust the visibility of widgets. Close this window when you're done. You can call this mode again in the Interface settings", nifnd));
+        rb.bg = null;
+        add(new Button(UI.scale(200),"Close"){
+            @Override
+            public void click()
+            {
+                super.click();
+                closeEvent();
+            }
+        }, prev.pos("bl").add(xs/2- UI.scale(100),UI.scale(5)));
         pack();
-        resize(csz().add(PAD, UI.scale(16)));
     }
 
     @Override
-    public void wdgmsg(String msg, Object... args) {
-        if(msg.equals("close")) closeEvent();
-        else super.wdgmsg(msg, args);
+    public void wdgmsg(String msg, Object... args)
+    {
+        if(msg.equals("close"))
+        {
+            closeEvent();
+        }
+        else
+        {
+            super.wdgmsg(msg, args);
+        }
     }
 
     @Override
-    protected void added() {
-        super.added();
-        centerOnParent();
+    public void wdgmsg(Widget sender, String msg, Object... args)
+    {
+        super.wdgmsg(sender, msg, args);
     }
 
-    @Override
-    public void show() {
-        centerOnParent();
-        super.show();
-    }
-
-    private void centerOnParent() {
-        if(parent != null)
-            move(new Coord(Math.max(0, (parent.sz.x - sz.x) / 2), Math.max(0, (parent.sz.y - sz.y) / 2)));
-    }
-    private void closeEvent() {
-        ui.core.mode = NCore.Mode.IDLE;
+    private void closeEvent()
+    {
+        NUtils.getUI().core.mode = NCore.Mode.IDLE;
         NConfig.set(NConfig.Key.show_drag_menu, false);
-        if(ui.core.config.isUpdated()) ui.core.config.write();
-        hide();
+        // Force save config when exiting DRAG mode to ensure widget visibility states are persisted
+        if (NUtils.getUI().core.config.isUpdated()) {
+            NUtils.getUI().core.config.write();
+        }
+        this.hide();
     }
 }

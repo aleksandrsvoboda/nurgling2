@@ -32,7 +32,6 @@ public class ICheckBox extends ACheckBox {
     public final Tex up, down, hoverup, hoverdown;
     private final BufferedImage img;
     public boolean h;
-    private int frameInset;
 
     @RName("ichk")
     public static class $_ implements Factory {
@@ -69,7 +68,6 @@ public class ICheckBox extends ACheckBox {
 
     public ICheckBox(String base, String up, String down, String hoverup, String hoverdown) {
 	this(Resource.loadtex(base + up), Resource.loadtex(base + down), Resource.loadtex(base + hoverup), Resource.loadtex(base + hoverdown));
-        if(base.startsWith("nurgling/hud/buttons/rbtn/")) frameInset = Math.max(1, sz.y / 12);
     }
     public ICheckBox(String base, String up, String down, String hover) {
 	this(Resource.loadtex(base + up), Resource.loadtex(base + down), Resource.loadtex(base + hover));
@@ -78,27 +76,17 @@ public class ICheckBox extends ACheckBox {
 	this(Resource.loadtex(base + up), Resource.loadtex(base + down));
     }
 
-    /** Replace only the old button bezel; retain the original icon pixels. */
-    public ICheckBox framed(int inset) {
-        frameInset = Math.max(1, inset);
-        return this;
-    }
-
     public void draw(GOut g) {
-        boolean active = state();
-        Tex icon = active ? (h ? hoverdown : down) : (h ? hoverup : up);
-        if(frameInset > 0) {
-            nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
-                nurgling.styles.GeneratedButtons.state(h, false, active, false));
-            g.image(icon, Coord.z, Coord.of(frameInset, frameInset), sz.sub(frameInset, frameInset));
-        } else g.image(icon, Coord.z);
+	if(!state())
+	    g.image(h ? hoverup : up, Coord.z);
+	else
+	    g.image(h ? hoverdown : down, Coord.z);
         super.draw(g);
     }
 
     public boolean checkhit(Coord c) {
 	if(!c.isect(Coord.z, sz))
 	    return(false);
-        if(frameInset > 0) return true;
 	if((img == null) || img.getRaster().getNumBands() < 4)
 	    return(true);
 	return(img.getRaster().getSample(c.x, c.y, 3) >= 128);

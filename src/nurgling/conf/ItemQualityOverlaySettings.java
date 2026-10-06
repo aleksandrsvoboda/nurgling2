@@ -133,7 +133,7 @@ public class ItemQualityOverlaySettings implements JConf {
             this.corner = Corner.fromString((String) map.get("corner"));
         }
         if (map.containsKey("fontFamily") && map.get("fontFamily") != null) {
-            this.fontFamily = nurgling.styles.UIFont.family((String) map.get("fontFamily"));
+            this.fontFamily = (String) map.get("fontFamily");
         }
         if (map.containsKey("fontSize")) {
             this.fontSize = ((Number) map.get("fontSize")).intValue();

@@ -5,6 +5,7 @@ import haven.*;
 
 import java.awt.*;
 
+import static haven.Equipory.ebgs;
 import static haven.Equipory.etts;
 import static haven.Inventory.invsq;
 import nurgling.*;
@@ -82,8 +83,8 @@ public class NEquipProxy extends Widget implements DTarget {
                 WItem w = NUtils.getEquipment().quickslots[slot.idx];
                 if(w != null) {
                     w.draw(g.reclipl(c1, invsq.sz()));
-                } else {
-                    Equipory.drawSlotHint(g, slot.idx, c1);
+                } else if(ebgs[slot.idx] != null) {
+                    g.image(ebgs[slot.idx], c1);
                 }
                 k++;
             }

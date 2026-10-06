@@ -14,7 +14,11 @@ import java.util.*;
 
 public class NSettingsWindow extends Widget {
 
-    /* The tree starts directly below search; search results reserve a line for their count. */
+    private static TexI rbtn = new TexI(Resource.loadsimg("nurgling/hud/buttons/right/u"));
+    private static TexI dbtn = new TexI(Resource.loadsimg("nurgling/hud/buttons/down/u"));
+
+    /* Sidebar geometry. The tree used to own the whole 200x580 column; it now starts below
+     * the search field and its one-line result counter, and still ends where it always did. */
     private static final int SIDE_X = 10, SIDE_Y = 10, SIDE_W = 200, SIDE_BOTTOM = 590;
     private static final int INFO_H = UI.scale(13);
     private static final int RESULT_H = UI.scale(30);
@@ -59,11 +63,11 @@ public class NSettingsWindow extends Widget {
 
         searchField = add(new SearchField(UI.scale(SIDE_W)), UI.scale(SIDE_X, SIDE_Y));
         infoY = UI.scale(SIDE_Y) + searchField.sz.y + UI.scale(2);
-        int listY = infoY;
+        int listY = infoY + INFO_H;
         Coord listSz = new Coord(UI.scale(SIDE_W), UI.scale(SIDE_BOTTOM) - listY);
         list = add(new SettingsList(listSz), new Coord(UI.scale(SIDE_X), listY));
-        /* Exactly one list is visible at a time. */
-        results = add(new ResultList(listSz.sub(0, INFO_H)), new Coord(UI.scale(SIDE_X), listY + INFO_H));
+        /* Both lists occupy the same rectangle; exactly one is visible at a time. */
+        results = add(new ResultList(listSz), new Coord(UI.scale(SIDE_X), listY));
         results.hide();
 
         saveBtn = add(new Button(UI.scale(100), L10n.get("nsettings.btn.save")) {
@@ -227,9 +231,7 @@ public class NSettingsWindow extends Widget {
         @Override
         public void draw(GOut g) {
             if(!item.getChildren().isEmpty()) {
-                int side = UI.scale(7);
-                nurgling.styles.GeneratedButtons.icon(g, item.expanded ? "triangle-down" : "triangle-right",
-                    Coord.of(UI.scale(5) + (UI.scale(16) - side) / 2, (sz.y - side) / 2), side);
+                g.image(item.expanded ? dbtn : rbtn, Coord.of(UI.scale(5), (sz.y - text.sz().y) / 2));
             }
             int indent = item.getLevel() * UI.scale(5);
             g.image(text.tex(), Coord.of(indent + UI.scale(25), (sz.y - text.sz().y) / 2));
@@ -424,10 +426,10 @@ public class NSettingsWindow extends Widget {
     }
 
     private void drawinfo(GOut g) {
-        if(query.isEmpty())
-            return;
         String s;
-        if(hits.isEmpty())
+        if(query.isEmpty())
+            s = L10n.get("nsettings.search.hint");
+        else if(hits.isEmpty())
             s = L10n.get("nsettings.search.none");
         else
             s = L10n.get("nsettings.search.count", hits.size(), index().size());

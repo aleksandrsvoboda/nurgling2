@@ -637,7 +637,11 @@ public class NInventory extends Inventory
             Tex img = (grab != null) ? pressed : (isHover ? hover : normal);
             Coord imgSz = img.sz();
             Coord offset = sz.sub(imgSz).div(2);
-            nurgling.styles.UITheme.iconHighlight(g, sz, isHover, grab != null ? 1 : 0);
+            if (isHover) {
+                g.chcolor(255, 255, 255, 25);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
             g.image(img, offset);
         }
 
@@ -702,7 +706,11 @@ public class NInventory extends Inventory
             Tex img = a ? (isHover ? hoverChecked : checked) : (isHover ? hoverUnchecked : unchecked);
             Coord imgSz = img.sz();
             Coord offset = sz.sub(imgSz).div(2);
-            nurgling.styles.UITheme.iconHighlight(g, sz, isHover, a ? 1 : 0);
+            if (isHover) {
+                g.chcolor(255, 255, 255, 25);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
             g.image(img, offset);
         }
 
@@ -734,6 +742,8 @@ public class NInventory extends Inventory
         private final int numStates;
         private boolean isHover = false;
         private java.util.function.IntConsumer onChange;
+        // Background alpha per state: 0=no bg, >0 = highlight
+        private static final int[] STATE_ALPHA = {0, 20, 40};
 
         NHeaderCycler(String base, int numStates, java.util.function.IntConsumer onChange) {
             super(new Coord(UI.scale(21), UI.scale(21)));
@@ -745,7 +755,13 @@ public class NInventory extends Inventory
 
         @Override
         public void draw(GOut g) {
-            nurgling.styles.UITheme.iconHighlight(g, sz, isHover, state);
+            int bgAlpha = (state < STATE_ALPHA.length) ? STATE_ALPHA[state] : 0;
+            if (isHover || bgAlpha > 0) {
+                int alpha = isHover ? Math.max(bgAlpha, 25) + 10 : bgAlpha;
+                g.chcolor(255, 255, 255, alpha);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
             Tex img = isHover ? hoverIcon : icon;
             Coord offset = sz.sub(img.sz()).div(2);
             g.image(img, offset);

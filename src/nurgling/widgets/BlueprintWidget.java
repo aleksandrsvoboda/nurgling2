@@ -9,7 +9,6 @@ import nurgling.actions.bots.WorldBlueprintEditor;
 import nurgling.i18n.L10n;
 import nurgling.sessions.BotExecutor;
 import nurgling.tools.NFileUtils;
-import nurgling.styles.UITheme;
 import org.json.*;
 
 import javax.swing.*;
@@ -224,7 +223,7 @@ public class BlueprintWidget extends Window
         blueprintSelector.change(currentBlueprintName);
         
         IButton addBlueprint;
-        prev = add(addBlueprint = new NIconButton("area-add", 24, 18) {
+        prev = add(addBlueprint = new IButton(NStyle.add[0].back, NStyle.add[1].back, NStyle.add[2].back) {
             @Override
             public void click() {
                 super.click();
@@ -252,7 +251,7 @@ public class BlueprintWidget extends Window
         
         // Export/Import buttons
         IButton save;
-        prev = add(save = new NIconButton("area-export", 24, 18) {
+        prev = add(save = new IButton(NStyle.exportb[0].back, NStyle.exportb[1].back, NStyle.exportb[2].back) {
             @Override
             public void click() {
                 super.click();
@@ -262,7 +261,7 @@ public class BlueprintWidget extends Window
         save.settip("Export blueprint");
         
         IButton load;
-        prev = add(load = new NIconButton("area-import", 24, 18) {
+        prev = add(load = new IButton(NStyle.importb[0].back, NStyle.importb[1].back, NStyle.importb[2].back) {
             @Override
             public void click() {
                 super.click();
@@ -279,22 +278,16 @@ public class BlueprintWidget extends Window
             }
         }, new Coord(prev.c.x + prev.sz.x + UI.scale(15), baseY));
 
-        int rowHeight = 0;
-        for (Widget control = firstRow; control != null; control = control.next)
-            rowHeight = Math.max(rowHeight, control.sz.y);
-        for (Widget control = firstRow; control != null; control = control.next)
-            control.move(new Coord(control.c.x, baseY + (rowHeight - control.sz.y) / 2));
-        int contentY = baseY + rowHeight + UI.scale(10);
+        int contentY = UI.scale(45);
         
         prev = add(new Label(L10n.get("blueprint.plants"), NStyle.areastitle), 
                    new Coord(UI.scale(10), contentY));
         
         treeListPanel = new TreeListPanel(UI.scale(new Coord(180, 500)));
-        int panelsY = prev.c.y + prev.sz.y + UI.scale(8);
-        prev = add(treeListPanel, new Coord(UI.scale(10), panelsY));
+        prev = add(treeListPanel, prev.pos("bl").adds(0, UI.scale(5)));
         
         gridScrollArea = add(new GridScrollArea(UI.scale(new Coord(550, 500))),
-                             new Coord(prev.pos("ur").x + UI.scale(10), panelsY));
+                             new Coord(prev.pos("ur").x + UI.scale(10), contentY + UI.scale(25)));
         gridPanel = new GridPanel(gridWidth, gridHeight);
         gridScrollArea.setGrid(gridPanel);
         
@@ -669,8 +662,7 @@ public class BlueprintWidget extends Window
                     if (icon != null) {
                         add(new GobIcon(icon), new Coord(UI.scale(2), (sz.y - UI.scale(32)) / 2));
                     }
-                    Label label = add(new Label(item.displayName), Coord.z);
-                    label.move(new Coord(UI.scale(36), (sz.y - label.sz.y) / 2));
+                    add(new Label(item.displayName), new Coord(UI.scale(36), (sz.y - UI.scale(15)) / 2));
                 }
                 
                 @Override
@@ -710,9 +702,10 @@ public class BlueprintWidget extends Window
         
         @Override
         public void draw(GOut g) {
-            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+            Color bg = new Color(30, 40, 40, 160);
+            g.chcolor(bg);
+            g.frect(Coord.z, g.sz());
             super.draw(g);
-            UITheme.panel(g, Coord.z, sz, null, UITheme.LINE);
         }
         
         @Override
@@ -769,23 +762,14 @@ public class BlueprintWidget extends Window
                 public void changed() {
                     viewport.updateOffset(new Coord(val, viewport.off.y));
                 }
-            }, new Coord(0, viewsz.y + (sbsz - UI.scale(8)) / 2));
+            }, new Coord(0, viewsz.y));
             
             vbar = add(new Scrollbar(viewsz.y, 0, 100) {
                 @Override
                 public void changed() {
                     viewport.updateOffset(new Coord(viewport.off.x, val));
                 }
-            }, Coord.z);
-            // Scrollbar.move takes its right edge; center it in the reserved gutter.
-            vbar.move(new Coord(viewsz.x + (sbsz + vbar.sz.x) / 2, 0));
-        }
-
-        @Override
-        public void draw(GOut g) {
-            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
-            super.draw(g);
-            UITheme.panel(g, Coord.z, sz, null, UITheme.LINE);
+            }, new Coord(viewsz.x, 0));
         }
         
         void setGrid(GridPanel grid) {
@@ -840,7 +824,9 @@ public class BlueprintWidget extends Window
         @Override
         public void draw(GOut g) {
             // Draw background
-            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+            g.chcolor(new Color(0, 0, 0, 100));
+            g.frect(Coord.z, sz);
+            g.chcolor();
             
             // Draw grid with clipping
             if (grid != null && grid.visible) {
@@ -859,7 +845,7 @@ public class BlueprintWidget extends Window
         private UI.Grab drag = null;
         
         public HScrollbar(int w, int min, int max) {
-            super(new Coord(w, UI.scale(8)));
+            super(new Coord(w, Scrollbar.width));
             this.min = min;
             this.max = max;
             this.val = min;
@@ -872,18 +858,25 @@ public class BlueprintWidget extends Window
         @Override
         public void draw(GOut g) {
             if (vis()) {
-                int x = (int)Math.round((sz.x - thumbWidth()) * UITheme.fraction(val, min, max));
-                UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
-                UITheme.panel(g, new Coord(x, 0), new Coord(thumbWidth(), sz.y), UITheme.ACCENT, null);
+                // Rotate textures 90 degrees for horizontal scrollbar
+                Coord chainSz = Scrollbar.schain.sz();
+                Coord flapSz = Scrollbar.sflarp.sz();
+                int cy = (flapSz.x / 2) - (chainSz.x / 2);
+                int ew = sz.x + Scrollbar.chcut, cw = chainSz.y;
+                int n = Math.max((ew + cw - 1) / cw, 2);
+                for (int i = 0; i < n; i++) {
+                    Coord pos = Coord.of(((ew - cw) * i) / (n - 1), cy);
+                    g.rotimage(Scrollbar.schain, pos.add(chainSz.swapXY().div(2)), chainSz.div(2), Math.PI / 2);
+                }
+                double a = (double) val / (double) (max - min);
+                int fx = (int) ((sz.x - flapSz.y) * a);
+                g.rotimage(Scrollbar.sflarp, new Coord(fx + flapSz.y / 2, flapSz.x / 2), flapSz.div(2), Math.PI / 2);
             }
         }
         
-        private int thumbWidth() {
-            return Math.min(sz.x, Math.max(UI.scale(10), Math.min(UI.scale(28), sz.x / 5)));
-        }
-
         private void update(Coord c) {
-            double a = (double) (c.x - thumbWidth() / 2) / Math.max(1, sz.x - thumbWidth());
+            Coord flapSz = Scrollbar.sflarp.sz();
+            double a = (double) (c.x - (flapSz.y / 2)) / (double) (sz.x - flapSz.y);
             if (a < 0) a = 0;
             if (a > 1) a = 1;
             int val = (int) Math.round(a * (max - min)) + min;
@@ -986,7 +979,7 @@ public class BlueprintWidget extends Window
             startY = Math.max(0, startY);
             endY = Math.min(rows, endY);
             
-            g.chcolor(UITheme.LINE);
+            g.chcolor(Color.WHITE);
             
             // Draw vertical lines - only if they're within viewport
             for (int x = startX; x <= endX; x++) {

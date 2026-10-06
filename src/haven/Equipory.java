@@ -64,14 +64,6 @@ public class Equipory extends Widget implements DTarget {
 	new Coord( 0,  2 * yo),
     };
     public static final Tex[] ebgs = new Tex[ecoords.length];
-    private static final haven.render.MixColor SLOT_HINT_COLOR =
-        new haven.render.MixColor(174, 184, 184, 200);
-
-    /** Brighten the original slot silhouette without changing its alpha or shape. */
-    public static void drawSlotHint(GOut g, int slot, Coord position) {
-        if(ebgs[slot] != null)
-            g.image(ebgs[slot], position, SLOT_HINT_COLOR);
-    }
     public static final Text[] etts = new Text[ecoords.length];
     static Coord isz;
     static {
@@ -200,7 +192,8 @@ public class Equipory extends Widget implements DTarget {
 		g.chcolor();
 	    }
 	    g.image(invsq, ecoords[i]);
-	    drawSlotHint(g, i, ecoords[i]);
+	    if(ebgs[i] != null)
+		g.image(ebgs[i], ecoords[i]);
 	}
     }
 

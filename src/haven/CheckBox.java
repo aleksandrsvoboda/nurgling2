@@ -73,13 +73,9 @@ public class CheckBox extends ACheckBox {
     public void draw(GOut g) {
 	if(lbl != null)
 	    g.image(lbl.tex(), loff.add(box.sz().x, (sz.y - lbl.sz().y) / 2));
-        int side = Math.min(box.sz().x, box.sz().y), y = (sz.y - side) / 2;
-        nurgling.styles.GeneratedButtons.plate(g, Coord.of(0, y), Coord.of(side, side),
-            state() ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
-        if(state()) {
-            int pad = Math.max(1, UI.scale(2));
-            nurgling.styles.GeneratedButtons.icon(g, "check", Coord.of(pad, y + pad), Math.max(1, side - pad * 2));
-        }
+        g.image(box, Coord.z.add(0, (sz.y - box.sz().y) / 2));
+        if(state())
+            g.image(mark, Coord.z.add(0, (sz.y - mark.sz().y) / 2));
         super.draw(g);
     }
     public boolean mousedown(MouseDownEvent ev) {

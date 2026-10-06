@@ -15,7 +15,7 @@ import java.util.HashMap;
 
 public class NCheckResult extends NObjectTexLabel {
 
-    public static final Font bsans = nurgling.styles.UIFont.sans.deriveFont(Font.BOLD, 14f);
+    public static final Font bsans = new Font("Sans", Font.BOLD, 14);
     private static final Text.Furnace active_title = new PUtils.BlurFurn(new Text.Foundry(bsans, 15, Color.WHITE).aa(true), 2, 1, new Color(36, 25, 25));
 
     public static HashMap<String, BufferedImage> baubles = new HashMap<>();

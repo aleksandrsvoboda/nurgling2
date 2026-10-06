@@ -74,13 +74,12 @@ public class Progress extends Widget {
     private Object pt;
     public void draw(GOut g) {
 	float a = (val == null) ? this.a : val.get();
-	g.chcolor(nurgling.styles.UITheme.INPUT);
+	g.chcolor(0, 0, 0, 255);
 	g.frect(Coord.z, sz);
-	g.chcolor(nurgling.styles.UITheme.ACCENT);
-	int mw = (int)Math.floor((sz.x - (m * 2)) * Math.max(0, Math.min(1, a)));
+	g.chcolor(128, 0, 0, 255);
+	int mw = (int)Math.floor((sz.x - (m * 2)) * a);
 	g.frect(Coord.of(m), new Coord(mw, sz.y - (m * 2)));
 	g.chcolor();
-        nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.LINE);
 	Object t = (text == null) ? null : text.apply(a);
 	if((rt != null) && !Utils.eq(t, pt)) {
 	    rt.dispose();

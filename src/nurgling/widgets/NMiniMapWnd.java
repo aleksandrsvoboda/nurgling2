@@ -165,6 +165,7 @@ public class NMiniMapWnd extends Widget{
     public static final KeyBinding kb_hidenature = KeyBinding.get("ol-hidenature", KeyMatch.nil);
     public static final KeyBinding kb_minesup = KeyBinding.get("ol-minesup", KeyMatch.nil);
     public static final KeyBinding kb_toggles = KeyBinding.get("mwnd_toggles", KeyMatch.nil);
+    final Coord marg = UI.scale(new Coord(5,5));
     public NMiniMapWnd(String name, NMapView map, MapFile file) {
         super(new Coord(UI.scale(133),UI.scale(133)));
         this.map = map;
@@ -378,11 +379,10 @@ public class NMiniMapWnd extends Widget{
     public void draw(GOut g, boolean strict)
     {
         drawWidget(g,strict,miniMap);
+        pbox.draw(g, miniMap.c.sub(marg), miniMap.sz.add(marg.mul(2)));
         drawWidget(g,strict,toggle_panel);
         drawWidget(g,strict,map_box);
         drawWidget(g,strict,swdg);
-        // Keep every edge inside the clipped map bounds, above the map and its controls.
-        pbox.draw(g, miniMap.c, miniMap.sz);
     }
 
     void drawWidget(GOut g, boolean strict, Widget wdg)

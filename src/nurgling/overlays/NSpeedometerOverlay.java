@@ -13,7 +13,7 @@ import java.text.DecimalFormat;
 
 public class NSpeedometerOverlay extends Sprite implements RenderTree.Node, PView.Render2D {
     private static final DecimalFormat SPEED_FORMAT = new DecimalFormat("0.0");
-    private static final Font SPEED_FONT = nurgling.styles.UIFont.semibold.deriveFont(16f * 0.9f);
+    private static final Font SPEED_FONT = new Font("Arial", Font.BOLD, 16).deriveFont(16f * 0.9f);
     private static final Color OUTLINE_COLOR = Color.BLACK;
     
     // Speed comparison colors
