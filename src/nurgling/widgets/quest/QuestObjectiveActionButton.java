@@ -61,7 +61,9 @@ public class QuestObjectiveActionButton extends Widget {
     public void draw(GOut g) {
         if(UITheme.on()) {
             GeneratedButtons.plate(g, Coord.z, sz, hover ? GeneratedButtons.State.HOVER : GeneratedButtons.State.NORMAL);
-            g.image(glyph, sz.sub(glyph.sz()).div(2));
+            int pad = UI.scale(3);
+            boolean craft = (action != null) && (action.kind == QuestObjectiveAction.Kind.CRAFT);
+            GeneratedButtons.icon(g, craft ? "credo" : "world", new Coord(pad, pad), Math.max(1, sz.x - 2 * pad));
             return;
         }
         g.chcolor(hover ? new Color(104, 129, 154, 230) : new Color(55, 72, 88, 220));

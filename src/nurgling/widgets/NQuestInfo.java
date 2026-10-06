@@ -111,7 +111,9 @@ public class NQuestInfo extends Widget
     private boolean needRebuild = true;
 
     private Scrollport body;
-    private ICheckBox modebtn, searchbtn, gearbtn;
+    private ACheckBox modebtn, searchbtn, gearbtn;
+    /* New UI (decided at client start, like the fonts): flat icon toolbar. */
+    private final boolean flat = nurgling.styles.UIResources.active();
     private KindChip[] chips;
     private TextEntry searchbox;
     private String search = "";
@@ -148,20 +150,20 @@ public class NQuestInfo extends Widget
         fonts();
         tabs = add(new TabStrip());
         tabs.hide();
-        modebtn = add(new NMiniMapWnd.NMenuCheckBox(
-            "nurgling/hud/buttons/questmode", null, "Group by quest giver / by task"));
+        modebtn = add(flat ? new NToolbarToggle(NToolbarToggle.Glyph.GROUP, "Group by quest giver / by task")
+                           : new NMiniMapWnd.NMenuCheckBox("nurgling/hud/buttons/questmode", null, "Group by quest giver / by task"));
         modebtn.changed(a -> {
             prop().mode = a ? NQuestTrackerProp.Mode.TASKS : NQuestTrackerProp.Mode.GIVERS;
             prop().save();
             needRebuild = true;
         });
         chips = new KindChip[] {
-            add(new KindChip(QuestKind.NPC, "N", NStyle.questGiver, "Quests from quest givers")),
-            add(new KindChip(QuestKind.CREDO, "C", NStyle.questCredo, "Credo quests")),
-            add(new KindChip(QuestKind.WORLD, "W", NStyle.questWorld, "World quests")),
+            add(new KindChip(QuestKind.NPC, "N", NToolbarToggle.Glyph.NPC, NStyle.questGiver, "Quests from quest givers")),
+            add(new KindChip(QuestKind.CREDO, "C", NToolbarToggle.Glyph.CREDO, NStyle.questCredo, "Credo quests")),
+            add(new KindChip(QuestKind.WORLD, "W", NToolbarToggle.Glyph.WORLD, NStyle.questWorld, "World quests")),
         };
-        searchbtn = add(new NMiniMapWnd.NMenuCheckBox(
-            "nurgling/hud/buttons/lsearch", null, "Search quests"));
+        searchbtn = add(flat ? new NToolbarToggle(NToolbarToggle.Glyph.SEARCH, "Search quests")
+                             : new NMiniMapWnd.NMenuCheckBox("nurgling/hud/buttons/lsearch", null, "Search quests"));
         searchbtn.changed(a -> {
             search = "";
             if(searchbox != null)
@@ -169,8 +171,8 @@ public class NQuestInfo extends Widget
             relayout();
             needRebuild = true;
         });
-        gearbtn = add(new NMiniMapWnd.NMenuCheckBox(
-            "nurgling/hud/buttons/settings", null, "Tracker options"));
+        gearbtn = add(flat ? new NToolbarToggle(NToolbarToggle.Glyph.SETTINGS, "Tracker options")
+                           : new NMiniMapWnd.NMenuCheckBox("nurgling/hud/buttons/settings", null, "Tracker options"));
         gearbtn.changed(a -> {
             gearbtn.a = false;
             openGearMenu();
@@ -255,16 +257,32 @@ public class NQuestInfo extends Widget
         } else {
             tabs.hide();
         }
-        modebtn.c = new Coord(x, top);
-        x += modebtn.sz.x + PAD.x;
-        for(KindChip c : chips) {
-            c.c = new Coord(x, top + (modebtn.sz.y - c.sz.y) / 2);
-            x += c.sz.x + UI.scale(2);
+        if(flat) {
+            // Same-sized icon buttons in one row, centred on the tallest.
+            int toolbarH = Math.max(chips[0].sz.y, Math.max(modebtn.sz.y, Math.max(searchbtn.sz.y, gearbtn.sz.y)));
+            int gap = UI.scale(2);
+            modebtn.c = new Coord(x, top + (toolbarH - modebtn.sz.y) / 2);
+            x += modebtn.sz.x + gap;
+            for(KindChip c : chips) {
+                c.c = new Coord(x, top + (toolbarH - c.sz.y) / 2);
+                x += c.sz.x + gap;
+            }
+            int rx = sz.x - PAD.x - gearbtn.sz.x;
+            gearbtn.c = new Coord(rx, top + (toolbarH - gearbtn.sz.y) / 2);
+            rx -= searchbtn.sz.x + gap;
+            searchbtn.c = new Coord(rx, top + (toolbarH - searchbtn.sz.y) / 2);
+        } else {
+            modebtn.c = new Coord(x, top);
+            x += modebtn.sz.x + PAD.x;
+            for(KindChip c : chips) {
+                c.c = new Coord(x, top + (modebtn.sz.y - c.sz.y) / 2);
+                x += c.sz.x + UI.scale(2);
+            }
+            int rx = sz.x - PAD.x - gearbtn.sz.x;
+            gearbtn.c = new Coord(rx, top);
+            rx -= searchbtn.sz.x + PAD.x;
+            searchbtn.c = new Coord(rx, top);
         }
-        int rx = sz.x - PAD.x - gearbtn.sz.x;
-        gearbtn.c = new Coord(rx, top);
-        rx -= searchbtn.sz.x + PAD.x;
-        searchbtn.c = new Coord(rx, top);
 
         int y = top + modebtn.sz.y + PAD.y;
         if(searchbtn.a) {
@@ -1461,11 +1479,13 @@ public class NQuestInfo extends Widget
         private final Color col;
         private final String tip;
         private final Tex on, off;
+        private final String glyph;
         private boolean hover = false;
 
-        KindChip(QuestKind kind, String letter, Color col, String tip)
+        KindChip(QuestKind kind, String letter, NToolbarToggle.Glyph glyph, Color col, String tip)
         {
-            super(CHIP_SZ);
+            super(flat ? NToolbarToggle.SIZE : CHIP_SZ);
+            this.glyph = glyph.name().toLowerCase(java.util.Locale.ROOT);
             this.kind = kind;
             this.col = col;
             this.tip = tip;
@@ -1478,6 +1498,11 @@ public class NQuestInfo extends Widget
         @Override
         public void draw(GOut g)
         {
+            if(flat) {
+                // New UI: the kind's icon, dimmed while the kind is filtered out.
+                NToolbarToggle.drawGlyph(g, sz, glyph, hover, !a);
+                return;
+            }
             g.chcolor(a ? col : NStyle.titleBg);
             g.frect(Coord.z, sz);
             g.chcolor(a ? col : NStyle.questDim);
