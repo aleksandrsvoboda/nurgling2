@@ -113,6 +113,11 @@ public class IButton extends SIWidget {
 	    img = hover;
 	else
 	    img = up;
+	if(squarehit && h && nurgling.styles.UITheme.on()) {
+	    // New UI: show the clickable square while hovering a bare glyph.
+	    g.setColor(new java.awt.Color(255, 255, 255, 40));
+	    g.fillRect(0, 0, sz.x, sz.y);
+	}
 	if(flat && (frameInset > 0)) {
 	    nurgling.styles.GeneratedButtons.plate(g, sz.x, sz.y,
 		nurgling.styles.GeneratedButtons.state(h, a && h, selected(), false));
