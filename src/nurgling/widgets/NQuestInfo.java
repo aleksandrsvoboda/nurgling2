@@ -8,6 +8,7 @@ import nurgling.NStyle;
 import nurgling.NUI;
 import nurgling.conf.FontSettings;
 import nurgling.conf.NQuestTrackerProp;
+import nurgling.styles.UITheme;
 import nurgling.widgets.nsettings.Fonts;
 import nurgling.widgets.quest.QCond;
 import nurgling.widgets.quest.QuestObjectiveAction;
@@ -1608,13 +1609,21 @@ public class NQuestInfo extends Widget
     @Override
     public void draw(GOut g)
     {
-        NDraggableWidget.drawBg(g, sz, ui);
+        boolean nui = UITheme.on();
+        if(nui)
+            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+        else
+            NDraggableWidget.drawBg(g, sz, ui);
         g.chcolor(NStyle.titleBg);
         g.frect(Coord.z, new Coord(sz.x, headerH));
         g.chcolor(NStyle.separator);
         g.frect(new Coord(0, headerH - UI.scale(1)), new Coord(sz.x, UI.scale(1)));
         g.chcolor();
         super.draw(g);
+        if(nui) {
+            UITheme.panel(g, Coord.z, sz, null, NStyle.border);
+            return;
+        }
         int bw = Math.max(2, UI.scale(2));
         g.chcolor(NStyle.border);
         g.frect(Coord.z, new Coord(sz.x, bw));
