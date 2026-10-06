@@ -4,6 +4,7 @@ import haven.*;
 import haven.Charlist;
 import nurgling.conf.NCharTags;
 import nurgling.i18n.L10n;
+import nurgling.styles.UITheme;
 import nurgling.widgets.NAvaview;
 import nurgling.widgets.NTagsWnd;
 import nurgling.widgets.charsel.NWorldTabs;
@@ -444,9 +445,11 @@ public class NCharlist extends Charlist {
                     x += w + UI.scale(6);
                 }
             }
-            g.chcolor(NLoginTheme.accent);
-            g.frect(Coord.of(0, sz.y - UI.scale(2)), Coord.of(UI.scale(40), UI.scale(2)));
-            g.chcolor();
+            if (!UITheme.on()) {
+                g.chcolor(NLoginTheme.accent);
+                g.frect(Coord.of(0, sz.y - UI.scale(2)), Coord.of(UI.scale(40), UI.scale(2)));
+                g.chcolor();
+            }
         }
 
         private int badgeat(Coord c) {
@@ -531,7 +534,10 @@ public class NCharlist extends Charlist {
             int ch = NLoginTheme.chiph();
             int cy = my + ((meta.sz().y - ch) / 2);
             int cx = x + meta.sz().x + UI.scale(8);
-            int maxx = sz.x - UI.scale(32);
+            boolean flat = UITheme.on();
+            int editInset = (sz.y - UI.scale(16)) / 2;
+            int editIconX = sz.x - editInset - UI.scale(14);
+            int maxx = flat ? editIconX - UI.scale(12) : sz.x - UI.scale(32);
             if (NCharTags.hasnote(acc, chr.name)) {
                 NLoginTheme.drawNote(g, Coord.of(cx, my + ((meta.sz().y - UI.scale(11)) / 2)), NLoginTheme.note);
                 cx += UI.scale(14);
@@ -553,8 +559,13 @@ public class NCharlist extends Charlist {
 
             editx = -1;
             if (hover) {
-                editx = sz.x - UI.scale(26);
-                NLoginTheme.drawNote(g, Coord.of(editx + UI.scale(6), (sz.y - UI.scale(11)) / 2), NLoginTheme.muted);
+                if (flat) {
+                    editx = editIconX - UI.scale(6);
+                    NLoginTheme.drawTagEdit(g, Coord.of(editIconX, editInset));
+                } else {
+                    editx = sz.x - UI.scale(26);
+                    NLoginTheme.drawNote(g, Coord.of(editx + UI.scale(6), (sz.y - UI.scale(11)) / 2), NLoginTheme.muted);
+                }
             }
         }
 

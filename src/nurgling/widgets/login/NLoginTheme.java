@@ -121,6 +121,16 @@ public final class NLoginTheme {
         return (w);
     }
 
+    /** New UI: orange outlined page for opening the shared tags/note editor. */
+    public static void drawTagEdit(GOut g, Coord c) {
+        int b = Math.max(1, UI.scale(1));
+        nurgling.styles.UITheme.panel(g, c, UI.scale(14, 16), null, nurgling.styles.UITheme.ACCENT);
+        g.chcolor(nurgling.styles.UITheme.ACCENT);
+        for (int i = 0; i < 3; i++)
+            g.frect(c.add(UI.scale(3), UI.scale(4 + (i * 3))), Coord.of(UI.scale((i == 2) ? 5 : 8), b));
+        g.chcolor();
+    }
+
     /** Small page glyph for "has a note" - drawn, because the fonts carry no pencil codepoint. */
     public static void drawNote(GOut g, Coord c, Color col) {
         Coord psz = UI.scale(new Coord(8, 11));

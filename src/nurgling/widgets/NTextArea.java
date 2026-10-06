@@ -1,6 +1,7 @@
 package nurgling.widgets;
 
 import haven.*;
+import nurgling.styles.UITheme;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
@@ -36,6 +37,7 @@ public class NTextArea extends Widget implements ReadLine.Owner {
     private int scroll = 0;
     private double focusstart = 0;
     private UI.Grab drag = null;
+    private boolean flat = UITheme.on();
     /** Fired on every buffer change. */
     public Runnable onchange = null;
     /** Fired when the widget loses focus - the natural point to flush to disk. */
@@ -143,7 +145,7 @@ public class NTextArea extends Widget implements ReadLine.Owner {
 
     private Text.Line rend(Seg g) {
         if (g.rend == null)
-            g.rend = fnd.render(new String(buf.buf, g.start, g.end - g.start), defcol);
+            g.rend = fnd.render(new String(buf.buf, g.start, g.end - g.start), flat ? UITheme.TEXT : defcol);
         return (g.rend);
     }
 
@@ -218,11 +220,15 @@ public class NTextArea extends Widget implements ReadLine.Owner {
     /* -------------------------------------------------------------- rendering */
 
     public void draw(GOut g) {
+        if (flat != UITheme.on()) {
+            flat = !flat;
+            lwidth = -1; /* re-render the lines in the other text colour */
+        }
         cklayout();
         ckscroll();
-        g.chcolor(bgcol);
+        g.chcolor(flat ? UITheme.INPUT : bgcol);
         g.frect(Coord.z, sz);
-        g.chcolor(brdcol);
+        g.chcolor(flat ? (hasfocus ? UITheme.ACCENT : UITheme.LINE) : brdcol);
         g.rect(Coord.z, sz);
         g.chcolor();
 
@@ -251,15 +257,22 @@ public class NTextArea extends Widget implements ReadLine.Owner {
             Seg s = lines.get(li);
             int cx = pad + rend(s).advance(point - s.start);
             int cy = pad + (li * lineh) - scroll;
-            if (((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5)
-                g.image(caret, Coord.of(cx - UI.scale(2), cy));
+            if (((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5) {
+                if (flat) {
+                    g.chcolor(UITheme.ACCENT);
+                    g.frect(Coord.of(cx, cy), Coord.of(Math.max(1, UI.scale(1)), lineh));
+                    g.chcolor();
+                } else {
+                    g.image(caret, Coord.of(cx - UI.scale(2), cy));
+                }
+            }
         }
         int total = lines.size() * lineh;
         if (total > vh) {
             int bw = UI.scale(3);
             int bh = Math.max(UI.scale(8), (vh * vh) / total);
             int by = pad + ((vh - bh) * scroll) / Math.max(1, total - vh);
-            g.chcolor(brdcol);
+            g.chcolor(flat ? UITheme.LINE : brdcol);
             g.frect(Coord.of(sz.x - bw - 1, by), Coord.of(bw, bh));
             g.chcolor();
         }
