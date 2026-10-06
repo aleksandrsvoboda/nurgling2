@@ -1432,9 +1432,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    setgkey(gkey);
 	    settip(tooltip);
 	    menu = base.startsWith("rbtn/");
+	    res = "nurgling/hud/buttons/" + base + "u";
 	}
 
 	private final boolean menu;
+	private final String res;
 	private Tex glyph;
 
 	/* New UI: the coloured glyph without its brown matte, on the shared plate. */
@@ -1443,8 +1445,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		super.draw(g);
 		return;
 	    }
-	    if(glyph == null)
-		glyph = new TexI(nurgling.styles.MenuIcons.stripMatte(((TexI)up).back));
+	    if(glyph == null) {
+		// Strip the matte from the original art: scaling blends its exact colour away.
+		java.awt.image.BufferedImage raw = nurgling.styles.MenuIcons.stripMatte(Resource.loadimg(res));
+		glyph = new TexI(PUtils.uiscale(raw, up.sz()));
+	    }
 	    int inset = Math.max(1, sz.y / 12);
 	    nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz, nurgling.styles.GeneratedButtons.state(h, false, state(), false));
 	    g.image(glyph, Coord.z, Coord.of(inset, inset), sz.sub(inset, inset));
