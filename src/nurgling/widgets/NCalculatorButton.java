@@ -9,11 +9,12 @@ import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
-/** Large atlas action using the shared button skin and a flat calculator glyph. */
+/** Atlas action opening the quality calculator: a square icon button with a flat calculator glyph. */
 public final class NCalculatorButton extends Button {
     public NCalculatorButton(Runnable action) {
-        super(UI.scale(64),content());
-        resize(UI.scale(64,64)); action(action);
+        // Same footprint as the other square icon buttons (e.g. the tunneler's direction buttons).
+        super(UI.scale(SIDE),content());
+        resize(UI.scale(SIDE,SIDE)); action(action);
         settip(L10n.get("flow.title"));
     }
     /* The text-button art only covers a normal button's height, so this square draws its own. */
@@ -23,7 +24,7 @@ public final class NCalculatorButton extends Button {
         if(UITheme.on()) {
             GeneratedButtons.plate(g, sz.x, sz.y, GeneratedButtons.state(hovered(), pressed(), false, false));
         } else {
-            int b = Math.max(2, UI.scale(2));
+            int b = Math.max(1, UI.scale(1));
             g.setColor(NStyle.infoBg);
             g.fillRect(0, 0, sz.x, sz.y);
             g.setColor(NStyle.border);
@@ -35,8 +36,10 @@ public final class NCalculatorButton extends Button {
         g.dispose();
     }
 
+    private static final int SIDE = 28;
+
     private static BufferedImage content() {
-        int side=UI.scale(48);
+        int side=UI.scale(20);
         BufferedImage icon=GeneratedButtons.iconImage("quality-calculator",side);
         Graphics2D tint=icon.createGraphics();
         tint.setComposite(AlphaComposite.SrcIn); tint.setColor(UITheme.ACCENT);
