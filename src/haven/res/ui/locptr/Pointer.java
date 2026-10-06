@@ -129,7 +129,6 @@ public class Pointer extends Widget {
     public void draw(GOut g) {
 	this.lc = null;
         registerCompass();
-        if(compass != null && compass.enabled() && compass.visible) return;
 	if(tc == null)
 	    return;
 	Gob gob = (gobid < 0) ? null : ui.sess.glob.oc.getgob(gobid);
