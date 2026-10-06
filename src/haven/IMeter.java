@@ -34,6 +34,9 @@ import java.util.*;
 public class IMeter extends LayerMeter {
 	public String name;
 	Tex text = null;
+	/* New UI renders the same value in its own font, on first draw after it changes. */
+	private String textValue = null;
+	private Tex flatText = null;
 	// Raw soft/max HP from the "hp" meter's tip - Meter.a alone can't distinguish soft HP from a reduced max.
 	public int curHealth = -1, maxHealth = -1;
 
@@ -98,6 +101,18 @@ public class IMeter extends LayerMeter {
     public void draw(GOut g) {
 	try {
 	    Tex bg = this.bg.get().flayer(Resource.imgc).tex();
+	    if(nurgling.styles.UITheme.on()) {
+		nurgling.styles.MeterStyle.background(g, Color.BLACK);
+		for(Meter m : meters) {
+		    g.chcolor(m.c);
+		    g.frect(off, new Coord((int)Math.ceil(msz.x * Math.max(0, Math.min(1, m.a))), msz.y));
+		}
+		g.chcolor();
+		if((flatText == null) && (textValue != null))
+		    flatText = nurgling.styles.MeterStyle.renderText(textValue);
+		nurgling.styles.MeterStyle.finish(g, bg, flatText);
+		return;
+	    }
 	    g.chcolor(0, 0, 0, 255);
 	    g.frect(off, msz);
 	    g.chcolor();
@@ -131,20 +146,38 @@ public class IMeter extends LayerMeter {
 					case "Satiety":
 					case "Pony Power":
 					case "Seaworthiness":
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1)).tex();
+						setText(val.substring(val.indexOf(":")+1));
 						break;
 					case "Health":
 						parseHealth(val.substring(val.indexOf(":")+1));
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1).replace("/", " / ")).tex();
+						setText(val.substring(val.indexOf(":")+1).replace("/", " / "));
 						break;
 					case "Energy":
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1)).tex();
+						setText(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1));
 						break;
 
 				}
 			}
 		}
 		super.uimsg(msg, args);
+	}
+
+	@Override
+	public void dispose() {
+		if(flatText != null) {
+			flatText.dispose();
+			flatText = null;
+		}
+		super.dispose();
+	}
+
+	private void setText(String value) {
+		text = NStyle.meter.render(value).tex();
+		textValue = value;
+		if(flatText != null) {
+			flatText.dispose();
+			flatText = null;
+		}
 	}
 
 	private void parseHealth(String value) {

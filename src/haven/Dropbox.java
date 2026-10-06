@@ -57,12 +57,24 @@ public abstract class Dropbox<T> extends ListWidget<T> {
 
     public static Color bgColor = Color.BLACK;
     public void draw(GOut g) {
-        g.chcolor(bgColor);
-        g.frect(Coord.z, sz);
-        g.chcolor();
+        boolean flat = nurgling.styles.UITheme.on();
+        if(flat) {
+            nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+                dl != null ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
+        } else {
+            g.chcolor(bgColor);
+            g.frect(Coord.z, sz);
+            g.chcolor();
+        }
         if(sel != null)
             drawitem(g.reclip(Coord.z, new Coord(sz.x - drop.sz().x, itemh)), sel, 0);
-        g.image(drop, dropc);
+        if(flat) {
+            int side = UI.scale(10);
+            nurgling.styles.GeneratedButtons.icon(g, "down",
+                new Coord(sz.x - drop.sz().x / 2 - side / 2, (sz.y - side) / 2), side);
+        } else {
+            g.image(drop, dropc);
+        }
         super.draw(g);
     }
 

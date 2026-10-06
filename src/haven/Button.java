@@ -91,8 +91,11 @@ public class Button extends SIWidget {
     public Color tint = null;
     static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
     static Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
-    private boolean a = false, dis = false;
+    private boolean a = false, dis = false, hover = false;
+    private boolean flat = nurgling.styles.UITheme.on();
     private UI.Grab d = null;
+    /** New UI: tabs and toggles override this to draw their plate as selected. */
+    protected boolean selected() { return false; }
 	
     @RName("btn")
     public static class $Btn implements Factory {
@@ -160,7 +163,30 @@ public class Button extends SIWidget {
 	return(this);
     }
 
+    public void tick(double dt) {
+	super.tick(dt);
+	if(flat != nurgling.styles.UITheme.on()) {
+	    flat = !flat;
+	    redraw();
+	}
+    }
+
     public void draw(BufferedImage img) {
+	if(flat) {
+	    java.awt.Graphics2D g = img.createGraphics();
+	    nurgling.styles.GeneratedButtons.plate(g, sz.x, sz.y,
+		nurgling.styles.GeneratedButtons.state(hover, a, selected(), dis));
+	    Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
+	    if(a)
+		tc = tc.add(UI.scale(1), UI.scale(1));
+	    if(dis)
+		g.setComposite(java.awt.AlphaComposite.SrcOver.derive(0.42f));
+	    g.drawImage(cont, tc.x, tc.y, null);
+	    g.dispose();
+	    if(tint != null)
+		PUtils.colmul(img.getRaster(), tint);
+	    return;
+	}
 	Graphics g = img.getGraphics();
 	int yo = lg?((hl - hs) / 2):0;
 
@@ -228,6 +254,12 @@ public class Button extends SIWidget {
     
     public void mousemove(MouseMoveEvent ev) {
 	super.mousemove(ev);
+	boolean inside = ev.c.isect(Coord.z, sz);
+	if(hover != inside) {
+	    hover = inside;
+	    if(flat)
+		redraw();
+	}
 	if(d != null) {
 	    boolean a = ev.c.isect(Coord.z, sz);
 	    if(a != this.a) {

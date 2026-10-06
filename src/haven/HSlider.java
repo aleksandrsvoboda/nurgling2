@@ -53,6 +53,17 @@ public class HSlider extends Widget {
     }
 
     public void draw(GOut g) {
+	if(nurgling.styles.UITheme.on()) {
+	    int thumb = sflarp.sz().x;
+	    int x = (int)Math.round(Math.max(0, sz.x - thumb) * nurgling.styles.UITheme.fraction(val, min, max));
+	    int y = sz.y / 2, b = Math.max(1, UI.scale(2));
+	    nurgling.styles.UITheme.panel(g, Coord.of(thumb / 2, y), Coord.of(Math.max(0, sz.x - thumb), b), nurgling.styles.UITheme.LINE, null);
+	    nurgling.styles.UITheme.panel(g, Coord.of(thumb / 2, y), Coord.of(x, b), nurgling.styles.UITheme.ACCENT, null);
+	    int tw = Math.max(UI.scale(6), thumb / 2);
+	    nurgling.styles.UITheme.panel(g, Coord.of(x + (thumb - tw) / 2, UI.scale(2)), Coord.of(tw, Math.max(1, sz.y - UI.scale(4))),
+		(drag != null) ? nurgling.styles.UITheme.ACCENT : nurgling.styles.UITheme.ROW, nurgling.styles.UITheme.ACCENT);
+	    return;
+	}
 	int ew = sz.x + chcut, cw = schain.sz().x;
 	int n = Math.max((ew + cw - 1) / cw, 2);
 	int cy = (sflarp.sz().y - schain.sz().y) / 2;

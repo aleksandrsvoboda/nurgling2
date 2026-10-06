@@ -64,6 +64,7 @@ public class DrinkMeter extends Widget {
 
     // Text displayed on the meter bar
     private Tex text = null;
+    private Tex flatText = null;
     private String lastTextValue = null;
 
     // Tooltip caching
@@ -139,6 +140,10 @@ public class DrinkMeter extends Widget {
             if (text != null) {
                 text.dispose();
                 text = null;
+            }
+            if (flatText != null) {
+                flatText.dispose();
+                flatText = null;
             }
             if (!newText.isEmpty()) {
                 text = NStyle.meter.render(newText).tex();
@@ -272,9 +277,14 @@ public class DrinkMeter extends Widget {
         Coord isz = IMeter.msz;  // UI.scale(130, 20)
         Coord off = IMeter.off;  // UI.scale(24, 4)
 
+        boolean flat = nurgling.styles.UITheme.on();
         // Draw background
-        g.chcolor(BG);
-        g.frect(off, isz);
+        if (flat) {
+            nurgling.styles.MeterStyle.background(g, BG);
+        } else {
+            g.chcolor(BG);
+            g.frect(off, isz);
+        }
 
         if (max > 0) {
             // Draw tea layer (behind water, so tea + water shows full amount)
@@ -291,6 +301,13 @@ public class DrinkMeter extends Widget {
             }
         }
         g.chcolor();
+
+        if (flat) {
+            if (flatText == null && lastTextValue != null && !lastTextValue.isEmpty())
+                flatText = nurgling.styles.MeterStyle.renderText(lastTextValue);
+            nurgling.styles.MeterStyle.finish(g, FRAME, flatText);
+            return;
+        }
 
         // Draw frame
         g.image(FRAME, Coord.z);
@@ -339,6 +356,10 @@ public class DrinkMeter extends Widget {
         if (text != null) {
             text.dispose();
             text = null;
+        }
+        if (flatText != null) {
+            flatText.dispose();
+            flatText = null;
         }
         super.dispose();
     }

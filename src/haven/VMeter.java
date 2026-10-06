@@ -46,6 +46,15 @@ public class VMeter extends LayerMeter {
     }
 
     public void draw(GOut g) {
+	if(nurgling.styles.UITheme.on()) {
+	    nurgling.styles.UITheme.panel(g, Coord.z, sz, nurgling.styles.UITheme.INPUT, nurgling.styles.UITheme.LINE);
+	    int inset = UI.scale(3), height = Math.max(0, sz.y - inset * 2);
+	    for(Meter m : meters) {
+		int h = (int)Math.round(height * Math.max(0, Math.min(1, m.a)));
+		nurgling.styles.UITheme.panel(g, Coord.of(inset, sz.y - inset - h), Coord.of(sz.x - inset * 2, h), m.c, null);
+	    }
+	    return;
+	}
 	g.image(bg, Coord.z);
 	int h = (sz.y - UI.scale(6));
 	for(Meter m : meters) {

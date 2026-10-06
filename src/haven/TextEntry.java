@@ -37,6 +37,7 @@ import java.util.*;
 public class TextEntry extends Widget implements ReadLine.Owner {
     public static final Color defcol = new Color(255, 205, 109), dirtycol = new Color(255, 232, 209);
     public static final Color selcol = new Color(24, 80, 192);
+    private static final Color FLAT_SELECTION = new Color(83, 83, 65);
     public static final Text.Foundry fnd = new Text.Foundry(Text.serif, 12).aa(true);
 	public static final Tex lcap = Resource.loadtex("nurgling/hud/text/l");
 	public static final Tex rcap = Resource.loadtex("nurgling/hud/text/r");
@@ -117,12 +118,45 @@ public class TextEntry extends Widget implements ReadLine.Owner {
 	}
     }
 
-    protected Color textcolor() { return (dshow && dirty) ? dirtycol : defcol; }
+    private boolean flat = nurgling.styles.UITheme.on();
+    protected Color textcolor() {
+	if(flat)
+	    return((dshow && dirty) ? nurgling.styles.UITheme.ACCENT : nurgling.styles.UITheme.TEXT);
+	return((dshow && dirty) ? dirtycol : defcol);
+    }
     public void draw(GOut g) {
+	if(flat != nurgling.styles.UITheme.on()) {
+	    flat = !flat;
+	    this.tcache = null;
+	}
 	Text.Line tcache = this.tcache;
 	if(tcache == null)
 	    this.tcache = tcache = fnd.render(dtext(), textcolor());
 	int point = buf.point(), mark = buf.mark();
+	if(flat) {
+	    nurgling.styles.UITheme.panel(g, Coord.z, sz, nurgling.styles.UITheme.INPUT,
+		hasfocus ? nurgling.styles.UITheme.ACCENT : nurgling.styles.UITheme.LINE);
+	    GOut content = g.reclip(Coord.of(toffx, 1), Coord.of(Math.max(0, sz.x - wmarg), sz.y - 2));
+	    int cx = tcache.advance(point);
+	    if(hasfocus) {
+		if(cx < sx) sx = cx;
+		if(cx > sx + (sz.x - wmarg)) sx = Math.max(0, cx - (sz.x - wmarg));
+	    }
+	    if(mark >= 0) {
+		int px = cx - sx, mx = tcache.advance(mark) - sx;
+		content.chcolor(FLAT_SELECTION);
+		content.frect2(Coord.of(Math.min(px, mx), (sz.y - tcache.sz().y) / 2 - 1),
+			       Coord.of(Math.max(px, mx), (sz.y + tcache.sz().y) / 2 - 1));
+		content.chcolor();
+	    }
+	    content.image(tcache.tex(), Coord.of(-sx, (sz.y - tcache.sz().y) / 2 - 1));
+	    if(hasfocus && ((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5) {
+		content.chcolor(nurgling.styles.UITheme.ACCENT);
+		content.frect(Coord.of(cx - sx, (sz.y - tcache.sz().y) / 2 - 1), Coord.of(Math.max(1, UI.scale(1)), tcache.sz().y));
+		content.chcolor();
+	    }
+	    return;
+	}
 	g.image(mext, Coord.z, sz);
 	if(mark >= 0) {
 	    int px = tcache.advance(point) - sx, mx = tcache.advance(mark) - sx;
