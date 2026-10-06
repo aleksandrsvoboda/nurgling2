@@ -213,7 +213,7 @@ public class EquipmentBotSettings extends Panel implements DTarget {
                 g.image(invsq, pos);
 
                 if (ebgs[i] != null) {
-                    g.image(ebgs[i], pos);
+                    Equipory.drawSlotHint(g, i, pos);
                 }
 
                 if (slotConfig.containsKey(i)) {
