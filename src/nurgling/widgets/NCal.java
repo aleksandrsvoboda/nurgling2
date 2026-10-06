@@ -47,6 +47,11 @@ public class NCal extends Cal {
     private static final int ICON_STEP = 30;
     private static final int ICON_COLS = 2;
     private static final int ICON_GAP = UI.scale(2);
+    /* New UI: framed square event buttons that scale with the HUD. */
+    private static final int FLAT_ICON_SZ = UI.scale(24);
+    private static final int FLAT_ICON_BORDER = Math.max(1, UI.scale(1));
+    private static final int FLAT_ICON_STEP = UI.scale(28);
+    private static final java.util.Map<String, Tex> FLAT_ICONS = new java.util.HashMap<>();
     private static final int PAD = UI.scale(8);
     private static final int COLPAD = UI.scale(16);
     private static final int LINE_H = UI.scale(16);
@@ -108,6 +113,8 @@ public class NCal extends Cal {
     @Override
     public boolean checkhit(Coord c) {
         Coord ul = imgCenter(verboseMode()).sub(bg.sz().div(2));
+        if(nurgling.styles.UITheme.on() && flatEventAt(c) != null)
+            return true;
         return Utils.checkhit(dsky.scaled(), c.sub(ul).sub(dsky.o));
     }
 
@@ -121,12 +128,19 @@ public class NCal extends Cal {
         int mp = (int)Math.round(a.mp * (double)moon.f.length) % moon.f.length;
 
         drawGraphic(g, a, ic, mp);
+        boolean flat = nurgling.styles.UITheme.on();
         if(verbose) {
-            drawIconRow(g, ic);
+            if(flat)
+                drawFlatEvents(g, true);
+            else
+                drawIconRow(g, ic);
             drawTimeColumn(g, a, mp);
             drawStatusColumn(g, ic.x + (bg.sz().x / 2) + COLPAD);
         } else {
-            drawIconGrid(g, ic);
+            if(flat)
+                drawFlatEvents(g, false);
+            else
+                drawIconGrid(g, ic);
         }
     }
 
@@ -177,6 +191,49 @@ public class NCal extends Cal {
             g.aimage(icon, new Coord(x, y), 0.5, 0.5);
             x += ICON_STEP;
         }
+    }
+
+    /** New UI: shared coordinates keep the drawn squares and their tooltip hit areas aligned. */
+    private Coord flatEventPosition(int index, boolean verbose) {
+        Coord ic = imgCenter(verbose);
+        if(verbose) {
+            int width = (eventNames.size() - 1) * FLAT_ICON_STEP + FLAT_ICON_SZ;
+            return new Coord(ic.x - width / 2 + index * FLAT_ICON_STEP, ic.y + bg.sz().y / 2 + ICON_GAP);
+        }
+        return new Coord(ic.x + bg.sz().x / 2 - FLAT_ICON_SZ + (index % ICON_COLS) * FLAT_ICON_STEP,
+                         ic.y - FLAT_ICON_SZ - ICON_GAP + (index / ICON_COLS) * FLAT_ICON_STEP);
+    }
+
+    private static Tex flatIcon(String key) {
+        return FLAT_ICONS.computeIfAbsent(key, k -> new TexI(
+            nurgling.styles.GeneratedButtons.squareButtonImage("calendar-" + k, FLAT_ICON_SZ - 2 * FLAT_ICON_BORDER)));
+    }
+
+    private void drawFlatEvents(GOut g, boolean verbose) {
+        for(int i = 0; i < eventNames.size(); i++) {
+            Coord pos = flatEventPosition(i, verbose);
+            g.image(flatIcon(eventNames.get(i)), pos.add(FLAT_ICON_BORDER, FLAT_ICON_BORDER));
+            nurgling.styles.UITheme.panel(g, pos, new Coord(FLAT_ICON_SZ, FLAT_ICON_SZ), null, nurgling.styles.UITheme.ACCENT);
+        }
+    }
+
+    private String flatEventAt(Coord c) {
+        boolean verbose = verboseMode();
+        for(int i = 0; i < eventNames.size(); i++) {
+            if(c.isect(flatEventPosition(i, verbose), new Coord(FLAT_ICON_SZ, FLAT_ICON_SZ)))
+                return eventNames.get(i);
+        }
+        return null;
+    }
+
+    @Override
+    public Object tooltip(Coord c, Widget prev) {
+        if(nurgling.styles.UITheme.on()) {
+            String event = flatEventAt(c);
+            if(event != null)
+                return L10n.get("calendar.event." + event);
+        }
+        return super.tooltip(c, prev);
     }
 
     /** World time, right-aligned so it reads as pointing at the calendar beside it. */

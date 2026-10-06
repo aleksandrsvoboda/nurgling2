@@ -637,7 +637,9 @@ public class NInventory extends Inventory
             Tex img = (grab != null) ? pressed : (isHover ? hover : normal);
             Coord imgSz = img.sz();
             Coord offset = sz.sub(imgSz).div(2);
-            if (isHover) {
+            if (nurgling.styles.UITheme.on()) {
+                nurgling.styles.UITheme.iconHighlight(g, sz, isHover, grab != null ? 1 : 0);
+            } else if (isHover) {
                 g.chcolor(255, 255, 255, 25);
                 g.frect(Coord.z, sz);
                 g.chcolor();
@@ -706,7 +708,9 @@ public class NInventory extends Inventory
             Tex img = a ? (isHover ? hoverChecked : checked) : (isHover ? hoverUnchecked : unchecked);
             Coord imgSz = img.sz();
             Coord offset = sz.sub(imgSz).div(2);
-            if (isHover) {
+            if (nurgling.styles.UITheme.on()) {
+                nurgling.styles.UITheme.iconHighlight(g, sz, isHover, a ? 1 : 0);
+            } else if (isHover) {
                 g.chcolor(255, 255, 255, 25);
                 g.frect(Coord.z, sz);
                 g.chcolor();
@@ -756,7 +760,9 @@ public class NInventory extends Inventory
         @Override
         public void draw(GOut g) {
             int bgAlpha = (state < STATE_ALPHA.length) ? STATE_ALPHA[state] : 0;
-            if (isHover || bgAlpha > 0) {
+            if (nurgling.styles.UITheme.on()) {
+                nurgling.styles.UITheme.iconHighlight(g, sz, isHover, state);
+            } else if (isHover || bgAlpha > 0) {
                 int alpha = isHover ? Math.max(bgAlpha, 25) + 10 : bgAlpha;
                 g.chcolor(255, 255, 255, alpha);
                 g.frect(Coord.z, sz);

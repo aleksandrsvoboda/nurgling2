@@ -38,6 +38,7 @@ public class NFightWnd extends FightWnd {
      * as the same surface as the list below it. Matches the save-slot border treatment. */
     private static final Color CATEGORY_SEL = new Color(233, 156, 84, 48);
     private static final Color UPGRADE_GLOW = new Color(28, 255, 73, 150);
+    private static final Color FLAT_UPGRADE_GLOW = new Color(99, 214, 127);
 
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
@@ -104,22 +105,30 @@ public class NFightWnd extends FightWnd {
 
 	public void draw(GOut g) {
 	    boolean sel = (category() == cat);
-	    g.chcolor(NStyle.infoBg);
-	    g.frect(Coord.z, sz);
-	    if(sel) {
-		g.chcolor(CATEGORY_SEL);
+	    boolean flat = nurgling.styles.UITheme.on();
+	    if(flat) {
+		nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+		    nurgling.styles.GeneratedButtons.state(hovering, false, sel, false));
+	    } else {
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
+		if(sel) {
+		    g.chcolor(CATEGORY_SEL);
+		    g.frect(Coord.z, sz);
+		}
+		g.chcolor();
 	    }
-	    g.chcolor();
 	    Tex icon = caticon(cat, iconsz);
 	    if(icon != null)
 		g.aimage(icon, sz.div(2), 0.5, 0.5);
 	    else if(iconfailed(cat))
 		g.aimage(catletter(cat), sz.div(2), 0.5, 0.5);
-	    int alpha = (sel || hovering) ? 255 : 128;
-	    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
-	    g.rect(Coord.z, sz);
-	    g.chcolor();
+	    if(!flat) {
+		int alpha = (sel || hovering) ? 255 : 128;
+		g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
+		g.rect(Coord.z, sz);
+		g.chcolor();
+	    }
 	    super.draw(g);
 	}
 
@@ -141,15 +150,52 @@ public class NFightWnd extends FightWnd {
 	}
     }
 
+    /* A +/- button; New UI draws the flat glyph at the classic button's size. */
+    private static class StepButton extends NCloseButton {
+	private final int sign;
+	private boolean flat = nurgling.styles.UITheme.on();
+
+	StepButton(int sign) {
+	    super(sign > 0 ? NStyle.plusbtni[0] : NStyle.minusbtni[0],
+		  sign > 0 ? NStyle.plusbtni[1] : NStyle.minusbtni[1],
+		  sign > 0 ? NStyle.plusbtni[2] : NStyle.minusbtni[2]);
+	    this.sign = sign;
+	}
+
+	protected Color tint() { return(nurgling.styles.UITheme.ACCENT); }
+
+	public void tick(double dt) {
+	    if(flat != nurgling.styles.UITheme.on()) {
+		flat = !flat;
+		redraw();
+	    }
+	    super.tick(dt);
+	}
+
+	public void draw(BufferedImage buf) {
+	    if(!flat) {
+		super.draw(buf);
+		return;
+	    }
+	    Graphics2D g = buf.createGraphics();
+	    int side = Math.min(buf.getWidth(), buf.getHeight());
+	    g.translate((buf.getWidth() - side) / 2, (buf.getHeight() - side) / 2);
+	    nurgling.styles.GeneratedButtons.step(g, side, sign, h, a && h, tint());
+	    g.dispose();
+	}
+    }
+
     /* The + under a slot, glowing while pressing it would actually do something. */
-    private class UpgradeButton extends NCloseButton {
+    private class UpgradeButton extends StepButton {
 	private final int slot;
 	private boolean glowing;
 
 	UpgradeButton(int slot) {
-	    super(NStyle.plusbtni[0], NStyle.plusbtni[1], NStyle.plusbtni[2]);
+	    super(1);
 	    this.slot = slot;
 	}
+
+	protected Color tint() { return(glowing ? FLAT_UPGRADE_GLOW : super.tint()); }
 
 	public void tick(double dt) {
 	    Action act = order[slot];
@@ -163,7 +209,7 @@ public class NFightWnd extends FightWnd {
 
 	public void draw(BufferedImage buf) {
 	    super.draw(buf);
-	    if(glowing) {
+	    if(glowing && !nurgling.styles.UITheme.on()) {
 		Graphics2D g = buf.createGraphics();
 		/* SrcAtop tints only what the button already painted, so the glow follows the
 		 * plus glyph instead of filling its bounding box. */
@@ -654,7 +700,7 @@ public class NFightWnd extends FightWnd {
 	    int slotX = (nslots > 1) ? (int)((long)i * (saveRowW - isz.x) / (nslots - 1)) : 0;
 	    int cx = slotX + isz.x / 2;
 	    final int si = i;
-	    Widget sub = adda(new NCloseButton(NStyle.minusbtni[0], NStyle.minusbtni[1], NStyle.minusbtni[2]).action(() -> {
+	    Widget sub = adda(new StepButton(-1).action(() -> {
 		Action act = order[si];
 		if(act != null) {
 		    int nu = act.u - 1;
@@ -692,18 +738,27 @@ public class NFightWnd extends FightWnd {
 	    int sx = i * (SAVE_W + SAVE_GAP);
 	    add(new Widget(new Coord(SAVE_W, SAVE_H)) {
 		public void draw(GOut g) {
-		    g.chcolor(NStyle.infoBg);
-		    g.frect(Coord.z, sz);
-		    g.chcolor();
+		    boolean flat = nurgling.styles.UITheme.on();
+		    boolean selected = savelist.sel != null && savelist.sel == n;
+		    if(flat) {
+			nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+			    selected ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
+			if(n == usesave)
+			    nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
+		    } else {
+			g.chcolor(NStyle.infoBg);
+			g.frect(Coord.z, sz);
+			g.chcolor();
 
-		    int bw = Math.max(2, UI.scale(2));
-		    int alpha = (n == usesave) ? 255 : 128;
-		    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
-		    g.frect(Coord.z, new Coord(sz.x, bw));
-		    g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
-		    g.frect(Coord.z, new Coord(bw, sz.y));
-		    g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
-		    g.chcolor();
+			int bw = Math.max(2, UI.scale(2));
+			int alpha = (n == usesave) ? 255 : 128;
+			g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
+			g.frect(Coord.z, new Coord(sz.x, bw));
+			g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
+			g.frect(Coord.z, new Coord(bw, sz.y));
+			g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
+			g.chcolor();
+		    }
 
 		    if(saves[n] != null) {
 			String txt = saves[n].text;
@@ -729,7 +784,7 @@ public class NFightWnd extends FightWnd {
 			}
 		    }
 
-		    if(savelist.sel != null && savelist.sel == n) {
+		    if(!flat && selected) {
 			int bw2 = Math.max(2, UI.scale(2));
 			g.chcolor(255, 255, 0, 64);
 			g.frect(Coord.of(bw2, bw2), sz.sub(bw2 * 2, bw2 * 2));
