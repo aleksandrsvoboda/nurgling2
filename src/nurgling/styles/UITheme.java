@@ -21,6 +21,11 @@ public final class UITheme {
     public static final Color MUTED = new Color(164, 175, 187);
     public static final Color DISABLED = new Color(109, 122, 124);
 
+    /** The "New UI" switch (Options > Interface). Unset reads as off, keeping the classic look. */
+    public static boolean on() {
+        return Boolean.TRUE.equals(nurgling.NConfig.get(nurgling.NConfig.Key.newUi));
+    }
+
     public static void panel(GOut g, Coord at, Coord size, Color fill, Color edge) {
         if(fill != null) { g.chcolor(fill); g.frect(at, size); }
         if(edge != null) {

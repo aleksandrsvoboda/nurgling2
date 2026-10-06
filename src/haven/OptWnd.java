@@ -797,6 +797,20 @@ public class OptWnd extends Window {
 		    }
 		}, prev.pos("bl").adds(0, UI.scale(5)).x(0));
 		prev = buttonStyleDropbox;
+
+		prev = add(new CheckBox(L10n.get("opt.interface.new_ui")) {
+		    @Override
+		    public void set(boolean val) {
+			super.set(val);
+			NConfig.set(NConfig.Key.newUi, val);
+			NConfig.needUpdate();
+		    }
+
+		    @Override
+		    protected void added() {
+			this.a = nurgling.styles.UITheme.on();
+		    }
+		}, prev.pos("bl").adds(0, UI.scale(10)).x(0));
 	    }
 	    add(new PButton(UI.scale(200), L10n.get("opt.back"), 27, back), prev.pos("bl").adds(0, 30).x(0));
 	    pack();
