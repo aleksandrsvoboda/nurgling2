@@ -121,6 +121,8 @@ public class Button extends SIWidget {
     private UI.Grab d = null;
     /** New UI: tabs and toggles override this to draw their plate as selected. */
     protected boolean selected() { return false; }
+    protected boolean pressed() { return a; }
+    protected boolean hovered() { return hover; }
 	
     @RName("btn")
     public static class $Btn implements Factory {
