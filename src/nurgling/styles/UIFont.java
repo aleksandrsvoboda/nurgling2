@@ -2,7 +2,11 @@ package nurgling.styles;
 
 import haven.Resource;
 import java.awt.Font;
+import java.awt.font.TextAttribute;
+import java.text.AttributedCharacterIterator.Attribute;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /** New UI typography: Open Sans in place of the client's assorted fonts. Decided at client
  * start like the image swaps, because rendered text is cached everywhere. Saved font
@@ -31,6 +35,33 @@ public final class UIFont {
     public static boolean replaces(String family) {
         return (family != null) && !mono(family) && !family.startsWith("Open Sans") &&
             !family.equals(regular.getFamily(Locale.ROOT)) && !family.equals(semibold.getFamily(Locale.ROOT));
+    }
+
+    /** Rich-text attributes with an Open Sans FONT in place of the requested family, so it does
+     * not depend on the font being installed. Size, posture and weight carry over (bold becomes
+     * Semibold); colours and links are kept. An explicit FONT is replaced as such, since AWT
+     * ignores the other font attributes when FONT is present. Monospace stays as requested. */
+    public static Map<Attribute, Object> attributes(Map<? extends Attribute, ?> src) {
+        Map<Attribute, Object> ret = new HashMap<>(src);
+        Object font = src.get(TextAttribute.FONT);
+        if(font instanceof Font) {
+            ret.put(TextAttribute.FONT, replace((Font)font));
+            return(ret);
+        }
+        Object family = src.get(TextAttribute.FAMILY);
+        if((family instanceof String) && !replaces((String)family))
+            return(ret);
+        Object weight = src.get(TextAttribute.WEIGHT);
+        boolean heavy = (weight instanceof Number) && (((Number)weight).floatValue() >= TextAttribute.WEIGHT_SEMIBOLD);
+        Map<Attribute, Object> derive = new HashMap<>();
+        Object size = src.get(TextAttribute.SIZE);
+        derive.put(TextAttribute.SIZE, (size instanceof Number) ? ((Number)size).floatValue() : 12f);
+        if(src.containsKey(TextAttribute.POSTURE))
+            derive.put(TextAttribute.POSTURE, src.get(TextAttribute.POSTURE));
+        ret.remove(TextAttribute.FAMILY);
+        ret.remove(TextAttribute.WEIGHT);
+        ret.put(TextAttribute.FONT, (heavy ? semibold : regular).deriveFont(derive));
+        return(ret);
     }
 
     /** Open Sans in place of a font, keeping size and italics; bold and Fraktur become Semibold.
