@@ -69,11 +69,6 @@ public final class UITheme {
         return max <= min ? 0 : Math.max(0, Math.min(1, (value - (double)min) / (max - (double)min)));
     }
 
-    /** Flat orange line icon, matching the inventory toolbar's visual weight. */
-    public static void stepButton(Graphics2D g, int side, int sign, boolean hover, boolean pressed, Color symbol) {
-        GeneratedButtons.step(g, side, sign, hover, pressed, symbol);
-    }
-
     public static BufferedImage cell(int width, int height) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();

@@ -121,22 +121,4 @@ public final class GeneratedButtons {
             return img;
         }), pos);
     }
-
-    public static void step(Graphics2D g, int side, int sign, boolean hover, boolean pressed, Color tint) {
-        BufferedImage img = iconImage(sign > 0 ? "plus" : "minus", side);
-        if(hover || pressed) {
-            BufferedImage fill = new BufferedImage(side, side, BufferedImage.TYPE_4BYTE_ABGR);
-            Graphics2D fg = fill.createGraphics();
-            plate(fg, side, side, pressed ? State.PRESSED : State.HOVER); fg.dispose();
-            // Interior only: the square outline comes from the generated +/- sprite.
-            int b = Math.max(1, UI.scale(2));
-            g.drawImage(fill, b, b, side-b, side-b, b, b, side-b, side-b, null);
-        }
-        if(!tint.equals(UITheme.ACCENT)) {
-            Graphics2D tg = img.createGraphics(); tg.setComposite(AlphaComposite.SrcAtop);
-            tg.setColor(new Color(tint.getRed(), tint.getGreen(), tint.getBlue(), 180));
-            int b = side / 4; tg.fillRect(b, b, side - 2*b, side - 2*b); tg.dispose();
-        }
-        g.drawImage(img, 0, 0, null);
-    }
 }

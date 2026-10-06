@@ -38,7 +38,6 @@ public class NFightWnd extends FightWnd {
      * as the same surface as the list below it. Matches the save-slot border treatment. */
     private static final Color CATEGORY_SEL = new Color(233, 156, 84, 48);
     private static final Color UPGRADE_GLOW = new Color(28, 255, 73, 150);
-    private static final Color FLAT_UPGRADE_GLOW = new Color(99, 214, 127);
 
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
@@ -150,52 +149,15 @@ public class NFightWnd extends FightWnd {
 	}
     }
 
-    /* A +/- button; New UI draws the flat glyph at the classic button's size. */
-    private static class StepButton extends NCloseButton {
-	private final int sign;
-	private boolean flat = nurgling.styles.UITheme.on();
-
-	StepButton(int sign) {
-	    super(sign > 0 ? NStyle.plusbtni[0] : NStyle.minusbtni[0],
-		  sign > 0 ? NStyle.plusbtni[1] : NStyle.minusbtni[1],
-		  sign > 0 ? NStyle.plusbtni[2] : NStyle.minusbtni[2]);
-	    this.sign = sign;
-	}
-
-	protected Color tint() { return(nurgling.styles.UITheme.ACCENT); }
-
-	public void tick(double dt) {
-	    if(flat != nurgling.styles.UITheme.on()) {
-		flat = !flat;
-		redraw();
-	    }
-	    super.tick(dt);
-	}
-
-	public void draw(BufferedImage buf) {
-	    if(!flat) {
-		super.draw(buf);
-		return;
-	    }
-	    Graphics2D g = buf.createGraphics();
-	    int side = Math.min(buf.getWidth(), buf.getHeight());
-	    g.translate((buf.getWidth() - side) / 2, (buf.getHeight() - side) / 2);
-	    nurgling.styles.GeneratedButtons.step(g, side, sign, h, a && h, tint());
-	    g.dispose();
-	}
-    }
-
     /* The + under a slot, glowing while pressing it would actually do something. */
-    private class UpgradeButton extends StepButton {
+    private class UpgradeButton extends NCloseButton {
 	private final int slot;
 	private boolean glowing;
 
 	UpgradeButton(int slot) {
-	    super(1);
+	    super(NStyle.plusbtni[0], NStyle.plusbtni[1], NStyle.plusbtni[2]);
 	    this.slot = slot;
 	}
-
-	protected Color tint() { return(glowing ? FLAT_UPGRADE_GLOW : super.tint()); }
 
 	public void tick(double dt) {
 	    Action act = order[slot];
@@ -209,7 +171,7 @@ public class NFightWnd extends FightWnd {
 
 	public void draw(BufferedImage buf) {
 	    super.draw(buf);
-	    if(glowing && !nurgling.styles.UITheme.on()) {
+	    if(glowing) {
 		Graphics2D g = buf.createGraphics();
 		/* SrcAtop tints only what the button already painted, so the glow follows the
 		 * plus glyph instead of filling its bounding box. */
@@ -700,7 +662,7 @@ public class NFightWnd extends FightWnd {
 	    int slotX = (nslots > 1) ? (int)((long)i * (saveRowW - isz.x) / (nslots - 1)) : 0;
 	    int cx = slotX + isz.x / 2;
 	    final int si = i;
-	    Widget sub = adda(new StepButton(-1).action(() -> {
+	    Widget sub = adda(new NCloseButton(NStyle.minusbtni[0], NStyle.minusbtni[1], NStyle.minusbtni[2]).action(() -> {
 		Action act = order[si];
 		if(act != null) {
 		    int nu = act.u - 1;
