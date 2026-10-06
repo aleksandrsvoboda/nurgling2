@@ -49,16 +49,20 @@ public class IngredientContainer extends BaseIngredientContainer {
 
         public void draw(BufferedImage img) {
             Graphics g = img.getGraphics();
+            if (nurgling.styles.UITheme.on()) {
+                // New UI: a small flat gear; the flat glyph would otherwise fill the whole button.
+                if (hovered()) {
+                    g.setColor(new java.awt.Color(255, 255, 255, 40));
+                    g.fillRect(0, 0, sz.x, sz.y);
+                }
+                int side = UI.scale(14);
+                g.drawImage(nurgling.styles.GeneratedButtons.iconImage("settings", side), (sz.x - side) / 2, (sz.y - side) / 2, null);
+                g.dispose();
+                return;
+            }
             Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
             g.drawImage(cont, tc.x, tc.y, null);
             g.dispose();
-        }
-
-        @Override
-        public void draw(GOut g) {
-            super.draw(g);
-            if (nurgling.styles.UITheme.on())
-                nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
         }
 
         class SetThreshold extends Window {

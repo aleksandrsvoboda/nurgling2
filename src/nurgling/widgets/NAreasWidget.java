@@ -422,6 +422,29 @@ public class NAreasWidget extends Window
         Label text;
         IButton remove;
         CheckBox hide;
+        /* Long names are cut with "..." before the checkbox and trash icons. The label keeps
+         * the full name (it is looked up by name) and is hidden; this draws in its place. */
+        private Text.Line fitted;
+        private String fittedFor;
+        private int fittedW;
+
+        private Tex fitted(String name, int w) {
+            if((fitted == null) || !name.equals(fittedFor) || (w != fittedW)) {
+                if(fitted != null)
+                    fitted.dispose();
+                fitted = text.f.ellipsize(name, Math.max(0, w));
+                fittedFor = name;
+                fittedW = w;
+            }
+            return(fitted.tex());
+        }
+
+        @Override
+        public void dispose() {
+            if(fitted != null)
+                fitted.dispose();
+            super.dispose();
+        }
 
         public NArea area;
 
@@ -514,7 +537,10 @@ public class NAreasWidget extends Window
                 g.image(folderIcon, Coord.z, UI.scale(16,16));
                 g.text(text.text(), new Coord(UI.scale(21), 0)); // Text next to icon
             } else {
+                int right = ((hide != null) ? hide.c.x : remove.c.x) - UI.scale(4);
+                text.visible = false;
                 super.draw(g);
+                g.image(fitted(text.text(), right - text.c.x), text.c);
             }
         }
 
