@@ -451,6 +451,12 @@ public class NAreasWidget extends Window
         boolean isDir = false;
         private String rootPath = null;
         final ArrayList<String> opt;
+        /* A long (hidden) name label must not widen the row past the list: the trash
+         * icon sits at the row's right edge. */
+        private void fitList() {
+            resize(new Coord(al.sz.x, sz.y));
+        }
+
         @Override
         public void resize(Coord sz) {
             if(remove!=null) {
@@ -494,6 +500,7 @@ public class NAreasWidget extends Window
             };
 
             pack();
+            fitList();
         }
 
         public AreaItem(String text, boolean isDir){
@@ -512,6 +519,7 @@ public class NAreasWidget extends Window
                 }
             };
             pack();
+            fitList();
         }
 
         public AreaItem(String rootPath) {
@@ -526,6 +534,7 @@ public class NAreasWidget extends Window
             },new Coord(al.sz.x - NStyle.removei[0].sz().x, 0).sub(UI.scale(5),UI.scale(1) ));
             opt = new ArrayList<>();
             pack();
+            fitList();
         }
 
         @Override

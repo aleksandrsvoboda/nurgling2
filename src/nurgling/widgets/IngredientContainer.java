@@ -51,12 +51,14 @@ public class IngredientContainer extends BaseIngredientContainer {
             Graphics g = img.getGraphics();
             if (nurgling.styles.UITheme.on()) {
                 // New UI: a small flat gear; the flat glyph would otherwise fill the whole button.
+                // The button overlaps the top of the box below it, whose flat border lies on the
+                // box's outer edge: keep the gear in the band above that border.
+                int side = UI.scale(14), band = UI.scale(16);
                 if (hovered()) {
                     g.setColor(new java.awt.Color(255, 255, 255, 40));
-                    g.fillRect(0, 0, sz.x, sz.y);
+                    g.fillRect(0, 0, sz.x, band);
                 }
-                int side = UI.scale(14);
-                g.drawImage(nurgling.styles.GeneratedButtons.iconImage("settings", side), (sz.x - side) / 2, (sz.y - side) / 2, null);
+                g.drawImage(nurgling.styles.GeneratedButtons.iconImage("settings", side), (sz.x - side) / 2, (band - side) / 2, null);
                 g.dispose();
                 return;
             }
