@@ -31,6 +31,23 @@ public abstract class Dropbox<T> extends ListWidget<T> {
         protected int listitems() {return(Dropbox.this.listitems());}
         protected void drawitem(GOut g, T item, int idx) {Dropbox.this.drawlistitem(g, item, idx);}
 
+        /* New UI: darker than the window behind it and outlined, so the popup's extent is clear. */
+        protected void drawbg(GOut g) {
+            if(!nurgling.styles.UITheme.on()) {
+                super.drawbg(g);
+                return;
+            }
+            g.chcolor(nurgling.styles.UITheme.INPUT);
+            g.frect(Coord.z, sz);
+            g.chcolor();
+        }
+
+        public void draw(GOut g) {
+            super.draw(g);
+            if(nurgling.styles.UITheme.on())
+                nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
+        }
+
         protected void itemclick(T item, Coord c, int button) {
             int width = sz.x - (sb.vis() ? sb.sz.x : 0);
             if(Dropbox.this.listitemclick(item, c, button, width))
