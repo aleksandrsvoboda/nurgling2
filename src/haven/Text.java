@@ -140,12 +140,14 @@ public class Text implements Disposable {
 	private RichText.Foundry wfnd = null;
 		
 	public Foundry(Font f, Color defcol) {
-	    font = f;
+	    // New UI (decided at client start): Open Sans in place of the requested font.
+	    font = nurgling.styles.UIResources.active() ? nurgling.styles.UIFont.replace(f) : f;
 	    this.defcol = defcol;
 	    BufferedImage junk = TexI.mkbuf(new Coord(10, 10));
 	    java.awt.Graphics tmpl = junk.getGraphics();
-	    tmpl.setFont(f);
+	    tmpl.setFont(font);
 	    m = tmpl.getFontMetrics();
+	    tmpl.dispose();
 	}
 		
 	public Foundry(Font f) {

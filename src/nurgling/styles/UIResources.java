@@ -16,9 +16,10 @@ public final class UIResources {
     /** New UI as configured when the client started. Undecided until the config exists. */
     public static boolean active() {
         if(active == null) {
-            if(haven.MainFrame.config == null)
+            Object on = nurgling.NConfig.get(nurgling.NConfig.Key.newUi);
+            if(on == null)
                 return false;
-            active = UITheme.on();
+            active = Boolean.TRUE.equals(on);
         }
         return active;
     }

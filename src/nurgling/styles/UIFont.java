@@ -2,67 +2,44 @@ package nurgling.styles;
 
 import haven.Resource;
 import java.awt.Font;
-import java.awt.font.TextAttribute;
-import java.text.AttributedCharacterIterator.Attribute;
-import java.util.*;
+import java.util.Locale;
 
-/** Typography shared by login, character sheets, controls and FPS diagnostics.
- * Keep the compatibility boundary here: resource widgets and saved preferences
- * can still request old families, but cannot reintroduce them into the UI. */
+/** New UI typography: Open Sans in place of the client's assorted fonts. Decided at client
+ * start like the image swaps, because rendered text is cached everywhere. Saved font
+ * settings are never rewritten; with New UI off the original fonts are used. */
 public final class UIFont {
     private UIFont() {}
 
-    public static final Font sans = new Font(Font.SANS_SERIF, Font.PLAIN, 10);
     public static final Font regular = load("opensans");
     public static final Font semibold = load("opensans-semibold");
-    public static final List<String> FAMILIES = Collections.unmodifiableList(
-        Arrays.asList("Open Sans", "Open Sans Semibold", "Sans"));
 
     private static Font load(String resource) {
         return Resource.local().loadwait("nurgling/font/" + resource)
             .flayer(Resource.Font.class).font.deriveFont(Font.PLAIN);
     }
 
-    public static String family(String name) {
-        if(name == null) return "Open Sans";
-        if(name.equalsIgnoreCase("Open Sans Semibold") || name.equalsIgnoreCase("Fractur") ||
-           name.equalsIgnoreCase("Fraktur")) return "Open Sans Semibold";
-        if(name.equalsIgnoreCase("Sans") || name.equalsIgnoreCase("SansSerif") ||
-           name.equalsIgnoreCase("Dialog")) return "Sans";
-        return "Open Sans";
+    public static boolean active() {
+        return UIResources.active();
     }
 
-    public static Font named(String name) {
-        switch(family(name)) {
-        case "Sans": return sans;
-        case "Open Sans Semibold": return semibold;
-        default: return regular;
-        }
+    private static boolean mono(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        return n.contains("mono") || n.contains("courier") || n.contains("code") || n.contains("consol");
     }
 
-    public static Font normalize(Font font) {
-        String family = font.getFamily(Locale.ROOT);
-        if(family.equals(regular.getFamily(Locale.ROOT)) ||
-           family.equals(semibold.getFamily(Locale.ROOT)) || family.equals(Font.SANS_SERIF))
-            return font;
-        Map<TextAttribute, Object> attrs = new HashMap<>(font.getAttributes());
-        attrs.remove(TextAttribute.FAMILY);
-        return named(font.getName()).deriveFont(attrs);
+    /** True for families that become Open Sans: everything except Open Sans itself and monospace. */
+    public static boolean replaces(String family) {
+        return (family != null) && !mono(family) && !family.startsWith("Open Sans") &&
+            !family.equals(regular.getFamily(Locale.ROOT)) && !family.equals(semibold.getFamily(Locale.ROOT));
     }
 
-    /** Resolve to an actual bundled font, rather than relying on OS registration.
-     * Keep rich-text size, weight, italics, colour, links and underlines intact. */
-    public static Map<Attribute, Object> attributes(Map<? extends Attribute, ?> source) {
-        Map<Attribute, Object> result = new HashMap<>(source);
-        Font base = (Font)source.get(TextAttribute.FONT);
-        Object family = source.get(TextAttribute.FAMILY);
-        if(base == null) base = named(family instanceof String ? (String)family : "Sans");
-        else base = normalize(base);
-        Map<Attribute, Object> overrides = new HashMap<>(source);
-        overrides.remove(TextAttribute.FONT);
-        overrides.remove(TextAttribute.FAMILY);
-        result.put(TextAttribute.FONT, base.deriveFont(overrides));
-        result.remove(TextAttribute.FAMILY);
-        return result;
+    /** Open Sans in place of a font, keeping size and italics; bold and Fraktur become Semibold.
+     * Monospaced fonts are kept, so the console stays aligned. */
+    public static Font replace(Font f) {
+        String family = f.getFamily(Locale.ROOT), name = f.getName();
+        if(!replaces(family) || !replaces(name))
+            return f;
+        boolean heavy = f.isBold() || name.toLowerCase(Locale.ROOT).startsWith("fra");
+        return (heavy ? semibold : regular).deriveFont(f.getStyle() & Font.ITALIC, f.getSize2D());
     }
 }
