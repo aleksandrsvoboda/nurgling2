@@ -34,6 +34,12 @@ public class IButton extends SIWidget {
     public boolean h = false, a = false;
     public Runnable action = null;
     public UI.Grab d = null;
+    /* New UI: plate behind the icon, which keeps its pixels but loses its own bezel.
+     * Size and click area are unchanged. */
+    private int frameInset;
+    private boolean flat = nurgling.styles.UITheme.on(), lastSelected;
+    /** New UI: tab-like buttons override this to draw their plate as selected. */
+    protected boolean selected() { return false; }
 
     @RName("ibtn")
     public static class $_ implements Factory {
@@ -75,6 +81,10 @@ public class IButton extends SIWidget {
 
     public IButton(String base, String up, String down, String hover, Runnable action) {
 	this(Resource.loadsimg(base + up), Resource.loadsimg(base + down), Resource.loadsimg(base + (hover == null?up:hover)), action);
+	// The +/- steppers keep their classic look.
+	boolean step = base.equals("gfx/hud/buttons/add") || base.equals("gfx/hud/buttons/sub");
+	if(!step && (base.startsWith("gfx/hud/chr/") || base.startsWith("gfx/hud/buttons/")))
+	    frameInset = UI.scale(5);
     }
 
     public IButton(String base, String up, String down, String hover) {
@@ -88,7 +98,7 @@ public class IButton extends SIWidget {
     }
 
     public void draw(BufferedImage buf) {
-	Graphics g = buf.getGraphics();
+	java.awt.Graphics2D g = buf.createGraphics();
 	BufferedImage img;
 	if(a && h)
 	    img = down;
@@ -96,8 +106,22 @@ public class IButton extends SIWidget {
 	    img = hover;
 	else
 	    img = up;
+	if(flat && (frameInset > 0)) {
+	    nurgling.styles.GeneratedButtons.plate(g, sz.x, sz.y,
+		nurgling.styles.GeneratedButtons.state(h, a && h, selected(), false));
+	    g.clipRect(frameInset, frameInset, Math.max(0, sz.x - frameInset * 2), Math.max(0, sz.y - frameInset * 2));
+	}
 	g.drawImage(img, 0, 0, null);
 	g.dispose();
+    }
+
+    public void draw(GOut g) {
+	if((frameInset > 0) && ((flat != nurgling.styles.UITheme.on()) || (lastSelected != selected()))) {
+	    flat = nurgling.styles.UITheme.on();
+	    lastSelected = selected();
+	    redraw();
+	}
+	super.draw(g);
     }
 
     public boolean checkhit(Coord c) {
