@@ -1013,11 +1013,22 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     public static class Progress extends Widget {
 	private static final Resource.Anim progt = Resource.local().loadwait("gfx/hud/prog").layer(Resource.animc);
+	/* New UI: a ring with the percentage inside and the time left in a caption below. */
+	private static final int RING = UI.scale(48), RINGW = UI.scale(5), GAP = UI.scale(3);
+	public static final Coord flatsz = Coord.of(UI.scale(76), RING + GAP + UI.scale(16));
+	private static final Text.Foundry pctf = new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 12, nurgling.styles.UITheme.TEXT).aa(true);
+	private static final Text.Foundry etaf = new Text.Foundry(Text.sans, 11, nurgling.styles.UITheme.MUTED).aa(true);
 	public double prog;
 	private TexI curi;
+	private final boolean flat = nurgling.styles.UITheme.on();
+	private final nurgling.tools.ProgressRate rate = new nurgling.tools.ProgressRate();
+	/* Rendered when their value changes, not every frame. */
+	private Text label, pct, eta;
+	private int pctv = -1;
+	private String etav;
 
 	public Progress(double prog) {
-	    super(progt.f[0][0].ssz);
+	    super(nurgling.styles.UITheme.on() ? flatsz : progt.f[0][0].ssz);
 	    set(prog);
 	}
 
@@ -1035,17 +1046,76 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    int dec = Math.max(0, (int)Math.round(-Math.log10(d)) - 2);
 	    this.tooltip = String.format("%." + dec + "f%%", prog * 100);
 	    this.prog = prog;
+	    rate.add(Utils.rtime(), prog);
+	    if(!flat) {
+		if(label != null)
+		    label.dispose();
+		label = NStyle.openings.render(String.format("%.0f %%", prog * 100));
+	    }
 	}
 
 	public void draw(GOut g) {
+	    if(flat) {
+		drawring(g);
+		return;
+	    }
 	    g.image(curi, Coord.z);
-		TexI label = new TexI(NStyle.openings.render(String.format("%.0f %%",prog*100)).img);
-		Coord pos= new Coord(curi.sz.x/2 - label.sz.x/2,0);
-		g.aimage(label, pos,0,0);
+	    Tex t = label.tex();
+	    g.aimage(t, new Coord(curi.sz.x / 2 - t.sz().x / 2, 0), 0, 0);
+	}
+
+	private void drawring(GOut g) {
+	    double now = Utils.rtime();
+	    double p = Utils.clip(rate.shown(now), 0.0, 1.0);
+	    int r = RING / 2;
+	    Coord c = Coord.of(sz.x / 2, r);
+	    g.chcolor(nurgling.styles.UITheme.INPUT);
+	    g.fellipse(c, Coord.of(r, r));
+	    if(p > 0) {
+		// Clockwise from the top.
+		g.chcolor(nurgling.styles.UITheme.ACCENT);
+		g.fellipse(c, Coord.of(r, r), (Math.PI / 2) - (2 * Math.PI * p), Math.PI / 2);
+	    }
+	    g.chcolor(nurgling.styles.UITheme.PANEL);
+	    g.fellipse(c, Coord.of(r - RINGW, r - RINGW));
+	    g.chcolor();
+	    int v = (int)Math.floor(p * 100);
+	    if(v != pctv) {
+		if(pct != null)
+		    pct.dispose();
+		pct = pctf.render(v + "%");
+		pctv = v;
+	    }
+	    g.aimage(pct.tex(), c, 0.5, 0.5);
+	    double left = rate.left(now);
+	    String e = (left < 0) ? null : nurgling.tools.ProgressRate.format(left);
+	    if(!Utils.eq(e, etav)) {
+		if(eta != null)
+		    eta.dispose();
+		eta = (e == null) ? null : etaf.render(e);
+		etav = e;
+	    }
+	    if(eta != null) {
+		Coord es = eta.sz().add(UI.scale(12), UI.scale(2));
+		Coord eu = Coord.of((sz.x - es.x) / 2, RING + GAP);
+		nurgling.styles.UITheme.panel(g, eu, es, nurgling.styles.UITheme.PANEL, nurgling.styles.UITheme.LINE);
+		g.aimage(eta.tex(), eu.add(es.div(2)), 0.5, 0.5);
+	    }
 	}
 
 	public boolean checkhit(Coord c) {
+	    if(flat)
+		return(c.isect(Coord.z, sz));
 	    return(Utils.checkhit(curi.back, c, 10));
+	}
+
+	public void dispose() {
+	    for(Text t : new Text[] {label, pct, eta})
+		if(t != null)
+		    t.dispose();
+	    if(curi != null)
+		curi.dispose();
+	    super.dispose();
 	}
     }
 
@@ -1275,8 +1345,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	} else if(msg == "prog") {
 	    if(args.length > 0) {
 		double p = Utils.dv(args[0]) / 100.0;
-		if(prog == null)
-		    prog = adda(new Progress(p), 0.5, 0.35);
+		if(prog == null) {
+		    Widget slot = progslot();
+		    if(slot != null)
+			prog = slot.add(new Progress(p), nurgling.widgets.NDraggableWidget.off);
+		    else
+			prog = adda(new Progress(p), 0.5, 0.35);
+		}
 		else
 		    prog.set(p);
 	    } else {
@@ -1636,8 +1711,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 	if(map != null)
 	    map.resize(sz);
-	if(prog != null)
+	if((prog != null) && (prog.parent == this))
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
+    }
+
+    /** Where a new action progress widget goes, or null for the classic screen spot. */
+    protected Widget progslot() {
+	return(null);
     }
 
 	private void openSearchWidget() {
