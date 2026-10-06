@@ -12,7 +12,9 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Fonts extends Panel {
-    private static final List<String> FONT_FAMILIES = nurgling.styles.UIFont.FAMILIES;
+    private static final List<String> FONT_FAMILIES = Arrays.asList(
+            "Inter", "Roboto", "Open Sans", "Open Sans Semibold", "Sans", "Serif", "Fractur"
+    );
 
     public enum FontType {
         DEFAULT("fonts.type.default"),

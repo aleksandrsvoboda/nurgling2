@@ -186,32 +186,11 @@ public class NStudyReport extends Widget {
         
         btnLock = add(new ICheckBox(NStyle.locki[0], NStyle.locki[1], NStyle.locki[2], NStyle.locki[3]) {
             @Override
-            public void draw(GOut g) {
-                int side = Math.min(UI.scale(11), Math.min(sz.x, sz.y));
-                nurgling.styles.GeneratedButtons.icon(g, state() ? "lock" : "unlock",
-                    sz.sub(side, side).div(2), side);
-            }
-
-            @Override
-            public boolean checkhit(Coord c) {
-                return c.isect(Coord.z, sz);
-            }
-
-            @Override
-            public Object tooltip(Coord c, Widget prev) {
-                return L10n.get(locked ? "study.unlock_tip" : "study.lock_tip");
-            }
-
-            @Override
             public void changed(boolean val) {
                 super.changed(val);
                 locked = val;
             }
-        }, Coord.z);
-        Coord gridCorner = new Coord(PADDING + studySz.x, PADDING);
-        Coord frameCorner = new Coord(containerSz.x, 0);
-        Coord lockCenter = gridCorner.add(frameCorner).div(2);
-        btnLock.move(lockCenter.sub(btnLock.sz.div(2)));
+        }, new Coord(containerSz.x - NStyle.locki[0].sz().x - UI.scale(5), UI.scale(8)));
     }
     
     private void updateStudyItems() {

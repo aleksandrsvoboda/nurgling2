@@ -35,9 +35,9 @@ import java.awt.image.BufferedImage;
 import java.util.*;
 
 public class TextEntry extends Widget implements ReadLine.Owner {
-    public static final Color defcol = nurgling.styles.UITheme.TEXT, dirtycol = nurgling.styles.UITheme.ACCENT;
-    public static final Color selcol = new Color(83, 83, 65);
-    public static final Text.Foundry fnd = new Text.Foundry(nurgling.styles.UIFont.regular, 12).aa(true);
+    public static final Color defcol = new Color(255, 205, 109), dirtycol = new Color(255, 232, 209);
+    public static final Color selcol = new Color(24, 80, 192);
+    public static final Text.Foundry fnd = new Text.Foundry(Text.serif, 12).aa(true);
 	public static final Tex lcap = Resource.loadtex("nurgling/hud/text/l");
 	public static final Tex rcap = Resource.loadtex("nurgling/hud/text/r");
 	public static final Tex mext = Resource.loadtex("nurgling/hud/text/m");
@@ -121,28 +121,27 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     public void draw(GOut g) {
 	Text.Line tcache = this.tcache;
 	if(tcache == null)
-            this.tcache = tcache = fnd.render(dtext(), textcolor());
+	    this.tcache = tcache = fnd.render(dtext(), textcolor());
 	int point = buf.point(), mark = buf.mark();
-	nurgling.styles.UITheme.panel(g, Coord.z, sz, nurgling.styles.UITheme.INPUT, hasfocus ? nurgling.styles.UITheme.ACCENT : nurgling.styles.UITheme.LINE);
-        GOut content = g.reclip(Coord.of(toffx, 1), Coord.of(Math.max(0, sz.x - wmarg), sz.y - 2));
-        int cx = tcache.advance(point);
-        if(hasfocus) {
-            if(cx < sx) sx = cx;
-            if(cx > sx + (sz.x - wmarg)) sx = Math.max(0, cx - (sz.x - wmarg));
-        }
-        if(mark >= 0) {
-            int px = cx - sx, mx = tcache.advance(mark) - sx;
-            content.chcolor(selcol);
-            content.frect2(Coord.of(Math.min(px, mx), (sz.y - tcache.sz().y) / 2 - 1),
-                           Coord.of(Math.max(px, mx), (sz.y + tcache.sz().y) / 2 - 1));
-            content.chcolor();
-        }
-        content.image(tcache.tex(), Coord.of(-sx, (sz.y - tcache.sz().y) / 2 - 1));
-        if(hasfocus && ((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5) {
-            content.chcolor(nurgling.styles.UITheme.ACCENT);
-            content.frect(Coord.of(cx - sx, (sz.y - tcache.sz().y) / 2 - 1), Coord.of(Math.max(1, UI.scale(1)), tcache.sz().y));
-            content.chcolor();
-        }
+	g.image(mext, Coord.z, sz);
+	if(mark >= 0) {
+	    int px = tcache.advance(point) - sx, mx = tcache.advance(mark) - sx;
+	    g.chcolor(selcol);
+	    g.frect2(Coord.of(Math.min(px, mx) + toffx, (sz.y - tcache.sz().y) / 2),
+		     Coord.of(Math.max(px, mx) + toffx, (sz.y + tcache.sz().y) / 2));
+	    g.chcolor();
+	}
+	g.image(tcache.tex(), Coord.of(toffx - sx, (sz.y - tcache.sz().y) / 2));
+	g.image(lcap, Coord.z);
+	g.image(rcap, Coord.of(sz.x - rcap.sz().x, 0));
+	if(hasfocus) {
+	    int cx = tcache.advance(point);
+	    if(cx < sx) {sx = cx;}
+	    if(cx > sx + (sz.x - wmarg)) {sx = cx - (sz.x - wmarg);}
+	    int lx = cx - sx;
+	    if(((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5)
+		g.image(caret, coff.add(toffx + lx, (sz.y - tcache.img.getHeight()) / 2));
+	}
     }
 
     public TextEntry(int w, String deftext) {

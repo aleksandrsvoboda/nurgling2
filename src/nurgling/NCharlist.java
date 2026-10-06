@@ -387,12 +387,10 @@ public class NCharlist extends Charlist {
 
     /* --------------------------------------------------------------------------- pieces */
 
-    /** "Characters" and the account name with its verified/subscriber badges. */
+    /** "Characters", the account name with its verified/subscriber badges, the accent underline. */
     private class Heading extends Widget {
-        private final Text title = new Text.Foundry(nurgling.conf.FontSettings.getOpenSansSemibold(), 26, Color.WHITE)
-                .aa(true).render(L10n.get("charlist.heading"));
-        private final Text.Foundry accountFont = new Text.Foundry(nurgling.conf.FontSettings.getOpenSans(), 12, NLoginTheme.dim).aa(true);
-        private final int suby, rowh;
+        private final Text title = NLoginTheme.heading.render(L10n.get("charlist.heading"));
+        private final int suby;
         private Text acct;
         private String accts;
         private final Map<String, Text> btexts = new HashMap<>();
@@ -402,9 +400,8 @@ public class NCharlist extends Charlist {
 
         Heading() {
             super(Coord.z);
-            suby = title.sz().y + UI.scale(4);
-            rowh = Math.max(accountFont.height(), NLoginTheme.badgeh());
-            resize(Coord.of(W, suby + rowh + UI.scale(10)));
+            suby = title.sz().y - UI.scale(4);
+            resize(Coord.of(W, suby + UI.scale(28)));
         }
 
         public void draw(GOut g) {
@@ -412,10 +409,10 @@ public class NCharlist extends Charlist {
             String a = NCharTags.account(ui).trim();
             if (!a.equals(accts)) {
                 accts = a;
-                acct = accountFont.render(a);
+                acct = NLoginTheme.sub.render(a);
             }
-            g.image(acct.tex(), Coord.of(0, suby + (rowh - acct.sz().y) / 2));
-            int x = acct.sz().x + UI.scale(8);
+            g.image(acct.tex(), Coord.of(0, suby));
+            int x = acct.sz().x + UI.scale(10), cy = suby + (acct.sz().y / 2);
             bareas.clear();
             bimgs.clear();
             btips.clear();
@@ -439,7 +436,7 @@ public class NCharlist extends Charlist {
                     Text t = btexts.get(lbl);
                     if (t == null)
                         btexts.put(lbl, t = NLoginTheme.badge.render(lbl, col));
-                    Coord bc = Coord.of(x, suby + (rowh - NLoginTheme.badgeh()) / 2);
+                    Coord bc = Coord.of(x, cy - (NLoginTheme.badgeh() / 2));
                     int w = NLoginTheme.drawBadge(g, bc, t, col);
                     bareas.add(new int[] {bc.x, bc.y, w, NLoginTheme.badgeh()});
                     bimgs.add(img);
@@ -447,6 +444,9 @@ public class NCharlist extends Charlist {
                     x += w + UI.scale(6);
                 }
             }
+            g.chcolor(NLoginTheme.accent);
+            g.frect(Coord.of(0, sz.y - UI.scale(2)), Coord.of(UI.scale(40), UI.scale(2)));
+            g.chcolor();
         }
 
         private int badgeat(Coord c) {
@@ -531,9 +531,7 @@ public class NCharlist extends Charlist {
             int ch = NLoginTheme.chiph();
             int cy = my + ((meta.sz().y - ch) / 2);
             int cx = x + meta.sz().x + UI.scale(8);
-            int editInset = (sz.y - UI.scale(16)) / 2;
-            int editIconX = sz.x - editInset - UI.scale(14);
-            int maxx = editIconX - UI.scale(12);
+            int maxx = sz.x - UI.scale(32);
             if (NCharTags.hasnote(acc, chr.name)) {
                 NLoginTheme.drawNote(g, Coord.of(cx, my + ((meta.sz().y - UI.scale(11)) / 2)), NLoginTheme.note);
                 cx += UI.scale(14);
@@ -555,8 +553,8 @@ public class NCharlist extends Charlist {
 
             editx = -1;
             if (hover) {
-                editx = editIconX - UI.scale(6);
-                NLoginTheme.drawTagEdit(g, Coord.of(editIconX, editInset));
+                editx = sz.x - UI.scale(26);
+                NLoginTheme.drawNote(g, Coord.of(editx + UI.scale(6), (sz.y - UI.scale(11)) / 2), NLoginTheme.muted);
             }
         }
 

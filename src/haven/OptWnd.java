@@ -416,7 +416,7 @@ public class OptWnd extends Window {
 			    ui.setgprefs(GSettings.defaults());
 			    curcf.destroy();
 			    curcf = null;
-		}), prev.pos("bl").adds(0, 5).x(0));
+		}), prev.pos("bl").adds(0, 5));
 		pack();
 	    }
 	}
@@ -740,7 +740,63 @@ public class OptWnd extends Window {
 		backgroundColorWidget.color = NConfig.getColor(NConfig.Key.windowBackgroundColor, new java.awt.Color(32, 32, 32));
 		prev = backgroundColorWidget;
 		
-
+		// Button Style Controls
+		prev = add(new Label(L10n.get("opt.interface.button_style")), prev.pos("bl").adds(0, UI.scale(10)).x(0));
+		Dropbox<String> buttonStyleDropbox = add(new Dropbox<String>(UI.scale(160), 4, UI.scale(16)) {
+		    private final String[] styles = {"Classic", "Alternative", "Alternative 2", "Alternative 3"};
+		    private final String[] styleKeys = {"tbtn", "tbtn2", "tbtn3", "tbtn4"};
+		    
+		    @Override
+		    protected String listitem(int i) {
+			return styles[i];
+		    }
+		    
+		    @Override
+		    protected int listitems() {
+			return styles.length;
+		    }
+		    
+		    @Override
+		    protected void drawitem(GOut g, String item, int i) {
+			g.text(item, Coord.z);
+		    }
+		    
+		    @Override
+		    public void change(String item) {
+			super.change(item);
+			for (int i = 0; i < styles.length; i++) {
+			    if (styles[i].equals(item)) {
+				NConfig.set(NConfig.Key.buttonStyle, styleKeys[i]);
+				Button.loadButtonStyle(styleKeys[i]);
+				// Update all existing buttons in UI
+				if (ui != null && ui.root != null) {
+				    Button.updateAllButtons(ui.root);
+				}
+				NConfig.needUpdate();
+				break;
+			    }
+			}
+		    }
+		    
+		    @Override
+		    protected void added() {
+			super.added();
+			// Load current style from config
+			Object configStyle = NConfig.get(NConfig.Key.buttonStyle);
+			String currentStyle = "tbtn";
+			if (configStyle instanceof String) {
+			    currentStyle = (String) configStyle;
+			}
+			// Set dropdown to current style
+			for (int i = 0; i < styleKeys.length; i++) {
+			    if (styleKeys[i].equals(currentStyle)) {
+				change(styles[i]);
+				break;
+			    }
+			}
+		    }
+		}, prev.pos("bl").adds(0, UI.scale(5)).x(0));
+		prev = buttonStyleDropbox;
 	    }
 	    add(new PButton(UI.scale(200), L10n.get("opt.back"), 27, back), prev.pos("bl").adds(0, 30).x(0));
 	    pack();

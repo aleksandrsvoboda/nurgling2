@@ -34,18 +34,6 @@ public class IButton extends SIWidget {
     public boolean h = false, a = false;
     public Runnable action = null;
     public UI.Grab d = null;
-    private int frameInset;
-    private int stepSymbol;
-    private boolean lastSelected;
-    protected boolean selected() { return false; }
-    protected java.awt.Color stepColor() { return nurgling.styles.UITheme.ACCENT; }
-    protected int stepSign() { return stepSymbol; }
-
-    public IButton framed(int inset) {
-        frameInset = Math.max(0, inset);
-        redraw();
-        return this;
-    }
 
     @RName("ibtn")
     public static class $_ implements Factory {
@@ -87,11 +75,6 @@ public class IButton extends SIWidget {
 
     public IButton(String base, String up, String down, String hover, Runnable action) {
 	this(Resource.loadsimg(base + up), Resource.loadsimg(base + down), Resource.loadsimg(base + (hover == null?up:hover)), action);
-        if(base.equals("gfx/hud/buttons/add")) stepSymbol = 1;
-        else if(base.equals("gfx/hud/buttons/sub")) stepSymbol = -1;
-        if(stepSymbol != 0) resize(UI.scale(16, 16));
-        if(base.startsWith("gfx/hud/chr/") || base.startsWith("gfx/hud/buttons/"))
-            framed(UI.scale(5));
     }
 
     public IButton(String base, String up, String down, String hover) {
@@ -105,13 +88,7 @@ public class IButton extends SIWidget {
     }
 
     public void draw(BufferedImage buf) {
-	java.awt.Graphics2D g = buf.createGraphics();
-        int sign = stepSign();
-        if(sign != 0) {
-            nurgling.styles.UITheme.stepButton(g, sz.x, sign, h, a && h, stepColor());
-            g.dispose();
-            return;
-        }
+	Graphics g = buf.getGraphics();
 	BufferedImage img;
 	if(a && h)
 	    img = down;
@@ -119,25 +96,13 @@ public class IButton extends SIWidget {
 	    img = hover;
 	else
 	    img = up;
-        if(frameInset > 0) {
-            // The original icon pixels stay intact; only the surrounding bezel is clipped.
-            nurgling.styles.GeneratedButtons.plate(g, sz.x, sz.y,
-                nurgling.styles.GeneratedButtons.state(h, a && h, selected(), false));
-            g.clipRect(frameInset, frameInset, Math.max(0, sz.x - frameInset * 2), Math.max(0, sz.y - frameInset * 2));
-        }
 	g.drawImage(img, 0, 0, null);
 	g.dispose();
-    }
-
-    public void draw(GOut g) {
-        if(lastSelected != selected()) { lastSelected = selected(); redraw(); }
-        super.draw(g);
     }
 
     public boolean checkhit(Coord c) {
 	if(!c.isect(Coord.z, sz))
 	    return(false);
-        if(frameInset > 0) return true;
 	if(up.getRaster().getNumBands() < 4)
 	    return(true);
 	return(up.getRaster().getSample(c.x, c.y, 3) >= 128);

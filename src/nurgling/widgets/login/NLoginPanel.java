@@ -23,7 +23,6 @@ import java.util.function.BiConsumer;
 public class NLoginPanel extends Widget {
     public static final int W = UI.scale(300);
     private static final int GAP = UI.scale(12), TIGHT = UI.scale(3);
-    private static final int ACTION_WIDTH = UI.scale(110);
     /** The list keeps at least this many rows even when the window is very short. */
     private static final int MINROWS = 3;
 
@@ -107,8 +106,8 @@ public class NLoginPanel extends Widget {
         obf.changed = a -> NConfig.set(NConfig.Key.alwaysObfuscate, a);
         prog = add(new Progress());
         keyhint = add(new ILabel(L10n.get("login.keys_hint"), NLoginTheme.hint));
-        forget = add(new Button(ACTION_WIDTH, L10n.get("login.forget_me"), true, this::forgetcur));
-        loginbtn = add(new Button(ACTION_WIDTH, L10n.get("login.button"), true, this::enter));
+        forget = add(new Button(UI.scale(80), L10n.get("login.forget_me"), this::forgetcur));
+        loginbtn = add(new Button(UI.scale(110), L10n.get("login.button"), this::enter));
 
         int running = SessionManager.getInstance().getAllSessions().size();
         if (running > 0)
@@ -286,7 +285,7 @@ public class NLoginPanel extends Widget {
         int below = (userlbl.sz.y + TIGHT) + (user.sz.y + UI.scale(8))
             + (passlbl.sz.y + TIGHT) + (pass.sz.y + UI.scale(6)) + (caps.sz.y + UI.scale(4))
             + (remember.sz.y + TIGHT) + (remhint.sz.y + GAP) + (obf.sz.y + GAP)
-            + Math.max(loginbtn.sz.y, forget.sz.y) + (haslist ? (UI.scale(6) + keyhint.sz.y) : 0);
+            + loginbtn.sz.y + (haslist ? (UI.scale(6) + keyhint.sz.y) : 0);
         int above = (err.visible ? (err.sz.y + GAP) : 0) + (info.visible ? (info.sz.y + GAP) : 0);
         int listgap = GAP + UI.scale(4);
         if (haslist) {
@@ -318,13 +317,13 @@ public class NLoginPanel extends Widget {
         y = stack(obf, y, GAP);
         /* The action row keeps its height while connecting - the spinner sits in the same slot as
          * the buttons and the hint keeps its space - so the form does not jump on submit. */
-        int barh = Math.max(loginbtn.sz.y, forget.sz.y);
+        int barh = loginbtn.sz.y;
         if (prog.visible) {
             prog.move(Coord.of(0, y + ((barh - prog.sz.y) / 2)));
         } else {
-            loginbtn.move(Coord.of(W - loginbtn.sz.x, y + ((barh - loginbtn.sz.y) / 2)));
+            loginbtn.move(Coord.of(W - loginbtn.sz.x, y));
             if (forget.visible)
-                forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y + ((barh - forget.sz.y) / 2)));
+                forget.move(Coord.of(loginbtn.c.x - UI.scale(8) - forget.sz.x, y));
         }
         y += barh;
         if (haslist) {

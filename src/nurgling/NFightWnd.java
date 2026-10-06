@@ -2,6 +2,7 @@ package nurgling;
 
 import haven.*;
 import java.util.*;
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.font.TextAttribute;
@@ -11,7 +12,6 @@ import static haven.PUtils.*;
 import static haven.Inventory.invsq;
 import nurgling.conf.NCombatCategory;
 import nurgling.i18n.L10n;
-import nurgling.styles.UITheme;
 
 public class NFightWnd extends FightWnd {
     private static final int DESC_W = UI.scale(267);
@@ -37,7 +37,7 @@ public class NFightWnd extends FightWnd {
     /* Washed over the tab's normal background rather than replacing it, so the selected tab reads
      * as the same surface as the list below it. Matches the save-slot border treatment. */
     private static final Color CATEGORY_SEL = new Color(233, 156, 84, 48);
-    private static final Color UPGRADE_GLOW = new Color(99, 214, 127);
+    private static final Color UPGRADE_GLOW = new Color(28, 255, 73, 150);
 
     private static final Text.Foundry titleFnd = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 14, Color.WHITE).aa(true);
@@ -104,13 +104,22 @@ public class NFightWnd extends FightWnd {
 
 	public void draw(GOut g) {
 	    boolean sel = (category() == cat);
-	    nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
-	        nurgling.styles.GeneratedButtons.state(hovering, false, sel, false));
+	    g.chcolor(NStyle.infoBg);
+	    g.frect(Coord.z, sz);
+	    if(sel) {
+		g.chcolor(CATEGORY_SEL);
+		g.frect(Coord.z, sz);
+	    }
+	    g.chcolor();
 	    Tex icon = caticon(cat, iconsz);
 	    if(icon != null)
 		g.aimage(icon, sz.div(2), 0.5, 0.5);
 	    else if(iconfailed(cat))
 		g.aimage(catletter(cat), sz.div(2), 0.5, 0.5);
+	    int alpha = (sel || hovering) ? 255 : 128;
+	    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
+	    g.rect(Coord.z, sz);
+	    g.chcolor();
 	    super.draw(g);
 	}
 
@@ -133,12 +142,12 @@ public class NFightWnd extends FightWnd {
     }
 
     /* The + under a slot, glowing while pressing it would actually do something. */
-    private class UpgradeButton extends IButton {
+    private class UpgradeButton extends NCloseButton {
 	private final int slot;
 	private boolean glowing;
 
 	UpgradeButton(int slot) {
-	    super("gfx/hud/buttons/add", "u", "d", "h");
+	    super(NStyle.plusbtni[0], NStyle.plusbtni[1], NStyle.plusbtni[2]);
 	    this.slot = slot;
 	}
 
@@ -152,8 +161,17 @@ public class NFightWnd extends FightWnd {
 	    super.tick(dt);
 	}
 
-	protected Color stepColor() {
-	    return glowing ? UPGRADE_GLOW : super.stepColor();
+	public void draw(BufferedImage buf) {
+	    super.draw(buf);
+	    if(glowing) {
+		Graphics2D g = buf.createGraphics();
+		/* SrcAtop tints only what the button already painted, so the glow follows the
+		 * plus glyph instead of filling its bounding box. */
+		g.setComposite(AlphaComposite.SrcAtop);
+		g.setColor(UPGRADE_GLOW);
+		g.fillRect(0, 0, buf.getWidth(), buf.getHeight());
+		g.dispose();
+	    }
 	}
     }
 
@@ -636,7 +654,7 @@ public class NFightWnd extends FightWnd {
 	    int slotX = (nslots > 1) ? (int)((long)i * (saveRowW - isz.x) / (nslots - 1)) : 0;
 	    int cx = slotX + isz.x / 2;
 	    final int si = i;
-	    Widget sub = adda(new IButton("gfx/hud/buttons/sub", "u", "d", "h").action(() -> {
+	    Widget sub = adda(new NCloseButton(NStyle.minusbtni[0], NStyle.minusbtni[1], NStyle.minusbtni[2]).action(() -> {
 		Action act = order[si];
 		if(act != null) {
 		    int nu = act.u - 1;
@@ -674,8 +692,18 @@ public class NFightWnd extends FightWnd {
 	    int sx = i * (SAVE_W + SAVE_GAP);
 	    add(new Widget(new Coord(SAVE_W, SAVE_H)) {
 		public void draw(GOut g) {
-		    boolean selected = savelist.sel != null && savelist.sel == n;
-		    nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz, selected ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
+		    g.chcolor(NStyle.infoBg);
+		    g.frect(Coord.z, sz);
+		    g.chcolor();
+
+		    int bw = Math.max(2, UI.scale(2));
+		    int alpha = (n == usesave) ? 255 : 128;
+		    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
+		    g.frect(Coord.z, new Coord(sz.x, bw));
+		    g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
+		    g.frect(Coord.z, new Coord(bw, sz.y));
+		    g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
+		    g.chcolor();
 
 		    if(saves[n] != null) {
 			String txt = saves[n].text;
@@ -701,6 +729,12 @@ public class NFightWnd extends FightWnd {
 			}
 		    }
 
+		    if(savelist.sel != null && savelist.sel == n) {
+			int bw2 = Math.max(2, UI.scale(2));
+			g.chcolor(255, 255, 0, 64);
+			g.frect(Coord.of(bw2, bw2), sz.sub(bw2 * 2, bw2 * 2));
+			g.chcolor();
+		    }
 		}
 
 		private Coord lc = null;

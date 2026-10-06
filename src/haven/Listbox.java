@@ -13,11 +13,13 @@ public abstract class Listbox<T> extends ListWidget<T> {
     }
 
     protected void drawsel(GOut g) {
-        nurgling.styles.UITheme.selection(g, g.sz());
+        g.chcolor(255, 255, 0, 128);
+        g.frect(Coord.z, g.sz());
+        g.chcolor();
     }
 
     protected void drawbg(GOut g) {
-        g.chcolor(nurgling.styles.UITheme.PANEL);
+        g.chcolor(Color.BLACK);
         g.frect(Coord.z, sz);
         g.chcolor();
     }
@@ -35,7 +37,6 @@ public abstract class Listbox<T> extends ListWidget<T> {
             T item = listitem(idx);
             int w = sz.x - (sb.vis()?sb.sz.x:0);
             GOut ig = g.reclip(new Coord(0, i * itemh), new Coord(w, itemh));
-            if((idx & 1) != 0) { ig.chcolor(nurgling.styles.UITheme.ROW); ig.frect(Coord.z, ig.sz()); ig.chcolor(); }
             if(item == sel)
                 drawsel(ig);
             drawitem(ig, item, idx);

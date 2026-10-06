@@ -31,7 +31,7 @@ public class NAccountList extends SListBox<Account, Widget> {
     private static final int EDGESCROLL = UI.scale(4);
     /** Sentinel last row: an account that is not saved yet. */
     public static final Account ANOTHER = new Account("", false, null, 0);
-    private static final int CROSS_SIZE = UI.scale(8);
+    private static final Text CROSS = NLoginTheme.name.render("×", new Color(201, 128, 128));
     private static final Text CONFIRM = NLoginTheme.badge.render(L10n.get("login.remove_confirm"), NLoginTheme.err);
     private static Text deltip = null;
 
@@ -306,8 +306,8 @@ public class NAccountList extends SListBox<Account, Widget> {
                     g.image(CONFIRM.tex(), Coord.of(delx, cy - (CONFIRM.sz().y / 2)));
                     delx -= UI.scale(4);
                 } else {
-                    nurgling.styles.GeneratedButtons.close(g, Coord.of(sz.x - (DELW / 2) - (CROSS_SIZE / 2), cy - (CROSS_SIZE / 2)), CROSS_SIZE);
-                    NLoginTheme.drawTagEdit(g, Coord.of(editx + (EDITW - UI.scale(14)) / 2, cy - UI.scale(8)));
+                    g.image(CROSS.tex(), Coord.of(sz.x - (DELW / 2) - (CROSS.sz().x / 2), cy - (CROSS.sz().y / 2)));
+                    NLoginTheme.drawNote(g, Coord.of(editx + UI.scale(4), cy - UI.scale(5)), NLoginTheme.muted);
                 }
             }
             if (conf)

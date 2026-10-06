@@ -298,15 +298,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	rbtnimg.hide();
 	add(new NDraggableWidget(new MainMenu(), "mainmenu", UI.scale(270,109)));
 	menubuttons(rbtnimg);
-	Coord portraitInset = UI.scale(1, 1);
-	Widget portraitFrame = new Widget(Avaview.dasz.add(portraitInset.mul(2))) {
-	    public void draw(GOut g) {
-		super.draw(g);
-		nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
-	    }
-	};
-	portraitFrame.add(new Avaview(Avaview.dasz, plid, "avacam"), portraitInset);
-	portrait = add(new NDraggableWidget(portraitFrame, "portrait", portraitFrame.sz.add(NDraggableWidget.delta)));
+	portrait = add(new NDraggableWidget(Frame.with(new Avaview(Avaview.dasz, plid, "avacam"), false),"portrait", UI.scale(120, 108)));
 	add(new NDraggableWidget(buffs = new Bufflist(),"bufflist",Coord.z));
 	add(new NDraggableWidget(calendar = new Cal(),"Calendar",UI.scale(240,90)));
 	syslog = chat.add(new ChatUI.Log("System"));
@@ -1044,7 +1036,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
-
+	public static final Tex cells = Resource.loadtex("nurgling/hud/cell");
 
     public void draw(GOut g) {
 	Widget next;
@@ -1064,7 +1056,38 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		{
 			if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid)
 			{
-				nurgling.styles.DragGrid.draw(g, sz);
+				// Calculate center of screen
+				int centerX = sz.x / 2;
+				int centerY = sz.y / 2;
+				
+				// Calculate offset so that center of screen becomes coordinate origin
+				// For center textures, this will be their corner
+				int cellSizeX = cells.sz().x;
+				int cellSizeY = cells.sz().y;
+				
+				// Calculate starting position so grid aligns with center
+				int startX = centerX % cellSizeX;
+				int startY = centerY % cellSizeY;
+				
+				// Draw grid with adjusted positioning
+				for (int x = -cellSizeX + startX; x < sz.x; x += cellSizeX)
+				{
+					for (int y = -cellSizeY + startY; y < sz.y; y += cellSizeY)
+					{
+						if(x >= 0 && y >= 0)
+						{
+							g.image(cells, new Coord(x, y));
+						}
+					}
+				}
+				
+				// Draw center crosshair lines (red)
+				g.chcolor(255, 0, 0, 255);
+				// Vertical center line
+				g.line(new Coord(centerX, 0), new Coord(centerX, sz.y), 2.0);
+				// Horizontal center line
+				g.line(new Coord(0, centerY), new Coord(sz.x, centerY), 2.0);
+				g.chcolor();
 			}
 			mapViewReady = false;
 		}
@@ -1388,8 +1411,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     public static class MenuCheckBox extends ICheckBox {
 	MenuCheckBox(String base, KeyBinding gkey, String tooltip) {
-	    // The common plate provides state feedback; keep the coloured glyph in every state.
-	    super("nurgling/hud/buttons/" + base, "u", "u", "u", "u");
+	    super("nurgling/hud/buttons/" + base, "u", "d", "h", "dh");
 	    setgkey(gkey);
 	    settip(tooltip);
 	}

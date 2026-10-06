@@ -241,7 +241,7 @@ public class RichText extends Text {
 	private LineMetrics lm;
 	
 	public Newline(Map<? extends Attribute, ?> attrs) {
-	    this.attrs = nurgling.styles.UIFont.attributes(attrs);
+	    this.attrs = attrs;
 	}
 	
 	private LineMetrics lm() {
@@ -278,7 +278,7 @@ public class RichText extends Text {
 	}
 	
 	public TextPart(String str, Map<? extends Attribute, ?> attrs) {
-	    this((str.length() == 0)?(new AttributedString(str)):(new AttributedString(str, nurgling.styles.UIFont.attributes(attrs))), 0, str.length());
+	    this((str.length() == 0)?(new AttributedString(str)):(new AttributedString(str, attrs)), 0, str.length());
 	}
 	
 	public TextPart(String str) {
@@ -543,7 +543,7 @@ public class RichText extends Text {
 	    if(tn == "img") {
 		int[] a = {0};
 		Image img = ((ImageSource)attrs.get(IMAGESRC)).get(args, a);
-		img.attrs = nurgling.styles.UIFont.attributes(attrs);
+		img.attrs = attrs;
 		for(; a[0] < args.length; a[0]++) {
 		    int p = args[a[0]].indexOf('=');
 		    if(p < 0)
@@ -566,10 +566,6 @@ public class RichText extends Text {
 	    } else {
 		Map<Attribute, Object> na = new HashMap<Attribute, Object>(attrs);
 		if(tn == "font") {
-		    // An explicit font tag replaces an inherited font while retaining its size.
-		    Font previous = (Font)na.remove(TextAttribute.FONT);
-		    if(previous != null && !na.containsKey(TextAttribute.SIZE))
-			na.put(TextAttribute.SIZE, previous.getSize2D());
 		    na.put(TextAttribute.FAMILY, args[0]);
 		    if(args.length > 1)
 			na.put(TextAttribute.SIZE, UI.scale(Float.parseFloat(args[1])));
@@ -721,7 +717,7 @@ public class RichText extends Text {
     }
     
     public static class Foundry {
-	public boolean aa = true;
+	public boolean aa = false;
 	private final Parser parser;
 	private final RState rs;
 	

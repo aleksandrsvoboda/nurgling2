@@ -29,7 +29,9 @@ import java.util.List;
  */
 public class ItemOverlaySettings extends Panel {
     
-    private static final List<String> FONT_FAMILIES = nurgling.styles.UIFont.FAMILIES;
+    private static final List<String> FONT_FAMILIES = Arrays.asList(
+            "Inter", "Roboto", "Sans", "Serif", "Fractur"
+    );
     
     // Tab system
     private Button itemQualityTabBtn;
@@ -346,7 +348,7 @@ public class ItemOverlaySettings extends Panel {
         
         // Font family selector
         parent.add(new Label(L10n.get("overlay.font")), UI.scale(margin, y));
-        fontSelector = parent.add(new Dropbox<String>(UI.scale(170), FONT_FAMILIES.size(), UI.scale(16)) {
+        fontSelector = parent.add(new Dropbox<String>(UI.scale(100), FONT_FAMILIES.size(), UI.scale(16)) {
             @Override
             protected String listitem(int i) { return FONT_FAMILIES.get(i); }
             @Override
@@ -526,7 +528,7 @@ public class ItemOverlaySettings extends Panel {
         
         // Font family selector
         parent.add(new Label(L10n.get("overlay.font")), UI.scale(margin, y));
-        stackFontSelector = parent.add(new Dropbox<String>(UI.scale(170), FONT_FAMILIES.size(), UI.scale(16)) {
+        stackFontSelector = parent.add(new Dropbox<String>(UI.scale(100), FONT_FAMILIES.size(), UI.scale(16)) {
             @Override
             protected String listitem(int i) { return FONT_FAMILIES.get(i); }
             @Override
@@ -695,7 +697,7 @@ public class ItemOverlaySettings extends Panel {
         
         // Font family selector
         parent.add(new Label(L10n.get("overlay.font")), UI.scale(margin, y));
-        amountFontSelector = parent.add(new Dropbox<String>(UI.scale(170), FONT_FAMILIES.size(), UI.scale(16)) {
+        amountFontSelector = parent.add(new Dropbox<String>(UI.scale(100), FONT_FAMILIES.size(), UI.scale(16)) {
             @Override
             protected String listitem(int i) { return FONT_FAMILIES.get(i); }
             @Override
@@ -876,7 +878,7 @@ public class ItemOverlaySettings extends Panel {
         
         // Font family selector
         parent.add(new Label(L10n.get("overlay.font")), UI.scale(margin, y));
-        studyFontSelector = parent.add(new Dropbox<String>(UI.scale(170), FONT_FAMILIES.size(), UI.scale(16)) {
+        studyFontSelector = parent.add(new Dropbox<String>(UI.scale(100), FONT_FAMILIES.size(), UI.scale(16)) {
             @Override
             protected String listitem(int i) { return FONT_FAMILIES.get(i); }
             @Override
@@ -1007,7 +1009,7 @@ public class ItemOverlaySettings extends Panel {
         
         // Font family selector
         parent.add(new Label(L10n.get("overlay.font")), UI.scale(margin, y));
-        progressFontSelector = parent.add(new Dropbox<String>(UI.scale(170), FONT_FAMILIES.size(), UI.scale(16)) {
+        progressFontSelector = parent.add(new Dropbox<String>(UI.scale(100), FONT_FAMILIES.size(), UI.scale(16)) {
             @Override
             protected String listitem(int i) { return FONT_FAMILIES.get(i); }
             @Override
@@ -1138,7 +1140,7 @@ public class ItemOverlaySettings extends Panel {
         
         // Font family selector
         parent.add(new Label(L10n.get("overlay.font")), UI.scale(margin, y));
-        volumeFontSelector = parent.add(new Dropbox<String>(UI.scale(170), FONT_FAMILIES.size(), UI.scale(16)) {
+        volumeFontSelector = parent.add(new Dropbox<String>(UI.scale(100), FONT_FAMILIES.size(), UI.scale(16)) {
             @Override
             protected String listitem(int i) { return FONT_FAMILIES.get(i); }
             @Override

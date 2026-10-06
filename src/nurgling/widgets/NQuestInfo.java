@@ -2,15 +2,13 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.NConfig;
-import nurgling.NCore;
 import nurgling.NGameUI;
 import nurgling.NGItem;
 import nurgling.NStyle;
 import nurgling.NUI;
 import nurgling.conf.FontSettings;
 import nurgling.conf.NQuestTrackerProp;
-import nurgling.styles.UIFont;
-import nurgling.styles.UITheme;
+import nurgling.widgets.nsettings.Fonts;
 import nurgling.widgets.quest.QCond;
 import nurgling.widgets.quest.QuestObjectiveAction;
 import nurgling.widgets.quest.QuestObjectiveActionButton;
@@ -42,10 +40,10 @@ public class NQuestInfo extends Widget
 {
     /* ------------------------------------------------------------------ layout */
 
-    private static final Coord PAD = UI.scale(new Coord(5, 5));
+    private static final Coord PAD = UI.scale(new Coord(4, 3));
     private static final int INDENT = UI.scale(14);
     private static final int CHEV_W = UI.scale(10);
-    private static final Coord CHIP_SZ = UI.scale(new Coord(21, 21));
+    private static final Coord CHIP_SZ = UI.scale(new Coord(17, 15));
     private static final Coord DEF_SZ = UI.scale(new Coord(252, 216));
 
     /* ------------------------------------------------------------------ overlay API */
@@ -112,7 +110,7 @@ public class NQuestInfo extends Widget
     private boolean needRebuild = true;
 
     private Scrollport body;
-    private NToolbarToggle modebtn, searchbtn, gearbtn;
+    private ICheckBox modebtn, searchbtn, gearbtn;
     private KindChip[] chips;
     private TextEntry searchbox;
     private String search = "";
@@ -142,8 +140,6 @@ public class NQuestInfo extends Widget
     private double titlesPendingAt = 0;
     private Text.Foundry chipFnd;
     private final Map<String, Tex> chipCache = new HashMap<>();
-    private boolean editingLayout;
-    private boolean editingLayout() { return ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG; }
 
     public NQuestInfo()
     {
@@ -151,18 +147,20 @@ public class NQuestInfo extends Widget
         fonts();
         tabs = add(new TabStrip());
         tabs.hide();
-        modebtn = add(new NToolbarToggle(NToolbarToggle.Glyph.GROUP, "Group by quest giver / by task"));
+        modebtn = add(new NMiniMapWnd.NMenuCheckBox(
+            "nurgling/hud/buttons/questmode", null, "Group by quest giver / by task"));
         modebtn.changed(a -> {
             prop().mode = a ? NQuestTrackerProp.Mode.TASKS : NQuestTrackerProp.Mode.GIVERS;
             prop().save();
             needRebuild = true;
         });
         chips = new KindChip[] {
-            add(new KindChip(QuestKind.NPC, NToolbarToggle.Glyph.NPC, "Quests from quest givers")),
-            add(new KindChip(QuestKind.CREDO, NToolbarToggle.Glyph.CREDO, "Credo quests — character specializations (farmer, miner, fisher and others)")),
-            add(new KindChip(QuestKind.WORLD, NToolbarToggle.Glyph.WORLD, "World quests")),
+            add(new KindChip(QuestKind.NPC, "N", NStyle.questGiver, "Quests from quest givers")),
+            add(new KindChip(QuestKind.CREDO, "C", NStyle.questCredo, "Credo quests")),
+            add(new KindChip(QuestKind.WORLD, "W", NStyle.questWorld, "World quests")),
         };
-        searchbtn = add(new NToolbarToggle(NToolbarToggle.Glyph.SEARCH, "Search quests"));
+        searchbtn = add(new NMiniMapWnd.NMenuCheckBox(
+            "nurgling/hud/buttons/lsearch", null, "Search quests"));
         searchbtn.changed(a -> {
             search = "";
             if(searchbox != null)
@@ -170,7 +168,8 @@ public class NQuestInfo extends Widget
             relayout();
             needRebuild = true;
         });
-        gearbtn = add(new NToolbarToggle(NToolbarToggle.Glyph.SETTINGS, "Tracker options"));
+        gearbtn = add(new NMiniMapWnd.NMenuCheckBox(
+            "nurgling/hud/buttons/settings", null, "Tracker options"));
         gearbtn.changed(a -> {
             gearbtn.a = false;
             openGearMenu();
@@ -211,19 +210,22 @@ public class NQuestInfo extends Widget
         return prop;
     }
 
-    /** Use the character-sheet fonts, retaining the configured quest text size. */
+    /** Rebuild the three text roles from the user's chosen Quests font. */
     private void fonts()
     {
         Object cur = NConfig.get(NConfig.Key.fonts);
-        if(cur == fontsrc && groupFnd != null)
+        if(!(cur instanceof FontSettings) || cur == fontsrc)
             return;
-        fontsrc = (cur instanceof FontSettings) ? (FontSettings)cur : null;
-        float size = UI.scale((float)((fontsrc == null) ? 12 : fontsrc.questsFont.size));
-        groupFnd = new Text.Foundry(UIFont.semibold.deriveFont(size), Color.WHITE).aa(true);
-        condFnd = new Text.Foundry(UIFont.regular.deriveFont(Math.max(UI.scale(8f), size - UI.scale(1f))),
+        fontsrc = (FontSettings)cur;
+        Text.Foundry base = fontsrc.getFoundary(Fonts.FontType.QUESTS);
+        if(base == null)
+            base = new Text.Foundry(Text.sans, 12);
+        java.awt.Font f = base.font;
+        groupFnd = new Text.Foundry(f.deriveFont(java.awt.Font.BOLD), Color.WHITE).aa(true);
+        condFnd = new Text.Foundry(f.deriveFont(Math.max(8f, f.getSize2D() - UI.scale(1f))),
                                    NStyle.questCond).aa(true);
-        rowH = groupFnd.height() + UI.scale(4);
-        chipFnd = new Text.Foundry(UIFont.semibold.deriveFont(Math.max(UI.scale(8f), size - UI.scale(2f))),
+        rowH = groupFnd.height() + UI.scale(3);
+        chipFnd = new Text.Foundry(f.deriveFont(java.awt.Font.BOLD, Math.max(8f, f.getSize2D() - UI.scale(2f))),
                                    NStyle.infoBg).aa(true);
         for(Tex t : chipCache.values())
             t.dispose();
@@ -252,20 +254,18 @@ public class NQuestInfo extends Widget
         } else {
             tabs.hide();
         }
-        int toolbarH = Math.max(CHIP_SZ.y, Math.max(modebtn.sz.y, Math.max(searchbtn.sz.y, gearbtn.sz.y)));
-        int buttonGap = UI.scale(2);
-        modebtn.c = new Coord(x, top + (toolbarH - modebtn.sz.y) / 2);
-        x += modebtn.sz.x + buttonGap;
+        modebtn.c = new Coord(x, top);
+        x += modebtn.sz.x + PAD.x;
         for(KindChip c : chips) {
-            c.c = new Coord(x, top + (toolbarH - c.sz.y) / 2);
-            x += c.sz.x + buttonGap;
+            c.c = new Coord(x, top + (modebtn.sz.y - c.sz.y) / 2);
+            x += c.sz.x + UI.scale(2);
         }
         int rx = sz.x - PAD.x - gearbtn.sz.x;
-        gearbtn.c = new Coord(rx, top + (toolbarH - gearbtn.sz.y) / 2);
-        rx -= searchbtn.sz.x + buttonGap;
-        searchbtn.c = new Coord(rx, top + (toolbarH - searchbtn.sz.y) / 2);
+        gearbtn.c = new Coord(rx, top);
+        rx -= searchbtn.sz.x + PAD.x;
+        searchbtn.c = new Coord(rx, top);
 
-        int y = top + toolbarH + PAD.y;
+        int y = top + modebtn.sz.y + PAD.y;
         if(searchbtn.a) {
             searchbox.show();
             searchbox.resize(Math.max(UI.scale(40), sz.x - PAD.x * 2));
@@ -275,9 +275,8 @@ public class NQuestInfo extends Widget
             searchbox.hide();
         }
         headerH = y;
-        int border = Math.max(1, UI.scale(1));
-        body.c = new Coord(border, headerH);
-        body.resize(new Coord(sz.x - border * 2, Math.max(1, sz.y - headerH - border)));
+        body.c = new Coord(0, headerH);
+        body.resize(new Coord(sz.x, Math.max(rowH, sz.y - headerH)));
     }
 
     /* ------------------------------------------------------------------ tick */
@@ -286,10 +285,6 @@ public class NQuestInfo extends Widget
     public void tick(double dt)
     {
         super.tick(dt);
-        if(editingLayout != editingLayout()) {
-            editingLayout = editingLayout();
-            needRebuild = true;
-        }
         fonts();
         NGameUI gui = getparent(NGameUI.class);
         if(model.tick(dt, (gui != null) ? gui.chrwdg : null))
@@ -895,11 +890,6 @@ public class NQuestInfo extends Widget
             add(new EmptyRow(w, "No quests to show", null), shown, y);
         }
         body.cont.update();
-        int contentWidth = body.sz.x - ((body.bar.max > 0 || editingLayout()) ? body.bar.sz.x : 0);
-        if(body.cont.sz.x != contentWidth) {
-            body.cont.resize(new Coord(contentWidth, body.cont.sz.y));
-            layoutRows(groups, p);
-        }
     }
 
     private void add(ARow row, int idx, int y)
@@ -1262,7 +1252,7 @@ public class NQuestInfo extends Widget
     {
         final Group group;
         final boolean collapsed;
-        private final Tex title, counter;
+        private final Tex chev, title, counter;
         private final List<Tex> chips;
 
         GroupRow(Group g, int w, boolean collapsed)
@@ -1270,6 +1260,7 @@ public class NQuestInfo extends Widget
             super(w);
             this.group = g;
             this.collapsed = collapsed;
+            this.chev = groupFnd.render(collapsed ? "▸" : "▾", NStyle.questDim).tex();
             String pin = g.pinned ? "◆ " : "";
             String cnt = (g.total > 0) ? (g.done + "/" + g.total) : "";
             this.counter = cnt.isEmpty() ? null : condFnd.render(cnt, NStyle.questDim).tex();
@@ -1284,10 +1275,7 @@ public class NQuestInfo extends Widget
         public void draw(GOut g)
         {
             band(g);
-            int mid = sz.y / 2;
-            int side = UI.scale(7);
-            nurgling.styles.GeneratedButtons.icon(g, collapsed ? "triangle-right" : "triangle-down",
-                new Coord(UI.scale(1), mid - side / 2), side);
+            g.image(chev, new Coord(0, ty(chev)));
             g.image(title, new Coord(CHEV_W, ty(title)));
             int right = sz.x;
             if(counter != null) {
@@ -1466,28 +1454,71 @@ public class NQuestInfo extends Widget
     }
 
     /** Toggle for one {@link QuestKind}. Compact on purpose - the panel can be narrow. */
-    private class KindChip extends NToolbarToggle
+    private class KindChip extends ACheckBox
     {
         final QuestKind kind;
-        @Override protected boolean muted() { return !state(); }
-        KindChip(QuestKind kind, NToolbarToggle.Glyph glyph, String tip)
+        private final Color col;
+        private final String tip;
+        private final Tex on, off;
+        private boolean hover = false;
+
+        KindChip(QuestKind kind, String letter, Color col, String tip)
         {
-            super(glyph, tip);
+            super(CHIP_SZ);
             this.kind = kind;
+            this.col = col;
+            this.tip = tip;
             this.a = true;
+            Text.Foundry f = new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 10).aa(true);
+            this.on = f.render(letter, NStyle.infoBg).tex();
+            this.off = f.render(letter, col).tex();
         }
 
         @Override
-        public void changed(boolean enabled)
+        public void draw(GOut g)
         {
-            NQuestTrackerProp p = prop();
-            a = enabled;
-            if(enabled)
-                p.kinds.add(kind);
-            else
-                p.kinds.remove(kind);
-            p.save();
-            needRebuild = true;
+            g.chcolor(a ? col : NStyle.titleBg);
+            g.frect(Coord.z, sz);
+            g.chcolor(a ? col : NStyle.questDim);
+            g.rect(Coord.z, sz);
+            g.chcolor();
+            Tex t = a ? on : off;
+            g.image(t, sz.sub(t.sz()).div(2));
+            if(hover) {
+                g.chcolor(NStyle.questHover);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
+        }
+
+        @Override
+        public void mousemove(MouseMoveEvent ev)
+        {
+            hover = ev.c.isect(Coord.z, sz);
+            super.mousemove(ev);
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev)
+        {
+            if(ev.b == 1) {
+                a = !a;
+                NQuestTrackerProp p = prop();
+                if(a)
+                    p.kinds.add(kind);
+                else
+                    p.kinds.remove(kind);
+                p.save();
+                needRebuild = true;
+                return true;
+            }
+            return super.mousedown(ev);
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev)
+        {
+            return tip;
         }
     }
 
@@ -1577,15 +1608,20 @@ public class NQuestInfo extends Widget
     @Override
     public void draw(GOut g)
     {
-        // Fill to the actual frame: the legacy tiled background left corner gutters.
-        UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+        NDraggableWidget.drawBg(g, sz, ui);
         g.chcolor(NStyle.titleBg);
         g.frect(Coord.z, new Coord(sz.x, headerH));
         g.chcolor(NStyle.separator);
         g.frect(new Coord(0, headerH - UI.scale(1)), new Coord(sz.x, UI.scale(1)));
         g.chcolor();
         super.draw(g);
-        UITheme.panel(g, Coord.z, sz, null, NStyle.border);
+        int bw = Math.max(2, UI.scale(2));
+        g.chcolor(NStyle.border);
+        g.frect(Coord.z, new Coord(sz.x, bw));
+        g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
+        g.frect(Coord.z, new Coord(bw, sz.y));
+        g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
+        g.chcolor();
     }
 
     /* ------------------------------------------------------------------ server hooks */

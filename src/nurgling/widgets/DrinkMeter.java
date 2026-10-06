@@ -4,7 +4,6 @@ import haven.*;
 import nurgling.*;
 import nurgling.tools.NAlias;
 import nurgling.tools.NParser;
-import nurgling.styles.MeterStyle;
 
 import java.awt.Color;
 import java.util.regex.Matcher;
@@ -142,7 +141,7 @@ public class DrinkMeter extends Widget {
                 text = null;
             }
             if (!newText.isEmpty()) {
-                text = MeterStyle.renderText(newText);
+                text = NStyle.meter.render(newText).tex();
             }
         }
     }
@@ -274,7 +273,8 @@ public class DrinkMeter extends Widget {
         Coord off = IMeter.off;  // UI.scale(24, 4)
 
         // Draw background
-        MeterStyle.background(g, BG);
+        g.chcolor(BG);
+        g.frect(off, isz);
 
         if (max > 0) {
             // Draw tea layer (behind water, so tea + water shows full amount)
@@ -292,7 +292,17 @@ public class DrinkMeter extends Widget {
         }
         g.chcolor();
 
-        MeterStyle.finish(g, FRAME, "water", text);
+        // Draw frame
+        g.image(FRAME, Coord.z);
+
+        // Draw text centered on the meter bar
+        if (text != null) {
+            Coord textPos = new Coord(
+                off.x + isz.x / 2 - text.sz().x / 2,
+                off.y + isz.y / 2 - text.sz().y / 2
+            );
+            g.image(text, textPos);
+        }
     }
 
     @Override

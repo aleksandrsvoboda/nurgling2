@@ -27,7 +27,6 @@
 package haven;
 
 import nurgling.*;
-import nurgling.styles.MeterStyle;
 
 import java.awt.Color;
 import java.util.*;
@@ -99,15 +98,21 @@ public class IMeter extends LayerMeter {
     public void draw(GOut g) {
 	try {
 	    Tex bg = this.bg.get().flayer(Resource.imgc).tex();
-	    MeterStyle.background(g, Color.BLACK);
+	    g.chcolor(0, 0, 0, 255);
+	    g.frect(off, msz);
+	    g.chcolor();
 	    for(Meter m : meters) {
 		int w = msz.x;
-		w = (int)Math.ceil(w * Math.max(0, Math.min(1, m.a)));
+		w = (int)Math.ceil(w * m.a);
 		g.chcolor(m.c);
 		g.frect(off, new Coord(w, msz.y));
 	    }
 	    g.chcolor();
-	    MeterStyle.finish(g, bg, this.bg.get().name, text);
+	    g.image(bg, Coord.z);
+		if(text!=null)
+		{
+			g.image(text,new Coord(off.x + msz.x/2 -text.sz().x/2,off.y + msz.y/2 -text.sz().y/2));
+		}
 	} catch(Loading l) {
 	}
     }
@@ -126,31 +131,20 @@ public class IMeter extends LayerMeter {
 					case "Satiety":
 					case "Pony Power":
 					case "Seaworthiness":
-						setText(val.substring(val.indexOf(":")+1));
+						text = NStyle.meter.render(val.substring(val.indexOf(":")+1)).tex();
 						break;
 					case "Health":
 						parseHealth(val.substring(val.indexOf(":")+1));
-						setText(val.substring(val.indexOf(":")+1).replace("/", " / "));
+						text = NStyle.meter.render(val.substring(val.indexOf(":")+1).replace("/", " / ")).tex();
 						break;
 					case "Energy":
-						setText(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1));
+						text = NStyle.meter.render(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1)).tex();
 						break;
 
 				}
 			}
 		}
 		super.uimsg(msg, args);
-	}
-
-	private void setText(String value) {
-		if(text != null) text.dispose();
-		text = MeterStyle.renderText(value.trim());
-	}
-
-	@Override
-	public void dispose() {
-		if(text != null) { text.dispose(); text = null; }
-		super.dispose();
 	}
 
 	private void parseHealth(String value) {

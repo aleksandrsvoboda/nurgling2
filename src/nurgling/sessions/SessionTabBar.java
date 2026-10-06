@@ -8,13 +8,11 @@ import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUI;
 import nurgling.NUtils;
-import nurgling.styles.GeneratedButtons;
-import nurgling.styles.UITheme;
-import nurgling.styles.UIFont;
+import nurgling.conf.FontSettings;
 import nurgling.conf.NDragProp;
 
 import java.awt.Color;
-
+import java.awt.Font;
 import java.awt.event.KeyEvent;
 import java.util.*;
 
@@ -24,13 +22,11 @@ import java.util.*;
  */
 public class SessionTabBar extends Widget {
     /** Button dimensions */
-    public static final int BUTTON_HEIGHT = UI.scale(22);
+    public static final int BUTTON_HEIGHT = UI.scale(18);
     public static final int BUTTON_WIDTH = UI.scale(120);
     /** Close button size (inside session button, on right) */
-    public static final int CLOSE_BTN_SIZE = UI.scale(16);
-    public static final int CLOSE_BTN_MARGIN = UI.scale(5);
-    public static final String BACKGROUND_PREF = "sessionbar-background";
-    private static final Color BUTTON_BACKGROUND = new Color(28, 37, 38, 210);
+    public static final int CLOSE_BTN_SIZE = UI.scale(10);
+    public static final int CLOSE_BTN_MARGIN = UI.scale(2);
     /** Plus button dimensions */
     public static final int PLUS_BTN_SIZE = UI.scale(18);
     public static final int PLUS_BTN_MARGIN = UI.scale(5);
@@ -43,12 +39,14 @@ public class SessionTabBar extends Widget {
     public static final Coord DEFAULT_POS = UI.scale(new Coord(10, 10));
 
     /** Colors for different states */
-    private static final Color ACTIVE_BORDER = UITheme.ACCENT;
-    private static final Color ACTIVE_TEXT = UITheme.TEXT;
+    private static final Color BUTTON_BG = new Color(0x25, 0x2B, 0x29, 0xE5);  // #252B29E5
+    private static final Color BUTTON_BG_HOVER = new Color(0x35, 0x3B, 0x39, 0xE5);  // Lighter for hover
+    private static final Color ACTIVE_BORDER = new Color(0x99, 0xFF, 0x84);    // #99FF84
+    private static final Color ACTIVE_TEXT = new Color(255, 255, 255);         // White
     private static final Color BOT_BORDER = new Color(0xE9, 0x9C, 0x54);       // #E99C54
     private static final Color BOT_TEXT = new Color(0xE9, 0x9C, 0x54);         // #E99C54
-    private static final Color IDLE_BORDER = UITheme.LINE;
-    private static final Color IDLE_TEXT = UITheme.MUTED;
+    private static final Color IDLE_BORDER = new Color(0x91, 0x60, 0x2E);      // #91602E
+    private static final Color IDLE_TEXT = new Color(150, 150, 150);           // Gray
     private static final Color COMBAT_BORDER = new Color(0xFF, 0x64, 0x64);    // #FF6464
     private static final Color COMBAT_TEXT = new Color(0xFF, 0x64, 0x64);      // #FF6464
     /** Alarm outranks every other state - it is the one thing the user can otherwise miss. */
@@ -58,10 +56,17 @@ public class SessionTabBar extends Widget {
     /** Ticks per half-cycle of the alarm border pulse (~1.5Hz at 60fps). */
     private static final int ALARM_PULSE_TICKS = 20;
     private static final Color TIMER_DOT = new Color(0xE9, 0x9C, 0x54);        // #E99C54
+    private static final Color CLOSE_BTN_COLOR = new Color(180, 80, 80);
+    private static final Color CLOSE_BTN_HOVER = new Color(220, 100, 100);
+    private static final Color PLUS_BTN_BG = new Color(0x25, 0x2B, 0x29, 0xE5);
+    private static final Color PLUS_BTN_HOVER = new Color(0x35, 0x3B, 0x39, 0xE5);
+    private static final Color PLUS_BTN_BORDER = new Color(0x91, 0x60, 0x2E);  // #91602E
 
     /** Icon resources */
     private static Tex gearIcon;
     private static Tex warningIcon;
+    private static Tex closeNormal, closeHover, closePush;
+    private static Tex addNormal, addHover, addPush;
     private static boolean resourcesLoaded = false;
 
     /** Font for character names (static so shared across instances) */
@@ -109,6 +114,7 @@ public class SessionTabBar extends Widget {
 
     /** Drag mode resources */
     public static final IBox box = Window.wbox;
+    private static Tex ctl;
     private static final Coord controlOffset = UI.scale(10, 10);
     public static Text.Furnace labelFont = new PUtils.BlurFurn(
         new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 14, Color.YELLOW).aa(true),
@@ -132,11 +138,6 @@ public class SessionTabBar extends Widget {
 
         // Create visibility button
         add(btnVis = new ICheckBox(NStyle.visi[0], NStyle.visi[1], NStyle.visi[2], NStyle.visi[3]) {
-            @Override
-            public boolean checkhit(Coord c) {
-                return c.isect(Coord.z, sz);
-            }
-
             @Override
             public void changed(boolean val) {
                 super.changed(val);
@@ -169,8 +170,22 @@ public class SessionTabBar extends Widget {
             // Load icon textures
             gearIcon = Resource.loadtex("nurgling/hud/sessions/icons/gear");
             warningIcon = Resource.loadtex("nurgling/hud/sessions/icons/warning");
+            closeNormal = Resource.loadtex("nurgling/hud/sessions/close/10x10");
+            closeHover = Resource.loadtex("nurgling/hud/sessions/close/10x10_hover");
+            closePush = Resource.loadtex("nurgling/hud/sessions/close/10x10_push");
+            addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
+            addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
+            addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
+            ctl = Resource.loadtex("nurgling/hud/box/tl");
 
-            nameFont = new Text.Foundry(UIFont.semibold, 11).aa(true);
+            // Load font
+            try {
+                FontSettings fontSettings = (FontSettings) NConfig.get(NConfig.Key.fonts);
+                Font openSansSemibold = fontSettings.getFont("Open Sans Semibold");
+                nameFont = new Text.Foundry(openSansSemibold, UI.scale(11));
+            } catch (Exception e) {
+                nameFont = Text.std;
+            }
 
             // Create label
             label = new TexI(labelFont.render("Sessions").img);
@@ -355,21 +370,50 @@ public class SessionTabBar extends Widget {
     }
 
     private void drawDragBackground(GOut g, Coord sz) {
-        nurgling.widgets.NDraggableWidget.drawBg(g, sz, ui);
+        Coord bgUl = new Coord(ctl.sz().x / 2, ctl.sz().y / 2);
+        Coord bgSz = new Coord(sz.x - ctl.sz().x, sz.y - ctl.sz().y);
+
+        if (ui instanceof NUI) {
+            NUI nui = (NUI)ui;
+            float opacity = nui.getUIOpacity();
+            int alpha = (int)(255 * opacity);
+
+            if (nui.getUseSolidBackground()) {
+                Color bgColor = nui.getWindowBackgroundColor();
+                g.chcolor(bgColor.getRed(), bgColor.getGreen(), bgColor.getBlue(), alpha);
+                g.frect(bgUl, bgSz);
+                g.chcolor();
+            } else {
+                g.chcolor(255, 255, 255, alpha);
+                Coord bgc = new Coord();
+                Coord ca_ul = bgUl;
+                Coord ca_br = bgUl.add(bgSz);
+                for(bgc.y = ca_ul.y; bgc.y < ca_br.y; bgc.y += Window.bg.sz().y) {
+                    for(bgc.x = ca_ul.x; bgc.x < ca_br.x; bgc.x += Window.bg.sz().x)
+                        g.image(Window.bg, bgc, ca_ul, ca_br);
+                }
+                g.chcolor();
+            }
+        }
     }
 
     private void drawCloseButton(GOut g, int x, int y, boolean hovered, boolean disabled) {
-        if(!disabled && hovered) {
-            GOut local = g.reclip(new Coord(x - UI.scale(2), y - UI.scale(2)),
-                new Coord(CLOSE_BTN_SIZE + UI.scale(4), CLOSE_BTN_SIZE + UI.scale(4)));
-            UITheme.iconHighlight(local, new Coord(CLOSE_BTN_SIZE + UI.scale(4), CLOSE_BTN_SIZE + UI.scale(4)), true, 0);
+        // Choose icon based on state
+        Tex icon = closeNormal;
+        if (!disabled && hovered) {
+            icon = closeHover;
         }
-        int iconSize = UI.scale(8);
-        Coord iconPos = new Coord(x, y).add((CLOSE_BTN_SIZE - iconSize) / 2, (CLOSE_BTN_SIZE - iconSize) / 2);
-        if(disabled) GeneratedButtons.mutedIcon(g, "close", iconPos, iconSize);
-        else GeneratedButtons.icon(g, "close", iconPos, iconSize);
-        g.chcolor();
+
+        if (icon != null) {
+            if (disabled) {
+                // Draw dimmed for disabled
+                g.chcolor(120, 120, 120, 180);
+            }
+            g.image(icon, new Coord(x, y));
+            g.chcolor();
+        }
     }
+
     private void drawSessionButton(GOut g, int x, int y, SessionContext ctx, boolean hovered,
                                     boolean isActive, boolean closeHovered, boolean canClose) {
         // Determine state colors
@@ -402,27 +446,28 @@ public class SessionTabBar extends Widget {
             textColor = IDLE_TEXT;
         }
 
-        Coord pos = new Coord(x, y), size = new Coord(BUTTON_WIDTH, BUTTON_HEIGHT);
-        if(Utils.getprefb(BACKGROUND_PREF, true))
-            UITheme.panel(g, pos, size, BUTTON_BACKGROUND, null);
-        GeneratedButtons.frame(g, pos, size,
-            (hovered || isActive || runningBot) ? GeneratedButtons.State.HOVER : GeneratedButtons.State.NORMAL);
-        // Preserve urgent session signals over the shared button skin.
-        if(alarmed || inCombat)
-            UITheme.panel(g, pos, size, null, borderColor);
+        // Draw button background
+        g.chcolor(hovered ? BUTTON_BG_HOVER : BUTTON_BG);
+        g.frect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+
+        // Draw button border (2px)
+        g.chcolor(borderColor);
+        g.rect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+        g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
+
         // Draw close button inside on right
         int closeX = x + BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
         int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
         drawCloseButton(g, closeX, closeY, closeHovered, !canClose);
 
-        // Leave space for the close control and side padding.
-        final int MAX_NAME_WIDTH = BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN * 2 - UI.scale(14);
+        // Character name max width is 67px
+        final int MAX_NAME_WIDTH = UI.scale(67);
 
         // Draw character name centered in button
         String name = ctx.getDisplayName();
         Text nameText = nameFont.render(name);
 
-        // Truncate names that exceed the available label width.
+        // Truncate name if too long (max 67px width)
         if (nameText.sz().x > MAX_NAME_WIDTH) {
             int maxLen = name.length();
             while (maxLen > 0) {
@@ -436,7 +481,7 @@ public class SessionTabBar extends Widget {
         }
 
         g.chcolor(textColor);
-        int textX = x + (BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN * 2) / 2;
+        int textX = x + BUTTON_WIDTH / 2;
         g.aimage(nameText.tex(), new Coord(textX, y + BUTTON_HEIGHT / 2), 0.5, 0.5);
 
         // Ready timers waiting in a background world: a small dot, much quieter than the alarm pulse.
@@ -470,12 +515,13 @@ public class SessionTabBar extends Widget {
         int x = xOffset;
         int btnY = y + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
 
-        if(Utils.getprefb(BACKGROUND_PREF, true))
-            UITheme.panel(g, new Coord(x, btnY), new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE), BUTTON_BACKGROUND, null);
-        UITheme.iconHighlight(g.reclip(new Coord(x, btnY), new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE)),
-            new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE), hovered, 0);
-        GeneratedButtons.icon(g, "plus", new Coord(x, btnY), PLUS_BTN_SIZE);
+        // Draw icon
+        Tex icon = hovered ? addHover : addNormal;
+        if (icon != null) {
+            g.image(icon, new Coord(x, btnY));
+        }
     }
+
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
