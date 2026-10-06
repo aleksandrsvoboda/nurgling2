@@ -14,7 +14,7 @@ public final class UIResources {
     private static Boolean active;
 
     /** New UI as configured when the client started. Undecided until the config exists. */
-    private static boolean active() {
+    public static boolean active() {
         if(active == null) {
             if(haven.MainFrame.config == null)
                 return false;
@@ -24,6 +24,21 @@ public final class UIResources {
     }
 
     private static final Color HOVER = new Color(255, 187, 112), PRESSED = new Color(201, 126, 59);
+
+    /* Textured backgrounds that become the flat panel colour. */
+    private static final java.util.Set<String> PANELS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "nurgling/hud/wnd/bg", "nurgling/hud/wnd/bgl", "nurgling/hud/wnd/bgr",
+        "gfx/hud/equip/bg", "gfx/hud/chantex", "gfx/hud/csearch-bg", "gfx/hud/lbtn-bg",
+        "gfx/hud/hb-main", "gfx/hud/mmap/fgwdg", "nurgling/hud/chat/cbtng"));
+    /* Ornate frames that become a flat 1px line. */
+    private static final java.util.Set<String> FRAMES = new java.util.HashSet<>(java.util.Arrays.asList(
+        "gfx/hud/buffs/frame", "gfx/hud/buffs/cframe", "gfx/hud/bosq", "gfx/hud/brframe",
+        "gfx/hud/chr/foodm", "gfx/hud/chr/glutm", "gfx/hud/chr/yrkirframe", "gfx/hud/chr/yrkirsframe",
+        "gfx/hud/combat/indframe", "gfx/hud/combat/indbframe", "gfx/hud/combat/lastframe"));
+    /* Chat chrome: dividers become flat lines, the selected-channel marker orange. */
+    private static final java.util.Set<String> CHAT = new java.util.HashSet<>(java.util.Arrays.asList(
+        "nurgling/hud/chat/csel", "nurgling/hud/chat/lc", "nurgling/hud/chat/rc",
+        "nurgling/hud/chat/hori", "nurgling/hud/chat/vert"));
 
     private static String glyph(String name) {
         if(name.startsWith("nurgling/hud/buttons/lock/"))
@@ -90,6 +105,24 @@ public final class UIResources {
             g.dispose();
             return result;
         }
-        return null;
+        boolean panel = PANELS.contains(name), frame = FRAMES.contains(name), chat = CHAT.contains(name);
+        if(!panel && !frame && !chat)
+            return null;
+        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
+        Graphics2D g = result.createGraphics();
+        int b = Math.max(1, Math.round(scale));
+        if(panel) {
+            g.setColor(UITheme.PANEL);
+            g.fillRect(0, 0, w, h);
+        } else if(chat && !name.endsWith("csel")) {
+            g.setColor(UITheme.LINE);
+            g.fillRect(0, 0, w, h);
+        } else {
+            g.setColor(name.endsWith("csel") ? UITheme.ACCENT : UITheme.LINE);
+            g.fillRect(0, 0, w, b); g.fillRect(0, h - b, w, b);
+            g.fillRect(0, 0, b, h); g.fillRect(w - b, 0, b, h);
+        }
+        g.dispose();
+        return result;
     }
 }

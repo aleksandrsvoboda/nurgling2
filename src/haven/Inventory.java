@@ -65,7 +65,9 @@ public class Inventory extends Widget implements DTarget {
 		buf.setSample(x, y, 0, 36); buf.setSample(x, y, 1, 52); buf.setSample(x, y, 2, 38); buf.setSample(x, y, 3, 125);
 	    }
 	}
-	invsq = new TexI(PUtils.rasterimg(buf));
+	// New UI (decided at client start, like the other image swaps): flat plate cells.
+	invsq = nurgling.styles.UIResources.active() ? new TexI(nurgling.styles.UITheme.cell(sz.x, sz.y))
+	                                              : new TexI(PUtils.rasterimg(buf));
     }
 
     @RName("inv")
