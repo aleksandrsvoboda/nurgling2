@@ -37,6 +37,7 @@ public class IButton extends SIWidget {
     /* New UI: plate behind the icon, which keeps its pixels but loses its own bezel.
      * Size and click area are unchanged. */
     private int frameInset;
+    private boolean squarehit;
     private boolean flat = nurgling.styles.UITheme.on(), lastSelected;
     /** New UI: tab-like buttons override this to draw their plate as selected. */
     protected boolean selected() { return false; }
@@ -92,6 +93,12 @@ public class IButton extends SIWidget {
 	this.action = () -> wdgmsg("activate");
     }
 
+    /** Accept clicks anywhere in the button's square, not only on its opaque pixels. */
+    public IButton squarehit(boolean on) {
+	this.squarehit = on;
+	return(this);
+    }
+
     public IButton action(Runnable action) {
 	this.action = action;
 	return(this);
@@ -127,6 +134,8 @@ public class IButton extends SIWidget {
     public boolean checkhit(Coord c) {
 	if(!c.isect(Coord.z, sz))
 	    return(false);
+	if(squarehit)
+	    return(true);
 	if(up.getRaster().getNumBands() < 4)
 	    return(true);
 	return(up.getRaster().getSample(c.x, c.y, 3) >= 128);

@@ -402,7 +402,7 @@ public class ChatUI extends Widget
 	public Channel(boolean closable) {
 	    sb = add(new Scrollbar(0, 0, 0));
 	    if(closable)
-		cb = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]));
+		cb = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]).squarehit(nurgling.styles.UIResources.active()));
 	    else
 		cb = null;
 	}

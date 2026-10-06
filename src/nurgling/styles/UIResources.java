@@ -98,9 +98,12 @@ public final class UIResources {
             BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
             Graphics2D g = result.createGraphics();
             // Clicks are tested against image opacity: a half-opaque backing makes the whole
-            // square clickable, not just the glyph's own pixels.
-            g.setColor(SQUARE_HIT);
-            g.fillRect(0, 0, w, h);
+            // square clickable, not just the glyph's own pixels. The close cross stays bare;
+            // its buttons take clicks on their whole square instead.
+            if(!glyph.equals("close")) {
+                g.setColor(SQUARE_HIT);
+                g.fillRect(0, 0, w, h);
+            }
             int side = Math.min(w, h);
             BufferedImage icon = GeneratedButtons.iconImage(glyph, side);
             Color state = glyph.equals("close") ? closeTint(name) : null;
