@@ -671,7 +671,7 @@ public class NGameUI extends GameUI
         super.resize(sz);
         if(fpsPanel != null) fpsPanel.keepOnScreen();
         if(guiinfo != null)
-            guiinfo.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
+            guiinfo.move(new Coord(Math.max(0, (sz.x - guiinfo.sz.x) / 2), Math.max(0, (sz.y - guiinfo.sz.y) / 2)));
         if(areas != null)
             areas.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
         if(storageItemsWidget != null)
