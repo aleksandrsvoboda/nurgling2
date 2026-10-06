@@ -19,7 +19,7 @@ public final class UIResources {
             Object on = nurgling.NConfig.get(nurgling.NConfig.Key.newUi);
             if(on == null)
                 return false;
-            active = Boolean.TRUE.equals(on);
+            active = !Boolean.FALSE.equals(on);
         }
         return active;
     }
