@@ -8,6 +8,7 @@ import nurgling.*;
 import nurgling.actions.bots.WorldBlueprintEditor;
 import nurgling.i18n.L10n;
 import nurgling.sessions.BotExecutor;
+import nurgling.styles.UITheme;
 import nurgling.tools.NFileUtils;
 import org.json.*;
 
@@ -702,6 +703,12 @@ public class BlueprintWidget extends Window
         
         @Override
         public void draw(GOut g) {
+            if (UITheme.on()) {
+                UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+                super.draw(g);
+                UITheme.panel(g, Coord.z, sz, null, UITheme.LINE);
+                return;
+            }
             Color bg = new Color(30, 40, 40, 160);
             g.chcolor(bg);
             g.frect(Coord.z, g.sz());
@@ -771,6 +778,17 @@ public class BlueprintWidget extends Window
                 }
             }, new Coord(viewsz.x, 0));
         }
+
+        @Override
+        public void draw(GOut g) {
+            if (!UITheme.on()) {
+                super.draw(g);
+                return;
+            }
+            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+            super.draw(g);
+            UITheme.panel(g, Coord.z, sz, null, UITheme.LINE);
+        }
         
         void setGrid(GridPanel grid) {
             viewport.setGrid(grid);
@@ -824,9 +842,13 @@ public class BlueprintWidget extends Window
         @Override
         public void draw(GOut g) {
             // Draw background
-            g.chcolor(new Color(0, 0, 0, 100));
-            g.frect(Coord.z, sz);
-            g.chcolor();
+            if (UITheme.on()) {
+                UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+            } else {
+                g.chcolor(new Color(0, 0, 0, 100));
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
             
             // Draw grid with clipping
             if (grid != null && grid.visible) {
@@ -857,7 +879,14 @@ public class BlueprintWidget extends Window
         
         @Override
         public void draw(GOut g) {
-            if (vis()) {
+            if (vis() && UITheme.on()) {
+                // Flat track and thumb in a thin strip centred in the classic bar height
+                int h = Math.min(sz.y, UI.scale(8));
+                int y = (sz.y - h) / 2;
+                int x = (int) Math.round((sz.x - thumbWidth()) * UITheme.fraction(val, min, max));
+                UITheme.panel(g, new Coord(0, y), new Coord(sz.x, h), UITheme.PANEL, null);
+                UITheme.panel(g, new Coord(x, y), new Coord(thumbWidth(), h), UITheme.ACCENT, null);
+            } else if (vis()) {
                 // Rotate textures 90 degrees for horizontal scrollbar
                 Coord chainSz = Scrollbar.schain.sz();
                 Coord flapSz = Scrollbar.sflarp.sz();
@@ -874,9 +903,18 @@ public class BlueprintWidget extends Window
             }
         }
         
+        private int thumbWidth() {
+            return Math.min(sz.x, Math.max(UI.scale(10), Math.min(UI.scale(28), sz.x / 5)));
+        }
+
         private void update(Coord c) {
-            Coord flapSz = Scrollbar.sflarp.sz();
-            double a = (double) (c.x - (flapSz.y / 2)) / (double) (sz.x - flapSz.y);
+            double a;
+            if (UITheme.on()) {
+                a = (double) (c.x - thumbWidth() / 2) / Math.max(1, sz.x - thumbWidth());
+            } else {
+                Coord flapSz = Scrollbar.sflarp.sz();
+                a = (double) (c.x - (flapSz.y / 2)) / (double) (sz.x - flapSz.y);
+            }
             if (a < 0) a = 0;
             if (a > 1) a = 1;
             int val = (int) Math.round(a * (max - min)) + min;
@@ -979,7 +1017,7 @@ public class BlueprintWidget extends Window
             startY = Math.max(0, startY);
             endY = Math.min(rows, endY);
             
-            g.chcolor(Color.WHITE);
+            g.chcolor(UITheme.on() ? UITheme.LINE : Color.WHITE);
             
             // Draw vertical lines - only if they're within viewport
             for (int x = startX; x <= endX; x++) {

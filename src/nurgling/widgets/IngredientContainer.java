@@ -54,6 +54,13 @@ public class IngredientContainer extends BaseIngredientContainer {
             g.dispose();
         }
 
+        @Override
+        public void draw(GOut g) {
+            super.draw(g);
+            if (nurgling.styles.UITheme.on())
+                nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
+        }
+
         class SetThreshold extends Window {
             public SetThreshold(int val) {
                 super(UI.scale(140,25), L10n.get("ingredient.threshold"));
