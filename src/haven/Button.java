@@ -114,8 +114,11 @@ public class Button extends SIWidget {
     public BufferedImage cont;
     public Runnable action = null;
     public Color tint = null;
-    static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
-    static Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
+    static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f)),
+	nurgling.styles.UIResources.active() ? nurgling.styles.UITheme.TEXT : Color.WHITE).aa(true);
+    /* New UI (decided at client start): plain light labels on the flat plates, without the gold texture. */
+    static Text.Furnace nf = nurgling.styles.UIResources.active() ? tf :
+	new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
     private boolean a = false, dis = false, hover = false;
     private boolean flat = nurgling.styles.UITheme.on();
     private UI.Grab d = null;
