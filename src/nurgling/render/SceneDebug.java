@@ -15,6 +15,8 @@ public class SceneDebug implements Disposable {
     private Snow snowEffect;
 
     public boolean hasTime() { return minutes >= 0; }
+    /** True while any weather override is active; these force a preview regardless of terrain. */
+    public boolean hasWeather() { return rain || snow; }
     public int minutes() { return minutes; }
     public void time(int minutes) { this.minutes = Math.max(0, Math.min(1439, minutes)); }
     public boolean night() { return minutes < 360 || minutes >= 1080; }
