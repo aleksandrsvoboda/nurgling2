@@ -468,9 +468,10 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		a.ctick(dt);
 	if(renderMovement != null) {
 	    Moving m = getattr(Moving.class);
-	    if((m == null) || (m instanceof LinMove))
+	    if((m == null) || (m instanceof LinMove)) {
+		renderMovement.settleWithin(m == null ? 0 : ((LinMove)m).remaining());
 		renderMovement.publish(m == null ? rc : ((LinMove)m).position(), Utils.rtime());
-	    else
+	    } else
 		renderMovement.reset();
 	}
 	List<Overlay> toRemove = new ArrayList<>();
