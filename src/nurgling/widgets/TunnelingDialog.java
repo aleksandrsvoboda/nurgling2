@@ -271,6 +271,11 @@ public class TunnelingDialog extends Window {
 
             @Override
             public void change(SupportType item) {
+                // Closing the list without picking reports null; keep the current choice
+                if (item == null) {
+                    super.change(selectedSupportType);
+                    return;
+                }
                 super.change(item);
                 selectedSupportType = item;
                 if (supportIconWidget != null && item != SupportType.NONE) {
