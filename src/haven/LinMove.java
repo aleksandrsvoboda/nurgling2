@@ -57,6 +57,9 @@ public class LinMove extends Moving {
 
     Coord2d position() { return(s.add(v.mul(t))); }
 
+    /** Predicted time until this trajectory ends; infinite while the server hasn't said. */
+    double remaining() { return(Double.isNaN(e) ? Double.POSITIVE_INFINITY : Math.max(0, e - t)); }
+
     public double getv() {
 	return(v.abs());
     }

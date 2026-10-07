@@ -102,6 +102,13 @@ public class MovementSmoothingTest {
         smooth.publish(stop, 2);
         near(smooth.position(), stop, "Stopped actor never reached authoritative position");
 
+        // A stopped (idle-posed) actor sheds its residual offset within ~6 frames instead of sliding.
+        smooth = new MovementSmoothing(); smooth.publish(Coord2d.z, 0);
+        smooth.correct(Coord2d.of(0, -4), Coord2d.z, 0);
+        smooth.settleWithin(0);
+        for(int i = 1; i <= 6; i++) smooth.publish(Coord2d.z, i / 60.0);
+        require(smooth.position().abs() < .3, "Stopped actor kept sliding: " + smooth.position());
+
         // Exact opposite updates cancel, and large teleports snap instead of sliding.
         smooth = new MovementSmoothing(); smooth.publish(Coord2d.z, 0);
         smooth.correct(Coord2d.z, Coord2d.of(10, 0), .01);
