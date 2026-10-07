@@ -1240,7 +1240,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	synchronized(glob) {
 	    boolean outdoors = outdoorLighting();
 	    nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
-	    if(outdoors && sceneDebug.hasTime()) {
+	    // An explicit debug time override always previews, even indoors or underground.
+	    if(sceneDebug.hasTime()) {
 		amblight = sceneDebug.light();
 	    } else if(glob.lightamb != null) {
 		// Vulkan's night-vision button controls exposure, never the legacy light boost.
@@ -1256,12 +1257,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	    basic(nurgling.render.WorldLighting.Smooth.class,
 	            outdoors && ((graphics.worldlight && graphics.worldlightstrength > 0) || graphics.bettershadows) ? nurgling.render.WorldLighting.smooth : null);
-	    if(outdoors && graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {
+	    if((outdoors || sceneDebug.hasTime()) && graphics.worldlight && (sceneDebug.hasTime() || glob.ast != null)) {
 		amblight = nurgling.render.WorldLighting.apply(amblight,
 		        sceneDebug.hasTime() ? sceneDebug.minutes() / 1440.0 : glob.ast.dt,
 		        graphics.worldlightstrength, clearWeatherLight, graphics.autoexp);
 	    }
-	    if(outdoors && graphics.enabled)
+	    if((outdoors || sceneDebug.hasWeather()) && graphics.enabled)
 		amblight = nurgling.render.RainLighting.apply(amblight, rainCloudCover);
 	}
 	if(s_amblight != null) {
@@ -1335,7 +1336,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private final Map<RenderTree.Node, RenderTree.Slot> rweather = new HashMap<>();
     public Collection<Glob.Weather> weather() {
-	return(outdoorLighting() ? sceneDebug.weather(glob.weather()) : glob.weather());
+	// A debug weather override previews regardless of terrain; otherwise only outdoors.
+	return((outdoorLighting() || sceneDebug.hasWeather()) ? sceneDebug.weather(glob.weather()) : glob.weather());
     }
 
     private void updweather() {
@@ -1937,10 +1939,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "lighting-weather")) {
 		sceneDebug.prepare();
-		boolean outdoors = outdoorLighting();
-		float rain = outdoors ? nurgling.render.RainLighting.intensity(weather()) : 0;
-		rainCloudCover = outdoors ? nurgling.render.RainLighting.approach(rainCloudCover, rain, dt) : 0;
-		clearWeatherLight = outdoors ? nurgling.render.WorldLighting.approachClearWeather(clearWeatherLight, rain, dt) : 0;
+		boolean weatherActive = outdoorLighting() || sceneDebug.hasWeather();
+		float rain = weatherActive ? nurgling.render.RainLighting.intensity(weather()) : 0;
+		rainCloudCover = weatherActive ? nurgling.render.RainLighting.approach(rainCloudCover, rain, dt) : 0;
+		clearWeatherLight = weatherActive ? nurgling.render.WorldLighting.approachClearWeather(clearWeatherLight, rain, dt) : 0;
 		amblight();
 		updsmap(amblight);
 		updweather();

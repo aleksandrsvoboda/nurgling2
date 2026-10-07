@@ -59,7 +59,7 @@ public class NMiningSupport extends Sprite implements RenderTree.Node
             case "gfx/terobjs/monumentalcolumn":
                 return Spec.circle(330);
             case "gfx/terobjs/timbertunnel":
-                return Spec.rect(1, 5);
+                return Spec.rect(1, 4);
             case "gfx/terobjs/reinforcedtunnel":
                 return Spec.rect(2, 8);
             case "gfx/terobjs/stonearchtunnel":
@@ -77,7 +77,7 @@ public class NMiningSupport extends Sprite implements RenderTree.Node
      * forwardShift moves the rectangle along the facing. The mask's end
      * is exclusive.
      */
-    static Mask computeRect(Coord2d rc, double angle, int widthTiles, int lengthTiles, int forwardShift) {
+    public static Mask computeRect(Coord2d rc, double angle, int widthTiles, int lengthTiles, int forwardShift) {
         Coord origin = rc.div(MCache.tilesz).floor();
         Coord fwd = snapCardinal(Coord2d.of(1, 0).rot(angle));
         Coord right = snapCardinal(Coord2d.of(0, 1).rot(angle));

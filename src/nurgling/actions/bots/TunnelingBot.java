@@ -45,6 +45,8 @@ public class TunnelingBot implements Action {
 
         TunnelingDialog dialog = new TunnelingDialog();
         dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, maxLateralRef, confirmRef, cancelRef);
+        boolean[] centreLineRef = new boolean[]{false};
+        dialog.setFrameReferences(centreLineRef);
         NUtils.addCentered(gui, dialog);
 
         // Wait for user input
@@ -68,6 +70,12 @@ public class TunnelingBot implements Action {
         // Dispatch to MinesweeperMiner if no support selected
         if (supportType == SupportType.NONE) {
             return new MinesweeperMiner(direction, maxLateralRef[0]).run(gui);
+        }
+
+        // Tunnel frames are dug through rather than beside, so they get their own loop
+        if (supportType.isFrame()) {
+            return new FrameTunneler(direction, supportType,
+                    TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]), centreLineRef[0]).run(gui);
         }
 
         TunnelSide tunnelSide = TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]);
