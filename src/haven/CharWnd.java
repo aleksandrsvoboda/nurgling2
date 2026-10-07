@@ -362,6 +362,8 @@ public class CharWnd extends Window {
 		    settip(tip);
 		}
 
+		protected boolean selected() { return tabs.curtab == tab; }
+
 		public void click() {
 		    tabs.showtab(tab);
 			tbbattrtab.c.y = tab.sz.y + UI.scale(10) + tbbattrtab.sz.y/2;

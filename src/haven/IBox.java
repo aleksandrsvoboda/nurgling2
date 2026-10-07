@@ -98,6 +98,11 @@ public interface IBox {
 
     public void draw(GOut g, Coord tl, Coord sz)
 	{
+		if(nurgling.styles.UITheme.on()) {
+			// New UI: a flat orange line in place of the ornate frame.
+			nurgling.styles.UITheme.panel(g, tl, sz, null, nurgling.styles.UITheme.ACCENT);
+			return;
+		}
 		g.image(bt, tl.add(new Coord(ctl.sz().x + ctl.sz().x / 2 - ctl.sz().x / 4, ctl.sz().y / 2 - ctl.sz().x / 4)), new Coord(sz.x - ctr.sz().x - ctl.sz().x - ctl.sz().x + ctl.sz().x / 2, bt.sz().y));
 		g.image(bb, tl.add(new Coord(cbl.sz().x + cbl.sz().x / 2 - ctl.sz().x / 4, sz.y - bb.sz().y - cbl.sz().y / 2 + ctl.sz().x / 4)), new Coord(sz.x - cbr.sz().x - cbl.sz().x - ctl.sz().x + ctl.sz().x / 2, bb.sz().y));
 		g.image(bl, tl.add(new Coord(cbl.sz().x / 2 - ctl.sz().y / 4, ctl.sz().y + cbl.sz().y / 2 - ctl.sz().y / 4)), new Coord(bl.sz().x, sz.y - cbl.sz().y - ctl.sz().y - cbl.sz().y + ctl.sz().y / 2));

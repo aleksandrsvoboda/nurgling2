@@ -138,14 +138,20 @@ public class Text implements Disposable {
 	public final Color defcol;
 	public boolean aa = true;
 	private RichText.Foundry wfnd = null;
+	/* The requested font, for text the New UI font has no glyphs for (e.g. arrows). */
+	private final Font orig;
+	private FontMetrics om = null;
 		
 	public Foundry(Font f, Color defcol) {
-	    font = f;
+	    // New UI (decided at client start): Open Sans in place of the requested font.
+	    font = nurgling.styles.UIResources.active() ? nurgling.styles.UIFont.replace(f) : f;
+	    orig = f;
 	    this.defcol = defcol;
 	    BufferedImage junk = TexI.mkbuf(new Coord(10, 10));
 	    java.awt.Graphics tmpl = junk.getGraphics();
-	    tmpl.setFont(f);
+	    tmpl.setFont(font);
 	    m = tmpl.getFontMetrics();
+	    tmpl.dispose();
 	}
 		
 	public Foundry(Font f) {
@@ -177,8 +183,25 @@ public class Text implements Disposable {
 	    return(m.getHeight());
 	}
 
+	/* Open Sans has no fallback for missing glyphs, so such text keeps the requested font. */
+	private Font fontfor(String text) {
+	    return(((font != orig) && (font.canDisplayUpTo(text) >= 0)) ? orig : font);
+	}
+
+	private FontMetrics metrics(Font f) {
+	    if(f == font)
+		return(m);
+	    if(om == null) {
+		java.awt.Graphics tmpl = TexI.mkbuf(new Coord(10, 10)).getGraphics();
+		tmpl.setFont(orig);
+		om = tmpl.getFontMetrics();
+		tmpl.dispose();
+	    }
+	    return(om);
+	}
+
 	public Coord strsize(String text) {
-	    return(new Coord(m.stringWidth(text), height()));
+	    return(new Coord(metrics(fontfor(text)).stringWidth(text), height()));
 	}
                 
 	public Text renderwrap(String text, Color c, int width) {
@@ -203,7 +226,7 @@ public class Text implements Disposable {
 	    Graphics g = img.createGraphics();
 	    if(aa)
 		Utils.AA(g);
-	    g.setFont(font);
+	    g.setFont(fontfor(text));
 	    g.setColor(c);
 	    FontMetrics m = g.getFontMetrics();
 	    /* See height() comment. */
@@ -229,7 +252,7 @@ public class Text implements Disposable {
 	    Graphics g = img.createGraphics();
 	    if(aa)
 		Utils.AA(g);
-	    g.setFont(font);
+	    g.setFont(fontfor(text));
 	    FontMetrics m = g.getFontMetrics();
 	    int base = m.getLeading() + m.getAscent();
 	    g.setColor(stroke);

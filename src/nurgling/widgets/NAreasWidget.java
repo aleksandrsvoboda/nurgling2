@@ -422,12 +422,41 @@ public class NAreasWidget extends Window
         Label text;
         IButton remove;
         CheckBox hide;
+        /* Long names are cut with "..." before the checkbox and trash icons. The label keeps
+         * the full name (it is looked up by name) and is hidden; this draws in its place. */
+        private Text.Line fitted;
+        private String fittedFor;
+        private int fittedW;
+
+        private Tex fitted(String name, int w) {
+            if((fitted == null) || !name.equals(fittedFor) || (w != fittedW)) {
+                if(fitted != null)
+                    fitted.dispose();
+                fitted = text.f.ellipsize(name, Math.max(0, w));
+                fittedFor = name;
+                fittedW = w;
+            }
+            return(fitted.tex());
+        }
+
+        @Override
+        public void dispose() {
+            if(fitted != null)
+                fitted.dispose();
+            super.dispose();
+        }
 
         public NArea area;
 
         boolean isDir = false;
         private String rootPath = null;
         final ArrayList<String> opt;
+        /* A long (hidden) name label must not widen the row past the list: the trash
+         * icon sits at the row's right edge. */
+        private void fitList() {
+            resize(new Coord(al.sz.x, sz.y));
+        }
+
         @Override
         public void resize(Coord sz) {
             if(remove!=null) {
@@ -471,6 +500,7 @@ public class NAreasWidget extends Window
             };
 
             pack();
+            fitList();
         }
 
         public AreaItem(String text, boolean isDir){
@@ -489,6 +519,7 @@ public class NAreasWidget extends Window
                 }
             };
             pack();
+            fitList();
         }
 
         public AreaItem(String rootPath) {
@@ -503,6 +534,7 @@ public class NAreasWidget extends Window
             },new Coord(al.sz.x - NStyle.removei[0].sz().x, 0).sub(UI.scale(5),UI.scale(1) ));
             opt = new ArrayList<>();
             pack();
+            fitList();
         }
 
         @Override
@@ -514,7 +546,10 @@ public class NAreasWidget extends Window
                 g.image(folderIcon, Coord.z, UI.scale(16,16));
                 g.text(text.text(), new Coord(UI.scale(21), 0)); // Text next to icon
             } else {
+                int right = ((hide != null) ? hide.c.x : remove.c.x) - UI.scale(4);
+                text.visible = false;
                 super.draw(g);
+                g.image(fitted(text.text(), right - text.c.x), text.c);
             }
         }
 

@@ -65,6 +65,14 @@ public class Scrollbar extends Widget {
 	    max = ctl.scrollmax();
 	    val = ctl.scrollval();
 	}
+	if(nurgling.styles.UITheme.on()) {
+	    if(vis()) {
+		int y = (int)Math.round((sz.y - thumbHeight()) * nurgling.styles.UITheme.fraction(val, min, max));
+		nurgling.styles.UITheme.panel(g, Coord.z, sz, nurgling.styles.UITheme.PANEL, null);
+		nurgling.styles.UITheme.panel(g, Coord.of(0, y), Coord.of(sz.x, thumbHeight()), nurgling.styles.UITheme.ACCENT, null);
+	    }
+	    return;
+	}
 	if(customDraw != null) {
 	    customDraw.accept(this, g);
 	    return;
@@ -81,8 +89,14 @@ public class Scrollbar extends Widget {
 	}
     }
 
+    /** New UI thumb: proportional to the track, within sensible bounds. */
+    private int thumbHeight() {
+	return(Math.min(sz.y, Math.max(UI.scale(10), Math.min(UI.scale(28), sz.y / 5))));
+    }
+
     private void update(Coord c) {
-	double a = (double)(c.y - (sflarp.sz().y / 2)) / (double)(sz.y - sflarp.sz().y);
+	int thumb = nurgling.styles.UITheme.on() ? thumbHeight() : sflarp.sz().y;
+	double a = (double)(c.y - (thumb / 2)) / (double)Math.max(1, sz.y - thumb);
 	if(a < 0)
 	    a = 0;
 	if(a > 1)

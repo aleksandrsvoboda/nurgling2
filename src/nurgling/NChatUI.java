@@ -2,6 +2,7 @@ package nurgling;
 
 import haven.*;
 import nurgling.conf.FontSettings;
+import nurgling.styles.UITheme;
 
 import java.awt.Color;
 import java.util.*;
@@ -9,6 +10,7 @@ import java.util.*;
 public class NChatUI extends ChatUI {
     private static final int SIDEBAR_W = UI.scale(131);
     private static final int DIVIDER_W = UI.scale(2);
+    private static final int NEW_DIVIDER_W = Math.max(1, UI.scale(1));
     private static final int ROW_H = UI.scale(24);
     private static final int TEXT_PAD = UI.scale(6); // horizontal breathing room inside row
     private static final int CLOSE_PAD = UI.scale(6); // gap from right edge to X icon
@@ -57,10 +59,19 @@ public class NChatUI extends ChatUI {
 	sidebar.c = Coord.z;
 	sidebar.resize(new Coord(SIDEBAR_W, sz.y));
 	if(sel != null) {
-	    int cx = SIDEBAR_W + DIVIDER_W;
-	    sel.c = new Coord(cx, 0);
-	    sel.resize(new Coord(sz.x - cx, sz.y));
+	    int cx = SIDEBAR_W + dividerW();
+	    if(UITheme.on()) {
+		sel.c = new Coord(cx, BORDER_W);
+		sel.resize(new Coord(Math.max(0, sz.x - cx - BORDER_W), Math.max(0, sz.y - BORDER_W * 2)));
+	    } else {
+		sel.c = new Coord(cx, 0);
+		sel.resize(new Coord(sz.x - cx, sz.y));
+	    }
 	}
+    }
+
+    private static int dividerW() {
+	return UITheme.on() ? NEW_DIVIDER_W : DIVIDER_W;
     }
 
     @Override
@@ -125,14 +136,15 @@ public class NChatUI extends ChatUI {
 	g.chcolor();
 
 	// 2. Message area background
-	int cx = SIDEBAR_W + DIVIDER_W;
+	int dw = dividerW();
+	int cx = SIDEBAR_W + dw;
 	g.chcolor(MSG_BG.getRed(), MSG_BG.getGreen(), MSG_BG.getBlue(), alpha);
 	g.frect(new Coord(cx, 0), new Coord(sz.x - cx, sz.y));
 	g.chcolor();
 
 	// 3. Divider
 	g.chcolor(NStyle.border);
-	g.frect(new Coord(SIDEBAR_W, 0), new Coord(DIVIDER_W, sz.y));
+	g.frect(new Coord(SIDEBAR_W, 0), new Coord(dw, sz.y));
 	g.chcolor();
 
 	// 4. Children (sidebar + selected channel)
@@ -189,9 +201,10 @@ public class NChatUI extends ChatUI {
 	    sb.c = new Coord(sz.x - sb.sz.x, 0);
 	}
 
-	/** Reserved width for the scrollbar lane (always subtracted, so layout never shifts). */
+	/** Reserved width for the scrollbar lane (always subtracted, so layout never shifts).
+	 *  New UI reserves it only while the scrollbar shows, keeping labels centered on the sidebar. */
 	private int sbReserve() {
-	    return sb.sz.x;
+	    return (UITheme.on() && !sb.visible) ? 0 : sb.sz.x;
 	}
 
 	@Override
@@ -228,6 +241,7 @@ public class NChatUI extends ChatUI {
 		    // Reserve right-side space for the X on closable rows
 		    int reservedRight = closable ? (CLOSE_W + CLOSE_PAD * 2) : 0;
 		    int textAreaW = nameW - reservedRight;
+		    boolean flat = UITheme.on();
 		    // Channel icon (e.g. Village/Realm/PM), reuse DarkChannel's cached scaled icon
 		    Tex iconTex = null;
 		    try {
@@ -240,11 +254,13 @@ public class NChatUI extends ChatUI {
 		    int iconReserve = (iconTex != null) ? (iconW + ICON_PAD) : 0;
 		    // Channel name (truncated with ".." if needed); truncation accounts for icon space
 		    String name = dch.chan.name();
-		    int maxTextW = Math.max(0, textAreaW - TEXT_PAD * 2 - iconReserve);
+		    int maxTextW = flat
+			? Math.max(0, sz.x - (TEXT_PAD + sbReserve() + reservedRight) * 2 - iconReserve)
+			: Math.max(0, textAreaW - TEXT_PAD * 2 - iconReserve);
 		    Text rendered = renderName(name, isSel, dch.chan.urgency, maxTextW);
-		    // Center the [icon + name] group within the text area
+		    // Center the [icon + name] group within the text area (New UI: on the full sidebar)
 		    int groupW = rendered.sz().x + iconReserve;
-		    int groupX = (textAreaW - groupW) / 2;
+		    int groupX = ((flat ? sz.x : textAreaW) - groupW) / 2;
 		    int textY = y + (ROW_H - rendered.sz().y) / 2;
 		    if(iconTex != null) {
 			int iconY = y + (ROW_H - iconH) / 2;

@@ -196,6 +196,7 @@ public class NConfig
         foragerprop,
         trufflepigprop,
         buttonStyle,
+        newUi,
         showQuestGiverNames,
         showThingwallNames,
         showPartyMemberNames,
@@ -560,6 +561,7 @@ public class NConfig
         conf.put(Key.useSolidBackground, false);  // Default to texture mode
         conf.put(Key.windowBackgroundColor, new java.awt.Color(0x1C, 0x25, 0x26));  // #1C2526
         conf.put(Key.buttonStyle, "tbtn");  // Default button style
+        conf.put(Key.newUi, true);  // New look by default; Options > Interface > New UI turns it off
 
         // Pickling settings
         conf.put(Key.picklingBeetroots, true);

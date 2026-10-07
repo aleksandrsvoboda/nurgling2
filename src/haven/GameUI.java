@@ -298,7 +298,20 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	rbtnimg.hide();
 	add(new NDraggableWidget(new MainMenu(), "mainmenu", UI.scale(270,109)));
 	menubuttons(rbtnimg);
-	portrait = add(new NDraggableWidget(Frame.with(new Avaview(Avaview.dasz, plid, "avacam"), false),"portrait", UI.scale(120, 108)));
+	Avaview ava = new Avaview(Avaview.dasz, plid, "avacam");
+	Frame portraitFrame = new Frame(ava.sz, true) {
+	    public void drawframe(GOut g) {
+		if(nurgling.styles.UITheme.on()) {
+		    // New UI: a flat accent line hugging the avatar instead of the ornate inset frame.
+		    Coord inset = UI.scale(1, 1);
+		    nurgling.styles.UITheme.panel(g, ava.c.add(box.btloff()).sub(inset), ava.sz.add(inset.mul(2)), null, nurgling.styles.UITheme.ACCENT);
+		} else {
+		    super.drawframe(g);
+		}
+	    }
+	};
+	portraitFrame.add(ava, 0, 0);
+	portrait = add(new NDraggableWidget(portraitFrame,"portrait", UI.scale(120, 108)));
 	add(new NDraggableWidget(buffs = new Bufflist(),"bufflist",Coord.z));
 	add(new NDraggableWidget(calendar = new Cal(),"Calendar",UI.scale(240,90)));
 	syslog = chat.add(new ChatUI.Log("System"));
@@ -1000,11 +1013,22 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     public static class Progress extends Widget {
 	private static final Resource.Anim progt = Resource.local().loadwait("gfx/hud/prog").layer(Resource.animc);
+	/* New UI: a ring with the percentage inside and the time left in a caption below. */
+	private static final int RING = UI.scale(48), RINGW = UI.scale(5), GAP = UI.scale(3);
+	public static final Coord flatsz = Coord.of(UI.scale(76), RING + GAP + UI.scale(16));
+	private static final Text.Foundry pctf = new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 12, nurgling.styles.UITheme.TEXT).aa(true);
+	private static final Text.Foundry etaf = new Text.Foundry(Text.sans, 11, nurgling.styles.UITheme.MUTED).aa(true);
 	public double prog;
 	private TexI curi;
+	private final boolean flat = nurgling.styles.UITheme.on();
+	private final nurgling.tools.ProgressRate rate = new nurgling.tools.ProgressRate();
+	/* Rendered when their value changes, not every frame. */
+	private Text label, pct, eta;
+	private int pctv = -1;
+	private String etav;
 
 	public Progress(double prog) {
-	    super(progt.f[0][0].ssz);
+	    super(nurgling.styles.UITheme.on() ? flatsz : progt.f[0][0].ssz);
 	    set(prog);
 	}
 
@@ -1022,17 +1046,76 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    int dec = Math.max(0, (int)Math.round(-Math.log10(d)) - 2);
 	    this.tooltip = String.format("%." + dec + "f%%", prog * 100);
 	    this.prog = prog;
+	    rate.add(Utils.rtime(), prog);
+	    if(!flat) {
+		if(label != null)
+		    label.dispose();
+		label = NStyle.openings.render(String.format("%.0f %%", prog * 100));
+	    }
 	}
 
 	public void draw(GOut g) {
+	    if(flat) {
+		drawring(g);
+		return;
+	    }
 	    g.image(curi, Coord.z);
-		TexI label = new TexI(NStyle.openings.render(String.format("%.0f %%",prog*100)).img);
-		Coord pos= new Coord(curi.sz.x/2 - label.sz.x/2,0);
-		g.aimage(label, pos,0,0);
+	    Tex t = label.tex();
+	    g.aimage(t, new Coord(curi.sz.x / 2 - t.sz().x / 2, 0), 0, 0);
+	}
+
+	private void drawring(GOut g) {
+	    double now = Utils.rtime();
+	    double p = Utils.clip(rate.shown(now), 0.0, 1.0);
+	    int r = RING / 2;
+	    Coord c = Coord.of(sz.x / 2, r);
+	    g.chcolor(nurgling.styles.UITheme.INPUT);
+	    g.fellipse(c, Coord.of(r, r));
+	    if(p > 0) {
+		// Clockwise from the top.
+		g.chcolor(nurgling.styles.UITheme.ACCENT);
+		g.fellipse(c, Coord.of(r, r), (Math.PI / 2) - (2 * Math.PI * p), Math.PI / 2);
+	    }
+	    g.chcolor(nurgling.styles.UITheme.PANEL);
+	    g.fellipse(c, Coord.of(r - RINGW, r - RINGW));
+	    g.chcolor();
+	    int v = (int)Math.floor(p * 100);
+	    if(v != pctv) {
+		if(pct != null)
+		    pct.dispose();
+		pct = pctf.render(v + "%");
+		pctv = v;
+	    }
+	    g.aimage(pct.tex(), c, 0.5, 0.5);
+	    double left = rate.left(now);
+	    String e = (left < 0) ? null : nurgling.tools.ProgressRate.format(left);
+	    if(!Utils.eq(e, etav)) {
+		if(eta != null)
+		    eta.dispose();
+		eta = (e == null) ? null : etaf.render(e);
+		etav = e;
+	    }
+	    if(eta != null) {
+		Coord es = eta.sz().add(UI.scale(12), UI.scale(2));
+		Coord eu = Coord.of((sz.x - es.x) / 2, RING + GAP);
+		nurgling.styles.UITheme.panel(g, eu, es, nurgling.styles.UITheme.PANEL, nurgling.styles.UITheme.LINE);
+		g.aimage(eta.tex(), eu.add(es.div(2)), 0.5, 0.5);
+	    }
 	}
 
 	public boolean checkhit(Coord c) {
+	    if(flat)
+		return(c.isect(Coord.z, sz));
 	    return(Utils.checkhit(curi.back, c, 10));
+	}
+
+	public void dispose() {
+	    for(Text t : new Text[] {label, pct, eta})
+		if(t != null)
+		    t.dispose();
+	    if(curi != null)
+		curi.dispose();
+	    super.dispose();
 	}
     }
 
@@ -1054,7 +1137,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		wdg.draw(g2);
 		if(mapViewReady)
 		{
-			if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid)
+			if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid && nurgling.styles.UITheme.on())
+			{
+				nurgling.styles.DragGrid.draw(g, sz);
+			}
+			else if(ui.core.mode== NCore.Mode.DRAG && ui.core.enablegrid)
 			{
 				// Calculate center of screen
 				int centerX = sz.x / 2;
@@ -1258,8 +1345,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	} else if(msg == "prog") {
 	    if(args.length > 0) {
 		double p = Utils.dv(args[0]) / 100.0;
-		if(prog == null)
-		    prog = adda(new Progress(p), 0.5, 0.35);
+		if(prog == null) {
+		    Widget slot = progslot();
+		    if(slot != null)
+			prog = slot.add(new Progress(p), nurgling.widgets.NDraggableWidget.off);
+		    else
+			prog = adda(new Progress(p), 0.5, 0.35);
+		}
 		else
 		    prog.set(p);
 	    } else {
@@ -1414,6 +1506,34 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    super("nurgling/hud/buttons/" + base, "u", "d", "h", "dh");
 	    setgkey(gkey);
 	    settip(tooltip);
+	    menu = base.startsWith("rbtn/");
+	    res = "nurgling/hud/buttons/" + base + "u";
+	}
+
+	private final boolean menu;
+	private final String res;
+	private Tex glyph;
+
+	/* New UI: the coloured glyph without its brown matte, on the shared plate. */
+	public void draw(GOut g) {
+	    if(!menu || !nurgling.styles.UITheme.on() || !(up instanceof TexI)) {
+		super.draw(g);
+		return;
+	    }
+	    if(glyph == null) {
+		// Strip the matte from the original art: scaling blends its exact colour away.
+		java.awt.image.BufferedImage raw = nurgling.styles.MenuIcons.stripMatte(Resource.loadimg(res));
+		glyph = new TexI(PUtils.uiscale(raw, up.sz()));
+	    }
+	    int inset = Math.max(1, sz.y / 12);
+	    nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz, nurgling.styles.GeneratedButtons.state(h, false, state(), false));
+	    g.image(glyph, Coord.z, Coord.of(inset, inset), sz.sub(inset, inset));
+	}
+
+	public boolean checkhit(Coord c) {
+	    if(menu && nurgling.styles.UITheme.on())
+		return(c.isect(Coord.z, sz));
+	    return(super.checkhit(c));
 	}
     }
 
@@ -1591,8 +1711,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 	if(map != null)
 	    map.resize(sz);
-	if(prog != null)
+	if((prog != null) && (prog.parent == this))
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
+    }
+
+    /** Where a new action progress widget goes, or null for the classic screen spot. */
+    protected Widget progslot() {
+	return(null);
     }
 
 	private void openSearchWidget() {
@@ -1696,7 +1821,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    for(int i = 0; i < 12; i++) {
 		int slot = i + (curbelt * 12);
 		Coord c = beltc(i);
-		g.image(invsq, beltc(i));
+		g.image(Inventory.slotsq, beltc(i));
 		try {
 		    if(belt[slot] != null)
 			belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));
@@ -1750,7 +1875,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    for(int i = 0; i < 10; i++) {
 		int slot = i + (curbelt * 12);
 		Coord c = beltc(i);
-		g.image(invsq, beltc(i));
+		g.image(Inventory.slotsq, beltc(i));
 		try {
 		    if(belt[slot] != null) {
 			belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));

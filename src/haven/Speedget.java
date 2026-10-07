@@ -34,17 +34,23 @@ public class Speedget extends Widget {
     public static final Coord tsz;
     public int cur, max;
 	final static int marg = UI.scale(2);
+    /* New UI (decided at client start): flat square speed buttons. */
+    private static final boolean flat = nurgling.styles.UIResources.active();
     static {
 	String[] names = {"crawl", "walk", "run", "sprint"};
 	String[] vars = {"dis", "off", "on"};
 	imgs = new Tex[names.length][vars.length];
 	int w = 0;
 	for(int i = 0; i < names.length; i++) {
-	    for(int o = 0; o < vars.length; o++)
-		imgs[i][o] = Resource.loadtex("nurgling/hud/rmeter/" + names[i] + "-" + vars[o]);
+	    for(int o = 0; o < vars.length; o++) {
+		if(flat)
+		    imgs[i][o] = new TexI(nurgling.styles.GeneratedButtons.squareButtonImage("speed-" + i + "-" + vars[o], UI.scale(24)));
+		else
+		    imgs[i][o] = Resource.loadtex("nurgling/hud/rmeter/" + names[i] + "-" + vars[o]);
+	    }
 	    w += imgs[i][0].sz().x + marg;
 	}
-	tsz = new Coord(w, imgs[0][0].sz().y);
+	tsz = new Coord(flat ? (w - marg) : w, imgs[0][0].sz().y);
 	tips = new String[names.length];
 	for(int i = 0; i < names.length; i++) {
 	    tips[i] = Resource.local().loadwait("gfx/hud/meter/rmeter/" + names[i] + "-on").flayer(Resource.tooltip).text();
@@ -95,6 +101,15 @@ public class Speedget extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
 	int x = 0;
 	for(int i = 0; i < 4; i++) {
+	    if(flat) {
+		// Exactly the drawn squares; the gaps between them select nothing.
+		if(ev.c.isect(new Coord(x, 0), imgs[i][0].sz())) {
+		    set(i);
+		    break;
+		}
+		x += imgs[i][0].sz().x + marg;
+		continue;
+	    }
 	    x += imgs[i][0].sz().x;
 	    if(ev.c.x < x) {
 		set(i);

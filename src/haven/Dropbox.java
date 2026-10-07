@@ -31,6 +31,23 @@ public abstract class Dropbox<T> extends ListWidget<T> {
         protected int listitems() {return(Dropbox.this.listitems());}
         protected void drawitem(GOut g, T item, int idx) {Dropbox.this.drawlistitem(g, item, idx);}
 
+        /* New UI: darker than the window behind it and outlined, so the popup's extent is clear. */
+        protected void drawbg(GOut g) {
+            if(!nurgling.styles.UITheme.on()) {
+                super.drawbg(g);
+                return;
+            }
+            g.chcolor(nurgling.styles.UITheme.INPUT);
+            g.frect(Coord.z, sz);
+            g.chcolor();
+        }
+
+        public void draw(GOut g) {
+            super.draw(g);
+            if(nurgling.styles.UITheme.on())
+                nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
+        }
+
         protected void itemclick(T item, Coord c, int button) {
             int width = sz.x - (sb.vis() ? sb.sz.x : 0);
             if(Dropbox.this.listitemclick(item, c, button, width))
@@ -57,12 +74,24 @@ public abstract class Dropbox<T> extends ListWidget<T> {
 
     public static Color bgColor = Color.BLACK;
     public void draw(GOut g) {
-        g.chcolor(bgColor);
-        g.frect(Coord.z, sz);
-        g.chcolor();
+        boolean flat = nurgling.styles.UITheme.on();
+        if(flat) {
+            nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+                dl != null ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
+        } else {
+            g.chcolor(bgColor);
+            g.frect(Coord.z, sz);
+            g.chcolor();
+        }
         if(sel != null)
             drawitem(g.reclip(Coord.z, new Coord(sz.x - drop.sz().x, itemh)), sel, 0);
-        g.image(drop, dropc);
+        if(flat) {
+            int side = UI.scale(10);
+            nurgling.styles.GeneratedButtons.icon(g, "down",
+                new Coord(sz.x - drop.sz().x / 2 - side / 2, (sz.y - side) / 2), side);
+        } else {
+            g.image(drop, dropc);
+        }
         super.draw(g);
     }
 

@@ -84,6 +84,8 @@ public class NGameUI extends GameUI
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public FpsPanel fpsPanel;
+    /* New UI: drag-mode slot for the action progress ring. */
+    private NDraggableWidget progressSlot;
     public nurgling.routes.ForagerPath activeBotPath = null;
     // Index into activeBotPath.waypoints Forager is currently heading toward, -1 when idle - lets NWaypointOverlay color current/passed/queued waypoints differently.
     public int activeBotWaypointIndex = -1;
@@ -272,6 +274,10 @@ public class NGameUI extends GameUI
         add(dbStatsOverlay = new DbStatsOverlay(), new Coord(sz.x - 290, 10));
         dbStatsOverlay.hide(); // Hidden by default, toggle with F11 or settings
         add(fpsPanel = new FpsPanel(), new Coord(Math.max(0, sz.x - UI.scale(450)), UI.scale(150)));
+        boolean progressPlaced = NDragProp.get("progress").c != Coord.z;
+        progressSlot = add(new NDraggableWidget("progress", GameUI.Progress.flatsz.add(NDraggableWidget.delta)));
+        if(!progressPlaced)
+            progressSlot.target_c = sz.sub(progressSlot.sz).mul(0.5, 0.35);
         fpsPanel.keepOnScreen();
 
         // Profile-aware components are now initialized in attached() before super.attached()
@@ -329,6 +335,11 @@ public class NGameUI extends GameUI
     public void tick(double dt) {
         super.tick(dt);
         if(atlas != null) atlas.tick(dt);
+        if(progressSlot != null) {
+            boolean show = nurgling.styles.UITheme.on() && !nurgling.render.Photo.on;
+            if(progressSlot.visible() != show)
+                progressSlot.show(show);
+        }
         nurgling.diagnostics.MovementTrace.poll(ui);
         if(fpsPanel != null) {
             boolean show = FpsPanel.enabled() && !nurgling.render.Photo.on;
@@ -671,7 +682,7 @@ public class NGameUI extends GameUI
         super.resize(sz);
         if(fpsPanel != null) fpsPanel.keepOnScreen();
         if(guiinfo != null)
-            guiinfo.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
+            guiinfo.move(new Coord(Math.max(0, (sz.x - guiinfo.sz.x) / 2), Math.max(0, (sz.y - guiinfo.sz.y) / 2)));
         if(areas != null)
             areas.move(new Coord(sz.x / 2 - NGUIInfo.xs / 2, sz.y / 5));
         if(storageItemsWidget != null)
@@ -940,7 +951,7 @@ public class NGameUI extends GameUI
             for (int i = 0; i < size; i++) {
                 Coord c = beltc(i);
                 int slot = slot(i);
-                g.image(invsq, c);
+                g.image(Inventory.slotsq, c);
                 try {
                     Object item = belt(slot);
                     if (item != null) {
@@ -1292,6 +1303,11 @@ public class NGameUI extends GameUI
     public static final KeyBinding kb_photo = KeyBinding.get("photo-mode", KeyMatch.forchar('P', KeyMatch.C | KeyMatch.S));
     public static final KeyBinding kb_atlas = KeyBinding.get("craft-atlas", KeyMatch.forchar('K', KeyMatch.C | KeyMatch.S));
     public static final KeyBinding kb_compass = KeyBinding.get("navigation-compass", KeyMatch.nil);
+
+    @Override
+    protected Widget progslot() {
+        return((progressSlot != null) && nurgling.styles.UITheme.on()) ? progressSlot : null;
+    }
 
     public void toggleCraftAtlas() {
         if(atlas == null) return;

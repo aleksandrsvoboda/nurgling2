@@ -1166,6 +1166,9 @@ public class Resource implements Serializable {
 		    throw(new UnknownFormatException(Resource.this, "image version", ver));
 		}
 	    }
+	    BufferedImage themed = nurgling.styles.UIResources.image(Resource.this.name, img.getWidth(), img.getHeight(), scale);
+	    if(themed != null)
+		img = themed;
 	    sz = Utils.imgsz(img);
 	    so = UI.scale(o);
 	    if(tsz == null)

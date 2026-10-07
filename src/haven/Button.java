@@ -43,6 +43,9 @@ public class Button extends SIWidget {
 	public static BufferedImage ut;
 	public static BufferedImage bm;
     public static int hs, hl;
+    /* Transparent margins of the classic art. Layouts let neighbouring buttons overlap
+     * there, so the New UI plate stays inside the visible part. */
+    private static int ml, mr, mt, mb;
     
     static {
         // Load default style from config or use "tbtn" as fallback
@@ -69,6 +72,28 @@ public class Button extends SIWidget {
         bm = Resource.loadsimg(basePath + "mid");
         hs = bl.getHeight();
         hl = bm.getHeight();
+        int[] l = opaque(bl), r = opaque(br);
+        ml = l[0];
+        mr = br.getWidth() - 1 - r[2];
+        mt = Math.min(l[1], r[1]);
+        mb = hs - 1 - Math.max(l[3], r[3]);
+    }
+
+    /** Bounds {x0, y0, x1, y1} of the pixels at least half opaque. */
+    private static int[] opaque(BufferedImage img) {
+        int x0 = img.getWidth(), y0 = img.getHeight(), x1 = -1, y1 = -1;
+        boolean alpha = img.getColorModel().hasAlpha();
+        for(int y = 0; y < img.getHeight(); y++) {
+            for(int x = 0; x < img.getWidth(); x++) {
+                if(alpha && (img.getRGB(x, y) >>> 24) < 128)
+                    continue;
+                x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+                y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+            }
+        }
+        if(x1 < 0)
+            return(new int[] {0, 0, img.getWidth() - 1, img.getHeight() - 1});
+        return(new int[] {x0, y0, x1, y1});
     }
     
     public static void updateAllButtons(Widget root) {
@@ -89,10 +114,18 @@ public class Button extends SIWidget {
     public BufferedImage cont;
     public Runnable action = null;
     public Color tint = null;
-    static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
-    static Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
-    private boolean a = false, dis = false;
+    static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f)),
+	nurgling.styles.UIResources.active() ? nurgling.styles.UITheme.TEXT : Color.WHITE).aa(true);
+    /* New UI (decided at client start): plain light labels on the flat plates, without the gold texture. */
+    static Text.Furnace nf = nurgling.styles.UIResources.active() ? tf :
+	new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
+    private boolean a = false, dis = false, hover = false;
+    private boolean flat = nurgling.styles.UITheme.on();
     private UI.Grab d = null;
+    /** New UI: tabs and toggles override this to draw their plate as selected. */
+    protected boolean selected() { return false; }
+    protected boolean pressed() { return a; }
+    protected boolean hovered() { return hover; }
 	
     @RName("btn")
     public static class $Btn implements Factory {
@@ -160,7 +193,34 @@ public class Button extends SIWidget {
 	return(this);
     }
 
+    public void tick(double dt) {
+	super.tick(dt);
+	if(flat != nurgling.styles.UITheme.on()) {
+	    flat = !flat;
+	    redraw();
+	}
+    }
+
     public void draw(BufferedImage img) {
+	if(flat) {
+	    java.awt.Graphics2D g = img.createGraphics();
+	    // Large buttons carry a decoration above the button proper; the plate covers the button only.
+	    int yo = lg ? ((hl - hs) / 2) : 0;
+	    g.translate(ml, yo + mt);
+	    nurgling.styles.GeneratedButtons.plate(g, sz.x - ml - mr, hs - mt - mb,
+		nurgling.styles.GeneratedButtons.state(hover, a, selected(), dis));
+	    g.translate(-ml, -(yo + mt));
+	    Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
+	    if(a)
+		tc = tc.add(UI.scale(1), UI.scale(1));
+	    if(dis)
+		g.setComposite(java.awt.AlphaComposite.SrcOver.derive(0.42f));
+	    g.drawImage(cont, tc.x, tc.y, null);
+	    g.dispose();
+	    if(tint != null)
+		PUtils.colmul(img.getRaster(), tint);
+	    return;
+	}
 	Graphics g = img.getGraphics();
 	int yo = lg?((hl - hs) / 2):0;
 
@@ -228,6 +288,12 @@ public class Button extends SIWidget {
     
     public void mousemove(MouseMoveEvent ev) {
 	super.mousemove(ev);
+	boolean inside = ev.c.isect(Coord.z, sz);
+	if(hover != inside) {
+	    hover = inside;
+	    if(flat)
+		redraw();
+	}
 	if(d != null) {
 	    boolean a = ev.c.isect(Coord.z, sz);
 	    if(a != this.a) {

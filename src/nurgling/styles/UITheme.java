@@ -21,6 +21,11 @@ public final class UITheme {
     public static final Color MUTED = new Color(164, 175, 187);
     public static final Color DISABLED = new Color(109, 122, 124);
 
+    /** The "New UI" switch (Options > Interface). On by default; only an explicit "off" keeps the classic look. */
+    public static boolean on() {
+        return !Boolean.FALSE.equals(nurgling.NConfig.get(nurgling.NConfig.Key.newUi));
+    }
+
     public static void panel(GOut g, Coord at, Coord size, Color fill, Color edge) {
         if(fill != null) { g.chcolor(fill); g.frect(at, size); }
         if(edge != null) {
@@ -64,9 +69,14 @@ public final class UITheme {
         return max <= min ? 0 : Math.max(0, Math.min(1, (value - (double)min) / (max - (double)min)));
     }
 
-    /** Flat orange line icon, matching the inventory toolbar's visual weight. */
-    public static void stepButton(Graphics2D g, int side, int sign, boolean hover, boolean pressed, Color symbol) {
-        GeneratedButtons.step(g, side, sign, hover, pressed, symbol);
+    /** A cell's fill without its outline. */
+    public static BufferedImage slot(int width, int height) {
+        BufferedImage image = cell(width, height);
+        int fill = image.getRGB(width / 2, height / 2);
+        for(int y = 0; y < height; y++)
+            for(int x = 0; x < width; x++)
+                image.setRGB(x, y, fill);
+        return image;
     }
 
     public static BufferedImage cell(int width, int height) {

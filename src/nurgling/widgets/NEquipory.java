@@ -5,6 +5,7 @@ import haven.res.ui.tt.gast.Gast;
 import haven.res.ui.tt.wear.Wear;
 import nurgling.*;
 import nurgling.i18n.L10n;
+import nurgling.styles.UITheme;
 import nurgling.tasks.GetItem;
 import nurgling.tasks.WaitItemSpr;
 import nurgling.tools.NAlias;
@@ -21,6 +22,17 @@ public class NEquipory extends Equipory
     public static Text.Furnace fnd = new PUtils.BlurFurn(new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 12).aa(true), UI.scale(1), UI.scale(1), Color.BLACK);
     final TexI eye = new TexI(Resource.loadsimg("nurgling/hud/eye"));
     final TexI armor = new TexI(Resource.loadsimg("nurgling/hud/armor"));
+    private final int eyeInset = statIconInset(eye.back);
+    private final int armorInset = statIconInset(armor.back);
+
+    /** First opaque column of a stat icon, so the New UI panel can pad against its visible edge. */
+    private static int statIconInset(BufferedImage image) {
+        for(int x = 0; x < image.getWidth(); x++)
+            for(int y = 0; y < image.getHeight(); y++)
+                if((image.getRGB(x, y) >>> 24) >= 128)
+                    return x;
+        return 0;
+    }
     int percExp = -1;
     int hardArmor = -1;
     int softArmor = -1;
@@ -459,15 +471,18 @@ public class NEquipory extends Equipory
                 g.frect(slotCoord.add(1, 1), invsq.sz().sub(2, 2));
                 g.chcolor();
             }
-            g.image(invsq, slotCoord);
-            if(ebgs[i] != null)
-                g.image(ebgs[i], slotCoord);
+            g.image(Inventory.slotsq, slotCoord);
+            drawSlotHint(g, i, slotCoord);
         }
     }
 
     @Override
     public void draw(GOut g) {
         super.draw(g);
+        if(UITheme.on()) {
+            drawStatsPanel(g);
+            return;
+        }
         Coord textCoord = new Coord(sz.x - UI.scale(85), UI.scale(3));
         if (percExpText != null) {
             textCoord = textCoord.sub(percExpText.getWidth(), 0);
@@ -479,6 +494,34 @@ public class NEquipory extends Equipory
             g.image(armor, textCoord, UI.scale(20, 20));
             g.image(hardSoft, textCoord.add(UI.scale(21, -1)));
         }
+    }
+
+    /** New UI: perception/armor stats on a flat panel, right-aligned against the shoulder toggle. */
+    private void drawStatsPanel(GOut g) {
+        if(percExpText == null && hardSoft == null) return;
+        int pad = UI.scale(4), gap = UI.scale(4), icon = UI.scale(20);
+        int textW = Math.max(percExpText == null ? 0 : percExpText.getWidth(), hardSoft == null ? 0 : hardSoft.getWidth());
+        int textH = Math.max(percExpText == null ? 0 : percExpText.getHeight(), hardSoft == null ? 0 : hardSoft.getHeight());
+        int rowH = Math.max(icon, textH);
+        int rows = (percExpText == null ? 0 : 1) + (hardSoft == null ? 0 : 1);
+        Coord panelSize = new Coord(pad * 2 + icon + gap + textW, pad * 2 + rows * rowH);
+        int right = toggleButtons[Slots.SHOULDER.idx].c.x - UI.scale(6);
+        Coord panelPos = new Coord(right - panelSize.x, UI.scale(3));
+        UITheme.panel(g, panelPos, panelSize, UITheme.PANEL, UITheme.LINE);
+        int y = panelPos.y + pad;
+        if(percExpText != null) {
+            drawStat(g, eye, eyeInset, percExpText, panelPos.x + pad, right - pad, y, icon, rowH);
+            y += rowH;
+        }
+        if(hardSoft != null)
+            drawStat(g, armor, armorInset, hardSoft, panelPos.x + pad, right - pad, y, icon, rowH);
+    }
+
+    private void drawStat(GOut g, Tex icon, int sourceInset, BufferedImage value, int left, int right, int y, int iconSize, int rowH) {
+        // Match the text's right padding using the visible icon edge, not its transparent canvas.
+        int inset = Math.round((float)sourceInset * iconSize / icon.sz().x);
+        g.image(icon, new Coord(left - inset, y + (rowH - iconSize) / 2), new Coord(iconSize, iconSize));
+        g.image(value, new Coord(right - value.getWidth(), y + (rowH - value.getHeight()) / 2));
     }
 
     public WItem findItem(int id) throws InterruptedException {

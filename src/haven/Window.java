@@ -214,7 +214,7 @@ public class Window extends Widget {
 
 	public DefaultDeco(boolean lg) {
 	    this.lg = lg;
-	    cbtn = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2])).action(() ->  ((Window)parent).reqclose());
+	    cbtn = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]).squarehit(nurgling.styles.UIResources.active())).action(() ->  ((Window)parent).reqclose());
 	}
 	public DefaultDeco() {this(false);}
 

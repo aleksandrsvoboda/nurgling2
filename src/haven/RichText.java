@@ -236,12 +236,26 @@ public class RichText extends Text {
 	}
     }
 
+    /* New UI (decided at client start): text runs resolve to Open Sans. */
+    private static Map<? extends Attribute, ?> uifont(Map<? extends Attribute, ?> attrs) {
+	return(nurgling.styles.UIResources.active() ? nurgling.styles.UIFont.attributes(attrs) : attrs);
+    }
+
+    /* Open Sans has no fallback for missing glyphs (e.g. arrows), so such runs keep the requested font. */
+    private static Map<? extends Attribute, ?> uifont(Map<? extends Attribute, ?> attrs, String str) {
+	Map<? extends Attribute, ?> ret = uifont(attrs);
+	Object f = ret.get(TextAttribute.FONT);
+	if((ret != attrs) && (f instanceof Font) && (((Font)f).canDisplayUpTo(str) >= 0))
+	    return(attrs);
+	return(ret);
+    }
+
     public static class Newline extends Part {
 	private Map<? extends Attribute, ?> attrs;
 	private LineMetrics lm;
 	
 	public Newline(Map<? extends Attribute, ?> attrs) {
-	    this.attrs = attrs;
+	    this.attrs = uifont(attrs);
 	}
 	
 	private LineMetrics lm() {
@@ -278,7 +292,7 @@ public class RichText extends Text {
 	}
 	
 	public TextPart(String str, Map<? extends Attribute, ?> attrs) {
-	    this((str.length() == 0)?(new AttributedString(str)):(new AttributedString(str, attrs)), 0, str.length());
+	    this((str.length() == 0)?(new AttributedString(str)):(new AttributedString(str, uifont(attrs, str))), 0, str.length());
 	}
 	
 	public TextPart(String str) {
@@ -543,7 +557,7 @@ public class RichText extends Text {
 	    if(tn == "img") {
 		int[] a = {0};
 		Image img = ((ImageSource)attrs.get(IMAGESRC)).get(args, a);
-		img.attrs = attrs;
+		img.attrs = uifont(attrs);
 		for(; a[0] < args.length; a[0]++) {
 		    int p = args[a[0]].indexOf('=');
 		    if(p < 0)

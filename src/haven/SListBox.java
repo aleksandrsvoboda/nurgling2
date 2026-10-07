@@ -159,12 +159,19 @@ public abstract class SListBox<I, W extends Widget> extends SListWidget<I, W> im
     }
 
     protected void drawbg(GOut g, I item, int idx, Area area) {
-	g.chcolor(((idx % 2) == 0) ? every : other);
+	if(nurgling.styles.UITheme.on())
+	    g.chcolor(((idx % 2) == 0) ? nurgling.styles.UITheme.PANEL : nurgling.styles.UITheme.ROW);
+	else
+	    g.chcolor(((idx % 2) == 0) ? every : other);
 	g.frect2(area.ul, area.br);
 	g.chcolor();
     }
 
     protected void drawsel(GOut g, I item, int idx, Area area) {
+	if(nurgling.styles.UITheme.on()) {
+	    nurgling.styles.UITheme.selection(g.reclip(area.ul, area.sz()), area.sz());
+	    return;
+	}
 	g.chcolor(255, 255, 0, 128);
 	g.frect2(area.ul, area.br);
 	g.chcolor();

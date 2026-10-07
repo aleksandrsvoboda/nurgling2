@@ -104,22 +104,30 @@ public class NFightWnd extends FightWnd {
 
 	public void draw(GOut g) {
 	    boolean sel = (category() == cat);
-	    g.chcolor(NStyle.infoBg);
-	    g.frect(Coord.z, sz);
-	    if(sel) {
-		g.chcolor(CATEGORY_SEL);
+	    boolean flat = nurgling.styles.UITheme.on();
+	    if(flat) {
+		nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+		    nurgling.styles.GeneratedButtons.state(hovering, false, sel, false));
+	    } else {
+		g.chcolor(NStyle.infoBg);
 		g.frect(Coord.z, sz);
+		if(sel) {
+		    g.chcolor(CATEGORY_SEL);
+		    g.frect(Coord.z, sz);
+		}
+		g.chcolor();
 	    }
-	    g.chcolor();
 	    Tex icon = caticon(cat, iconsz);
 	    if(icon != null)
 		g.aimage(icon, sz.div(2), 0.5, 0.5);
 	    else if(iconfailed(cat))
 		g.aimage(catletter(cat), sz.div(2), 0.5, 0.5);
-	    int alpha = (sel || hovering) ? 255 : 128;
-	    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
-	    g.rect(Coord.z, sz);
-	    g.chcolor();
+	    if(!flat) {
+		int alpha = (sel || hovering) ? 255 : 128;
+		g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
+		g.rect(Coord.z, sz);
+		g.chcolor();
+	    }
 	    super.draw(g);
 	}
 
@@ -692,18 +700,27 @@ public class NFightWnd extends FightWnd {
 	    int sx = i * (SAVE_W + SAVE_GAP);
 	    add(new Widget(new Coord(SAVE_W, SAVE_H)) {
 		public void draw(GOut g) {
-		    g.chcolor(NStyle.infoBg);
-		    g.frect(Coord.z, sz);
-		    g.chcolor();
+		    boolean flat = nurgling.styles.UITheme.on();
+		    boolean selected = savelist.sel != null && savelist.sel == n;
+		    if(flat) {
+			nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz,
+			    selected ? nurgling.styles.GeneratedButtons.State.SELECTED : nurgling.styles.GeneratedButtons.State.NORMAL);
+			if(n == usesave)
+			    nurgling.styles.UITheme.panel(g, Coord.z, sz, null, nurgling.styles.UITheme.ACCENT);
+		    } else {
+			g.chcolor(NStyle.infoBg);
+			g.frect(Coord.z, sz);
+			g.chcolor();
 
-		    int bw = Math.max(2, UI.scale(2));
-		    int alpha = (n == usesave) ? 255 : 128;
-		    g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
-		    g.frect(Coord.z, new Coord(sz.x, bw));
-		    g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
-		    g.frect(Coord.z, new Coord(bw, sz.y));
-		    g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
-		    g.chcolor();
+			int bw = Math.max(2, UI.scale(2));
+			int alpha = (n == usesave) ? 255 : 128;
+			g.chcolor(NStyle.border.getRed(), NStyle.border.getGreen(), NStyle.border.getBlue(), alpha);
+			g.frect(Coord.z, new Coord(sz.x, bw));
+			g.frect(new Coord(0, sz.y - bw), new Coord(sz.x, bw));
+			g.frect(Coord.z, new Coord(bw, sz.y));
+			g.frect(new Coord(sz.x - bw, 0), new Coord(bw, sz.y));
+			g.chcolor();
+		    }
 
 		    if(saves[n] != null) {
 			String txt = saves[n].text;
@@ -729,7 +746,7 @@ public class NFightWnd extends FightWnd {
 			}
 		    }
 
-		    if(savelist.sel != null && savelist.sel == n) {
+		    if(!flat && selected) {
 			int bw2 = Math.max(2, UI.scale(2));
 			g.chcolor(255, 255, 0, 64);
 			g.frect(Coord.of(bw2, bw2), sz.sub(bw2 * 2, bw2 * 2));

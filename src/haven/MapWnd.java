@@ -262,15 +262,19 @@ public class MapWnd extends Window implements Console.Directory {
 
 	public void resize(int h) {
 	    super.resize(new Coord(sz.x, h));
-	    listf.resize(listf.sz.x, sz.y - UI.scale(250));
-	    listf.c = new Coord(sz.x - listf.sz.x, 0);
-	    list.resize(listf.inner().sub(0,UI.scale(50)));
 	    mebtn.c = new Coord(0, sz.y - mebtn.sz.y);
 	    mibtn.c = new Coord(sz.x - btnw, sz.y - mibtn.sz.y);
 	    nobtn.c = new Coord(0, mebtn.c.y - UI.scale(30) - nobtn.sz.y);
 	    tobtn.c = new Coord(sz.x - btnw, mibtn.c.y - UI.scale(30) - tobtn.sz.y);
 	    pmbtn.c = new Coord(0, nobtn.c.y - UI.scale(5) - pmbtn.sz.y);
 	    smbtn.c = new Coord(sz.x - btnw, tobtn.c.y - UI.scale(5) - smbtn.sz.y);
+	    if(nurgling.styles.UITheme.on()) {
+		stackdetails();
+		return;
+	    }
+	    listf.resize(listf.sz.x, sz.y - UI.scale(250));
+	    listf.c = new Coord(sz.x - listf.sz.x, 0);
+	    list.resize(listf.inner().sub(0,UI.scale(50)));
 	    if(namesel != null) {
 		namesel.c = listf.c.add(0, listf.sz.y + UI.scale(10));
 		mremove.c = pmbtn.c.sub(0, mremove.sz.y + UI.scale(10));
@@ -279,6 +283,25 @@ public class MapWnd extends Window implements Console.Directory {
 		    onmapbtn.c =  colsel.c.add(0,  colsel.sz.y + UI.scale(5));
 		}
 	    }
+	}
+
+	/* New UI: the marker details stack upward from the filter buttons and the list fills the rest. */
+	private void stackdetails() {
+	    int listBottom = pmbtn.c.y - UI.scale(10);
+	    if(namesel != null) {
+		mremove.c = new Coord(0, listBottom - mremove.sz.y);
+		int top = mremove.c.y - UI.scale(5);
+		if(colsel != null) {
+		    onmapbtn.c = new Coord(0, top - onmapbtn.sz.y);
+		    colsel.c = new Coord(0, onmapbtn.c.y - UI.scale(5) - colsel.sz.y);
+		    top = colsel.c.y - UI.scale(10);
+		}
+		namesel.c = new Coord(0, top - namesel.sz.y);
+		listBottom = namesel.c.y - UI.scale(10);
+	    }
+	    listf.resize(listf.sz.x, Math.max(UI.scale(40), listBottom));
+	    listf.c = new Coord(sz.x - listf.sz.x, 0);
+	    list.resize(listf.inner());
 	}
     }
 
@@ -856,12 +879,16 @@ public class MapWnd extends Window implements Console.Directory {
 			}
 		    });
 		MapWnd.this.resize(csz());
+	    } else if(nurgling.styles.UITheme.on()) {
+		/* New UI: the list grows back into the freed marker-detail space. */
+		MapWnd.this.resize(csz());
 	    }
 	}
     }
 
     public void resize(Coord sz) {
-	sz = sz.max(compact() ? UI.scale(150, 150) : UI.scale(350, 255));
+	// New UI stacks the marker details under the list, which needs more height.
+	sz = sz.max(compact() ? UI.scale(150, 150) : UI.scale(350, nurgling.styles.UITheme.on() ? 360 : 255));
 	super.resize(sz);
 	tool.resize(sz.y);
 	if(!compact()) {

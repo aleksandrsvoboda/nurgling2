@@ -6,6 +6,8 @@ import haven.Tex;
 import haven.Text;
 import haven.UI;
 import haven.Widget;
+import nurgling.styles.GeneratedButtons;
+import nurgling.styles.UITheme;
 
 import java.awt.Color;
 
@@ -57,6 +59,13 @@ public class QuestObjectiveActionButton extends Widget {
 
     @Override
     public void draw(GOut g) {
+        if(UITheme.on()) {
+            GeneratedButtons.plate(g, Coord.z, sz, hover ? GeneratedButtons.State.HOVER : GeneratedButtons.State.NORMAL);
+            int pad = UI.scale(3);
+            boolean craft = (action != null) && (action.kind == QuestObjectiveAction.Kind.CRAFT);
+            GeneratedButtons.icon(g, craft ? "credo" : "world", new Coord(pad, pad), Math.max(1, sz.x - 2 * pad));
+            return;
+        }
         g.chcolor(hover ? new Color(104, 129, 154, 230) : new Color(55, 72, 88, 220));
         g.frect(Coord.z, sz);
         g.chcolor(new Color(185, 205, 220, 255));

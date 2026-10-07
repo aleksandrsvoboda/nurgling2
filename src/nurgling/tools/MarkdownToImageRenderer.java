@@ -12,38 +12,53 @@ import java.io.InputStream;
 import javax.imageio.ImageIO;
 
 public class MarkdownToImageRenderer {
-    
+
+    private final boolean helpStyle;
+
+    private MarkdownToImageRenderer(boolean helpStyle) {
+        this.helpStyle = helpStyle;
+    }
+
     public static BufferedImage renderMarkdownToImage(String markdown, int maxWidth, String documentKey) {
+        return new MarkdownToImageRenderer(false).render(markdown, maxWidth, documentKey);
+    }
+
+    /** Compact help panels use larger type, scaled spacing and the shared UI palette. */
+    public static BufferedImage renderHelp(String markdown, int maxWidth) {
+        return new MarkdownToImageRenderer(true).render(markdown, maxWidth, null);
+    }
+
+    private BufferedImage render(String markdown, int maxWidth, String documentKey) {
         // Step 1: Determine maximum content width (account for margins)
-        int margin = 15;
+        int margin = helpStyle ? 0 : 15;
         int contentWidth = maxWidth - (margin * 2);
-        
+
         // Step 2: Parse markdown into elements
         java.util.List<MarkdownElement> elements = parseMarkdownToElements(markdown, documentKey);
-        
+
         // Step 3: Compile document layout (fit elements to lines)
         java.util.List<DocumentLine> documentLines = compileDocumentLayout(elements, contentWidth);
-        
+
         // Step 4: Calculate total height needed
-        int lineHeight = 20;
+        int lineHeight = helpStyle ? UI.scale(23) : 20;
         int totalHeight = calculateTotalHeight(documentLines, lineHeight, contentWidth, documentKey) + margin * 2;
-        
+
         // Step 5: Render the final image
         return renderDocumentLines(documentLines, maxWidth, totalHeight, margin, lineHeight);
     }
-    
-    private static java.util.List<MarkdownElement> parseMarkdownToElements(String markdown, String documentKey) {
+
+    private java.util.List<MarkdownElement> parseMarkdownToElements(String markdown, String documentKey) {
         java.util.List<MarkdownElement> elements = new java.util.ArrayList<>();
         String[] lines = markdown.split("\n");
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
-            
+
             if (line.isEmpty()) {
                 elements.add(new MarkdownElement(ElementType.PARAGRAPH_BREAK, "", null));
                 continue;
             }
-            
+
             // Parse different element types
             if (line.startsWith("#")) {
                 int headerLevel = 0;
@@ -53,7 +68,7 @@ public class MarkdownToImageRenderer {
                 }
                 String headerText = line.replaceFirst("^#+\\s*", "");
                 elements.add(new MarkdownElement(ElementType.HEADER, headerText, headerLevel));
-                
+
             } else if (line.matches("^!\\[.*\\]\\(.*\\)$")) {
                 java.util.regex.Pattern imagePattern = java.util.regex.Pattern.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)");
                 java.util.regex.Matcher imageMatcher = imagePattern.matcher(line);
@@ -61,7 +76,7 @@ public class MarkdownToImageRenderer {
                     String imagePath = imageMatcher.group(2);
                     elements.add(new MarkdownElement(ElementType.IMAGE, imagePath, documentKey));
                 }
-                
+
             } else if (line.matches("^\\d+\\.\\s.*")) {
                 String listText = line.replaceFirst("^\\d+\\.\\s*", "");
                 // Extract number for numbered list
@@ -69,67 +84,67 @@ public class MarkdownToImageRenderer {
                 java.util.regex.Matcher numberMatcher = numberPattern.matcher(line);
                 Integer listNumber = numberMatcher.find() ? Integer.parseInt(numberMatcher.group(1)) : 1;
                 elements.add(new MarkdownElement(ElementType.NUMBERED_LIST_ITEM, listText, listNumber));
-                
+
             } else if (line.matches("^[-*]\\s.*")) {
                 String listText = line.replaceFirst("^[-*]\\s*", "");
                 elements.add(new MarkdownElement(ElementType.BULLET_LIST_ITEM, listText, null));
-                
+
             } else {
                 // Regular paragraph - parse inline formatting
                 java.util.List<TextSpan> spans = parseInlineFormatting(line);
                 elements.add(new MarkdownElement(ElementType.PARAGRAPH, spans, null));
             }
         }
-        
+
         return elements;
     }
-    
-    private static java.util.List<TextSpan> parseInlineFormatting(String text) {
+
+    private java.util.List<TextSpan> parseInlineFormatting(String text) {
         java.util.List<TextSpan> spans = new java.util.ArrayList<>();
         String remaining = text;
-        
+
         while (!remaining.isEmpty()) {
             int nextFormatPos = remaining.length();
             String formatType = "";
-            
+
             // Find earliest formatting
             int boldPos = remaining.indexOf("**");
             if (boldPos >= 0 && boldPos < nextFormatPos) {
                 nextFormatPos = boldPos;
                 formatType = "bold";
             }
-            
+
             int italicPos = remaining.indexOf("*");
             if (italicPos >= 0 && italicPos < nextFormatPos) {
                 // Make sure it's not part of **
                 boolean partOfBold = false;
                 if (italicPos > 0 && remaining.charAt(italicPos - 1) == '*') partOfBold = true;
                 if (italicPos < remaining.length() - 1 && remaining.charAt(italicPos + 1) == '*') partOfBold = true;
-                
+
                 if (!partOfBold) {
                     nextFormatPos = italicPos;
                     formatType = "italic";
                 }
             }
-            
+
             int codePos = remaining.indexOf("`");
             if (codePos >= 0 && codePos < nextFormatPos) {
                 nextFormatPos = codePos;
                 formatType = "code";
             }
-            
+
             // Add plain text before formatting
             if (nextFormatPos > 0) {
                 spans.add(new TextSpan(remaining.substring(0, nextFormatPos), TextStyle.REGULAR));
             }
-            
+
             if (nextFormatPos == remaining.length()) {
                 break; // No more formatting
             }
-            
+
             // Process formatting
             remaining = remaining.substring(nextFormatPos);
-            
+
             if (formatType.equals("bold")) {
                 int endBold = remaining.indexOf("**", 2);
                 if (endBold > 0) {
@@ -162,13 +177,14 @@ public class MarkdownToImageRenderer {
                 }
             }
         }
-        
+
         return spans;
     }
-    
-    private static int calculateTotalHeight(java.util.List<DocumentLine> lines, int lineHeight, int contentWidth, String documentKey) {
+
+    private int calculateTotalHeight(java.util.List<DocumentLine> lines, int lineHeight, int contentWidth, String documentKey) {
+        if(helpStyle) return (lines.size() + 1) * lineHeight;
         int totalHeight = 0;
-        
+
         for (DocumentLine line : lines) {
             if (line.element != null && line.element.type == ElementType.IMAGE) {
                 // Calculate image height (with scaling if needed)
@@ -191,68 +207,69 @@ public class MarkdownToImageRenderer {
                 totalHeight += lineHeight;
             }
         }
-        
+
         // Add extra padding to prevent cutting off
         return totalHeight + 50;
     }
-    
-    private static java.util.List<DocumentLine> compileDocumentLayout(java.util.List<MarkdownElement> elements, int maxWidth) {
+
+    private java.util.List<DocumentLine> compileDocumentLayout(java.util.List<MarkdownElement> elements, int maxWidth) {
         java.util.List<DocumentLine> lines = new java.util.ArrayList<>();
-        
+
         // Create graphics for measuring text
         BufferedImage tempImage = new BufferedImage(100, 100, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = tempImage.createGraphics();
-        
+
         for (MarkdownElement element : elements) {
             if (element.type == ElementType.PARAGRAPH_BREAK) {
                 lines.add(new DocumentLine()); // Empty line
-                
+
             } else if (element.type == ElementType.HEADER) {
-                lines.add(new DocumentLine()); // Space before header
+                if(!helpStyle || !lines.isEmpty()) lines.add(new DocumentLine()); // Space before header
                 DocumentLine headerLine = new DocumentLine(element);
                 // Convert header text to a span with appropriate styling
                 headerLine.spans.add(new TextSpan(element.textContent, TextStyle.HEADER));
                 lines.add(headerLine);
-                
+
             } else if (element.type == ElementType.IMAGE) {
                 lines.add(new DocumentLine(element));
-                
+
             } else if (element.type == ElementType.BULLET_LIST_ITEM || element.type == ElementType.NUMBERED_LIST_ITEM) {
                 // Convert list item text to spans and fit to lines
                 java.util.List<TextSpan> spans = parseInlineFormatting(element.textContent);
-                fitSpansToLines(spans, maxWidth - 40, g2d, lines, element); // Pass element for marker info
-                
+                fitSpansToLines(spans, maxWidth - (helpStyle ? UI.scale(24) : 40), g2d, lines, element); // Pass element for marker info
+
             } else if (element.type == ElementType.PARAGRAPH) {
                 @SuppressWarnings("unchecked")
                 java.util.List<TextSpan> spans = (java.util.List<TextSpan>) element.content;
                 fitSpansToLines(spans, maxWidth, g2d, lines, null);
             }
         }
-        
+
         g2d.dispose();
         return lines;
     }
-    
-    private static void fitSpansToLines(java.util.List<TextSpan> spans, int maxWidth, Graphics2D g2d, 
+
+    private void fitSpansToLines(java.util.List<TextSpan> spans, int maxWidth, Graphics2D g2d,
                                       java.util.List<DocumentLine> lines, MarkdownElement listElement) {
         DocumentLine currentLine = new DocumentLine();
         boolean isListItem = (listElement != null && (listElement.type == ElementType.BULLET_LIST_ITEM || listElement.type == ElementType.NUMBERED_LIST_ITEM));
-        
+
         if (isListItem) {
             currentLine.isListItem = true;
             currentLine.listElement = listElement; // Store list element for rendering
         }
-        
+
         for (TextSpan span : spans) {
             String[] words = span.text.split("\\s+");
-            
+
             for (String word : words) {
+                if(helpStyle && word.isEmpty()) continue;
                 TextSpan wordSpan = new TextSpan(word, span.style);
-                
+
                 // Test if adding this word would exceed line width
                 int lineWidth = calculateLineWidth(currentLine, g2d);
                 int wordWidth = calculateSpanWidth(wordSpan, g2d);
-                
+
                 if (lineWidth + wordWidth <= maxWidth || currentLine.spans.isEmpty()) {
                     // Word fits on current line
                     if (!currentLine.spans.isEmpty()) {
@@ -273,48 +290,59 @@ public class MarkdownToImageRenderer {
                 }
             }
         }
-        
+
         // Add the last line if it has content
         if (!currentLine.spans.isEmpty()) {
             lines.add(currentLine);
         }
     }
-    
-    private static int calculateLineWidth(DocumentLine line, Graphics2D g2d) {
+
+    private int calculateLineWidth(DocumentLine line, Graphics2D g2d) {
         int width = 0;
         for (TextSpan span : line.spans) {
             width += calculateSpanWidth(span, g2d);
         }
         return width;
     }
-    
-    private static int calculateSpanWidth(TextSpan span, Graphics2D g2d) {
+
+    private int calculateSpanWidth(TextSpan span, Graphics2D g2d) {
         Font font = getFontForStyle(span.style);
         g2d.setFont(font);
         return g2d.getFontMetrics().stringWidth(span.text);
     }
-    
-    private static Font getFontForStyle(TextStyle style) {
+
+    private Font getFontForStyle(TextStyle style) {
+        if (!helpStyle) {
+            switch (style) {
+                case BOLD: return new Font("Arial", Font.BOLD, UI.scale(12));
+                case ITALIC: return new Font("Arial", Font.ITALIC, UI.scale(12));
+                case CODE: return new Font("Fira code", Font.PLAIN, UI.scale(11));
+                case HEADER: return new Font("Arial", Font.BOLD, UI.scale(18));
+                default: return new Font("Arial", Font.PLAIN, UI.scale(12));
+            }
+        }
+        // Help panels use the bundled Open Sans.
         switch (style) {
-            case BOLD: return new Font("Arial", Font.BOLD, UI.scale(12));
-            case ITALIC: return new Font("Arial", Font.ITALIC, UI.scale(12));
-            case CODE: return new Font("Fira code", Font.PLAIN, UI.scale(11));
-            case HEADER: return new Font("Arial", Font.BOLD, UI.scale(18));
-            default: return new Font("Arial", Font.PLAIN, UI.scale(12));
+            case BOLD: return nurgling.styles.UIFont.semibold.deriveFont(UI.scale(14f));
+            case ITALIC: return nurgling.styles.UIFont.regular.deriveFont(Font.ITALIC, UI.scale(14f));
+            case CODE: return new Font(Font.MONOSPACED, Font.PLAIN, UI.scale(13));
+            case HEADER: return nurgling.styles.UIFont.semibold.deriveFont(UI.scale(18f));
+            default: return nurgling.styles.UIFont.regular.deriveFont(UI.scale(14f));
         }
     }
-    
-    private static BufferedImage renderDocumentLines(java.util.List<DocumentLine> lines, int width, int height, int margin, int lineHeight) {
+
+    private BufferedImage renderDocumentLines(java.util.List<DocumentLine> lines, int width, int height, int margin, int lineHeight) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
+
+        if(helpStyle) g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         // Fill background
         g2d.setColor(new java.awt.Color(30, 30, 30, 180));
-        g2d.fillRect(0, 0, width, height);
-        
+        if(!helpStyle) g2d.fillRect(0, 0, width, height);
+
         int y = margin + lineHeight;
-        
+
         for (DocumentLine line : lines) {
             if (line.element != null && line.element.type == ElementType.IMAGE) {
                 // Render image
@@ -325,12 +353,12 @@ public class MarkdownToImageRenderer {
                     int imageWidth = img.getWidth();
                     int imageHeight = img.getHeight();
                     int maxImageWidth = width - margin * 2;
-                    
+
                     if (imageWidth > maxImageWidth) {
                         double scale = (double) maxImageWidth / imageWidth;
                         imageWidth = maxImageWidth;
                         imageHeight = (int) (imageHeight * scale);
-                        
+
                         // Create scaled image
                         BufferedImage scaledImage = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
                         Graphics2D scaleG2d = scaledImage.createGraphics();
@@ -339,37 +367,37 @@ public class MarkdownToImageRenderer {
                         scaleG2d.dispose();
                         img = scaledImage;
                     }
-                    
+
                     g2d.drawImage(img, margin, y - lineHeight, null);
                     y += img.getHeight() + 15; // Add spacing after image
                 }
             } else {
                 // Render text spans
                 int x = margin;
-                
+
                 // Check if this line should be indented (either has bullet or is continuation of list)
                 boolean needsIndent = line.isListItem;
                 if (!needsIndent && !line.spans.isEmpty()) {
                     // Check if previous line was a list item (this might be a continuation)
                     // For now, we'll handle this in the layout phase
                 }
-                
+
                 if (line.isListItem && line.listElement != null) {
                     g2d.setColor(java.awt.Color.WHITE);
-                    g2d.setFont(new Font("Arial", Font.PLAIN, UI.scale(12)));
-                    
+                    g2d.setFont(getFontForStyle(TextStyle.REGULAR));
+
                     if (line.listElement.type == ElementType.BULLET_LIST_ITEM) {
                         g2d.drawString("•", x, y);
                     } else if (line.listElement.type == ElementType.NUMBERED_LIST_ITEM) {
                         Integer listNumber = (Integer) line.listElement.content;
                         g2d.drawString(listNumber + ".", x, y);
                     }
-                    x += 20; // Indent for list content
+                    x += helpStyle ? UI.scale(24) : 20; // Indent for list content
                 } else if (line.isListContinuation) {
                     // Indent continuation lines but no bullet
-                    x += 20;
+                    x += helpStyle ? UI.scale(24) : 20;
                 }
-                
+
                 for (TextSpan span : line.spans) {
                     Font font = getFontForStyle(span.style);
                     g2d.setFont(font);
@@ -380,12 +408,13 @@ public class MarkdownToImageRenderer {
             }
             y += lineHeight;
         }
-        
+
         g2d.dispose();
         return image;
     }
-    
-    private static java.awt.Color getColorForStyle(TextStyle style) {
+
+    private java.awt.Color getColorForStyle(TextStyle style) {
+        if(helpStyle) return style == TextStyle.HEADER ? nurgling.styles.UITheme.ACCENT : nurgling.styles.UITheme.TEXT;
         switch (style) {
             case BOLD: return java.awt.Color.WHITE;
             case ITALIC: return new java.awt.Color(200, 200, 200);
@@ -394,59 +423,59 @@ public class MarkdownToImageRenderer {
             default: return java.awt.Color.WHITE;
         }
     }
-    
+
     // Data classes for the new approach
     private static class MarkdownElement {
         ElementType type;
         String textContent;
         Object content; // Can be Integer for header level, String for documentKey, List<TextSpan> for paragraph
-        
+
         MarkdownElement(ElementType type, String textContent, Object content) {
             this.type = type;
             this.textContent = textContent;
             this.content = content;
         }
-        
+
         MarkdownElement(ElementType type, Object content, Object extra) {
             this.type = type;
             this.content = content;
             // For paragraphs where content is List<TextSpan>
         }
     }
-    
+
     private static class DocumentLine {
         java.util.List<TextSpan> spans = new java.util.ArrayList<>();
         MarkdownElement element; // For non-text elements like images
         boolean isListItem = false;
         boolean isListContinuation = false; // For wrapped list content
         MarkdownElement listElement; // For storing list element info (bullet vs numbered)
-        
+
         DocumentLine() {}
-        
+
         DocumentLine(MarkdownElement element) {
             this.element = element;
         }
     }
-    
+
     private static class TextSpan {
         String text;
         TextStyle style;
-        
+
         TextSpan(String text, TextStyle style) {
             this.text = text;
             this.style = style;
         }
     }
-    
+
     private enum ElementType {
         PARAGRAPH, HEADER, IMAGE, BULLET_LIST_ITEM, NUMBERED_LIST_ITEM, PARAGRAPH_BREAK
     }
-    
+
     private enum TextStyle {
         REGULAR, BOLD, ITALIC, CODE, HEADER
     }
 
-    private static BufferedImage loadImage(String imagePath, String documentKey) {
+    private BufferedImage loadImage(String imagePath, String documentKey) {
         try {
             String resourcePath;
 
@@ -514,8 +543,8 @@ public class MarkdownToImageRenderer {
             return null;
         }
     }
-    
-    private static String tryUppercaseExtension(String path) {
+
+    private String tryUppercaseExtension(String path) {
         // Handle Windows case sensitivity issues by trying uppercase extensions
         if (path.endsWith(".png")) {
             return path.substring(0, path.length() - 4) + ".PNG";
@@ -529,24 +558,24 @@ public class MarkdownToImageRenderer {
         return null;
     }
 
-    private static String resolveRelativePath(String basePath, String relativePath) {
+    private String resolveRelativePath(String basePath, String relativePath) {
         // Handle relative paths like ../images/routes_main_ui.png
         if (relativePath.startsWith("./")) {
             relativePath = relativePath.substring(2);
         }
-        
+
         String[] baseParts = basePath.split("/");
         String[] relativeParts = relativePath.split("/");
-        
+
         java.util.List<String> resultParts = new java.util.ArrayList<>();
-        
+
         // Add base path parts
         for (String part : baseParts) {
             if (!part.isEmpty()) {
                 resultParts.add(part);
             }
         }
-        
+
         // Process relative path parts
         for (String part : relativeParts) {
             if (part.equals("..")) {
@@ -559,13 +588,13 @@ public class MarkdownToImageRenderer {
                 resultParts.add(part);
             }
         }
-        
+
         // Rebuild path
         StringBuilder result = new StringBuilder();
         for (String part : resultParts) {
             result.append("/").append(part);
         }
-        
+
         return result.toString();
     }
 }

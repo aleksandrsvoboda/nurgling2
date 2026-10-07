@@ -64,6 +64,8 @@ public class Equipory extends Widget implements DTarget {
 	new Coord( 0,  2 * yo),
     };
     public static final Tex[] ebgs = new Tex[ecoords.length];
+    /* New UI: the slot silhouettes as a pale, mostly transparent hint on the flat slots. */
+    private static final Tex[] lightebgs = new Tex[ecoords.length];
     public static final Text[] etts = new Text[ecoords.length];
     static Coord isz;
     static {
@@ -79,10 +81,29 @@ public class Equipory extends Widget implements DTarget {
 	    Resource.Image img = bgres.layer(Resource.imgc);
 	    if(img != null) {
 		ebgs[i] = img.tex();
+		lightebgs[i] = new TexI(lighten(img.scaled()));
 		etts[i] = Text.render(bgres.flayer(Resource.tooltip).text());
 	    }
 	}
     }
+    private static java.awt.image.BufferedImage lighten(java.awt.image.BufferedImage src) {
+	java.awt.image.BufferedImage ret = new java.awt.image.BufferedImage(src.getWidth(), src.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+	for(int y = 0; y < src.getHeight(); y++) {
+	    for(int x = 0; x < src.getWidth(); x++) {
+		int a = (src.getRGB(x, y) >>> 24) * 35 / 100;
+		ret.setRGB(x, y, (a << 24) | 0xe1e6e6);
+	    }
+	}
+	return(ret);
+    }
+
+    /** The slot-type silhouette for an empty equipment slot. */
+    public static void drawSlotHint(GOut g, int slot, Coord c) {
+	Tex t = (nurgling.styles.UITheme.on() && (lightebgs[slot] != null)) ? lightebgs[slot] : ebgs[slot];
+	if(t != null)
+	    g.image(t, c);
+    }
+
     public Map<GItem, Collection<WItem>> wmap = new HashMap<>();
     private final Avaview ava;
 
@@ -191,9 +212,8 @@ public class Equipory extends Widget implements DTarget {
 		g.frect(ecoords[i].add(1, 1), invsq.sz().sub(2, 2));
 		g.chcolor();
 	    }
-	    g.image(invsq, ecoords[i]);
-	    if(ebgs[i] != null)
-		g.image(ebgs[i], ecoords[i]);
+	    g.image(Inventory.slotsq, ecoords[i]);
+	    drawSlotHint(g, i, ecoords[i]);
 	}
     }
 

@@ -402,7 +402,7 @@ public class ChatUI extends Widget
 	public Channel(boolean closable) {
 	    sb = add(new Scrollbar(0, 0, 0));
 	    if(closable)
-		cb = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]));
+		cb = add(new IButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]).squarehit(nurgling.styles.UIResources.active()));
 	    else
 		cb = null;
 	}
@@ -938,15 +938,19 @@ public class ChatUI extends Widget
 	    add(this.in);
 	}
 
+	/* New UI: inset the input inside the nurgling chat frame; fixed per resize so ih() and in.c agree. */
+	private int inpad;
+
 	public int ih() {
-	    return(sz.y - in.sz.y);
+	    return(sz.y - in.sz.y - inpad * 2);
 	}
 
 	public void resize(Coord sz) {
+	    inpad = (parent instanceof NChatUI && nurgling.styles.UITheme.on()) ? UI.scale(4) : 0;
 	    super.resize(sz);
 	    if(in != null) {
-		in.c = new Coord(0, this.sz.y - in.sz.y);
-		in.resize(this.sz.x);
+		in.c = new Coord(inpad, this.sz.y - inpad - in.sz.y);
+		in.resize(this.sz.x - inpad * 2);
 	    }
 	}
 

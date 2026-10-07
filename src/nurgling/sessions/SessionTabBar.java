@@ -398,6 +398,18 @@ public class SessionTabBar extends Widget {
     }
 
     private void drawCloseButton(GOut g, int x, int y, boolean hovered, boolean disabled) {
+        if (nurgling.styles.UITheme.on()) {
+            Coord size = new Coord(CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
+            if (!disabled && hovered)
+                nurgling.styles.UITheme.iconHighlight(g.reclip(new Coord(x, y), size), size, true, 0);
+            int iconSize = Math.max(1, CLOSE_BTN_SIZE - UI.scale(2));
+            Coord iconPos = new Coord(x, y).add((CLOSE_BTN_SIZE - iconSize) / 2, (CLOSE_BTN_SIZE - iconSize) / 2);
+            if (disabled)
+                nurgling.styles.GeneratedButtons.mutedIcon(g, "close", iconPos, iconSize);
+            else
+                nurgling.styles.GeneratedButtons.icon(g, "close", iconPos, iconSize);
+            return;
+        }
         // Choose icon based on state
         Tex icon = closeNormal;
         if (!disabled && hovered) {
@@ -446,14 +458,27 @@ public class SessionTabBar extends Widget {
             textColor = IDLE_TEXT;
         }
 
-        // Draw button background
-        g.chcolor(hovered ? BUTTON_BG_HOVER : BUTTON_BG);
-        g.frect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+        if (nurgling.styles.UITheme.on()) {
+            // Flat plate; the status colours (active green, bot, combat, alarm) keep their 2px border.
+            Coord pos = new Coord(x, y), size = new Coord(BUTTON_WIDTH, BUTTON_HEIGHT);
+            nurgling.styles.UITheme.panel(g, pos, size, hovered ? nurgling.styles.UITheme.HOVER : nurgling.styles.UITheme.PANEL, null);
+            if (borderColor == IDLE_BORDER) {
+                nurgling.styles.GeneratedButtons.frame(g, pos, size,
+                    hovered ? nurgling.styles.GeneratedButtons.State.HOVER : nurgling.styles.GeneratedButtons.State.NORMAL);
+            } else {
+                nurgling.styles.UITheme.panel(g, pos, size, null, borderColor);
+                nurgling.styles.UITheme.panel(g, pos.add(1, 1), size.sub(2, 2), null, borderColor);
+            }
+        } else {
+            // Draw button background
+            g.chcolor(hovered ? BUTTON_BG_HOVER : BUTTON_BG);
+            g.frect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
 
-        // Draw button border (2px)
-        g.chcolor(borderColor);
-        g.rect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
-        g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
+            // Draw button border (2px)
+            g.chcolor(borderColor);
+            g.rect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+            g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
+        }
 
         // Draw close button inside on right
         int closeX = x + BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
@@ -515,6 +540,13 @@ public class SessionTabBar extends Widget {
         int x = xOffset;
         int btnY = y + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
 
+        if (nurgling.styles.UITheme.on()) {
+            Coord pos = new Coord(x, btnY), size = new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE);
+            nurgling.styles.UITheme.panel(g, pos, size, nurgling.styles.UITheme.PANEL, null);
+            nurgling.styles.UITheme.iconHighlight(g.reclip(pos, size), size, hovered, 0);
+            nurgling.styles.GeneratedButtons.icon(g, "plus", pos, PLUS_BTN_SIZE);
+            return;
+        }
         // Draw icon
         Tex icon = hovered ? addHover : addNormal;
         if (icon != null) {

@@ -127,7 +127,12 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	if(ameterv != null) {
 	    g.image(cframe, Coord.z);
 	    int w = (int)Math.floor((ameterx2 - ameterx1) * ameterv);
+	    if(nurgling.styles.UITheme.on()) {
+		Color accent = nurgling.styles.UITheme.ACCENT;
+		g.chcolor(accent.getRed(), accent.getGreen(), accent.getBlue(), a);
+	    }
 	    g.image(ameter, Coord.z, Coord.of(ameterx1, 0), Coord.of(ameterx1 + w, ameter.sz().y));
+	    g.chcolor(255, 255, 255, a);
 	} else {
 	    g.image(frame, Coord.z);
 	}
