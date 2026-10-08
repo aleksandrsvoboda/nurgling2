@@ -1521,9 +1521,21 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		return;
 	    }
 	    if(glyph == null) {
-		// Strip the matte from the original art: scaling blends its exact colour away.
-		java.awt.image.BufferedImage raw = nurgling.styles.MenuIcons.stripMatte(Resource.loadimg(res));
-		glyph = new TexI(PUtils.uiscale(raw, up.sz()));
+		if(res.equals("nurgling/hud/buttons/rbtn/storage/u")) {
+		    // The storage art is a copy of the cookbook's; New UI has a storage icon of its own.
+		    Coord isz = up.sz();
+		    int side = Math.min(isz.x, isz.y);
+		    side -= 2 * Math.max(1, side / 10);
+		    java.awt.image.BufferedImage img = TexI.mkbuf(isz);
+		    java.awt.Graphics g2 = img.getGraphics();
+		    g2.drawImage(nurgling.styles.GeneratedButtons.iconImage("storage-items", side), (isz.x - side) / 2, (isz.y - side) / 2, null);
+		    g2.dispose();
+		    glyph = new TexI(img);
+		} else {
+		    // Strip the matte from the original art: scaling blends its exact colour away.
+		    java.awt.image.BufferedImage raw = nurgling.styles.MenuIcons.stripMatte(Resource.loadimg(res));
+		    glyph = new TexI(PUtils.uiscale(raw, up.sz()));
+		}
 	    }
 	    int inset = Math.max(1, sz.y / 12);
 	    nurgling.styles.GeneratedButtons.plate(g, Coord.z, sz, nurgling.styles.GeneratedButtons.state(h, false, state(), false));
