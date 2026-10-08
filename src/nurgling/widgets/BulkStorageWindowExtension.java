@@ -6,7 +6,10 @@ import nurgling.NCore;
 import nurgling.NConfig;
 import nurgling.NISBox;
 import nurgling.NUtils;
+import nurgling.areas.NArea;
 import nurgling.tools.LiquidContent;
+
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,6 +88,66 @@ public final class BulkStorageWindowExtension {
             sweptBarrels.add(hash);
     }
 
+    /**
+     * A stockpile window shows one icon for the whole pile, which for a mixed kind of pile (fish,
+     * onions, boards) is only the general kind. Piles are rarely mixed in practice, so when the pile
+     * stands in an area whose PUT list has exactly one entry of that kind, assume the pile holds that.
+     * An entry is of that kind when it is the same resource, the same resource family
+     * ("fish-mackerel" / "fish"), or one name contains the other ("Red Onion" / "Onion").
+     * @return the assumed item name, or null to keep what the window says
+     */
+    static String assumedPileItem(Gob pile, String windowName, String windowRes) {
+        MCache map = pile.glob.map;
+        Coord tile = pile.rc.floor(MCache.tilesz);
+        MCache.Grid grid;
+        try {
+            grid = map.getgridt(tile);
+        } catch (Loading l) {
+            return null;
+        }
+        Coord local = tile.sub(grid.ul);
+        List<NArea> areas;
+        try {
+            areas = new ArrayList<>(map.areas.values());
+        } catch (java.util.ConcurrentModificationException e) {
+            return null; // area sync is replacing areas right now; keep what the window says
+        }
+        String found = null;
+        for (NArea area : areas) {
+            if (area.isDisabled() || area.jout == null)
+                continue;
+            NArea.VArea va = area.space.space.get(grid.id);
+            if (va == null || !va.area.contains(local))
+                continue;
+            for (int i = 0; i < area.jout.length(); i++) {
+                JSONObject entry = area.jout.optJSONObject(i);
+                if (entry == null)
+                    continue;
+                String name = entry.optString("name", null);
+                if (name == null || !sameKind(windowName, windowRes, name, entry.optString("static", null)))
+                    continue;
+                if (found != null && !found.equals(name))
+                    return null; // two candidates: no safe assumption
+                found = name;
+            }
+        }
+        return found;
+    }
+
+    private static boolean sameKind(String windowName, String windowRes, String name, String res) {
+        if (windowRes != null && res != null && (windowRes.equals(res) || resFamily(windowRes).equals(resFamily(res))))
+            return true;
+        String a = windowName.toLowerCase(), b = name.toLowerCase();
+        return a.contains(b) || b.contains(a);
+    }
+
+    /** "gfx/invobjs/fish-mackerel" -> "fish". */
+    private static String resFamily(String res) {
+        String base = res.substring(res.lastIndexOf('/') + 1);
+        int dash = base.indexOf('-');
+        return dash > 0 ? base.substring(0, dash) : base;
+    }
+
     private static class Tracker extends Widget {
         private final boolean pile;
         private final String gobPrefix;
@@ -96,6 +159,7 @@ public final class BulkStorageWindowExtension {
 
         /* Latest reading. pileName == null / liquid == null: nothing read yet. */
         private String pileName = null;
+        private String pileRes = null;
         private int pileCount = -1;
         private LiquidContent liquid = null;
 
@@ -154,9 +218,12 @@ public final class BulkStorageWindowExtension {
                     NISBox box = (NISBox) w;
                     if (pileName == null) {
                         try {
-                            Resource.Tooltip tt = box.itemres.get().layer(Resource.tooltip);
-                            if (tt != null)
+                            Resource res = box.itemres.get();
+                            Resource.Tooltip tt = res.layer(Resource.tooltip);
+                            if (tt != null) {
                                 pileName = tt.text();
+                                pileRes = res.name;
+                            }
                         } catch (Loading l) {
                             return;
                         }
@@ -188,10 +255,15 @@ public final class BulkStorageWindowExtension {
                 // Taking the last item destroys the pile, and its gob with it.
                 boolean gone = (ui != null && ui.sess != null && ui.sess.glob.oc.getgob(gob.id) == null);
                 if (!gone) {
+                    String item = assumedPileItem(gob, pileName, pileRes);
+                    if (item == null)
+                        item = pileName;
+                    else
+                        System.out.println("[BulkStorage] pile " + pileName + " assumed to hold " + item + " (area PUT)");
                     for (int i = 0; i < pileCount; i++) {
                         rows.add(new ItemWatcher.Row(
-                            NUtils.calculateSHA256(hash + "|" + pileName + "|" + PILE_TAG + i),
-                            pileName, null, PILE_TAG + i));
+                            NUtils.calculateSHA256(hash + "|" + item + "|" + PILE_TAG + i),
+                            item, null, PILE_TAG + i));
                     }
                 }
             } else {
