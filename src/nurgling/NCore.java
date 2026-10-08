@@ -141,6 +141,89 @@ public class NCore extends Widget
         actions = null;
     }
 
+    /* The gob of the latest right-click on the map. Unlike LastActions this sees every sender -
+     * manual clicks, the Q action and bots' raw wdgmsg clicks - so a window that opens afterwards
+     * can be told which gob it belongs to. Any other map click clears it; a window that binds to
+     * it consumes it. */
+    private static final long CLICKED_GOB_TTL_MS = 60_000;
+    private volatile long clickedGobId = -1;
+    private volatile long clickedGobAt = 0;
+
+    /* Where the latest placement ("place", e.g. a new stockpile) went down. The new gob does not
+     * exist yet when the placement is sent - and a new pile's window may arrive before it - so
+     * this is a position to look for it at, not a gob. */
+    private volatile Coord2d placedAt = null;
+    private volatile long placedAtTime = 0;
+
+    /** Fed from NMapView.wdgmsg("click"). */
+    public void noteMapClick(Object[] args)
+    {
+        placedAt = null;
+        if (args.length >= 6 && args[2] instanceof Integer && (Integer) args[2] == 3 && args[5] instanceof Integer) {
+            clickedGobId = Integer.toUnsignedLong((Integer) args[5]);
+            clickedGobAt = System.currentTimeMillis();
+        } else {
+            clickedGobId = -1;
+        }
+    }
+
+    /** Fed from NMapView.wdgmsg("place"). */
+    public void notePlace(Object[] args)
+    {
+        clickedGobId = -1;
+        if (args.length >= 1 && args[0] instanceof Coord) {
+            placedAt = ((Coord) args[0]).mul(OCache.posres);
+            placedAtTime = System.currentTimeMillis();
+        } else {
+            placedAt = null;
+        }
+    }
+
+    /** Whether a recent placement may still turn into a gob that takePlacedGob would find. */
+    public boolean placePending()
+    {
+        return placedAt != null && System.currentTimeMillis() - placedAtTime <= CLICKED_GOB_TTL_MS;
+    }
+
+    /**
+     * The accepted gob standing where the latest placement went down, and forget the placement.
+     * Null while there is none (yet).
+     */
+    public Gob takePlacedGob(java.util.function.Predicate<Gob> accept)
+    {
+        Coord2d at = placedAt;
+        if (!placePending() || ui == null || ui.sess == null)
+            return null;
+        Gob best = null;
+        synchronized (ui.sess.glob.oc) {
+            for (Gob g : ui.sess.glob.oc) {
+                if (g.rc.dist(at) <= PLACED_GOB_RADIUS && accept.test(g)
+                        && (best == null || g.rc.dist(at) < best.rc.dist(at)))
+                    best = g;
+            }
+        }
+        if (best != null)
+            placedAt = null;
+        return best;
+    }
+    private static final double PLACED_GOB_RADIUS = 11;
+
+    /**
+     * The latest right-clicked gob if it is still loaded, recent and accepted by the filter, and
+     * forget it, so a later unrelated window cannot bind to the same gob. Null otherwise.
+     */
+    public Gob takeClickedGob(java.util.function.Predicate<Gob> accept)
+    {
+        long id = clickedGobId;
+        if (id < 0 || System.currentTimeMillis() - clickedGobAt > CLICKED_GOB_TTL_MS || ui == null || ui.sess == null)
+            return null;
+        Gob gob = ui.sess.glob.oc.getgob(id);
+        if (gob == null || !accept.test(gob))
+            return null;
+        clickedGobId = -1;
+        return gob;
+    }
+
 
     public Mode mode = Mode.DRAG;
     private boolean botmod = false;
@@ -836,38 +919,56 @@ public class NCore extends Widget
         }
     }
 
-    /**
-     * Clear all items for a container when it's opened (to refresh data)
-     * Note: Don't notify search here - data is being cleared, search will update when container closes
-     */
-    public void clearContainerItems(Gob gob) {
-        if (gob == null || databaseManager == null || !databaseManager.isReady()) {
-            return;
-        }
-        databaseManager.submitTask(() -> {
-            try {
-                // Wait for hash to be available
-                int waitCount = 0;
-                while (gob.ngob.hash == null && waitCount < 100) {
-                    Thread.sleep(10);
-                    waitCount++;
-                }
-                if (gob.ngob.hash != null) {
-                    databaseManager.getStorageItemService().deleteStorageItemsByContainer(gob.ngob.hash);
-                    // Don't notify search here - container is being browsed, data will be saved when closed
-                }
-            } catch (Exception e) {
-                // Silently ignore errors during container item clearing
-            }
-        });
-    }
-
     public void writeItemInfoForContainer(ArrayList<ItemWatcher.ItemInfo> iis, String containerHash) {
         if (databaseManager == null || !databaseManager.isReady()) {
             return;
         }
         ItemWatcher itemWatcher = new ItemWatcher(iis, databaseManager, containerHash);
         databaseManager.submitTask(itemWatcher);
+    }
+
+    /**
+     * A carried storage gob was put down somewhere else, so its hash changed: move what is stored
+     * for it to the new hash and location. Anything still stored under the new hash belonged to
+     * whatever stood there before and is dropped.
+     */
+    public static void moveStoredContainer(String oldHash, String newHash, long gridId, String coord) {
+        if (databaseManager == null || !databaseManager.isReady() || !(Boolean) NConfig.get(NConfig.Key.ndbenable)) {
+            return;
+        }
+        databaseManager.submitTask(() -> {
+            try {
+                databaseManager.executeOperation(adapter -> {
+                    // Same resource on the same spot gives the same hash, so these are a former occupant's
+                    adapter.executeUpdate("DELETE FROM storageitems WHERE container = ?", newHash);
+                    int moved = adapter.executeUpdate("UPDATE storageitems SET container = ? WHERE container = ?", newHash, oldHash);
+                    if (moved > 0) {
+                        new nurgling.db.dao.ContainerDao().saveContainer(adapter, newHash, gridId, coord);
+                        adapter.executeUpdate("DELETE FROM containers WHERE hash = ?", oldHash);
+                        System.out.println("[BulkStorage] moved " + moved + " row(s) " + oldHash.substring(0, 8) + " -> " + newHash.substring(0, 8));
+                    }
+                    return null;
+                });
+                ItemWatcher.invalidateContainerCache(oldHash);
+                ItemWatcher.invalidateContainerCache(newHash);
+                NGlobalSearchItems.clearQueryCache();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    /**
+     * Replace every storage row of a stockpile, barrel or cistern with rows; empty clears it.
+     * A non-null coord also upserts the containers row, in the same operation.
+     * @return whether the write was queued
+     */
+    public static boolean writeBulkStorage(String containerHash, long gridId, String coord, List<ItemWatcher.Row> rows) {
+        if (databaseManager == null || !databaseManager.isReady() || !(Boolean) NConfig.get(NConfig.Key.ndbenable)) {
+            return false;
+        }
+        databaseManager.submitTask(ItemWatcher.replacing(rows, databaseManager, containerHash, gridId, coord));
+        return true;
     }
 
     final ArrayList<String> targetGobs = new ArrayList<>();

@@ -18,9 +18,10 @@ public class NGlobalSearch extends GAttrib implements Gob.SetupMod
     private static final MixColor HIGHLIGHT_COLOR = new MixColor(COLOR.getRed(), COLOR.getGreen(), COLOR.getBlue(), 255);
 
     public Pipe.Op gobstate() {
-        if (gob.ngob.hash != null) {
+        String key = gob.ngob.storageHash();
+        if (key != null) {
             synchronized (NGlobalSearchItems.containerHashes) {
-                if (NGlobalSearchItems.containerHashes.contains(gob.ngob.hash)) {
+                if (NGlobalSearchItems.containerHashes.contains(key)) {
                     return HIGHLIGHT_COLOR;
                 }
             }

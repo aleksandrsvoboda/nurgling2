@@ -819,6 +819,17 @@ public class Finder
         return result;
     }
 
+    /** The gob the storage database files under this key; differs from findGob(hash) only for a moved container. */
+    public static Gob findStorageGob(String key) {
+        synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
+            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
+                if (gob.ngob != null && gob.ngob.name != null && key.equals(gob.ngob.storageHash()))
+                    return gob;
+            }
+        }
+        return null;
+    }
+
     public static Gob findGob(String hash) {
         synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
             for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {

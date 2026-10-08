@@ -77,7 +77,6 @@ public class NInventory extends Inventory
         "Cupboard",
         "Chest",
         "Crate",
-        "Barrel",
         "Basket",
         "Coffer",
         "Large Chest",
@@ -2024,8 +2023,8 @@ public class NInventory extends Inventory
         isClosing = true;
         
         // Only process if this is an indexable container
-        if (isIndexable() && parentGob != null && parentGob.ngob != null && parentGob.ngob.hash != null) {
-            String containerHash = parentGob.ngob.hash;
+        if (isIndexable() && parentGob != null && parentGob.ngob != null && parentGob.ngob.storageHash() != null) {
+            String containerHash = parentGob.ngob.storageHash();
             
             // Clear pending cache removals - container closed, so items weren't consumed
             pendingCacheRemovals.clear();

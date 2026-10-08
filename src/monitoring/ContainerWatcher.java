@@ -23,7 +23,7 @@ public class ContainerWatcher implements Runnable {
             NTask waitTask = new NTask() {
                 @Override
                 public boolean check() {
-                    return parentGob.ngob.hash != null && parentGob.ngob.gcoord != null;
+                    return parentGob.ngob.storageHash() != null && parentGob.ngob.storageCoord() != null;
                 }
             };
             NUtils.addTask(waitTask);
@@ -36,9 +36,9 @@ public class ContainerWatcher implements Runnable {
 
             // Save container using service
             databaseManager.getContainerService().saveContainer(
-                parentGob.ngob.hash,
-                parentGob.ngob.grid_id,
-                parentGob.ngob.gcoord.toString()
+                parentGob.ngob.storageHash(),
+                parentGob.ngob.storageGridId(),
+                parentGob.ngob.storageCoord().toString()
             );
 
         } catch (SQLException e) {

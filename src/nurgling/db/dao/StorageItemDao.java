@@ -35,6 +35,33 @@ public class StorageItemDao {
         public double getQuality() { return quality; }
         public String getCoordinates() { return coordinates; }
         public String getContainer() { return container; }
+
+        /** Stockpile items show no quality; they are stored without one and read back as 0. */
+        public boolean hasQuality() { return quality > 0; }
+
+        /** A barrel or cistern row: one row holding an amount (see BulkStorageWindowExtension). */
+        public boolean isBulk() {
+            return coordinates != null && coordinates.startsWith(nurgling.widgets.BulkStorageWindowExtension.BULK_TAG);
+        }
+
+        /** "l", "seeds", ... for a bulk row, null otherwise. */
+        public String getBulkUnit() {
+            if (!isBulk()) return null;
+            int sp = coordinates.indexOf(' ');
+            return sp > 0 ? coordinates.substring(sp + 1) : "";
+        }
+
+        /** The amount of a bulk row, 0 otherwise. */
+        public double getBulkAmount() {
+            if (!isBulk()) return 0;
+            String tag = nurgling.widgets.BulkStorageWindowExtension.BULK_TAG;
+            int sp = coordinates.indexOf(' ');
+            try {
+                return Double.parseDouble(coordinates.substring(tag.length(), sp > 0 ? sp : coordinates.length()));
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
     }
 
     /**
