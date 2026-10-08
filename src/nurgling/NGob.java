@@ -66,6 +66,32 @@ public class NGob
     public int lastUpdate = 0;
 
     public String hash;
+    /** When a barrel was first seen with its hash; see BulkStorageWindowExtension.observeBarrel. */
+    public long bulkSeenAt = 0;
+    /* The storage database keys a container by where it stands, but `hash` is fixed once computed
+     * because bots use it as the gob's identity (barrel workstation bots find a carried barrel by
+     * it). So a storage gob that is lifted and put down elsewhere gets a separate storage key for
+     * its new spot, and what is stored for it moves along; see tick(). */
+    private String storageHash = null;
+    private long storageGridId;
+    private Coord storageCoord;
+    private Boolean liftableStorage = null;
+    private boolean carried = false;
+    private long restoreAt = 0;
+    private static final long REHASH_SETTLE_MS = 500;
+
+    /** The key the storage database files this gob under: its hash, unless it was moved. */
+    public String storageHash() {
+        return storageHash != null ? storageHash : hash;
+    }
+
+    public long storageGridId() {
+        return storageHash != null ? storageGridId : grid_id;
+    }
+
+    public Coord storageCoord() {
+        return storageHash != null ? storageCoord : gcoord;
+    }
     public long grid_id;
     public Coord gcoord;
     private final Queue<DelayedOverlayTask> delayedOverlayTasks = new ConcurrentLinkedQueue<>();
@@ -1086,6 +1112,31 @@ public class NGob
         isDynamic = true;
     }
 
+    /**
+     * The position key of this gob where it stands now: {hash, grid id, in-grid coord}, or null while
+     * its grid is not loaded. Uses the gob's OWN session map, not NUtils.getGameUI(): gobs are ticked
+     * from OCache.ctick via parallelStream, so on those worker threads ThreadLocalUI is unset and
+     * getGameUI() falls back to the *active* (foreground) session. For a background session that made
+     * the hash/grid_id be computed against a foreign MCache, which broke portal identification
+     * (ChunkPortal.gobHash) for bots.
+     */
+    private Object[] computePlace()
+    {
+        MCache map = (parent.glob != null) ? parent.glob.map : null;
+        if (map == null)
+            return null;
+        Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
+        synchronized (map.grids)
+        {
+            if (!map.grids.containsKey(pltc.div(cmaps)))
+                return null;
+            MCache.Grid g = map.getgridt(pltc);
+            Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
+            String h = NUtils.calculateSHA256(name + g.id + coord.toString());
+            return new Object[]{h, g.id, coord};
+        }
+    }
+
     public void tick(double dt)
     {
         if (NUtils.getGameUI() != null)
@@ -1111,29 +1162,53 @@ public class NGob
 
             if (hash == null)
             {
-                // Use the gob's OWN session map, not NUtils.getGameUI(). Gobs are ticked from
-                // OCache.ctick via parallelStream, so on those worker threads ThreadLocalUI is
-                // unset and getGameUI() falls back to the *active* (foreground) session. For a
-                // background session that made the hash/grid_id be computed against a foreign
-                // MCache, which broke portal identification (ChunkPortal.gobHash) for bots.
-                MCache map = (parent.glob != null) ? parent.glob.map : null;
-                if (map != null) {
-                    Coord pltc = (new Coord2d(parent.rc.x / MCache.tilesz.x, parent.rc.y / MCache.tilesz.y)).floor();
-                    synchronized (map.grids)
+                Object[] place = computePlace();
+                if (place != null) {
+                    hash = (String) place[0];
+                    grid_id = (Long) place[1];
+                    gcoord = (Coord) place[2];
+                    parent.setattr(new NGlobalSearch(parent));
+                }
+            }
+            else
+            {
+                if (liftableStorage == null && name != null)
+                    liftableStorage = name.equals("gfx/terobjs/barrel")
+                            || nurgling.areas.NContext.contcaps.containsKey(name);
+                if (Boolean.TRUE.equals(liftableStorage))
+                {
+                    if (parent.getattr(Following.class) != null)
                     {
-                        if (map.grids.containsKey(pltc.div(cmaps)))
+                        carried = true;
+                        restoreAt = 0;
+                    }
+                    else if (carried)
+                    {
+                        // Put down: let the position settle, then re-key where it stands
+                        carried = false;
+                        restoreAt = System.currentTimeMillis() + REHASH_SETTLE_MS;
+                    }
+                    else if (restoreAt != 0 && System.currentTimeMillis() >= restoreAt)
+                    {
+                        Object[] place = computePlace();
+                        if (place != null)
                         {
-                            MCache.Grid g = map.getgridt(pltc);
-                            StringBuilder hashInput = new StringBuilder();
-                            Coord coord = (parent.rc.sub(g.ul.mul(Coord2d.of(11, 11)))).floor(posres);
-                            hashInput.append(name).append(g.id).append(coord.toString());
-                            hash = NUtils.calculateSHA256(hashInput.toString());
-                            grid_id = g.id;
-                            gcoord = coord;
-                            parent.setattr(new NGlobalSearch(parent));
+                            restoreAt = 0;
+                            String oldKey = storageHash();
+                            String newKey = (String) place[0];
+                            if (!newKey.equals(oldKey))
+                            {
+                                storageGridId = (Long) place[1];
+                                storageCoord = (Coord) place[2];
+                                storageHash = newKey.equals(hash) ? null : newKey;
+                                bulkSeenAt = 0;
+                                NCore.moveStoredContainer(oldKey, newKey, storageGridId(), storageCoord().toString());
+                            }
                         }
                     }
                 }
+                if (hash != null && "gfx/terobjs/barrel".equals(name))
+                    nurgling.widgets.BulkStorageWindowExtension.observeBarrel(parent);
             }
 
 

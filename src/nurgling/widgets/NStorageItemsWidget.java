@@ -83,31 +83,53 @@ public class NStorageItemsWidget extends Window {
      */
     public static class GroupedItem {
         public final String name;
-        public final double quality; // -1 for type-only grouping (will show range)
-        public final double minQuality;
+        public final double quality; // -1 for type-only grouping (will show range), 0 for unknown
+        public final double minQuality; // over the items whose quality is known
         public final double maxQuality;
+        public final boolean hasUnknownQuality; // stockpile items show no quality
+        public final String bulkUnit; // "l", "seeds"... for barrel/cistern groups, null for items
+        public final double bulkAmount;
         public final int count;
         public final List<StorageItemDao.StorageItemData> items;
 
         public GroupedItem(String name, double quality, int count, List<StorageItemDao.StorageItemData> items) {
             this.name = name;
             this.quality = quality;
-            this.minQuality = items.stream().mapToDouble(StorageItemDao.StorageItemData::getQuality).min().orElse(0);
-            this.maxQuality = items.stream().mapToDouble(StorageItemDao.StorageItemData::getQuality).max().orElse(0);
+            this.minQuality = items.stream().filter(StorageItemDao.StorageItemData::hasQuality)
+                    .mapToDouble(StorageItemDao.StorageItemData::getQuality).min().orElse(0);
+            this.maxQuality = items.stream().filter(StorageItemDao.StorageItemData::hasQuality)
+                    .mapToDouble(StorageItemDao.StorageItemData::getQuality).max().orElse(0);
+            this.hasUnknownQuality = items.stream().anyMatch(i -> !i.hasQuality());
+            this.bulkUnit = items.isEmpty() ? null : items.get(0).getBulkUnit();
+            this.bulkAmount = items.stream().mapToDouble(StorageItemDao.StorageItemData::getBulkAmount).sum();
             this.count = count;
             this.items = items;
         }
 
+        /** Whether a stored item belongs to this group. */
+        public boolean matches(StorageItemDao.StorageItemData data) {
+            if (!data.getName().equals(name) || data.isBulk() != (bulkUnit != null))
+                return false;
+            if (!data.hasQuality())
+                return hasUnknownQuality;
+            return data.getQuality() >= minQuality && data.getQuality() <= maxQuality;
+        }
+
         public String getQualityDisplay() {
-            if (quality >= 0) {
+            if (quality > 0) {
                 return Utils.odformat2(quality, 2);
+            } else if (quality == 0 || maxQuality <= 0) {
+                return "?";
             } else {
                 // Range display for type-only grouping
-                if (minQuality == maxQuality) {
-                    return Utils.odformat2(minQuality, 2);
-                }
-                return Utils.odformat2(minQuality, 2) + "-" + Utils.odformat2(maxQuality, 2);
+                String range = (minQuality == maxQuality) ? Utils.odformat2(minQuality, 2)
+                        : Utils.odformat2(minQuality, 2) + "-" + Utils.odformat2(maxQuality, 2);
+                return hasUnknownQuality ? range + ", ?" : range;
             }
+        }
+
+        public String getCountDisplay() {
+            return (bulkUnit != null) ? Utils.odformat2(bulkAmount, 2) + " " + bulkUnit : String.valueOf(count);
         }
     }
 
@@ -364,36 +386,31 @@ public class NStorageItemsWidget extends Window {
             return;
         }
 
-        Map<String, List<StorageItemDao.StorageItemData>> grouped;
+        java.util.function.Function<StorageItemDao.StorageItemData, String> key;
 
         switch (currentGrouping) {
-            case NONE:
-                // Group only by name
-                grouped = rawItems.stream()
-                        .collect(Collectors.groupingBy(StorageItemDao.StorageItemData::getName));
-                break;
             case Q:
                 // Group by name + exact quality (rounded to 2 decimals)
-                grouped = rawItems.stream()
-                        .collect(Collectors.groupingBy(item ->
-                                item.getName() + "|" + String.format("%.2f", item.getQuality())));
+                key = item -> item.getName() + "|" + String.format("%.2f", item.getQuality());
                 break;
             case Q5:
                 // Group by name + quality rounded to 5
-                grouped = rawItems.stream()
-                        .collect(Collectors.groupingBy(item ->
-                                item.getName() + "|" + ((int) Math.floor(item.getQuality() / 5) * 5)));
+                key = item -> item.getName() + "|" + ((int) Math.floor(item.getQuality() / 5) * 5);
                 break;
             case Q10:
                 // Group by name + quality rounded to 10
-                grouped = rawItems.stream()
-                        .collect(Collectors.groupingBy(item ->
-                                item.getName() + "|" + ((int) Math.floor(item.getQuality() / 10) * 10)));
+                key = item -> item.getName() + "|" + ((int) Math.floor(item.getQuality() / 10) * 10);
                 break;
+            case NONE:
             default:
-                grouped = rawItems.stream()
-                        .collect(Collectors.groupingBy(StorageItemDao.StorageItemData::getName));
+                // Group only by name
+                key = StorageItemDao.StorageItemData::getName;
         }
+
+        // Keep barrel/cistern amounts apart from countable items of the same name
+        java.util.function.Function<StorageItemDao.StorageItemData, String> baseKey = key;
+        Map<String, List<StorageItemDao.StorageItemData>> grouped = rawItems.stream()
+                .collect(Collectors.groupingBy(item -> (item.isBulk() ? "#" + item.getBulkUnit() + "|" : "") + baseKey.apply(item)));
 
         List<GroupedItem> result = new ArrayList<>();
 
@@ -500,7 +517,7 @@ public class NStorageItemsWidget extends Window {
 
             add(new Label(truncateName(item.name, 38)), new Coord(COL_NAME, 0));
             add(new Label(item.getQualityDisplay()), new Coord(COL_QUALITY, 0));
-            add(new Label(String.valueOf(item.count)), new Coord(COL_COUNT, 0));
+            add(new Label(item.getCountDisplay()), new Coord(COL_COUNT, 0));
         }
 
         private String truncateName(String name, int maxLen) {
@@ -531,7 +548,7 @@ public class NStorageItemsWidget extends Window {
             StringBuilder sb = new StringBuilder();
             sb.append(item.name).append("\n");
             sb.append(L10n.get("storage.quality")).append(": ").append(item.getQualityDisplay()).append("\n");
-            sb.append(L10n.get("storage.count")).append(": ").append(item.count);
+            sb.append(L10n.get("storage.count")).append(": ").append(item.getCountDisplay());
             NUtils.getGameUI().msg(sb.toString());
         }
         
@@ -573,6 +590,11 @@ public class NStorageItemsWidget extends Window {
         }
         
         private void showQuantitySelector() {
+            if (item.bulkUnit != null) {
+                // A liquid needs a container in hand; the fetch bot only carries items
+                NUtils.getGameUI().msg(L10n.get("storage.fetch_bulk_unsupported"), Color.YELLOW);
+                return;
+            }
             if (item.count <= 1) {
                 // Only one item, fetch directly
                 startFetchBot(1);
@@ -590,9 +612,7 @@ public class NStorageItemsWidget extends Window {
         private void startFetchBot(int count) {
             // Get all raw items for this group
             List<StorageItemDao.StorageItemData> matchingItems = rawItems.stream()
-                .filter(i -> i.getName().equals(item.name) &&
-                            i.getQuality() >= item.minQuality &&
-                            i.getQuality() <= item.maxQuality)
+                .filter(item::matches)
                 .collect(Collectors.toList());
 
             FetchStorageItemBot bot = new FetchStorageItemBot(item, count, matchingItems);

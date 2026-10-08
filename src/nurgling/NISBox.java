@@ -12,12 +12,15 @@ public class NISBox extends ISBox
     private TakeButton take;
 
     private int rem;
+    /** The piled item's resource; ISBox keeps its own copy private. */
+    public final Indir<Resource> itemres;
 
 
     public NISBox(Indir<Resource> res, int rem, int av, int bi)
     {
         super(res, rem, av, bi);
         this.rem = rem;
+        this.itemres = res;
     }
 
     public int calcFreeSpace()

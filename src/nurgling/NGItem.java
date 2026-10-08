@@ -423,11 +423,11 @@ public class NGItem extends GItem
         }
         
         // Skip if no container hash yet
-        if (inv.parentGob == null || inv.parentGob.ngob == null || inv.parentGob.ngob.hash == null) {
+        if (inv.parentGob == null || inv.parentGob.ngob == null || inv.parentGob.ngob.storageHash() == null) {
             return; // Will try again later
         }
         
-        String containerHash = inv.parentGob.ngob.hash;
+        String containerHash = inv.parentGob.ngob.storageHash();
         boolean fromStack = (parent instanceof haven.res.ui.stackinv.ItemStack);
         
         // Skip stack containers (items that hold other items inside)

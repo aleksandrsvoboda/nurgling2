@@ -23,8 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class FetchStorageItemBot implements Action {
 
     private final String itemName;
-    private final double minQuality;
-    private final double maxQuality;
     private final int targetCount;
     private final List<StorageItemDao.StorageItemData> itemsToFetch;
 
@@ -38,18 +36,13 @@ public class FetchStorageItemBot implements Action {
      */
     public FetchStorageItemBot(GroupedItem item, int count, List<StorageItemDao.StorageItemData> allItems) {
         this.itemName = item.name;
-        this.minQuality = item.minQuality;
-        this.maxQuality = item.maxQuality;
         this.targetCount = count;
 
         // Filter items that match the group criteria
         this.itemsToFetch = new ArrayList<>();
         for (StorageItemDao.StorageItemData data : allItems) {
-            if (data.getName().equals(itemName)) {
-                double q = data.getQuality();
-                if (q >= minQuality && q <= maxQuality) {
-                    itemsToFetch.add(data);
-                }
+            if (item.matches(data)) {
+                itemsToFetch.add(data);
             }
         }
     }
@@ -133,7 +126,7 @@ public class FetchStorageItemBot implements Action {
         int beforeCount = countItemsInInventory(gui, itemName);
 
         // First try to find the container Gob in visible area
-        Gob containerGob = Finder.findGob(containerHash);
+        Gob containerGob = Finder.findStorageGob(containerHash);
 
         if (containerGob == null) {
             // Container not visible - try to find its position from database and navigate
@@ -158,7 +151,7 @@ public class FetchStorageItemBot implements Action {
             }
 
             // Try to find container again after navigation (gobs may take time to load)
-            containerGob = Finder.findGob(containerHash);
+            containerGob = Finder.findStorageGob(containerHash);
             if (containerGob == null) {
                 WaitForGobWithHash waitGob = new WaitForGobWithHash(containerHash);
                 NUtils.addTask(waitGob);
@@ -176,6 +169,11 @@ public class FetchStorageItemBot implements Action {
         if (!PathFinder.isAvailable(containerGob)) {
             PathFinder pf = new PathFinder(containerGob);
             pf.run(gui);
+        }
+
+        if (containerGob.ngob != null && containerGob.ngob.name != null
+                && containerGob.ngob.name.startsWith("gfx/terobjs/stockpile")) {
+            return fetchFromPile(gui, containerGob, requestedItems.size());
         }
 
         // Open container
@@ -232,6 +230,26 @@ public class FetchStorageItemBot implements Action {
         // Return actual count based on inventory difference
         int afterCount = countItemsInInventory(gui, itemName);
         return afterCount - beforeCount;
+    }
+
+    /**
+     * Take up to count items from a stockpile. Pile items have no stored quality, so any will do.
+     * @return number of items actually taken
+     */
+    private int fetchFromPile(NGameUI gui, Gob pile, int count) throws InterruptedException {
+        new OpenTargetContainer("Stockpile", pile).run(gui);
+        NISBox box = gui.getStockpile();
+        if (box == null) {
+            return 0;
+        }
+        TakeItemsFromPile take = new TakeItemsFromPile(pile, box, count);
+        take.run(gui);
+        // Taking the last item destroys the pile and closes its window
+        Window wnd = gui.getWindow("Stockpile");
+        if (wnd != null) {
+            new CloseTargetWindow(wnd).run(gui);
+        }
+        return take.getResult();
     }
 
     /**

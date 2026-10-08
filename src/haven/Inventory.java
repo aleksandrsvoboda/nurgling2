@@ -78,14 +78,18 @@ public class Inventory extends Widget implements DTarget {
 	public Widget create(UI ui, Object[] args) {
 //		return(new NInventory((Coord)args[0]));
 		NInventory ni = new NInventory((Coord) args[0]);
-		if(ui.core.getLastActions()!=null) {
-			ni.parentGob = ui.core.getLastActions().gob;
+		/* Prefer the gob the latest map right-click was on: bots that open containers with a raw
+		 * click never update LastActions, which then names whatever was last clicked by hand. */
+		Gob clicked = ui.core.takeClickedGob(g -> g.ngob != null && g.ngob.name != null
+				&& nurgling.areas.NContext.contcaps.containsKey(g.ngob.name));
+		if(clicked != null || ui.core.getLastActions()!=null) {
+			ni.parentGob = (clicked != null) ? clicked : ui.core.getLastActions().gob;
 			if((Boolean) NConfig.get(NConfig.Key.ndbenable) && ui.core.databaseManager != null && ui.core.databaseManager.isReady()) {
 				ui.core.writeContainerInfo(ni.parentGob);
 				// Invalidate cached signature to force re-sync when container closes
 				// This ensures items removed from container are deleted from DB
-				if(ni.parentGob != null && ni.parentGob.ngob != null && ni.parentGob.ngob.hash != null) {
-					monitoring.ItemWatcher.invalidateContainerCache(ni.parentGob.ngob.hash);
+				if(ni.parentGob != null && ni.parentGob.ngob != null && ni.parentGob.ngob.storageHash() != null) {
+					monitoring.ItemWatcher.invalidateContainerCache(ni.parentGob.ngob.storageHash());
 				}
 			}
 		}
