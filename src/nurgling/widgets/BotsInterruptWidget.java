@@ -277,7 +277,7 @@ public class BotsInterruptWidget extends Widget {
                 public void click() {
                     removeObserve(Gear.this.t);
                 }
-            });
+            }.squarehit(true));
             stopb.settip(L10n.get("botstatus.stop", title));
             layout();
         }
