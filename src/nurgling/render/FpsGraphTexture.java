@@ -71,11 +71,16 @@ public final class FpsGraphTexture implements Disposable {
             sampler.magfilter(Texture.Filter.NEAREST).minfilter(Texture.Filter.NEAREST);
             image=new TexRaw(sampler);
         }
-        out.update(texture.image(0),(img,env)->{
+        // Upload on a fresh sub-render: `out` is the Window's offscreen-buffer render,
+        // and GL texture updates reset state to Pipe.nil, which fails with
+        // "empty framebuffer" when the current state targets an FBO.
+        Render sub=out.env().render();
+        sub.update(texture.image(0),(img,env)->{
             FillBuffer fill=env.fillbuf(img);
             fill.pull(ByteBuffer.wrap(pixels));
             return fill;
         });
+        out.submit(sub);
     }
 
     public void draw(GOut g) {if(image!=null)g.image(image,Coord.z);}
