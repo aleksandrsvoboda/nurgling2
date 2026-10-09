@@ -94,6 +94,7 @@ public final class BulkStorageWindowExtension {
      * stands in an area whose PUT list has exactly one entry of that kind, assume the pile holds that.
      * An entry is of that kind when it is the same resource, the same resource family
      * ("fish-mackerel" / "fish"), or one name contains the other ("Red Onion" / "Onion").
+     * With no entry of that kind, a pile in an area that PUTs exactly one item is assumed to hold it.
      * @return the assumed item name, or null to keep what the window says
      */
     static String assumedPileItem(Gob pile, String windowName, String windowRes) {
@@ -112,7 +113,8 @@ public final class BulkStorageWindowExtension {
         } catch (java.util.ConcurrentModificationException e) {
             return null; // area sync is replacing areas right now; keep what the window says
         }
-        String found = null;
+        java.util.Set<String> all = new java.util.LinkedHashSet<>();
+        java.util.Set<String> sameKind = new java.util.LinkedHashSet<>();
         for (NArea area : areas) {
             if (area.isDisabled() || area.jout == null)
                 continue;
@@ -124,14 +126,20 @@ public final class BulkStorageWindowExtension {
                 if (entry == null)
                     continue;
                 String name = entry.optString("name", null);
-                if (name == null || !sameKind(windowName, windowRes, name, entry.optString("static", null)))
+                if (name == null)
                     continue;
-                if (found != null && !found.equals(name))
-                    return null; // two candidates: no safe assumption
-                found = name;
+                all.add(name);
+                if (sameKind(windowName, windowRes, name, entry.optString("static", null)))
+                    sameKind.add(name);
             }
         }
-        return found;
+        if (sameKind.size() == 1)
+            return sameKind.iterator().next();
+        // The window often names only a broad pile kind ("Stone" for slag, "Trash" for intestines)
+        // that shares nothing with the item; a single-purpose area is then the best evidence.
+        if (sameKind.isEmpty() && all.size() == 1)
+            return all.iterator().next();
+        return null;
     }
 
     private static boolean sameKind(String windowName, String windowRes, String name, String res) {
