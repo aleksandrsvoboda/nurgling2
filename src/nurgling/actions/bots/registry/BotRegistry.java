@@ -7,6 +7,7 @@ import nurgling.actions.bots.CarrotFarmerQ;
 import nurgling.actions.bots.silk.RefillSilkwormFeedingCupboards;
 import nurgling.actions.bots.silk.SilkProductionBot;
 import nurgling.actions.bots.cheeseconveyor.CheeseConveyorBot;
+import nurgling.actions.bots.areamover.AreaMoverBot;
 import nurgling.actions.bots.CollectSwillInArea;
 import nurgling.actions.bots.farmers.WheatFarmer;
 import nurgling.actions.bots.farmers.YellowOnionFarmer;
@@ -241,6 +242,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("unbox", BotDescriptor.BotType.UTILS, "Free Containers", "Frees containers in area.", false, true, FreeContainersInArea.class, "unbox", false));
         bots.add(new BotDescriptor("unbox_zone", BotDescriptor.BotType.UTILS, "Free Containers in Unbox Zone", "Automatically navigates to unbox zone and frees containers.", true, true, FreeContainersInUnboxZone.class, "unbox_zone", false));
         bots.add(new BotDescriptor("sort_containers", BotDescriptor.BotType.UTILS, "Sort Containers in Area", "Sorts all items across containers in a selected area.", false, true, SortContainersInArea.class, "sort_containers", false));
+        bots.add(new BotDescriptor("area_mover", BotDescriptor.BotType.UTILS, "bot.area_mover.title", "bot.area_mover.desc", true, true, AreaMoverBot.class, "area_mover", false));
         bots.add(new BotDescriptor("water_cheker", BotDescriptor.BotType.UTILS, "Check Water", "Checks water.", false, true, CheckWater.class, "water_cheker", false));
         bots.add(new BotDescriptor("pave_areas", BotDescriptor.BotType.UTILS, "Pave Areas", "Paves every area with the Paving specialisation, fetching its configured stone from that stone's Take area.", false, true, PaveAreas.class, "paver", false));
         bots.add(new BotDescriptor("clay_cheker", BotDescriptor.BotType.UTILS, "Check Clay", "Checks clay.", false, true, CheckClay.class, "clay_cheker", true));

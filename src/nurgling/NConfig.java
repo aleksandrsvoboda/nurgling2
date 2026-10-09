@@ -73,6 +73,7 @@ public class NConfig
         blueprintplanterprop,
         autofloweractionprop,
         carrierprop,
+        areamoverprop,
         prepblockprop,
         prepboardprop,
         sheepsprop,
@@ -1315,6 +1316,9 @@ public class NConfig
                                 break;
                             case "NCarrierProp":
                                 res.add(new NCarrierProp(obj));
+                                break;
+                            case "NAreaMoverProp":
+                                res.add(new NAreaMoverProp(obj));
                                 break;
                             case "QuickActionPreset":
                                 res.add(new QuickActionPreset(obj));
