@@ -401,7 +401,7 @@ public class StashView extends Widget {
         g.chcolor();
         if (!tabHasItems.getOrDefault(t, false))
             g.chcolor(255, 255, 255, 110);
-        drawIcon(g, t.icon, c.add(UI.scale(2), UI.scale(2)), TAB - UI.scale(4));
+        drawIcon(g, tabIcon(t), c.add(UI.scale(2), UI.scale(2)), TAB - UI.scale(4));
         g.chcolor();
         boolean hov = hover != null && hover.isect(c, Coord.of(TAB, TAB));
         outline(g, c, Coord.of(TAB, TAB), on ? NStyle.border : hov ? SECTION : FRAME, !t.pinned && !on);
@@ -449,8 +449,18 @@ public class StashView extends Widget {
             outline(g, c, CELL, NStyle.border, false);
     }
 
+    /** A tab made in the client has no icon of its own: show its first pinned item, else its name's initials. */
+    private String tabIcon(StashLayout.Tab t) {
+        if (t.icon != null)
+            return t.icon;
+        List<StashLayout.Slot> slots = t.slots();
+        return slots.isEmpty() ? title(t) : slots.get(0).name;
+    }
+
     /** The item's icon, or its initials while the icon loads or when the catalogue has none. */
     private void drawIcon(GOut g, String name, Coord c, int side) {
+        if (name == null)
+            name = "";
         Tex icon = ItemIcons.get("", name, false);
         if (icon != null) {
             ItemIcons.draw(g, icon, c, side);
@@ -630,6 +640,7 @@ public class StashView extends Widget {
         String take = L10n.get("storage.menu_take"), find = L10n.get("storage.stash.find");
         String unpin = L10n.get("storage.stash.unpin"), target = L10n.get("storage.stash.set_target");
         String earlier = L10n.get("storage.stash.move_earlier"), later = L10n.get("storage.stash.move_later");
+        String asIcon = L10n.get("storage.stash.use_as_icon");
         Map<String, StashLayout.Tab> pinTo = new LinkedHashMap<>();
         for (StashLayout.Tab t : layout.pinnedTabs())
             if (t.find(cell.name) == null)
@@ -641,10 +652,15 @@ public class StashView extends Widget {
         opts.add(find);
         if (cell.pin != null)
             opts.addAll(List.of(target, earlier, later, unpin));
+        if (active != null && !cell.name.equalsIgnoreCase(tabIcon(active)))
+            opts.add(asIcon);
         opts.addAll(pinTo.keySet());
         openMenu(opts, o -> {
             if (o.equals(take)) {
                 take(cell);
+            } else if (o.equals(asIcon)) {
+                active.icon = cell.stock != null ? cell.stock.name : cell.name;
+                changed();
             } else if (o.equals(find)) {
                 NInventory inv = NUtils.getGameUI().getInventory();
                 if (inv != null)
@@ -674,7 +690,8 @@ public class StashView extends Widget {
         String rename = L10n.get("storage.stash.rename"), left = L10n.get("storage.stash.move_left"), right = L10n.get("storage.stash.move_right");
         String section = L10n.get("storage.stash.add_section"), export = L10n.get("storage.stash.export");
         String reset = L10n.get("storage.stash.reset"), delete = L10n.get("storage.stash.delete");
-        List<String> opts = new ArrayList<>(List.of(left, right));
+        String icon = L10n.get("storage.stash.change_icon");
+        List<String> opts = new ArrayList<>(List.of(left, right, icon));
         if (tab.pinned) {
             opts.addAll(List.of(rename, section, export));
             if (tab.preset != null)
@@ -684,6 +701,8 @@ public class StashView extends Widget {
         openMenu(opts, o -> {
             if (o.equals(left) || o.equals(right)) {
                 moveTab(tab, o.equals(left) ? -1 : 1);
+            } else if (o.equals(icon)) {
+                pickIcon(tab);
             } else if (o.equals(rename)) {
                 prompt(rename, L10n.get("storage.stash.tab_name"), s -> {
                     tab.title = s;
@@ -724,6 +743,7 @@ public class StashView extends Widget {
                     active = layout.newTab(s);
                     changed();
                     NUtils.getGameUI().msg(L10n.get("storage.stash.new_tab_hint"));
+                    pickIcon(active);
                 });
             } else if (o.equals(paste)) {
                 StashLayout.Tab t = layout.importTab(clipboard());
@@ -792,6 +812,16 @@ public class StashView extends Widget {
     private void changed() {
         layout.save();
         dirty = true;
+    }
+
+    /** Closing the picker keeps the tab's icon as it is. */
+    private void pickIcon(StashLayout.Tab tab) {
+        StashIconPicker w = new StashIconPicker(tab.icon, name -> {
+            tab.icon = name;
+            changed();
+        });
+        NUtils.getGameUI().add(w, NUtils.getGameUI().sz.div(2).sub(w.sz.div(2)));
+        w.raise();
     }
 
     private static void prompt(String title, String label, Consumer<String> onText) {

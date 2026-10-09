@@ -16,7 +16,7 @@ public final class StorageClassifier {
     private StorageClassifier() {}
 
     public enum Category {
-        WILD_MEAT("wildmeat", "Raw Boar"),
+        WILD_MEAT("wildmeat", "Raw Wild Pork"),
         FARM_MEAT("farmmeat", "Raw Beef"),
         FISH("fish", "Pike"),
         GARDEN("garden", "Carrot"),

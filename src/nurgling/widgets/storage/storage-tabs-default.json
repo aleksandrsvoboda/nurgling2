@@ -3,17 +3,14 @@
  "tabs": [
   {
    "id": "preset-wildmeat",
-   "icon": "Raw Boar",
+   "icon": "Raw Wild Pork",
    "autoFill": "wildmeat",
    "pinned": true,
-   "preset": "wildmeat@1",
+   "preset": "wildmeat@2",
    "sections": [
     {
      "title": "@storage.sec.big_game",
      "slots": [
-      {
-       "name": "Raw Boar"
-      },
       {
        "name": "Raw Wild Pork"
       },
