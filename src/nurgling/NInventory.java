@@ -901,6 +901,20 @@ public class NInventory extends Inventory
         }
     }
 
+    /** Opens the search panel, if closed, and searches for the given text. */
+    public void searchFor(String text) {
+        if (searchwdg == null || searchwdg.searchF == null)
+            return;
+        if (!searchVisible) {
+            if (searchBtn instanceof NHeaderToggle)
+                ((NHeaderToggle) searchBtn).a = true;
+            toggleSearch(true);
+        }
+        searchwdg.searchF.settext(text);
+        if (NUtils.getGameUI() != null && NUtils.getGameUI().itemsForSearch != null)
+            NUtils.getGameUI().itemsForSearch.install(text);
+    }
+
     private void focusSearch() {
         if (searchwdg == null || searchwdg.searchF == null)
             return;

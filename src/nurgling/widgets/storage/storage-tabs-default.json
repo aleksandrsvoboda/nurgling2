@@ -1,0 +1,429 @@
+{
+ "version": 1,
+ "tabs": [
+  {
+   "id": "preset-wildmeat",
+   "icon": "Raw Boar",
+   "autoFill": "wildmeat",
+   "pinned": true,
+   "preset": "wildmeat@1",
+   "sections": [
+    {
+     "title": "@storage.sec.big_game",
+     "slots": [
+      {
+       "name": "Raw Boar"
+      },
+      {
+       "name": "Raw Wild Pork"
+      },
+      {
+       "name": "Raw Bear"
+      },
+      {
+       "name": "Raw Moose"
+      },
+      {
+       "name": "Raw Venison"
+      },
+      {
+       "name": "Raw Roe Venison"
+      },
+      {
+       "name": "Raw Reindeer Venison"
+      },
+      {
+       "name": "Raw Wild Beef"
+      },
+      {
+       "name": "Raw Wild Mutton"
+      },
+      {
+       "name": "Raw Wildgoat"
+      },
+      {
+       "name": "Raw Wildhorse"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.small_game",
+     "slots": [
+      {
+       "name": "Raw Badger"
+      },
+      {
+       "name": "Raw Fox"
+      },
+      {
+       "name": "Raw Lynx"
+      },
+      {
+       "name": "Raw Wolf"
+      },
+      {
+       "name": "Raw Rabbit"
+      },
+      {
+       "name": "Raw Squirrel"
+      },
+      {
+       "name": "Raw Beaver"
+      },
+      {
+       "name": "Raw Otter"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "preset-farmmeat",
+   "icon": "Raw Beef",
+   "autoFill": "farmmeat",
+   "pinned": true,
+   "preset": "farmmeat@1",
+   "sections": [
+    {
+     "title": "@storage.sec.livestock",
+     "slots": [
+      {
+       "name": "Raw Beef"
+      },
+      {
+       "name": "Raw Pork"
+      },
+      {
+       "name": "Raw Mutton"
+      },
+      {
+       "name": "Raw Chevon"
+      },
+      {
+       "name": "Raw Horse"
+      },
+      {
+       "name": "Raw Tame Reindeer"
+      },
+      {
+       "name": "Raw Chicken"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "preset-fish",
+   "icon": "Pike",
+   "autoFill": "fish",
+   "pinned": true,
+   "preset": "fish@1",
+   "sections": [
+    {
+     "title": "@storage.sec.fresh_water",
+     "slots": [
+      {
+       "name": "Pike"
+      },
+      {
+       "name": "Perch"
+      },
+      {
+       "name": "Bream"
+      },
+      {
+       "name": "Carp"
+      },
+      {
+       "name": "Roach"
+      },
+      {
+       "name": "Tench"
+      },
+      {
+       "name": "Zander"
+      },
+      {
+       "name": "Trout"
+      },
+      {
+       "name": "Eel"
+      },
+      {
+       "name": "Catfish"
+      },
+      {
+       "name": "Chub"
+      },
+      {
+       "name": "Burbot"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.ocean",
+     "slots": [
+      {
+       "name": "Cod"
+      },
+      {
+       "name": "Herring"
+      },
+      {
+       "name": "Mackerel"
+      },
+      {
+       "name": "Salmon"
+      },
+      {
+       "name": "Plaice"
+      },
+      {
+       "name": "Haddock"
+      },
+      {
+       "name": "Whiting"
+      },
+      {
+       "name": "Sturgeon"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "preset-garden",
+   "icon": "Carrot",
+   "autoFill": "garden",
+   "pinned": true,
+   "preset": "garden@1",
+   "sections": [
+    {
+     "title": "@storage.sec.vegetables",
+     "slots": [
+      {
+       "name": "Carrot"
+      },
+      {
+       "name": "Beetroot"
+      },
+      {
+       "name": "Turnip"
+      },
+      {
+       "name": "Yellow Onion"
+      },
+      {
+       "name": "Red Onion"
+      },
+      {
+       "name": "Garlic"
+      },
+      {
+       "name": "Leek"
+      },
+      {
+       "name": "Head of Lettuce"
+      },
+      {
+       "name": "Pumpkin"
+      },
+      {
+       "name": "Cucumber"
+      },
+      {
+       "name": "Green Kale"
+      },
+      {
+       "name": "Peapod"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.fibres",
+     "slots": [
+      {
+       "name": "Flax Fibres"
+      },
+      {
+       "name": "Hemp Fibres"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.seeds",
+     "slots": [
+      {
+       "name": "Flax Seeds"
+      },
+      {
+       "name": "Hemp Seeds"
+      },
+      {
+       "name": "Barley Seed"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "preset-mine",
+   "icon": "Bar of Bronze",
+   "autoFill": "mine",
+   "pinned": true,
+   "preset": "mine@1",
+   "sections": [
+    {
+     "title": "@storage.sec.ores",
+     "slots": [
+      {
+       "name": "Cassiterite"
+      },
+      {
+       "name": "Chalcopyrite"
+      },
+      {
+       "name": "Malachite"
+      },
+      {
+       "name": "Iron Ochre"
+      },
+      {
+       "name": "Black Ore"
+      },
+      {
+       "name": "Galena"
+      },
+      {
+       "name": "Lead Glance"
+      },
+      {
+       "name": "Peacock Ore"
+      },
+      {
+       "name": "Cinnabar"
+      },
+      {
+       "name": "Leaf Ore"
+      },
+      {
+       "name": "Silvershine"
+      },
+      {
+       "name": "Horn Silver"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.bars",
+     "slots": [
+      {
+       "name": "Bar of Copper"
+      },
+      {
+       "name": "Bar of Tin"
+      },
+      {
+       "name": "Bar of Bronze"
+      },
+      {
+       "name": "Bar of Wrought Iron"
+      },
+      {
+       "name": "Bar of Cast Iron"
+      },
+      {
+       "name": "Bar of Steel"
+      },
+      {
+       "name": "Bar of Lead"
+      },
+      {
+       "name": "Bar of Silver"
+      },
+      {
+       "name": "Bar of Gold"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.fuel",
+     "slots": [
+      {
+       "name": "Coal"
+      },
+      {
+       "name": "Black Coal"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "preset-wood",
+   "icon": "Block of Pine",
+   "autoFill": "wood",
+   "pinned": true,
+   "preset": "wood@1",
+   "sections": [
+    {
+     "title": "@storage.sec.blocks",
+     "slots": [
+      {
+       "name": "Block of Pine"
+      },
+      {
+       "name": "Block of Spruce"
+      },
+      {
+       "name": "Block of Fir"
+      },
+      {
+       "name": "Block of Birch"
+      },
+      {
+       "name": "Block of Oak"
+      },
+      {
+       "name": "Block of Linden"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.boards",
+     "slots": [
+      {
+       "name": "Board of Pine"
+      },
+      {
+       "name": "Board of Spruce"
+      },
+      {
+       "name": "Board of Fir"
+      },
+      {
+       "name": "Board of Birch"
+      },
+      {
+       "name": "Board of Oak"
+      },
+      {
+       "name": "Board of Linden"
+      }
+     ]
+    },
+    {
+     "title": "@storage.sec.other",
+     "slots": [
+      {
+       "name": "Branch"
+      },
+      {
+       "name": "Bough"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
