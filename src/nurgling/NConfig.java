@@ -1118,6 +1118,13 @@ public class NConfig
     }
 
     /**
+     * Gets the dynamic path for the Storage Items window's stash tab layout
+     */
+    public String getStorageTabsPath() {
+        return getProfileAwarePath("storage_tabs.nurgling.json");
+    }
+
+    /**
      * Gets the dynamic path for planning layer ghosts configuration file
      */
     public String getPlanningLayerPath() {

@@ -37,6 +37,8 @@ public final class ItemIcons {
         try {return readyIndex=pendingIndex.get();}
         catch(Loading pending){return null;}
     }
+    /** Whether the offline catalog has loaded; until then lookups only see natively registered names. */
+    public static synchronized boolean ready() { return index() != null; }
     /** Native item descriptors may add names missing from the offline catalog. */
     public static synchronized void register(String name, JSONObject descriptor) {
         index();
