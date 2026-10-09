@@ -38,6 +38,8 @@ public class FrameTunneler implements Action {
 
     // How far ahead to look for the end of the propped ground
     private static final int MAX_SCAN_ROWS = 64;
+    // Rows are tile coordinates and are often negative, so "none" can't be -1
+    private static final int NO_FRONTIER = Integer.MIN_VALUE;
 
     private final Direction direction;
     private final SupportType frameType;
@@ -98,7 +100,7 @@ public class FrameTunneler implements Action {
         int row = rowOf(playerTile);
         while (true) {
             int frontier = findFrontier(row);
-            if (frontier < 0) {
+            if (frontier == NO_FRONTIER) {
                 return Results.ERROR("Couldn't find the end of the propped ground ahead");
             }
 
@@ -126,7 +128,8 @@ public class FrameTunneler implements Action {
             }
 
             // Never mine on the assumption that the frame props what it should
-            if (findFrontier(frontier) <= frontier) {
+            int next = findFrontier(frontier);
+            if (next != NO_FRONTIER && next <= frontier) {
                 return Results.ERROR("The new " + frameType.menuName + " doesn't prop the ground ahead; stopping");
             }
 
@@ -214,7 +217,7 @@ public class FrameTunneler implements Action {
                 }
             }
         }
-        return -1;
+        return NO_FRONTIER;
     }
 
     /* The tile the frame's preview must sit on so that it props exactly the wanted
