@@ -1461,6 +1461,14 @@ public class VSpec {
         vinegar.add(new JSONObject("{\"static\":\"gfx/invobjs/vinegar\",\"name\":\"Vinegar\"}"));
         categories.put("Vinegar", vinegar);
 
+        ArrayList<JSONObject> wine = new ArrayList<>();
+        wine.add(new JSONObject("{\"static\":\"gfx/invobjs/wine\",\"name\":\"Wine\"}"));
+        categories.put("Wine", wine);
+
+        ArrayList<JSONObject> batter = new ArrayList<>();
+        batter.add(new JSONObject("{\"static\":\"gfx/invobjs/batter\",\"name\":\"Batter\"}"));
+        categories.put("Batter", batter);
+
         ArrayList<JSONObject> mushrooms = new ArrayList<>();
         mushrooms.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/baybolete\",\"name\":\"Bay Bolete\"}"));
         mushrooms.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/bloatedbolete\",\"name\":\"Bloated Bolete\"}"));
