@@ -136,6 +136,7 @@ public class Specialisation extends Window
         beeSkep,
         soilDump,
         paving,
+        trees,
         /* Per-burner fuel zones. The material stays in the subtype; see FuelZones, which is
          * the table these are registered and resolved from. Plain "fuel" above remains the
          * shared fallback for any burner without its own zone. */
@@ -252,6 +253,9 @@ public class Specialisation extends Window
 
         // Thicket area for tick gathering
         specialisation.add(new SpecialisationItem(SpecName.thicket.toString(),"Thicket",Resource.loadsimg("nurgling/categories/tick")));
+
+        // Trees and bushes to pick leaves from
+        specialisation.add(new SpecialisationItem(SpecName.trees.toString(),"Trees",Resource.loadsimg("nurgling/categories/trees")));
 
         // Bee skep area
         specialisation.add(new SpecialisationItem(SpecName.beeSkep.toString(),"Bee Skep",Resource.loadsimg("nurgling/categories/bee")));
