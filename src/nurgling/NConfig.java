@@ -275,6 +275,8 @@ public class NConfig
         showStorageTrail,
         storageTrailColor,
         storageTrailMax,
+        // Storage Items window: only show containers in the village (ChunkNavGraph.pieceWithMostAreas)
+        storageOnlyVillage,
         recipeSearchAsItemSearch,
         // Map tools panel
         showTreeIcons,
@@ -728,6 +730,7 @@ public class NConfig
         // Ground trail to containers matching the item search
         conf.put(Key.showStorageTrail, true);
         conf.put(Key.storageTrailMax, 3);
+        conf.put(Key.storageOnlyVillage, true);
         conf.put(Key.recipeSearchAsItemSearch, false);
     }
 
