@@ -9,6 +9,7 @@ import nurgling.actions.bots.silk.SilkProductionBot;
 import nurgling.actions.bots.cheeseconveyor.CheeseConveyorBot;
 import nurgling.actions.bots.areamover.AreaMoverBot;
 import nurgling.actions.bots.CollectSwillInArea;
+import nurgling.actions.bots.swillpiles.SwillPilesToTroughsBot;
 import nurgling.actions.bots.farmers.WheatFarmer;
 import nurgling.actions.bots.farmers.YellowOnionFarmer;
 import nurgling.actions.bots.farmers.WhiteOnionFarmer;
@@ -273,6 +274,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "studytable_nearest", false, Map.of("fillAll", false)));
         bots.add(new BotDescriptor("swill_collector", BotDescriptor.BotType.UTILS, "Swill Collector", "Collects swill items from area and feeds to troughs/cisterns.", false, true, CollectSwillToTrough.class, "swillcollector", false));
         bots.add(new BotDescriptor("swill_to_trough", BotDescriptor.BotType.UTILS, "Swill To Trough", "Collects swill from area to selected trough (click to select).", false, true, CollectSwillInArea.class, "swillzone", false));
+        bots.add(new BotDescriptor("swill_piles_to_troughs", BotDescriptor.BotType.UTILS, "bot.swill_piles.title", "bot.swill_piles.desc", true, true, SwillPilesToTroughsBot.class, "swill_piles", false));
         bots.add(new BotDescriptor("qzone", BotDescriptor.BotType.UTILS, "Quality in Zone", "Scan the quality of all typical objects in the area.", false, true, InspectQualityBot.class, "qzone", false));
         bots.add(new BotDescriptor("autoflaction", BotDescriptor.BotType.UTILS, "Auto Flower Action", "Perform the specified flower pop-up menu action for all objects in the area.", false, true, AutoFlowerActionBot.class, "autoflaction", false));
         bots.add(new BotDescriptor("dropsoil", BotDescriptor.BotType.UTILS, "Drop Soil", "Drops soil from stockpile until there is 10 soil left in the stockpile..", false, true, SoilStockpileDropper.class, "dropsoil", false));
