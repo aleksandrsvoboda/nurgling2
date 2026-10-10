@@ -20,6 +20,9 @@ import nurgling.i18n.L10n;
 public final class MovementTrace implements Disposable {
     public static final KeyBinding capture = KeyBinding.get("movement-trace", KeyMatch.forcode(KeyEvent.VK_F9, KeyMatch.C));
     static final double HISTORY = 10, TAIL = 2, RETENTION = 15;
+    /* Stall stacks are thread dumps: each stops every thread at a safepoint, which took
+     * 20-100 ms in play and so turned each slow frame it sampled into a long hitch. */
+    public static final Config.Variable<Boolean> stallstacks = Config.Variable.propb("haven.stallstacks", false);
     static final int FIELDS = 60;
     static final String HEADER = "time_s,frame,player_id,subject_id,server_x,server_y,predicted_x,predicted_y,predicted_z,placed_x,placed_y,placed_z,lin_t,lin_server_t,lin_end,velocity_x,velocity_y,prediction_stopped,following_id,frame_ms,world_tick_ms,graphics_tick_ms,ui_tick_ms,draw_ms,sync_wait_ms,all_wait_ms,sample_ms,cam_0,cam_1,cam_2,cam_3,cam_4,cam_5,cam_6,cam_7,cam_8,cam_9,cam_10,cam_11,cam_12,cam_13,cam_14,cam_15,before_t,reported_t,reported_end,gc_duration_ms,gc_start_s,gc_end_s,phase_age_ms,received_s,queued_s,server_frame,packet_id,delta_type,gob_lock_ms,apply_ms,pending_attrs,stage_start_s,stage_ms";
     static final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -184,6 +187,7 @@ public final class MovementTrace implements Disposable {
                 } catch(RuntimeException ignored) { /* Other diagnostics still work on restricted JVMs. */ }
             }
         });
+        if(!stallstacks.get()) return;
         worker.scheduleWithFixedDelay(() -> {
             try {
                 MovementTrace t = active;
