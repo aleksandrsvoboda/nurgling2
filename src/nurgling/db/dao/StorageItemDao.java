@@ -21,13 +21,20 @@ public class StorageItemDao {
         private final double quality;
         private final String coordinates;
         private final String container;
+        private final Long gridId;
 
         public StorageItemData(String itemHash, String name, double quality, String coordinates, String container) {
+            this(itemHash, name, quality, coordinates, container, null);
+        }
+
+        public StorageItemData(String itemHash, String name, double quality, String coordinates, String container,
+                               Long gridId) {
             this.itemHash = itemHash;
             this.name = name;
             this.quality = quality;
             this.coordinates = coordinates;
             this.container = container;
+            this.gridId = gridId;
         }
 
         public String getItemHash() { return itemHash; }
@@ -35,6 +42,8 @@ public class StorageItemDao {
         public double getQuality() { return quality; }
         public String getCoordinates() { return coordinates; }
         public String getContainer() { return container; }
+        /** Grid the container stands on; null when the container has no containers row or wasn't loaded with it. */
+        public Long getGridId() { return gridId; }
 
         /** Stockpile items show no quality; they are stored without one and read back as 0. */
         public boolean hasQuality() { return quality > 0; }
@@ -82,20 +91,22 @@ public class StorageItemDao {
     }
 
     /**
-     * Load all storage items
+     * Load all storage items, each with the grid its container stands on (same query, no extra round trip)
      */
     public List<StorageItemData> loadAllStorageItems(DatabaseAdapter adapter) throws SQLException {
         List<StorageItemData> items = new ArrayList<>();
 
-        try (ResultSet rs = adapter.executeQuery("SELECT item_hash, name, quality, coordinates, container FROM storageitems")) {
+        try (ResultSet rs = adapter.executeQuery("SELECT si.item_hash, si.name, si.quality, si.coordinates, si.container, c.grid_id " +
+                                                "FROM storageitems si LEFT JOIN containers c ON c.hash = si.container")) {
             while (rs.next()) {
-                items.add(new StorageItemData(
-                    rs.getString("item_hash"),
-                    rs.getString("name"),
-                    rs.getDouble("quality"),
-                    rs.getString("coordinates"),
-                    rs.getString("container")
-                ));
+                String itemHash = rs.getString("item_hash");
+                String name = rs.getString("name");
+                double quality = rs.getDouble("quality");
+                String coordinates = rs.getString("coordinates");
+                String container = rs.getString("container");
+                long gridId = rs.getLong("grid_id");
+                items.add(new StorageItemData(itemHash, name, quality, coordinates, container,
+                    rs.wasNull() ? null : gridId));
             }
         }
 
