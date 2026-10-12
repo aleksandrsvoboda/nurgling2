@@ -3,12 +3,14 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NConfig;
 import nurgling.NFlowerMenu;
+import nurgling.NGameUI;
 import nurgling.NWindowDeco;
 import nurgling.actions.ReadJsonAction;
 import nurgling.cookbook.CookbookModel;
 import nurgling.cookbook.CookbookRow;
 import nurgling.cookbook.Recipe;
 import nurgling.cookbook.SpiceCalc;
+import nurgling.cookbook.Variations;
 import nurgling.cookbook.connection.RecipeCatalogLoader;
 import nurgling.db.DatabaseManager;
 import nurgling.db.service.FavoriteRecipeService;
@@ -24,15 +26,19 @@ import nurgling.widgets.cookbook.PillButton;
 import nurgling.widgets.cookbook.Popover;
 import nurgling.widgets.cookbook.RecipeTable;
 import nurgling.widgets.cookbook.SpicePanel;
+import nurgling.widgets.cookbook.VariationsPanel;
+import nurgling.widgets.storage.VillageStorage;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The cookbook: every recipe the village database has recorded, in a table after the Kitten Rider
@@ -54,11 +60,18 @@ public class NCookBook extends Window implements RecipeTable.Actions {
     private IButton importBtn;
     private CText count, banner, footer;
     private RecipeTable table;
+    private VariationsPanel varPanel;
     private Popover fepPanel, ingPanel, spicePanel, optPanel;
     private Popover openPop = null;
     private NFlowerMenu rowMenu = null;
 
     private RecipeCatalogLoader loader = null;
+    private Variations variations = null;
+    private Set<String> stored = Collections.emptySet();
+    /* False when the last load came before the village could be worked out, so it counted all storage. */
+    private boolean villageKnowable = true;
+    private double villageCheckIn = 0;
+    private String variationsOf = null;
     private String loadError = null;
     private boolean loadedOnce = false;
     private boolean posRestored = false;
@@ -91,6 +104,7 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         banner = add(new CText(CookbookTheme.body, CookbookTheme.fg), Coord.z);
         table = add(new RecipeTable(Coord.of(UI.scale(200), UI.scale(200)), model, this), Coord.z);
         footer = add(new CText(CookbookTheme.small, CookbookTheme.muted).set(L10n.get("cookbook.footer")), Coord.z);
+        varPanel = add(new VariationsPanel(this::closeVariations), Coord.z);
 
         /* Last, so they draw over the table and get clicks first. */
         fepPanel = add(new FepFilterPanel(fepPill, model), Coord.z);
@@ -147,8 +161,16 @@ public class NCookBook extends Window implements RecipeTable.Actions {
             bannerArea = null;
         }
         footer.move(Coord.of(0, isz.y - footer.sz.y));
+        int bodyH = Math.max(isz.y - y - footer.sz.y - GAP, RecipeTable.ROW_H * 2);
+        int tableW = isz.x;
+        if(varPanel.visible) {
+            int pw = Math.min(VariationsPanel.WIDTH, isz.x / 2);
+            tableW = isz.x - pw - GAP;
+            varPanel.move(Coord.of(tableW + GAP, y));
+            varPanel.resize(Coord.of(pw, bodyH));
+        }
         table.move(Coord.of(0, y));
-        table.resize(Coord.of(isz.x, Math.max(isz.y - y - footer.sz.y - GAP, RecipeTable.ROW_H * 2)));
+        table.resize(Coord.of(tableW, bodyH));
         for(Popover p : new Popover[] {fepPanel, ingPanel, spicePanel, optPanel})
             place(p);
     }
@@ -202,7 +224,7 @@ public class NCookBook extends Window implements RecipeTable.Actions {
 
     private void reload() {
         if((loader == null) && dbReady()) {
-            RecipeCatalogLoader l = new RecipeCatalogLoader(db());
+            RecipeCatalogLoader l = new RecipeCatalogLoader(db(), VillageStorage.snapshot(getparent(NGameUI.class)));
             if(db().submitTask(l) != null)
                 loader = l;
         }
@@ -219,11 +241,24 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         super.tick(dt);
         if((loader != null) && loader.ready.get()) {
             loadError = loader.error();
-            if(loadError == null)
+            if(loadError == null) {
                 model.setRecipes(loader.recipes());
+                variations = loader.variations();
+                stored = loader.stored();
+                villageKnowable = loader.villageKnowable || !VillageStorage.onlyVillage();
+                model.setCookable(loader.cookable());
+            }
             loader = null;
             loadedOnce = true;
+            if(varPanel.visible)
+                showVariations(variationsOf);
             refreshChrome();
+        }
+        /* Loaded right after login, before the areas or ChunkNav: load again once the village is known. */
+        if(!villageKnowable && (loader == null) && ((villageCheckIn -= dt) <= 0)) {
+            villageCheckIn = 2;
+            if(VillageStorage.snapshot(getparent(NGameUI.class)).knowable())
+                reload();
         }
         if(model.version() != seenVersion) {
             seenVersion = model.version();
@@ -337,6 +372,10 @@ public class NCookBook extends Window implements RecipeTable.Actions {
             closePopover();
             return true;
         }
+        if(varPanel.visible && key_esc.match(ev)) {
+            closeVariations();
+            return true;
+        }
         return super.keydown(ev);
     }
 
@@ -354,6 +393,23 @@ public class NCookBook extends Window implements RecipeTable.Actions {
                 return;
             BotExecutor.runAsync("food-info2_download", new ReadJsonAction(fc.getSelectedFile().getAbsolutePath()));
         });
+    }
+
+    /* ---- untried variations ---- */
+
+    private void showVariations(String dish) {
+        variationsOf = dish;
+        if(variations != null)
+            varPanel.set(variations.of(dish), stored, null);
+        else
+            varPanel.set(null, stored, L10n.get((loader != null) ? "cookbook.loading" : "cookbook.var.unavailable"));
+        varPanel.show();
+        arrange();
+    }
+
+    private void closeVariations() {
+        varPanel.hide();
+        arrange();
     }
 
     /* ---- row actions ---- */
@@ -416,7 +472,9 @@ public class NCookBook extends Window implements RecipeTable.Actions {
     public void rowMenu(CookbookRow row, Widget at) {
         if(rowMenu != null)
             return;
-        String[] opts = {L10n.get(row.recipe.isFavorite() ? "cookbook.remove_from_favorites" : "cookbook.add_to_favorites")};
+        String favorite = L10n.get(row.recipe.isFavorite() ? "cookbook.remove_from_favorites" : "cookbook.add_to_favorites");
+        String untried = L10n.get("cookbook.var.menu");
+        String[] opts = {favorite, untried};
         rowMenu = new NFlowerMenu(opts) {
             @Override
             public boolean mousedown(MouseDownEvent ev) {
@@ -433,8 +491,12 @@ public class NCookBook extends Window implements RecipeTable.Actions {
 
             @Override
             public void nchoose(NPetal option) {
-                if(option != null)
-                    toggleFavorite(row);
+                if(option != null) {
+                    if(option.name.equals(untried))
+                        showVariations(row.name());
+                    else
+                        toggleFavorite(row);
+                }
                 uimsg("cancel");
             }
         };

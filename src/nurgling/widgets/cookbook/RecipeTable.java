@@ -530,6 +530,11 @@ public class RecipeTable extends Widget {
                 if(hot >= 0)
                     CookbookTheme.frame(g, Coord.of(bx + e[hot], by), Coord.of(e[hot + 1] - e[hot], MIX_H), CookbookTheme.accent);
             }
+            if(model.cookable(row)) {
+                /* Every ingredient is in the village's storage: cookable now. */
+                CookbookTheme.frame(g, Coord.z, Coord.of(sz.x, sz.y - 1), CookbookTheme.stocked);
+                CookbookTheme.frame(g, Coord.of(1, 1), Coord.of(sz.x - 2, sz.y - 3), CookbookTheme.stocked);
+            }
         }
 
         @Override

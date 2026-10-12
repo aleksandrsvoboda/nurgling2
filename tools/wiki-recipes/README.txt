@@ -36,6 +36,17 @@ The accepted snapshot advances only after installation. An interrupted update
 may leave pages.update.lock; remove it only after the updater process has exited.
 No automatic schedule or network polling is installed.
 
+Generic ingredient types (cookbook)
+-----------------------------------
+src/nurgling/cookbook/generic-types.json lists every wiki generic type
+(Category:GenericTypePage, e.g. Edible Mushroom, Raw Meat, Any Flour) with its
+member pages; subcategories are kept as nested type names. The cookbook uses it
+to list the untried choices of a food's "Any ..." inputs. Corrections for names
+the game's food tooltip uses differently (meat by animal, fish filet by fish,
+milk kinds) live in nurgling.cookbook.GenericTypes. Refresh, then rebuild:
+
+  python tools/wiki-recipes/fetch_generics.py
+
 Shared resource icons and formula rendering
 ------------------------------------------
 ItemIcons is the shared name/descriptor lookup and asynchronous texture cache

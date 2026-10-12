@@ -26,6 +26,8 @@ public final class CookbookTheme {
     public static final Color warn = new Color(232, 163, 61);
     public static final Color warnBg = new Color(232, 163, 61, 34);
     public static final Color popBg = new Color(0x22, 0x2C, 0x2E);
+    /** Frames what the village has in storage. */
+    public static final Color stocked = NStyle.questReady;
     /** Text on an accent-filled background. */
     public static final Color ink = new Color(24, 30, 32);
 

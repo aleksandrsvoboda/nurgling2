@@ -48,6 +48,7 @@ public class CookbookModel {
     private List<Recipe> recipes = Collections.emptyList();
     private List<CookbookRow> rows = Collections.emptyList();
     private List<String> ingredientNames = Collections.emptyList();
+    private Set<String> cookable = Collections.emptySet();
     private final EnumMap<SpiceCalc.Spice, Double> spices = new EnumMap<>(SpiceCalc.Spice.class);
 
     private String search = "";
@@ -81,6 +82,17 @@ public class CookbookModel {
         }
         this.ingredientNames = Collections.unmodifiableList(new ArrayList<>(names));
         rebuild();
+    }
+
+    /** Sets the hashes of the recipes whose every ingredient is in the village's storage. */
+    public void setCookable(Set<String> hashes) {
+        this.cookable = hashes;
+        version++;
+    }
+
+    /** Whether the village's storage holds every ingredient of a row. */
+    public boolean cookable(CookbookRow row) {
+        return cookable.contains(row.recipe.getHash());
     }
 
     /** How many recipes are loaded, filtered or not. */
