@@ -236,7 +236,9 @@ public class VariationsPanel extends Widget {
             if(t != null)
                 return t;
         }
-        return ItemIcons.get(null, o.item, false);
+        /* By the chip's own name first: "Beef bollock" has its own icon, while its wiki item "Bollock" is drawn as a horse's. */
+        Tex t = ItemIcons.get(null, o.name, false);
+        return (t != null) ? t : ItemIcons.get(null, o.item, false);
     }
 
     /* Untried and in the village's storage, by the Storage Items window's rule. */

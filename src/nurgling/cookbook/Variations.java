@@ -30,7 +30,7 @@ public final class Variations {
         public final String name;
         /** The wiki item's name, for the icon. */
         public final String item;
-        /** The tooltip ingredient's resource when tried, else null. */
+        /** The ingredient's icon resource when known (always when tried), else null. */
         public final String resource;
         /** How many recorded variants used it. */
         public final int seen;
@@ -172,6 +172,8 @@ public final class Variations {
     private final Set<String> pickled = new HashSet<>();
     private final SortedSet<String> woods = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     private final SortedSet<String> roes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    /* Ingredient name, lower case -> its resource, from any recorded food, for the icons of untried ones. */
+    private final Map<String, String> resources = new HashMap<>();
 
     public Variations(Collection<Recipe> recipes, WikiRecipes wiki, GenericTypes types) {
         this(recipes, wiki.recipes, types);
@@ -182,9 +184,12 @@ public final class Variations {
         for(Recipe r : recipes) {
             byDish.computeIfAbsent(GenericTypes.norm(r.getName()), k -> new ArrayList<>()).add(r);
             woods.addAll(r.getSmokingWoods().keySet());
-            for(String ing : r.getIngredients().keySet()) {
+            for(Map.Entry<String, Recipe.IngredientInfo> e : r.getIngredients().entrySet()) {
+                String ing = e.getKey();
                 if(ing.endsWith(" Roe") || ing.equals("Caviar"))
                     roes.add(ing);
+                if(e.getValue().resourceName != null)
+                    resources.putIfAbsent(ing.toLowerCase(Locale.ROOT), e.getValue().resourceName);
             }
         }
         for(AtlasCatalog.Recipe r : wiki) {
@@ -477,7 +482,11 @@ public final class Variations {
                     stock.addAll(GenericTypes.stockNames(item));
                     stock.addAll(GenericTypes.stockNames(shown));
                 }
-                untried.add(new Option(shown, item, null, 0, stock));
+                /* The icon of the same ingredient in another food, else a known one; else the panel looks the name up. */
+                String icon = resources.get(shown.toLowerCase(Locale.ROOT));
+                if(icon == null)
+                    icon = GenericTypes.icon(item);
+                untried.add(new Option(shown, item, icon, 0, stock));
             }
         }
         untried.sort(Comparator.comparing(o -> o.name, String.CASE_INSENSITIVE_ORDER));

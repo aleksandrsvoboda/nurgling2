@@ -33,7 +33,44 @@ public final class GenericTypes {
         "mammoth meat", List.of("Raw Mammoth"),
         "goat bollock", List.of("Chevon Bollock"),
         "reindeer bollock", List.of("Tame Reindeer Bollock"),
-        "black pepper", List.of("Dried Pepper Drupe"));
+        "black pepper", List.of("Dried Pepper Drupe"),
+        "almond", List.of("Almonds"));
+
+    /**
+     * Icons of items the client has no icon for under their name, checked on the resource server
+     * (each resource's tooltip is the name, or the game's spelling: "Almonds", "Woodgrouse Egg").
+     */
+    private static final Map<String, String> ICONS = Map.ofEntries(
+        Map.entry("Brown Kelp", "gfx/invobjs/brownkelp"),
+        Map.entry("Fairy Mushroom", "gfx/invobjs/fairyshroom"),
+        Map.entry("Indigo Cap", "gfx/invobjs/herbs/indigocap"),
+        Map.entry("Black Truffles", "gfx/invobjs/herbs/truffle-black"),
+        Map.entry("White Truffles", "gfx/invobjs/herbs/truffle-white"),
+        Map.entry("Blue Truffles", "gfx/invobjs/herbs/truffle-blue"),
+        Map.entry("Almond", "gfx/invobjs/almond"),
+        Map.entry("Withercorn", "gfx/invobjs/seed-witherstand"),
+        Map.entry("Arrowwood Berries", "gfx/invobjs/seed-arrowwood"),
+        Map.entry("Caprifole Berries", "gfx/invobjs/seed-caprifole"),
+        Map.entry("Gorse", "gfx/invobjs/seed-gorse"),
+        Map.entry("Tibast Berries", "gfx/invobjs/seed-tibast"),
+        Map.entry("Tundra Rose Fruit", "gfx/invobjs/seed-tundrarose"),
+        Map.entry("Black Henbane", "gfx/invobjs/herbs/henbane"),
+        Map.entry("Crocus", "gfx/invobjs/herbs/crocus"),
+        Map.entry("Edelweiß", "gfx/invobjs/herbs/edelweiss"),
+        Map.entry("Crane Fly", "gfx/invobjs/cranefly"),
+        Map.entry("Dead Wood Scorpion", "gfx/invobjs/woodscorpion-dead"),
+        Map.entry("Dumbledore", "gfx/invobjs/dumbledore"),
+        Map.entry("Upside-Downbeldore", "gfx/invobjs/dumbledoreo"),
+        Map.entry("Crying White Onion", "gfx/invobjs/whiteonion-crying"),
+        Map.entry("Wild Tuber", "gfx/invobjs/pretuber"),
+        Map.entry("Wood Grouse Egg", "gfx/invobjs/egg-woodgrouse"),
+        Map.entry("Pickled Radish", "gfx/invobjs/pickledradish"),
+        /* Not checked: no squab meat resource was found; this is the adult rock dove's meat. */
+        Map.entry("Squab Meat", "gfx/invobjs/meat-rockdove"),
+        /* The milks share the game's one Milk icon. */
+        Map.entry("Cowsmilk", "gfx/invobjs/milk"),
+        Map.entry("Goatsmilk", "gfx/invobjs/milk"),
+        Map.entry("Sheepsmilk", "gfx/invobjs/milk"));
 
     /** Wiki pages named differently from the game's item. */
     private static final Map<String, String> RENAMES = Map.of(
@@ -182,6 +219,11 @@ public final class GenericTypes {
     /** The names a food's tooltip may list a wiki item under; most items keep their own name. */
     public static List<String> tooltipNames(String wikiName) {
         return ALIASES.getOrDefault(wikiName.toLowerCase(Locale.ROOT), List.of(wikiName));
+    }
+
+    /** A known icon resource for an item the client may have no icon for, or null. */
+    public static String icon(String item) {
+        return ICONS.get(item);
     }
 
     /** The names an option's item may be stored under: its own, and any the game uses instead. */
