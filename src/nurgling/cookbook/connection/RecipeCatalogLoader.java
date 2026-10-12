@@ -2,6 +2,7 @@ package nurgling.cookbook.connection;
 
 import nurgling.cookbook.GenericTypes;
 import nurgling.cookbook.Recipe;
+import nurgling.cookbook.Stock;
 import nurgling.cookbook.Variations;
 import nurgling.craft.WikiRecipes;
 import nurgling.db.DatabaseAdapter;
@@ -31,7 +32,7 @@ public class RecipeCatalogLoader implements Runnable {
     private final VillageStorage storage;
     /** Whether the village could be worked out when this load started. */
     public final boolean villageKnowable;
-    private volatile Set<String> stored = Collections.emptySet();
+    private volatile Stock stock = null;
     private volatile Set<String> cookable = Collections.emptySet();
 
     /** @param storage which storage counts as the village's, read on the UI thread */
@@ -46,8 +47,8 @@ public class RecipeCatalogLoader implements Runnable {
         try {
             recipes = databaseManager.executeOperation(this::load);
             variations = variations(recipes);
-            stored = loadStored();
-            cookable = cookable(recipes, variations, stored);
+            stock = loadStock();
+            cookable = cookable(recipes, variations, (stock != null) ? stock.keys() : Set.of());
         } catch (SQLException e) {
             error = (e.getMessage() != null) ? e.getMessage() : e.toString();
             System.err.println("[Cookbook] Failed to load recipes: " + error);
@@ -67,11 +68,11 @@ public class RecipeCatalogLoader implements Runnable {
     }
 
     /**
-     * {@link GenericTypes#stockKey}s of the items in storage, limited to the village exactly as the
-     * Storage Items window does; empty until {@link #ready}.
+     * The items in storage, limited to the village exactly as the Storage Items window does; null
+     * until {@link #ready} and when storage could not be read.
      */
-    public Set<String> stored() {
-        return stored;
+    public Stock stock() {
+        return stock;
     }
 
     /** Hashes of the recipes whose every listed ingredient is in the village's storage; empty until {@link #ready}. */
@@ -89,7 +90,7 @@ public class RecipeCatalogLoader implements Runnable {
         return ret;
     }
 
-    private Set<String> loadStored() {
+    private Stock loadStock() {
         try {
             List<StorageItemDao.StorageItemData> items = VillageStorage.valid(
                     databaseManager.executeOperation(adapter -> new StorageItemDao().loadAllStorageItems(adapter)));
@@ -100,14 +101,11 @@ public class RecipeCatalogLoader implements Runnable {
                 System.out.println("[Cookbook] Storage: " + items.size() + " of " + all + " items in the village (" + village.size() + " chunks"
                         + (village.isEmpty() ? ", none found, so all count" : "") + ")");
             }
-            Set<String> keys = new HashSet<>();
-            for (StorageItemDao.StorageItemData item : items)
-                keys.add(GenericTypes.stockKey(item.getName()));
-            return keys;
+            return new Stock(items);
         } catch (SQLException e) {
-            /* The recipes loaded; only the storage frames are missing. */
+            /* The recipes loaded; only the storage frames and counts are missing. */
             System.err.println("[Cookbook] Failed to load storage items: " + e.getMessage());
-            return Collections.emptySet();
+            return null;
         }
     }
 

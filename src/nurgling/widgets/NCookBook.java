@@ -11,6 +11,7 @@ import nurgling.cookbook.CookbookRow;
 import nurgling.cookbook.GenericTypes;
 import nurgling.cookbook.Recipe;
 import nurgling.cookbook.SpiceCalc;
+import nurgling.cookbook.Stock;
 import nurgling.cookbook.Variations;
 import nurgling.cookbook.connection.RecipeCatalogLoader;
 import nurgling.db.DatabaseManager;
@@ -254,7 +255,10 @@ public class NCookBook extends Window implements RecipeTable.Actions {
             if(loadError == null) {
                 model.setRecipes(loader.recipes());
                 variations = loader.variations();
-                stored = loader.stored();
+                Stock stock = loader.stock();
+                stored = (stock != null) ? stock.keys() : Collections.emptySet();
+                Variations v = variations;
+                model.setStock(stock, ing -> (v != null) ? v.itemNames(ing) : List.of(ing));
                 villageKnowable = loader.villageKnowable || !VillageStorage.onlyVillage();
                 model.setCookable(loader.cookable());
             }
