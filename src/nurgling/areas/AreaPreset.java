@@ -24,6 +24,8 @@ public class AreaPreset
 
     public String name;
     public String description = "";
+    /** Groups built-in presets in the Presets window, using the bot menu's categories ("farming"). */
+    public String category = "";
     /** Size of the bounding box, in tiles. */
     public int w, h;
     public final List<Entry> areas = new ArrayList<>();
@@ -79,6 +81,7 @@ public class AreaPreset
         AreaPreset p = new AreaPreset();
         p.name = obj.getString("name");
         p.description = obj.optString("description", "");
+        p.category = obj.optString("category", "");
         JSONArray jareas = obj.getJSONArray("areas");
         for (int i = 0; i < jareas.length(); i++) {
             JSONObject ja = jareas.getJSONObject(i);
@@ -117,6 +120,8 @@ public class AreaPreset
         res.put("name", name);
         if (!description.isEmpty())
             res.put("description", description);
+        if (!category.isEmpty())
+            res.put("category", category);
         JSONObject size = new JSONObject();
         size.put("w", w);
         size.put("h", h);
@@ -184,6 +189,7 @@ public class AreaPreset
         AreaPreset p = new AreaPreset();
         p.name = name;
         p.description = description;
+        p.category = category;
         p.builtin = builtin;
         p.file = file;
         int t = Math.floorMod(turns, 4);

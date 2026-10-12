@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.List;
 
+import nurgling.i18n.L10n;
+
 import static nurgling.i18n.L10n.get;
 
 /**
@@ -33,17 +35,57 @@ public class NAreaPresetsWindow extends Window
     private volatile boolean reload = false;
     private volatile String pendingMsg = null;
 
-    /** A section heading when {@code preset} is null. */
+    /** Built-in category open in the list, or null for the top level. */
+    private String openCategory = null;
+
+    /** Category order: the bot menu's, then any others A-Z. */
+    private static final List<String> CATEGORY_ORDER = Arrays.asList(
+            "resources", "productions", "battle", "farming", "farming_quality", "animals", "utils", "build", "tools");
+
+    private enum Kind { HEADER, FOLDER, UP, PRESET }
+
     private static class Row
     {
-        final String header;
+        final Kind kind;
+        final String text;
+        /** The category a FOLDER row opens. */
+        final String category;
+        final int count;
         final AreaPreset preset;
 
-        Row(String header, AreaPreset preset)
+        Row(Kind kind, String text, String category, int count, AreaPreset preset)
         {
-            this.header = header;
+            this.kind = kind;
+            this.text = text;
+            this.category = category;
+            this.count = count;
             this.preset = preset;
         }
+
+        static Row header(String text)
+        {
+            return new Row(Kind.HEADER, text, null, 0, null);
+        }
+
+        static Row preset(AreaPreset p)
+        {
+            return new Row(Kind.PRESET, p.name, p.category, p.areas.size(), p);
+        }
+    }
+
+    /** Shown name of a category: the bot menu's name for it when there is one. */
+    static String categoryName(String category)
+    {
+        String key = "bot.type." + category;
+        if (L10n.hasKey(key))
+            return get(key);
+        return category.isEmpty() ? category : Character.toUpperCase(category.charAt(0)) + category.substring(1);
+    }
+
+    private static int categoryRank(String category)
+    {
+        int i = CATEGORY_ORDER.indexOf(category);
+        return (i < 0) ? CATEGORY_ORDER.size() : i;
     }
 
     public NAreaPresetsWindow()
@@ -113,20 +155,42 @@ public class NAreaPresetsWindow extends Window
     /** Re-reads the presets, keeping {@code keep} (matched by file) selected. */
     void load(AreaPreset keep)
     {
+        /* Show where the kept preset lives: its category, or the top level for the player's own. */
+        if (keep != null)
+            openCategory = (keep.builtin && !keep.category.isEmpty()) ? keep.category : null;
         rows.clear();
         List<AreaPreset> builtins = AreaPresetStore.builtins();
-        List<AreaPreset> mine = AreaPresetStore.user();
-        if (!builtins.isEmpty()) {
-            rows.add(new Row(get("area.preset.builtin"), null));
-            for (AreaPreset p : builtins)
-                rows.add(new Row(null, p));
+        Map<String, List<AreaPreset>> byCategory = new TreeMap<>(
+                Comparator.comparingInt(NAreaPresetsWindow::categoryRank).thenComparing(String.CASE_INSENSITIVE_ORDER));
+        List<AreaPreset> loose = new ArrayList<>();
+        for (AreaPreset p : builtins) {
+            if (p.category.isEmpty())
+                loose.add(p);
+            else
+                byCategory.computeIfAbsent(p.category, k -> new ArrayList<>()).add(p);
         }
-        rows.add(new Row(get("area.preset.mine"), null));
-        for (AreaPreset p : mine)
-            rows.add(new Row(null, p));
+        if (openCategory != null && !byCategory.containsKey(openCategory))
+            openCategory = null;
+        if (openCategory != null) {
+            rows.add(Row.header(get("area.preset.builtin") + ": " + categoryName(openCategory)));
+            rows.add(new Row(Kind.UP, "..", null, 0, null));
+            for (AreaPreset p : byCategory.get(openCategory))
+                rows.add(Row.preset(p));
+        } else {
+            if (!builtins.isEmpty()) {
+                rows.add(Row.header(get("area.preset.builtin")));
+                for (Map.Entry<String, List<AreaPreset>> e : byCategory.entrySet())
+                    rows.add(new Row(Kind.FOLDER, categoryName(e.getKey()), e.getKey(), e.getValue().size(), null));
+                for (AreaPreset p : loose)
+                    rows.add(Row.preset(p));
+            }
+            rows.add(Row.header(get("area.preset.mine")));
+            for (AreaPreset p : AreaPresetStore.user())
+                rows.add(Row.preset(p));
+        }
         Row sel = null;
         for (Row r : rows) {
-            if (r.preset == null)
+            if (r.kind != Kind.PRESET)
                 continue;
             if (sel == null)
                 sel = r;
@@ -264,8 +328,11 @@ public class NAreaPresetsWindow extends Window
         info.settext((p == null) ? get("area.preset.empty") : get("area.preset.info", p.w, p.h, p.areas.size(), p.folderCount()));
         if (p == null)
             info.settip(get("area.preset.empty_tip"));
+        else if (!p.description.isEmpty())
+            info.settip(p.description);
         else
             info.tooltip = null;
+        thumb.tooltip = info.tooltip;
     }
 
     private class PresetList extends SListBox<Row, Widget>
@@ -290,8 +357,18 @@ public class NAreaPresetsWindow extends Window
         @Override
         public void change(Row row)
         {
-            /* Headings can't be picked. */
-            if (row != null && row.preset == null)
+            /* Headings can't be picked; a category row opens it and ".." goes back up. */
+            if (row != null && row.kind == Kind.FOLDER) {
+                openCategory = row.category;
+                load(null);
+                return;
+            }
+            if (row != null && row.kind == Kind.UP) {
+                openCategory = null;
+                load(null);
+                return;
+            }
+            if (row != null && row.kind == Kind.HEADER)
                 return;
             super.change(row);
             selectionChanged();
@@ -315,28 +392,42 @@ public class NAreaPresetsWindow extends Window
         RowWidget(PresetList list, Coord sz, Row row)
         {
             super(list, sz, row);
-            if (row.preset == null) {
-                text = Text.std.render(row.header.toUpperCase(), new Color(233, 156, 84));
+            if (row.kind == Kind.HEADER) {
+                text = Text.std.render(row.text.toUpperCase(), new Color(233, 156, 84));
+                count = null;
+            } else if (row.kind == Kind.UP) {
+                text = Text.std.render(row.text);
                 count = null;
             } else {
-                count = Text.std.render(String.valueOf(row.preset.areas.size()), new Color(143, 163, 164));
-                text = Text.std.ellipsize(row.preset.name, sz.x - count.sz().x - UI.scale(16));
+                count = Text.std.render(String.valueOf(row.count), new Color(143, 163, 164));
+                text = Text.std.ellipsize(row.text, sz.x - count.sz().x - textX() - UI.scale(8));
             }
+        }
+
+        private int textX()
+        {
+            return (item.kind == Kind.PRESET) ? UI.scale(10) : UI.scale(24);
         }
 
         @Override
         public void draw(GOut g)
         {
             int y = (sz.y - text.sz().y) / 2;
-            if (item.preset == null) {
+            if (item.kind == Kind.HEADER) {
                 g.chcolor(0, 0, 0, 60);
                 g.frect(Coord.z, sz);
                 g.chcolor();
                 g.image(text.tex(), Coord.of(UI.scale(4), y));
                 return;
             }
-            g.image(text.tex(), Coord.of(UI.scale(10), y));
-            g.image(count.tex(), Coord.of(sz.x - count.sz().x - UI.scale(4), y));
+            if (item.kind != Kind.PRESET) {
+                Coord icon = UI.scale(16, 16);
+                g.image((item.kind == Kind.UP) ? NAreasWidget.openfolderIcon : NAreasWidget.folderIcon,
+                        Coord.of(UI.scale(4), (sz.y - icon.y) / 2), icon);
+            }
+            g.image(text.tex(), Coord.of(textX(), y));
+            if (count != null)
+                g.image(count.tex(), Coord.of(sz.x - count.sz().x - UI.scale(4), y));
         }
 
         @Override

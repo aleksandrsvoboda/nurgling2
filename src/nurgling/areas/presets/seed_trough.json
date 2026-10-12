@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "Seed Trough",
+  "category": "farming",
+  "description": "A trough area for spare seeds. Place one per farm, near the fields, and build a trough in it. The Barley, Carrot, Flax, Green Kale, Hemp, Leek, Lettuce, Millet, Pipeweed, Poppy, Pumpkin, Radish, Turnip, Watermelon and Wheat farmers need it.",
+  "size": {
+    "w": 3,
+    "h": 2
+  },
+  "areas": [
+    {
+      "name": "Trough for seeds",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "trough"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

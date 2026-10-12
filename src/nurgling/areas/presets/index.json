@@ -1,3 +1,30 @@
 {
-  "presets": []
+  "presets": [
+    "barley_farmer.json",
+    "beetroot_farmer.json",
+    "carrot_farmer.json",
+    "cucumber_farmer.json",
+    "flax_farmer.json",
+    "garlic_farmer.json",
+    "grape_farmer.json",
+    "green_kale_farmer.json",
+    "hemp_farmer.json",
+    "hops_farmer.json",
+    "leek_farmer.json",
+    "lettuce_farmer.json",
+    "millet_farmer.json",
+    "pea_farmer.json",
+    "peppercorn_farmer.json",
+    "pipeweed_farmer.json",
+    "poppy_farmer.json",
+    "pumpkin_farmer.json",
+    "radish_farmer.json",
+    "red_onion_farmer.json",
+    "seed_trough.json",
+    "turnip_farmer.json",
+    "watermelon_farmer.json",
+    "wheat_farmer.json",
+    "white_onion_farmer.json",
+    "yellow_onion_farmer.json"
+  ]
 }

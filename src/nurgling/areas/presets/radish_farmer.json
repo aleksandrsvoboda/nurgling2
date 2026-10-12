@@ -1,0 +1,86 @@
+{
+  "format": 1,
+  "name": "Radish Farmer",
+  "category": "farming",
+  "description": "Areas for the Radish Farmer bot, from a working farm. The bot also needs a trough area for spare seeds: place the built-in Seed Trough preset once near your fields.",
+  "size": {
+    "w": 20,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Crop(Radish)",
+      "path": "",
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "min_harvest_stage": 4,
+          "subtype": "Radish",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Radish",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/radish",
+          "name": "Radish",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    },
+    {
+      "name": "Seeds of crop(Radish)",
+      "path": "",
+      "x": 9,
+      "y": 9,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "seed",
+          "subtype": "Radish"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "name": "Garlic Farmer",
+  "category": "farming",
+  "description": "Areas for the Garlic Farmer bot, from a working farm.",
+  "size": {
+    "w": 20,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Crop(Garlic)",
+      "path": "",
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Garlic",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Garlic",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Garlic",
+          "name": "seed"
+        }
+      ],
+      "in": [
+        {
+          "static": "gfx/invobjs/garlic",
+          "name": "Garlic",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/garlic",
+          "name": "Garlic",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    }
+  ]
+}

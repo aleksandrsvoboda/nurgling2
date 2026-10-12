@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "name": "Hops Farmer",
+  "category": "farming",
+  "description": "Areas for the Hops Farmer bot, from a working farm.",
+  "size": {
+    "w": 11,
+    "h": 20
+  },
+  "areas": [
+    {
+      "name": "Crop(Hops)",
+      "path": "",
+      "x": 9,
+      "y": 0,
+      "w": 2,
+      "h": 20,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Hops",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Hop Cones",
+      "path": "",
+      "x": 2,
+      "y": 10,
+      "w": 5,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/hopcones",
+          "name": "Hop Cones",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Unusually Large Hop Cone",
+      "path": "",
+      "x": 0,
+      "y": 7,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/hopcones-l",
+          "name": "Unusually Large Hop Cone",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/hopcones-l",
+          "name": "Unusually Large Hop Cone",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "size": {
+    "w": 18,
+    "h": 18
+  },
+  "format": 1,
+  "name": "Beetroot Farmer",
+  "category": "farming",
+  "areas": [
+    {
+      "path": "",
+      "hide": false,
+      "color": {
+        "a": 56,
+        "r": 194,
+        "b": 65,
+        "g": 194
+      },
+      "in": [],
+      "w": 7,
+      "name": "Beetroot",
+      "x": 0,
+      "h": 10,
+      "y": 8,
+      "pile_fill_direction": "LEFT_TO_RIGHT",
+      "spec": [
+        {
+          "subtype": "Beetroot",
+          "name": "seed"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/beet",
+          "name": "Beetroot",
+          "type": "CONTAINER"
+        }
+      ]
+    },
+    {
+      "path": "",
+      "hide": false,
+      "color": {
+        "a": 56,
+        "r": 194,
+        "b": 65,
+        "g": 194
+      },
+      "in": [],
+      "w": 10,
+      "name": "Crop(Beetroot)",
+      "x": 8,
+      "h": 10,
+      "y": 8,
+      "pile_fill_direction": "DEFAULT",
+      "spec": [
+        {
+          "subtype": "Beetroot",
+          "name": "crop"
+        }
+      ],
+      "out": []
+    },
+    {
+      "path": "",
+      "hide": false,
+      "color": {
+        "a": 56,
+        "r": 194,
+        "b": 65,
+        "g": 194
+      },
+      "in": [],
+      "w": 10,
+      "name": "Beetroot Leaves",
+      "x": 8,
+      "h": 7,
+      "y": 0,
+      "pile_fill_direction": "LEFT_TO_RIGHT",
+      "spec": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/beetleaves",
+          "name": "Beetroot Leaves",
+          "type": "CONTAINER"
+        }
+      ]
+    }
+  ]
+}

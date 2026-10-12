@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "Yellow Onion Farmer",
+  "category": "farming",
+  "description": "Areas for the Yellow Onion Farmer bot, from a working farm.",
+  "size": {
+    "w": 20,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Crop(Yellow Onion)",
+      "path": "",
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Yellow Onion",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Yellow Onion",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Yellow Onion",
+          "name": "seed"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/yellowonion",
+          "name": "Yellow Onion",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    }
+  ]
+}
