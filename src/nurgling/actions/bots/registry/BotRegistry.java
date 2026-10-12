@@ -141,6 +141,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("steel", BotDescriptor.BotType.PRODUCTIONS, "Steel Action", "Makes steel.", true, true, SteelAction.class, "steel", false));
         bots.add(new BotDescriptor("fineryforge", BotDescriptor.BotType.PRODUCTIONS, "Forging ", "Forging.", true, true, FFAction.class, "fineryforge", false));
         bots.add(new BotDescriptor("irrlight", BotDescriptor.BotType.PRODUCTIONS, "Irrlight Farmer", "Cycles a metal bar into nuggets and back at a lit crucible to call Irrlights, and catches every one that spawns.", false, true, IrrlightBot.class, "irrlight", false));
+        bots.add(new BotDescriptor("smokering", BotDescriptor.BotType.PRODUCTIONS, "Smokering Farmer", "Smokes Pipestuff from the equipped Bull Pipe and catches every Smokering and Smokeship that appears; refills from a Pipestuff barrel and stops below 50% HP.", false, true, SmokeringBot.class, "smokering", false));
 
         // Silk
         bots.add(new BotDescriptor("mulberry_leaf_refiller", BotDescriptor.BotType.PRODUCTIONS, "Refill silkworm cupboards with mulberry leafs", "Refill silkworm cupboards with mulberry leafs.", true, true, RefillSilkwormFeedingCupboards.class, "mulberry_leaf", false));

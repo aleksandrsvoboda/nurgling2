@@ -1,0 +1,3 @@
+#TOOLTIP LAYER FOR RES src/custom///gfx\hud\btn-flip.res
+#String tooltip
+Smokes Pipestuff from the equipped Bull Pipe and catches every Smokering and Smokeship that appears; refills from a Pipestuff barrel and stops below 50% HP.
