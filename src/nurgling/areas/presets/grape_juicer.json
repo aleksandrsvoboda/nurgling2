@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "name": "Grape Juicer",
+  "category": "productions",
+  "description": "Areas for the Grape Juicer: extraction press, grape juice barrels and a Grapes TAKE area. Build the press and put barrels in the barrel area.",
+  "size": {
+    "w": 10,
+    "h": 4
+  },
+  "areas": [
+    {
+      "name": "Extraction Press",
+      "path": "",
+      "x": 4,
+      "y": 0,
+      "w": 1,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "extractionPress"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Barrel(Grape Juice)",
+      "path": "",
+      "x": 6,
+      "y": 3,
+      "w": 4,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Grape Juice",
+          "name": "barrel"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Grapes",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Grapes",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/grapes"
+        }
+      ],
+      "out": [
+        {
+          "name": "Grapes",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/grapes"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -1,0 +1,485 @@
+{
+  "format": 1,
+  "name": "Chicken, Duck & Rabbit Yard",
+  "category": "animals",
+  "description": "Areas for KFC (chickens), Duck Master and Rabbit Master, sharing one water and one swill spot. Build chicken coops in the Chicken, Chick Incubator, Duck and Duckling Incubator areas, rabbit hutches in Rabbit and Rabbit Incubator, and a barrel next to a cistern or well in Source of water and in Swill.",
+  "size": {
+    "w": 16,
+    "h": 36
+  },
+  "areas": [
+    {
+      "name": "Chick Incubator",
+      "path": "",
+      "x": 1,
+      "y": 12,
+      "w": 3,
+      "h": 7,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "incubator"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Source of water",
+      "path": "",
+      "x": 0,
+      "y": 9,
+      "w": 4,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "water"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Swill",
+      "path": "",
+      "x": 12,
+      "y": 9,
+      "w": 4,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "swill"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Duckling Incubator",
+      "path": "",
+      "x": 12,
+      "y": 12,
+      "w": 3,
+      "h": 7,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "duckIncubator"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Chicken",
+      "path": "",
+      "x": 1,
+      "y": 19,
+      "w": 3,
+      "h": 17,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "chicken"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Duck",
+      "path": "",
+      "x": 12,
+      "y": 19,
+      "w": 3,
+      "h": 17,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "duck"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Rabbit",
+      "path": "",
+      "x": 2,
+      "y": 4,
+      "w": 12,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "rabbit"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Rabbit Incubator",
+      "path": "",
+      "x": 2,
+      "y": 0,
+      "w": 12,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "rabbitIncubator"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Chicken Feathers",
+      "path": "",
+      "x": 5,
+      "y": 29,
+      "w": 6,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/feather-chicken",
+          "name": "Chicken Feathers",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Entrails",
+      "path": "",
+      "x": 5,
+      "y": 31,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/entrails",
+          "name": "Entrails",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Duck Meat",
+      "path": "",
+      "x": 5,
+      "y": 35,
+      "w": 6,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Duck Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-duck"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bone Material",
+      "path": "",
+      "x": 5,
+      "y": 25,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/bone",
+          "name": "Bone Material",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wishbone",
+          "name": "Wishbone",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Chicken Egg",
+      "path": "",
+      "x": 5,
+      "y": 22,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/egg-chicken",
+          "name": "Chicken Egg",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Duck Egg",
+      "path": "",
+      "x": 5,
+      "y": 19,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/egg-duck",
+          "name": "Duck Egg",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Chicken Meat",
+      "path": "",
+      "x": 5,
+      "y": 34,
+      "w": 6,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Chicken Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-chicken"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Duck Feather",
+      "path": "",
+      "x": 5,
+      "y": 28,
+      "w": 6,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/feather-duck",
+          "name": "Duck Feather",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Tiny Brain",
+      "path": "",
+      "x": 5,
+      "y": 16,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/brain-tiny",
+          "name": "Tiny Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Rabbit",
+      "path": "",
+      "x": 5,
+      "y": 13,
+      "w": 6,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Raw Rabbit",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-rabbit"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fresh Rabbit Fur",
+      "path": "",
+      "x": 5,
+      "y": 14,
+      "w": 6,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Fresh Rabbit Fur",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/rabbithide-blood"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

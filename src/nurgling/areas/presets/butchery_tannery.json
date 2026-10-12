@@ -1,0 +1,3003 @@
+{
+  "format": 1,
+  "name": "Butchery & Tannery",
+  "category": "productions",
+  "description": "Areas for the Butcher, Handle hides and Leather bots: a carcass area surrounded by PUT areas for every meat, organ, bone and trophy, raw hide piles, drying frames, ready hides, tanning tubs and tanning fluid. Build drying frames and tanning tubs, and a barrel next to a cistern or well in Source of tanning fluid.",
+  "size": {
+    "w": 41,
+    "h": 24
+  },
+  "areas": [
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 30,
+      "y": 1,
+      "w": 9,
+      "h": 15,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Adder Skeleton",
+      "path": "",
+      "x": 22,
+      "y": 8,
+      "w": 7,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/adderskeleton",
+          "name": "Adder Skeleton",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wishbone",
+          "name": "Wishbone",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/adderskeleton",
+          "name": "Adder Skeleton",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wishbone",
+          "name": "Wishbone",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Entrails",
+      "path": "",
+      "x": 22,
+      "y": 10,
+      "w": 7,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/entrails",
+          "name": "Entrails",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/entrails",
+          "name": "Entrails",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Intestines",
+      "path": "",
+      "x": 22,
+      "y": 6,
+      "w": 7,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/intestines",
+          "name": "Intestines",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/intestines",
+          "name": "Intestines",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Fox",
+      "path": "",
+      "x": 28,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Fox",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-fox"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Fox",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-fox"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Badger",
+      "path": "",
+      "x": 27,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Badger",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-badger"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Badger",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-badger"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Lynx",
+      "path": "",
+      "x": 25,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Lynx",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-lynx"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Lynx",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-lynx"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Wild Pork",
+      "path": "",
+      "x": 24,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Wild Pork",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-boar"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Wild Pork",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-boar"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Rabbit",
+      "path": "",
+      "x": 28,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Rabbit",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-rabbit"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Rabbit",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-rabbit"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal Fat",
+      "path": "",
+      "x": 18,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/animalfat",
+          "name": "Animal Fat",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/animalfat",
+          "name": "Animal Fat",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Venison",
+      "path": "",
+      "x": 22,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Venison",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-reddeer"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Venison",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-reddeer"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Moose",
+      "path": "",
+      "x": 21,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Moose",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-moose"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Moose",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-moose"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Red Deer Antlers",
+      "path": "",
+      "x": 14,
+      "y": 7,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/antlers-reddeer",
+          "name": "Red Deer Antlers",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/antlers-reindeer",
+          "name": "Reindeer Antlers",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/antlers-reddeer",
+          "name": "Red Deer Antlers",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/antlers-reindeer",
+          "name": "Reindeer Antlers",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Insect Meat",
+      "path": "",
+      "x": 27,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Bee Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-weird",
+            "gfx/invobjs/meat-bee"
+          ]
+        },
+        {
+          "name": "Boreworm Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-weird",
+            "gfx/invobjs/meat-boreworm"
+          ]
+        },
+        {
+          "name": "Ant Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-weird",
+            "gfx/invobjs/meat-ant"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Bee Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-weird",
+            "gfx/invobjs/meat-bee"
+          ]
+        },
+        {
+          "name": "Boreworm Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-weird",
+            "gfx/invobjs/meat-boreworm"
+          ]
+        },
+        {
+          "name": "Ant Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-weird",
+            "gfx/invobjs/meat-ant"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Mammoth",
+      "path": "",
+      "x": 19,
+      "y": 12,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Mammoth",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-mammoth"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Mammoth",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-mammoth"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Bear",
+      "path": "",
+      "x": 25,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Bear",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-bear"
+          ]
+        },
+        {
+          "name": "Raw Ice Bear",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-polarbear"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Bear",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-bear"
+          ]
+        },
+        {
+          "name": "Raw Ice Bear",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-polarbear"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Boar Tusk",
+      "path": "",
+      "x": 14,
+      "y": 9,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/boartusk",
+          "name": "Boar Tusk",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/boartusk",
+          "name": "Boar Tusk",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Other Raw Meat",
+      "path": "",
+      "x": 24,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Roe Venison",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-roedeer"
+          ]
+        },
+        {
+          "name": "Raw Wolverine",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wolverine"
+          ]
+        },
+        {
+          "name": "Raw Squirrel",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-squirrel"
+          ]
+        },
+        {
+          "name": "Raw Wildhorse",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wildhorse"
+          ]
+        },
+        {
+          "name": "Raw Crab",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-crust",
+            "gfx/invobjs/meat-crab"
+          ]
+        },
+        {
+          "name": "Raw Wild Mutton",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-mouflon"
+          ]
+        },
+        {
+          "name": "Raw Beaver",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-beaver"
+          ]
+        },
+        {
+          "name": "Raw Wild Beef",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-aurochs"
+          ]
+        },
+        {
+          "name": "Raw Adder",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-adder"
+          ]
+        },
+        {
+          "name": "Raw Reindeer Venison",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-reindeer"
+          ]
+        },
+        {
+          "name": "Raw Mole",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-mole"
+          ]
+        },
+        {
+          "name": "Raw Caverat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-caverat"
+          ]
+        },
+        {
+          "name": "Raw Wildgoat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wildgoat"
+          ]
+        },
+        {
+          "name": "Raw Hedgehog",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-hedgehog"
+          ]
+        },
+        {
+          "name": "Raw Bog Turtle",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-bogturtle"
+          ]
+        },
+        {
+          "name": "Raw Stoat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-stoat"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Roe Venison",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-roedeer"
+          ]
+        },
+        {
+          "name": "Raw Wolverine",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wolverine"
+          ]
+        },
+        {
+          "name": "Raw Squirrel",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-squirrel"
+          ]
+        },
+        {
+          "name": "Raw Wildhorse",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wildhorse"
+          ]
+        },
+        {
+          "name": "Raw Crab",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-crust",
+            "gfx/invobjs/meat-crab"
+          ]
+        },
+        {
+          "name": "Raw Wild Mutton",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-mouflon"
+          ]
+        },
+        {
+          "name": "Raw Beaver",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-beaver"
+          ]
+        },
+        {
+          "name": "Raw Wild Beef",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-aurochs"
+          ]
+        },
+        {
+          "name": "Raw Adder",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-adder"
+          ]
+        },
+        {
+          "name": "Raw Reindeer Venison",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-reindeer"
+          ]
+        },
+        {
+          "name": "Raw Mole",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-mole"
+          ]
+        },
+        {
+          "name": "Raw Caverat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-caverat"
+          ]
+        },
+        {
+          "name": "Raw Wildgoat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wildgoat"
+          ]
+        },
+        {
+          "name": "Raw Hedgehog",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-hedgehog"
+          ]
+        },
+        {
+          "name": "Raw Bog Turtle",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-bogturtle"
+          ]
+        },
+        {
+          "name": "Raw Stoat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-stoat"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Wild Bird Meat",
+      "path": "",
+      "x": 22,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Mallard Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-mallard"
+          ]
+        },
+        {
+          "name": "Pelican Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-pelican"
+          ]
+        },
+        {
+          "name": "Swan Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-swan"
+          ]
+        },
+        {
+          "name": "Bullfinch Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-bullfinch"
+          ]
+        },
+        {
+          "name": "Rock Dove Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-rockdove"
+          ]
+        },
+        {
+          "name": "Magpie Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-magpie"
+          ]
+        },
+        {
+          "name": "Crane Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-crane"
+          ]
+        },
+        {
+          "name": "Seagull Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-seagull"
+          ]
+        },
+        {
+          "name": "Golden Eagle Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-goldeneagle"
+          ]
+        },
+        {
+          "name": "Eagle Owl Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-eagleowl"
+          ]
+        },
+        {
+          "name": "Wood Grouse Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-woodgrouse"
+          ]
+        },
+        {
+          "name": "Quail Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-quail"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Mallard Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-mallard"
+          ]
+        },
+        {
+          "name": "Pelican Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-pelican"
+          ]
+        },
+        {
+          "name": "Swan Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-swan"
+          ]
+        },
+        {
+          "name": "Bullfinch Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-bullfinch"
+          ]
+        },
+        {
+          "name": "Rock Dove Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-rockdove"
+          ]
+        },
+        {
+          "name": "Magpie Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-magpie"
+          ]
+        },
+        {
+          "name": "Crane Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-crane"
+          ]
+        },
+        {
+          "name": "Seagull Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-seagull"
+          ]
+        },
+        {
+          "name": "Golden Eagle Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-goldeneagle"
+          ]
+        },
+        {
+          "name": "Eagle Owl Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-eagleowl"
+          ]
+        },
+        {
+          "name": "Wood Grouse Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-woodgrouse"
+          ]
+        },
+        {
+          "name": "Quail Meat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-poultry",
+            "gfx/invobjs/meat-quail"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Small Brain",
+      "path": "",
+      "x": 39,
+      "y": 1,
+      "w": 2,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/brain-small",
+          "name": "Small Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/brain-small",
+          "name": "Small Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Scent Gland",
+      "path": "",
+      "x": 39,
+      "y": 15,
+      "w": 2,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/scentgland",
+          "name": "Scent Gland",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mouflonhorn",
+          "name": "Mouflon Horn",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beaverteeth",
+          "name": "Beaver Teeth",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beavertail",
+          "name": "Beaver Tail",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/bogturtleshell",
+          "name": "Bog Turtle Shell",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/scentgland",
+          "name": "Scent Gland",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mouflonhorn",
+          "name": "Mouflon Horn",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beaverteeth",
+          "name": "Beaver Teeth",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beavertail",
+          "name": "Beaver Tail",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/bogturtleshell",
+          "name": "Bog Turtle Shell",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Brain",
+      "path": "",
+      "x": 39,
+      "y": 2,
+      "w": 2,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/brain",
+          "name": "Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/brain",
+          "name": "Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Bat",
+      "path": "",
+      "x": 21,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Bat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-bat"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Bat",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-bat"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Wolf's Claw",
+      "path": "",
+      "x": 14,
+      "y": 10,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/wolfclaw",
+          "name": "Wolf's Claw",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/lynxclaws",
+          "name": "Lynx Claws",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/wolfclaw",
+          "name": "Wolf's Claw",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/lynxclaws",
+          "name": "Lynx Claws",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Wolf",
+      "path": "",
+      "x": 19,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Wolf",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wolf"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Wolf",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-wolf"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Filet of Cave Angler",
+      "path": "",
+      "x": 18,
+      "y": 1,
+      "w": 1,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Filet of Cave Angler",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-filet",
+            "gfx/invobjs/meat-caveangler"
+          ]
+        },
+        {
+          "name": "Raw Walrus",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-walrus"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Filet of Cave Angler",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-filet",
+            "gfx/invobjs/meat-caveangler"
+          ]
+        },
+        {
+          "name": "Raw Walrus",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-walrus"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bear Tooth",
+      "path": "",
+      "x": 14,
+      "y": 12,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/beartooth",
+          "name": "Bear Tooth",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/polarbeartooth",
+          "name": "Ice Bear Tooth",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/beartooth",
+          "name": "Bear Tooth",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/polarbeartooth",
+          "name": "Ice Bear Tooth",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Mammoth Tusk",
+      "path": "",
+      "x": 14,
+      "y": 15,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/mammothtusk",
+          "name": "Mammoth Tusk",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/mammothtusk",
+          "name": "Mammoth Tusk",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Mutton",
+      "path": "",
+      "x": 30,
+      "y": 19,
+      "w": 1,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Mutton",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-sheep"
+          ]
+        },
+        {
+          "name": "Mutton Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-sheep"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Mutton",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-sheep"
+          ]
+        },
+        {
+          "name": "Mutton Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-sheep"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Horse",
+      "path": "",
+      "x": 31,
+      "y": 19,
+      "w": 1,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Horse",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-horse"
+          ]
+        },
+        {
+          "name": "Horse Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-horse"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Horse",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-horse"
+          ]
+        },
+        {
+          "name": "Horse Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-horse"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Chevon",
+      "path": "",
+      "x": 33,
+      "y": 19,
+      "w": 1,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Chevon",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-goat"
+          ]
+        },
+        {
+          "name": "Chevon Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-goat"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Chevon",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-goat"
+          ]
+        },
+        {
+          "name": "Chevon Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-goat"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Beef",
+      "path": "",
+      "x": 34,
+      "y": 19,
+      "w": 1,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Beef",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-cow"
+          ]
+        },
+        {
+          "name": "Beef Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-cow"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Beef",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-cow"
+          ]
+        },
+        {
+          "name": "Beef Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-cow"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Raw Pork",
+      "path": "",
+      "x": 36,
+      "y": 19,
+      "w": 1,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Raw Pork",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-pig"
+          ]
+        },
+        {
+          "name": "Pork Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-pig"
+          ]
+        }
+      ],
+      "out": [
+        {
+          "name": "Raw Pork",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-raw",
+            "gfx/invobjs/meat-pig"
+          ]
+        },
+        {
+          "name": "Pork Bollock",
+          "type": "CONTAINER",
+          "layer": [
+            "gfx/invobjs/meat-testis",
+            "gfx/invobjs/meat-pig"
+          ]
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Suckling's Maw",
+      "path": "",
+      "x": 39,
+      "y": 19,
+      "w": 1,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/suckmaw",
+          "name": "Suckling's Maw",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/suckmaw",
+          "name": "Suckling's Maw",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Tiny Brain",
+      "path": "",
+      "x": 39,
+      "y": 4,
+      "w": 2,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/brain-tiny",
+          "name": "Tiny Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/brain-tiny",
+          "name": "Tiny Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Billygoat Horn",
+      "path": "",
+      "x": 14,
+      "y": 13,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/billygoathorn",
+          "name": "Billygoat Horn",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bone Material",
+      "path": "",
+      "x": 30,
+      "y": 16,
+      "w": 9,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/bone",
+          "name": "Bone Material",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/crabshell",
+          "name": "Crabshell",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wishbone",
+          "name": "Wishbone",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Intestines",
+      "path": "",
+      "x": 21,
+      "y": 17,
+      "w": 7,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/intestines",
+          "name": "Intestines",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/intestines",
+          "name": "Intestines",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Big Brain",
+      "path": "",
+      "x": 39,
+      "y": 5,
+      "w": 2,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/brain-large",
+          "name": "Big Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/brain-large",
+          "name": "Big Brain",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Piles of raw hides",
+      "path": "",
+      "x": 18,
+      "y": 21,
+      "w": 8,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "rawhides"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/adderhide-blood",
+          "name": "Fresh Adder Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/aurochshide-blood",
+          "name": "Fresh Aurochs Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/badgerhide-blood",
+          "name": "Fresh Badger Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/bathide-blood",
+          "name": "Fresh Bat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/bearhide-blood",
+          "name": "Fresh Bear Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beaverhide-blood",
+          "name": "Fresh Beaver Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/boarhide-blood",
+          "name": "Fresh Boarhide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/borewormhide-blood",
+          "name": "Fresh Boreworm Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/cowhide-blood",
+          "name": "Fresh Cattle Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/caveanglerscales-raw",
+          "name": "Fresh Cave Angler Scales",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/caverathide-blood",
+          "name": "Fresh Caverat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/stoathide-winter-blood",
+          "name": "Fresh Ermine",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/goathide-blood",
+          "name": "Fresh Goat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/greysealhide-blood",
+          "name": "Fresh Grey Seal Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/hedgehoghide-blood",
+          "name": "Fresh Hedgehog Skin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/horsehide-blood",
+          "name": "Fresh Horse Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/lynxhide-blood",
+          "name": "Fresh Lynx Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mammothhide-blood",
+          "name": "Fresh Mammoth Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/molehide-blood",
+          "name": "Fresh Mole Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/moosehide-blood",
+          "name": "Fresh Moose Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mouflonhide-blood",
+          "name": "Fresh Mouflon Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/otterhide-blood",
+          "name": "Fresh Otterhide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/pighide-blood",
+          "name": "Fresh Pigskin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/rabbithide-blood",
+          "name": "Fresh Rabbit Fur",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reddeerhide-blood",
+          "name": "Fresh Red Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reindeerhide-blood",
+          "name": "Fresh Reindeer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/roedeerhide-blood",
+          "name": "Fresh Roe Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/sheephide-blood",
+          "name": "Fresh Sheepskin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/squirrelhide-blood",
+          "name": "Fresh Squirrel Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/squirreltail-blood",
+          "name": "Fresh Squirrel Tail",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/stoathide-blood",
+          "name": "Fresh Stoat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/trollhide-blood",
+          "name": "Fresh Troll Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/walrushide-blood",
+          "name": "Fresh Walrus Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildgoathide-blood",
+          "name": "Fresh Wildgoat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/teimdeerhide-blood",
+          "name": "Fresh Tame Reindeer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildhorsehide-blood",
+          "name": "Fresh Wildhorse Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wolfhide-blood",
+          "name": "Fresh Wolf Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wolverinehide-blood",
+          "name": "Fresh Wolverine Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/foxhide-blood",
+          "name": "Fresh Fox Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/narwhalhide-blood",
+          "name": "Fresh Narwhal Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/polarbearhide-blood",
+          "name": "Fresh Ice Bear Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Drying frames(Hides)",
+      "path": "",
+      "x": 1,
+      "y": 18,
+      "w": 15,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Hides",
+          "name": "dframe"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Tanning tubs",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "ttub"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Source of tanning fluid",
+      "path": "",
+      "x": 11,
+      "y": 3,
+      "w": 3,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "tanning"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Piles of ready hides",
+      "path": "",
+      "x": 4,
+      "y": 5,
+      "w": 5,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "readyHides"
+        }
+      ],
+      "in": [
+        {
+          "static": "gfx/invobjs/pighide",
+          "name": "Pigskin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/badgerhide",
+          "name": "Badger Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/foxhide",
+          "name": "Fox Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/caverathide",
+          "name": "Caverat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/bathide",
+          "name": "Bat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/boarhide",
+          "name": "Boarhide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reddeerhide",
+          "name": "Red Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/sheephide",
+          "name": "Sheepskin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildhorsehide",
+          "name": "Wildhorse Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/cowhide",
+          "name": "Cattle Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildgoathide",
+          "name": "Wildgoat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/horsehide",
+          "name": "Horse Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/roedeerhide",
+          "name": "Roe Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/teimdeerhide",
+          "name": "Tame Reindeer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/goathide",
+          "name": "Goat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/hedgehoghide",
+          "name": "Hedgehog Skin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/aurochshide",
+          "name": "Aurochs Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wolfhide",
+          "name": "Wolf Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/pighide",
+          "name": "Pigskin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/badgerhide",
+          "name": "Badger Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/foxhide",
+          "name": "Fox Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/caverathide",
+          "name": "Caverat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/bathide",
+          "name": "Bat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/boarhide",
+          "name": "Boarhide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reddeerhide",
+          "name": "Red Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/sheephide",
+          "name": "Sheepskin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildhorsehide",
+          "name": "Wildhorse Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/cowhide",
+          "name": "Cattle Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildgoathide",
+          "name": "Wildgoat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/horsehide",
+          "name": "Horse Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/roedeerhide",
+          "name": "Roe Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/teimdeerhide",
+          "name": "Tame Reindeer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/goathide",
+          "name": "Goat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/hedgehoghide",
+          "name": "Hedgehog Skin",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/aurochshide",
+          "name": "Aurochs Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wolfhide",
+          "name": "Wolf Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Mammoth Hide",
+      "path": "",
+      "x": 0,
+      "y": 15,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/mammothhide",
+          "name": "Mammoth Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/mammothhide",
+          "name": "Mammoth Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Boarhide",
+      "path": "",
+      "x": 0,
+      "y": 14,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/boarhide",
+          "name": "Boarhide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/aurochshide",
+          "name": "Aurochs Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reindeerhide",
+          "name": "Reindeer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reddeerhide",
+          "name": "Red Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildhorsehide",
+          "name": "Wildhorse Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/boarhide",
+          "name": "Boarhide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/aurochshide",
+          "name": "Aurochs Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reindeerhide",
+          "name": "Reindeer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/reddeerhide",
+          "name": "Red Deer Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wildhorsehide",
+          "name": "Wildhorse Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Squirrel Tail",
+      "path": "",
+      "x": 4,
+      "y": 15,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/squirreltail",
+          "name": "Squirrel Tail",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/squirreltail",
+          "name": "Squirrel Tail",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fox Hide",
+      "path": "",
+      "x": 4,
+      "y": 14,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/foxhide",
+          "name": "Fox Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/foxhide",
+          "name": "Fox Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bat Hide",
+      "path": "",
+      "x": 4,
+      "y": 12,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bathide",
+          "name": "Bat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/squirrelhide",
+          "name": "Squirrel Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/rabbithide",
+          "name": "Rabbit Fur",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/molehide",
+          "name": "Mole Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bathide",
+          "name": "Bat Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/squirrelhide",
+          "name": "Squirrel Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/rabbithide",
+          "name": "Rabbit Fur",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/molehide",
+          "name": "Mole Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/stoathide-winter",
+          "name": "Ermine",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cave Angler Scales",
+      "path": "",
+      "x": 4,
+      "y": 11,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/caveanglerscales",
+          "name": "Cave Angler Scales",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/caveanglerscales",
+          "name": "Cave Angler Scales",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Adder Hide",
+      "path": "",
+      "x": 0,
+      "y": 12,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/adderhide",
+          "name": "Adder Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/adderhide",
+          "name": "Adder Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Badger Hide",
+      "path": "",
+      "x": 0,
+      "y": 11,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/badgerhide",
+          "name": "Badger Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/badgerhide",
+          "name": "Badger Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Moose Hide",
+      "path": "",
+      "x": 0,
+      "y": 9,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/moosehide",
+          "name": "Moose Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/moosehide",
+          "name": "Moose Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Wolverine Hide",
+      "path": "",
+      "x": 0,
+      "y": 8,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/wolverinehide",
+          "name": "Wolverine Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wolfhide",
+          "name": "Wolf Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mouflonhide",
+          "name": "Mouflon Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beaverhide",
+          "name": "Beaver Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/wolverinehide",
+          "name": "Wolverine Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/wolfhide",
+          "name": "Wolf Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mouflonhide",
+          "name": "Mouflon Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/beaverhide",
+          "name": "Beaver Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Lynx Hide",
+      "path": "",
+      "x": 4,
+      "y": 9,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/lynxhide",
+          "name": "Lynx Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/lynxhide",
+          "name": "Lynx Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bear Hide",
+      "path": "",
+      "x": 4,
+      "y": 8,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bearhide",
+          "name": "Bear Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/polarbearhide",
+          "name": "Ice Bear Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bearhide",
+          "name": "Bear Hide",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/polarbearhide",
+          "name": "Ice Bear Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Leather",
+      "path": "",
+      "x": 0,
+      "y": 5,
+      "w": 3,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/leather",
+          "name": "Leather",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/borewormhide",
+          "name": "Boreworm Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/leather",
+          "name": "Leather",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/borewormhide",
+          "name": "Boreworm Hide",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

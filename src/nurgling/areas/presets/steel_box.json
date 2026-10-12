@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "name": "Steel Box",
+  "category": "productions",
+  "description": "Areas for the Steel bot: a row of steel boxes and a branch fuel pile.",
+  "size": {
+    "w": 4,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Steel boxes",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "crucibles"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel: Steelbox(Branch)",
+      "path": "",
+      "x": 2,
+      "y": 0,
+      "w": 2,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Branch",
+          "name": "fuelSteelbox"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

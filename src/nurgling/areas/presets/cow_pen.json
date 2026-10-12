@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "name": "Cow Pen",
+  "category": "animals",
+  "description": "Areas for the Cows bot. Fence the pen; the pen area must cover the animals. Carcasses are carried to the carcass area. Milking needs a barrel and a cistern in the Cistern(Cow Milk) area.",
+  "size": {
+    "w": 32,
+    "h": 23
+  },
+  "areas": [
+    {
+      "name": "Cow pen",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 23,
+      "h": 23,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cows"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 26,
+      "y": 5,
+      "w": 6,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cistern(Cow Milk)",
+      "path": "",
+      "x": 23,
+      "y": 1,
+      "w": 2,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cistern",
+          "subtype": "Cow Milk"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

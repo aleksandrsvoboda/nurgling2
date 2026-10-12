@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "name": "Bakery",
+  "category": "productions",
+  "description": "Areas for the Baker: ovens and a branch fuel pile. Add TAKE rules for your dough and PUT rules for the bread you bake.",
+  "size": {
+    "w": 7,
+    "h": 6
+  },
+  "areas": [
+    {
+      "name": "Ovens",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "ovens"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel: Oven(Branch)",
+      "path": "",
+      "x": 5,
+      "y": 4,
+      "w": 2,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Branch",
+          "name": "fuelOven"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

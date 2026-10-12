@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "name": "Pumpkin Farmer Quality",
+  "category": "farming_quality",
+  "description": "Areas for the Pumpkin Farmer Quality bot. Put exactly one chest or crate on the 1x1 seed spot and till the 3x3 patch. The 3x3 patch matches the Quality grid size \"3x3\" (Options > Farming). Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
+  "size": {
+    "w": 5,
+    "h": 4
+  },
+  "areas": [
+    {
+      "name": "Crop Quality(Pumpkin)",
+      "path": "",
+      "x": 2,
+      "y": 0,
+      "w": 3,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Pumpkin",
+          "name": "cropQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Seeds of crop quality(Pumpkin)",
+      "path": "",
+      "x": 1,
+      "y": 3,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Pumpkin",
+          "name": "seedQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Pumpkin Flesh",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Pumpkin Flesh",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/pumpkinflesh"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

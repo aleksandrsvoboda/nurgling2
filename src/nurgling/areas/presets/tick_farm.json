@@ -1,0 +1,172 @@
+{
+  "format": 1,
+  "name": "Tick Farm",
+  "category": "resources",
+  "description": "Areas for the Tick bot (thicket and Tick PUT), plus an eating table with Grub-Grub, a fire place and its fuel piles.",
+  "size": {
+    "w": 9,
+    "h": 12
+  },
+  "areas": [
+    {
+      "name": "Eating table",
+      "path": "",
+      "x": 7,
+      "y": 4,
+      "w": 2,
+      "h": 8,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "eat"
+        }
+      ],
+      "in": [
+        {
+          "static": "gfx/invobjs/grubgrub",
+          "name": "Grub-Grub",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/grubgrub",
+          "name": "Grub-Grub",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Thicket",
+      "path": "",
+      "x": 3,
+      "y": 7,
+      "w": 2,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "thicket"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel(Branch)",
+      "path": "",
+      "x": 2,
+      "y": 6,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Branch",
+          "name": "fuel"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel(Block)",
+      "path": "",
+      "x": 2,
+      "y": 9,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Block",
+          "name": "fuel"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fire Place",
+      "path": "",
+      "x": 5,
+      "y": 6,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "pow"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Tick",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 7,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/tick",
+          "name": "Tick",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/tick",
+          "name": "Tick",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

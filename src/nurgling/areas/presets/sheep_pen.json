@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "name": "Sheep Pen",
+  "category": "animals",
+  "description": "Areas for the Sheep bot. Fence the pen; the pen area must cover the animals. Carcasses are carried to the carcass area. Milking needs a barrel and a cistern in the Cistern(Sheep Milk) area. Shearing needs the Wool area: without it the bot keeps shearing once the inventory is full.",
+  "size": {
+    "w": 32,
+    "h": 23
+  },
+  "areas": [
+    {
+      "name": "Sheep pen",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 23,
+      "h": 23,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "sheeps"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 26,
+      "y": 5,
+      "w": 6,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cistern(Sheep Milk)",
+      "path": "",
+      "x": 23,
+      "y": 1,
+      "w": 2,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cistern",
+          "subtype": "Sheep Milk"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Wool",
+      "path": "",
+      "x": 26,
+      "y": 12,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Wool",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/wool-sheep"
+        }
+      ],
+      "out": [
+        {
+          "name": "Wool",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/wool-sheep"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

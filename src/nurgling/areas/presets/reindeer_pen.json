@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "Reindeer Pen",
+  "category": "animals",
+  "description": "Areas for the Reindeer bot. Fence the pen; the pen area must cover the animals. Carcasses are carried to the carcass area.",
+  "size": {
+    "w": 32,
+    "h": 23
+  },
+  "areas": [
+    {
+      "name": "Reindeer pen",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 23,
+      "h": 23,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deer"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 26,
+      "y": 5,
+      "w": 6,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}
