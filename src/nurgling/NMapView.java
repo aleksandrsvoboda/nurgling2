@@ -141,6 +141,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private static Text.Foundry inspectLabelFoundry = null;
     private static Text.Foundry inspectValueFoundry = null;
     public AtomicBoolean isAreaSelectionMode = new AtomicBoolean(false);
+    /** An area preset being placed, which takes the map's clicks and keys until it is done. */
+    public nurgling.areas.AreaPresetPlacer presetPlacer = null;
     public AtomicBoolean isGobSelectionMode = new AtomicBoolean(false);
     public AtomicBoolean isChatAreaSharingMode = new AtomicBoolean(false); // For Alt+Ctrl+LMB chat sharing
     public NArea.Space areaSpace = null;
@@ -1220,7 +1222,16 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     public String addArea(NArea.Space result)
     {
-        String key;
+        return addArea(result, null, NUtils.getGameUI().areas.currentPath).name;
+    }
+
+    /**
+     * Makes a new area over {@code result}, in folder {@code path}. A null name gets the usual
+     * "New Area" one; a given name is used as it is.
+     */
+    public NArea addArea(NArea.Space result, String name, String path)
+    {
+        NArea newArea;
         synchronized (glob.map.areas)
         {
             HashSet<String> names = new HashSet<String>();
@@ -1242,17 +1253,21 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             {
                 id = dbId + 1;
             }
-            key = ("New Area" + String.valueOf(glob.map.areas.size()));
-            while(names.contains(key))
+            String key = name;
+            if(key == null)
             {
-                key = key+"(1)";
+                key = ("New Area" + String.valueOf(glob.map.areas.size()));
+                while(names.contains(key))
+                {
+                    key = key+"(1)";
+                }
             }
-            NArea newArea = new NArea(key);
+            newArea = new NArea(key);
             newArea.id = id;
             newArea.uuid = java.util.UUID.randomUUID().toString();
             newArea.space = result;
             newArea.grids_id.addAll(newArea.space.space.keySet());
-            newArea.path = NUtils.getGameUI().areas.currentPath;
+            newArea.path = path;
             // Brand new area: baseline is empty so every group is "dirty" on first save.
             newArea.baselineVersion = 0;
             newArea.baselineSnapshot = null;
@@ -1276,7 +1291,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
             createAreaLabel(id);
         }
-        return key;
+        return newArea;
     }
 
     boolean botsInit = false;
@@ -1547,6 +1562,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         // Block all clicks in DRAG mode to prevent character movement during UI adjustment
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
+        }
+
+        /* Placing an area preset: left places, right cancels; the camera button still works. */
+        if(presetPlacer != null && ev.b != 2) {
+            return presetPlacer.mmousedown(ev.c, ev.b);
         }
 
         /* Grab a movement waypoint drawn on the ground instead of walking there.
@@ -1876,6 +1896,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }
         if(ev.code == 16) {
             shiftPressed = true;
+        }
+        if(presetPlacer != null && presetPlacer.keydown(ev.code)) {
+            return true;
         }
 
         // Check preset keybindings first
