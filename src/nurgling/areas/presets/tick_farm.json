@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Tick Farm",
   "category": "resources",
-  "description": "Areas for the Tick bot (thicket and Tick PUT), plus an eating table with Grub-Grub, a fire place and its fuel piles.",
+  "description": "Gathers ticks from a thicket, with an eating table and a fireplace nearby.\n\nBots:\n• Tick Bot\n• Eating bot\n• Fire Starter\n\nIn each area:\n• Eating table: a table with Grub-Grub to eat\n• Thicket: nothing: place it over the thicket you gather ticks from, and keep some tiles free of objects\n• Fuel(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n• Fuel(Block): stockpiles of blocks (fuel is only taken from stockpiles)\n• Fire Place: a fireplace\n• Tick: nothing to build: the bot piles Tick here (or put a container in it)",
   "size": {
     "w": 9,
     "h": 12

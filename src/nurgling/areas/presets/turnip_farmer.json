@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Turnip Farmer",
   "category": "farming",
-  "description": "Areas for the Turnip Farmer bot, from a working farm. The bot also needs a trough area for spare seeds: place the built-in Seed Trough preset once near your fields.",
+  "description": "A field that is harvested and replanted from its own seeds, with the by-products sorted into piles.\n\nBots:\n• Turnip Farmer\n\nIn each area:\n• Crop(Turnip): till the soil (nothing to build)\n• Seeds of crop(Turnip): a barrel on this one-tile spot (it lies in the corner of the Turnip area); seeds are stored in it and taken from it for sowing\n• Turnip: nothing to build: the bot piles Turnip here (or put a container in it)\n\nAlso needed:\n• The Seed Trough preset, placed once near your fields: the bot will not start without a trough area.",
   "size": {
     "w": 20,
     "h": 10

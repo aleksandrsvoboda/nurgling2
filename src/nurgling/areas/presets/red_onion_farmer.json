@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Red Onion Farmer",
   "category": "farming",
-  "description": "Areas for the Red Onion Farmer bot, from a working farm.",
+  "description": "A field that is harvested and replanted from the harvest itself, which is piled next to the field.\n\nBots:\n• Red Onion Farmer\n\nIn each area:\n• Crop(Red Onion): till the soil (nothing to build)\n• Red Onion: nothing to build: the harvest is piled here and replanted from these piles",
   "size": {
     "w": 20,
     "h": 10

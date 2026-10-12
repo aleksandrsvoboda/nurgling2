@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Poppy Farmer",
   "category": "farming",
-  "description": "Areas for the Poppy Farmer bot, from a working farm. The bot also needs a trough area for spare seeds: place the built-in Seed Trough preset once near your fields.",
+  "description": "A field that is harvested and replanted from its own seeds, with the by-products sorted into piles.\n\nBots:\n• Poppy Farmer\n\nIn each area:\n• Crop(Poppy): till the soil (nothing to build)\n• Seeds of crop(Poppy): a barrel on this one-tile spot (it lies in the corner of the Poppy Flower area); seeds are stored in it and taken from it for sowing\n• Poppy Flower: nothing to build: the bot piles Poppy Flower here (or put a container in it)\n\nAlso needed:\n• The Seed Trough preset, placed once near your fields: the bot will not start without a trough area.",
   "size": {
     "w": 20,
     "h": 10

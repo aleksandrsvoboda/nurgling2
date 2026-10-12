@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Bee Yard",
   "category": "animals",
-  "description": "Areas for the Honey and Wax collector: nine skep spots 15 tiles apart, like the working bee yard. Build a skep on each spot, and a barrel next to a cistern in Cistern(Honey).",
+  "description": "Nine bee skeps 15 tiles apart, a honey cistern and a beeswax pile.\n\nBots:\n• Beehive Manager\n\nIn each area:\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Cistern(Honey): a barrel next to a cistern; the honey is poured into the cistern\n• Beeswax: nothing to build: the bot piles Beeswax here (or put a container in it)",
   "size": {
     "w": 35,
     "h": 31

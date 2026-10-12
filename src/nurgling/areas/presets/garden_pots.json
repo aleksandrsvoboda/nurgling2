@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Garden Pots",
   "category": "farming",
-  "description": "Areas for the Garden Pot Farmer: rows of pots for Strawberries, Cavebulb and Kvann with their seed areas, water and soil. Change a row's subtype to grow something else. Put garden pots in the rows, seed piles or containers in the seed areas, and a barrel next to a cistern or well in Source of water. Mulch comes from your inventory.",
+  "description": "Rows of garden pots for Strawberries, Cavebulb and Kvann. Change a row's subtype (and its seed area's) to grow something else.\n\nBots:\n• Garden Pot Farmer\n\nIn each area:\n• Planting Garden Pots(Strawberries): garden pots; the bot fills them with soil and water and plants Strawberries\n• Planting Garden Pots(Cavebulb): garden pots; the bot fills them with soil and water and plants Cavebulb\n• Planting Garden Pots(Kvann): garden pots; the bot fills them with soil and water and plants Kvann\n• Garden Pot Seeds(Strawberries): Strawberries to plant, as stockpiles or in a container; the harvest is put back here\n• Garden Pot Seeds(Cavebulb): Cavebulb to plant, as stockpiles or in a container; the harvest is put back here\n• Source of water: a barrel next to a cistern or well, to fill water from\n• Soil: soil stockpiles; the bot takes soil from here to fill the pots\n• Garden Pot Seeds(Kvann): Kvann to plant, as stockpiles or in a container; the harvest is put back here\n\nAlso needed:\n• Mulch in your inventory.",
   "size": {
     "w": 27,
     "h": 19

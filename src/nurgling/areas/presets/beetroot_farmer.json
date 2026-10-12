@@ -6,6 +6,7 @@
   "format": 1,
   "name": "Beetroot Farmer",
   "category": "farming",
+  "description": "A field that is harvested and replanted from the harvest itself, which is piled next to the field.\n\nBots:\n• Beetroot Farmer\n\nIn each area:\n• Beetroot: nothing to build: the harvest is piled here and replanted from these piles\n• Crop(Beetroot): till the soil (nothing to build)\n• Beetroot Leaves: nothing to build: the bot piles Beetroot Leaves here (or put a container in it)",
   "areas": [
     {
       "path": "",

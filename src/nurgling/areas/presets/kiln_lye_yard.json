@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Kiln & Lye Yard",
   "category": "productions",
-  "description": "Areas for the kiln bots (Bricks, Block Ash, Wrap, Ungarden Pot) and the Lye Boiler: kilns with a branch fuel pile, a block pile for ash, ashes and lye barrels, a cauldron with water and fuel. Build kilns, a cauldron, barrels in Ashes and Lye, and a barrel next to a cistern or well in Source of water. Bricks also need a clay TAKE area, Ungarden Pot a Ready Garden pots area.",
+  "description": "Kilns for bricks, ash, wraps and garden pots, plus a cauldron that boils the ashes into lye.\n\nBots:\n• Bricks Action\n• Block Ash\n• Wrap Action\n• Ungarden Pot\n• Lye Boiler\n\nIn each area:\n• Kilns: kilns\n• Cauldron: a cauldron\n• Lye: a barrel; the lye is poured into it\n• Ashes: a barrel; Block Ash fills it and the Lye Boiler takes from it\n• Fuel: Kiln(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n• Block for Ash: stockpiles of blocks or boards to burn into ash\n• Source of water: a barrel next to a cistern or well, to fill water from\n• Fuel: Cauldron(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n\nAlso needed:\n• Something to light it with: a torch, two or more branches in your inventory, or a lit candelabrum in a Candelabrum area (Smelter Yard).\n• Bricks Action: a TAKE area with clay stockpiles.\n• Wrap Action: a TAKE area with the wraps to bake.\n• Ungarden Pot: a TAKE area for Unfired Garden Pot and a Ready Garden pots area.",
   "size": {
     "w": 14,
     "h": 13

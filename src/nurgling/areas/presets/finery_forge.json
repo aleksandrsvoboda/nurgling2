@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Finery Forge",
   "category": "productions",
-  "description": "Areas for the Forging bot: finery forge, coal fuel pile, anvil, dross, and Cast Iron in / Wrought Iron out. Build the forge and an anvil in their areas.",
+  "description": "Turns cast iron into wrought iron at a finery forge.\n\nBots:\n• Forging\n\nIn each area:\n• Finery Forge: a finery forge\n• Fuel: Finery Forge(Coal): stockpiles of coal (fuel is only taken from stockpiles)\n• Dross: nothing: dross can be piled here\n• Anvil: an anvil\n• Bar of Cast Iron: cast iron bars, as stockpiles or in containers; the bot takes them from here\n• Bar of Wrought Iron: nothing to build: the bot piles Bar of Wrought Iron here (or put a container in it)\n\nAlso needed:\n• Something to light it with: a torch, two or more branches in your inventory, or a lit candelabrum in a Candelabrum area (Smelter Yard).",
   "size": {
     "w": 9,
     "h": 10

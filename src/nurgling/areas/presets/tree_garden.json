@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Tree Garden",
   "category": "resources",
-  "description": "Areas for the Blueprint Tree Planter: herbalist table, water, mulch and a TAKE/PUT spot for pots and seeds. Build a herbalist table, a water barrel and a soil or mulch pile in their areas.",
+  "description": "Germinates tree seeds in Treeplanter's Pots on a herbalist table and plants them out following a blueprint.\n\nBots:\n• Blueprint Tree Planter\n\nIn each area:\n• Herbalist tables(Trees): a herbalist table\n• Water for Trees: a barrel of water\n• Mulch: a soil or mulch stockpile\n• Towercap Spore: Treeplanter's Pots and tree seeds, as stockpiles or in containers\n\nAlso needed:\n• A tree blueprint, made in the Blueprint Tree Planter.",
   "size": {
     "w": 5,
     "h": 3

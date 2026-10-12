@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Yellow Onion Farmer",
   "category": "farming",
-  "description": "Areas for the Yellow Onion Farmer bot, from a working farm.",
+  "description": "A field that is harvested and replanted from the harvest itself, which is piled next to the field.\n\nBots:\n• Yellow Onion Farmer\n\nIn each area:\n• Crop(Yellow Onion): till the soil (nothing to build)\n• Yellow Onion: nothing to build: the harvest is piled here and replanted from these piles",
   "size": {
     "w": 20,
     "h": 10

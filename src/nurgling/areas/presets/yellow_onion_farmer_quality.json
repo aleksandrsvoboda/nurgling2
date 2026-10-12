@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Yellow Onion Farmer Quality",
   "category": "farming_quality",
-  "description": "Areas for the Yellow Onion Farmer Quality bot. Put exactly one chest or crate on the 1x1 seed spot and till the 3x3 patch. The 3x3 patch matches the Quality grid size \"3x3\" (Options > Farming). Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
+  "description": "A 3x3 patch for breeding high-quality yellow onion: each run harvests it, keeps the best in the seed container and replants from it.\n\nBots:\n• Yellow Onion Farmer Quality\n\nIn each area:\n• Crop Quality(Yellow Onion): till the soil (nothing to build)\n• Seeds of crop quality(Yellow Onion): exactly one chest or crate; the best seeds and crops are kept in it (the bot stops without one)\n\nAlso needed:\n• The Quality grid size option set to \"3x3\" (Options > Farming).\n• Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
   "size": {
     "w": 4,
     "h": 4

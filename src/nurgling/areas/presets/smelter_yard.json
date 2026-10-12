@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Smelter Yard",
   "category": "productions",
-  "description": "Areas for the Smelter bot: smelters, ore piles, coal fuel piles (Fuel: Smelter(Coal)), and PUT areas for coal, slag and bars. Keep a lit candelabrum in the Candelabrum area (or carry torches) so the bot can light the smelters.",
+  "description": "Smelts ore into bars: ore and coal piles next to the smelters, with piles for coal, slag and each kind of bar.\n\nBots:\n• Smelter\n\nIn each area:\n• Smelters: smelters (ore and smith's smelters burn coal, stack furnaces burn branches)\n• Piles of ore: ore, as stockpiles or in containers\n• Fuel: Smelter(Coal): stockpiles of coal (fuel is only taken from stockpiles)\n• Candelabrum: a lit candelabrum, which the bot fetches to light the smelters (keep a free tile for it)\n• The 7 storage areas (Coal, Slag, Bar of Tin, Bar of Bronze, Bar of Copper, Bar of Cast Iron, Bar of Wrought Iron): nothing to build, the bots pile the products there (or put containers in them)\n\nAlso needed:\n• The Bar of Wrought Iron area is also where the Forging bot (Finery Forge) puts its iron.",
   "size": {
     "w": 24,
     "h": 42

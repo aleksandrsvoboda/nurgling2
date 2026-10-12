@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Sheep Pen",
   "category": "animals",
-  "description": "Areas for the Sheep bot. Fence the pen; the pen area must cover the animals. Carcasses are carried to the carcass area. Milking needs a barrel and a cistern in the Cistern(Sheep Milk) area. Shearing needs the Wool area: without it the bot keeps shearing once the inventory is full.",
+  "description": "A pen where the bot milks and shears the sheep, keeps the best sheep for breeding and slaughters the rest.\n\nBots:\n• Sheep Manager\n• Butcher (for the carcasses)\n\nIn each area:\n• Sheep pen: a fence with a gate; the animals live here and the area must cover them\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n• Cistern(Sheep Milk): a barrel next to a cistern; the sheep milk is poured into the cistern\n• Wool: nothing to build: the bot piles Wool here (or put a container in it)\n\nAlso needed:\n• A herd setting chosen in the bot's options, which decides which animals are kept.",
   "size": {
     "w": 32,
     "h": 23

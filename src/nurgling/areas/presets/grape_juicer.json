@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Grape Juicer",
   "category": "productions",
-  "description": "Areas for the Grape Juicer: extraction press, grape juice barrels and a Grapes TAKE area. Build the press and put barrels in the barrel area.",
+  "description": "Presses grapes into juice.\n\nBots:\n• Grape Juicer\n\nIn each area:\n• Extraction Press: an extraction press\n• Barrel(Grape Juice): barrels for the grape juice (empty, or holding less than 90 l)\n• Grapes: grapes, as stockpiles or in containers; the bot takes them from here",
   "size": {
     "w": 10,
     "h": 4

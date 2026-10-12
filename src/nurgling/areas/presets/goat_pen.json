@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Goat Pen",
   "category": "animals",
-  "description": "Areas for the Goats bot. Fence the pen; the pen area must cover the animals. Carcasses are carried to the carcass area. Milking needs a barrel and a cistern in the Cistern(Goat Milk) area. Shearing needs the Mohair area: without it the bot keeps shearing once the inventory is full.",
+  "description": "A pen where the bot milks and shears the goats, keeps the best goats for breeding and slaughters the rest.\n\nBots:\n• Goat Manager\n• Butcher (for the carcasses)\n\nIn each area:\n• Goat pen: a fence with a gate; the animals live here and the area must cover them\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n• Cistern(Goat Milk): a barrel next to a cistern; the goat milk is poured into the cistern\n• Mohair: nothing to build: the bot piles Mohair here (or put a container in it)\n\nAlso needed:\n• A herd setting chosen in the bot's options, which decides which animals are kept.",
   "size": {
     "w": 32,
     "h": 23

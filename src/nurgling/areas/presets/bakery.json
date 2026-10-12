@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Bakery",
   "category": "productions",
-  "description": "Areas for the Baker: ovens and a branch fuel pile. Add TAKE rules for your dough and PUT rules for the bread you bake.",
+  "description": "Ovens with their fuel, for baking.\n\nBots:\n• Baker\n\nIn each area:\n• Ovens: ovens\n• Fuel: Oven(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n\nAlso needed:\n• Something to light it with: a torch, two or more branches in your inventory, or a lit candelabrum in a Candelabrum area (Smelter Yard).\n• A TAKE area for your dough and PUT areas for what you bake.",
   "size": {
     "w": 7,
     "h": 6

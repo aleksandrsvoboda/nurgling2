@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Chicken, Duck & Rabbit Yard",
   "category": "animals",
-  "description": "Areas for KFC (chickens), Duck Master and Rabbit Master, sharing one water and one swill spot. Build chicken coops in the Chicken, Chick Incubator, Duck and Duckling Incubator areas, rabbit hutches in Rabbit and Rabbit Incubator, and a barrel next to a cistern or well in Source of water and in Swill.",
+  "description": "Chickens, ducks and rabbits side by side, sharing one water and one swill spot. The bots hatch the young, keep the best breeders, slaughter the rest and sort eggs, meat, feathers, fur and offal into piles.\n\nBots:\n• Chicken Manager\n• Duck Manager\n• Rabbit Manager\n\nIn each area:\n• Chick Incubator: chicken coops for the chicks (24 per coop at most)\n• Source of water: a barrel next to a cistern or well, to fill water from\n• Swill: a barrel next to a cistern holding swill\n• Duckling Incubator: chicken coops for the ducklings (24 per coop at most)\n• Chicken: chicken coops with hens and a rooster\n• Duck: chicken coops with ducks and a drake\n• Rabbit: rabbit hutches with does and a buck\n• Rabbit Incubator: rabbit hutches for the young\n• The 11 storage areas (Chicken Feathers, Entrails, Duck Meat, Bone Material, Chicken Egg, Duck Egg, Chicken Meat, Duck Feather, ...): nothing to build, the bots pile the products there (or put containers in them)",
   "size": {
     "w": 16,
     "h": 36

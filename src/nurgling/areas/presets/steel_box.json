@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Steel Box",
   "category": "productions",
-  "description": "Areas for the Steel bot: a row of steel boxes and a branch fuel pile.",
+  "description": "Keeps a row of steel boxes fuelled while iron turns into steel.\n\nBots:\n• Steel Action\n\nIn each area:\n• Steel boxes: steel boxes\n• Fuel: Steelbox(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n\nAlso needed:\n• Something to light it with: a torch, two or more branches in your inventory, or a lit candelabrum in a Candelabrum area (Smelter Yard).",
   "size": {
     "w": 4,
     "h": 10

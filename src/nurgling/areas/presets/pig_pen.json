@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Pig Pen",
   "category": "animals",
-  "description": "Areas for the Pigs bot. Fence the pen; the pen area must cover the animals. Carcasses are carried to the carcass area.",
+  "description": "A pen where the bot keeps the best pigs for breeding and slaughters the rest.\n\nBots:\n• Pig Manager\n• Butcher (for the carcasses)\n\nIn each area:\n• Pig pen: a fence with a gate; the animals live here and the area must cover them\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n\nAlso needed:\n• A herd setting chosen in the bot's options, which decides which animals are kept.",
   "size": {
     "w": 32,
     "h": 23

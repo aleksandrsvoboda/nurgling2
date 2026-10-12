@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Butchery & Tannery",
   "category": "productions",
-  "description": "Areas for the Butcher, Handle hides and Leather bots: a carcass area surrounded by PUT areas for every meat, organ, bone and trophy, raw hide piles, drying frames, ready hides, tanning tubs and tanning fluid. Build drying frames and tanning tubs, and a barrel next to a cistern or well in Source of tanning fluid.",
+  "description": "A butchery and tannery: carcasses are butchered and every product is sorted into its own pile, raw hides are dried on frames and tanned into leather. Good hides are kept: from quality 60 (Bat Hide 40, Wolf Hide 100) a dried hide goes to its own strip, anything lower goes to Piles of ready hides to be tanned.\n\nBots:\n• Butcher\n• Handle hides.\n• Leather Action\n\nIn each area:\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n• Piles of raw hides: nothing: fresh hides are piled here, and the hide bot takes them from these piles\n• Drying frames(Hides): drying frames\n• Tanning tubs: tanning tubs\n• Source of tanning fluid: a barrel next to a cistern holding tanning fluid\n• Piles of ready hides: nothing: dried hides are piled here, and the Leather bot takes them from here\n• The 50 storage areas (Adder Skeleton, Entrails, Intestines, Raw Fox, Raw Badger, Raw Lynx, Raw Wild Pork, Raw Rabbit, ...): nothing to build, the bots pile the products there (or put containers in them)",
   "size": {
     "w": 41,
     "h": 24
@@ -51,22 +51,12 @@
           "static": "gfx/invobjs/adderskeleton",
           "name": "Adder Skeleton",
           "type": "CONTAINER"
-        },
-        {
-          "static": "gfx/invobjs/wishbone",
-          "name": "Wishbone",
-          "type": "CONTAINER"
         }
       ],
       "out": [
         {
           "static": "gfx/invobjs/adderskeleton",
           "name": "Adder Skeleton",
-          "type": "CONTAINER"
-        },
-        {
-          "static": "gfx/invobjs/wishbone",
-          "name": "Wishbone",
           "type": "CONTAINER"
         }
       ],
@@ -1906,37 +1896,6 @@
       "pile_fill_direction": "DEFAULT"
     },
     {
-      "name": "Intestines",
-      "path": "",
-      "x": 21,
-      "y": 17,
-      "w": 7,
-      "h": 1,
-      "color": {
-        "r": 194,
-        "g": 194,
-        "b": 65,
-        "a": 56
-      },
-      "hide": false,
-      "spec": [],
-      "in": [
-        {
-          "static": "gfx/invobjs/intestines",
-          "name": "Intestines",
-          "type": "CONTAINER"
-        }
-      ],
-      "out": [
-        {
-          "static": "gfx/invobjs/intestines",
-          "name": "Intestines",
-          "type": "CONTAINER"
-        }
-      ],
-      "pile_fill_direction": "DEFAULT"
-    },
-    {
       "name": "Big Brain",
       "path": "",
       "x": 39,
@@ -2547,11 +2506,13 @@
       "out": [
         {
           "static": "gfx/invobjs/boarhide",
+          "th": 60,
           "name": "Boarhide",
           "type": "CONTAINER"
         },
         {
           "static": "gfx/invobjs/aurochshide",
+          "th": 60,
           "name": "Aurochs Hide",
           "type": "CONTAINER"
         },
@@ -2562,11 +2523,13 @@
         },
         {
           "static": "gfx/invobjs/reddeerhide",
+          "th": 60,
           "name": "Red Deer Hide",
           "type": "CONTAINER"
         },
         {
           "static": "gfx/invobjs/wildhorsehide",
+          "th": 60,
           "name": "Wildhorse Hide",
           "type": "CONTAINER"
         }
@@ -2629,6 +2592,7 @@
       "out": [
         {
           "static": "gfx/invobjs/foxhide",
+          "th": 60,
           "name": "Fox Hide",
           "type": "CONTAINER"
         }
@@ -2675,6 +2639,7 @@
       "out": [
         {
           "static": "gfx/invobjs/bathide",
+          "th": 40,
           "name": "Bat Hide",
           "type": "CONTAINER"
         },
@@ -2788,6 +2753,7 @@
       "out": [
         {
           "static": "gfx/invobjs/badgerhide",
+          "th": 60,
           "name": "Badger Hide",
           "type": "CONTAINER"
         }
@@ -2870,6 +2836,7 @@
         },
         {
           "static": "gfx/invobjs/wolfhide",
+          "th": 100,
           "name": "Wolf Hide",
           "type": "CONTAINER"
         },

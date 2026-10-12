@@ -30,7 +30,9 @@ public class NAreaPresetsWindow extends Window
     private final PresetList list;
     private final Thumb thumb;
     private final Label info;
-    private final Button place, rename, delete, export;
+    /** The selected preset's description: what it is for, which bots use it, what to build in each area. */
+    private final RichTextBox about;
+    private final Button place, rename, delete, export, describeBtn;
     /* Set by the file choosers, which run on the AWT thread; picked up in tick(). */
     private volatile boolean reload = false;
     private volatile String pendingMsg = null;
@@ -119,12 +121,22 @@ public class NAreaPresetsWindow extends Window
                 exportSelected();
             }
         }, place.pos("bl").adds(0, 5));
-        add(new Button(UI.scale(70), get("area.preset.import")) {
+        Button importBtn = add(new Button(UI.scale(70), get("area.preset.import")) {
             @Override
             public void click() {
                 importFile();
             }
         }, export.pos("ur").adds(5, 0));
+        describeBtn = add(new Button(UI.scale(70), get("area.preset.edit_description")) {
+            @Override
+            public void click() {
+                describeSelected();
+            }
+        }, importBtn.pos("ur").adds(5, 0));
+        describeBtn.settip(get("area.preset.edit_description_tip"));
+        int top = Math.max(list.pos("bl").y, export.pos("bl").y) + UI.scale(8);
+        about = add(new RichTextBox(Coord.of(thumb.pos("ur").x - list.c.x, UI.scale(190)), "", RichText.stdf), Coord.of(list.c.x, top));
+        about.bg = new Color(30, 40, 40, 160);
         pack();
         load(null);
     }
@@ -222,6 +234,22 @@ public class NAreaPresetsWindow extends Window
         }
     }
 
+    private void describeSelected()
+    {
+        AreaPreset p = selected();
+        if (p == null || p.builtin)
+            return;
+        NAreaPresetDescriptionDialog.open(ui, p, text -> {
+            p.description = text;
+            try {
+                AreaPresetStore.write(p);
+            } catch (IOException e) {
+                ui.gui.error(get("area.preset.save_failed", e.getMessage()));
+            }
+            load(p);
+        });
+    }
+
     private void renameSelected()
     {
         AreaPreset p = selected();
@@ -310,6 +338,7 @@ public class NAreaPresetsWindow extends Window
         export.disable(p == null);
         rename.disable(p == null || p.builtin);
         delete.disable(p == null || p.builtin);
+        describeBtn.disable(p == null || p.builtin);
     }
 
     @Override
@@ -328,11 +357,36 @@ public class NAreaPresetsWindow extends Window
         info.settext((p == null) ? get("area.preset.empty") : get("area.preset.info", p.w, p.h, p.areas.size(), p.folderCount()));
         if (p == null)
             info.settip(get("area.preset.empty_tip"));
-        else if (!p.description.isEmpty())
-            info.settip(p.description);
         else
             info.tooltip = null;
-        thumb.tooltip = info.tooltip;
+        about.settext((p == null) ? "" : describe(p));
+    }
+
+    /**
+     * Turns a description into rich text: a line ending in ':' is a section heading, and a "• Area: text" bullet
+     * shows the area name in bold. Everything else is quoted, so a player's own description is shown as typed.
+     */
+    static String describe(AreaPreset p)
+    {
+        if (p.description.isEmpty())
+            return RichText.Parser.quote(get("area.preset.no_description"));
+        StringBuilder sb = new StringBuilder();
+        for (String line : p.description.split("\n", -1)) {
+            if (sb.length() > 0)
+                sb.append('\n');
+            if (line.endsWith(":") && !line.startsWith("\u2022")) {
+                sb.append("$col[233,156,84]{$b{").append(RichText.Parser.quote(line)).append("}}");
+            } else if (line.startsWith("\u2022 ") && line.indexOf(": ") > 2) {
+                int c = line.indexOf(": ");
+                sb.append("  \u2022 $b{").append(RichText.Parser.quote(line.substring(2, c + 1))).append("} ")
+                  .append(RichText.Parser.quote(line.substring(c + 2)));
+            } else if (line.startsWith("\u2022 ")) {
+                sb.append("  ").append(RichText.Parser.quote(line));
+            } else {
+                sb.append(RichText.Parser.quote(line));
+            }
+        }
+        return sb.toString();
     }
 
     private class PresetList extends SListBox<Row, Widget>
