@@ -4,6 +4,7 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NConfig;
 import nurgling.NUtils;
+import nurgling.areas.AreaPaths;
 import nurgling.i18n.L10n;
 
 public class NEditFolderName extends Window {
@@ -21,10 +22,13 @@ public class NEditFolderName extends Window {
         add(new Button(UI.scale(60), L10n.get("edit.save")) {
             @Override
             public void click() {
-                if (!te.text().isEmpty()) {
-                    String newpath = rootPath + "/" + te.text().trim();
-                    if(!isCreating)
-                        areasWidget.changePath(newpath, rootPath + "/" + path);
+                String name = AreaPaths.clean(te.text());
+                if (!name.isEmpty()) {
+                    String newpath = AreaPaths.join(rootPath, name);
+                    if(isCreating)
+                        areasWidget.emptyFolders.add(newpath);
+                    else
+                        areasWidget.changePath(newpath, AreaPaths.join(rootPath, path));
                     path = newpath;
                     NConfig.needAreasUpdate();
                     areasWidget.showPath((isCreating)?path:rootPath);

@@ -2500,19 +2500,6 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         locallyDeletedAreas.clear();
     }
 
-    public void disableArea(String name, String path, boolean val) {
-        for(NArea area : glob.map.areas.values())
-        {
-            if(area.name.equals(name) && area.path.equals(path))
-            {
-                area.hide = val;
-                area.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
-                NConfig.needAreasUpdate();
-                return;
-            }
-        }
-    }
-
     public void changeArea(String name)
     {
         for(NArea area : glob.map.areas.values())

@@ -43,14 +43,27 @@ public class NAreasWidget extends Window
     final static Tex folderIcon = new TexI(Resource.loadsimg("nurgling/hud/folder/d"));
     final static Tex openfolderIcon = new TexI(Resource.loadsimg("nurgling/hud/folder/u"));
     NCatSelection catSelection;
-    class Folder
-    {
-        public String name;
-        public String rootPath;
+    PathBar pathBar;
+    /* A folder only exists while some area's path runs through it. Folders made this session
+     * stay listed while still empty, so things can be moved into them; they are not saved. */
+    final Set<String> emptyFolders = new HashSet<>();
+    /* Ctrl/Shift-clicked rows, keyed by area id (Integer) or folder path (String) so the marks
+     * survive the list being rebuilt. */
+    final Set<Object> marked = new HashSet<>();
+    private Object anchor;
+    private List<Moved> lastMove;
+    private Set<String> lastMoveFolders;
+    private NAreaMoveDialog moveDialog;
 
-        public Folder(String name, String path) {
-            this.name = name;
-            this.rootPath = path;
+    private static class Moved
+    {
+        final int id;
+        final String from, to;
+
+        Moved(int id, String from, String to) {
+            this.id = id;
+            this.from = from;
+            this.to = to;
         }
     }
 
@@ -160,14 +173,23 @@ public class NAreasWidget extends Window
             @Override
             public boolean keydown(KeyDownEvent ev) {
                 boolean result = super.keydown(ev);
-                searchQuery = text().toLowerCase();
-                updateFilteredList();
+                /* Only on a real change: rebuilding the list re-picks the selection, which
+                 * must not happen when Ctrl or Shift is pressed for a multi-select click. */
+                String query = text().toLowerCase();
+                if(!query.equals(searchQuery)) {
+                    searchQuery = query;
+                    marked.clear();
+                    al.cancelDrag();
+                    updateFilteredList();
+                }
                 return result;
             }
         }, createNewFolder.pos("bl").adds(0, 10));
         searchField.settip(get("area.search.placeholder"));
 
+        pathBar = add(new PathBar(), searchField.pos("bl").adds(0, 6));
         prev = add(al = new AreaList(UI.scale(new Coord(400,170))), searchField.pos("bl").adds(0, 25));
+        pathBar.resize(new Coord(al.sz.x, UI.scale(16)));
         Widget lab = add(new Label(get("area.label.specialisation"),NStyle.areastitle), prev.pos("bl").add(UI.scale(0,5)));
 
         /* Same width as the area list above it, which AreaList.resize pins to 164 px whatever
@@ -245,13 +267,194 @@ public class NAreasWidget extends Window
         super.show();
     }
 
+    private static List<NArea> allAreas() {
+        Map<Integer, NArea> areas = ((NMapView) NUtils.getGameUI().map).glob.map.areas;
+        synchronized (areas) {
+            return new ArrayList<>(areas.values());
+        }
+    }
+
+    private List<String> knownPaths() {
+        List<String> paths = new ArrayList<>(emptyFolders);
+        for (NArea area : allAreas())
+            paths.add(area.path);
+        return paths;
+    }
+
+    private void reparentEmptyFolders(String from, String to) {
+        Set<String> moved = new HashSet<>();
+        for (Iterator<String> it = emptyFolders.iterator(); it.hasNext(); ) {
+            String folder = it.next();
+            if (AreaPaths.isUnder(folder, from)) {
+                it.remove();
+                moved.add(AreaPaths.reparent(folder, from, to));
+            }
+        }
+        emptyFolders.addAll(moved);
+    }
+
     public void changePath(String newpath, String path) {
-        for(NArea area : ((NMapView)NUtils.getGameUI().map).glob.map.areas.values())
+        for(NArea area : allAreas())
         {
-            if(area.path.startsWith(path))
+            if(AreaPaths.isUnder(area.path, path))
             {
-                area.path = area.path.replace(path,newpath);
+                area.path = AreaPaths.reparent(area.path, path, newpath);
                 area.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
+            }
+        }
+        reparentEmptyFolders(path, newpath);
+    }
+
+    /** "Areas › Base › Farm", for messages. */
+    String displayPath(String path) {
+        StringBuilder sb = new StringBuilder(get("area.path.root"));
+        for (String crumb : AreaPaths.crumbs(path)) {
+            if (!crumb.isEmpty())
+                sb.append(" › ").append(AreaPaths.name(crumb));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Moves areas, and folders with everything inside them, into {@code dest}. Drag and drop,
+     * the "Move to..." picker and folder merges all come through here; Ctrl+Z undoes it.
+     */
+    void moveInto(Collection<NArea> areas, Collection<String> folders, String dest) {
+        for (String folder : folders) {
+            if (AreaPaths.isUnder(dest, folder))
+                return;
+        }
+        List<NArea> all = allAreas();
+        List<Moved> log = new ArrayList<>();
+        Set<Integer> done = new HashSet<>();
+        Set<String> foldersBefore = new HashSet<>(emptyFolders);
+        String merged = null;
+        int movedFolders = 0;
+        for (String folder : folders) {
+            if (!AreaPaths.canMoveFolder(folder, dest))
+                continue;
+            String to = AreaPaths.join(dest, AreaPaths.name(folder));
+            for (String known : knownPaths()) {
+                if (AreaPaths.isUnder(known, to))
+                    merged = to;
+            }
+            for (NArea area : all) {
+                if (AreaPaths.isUnder(area.path, folder) && done.add(area.id))
+                    log.add(relocate(area, AreaPaths.reparent(area.path, folder, to)));
+            }
+            reparentEmptyFolders(folder, to);
+            keepFolder(AreaPaths.parent(folder));
+            movedFolders++;
+        }
+        for (NArea area : areas) {
+            if (!area.path.equals(dest) && done.add(area.id)) {
+                keepFolder(area.path);
+                log.add(relocate(area, dest));
+            }
+        }
+        if (log.isEmpty() && (movedFolders == 0))
+            return;
+        lastMove = log;
+        lastMoveFolders = foldersBefore;
+        if (!log.isEmpty())
+            NConfig.needAreasUpdate();
+        refresh();
+        /* Point at where things went when that folder is on screen. */
+        for (AreaItem item : al.items()) {
+            if (dest.equals(item.folder)) {
+                al.sel = item;
+                select();
+                break;
+            }
+        }
+        String what = (movedFolders == 1 && folders.size() == 1 && areas.isEmpty())
+                ? get("area.move.folder", AreaPaths.name(folders.iterator().next()))
+                : get("area.move.count", log.size());
+        String msg = get("area.move.done", what, displayPath(dest));
+        if (merged != null)
+            msg += " " + get("area.move.merged", AreaPaths.name(merged));
+        NUtils.getGameUI().msg(msg);
+    }
+
+    /* A folder a move empties stays listed, so things can go back into it. */
+    private void keepFolder(String folder) {
+        if (!folder.isEmpty())
+            emptyFolders.add(folder);
+    }
+
+    private static Moved relocate(NArea area, String to) {
+        Moved m = new Moved(area.id, area.path, to);
+        area.path = to;
+        area.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
+        return m;
+    }
+
+    /** Puts back the last move. Areas whose folder has changed since (e.g. a villager's sync) stay put. */
+    void undoMove() {
+        if (lastMove == null) {
+            NUtils.getGameUI().msg(get("area.move.nothing_to_undo"));
+            return;
+        }
+        int n = 0;
+        for (Moved m : lastMove) {
+            NArea area = NUtils.getArea(m.id);
+            if (area != null && area.path.equals(m.to)) {
+                area.path = m.from;
+                area.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
+                n++;
+            }
+        }
+        emptyFolders.clear();
+        emptyFolders.addAll(lastMoveFolders);
+        lastMove = null;
+        lastMoveFolders = null;
+        if (n > 0)
+            NConfig.needAreasUpdate();
+        refresh();
+        NUtils.getGameUI().msg(get("area.move.undone", n));
+    }
+
+    /** Rebuilds the list where it is, keeping the search and the selected area. */
+    private void refresh() {
+        if (!searchQuery.isEmpty()) {
+            updateFilteredList();
+            return;
+        }
+        showPath(currentPath, (al.sel != null && al.sel.area != null) ? al.sel.area.id : -1);
+    }
+
+    /** Opens "Move to..." for the marked rows if {@code row} is one of them, else for {@code row} alone. */
+    void openMoveDialog(AreaItem row) {
+        List<NArea> areas = new ArrayList<>();
+        List<String> folders = new ArrayList<>();
+        payloadOf(row, areas, folders);
+        if (areas.isEmpty() && folders.isEmpty())
+            return;
+        if (moveDialog != null)
+            moveDialog.reqdestroy();
+        moveDialog = new NAreaMoveDialog(this, areas, folders);
+        parent.add(moveDialog, c.add((sz.x - moveDialog.sz.x) / 2, (sz.y - moveDialog.sz.y) / 2));
+        moveDialog.raise();
+    }
+
+    void moveDialogClosed(NAreaMoveDialog dialog) {
+        if (moveDialog == dialog)
+            moveDialog = null;
+    }
+
+    /** What a drag or "Move to..." started on {@code row} carries. */
+    private void payloadOf(AreaItem row, List<NArea> areas, List<String> folders) {
+        Object key = row.key();
+        if (key == null)
+            return;
+        Collection<Object> keys = marked.contains(key) ? new ArrayList<>(marked) : Collections.singletonList(key);
+        for (Object k : keys) {
+            if (k instanceof Integer) {
+                NArea area = NUtils.getArea((Integer) k);
+                if (area != null)
+                    areas.add(area);
+            } else {
+                folders.add((String) k);
             }
         }
     }
@@ -259,44 +462,26 @@ public class NAreasWidget extends Window
     public void showPath(String path) {
         showPath(path, -1);
     }
-    
+
     public void showPath(String path, int selectAreaId) {
+        if (!path.equals(currentPath) && !al.dragging())
+            marked.clear();
         synchronized (items) {
             items.clear();
             currentPath = path;
-            HashMap<String, Folder> folders = new HashMap<>();
             ArrayList<AreaItem> areas = new ArrayList<>();
-            for (NArea area : ((NMapView) NUtils.getGameUI().map).glob.map.areas.values()) {
-                if (area.path.equals(path)) {
+            List<String> paths = new ArrayList<>(emptyFolders);
+            for (NArea area : allAreas()) {
+                paths.add(area.path);
+                if (area.path.equals(path))
                     areas.add(new AreaItem(area.name, area));
-                } else if (area.path.startsWith(path)) {
-                    String cand = area.path.substring(path.length());
-                    if (cand.startsWith("/")) {
-                        String[] parts = cand.split("/");
-                        if (parts.length > 1) {
-                            String fname = parts[1];
-                            folders.put(fname, new Folder(fname, path));
-                        }
-                    }
-                }
             }
 
+            if (!currentPath.isEmpty())
+                items.add(new AreaItem(AreaPaths.parent(currentPath)));
 
-            if (!currentPath.isEmpty()) {
-                if (currentPath.contains("/")) {
-                    String subPath = currentPath.substring(0, currentPath.lastIndexOf("/"));
-                    items.add(new AreaItem(subPath));
-                } else {
-                    items.add(new AreaItem(""));
-                }
-
-            }
-
-            for (Folder folder : folders.values()) {
-                if (folder.rootPath.equals(path)) {
-                    items.add(new AreaItem(folder.name, true));
-                }
-            }
+            for (String folder : AreaPaths.childFolders(paths, path))
+                items.add(new AreaItem(folder, true));
             items.addAll(areas);
         }
             if(!items.isEmpty()) {
@@ -345,9 +530,12 @@ public class NAreasWidget extends Window
             items.clear();
             ArrayList<AreaItem> filteredAreas = new ArrayList<>();
             
-            for (NArea area : ((NMapView) NUtils.getGameUI().map).glob.map.areas.values()) {
+            for (NArea area : allAreas()) {
                 if (matchesSearch(area)) {
-                    filteredAreas.add(new AreaItem(area.name, area));
+                    /* Results come from every folder, so say which one. */
+                    AreaItem item = new AreaItem(area.name, area);
+                    item.settip(buildAreaTip(area.name, area) + "\n" + get("area.tooltip.in", displayPath(area.path)));
+                    filteredAreas.add(item);
                 }
             }
             
@@ -449,8 +637,18 @@ public class NAreasWidget extends Window
         public NArea area;
 
         boolean isDir = false;
+        /** Full path of the folder a folder row stands for. */
+        String folder = null;
+        /** Where the ".." row leads. */
         private String rootPath = null;
         final ArrayList<String> opt;
+
+        /** Identity for marking and dragging; the ".." row has none. */
+        Object key() {
+            if(area != null)
+                return area.id;
+            return folder;
+        }
         /* A long (hidden) name label must not widen the row past the list: the trash
          * icon sits at the row's right edge. */
         private void fitList() {
@@ -472,7 +670,9 @@ public class NAreasWidget extends Window
             hide = add(new CheckBox(""){
                 @Override
                 public void changed(boolean val) {
-                    ((NMapView)NUtils.getGameUI().map).disableArea(AreaItem.this.text.text(), area.path, val);
+                    area.hide = val;
+                    area.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
+                    NConfig.needAreasUpdate();
                     al.sel = AreaItem.this;
                     super.changed(val);
                 }
@@ -494,6 +694,7 @@ public class NAreasWidget extends Window
                     add(L10n.get("area.menu.set_color"));
                     add(L10n.get("area.menu.edit_name"));
                     add(L10n.get("area.menu.fill_direction"));
+                    add(L10n.get("area.menu.move_to"));
                     add(L10n.get("area.menu.scan"));
                     add(L10n.get("area.menu.delete"));
                 }
@@ -503,18 +704,15 @@ public class NAreasWidget extends Window
             fitList();
         }
 
-        public AreaItem(String text, boolean isDir){
-            this.text = add(new Label(text));
+        public AreaItem(String folder, boolean isDir){
+            this.text = add(new Label(AreaPaths.name(folder)));
             this.area = null;
             this.isDir = isDir;
-            remove = add(new IButton(NStyle.removei[0].back,NStyle.removei[1].back,NStyle.removei[2].back){
-                @Override
-                public void click() {
-                }
-            },new Coord(al.sz.x - NStyle.removei[0].sz().x, 0).sub(UI.scale(5),UI.scale(1) ));
+            this.folder = folder;
             opt = new ArrayList<String>(){
                 {
                     add(L10n.get("area.menu.edit_folder"));
+                    add(L10n.get("area.menu.move_to"));
                     add(L10n.get("area.menu.remove_content"));
                 }
             };
@@ -527,11 +725,6 @@ public class NAreasWidget extends Window
             this.area = null;
             this.isDir = false;
             this.rootPath = rootPath;
-            remove = add(new IButton(NStyle.removei[0].back,NStyle.removei[1].back,NStyle.removei[2].back){
-                @Override
-                public void click() {
-                }
-            },new Coord(al.sz.x - NStyle.removei[0].sz().x, 0).sub(UI.scale(5),UI.scale(1) ));
             opt = new ArrayList<>();
             pack();
             fitList();
@@ -539,12 +732,9 @@ public class NAreasWidget extends Window
 
         @Override
         public void draw(GOut g) {
-            if (rootPath!=null) {
-                g.image(openfolderIcon, Coord.z, UI.scale(16,16));
-                g.text(text.text(), new Coord(UI.scale(21), 0)); // Text next to icon
-            }else if (area == null) {
-                g.image(folderIcon, Coord.z, UI.scale(16,16));
-                g.text(text.text(), new Coord(UI.scale(21), 0)); // Text next to icon
+            if (area == null) {
+                g.image((rootPath != null) ? openfolderIcon : folderIcon, Coord.z, UI.scale(16,16));
+                g.image(fitted(text.text(), sz.x - UI.scale(25)), new Coord(UI.scale(21), 0)); // Text next to icon
             } else {
                 int right = ((hide != null) ? hide.c.x : remove.c.x) - UI.scale(4);
                 text.visible = false;
@@ -561,20 +751,14 @@ public class NAreasWidget extends Window
                 return true;
             }
             else if (ev.b == 1) {
-                if (!isDir)
-                    if(area != null)
-                    {
-                        NAreasWidget.this.select(area.id);
-                    }
-                    else
-                    {
-                        NAreasWidget.this.showPath(rootPath);
-                    }
-
-                else
-                    showPath(currentPath + "/" + text.text());
+                /* The checkbox and trash icon keep their own clicks; anywhere else on the row
+                 * is a press the list turns into a click or a drag. */
+                if (ev.propagate(this))
+                    return true;
+                al.press(this);
+                return true;
             }
-            return super.mousedown(ev);
+            return false;
         }
 
 
@@ -691,27 +875,32 @@ public class NAreasWidget extends Window
                                 ((NMapView)NUtils.getGameUI().map).removeAreaById(area.id);
                                 NConfig.needAreasUpdate();
                             }
+                            else if (option.name.equals(get("area.menu.move_to")))
+                            {
+                                openMoveDialog(AreaItem.this);
+                            }
                             else if (option.name.equals(get("area.menu.edit_folder")))
                             {
-                                NEditFolderName.changeName(currentPath, AreaItem.this.text.text());
+                                NEditFolderName.changeName(AreaPaths.parent(folder), AreaPaths.name(folder));
                             }
                             else if (option.name.equals(get("area.menu.remove_content")))
                             {
                                 ArrayList<Integer> forRemove = new ArrayList<>();
-                                for (NArea area : ((NMapView) NUtils.getGameUI().map).glob.map.areas.values()) {
-                                    if(area.path.startsWith(currentPath + "/" + text.text())) {
+                                for (NArea area : allAreas()) {
+                                    if(AreaPaths.isUnder(area.path, folder)) {
                                         forRemove.add(area.id);
                                     }
                                 }
+                                emptyFolders.removeIf(f -> AreaPaths.isUnder(f, folder));
                                 synchronized (((NMapView) NUtils.getGameUI().map).glob.map.areas)
                                 {
                                     for(Integer key:forRemove)
                                     {
                                         if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null)
                                         {
-                                            NOverlay nol = NUtils.getGameUI().map.nols.get(key);
-                                            nol.remove();
-                                            NUtils.getGameUI().map.nols.remove(key);
+                                            NOverlay nol = NUtils.getGameUI().map.nols.remove(key);
+                                            if(nol != null)
+                                                nol.remove();
                                             NMapView mapView = (NMapView) NUtils.getGameUI().map;
                                             synchronized (mapView.dummys) {
                                                 Gob dummy = mapView.dummys.get(mapView.glob.map.areas.get(key).gid);
@@ -806,7 +995,52 @@ public class NAreasWidget extends Window
 
     private final ArrayList<AreaItem> items = new ArrayList<>();
 
+    /** Where a drag would land: a folder or ".." row, a path bar part, or the open folder itself. */
+    static class Target
+    {
+        static final int ROW = 0, CRUMB = 1, LIST = 2;
+        final int kind;
+        final String dest;
+        final boolean valid;
+
+        Target(int kind, String dest, boolean valid) {
+            this.kind = kind;
+            this.dest = dest;
+            this.valid = valid;
+        }
+
+        boolean same(Target o) {
+            return (o != null) && (o.kind == kind) && o.dest.equals(dest);
+        }
+    }
+
+    /** Orange frame and tint on a drop target, with the bar that fills until a hovered folder opens. */
+    static void drawHot(GOut g, Coord ul, Coord sz, double progress) {
+        g.chcolor(233, 156, 84, 50);
+        g.frect(ul, sz);
+        g.chcolor(NStyle.border);
+        nurgling.widgets.login.NLoginTheme.outline(g, ul, sz);
+        if(progress > 0)
+            g.frect(ul.add(0, sz.y - UI.scale(2)), Coord.of((int)(sz.x * Math.min(1.0, progress)), UI.scale(2)));
+        g.chcolor();
+    }
+
     public class AreaList extends SListBox<AreaItem, Widget> {
+        /** How long a drag has to rest on a folder before it opens. */
+        static final double SPRING = 0.7;
+        private AreaItem pressed;
+        private Coord pressc;
+        private boolean modpress;
+        private UI.Grab grab;
+        /* Set once the press has moved far enough to be a drag. */
+        private List<NArea> dragAreas;
+        private List<String> dragFolders;
+        private Set<Object> dragKeys;
+        Target hover;
+        double hovered;
+        private double edge;
+        private Text.Line ghost, ghostCount;
+
         AreaList(Coord sz) {
             super(sz, UI.scale(15));
         }
@@ -825,27 +1059,251 @@ public class NAreasWidget extends Window
         protected Widget makeitem(AreaItem item, int idx, Coord sz) {
             return(new ItemWidget<AreaItem>(this, sz.add(UI.scale(0,5)), item) {
                 {
-                    //item.resize(new Coord(searchF.sz.x - removei[0].sz().x  + UI.scale(4), item.sz.y));
                     add(item);
                 }
-
-                @Override
-                public boolean mousedown(MouseDownEvent ev) {
-                    boolean psel = sel == item;
-                    super.mousedown(ev);
-                    if(!psel) {
-                        String value = item.text.text();
-                    }
-                    return super.mousedown(ev);
-                }
-
             });
         }
 
+        boolean dragging() {
+            return dragKeys != null;
+        }
+
+        boolean pressing() {
+            return pressed != null;
+        }
+
+        /* The grab starts on press so the list keeps the moves and the release even outside the
+         * window; the press only turns into a drag once the pointer has moved a few pixels. */
+        void press(AreaItem item) {
+            cancelDrag();
+            pick(item);
+            pressed = item;
+            pressc = ui.mc;
+            modpress = ui.modctrl || ui.modshift;
+            grab = ui.grabmouse(this);
+        }
+
+        /** Selection on press: Ctrl toggles a row, Shift marks a range, and an area row loads its panels. */
+        private void pick(AreaItem item) {
+            Object key = item.key();
+            List<AreaItem> rows = items();
+            if(key != null && ui.modctrl) {
+                /* The row selected before the first Ctrl+click counts as picked too. */
+                if(marked.isEmpty() && sel != null && sel != item && sel.key() != null && rows.contains(sel))
+                    marked.add(sel.key());
+                if(!marked.remove(key))
+                    marked.add(key);
+                anchor = key;
+            } else if(key != null && ui.modshift) {
+                int b = rows.indexOf(item);
+                int a = indexOf(rows, (anchor != null) ? anchor : ((sel != null) ? sel.key() : null));
+                if(a < 0)
+                    a = b;
+                marked.clear();
+                for(int i = Math.min(a, b); i <= Math.max(a, b); i++) {
+                    Object k = rows.get(i).key();
+                    if(k != null)
+                        marked.add(k);
+                }
+            } else {
+                anchor = key;
+            }
+            if(item.area != null) {
+                sel = item;
+                NAreasWidget.this.select(item.area.id);
+            }
+        }
+
+        private int indexOf(List<AreaItem> rows, Object key) {
+            if(key == null)
+                return -1;
+            for(int i = 0; i < rows.size(); i++) {
+                if(key.equals(rows.get(i).key()))
+                    return i;
+            }
+            return -1;
+        }
+
+        /** A press and release without a drag: opens a folder or "..", and drops the marks. */
+        private void clicked(AreaItem item) {
+            marked.clear();
+            if(item.folder != null)
+                showPath(item.folder);
+            else if(item.rootPath != null)
+                showPath(item.rootPath);
+        }
+
+        private void startDrag() {
+            List<NArea> areas = new ArrayList<>();
+            List<String> folders = new ArrayList<>();
+            payloadOf(pressed, areas, folders);
+            if(areas.isEmpty() && folders.isEmpty())
+                return;
+            dragAreas = areas;
+            dragFolders = folders;
+            dragKeys = new HashSet<>(folders);
+            List<String> names = new ArrayList<>();
+            for(String folder : folders)
+                names.add(AreaPaths.name(folder));
+            for(NArea area : areas) {
+                dragKeys.add(area.id);
+                names.add(area.name);
+            }
+            ghost = Text.std.ellipsize(String.join(", ", names), UI.scale(160));
+            if(names.size() > 1)
+                ghostCount = Text.std.render(String.valueOf(names.size()));
+        }
+
+        void cancelDrag() {
+            if(grab != null) {
+                grab.remove();
+                grab = null;
+            }
+            pressed = null;
+            dragAreas = null;
+            dragFolders = null;
+            dragKeys = null;
+            hover = null;
+            hovered = 0;
+            if(ghost != null) {
+                ghost.dispose();
+                ghost = null;
+            }
+            if(ghostCount != null) {
+                ghostCount.dispose();
+                ghostCount = null;
+            }
+        }
+
+        private Target targetAt() {
+            int kind = -1;
+            String dest = null;
+            Coord lc = ui.mc.sub(rootpos());
+            if(lc.isect(Coord.z, sz)) {
+                int slot = slotat(lc);
+                List<AreaItem> rows = items();
+                AreaItem row = (slot >= 0 && slot < rows.size()) ? rows.get(slot) : null;
+                if(row != null && row.folder != null && !dragKeys.contains(row.folder)) {
+                    kind = Target.ROW;
+                    dest = row.folder;
+                } else if(row != null && row.rootPath != null) {
+                    kind = Target.ROW;
+                    dest = row.rootPath;
+                } else {
+                    /* Anywhere else in the list means the folder that is open. */
+                    kind = Target.LIST;
+                    dest = currentPath;
+                }
+            } else {
+                dest = pathBar.crumbAt(ui.mc.sub(pathBar.rootpos()));
+                if(dest != null)
+                    kind = Target.CRUMB;
+            }
+            if(kind < 0)
+                return null;
+            List<String> paths = new ArrayList<>();
+            for(NArea area : dragAreas)
+                paths.add(area.path);
+            return new Target(kind, dest, AreaPaths.canDrop(paths, dragFolders, dest));
+        }
+
+        private boolean springs(Target t) {
+            return (t != null) && t.valid && (t.kind != Target.LIST) && !t.dest.equals(currentPath);
+        }
+
+        double springProgress(Target t) {
+            return (springs(t) && t.same(hover)) ? hovered / SPRING : 0;
+        }
+
         @Override
-        public void wdgmsg(String msg, Object... args)
-        {
-            super.wdgmsg(msg, args);
+        public void tick(double dt) {
+            super.tick(dt);
+            if(dragKeys == null)
+                return;
+            /* Resting near the top or bottom edge scrolls, so far rows can be reached. */
+            Coord lc = ui.mc.sub(rootpos());
+            int dir = 0;
+            if(lc.x >= 0 && lc.x < sz.x) {
+                if(lc.y >= 0 && lc.y < itemh)
+                    dir = -1;
+                else if(lc.y < sz.y && lc.y >= sz.y - itemh)
+                    dir = 1;
+            }
+            if(dir != 0 && scrollmax() > 0) {
+                edge += dir * dt * itemh * 8;
+                int step = (int)edge;
+                edge -= step;
+                scrollval(Math.max(0, Math.min(scrollmax(), scrollval() + step)));
+            } else {
+                edge = 0;
+            }
+
+            Target t = targetAt();
+            if(t == null || !t.same(hover))
+                hovered = 0;
+            hover = t;
+            if(springs(hover)) {
+                hovered += dt;
+                if(hovered >= SPRING) {
+                    String dest = hover.dest;
+                    hover = null;
+                    hovered = 0;
+                    showPath(dest);
+                }
+            }
+        }
+
+        @Override
+        public void mousemove(MouseMoveEvent ev) {
+            if(pressed != null && dragKeys == null && searchQuery.isEmpty() && pressed.key() != null
+                    && ui.mc.dist(pressc) > UI.scale(4))
+                startDrag();
+            super.mousemove(ev);
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if(pressed != null) {
+                if(ev.b == 3)
+                    cancelDrag();
+                return true;
+            }
+            return super.mousedown(ev);
+        }
+
+        @Override
+        public boolean mouseup(MouseUpEvent ev) {
+            if(ev.b != 1 || pressed == null)
+                return super.mouseup(ev);
+            AreaItem item = pressed;
+            boolean click = (dragKeys == null);
+            boolean mod = modpress;
+            Target t = click ? null : targetAt();
+            List<NArea> areas = dragAreas;
+            List<String> folders = dragFolders;
+            Set<Object> keys = dragKeys;
+            cancelDrag();
+            if(click) {
+                if(!mod)
+                    clicked(item);
+            } else if(t != null && t.valid) {
+                marked.removeAll(keys);
+                moveInto(areas, folders, t.dest);
+            }
+            return true;
+        }
+
+        @Override
+        protected void drawslot(GOut g, AreaItem item, int idx, Area area) {
+            super.drawslot(g, item, idx, area);
+            Object key = item.key();
+            if(key != null && marked.contains(key)) {
+                g.chcolor(233, 156, 84, 70);
+                g.frect2(area.ul, area.br);
+                g.chcolor(NStyle.border);
+                g.frect(area.ul, Coord.of(UI.scale(2), area.sz().y));
+                g.chcolor();
+            }
         }
 
         Color bg = new Color(30,40,40,160);
@@ -855,17 +1313,208 @@ public class NAreasWidget extends Window
             g.chcolor(bg);
             g.frect(Coord.z, g.sz());
             super.draw(g);
+            if(dragKeys == null)
+                return;
+            List<AreaItem> rows = items();
+            int w = sz.x - ((sb != null && sb.vis()) ? sb.sz.x : 0);
+            int first = Math.max(0, scrollval() / (itemh + marg));
+            for(int i = first; i < rows.size(); i++) {
+                int y = i * (itemh + marg) - scrollval();
+                if(y >= sz.y)
+                    break;
+                AreaItem row = rows.get(i);
+                Object key = row.key();
+                if(key != null && dragKeys.contains(key)) {
+                    /* What is being carried fades. */
+                    g.chcolor(0, 0, 0, 130);
+                    g.frect(Coord.of(0, y), Coord.of(w, itemh));
+                    g.chcolor();
+                }
+                String dest = (row.folder != null) ? row.folder : row.rootPath;
+                if(hover != null && hover.valid && hover.kind == Target.ROW && hover.dest.equals(dest))
+                    drawHot(g, Coord.of(0, y), Coord.of(w, itemh), springProgress(hover));
+            }
+            if(hover != null && hover.valid && hover.kind == Target.LIST)
+                drawHot(g, Coord.z, sz, 0);
+            ui.drawafter(this::drawGhost);
+        }
+
+        /** The carried names under the pointer, with a count when there are several. */
+        private void drawGhost(GOut g) {
+            if(ghost == null)
+                return;
+            int pad = UI.scale(3);
+            Coord c = ui.mc.add(UI.scale(14, 12));
+            int x = c.x + pad;
+            int th = ghost.sz().y;
+            int bw = 0;
+            if(ghostCount != null)
+                bw = ghostCount.sz().x + UI.scale(6) + pad;
+            Coord sz = Coord.of(bw + ghost.sz().x + pad * 2, th + pad * 2);
+            g.chcolor(NStyle.rowEven.getRed(), NStyle.rowEven.getGreen(), NStyle.rowEven.getBlue(), 235);
+            g.frect(c, sz);
+            g.chcolor(NStyle.border);
+            nurgling.widgets.login.NLoginTheme.outline(g, c, sz);
+            if(ghostCount != null) {
+                g.frect(Coord.of(x, c.y + pad), Coord.of(ghostCount.sz().x + UI.scale(6), th));
+                g.chcolor(NStyle.rowEven);
+                g.image(ghostCount.tex(), Coord.of(x + UI.scale(3), c.y + pad));
+                x += bw;
+            }
+            g.chcolor();
+            g.image(ghost.tex(), Coord.of(x, c.y + pad));
         }
 
         @Override
-        public void change(AreaItem item) {
-            if(item != null && !item.isDir && item.area==null && item.rootPath != null) {
-                showPath(item.rootPath);
-            }
-            else
-                super.change(item);
+        public void dispose() {
+            cancelDrag();
+            super.dispose();
         }
     }
+
+    /**
+     * "Areas › Base › Farm" above the list: shows where the list is, a click goes to that folder,
+     * and while dragging each part is a drop target. Long paths lose their leading parts to "…",
+     * always keeping the open folder and its parent.
+     */
+    class PathBar extends Widget
+    {
+        private class Crumb
+        {
+            final String dest;
+            final Text.Line text;
+            int x;
+
+            Crumb(String dest, Text.Line text) {
+                this.dest = dest;
+                this.text = text;
+            }
+        }
+
+        private final List<Crumb> crumbs = new ArrayList<>();
+        private Text.Line sep;
+        private String laidFor;
+        private boolean cut;
+        private final Color dim = new Color(143, 163, 164);
+
+        PathBar() {
+            super(Coord.z);
+        }
+
+        private int width(List<String> labels) {
+            int w = 0;
+            for(String label : labels)
+                w += Text.std.strsize(label).x;
+            return w + sep.sz().x * Math.max(0, labels.size() - 1);
+        }
+
+        private void layout() {
+            String key = (searchQuery.isEmpty() ? currentPath : "\0search") + "\0" + sz.x;
+            if(key.equals(laidFor))
+                return;
+            laidFor = key;
+            for(Crumb crumb : crumbs)
+                crumb.text.dispose();
+            crumbs.clear();
+            if(sep == null)
+                sep = Text.std.render(" \u203a ");
+            cut = false;
+            if(!searchQuery.isEmpty()) {
+                crumbs.add(new Crumb(null, Text.std.ellipsize(get("area.path.search"), sz.x)));
+                return;
+            }
+            List<String> path = AreaPaths.crumbs(currentPath);
+            List<String> dests = new ArrayList<>();
+            List<String> labels = new ArrayList<>();
+            for(int first = 0; ; first++) {
+                dests.clear();
+                labels.clear();
+                if(first > 0) {
+                    dests.add(path.get(first - 1));
+                    labels.add("\u2026");
+                }
+                for(int i = first; i < path.size(); i++) {
+                    dests.add(path.get(i));
+                    labels.add(path.get(i).isEmpty() ? get("area.path.root") : AreaPaths.name(path.get(i)));
+                }
+                if(width(labels) <= sz.x || first >= path.size() - 2)
+                    break;
+                cut = true;
+            }
+            int max = Integer.MAX_VALUE;
+            if(width(labels) > sz.x) {
+                cut = true;
+                max = Math.max(UI.scale(10), (sz.x - sep.sz().x * (labels.size() - 1)) / labels.size());
+            }
+            int x = 0;
+            for(int i = 0; i < labels.size(); i++) {
+                Crumb crumb = new Crumb(dests.get(i), Text.std.ellipsize(labels.get(i), max));
+                crumb.x = x;
+                x += crumb.text.sz().x + sep.sz().x;
+                crumbs.add(crumb);
+            }
+        }
+
+        /** The folder under {@code c}, or null. */
+        String crumbAt(Coord c) {
+            layout();
+            if(c.y < 0 || c.y >= sz.y)
+                return null;
+            for(Crumb crumb : crumbs) {
+                if(crumb.dest != null && c.x >= crumb.x && c.x < crumb.x + crumb.text.sz().x)
+                    return crumb.dest;
+            }
+            return null;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            layout();
+            String over = al.dragging() ? null : crumbAt(ui.mc.sub(rootpos()));
+            Target hover = al.hover;
+            for(int i = 0; i < crumbs.size(); i++) {
+                Crumb crumb = crumbs.get(i);
+                Coord tsz = crumb.text.sz();
+                int y = (sz.y - tsz.y) / 2;
+                boolean last = (i == crumbs.size() - 1);
+                boolean hot = hover != null && hover.valid && hover.kind == Target.CRUMB && hover.dest.equals(crumb.dest);
+                if(hot)
+                    drawHot(g, Coord.of(crumb.x - UI.scale(2), 0), Coord.of(tsz.x + UI.scale(4), sz.y), al.springProgress(hover));
+                g.chcolor((last || hot || (crumb.dest != null && crumb.dest.equals(over))) ? Color.WHITE : dim);
+                g.image(crumb.text.tex(), Coord.of(crumb.x, y));
+                if(!last) {
+                    g.chcolor(dim);
+                    g.image(sep.tex(), Coord.of(crumb.x + tsz.x, y));
+                }
+            }
+            g.chcolor();
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if(ev.b != 1)
+                return false;
+            String dest = crumbAt(ev.c);
+            if(dest != null && !dest.equals(currentPath))
+                showPath(dest);
+            return true;
+        }
+
+        @Override
+        public Object tooltip(Coord c, Widget prev) {
+            return (cut && searchQuery.isEmpty()) ? displayPath(currentPath) : null;
+        }
+
+        @Override
+        public void dispose() {
+            for(Crumb crumb : crumbs)
+                crumb.text.dispose();
+            if(sep != null)
+                sep.dispose();
+            super.dispose();
+        }
+    }
+
     List<SpecialisationItem> specItems = new ArrayList<>();
     @Override
     public void wdgmsg(Widget sender, String msg, Object... args)
@@ -1286,7 +1935,26 @@ public class NAreasWidget extends Window
     }
 
     @Override
+    public boolean keydown(KeyDownEvent ev) {
+        if(ev.code == KeyEvent.VK_ESCAPE && al.pressing()) {
+            al.cancelDrag();
+            return true;
+        }
+        if(ev.code == KeyEvent.VK_Z && ui.modctrl && !ui.modshift) {
+            undoMove();
+            return true;
+        }
+        return super.keydown(ev);
+    }
+
+    @Override
     public void hide() {
+        if(al != null)
+            al.cancelDrag();
+        if(moveDialog != null) {
+            moveDialog.reqdestroy();
+            moveDialog = null;
+        }
         super.hide();
         if(NUtils.getGameUI()!=null && NUtils.getGameUI().map!=null && !createMode)
             ((NMapView)NUtils.getGameUI().map).destroyDummys();
