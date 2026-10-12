@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "name": "Poppy Farmer Quality",
+  "category": "farming_quality",
+  "description": "A 3x3 patch for breeding high-quality poppy: each run harvests it, keeps the best in the seed container and replants from it.\n\nBots:\n• Poppy Farmer Quality\n\nIn each area:\n• Crop Quality(Poppy): till the soil (nothing to build)\n• Seeds of crop quality(Poppy): exactly one chest or crate; the best seeds and crops are kept in it (the bot stops without one)\n• Poppy Flower: nothing to build: the bot piles Poppy Flower here (or put a container in it)\n\nAlso needed:\n• The Quality grid size option set to \"3x3\" (Options > Farming).\n• Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
+  "size": {
+    "w": 5,
+    "h": 4
+  },
+  "areas": [
+    {
+      "name": "Crop Quality(Poppy)",
+      "path": "",
+      "x": 2,
+      "y": 0,
+      "w": 3,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Poppy",
+          "name": "cropQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Seeds of crop quality(Poppy)",
+      "path": "",
+      "x": 1,
+      "y": 3,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Poppy",
+          "name": "seedQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Poppy Flower",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Poppy Flower",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/flower-poppy"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

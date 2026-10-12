@@ -1,0 +1,86 @@
+{
+  "format": 1,
+  "name": "Turnip Farmer",
+  "category": "farming",
+  "description": "A field that is harvested and replanted from its own seeds, with the by-products sorted into piles.\n\nBots:\n• Turnip Farmer\n\nIn each area:\n• Crop(Turnip): till the soil (nothing to build)\n• Seeds of crop(Turnip): a barrel on this one-tile spot (it lies in the corner of the Turnip area); seeds are stored in it and taken from it for sowing\n• Turnip: nothing to build: the bot piles Turnip here (or put a container in it)\n\nAlso needed:\n• The Seed Trough preset, placed once near your fields: the bot will not start without a trough area.",
+  "size": {
+    "w": 20,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Crop(Turnip)",
+      "path": "",
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "min_harvest_stage": 3,
+          "subtype": "Turnip",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Turnip",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/turnip",
+          "name": "Turnip",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    },
+    {
+      "name": "Seeds of crop(Turnip)",
+      "path": "",
+      "x": 9,
+      "y": 9,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "seed",
+          "subtype": "Turnip"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "Grape Farmer",
+  "category": "farming",
+  "description": "Harvests grapes from a row of trellises.\n\nBots:\n• Grape Farmer\n\nIn each area:\n• Crop(Grape): trellises along the row, with the plants growing on them\n• Grapes: nothing to build: the bot piles Grapes here (or put a container in it)",
+  "size": {
+    "w": 11,
+    "h": 24
+  },
+  "areas": [
+    {
+      "name": "Crop(Grape)",
+      "path": "",
+      "x": 9,
+      "y": 4,
+      "w": 2,
+      "h": 20,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Grape",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Grapes",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 7,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/grapes",
+          "name": "Grapes",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

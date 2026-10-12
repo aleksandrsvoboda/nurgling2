@@ -1,0 +1,208 @@
+{
+  "format": 1,
+  "name": "Kiln & Lye Yard",
+  "category": "productions",
+  "description": "Kilns for bricks, ash, wraps and garden pots, plus a cauldron that boils the ashes into lye.\n\nBots:\n• Bricks Action\n• Block Ash\n• Wrap Action\n• Ungarden Pot\n• Lye Boiler\n\nIn each area:\n• Kilns: kilns\n• Cauldron: a cauldron\n• Lye: a barrel; the lye is poured into it\n• Ashes: a barrel; Block Ash fills it and the Lye Boiler takes from it\n• Fuel: Kiln(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n• Block for Ash: stockpiles of blocks or boards to burn into ash\n• Source of water: a barrel next to a cistern or well, to fill water from\n• Fuel: Cauldron(Branch): stockpiles of branches (fuel is only taken from stockpiles)\n\nAlso needed:\n• Something to light it with: a torch, two or more branches in your inventory, or a lit candelabrum in a Candelabrum area (Smelter Yard).\n• Bricks Action: a TAKE area with clay stockpiles.\n• Wrap Action: a TAKE area with the wraps to bake.\n• Ungarden Pot: a TAKE area for Unfired Garden Pot and a Ready Garden pots area.",
+  "size": {
+    "w": 14,
+    "h": 13
+  },
+  "areas": [
+    {
+      "name": "Kilns",
+      "path": "",
+      "x": 3,
+      "y": 4,
+      "w": 7,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "kiln"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cauldron",
+      "path": "",
+      "x": 4,
+      "y": 1,
+      "w": 5,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "boiler"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Lye",
+      "path": "",
+      "x": 0,
+      "y": 4,
+      "w": 2,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/lye",
+          "name": "Lye",
+          "type": "BARREL"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Ashes",
+      "path": "",
+      "x": 0,
+      "y": 7,
+      "w": 2,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/ashes",
+          "name": "Ashes",
+          "type": "BARREL"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/ashes",
+          "name": "Ashes",
+          "type": "BARREL"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel: Kiln(Branch)",
+      "path": "",
+      "x": 11,
+      "y": 4,
+      "w": 2,
+      "h": 5,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "fuelKiln",
+          "subtype": "Branch"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Block for Ash",
+      "path": "",
+      "x": 11,
+      "y": 10,
+      "w": 3,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "blockforash"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Source of water",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 2,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "water"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel: Cauldron(Branch)",
+      "path": "",
+      "x": 10,
+      "y": 1,
+      "w": 2,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "fuelCauldron",
+          "subtype": "Branch"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

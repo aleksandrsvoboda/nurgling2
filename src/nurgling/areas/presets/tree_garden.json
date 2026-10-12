@@ -1,0 +1,145 @@
+{
+  "format": 1,
+  "name": "Tree Garden",
+  "category": "resources",
+  "description": "Germinates tree seeds in Treeplanter's Pots on a herbalist table and plants them out following a blueprint.\n\nBots:\n• Blueprint Tree Planter\n\nIn each area:\n• Herbalist tables(Trees): a herbalist table\n• Water for Trees: a barrel of water\n• Mulch: a soil or mulch stockpile\n• Towercap Spore: Treeplanter's Pots and tree seeds, as stockpiles or in containers\n\nAlso needed:\n• A tree blueprint, made in the Blueprint Tree Planter.",
+  "size": {
+    "w": 5,
+    "h": 3
+  },
+  "areas": [
+    {
+      "name": "Herbalist tables(Trees)",
+      "path": "",
+      "x": 4,
+      "y": 0,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Trees",
+          "name": "htable"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Water for Trees",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "waterForTrees"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Mulch",
+      "path": "",
+      "x": 2,
+      "y": 0,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "soilForTrees"
+        }
+      ],
+      "in": [
+        {
+          "static": "gfx/invobjs/mulch",
+          "name": "Mulch",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/mulch",
+          "name": "Mulch",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Towercap Spore",
+      "path": "",
+      "x": 3,
+      "y": 2,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/seed-towercap",
+          "name": "Towercap Spore",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/treepot",
+          "name": "Treeplanter's Pot",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mulberry",
+          "name": "Mulberry",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/seed-towercap",
+          "name": "Towercap Spore",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/treepot",
+          "name": "Treeplanter's Pot",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/mulberry",
+          "name": "Mulberry",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "Horse Pen",
+  "category": "animals",
+  "description": "A pen where the bot keeps the best horses for breeding and slaughters the rest.\n\nBots:\n• Horse Manager\n• Butcher (for the carcasses)\n\nIn each area:\n• Horse pen: a fence with a gate; the animals live here and the area must cover them\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n\nAlso needed:\n• A herd setting chosen in the bot's options, which decides which animals are kept.",
+  "size": {
+    "w": 30,
+    "h": 21
+  },
+  "areas": [
+    {
+      "name": "Horse pen",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 21,
+      "h": 21,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "horses"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 24,
+      "y": 5,
+      "w": 6,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

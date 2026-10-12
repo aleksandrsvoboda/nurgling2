@@ -1,0 +1,325 @@
+{
+  "format": 1,
+  "name": "Smelter Yard",
+  "category": "productions",
+  "description": "Smelts ore into bars: ore and coal piles next to the smelters, with piles for coal, slag and each kind of bar.\n\nBots:\n• Smelter\n\nIn each area:\n• Smelters: smelters (ore and smith's smelters burn coal, stack furnaces burn branches)\n• Piles of ore: ore, as stockpiles or in containers\n• Fuel: Smelter(Coal): stockpiles of coal (fuel is only taken from stockpiles)\n• Candelabrum: a lit candelabrum, which the bot fetches to light the smelters (keep a free tile for it)\n• The 7 storage areas (Coal, Slag, Bar of Tin, Bar of Bronze, Bar of Copper, Bar of Cast Iron, Bar of Wrought Iron): nothing to build, the bots pile the products there (or put containers in them)\n\nAlso needed:\n• The Bar of Wrought Iron area is also where the Forging bot (Finery Forge) puts its iron.",
+  "size": {
+    "w": 24,
+    "h": 42
+  },
+  "areas": [
+    {
+      "name": "Smelters",
+      "path": "",
+      "x": 11,
+      "y": 13,
+      "w": 9,
+      "h": 12,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "smelter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    },
+    {
+      "name": "Piles of ore",
+      "path": "",
+      "x": 11,
+      "y": 0,
+      "w": 8,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "ore"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/cuprite",
+          "name": "Wine Glance",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/cassiterite",
+          "name": "Cassiterite",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/chalcopyrite",
+          "name": "Chalcopyrite",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel: Smelter(Coal)",
+      "path": "",
+      "x": 20,
+      "y": 0,
+      "w": 4,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Coal",
+          "name": "fuelSmelter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Coal",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/coal",
+          "name": "Coal",
+          "type": "CONTAINER"
+        },
+        {
+          "static": "gfx/invobjs/blackcoal",
+          "name": "Black Coal",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Slag",
+      "path": "",
+      "x": 0,
+      "y": 13,
+      "w": 8,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/slag",
+          "name": "Slag",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Candelabrum",
+      "path": "",
+      "x": 21,
+      "y": 11,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "candelabrum"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bar of Tin",
+      "path": "",
+      "x": 11,
+      "y": 27,
+      "w": 2,
+      "h": 7,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bar-tin",
+          "name": "Bar of Tin",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-tin",
+          "name": "Bar of Tin",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bar of Bronze",
+      "path": "",
+      "x": 11,
+      "y": 35,
+      "w": 2,
+      "h": 7,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bar-bronze",
+          "name": "Bar of Bronze",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-bronze",
+          "name": "Bar of Bronze",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bar of Copper",
+      "path": "",
+      "x": 14,
+      "y": 27,
+      "w": 2,
+      "h": 15,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bar-copper",
+          "name": "Bar of Copper",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-copper",
+          "name": "Bar of Copper",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    },
+    {
+      "name": "Bar of Cast Iron",
+      "path": "",
+      "x": 17,
+      "y": 27,
+      "w": 2,
+      "h": 15,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bar-castiron",
+          "name": "Bar of Cast Iron",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-castiron",
+          "name": "Bar of Cast Iron",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "TOP_TO_BOTTOM"
+    },
+    {
+      "name": "Bar of Wrought Iron",
+      "path": "",
+      "x": 22,
+      "y": 27,
+      "w": 2,
+      "h": 15,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-wroughtiron",
+          "name": "Bar of Wrought Iron",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -46,7 +46,7 @@ public class NAreasWidget extends Window
     PathBar pathBar;
     /* A folder only exists while some area's path runs through it. Folders made this session
      * stay listed while still empty, so things can be moved into them; they are not saved. */
-    final Set<String> emptyFolders = new HashSet<>();
+    public final Set<String> emptyFolders = new HashSet<>();
     /* Ctrl/Shift-clicked rows, keyed by area id (Integer) or folder path (String) so the marks
      * survive the list being rebuilt. */
     final Set<Object> marked = new HashSet<>();
@@ -156,6 +156,15 @@ public class NAreasWidget extends Window
             }
         }, exportbt.pos("ur").adds(UI.scale(10, 0)));
         syncLogBtn.settip("Recent area sync events (auto-merges, conflicts, deletes)");
+
+        haven.Button presetsBtn = add(new haven.Button(UI.scale(70), get("area.preset.btn")) {
+            @Override
+            public void click() {
+                super.click();
+                NAreaPresetsWindow.open((NGameUI) ui.gui);
+            }
+        }, syncLogBtn.pos("ur").adds(UI.scale(5, 0)));
+        presetsBtn.settip(get("area.preset.btn_tip"));
 
 //        // Export to Database button
 //        haven.Button exportDbBtn;
@@ -442,6 +451,31 @@ public class NAreasWidget extends Window
             moveDialog = null;
     }
 
+    /** "Save as preset...": the row, or every marked row if it is marked, saved as one preset. */
+    void savePreset(AreaItem row) {
+        List<NArea> areas = new ArrayList<>();
+        List<String> folders = new ArrayList<>();
+        payloadOf(row, areas, folders);
+        if (areas.isEmpty() && folders.isEmpty())
+            return;
+        String suggested = (areas.size() + folders.size() == 1)
+                ? (areas.isEmpty() ? AreaPaths.name(folders.get(0)) : areas.get(0).name)
+                : "";
+        NAreaPresetNameDialog.open(ui, get("area.preset.save_title"), suggested, name -> {
+            NGameUI gui = (NGameUI) ui.gui;
+            try {
+                AreaPreset preset = AreaPreset.capture(name, areas, folders, allAreas(), gui.map.glob.map);
+                AreaPresetStore.saveNew(preset);
+                gui.msg(get("area.preset.saved", preset.name, preset.areas.size()));
+                NAreaPresetsWindow.open(gui).load(preset);
+            } catch (AreaPreset.CaptureException e) {
+                gui.error(e.getMessage());
+            } catch (java.io.IOException e) {
+                gui.error(get("area.preset.save_failed", e.getMessage()));
+            }
+        });
+    }
+
     /** What a drag or "Move to..." started on {@code row} carries. */
     private void payloadOf(AreaItem row, List<NArea> areas, List<String> folders) {
         Object key = row.key();
@@ -695,6 +729,7 @@ public class NAreasWidget extends Window
                     add(L10n.get("area.menu.edit_name"));
                     add(L10n.get("area.menu.fill_direction"));
                     add(L10n.get("area.menu.move_to"));
+                    add(L10n.get("area.menu.save_preset"));
                     add(L10n.get("area.menu.scan"));
                     add(L10n.get("area.menu.delete"));
                 }
@@ -713,6 +748,7 @@ public class NAreasWidget extends Window
                 {
                     add(L10n.get("area.menu.edit_folder"));
                     add(L10n.get("area.menu.move_to"));
+                    add(L10n.get("area.menu.save_preset"));
                     add(L10n.get("area.menu.remove_content"));
                 }
             };
@@ -878,6 +914,10 @@ public class NAreasWidget extends Window
                             else if (option.name.equals(get("area.menu.move_to")))
                             {
                                 openMoveDialog(AreaItem.this);
+                            }
+                            else if (option.name.equals(get("area.menu.save_preset")))
+                            {
+                                savePreset(AreaItem.this);
                             }
                             else if (option.name.equals(get("area.menu.edit_folder")))
                             {

@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "Pea Farmer",
+  "category": "farming",
+  "description": "Harvests peas from a row of trellises and replants from the peapods.\n\nBots:\n• Pea Farmer\n\nIn each area:\n• Crop(Pea): trellises along the row, with the plants growing on them\n• Peapod: nothing to build: the bot piles Peapod here (or put a container in it)",
+  "size": {
+    "w": 11,
+    "h": 20
+  },
+  "areas": [
+    {
+      "name": "Crop(Pea)",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 2,
+      "h": 20,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Pea",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Peapod",
+      "path": "",
+      "x": 4,
+      "y": 10,
+      "w": 7,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/peapod",
+          "name": "Peapod",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "RIGHT_TO_LEFT"
+    }
+  ]
+}

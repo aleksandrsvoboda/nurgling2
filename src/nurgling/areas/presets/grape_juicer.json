@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "name": "Grape Juicer",
+  "category": "productions",
+  "description": "Presses grapes into juice.\n\nBots:\n• Grape Juicer\n\nIn each area:\n• Extraction Press: an extraction press\n• Barrel(Grape Juice): barrels for the grape juice (empty, or holding less than 90 l)\n• Grapes: grapes, as stockpiles or in containers; the bot takes them from here",
+  "size": {
+    "w": 10,
+    "h": 4
+  },
+  "areas": [
+    {
+      "name": "Extraction Press",
+      "path": "",
+      "x": 4,
+      "y": 0,
+      "w": 1,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "extractionPress"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Barrel(Grape Juice)",
+      "path": "",
+      "x": 6,
+      "y": 3,
+      "w": 4,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Grape Juice",
+          "name": "barrel"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Grapes",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Grapes",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/grapes"
+        }
+      ],
+      "out": [
+        {
+          "name": "Grapes",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/grapes"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

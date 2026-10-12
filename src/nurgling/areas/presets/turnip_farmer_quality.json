@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "Turnip Farmer Quality",
+  "category": "farming_quality",
+  "description": "A 3x3 patch for breeding high-quality turnip: each run harvests it, keeps the best in the seed container and replants from it.\n\nBots:\n• Turnip Farmer Quality\n\nIn each area:\n• Crop Quality(Turnip): till the soil (nothing to build)\n• Seeds of crop quality(Turnip): exactly one chest or crate; the best seeds and crops are kept in it (the bot stops without one)\n\nAlso needed:\n• The Quality grid size option set to \"3x3\" (Options > Farming).\n• Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
+  "size": {
+    "w": 4,
+    "h": 4
+  },
+  "areas": [
+    {
+      "name": "Crop Quality(Turnip)",
+      "path": "",
+      "x": 1,
+      "y": 0,
+      "w": 3,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Turnip",
+          "name": "cropQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Seeds of crop quality(Turnip)",
+      "path": "",
+      "x": 0,
+      "y": 3,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Turnip",
+          "name": "seedQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

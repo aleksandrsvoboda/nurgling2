@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "Seed Trough",
+  "category": "farming",
+  "description": "One trough for spare seeds, shared by every field farm. Place it once near your fields.\n\nBots:\n• Barley, Carrot, Flax, Green Kale, Hemp, Leek, Lettuce, Millet, Pipeweed, Poppy, Pumpkin, Radish, Turnip, Watermelon and Wheat Farmer (required)\n• The Farmer Quality bots (optional, for clearing out low-quality seeds)\n• Swill Piles to Troughs\n\nIn each area:\n• Trough for seeds: a trough",
+  "size": {
+    "w": 3,
+    "h": 2
+  },
+  "areas": [
+    {
+      "name": "Trough for seeds",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "trough"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

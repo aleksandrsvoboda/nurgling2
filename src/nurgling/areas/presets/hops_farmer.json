@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "name": "Hops Farmer",
+  "category": "farming",
+  "description": "Harvests hops from a row of trellises and replants from the hop cones.\n\nBots:\n• Hops Farmer\n\nIn each area:\n• Crop(Hops): trellises along the row, with the plants growing on them\n• Hop Cones: nothing to build: the bot piles Hop Cones here (or put a container in it)\n• Unusually Large Hop Cone: nothing to build: the bot piles Unusually Large Hop Cone here (or put a container in it)",
+  "size": {
+    "w": 11,
+    "h": 20
+  },
+  "areas": [
+    {
+      "name": "Crop(Hops)",
+      "path": "",
+      "x": 9,
+      "y": 0,
+      "w": 2,
+      "h": 20,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Hops",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Hop Cones",
+      "path": "",
+      "x": 2,
+      "y": 10,
+      "w": 5,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/hopcones",
+          "name": "Hop Cones",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Unusually Large Hop Cone",
+      "path": "",
+      "x": 0,
+      "y": 7,
+      "w": 3,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/hopcones-l",
+          "name": "Unusually Large Hop Cone",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/hopcones-l",
+          "name": "Unusually Large Hop Cone",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

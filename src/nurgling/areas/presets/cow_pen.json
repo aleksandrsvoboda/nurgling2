@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "name": "Cow Pen",
+  "category": "animals",
+  "description": "A pen where the bot milks the cows, keeps the best cows for breeding and slaughters the rest.\n\nBots:\n• Cow Manager\n• Butcher (for the carcasses)\n\nIn each area:\n• Cow pen: a fence with a gate; the animals live here and the area must cover them\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n• Cistern(Cow Milk): a barrel next to a cistern; the cow milk is poured into the cistern\n\nAlso needed:\n• A herd setting chosen in the bot's options, which decides which animals are kept.",
+  "size": {
+    "w": 32,
+    "h": 23
+  },
+  "areas": [
+    {
+      "name": "Cow pen",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 23,
+      "h": 23,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cows"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 26,
+      "y": 5,
+      "w": 6,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cistern(Cow Milk)",
+      "path": "",
+      "x": 23,
+      "y": 1,
+      "w": 2,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cistern",
+          "subtype": "Cow Milk"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

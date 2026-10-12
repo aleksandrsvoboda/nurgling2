@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "name": "Radish Farmer Quality",
+  "category": "farming_quality",
+  "description": "A 3x3 patch for breeding high-quality radish: each run harvests it, keeps the best in the seed container and replants from it. Radishes go to the Radish strip; the container keeps the seeds.\n\nBots:\n• Radish Farmer Quality\n\nIn each area:\n• Crop Quality(Radish): till the soil (nothing to build)\n• Seeds of crop quality(Radish): exactly one chest or crate; the best seeds and crops are kept in it (the bot stops without one)\n• Radish: nothing to build: the bot piles Radish here (or put a container in it)\n\nAlso needed:\n• The Quality grid size option set to \"3x3\" (Options > Farming).\n• Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
+  "size": {
+    "w": 5,
+    "h": 4
+  },
+  "areas": [
+    {
+      "name": "Crop Quality(Radish)",
+      "path": "",
+      "x": 2,
+      "y": 0,
+      "w": 3,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Radish",
+          "name": "cropQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Seeds of crop quality(Radish)",
+      "path": "",
+      "x": 1,
+      "y": 3,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Radish",
+          "name": "seedQ"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Radish",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "name": "Radish",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/radish"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

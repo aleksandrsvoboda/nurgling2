@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "Red Onion Farmer",
+  "category": "farming",
+  "description": "A field that is harvested and replanted from the harvest itself, which is piled next to the field.\n\nBots:\n• Red Onion Farmer\n\nIn each area:\n• Crop(Red Onion): till the soil (nothing to build)\n• Red Onion: nothing to build: the harvest is piled here and replanted from these piles",
+  "size": {
+    "w": 20,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Crop(Red Onion)",
+      "path": "",
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Red Onion",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Red Onion",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Red Onion",
+          "name": "seed"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/redonion",
+          "name": "Red Onion",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "LEFT_TO_RIGHT"
+    }
+  ]
+}

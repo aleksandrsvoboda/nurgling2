@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "name": "Sheep Pen",
+  "category": "animals",
+  "description": "A pen where the bot milks and shears the sheep, keeps the best sheep for breeding and slaughters the rest.\n\nBots:\n• Sheep Manager\n• Butcher (for the carcasses)\n\nIn each area:\n• Sheep pen: a fence with a gate; the animals live here and the area must cover them\n• Animal carcasses: nothing: keep the ground free, carcasses are laid down here\n• Cistern(Sheep Milk): a barrel next to a cistern; the sheep milk is poured into the cistern\n• Wool: nothing to build: the bot piles Wool here (or put a container in it)\n\nAlso needed:\n• A herd setting chosen in the bot's options, which decides which animals are kept.",
+  "size": {
+    "w": 32,
+    "h": 23
+  },
+  "areas": [
+    {
+      "name": "Sheep pen",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 23,
+      "h": 23,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "sheeps"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Animal carcasses",
+      "path": "",
+      "x": 26,
+      "y": 5,
+      "w": 6,
+      "h": 6,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "deadkritter"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cistern(Sheep Milk)",
+      "path": "",
+      "x": 23,
+      "y": 1,
+      "w": 2,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cistern",
+          "subtype": "Sheep Milk"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Wool",
+      "path": "",
+      "x": 26,
+      "y": 12,
+      "w": 6,
+      "h": 2,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "name": "Wool",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/wool-sheep"
+        }
+      ],
+      "out": [
+        {
+          "name": "Wool",
+          "type": "CONTAINER",
+          "static": "gfx/invobjs/wool-sheep"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

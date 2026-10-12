@@ -1,0 +1,169 @@
+{
+  "format": 1,
+  "name": "Finery Forge",
+  "category": "productions",
+  "description": "Turns cast iron into wrought iron at a finery forge.\n\nBots:\n• Forging\n\nIn each area:\n• Finery Forge: a finery forge\n• Fuel: Finery Forge(Coal): stockpiles of coal (fuel is only taken from stockpiles)\n• Dross: nothing: dross can be piled here\n• Anvil: an anvil\n• Bar of Cast Iron: cast iron bars, as stockpiles or in containers; the bot takes them from here\n• Bar of Wrought Iron: nothing to build: the bot piles Bar of Wrought Iron here (or put a container in it)\n\nAlso needed:\n• Something to light it with: a torch, two or more branches in your inventory, or a lit candelabrum in a Candelabrum area (Smelter Yard).",
+  "size": {
+    "w": 9,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Finery Forge",
+      "path": "",
+      "x": 0,
+      "y": 5,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "fforge"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Fuel: Finery Forge(Coal)",
+      "path": "",
+      "x": 0,
+      "y": 9,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Coal",
+          "name": "fuelFforge"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Dross",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 2,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/dross",
+          "name": "Dross",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/dross",
+          "name": "Dross",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Anvil",
+      "path": "",
+      "x": 2,
+      "y": 5,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "anvil"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bar of Cast Iron",
+      "path": "",
+      "x": 4,
+      "y": 0,
+      "w": 2,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/bar-castiron",
+          "name": "Bar of Cast Iron",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-castiron",
+          "name": "Bar of Cast Iron",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "TOP_TO_BOTTOM"
+    },
+    {
+      "name": "Bar of Wrought Iron",
+      "path": "",
+      "x": 7,
+      "y": 0,
+      "w": 2,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/bar-wroughtiron",
+          "name": "Bar of Wrought Iron",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

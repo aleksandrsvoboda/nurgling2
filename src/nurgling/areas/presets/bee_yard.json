@@ -1,0 +1,274 @@
+{
+  "format": 1,
+  "name": "Bee Yard",
+  "category": "animals",
+  "description": "Nine bee skeps 15 tiles apart, a honey cistern and a beeswax pile.\n\nBots:\n• Beehive Manager\n\nIn each area:\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Bee Skep: a bee skep\n• Cistern(Honey): a barrel next to a cistern; the honey is poured into the cistern\n• Beeswax: nothing to build: the bot piles Beeswax here (or put a container in it)",
+  "size": {
+    "w": 35,
+    "h": 31
+  },
+  "areas": [
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 15,
+      "y": 0,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 30,
+      "y": 0,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 0,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 15,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 30,
+      "y": 15,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 0,
+      "y": 30,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 15,
+      "y": 30,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Bee Skep",
+      "path": "",
+      "x": 30,
+      "y": 30,
+      "w": 1,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "beeSkep"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Cistern(Honey)",
+      "path": "",
+      "x": 33,
+      "y": 0,
+      "w": 2,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "cistern",
+          "subtype": "Honey"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Beeswax",
+      "path": "",
+      "x": 33,
+      "y": 5,
+      "w": 2,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/beeswax",
+          "name": "Beeswax",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [
+        {
+          "static": "gfx/invobjs/beeswax",
+          "name": "Beeswax",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

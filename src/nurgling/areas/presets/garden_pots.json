@@ -1,0 +1,222 @@
+{
+  "format": 1,
+  "name": "Garden Pots",
+  "category": "farming",
+  "description": "Rows of garden pots for Strawberries, Cavebulb and Kvann. Change a row's subtype (and its seed area's) to grow something else.\n\nBots:\n• Garden Pot Farmer\n\nIn each area:\n• Planting Garden Pots(Strawberries): garden pots; the bot fills them with soil and water and plants Strawberries\n• Planting Garden Pots(Cavebulb): garden pots; the bot fills them with soil and water and plants Cavebulb\n• Planting Garden Pots(Kvann): garden pots; the bot fills them with soil and water and plants Kvann\n• Garden Pot Seeds(Strawberries): Strawberries to plant, as stockpiles or in a container; the harvest is put back here\n• Garden Pot Seeds(Cavebulb): Cavebulb to plant, as stockpiles or in a container; the harvest is put back here\n• Source of water: a barrel next to a cistern or well, to fill water from\n• Soil: soil stockpiles; the bot takes soil from here to fill the pots\n• Garden Pot Seeds(Kvann): Kvann to plant, as stockpiles or in a container; the harvest is put back here\n\nAlso needed:\n• Mulch in your inventory.",
+  "size": {
+    "w": 27,
+    "h": 19
+  },
+  "areas": [
+    {
+      "name": "Planting Garden Pots(Strawberries)",
+      "path": "",
+      "x": 17,
+      "y": 17,
+      "w": 10,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Strawberries",
+          "name": "plantingGardenPots"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Planting Garden Pots(Cavebulb)",
+      "path": "",
+      "x": 17,
+      "y": 14,
+      "w": 10,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Cavebulb",
+          "name": "plantingGardenPots"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Planting Garden Pots(Kvann)",
+      "path": "",
+      "x": 17,
+      "y": 10,
+      "w": 10,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Kvann",
+          "name": "plantingGardenPots"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Garden Pot Seeds(Strawberries)",
+      "path": "",
+      "x": 12,
+      "y": 17,
+      "w": 4,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Strawberries",
+          "name": "gardenPotSeeds"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/herbs/strawberry",
+          "name": "Strawberries",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Garden Pot Seeds(Cavebulb)",
+      "path": "",
+      "x": 12,
+      "y": 14,
+      "w": 4,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Cavebulb",
+          "name": "gardenPotSeeds"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/herbs/cavebulb",
+          "name": "Cavebulb",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Source of water",
+      "path": "",
+      "x": 0,
+      "y": 15,
+      "w": 3,
+      "h": 4,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "water"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Soil",
+      "path": "",
+      "x": 8,
+      "y": 0,
+      "w": 5,
+      "h": 3,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [],
+      "in": [
+        {
+          "static": "gfx/invobjs/soil",
+          "name": "Soil",
+          "type": "CONTAINER"
+        }
+      ],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Garden Pot Seeds(Kvann)",
+      "path": "",
+      "x": 12,
+      "y": 10,
+      "w": 4,
+      "h": 1,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "gardenPotSeeds",
+          "subtype": "Kvann"
+        }
+      ],
+      "in": [],
+      "out": [
+        {
+          "static": "gfx/invobjs/herbs/kvann",
+          "name": "Kvann",
+          "type": "CONTAINER"
+        }
+      ],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "name": "Fish Drying",
+  "category": "productions",
+  "description": "Dries raw fish on drying frames.\n\nBots:\n• Dry Fish\n\nIn each area:\n• Drying frames(Fish): drying frames\n• Piles of raw fish: raw fish, as stockpiles\n\nAlso needed:\n• A PUT area for the dried fish you keep: dried fish is named per fish (\"Dried Filet of ...\"), so drag one into the Put list.",
+  "size": {
+    "w": 11,
+    "h": 21
+  },
+  "areas": [
+    {
+      "name": "Drying frames(Fish)",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 11,
+      "h": 14,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Fish",
+          "name": "dframe"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Piles of raw fish",
+      "path": "",
+      "x": 0,
+      "y": 14,
+      "w": 4,
+      "h": 7,
+      "color": {
+        "r": 194,
+        "g": 194,
+        "b": 65,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "name": "rawfish"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}
