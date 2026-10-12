@@ -49,15 +49,21 @@ import java.util.ArrayList;
  *       does <i>not</i> fetch a candelabrum from its designated area and does <i>not</i> walk back
  *       afterwards; only the list constructor (used by bots) enables the area fetch, matching the old
  *       {@code LightGob} capability.</li>
+ *   <li><b>Worn items too</b> — the {@link ItemTarget} constructor lights an equipped item (a pipe)
+ *       with the same torch tiers, falling back to holding the item itself to a lit fire.</li>
  * </ul>
  */
 public class LightObject implements Action {
 
     private final ArrayList<Gob> targets;
+    /** Set instead of {@link #targets} when the thing to light is a worn item, not a workstation. */
+    private final ItemTarget item;
     private final boolean allowCandelabrumAreaFetch;
     private final boolean returnToOrigin;
 
     private static final Coord TORCH_SIZE = new Coord(1, 1);
+    /** How long a worn item may take to catch before a lighting tier counts as failed. */
+    private static final long ITEM_LIGHT_TIMEOUT = 10000;
 
     private static final int SOURCE_EQUIPMENT = 0;
     private static final int SOURCE_INVENTORY = 1;
@@ -68,6 +74,7 @@ public class LightObject implements Action {
     public LightObject(Gob target) {
         this.targets = new ArrayList<>();
         this.targets.add(target);
+        this.item = null;
         this.allowCandelabrumAreaFetch = false;
         this.returnToOrigin = false;
     }
@@ -76,8 +83,35 @@ public class LightObject implements Action {
      *  strict superset of the old {@code LightGob} behavior. */
     public LightObject(ArrayList<Gob> targets) {
         this.targets = new ArrayList<>(targets);
+        this.item = null;
         this.allowCandelabrumAreaFetch = true;
         this.returnToOrigin = true;
+    }
+
+    /**
+     * Lights an item the player wears - a pipe - instead of a workstation. Used by bots, so it walks
+     * back afterwards like the list constructor. It never fetches a candelabrum: a carried
+     * candelabrum lights gobs, not items.
+     */
+    public LightObject(ItemTarget item) {
+        this.targets = new ArrayList<>();
+        this.item = item;
+        this.allowCandelabrumAreaFetch = false;
+        this.returnToOrigin = true;
+    }
+
+    /** A worn item to light. Both calls are re-made every time: a WItem does not survive a move. */
+    public interface ItemTarget {
+        /** The item as it sits in its equipment slot right now, or null when it is not worn. */
+        WItem find();
+
+        /** Whether it is burning. Called once per frame from a wait, so it must be cheap. */
+        boolean lit();
+    }
+
+    /** What to do with a lit torch once it is in hand: light the remaining gobs, or the item. */
+    private interface TorchUse {
+        void apply(NGameUI gui) throws InterruptedException;
     }
 
     // --- Config system ---
@@ -145,7 +179,7 @@ public class LightObject implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
-        if (targets.isEmpty())
+        if (item == null && targets.isEmpty())
             return Results.SUCCESS();
 
         // The lighting tiers end wherever the implement lives - on a torchpost, beside the
@@ -158,7 +192,7 @@ public class LightObject implements Action {
         NGlobalCoord origin = returnToOrigin ? NUtils.bookmarkHere() : null;
         // Deliberately not a finally block: an InterruptedException means the bot is being stopped
         // and must propagate without first walking anywhere.
-        Results res = light(gui);
+        Results res = (item != null) ? lightItem(gui) : light(gui);
         goBack(origin);
         return res;
     }
@@ -183,17 +217,18 @@ public class LightObject implements Action {
         }
         if (remaining.isEmpty())
             return Results.SUCCESS();
+        TorchUse onGobs = g -> applyTorchToTargets(g, remaining);
 
         // Priority 0: Embers (per-gob self-light, no shared implement).
         lightEmbers(gui, remaining);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 1: Lit torch in equipment.
-        tryEquippedLitTorch(gui, remaining);
+        tryEquippedLitTorch(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 2: Unlit torch (equipment/inventory/belt) + nearby lit fire source.
-        tryTorchWithBrazier(gui, remaining);
+        tryTorchWithBrazier(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 3: Lit candelabrum already in view (cheap — no area travel).
@@ -201,11 +236,11 @@ public class LightObject implements Action {
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 4: Lit torch on a torchpost.
-        tryLitTorchOnTorchpost(gui, remaining);
+        tryLitTorchOnTorchpost(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 5: Unlit torch on a torchpost + nearby lit fire source.
-        tryUnlitTorchpostWithBrazier(gui, remaining);
+        tryUnlitTorchpostWithBrazier(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 6: Branches — always per-gob, never batched (firebrand is single-use).
@@ -218,6 +253,84 @@ public class LightObject implements Action {
             tryCandelabrumFromArea(gui, remaining);
 
         return remaining.isEmpty() ? Results.SUCCESS() : Results.FAIL();
+    }
+
+    /**
+     * Lights {@link #item} with the same torch sources the gob path uses, nearest and cheapest first.
+     * When there is no torch at all but a fire burns nearby, the item itself is carried to the fire.
+     */
+    private Results lightItem(NGameUI gui) throws InterruptedException {
+        if (item.find() == null)
+            return Results.ERROR("Nothing to light: the item is not worn");
+        if (item.lit())
+            return Results.SUCCESS();
+        TorchUse onItem = this::applyTorchToItem;
+
+        tryEquippedLitTorch(gui, onItem);
+        if (item.lit()) return Results.SUCCESS();
+
+        tryTorchWithBrazier(gui, onItem);
+        if (item.lit()) return Results.SUCCESS();
+
+        tryLitTorchOnTorchpost(gui, onItem);
+        if (item.lit()) return Results.SUCCESS();
+
+        tryUnlitTorchpostWithBrazier(gui, onItem);
+        if (item.lit()) return Results.SUCCESS();
+
+        lightItemAtFire(gui);
+        return item.lit() ? Results.SUCCESS() : Results.FAIL();
+    }
+
+    /** Lit torch in hand -> used on the worn item, which never leaves its slot. */
+    private void applyTorchToItem(NGameUI gui) throws InterruptedException {
+        WItem target = item.find();
+        if (gui.vhand == null || target == null || item.lit())
+            return;
+        NUtils.itemact(target);
+        waitForItemLit(ITEM_LIGHT_TIMEOUT);
+    }
+
+    /** No torch anywhere: take the item off, hold it to a lit fire, and put it back where it was. */
+    private void lightItemAtFire(NGameUI gui) throws InterruptedException {
+        Gob fire = findLitFireSource();
+        WItem target = item.find();
+        if (fire == null || target == null)
+            return;
+        int slot = equipSlotOf(target);
+        if (slot < 0)
+            return;
+        NUtils.takeItemToHand(target);
+        new PathFinder(fire).run(gui);
+        NUtils.activateItem(fire);
+        waitForProgress(gui, ITEM_LIGHT_TIMEOUT);
+        // Back into the same slot: that is where it is worn, and where the lit state is read from.
+        if (gui.vhand != null) {
+            NUtils.getEquipment().wdgmsg("drop", slot);
+            NUtils.getUI().core.addTask(new WaitFreeHand());
+        }
+        waitForItemLit(ITEM_LIGHT_TIMEOUT);
+    }
+
+    private static int equipSlotOf(WItem target) {
+        NEquipory equip = NUtils.getEquipment();
+        if (equip == null)
+            return -1;
+        for (int i = 0; i < equip.quickslots.length; i++)
+            if (equip.quickslots[i] == target)
+                return i;
+        return -1;
+    }
+
+    /** Bounded: an item that will not catch must fail this tier, not hang the bot. */
+    private void waitForItemLit(long timeoutMs) throws InterruptedException {
+        final long deadline = System.currentTimeMillis() + timeoutMs;
+        NUtils.getUI().core.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                return item.lit() || System.currentTimeMillis() >= deadline;
+            }
+        });
     }
 
     /**
@@ -304,7 +417,7 @@ public class LightObject implements Action {
 
     // --- Priority 1: Lit torch in equipment ---
 
-    private void tryEquippedLitTorch(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+    private void tryEquippedLitTorch(NGameUI gui, TorchUse use) throws InterruptedException {
         NEquipory equip = NUtils.getEquipment();
         if (equip == null)
             return;
@@ -330,7 +443,7 @@ public class LightObject implements Action {
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
         // Apply (per gob)
-        applyTorchToTargets(gui, remaining);
+        use.apply(gui);
 
         // Release (once) — back to equip slot; the torch stays lit there.
         if (gui.vhand != null) {
@@ -341,7 +454,7 @@ public class LightObject implements Action {
 
     // --- Priority 2: Unlit torch (equipment or inventory) + lit brazier ---
 
-    private void tryTorchWithBrazier(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+    private void tryTorchWithBrazier(NGameUI gui, TorchUse use) throws InterruptedException {
         Gob litBrazier = findLitFireSource();
         if (litBrazier == null)
             return;
@@ -405,7 +518,7 @@ public class LightObject implements Action {
         waitForProgress(gui);
 
         // Apply (per gob)
-        applyTorchToTargets(gui, remaining);
+        use.apply(gui);
 
         // Release (once): extinguish and return the torch where it came from.
         if (gui.vhand != null) {
@@ -495,7 +608,7 @@ public class LightObject implements Action {
 
     // --- Priority 4: Lit torch on torchpost ---
 
-    private void tryLitTorchOnTorchpost(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+    private void tryLitTorchOnTorchpost(NGameUI gui, TorchUse use) throws InterruptedException {
         Gob litTorchpost = null;
         for (Gob tp : Finder.findGobs(new NAlias("torchpost"))) {
             TorchpostState state = getTorchpostState(tp);
@@ -515,7 +628,7 @@ public class LightObject implements Action {
         NUtils.getUI().core.addTask(new WaitItemInHand());
 
         // Apply (per gob)
-        applyTorchToTargets(gui, remaining);
+        use.apply(gui);
 
         // Release (once): return the torch to the post.
         if (gui.vhand != null) {
@@ -527,7 +640,7 @@ public class LightObject implements Action {
 
     // --- Priority 5: Unlit torch on torchpost + lit brazier ---
 
-    private void tryUnlitTorchpostWithBrazier(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+    private void tryUnlitTorchpostWithBrazier(NGameUI gui, TorchUse use) throws InterruptedException {
         Gob unlitTorchpost = null;
         for (Gob tp : Finder.findGobs(new NAlias("torchpost"))) {
             TorchpostState state = getTorchpostState(tp);
@@ -553,7 +666,7 @@ public class LightObject implements Action {
         waitForProgress(gui);
 
         // Apply (per gob)
-        applyTorchToTargets(gui, remaining);
+        use.apply(gui);
 
         // Release (once): extinguish and put the torch back on the post.
         if (gui.vhand != null) {
@@ -698,6 +811,30 @@ public class LightObject implements Action {
                 return (gui.prog != null) && (gui.prog.prog > 0);
             }
         });
+        NUtils.getUI().core.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                return (gui.prog == null) || (gui.prog.prog <= 0);
+            }
+        });
+    }
+
+    /**
+     * Like {@link #waitForProgress(NGameUI)}, but gives up when no progress bar shows within
+     * {@code timeoutMs}: whether holding an item to a fire raises one at all is not known.
+     */
+    private void waitForProgress(NGameUI gui, long timeoutMs) throws InterruptedException {
+        final long deadline = System.currentTimeMillis() + timeoutMs;
+        final boolean[] started = {false};
+        NUtils.getUI().core.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                started[0] = (gui.prog != null) && (gui.prog.prog > 0);
+                return started[0] || System.currentTimeMillis() >= deadline;
+            }
+        });
+        if (!started[0])
+            return;
         NUtils.getUI().core.addTask(new NTask() {
             @Override
             public boolean check() {
