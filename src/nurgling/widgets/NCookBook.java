@@ -3,17 +3,23 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NConfig;
 import nurgling.NFlowerMenu;
+import nurgling.NGameUI;
 import nurgling.NWindowDeco;
 import nurgling.actions.ReadJsonAction;
 import nurgling.cookbook.CookbookModel;
 import nurgling.cookbook.CookbookRow;
+import nurgling.cookbook.GenericTypes;
 import nurgling.cookbook.Recipe;
 import nurgling.cookbook.SpiceCalc;
+import nurgling.cookbook.Stock;
+import nurgling.cookbook.Variations;
 import nurgling.cookbook.connection.RecipeCatalogLoader;
 import nurgling.db.DatabaseManager;
 import nurgling.db.service.FavoriteRecipeService;
 import nurgling.i18n.L10n;
 import nurgling.sessions.BotExecutor;
+import nurgling.tools.ItemIcons;
+import nurgling.tools.VSpec;
 import nurgling.widgets.cookbook.CText;
 import nurgling.widgets.cookbook.CookbookTheme;
 import nurgling.widgets.cookbook.FepFilterPanel;
@@ -24,15 +30,20 @@ import nurgling.widgets.cookbook.PillButton;
 import nurgling.widgets.cookbook.Popover;
 import nurgling.widgets.cookbook.RecipeTable;
 import nurgling.widgets.cookbook.SpicePanel;
+import nurgling.widgets.cookbook.VariationsPanel;
+import nurgling.widgets.storage.VillageStorage;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import org.json.JSONObject;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 
 /**
  * The cookbook: every recipe the village database has recorded, in a table after the Kitten Rider
@@ -54,11 +65,24 @@ public class NCookBook extends Window implements RecipeTable.Actions {
     private IButton importBtn;
     private CText count, banner, footer;
     private RecipeTable table;
+    private VariationsPanel varPanel;
     private Popover fepPanel, ingPanel, spicePanel, optPanel;
     private Popover openPop = null;
     private NFlowerMenu rowMenu = null;
 
     private RecipeCatalogLoader loader = null;
+    private Variations variations = null;
+    private static final double CRAFT_WAIT = 10;
+    /* The recipe clicked last, until its crafting window ("Unbaked Meatpie" for Meatpie) opens. */
+    private Recipe craftRecipe = null;
+    private String craftWindow = null;
+    private NMakewindow craftOld = null;
+    private double craftWait = 0;
+    private Set<String> stored = Collections.emptySet();
+    /* False when the last load came before the village could be worked out, so it counted all storage. */
+    private boolean villageKnowable = true;
+    private double villageCheckIn = 0;
+    private String variationsOf = null;
     private String loadError = null;
     private boolean loadedOnce = false;
     private boolean posRestored = false;
@@ -91,6 +115,7 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         banner = add(new CText(CookbookTheme.body, CookbookTheme.fg), Coord.z);
         table = add(new RecipeTable(Coord.of(UI.scale(200), UI.scale(200)), model, this), Coord.z);
         footer = add(new CText(CookbookTheme.small, CookbookTheme.muted).set(L10n.get("cookbook.footer")), Coord.z);
+        varPanel = add(new VariationsPanel(this::closeVariations), Coord.z);
 
         /* Last, so they draw over the table and get clicks first. */
         fepPanel = add(new FepFilterPanel(fepPill, model), Coord.z);
@@ -147,8 +172,16 @@ public class NCookBook extends Window implements RecipeTable.Actions {
             bannerArea = null;
         }
         footer.move(Coord.of(0, isz.y - footer.sz.y));
+        int bodyH = Math.max(isz.y - y - footer.sz.y - GAP, RecipeTable.ROW_H * 2);
+        int tableW = isz.x;
+        if(varPanel.visible) {
+            int pw = Math.min(VariationsPanel.WIDTH, isz.x / 2);
+            tableW = isz.x - pw - GAP;
+            varPanel.move(Coord.of(tableW + GAP, y));
+            varPanel.resize(Coord.of(pw, bodyH));
+        }
         table.move(Coord.of(0, y));
-        table.resize(Coord.of(isz.x, Math.max(isz.y - y - footer.sz.y - GAP, RecipeTable.ROW_H * 2)));
+        table.resize(Coord.of(tableW, bodyH));
         for(Popover p : new Popover[] {fepPanel, ingPanel, spicePanel, optPanel})
             place(p);
     }
@@ -202,7 +235,7 @@ public class NCookBook extends Window implements RecipeTable.Actions {
 
     private void reload() {
         if((loader == null) && dbReady()) {
-            RecipeCatalogLoader l = new RecipeCatalogLoader(db());
+            RecipeCatalogLoader l = new RecipeCatalogLoader(db(), VillageStorage.snapshot(getparent(NGameUI.class)));
             if(db().submitTask(l) != null)
                 loader = l;
         }
@@ -219,11 +252,28 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         super.tick(dt);
         if((loader != null) && loader.ready.get()) {
             loadError = loader.error();
-            if(loadError == null)
+            if(loadError == null) {
                 model.setRecipes(loader.recipes());
+                variations = loader.variations();
+                Stock stock = loader.stock();
+                stored = (stock != null) ? stock.keys() : Collections.emptySet();
+                Variations v = variations;
+                model.setStock(stock, ing -> (v != null) ? v.itemNames(ing) : List.of(ing));
+                villageKnowable = loader.villageKnowable || !VillageStorage.onlyVillage();
+                model.setCookable(loader.cookable());
+            }
             loader = null;
             loadedOnce = true;
+            if(varPanel.visible)
+                showVariations(variationsOf);
             refreshChrome();
+        }
+        selectCraftIngredients(dt);
+        /* Loaded right after login, before the areas or ChunkNav: load again once the village is known. */
+        if(!villageKnowable && (loader == null) && ((villageCheckIn -= dt) <= 0)) {
+            villageCheckIn = 2;
+            if(VillageStorage.snapshot(getparent(NGameUI.class)).knowable())
+                reload();
         }
         if(model.version() != seenVersion) {
             seenVersion = model.version();
@@ -337,6 +387,10 @@ public class NCookBook extends Window implements RecipeTable.Actions {
             closePopover();
             return true;
         }
+        if(varPanel.visible && key_esc.match(ev)) {
+            closeVariations();
+            return true;
+        }
         return super.keydown(ev);
     }
 
@@ -356,6 +410,23 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         });
     }
 
+    /* ---- untried variations ---- */
+
+    private void showVariations(String dish) {
+        variationsOf = dish;
+        if(variations != null)
+            varPanel.set(variations.of(dish), stored, null);
+        else
+            varPanel.set(null, stored, L10n.get((loader != null) ? "cookbook.loading" : "cookbook.var.unavailable"));
+        varPanel.show();
+        arrange();
+    }
+
+    private void closeVariations() {
+        varPanel.hide();
+        arrange();
+    }
+
     /* ---- row actions ---- */
 
     @Override
@@ -370,21 +441,101 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         GameUI gui = getparent(GameUI.class);
         if((gui == null) || (gui.menu == null))
             return;
+        List<String> names = (variations != null) ? variations.craftNames(row.name()) : List.of(row.name());
         MenuGrid.Pagina target = null;
+        String targetName = null;
         synchronized(gui.menu.paginae) {
-            for(MenuGrid.Pagina pg : gui.menu.paginae) {
-                try {
-                    if(Objects.equals(pg.button().name(), row.name())) {
-                        target = pg;
-                        break;
+            for(String name : names) {
+                for(MenuGrid.Pagina pg : gui.menu.paginae) {
+                    try {
+                        if(GenericTypes.norm(pg.button().name()).equals(GenericTypes.norm(name))) {
+                            target = pg;
+                            targetName = pg.button().name();
+                            break;
+                        }
+                    } catch(Loading l) {
+                        /* Not loaded yet, so not the recipe the player is looking at. */
                     }
-                } catch(Loading l) {
-                    /* Not loaded yet, so not the recipe the player is looking at. */
                 }
+                if(target != null)
+                    break;
             }
         }
-        if(target != null)
+        if(target != null) {
+            craftRecipe = row.recipe;
+            craftWindow = targetName;
+            craftWait = CRAFT_WAIT;
+            NGameUI ngui = getparent(NGameUI.class);
+            craftOld = ((ngui != null) && (ngui.craftwnd != null)) ? ngui.craftwnd.makeWidget : null;
             target.button().use(new MenuGrid.Interaction(1, 0));
+        }
+    }
+
+    /* ---- selecting the clicked recipe's ingredients in its crafting window ---- */
+
+    /* Waits for the crafting window of the recipe clicked last, then selects its ingredients there. */
+    private void selectCraftIngredients(double dt) {
+        if(craftRecipe == null)
+            return;
+        if((craftWait -= dt) <= 0) {
+            craftRecipe = null;
+            return;
+        }
+        NGameUI gui = getparent(NGameUI.class);
+        NMakewindow mw = ((gui != null) && (gui.craftwnd != null)) ? gui.craftwnd.makeWidget : null;
+        if((mw == null) || (mw.rcpnm == null) || !GenericTypes.norm(mw.rcpnm).equals(GenericTypes.norm(craftWindow)) || mw.inputs.isEmpty())
+            return;
+        /* The window already open for this recipe is replaced by the click; give the new one a second. */
+        if((mw == craftOld) && (craftWait > CRAFT_WAIT - 1))
+            return;
+        for(NMakewindow.Spec s : mw.inputs) {
+            if(s.name == null)
+                return;
+        }
+        Recipe recipe = craftRecipe;
+        craftRecipe = null;
+        mw.enableAutoMode();
+        List<String> missing = new ArrayList<>();
+        for(NMakewindow.Spec s : mw.inputs) {
+            List<JSONObject> items = VSpec.categories.get(s.name);
+            if(items == null)
+                continue;
+            JSONObject pick = pickIngredient(recipe, s.name, items);
+            if(pick != null)
+                s.ing = mw.new Ingredient(pick);
+            else if(s.opt())
+                s.ing = mw.new Ingredient(Resource.loadsimg("nurgling/hud/autocraft/ignore"), L10n.get("craft.ignore_ingredient"), true);
+            else
+                missing.add(s.name);
+        }
+        if(!missing.isEmpty())
+            gui.msg(L10n.get("cookbook.craft.missing", String.join(", ", missing)));
+    }
+
+    /*
+     * The item a recipe used for one "Any ..." input of its crafting window: of its ingredients, the
+     * largest share that is in the input's list. A recipe mixing two for one input (half Chantrelles,
+     * half Yellowfeet) can only show one. Items missing from the list are built from their icon.
+     */
+    private JSONObject pickIngredient(Recipe recipe, String input, List<JSONObject> items) {
+        List<Map.Entry<String, Recipe.IngredientInfo>> ings = new ArrayList<>(recipe.getIngredients().entrySet());
+        ings.sort((a, b) -> Double.compare(b.getValue().percentage, a.getValue().percentage));
+        for(Map.Entry<String, Recipe.IngredientInfo> e : ings) {
+            List<String> names = (variations != null) ? variations.itemNames(e.getKey()) : List.of(e.getKey());
+            Set<String> keys = new HashSet<>();
+            for(String n : names)
+                keys.add(GenericTypes.stockKey(n));
+            for(JSONObject item : items) {
+                if(keys.contains(GenericTypes.stockKey(item.optString("name"))))
+                    return item;
+            }
+            if((variations != null) && variations.fits(input, e.getKey())) {
+                JSONObject icon = ItemIcons.descriptor(null, names.get(0), false);
+                if((icon != null) && (icon.has("static") || icon.has("layer")))
+                    return icon.put("name", names.get(0));
+            }
+        }
+        return null;
     }
 
     @Override
@@ -416,7 +567,9 @@ public class NCookBook extends Window implements RecipeTable.Actions {
     public void rowMenu(CookbookRow row, Widget at) {
         if(rowMenu != null)
             return;
-        String[] opts = {L10n.get(row.recipe.isFavorite() ? "cookbook.remove_from_favorites" : "cookbook.add_to_favorites")};
+        String favorite = L10n.get(row.recipe.isFavorite() ? "cookbook.remove_from_favorites" : "cookbook.add_to_favorites");
+        String untried = L10n.get("cookbook.var.menu");
+        String[] opts = {favorite, untried};
         rowMenu = new NFlowerMenu(opts) {
             @Override
             public boolean mousedown(MouseDownEvent ev) {
@@ -433,8 +586,12 @@ public class NCookBook extends Window implements RecipeTable.Actions {
 
             @Override
             public void nchoose(NPetal option) {
-                if(option != null)
-                    toggleFavorite(row);
+                if(option != null) {
+                    if(option.name.equals(untried))
+                        showVariations(row.name());
+                    else
+                        toggleFavorite(row);
+                }
                 uimsg("cancel");
             }
         };

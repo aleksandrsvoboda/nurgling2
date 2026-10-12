@@ -48,6 +48,9 @@ public class CookbookModel {
     private List<Recipe> recipes = Collections.emptyList();
     private List<CookbookRow> rows = Collections.emptyList();
     private List<String> ingredientNames = Collections.emptyList();
+    private Set<String> cookable = Collections.emptySet();
+    private Stock stock = null;
+    private java.util.function.Function<String, List<String>> itemNames = List::of;
     private final EnumMap<SpiceCalc.Spice, Double> spices = new EnumMap<>(SpiceCalc.Spice.class);
 
     private String search = "";
@@ -81,6 +84,42 @@ public class CookbookModel {
         }
         this.ingredientNames = Collections.unmodifiableList(new ArrayList<>(names));
         rebuild();
+    }
+
+    /** Sets the hashes of the recipes whose every ingredient is in the village's storage. */
+    public void setCookable(Set<String> hashes) {
+        this.cookable = hashes;
+        version++;
+    }
+
+    /** Whether the village's storage holds every ingredient of a row. */
+    public boolean cookable(CookbookRow row) {
+        return cookable.contains(row.recipe.getHash());
+    }
+
+    /**
+     * Sets what the village has in storage, null when storage could not be read. {@code itemNames}
+     * gives the items a recorded ingredient is stored as ("Badger" is Raw Badger).
+     */
+    public void setStock(Stock stock, java.util.function.Function<String, List<String>> itemNames) {
+        this.stock = stock;
+        this.itemNames = itemNames;
+        version++;
+    }
+
+    /** Whether storage was read, so a missing ingredient really is missing. */
+    public boolean stockKnown() {
+        return stock != null;
+    }
+
+    /** How much of a recorded ingredient the village stores, for display; null for none. */
+    public String storedAmount(String ingredient) {
+        return (stock == null) ? null : stock.amount(itemNames.apply(ingredient));
+    }
+
+    /** How many blocks of a smoking wood the village stores, for display; null for none. */
+    public String storedWood(String wood) {
+        return (stock == null) ? null : stock.amount(List.of("Block of " + wood));
     }
 
     /** How many recipes are loaded, filtered or not. */

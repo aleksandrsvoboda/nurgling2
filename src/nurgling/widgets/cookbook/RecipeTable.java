@@ -443,11 +443,17 @@ public class RecipeTable extends Widget {
                     if(sb.length() > 0)
                         sb.append('\n');
                     sb.append(RichText.Parser.quote(e.getKey())).append(": ").append(Utils.odformat2(e.getValue().percentage, 2)).append('%');
+                    if(model.stockKnown())
+                        sb.append(" · ").append(stored(model.storedAmount(e.getKey())));
                 }
                 if(!row.recipe.getSmokingWoods().isEmpty()) {
                     List<String> woods = new ArrayList<>();
-                    for(Map.Entry<String, Double> e : row.recipe.getSmokingWoods().entrySet())
-                        woods.add(RichText.Parser.quote(e.getKey()) + " (" + Utils.odformat2(e.getValue(), 2) + "%)");
+                    for(Map.Entry<String, Double> e : row.recipe.getSmokingWoods().entrySet()) {
+                        String w = RichText.Parser.quote(e.getKey()) + " (" + Utils.odformat2(e.getValue(), 2) + "%)";
+                        if(model.stockKnown())
+                            w += " · " + stored(model.storedWood(e.getKey()));
+                        woods.add(w);
+                    }
                     if(sb.length() > 0)
                         sb.append('\n');
                     sb.append("$col[232,163,61]{").append(RichText.Parser.quote(L10n.get("cookbook.smoked_with")))
@@ -458,6 +464,13 @@ public class RecipeTable extends Widget {
                 ingTip = CookbookTheme.tip.render(sb.toString(), UI.scale(320)).tex();
             }
             return ingTip;
+        }
+
+        /* "534 stored" in green, or "none stored" in red, as rich text. */
+        private String stored(String amount) {
+            if(amount == null)
+                return "$col[224,122,106]{" + RichText.Parser.quote(L10n.get("cookbook.tip.none_stored")) + "}";
+            return "$col[122,209,122]{" + RichText.Parser.quote(L10n.get("cookbook.tip.stored", amount)) + "}";
         }
 
         @Override
@@ -529,6 +542,11 @@ public class RecipeTable extends Widget {
                 int hot = (mouse != null) ? segmentAt(mouse) : -1;
                 if(hot >= 0)
                     CookbookTheme.frame(g, Coord.of(bx + e[hot], by), Coord.of(e[hot + 1] - e[hot], MIX_H), CookbookTheme.accent);
+            }
+            if(model.cookable(row)) {
+                /* Every ingredient is in the village's storage: cookable now. */
+                CookbookTheme.frame(g, Coord.z, Coord.of(sz.x, sz.y - 1), CookbookTheme.stocked);
+                CookbookTheme.frame(g, Coord.of(1, 1), Coord.of(sz.x - 2, sz.y - 3), CookbookTheme.stocked);
             }
         }
 

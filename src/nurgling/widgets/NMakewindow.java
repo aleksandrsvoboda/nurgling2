@@ -58,6 +58,7 @@ public class NMakewindow extends Widget {
     private static Tex softTexLabel = null;
     public CheckBox noTransfer = null;
     public boolean autoMode = false;
+    private ICheckBox autoBox = null;
     private IButton savePresetBtn = null;
 
     private static final OwnerContext.ClassResolver<NMakewindow> ctxr = new OwnerContext.ClassResolver<NMakewindow>()
@@ -278,6 +279,11 @@ public class NMakewindow extends Widget {
         }
     }
 
+    /** Turns autocrafting on as clicking its checkbox does, so the checkbox shows it. */
+    public void enableAutoMode() {
+        autoBox.set(true);
+    }
+
     /**
      * Check if all category inputs have their ingredient selected.
      */
@@ -370,7 +376,7 @@ public class NMakewindow extends Widget {
         add(new Button(UI.scale(85), L10n.get("craft.craft")), UI.scale(new Coord(230, 75))).action(() -> craft()).setgkey(kb_make);
         add(craft_num = new TextEntry(UI.scale(55), ""), UI.scale(new Coord(165, 82)));
         add(new Button(UI.scale(85), L10n.get("craft.craft_all")), UI.scale(new Coord(325, 75))).action(() -> craftAll()).setgkey(kb_makeall);
-        add(new ICheckBox(NStyle.auto[0],NStyle.auto[1],NStyle.auto[2],NStyle.auto[3]){
+        autoBox = add(new ICheckBox(NStyle.auto[0],NStyle.auto[1],NStyle.auto[2],NStyle.auto[3]){
             @Override
             public void changed(boolean val)
             {

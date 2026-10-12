@@ -9,10 +9,9 @@ import nurgling.actions.bots.FetchStorageItemBot;
 import nurgling.db.dao.StorageItemDao;
 import nurgling.db.service.StorageItemService;
 import nurgling.i18n.L10n;
-import nurgling.areas.NArea;
-import nurgling.navigation.ChunkNavManager;
 import nurgling.sessions.BotExecutor;
 import nurgling.widgets.storage.StashView;
+import nurgling.widgets.storage.VillageStorage;
 
 import java.awt.Color;
 import java.sql.SQLException;
@@ -238,8 +237,7 @@ public class NStorageItemsWidget extends Window {
 
         y += UI.scale(30);
 
-        Object onlyVillageConf = NConfig.get(NConfig.Key.storageOnlyVillage);
-        onlyVillage = !(onlyVillageConf instanceof Boolean) || (Boolean) onlyVillageConf;
+        onlyVillage = VillageStorage.onlyVillage();
         onlyVillageBox = add(new CheckBox(L10n.get("storage.only_village")) {
             @Override
             public void changed(boolean val) {
@@ -449,26 +447,14 @@ public class NStorageItemsWidget extends Window {
         }
 
         isLoading = true;
-        NGameUI gui = NUtils.getGameUI();
         // Read on the UI thread; the village is worked out with the items, off it
-        ChunkNavManager nav = (gui != null && gui.map instanceof NMapView) ? ((NMapView) gui.map).getChunkNavManager() : null;
-        List<Set<Long>> areaGrids = new ArrayList<>();
-        if (gui != null && gui.map != null) {
-            for (NArea area : gui.map.glob.map.areas.values())
-                if (area.space != null)
-                    areaGrids.add(new HashSet<>(area.space.space.keySet()));
-        }
+        VillageStorage storage = VillageStorage.snapshot(NUtils.getGameUI());
         StorageItemService storageService = new StorageItemService(ui.core.databaseManager);
 
         storageService.loadAllStorageItemsAsync()
             .thenAccept(items -> {
-                // Filter out items with negative quality (shouldn't be in DB, but just in case)
-                List<StorageItemDao.StorageItemData> validItems = items.stream()
-                    .filter(item -> item.getQuality() >= 0)
-                    .collect(Collectors.toList());
-                villageChunks = (nav != null && nav.isInitialized())
-                        ? nav.getGraph().pieceWithMostAreas(areaGrids) : Collections.emptySet();
-                processLoadedItems(validItems);
+                villageChunks = storage.village();
+                processLoadedItems(VillageStorage.valid(items));
                 isLoading = false;
             })
             .exceptionally(e -> {
@@ -488,14 +474,7 @@ public class NStorageItemsWidget extends Window {
     private List<StorageItemDao.StorageItemData> rawItems = new ArrayList<>();
 
     private void applyAreaFilter() {
-        List<StorageItemDao.StorageItemData> visible = loadedItems;
-        Set<Long> village = villageChunks;
-        // No village found (ChunkNav unused, or no area on a recorded chunk): filtering would hide everything
-        if (onlyVillage && !village.isEmpty()) {
-            visible = loadedItems.stream()
-                    .filter(item -> item.getGridId() != null && village.contains(item.getGridId()))
-                    .collect(Collectors.toList());
-        }
+        List<StorageItemDao.StorageItemData> visible = onlyVillage ? VillageStorage.inVillage(loadedItems, villageChunks) : loadedItems;
         int hiddenCount = loadedItems.size() - visible.size();
         if (hiddenLabel != null)
             hiddenLabel.settext(hiddenCount > 0 ? L10n.get("storage.hidden_items", hiddenCount) : "");
