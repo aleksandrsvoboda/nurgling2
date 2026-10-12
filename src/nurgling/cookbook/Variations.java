@@ -225,6 +225,49 @@ public final class Variations {
         return false;
     }
 
+    /**
+     * The crafting actions that may make a food, best first: its own name, then the stages it is
+     * made through (Meatpie is baked from Unbaked Meatpie; a smoked sausage is smoked from the sausage).
+     */
+    public List<String> craftNames(String dish) {
+        Set<String> ret = new LinkedHashSet<>();
+        ret.add(dish);
+        String n = GenericTypes.norm(dish);
+        if(!producers.containsKey(n) && n.startsWith("smoked "))
+            n = n.substring("smoked ".length());
+        for(int i = 0; i <= DEPTH; i++) {
+            List<AtlasCatalog.Recipe> c = producers.get(n);
+            if(c == null)
+                break;
+            AtlasCatalog.Recipe r = c.get(0);
+            if((r.wiki != null) && !r.wiki.actionName.isEmpty())
+                ret.add(r.wiki.actionName);
+            if((r.wiki == null) || r.wiki.kind.equals("craft") || (r.inputs.size() != 1) || r.inputs.get(0).category)
+                break;
+            ret.add(r.inputs.get(0).name);
+            n = GenericTypes.norm(r.inputs.get(0).name);
+        }
+        return new ArrayList<>(ret);
+    }
+
+    /** The item names a recorded ingredient comes from: "Badger" is Raw Badger. */
+    public List<String> itemNames(String ingredient) {
+        return types.storedAs(ingredient);
+    }
+
+    /**
+     * Whether a recorded ingredient can fill a crafting input of the given type ("Salad Greens"); a
+     * pickled vegetable fills its vegetable's input, as recorded Moules Frites show.
+     */
+    public boolean fits(String inputType, String ingredient) {
+        String t = types.type(inputType);
+        if(t == null)
+            return false;
+        if(ingredient.startsWith("Pickled ") && types.contains(t, ingredient.substring("Pickled ".length())))
+            return true;
+        return types.contains(t, ingredient);
+    }
+
     /** The untried variations of a food, by its cookbook name. */
     public Dish of(String name) {
         List<Recipe> variants = byDish.getOrDefault(GenericTypes.norm(name), List.of());
