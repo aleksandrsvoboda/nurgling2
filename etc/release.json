@@ -23,6 +23,14 @@
         "macos-arm64": { "kind": "dmg", "pattern": "*.dmg" },
         "linux-x64": { "kind": "appimage", "pattern": "*.AppImage" }
       }
+    },
+    "architect": {
+      "name": "Nurgling Architect",
+      "repo": "aleksandrsvoboda/nurgling-architect",
+      "version": "latest",
+      "assets": {
+        "windows-x64": { "kind": "zip", "pattern": "NurglingArchitect-*.zip" }
+      }
     }
   }
 }
