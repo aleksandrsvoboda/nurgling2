@@ -141,8 +141,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private static Text.Foundry inspectLabelFoundry = null;
     private static Text.Foundry inspectValueFoundry = null;
     public AtomicBoolean isAreaSelectionMode = new AtomicBoolean(false);
-    /** An area preset being placed, which takes the map's clicks and keys until it is done. */
-    public nurgling.areas.AreaPresetPlacer presetPlacer = null;
+    /** An area or Base planner preset being placed, which takes the map's clicks and keys until it is done. */
+    public PresetPlacer presetPlacer = null;
     public AtomicBoolean isGobSelectionMode = new AtomicBoolean(false);
     public AtomicBoolean isChatAreaSharingMode = new AtomicBoolean(false); // For Alt+Ctrl+LMB chat sharing
     public NArea.Space areaSpace = null;
@@ -1564,7 +1564,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return true;
         }
 
-        /* Placing an area preset: left places, right cancels; the camera button still works. */
+        /* Placing a preset: left places, right cancels; the camera button still works. */
         if(presetPlacer != null && ev.b != 2) {
             return presetPlacer.mmousedown(ev.c, ev.b);
         }
@@ -1596,6 +1596,13 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             if (planner.isClearInAreaArmed() && ev.b == 1) {
                 if (selection == null) {
                     selection = new PlanningDeleteSelector();
+                }
+                return super.mousedown(ev);
+            }
+            // SAVE REGION armed: same one-shot rectangle, saved as a preset on release.
+            if (planner.isSavePresetRegionArmed() && ev.b == 1) {
+                if (selection == null) {
+                    selection = new PlanningPresetSelector();
                 }
                 return super.mousedown(ev);
             }
@@ -2277,6 +2284,51 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                     if (NUtils.getGameUI().basePlanner != null) {
                         NUtils.getGameUI().basePlanner.disarmClearInArea();
                         NUtils.getGameUI().basePlanner.refresh();
+                    }
+                    xl.mv = false;
+                    tt = null;
+                    currentSelectionCoords = null;
+                    glob.map.remove(ol);
+                    mgrab.remove();
+                    sc = null;
+                    destroy();
+                    selection = null;
+                }
+                return true;
+            }
+        }
+    }
+
+    /**
+     * One-shot rectangle selector armed by the Base planner "Save region" button. On release, asks
+     * for a name and saves the ghosts of every visible layer inside the rectangle as a preset.
+     */
+    public class PlanningPresetSelector extends Selector
+    {
+        public PlanningPresetSelector() { super(null); }
+
+        @Override
+        public void mmousemove(Coord mc) {
+            super.mmousemove(mc);
+            if (sc != null) {
+                Coord tc = getec(mc);
+                Coord c1 = new Coord(Math.min(tc.x, sc.x), Math.min(tc.y, sc.y));
+                Coord c2 = new Coord(Math.max(tc.x, sc.x), Math.max(tc.y, sc.y));
+                currentSelectionCoords = new Pair<>(c1, c2.add(1, 1));
+            }
+        }
+
+        @Override
+        public boolean mmouseup(Coord mc, int button) {
+            synchronized (NMapView.this) {
+                if (sc != null) {
+                    Coord ec = mc.div(MCache.tilesz2);
+                    Coord t1 = new Coord(Math.min(ec.x, sc.x), Math.min(ec.y, sc.y));
+                    Coord t2 = new Coord(Math.max(ec.x, sc.x), Math.max(ec.y, sc.y)).add(1, 1);
+                    nurgling.widgets.NBasePlannerWidget planner = NUtils.getGameUI().basePlanner;
+                    if (planner != null) {
+                        planner.disarmSavePresetRegion();
+                        planner.savePresetRegion(t1.mul(MCache.tilesz), t2.mul(MCache.tilesz));
                     }
                     xl.mv = false;
                     tt = null;

@@ -370,8 +370,14 @@ public class NAreaPresetsWindow extends Window
     {
         if (p.description.isEmpty())
             return RichText.Parser.quote(get("area.preset.no_description"));
+        return describe(p.description);
+    }
+
+    /** Rich text for any preset description, by the rules above. */
+    static String describe(String description)
+    {
         StringBuilder sb = new StringBuilder();
-        for (String line : p.description.split("\n", -1)) {
+        for (String line : description.split("\n", -1)) {
             if (sb.length() > 0)
                 sb.append('\n');
             if (line.endsWith(":") && !line.startsWith("\u2022")) {

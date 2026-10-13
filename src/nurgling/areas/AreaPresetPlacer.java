@@ -22,7 +22,7 @@ import static nurgling.i18n.L10n.get;
  * ghost turns red when any part of it is off the loaded map and a click there does nothing. Areas
  * landing on existing ones are drawn orange: allowed, but worth seeing.
  */
-public class AreaPresetPlacer implements MapView.Grabber
+public class AreaPresetPlacer implements nurgling.PresetPlacer
 {
     private enum State { OK, OVERLAP, BAD }
 
@@ -80,7 +80,8 @@ public class AreaPresetPlacer implements MapView.Grabber
         return true;
     }
 
-    private static MCache.OverlayInfo info(Color c)
+    /** A plain see-through tile tint, for drawing a preset's ghost on the ground. */
+    public static MCache.OverlayInfo info(Color c)
     {
         Material mat = new Material(new BaseColor(c), States.maskdepth);
         return new MCache.OverlayInfo() {
@@ -266,7 +267,7 @@ public class AreaPresetPlacer implements MapView.Grabber
             map.presetPlacer = null;
     }
 
-    /** Keys while placing; {@code code} is an AWT key code. */
+    @Override
     public boolean keydown(int code)
     {
         switch (code) {

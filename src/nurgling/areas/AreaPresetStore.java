@@ -151,7 +151,7 @@ public final class AreaPresetStore
     }
 
     /** A file name for a preset name: letters, digits, '-' and '_' only. */
-    static String slug(String name)
+    public static String slug(String name)
     {
         StringBuilder sb = new StringBuilder();
         for (char c : name.trim().toCharArray()) {

@@ -5,6 +5,9 @@ import haven.Window;
 import nurgling.NCore;
 import nurgling.NStyle;
 import nurgling.NUtils;
+import nurgling.NGameUI;
+import nurgling.planning.PlannerPreset;
+import nurgling.planning.PlannerPresetStore;
 import nurgling.planning.PlanningFolder;
 import nurgling.planning.PlanningGhost;
 import nurgling.planning.PlanningLayer;
@@ -14,8 +17,11 @@ import nurgling.planning.PlanningNode;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.Color;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static nurgling.i18n.L10n.get;
 
 /**
  * Base planner window. Mirrors the layout of {@link NAreasWidget}: a toolbar
@@ -35,6 +41,8 @@ public class NBasePlannerWidget extends Window {
     public GhostList ghostList;
 
     private boolean clearInAreaArmed = false;
+    private boolean savePresetRegionArmed = false;
+    private final Button btnSavePreset;
 
     /** Folder we are currently navigated "inside", or null for the root view.
      *  Mirrors {@link NAreasWidget#currentPath}: clicking a folder drills in,
@@ -133,13 +141,46 @@ public class NBasePlannerWidget extends Window {
                     return;
                 }
                 clearInAreaArmed = true;
+                savePresetRegionArmed = false;
                 NUtils.getGameUI().msg("Base planner: drag a rectangle to delete ghosts in the active layer");
             }
         }, btnEye.pos("ur").adds(UI.scale(10), 0));
         btnClearArea.settip("Arm rectangle-select to delete ghosts in the active layer");
 
+        Button btnPresets = add(new Button(UI.scale(70), get("area.preset.btn")) {
+            @Override public void click() {
+                super.click();
+                NPlannerPresetsWindow.open((NGameUI) ui.gui);
+            }
+        }, btnClearArea.pos("ur").adds(UI.scale(10), 0));
+        btnPresets.settip(get("planner.preset.btn_tip"));
+
+        btnSavePreset = add(new Button(UI.scale(90), get("planner.preset.save_btn")) {
+            @Override public void click() {
+                super.click();
+                savePreset();
+            }
+        }, btnPresets.pos("ur").adds(UI.scale(5), 0));
+        btnSavePreset.settip(get("planner.preset.save_btn_tip"));
+
+        Button btnSaveRegion = add(new Button(UI.scale(90), get("planner.preset.region_btn")) {
+            @Override public void click() {
+                super.click();
+                savePresetRegionArmed = true;
+                clearInAreaArmed = false;
+                NUtils.getGameUI().msg(get("planner.preset.region_hint"));
+            }
+        }, btnSavePreset.pos("ur").adds(UI.scale(5), 0));
+        btnSaveRegion.settip(get("planner.preset.region_btn_tip"));
+
         // Left panel: tree list of folders + layers
-        treeList = add(new TreeList(UI.scale(new Coord(280, 420))), new Coord(0, btnNewFolder.sz.y + UI.scale(10)));
+        // The text buttons are taller than the icons: centre them on the icon row, and start the
+        // lists below whichever reaches lower.
+        int iconMid = btnNewFolder.c.y + btnNewFolder.sz.y / 2;
+        for (Button b : new Button[] {btnPresets, btnSavePreset, btnSaveRegion})
+            b.c = Coord.of(b.c.x, Math.max(0, iconMid - b.sz.y / 2));
+        int toolbarBottom = Math.max(btnNewFolder.pos("bl").y, btnPresets.pos("bl").y);
+        treeList = add(new TreeList(UI.scale(new Coord(280, 420))), new Coord(0, toolbarBottom + UI.scale(5)));
 
         // Right panel: ghosts of active layer
         ghostList = add(new GhostList(UI.scale(new Coord(380, 420))), treeList.pos("ur").adds(UI.scale(10), 0));
@@ -149,10 +190,61 @@ public class NBasePlannerWidget extends Window {
 
     public boolean isClearInAreaArmed() { return clearInAreaArmed; }
     public void disarmClearInArea() { clearInAreaArmed = false; }
+    public boolean isSavePresetRegionArmed() { return savePresetRegionArmed; }
+    public void disarmSavePresetRegion() { savePresetRegionArmed = false; }
+
+    /** The selected folder or layer, if it still exists. */
+    private PlanningNode selectedNode() {
+        if (treeList == null || treeList.sel == null || treeList.sel.node == null) return null;
+        return manager().getNode(treeList.sel.node.id);
+    }
+
+    /** "Save preset": the selected layer, or the selected folder with all its layers. */
+    private void savePreset() {
+        PlanningNode n = selectedNode();
+        if (n == null) return;
+        String id = n.id;
+        NAreaPresetNameDialog.open(ui, get("area.preset.save_title"), n.name,
+                name -> savePreset(() -> manager().capturePreset(name, id)));
+    }
+
+    /** "Save region": ghosts of the visible layers inside the dragged world rectangle. */
+    public void savePresetRegion(Coord2d minWorld, Coord2d maxWorld) {
+        NAreaPresetNameDialog.open(ui, get("area.preset.save_title"), "",
+                name -> savePreset(() -> manager().capturePresetRegion(name, minWorld, maxWorld)));
+    }
+
+    private interface Capture { PlannerPreset run() throws PlannerPreset.CaptureException; }
+
+    private void savePreset(Capture capture) {
+        NGameUI gui = (NGameUI) ui.gui;
+        try {
+            PlannerPreset preset = capture.run();
+            PlannerPresetStore.saveNew(preset);
+            gui.msg(get("planner.preset.saved", preset.name, preset.ghostCount()));
+            NPlannerPresetsWindow.open(gui).load(preset);
+        } catch (PlannerPreset.CaptureException e) {
+            gui.error(e.getMessage());
+        } catch (IOException e) {
+            gui.error(get("area.preset.save_failed", e.getMessage()));
+        }
+    }
+
+    /** Shows {@code node} in the tree: the root view for a root node, its folder for a layer inside one. */
+    public void showNode(PlanningNode node) {
+        currentFolderId = (node instanceof PlanningLayer) ? node.parentId : null;
+        refresh();
+    }
+
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        btnSavePreset.disable(selectedNode() == null);
+    }
 
     /** Parent folder for a newly created layer: the folder we're navigated
      *  inside, else the selected row's folder, else null (root). */
-    private String currentParentFolderId() {
+    public String currentParentFolderId() {
         if (currentFolderId != null) return currentFolderId;
         if (treeList.sel == null) return null;
         PlanningNode n = treeList.sel.node;
@@ -177,6 +269,7 @@ public class NBasePlannerWidget extends Window {
     public void hide() {
         manager().setWindowOpen(false);
         disarmClearInArea();
+        disarmSavePresetRegion();
         super.hide();
     }
 
