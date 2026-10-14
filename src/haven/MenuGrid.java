@@ -190,6 +190,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
             MenuGrid.lastPagina = pag;
         else
             MenuGrid.lastPagina = null;
+        nurgling.actions.bots.blueprint.BuildPaginae.noteUsed(pag);
 
 	    if(pag.id instanceof Indir)
 		pag.scm.wdgmsg("act", Utils.extend(Utils.extend(new Object[0], act().ad), eact));

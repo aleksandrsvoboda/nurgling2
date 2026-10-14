@@ -359,6 +359,57 @@ public class PlanningLayerManager implements ProfileAwareService, PlanningServic
         synchronized (treeLock) { return ghostById.containsKey(id); }
     }
 
+    public PlanningGhost getGhostById(String id) {
+        synchronized (treeLock) { return ghostById.get(id); }
+    }
+
+    /** Name of the layer holding the ghost, or null if it is gone. */
+    public String layerNameOf(String ghostId) {
+        synchronized (treeLock) {
+            String layerId = layerByGhostId.get(ghostId);
+            PlanningNode n = (layerId != null) ? byId.get(layerId) : null;
+            return (n != null) ? n.name : null;
+        }
+    }
+
+    /** Ghosts of a layer, or of every layer in a folder, regardless of visibility. */
+    public List<PlanningGhost> ghostsOf(String nodeId) {
+        List<PlanningGhost> out = new ArrayList<>();
+        synchronized (treeLock) {
+            PlanningNode n = byId.get(nodeId);
+            if (n instanceof PlanningFolder) {
+                for (PlanningLayer layer : ((PlanningFolder) n).layers) out.addAll(layer.ghosts);
+            } else if (n instanceof PlanningLayer) {
+                out.addAll(((PlanningLayer) n).ghosts);
+            }
+        }
+        return out;
+    }
+
+    /** Ghosts of every visible layer whose centre lies in the world rectangle (loaded grids only). */
+    public List<PlanningGhost> visibleGhostsIn(Coord2d minWorld, Coord2d maxWorld) {
+        List<PlanningGhost> out = new ArrayList<>();
+        Glob glob = activeGlob();
+        if (glob == null) return out;
+        synchronized (treeLock) {
+            for (PlanningNode n : byId.values()) {
+                if (!(n instanceof PlanningLayer) || !effectiveVisibleUnlocked(n)) continue;
+                for (PlanningGhost g : ((PlanningLayer) n).ghosts) {
+                    Coord2d wp = resolveWorldPos(g, glob);
+                    if (wp != null && wp.x >= minWorld.x && wp.x < maxWorld.x && wp.y >= minWorld.y && wp.y < maxWorld.y)
+                        out.add(g);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** World position of the ghost in the active world, or null if its grid isn't loaded. */
+    public Coord2d worldPosOf(PlanningGhost g) {
+        Glob glob = activeGlob();
+        return (glob == null) ? null : resolveWorldPos(g, glob);
+    }
+
     public String getActiveLayerId() { return activeLayerId; }
 
     public PlanningLayer getActiveLayer() { return getLayer(activeLayerId); }

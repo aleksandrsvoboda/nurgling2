@@ -13,6 +13,8 @@ import nurgling.planning.PlanningGhost;
 import nurgling.planning.PlanningLayer;
 import nurgling.planning.PlanningLayerManager;
 import nurgling.planning.PlanningNode;
+import nurgling.actions.bots.blueprint.BlueprintBuilder;
+import nurgling.sessions.BotExecutor;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -42,6 +44,7 @@ public class NBasePlannerWidget extends Window {
 
     private boolean clearInAreaArmed = false;
     private boolean savePresetRegionArmed = false;
+    private boolean buildRegionArmed = false;
     private final Button btnSavePreset;
 
     /** Folder we are currently navigated "inside", or null for the root view.
@@ -142,6 +145,7 @@ public class NBasePlannerWidget extends Window {
                 }
                 clearInAreaArmed = true;
                 savePresetRegionArmed = false;
+                buildRegionArmed = false;
                 NUtils.getGameUI().msg("Base planner: drag a rectangle to delete ghosts in the active layer");
             }
         }, btnEye.pos("ur").adds(UI.scale(10), 0));
@@ -168,16 +172,41 @@ public class NBasePlannerWidget extends Window {
                 super.click();
                 savePresetRegionArmed = true;
                 clearInAreaArmed = false;
+                buildRegionArmed = false;
                 NUtils.getGameUI().msg(get("planner.preset.region_hint"));
             }
         }, btnSavePreset.pos("ur").adds(UI.scale(5), 0));
         btnSaveRegion.settip(get("planner.preset.region_btn_tip"));
 
+        Button btnBuild = add(new Button(UI.scale(60), get("bbuilder.planner.build")) {
+            @Override public void click() {
+                super.click();
+                PlanningNode n = selectedNode();
+                if (n == null) {
+                    NUtils.getGameUI().msg(get("bbuilder.planner.select"));
+                    return;
+                }
+                startBuilder(manager().ghostsOf(n.id));
+            }
+        }, btnSaveRegion.pos("ur").adds(UI.scale(10), 0));
+        btnBuild.settip(get("bbuilder.planner.build_tip"));
+
+        Button btnBuildRegion = add(new Button(UI.scale(90), get("bbuilder.planner.region")) {
+            @Override public void click() {
+                super.click();
+                buildRegionArmed = true;
+                clearInAreaArmed = false;
+                savePresetRegionArmed = false;
+                NUtils.getGameUI().msg(get("bbuilder.planner.region_hint"));
+            }
+        }, btnBuild.pos("ur").adds(UI.scale(5), 0));
+        btnBuildRegion.settip(get("bbuilder.planner.region_tip"));
+
         // Left panel: tree list of folders + layers
         // The text buttons are taller than the icons: centre them on the icon row, and start the
         // lists below whichever reaches lower.
         int iconMid = btnNewFolder.c.y + btnNewFolder.sz.y / 2;
-        for (Button b : new Button[] {btnPresets, btnSavePreset, btnSaveRegion})
+        for (Button b : new Button[] {btnPresets, btnSavePreset, btnSaveRegion, btnBuild, btnBuildRegion})
             b.c = Coord.of(b.c.x, Math.max(0, iconMid - b.sz.y / 2));
         int toolbarBottom = Math.max(btnNewFolder.pos("bl").y, btnPresets.pos("bl").y);
         treeList = add(new TreeList(UI.scale(new Coord(280, 420))), new Coord(0, toolbarBottom + UI.scale(5)));
@@ -192,6 +221,22 @@ public class NBasePlannerWidget extends Window {
     public void disarmClearInArea() { clearInAreaArmed = false; }
     public boolean isSavePresetRegionArmed() { return savePresetRegionArmed; }
     public void disarmSavePresetRegion() { savePresetRegionArmed = false; }
+    public boolean isBuildRegionArmed() { return buildRegionArmed; }
+    public void disarmBuildRegion() { buildRegionArmed = false; }
+
+    /** "Build region": the Blueprint Builder over the visible ghosts inside the dragged world rectangle. */
+    public void buildRegion(Coord2d minWorld, Coord2d maxWorld) {
+        List<PlanningGhost> ghosts = manager().visibleGhostsIn(minWorld, maxWorld);
+        if (ghosts.isEmpty()) {
+            NUtils.getGameUI().msg(get("bbuilder.planner.region_empty"));
+            return;
+        }
+        startBuilder(ghosts);
+    }
+
+    private void startBuilder(List<PlanningGhost> ghosts) {
+        BotExecutor.runWithSupports("blueprint_builder", new BlueprintBuilder(ghosts), false, null);
+    }
 
     /** The selected folder or layer, if it still exists. */
     private PlanningNode selectedNode() {
@@ -270,6 +315,7 @@ public class NBasePlannerWidget extends Window {
         manager().setWindowOpen(false);
         disarmClearInArea();
         disarmSavePresetRegion();
+        disarmBuildRegion();
         super.hide();
     }
 
