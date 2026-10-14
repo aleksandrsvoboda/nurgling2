@@ -324,15 +324,25 @@ public class Glob {
 	}
     }
 
+    /* Screen effects the server sends as weather while a consumable's buff
+     * is active: Liberty Caps (haze and flashes), Opium, Hemp, Alcohol. */
+    private static final Set<String> drugEffects = new HashSet<>(Arrays.asList(
+	"gfx/fx/shroomed", "gfx/fx/dragon", "gfx/fx/lucy", "gfx/fx/bottle"));
+
     public Collection<Weather> weather() {
+	boolean nodrugs = (Boolean)NConfig.get(NConfig.Key.disableDrugEffects);
 	synchronized(this) {
 	    ArrayList<Weather> ret = new ArrayList<>(wmap.size());
 	    for(Map.Entry<Indir<Resource>, Object> cur : wmap.entrySet()) {
 		Object val = cur.getValue();
 		if(val instanceof Weather) {
+		    if(nodrugs && drugEffects.contains(cur.getKey().get().name))
+			continue;
 		    ret.add((Weather)val);
 		} else {
 		    try {
+			if(nodrugs && drugEffects.contains(cur.getKey().get().name))
+			    continue;
 			Weather.Factory f = cur.getKey().get().flayer(Resource.CodeEntry.class).get(Weather.Factory.class);
 			Weather w = f.weather(this, (Object[])val);
 			cur.setValue(w);
