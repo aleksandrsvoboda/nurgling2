@@ -24,10 +24,17 @@ final class MaterialFetcher
 {
     private final NContext context;
     private boolean fetchedAny = false;
+    private final List<String> noRoom = new ArrayList<>();
 
     MaterialFetcher(NContext context)
     {
         this.context = context;
+    }
+
+    /** Materials the last fetch skipped because not one more of them fits in the inventory. */
+    List<String> noRoom()
+    {
+        return noRoom;
     }
 
     /** True once a trip brought anything, so leftovers may need returning. */
@@ -63,9 +70,17 @@ final class MaterialFetcher
                     : Math.max(1, (int) Math.floor(free * (want * cells / totalCells) / cells));
             plan.put(e.getKey(), Math.min(want, share));
         }
+        noRoom.clear();
         for (Map.Entry<String, Integer> e : plan.entrySet())
         {
             String material = e.getKey();
+            // Not one more fits (a 4x1 board in scattered free cells): don't walk to its piles for nothing.
+            if (gui.getInventory().getNumberFreeCoord(BuildRecipes.shapeOf(material)) <= 0)
+            {
+                noRoom.add(material);
+                empty.add(material);
+                continue;
+            }
             int before = countInInventory(gui, material);
             take(gui, material, before + e.getValue());
             if (countInInventory(gui, material) <= before) empty.add(material);

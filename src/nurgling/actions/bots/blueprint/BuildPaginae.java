@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,53 @@ public final class BuildPaginae
 
     private static volatile String lastBuildPagina = null;
     private static volatile long lastBuildAt = 0;
+
+    /**
+     * Buttons whose resource is named unlike what they place (Barter Stand is paginae/bld/vstand), so a
+     * character that never pressed them still finds them. Taken from the game's build list.
+     */
+    private static final Map<String, List<String>> renamed = new HashMap<>();
+
+    static
+    {
+        known("gfx/terobjs/pclaim", "paginae/bld/claim");
+        known("gfx/terobjs/embankmentscaffold", "paginae/bld/rscaffold");
+        known("gfx/terobjs/villageidol", "paginae/bld/vilgate");
+        known("gfx/terobjs/barterstand", "paginae/bld/vstand");
+        known("gfx/terobjs/bonfire", "paginae/bld/symbelfire");
+        known("gfx/terobjs/pow", "paginae/bld/fireplace");
+        known("gfx/terobjs/arch/primitivetent", "paginae/bld/primtent");
+        known("gfx/terobjs/arch/waterwheelhouse", "paginae/bld/watermill");
+        known("gfx/terobjs/minevator-top", "paginae/bld/minevator");
+        known("gfx/terobjs/road/milestone-stone-e", "paginae/bld/stoneendstone");
+        known("gfx/terobjs/road/milestone-wood-e", "paginae/bld/woodendstone");
+        known("gfx/terobjs/ancestralshrine", "paginae/bld/ancaltar");
+        known("gfx/terobjs/archerytarget", "paginae/bld/archtgt");
+        known("gfx/terobjs/studydesk-big", "paginae/bld/finestudydesk");
+        known("gfx/terobjs/furn/bed-sturdy", "paginae/bld/sturdybed");
+        known("gfx/terobjs/furn/armchair-cloth", "paginae/bld/clotharmchair");
+        known("gfx/terobjs/furn/chair-cloth", "paginae/bld/clothchair");
+        known("gfx/terobjs/furn/chair-rustic", "paginae/bld/rusticchair");
+        known("gfx/terobjs/furn/chair-rocking", "paginae/bld/rockingchair");
+        known("gfx/terobjs/furn/footstool-cloth", "paginae/bld/clothfootstool");
+        known("gfx/terobjs/mannequin-stand", "paginae/bld/mannequin");
+        known("gfx/terobjs/furn/table-elegant", "paginae/bld/eleganttable");
+        known("gfx/terobjs/furn/table-rustic", "paginae/bld/rustictable");
+        known("gfx/terobjs/furn/table-stone", "paginae/bld/stonetable");
+        known("gfx/terobjs/curdingtub", "paginae/bld/ctub");
+        known("gfx/terobjs/archerytower", "paginae/bld/atower");
+        known("gfx/terobjs/vehicle/wreckingball", "paginae/bld/wball");
+        known("gfx/terobjs/vehicle/plow", "paginae/bld/metalplow");
+        known("gfx/terobjs/vehicle/plow", "paginae/bld/woodenplow");
+        known("gfx/terobjs/cauldron", "paginae/bld/ccauldron");
+        known("gfx/terobjs/winepress", "paginae/bld/press");
+        known("gfx/terobjs/cauldron", "paginae/bld/mcauldron");
+    }
+
+    private static void known(String gobRes, String paginaRes)
+    {
+        renamed.computeIfAbsent(gobRes, k -> new ArrayList<>()).add(paginaRes);
+    }
 
     private BuildPaginae() {}
 
@@ -145,8 +193,9 @@ public final class BuildPaginae
             }
         }
         String base = basename(gobRes);
+        List<String> renamedRes = renamed.getOrDefault(gobRes, Collections.emptyList());
         MenuGrid.Pagina byLearned = null, byCatalog = null;
-        List<MenuGrid.Pagina> byBase = new ArrayList<>();
+        List<MenuGrid.Pagina> byRenamed = new ArrayList<>(), byBase = new ArrayList<>();
         synchronized (gui.menu.paginae)
         {
             for (MenuGrid.Pagina pag : gui.menu.paginae)
@@ -156,11 +205,13 @@ public final class BuildPaginae
                 if (res == null) continue;
                 if (res.equals(learnedRes)) byLearned = pag;
                 else if (catalogName != null && catalogName.equals(pag.button().name())) byCatalog = pag;
+                else if (renamedRes.contains(res)) byRenamed.add(pag);
                 else if (basename(res).equals(base)) byBase.add(pag);
             }
         }
         if (byLearned != null) out.add(byLearned);
         if (byCatalog != null) out.add(byCatalog);
+        out.addAll(byRenamed);
         out.addAll(byBase);
         return out;
     }

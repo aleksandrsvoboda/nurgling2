@@ -47,6 +47,8 @@ final class GhostConstruction
     }
 
     private static final double SPOT_TOLERANCE = 1.5;
+    /** One map grid: farther than this, the player is somewhere else (a house, a mine) or far off. */
+    private static final double NEAR = MCache.cmaps.x * MCache.tilesz.x;
     private static final long PLOB_TIMEOUT_MS = 5000;
     private static final long PLACE_TIMEOUT_MS = 10000;
     private static final long WINDOW_TIMEOUT_MS = 5000;
@@ -117,17 +119,48 @@ final class GhostConstruction
     private boolean goTo(PlanningGhost g) throws InterruptedException
     {
         Coord2d wp = plan.worldPosOf(g);
-        if (wp != null && (PathFinder.isAvailable(wp) || realGobAt(wp) != null))
+        if (near(wp) && (PathFinder.isAvailable(wp) || realGobAt(wp) != null))
             return true;
         ChunkNavManager nav = (gui.map instanceof NMapView) ? ((NMapView) gui.map).getChunkNavManager() : null;
         if (nav != null && nav.isInitialized())
         {
-            Coord localTile = Coord2d.of(g.ox, g.oy).floor(MCache.tilesz);
-            ChunkPath path = nav.planToGridCoord(g.gridId, localTile);
+            ChunkPath path = planNear(nav, g);
             if (path != null)
                 nav.navigateWithPath(path, null, gui);
         }
-        return plan.worldPosOf(g) != null;
+        return near(plan.worldPosOf(g));
+    }
+
+    /**
+     * A chunk path to the ghost's tile or, once a sign covers it (a cabin's middle is several tiles
+     * inside its footprint), to the nearest tile around it that has one.
+     */
+    private static ChunkPath planNear(ChunkNavManager nav, PlanningGhost g)
+    {
+        Coord mid = Coord2d.of(g.ox, g.oy).floor(MCache.tilesz);
+        for (int r = 0; r <= 10; r += 2)
+        {
+            Coord[] ring = (r == 0) ? new Coord[] {Coord.z}
+                    : new Coord[] {Coord.of(r, 0), Coord.of(-r, 0), Coord.of(0, r), Coord.of(0, -r)};
+            for (Coord d : ring)
+            {
+                Coord t = mid.add(d);
+                if (t.x < 0 || t.y < 0 || t.x >= MCache.cmaps.x || t.y >= MCache.cmaps.y) continue;
+                ChunkPath path = nav.planToGridCoord(g.gridId, t);
+                if (path != null) return path;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * True when the player is out where the ghost is. Inside a house or a mine the ghost's grid can
+     * still be in the map cache, so a known position alone does not mean the spot is near.
+     */
+    private static boolean near(Coord2d wp)
+    {
+        Gob player = NUtils.player();
+        return wp != null && player != null && wp.dist(player.rc) < NEAR;
     }
 
     private boolean approach(Gob target) throws InterruptedException
@@ -322,7 +355,7 @@ final class GhostConstruction
                 List<String> empty = fetcher.fetch(gui, missing);
                 if (empty.size() == missing.size())
                 {
-                    job.skip(gui.getInventory().getFreeSpace() == 0
+                    job.skip(gui.getInventory().getFreeSpace() == 0 || fetcher.noRoom().containsAll(empty)
                             ? L10n.get("bbuilder.reason.inventory_full")
                             : L10n.get("bbuilder.reason.no_material", String.join(", ", empty)));
                     return;

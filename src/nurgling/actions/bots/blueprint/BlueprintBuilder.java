@@ -131,6 +131,12 @@ public class BlueprintBuilder implements Action
                     }
                     gui.msg(L10n.get("bbuilder.progress", ++done, jobs.size(), job.typeName()));
                     construction.build(job);
+                    if (job.status == GhostJob.Status.BUILT)
+                        gui.msg(L10n.get("bbuilder.done.built", job.typeName(), done, jobs.size()));
+                    else if (job.status == GhostJob.Status.ALREADY_BUILT)
+                        gui.msg(L10n.get("bbuilder.done.standing", job.typeName(), done, jobs.size()));
+                    else if (job.status == GhostJob.Status.SKIPPED)
+                        gui.msg(L10n.get("bbuilder.done.skipped", job.typeName(), done, jobs.size(), job.reason));
                     if (job.status == GhostJob.Status.BUILT || job.status == GhostJob.Status.ALREADY_BUILT)
                     {
                         if (removeBuilt && plan.removeGhost(job.ghost) && gui.basePlanner != null)
