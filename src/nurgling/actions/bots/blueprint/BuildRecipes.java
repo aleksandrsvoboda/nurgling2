@@ -41,6 +41,8 @@ public final class BuildRecipes
     private static final Map<String, Recipe> seen = new ConcurrentHashMap<>();
     private static final Map<String, Coord> shapes = new ConcurrentHashMap<>();
     private static final Map<String, Coord> knownShapes = new LinkedHashMap<>();
+    /** Wiki spellings of metal choices that VSpec names differently (or not at all). */
+    private static final Map<String, String[]> wikiChoices = new LinkedHashMap<>();
 
     static
     {
@@ -49,6 +51,13 @@ public final class BuildRecipes
         knownShapes.put("Block", new Coord(1, 2));
         knownShapes.put("Bough", new Coord(2, 1));
         knownShapes.put("Rope", new Coord(1, 2));
+
+        wikiChoices.put("Nugget of Common Metal", VSpec.getNamesInCategory("Nugget of Any Common Metal").getKeys().toArray(new String[0]));
+        wikiChoices.put("Bar of Common Metal", VSpec.getNamesInCategory("Bar of Any Common Metal").getKeys().toArray(new String[0]));
+        wikiChoices.put("Nugget of Hard Metal", VSpec.getNamesInCategory("Nugget of Bronze, Iron or Steel").getKeys().toArray(new String[0]));
+        wikiChoices.put("Bar of Hard Metal", VSpec.getNamesInCategory("Bar of Bronze, Iron or Steel").getKeys().toArray(new String[0]));
+        wikiChoices.put("Nugget of Precious Metal", VSpec.getNamesInCategory("Nugget of a Precious Metal").getKeys().toArray(new String[0]));
+        wikiChoices.put("Bar of Precious Metal", new String[] {"Bar of Gold", "Bar of Rose Gold", "Bar of Silver"});
     }
 
     private BuildRecipes() {}
@@ -104,6 +113,8 @@ public final class BuildRecipes
      */
     public static NAlias aliasFor(String materialName)
     {
+        String[] choice = wikiChoices.get(materialName);
+        if (choice != null) return new NAlias(choice);
         if (VSpec.categories.containsKey(materialName))
         {
             NAlias members = VSpec.getNamesInCategory(materialName);
@@ -128,6 +139,10 @@ public final class BuildRecipes
     {
         ConstructionMaterialsRegistry.MaterialType t = ConstructionMaterialsRegistry.getMaterialType(new NAlias(materialName));
         if (t == null) t = ConstructionMaterialsRegistry.getMaterialType(aliasFor(materialName));
+        // "Tree Bough", "Alder Bough": the registry only matches a material word at the start
+        for (String word : materialName.split(" "))
+            if (t == null && !word.isEmpty() && Character.isUpperCase(word.charAt(0)))
+                t = ConstructionMaterialsRegistry.getMaterialType(new NAlias(word));
         return t;
     }
 

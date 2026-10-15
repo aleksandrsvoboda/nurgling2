@@ -216,7 +216,7 @@ public class NMiningSupport extends Sprite implements RenderTree.Node
     public void removed(RenderTree.Slot slot)
     {
         super.removed(slot);
-        if(gob.id == -1)
+        if(gob.id == -1 && mo != null)
         {
             mo.dummy = null;
         }

@@ -31,5 +31,6 @@ public final class GhostJob
     {
         status = Status.SKIPPED;
         reason = why;
+        System.out.println("[BlueprintBuilder] skipped " + ghost.resName + " (" + layerName + "): " + why);
     }
 }
