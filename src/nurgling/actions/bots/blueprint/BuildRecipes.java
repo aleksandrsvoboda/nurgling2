@@ -67,7 +67,55 @@ public final class BuildRecipes
     {
         Recipe r = seen.get(gobRes);
         if (r != null) return r;
-        return (buttonName == null) ? null : wikiEstimate(buttonName);
+        r = (buttonName == null) ? null : wikiEstimate(buttonName);
+        return (r != null) ? r : forGhost(gobRes);
+    }
+
+    private static final Map<String, java.util.Optional<Recipe>> byGhost = new ConcurrentHashMap<>();
+
+    /**
+     * Recipe for a planner ghost, button or not: the one read from a window if any, else the wiki
+     * estimate under the building's own name (the first that has one). Null when unknown.
+     */
+    public static Recipe forGhost(String gobRes)
+    {
+        Recipe r = seen.get(gobRes);
+        if (r != null) return r;
+        return byGhost.computeIfAbsent(gobRes, res -> {
+            for (String name : BuildingNames.of(res))
+            {
+                Recipe w = wikiEstimate(name);
+                if (w != null) return java.util.Optional.of(w);
+            }
+            return java.util.Optional.empty();
+        }).orElse(null);
+    }
+
+    /** "35 Clay, 4 Board" ("?" for a count the wiki doesn't give); null when unknown. */
+    public static String describe(Recipe r)
+    {
+        if (r == null || r.counts.isEmpty()) return null;
+        StringBuilder b = new StringBuilder();
+        for (Map.Entry<String, Integer> e : r.counts.entrySet())
+        {
+            if (b.length() > 0) b.append(", ");
+            b.append(e.getValue() < 0 ? "?" : String.valueOf(e.getValue())).append(' ').append(e.getKey());
+        }
+        return b.toString();
+    }
+
+    /** Material totals for a list of planner ghosts; -1 where a count is unknown. Ghosts with no known recipe are skipped. */
+    public static Map<String, Integer> totals(Iterable<String> gobRes)
+    {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (String res : gobRes)
+        {
+            Recipe r = forGhost(res);
+            if (r == null) continue;
+            for (Map.Entry<String, Integer> e : r.counts.entrySet())
+                out.merge(e.getKey(), e.getValue(), (a, b) -> (a < 0 || b < 0) ? -1 : a + b);
+        }
+        return out;
     }
 
     /** Remember the exact recipe read from a construction window (required = in sign + still needed). */

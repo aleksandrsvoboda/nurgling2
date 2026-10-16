@@ -312,7 +312,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("htable", BotDescriptor.BotType.BUILD, "Build Herbalist Tables", "Builds herbalist tables.", false, true, BuildHerbalistTable.class, "htable", true));
         bots.add(new BotDescriptor("moundbed", BotDescriptor.BotType.BUILD, "Build Mound Bed", "Builds mound bed.", false, true, BuildMoundBed.class, "moundbed", true));
         bots.add(new BotDescriptor("crate", BotDescriptor.BotType.BUILD, "Build Crate", "Builds crates.", false, true, BuildCrate.class, "crate", true));
-        bots.add(new BotDescriptor("blueprint_builder", BotDescriptor.BotType.BUILD, "bot.blueprint_builder.title", "bot.blueprint_builder.desc", true, true, BlueprintBuilder.class, "build", false));
+        bots.add(new BotDescriptor("blueprint_builder", BotDescriptor.BotType.BUILD, "bot.blueprint_builder.title", "bot.blueprint_builder.desc", true, true, BlueprintBuilder.class, "blueprint", false));
 
         // TOOLS (for debug)
         bots.add(new BotDescriptor("test1", BotDescriptor.BotType.TOOLS, "Test 1", "Debug test 1.", false, true, TESTMapv4.class, "test1", false));

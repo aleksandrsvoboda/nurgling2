@@ -5,6 +5,7 @@ import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.bots.blueprint.BlueprintBuilder;
 import nurgling.actions.bots.blueprint.BuildPreflight;
+import nurgling.actions.bots.blueprint.BuildRecipes;
 import nurgling.i18n.L10n;
 import nurgling.planning.PlanningFolder;
 import nurgling.planning.PlanningGhost;
@@ -102,6 +103,13 @@ public class BlueprintBuilderWindow extends Window implements Checkable
                 });
             }
             ty += UI.scale(20);
+            // what one of them takes
+            String cost = BuildRecipes.describe(row.recipe);
+            if (cost != null)
+            {
+                types.cont.add(new Label(L10n.get("bbuilder.type_cost", cost)), new Coord(UI.scale(26), ty - UI.scale(3))).setcolor(DIM);
+                ty += UI.scale(16);
+            }
         }
         y += types.sz.y + UI.scale(6);
 

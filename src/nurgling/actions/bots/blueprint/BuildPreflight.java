@@ -46,9 +46,10 @@ public final class BuildPreflight
         for (TypeRow row : types.values())
         {
             List<MenuGrid.Pagina> buttons = BuildPaginae.candidates(gui, row.res);
-            row.name = buttons.isEmpty() ? nurgling.widgets.NBasePlannerWidget.shortName(row.res)
-                                         : buttons.get(0).button().name();
-            row.recipe = BuildRecipes.forBuilding(row.res, buttons.isEmpty() ? null : row.name);
+            String known = BuildingNames.nameOf(row.res);
+            row.name = !buttons.isEmpty() ? buttons.get(0).button().name()
+                     : (known != null) ? known : nurgling.widgets.NBasePlannerWidget.shortName(row.res);
+            row.recipe = BuildRecipes.forBuilding(row.res, buttons.isEmpty() ? null : row.name);   // falls back to the building's own name
             if (buttons.isEmpty())
                 row.problem = L10n.get("bbuilder.problem.no_button");
             else if (row.recipe != null && !row.recipe.fromWindow && row.recipe.hasUnknownCounts())
