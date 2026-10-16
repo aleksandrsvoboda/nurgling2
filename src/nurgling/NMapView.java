@@ -1602,7 +1602,14 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             // SAVE REGION armed: same one-shot rectangle, saved as a preset on release.
             if (planner.isSavePresetRegionArmed() && ev.b == 1) {
                 if (selection == null) {
-                    selection = new PlanningPresetSelector();
+                    selection = new PlanningPresetSelector(false);
+                }
+                return super.mousedown(ev);
+            }
+            // FROM WORLD armed: same rectangle, saving what is built there.
+            if (planner.isSaveWorldRegionArmed() && ev.b == 1) {
+                if (selection == null) {
+                    selection = new PlanningPresetSelector(true);
                 }
                 return super.mousedown(ev);
             }
@@ -2308,11 +2315,17 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /**
      * One-shot rectangle selector armed by the Base planner "Save region" button. On release, asks
-     * for a name and saves the ghosts of every visible layer inside the rectangle as a preset.
+     * for a name and saves the ghosts of every visible layer inside the rectangle as a preset; with
+     * {@code fromWorld} (Planner presets "From world"), what is built there as well.
      */
     public class PlanningPresetSelector extends Selector
     {
-        public PlanningPresetSelector() { super(null); }
+        private final boolean fromWorld;
+
+        public PlanningPresetSelector(boolean fromWorld) {
+            super(null);
+            this.fromWorld = fromWorld;
+        }
 
         @Override
         public void mmousemove(Coord mc) {
@@ -2333,7 +2346,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                     Coord t1 = new Coord(Math.min(ec.x, sc.x), Math.min(ec.y, sc.y));
                     Coord t2 = new Coord(Math.max(ec.x, sc.x), Math.max(ec.y, sc.y)).add(1, 1);
                     nurgling.widgets.NBasePlannerWidget planner = NUtils.getGameUI().basePlanner;
-                    if (planner != null) {
+                    if (planner != null && fromWorld) {
+                        planner.disarmSaveWorldRegion();
+                        planner.saveWorldRegion(t1.mul(MCache.tilesz), t2.mul(MCache.tilesz));
+                    } else if (planner != null) {
                         planner.disarmSavePresetRegion();
                         planner.savePresetRegion(t1.mul(MCache.tilesz), t2.mul(MCache.tilesz));
                     }

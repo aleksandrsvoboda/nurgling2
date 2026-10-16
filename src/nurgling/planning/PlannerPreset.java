@@ -187,17 +187,22 @@ public class PlannerPreset
     /** World bounds of a ghost: its hitbox turned by its angle, or the tile around it if none is known. */
     public static double[] footprint(Ghost g)
     {
-        NHitBox hb = NHitBox.findCustom(g.res);
+        return extent(NHitBox.findCustom(g.res), g.x, g.y, g.angle);
+    }
+
+    /** World bounds of hitbox {@code hb} standing at ({@code x}, {@code y}) turned by {@code angle}; a tile if null. */
+    static double[] extent(NHitBox hb, double px, double py, double angle)
+    {
         if (hb == null) {
             double hs = tile() / 2;
-            return new double[] {g.x - hs, g.y - hs, g.x + hs, g.y + hs};
+            return new double[] {px - hs, py - hs, px + hs, py + hs};
         }
-        double cos = Math.cos(g.angle), sin = Math.sin(g.angle);
+        double cos = Math.cos(angle), sin = Math.sin(angle);
         double[][] corners = {{hb.begin.x, hb.begin.y}, {hb.end.x, hb.begin.y}, {hb.end.x, hb.end.y}, {hb.begin.x, hb.end.y}};
         double[] b = {Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
         for (double[] c : corners) {
-            double x = g.x + c[0] * cos - c[1] * sin;
-            double y = g.y + c[0] * sin + c[1] * cos;
+            double x = px + c[0] * cos - c[1] * sin;
+            double y = py + c[0] * sin + c[1] * cos;
             b[0] = Math.min(b[0], x);
             b[1] = Math.min(b[1], y);
             b[2] = Math.max(b[2], x);
