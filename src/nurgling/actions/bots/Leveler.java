@@ -11,8 +11,8 @@ import haven.Pair;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
-import haven.res.ui.stackinv.ItemStack;
 import haven.res.ui.surv.LandSurvey;
+import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.Action;
@@ -26,10 +26,10 @@ import nurgling.areas.NContext;
 import nurgling.areas.NGlobalCoord;
 import nurgling.tasks.NTask;
 import nurgling.tasks.WaitFreeHand;
-import nurgling.tasks.WaitWindow;
 import nurgling.tasks.WindowIsClosed;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
+import nurgling.tools.NParser;
 import nurgling.tools.StackSupporter;
 import nurgling.widgets.Specialisation;
 
@@ -47,6 +47,10 @@ public class Leveler implements Action
     /* Only what a survey actually counts as fill - earthworms are spoil, not soil. */
     private static final NAlias SOIL_ONLY = new NAlias("Soil");
     private static final String CANNOT_LEVEL_MSG = "cannot be further leveled";
+    /** How long a survey window may take to open after the right-click. */
+    private static final long SURVEY_OPEN_MS = 8000;
+    /** Idle this long while the survey is being worked = nothing more to dig or fill. */
+    private static final long IDLE_DONE_MS = 6000;
 
     private final HashSet<Coord> done = new HashSet<>();
     private final HashSet<Coord> skipped = new HashSet<>();
@@ -98,10 +102,7 @@ public class Leveler implements Action
         Coord tile = tileOf(surveyGob);
 
         if (NUtils.getGameUI().getWindow("Land survey") == null) {
-            new PathFinder(surveyGob.rc).run(gui);
-            clearCursor(gui);
-            NUtils.rclickGob(surveyGob);
-            NUtils.addTask(new WaitWindow("Land survey"));
+            openSurvey(gui, surveyGob);
         }
         Window wnd = NUtils.getGameUI().getWindow("Land survey");
         if (!(wnd instanceof LandSurvey)) {
@@ -205,14 +206,20 @@ public class Leveler implements Action
 
             NUtils.addTask(new NTask()
             {
-                int idleCount = 0;
+                long idleSince = -1;
 
                 @Override
                 public boolean check()
                 {
-                    if (player.pose().contains("idle")) idleCount++;
-                    else idleCount = 0;
-                    if (idleCount >= 360) return true;
+                    /* Idle for a while = nothing left to dig or fill. Counted in time, not frames: a
+                     * client in the background draws a few frames a second, and 360 of them took
+                     * well over a minute after every survey. */
+                    if (player.pose().contains("idle")) {
+                        if (idleSince < 0) idleSince = System.currentTimeMillis();
+                    } else {
+                        idleSince = -1;
+                    }
+                    if (idleSince >= 0 && System.currentTimeMillis() - idleSince >= IDLE_DONE_MS) return true;
                     if (NUtils.getStamina() < 0.25 || NUtils.getEnergy() < 0.3) return true;
                     /* Running out of room is a stop condition for digging only - that is the
                      * phase that loads the inventory up. A fill empties it, and it starts out
@@ -382,10 +389,28 @@ public class Leveler implements Action
         if (sg == null) {
             return null;
         }
+        return openSurvey(gui, sg);
+    }
+
+    /**
+     * Walk to a survey pole and right-click it; the "Land survey" window, or null when none opens in
+     * time. Not every pole in view opens one (someone else's, one out of reach): waiting for it without
+     * a limit used to stall the bot for good.
+     */
+    private static LandSurvey openSurvey(NGameUI gui, Gob sg) throws InterruptedException
+    {
         new PathFinder(sg.rc).run(gui);
         clearCursor(gui);
         NUtils.rclickGob(sg);
-        NUtils.addTask(new WaitWindow("Land survey"));
+        final long deadline = System.currentTimeMillis() + SURVEY_OPEN_MS;
+        NUtils.addTask(new NTask()
+        {
+            @Override
+            public boolean check()
+            {
+                return NUtils.getGameUI().getWindow("Land survey") != null || System.currentTimeMillis() > deadline;
+            }
+        });
         Window nw = NUtils.getGameUI().getWindow("Land survey");
         return (nw instanceof LandSurvey) ? (LandSurvey) nw : null;
     }
@@ -402,7 +427,7 @@ public class Leveler implements Action
             new TransferToPiles(put.getRCArea(), SOIL_ITEM, 0).run(gui);
         }
 
-        if (topLevelEmpty(gui)) return Results.SUCCESS();
+        if (noSoilLeft(gui)) return Results.SUCCESS();
 
         NArea dump = context.goToArea(Specialisation.SpecName.soilDump);
         if (dump != null) {
@@ -411,35 +436,43 @@ public class Leveler implements Action
                 Coord2d center = rca.b.sub(rca.a).div(2).add(rca.a);
                 new PathFinder(center).run(gui);
                 clearCursor(gui);
-                ArrayList<Widget> toDrop = new ArrayList<>();
-                for (Widget w = gui.getInventory().child; w != null; w = w.next) {
-                    if (w instanceof WItem || w instanceof ItemStack) toDrop.add(w);
-                }
-                for (Widget w : toDrop) {
-                    if (w instanceof WItem) NUtils.drop((WItem) w);
-                    else w.wdgmsg("drop");
+                /* Only the soil (and the earthworms dug up with it): whatever else the character
+                 * carries - food, tools - stays in the inventory. */
+                ArrayList<WItem> toDrop = soilOnTop(gui);
+                for (WItem w : toDrop) {
+                    NUtils.drop(w);
                 }
                 if (!toDrop.isEmpty()) {
                     NUtils.addTask(new NTask() {
                         @Override
                         public boolean check() {
-                            return topLevelEmpty(gui);
+                            return soilOnTop(gui).isEmpty();
                         }
                     });
                 }
-                if (topLevelEmpty(gui)) return Results.SUCCESS();
+                if (noSoilLeft(gui)) return Results.SUCCESS();
             }
         }
 
         return bestEffort ? Results.SUCCESS() : Results.FAIL();
     }
 
-    private static boolean topLevelEmpty(NGameUI gui)
+    /** The inventory's soil and earthworms as they lie in it (a stack is one item to drop). */
+    private static ArrayList<WItem> soilOnTop(NGameUI gui)
     {
+        ArrayList<WItem> out = new ArrayList<>();
         for (Widget w = gui.getInventory().child; w != null; w = w.next) {
-            if (w instanceof WItem || w instanceof ItemStack) return false;
+            if (w instanceof WItem && ((WItem) w).item instanceof NGItem
+                    && NParser.checkName(((NGItem) ((WItem) w).item).name(), SOIL)) {
+                out.add((WItem) w);
+            }
         }
-        return true;
+        return out;
+    }
+
+    private static boolean noSoilLeft(NGameUI gui) throws InterruptedException
+    {
+        return gui.getInventory().getItems(SOIL).isEmpty();
     }
 
     private static Coord tileOf(Gob g)
