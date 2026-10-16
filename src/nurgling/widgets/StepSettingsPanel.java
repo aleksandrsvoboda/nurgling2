@@ -6,6 +6,9 @@ import nurgling.areas.NArea;
 import nurgling.actions.bots.SetSpeedBot;
 import nurgling.actions.bots.WaitBot;
 import nurgling.actions.bots.areamover.AreaMoverBot;
+import nurgling.actions.bots.blueprint.BlueprintBuilder;
+import nurgling.planning.PlanningFolder;
+import nurgling.planning.PlanningNode;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
 import nurgling.conf.NForagerProp;
@@ -104,6 +107,57 @@ public class StepSettingsPanel extends Widget {
             }
 
             add(areaDropdown, new Coord(UI.scale(8), y));
+            y += UI.scale(40);
+        }
+        if (desc.id.equals("blueprint_builder")) {
+            hasAnySetting = true;
+            add(new Label(L10n.get("bbuilder.step.node")), new Coord(UI.scale(8), y));
+            y += UI.scale(24);
+
+            // Folders and layers of the Base planner, layers indented under their folder.
+            List<PlanningNode> nodes = new ArrayList<>();
+            for (PlanningNode n : NUtils.getUI().core.planningLayer.getRoots()) {
+                nodes.add(n);
+                if (n instanceof PlanningFolder) nodes.addAll(((PlanningFolder) n).layers);
+            }
+            String current = (String) step.getSetting(BlueprintBuilder.SETTING_NODE);
+            PlanningNode selectedNode = null;
+            for (PlanningNode n : nodes) {
+                if (n.id.equals(current)) {
+                    selectedNode = n;
+                    break;
+                }
+            }
+            if (selectedNode == null && !nodes.isEmpty()) {
+                selectedNode = nodes.get(0);
+            }
+
+            NDropbox<PlanningNode> nodeDropdown = new NDropbox<PlanningNode>(
+                    UI.scale(200),
+                    Math.min(nodes.size(), 10),
+                    UI.scale(22)
+            ) {
+                @Override
+                protected PlanningNode listitem(int i) { return nodes.get(i); }
+                @Override
+                protected int listitems() { return nodes.size(); }
+                @Override
+                protected void drawitem(GOut g, PlanningNode item, int i) {
+                    g.text((item.parentId != null ? "  " : "") + item.name, Coord.z);
+                }
+                @Override
+                public void change(PlanningNode item) {
+                    super.change(item);
+                    if (item != null) {
+                        step.setSetting(BlueprintBuilder.SETTING_NODE, item.id);
+                    }
+                }
+            };
+            if (selectedNode != null) {
+                nodeDropdown.change(selectedNode);
+            }
+
+            add(nodeDropdown, new Coord(UI.scale(8), y));
             y += UI.scale(40);
         }
         if (desc.id.equals("forager")) {

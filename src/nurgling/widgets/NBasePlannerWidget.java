@@ -13,6 +13,10 @@ import nurgling.planning.PlanningGhost;
 import nurgling.planning.PlanningLayer;
 import nurgling.planning.PlanningLayerManager;
 import nurgling.planning.PlanningNode;
+import nurgling.actions.bots.blueprint.BlueprintBuilder;
+import nurgling.actions.bots.blueprint.BuildRecipes;
+import nurgling.actions.bots.blueprint.BuildingNames;
+import nurgling.sessions.BotExecutor;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -20,6 +24,7 @@ import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static nurgling.i18n.L10n.get;
 
@@ -42,6 +47,7 @@ public class NBasePlannerWidget extends Window {
 
     private boolean clearInAreaArmed = false;
     private boolean savePresetRegionArmed = false;
+    private boolean buildRegionArmed = false;
     private final Button btnSavePreset;
 
     /** Folder we are currently navigated "inside", or null for the root view.
@@ -142,6 +148,7 @@ public class NBasePlannerWidget extends Window {
                 }
                 clearInAreaArmed = true;
                 savePresetRegionArmed = false;
+                buildRegionArmed = false;
                 NUtils.getGameUI().msg("Base planner: drag a rectangle to delete ghosts in the active layer");
             }
         }, btnEye.pos("ur").adds(UI.scale(10), 0));
@@ -168,22 +175,51 @@ public class NBasePlannerWidget extends Window {
                 super.click();
                 savePresetRegionArmed = true;
                 clearInAreaArmed = false;
+                buildRegionArmed = false;
                 NUtils.getGameUI().msg(get("planner.preset.region_hint"));
             }
         }, btnSavePreset.pos("ur").adds(UI.scale(5), 0));
         btnSaveRegion.settip(get("planner.preset.region_btn_tip"));
 
+        Button btnBuild = add(new Button(UI.scale(60), get("bbuilder.planner.build")) {
+            @Override public void click() {
+                super.click();
+                PlanningNode n = selectedNode();
+                if (n == null) {
+                    NUtils.getGameUI().msg(get("bbuilder.planner.select"));
+                    return;
+                }
+                startBuilder(manager().ghostsOf(n.id));
+            }
+        }, btnSaveRegion.pos("ur").adds(UI.scale(10), 0));
+        btnBuild.settip(get("bbuilder.planner.build_tip"));
+
+        Button btnBuildRegion = add(new Button(UI.scale(90), get("bbuilder.planner.region")) {
+            @Override public void click() {
+                super.click();
+                buildRegionArmed = true;
+                clearInAreaArmed = false;
+                savePresetRegionArmed = false;
+                NUtils.getGameUI().msg(get("bbuilder.planner.region_hint"));
+            }
+        }, btnBuild.pos("ur").adds(UI.scale(5), 0));
+        btnBuildRegion.settip(get("bbuilder.planner.region_tip"));
+
         // Left panel: tree list of folders + layers
         // The text buttons are taller than the icons: centre them on the icon row, and start the
         // lists below whichever reaches lower.
         int iconMid = btnNewFolder.c.y + btnNewFolder.sz.y / 2;
-        for (Button b : new Button[] {btnPresets, btnSavePreset, btnSaveRegion})
+        for (Button b : new Button[] {btnPresets, btnSavePreset, btnSaveRegion, btnBuild, btnBuildRegion})
             b.c = Coord.of(b.c.x, Math.max(0, iconMid - b.sz.y / 2));
         int toolbarBottom = Math.max(btnNewFolder.pos("bl").y, btnPresets.pos("bl").y);
         treeList = add(new TreeList(UI.scale(new Coord(280, 420))), new Coord(0, toolbarBottom + UI.scale(5)));
 
-        // Right panel: ghosts of active layer
-        ghostList = add(new GhostList(UI.scale(new Coord(380, 420))), treeList.pos("ur").adds(UI.scale(10), 0));
+        // Right panel: ghosts of active layer, and below them what the layer takes to build
+        materials = add(new Scrollport(UI.scale(new Coord(380, 96))), treeList.pos("ur").adds(UI.scale(10), UI.scale(420 - 96)));
+        ghostList = add(new GhostList(UI.scale(new Coord(380, 420 - 96 - 22))), treeList.pos("ur").adds(UI.scale(10), 0));
+        materialsTitle = add(new Label(get("bbuilder.planner.materials")), ghostList.pos("bl").adds(0, UI.scale(3)));
+        materialsTitle.setcolor(DIM);
+        updateMaterials();
 
         pack();
     }
@@ -192,6 +228,22 @@ public class NBasePlannerWidget extends Window {
     public void disarmClearInArea() { clearInAreaArmed = false; }
     public boolean isSavePresetRegionArmed() { return savePresetRegionArmed; }
     public void disarmSavePresetRegion() { savePresetRegionArmed = false; }
+    public boolean isBuildRegionArmed() { return buildRegionArmed; }
+    public void disarmBuildRegion() { buildRegionArmed = false; }
+
+    /** "Build region": the Blueprint Builder over the visible ghosts inside the dragged world rectangle. */
+    public void buildRegion(Coord2d minWorld, Coord2d maxWorld) {
+        List<PlanningGhost> ghosts = manager().visibleGhostsIn(minWorld, maxWorld);
+        if (ghosts.isEmpty()) {
+            NUtils.getGameUI().msg(get("bbuilder.planner.region_empty"));
+            return;
+        }
+        startBuilder(ghosts);
+    }
+
+    private void startBuilder(List<PlanningGhost> ghosts) {
+        BotExecutor.runWithSupports("blueprint_builder", new BlueprintBuilder(ghosts), false, null);
+    }
 
     /** The selected folder or layer, if it still exists. */
     private PlanningNode selectedNode() {
@@ -253,6 +305,42 @@ public class NBasePlannerWidget extends Window {
         return n.parentId;
     }
 
+    private static final Color DIM = new Color(160, 170, 170);
+    private Scrollport materials;
+    private Label materialsTitle;
+
+    /** What the active layer's ghosts take to build, from the game's recipes (the wiki's, or a construction sign's once seen). */
+    private void updateMaterials() {
+        if (materials == null) return;
+        for (Widget c = materials.cont.child; c != null; ) {
+            Widget next = c.next;
+            c.destroy();
+            c = next;
+        }
+        PlanningLayer layer = manager().getActiveLayer();
+        List<String> res = new ArrayList<>();
+        int unknown = 0;
+        if (layer != null) {
+            for (PlanningGhost g : layer.ghosts) {
+                res.add(g.resName);
+                if (BuildRecipes.forGhost(g.resName) == null) unknown++;
+            }
+        }
+        int y = 0;
+        for (Map.Entry<String, Integer> e : BuildRecipes.totals(res).entrySet()) {
+            String count = (e.getValue() < 0) ? "?" : String.valueOf(e.getValue());
+            materials.cont.add(new Label(count + "  " + e.getKey()), new Coord(UI.scale(8), y));
+            y += UI.scale(16);
+        }
+        if (unknown > 0) {
+            materials.cont.add(new Label(get("bbuilder.planner.materials_unknown", unknown)), new Coord(UI.scale(8), y)).setcolor(DIM);
+            y += UI.scale(16);
+        }
+        if (y == 0)
+            materials.cont.add(new Label(get("bbuilder.planner.materials_none")), new Coord(UI.scale(8), 0)).setcolor(DIM);
+        materials.cont.update();
+    }
+
     public void refresh() {
         if (treeList != null) treeList.rebuild();
         if (ghostList != null) ghostList.rebuild();
@@ -270,6 +358,7 @@ public class NBasePlannerWidget extends Window {
         manager().setWindowOpen(false);
         disarmClearInArea();
         disarmSavePresetRegion();
+        disarmBuildRegion();
         super.hide();
     }
 
@@ -513,6 +602,7 @@ public class NBasePlannerWidget extends Window {
                     rows.add(layer.ghosts.get(i));
                 }
             }
+            updateMaterials();
         }
 
         @Override
@@ -537,7 +627,23 @@ public class NBasePlannerWidget extends Window {
         public GhostRowWidget(GhostList list, PlanningGhost g, Coord sz) {
             super(list, sz, g);
             int yMid = (sz.y - UI.scale(14)) / 2;
-            add(new Label(shortName(g.resName)), new Coord(UI.scale(8), yMid - UI.scale(1)));
+            String name = BuildingNames.nameOf(g.resName);
+            Label nl = add(new Label((name != null) ? name : shortName(g.resName)), new Coord(UI.scale(8), yMid - UI.scale(1)));
+            // what this one building takes, after its name; the whole list as the tooltip when it doesn't fit
+            String cost = BuildRecipes.describe(BuildRecipes.forGhost(g.resName));
+            if (cost != null) {
+                int x = Math.max(nl.pos("ur").x + UI.scale(12), UI.scale(150));
+                int room = sz.x - UI.scale(28) - x;
+                Label cl = add(new Label(cost), new Coord(x, yMid - UI.scale(1)));
+                cl.setcolor(DIM);
+                if (cl.sz.x > room) {
+                    String s = cost;
+                    while (s.length() > 1 && Text.render(s + "...").sz().x > room)
+                        s = s.substring(0, s.length() - 1);
+                    cl.settext(s + "...");
+                }
+                settip(cost);
+            }
             add(new IButton(NStyle.removei[0].back, NStyle.removei[1].back, NStyle.removei[2].back) {
                 @Override public void click() {
                     manager().removeGhost(g);

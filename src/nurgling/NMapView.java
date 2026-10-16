@@ -1606,6 +1606,13 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 }
                 return super.mousedown(ev);
             }
+            // BUILD REGION armed: same one-shot rectangle, handed to the Blueprint Builder on release.
+            if (planner.isBuildRegionArmed() && ev.b == 1) {
+                if (selection == null) {
+                    selection = new PlanningBuildSelector();
+                }
+                return super.mousedown(ev);
+            }
             // LMB during placement: capture as ghost instead of committing to server.
             if (ev.b == 1 && !ui.modctrl && !ui.modshift && !ui.modmeta) {
                 Loader.Future<Plob> placing_l = this.placing;
@@ -2344,6 +2351,48 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }
     }
 
+    /** One-shot rectangle selector armed by the Base planner "Build region" button. */
+    public class PlanningBuildSelector extends Selector
+    {
+        public PlanningBuildSelector() { super(null); }
+
+        @Override
+        public void mmousemove(Coord mc) {
+            super.mmousemove(mc);
+            if (sc != null) {
+                Coord tc = getec(mc);
+                Coord c1 = new Coord(Math.min(tc.x, sc.x), Math.min(tc.y, sc.y));
+                Coord c2 = new Coord(Math.max(tc.x, sc.x), Math.max(tc.y, sc.y));
+                currentSelectionCoords = new Pair<>(c1, c2.add(1, 1));
+            }
+        }
+
+        @Override
+        public boolean mmouseup(Coord mc, int button) {
+            synchronized (NMapView.this) {
+                if (sc != null) {
+                    Coord ec = mc.div(MCache.tilesz2);
+                    Coord t1 = new Coord(Math.min(ec.x, sc.x), Math.min(ec.y, sc.y));
+                    Coord t2 = new Coord(Math.max(ec.x, sc.x), Math.max(ec.y, sc.y)).add(1, 1);
+                    nurgling.widgets.NBasePlannerWidget planner = NUtils.getGameUI().basePlanner;
+                    if (planner != null) {
+                        planner.disarmBuildRegion();
+                        planner.buildRegion(t1.mul(MCache.tilesz), t2.mul(MCache.tilesz));
+                    }
+                    xl.mv = false;
+                    tt = null;
+                    currentSelectionCoords = null;
+                    glob.map.remove(ol);
+                    mgrab.remove();
+                    sc = null;
+                    destroy();
+                    selection = null;
+                }
+                return true;
+            }
+        }
+    }
+
     /**
      * Send selected area to chat in @Area format
      * Format: @Area(grid:x,y;grid:x,y) - two corner points (upper-left and bottom-right)
@@ -2862,8 +2911,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 int a = oa;
                 Plob ret = null;
                 public Plob get() {
-                    if(ret == null)
+                    if(ret == null) {
                         ret = new NPlob(res, new MessageBuf(sdt)); // Use NPlob here
+                        nurgling.actions.bots.blueprint.BuildPaginae.notePlaced(res.get().name);
+                    }
                     while(a < args.length) {
                         int a2 = a;
                         Indir<Resource> ores = ui.sess.getresv(args[a2++]);
