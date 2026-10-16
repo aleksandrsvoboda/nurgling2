@@ -8,6 +8,7 @@ import nurgling.NUtils;
 import nurgling.NGameUI;
 import nurgling.planning.PlannerPreset;
 import nurgling.planning.PlannerPresetStore;
+import nurgling.planning.WorldCapture;
 import nurgling.planning.PlanningFolder;
 import nurgling.planning.PlanningGhost;
 import nurgling.planning.PlanningLayer;
@@ -48,6 +49,7 @@ public class NBasePlannerWidget extends Window {
     private boolean clearInAreaArmed = false;
     private boolean savePresetRegionArmed = false;
     private boolean buildRegionArmed = false;
+    private boolean saveWorldRegionArmed = false;
     private final Button btnSavePreset;
 
     /** Folder we are currently navigated "inside", or null for the root view.
@@ -149,6 +151,7 @@ public class NBasePlannerWidget extends Window {
                 clearInAreaArmed = true;
                 savePresetRegionArmed = false;
                 buildRegionArmed = false;
+                saveWorldRegionArmed = false;
                 NUtils.getGameUI().msg("Base planner: drag a rectangle to delete ghosts in the active layer");
             }
         }, btnEye.pos("ur").adds(UI.scale(10), 0));
@@ -176,6 +179,7 @@ public class NBasePlannerWidget extends Window {
                 savePresetRegionArmed = true;
                 clearInAreaArmed = false;
                 buildRegionArmed = false;
+                saveWorldRegionArmed = false;
                 NUtils.getGameUI().msg(get("planner.preset.region_hint"));
             }
         }, btnSavePreset.pos("ur").adds(UI.scale(5), 0));
@@ -200,6 +204,7 @@ public class NBasePlannerWidget extends Window {
                 buildRegionArmed = true;
                 clearInAreaArmed = false;
                 savePresetRegionArmed = false;
+                saveWorldRegionArmed = false;
                 NUtils.getGameUI().msg(get("bbuilder.planner.region_hint"));
             }
         }, btnBuild.pos("ur").adds(UI.scale(5), 0));
@@ -230,6 +235,17 @@ public class NBasePlannerWidget extends Window {
     public void disarmSavePresetRegion() { savePresetRegionArmed = false; }
     public boolean isBuildRegionArmed() { return buildRegionArmed; }
     public void disarmBuildRegion() { buildRegionArmed = false; }
+    public boolean isSaveWorldRegionArmed() { return saveWorldRegionArmed; }
+    public void disarmSaveWorldRegion() { saveWorldRegionArmed = false; }
+
+    /** Planner presets "From world": the next rectangle dragged on the map saves what is built there. */
+    public void armSaveWorldRegion() {
+        saveWorldRegionArmed = true;
+        clearInAreaArmed = false;
+        savePresetRegionArmed = false;
+        buildRegionArmed = false;
+        NUtils.getGameUI().msg(get("planner.preset.world_hint"));
+    }
 
     /** "Build region": the Blueprint Builder over the visible ghosts inside the dragged world rectangle. */
     public void buildRegion(Coord2d minWorld, Coord2d maxWorld) {
@@ -266,20 +282,36 @@ public class NBasePlannerWidget extends Window {
                 name -> savePreset(() -> manager().capturePresetRegion(name, minWorld, maxWorld)));
     }
 
+    /** "From world": what is built inside the dragged world rectangle, with the visible ghosts there. */
+    public void saveWorldRegion(Coord2d minWorld, Coord2d maxWorld) {
+        NAreaPresetNameDialog.open(ui, get("area.preset.save_title"), "", name -> {
+            WorldCapture.Result[] res = {null};
+            boolean saved = savePreset(() -> {
+                res[0] = manager().capturePresetWorld(name, minWorld, maxWorld);
+                return res[0].preset;
+            });
+            if (saved && !res[0].skipped.isEmpty())
+                ui.gui.msg(WorldCapture.skippedText(res[0].skipped));
+        });
+    }
+
     private interface Capture { PlannerPreset run() throws PlannerPreset.CaptureException; }
 
-    private void savePreset(Capture capture) {
+    /** Captures and saves a preset; false, with the reason shown, if that failed. */
+    private boolean savePreset(Capture capture) {
         NGameUI gui = (NGameUI) ui.gui;
         try {
             PlannerPreset preset = capture.run();
             PlannerPresetStore.saveNew(preset);
             gui.msg(get("planner.preset.saved", preset.name, preset.ghostCount()));
             NPlannerPresetsWindow.open(gui).load(preset);
+            return true;
         } catch (PlannerPreset.CaptureException e) {
             gui.error(e.getMessage());
         } catch (IOException e) {
             gui.error(get("area.preset.save_failed", e.getMessage()));
         }
+        return false;
     }
 
     /** Shows {@code node} in the tree: the root view for a root node, its folder for a layer inside one. */
@@ -359,6 +391,7 @@ public class NBasePlannerWidget extends Window {
         disarmClearInArea();
         disarmSavePresetRegion();
         disarmBuildRegion();
+        disarmSaveWorldRegion();
         super.hide();
     }
 

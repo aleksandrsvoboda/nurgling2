@@ -2,6 +2,7 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.NGameUI;
+import nurgling.NMapView;
 import nurgling.planning.PlannerPreset;
 import nurgling.planning.PlannerPresetPlacer;
 import nurgling.planning.PlannerPresetStore;
@@ -85,7 +86,14 @@ public class NPlannerPresetsWindow extends Window
             }
         }, importBtn.pos("ur").adds(5, 0));
         describeBtn.settip(get("planner.preset.edit_description_tip"));
-        int top = Math.max(list.pos("bl").y, export.pos("bl").y) + UI.scale(8);
+        Button fromWorld = add(new Button(UI.scale(BTN_W), get("planner.preset.world_btn")) {
+            @Override
+            public void click() {
+                captureFromWorld();
+            }
+        }, export.pos("bl").adds(0, 5));
+        fromWorld.settip(get("planner.preset.world_btn_tip"));
+        int top = Math.max(list.pos("bl").y, fromWorld.pos("bl").y) + UI.scale(8);
         about = add(new RichTextBox(Coord.of(thumb.pos("ur").x - list.c.x, UI.scale(120)), "", RichText.stdf), Coord.of(list.c.x, top));
         about.bg = new Color(30, 40, 40, 160);
         pack();
@@ -151,6 +159,20 @@ public class NPlannerPresetsWindow extends Window
             hide();
             planner.hide();
         }
+    }
+
+    /** Arms a rectangle on the map; the buildings dragged over are saved as a preset (Base planner must be open). */
+    private void captureFromWorld()
+    {
+        NGameUI gui = (NGameUI) ui.gui;
+        NMapView map = (NMapView) gui.map;
+        if (map == null || map.presetPlacer != null || map.isAreaSelectionMode.get()) {
+            gui.error(get("planner.preset.busy"));
+            return;
+        }
+        if (!gui.basePlanner.visible())
+            gui.basePlanner.show();
+        gui.basePlanner.armSaveWorldRegion();
     }
 
     private void describeSelected()
