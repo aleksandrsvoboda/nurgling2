@@ -879,6 +879,7 @@ public class NGameUI extends GameUI
         final String name;
         private boolean vertical = false;
         ArrayList<NKeyBinding> beltkeys = new ArrayList<>();
+        Tex[] hdKeyTex;
         public NToolBelt(String name, int start, int group, int size) {
             super( new Coord(0,0) );
             this.start = start;
@@ -890,6 +891,14 @@ public class NGameUI extends GameUI
             for(KeyBinding kb: prop.getKb())
             {
                 beltkeys.add(new NKeyBinding(kb));
+            }
+            hdKeyTex = new Tex[size];
+            int beltIdx = start / 12;
+            for (int i = 0; i < size; i++) {
+                if (beltIdx == 0 && i < 10)
+                    hdKeyTex[i] = NStyle.hotkey.render(String.valueOf((i + 1) % 10)).tex();
+                else if (beltIdx == 1)
+                    hdKeyTex[i] = NStyle.hotkey.render("F" + (i + 1)).tex();
             }
         }
 
@@ -948,8 +957,11 @@ public class NGameUI extends GameUI
                     }
                 } catch (Loading ignored) {
                 }
-                if (beltkeys.get(i).tex != null) {
-                    g.aimage(beltkeys.get(i).tex, c.add(INVSZ.sub(2, 0)), 1, 1);
+                Tex ktex = beltkeys.get(i).tex;
+                if (ktex == null && i < hdKeyTex.length)
+                    ktex = hdKeyTex[i];
+                if (ktex != null) {
+                    g.aimage(ktex, c.add(INVSZ.sub(2, 0)), 1, 1);
                 }
             }
             super.draw(g);
@@ -1110,13 +1122,28 @@ public class NGameUI extends GameUI
             if (!visible) {
                 return false;
             }
+            // skip matching if CTRL is pressed to not clash with global hotkeys
+            if (ev.mods == KeyMatch.C) {
+                return super.globtype(ev);
+            }
+            int beltIdx = start / 12;
+            if ((beltIdx == 0) && (ev.code >= KeyEvent.VK_0) && (ev.code <= KeyEvent.VK_9)) {
+                int i = Utils.floormod(ev.code - KeyEvent.VK_0 - 1, 10);
+                keyact(slot(i));
+                return true;
+            }
+            if ((beltIdx == 1) && (ev.code >= KeyEvent.VK_F1) && (ev.code <= KeyEvent.VK_F12)) {
+                keyact(slot(ev.code - KeyEvent.VK_F1));
+                return true;
+            }
             for (int i = 0; i < beltkeys.size(); i++) {
-                if ((beltkeys.get(i).key != null && ev.code == beltkeys.get(i).key.code && ui.modflags() == beltkeys.get(i).key.modmatch)) {
+                KeyMatch km = beltkeys.get(i).kb.key();
+                if (km != null && km.code != KeyEvent.VK_UNDEFINED && km.match(ev.awt, beltkeys.get(i).modign)) {
                     keyact(slot(i));
                     return true;
                 }
             }
-            return false;
+            return super.globtype(ev);
         }
 
         @Override
