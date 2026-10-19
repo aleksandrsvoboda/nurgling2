@@ -147,6 +147,7 @@ public class Defer extends ThreadGroup {
 		    return;
 		running = Thread.currentThread();
 	    }
+	    Loading waiting = null;
 	    try {
 		busy.getAndIncrement();
 		val = task.call();;
@@ -158,12 +159,13 @@ public class Defer extends ThreadGroup {
 	    } catch(Loading exc) {
 		exc.boostprio(prio);
 		lastload = exc;
+		waiting = exc;
 	    } catch(Throwable exc) {
 		this.exc = exc;
 		chstate("done");
 	    } finally {
 		synchronized(this) {
-		    if(state != "done")
+		    if((state != "done") && (waiting == null))
 			chstate("resched");
 		    running = null;
 		}
@@ -175,6 +177,44 @@ public class Defer extends ThreadGroup {
 		 * though, and the risk should be quite low. Fix if
 		 * possible. */
 		Thread.interrupted();
+	    }
+	    if(waiting != null)
+		reschedwhen(waiting);
+	}
+
+	/* nurgling: a job that threw Loading used to go straight to
+	 * "resched", which wakes its waiters, whose done() check
+	 * queues it again at once. A map cut missing a neighbour grid
+	 * was so rebuilt in a tight loop, ~2.5 GB/s of garbage. Retry
+	 * when what it waits for is ready, or after a backstop delay
+	 * in case that never signals. Registered outside our monitor:
+	 * MCache.LoadingMap waits on map.grids, and invalidateAll()
+	 * holds map.grids while cancelling futures. */
+	private void reschedwhen(Loading l) {
+	    Waitable.Waiting[] reg = {null};
+	    boolean[] fired = {false};
+	    Runnable retry = () -> {
+		synchronized(this) {
+		    if(fired[0])
+			return;
+		    fired[0] = true;
+		    if(state == "")
+			chstate("resched");
+		}
+		synchronized(reg) {
+		    if(reg[0] != null)
+			reg[0].cancel();
+		}
+	    };
+	    Timeout.later(Utils.rtime() + 1.0, retry, null);
+	    try {
+		l.waitfor(retry, w -> {
+			synchronized(reg) {
+			    reg[0] = w;
+			}
+		    });
+	    } catch(Loading.UnwaitableEvent e) {
+		retry.run();
 	    }
 	}
 	
