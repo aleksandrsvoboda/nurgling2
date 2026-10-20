@@ -658,6 +658,7 @@ public abstract class UILoop implements Console.Directory {
 		    }
 		    Debug.cycle(ui.modflags());
 
+		    nurgling.diagnostics.FrameSampler.begin();
 		    Frame curframe = frame(ui, buf, prevframe);
 		    prevframe = null;
 		    curframe.run();
@@ -665,6 +666,7 @@ public abstract class UILoop implements Console.Directory {
 		    curframe.fin();
 
 		    framedone(curframe);
+		    nurgling.diagnostics.FrameSampler.end();
 		    (prevframe = curframe).prev = null;
 		} finally {
 		    if(buf != null)
