@@ -686,9 +686,9 @@ public class Craft implements Action {
             return;
         }
 
-        ArrayList<org.json.JSONObject> categoryItems = VSpec.categories.get(spec.name);
+        ArrayList<org.json.JSONObject> categoryItems = CraftCategories.options(spec.name);
         if (categoryItems == null || categoryItems.isEmpty()) {
-            NUtils.getGameUI().msg("Category '" + spec.name + "' not found in VSpec.categories");
+            NUtils.getGameUI().msg("Category '" + spec.name + "' has no known items");
             return;
         }
 

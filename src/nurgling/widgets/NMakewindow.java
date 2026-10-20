@@ -123,7 +123,7 @@ public class NMakewindow extends Widget {
                 }
                 else
                 {
-                    g.image(new TexI(ing.img), Coord.z, UI.scale(32,32));
+                    ItemIcons.draw(g, ing.tex(), Coord.z, UI.scale(32));
                 }
             } catch(Loading e) {}
             if(num != null)
@@ -218,12 +218,12 @@ public class NMakewindow extends Widget {
                 logisticin = (NContext.findIn(name) != null);
                 if(!logisticin)
                 {
-                    categories = (VSpec.categories.get(name)!=null);
+                    categories = CraftCategories.has(name);
                 }
                 logisticout = (NContext.findOut(name,1) != null);
                 if(!logisticout)
                 {
-                    categories = (VSpec.categories.get(name)!=null);
+                    categories = CraftCategories.has(name);
                 }
                 for(Spec s : inputs) {
                     if(s.categories && s.ing!=null)
@@ -351,7 +351,7 @@ public class NMakewindow extends Widget {
                 names.add(s.ing.name);
             if(s.name == null)
                 continue;
-            ArrayList<JSONObject> options = s.categories ? VSpec.categories.get(s.name) : null;
+            ArrayList<JSONObject> options = s.categories ? CraftCategories.options(s.name) : null;
             if(options != null) {
                 for(JSONObject obj : options)
                     names.add((String) obj.get("name"));
@@ -501,7 +501,7 @@ public class NMakewindow extends Widget {
             if (s.categories) {
                 if (c.isect(sc, Inventory.sqsz)) {
                     boolean isOpt = s.opt();
-                    ArrayList<JSONObject> categoryItems = VSpec.categories.get(s.name);
+                    ArrayList<JSONObject> categoryItems = CraftCategories.options(s.name);
                     if (cat == null) {
                         // If category has only one item and it's not optional, auto-select it
                         if (categoryItems != null && categoryItems.size() == 1 && !isOpt) {
@@ -1133,10 +1133,19 @@ public class NMakewindow extends Widget {
         public String name;
         boolean logistic;
         public boolean isIgnored = false;
+        private JSONObject icon;
+        private Tex tex;
 
         public Ingredient(JSONObject obj)
         {
-            img = ItemTex.create(obj);
+            this(obj, true);
+        }
+
+        /** Without load the image is left to ItemIcons, which loads it off the UI thread: a picker option. */
+        Ingredient(JSONObject obj, boolean load)
+        {
+            icon = obj;
+            img = load ? ItemTex.create(obj) : null;
             name = (String) obj.get("name");
         }
 
@@ -1145,6 +1154,22 @@ public class NMakewindow extends Widget {
             this.img = img;
             this.name = name;
             this.isIgnored = isIgnored;
+        }
+
+        /** The ingredient with its image loaded, as a chosen ingredient must have. */
+        Ingredient loaded()
+        {
+            return (img != null) ? this : new Ingredient(icon);
+        }
+
+        /** The icon to draw, or null while it loads. */
+        Tex tex()
+        {
+            if(img == null)
+                return ItemIcons.get(icon);
+            if(tex == null)
+                tex = new TexI(img);
+            return tex;
         }
 
         void tick(double dt)
@@ -1197,7 +1222,7 @@ public class NMakewindow extends Widget {
             
             for(JSONObject obj: objs)
             {
-                data.add(new Ingredient(obj));
+                data.add(new Ingredient(obj, false));
             }
             setfocustab(true);
             autofocus =true;
@@ -1214,7 +1239,7 @@ public class NMakewindow extends Widget {
             for(Ingredient ing: data)
             {
                 GOut sg = g.reclip(pos, invsq.sz());
-                sg.image(new TexI(ing.img), Coord.z,UI.scale(32,32));
+                ItemIcons.draw(sg, ing.tex(), Coord.z, UI.scale(32));
                 if(ing.isIgnored)
                 {
                     sg.image(ignoreOverlay, Coord.z,UI.scale(32,32));
@@ -1276,7 +1301,7 @@ public class NMakewindow extends Widget {
                 {
                     if(ev.c.isect(pos, invsq.sz()))
                     {
-                        s.ing = ing;
+                        s.ing = ing.loaded();
                         destroy();
                         cat = null;
                         return true;

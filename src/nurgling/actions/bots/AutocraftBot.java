@@ -9,7 +9,7 @@ import nurgling.scenarios.CraftPreset;
 import nurgling.scenarios.CraftPresetManager;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
-import nurgling.tools.VSpec;
+import nurgling.tools.CraftCategories;
 import nurgling.widgets.NMakewindow;
 import org.json.JSONObject;
 
@@ -182,7 +182,7 @@ public class AutocraftBot implements Action {
      * for Craft.java to auto-select an ingredient that has an area.
      */
     private void setPreferredIngredient(NMakewindow mwnd, NMakewindow.Spec spec, String preferredName) {
-        ArrayList<JSONObject> categoryItems = VSpec.categories.get(spec.name);
+        ArrayList<JSONObject> categoryItems = CraftCategories.options(spec.name);
         if (categoryItems == null) {
             return;
         }

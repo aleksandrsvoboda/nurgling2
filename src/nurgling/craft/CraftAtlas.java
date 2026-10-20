@@ -252,7 +252,7 @@ public final class CraftAtlas implements AtlasSource {
             if(name == null) name = displayName(resource);
             // Load all info before committing, so Optional cannot silently turn into required.
             boolean optional = spec.info().stream().anyMatch(i -> i.getClass().getName().endsWith("$Optional"));
-            boolean category = spec.constraint != null || nurgling.tools.VSpec.categories.containsKey(name);
+            boolean category = spec.constraint != null || nurgling.tools.CraftCategories.has(name);
             if(!category) {
                 JSONObject icon = haven.res.lib.itemtex.ItemTex.save(spec.sprite());
                 nurgling.tools.ItemIcons.register(name, icon == null ? new JSONObject().put("static", resource.name) : icon);
