@@ -501,7 +501,7 @@ public class MCache implements MapSource {
 	    public void rebuild() {
 		synchronized(this) {
 		    Defer.Future<T> prev = this.def;
-		    this.def = Defer.later(new Defer.Callable<T>() {
+		    this.def = Defer.mapjob(new Defer.Callable<T>() {
 			    public T call() {return(build());}
 			    public String toString() {return(message());}
 			});
@@ -605,7 +605,7 @@ public class MCache implements MapSource {
 	    private RenderTree.Node[] build(Object key, Defer.Callable<RenderTree.Node[]> task) {
 		Defer.Future<RenderTree.Node[]> f = olbuild.get(key);
 		if(f == null)
-		    olbuild.put(key, f = Defer.later(task));
+		    olbuild.put(key, f = Defer.mapjob(task));
 		RenderTree.Node[] ret = f.get();
 		olbuild.remove(key);
 		return(ret);

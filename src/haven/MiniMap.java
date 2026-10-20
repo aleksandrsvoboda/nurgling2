@@ -658,9 +658,9 @@ public class MiniMap extends Widget
 	    if(img_c == null) {
 		img_c = new CachedImage(grid -> {
 			if(grid instanceof MapFile.ZoomGrid) {
-			    return(Defer.later(() -> new TexI(grid.render(sc.mul(cmaps)))));
+			    return(Defer.mapjob(() -> new TexI(grid.render(sc.mul(cmaps)))));
 			} else {
-			    return(Defer.later(new Defer.Callable<Tex>() {
+			    return(Defer.mapjob(new Defer.Callable<Tex>() {
 				    MapFile.View view = new MapFile.View(seg);
 
 				    public TexI call() {
@@ -686,7 +686,7 @@ public class MiniMap extends Widget
 	    CachedImage ret;
 	    synchronized(olimg_c) {
 		if((ret = olimg_c.get(tag)) == null)
-		    olimg_c.put(tag, ret = new CachedImage(grid -> Defer.later(() -> new TexI(grid.olrender(sc.mul(cmaps), tag)))));
+		    olimg_c.put(tag, ret = new CachedImage(grid -> Defer.mapjob(() -> new TexI(grid.olrender(sc.mul(cmaps), tag)))));
 	    }
 	    return(ret.get());
 	}

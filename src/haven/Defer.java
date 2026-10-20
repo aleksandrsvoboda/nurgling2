@@ -35,7 +35,7 @@ public class Defer extends ThreadGroup {
     private static final Map<ThreadGroup, Defer> groups = new WeakHashMap<ThreadGroup, Defer>();
     private final Queue<Future<?>> queue = new PrioQueue<Future<?>>();
     private final Collection<Thread> pool = new LinkedList<Thread>();
-    private final int maxthreads = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
+    private final int maxthreads, priority;
     private final AtomicInteger busy = new AtomicInteger(0);
     
     public interface Callable<T> {
@@ -270,7 +270,7 @@ public class Defer extends ThreadGroup {
 	private Worker() {
 	    super(Defer.this, null, "Worker thread #" + threadno.getAndIncrement());
 	    setDaemon(true);
-	    setPriority((Thread.NORM_PRIORITY + Thread.MIN_PRIORITY) / 2);
+	    setPriority(priority);
 	}
 	
 	public void run() {
@@ -306,7 +306,34 @@ public class Defer extends ThreadGroup {
     }
 
     public Defer(ThreadGroup parent) {
-	super(parent, "DPC threads");
+	this(parent, "DPC threads", Math.max(2, Runtime.getRuntime().availableProcessors() - 1), (Thread.NORM_PRIORITY + Thread.MIN_PRIORITY) / 2);
+    }
+
+    private Defer(ThreadGroup parent, String name, int maxthreads, int priority) {
+	super(parent, name);
+	this.maxthreads = maxthreads;
+	this.priority = priority;
+    }
+
+    /* nurgling: map building (terrain meshes, map overlay meshes, minimap grid images)
+     * gets its own pool of a few minimum-priority threads. A newly arrived map grid
+     * queues a burst of mesh builds; on the shared pool they ran on 3-4 cores at once
+     * (up to availableProcessors-1 workers) with heavy allocation, and every such burst
+     * stalled the frame: measured on a large base, the frames over 30 ms dropped ~20x
+     * when the builds trickled through one low-priority thread instead. */
+    public static final int MAP_THREADS = Math.max(1, Integer.getInteger("nurgling.mapthreads", 1));
+    private static Defer maps = null;
+
+    public static Defer maps() {
+	synchronized(Defer.class) {
+	    if(maps == null)
+		maps = new Defer(Thread.currentThread().getThreadGroup(), "Map builders", MAP_THREADS, Thread.MIN_PRIORITY);
+	    return(maps);
+	}
+    }
+
+    public static <T> Future<T> mapjob(Callable<T> task) {
+	return(maps().defer(task));
     }
 
     private void defer(final Future<?> f) {
