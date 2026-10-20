@@ -57,6 +57,14 @@ public class StackSupporter {
         // gfx/invobjs/peapod. In no VSpec category.
         customStackSizes.put("Peapod", 3);
         customStackSizes.put("Adder's Lying Tongue", 3);
+        // Listed under "Bone Material" (stack size 4), but the server stacks it 3 deep.
+        customStackSizes.put("Adder Skeleton", 3);
+        // In no VSpec category; sized here rather than guessed into one.
+        customStackSizes.put("Indigo Cap", 4);
+        customStackSizes.put("Cave Louse Leg", 4);
+        customStackSizes.put("Cruel Bee Stinger", 3);
+        customStackSizes.put("Tinder Conk", 4);
+        customStackSizes.put("Pearl Oyster", 4);
         // gfx/invobjs/branch. Sits in "Wicker" for what it crafts into, but the server
         // stacks it 5 deep, not 3 like the rest of that category.
         customStackSizes.put("Branch", 5);
