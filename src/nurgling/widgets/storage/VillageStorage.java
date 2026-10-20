@@ -68,7 +68,12 @@ public final class VillageStorage {
         if (village.isEmpty())
             return items;
         return items.stream()
-                .filter(item -> item.getGridId() != null && village.contains(item.getGridId()))
+                .filter(item -> inVillage(item.getGridId(), village))
                 .collect(Collectors.toList());
+    }
+
+    /** Whether storage on gridId is the village's, by the same rule as the list version. */
+    public static boolean inVillage(Long gridId, Set<Long> village) {
+        return village.isEmpty() || (gridId != null && village.contains(gridId));
     }
 }

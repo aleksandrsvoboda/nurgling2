@@ -104,10 +104,7 @@ public class AutocraftBot implements Action {
         }
 
         // Enable auto mode FIRST - this is needed for tick() to populate categories
-        mwnd.autoMode = true;
-        if (mwnd.noTransfer != null) {
-            mwnd.noTransfer.visible = true;
-        }
+        mwnd.setAutoMode(true);
 
         // Wait for inputs to be fully populated (names loaded and categories checked)
         // In headless mode, skip sprite check since sprites won't render

@@ -133,6 +133,7 @@ public class NConfig
         persistentBarrelLabels,
         uniformBiomeColors,
         inventoryRightPanelShow,
+        craftUseStorage,     // craft window: autocraft may fetch inputs with no area from the Storage Items index
         inventoryRightPanelMode,
         showTerrainName,
         validateAllCropsBeforeHarvest,
@@ -451,6 +452,7 @@ public class NConfig
         conf.put(Key.persistentBarrelLabels, false);
         conf.put(Key.uniformBiomeColors, false);
         conf.put(Key.inventoryRightPanelShow, false);
+        conf.put(Key.craftUseStorage, false);
         conf.put(Key.inventoryRightPanelMode, "EXPANDED");
         conf.put(Key.showTerrainName, false);
         conf.put(Key.validateAllCropsBeforeHarvest, false);

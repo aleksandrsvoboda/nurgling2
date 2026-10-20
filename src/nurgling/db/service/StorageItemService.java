@@ -65,6 +65,13 @@ public class StorageItemService {
     }
 
     /**
+     * Load located rows named exactly one of names, synchronously
+     */
+    public List<StorageItemDao.LocatedItem> loadByExactNames(java.util.Collection<String> names) throws SQLException {
+        return databaseManager.executeOperation(adapter -> storageItemDao.loadByExactNames(adapter, names));
+    }
+
+    /**
      * Load storage items by container asynchronously
      */
     public CompletableFuture<List<StorageItemDao.StorageItemData>> loadStorageItemsByContainerAsync(String containerHash) {

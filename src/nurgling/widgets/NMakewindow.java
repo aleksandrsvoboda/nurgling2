@@ -36,6 +36,9 @@ public class NMakewindow extends Widget {
     public static final TexI anotfound = new TexI(Resource.loadsimg("nurgling/hud/autocraft/notfound"));
     public static final TexI categories = new TexI(Resource.loadsimg("nurgling/hud/autocraft/spec"));
     public static final TexI ignoreOverlay = new TexI(Resource.loadsimg("nurgling/hud/autocraft/ignore"));
+    /** Corner badge over the ready frame: this input is fetched from the Storage Items index. */
+    public static final TexI storageBadge = new TexI(storageBadgeImg(Inventory.invsq.sz()));
+    private static final double STORAGE_REFRESH = 10;
     public static Text tooll = null;
     private static Text getTooll() {
         if (tooll == null) tooll = fnd.render(L10n.get("craft.tools"));
@@ -58,8 +61,22 @@ public class NMakewindow extends Widget {
     private static Tex softTexLabel = null;
     public CheckBox noTransfer = null;
     public boolean autoMode = false;
-    private ICheckBox autoBox = null;
-    private IButton savePresetBtn = null;
+    private CheckBox useStorage = null;
+    private Button savePresetBtn = null;
+    private boolean presetReady = true;
+    private Button craftBtn, craftAllBtn;
+    private CraftModeSwitch modeSwitch;
+    /** Set from any thread by setAutoMode; the widgets move on the next UI tick. */
+    private volatile boolean layoutDirty = true;
+    /** Exact name -> number of Storage Items rows; filled on a database thread. */
+    /**
+     * Exact name -> number of Storage Items rows, 0 once asked and none found. Shared by every craft
+     * window, so a reopened picker or another recipe shows what is already known at once. Filled on
+     * a database thread.
+     */
+    private static final Map<String, Integer> storageCounts = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile boolean storageQueryRunning = false;
+    private double storageQueryAge = STORAGE_REFRESH;
 
     private static final OwnerContext.ClassResolver<NMakewindow> ctxr = new OwnerContext.ClassResolver<NMakewindow>()
             .add(Glob.class, wdg -> wdg.ui.sess.glob)
@@ -260,10 +277,20 @@ public class NMakewindow extends Widget {
             cat.tick(dt);
         }
 
-        // Update Save Preset button visibility
-        if (savePresetBtn != null) {
-            savePresetBtn.visible = autoMode && allInputsConfigured();
+        if(layoutDirty)
+            relayout();
+        boolean ready = allInputsConfigured();
+        if(ready != presetReady) {
+            presetReady = ready;
+            savePresetBtn.disable(!ready);
+            savePresetBtn.settip(L10n.get(ready ? "craft.save_preset_tip" : "craft.save_preset_disabled"));
         }
+        boolean showStorage = autoMode && storageEnabled();
+        if(useStorage.visible != showStorage) {
+            useStorage.visible = showStorage;
+            layoutDirty = true;
+        }
+        refreshStorageCounts(dt);
         atlasRetry -= dt;
         if(atlasDirty && atlasRetry <= 0) {
             atlasRetry = .5;
@@ -279,9 +306,140 @@ public class NMakewindow extends Widget {
         }
     }
 
-    /** Turns autocrafting on as clicking its checkbox does, so the checkbox shows it. */
+    /** Turns autocrafting on as the mode switch does. */
     public void enableAutoMode() {
-        autoBox.set(true);
+        setAutoMode(true);
+    }
+
+    /**
+     * Switch between Manual and Autocraft. Safe from a bot thread: the Autocraft panel is shown or
+     * hidden, and the window resized, on the next UI tick.
+     */
+    public void setAutoMode(boolean val) {
+        autoMode = val;
+        layoutDirty = true;
+    }
+
+    /** Whether this client uses the database at all; the storage toggle is only offered then. */
+    private static boolean storageEnabled() {
+        return (Boolean) NConfig.get(NConfig.Key.ndbenable);
+    }
+
+    /** Whether an autocraft started now should fetch area-less inputs from the Storage Items index. */
+    public boolean storageActive() {
+        // Not isReady(): that reads false whenever every pooled connection is busy, and a query waits for one
+        return autoMode && useStorage != null && useStorage.a && storageEnabled() && NCore.databaseManager != null;
+    }
+
+    private boolean inStorage(String name) {
+        return name != null && storageActive() && storageCounts.getOrDefault(name, 0) > 0;
+    }
+
+    /**
+     * Keep storageCounts current for every name this window can show: each input and, for a
+     * category input, every option its picker offers, so the picker has its borders before it
+     * opens. Names never asked about are queried on the next tick; all of them again every few
+     * seconds, since rows change whenever a container is closed.
+     */
+    private void refreshStorageCounts(double dt) {
+        storageQueryAge += dt;
+        if(!storageActive() || storageQueryRunning)
+            return;
+        Set<String> names = new HashSet<>();
+        for(Spec s : inputs) {
+            if(s.ing != null && !s.ing.isIgnored)
+                names.add(s.ing.name);
+            if(s.name == null)
+                continue;
+            ArrayList<JSONObject> options = s.categories ? VSpec.categories.get(s.name) : null;
+            if(options != null) {
+                for(JSONObject obj : options)
+                    names.add((String) obj.get("name"));
+            } else if(!s.categories) {
+                names.add(s.name);
+            }
+        }
+        if(cat != null) {
+            for(Ingredient ing : cat.data)
+                if(!ing.isIgnored)
+                    names.add(ing.name);
+        }
+        names.remove(null);
+        Set<String> ask;
+        if(storageQueryAge >= STORAGE_REFRESH) {
+            ask = names;
+            storageQueryAge = 0;
+        } else {
+            ask = new HashSet<>();
+            for(String n : names)
+                if(!storageCounts.containsKey(n))
+                    ask.add(n);
+        }
+        if(ask.isEmpty())
+            return;
+        storageQueryRunning = true;
+        // Read on the UI thread; the village is worked out with the query, off it
+        nurgling.widgets.storage.VillageStorage storage = nurgling.widgets.storage.VillageStorage.snapshot(getparent(NGameUI.class));
+        NCore.databaseManager.submitTask(() -> {
+            try {
+                Set<Long> village = storage.village();
+                Map<String, Integer> counts = new HashMap<>();
+                for(String n : ask)
+                    counts.put(n, 0);
+                for(nurgling.db.dao.StorageItemDao.LocatedItem row : NCore.databaseManager.getStorageItemService().loadByExactNames(ask))
+                    if(nurgling.widgets.storage.VillageStorage.inVillage(row.gridId, village))
+                        counts.merge(row.name, 1, Integer::sum);
+                storageCounts.putAll(counts);
+            } catch(java.sql.SQLException e) {
+                System.out.println("[NMakewindow] storage count query failed: " + e.getMessage());
+            } finally {
+                storageQueryRunning = false;
+            }
+        });
+    }
+
+    /** Lay out the button row and, in Autocraft, the panel above it; then refit the window. */
+    private void relayout() {
+        layoutDirty = false;
+        noTransfer.visible = autoMode;
+        useStorage.visible = autoMode && storageEnabled();
+        savePresetBtn.visible = autoMode;
+        int panelY = outy + Inventory.sqsz.y + UI.scale(8);
+        int panelH = savePresetBtn.sz.y + UI.scale(10);
+        int rowY = panelY + (panelH - savePresetBtn.sz.y) / 2;
+        savePresetBtn.c = Coord.of(UI.scale(325), rowY);
+        noTransfer.c = Coord.of(0, rowY + (savePresetBtn.sz.y - noTransfer.sz.y) / 2);
+        useStorage.c = Coord.of(noTransfer.c.x + noTransfer.sz.x + UI.scale(16), noTransfer.c.y);
+        int by = autoMode ? panelY + panelH + UI.scale(4) : panelY;
+        modeSwitch.c = Coord.of(0, by + (craftBtn.sz.y - modeSwitch.sz.y) / 2);
+        craft_num.c = Coord.of(UI.scale(165), by + (craftBtn.sz.y - craft_num.sz.y) / 2);
+        craftBtn.c = Coord.of(UI.scale(230), by);
+        craftAllBtn.c = Coord.of(UI.scale(325), by);
+        panelTop = panelY;
+        panelBottom = panelY + panelH;
+        pack();
+        if(parent instanceof NCraftWindow)
+            ((NCraftWindow) parent).refit();
+    }
+
+    private int panelTop, panelBottom;
+
+    private static BufferedImage storageBadgeImg(Coord sz) {
+        BufferedImage img = TexI.mkbuf(sz);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int leg = sz.x * 11 / 20, h = sz.y;
+        g.setColor(NStyle.border);
+        g.fillPolygon(new int[]{0, leg, 0}, new int[]{h - leg, h, h}, 3);
+        // A small chest: body and lid line
+        int cw = Math.max(5, sz.x / 5), ch = Math.max(4, sz.y / 7);
+        int cx = Math.max(1, sz.x / 16), cy = h - ch - Math.max(1, sz.y / 16);
+        g.setColor(new Color(24, 30, 32));
+        g.fillRect(cx, cy, cw, ch);
+        g.setColor(NStyle.border);
+        g.drawLine(cx, cy + ch / 3, cx + cw - 1, cy + ch / 3);
+        g.dispose();
+        return img;
     }
 
     /**
@@ -373,45 +531,29 @@ public class NMakewindow extends Widget {
         int resultW = add(new Label(L10n.get("craft.result")), new Coord(0, outy + UI.scale(8))).sz.x;
         xoff = Math.max(inputW, resultW) + UI.scale(10);
 
-        add(new Button(UI.scale(85), L10n.get("craft.craft")), UI.scale(new Coord(230, 75))).action(() -> craft()).setgkey(kb_make);
-        add(craft_num = new TextEntry(UI.scale(55), ""), UI.scale(new Coord(165, 82)));
-        add(new Button(UI.scale(85), L10n.get("craft.craft_all")), UI.scale(new Coord(325, 75))).action(() -> craftAll()).setgkey(kb_makeall);
-        autoBox = add(new ICheckBox(NStyle.auto[0],NStyle.auto[1],NStyle.auto[2],NStyle.auto[3]){
-            @Override
-            public void changed(boolean val)
-            {
-                super.changed(val);
-                autoMode = val;
-                noTransfer.visible = val;
-            }
-        }, UI.scale(new Coord(365, 5)));
+        craft_num = add(new TextEntry(UI.scale(55), ""), Coord.z);
+        craftBtn = add(new Button(UI.scale(85), L10n.get("craft.craft")), Coord.z);
+        craftBtn.action(() -> craft()).setgkey(kb_make);
+        craftAllBtn = add(new Button(UI.scale(85), L10n.get("craft.craft_all")), Coord.z);
+        craftAllBtn.action(() -> craftAll()).setgkey(kb_makeall);
+        modeSwitch = add(new CraftModeSwitch(() -> autoMode, this::setAutoMode), Coord.z);
 
-        add(noTransfer = new CheckBox(L10n.get("craft.no_transfer"))
-        {
+        noTransfer = add(new CheckBox(L10n.get("craft.no_transfer")), Coord.z);
+        useStorage = add(new CheckBox(L10n.get("craft.use_storage")) {
             @Override
             public void changed(boolean val) {
                 super.changed(val);
+                NConfig.set(NConfig.Key.craftUseStorage, val);
+                storageQueryAge = STORAGE_REFRESH;
             }
-        }, UI.scale(new Coord(325, 38)));
-        noTransfer.visible = false;
+        }, Coord.z);
+        useStorage.a = Boolean.TRUE.equals(NConfig.get(NConfig.Key.craftUseStorage));
+        useStorage.settip(L10n.get("craft.use_storage_tip"));
+        savePresetBtn = add(new Button(UI.scale(85), L10n.get("craft.save_preset")), Coord.z);
+        savePresetBtn.action(this::openSavePresetDialog);
+        savePresetBtn.settip(L10n.get("craft.save_preset_tip"));
 
-        // Save Preset button - only visible in auto mode when all inputs are configured
-        // Scale icons to 2/3 size and position left of quantity input
-        int scaledW = NStyle.savei[0].back.getWidth() * 2 / 3;
-        int scaledH = NStyle.savei[0].back.getHeight() * 2 / 3;
-        Coord scaledSz = new Coord(scaledW, scaledH);
-        BufferedImage scaledUp = PUtils.convolve(NStyle.savei[0].back, scaledSz, CharWnd.iconfilter);
-        BufferedImage scaledDown = PUtils.convolve(NStyle.savei[1].back, scaledSz, CharWnd.iconfilter);
-        BufferedImage scaledHover = PUtils.convolve(NStyle.savei[2].back, scaledSz, CharWnd.iconfilter);
-        savePresetBtn = add(new IButton(scaledUp, scaledDown, scaledHover) {
-            @Override
-            public void click() {
-                openSavePresetDialog();
-            }
-        }, UI.scale(new Coord(340, 5)));
-        savePresetBtn.visible = false;
-
-        pack();
+        relayout();
         this.rcpnm = rcpnm;
 
         // Capture recipe resource from MenuGrid.lastPagina while it's still valid
@@ -556,11 +698,21 @@ public class NMakewindow extends Widget {
                             {
                                 sg.image(aready, Coord.z);
                             }
+                            else if(inStorage(s.ing.name))
+                            {
+                                sg.image(aready, Coord.z);
+                                sg.image(storageBadge, Coord.z);
+                            }
                             else
                             {
                                 sg.image(anotfound, Coord.z);
                             }
                         }
+                    }
+                    else if(inStorage(s.name))
+                    {
+                        sg.image(aready, Coord.z);
+                        sg.image(storageBadge, Coord.z);
                     }
                     else
                     {
@@ -678,6 +830,13 @@ public class NMakewindow extends Widget {
                     }
                 }
             }
+        }
+        if(autoMode) {
+            // The Autocraft panel sits between square 1 px rules, like the rest of nurgling
+            g.chcolor(nurgling.widgets.cookbook.CookbookTheme.line);
+            g.frect(Coord.of(0, panelTop), Coord.of(sz.x, UI.scale(1)));
+            g.frect(Coord.of(0, panelBottom), Coord.of(sz.x, UI.scale(1)));
+            g.chcolor();
         }
         super.draw(g);
     }
@@ -797,7 +956,7 @@ public class NMakewindow extends Widget {
             sh = false;
         if(sh) {
             if(stip == null) {
-                BufferedImage tip = tspec.shorttip();
+                BufferedImage tip = withSource(tspec, tspec.shorttip());
                 if(tip == null) {
                     stip = () -> null;
                 } else {
@@ -808,7 +967,7 @@ public class NMakewindow extends Widget {
             return(stip);
         } else {
             if(ltip == null) {
-                BufferedImage tip = tspec.longtip();
+                BufferedImage tip = withSource(tspec, tspec.longtip());
                 if(tip == null) {
                     ltip = () -> null;
                 } else {
@@ -818,6 +977,29 @@ public class NMakewindow extends Widget {
             }
             return(ltip);
         }
+    }
+
+    /** In Autocraft, append where an input will be fetched from to its tooltip. */
+    private BufferedImage withSource(Spec s, BufferedImage tip) {
+        if(!autoMode || !inputs.contains(s))
+            return tip;
+        String name;
+        if(s.ing != null)
+            name = s.ing.isIgnored ? null : s.ing.name;
+        else
+            name = s.categories ? null : s.name;
+        if(name == null)
+            return tip;
+        String line;
+        NArea area = NContext.findIn(name);
+        if(area != null)
+            line = L10n.get("craft.src_area", area.name);
+        else if(inStorage(name))
+            line = L10n.get("craft.src_storage", storageCounts.getOrDefault(name, 0));
+        else
+            line = L10n.get("craft.src_missing");
+        BufferedImage img = Text.render(line).img;
+        return (tip == null) ? img : ItemInfo.catimgs(UI.scale(2), tip, img);
     }
 
     private static String getDynamicName(GSprite spr) {
@@ -892,8 +1074,10 @@ public class NMakewindow extends Widget {
             {
                 gui.error("Incorrect target num");
             }
-            final int craftNum = num;
-            BotExecutor.runAsync("Auto craft(BOT)", new Craft(NMakewindow.this, craftNum));
+            Craft bot = new Craft(NMakewindow.this, num);
+            bot.useStorage = storageActive();
+            bot.village = nurgling.widgets.storage.VillageStorage.snapshot(gui);
+            BotExecutor.runAsync("Auto craft(BOT)", bot);
         }
     }
 
@@ -905,7 +1089,10 @@ public class NMakewindow extends Widget {
         }
         else
         {
-            BotExecutor.runAsync("Auto craft(BOT)", new Craft(NMakewindow.this, 9999));
+            Craft bot = new Craft(NMakewindow.this, 9999);
+            bot.useStorage = storageActive();
+            bot.village = nurgling.widgets.storage.VillageStorage.snapshot(NUtils.getGameUI());
+            BotExecutor.runAsync("Auto craft(BOT)", bot);
         }
     }
 
@@ -1035,6 +1222,11 @@ public class NMakewindow extends Widget {
                 else if(ing.logistic)
                 {
                     sg.image(aready, Coord.z,UI.scale(32,32));
+                }
+                else if(inStorage(ing.name))
+                {
+                    sg.image(aready, Coord.z,UI.scale(32,32));
+                    sg.image(storageBadge, Coord.z,UI.scale(32,32));
                 }
                 else
                 {

@@ -126,10 +126,7 @@ public class GelatinAction implements Action {
             }
 
             // Включаем авто-режим
-            mwnd.autoMode = true;
-            if (mwnd.noTransfer != null) {
-                mwnd.noTransfer.visible = true;
-            }
+            mwnd.setAutoMode(true);
 
             // Ждем загрузки рецепта
             NUtils.addTask(new NTask() {
