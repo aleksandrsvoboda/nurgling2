@@ -34,9 +34,20 @@ class LightGridShiftTest {
     }
 
     @Test
-    void unchangedLightsReuseGrid() {
+    void unchangedLightsReuseTheWholeState() {
 	Lighting.LightGrid g = new Lighting.LightGrid(64, 64, 64);
-	assertSame(compile(g, lights(0, 0, 0)).lstex, compile(g, lights(0, 0, 0)).lstex);
+	assertSame(compile(g, lights(0, 0, 0)), compile(g, lights(0, 0, 0)));
+    }
+
+    @Test
+    void colorChangeKeepsGridButNewLightData() {
+	Lighting.LightGrid g = new Lighting.LightGrid(64, 64, 64);
+	Lighting.LightGrid.GridLights a = compile(g, lights(0, 0, 0));
+	Object[][] l = lights(0, 0, 0);
+	l[0][1] = new float[] {0.5f, 0.2f, 0.1f, 1};
+	Lighting.LightGrid.GridLights b = compile(g, l);
+	assertNotSame(a, b);
+	assertSame(a.lstex, b.lstex);
     }
 
     @Test

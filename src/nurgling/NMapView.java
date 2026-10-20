@@ -310,6 +310,20 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         super.maindraw(out);
     }
 
+    /* TAA as last drawn, for the camera MapView.tick sets. */
+    private boolean taa = false;
+
+    /* MapView.tick sets the raw camera and draw() its frame snapshot; as two
+     * different ops, the camera state flipped twice a frame and each flip was
+     * re-propagated to every draw slot. Both now go through the same cached
+     * snapshot, so an unmoved camera changes nothing. */
+    @Override
+    public void basic(Object id, haven.render.Pipe.Op state) {
+        if((id == Camera.class) && (state != null) && (state == camera))
+            state = nurgling.render.Temporal.cameraFrame(this, rendersz(), camera, taa);
+        super.basic(id, state);
+    }
+
     @Override
     public void draw(GOut g) {
         // Initialize overlays only once on first draw (when GameUI is ready)
@@ -327,9 +341,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             });
         postfx.sync(g.out.env());
         // Use this view's effective settings and one immutable camera per draw.
-        // UI ticks do not advance the temporal sampling sequence.
-        super.basic(Camera.class, nurgling.render.Temporal.cameraFrame(this, rendersz(), camera,
-                nurgling.render.NGfx.effective(g.out.env()).taa));
+        taa = nurgling.render.NGfx.effective(g.out.env()).taa;
+        super.basic(Camera.class, nurgling.render.Temporal.cameraFrame(this, rendersz(), camera, taa));
         updpshadows();
         postfx.tick(this, (amblight == null) ? -1 : lights.index(amblight));
 

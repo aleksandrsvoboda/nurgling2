@@ -484,11 +484,30 @@ public interface Lighting {
 		shift = Coord3f.of(0, 0, 0);
 		Debug.statprint(Utils.formatter("C-lights: %d lists, max %d, bounds %s, cell %s", c.nlists, c.maxlist, c.bbox, c.gsz), stats);
 	    }
+	    Volume3f bbox = topology.bbox.xl(shift);
+	    float[] data = lightdata(lights);
+	    /* Unchanged lights keep the same state object: a new one re-uploads
+	     * the light data and updates every lit draw slot's uniforms. */
+	    if((last != null) && (last.lstex == topology.lstex) && last.bbox.equals(bbox) && Arrays.equals(lastdata, data))
+		return(last);
 	    if(last != null) {
 		last.dispose();
 		last = null;
 	    }
-	    return(last = new GridLights(lights, topology.bbox.xl(shift), topology.lstex));
+	    lastdata = data;
+	    return(last = new GridLights(lights, bbox, topology.lstex));
+	}
+
+	private float[] lastdata;
+	private static float[] lightdata(Object[][] lights) {
+	    float[] ret = new float[lights.length * 20];
+	    for(int i = 0, o = 0; i < lights.length; i++) {
+		for(int j = 0; j < 4; j++, o += 4)
+		    System.arraycopy((float[])lights[i][j], 0, ret, o, 4);
+		for(int j = 4; j < 8; j++)
+		    ret[o++] = (Float)lights[i][j];
+	    }
+	    return(ret);
 	}
 
 	private static final Uniform u_bboxm = new Uniform(VEC3, "lboxm", p -> ((GridLights)p.get(lights)).bboxm(), lights);
