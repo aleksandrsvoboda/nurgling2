@@ -11,8 +11,46 @@ import java.util.*;
  * written with those stacks to diagnostics/frame-samples.log.
  */
 public final class FrameSampler {
-    private static final boolean ON = System.getProperty("nurgling.framesampler") != null;
-    private static final double AFTER_MS = 12, LOG_MS = 20;
+    private static final String SPEC = System.getProperty("nurgling.framesampler");
+    private static final boolean ON = SPEC != null;
+    /* -Dnurgling.framesampler=AFTER,LOG in ms; any other value keeps 12,20. */
+    private static final double AFTER_MS = arg(0, 12), LOG_MS = arg(1, 20);
+    /* Every this many frames a normal one is logged too, as a baseline. */
+    private static final int BASELINE_EVERY = 50;
+    private static long frameno = 0;
+
+    /* TEMP: event counters, printed every 10 s while the sampler is on. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> counts = new java.util.concurrent.ConcurrentHashMap<>();
+    private static long nextdump = 0;
+
+    public static void count(String key) {
+        if(ON)
+            counts.computeIfAbsent(key, k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    private static void dumpcounts() {
+        long now = System.currentTimeMillis();
+        if(now < nextdump)
+            return;
+        nextdump = now + 10000;
+        List<Map.Entry<String, java.util.concurrent.atomic.LongAdder>> l = new ArrayList<>(counts.entrySet());
+        l.sort((a, b) -> Long.compare(b.getValue().sum(), a.getValue().sum()));
+        StringBuilder b = new StringBuilder("COUNTS " + now);
+        for(int i = 0; i < Math.min(l.size(), 25); i++)
+            b.append(" | ").append(l.get(i).getKey()).append('=').append(l.get(i).getValue().sumThenReset());
+        for(int i = 25; i < l.size(); i++)
+            l.get(i).getValue().reset();
+        out.println(b);
+        out.flush();
+    }
+
+    private static double arg(int i, double def) {
+        try {
+            return(Double.parseDouble(SPEC.split(",")[i]));
+        } catch(RuntimeException e) {
+            return(def);
+        }
+    }
     private static volatile Thread ui;
     private static volatile long start;
     private static final List<StackTraceElement[]> samples = new ArrayList<>();
@@ -48,7 +86,9 @@ public final class FrameSampler {
             return;
         double ms = (System.nanoTime() - start) / 1e6;
         start = 0;
-        if(ms < LOG_MS)
+        dumpcounts();
+        boolean base = (++frameno % BASELINE_EVERY) == 0;
+        if((ms < LOG_MS) && !base)
             return;
         List<StackTraceElement[]> got;
         Map<StackTraceElement[], ThreadInfo> own;
@@ -56,7 +96,7 @@ public final class FrameSampler {
             got = new ArrayList<>(samples);
             own = new IdentityHashMap<>(owners);
         }
-        out.printf(Locale.ROOT, "FRAME %d %.2f %d%n", System.currentTimeMillis(), ms, got.size());
+        out.printf(Locale.ROOT, "%s %d %.2f %d%n", (ms < LOG_MS) ? "NFRAME" : "FRAME", System.currentTimeMillis(), ms, got.size());
         for(StackTraceElement[] st : got) {
             StringBuilder b = new StringBuilder("S");
             for(int i = 0; i < Math.min(st.length, 40); i++)
@@ -79,7 +119,8 @@ public final class FrameSampler {
             if((s != 0) && ((System.nanoTime() - s) / 1e6 > AFTER_MS)) {
                 StackTraceElement[] st = ui.getStackTrace();
                 ThreadInfo owner = null;
-                if(ui.getState() == Thread.State.BLOCKED) {
+                Thread.State state = ui.getState();
+                if((state == Thread.State.BLOCKED) || (state == Thread.State.WAITING) || (state == Thread.State.TIMED_WAITING)) {
                     ThreadInfo ti = mx.getThreadInfo(ui.getId(), 0);
                     if((ti != null) && (ti.getLockOwnerId() >= 0))
                         owner = mx.getThreadInfo(ti.getLockOwnerId(), 40);

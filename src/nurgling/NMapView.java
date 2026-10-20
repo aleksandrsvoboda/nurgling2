@@ -1382,6 +1382,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
                 if (boundGui == null) return;
                 final int walkSeconds = NConfig.botmod.walkSeconds;
+                final int[] walkRoute = NConfig.botmod.walkRoute;
 
                 Thread t;
                 t = new Thread(() -> {
@@ -1413,7 +1414,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                         }
 
                         if (scenario == null && walkSeconds > 0) {
-                            new nurgling.diagnostics.WalkAround(walkSeconds).run(boundGui);
+                            new nurgling.diagnostics.WalkAround(walkSeconds, walkRoute).run(boundGui);
                             boundGui.act("lo");
                             System.exit(0);
                         }
