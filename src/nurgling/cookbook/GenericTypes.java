@@ -28,13 +28,29 @@ public final class GenericTypes {
         "bollock", List.of("Pork bollock", "Beef bollock", "Mutton bollock", "Goat bollock", "Horse bollock", "Reindeer bollock"));
 
     /** Names of options whose item is stored under another name, lower case -> stored item names. */
-    private static final Map<String, List<String>> STOCK_NAMES = Map.of(
-        "raw duck meat", List.of("Duck Meat"),
-        "mammoth meat", List.of("Raw Mammoth"),
-        "goat bollock", List.of("Chevon Bollock"),
-        "reindeer bollock", List.of("Tame Reindeer Bollock"),
-        "black pepper", List.of("Dried Pepper Drupe"),
-        "almond", List.of("Almonds"));
+    private static final Map<String, List<String>> STOCK_NAMES = Map.ofEntries(
+        Map.entry("raw duck meat", List.of("Duck Meat")),
+        Map.entry("mammoth meat", List.of("Raw Mammoth")),
+        Map.entry("goat bollock", List.of("Chevon Bollock")),
+        Map.entry("reindeer bollock", List.of("Tame Reindeer Bollock")),
+        Map.entry("black pepper", List.of("Dried Pepper Drupe")),
+        Map.entry("almond", List.of("Almonds")),
+        /* The tooltips of the resources in ICONS. */
+        Map.entry("birdcherries", List.of("Bird Cherries")),
+        Map.entry("black poplar catkin", List.of("Blackpoplar Catkin")),
+        Map.entry("boar hide", List.of("Boarhide")),
+        Map.entry("elm seedling", List.of("Elm Seeds")),
+        Map.entry("flax fibre", List.of("Flax Fibres")),
+        Map.entry("hemp fibre", List.of("Hemp Fibres")),
+        Map.entry("hornbeam catkin", List.of("Hornbeam Catkins")),
+        Map.entry("mallorn tree seeds", List.of("Mallorn Nuts")),
+        Map.entry("malted millet", List.of("Malted Millet Seeds")),
+        Map.entry("otter hide", List.of("Otterhide")),
+        Map.entry("seeds of green kale", List.of("Green Kale Seeds")),
+        Map.entry("southron pine cone", List.of("Southron Pinecone")),
+        Map.entry("strawberry", List.of("Strawberries")),
+        Map.entry("whitebeam fruit", List.of("Whitebeam Fruits")),
+        Map.entry("wild kale seeds", List.of("Wildkale Seeds")));
 
     /**
      * Icons of items the client has no icon for under their name, checked on the resource server
@@ -65,6 +81,95 @@ public final class GenericTypes {
         Map.entry("Wild Tuber", "gfx/invobjs/pretuber"),
         Map.entry("Wood Grouse Egg", "gfx/invobjs/egg-woodgrouse"),
         Map.entry("Pickled Radish", "gfx/invobjs/pickledradish"),
+        Map.entry("Acacia Pod", "gfx/invobjs/seed-acacia"),
+        Map.entry("Alder Catkin", "gfx/invobjs/seed-alder"),
+        Map.entry("Ash Samaras", "gfx/invobjs/seed-ash"),
+        Map.entry("Aspen Catkin", "gfx/invobjs/seed-aspen"),
+        Map.entry("Bay Willow Catkins", "gfx/invobjs/seed-baywillow"),
+        Map.entry("Birch Catkin", "gfx/invobjs/seed-birch"),
+        Map.entry("Birdcherries", "gfx/invobjs/birdcherry"),
+        Map.entry("Bittersweet Nightshade Berries", "gfx/invobjs/seed-bsnightshade"),
+        Map.entry("Black Poplar Catkin", "gfx/invobjs/seed-blackpoplar"),
+        Map.entry("Black Trumpets", "gfx/invobjs/herbs/blacktrumpet"),
+        Map.entry("Boar hide", "gfx/invobjs/boarhide"),
+        Map.entry("Bog-Myrtle Cones", "gfx/invobjs/seed-bogmyrtle"),
+        Map.entry("Boxwood Seeds", "gfx/invobjs/seed-boxwood"),
+        Map.entry("Buckthorn Drupes", "gfx/invobjs/seed-buckthorn"),
+        Map.entry("Checker Tree Fruits", "gfx/invobjs/seed-checkertree"),
+        Map.entry("Cherries", "gfx/invobjs/cherry"),
+        Map.entry("Cherry Kernels", "gfx/invobjs/seed-cherry"),
+        Map.entry("Cleaned Crane", "gfx/invobjs/crane-cleaned"),
+        Map.entry("Cleaned Goshawk", "gfx/invobjs/goshawk-cleaned"),
+        Map.entry("Conker", "gfx/invobjs/seed-conkertree"),
+        Map.entry("Crampbark Berries", "gfx/invobjs/seed-crampbark"),
+        Map.entry("Crane Feather", "gfx/invobjs/feather-crane"),
+        Map.entry("Cypress Cone", "gfx/invobjs/seed-cypress"),
+        Map.entry("Direlily Seeds", "gfx/invobjs/seed-direlily"),
+        Map.entry("Dogwood Seeds", "gfx/invobjs/seed-dogwood"),
+        Map.entry("Dragon Tree Seeds", "gfx/invobjs/seed-dragontree"),
+        Map.entry("Elm Seedling", "gfx/invobjs/seed-elm"),
+        Map.entry("Flax Fibre", "gfx/invobjs/flaxfibre"),
+        Map.entry("Fly Woodbine Berries", "gfx/invobjs/seed-woodbine"),
+        Map.entry("Garefowl Feather", "gfx/invobjs/feather-garefowl"),
+        Map.entry("Gloomcap Spores", "gfx/invobjs/seed-gloomcap"),
+        Map.entry("Gnome's Cap Spore", "gfx/invobjs/seed-gnomeshat"),
+        Map.entry("Goldenchain Seeds", "gfx/invobjs/seed-goldenchain"),
+        Map.entry("Goshawk Feather", "gfx/invobjs/feather-goshawk"),
+        Map.entry("Gray Alder Cones", "gfx/invobjs/seed-grayalder"),
+        Map.entry("Hawthorn Fruits", "gfx/invobjs/seed-hawthorn"),
+        Map.entry("Hemp Fibre", "gfx/invobjs/hempfibre"),
+        Map.entry("Hoarwithy Berries", "gfx/invobjs/seed-hoarwithy"),
+        Map.entry("Hollyberries", "gfx/invobjs/seed-holly"),
+        Map.entry("Hornbeam Catkin", "gfx/invobjs/seed-hornbeam"),
+        Map.entry("Korund", "gfx/invobjs/corund"),
+        Map.entry("Larch Cones", "gfx/invobjs/seed-larch"),
+        Map.entry("Laurel Seeds", "gfx/invobjs/seed-laurel"),
+        Map.entry("Lemon Seed", "gfx/invobjs/seed-lemontree"),
+        Map.entry("Linden Fruits", "gfx/invobjs/seed-linden"),
+        Map.entry("Lote Tree Drupes", "gfx/invobjs/seed-lotetree"),
+        Map.entry("Mallorn Tree Seeds", "gfx/invobjs/seed-mallorn"),
+        Map.entry("Malted Millet", "gfx/invobjs/seed-milletmalt"),
+        Map.entry("Mastic Fruit", "gfx/invobjs/masticfruit"),
+        Map.entry("Mayflower Pomes", "gfx/invobjs/seed-mayflower"),
+        Map.entry("Mouflon Horn", "gfx/invobjs/mouflonhorn"),
+        Map.entry("Mound Beans", "gfx/invobjs/seed-moundtree"),
+        Map.entry("Moundwood Bough", "gfx/invobjs/bough-moundtree"),
+        Map.entry("Narwhal Tusk", "gfx/invobjs/narwhaltusk"),
+        Map.entry("Olive Kernel", "gfx/invobjs/seed-olive"),
+        Map.entry("Orange Seed", "gfx/invobjs/seed-orangetree"),
+        Map.entry("Osier Catkin", "gfx/invobjs/seed-osier"),
+        Map.entry("Otter Hide", "gfx/invobjs/otterhide"),
+        Map.entry("Pear Core", "gfx/invobjs/seed-pear"),
+        Map.entry("Pearl Oyster", "gfx/invobjs/herbs/pearloyster"),
+        Map.entry("Plane Seedpods", "gfx/invobjs/seed-planetree"),
+        Map.entry("Plum Kernel", "gfx/invobjs/seed-plum"),
+        Map.entry("Poplar Catkin", "gfx/invobjs/seed-poplar"),
+        Map.entry("Quince Core", "gfx/invobjs/quincecore"),
+        Map.entry("Rat Cloth", "gfx/invobjs/ratcloth"),
+        Map.entry("Rat Fibre", "gfx/invobjs/ratfibre"),
+        Map.entry("Raw Garefowl", "gfx/invobjs/meat-raw+gfx/invobjs/meat-garefowl"),
+        Map.entry("Rowan Berries", "gfx/invobjs/rowanberry"),
+        Map.entry("Sallow Catkin", "gfx/invobjs/seed-sallow"),
+        Map.entry("Seeds of Green Kale", "gfx/invobjs/seed-greenkale"),
+        Map.entry("Southron Pine Cone", "gfx/invobjs/seed-southronpine"),
+        Map.entry("Spindleberries", "gfx/invobjs/seed-spindlebush"),
+        Map.entry("Strawberry", "gfx/invobjs/herbs/strawberry"),
+        Map.entry("Stuffed Bird", "gfx/invobjs/stuffedbird"),
+        Map.entry("Stuffed Puff", "gfx/invobjs/stuffedpuff"),
+        Map.entry("Sweetgum Seedpod", "gfx/invobjs/seed-sweetgum"),
+        Map.entry("Sycamore Seed", "gfx/invobjs/seed-sycamore"),
+        Map.entry("Tamarisk Seeds", "gfx/invobjs/seed-tamarisk"),
+        Map.entry("Teabush Seedpod", "gfx/invobjs/seed-teabush"),
+        Map.entry("Towercap Spore", "gfx/invobjs/seed-towercap"),
+        Map.entry("Tree Heath Seed", "gfx/invobjs/seed-treeheath"),
+        Map.entry("Trombone Chantrelle Spore", "gfx/invobjs/seed-trombonechantrelle"),
+        Map.entry("Warty Birch Catkin", "gfx/invobjs/seed-wartybirch"),
+        Map.entry("Whitebeam Fruit", "gfx/invobjs/whitebeamfruit"),
+        Map.entry("Wild Kale Seeds", "gfx/invobjs/seed-brassica"),
+        Map.entry("Wildflower Seeds", "gfx/invobjs/seed-flower"),
+        Map.entry("Wildkale Leaf", "gfx/invobjs/leaf-brassica"),
+        Map.entry("Wych Elm Samara", "gfx/invobjs/seed-wychelm"),
+        Map.entry("Zelkova Catkin", "gfx/invobjs/seed-zelkova"),
         /* Not checked: no squab meat resource was found; this is the adult rock dove's meat. */
         Map.entry("Squab Meat", "gfx/invobjs/meat-rockdove"),
         /* The milks share the game's one Milk icon. */
@@ -75,6 +180,12 @@ public final class GenericTypes {
     /** Wiki pages named differently from the game's item. */
     private static final Map<String, String> RENAMES = Map.of(
         "Laurel Leaf", "Laurel Leaves");
+
+    /** Members the wiki lists that the game does not take, by type. */
+    private static final Map<String, List<String>> EXCLUDED = Map.of(
+        /* A block of wood, not a mushroom. */
+        "Edible Mushroom", List.of("Block of Trombone Chantrelle"),
+        "Any Mushroom", List.of("Block of Trombone Chantrelle"));
 
     /** Members the wiki lacks, by type. */
     private static final Map<String, List<String>> EXTRA = Map.of(
@@ -117,6 +228,8 @@ public final class GenericTypes {
             for(String type : same)
                 members.put(type, new ArrayList<>(all));
         }
+        for(Map.Entry<String, List<String>> e : EXCLUDED.entrySet())
+            members.getOrDefault(e.getKey(), new ArrayList<>()).removeAll(e.getValue());
         for(Map.Entry<String, List<String>> e : UNIONS.entrySet()) {
             Set<String> all = new LinkedHashSet<>();
             for(String type : e.getValue())
@@ -232,6 +345,11 @@ public final class GenericTypes {
         ret.add(name);
         ret.addAll(STOCK_NAMES.getOrDefault(name.toLowerCase(Locale.ROOT), List.of()));
         return ret;
+    }
+
+    /** The game's names for a wiki item: the names it is stored under instead, else its own. */
+    public static List<String> itemNames(String name) {
+        return STOCK_NAMES.getOrDefault(name.toLowerCase(Locale.ROOT), List.of(name));
     }
 
     /**
