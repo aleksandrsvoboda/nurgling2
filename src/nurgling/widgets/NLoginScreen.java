@@ -194,7 +194,17 @@ public class NLoginScreen extends LoginScreen {
         retryAttempt++;
         nextRetryTime = now + Math.min(BASE_RETRY_DELAY_MS * (1L << retryAttempt), MAX_RETRY_DELAY_MS);
         System.out.println("[NLoginScreen] Auto-login attempt " + retryAttempt + "/" + MAX_RETRY_ATTEMPTS);
-        send(new AuthClient.NativeCred(NConfig.botmod.user, NConfig.botmod.pass), false);
+        if (NConfig.botmod.pass != null) {
+            send(new AuthClient.NativeCred(NConfig.botmod.user, NConfig.botmod.pass), false);
+            return;
+        }
+        /* No password: use the "remember me" token, re-saved as is, the same as clicking the saved account. */
+        byte[] token = Bootstrap.gettoken(NConfig.botmod.user, confname);
+        if (token == null) {
+            System.err.println("[NLoginScreen] No saved token for " + NConfig.botmod.user + "; log in once with \"Remember me\".");
+            System.exit(1);
+        }
+        send(new AuthClient.TokenCred(NConfig.botmod.user, token), true);
     }
 
     /* A manual attempt from the form; in bot mode it restarts the automatic retry budget. */

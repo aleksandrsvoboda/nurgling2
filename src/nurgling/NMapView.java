@@ -1381,6 +1381,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 final NUI boundUI = NUtils.getUI();
                 final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
                 if (boundGui == null) return;
+                final int walkSeconds = NConfig.botmod.walkSeconds;
 
                 Thread t;
                 t = new Thread(() -> {
@@ -1411,6 +1412,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                             System.out.println("[NMapView] No system chat found");
                         }
 
+                        if (scenario == null && walkSeconds > 0) {
+                            new nurgling.diagnostics.WalkAround(walkSeconds).run(boundGui);
+                            boundGui.act("lo");
+                            System.exit(0);
+                        }
                         if (scenario == null) {
                             System.err.println("[NMapView] ERROR: Scenario is null! Cannot run bot.");
                             return;
