@@ -1840,7 +1840,7 @@ public class VSpec {
         flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/clover\",\"name\":\"Clover\"}"));
         flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/coltsfoot\",\"name\":\"Coltsfoot\"}"));
         flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/dandelion\",\"name\":\"Dandelion\"}"));
-        flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/edelweiss\",\"name\":\"EdelweiР“Сџ\"}"));
+        flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/edelweiss\",\"name\":\"Edelwei\u00df\"}"));
         flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/frogscrown\",\"name\":\"Frog's Crown\"}"));
         flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/heartsease\",\"name\":\"Heartsease\"}"));
         flowers.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/lupine\",\"name\":\"Lupine\"}"));
@@ -2227,6 +2227,7 @@ public class VSpec {
         raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-squirrel\"], \"name\": \"Raw Squirrel\"}"));
         raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-stoat\"], \"name\": \"Raw Stoat\"}"));
         raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-reddeer\"], \"name\": \"Raw Venison\"}"));
+        raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-narwhal\"], \"name\": \"Raw Narwhal\"}"));
         raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-walrus\"], \"name\": \"Raw Walrus\"}"));
         raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-wolf\"], \"name\": \"Raw Wolf\"}"));
         raw.add(new JSONObject("{\"layer\": [\"gfx/invobjs/meat-raw\", \"gfx/invobjs/meat-wolverine\"], \"name\": \"Raw Wolverine\"}"));
