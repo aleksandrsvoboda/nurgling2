@@ -5,6 +5,9 @@ package haven.res.gfx.hud.rosters.teimdeer;
 
 import haven.*;
 import haven.res.ui.croster.*;
+import nurgling.animals.AnimalFacts;
+import nurgling.animals.HerdRules;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.TeimDeerHerd;
 
 import java.util.*;
@@ -37,7 +40,8 @@ public class Teimdeer extends Entry {
 	drawcol(g, TeimdeerRoster.cols.get(i), 1, milkq, percent, i++);
 	drawcol(g, TeimdeerRoster.cols.get(i), 1, hideq, percent, i++);
 	drawcol(g, TeimdeerRoster.cols.get(i), 1, seedq, null, i++);
-	drawcol(g, TeimdeerRoster.cols.get(i), 1, rang(), null, i++);
+	drawrank(g, TeimdeerRoster.cols.get(i), i++);
+	drawverdict(g, TeimdeerRoster.cols.get(i), i++);
 	super.draw(g);
     }
 
@@ -69,18 +73,15 @@ public class Teimdeer extends Entry {
 	return(super.mousedown(ev));
     }
 
-	public double rang() {
-		TeimDeerHerd herd = TeimDeerHerd.getForArea(areaId);
-		if(herd != null) {
-			double ql = (!herd.ignoreBD || buck) ? (q > (seedq - herd.breedingGap)) ? (q + seedq - herd.breedingGap) / 2. : q + ((seedq - herd.breedingGap) - q) * herd.coverbreed : q;
-			double m = (herd.disable_q_percentage ? (herd.meatq * meatq) : (ql * herd.meatq * meatq / 100.));
-			double qm = meat * herd.meatquan1 + ((meat > herd.meatquanth) ? ((meat - herd.meatquanth) * (herd.meatquan2 - herd.meatquan1)) : 0);
-			double hide = (herd.disable_q_percentage ? (herd.hideq * hideq) : (ql * herd.hideq * hideq / 100.));
-			double k_res = m + qm + hide;
-			double result = k_res == 0 ? ql : Math.round(k_res * 10) / 10.;
-			return result;
-		}
-		return 0;
+	public AnimalFacts facts() {
+		return(new AnimalFacts(id, name, buck, fawn, dead, q, seedq)
+			.with("meat", meat)
+			.with("meatq", meatq)
+			.with("hideq", hideq));
+	}
+
+	public HerdRules rankRules() {
+		return(HerdRulesFactory.of(TeimDeerHerd.getForArea(areaId)));
 	}
 }
 

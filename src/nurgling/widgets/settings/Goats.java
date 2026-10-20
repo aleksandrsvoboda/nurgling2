@@ -1,11 +1,14 @@
 package nurgling.widgets.settings;
 
 import haven.*;
+import haven.res.ui.croster.CattleRoster;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.GoatsHerd;
 
 
 public class Goats extends Window {
     NEntryListSet els;
+    HerdPreviewPanel preview;
     NSettinsSetI totalAdult;
     NSettinsSetI gap;
     NSettinsSetD milkQuality;
@@ -30,7 +33,7 @@ public class Goats extends Window {
     CheckBox skipMilkingBox;
     CheckBox skipShearingBox;
 
-    public Goats() {
+    public Goats(CattleRoster<?> roster) {
         super(new Coord(100,100), "Goats Herds");
         prev = els = add(new NEntryListSet(GoatsHerd::getKeySet) {
             @Override
@@ -204,7 +207,43 @@ public class Goats extends Window {
         prev = woolqth = add(new NSettinsSetD("Wool quantity threshold:"), prev.pos("bl").add(0, 5));
         prev = woolq2 = add(new NSettinsSetD("Wool quantity 2:"), prev.pos("bl").add(0, 5));
 
+        preview = add(new HerdPreviewPanel(roster, "goats", () -> els.get(), () -> HerdRulesFactory.of(draft()), () -> HerdRulesFactory.of(saved())),
+                new Coord(HerdPreviewPanel.rightEdge(this) + UI.scale(15), 0));
         pack();
+    }
+
+    /** The preset as currently typed into the window, not saved. */
+    private GoatsHerd draft() {
+        GoatsHerd gh = new GoatsHerd(els.get());
+        gh.adultGoats = totalAdult.get();
+        gh.breedingGap = gap.get();
+        gh.coverbreed = coverbreed.get();
+        gh.meatq = meatQuality.get();
+        gh.milkq = milkQuality.get();
+        gh.hideq = hideQuality.get();
+        gh.meatquan1 = meatq1.get();
+        gh.meatquanth = meatqth.get();
+        gh.meatquan2 = meatq2.get();
+        gh.milkquan1 = milk1.get();
+        gh.milkquanth = milkth.get();
+        gh.milkquan2 = milk2.get();
+        gh.woolq = woolQuality.get();
+        gh.woolquan1 = woolq1.get();
+        gh.woolquan2 = woolq2.get();
+        gh.woolquanth = woolqth.get();
+        gh.disable_killing = dk.a;
+        gh.ignoreBD = ignorebd.a;
+        gh.ignoreChildren = ic.a;
+        gh.disable_q_percentage = ignoreqp.a;
+        gh.skipMilking = skipMilkingBox.a;
+        gh.skipShearing = skipShearingBox.a;
+        return gh;
+    }
+
+    /** The preset as saved, or null when this name has never been saved. */
+    private GoatsHerd saved() {
+        String name = els.get();
+        return GoatsHerd.getKeySet().contains(name) ? GoatsHerd.get(name) : null;
     }
 
     @Override
@@ -228,6 +267,6 @@ public class Goats extends Window {
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
-        els.resize(sz.x-UI.scale(5), els.sz.y);
+        els.resize((preview == null ? sz.x : preview.c.x - UI.scale(10)) - UI.scale(5), els.sz.y);
     }
 }

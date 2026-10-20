@@ -1,11 +1,14 @@
 package nurgling.widgets.settings;
 
 import haven.*;
+import haven.res.ui.croster.CattleRoster;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.PigsHerd;
 
 
 public class Pigs extends Window {
     NEntryListSet els;
+    HerdPreviewPanel preview;
     NSettinsSetI totalAdult;
     NSettinsSetI gap;
     NSettinsSetD meatQuality;
@@ -23,7 +26,7 @@ public class Pigs extends Window {
     CheckBox ignorebd;
     CheckBox ignoreqp;
 
-    public Pigs() {
+    public Pigs(CattleRoster<?> roster) {
         super(new Coord(100,100), "Pigs Herds");
         prev = els = add(new NEntryListSet(PigsHerd::getKeySet) {
             @Override
@@ -156,7 +159,36 @@ public class Pigs extends Window {
         prev = trufth = add(new NSettinsSetD("Truffle snort quantity threshold:"), prev.pos("bl").add(0, 5));
         prev = truf2 = add(new NSettinsSetD("Truffle snort quantity 2:"), prev.pos("bl").add(0, 5));
 
+        preview = add(new HerdPreviewPanel(roster, "pigs", () -> els.get(), () -> HerdRulesFactory.of(draft()), () -> HerdRulesFactory.of(saved())),
+                new Coord(HerdPreviewPanel.rightEdge(this) + UI.scale(15), 0));
         pack();
+    }
+
+    /** The preset as currently typed into the window, not saved. */
+    private PigsHerd draft() {
+        PigsHerd gh = new PigsHerd(els.get());
+        gh.adultPigs = totalAdult.get();
+        gh.breedingGap = gap.get();
+        gh.coverbreed = coverbreed.get();
+        gh.meatq = meatQuality.get();
+        gh.hideq = hideQuality.get();
+        gh.meatquan1 = meatq1.get();
+        gh.meatquanth = meatqth.get();
+        gh.meatquan2 = meatq2.get();
+        gh.trufquan1 = truf1.get();
+        gh.trufquanth = trufth.get();
+        gh.trufquan2 = truf2.get();
+        gh.disable_killing = dk.a;
+        gh.ignoreBD = ignorebd.a;
+        gh.ignoreChildren = ic.a;
+        gh.disable_q_percentage = ignoreqp.a;
+        return gh;
+    }
+
+    /** The preset as saved, or null when this name has never been saved. */
+    private PigsHerd saved() {
+        String name = els.get();
+        return PigsHerd.getKeySet().contains(name) ? PigsHerd.get(name) : null;
     }
 
     @Override
@@ -180,6 +212,6 @@ public class Pigs extends Window {
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
-        els.resize(sz.x-UI.scale(5), els.sz.y);
+        els.resize((preview == null ? sz.x : preview.c.x - UI.scale(10)) - UI.scale(5), els.sz.y);
     }
 }

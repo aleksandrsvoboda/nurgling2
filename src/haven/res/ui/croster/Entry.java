@@ -10,6 +10,11 @@ import java.util.HashSet;
 import haven.MenuGrid.Pagina;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import nurgling.animals.AnimalFacts;
+import nurgling.animals.CullPlanner;
+import nurgling.animals.HerdRules;
+import nurgling.animals.RankBreakdown;
+import nurgling.animals.RankExplainer;
 
 @haven.FromResource(name = "ui/croster", version = 78)
 public class Entry extends Widget {
@@ -51,6 +56,15 @@ public class Entry extends Widget {
     public int idx;
     public CheckBox mark;
     public int areaId = -1;  // Area ID the animal is bound to (-1 = not bound)
+    public static final Color previewKill = new Color(200, 50, 50, 55);
+    public static final Color previewRandom = new Color(233, 156, 84, 45);
+    public static final Color cullLine = new Color(224, 85, 85);
+    public static final Color rankTrack = new Color(31, 42, 48);
+    public static final Color rankFallback = new Color(138, 143, 152);
+    /** What the cull preview predicts for this animal; null while the preview is off. */
+    public CullPlanner.Outcome preview;
+    /** Position in the preview order; set together with {@link #preview}. */
+    public int previewSeq = Integer.MAX_VALUE;
 
     public Entry(Coord sz, UID id, String name) {
 	super(sz);
@@ -59,9 +73,31 @@ public class Entry extends Widget {
 	this.mark = adda(new CheckBox(""), UI.scale(5), sz.y / 2, 0, 0.5);
     }
 
+    /** The stats the rank and the cull look at; overridden by each species. */
+    public AnimalFacts facts() {
+	return(null);
+    }
+
+    /** The rank preset bound to this animal's area, or null when none is. */
+    public HerdRules rankRules() {
+	return(null);
+    }
+
+    public RankBreakdown breakdown() {
+	return(HerdRules.breakdown(rankRules(), facts()));
+    }
+
+    public double rang() {
+	return(breakdown().rank);
+    }
+
     protected void drawbg(GOut g) {
 	if(killList.contains(id)) {
 	    g.chcolor(markedForKill);
+	} else if((preview != null) && (preview.verdict == CullPlanner.Verdict.KILL)) {
+	    g.chcolor(previewKill);
+	} else if((preview != null) && (preview.verdict == CullPlanner.Verdict.RANDOM)) {
+	    g.chcolor(previewRandom);
 	} else {
 	    g.chcolor(((idx & 1) == 0) ? every : other);
 	}
@@ -88,6 +124,11 @@ public class Entry extends Widget {
 	    rendv[idx] = val;
 	}
 	Coord sz = rend[idx].sz();
+	if(sz.x > col.w) {
+	    // Too wide for its column (a long name): clip at the column edge
+	    g.reclip(new Coord(col.x, 0), new Coord(col.w, this.sz.y)).image(rend[idx], new Coord(0, (this.sz.y - sz.y) / 2));
+	    return;
+	}
 	g.image(rend[idx], new Coord(col.x + (int)Math.round((col.w - sz.x) * a), (this.sz.y - sz.y) / 2));
     }
 
@@ -104,6 +145,99 @@ public class Entry extends Widget {
 	Column<Entry> col = CattleRoster.numcol;
 	g.image(numtex, new Coord(col.x + col.w - UI.scale(6) - numtex.sz().x, (sz.y - numtex.sz().y) / 2));
 	super.draw(g);
+	CattleRoster<?> roster;
+	if((preview != null) && preview.cullLineAbove && ((roster = getparent(CattleRoster.class)) != null) && roster.previewSorted()) {
+	    g.chcolor(cullLine);
+	    int dash = UI.scale(6), gap = UI.scale(4), th = Math.max(1, UI.scale(2));
+	    for(int x = 0; x < sz.x; x += dash + gap)
+		g.frect(new Coord(x, 0), new Coord(Math.min(dash, sz.x - x), th));
+	    g.chcolor();
+	}
+    }
+
+    /** Rank number at the right of the column, with a bar of what it is made of to its left. */
+    protected void drawrank(GOut g, Column<?> col, int idx) {
+	RankBreakdown rb = breakdown();
+	drawcol(g, col, 1, rb.rank, null, idx);
+	int bw = col.w - UI.scale(40);
+	if(bw < UI.scale(10))
+	    return;
+	int bh = UI.scale(8);
+	Coord ul = new Coord(col.x + UI.scale(2), (sz.y - bh) / 2);
+	g.chcolor(rankTrack);
+	g.frect(ul, new Coord(bw, bh));
+	if(rb.fallback) {
+	    g.chcolor(rankFallback);
+	    g.frect(ul, new Coord(bw, bh));
+	} else if(rb.bound()) {
+	    double tot = 0;
+	    for(double p : rb.parts)
+		if(p > 0)
+		    tot += p;
+	    double x = 0;
+	    for(int i = 0; i < rb.parts.length; i++) {
+		if((rb.parts[i] <= 0) || (tot <= 0))
+		    continue;
+		double w = bw * rb.parts[i] / tot;
+		int x0 = (int)Math.round(x), x1 = (int)Math.round(x + w);
+		if(x1 > x0) {
+		    g.chcolor(rb.terms().get(i).color);
+		    g.frect(ul.add(x0, 0), new Coord(x1 - x0, bh));
+		}
+		x += w;
+	    }
+	}
+	g.chcolor();
+    }
+
+    protected void drawverdict(GOut g, Column<?> col, int idx) {
+	if(preview == null)
+	    return;
+	drawcol(g, col, 0, preview.verdict, v -> CharWnd.attrf.render(v.label, verdictcolor(v)).tex(), idx);
+    }
+
+    public static Color verdictcolor(CullPlanner.Verdict v) {
+	switch(v) {
+	case BREEDER:    return(new Color(127, 211, 200));
+	case YOUNG_KEPT:
+	case SAVED:      return(new Color(150, 210, 150));
+	case KILL:       return(new Color(255, 143, 143));
+	case RANDOM:     return(new Color(233, 156, 84));
+	default:         return(new Color(170, 170, 170));
+	}
+    }
+
+    private String tiptext;
+    private Tex tiptex;
+
+    public void dispose() {
+	if(tiptex != null)
+	    tiptex.dispose();
+	super.dispose();
+    }
+
+    public Object tooltip(Coord c, Widget prev) {
+	CattleRoster<?> roster = getparent(CattleRoster.class);
+	String text = null;
+	if(roster != null) {
+	    Column<?> rc = roster.rankcol(), vc = roster.verdictcol();
+	    if((rc != null) && rc.hasx(c.x)) {
+		AnimalFacts f = facts();
+		if(f != null)
+		    text = (areaId < 0) ? "Not seen inside an animal area yet,\nso no rank preset applies: rank 0." : RankExplainer.explain(f, breakdown());
+	    } else if((vc != null) && vc.hasx(c.x) && (preview != null)) {
+		text = RankExplainer.quote(preview.reason);
+	    }
+	}
+	if(text == null)
+	    return(super.tooltip(c, prev));
+	if(!text.equals(tiptext)) {
+	    if(tiptex != null)
+		tiptex.dispose();
+	    tiptex = RichText.render(text, UI.scale(420)).tex();
+	    tiptext = text;
+	}
+	return(tiptex);
     }
 
     public boolean mousedown(MouseDownEvent ev) {

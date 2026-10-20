@@ -5,6 +5,9 @@ package haven.res.gfx.hud.rosters.cow;
 
 import haven.*;
 import haven.res.ui.croster.*;
+import nurgling.animals.AnimalFacts;
+import nurgling.animals.HerdRules;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.CowsHerd;
 
 import java.util.*;
@@ -37,7 +40,8 @@ public class Ochs extends Entry {
 	drawcol(g, CowRoster.cols.get(i), 1, milkq, percent, i++);
 	drawcol(g, CowRoster.cols.get(i), 1, hideq, percent, i++);
 	drawcol(g, CowRoster.cols.get(i), 1, seedq, null, i++);
-	drawcol(g, CowRoster.cols.get(i), 1, rang(), null, i++);
+	drawrank(g, CowRoster.cols.get(i), i++);
+	drawverdict(g, CowRoster.cols.get(i), i++);
 	super.draw(g);
     }
 
@@ -69,20 +73,17 @@ public class Ochs extends Entry {
 	return(super.mousedown(ev));
     }
 
-	public double rang() {
-		CowsHerd herd = CowsHerd.getForArea(areaId);
-		if(herd != null) {
-			double ql = (!herd.ignoreBD || bull) ? (q > (seedq - herd.breedingGap)) ? (q + seedq - herd.breedingGap) / 2. : q + ((seedq - herd.breedingGap) - q) * herd.coverbreed : q;
-			double m = (herd.disable_q_percentage ? (herd.meatq * meatq) : (ql * herd.meatq * meatq / 100.));
-			double qm = meat * herd.meatquan1 + ((meat > herd.meatquanth) ? ((meat - herd.meatquanth) * (herd.meatquan2 - herd.meatquan1)) : 0);
-			double _milk = (herd.disable_q_percentage ? (herd.milkq * milkq) : (ql * herd.milkq * milkq / 100.));
-			double qmilk = milk * herd.milkquan1 + ((milk > herd.milkquanth) ? ((milk - herd.milkquanth) * (herd.milkquan2 - herd.milkquan1)) : 0);
-			double hide = (herd.disable_q_percentage ? (herd.hideq * hideq) : (ql * herd.hideq * hideq / 100.));
-			double k_res = m + qm + _milk + qmilk + hide;
-			double result = k_res == 0 ? ql : Math.round(k_res * 10) / 10.;
-			return result;
-		}
-		return 0;
+	public AnimalFacts facts() {
+		return(new AnimalFacts(id, name, bull, calf, dead, q, seedq)
+			.with("meat", meat)
+			.with("milk", milk)
+			.with("meatq", meatq)
+			.with("milkq", milkq)
+			.with("hideq", hideq));
+	}
+
+	public HerdRules rankRules() {
+		return(HerdRulesFactory.of(CowsHerd.getForArea(areaId)));
 	}
 }
 
