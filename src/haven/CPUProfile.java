@@ -101,13 +101,20 @@ public class CPUProfile extends Profile {
 	}
     }
 
+    /* nurgling: begin() runs for every widget on every event; until a
+     * profile has ever been set, skip its ThreadLocal lookup. */
+    private static volatile boolean used = false;
+
     public static Current set(Part part) {
+	used = true;
 	Current ret = new Current(part, null);
 	current.set(ret);
 	return(ret);
     }
 
     public static Current begin(Object nm) {
+	if(!used)
+	    return(null);
 	Current cur = current.get();
 	if(cur == null)
 	    return(null);
