@@ -5,12 +5,14 @@ package haven.res.gfx.hud.rosters.goat;
 
 import haven.*;
 import haven.res.ui.croster.*;
+import nurgling.animals.HerdRules;
+import nurgling.animals.HerdRulesFactory;
 import java.util.*;
 
 @haven.FromResource(name = "gfx/hud/rosters/goat", version = 68)
 public class GoatRoster extends CattleRoster<Goat> {
     public static List<Column<? super Goat>> cols = initcols(
-	new Column<Entry>("Name", Comparator.comparing((Entry e) -> e.name), 200),
+	new Column<Entry>("Name", Comparator.comparing((Entry e) -> e.name), 95),
 
 	new Column<Goat>(Resource.classres(GoatRoster.class).pool.load("gfx/hud/rosters/sex", 2),      Comparator.comparing((Goat e) -> e.billy).reversed(), 20).runon(),
 	new Column<Goat>(Resource.classres(GoatRoster.class).pool.load("gfx/hud/rosters/growth", 2),   Comparator.comparing((Goat e) -> e.kid).reversed(), 20).runon(),
@@ -31,9 +33,13 @@ public class GoatRoster extends CattleRoster<Goat> {
 	new Column<Goat>(Resource.classres(GoatRoster.class).pool.load("gfx/hud/rosters/hidequality", 1), Comparator.comparing((Goat e) -> e.hideq).reversed()),
 
 	new Column<Goat>(Resource.classres(GoatRoster.class).pool.load("gfx/hud/rosters/breedingquality", 1), Comparator.comparing((Goat e) -> e.seedq).reversed()),
-	new Column<Goat>(Resource.local().load("nurgling/hud/rang", 1), Comparator.comparing(Goat::rang).reversed())
+	CattleRoster.rankColumn(Comparator.comparing(Goat::rang).reversed()),
+	CattleRoster.verdictColumn()
     );
     protected List<Column<? super Goat>> cols() {return(cols);}
+
+    /** The preset the bot takes head count and toggles from: the one selected in the settings window. */
+    protected HerdRules currentRules() {return(HerdRulesFactory.of(nurgling.conf.GoatsHerd.getCurrent()));}
 
     public static CattleRoster mkwidget(UI ui, Object... args) {
 	return(new GoatRoster());

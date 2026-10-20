@@ -6,6 +6,7 @@ import haven.res.ui.croster.CattleId;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.areas.NArea;
 import nurgling.widgets.Specialisation;
 import nurgling.conf.TeimDeerHerd;
@@ -84,7 +85,7 @@ public class DeersAction implements Action {
 
                 new KillAnimalsAction<Teimdeer>(new NAlias("deer"), "deer", comparator, Teimdeer.class, wpred, wlpred, TeimDeerHerd.getCurrent().adultDeers).run(gui);
                 gui.msg("Female deer cycle done!");
-                new KillAnimalsAction<Teimdeer>(new NAlias("deer"), "deer", comparator, Teimdeer.class, mpred, mlpred, 1).run(gui);
+                new KillAnimalsAction<Teimdeer>(new NAlias("deer"), "deer", comparator, Teimdeer.class, mpred, mlpred, HerdRulesFactory.KEEP_MALES).run(gui);
                 gui.msg("Male deer cycle done!");
             }
             else

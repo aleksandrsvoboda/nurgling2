@@ -5,6 +5,9 @@ package haven.res.gfx.hud.rosters.pig;
 
 import haven.*;
 import haven.res.ui.croster.*;
+import nurgling.animals.AnimalFacts;
+import nurgling.animals.HerdRules;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.PigsHerd;
 
 import java.util.*;
@@ -39,7 +42,8 @@ public class Pig extends Entry {
 	drawcol(g, PigRoster.cols.get(i), 1, milkq, percent, i++);
 	drawcol(g, PigRoster.cols.get(i), 1, hideq, percent, i++);
 	drawcol(g, PigRoster.cols.get(i), 1, seedq, null, i++);
-	drawcol(g, PigRoster.cols.get(i), 1, rang(), null, i++);
+	drawrank(g, PigRoster.cols.get(i), i++);
+	drawverdict(g, PigRoster.cols.get(i), i++);
 	super.draw(g);
     }
 
@@ -71,20 +75,16 @@ public class Pig extends Entry {
 	return(super.mousedown(ev));
     }
 
-	public double rang() {
-		PigsHerd herd = PigsHerd.getForArea(areaId);
-		if (herd != null)
-		{
-			double ql = (!herd.ignoreBD || hog) ? (q > (seedq - herd.breedingGap)) ? (q + seedq - herd.breedingGap) / 2. : q + ((seedq - herd.breedingGap) - q) * herd.coverbreed : q;
-			double m = (herd.disable_q_percentage ? (herd.meatq * meatq) : (ql * herd.meatq * meatq / 100.));
-			double qm = meat * herd.meatquan1 + ((meat > herd.meatquanth) ? ((meat - herd.meatquanth) * (herd.meatquan2 - herd.meatquan1)) : 0);
-			double qtruf = prc * herd.trufquan1 + ((prc > herd.trufquanth) ? ((prc - herd.trufquanth) * (herd.trufquan2 - herd.trufquan1)) : 0);
-			double hide = (herd.disable_q_percentage ? (herd.hideq * hideq) : (ql * herd.hideq * hideq / 100.));
-			double k_res = qtruf + m + qm + hide;
-			double result = k_res == 0 ? ql : Math.round(k_res * 10) / 10.;
-			return result;
-		}
-		return 0;
+	public AnimalFacts facts() {
+		return(new AnimalFacts(id, name, hog, piglet, dead, q, seedq)
+			.with("truffle", prc)
+			.with("meat", meat)
+			.with("meatq", meatq)
+			.with("hideq", hideq));
+	}
+
+	public HerdRules rankRules() {
+		return(HerdRulesFactory.of(PigsHerd.getForArea(areaId)));
 	}
 }
 

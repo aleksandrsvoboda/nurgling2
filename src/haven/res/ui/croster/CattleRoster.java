@@ -19,7 +19,12 @@ import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.widgets.NKinSettings;
+import nurgling.widgets.PaddedICheckBox;
 import nurgling.widgets.settings.*;
+import nurgling.animals.AnimalFacts;
+import nurgling.animals.CullPlanner;
+import nurgling.animals.HerdRules;
+import nurgling.animals.RankExplainer;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -45,6 +50,16 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
     final Coord shift = UI.scale(16,5);
     NAreaDropbox areaFilter;
     int filterAreaId = -1;  // -1 = show all animals
+    CheckBox previewBox;
+    Label previewInfo;
+    PreviewWarnings previewWarn;
+    double previewAge = 0;
+    public static final double PREVIEW_PERIOD = 0.5;
+    /** Clickable margin around the herd settings gear, which is otherwise hit only on its opaque pixels. */
+    public static final int SETTINGS_PAD = UI.scale(4);
+    public static final Color PREVIEW_WARN = new Color(233, 156, 84);
+    /** Preview order: by area, females before males, then as the cull planner ranks them. */
+    public final Comparator<T> previewOrder = Comparator.comparing((T e) -> e.preview == null).thenComparingInt(e -> e.previewSeq);
     public CattleRoster() {
 	super(new Coord(WIDTH, UI.scale(400)));
 	this.type = (Class<T>) ((ParameterizedType) getClass()
@@ -70,8 +85,25 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 	    }
 	    wdgmsg("rm", args.toArray(new Object[0]));
 	}), entrycont.pos("br").adds(0, 5), 1, 0);
+	previewBox = add(new CheckBox("Preview cull") {
+		public void changed(boolean val) {
+		    super.changed(val);
+		    if(val) {
+			order = previewOrder;
+			ordercol = null;
+			revorder = false;
+		    } else if(order == previewOrder) {
+			order = namecmp;
+		    }
+		    previewAge = PREVIEW_PERIOD;
+		    dirty = true;
+		}
+	    }, UI.scale(5), UI.scale(5));
+	previewBox.settip("Show what the animal bot would do right now: who it keeps, who it slaughters, and why.");
+	previewInfo = add(new Label(""), previewBox.pos("ur").adds(10, 0));
+	previewWarn = add(new PreviewWarnings(), UI.scale(420), previewBox.c.y);
 	// Area filter - top right, left of settings button
-	int settingsBtnWidth = NStyle.settingsi[0].sz().x;
+	int settingsBtnWidth = NStyle.settingsi[0].sz().x + SETTINGS_PAD * 2;
 	add(areaFilter = new NAreaDropbox(UI.scale(150)) {
 		@Override
 		public void change(AreaEntry item) {
@@ -122,7 +154,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			}
 		}
 	}, new Coord(sz.x - settingsBtnWidth - UI.scale(155), UI.scale(5)));
-	add(settings = new ICheckBox(NStyle.settingsi[0], NStyle.settingsi[1], NStyle.settingsi[2], NStyle.settingsi[3])
+	add(settings = new PaddedICheckBox(NStyle.settingsi[0], NStyle.settingsi[1], NStyle.settingsi[2], NStyle.settingsi[3], SETTINGS_PAD)
 	{
 		@Override
 		public void changed(boolean val)
@@ -132,7 +164,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			{
 				if(val) {
 					if (dset == null) {
-						dset = new Deers();
+						dset = new Deers(CattleRoster.this);
 						ui.root.add(dset, this.rootpos());
 					}
 					dset.show();
@@ -148,7 +180,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			{
 				if(val) {
 					if (cset == null) {
-						cset = new Cows();
+						cset = new Cows(CattleRoster.this);
 						ui.root.add(cset, this.rootpos());
 					}
 					cset.show();
@@ -164,7 +196,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			{
 				if(val) {
 					if (gset == null) {
-						gset = new Goats();
+						gset = new Goats(CattleRoster.this);
 						ui.root.add(gset, this.rootpos());
 					}
 					gset.show();
@@ -180,7 +212,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			{
 				if(val) {
 					if (sset == null) {
-						sset = new Sheeps();
+						sset = new Sheeps(CattleRoster.this);
 						ui.root.add(sset, this.rootpos());
 					}
 					sset.show();
@@ -196,7 +228,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			{
 				if(val) {
 					if (pset == null) {
-						pset = new Pigs();
+						pset = new Pigs(CattleRoster.this);
 						ui.root.add(pset, this.rootpos());
 					}
 					pset.show();
@@ -212,7 +244,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			{
 				if(val) {
 					if (hset == null) {
-						hset = new Horses();
+						hset = new Horses(CattleRoster.this);
 						ui.root.add(hset, this.rootpos());
 					}
 					hset.show();
@@ -260,7 +292,7 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 			}
 			super.tick(dt);
 		}
-	}, new Coord(sz.x - NStyle.settingsi[0].sz().x, UI.scale(5)));
+	}, new Coord(sz.x - settingsBtnWidth, UI.scale(5) - SETTINGS_PAD));
 	pack();
     }
 
@@ -307,6 +339,10 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
     }
 
     public void tick(double dt) {
+	if((previewAge += dt) >= PREVIEW_PERIOD) {
+	    previewAge = 0;
+	    updatePreview();
+	}
 	if(dirty) {
 	    List<T> ndisp = new ArrayList<>();
 	    for(T entry : entries.values()) {
@@ -323,6 +359,156 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
     }
 
     protected abstract List<Column<? super T>> cols();
+
+    /** The preset the bot takes head count and toggles from; overridden by each species. */
+    protected HerdRules currentRules() {
+	return(null);
+    }
+
+    public static <E extends Entry> Column<E> rankColumn(Comparator<? super E> order) {
+	return(new Column<E>(Resource.local().load("nurgling/hud/rang", 1), order, 90).key("rank"));
+    }
+
+    public static Column<Entry> verdictColumn() {
+	Comparator<Entry> order = Comparator.comparingInt(e -> (e.preview == null) ? Integer.MAX_VALUE : e.preview.verdict.ordinal());
+	return(new Column<Entry>("Verdict", order, 65).key("verdict"));
+    }
+
+    private Column<? super T> keyed(String key) {
+	for(Column<? super T> col : cols())
+	    if(key.equals(col.key))
+		return(col);
+	return(null);
+    }
+
+    public Column<? super T> rankcol() {
+	return(keyed("rank"));
+    }
+
+    public Column<? super T> verdictcol() {
+	return(keyed("verdict"));
+    }
+
+    /** True while the rows are in preview order, the only order the cull line makes sense in. */
+    public boolean previewSorted() {
+	return(previewBox.a && (order == previewOrder));
+    }
+
+    /** Runs the cull planner over every pen shown, the way the bot would, and tags each entry. */
+    void updatePreview() {
+	if(!previewBox.a) {
+	    boolean had = false;
+	    for(T e : entries.values()) {
+		had |= (e.preview != null);
+		e.preview = null;
+	    }
+	    if(had) {
+		previewInfo.settext("");
+		previewWarn.set(Collections.emptyList());
+	    }
+	    return;
+	}
+	Map<Integer, List<T>> byArea = new TreeMap<>();
+	int unplaced = 0;
+	for(T e : entries.values()) {
+	    e.preview = null;
+	    if((filterAreaId >= 0) && (e.areaId != filterAreaId))
+		continue;
+	    if(e.areaId < 0) {
+		unplaced++;
+		continue;
+	    }
+	    byArea.computeIfAbsent(e.areaId, k -> new ArrayList<>()).add(e);
+	}
+	HerdRules count = currentRules();
+	List<String> warns = new ArrayList<>();
+	int kill = 0, keep = 0, unsure = 0, ai = 0;
+	for(Map.Entry<Integer, List<T>> ae : byArea.entrySet()) {
+	    List<T> pen = ae.getValue();
+	    List<AnimalFacts> herd = new ArrayList<>();
+	    for(T e : pen) {
+		AnimalFacts f = e.facts();
+		if(f != null)
+		    herd.add(f);
+	    }
+	    CullPlanner.Plan plan = CullPlanner.plan(herd, pen.get(0).rankRules(), count);
+	    Map<Object, Integer> seq = new HashMap<>();
+	    for(CullPlanner.Group grp : plan.groups) {
+		for(AnimalFacts f : grp.ordered)
+		    seq.put(f.id, (ai * 2 + (grp.male ? 1 : 0)) * 10000 + seq.size());
+	    }
+	    for(T e : pen) {
+		e.preview = plan.outcome(e.id);
+		Integer s = seq.get(e.id);
+		e.previewSeq = (s == null) ? Integer.MAX_VALUE : s;
+		if(e.preview == null)
+		    continue;
+		if(e.preview.verdict == CullPlanner.Verdict.KILL)
+		    kill++;
+		else if(e.preview.verdict == CullPlanner.Verdict.RANDOM)
+		    unsure++;
+		else if(e.preview.verdict != CullPlanner.Verdict.DEAD)
+		    keep++;
+	    }
+	    String prefix = (byArea.size() > 1) ? areaName(ae.getKey()) + ": " : "";
+	    for(String w : plan.warnings)
+		warns.add(prefix + w);
+	    ai++;
+	}
+	StringBuilder info = new StringBuilder();
+	if(byArea.isEmpty()) {
+	    info.append("No animals seen inside an animal area yet");
+	} else {
+	    info.append(kill).append(" slaughter, ").append(keep).append(" keep");
+	    if(unsure > 0)
+		info.append(", ").append(unsure).append(" uncertain");
+	}
+	if(unplaced > 0)
+	    info.append(" (").append(unplaced).append(" not in an area)");
+	if(!info.toString().equals(previewInfo.texts))
+	    previewInfo.settext(info.toString());
+	previewWarn.set(warns);
+	if(order == previewOrder)
+	    dirty = true;
+    }
+
+    private static String areaName(int id) {
+	GameUI gui = NUtils.getGameUI();
+	if((gui != null) && (gui.map != null) && (gui.map.glob.map.areas != null)) {
+	    NArea area = gui.map.glob.map.areas.get(id);
+	    if(area != null)
+		return(area.name);
+	}
+	return("Area " + id);
+    }
+
+    /** "! 2 warnings", listing them in its tooltip. */
+    static class PreviewWarnings extends Label {
+	private Tex tip;
+	private List<String> shown = Collections.emptyList();
+
+	PreviewWarnings() {
+	    super("");
+	    setcolor(PREVIEW_WARN);
+	}
+
+	void set(List<String> warns) {
+	    if(warns.equals(shown))
+		return;
+	    shown = new ArrayList<>(warns);
+	    StringBuilder markup = new StringBuilder();
+	    for(String w : warns)
+		markup.append(markup.length() == 0 ? "" : "\n\n").append(RankExplainer.quote(w));
+	    if(tip != null)
+		tip.dispose();
+	    tip = warns.isEmpty() ? null : RichText.render(markup.toString(), UI.scale(420)).tex();
+	    settext(warns.isEmpty() ? "" : "! " + warns.size() + (warns.size() == 1 ? " warning" : " warnings") + " (hover)");
+	}
+
+	public Object tooltip(Coord c, Widget prev) {
+	    return(tip);
+	}
+    }
 
     public void drawcols(GOut g) {
 	g.aimage(numcol.head(), new Coord(numcol.x + (numcol.w / 2), TOOLBAR_H + (HEADH - TOOLBAR_H) / 2), 0.5, 0.5);
@@ -347,6 +533,13 @@ public abstract class CattleRoster <T extends Entry> extends Widget {
 	    Tex head = col.head();
 	    g.aimage(head, new Coord(col.x + (col.w / 2), TOOLBAR_H + (HEADH - TOOLBAR_H) / 2), 0.5, 0.5);
 	    prev = col;
+	}
+	if((prev != null) && !prev.r) {
+	    // Close the last column so the empty space after it doesn't read as part of it
+	    g.chcolor(255, 255, 0, 64);
+	    int x = prev.x + prev.w + UI.scale(1);
+	    g.line(new Coord(x, TOOLBAR_H), new Coord(x, sz.y), 1);
+	    g.chcolor();
 	}
     }
 

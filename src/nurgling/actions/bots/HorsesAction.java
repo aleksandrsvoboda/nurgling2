@@ -6,6 +6,7 @@ import haven.res.ui.croster.CattleId;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.areas.NArea;
 import nurgling.widgets.Specialisation;
 import nurgling.conf.HorseHerd;
@@ -83,7 +84,7 @@ public class HorsesAction implements Action {
 
                 new KillAnimalsAction<Horse>(new NAlias("horse"), "horses", comparator, Horse.class, wpred, wlpred, HorseHerd.getCurrent().adultHorse).run(gui);
                 gui.msg("Female horse cycle done!");
-                new KillAnimalsAction<Horse>(new NAlias("horse"), "horses", comparator, Horse.class, mpred, mlpred, 3).run(gui);
+                new KillAnimalsAction<Horse>(new NAlias("horse"), "horses", comparator, Horse.class, mpred, mlpred, HerdRulesFactory.HORSE_KEEP_MALES).run(gui);
                 gui.msg("Male horse cycle done!");
             }
             else

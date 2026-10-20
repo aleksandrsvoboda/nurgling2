@@ -16,6 +16,8 @@ public class Column <E extends Entry> {
     public final Comparator<? super E> order;
     public int w, x;
     public boolean r;
+    /** Names a column the roster looks up by role ("rank", "verdict"); null for the rest. */
+    public String key;
 
     public Column(String name, Comparator<? super E> order, int w) {
 	this.head = CharWnd.attrf.render(name).tex();
@@ -43,6 +45,11 @@ public class Column <E extends Entry> {
 
     public Column<E> runon() {
 	r = true;
+	return(this);
+    }
+
+    public Column<E> key(String key) {
+	this.key = key;
 	return(this);
     }
 

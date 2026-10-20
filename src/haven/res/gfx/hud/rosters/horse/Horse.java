@@ -5,6 +5,9 @@ package haven.res.gfx.hud.rosters.horse;
 
 import haven.*;
 import haven.res.ui.croster.*;
+import nurgling.animals.AnimalFacts;
+import nurgling.animals.HerdRules;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.HorseHerd;
 
 import java.util.*;
@@ -41,7 +44,8 @@ public class Horse extends Entry {
 	drawcol(g, HorseRoster.cols.get(i), 1, milkq, percent, i++);
 	drawcol(g, HorseRoster.cols.get(i), 1, hideq, percent, i++);
 	drawcol(g, HorseRoster.cols.get(i), 1, seedq, null, i++);
-	drawcol(g, HorseRoster.cols.get(i), 1, rang(), null, i++);
+	drawrank(g, HorseRoster.cols.get(i), i++);
+	drawverdict(g, HorseRoster.cols.get(i), i++);
 	super.draw(g);
     }
 
@@ -73,21 +77,18 @@ public class Horse extends Entry {
 	return(super.mousedown(ev));
     }
 
-	public double rang() {
-		HorseHerd herd = HorseHerd.getForArea(areaId);
-		if(herd != null) {
-			double ql = (!herd.ignoreBD || stallion) ? (q > (seedq - herd.breedingGap)) ? (q + seedq - herd.breedingGap) / 2. : q + ((seedq - herd.breedingGap) - q) * herd.coverbreed : q;
-			double m = (herd.disable_q_percentage ? (herd.meatq * meatq) : (ql * herd.meatq * meatq / 100.));
-			double qm = meat * herd.meatquan1 + ((meat > herd.meatquanth) ? ((meat - herd.meatquanth) * (herd.meatquan2 - herd.meatquan1)) : 0);
-			double _stam = stam * herd.stam1 + ((stam > herd.stamth) ? ((stam - herd.stamth) * (herd.stam2 - herd.stam1)) : 0);
-			double hide = (herd.disable_q_percentage ? (herd.hideq * hideq) : (ql * herd.hideq * hideq / 100.));
-			double _end = herd.enduran * end;
-			double _meta = herd.meta * mb;
-			double k_res = m + qm + _stam + _end + _meta  + hide;
-			double result = k_res == 0 ? ql : Math.round(k_res * 10) / 10.;
-			return result;
-		}
-		return 0;
+	public AnimalFacts facts() {
+		return(new AnimalFacts(id, name, stallion, foal, dead, q, seedq)
+			.with("meat", meat)
+			.with("meatq", meatq)
+			.with("hideq", hideq)
+			.with("stam", stam)
+			.with("end", end)
+			.with("mb", mb));
+	}
+
+	public HerdRules rankRules() {
+		return(HerdRulesFactory.of(HorseHerd.getForArea(areaId)));
 	}
 }
 

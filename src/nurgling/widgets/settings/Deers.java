@@ -1,11 +1,14 @@
 package nurgling.widgets.settings;
 
 import haven.*;
+import haven.res.ui.croster.CattleRoster;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.TeimDeerHerd;
 import nurgling.conf.TeimDeerHerd;
 
 public class Deers extends Window {
     NEntryListSet els;
+    HerdPreviewPanel preview;
     NSettinsSetI totalAdult;
     NSettinsSetI gap;
     NSettinsSetD meatQuality;
@@ -20,7 +23,7 @@ public class Deers extends Window {
     CheckBox ignorebd;
     CheckBox ignoreqp;
 
-    public Deers() {
+    public Deers(CattleRoster<?> roster) {
         super(new Coord(100,100), "Teimdeer Herds");
         prev = els = add(new NEntryListSet(TeimDeerHerd::getKeySet) {
             @Override
@@ -139,7 +142,33 @@ public class Deers extends Window {
         prev = meatq1 = add(new NSettinsSetD("Meat quantity 1:"), prev.pos("bl").add(0, 5));
         prev = meatqth = add(new NSettinsSetD("Meat quantity threshold:"), prev.pos("bl").add(0, 5));
         prev = meatq2 = add(new NSettinsSetD("Meat quantity 2:"), prev.pos("bl").add(0, 5));
+        preview = add(new HerdPreviewPanel(roster, "deer", () -> els.get(), () -> HerdRulesFactory.of(draft()), () -> HerdRulesFactory.of(saved())),
+                new Coord(HerdPreviewPanel.rightEdge(this) + UI.scale(15), 0));
         pack();
+    }
+
+    /** The preset as currently typed into the window, not saved. */
+    private TeimDeerHerd draft() {
+        TeimDeerHerd gh = new TeimDeerHerd(els.get());
+        gh.adultDeers = totalAdult.get();
+        gh.breedingGap = gap.get();
+        gh.coverbreed = coverbreed.get();
+        gh.meatq = meatQuality.get();
+        gh.hideq = hideQuality.get();
+        gh.meatquan1 = meatq1.get();
+        gh.meatquanth = meatqth.get();
+        gh.meatquan2 = meatq2.get();
+        gh.disable_killing = dk.a;
+        gh.ignoreBD = ignorebd.a;
+        gh.ignoreChildren = ic.a;
+        gh.disable_q_percentage = ignoreqp.a;
+        return gh;
+    }
+
+    /** The preset as saved, or null when this name has never been saved. */
+    private TeimDeerHerd saved() {
+        String name = els.get();
+        return TeimDeerHerd.getKeySet().contains(name) ? TeimDeerHerd.get(name) : null;
     }
 
     @Override
@@ -163,6 +192,6 @@ public class Deers extends Window {
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
-        els.resize(sz.x-UI.scale(5), els.sz.y);
+        els.resize((preview == null ? sz.x : preview.c.x - UI.scale(10)) - UI.scale(5), els.sz.y);
     }
 }

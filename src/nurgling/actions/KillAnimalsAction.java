@@ -4,6 +4,7 @@ import haven.Gob;
 import haven.res.ui.croster.CattleId;
 import haven.res.ui.croster.Entry;
 import nurgling.*;
+import nurgling.animals.CullSelection;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.overlays.NCattleMarkRing;
@@ -59,33 +60,8 @@ public class KillAnimalsAction<C extends Entry> implements Action {
                 targets.add(gob);
             }
         }
-        targets.sort(comp);
-
-        ArrayList<Gob> forlife = new ArrayList<>();
-        ArrayList<Gob> forkill = new ArrayList<>();
-
-        if (forpred != null) {
-            int c = 0;
-            Gob last = null;
-            // Select best adults (those matching forpred) up to flcount
-            for (Gob gob : targets) {
-                if (forpred.test(gob)) {
-                    if (c < flcount) {
-                        forlife.add(gob);
-                        c++;
-                        last = gob;
-                    }
-                }
-            }
-            // Kill all animals that are worse than the worst kept adult
-            // This preserves young females that are better than the worst adult female
-            for (Gob gob : targets) {
-                if (!forlife.contains(gob) && last != null && comp.compare(last, gob) <= 0)
-                    forkill.add(gob);
-            }
-        } else {
-            forkill.addAll(targets);
-        }
+        // Keep the best flcount adults; kill everything ranked no better than the worst of them
+        ArrayList<Gob> forkill = new ArrayList<>(CullSelection.select(targets, comp, forpred, flcount).kill);
 
         new Equip(new NAlias("Butcher's cleaver"), new NAlias("Traveller's Sack", "Wanderer's Bindle")).run(gui);
         new Equip(new NAlias("Traveller's Sack", "Wanderer's Bindle"), new NAlias("Butcher's cleaver")).run(gui);

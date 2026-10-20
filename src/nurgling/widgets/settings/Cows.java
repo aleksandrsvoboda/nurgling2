@@ -1,10 +1,13 @@
 package nurgling.widgets.settings;
 
 import haven.*;
+import haven.res.ui.croster.CattleRoster;
+import nurgling.animals.HerdRulesFactory;
 import nurgling.conf.CowsHerd;
 
 public class Cows extends Window {
     NEntryListSet els;
+    HerdPreviewPanel preview;
     NSettinsSetI totalAdult;
     NSettinsSetI gap;
     NSettinsSetD milkQuality;
@@ -24,7 +27,7 @@ public class Cows extends Window {
     CheckBox ignoreqp;
     CheckBox skipMilkingBox;
 
-    public Cows() {
+    public Cows(CattleRoster<?> roster) {
         super(new Coord(100,100), "Cows Herds");
         prev = els = add(new NEntryListSet(CowsHerd::getKeySet) {
             @Override
@@ -170,7 +173,38 @@ public class Cows extends Window {
         prev = milk1 = add(new NSettinsSetD("Milk quantity 1:"), prev.pos("bl").add(0, 5));
         prev = milkth = add(new NSettinsSetD("Milk quantity threshold:"), prev.pos("bl").add(0, 5));
         prev = milk2 = add(new NSettinsSetD("Milk quantity 2:"), prev.pos("bl").add(0, 5));
+        preview = add(new HerdPreviewPanel(roster, "cows", () -> els.get(), () -> HerdRulesFactory.of(draft()), () -> HerdRulesFactory.of(saved())),
+                new Coord(HerdPreviewPanel.rightEdge(this) + UI.scale(15), 0));
         pack();
+    }
+
+    /** The preset as currently typed into the window, not saved. */
+    private CowsHerd draft() {
+        CowsHerd gh = new CowsHerd(els.get());
+        gh.adultCows = totalAdult.get();
+        gh.breedingGap = gap.get();
+        gh.coverbreed = coverbreed.get();
+        gh.meatq = meatQuality.get();
+        gh.milkq = milkQuality.get();
+        gh.hideq = hideQuality.get();
+        gh.meatquan1 = meatq1.get();
+        gh.meatquanth = meatqth.get();
+        gh.meatquan2 = meatq2.get();
+        gh.milkquan1 = milk1.get();
+        gh.milkquanth = milkth.get();
+        gh.milkquan2 = milk2.get();
+        gh.disable_killing = dk.a;
+        gh.ignoreBD = ignorebd.a;
+        gh.ignoreChildren = ic.a;
+        gh.disable_q_percentage = ignoreqp.a;
+        gh.skipMilking = skipMilkingBox.a;
+        return gh;
+    }
+
+    /** The preset as saved, or null when this name has never been saved. */
+    private CowsHerd saved() {
+        String name = els.get();
+        return CowsHerd.getKeySet().contains(name) ? CowsHerd.get(name) : null;
     }
 
     @Override
@@ -194,6 +228,6 @@ public class Cows extends Window {
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
-        els.resize(sz.x-UI.scale(5), els.sz.y);
+        els.resize((preview == null ? sz.x : preview.c.x - UI.scale(10)) - UI.scale(5), els.sz.y);
     }
 }
