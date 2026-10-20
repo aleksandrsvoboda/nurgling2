@@ -1,6 +1,8 @@
 package nurgling.widgets.cookbook;
 
 import haven.*;
+import nurgling.NCloseButton;
+import nurgling.NStyle;
 import nurgling.cookbook.Variations;
 import nurgling.i18n.L10n;
 import nurgling.tools.ItemIcons;
@@ -26,7 +28,7 @@ public class VariationsPanel extends Widget {
     private static final int WHEEL = UI.scale(30);
 
     private final CText title;
-    private final LinkButton close;
+    private final IButton close;
     private Variations.Dish dish = null;
     private String why = "";
     private Set<String> stored = Collections.emptySet();
@@ -73,7 +75,8 @@ public class VariationsPanel extends Widget {
     public VariationsPanel(Runnable onClose) {
         super(Coord.of(WIDTH, UI.scale(200)));
         title = add(new CText(CookbookTheme.bold, CookbookTheme.fg), Coord.of(PAD, PAD));
-        close = add(new LinkButton("✕", null, onClose), Coord.z);
+        /* The windows' own close button: Open Sans has no "✕", so a text one drew nothing to click. */
+        close = add(new NCloseButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]), Coord.z).action(onClose);
         hide();
     }
 
