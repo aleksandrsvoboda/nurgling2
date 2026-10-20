@@ -412,6 +412,18 @@ public class ModSprite extends Sprite implements Sprite.CUpd, EquipTarget {
     }
 
     public void added(RenderTree.Slot slot) {
+	/* nurgling: a new object's material attribute (AttrMats) usually arrives just
+	 * after its sprite is built, so the sprite was put into the scene and then
+	 * rebuilt and re-added by the next tick - every chest, trellis or rack coming
+	 * into view went into the render tree twice. Catching up on attribute changes
+	 * before the first add, while there is no slot to re-add to, makes it once. */
+	if(slots.isEmpty() && (gob != null) && (gob.updateseq != lastupd)) {
+	    try {
+		attrupdate();
+		lastupd = gob.updateseq;
+	    } catch(Loading l) {
+	    }
+	}
 	parts(slot);
 	slots.add(slot);
     }

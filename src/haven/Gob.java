@@ -464,7 +464,10 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     public void ctick(double dt) {
-	for(GAttrib a : new ArrayList<>(attr.values()))
+	GAttrib[] snap = attrsnap;
+	if(snap == null)
+	    attrsnap = snap = attr.values().toArray(new GAttrib[0]);
+	for(GAttrib a : snap)
 		a.ctick(dt);
 	if(renderMovement != null) {
 	    Moving m = getattr(Moving.class);
@@ -474,7 +477,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	    } else
 		renderMovement.reset();
 	}
-	List<Overlay> toRemove = new ArrayList<>();
+	List<Overlay> toRemove = null;
 	for(Overlay ol : ols) {
 	    if(ol.slots == null) {
 		if(!slots.isEmpty() && (glob.oc.olbudget.getAndDecrement() <= 0))
@@ -486,11 +489,14 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		boolean done = ol.tick(dt);
 		if((!ol.delign || (ol.spr instanceof Sprite.CDel)) && done) {
 		    ol.remove0();
+		    if(toRemove == null)
+			toRemove = new ArrayList<>();
 		    toRemove.add(ol);
 		}
 	    }
 	}
-	ols.removeAll(toRemove);
+	if(toRemove != null)
+	    ols.removeAll(toRemove);
 	updstate();
 	if(virtual && ols.isEmpty() && (getattr(Drawable.class) == null))
 	    glob.oc.remove(this);
@@ -713,7 +719,19 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	return(c.cast(attr));
     }
 
+    /* nurgling: ctick's copy of the attributes, rebuilt only after they change. */
+    private GAttrib[] attrsnap = null;
+
     public void setattr(Class<? extends GAttrib> ac, GAttrib a) {
+	try {
+	    setattr0(ac, a);
+	} finally {
+	    attrsnap = null;
+	}
+    }
+
+    private void setattr0(Class<? extends GAttrib> ac, GAttrib a) {
+	attrsnap = null;
 	GAttrib prev = attr.remove(ac);
 	if(prev != null) {
 	    if((prev instanceof RenderTree.Node) && (prev.slots != null))
@@ -805,18 +823,23 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 
     private class GobState implements Pipe.Op {
 	final Pipe.Op mods;
+	/* nurgling: each setup mod's gob state, in order, nulls included. */
+	final Pipe.Op[] raw;
 
 	private GobState() {
 	    if(setupmods.isEmpty()) {
 		this.mods = null;
+		this.raw = null;
 	    } else {
-		Pipe.Op[] mods = new Pipe.Op[setupmods.size()];
-		int n = 0;
+		Pipe.Op[] raw = new Pipe.Op[setupmods.size()];
+		Pipe.Op[] mods = new Pipe.Op[raw.length];
+		int n = 0, i = 0;
 		for(SetupMod mod : setupmods) {
-		    if((mods[n] = mod.gobstate()) != null)
+		    if((mods[n] = raw[i++] = mod.gobstate()) != null)
 			n++;
 		}
 		this.mods = (n > 0) ? Pipe.Op.compose(mods) : null;
+		this.raw = raw;
 	    }
 	}
 
@@ -843,7 +866,28 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	return(curstate);
     }
 
+    /* nurgling: the setup mods' gob states the current state was last checked
+     * against (an equal new state keeps the old GobState object). */
+    private Pipe.Op[] stmods = null;
+    private boolean stchecked = false;
+
+    private boolean samegobmods() {
+	Pipe.Op[] raw = stmods;
+	int n = 0;
+	for(SetupMod mod : setupmods) {
+	    if((raw == null) || (n >= raw.length) || !Utils.eq(mod.gobstate(), raw[n]))
+		return(false);
+	    n++;
+	}
+	return(n == ((raw == null) ? 0 : raw.length));
+    }
+
     public void updstate() {
+	/* nurgling: updstate runs for every gob on every tick, and almost every
+	 * gob carries setup mods (NGlobalSearch at least) whose states rarely
+	 * change. Compare them before building a new GobState to compare equal. */
+	if((curstate != null) && stchecked && samegobmods())
+	    return;
 	GobState nst;
 	try {
 	    nst = new GobState();
@@ -856,8 +900,12 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		    slot.ostate(nst);
 		this.curstate = nst;
 	    } catch(Loading l) {
+		stchecked = false;
+		return;
 	    }
 	}
+	stmods = nst.raw;
+	stchecked = true;
     }
 
     public void added(RenderTree.Slot slot) {
@@ -1059,9 +1107,9 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	/* nurgling: every placed gob rebuilt its Placement (height, slope,
 	 * tile state) every frame, which in a base with hundreds of objects
 	 * was a large share of the frame and of all allocation. A gob that is
-	 * not moving, following or carrying setup mods keeps its placement
-	 * while its position, angle, placer, draw offset and the map's change
-	 * sequence stay the same. It still refreshes about once a second
+	 * not moving or following keeps its placement while its position,
+	 * angle, placer, draw offset, setup mods' place states and the map's
+	 * change sequence stay the same. It still refreshes about once a second
 	 * (staggered per gob), since a rebuilt terrain mesh can land after the
 	 * map data that bumped the sequence. */
 	private Coord2d prc, ppos;
@@ -1069,10 +1117,32 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	private double pa, pnext;
 	private int pseq = -1;
 	private Placer pplacer;
+	/* Most gobs in a base carry a setup mod (trees' scale and rotation,
+	 * health, container textures), and nearly all of them give a fixed
+	 * place state, or none. */
+	private Pipe.Op[] pmods = null;
+
+	private boolean samemods() {
+	    int n = 0;
+	    for(SetupMod mod : setupmods) {
+		if((pmods == null) || (n >= pmods.length) || !Utils.eq(mod.placestate(), pmods[n]))
+		    return(false);
+		n++;
+	    }
+	    return(n == ((pmods == null) ? 0 : pmods.length));
+	}
+
+	private Pipe.Op[] curmods() {
+	    Pipe.Op[] ret = new Pipe.Op[setupmods.size()];
+	    int n = 0;
+	    for(SetupMod mod : setupmods)
+		ret[n++] = mod.placestate();
+	    return(ret);
+	}
 
 	public void autotick(double dt) {
 	    synchronized(Gob.this) {
-		boolean still = (cur != null) && setupmods.isEmpty() &&
+		boolean still = (cur != null) &&
 		    (getattr(Following.class) == null) && (getattr(Moving.class) == null);
 		Coord2d pos = null;
 		Coord3f doff = null;
@@ -1087,7 +1157,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		    pl = placer();
 		    now = Utils.rtime();
 		    if((seq == pseq) && (now < pnext) && (a == pa) && (pl == pplacer) &&
-		       Utils.eq(rc, prc) && Utils.eq(pos, ppos) && Utils.eq(doff, pdoff))
+		       Utils.eq(rc, prc) && Utils.eq(pos, ppos) && Utils.eq(doff, pdoff) && samemods())
 			return;
 		}
 		Placement np;
@@ -1101,6 +1171,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		if(still) {
 		    prc = rc; ppos = pos; pa = a; pseq = seq; pplacer = pl;
 		    pdoff = (doff == null) ? null : Coord3f.of(doff.x, doff.y, doff.z);
+		    pmods = setupmods.isEmpty() ? null : curmods();
 		    pnext = now + 0.75 + ((id & 0xff) / 1024.0);
 		} else {
 		    pseq = -1;

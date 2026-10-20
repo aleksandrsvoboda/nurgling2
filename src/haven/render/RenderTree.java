@@ -548,6 +548,16 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 	    return(new DepPipe(parent.istate()).prep(cstate).prep(ostate).lock().intern());
 	}
 
+	/* nurgling: for the state changes of unlocked slots. Interning only shares
+	 * equal DepInfos to save memory (nothing compares them by identity), but
+	 * animated slots get a new, unique one every frame, and each intern left
+	 * a weak reference that the next GC had to process (some 13k a second,
+	 * over 1 ms of every young pause), besides a global lock taken from every
+	 * tick thread. */
+	private DepInfo mkdstatex(Pipe.Op cstate, Pipe.Op ostate) {
+	    return(new DepPipe(parent.istate()).prep(cstate).prep(ostate).lock());
+	}
+
 	private void remrdep(int stidx, TreeSlot rdep) {
 	    if((rdeps == null) || (rdeps.length <= stidx) ||
 	       (rdeps[stidx] == null) || !rdeps[stidx].remove(rdep))
@@ -577,7 +587,7 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 	private void rdepupd() {
 	    if(stlock)
 		throw(new AssertionError("reverse dependency update on locked slot"));
-	    upddstate(mkdstate(cstate, ostate));
+	    upddstate(mkdstatex(cstate, ostate));
 	}
 
 	private DepInfo setdstate(DepInfo nst) {
@@ -682,7 +692,7 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 	    if(this.dstate != null) {
 		DepInfo pst = this.dstate;
 		try {
-		    upddstate(mkdstate(cstate, ostate));
+		    upddstate(mkdstatex(cstate, ostate));
 		} catch(RuntimeException e) {
 		    try {
 			upddstate(pst);

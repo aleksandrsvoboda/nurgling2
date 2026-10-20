@@ -159,20 +159,20 @@ public class TickList implements RenderList<TickList.TickNode> {
 	if(!Config.par.get()) {
 	    copy.forEach(ent -> task.accept(ent, g));
 	} else {
-	    Collection<Render> subs = new ArrayList<>();
-	    ThreadLocal<Render> subv = new ThreadLocal<>();
+	    /* nurgling: one sub-render per worker thread, kept in a map rather than a
+	     * ThreadLocal made anew each frame: every such ThreadLocal left a stale
+	     * entry in each worker's thread-local map, holding its Render (and all
+	     * its draw commands) alive past the frame, and a weak reference for
+	     * every GC to process. */
+	    Map<Thread, Render> subs = new java.util.concurrent.ConcurrentHashMap<>();
 	    copy.parallelStream().forEach(ent -> {
-		    Render sub = subv.get();
-		    if(sub == null) {
-			sub = g.env().render();
-			synchronized(subs) {
-			    subs.add(sub);
-			}
-			subv.set(sub);
-		    }
+		    Thread th = Thread.currentThread();
+		    Render sub = subs.get(th);
+		    if(sub == null)
+			subs.put(th, sub = g.env().render());
 		    task.accept(ent, sub);
 		});
-	    for(Render sub : subs)
+	    for(Render sub : subs.values())
 		g.submit(sub);
 	}
     }

@@ -12,10 +12,8 @@ public class NCropMarker extends Sprite implements RenderTree.Node, PView.Render
     private TexI img = null;
     /** Position of the crop marker - cached and reused */
     private static final Coord3f MARKER_POS = new Coord3f(0, 0, 0);
-    /** Cached screen coordinate to avoid recalculation */
-    private Coord cachedScreenCoord = null;
-    /** Frame counter for screen coord cache invalidation */
-    private double lastFrameUpdate = -1;
+    /** This marker's entry in the batch, reused every frame */
+    private final NCropMarkerBatch.MarkerInstance inst = new NCropMarkerBatch.MarkerInstance();
 
     /** Current growth stage of the crop */
     private long currentStage = -2;
@@ -108,18 +106,10 @@ public class NCropMarker extends Sprite implements RenderTree.Node, PView.Render
             return;
         }
         
-        // Get current frame counter from Gob
-        Gob gob = (Gob) owner;
-        double currentFrame = gob.glob.globtime();
-        
-        // Cache screen coordinate for this frame to avoid repeated obj2view calls
-        if (cachedScreenCoord == null || lastFrameUpdate != currentFrame) {
-            Coord3f screenPos = Homo3D.obj2view(MARKER_POS, state, Area.sized(g.sz()));
-            cachedScreenCoord = screenPos.round2();
-            lastFrameUpdate = currentFrame;
-        }
-        
-        // Update batch renderer with current position and texture
-        batchRenderer.updateMarker(gob.id, new Coord2d(cachedScreenCoord.x, cachedScreenCoord.y), img);
+        Coord3f screenPos = Homo3D.obj2view(MARKER_POS, state, Area.sized(g.sz()));
+        inst.x = Math.round(screenPos.x);
+        inst.y = Math.round(screenPos.y);
+        inst.texture = img;
+        batchRenderer.add(inst);
     }
 }

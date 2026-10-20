@@ -70,6 +70,13 @@ public class Defer extends ThreadGroup {
 	    this.future = future;
 	}
 
+	/* Thrown on every poll of an unfinished job (each frame, for every overlay
+	 * cut still building): the stack trace was the expensive part, and it never
+	 * says more than "not done yet". */
+	public Throwable fillInStackTrace() {
+	    return(this);
+	}
+
 	public String getMessage() {
 	    if(rec != null) {
 		String msg = rec.getMessage();
