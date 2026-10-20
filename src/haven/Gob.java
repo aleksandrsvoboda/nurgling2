@@ -477,6 +477,8 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	List<Overlay> toRemove = new ArrayList<>();
 	for(Overlay ol : ols) {
 	    if(ol.slots == null) {
+		if(!slots.isEmpty() && (glob.oc.olbudget.getAndDecrement() <= 0))
+		    continue;
 		try {
 		    ol.init();
 		} catch(Loading e) {}
@@ -1054,8 +1056,40 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	    return(new Placement());
 	}
 
+	/* nurgling: every placed gob rebuilt its Placement (height, slope,
+	 * tile state) every frame, which in a base with hundreds of objects
+	 * was a large share of the frame and of all allocation. A gob that is
+	 * not moving, following or carrying setup mods keeps its placement
+	 * while its position, angle, placer, draw offset and the map's change
+	 * sequence stay the same. It still refreshes about once a second
+	 * (staggered per gob), since a rebuilt terrain mesh can land after the
+	 * map data that bumped the sequence. */
+	private Coord2d prc, ppos;
+	private Coord3f pdoff;
+	private double pa, pnext;
+	private int pseq = -1;
+	private Placer pplacer;
+
 	public void autotick(double dt) {
 	    synchronized(Gob.this) {
+		boolean still = (cur != null) && setupmods.isEmpty() &&
+		    (getattr(Following.class) == null) && (getattr(Moving.class) == null);
+		Coord2d pos = null;
+		Coord3f doff = null;
+		Placer pl = null;
+		int seq = glob.map.chseq;
+		double now = 0;
+		if(still) {
+		    MovementSmoothing sm = renderMovement;
+		    pos = (sm == null) ? null : sm.position();
+		    DrawOffset df = getattr(DrawOffset.class);
+		    doff = (df == null) ? null : df.off;
+		    pl = placer();
+		    now = Utils.rtime();
+		    if((seq == pseq) && (now < pnext) && (a == pa) && (pl == pplacer) &&
+		       Utils.eq(rc, prc) && Utils.eq(pos, ppos) && Utils.eq(doff, pdoff))
+			return;
+		}
 		Placement np;
 		try {
 		    np = new Placement();
@@ -1064,6 +1098,13 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		}
 		if(!Utils.eq(this.cur, np))
 		    update(np);
+		if(still) {
+		    prc = rc; ppos = pos; pa = a; pseq = seq; pplacer = pl;
+		    pdoff = (doff == null) ? null : Coord3f.of(doff.x, doff.y, doff.z);
+		    pnext = now + 0.75 + ((id & 0xff) / 1024.0);
+		} else {
+		    pseq = -1;
+		}
 	    }
 	}
 

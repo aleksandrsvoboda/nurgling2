@@ -111,7 +111,15 @@ public class OCache implements Iterable<Gob> {
 	}
     }
 
+    /* nurgling: overlays that may still attach to the scene this frame. Walking into
+     * a dense area brings in hundreds of objects at once, and attaching their overlays
+     * (hitboxes, health, crop and barrel markers) builds render slots under the
+     * render tree lock; spread over a few frames, they no longer stack into one. */
+    public static final int OL_ATTACH_PER_FRAME = 16;
+    public final java.util.concurrent.atomic.AtomicInteger olbudget = new java.util.concurrent.atomic.AtomicInteger();
+
     public void ctick(double dt) {
+	olbudget.set(OL_ATTACH_PER_FRAME);
 	ArrayList<Gob> copy = new ArrayList<Gob>();
 	synchronized(this) {
 	    for(Gob g : this)
