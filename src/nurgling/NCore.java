@@ -236,6 +236,7 @@ public class NCore extends Widget
         public String character;
         public Integer scenarioId;
         public String stackTraceFile; // Path to stack trace file for autorunner debugging
+        public int walkSeconds; // Without a scenario: walk around this long, saving frame traces, then log out
 
         public BotmodSettings(String user, String password, String character, Integer scenarioId) {
             this.user = user;

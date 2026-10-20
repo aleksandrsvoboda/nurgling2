@@ -377,8 +377,8 @@ public class NCharlist extends Charlist {
     public static void play() {
         if (NConfig.botmod != null && instance != null) {
             for (Char c : instance.chars) {
-                if (c.name.equals(NConfig.botmod.character)) {
-                    instance.wdgmsg("play", NConfig.botmod.character);
+                if (c.name.equalsIgnoreCase(NConfig.botmod.character)) {
+                    instance.wdgmsg("play", c.name);
                     instance = null;
                     break;
                 }
