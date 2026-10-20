@@ -447,8 +447,30 @@ NMiniMap extends MiniMap {
     }
 
     /** Name plate under an on-map marker: light text on a dark plate, so it works over any terrain. */
+    /* Marker and peer names were rendered (the marker ones with a blurred
+     * outline) and uploaded as new textures on every frame; keep them. */
+    private final java.util.Map<Object, Tex> labelTexs = new java.util.HashMap<>();
+
+    private Tex labelTex(Object font, Color col, String text) {
+        java.util.List<Object> key = java.util.Arrays.asList(font, col, text);
+        Tex t = labelTexs.get(key);
+        if(t == null) {
+            if(labelTexs.size() >= 256) {
+                for(Tex old : labelTexs.values())
+                    old.dispose();
+                labelTexs.clear();
+            }
+            if(font instanceof Text.Foundry)
+                t = ((Text.Foundry)font).render(text, col).tex();
+            else
+                t = ((Text.Furnace)font).render(text).tex();
+            labelTexs.put(key, t);
+        }
+        return(t);
+    }
+
     private void drawPeerLabel(GOut g, Coord tp, String label, Color col, double alpha) {
-        Text txt = peerfnd.render(label, col);
+        Tex txt = labelTex(peerfnd, col, label);
         Coord ul = tp.sub(txt.sz().x / 2 + UI.scale(3), 0);
         Coord psz = txt.sz().add(UI.scale(6), UI.scale(2));
         g.chcolor(0, 0, 0, (int)(165 * alpha));
@@ -456,7 +478,7 @@ NMiniMap extends MiniMap {
         g.chcolor(col.getRed(), col.getGreen(), col.getBlue(), (int)(70 * alpha));
         g.frect(ul, new Coord(psz.x, UI.scale(1)));
         g.chcolor(255, 255, 255, (int)(255 * alpha));
-        g.aimage(txt.tex(), tp.add(0, UI.scale(1)), 0.5, 0);
+        g.aimage(txt, tp.add(0, UI.scale(1)), 0.5, 0);
         g.chcolor();
     }
 
@@ -2427,15 +2449,13 @@ NMiniMap extends MiniMap {
                 if(mark.m instanceof MapFile.SMarker) {
                     MapFile.SMarker sm = (MapFile.SMarker)mark.m;
                     if((Boolean)NConfig.get(NConfig.Key.showQuestGiverNames) && NParser.checkName(sm.res.name, "small/bush", "small/bumling", "gianttoad") && mark.m.nm != null && !mark.m.nm.isEmpty()) {
-                        Text nameText = NStyle.meter.render(mark.m.nm);
                         Coord textPos = markPos.add(0, UI.scale(10));
-                        g.aimage(nameText.tex(), textPos, 0.5, 0);
+                        g.aimage(labelTex(NStyle.meter, null, mark.m.nm), textPos, 0.5, 0);
                     }
 
                     if((Boolean)NConfig.get(NConfig.Key.showThingwallNames) && NParser.checkName(sm.res.name, "thingwall") && mark.m.nm != null && !mark.m.nm.isEmpty()) {
-                        Text nameText = NStyle.cmeter.render(mark.m.nm);
                         Coord textPos = markPos.add(0, UI.scale(10));
-                        g.aimage(nameText.tex(), textPos, 0.5, 0);
+                        g.aimage(labelTex(NStyle.cmeter, null, mark.m.nm), textPos, 0.5, 0);
                     }
                 }
             }

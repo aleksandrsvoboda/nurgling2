@@ -872,6 +872,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		return(this.lastload);
 	    return(null);
 	}
+
+	/* nurgling: tick with a view window the caller computed once for
+	 * many rasters, instead of each one looking up the player. */
+	public void tick(Area win) {
+	    area = win;
+	    lastload = null;
+	}
     }
 
     public final Terrain terrain;

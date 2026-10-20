@@ -1461,9 +1461,21 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     {
         super.oltick();
         java.util.Map<Long, MCache.Grid> grids = glob.map.gridsById();
+        Area win = null;
+        try {
+            Coord cc = new Coord2d(getcc()).floor(MCache.tilesz).div(MCache.cutsz);
+            win = new Area(cc.sub(view, view), cc.add(view, view).add(1, 1));
+        } catch(Loading l) {
+        }
+        int gsig = grids.keySet().hashCode();
+        double now = Utils.rtime();
         for(NOverlay ol : nols.values()) {
             ol.gridsById = grids;
-            ol.tick();
+            // Subclasses (rock highlight, mining) keep their own tick logic.
+            if((win != null) && (ol.getClass() == NOverlay.class))
+                ol.tick(win, gsig, now);
+            else
+                ol.tick();
         }
     }
 
