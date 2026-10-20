@@ -114,6 +114,47 @@ public class StorageItemDao {
     }
 
     /**
+     * A storage row with where its container stands, for walking to it.
+     */
+    public static class LocatedItem {
+        public final String name;
+        public final String container;
+        public final long gridId;
+        public final String coord;
+
+        public LocatedItem(String name, String container, long gridId, String coord) {
+            this.name = name;
+            this.container = container;
+            this.gridId = gridId;
+            this.coord = coord;
+        }
+    }
+
+    /**
+     * Load the non-bulk rows whose name is exactly one of names (SQL '=', never LIKE), each with
+     * its container's location. Rows of a container without a containers row can't be walked to
+     * and are left out by the inner join.
+     */
+    public List<LocatedItem> loadByExactNames(DatabaseAdapter adapter, java.util.Collection<String> names) throws SQLException {
+        List<LocatedItem> items = new ArrayList<>();
+        if (names.isEmpty())
+            return items;
+        String marks = String.join(", ", java.util.Collections.nCopies(names.size(), "?"));
+        try (ResultSet rs = adapter.executeQuery("SELECT si.name, si.coordinates, si.container, c.grid_id, c.coord " +
+                                                "FROM storageitems si JOIN containers c ON c.hash = si.container " +
+                                                "WHERE si.name IN (" + marks + ")", names.toArray())) {
+            while (rs.next()) {
+                String coordinates = rs.getString("coordinates");
+                if (coordinates != null && coordinates.startsWith(nurgling.widgets.BulkStorageWindowExtension.BULK_TAG))
+                    continue;
+                items.add(new LocatedItem(rs.getString("name"), rs.getString("container"),
+                    rs.getLong("grid_id"), rs.getString("coord")));
+            }
+        }
+        return items;
+    }
+
+    /**
      * Load storage items by container
      */
     public List<StorageItemData> loadStorageItemsByContainer(DatabaseAdapter adapter, String containerHash) throws SQLException {

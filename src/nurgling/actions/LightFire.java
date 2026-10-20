@@ -163,12 +163,11 @@ public class LightFire implements Action {
         }
         
         // Restore autoMode
-        newMw.autoMode = savedState.autoMode;
+        newMw.setAutoMode(savedState.autoMode);
         
         // Restore noTransfer
         if (newMw.noTransfer != null) {
             newMw.noTransfer.a = savedState.noTransfer;
-            newMw.noTransfer.visible = savedState.autoMode;
         }
         
         // Restore input ingredients

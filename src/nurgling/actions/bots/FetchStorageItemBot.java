@@ -1,14 +1,11 @@
 package nurgling.actions.bots;
 
 import haven.*;
-import static haven.OCache.posres;
 import nurgling.*;
 import nurgling.actions.*;
 import nurgling.areas.NContext;
 import nurgling.db.dao.StorageItemDao;
-import nurgling.db.dao.ContainerDao;
 import nurgling.i18n.L10n;
-import nurgling.navigation.ChunkNavManager;
 import nurgling.tasks.*;
 import nurgling.tools.*;
 import nurgling.widgets.NStorageItemsWidget.GroupedItem;
@@ -125,44 +122,9 @@ public class FetchStorageItemBot implements Action {
         // Count items before
         int beforeCount = countItemsInInventory(gui, itemName);
 
-        // First try to find the container Gob in visible area
-        Gob containerGob = Finder.findStorageGob(containerHash);
-
+        Gob containerGob = StorageNav.reach(gui, containerHash);
         if (containerGob == null) {
-            // Container not visible - try to find its position from database and navigate
-            ContainerDao.ContainerData containerData = loadContainerData(gui, containerHash);
-            if (containerData == null) {
-                System.out.println("[FetchStorageItemBot] Could not load container data from DB for hash: " + containerHash);
-                return 0;
-            }
-
-            // Parse local coordinates and navigate using gridId
-            Coord localCoord = parseLocalCoordinates(containerData.getCoord());
-            if (localCoord == null) {
-                System.out.println("[FetchStorageItemBot] Could not parse coordinates: " + containerData.getCoord());
-                return 0;
-            }
-
-            // Navigate to container position using chunk navigation with gridId
-            System.out.println("[FetchStorageItemBot] Navigating to container at grid=" + containerData.getGridId() + " coord=" + localCoord);
-            if (!navigateToContainer(gui, containerData.getGridId(), localCoord)) {
-                System.out.println("[FetchStorageItemBot] Navigation failed to grid=" + containerData.getGridId());
-                return 0;
-            }
-
-            // Try to find container again after navigation (gobs may take time to load)
-            containerGob = Finder.findStorageGob(containerHash);
-            if (containerGob == null) {
-                WaitForGobWithHash waitGob = new WaitForGobWithHash(containerHash);
-                NUtils.addTask(waitGob);
-                if (!waitGob.criticalExit) {
-                    containerGob = Finder.findGob(containerHash);
-                }
-            }
-            if (containerGob == null) {
-                System.out.println("[FetchStorageItemBot] Container not found after navigation, hash=" + containerHash);
-                return 0;
-            }
+            return 0;
         }
 
         // Move to container if not close enough
@@ -271,99 +233,6 @@ public class FetchStorageItemBot implements Action {
             }
         }
         return null;
-    }
-
-    /**
-     * Load container data from database
-     */
-    private ContainerDao.ContainerData loadContainerData(NGameUI gui, String containerHash) {
-        if (NCore.databaseManager == null || !NCore.databaseManager.isReady()) {
-            return null;
-        }
-
-        try {
-            return NCore.databaseManager.executeOperation(adapter -> {
-                ContainerDao dao = new ContainerDao();
-                List<ContainerDao.ContainerData> containers = dao.loadAllContainers(adapter);
-                for (ContainerDao.ContainerData c : containers) {
-                    if (c.getHash().equals(containerHash)) {
-                        return c;
-                    }
-                }
-                return null;
-            });
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * Parse local coordinates string "(x, y)" to Coord (in posres units, as stored by ContainerWatcher)
-     */
-    private Coord parseLocalCoordinates(String coords) {
-        if (coords == null) return null;
-        try {
-            // Format: "(x, y)" or "(x,y)"
-            String clean = coords.replace("(", "").replace(")", "").replace(" ", "");
-            String[] parts = clean.split(",");
-            if (parts.length == 2) {
-                int x = (int) Double.parseDouble(parts[0]);
-                int y = (int) Double.parseDouble(parts[1]);
-                return new Coord(x, y);
-            }
-        } catch (Exception e) {
-            // Parse error
-        }
-        return null;
-    }
-
-    /**
-     * Navigate to a container using gridId + local coordinates via chunk navigation.
-     * Uses planToGridCoord for cross-layer navigation.
-     */
-    private boolean navigateToContainer(NGameUI gui, long gridId, Coord localCoord) throws InterruptedException {
-        ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
-        if (chunkNav == null || !chunkNav.isInitialized()) {
-            System.out.println("[FetchStorageItemBot] ChunkNavManager not available");
-            return false;
-        }
-
-        // Check if the grid is currently loaded (container might be nearby)
-        try {
-            MCache mcache = gui.map.glob.map;
-            MCache.Grid grid = null;
-            synchronized (mcache.grids) {
-                for (MCache.Grid g : mcache.grids.values()) {
-                    if (g.id == gridId) {
-                        grid = g;
-                        break;
-                    }
-                }
-            }
-            if (grid != null) {
-                // Grid is loaded - container should be visible, use local pathfinding
-                // localCoord is in posres units, convert to world position:
-                // worldPos = gridOrigin(world) + localCoord * posres
-                Coord2d gridOrigin = new Coord2d(grid.ul.x * MCache.tilesz.x, grid.ul.y * MCache.tilesz.y);
-                Coord2d worldPos = gridOrigin.add(new Coord2d(localCoord.x * posres.x, localCoord.y * posres.y));
-                return new PathFinder(worldPos).run(gui).IsSuccess();
-            }
-        } catch (Exception e) {
-            // Fall through to chunk navigation
-        }
-
-        // Grid not loaded - use chunk navigation
-        // localCoord is in posres units, convert to tile coordinates for chunk nav planner
-        Coord2d offsetWorld = new Coord2d(localCoord.x * posres.x, localCoord.y * posres.y);
-        Coord tileCoord = offsetWorld.floor(MCache.tilesz);
-        nurgling.navigation.ChunkPath path = chunkNav.planToGridCoord(gridId, tileCoord);
-        if (path != null) {
-            return chunkNav.navigateWithPath(path, null, gui).IsSuccess();
-        } else {
-            System.out.println("[FetchStorageItemBot] Cannot plan path to grid=" + gridId + " tile=" + tileCoord);
-        }
-
-        return false;
     }
 
     /**

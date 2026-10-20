@@ -57,6 +57,16 @@ public class NCraftWindow extends GameUI.Hidewnd {
         return child;
     }
 
+    /** Resize around the make widget after it changed size (the Autocraft panel showing or hiding). */
+    public void refit() {
+        if(makeWidget != null)
+            makeWidget.resize(Math.max(makeWidget.sz.x, tabStrip.sz.x), makeWidget.sz.y);
+        pack();
+        GameUI gui = getparent(GameUI.class);
+        if(gui != null)
+            gui.fitwdg(this);
+    }
+
     private void selectTab(Pagina pagina)
     {
         String resName = pagina.res().name;
