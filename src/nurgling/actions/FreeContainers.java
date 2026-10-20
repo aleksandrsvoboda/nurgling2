@@ -5,6 +5,7 @@ import haven.WItem;
 import nurgling.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
+import nurgling.tasks.NTask;
 import nurgling.tools.*;
 
 import java.util.ArrayList;
@@ -77,12 +78,26 @@ public class FreeContainers implements Action
                     return Float.compare(q2, q1);
                 }
             });
+            // A butter goes to its own kind's area, so its kind must be read before it is routed
+            NUtils.addTask(new NTask() {
+                @Override
+                public boolean check() {
+                    return !ItemVariants.anyUnread(items);
+                }
+            });
+            HashSet<String> names = new HashSet<>();
             for (WItem item : items)
             {
-                if (context.addOutItem(((NGItem) item.item).name(), null, ((NGItem) item.item).quality != null ? ((NGItem) item.item).quality : 1))
-                    targets.add(((NGItem) item.item).name());
+                String key = context.outKey((NGItem) item.item, quality((NGItem) item.item));
+                if (context.addOutItem(key, null, quality((NGItem) item.item))) {
+                    targets.add(key);
+                    names.add(((NGItem) item.item).name());
+                }
             }
-            while (!new TakeItemsFromContainer(container, targets, pattern).run(gui).isSuccess)
+            TakeItemsFromContainer take = new TakeItemsFromContainer(container, names, pattern);
+            // Only the kinds of butter that have somewhere to go leave the container
+            take.filter = item -> !ItemVariants.has(item.name()) || targets.contains(context.outKey(item, quality(item)));
+            while (!take.run(gui).isSuccess)
             {
                 new TransferItems2(context, targets).run(gui);
                 navigateToTargetContainer(gui, container);
@@ -92,6 +107,10 @@ public class FreeContainers implements Action
         }
         new TransferItems2(context, targets).run(gui);
         return Results.SUCCESS();
+    }
+
+    private static double quality(NGItem item) {
+        return item.quality != null ? item.quality : 1;
     }
 
     private void navigateToTargetContainer(NGameUI gui, Container container) throws InterruptedException {

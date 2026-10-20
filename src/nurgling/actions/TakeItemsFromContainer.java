@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.function.Predicate;
 
 public class TakeItemsFromContainer implements Action
 {
@@ -32,6 +33,13 @@ public class TakeItemsFromContainer implements Action
      * greedily, container by container, still yields the globally best copies.
      */
     public Float minQuality = null;
+
+    /**
+     * Optional: only copies it accepts are taken, e.g. one kind of butter (see ItemVariants). The
+     * counts below then cover accepted copies only, and stacks are split one copy at a time.
+     */
+    public Predicate<NGItem> filter = null;
+
     public TakeItemsFromContainer(Container cont, HashSet<String> names, NAlias pattern)
     {
         this.cont = cont;
@@ -99,7 +107,8 @@ public class TakeItemsFromContainer implements Action
             if (item != null) {
 
                 target_coord = inv.getItem(name).sz.div(Inventory.sqsz);
-                int oldSpace = gui.getInventory().getItems(name).size();
+                int oldSpace = held(gui, name);
+                int oldAll = gui.getInventory().getItems(name).size();
                 ArrayList<WItem> items = getItems(gui, name);
                 int items_size = items.size();
                 target_size = Math.min(remainingToTake, Math.min(gui.getInventory().getNumberFreeCoord(target_coord.swapXY())*StackSupporter.getFullStackSize(name), items.size()));
@@ -108,24 +117,25 @@ public class TakeItemsFromContainer implements Action
                 int temptr = target_size;
 
                 for (int i = 0; i < temptr; i++) {
-                    int left = target_size + oldSpace - gui.getInventory().getItems(name).size();
+                    int left = target_size + oldSpace - held(gui, name);
                     /* A quality-filtered take must move stack members one at a time. transfer()
                      * otherwise hands over a whole source stack once we want at least as many as
                      * it holds, and a stack mixes qualities - that would drag copies below the
-                     * bound along with the good one we actually picked. */
-                    TransferToContainer.transfer(items.get(i), gui.getInventory(), left, minQuality != null);
+                     * bound along with the good one we actually picked. A filtered take likewise,
+                     * since a stack may mix kinds. */
+                    TransferToContainer.transfer(items.get(i), gui.getInventory(), left, minQuality != null || filter != null);
                     items = getItems(gui, name);
-                    if(gui.getInventory().getItems(name).size()>=target_size+oldSpace)
+                    if(held(gui, name)>=target_size+oldSpace)
                         break;
                     temptr=Math.min(remainingToTake, Math.min(gui.getInventory().getNumberFreeCoord(target_coord.swapXY())*StackSupporter.getFullStackSize(name), items.size()));
                     i = -1;
                 }
-                WaitItems wi = new WaitItems(gui.getInventory(), new NAlias(name), oldSpace + target_size);
+                WaitItems wi = new WaitItems(gui.getInventory(), new NAlias(name), oldAll + target_size);
                 NUtils.getUI().core.addTask(wi);
                 cont.update();
                 
                 // Reduce remainingToTake by how many we actually took
-                int actuallyTaken = gui.getInventory().getItems(name).size() - oldSpace;
+                int actuallyTaken = held(gui, name) - oldSpace;
                 remainingToTake -= actuallyTaken;
                 
                 if(items_size>target_size) {
@@ -136,6 +146,20 @@ public class TakeItemsFromContainer implements Action
         }
         took = true;
         return Results.SUCCESS();
+    }
+
+    /** Copies of name in the player's inventory that the filter accepts. */
+    private int held(NGameUI gui, String name) throws InterruptedException
+    {
+        ArrayList<WItem> items = gui.getInventory().getItems(name);
+        if(filter == null)
+            return items.size();
+        int n = 0;
+        for(WItem item: items) {
+            if(filter.test((NGItem) item.item))
+                n++;
+        }
+        return n;
     }
 
     private ArrayList<WItem> getItems(NGameUI gui, String name) throws InterruptedException
@@ -153,6 +177,11 @@ public class TakeItemsFromContainer implements Action
                 }
             }
             
+            if (filter != null && !filter.test((NGItem) item1.item)) {
+                forRemove.add(item1);
+                continue;
+            }
+
             if (minQuality != null) {
                 Float quality = ((NGItem) item1.item).quality;
                 if (quality == null || quality < minQuality - FindQualityThreshold.QEPS) {

@@ -225,6 +225,12 @@ public class NMakewindow extends Widget {
                 {
                     categories = CraftCategories.has(name);
                 }
+                /* Kinds of butter are chosen for an input; the churn's output is whatever its milk makes,
+                 * and craft waits for it under its game name. */
+                if(categories && ItemVariants.has(name) && outputs.contains(this))
+                {
+                    categories = false;
+                }
                 for(Spec s : inputs) {
                     if(s.categories && s.ing!=null)
                     {

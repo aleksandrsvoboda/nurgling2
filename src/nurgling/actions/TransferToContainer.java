@@ -9,6 +9,7 @@ import nurgling.tools.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.function.Predicate;
 
 public class TransferToContainer implements Action
 {
@@ -23,6 +24,12 @@ public class TransferToContainer implements Action
     String exactName = null;
 
     boolean needsSorting = false;
+
+    /**
+     * Optional: only inventory copies it accepts are moved, e.g. one kind of butter (see
+     * ItemVariants). Stacks are then split a copy at a time, since one stack may mix kinds.
+     */
+    public Predicate<NGItem> filter = null;
 
     public TransferToContainer(Container container, NAlias items)
     {
@@ -94,7 +101,7 @@ public class TransferToContainer implements Action
                             while (Math.min(gui.getInventory(container.cap).getNumberFreeCoord(coord), coorditems.size()) > 0)
                             {
                                 WItem cand = coorditems.get(0);
-                                transfer(cand, gui.getInventory(container.cap), target_size);
+                                transfer(cand, gui.getInventory(container.cap), target_size, filter != null);
                                 witems = getMatchingItems(gui);
                                 coorditems = new ArrayList<>();
                                 for (WItem witem : witems)
@@ -176,7 +183,7 @@ public class TransferToContainer implements Action
 
                         // Calculate remaining items we can transfer
                         int remainingToTransfer = transfer_size - transferred;
-                        int itemsTransferred = transfer(currentItem, gui.getInventory(container.cap), remainingToTransfer, needsSorting);
+                        int itemsTransferred = transfer(currentItem, gui.getInventory(container.cap), remainingToTransfer, needsSorting || filter != null);
 
                         if (itemsTransferred > 0)
                         {
@@ -332,7 +339,26 @@ public class TransferToContainer implements Action
             {
                 return 0;
             }
-            if (item.parent instanceof ItemStack)
+            if (item.parent instanceof ItemStack && needsSorting)
+            {
+                // invxf hands over a copy the server picks; this exact one must be carried over
+                ItemStack sourceStack = (ItemStack) item.parent;
+                int originalStackSize = sourceStack.wmap.size();
+                NUtils.takeItemToHand(item);
+                NUtils.dropToInv(targetInv);
+                if (!waitFreeHandOrReturn())
+                    return 0;
+                if (originalStackSize <= 2)
+                {
+                    if (sourceStack.parent != null)
+                        NUtils.addTask(new ISRemovedLoftar(((GItem.ContentsWindow) sourceStack.parent).cont.wdgid(), sourceStack, originalStackSize));
+                } else
+                {
+                    NUtils.addTask(new StackSizeChanged(sourceStack, originalStackSize));
+                }
+                return 1;
+            }
+            else if (item.parent instanceof ItemStack)
             {
                 ItemStack sourceStack = (ItemStack) item.parent;
                 int originalStackSize = sourceStack.wmap.size();
@@ -500,12 +526,13 @@ public class TransferToContainer implements Action
         } else {
             allItems = gui.getInventory().getItems(items, th);
         }
-        if (exactName == null) {
+        if (exactName == null && filter == null) {
             return allItems;
         }
         ArrayList<WItem> exactMatches = new ArrayList<>();
         for (WItem witem : allItems) {
-            if (((NGItem) witem.item).name().equals(exactName)) {
+            if ((exactName == null || ((NGItem) witem.item).name().equals(exactName))
+                    && (filter == null || filter.test((NGItem) witem.item))) {
                 exactMatches.add(witem);
             }
         }

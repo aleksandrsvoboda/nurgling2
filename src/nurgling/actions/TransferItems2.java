@@ -7,12 +7,14 @@ import nurgling.NUtils;
 import nurgling.areas.NContext;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
+import nurgling.tools.ItemVariants;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.TreeMap;
 import java.util.*;
+import java.util.function.Predicate;
 
 public class TransferItems2 implements Action
 {
@@ -113,7 +115,7 @@ public class TransferItems2 implements Action
             TreeMap<Double,String> areas = cnt.getOutAreas(item);
             if(areas != null) {
                 for (Double quality : areas.descendingKeySet()) {
-                    if (!getItemsExactMatch(item, quality).isEmpty()) {
+                    if (!getItemsExactMatch(cnt, item, quality).isEmpty()) {
                         String areaId = areas.get(quality);
                         ThresholdGroup group = thresholdGroups.computeIfAbsent(quality, ThresholdGroup::new);
                         group.itemsByArea.computeIfAbsent(areaId, k -> new ArrayList<>())
@@ -153,27 +155,33 @@ public class TransferItems2 implements Action
     private void processAreaTransfers(String areaId, List<ItemTransfer> itemsForArea, NGameUI gui) throws InterruptedException {
         for (ItemTransfer itemTransfer : itemsForArea) {
             ArrayList<NContext.ObjectStorage> storages = cnt.getOutStorages(itemTransfer.itemName, itemTransfer.quality);
+            // The routing name may be a kind key ("Butter (Cowsmilk)"); the inventory knows the game name
+            String name = ItemVariants.base(itemTransfer.itemName);
+            Predicate<NGItem> filter = kindFilter(cnt, itemTransfer.itemName);
             for (NContext.ObjectStorage output : storages) {
                 if (output instanceof NContext.Pile) {
-                    new TransferToPiles(cnt.getRCArea(areaId), itemTransfer.itemName,
-                        (int)itemTransfer.quality).run(gui);
+                    TransferToPiles ttp = new TransferToPiles(cnt.getRCArea(areaId), name,
+                        (int)itemTransfer.quality);
+                    ttp.filter = filter;
+                    ttp.run(gui);
                 }
                 if (output instanceof Container) {
                     TreeMap<Double,String> areas = cnt.getOutAreas(itemTransfer.itemName);
-                    TransferToContainer ttc = new TransferToContainer((Container) output, itemTransfer.itemName,
+                    TransferToContainer ttc = new TransferToContainer((Container) output, name,
                         (int)itemTransfer.quality);
                     ttc.needsSorting = areas != null && areas.size() > 1;
+                    ttc.filter = filter;
                     ttc.run(gui);
                 }
                 if (output instanceof NContext.Barrel) {
-                    if (getItemsExactMatch(itemTransfer.itemName, itemTransfer.quality).isEmpty())
+                    if (getItemsExactMatch(cnt, itemTransfer.itemName, itemTransfer.quality).isEmpty())
                         break;
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),
-                        itemTransfer.itemName).run(gui);
+                        name).run(gui);
                 }
                 if (output instanceof NContext.Barter) {
                     new TransferToBarter((NContext.Barter) output,
-                        new NAlias(itemTransfer.itemName), (int) itemTransfer.quality).run(gui);
+                        new NAlias(name), (int) itemTransfer.quality).run(gui);
                 }
             }
         }
@@ -207,15 +215,28 @@ public class TransferItems2 implements Action
      * Gets items from inventory with exact name match only.
      * This prevents substring matching issues where "Straw Hat" would match "Straw" area.
      */
-    private static ArrayList<WItem> getItemsExactMatch(String exactName, double quality) throws InterruptedException {
+    private static ArrayList<WItem> getItemsExactMatch(NContext cnt, String routeName, double quality) throws InterruptedException {
+        String exactName = ItemVariants.base(routeName);
+        Predicate<NGItem> filter = kindFilter(cnt, routeName);
         ArrayList<WItem> allItems = NUtils.getGameUI().getInventory().getItems(new NAlias(exactName), quality);
         ArrayList<WItem> exactMatches = new ArrayList<>();
         for (WItem witem : allItems) {
-            if (((NGItem) witem.item).name().equals(exactName)) {
+            if (((NGItem) witem.item).name().equals(exactName) && (filter == null || filter.test((NGItem) witem.item))) {
                 exactMatches.add(witem);
             }
         }
         return exactMatches;
+    }
+
+    /**
+     * For an item that comes in kinds, the copies routed under this name: a kind key takes its kind
+     * where an area wants it, and the plain name takes every kind that has no area of its own. Null
+     * for any other item.
+     */
+    private static Predicate<NGItem> kindFilter(NContext cnt, String routeName) {
+        if (!ItemVariants.has(ItemVariants.base(routeName)))
+            return null;
+        return item -> routeName.equals(cnt.outKey(item, item.quality != null ? item.quality : 1));
     }
 
 }

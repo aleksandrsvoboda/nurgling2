@@ -42,7 +42,8 @@ public final class CraftCategories {
 
     /** Whether an input name is a category input. */
     public static boolean has(String input) {
-        return input != null && (VSpec.categories.containsKey(input) || !members(input).isEmpty());
+        return input != null && (VSpec.categories.containsKey(input) || !members(input).isEmpty()
+                || !ItemVariants.craftOptions(input).isEmpty());
     }
 
     /** The options of a category input, or null when the name is not one. */
@@ -54,7 +55,8 @@ public final class CraftCategories {
             return ret;
         List<String> members = members(input);
         ArrayList<JSONObject> own = VSpec.categories.get(input);
-        if(own == null && members.isEmpty())
+        List<JSONObject> kinds = ItemVariants.craftOptions(input);
+        if(own == null && members.isEmpty() && kinds.isEmpty())
             return null;
         ret = (own == null) ? new ArrayList<>() : new ArrayList<>(own);
         Set<String> names = new HashSet<>(), icons = new HashSet<>();
@@ -79,6 +81,11 @@ public final class CraftCategories {
                 else
                     add(ret, icon.put("name", item), names, icons);
             }
+        }
+        /* Every kind of milk and of butter shares one icon, so these are told apart by name alone. */
+        for(JSONObject o : kinds) {
+            if(names.add(GenericTypes.norm(o.optString("name"))))
+                ret.add(o);
         }
         if(resolved)
             complete.put(input, ret);

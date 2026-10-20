@@ -17,6 +17,7 @@ import nurgling.tasks.WaitItems;
 import nurgling.tasks.WindowIsClosed;
 import nurgling.tools.Container;
 import nurgling.tools.Finder;
+import nurgling.tools.ItemVariants;
 import nurgling.tools.NAlias;
 import nurgling.tools.StackSupporter;
 import nurgling.widgets.Specialisation;
@@ -26,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 public class TakeItems2 implements Action
 {
@@ -171,9 +173,11 @@ public class TakeItems2 implements Action
              * chance to unload. */
             if(noRoomLeft(gui))
                 break;
-            if(input instanceof NContext.Barter)
+            /* One kind of an item (see ItemVariants) can only be picked out of a container: a pile
+             * or a barter stand hands over whatever copy it likes. */
+            if(input instanceof NContext.Barter && !ItemVariants.isKey(item))
                 takeFromBarter(left,gui, (NContext.Barter)input);
-            else if (input instanceof NContext.Pile)
+            else if (input instanceof NContext.Pile && !ItemVariants.isKey(item))
             {
                 takeFromPile(left, gui,(NContext.Pile) input);
             }
@@ -181,12 +185,13 @@ public class TakeItems2 implements Action
             {
                 takeFromContainer(left, gui, (Container) input);
             }
-            if(NUtils.getGameUI().getInventory().getItems(new NAlias(item)).size() >= count) {
+            int held = held(gui);
+            if(held >= count) {
                 return Results.SUCCESS();
             }
             else
             {
-                left.set(count - NUtils.getGameUI().getInventory().getItems(new NAlias(item)).size());
+                left.set(count - held);
             }
         }
         return Results.SUCCESS();
@@ -315,7 +320,7 @@ public class TakeItems2 implements Action
             return inv.getNumberFreeCoord(observedShape) <= 0;
         if(inv.getNumberFreeCoord(new Coord(1, 1)) > 0)
             return false;
-        return item == null || inv.findNotFullStack(item) == null;
+        return item == null || inv.findNotFullStack(ItemVariants.base(item)) == null;
     }
 
     public Results takeFromBarter(AtomicInteger left, NGameUI gui, NContext.Barter barter) throws InterruptedException
@@ -444,6 +449,28 @@ public class TakeItems2 implements Action
         return Results.SUCCESS();
     }
 
+    /** For a kind key ("Butter (Cowsmilk)"), the copies of that kind; null for any other item. */
+    private Predicate<NGItem> kindFilter()
+    {
+        return ItemVariants.isKey(item) ? (it -> ItemVariants.matches(it, item)) : null;
+    }
+
+    /** Copies of {@link #item} in the player's inventory, only its kind for a kind key. */
+    private int held(NGameUI gui) throws InterruptedException
+    {
+        ArrayList<WItem> items = gui.getInventory().getItems(new NAlias(ItemVariants.base(item)));
+        Predicate<NGItem> filter = kindFilter();
+        if(filter == null)
+            return items.size();
+        int n = 0;
+        for(WItem witem: items)
+        {
+            if(filter.test((NGItem) witem.item))
+                n++;
+        }
+        return n;
+    }
+
     public Results takeFromContainer(AtomicInteger left, NGameUI gui, Container cont) throws InterruptedException
     {
         if(depleted != null && cont.gobHash != null && depleted.contains(cont.gobHash))
@@ -456,7 +483,8 @@ public class TakeItems2 implements Action
             return Results.SUCCESS();
         new PathFinder(contgob).run(gui);
         new OpenTargetContainer(cont).run(gui);
-        TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont,new HashSet<>(Arrays.asList(item)), null, qualityType);
+        TakeItemsFromContainer tifc = new TakeItemsFromContainer(cont,new HashSet<>(Arrays.asList(ItemVariants.base(item))), null, qualityType);
+        tifc.filter = kindFilter();
         tifc.minSize = left.get();
         tifc.exactMatch = this.exactMatch;
         tifc.minQuality = this.minQuality;
@@ -485,8 +513,11 @@ public class TakeItems2 implements Action
         NInventory inv = gui.getInventory(cont.cap);
         if(inv == null || inv.parentGob == null || inv.parentGob.id != cont.gobid)
             return;
-        for(WItem witem: inv.getItems(new NAlias(item)))
+        Predicate<NGItem> filter = kindFilter();
+        for(WItem witem: inv.getItems(new NAlias(ItemVariants.base(item))))
         {
+            if(filter != null && !filter.test((NGItem) witem.item))
+                continue;
             if(minQuality == null)
                 return; // something is left and we would take it - still worth a visit
             Float quality = ((NGItem) witem.item).quality;

@@ -14,6 +14,7 @@ import nurgling.tools.NAlias;
 import nurgling.NGItem;
 import haven.WItem;
 import java.util.ArrayList;
+import java.util.function.Predicate;
 
 import static haven.OCache.posres;
 
@@ -25,6 +26,9 @@ public class PileMaker implements Action{
 
     // When set, use exact name matching instead of NAlias substring matching
     String exactName = null;
+
+    /** Optional: only inventory copies it accepts are piled, e.g. one kind of butter (see ItemVariants). */
+    public Predicate<NGItem> filter = null;
 
     public Gob getPile() {
         return pile;
@@ -84,12 +88,13 @@ public class PileMaker implements Action{
      */
     private ArrayList<WItem> getMatchingItems(NGameUI gui) throws InterruptedException {
         ArrayList<WItem> allItems = NUtils.getGameUI().getInventory().getItems(items, th);
-        if (exactName == null) {
+        if (exactName == null && filter == null) {
             return allItems;
         }
         ArrayList<WItem> exactMatches = new ArrayList<>();
         for (WItem witem : allItems) {
-            if (((NGItem) witem.item).name().equals(exactName)) {
+            if ((exactName == null || ((NGItem) witem.item).name().equals(exactName))
+                    && (filter == null || filter.test((NGItem) witem.item))) {
                 exactMatches.add(witem);
             }
         }
