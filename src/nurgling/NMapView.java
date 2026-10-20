@@ -96,7 +96,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private RenderTree.Slot gridWallSlot = null;
     private Set<Coord> gridWallLastCoords = null;
     private Color gridWallLastColor = null;
+    private Color gridDiagonalLastColor = null;
     private static final Color GRID_WALL_DEFAULT_COLOR = new Color(255, 140, 0, 217);
+    private static final Color GRID_DIAGONAL_DEFAULT_COLOR = new Color(0, 190, 255, 217);
 
     public NMapView(Coord sz, Glob glob, Coord2d cc, long plgob)
     {
@@ -1450,14 +1452,15 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /**
      * Reconciles the combined grid-wall overlay against currently loaded grids
-     * and the configured wall color. Builds one combined mesh, one draw call,
-     * dedupes shared edges between adjacent grids; rebuilds only when the grid
-     * set or color changes.
+     * and the configured wall and diagonal colors. Builds one combined mesh, one
+     * draw call, dedupes shared edges between adjacent grids; rebuilds only when
+     * the grid set, a color, or which layers are shown changes.
      */
     private void updateGridWalls()
     {
-        boolean enabled = (Boolean) NConfig.get(NConfig.Key.gridbox);
-        if (!enabled) {
+        boolean walls = (Boolean) NConfig.get(NConfig.Key.gridbox);
+        boolean diagonals = (Boolean) NConfig.get(NConfig.Key.gridDiagonals);
+        if (!walls && !diagonals) {
             if (gridWallSlot != null) {
                 clearGridWalls();
             }
@@ -1468,7 +1471,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         synchronized (glob.map.grids) {
             currentGridCoords = new HashSet<>(glob.map.grids.keySet());
         }
-        Color currentColor = NConfig.getColor(NConfig.Key.gridWallColor, GRID_WALL_DEFAULT_COLOR);
+        Color currentColor = walls ? NConfig.getColor(NConfig.Key.gridWallColor, GRID_WALL_DEFAULT_COLOR) : null;
+        Color currentDiagonalColor = diagonals ? NConfig.getColor(NConfig.Key.gridDiagonalColor, GRID_DIAGONAL_DEFAULT_COLOR) : null;
 
         // Only include grids whose corners have loaded terrain; the rest are
         // retried on later ticks as their data arrives.
@@ -1482,16 +1486,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         boolean needRebuild = (gridWallOverlay == null)
                 || gridWallLastCoords == null
                 || !readyCoords.equals(gridWallLastCoords)
-                || !currentColor.equals(gridWallLastColor);
+                || !Objects.equals(currentColor, gridWallLastColor)
+                || !Objects.equals(currentDiagonalColor, gridDiagonalLastColor);
 
         if (!needRebuild) return;
 
         if (gridWallOverlay == null) {
             gridWallOverlay = new NGridWallOverlay();
         }
-        gridWallOverlay.rebuild(glob.map, readyCoords, currentColor);
+        gridWallOverlay.rebuild(glob.map, readyCoords, currentColor, currentDiagonalColor);
         gridWallLastCoords = readyCoords;
         gridWallLastColor = currentColor;
+        gridDiagonalLastColor = currentDiagonalColor;
 
         if (gridWallSlot == null) {
             try {
@@ -1513,6 +1519,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         gridWallOverlay = null;
         gridWallLastCoords = null;
         gridWallLastColor = null;
+        gridDiagonalLastColor = null;
     }
 
     public void toggleol(String tag, boolean a)

@@ -22,6 +22,7 @@ public class World extends Panel {
         boolean showMoundBedRadius;
         boolean showDamageShields;
         boolean showGridWalls;
+        boolean showGridDiagonals;
         boolean persistentBarrelLabels;
         boolean disableTileSmoothing;
         boolean disableTileTransitions;
@@ -31,6 +32,7 @@ public class World extends Panel {
         Color boxEdgeColor = new Color(224, 193, 79, 255);
         int boxLineWidth = 4;
         Color gridWallColor = new Color(255, 140, 0, 217);
+        Color gridDiagonalColor = new Color(0, 190, 255, 217);
     }
 
     private final WorldSettings tempSettings = new WorldSettings();
@@ -43,12 +45,14 @@ public class World extends Panel {
     private CheckBox moundBedRadius;
     private CheckBox damageShields;
     private CheckBox gridWalls;
+    private CheckBox gridDiagonals;
     private CheckBox persistentBarrels;
     private CheckBox disableTileSmoothing;
     private CheckBox disableTileTransitions;
     private CheckBox disableCloudShadows;
     private CheckBox darkenDeepOcean;
     private NColorWidget gridWallColorWidget;
+    private NColorWidget gridDiagonalColorWidget;
     private NColorWidget fillColorWidget;
     private NColorWidget edgeColorWidget;
     private HSlider lineWidthSlider;
@@ -176,7 +180,18 @@ public class World extends Panel {
         gridWallColorWidget.color = tempSettings.gridWallColor;
 
         // -20 on x undoes the +20 indent applied to gridWallColorWidget above so
-        // subsequent widgets return to the normal Objects-section left margin.
+        // the next checkbox returns to the normal Objects-section left margin.
+        prev = gridDiagonals = content.add(new CheckBox(L10n.get("world.show_grid_diagonals")) {
+            public void set(boolean val) {
+                tempSettings.showGridDiagonals = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(-20, 5));
+
+        prev = gridDiagonalColorWidget = content.add(new NColorWidget(L10n.get("world.grid_diagonal_color")), prev.pos("bl").adds(20, 5));
+        gridDiagonalColorWidget.color = tempSettings.gridDiagonalColor;
+
+        // Same -20 for the gridDiagonalColorWidget indent.
         prev = persistentBarrels = content.add(new CheckBox(L10n.get("world.persistent_barrels")) {
             public void set(boolean val) {
                 tempSettings.persistentBarrelLabels = val;
@@ -233,6 +248,7 @@ public class World extends Panel {
         tempSettings.showMoundBedRadius = (Boolean) NConfig.get(NConfig.Key.showMoundBedRadius);
         tempSettings.showDamageShields = (Boolean) NConfig.get(NConfig.Key.showDamageShields);
         tempSettings.showGridWalls = (Boolean) NConfig.get(NConfig.Key.gridbox);
+        tempSettings.showGridDiagonals = (Boolean) NConfig.get(NConfig.Key.gridDiagonals);
         tempSettings.persistentBarrelLabels = (Boolean) NConfig.get(NConfig.Key.persistentBarrelLabels);
         tempSettings.disableTileSmoothing = (Boolean) NConfig.get(NConfig.Key.disableTileSmoothing);
         tempSettings.disableTileTransitions = (Boolean) NConfig.get(NConfig.Key.disableTileTransitions);
@@ -243,6 +259,7 @@ public class World extends Panel {
         tempSettings.boxFillColor = NConfig.getColor(NConfig.Key.boxFillColor, new Color(227, 28, 1, 195));
         tempSettings.boxEdgeColor = NConfig.getColor(NConfig.Key.boxEdgeColor, new Color(224, 193, 79, 255));
         tempSettings.gridWallColor = NConfig.getColor(NConfig.Key.gridWallColor, new Color(255, 140, 0, 217));
+        tempSettings.gridDiagonalColor = NConfig.getColor(NConfig.Key.gridDiagonalColor, new Color(0, 190, 255, 217));
         
         // Load line width
         Object lineWidthObj = NConfig.get(NConfig.Key.boxLineWidth);
@@ -259,6 +276,7 @@ public class World extends Panel {
         moundBedRadius.a = tempSettings.showMoundBedRadius;
         damageShields.a = tempSettings.showDamageShields;
         gridWalls.a = tempSettings.showGridWalls;
+        gridDiagonals.a = tempSettings.showGridDiagonals;
         persistentBarrels.a = tempSettings.persistentBarrelLabels;
         disableTileSmoothing.a = tempSettings.disableTileSmoothing;
         disableTileTransitions.a = tempSettings.disableTileTransitions;
@@ -267,6 +285,7 @@ public class World extends Panel {
         fillColorWidget.color = tempSettings.boxFillColor;
         edgeColorWidget.color = tempSettings.boxEdgeColor;
         gridWallColorWidget.color = tempSettings.gridWallColor;
+        gridDiagonalColorWidget.color = tempSettings.gridDiagonalColor;
         lineWidthSlider.val = tempSettings.boxLineWidth;
         lineWidthLabel.settext(L10n.get("world.line_width") + " " + tempSettings.boxLineWidth);
     }
@@ -286,6 +305,7 @@ public class World extends Panel {
         NConfig.set(NConfig.Key.showMoundBedRadius, tempSettings.showMoundBedRadius);
         NConfig.set(NConfig.Key.showDamageShields, tempSettings.showDamageShields);
         NConfig.set(NConfig.Key.gridbox, tempSettings.showGridWalls);
+        NConfig.set(NConfig.Key.gridDiagonals, tempSettings.showGridDiagonals);
 
         NConfig.set(NConfig.Key.persistentBarrelLabels, tempSettings.persistentBarrelLabels);
         
@@ -325,6 +345,8 @@ public class World extends Panel {
         NConfig.setColor(NConfig.Key.boxEdgeColor, tempSettings.boxEdgeColor);
         tempSettings.gridWallColor = gridWallColorWidget.color;
         NConfig.setColor(NConfig.Key.gridWallColor, tempSettings.gridWallColor);
+        tempSettings.gridDiagonalColor = gridDiagonalColorWidget.color;
+        NConfig.setColor(NConfig.Key.gridDiagonalColor, tempSettings.gridDiagonalColor);
         
         // Save line width setting
         NConfig.set(NConfig.Key.boxLineWidth, tempSettings.boxLineWidth);
