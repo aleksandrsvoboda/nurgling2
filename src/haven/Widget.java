@@ -767,8 +767,14 @@ public class Widget {
     public void tick(double dt) {
 	/* It would be very nice to do these things in harmless mix-in
 	 * classes, but alas, this is Java. */
-	anims.addAll(nanims);
-	nanims.clear();
+	/* nurgling: every widget ticks every frame and nearly none animate;
+	 * skip the empty LinkedList copy and iterator allocation. */
+	if(!nanims.isEmpty()) {
+	    anims.addAll(nanims);
+	    nanims.clear();
+	}
+	if(anims.isEmpty())
+	    return;
 	for(Iterator<Anim> i = anims.iterator(); i.hasNext();) {
 	    Anim anim = i.next();
 	    if(anim.tick(dt))

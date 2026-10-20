@@ -62,6 +62,7 @@ public class MiniMap extends Widget
     public Location sessloc;
     public GobIcon.Settings iconconf;
     public List<DisplayIcon> icons = Collections.emptyList();
+    private double nexticons = 0;
     protected Locator setloc;
     protected boolean follow;
     protected int zoomlevel = 0, maglevel = 1 << Utils.clip((int)Math.round(Math.log(UI.scale(1.0)) / Math.log(2)), 0, 3);
@@ -394,7 +395,17 @@ public class MiniMap extends Widget
 	    } catch(Loading l) {
 	    }
 	}
-	icons = findicons(icons);
+	/* nurgling: findicons walks every gob holding the OCache lock, every
+	 * frame, per minimap. Rebuild the icon list four times a second and
+	 * only move the icons in between. */
+	double now = Utils.rtime();
+	if(now >= nexticons) {
+	    nexticons = now + 0.25;
+	    icons = findicons(icons);
+	} else {
+	    for(DisplayIcon disp : icons)
+		disp.update(disp.gob.rc, disp.gob.a);
+	}
 	if(tvisible()) {
 	    Location loc = this.curloc;
 	    if(loc != null)

@@ -139,6 +139,13 @@ public class Applier {
 	FboState.set(null, this, ndbuf, nfvals, nfconf);
     }
 
+    /* nurgling: apply2 runs for every draw call; reuse its scratch arrays
+     * instead of allocating them each time (~11% of all allocation). Only
+     * the first pn/sn/un entries are meaningful, and ch is left all false. */
+    private int[] spdirty = new int[0], ssdirty = new int[0], sudirty = new int[0];
+    private ShaderMacro[] snshaders = new ShaderMacro[0];
+    private boolean[] sch = new boolean[0];
+
     private void apply2(BGL gl, State[] ns, Pipe to) {
 	if(this.cur.length < ns.length) {
 	    this.cur = Arrays.copyOf(this.cur, ns.length);
@@ -146,7 +153,7 @@ public class Applier {
 	}
 	State[] cur = this.cur;
 	ShaderMacro[] shaders = this.shaders;
-	int[] pdirty = new int[cur.length];
+	int[] pdirty = (spdirty.length >= cur.length) ? spdirty : (spdirty = new int[cur.length]);
 	int pn = 0;
 	{
 	    int i = 0;
@@ -162,8 +169,8 @@ public class Applier {
 	if(pn == 0)
 	    return;
 	int shash = this.shash;
-	int[] sdirty = new int[cur.length];
-	ShaderMacro[] nshaders = new ShaderMacro[cur.length];
+	int[] sdirty = (ssdirty.length >= cur.length) ? ssdirty : (ssdirty = new int[cur.length]);
+	ShaderMacro[] nshaders = (snshaders.length >= cur.length) ? snshaders : (snshaders = new ShaderMacro[cur.length]);
 	int sn = 0;
 	for(int i = 0; i < pn; i++) {
 	    int slot = pdirty[i];
@@ -183,11 +190,12 @@ public class Applier {
 		gshaders[sdirty[i]] = nshaders[i];
 	    prog = env.getprog(shash, gshaders);
 	}
-	int[] udirty = new int[prog.uniforms.length];
+	int nu = prog.uniforms.length;
+	int[] udirty = (sudirty.length >= nu) ? sudirty : (sudirty = new int[nu]);
 	int un = 0;
 	boolean fdirty = false;
 	if(prog == this.prog) {
-	    boolean[] ch = new boolean[prog.uniforms.length];
+	    boolean[] ch = (sch.length >= nu) ? sch : (sch = new boolean[nu]);
 	    for(int i = 0; i < pn; i++) {
 		if((prog.umap.length > pdirty[i]) && (prog.umap[pdirty[i]] != null)) {
 		    for(int ui : prog.umap[pdirty[i]]) {
@@ -200,9 +208,11 @@ public class Applier {
 		if((prog.fmap.length > pdirty[i]) && prog.fmap[pdirty[i]])
 		    fdirty = true;
 	    }
+	    for(int i = 0; i < un; i++)
+		ch[udirty[i]] = false;
 	} else {
-	    un = udirty.length;
-	    for(int i = 0; i < udirty.length; i++)
+	    un = nu;
+	    for(int i = 0; i < nu; i++)
 		udirty[i] = i;
 	    if(((prog == null) != (this.prog == null)) || (prog.fragdata.length != this.prog.fragdata.length))
 		fdirty = true;

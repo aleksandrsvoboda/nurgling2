@@ -52,8 +52,14 @@ public class NCompass extends Widget {
         pointers.remove(pointer);
         if(selected == pointer) selected = null;
     }
+    /* The options screen writes the preference; it is a registry read on
+     * Windows, so pick up changes once a second rather than every frame. */
+    private double nextPrefCheck = 0;
     @Override public void tick(double dt) {
         super.tick(dt);
+        double now = Utils.rtime();
+        if(now < nextPrefCheck) return;
+        nextPrefCheck = now + 1;
         boolean preference = Utils.getprefb("navigation-compass", true);
         if(preference != enabled) { enabled = preference; show(enabled && !nurgling.render.Photo.on); }
     }
