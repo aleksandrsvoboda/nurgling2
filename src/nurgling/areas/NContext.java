@@ -3,9 +3,13 @@ package nurgling.areas;
 import haven.*;
 import nurgling.*;
 import nurgling.actions.bots.SelectArea;
+import nurgling.actions.CloseTargetContainer;
+import nurgling.actions.OpenTargetContainer;
+import nurgling.actions.PathFinder;
 import nurgling.navigation.AreaNavigationHelper;
 import nurgling.navigation.ChunkNavManager;
 import nurgling.navigation.ChunkPath;
+import nurgling.tasks.NTask;
 import nurgling.tools.*;
 import nurgling.tools.Container;
 import nurgling.widgets.Specialisation;
@@ -265,9 +269,10 @@ public class NContext {
         }
         String areaid = barrels.get(item);
         navigateToAreaIfNeeded(areaid);
+        String liquid = ItemVariants.liquidOf(item);
         for(Gob gob: Finder.findGobs(areas.get(areaid), new NAlias("barrel")))
         {
-            if(NUtils.barrelHasContent(gob))
+            if(NUtils.barrelHasContent(gob) && (liquid == null || barrelHolds(gob, liquid)))
             {
                 barrelstorage.put(item,new BarrelStorage(new NGlobalCoord(gob.rc), NUtils.getContentsOfBarrel(gob)));
                 return gob;
@@ -275,6 +280,26 @@ public class NContext {
         }
         return null;
 
+    }
+
+    /**
+     * Whether a barrel holds exactly this liquid. Every kind of milk shows the same barrel-milk
+     * overlay, so the kind is read from the barrel's window.
+     */
+    private boolean barrelHolds(Gob barrel, String liquid) throws InterruptedException {
+        new PathFinder(barrel).run(gui);
+        if(!new OpenTargetContainer("Barrel", barrel).run(gui).IsSuccess())
+            return false;
+        LiquidContent[] content = new LiquidContent[1];
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                Window wnd = gui.getWindow("Barrel");
+                return wnd != null && (content[0] = LiquidContent.read(wnd)) != null;
+            }
+        });
+        new CloseTargetContainer("Barrel").run(gui);
+        return liquid.equals(content[0].name);
     }
 
 
@@ -718,6 +743,9 @@ public class NContext {
             NArea area = areas.get(id);
             if(area != null) {
                 NArea.Ingredient ingredient = area.getInput(item);
+                if(ingredient == null && ItemVariants.isKey(item)) {
+                    ingredient = area.getInput(ItemVariants.base(item));
+                }
                 if(ingredient != null) {
                     switch (ingredient.type) {
                     case BARTER:
@@ -1051,6 +1079,14 @@ public class NContext {
         if (area == null) {
             area = findInGlobal(name);
         }
+        /* One kind of butter can also come out of a plain "Butter" area: TakeItems2 picks that kind. */
+        if (area == null && ItemVariants.isKey(name)) {
+            String base = ItemVariants.base(name);
+            area = findIn(base);
+            if (area == null) {
+                area = findInGlobal(base);
+            }
+        }
         if(area!=null)
         {
             areas.put(String.valueOf(area.id),area);
@@ -1082,6 +1118,26 @@ public class NContext {
             return true;
         }
         return false;
+    }
+
+    /**
+     * The name an inventory item is put away under: its kind key ("Butter (Cowsmilk)") when a PUT
+     * area takes that kind at this quality, otherwise its game name, which a plain "Butter" area
+     * takes in any kind. An item whose kind is not read yet goes by its game name too, so callers
+     * wait for {@link ItemVariants#anyUnread} first. The lookup per key is made once per context.
+     */
+    public String outKey(NGItem item, double q) {
+        String key = ItemVariants.keyOf(item);
+        if(key != null) {
+            TreeMap<Double,String> thmap = outAreas.get(key);
+            if(thmap == null) {
+                outAreas.put(key, thmap = new TreeMap<>());
+                resolveOutAreas(key, thmap);
+            }
+            if(thmap.floorEntry(q) != null)
+                return key;
+        }
+        return item.name();
     }
 
     /**

@@ -7,6 +7,7 @@ import nurgling.NUtils;
 import nurgling.areas.NContext;
 import nurgling.tasks.GetItems;
 import nurgling.tasks.NTask;
+import nurgling.tools.ItemVariants;
 import nurgling.widgets.DropContainer;
 
 import java.util.ArrayList;
@@ -72,10 +73,17 @@ public class FreeInventory2 implements Action
                 return Float.compare(q2,q1);
             }
         });
+        // A butter goes to its own kind's area, so its kind must be read before it is routed
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                return !ItemVariants.anyUnread(items);
+            }
+        });
         for(WItem item : items)
         {
-            String name = ((NGItem)item.item).name();
             double quality = ((NGItem)item.item).quality!=null?((NGItem)item.item).quality:1;
+            String name = context.outKey((NGItem)item.item, quality);
             if(context.addOutItem(name, null, quality)) {
                 targets.add(name);
             } else {

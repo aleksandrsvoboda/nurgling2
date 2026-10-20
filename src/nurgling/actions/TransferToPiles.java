@@ -12,6 +12,7 @@ import nurgling.tools.StackSupporter;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.function.Predicate;
 
 public class TransferToPiles implements Action{
 
@@ -23,6 +24,9 @@ public class TransferToPiles implements Action{
 
     // When set, use exact name matching instead of NAlias substring matching
     String exactName = null;
+
+    /** Optional: only inventory copies it accepts are piled, e.g. one kind of butter (see ItemVariants). */
+    public Predicate<NGItem> filter = null;
 
     public TransferToPiles(Pair<Coord2d,Coord2d> out, NAlias items) {
         this.out = out;
@@ -86,6 +90,7 @@ public class TransferToPiles implements Action{
                     } else {
                         pm = new PileMaker(out, items, pileName, th);
                     }
+                    pm.filter = filter;
                     if(!pm.run(gui).IsSuccess())
                         return Results.FAIL();
                     Gob pile = pm.getPile();
@@ -111,7 +116,8 @@ public class TransferToPiles implements Action{
         ArrayList<WItem> witems;
         NUtils.addTask(new WaitStockpile(true));
         int fullSize = gui.getInventory().getItems().size();
-        if(th>1 || sameCategoryItemPresent(gui)) {
+        // Stockpile.put() lets the server pick which copies go: a filtered load goes one at a time
+        if(th>1 || filter != null || sameCategoryItemPresent(gui)) {
             for (int i = 0; i < target_size; i++) {
                 {
                     witems = getMatchingItems(gui);
@@ -201,12 +207,13 @@ public class TransferToPiles implements Action{
      */
     private ArrayList<WItem> getMatchingItems(NGameUI gui) throws InterruptedException {
         ArrayList<WItem> allItems = gui.getInventory().getItems(items, th);
-        if (exactName == null) {
+        if (exactName == null && filter == null) {
             return allItems;
         }
         ArrayList<WItem> exactMatches = new ArrayList<>();
         for (WItem witem : allItems) {
-            if (((NGItem) witem.item).name().equals(exactName)) {
+            if ((exactName == null || ((NGItem) witem.item).name().equals(exactName))
+                    && (filter == null || filter.test((NGItem) witem.item))) {
                 exactMatches.add(witem);
             }
         }

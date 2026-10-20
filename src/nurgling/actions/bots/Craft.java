@@ -166,7 +166,8 @@ public class Craft implements Action {
                 if (!s.categories) {
                     if(!ncontext.isInBarrel(s.name))
                         size += s.count;
-                    ncontext.addOutItem(s.name, ItemTex.create(ItemTex.save(s.spr)), 1);
+                    // Butter put away by kind needs no plain "Butter" area to be drawn
+                    ncontext.addOutItem(s.name, hasKindOutArea(ncontext, s.name) ? null : ItemTex.create(ItemTex.save(s.spr)), 1);
                 } else if (s.ing != null) {
                     if(!ncontext.isInBarrel(s.ing.name))
                         size += s.count;
@@ -314,6 +315,12 @@ public class Craft implements Action {
                 }
             } else if (!prefilled) {
                 // В режиме prefilled ингредиенты уже в инвентаре, пропускаем TakeItems2
+                if (ItemVariants.isKey(item)) {
+                    Results cleared = clearOtherKinds(ncontext, gui, item);
+                    if (!cleared.IsSuccess()) {
+                        return cleared;
+                    }
+                }
                 if (fromStorage.contains(item)) {
                     if (!new TakeFromStorageIndex(storage, item, s.count * for_craft).run(gui).IsSuccess()) {
                         return Results.ERROR("Failed to take items from storage: " + item);
@@ -354,7 +361,7 @@ public class Craft implements Action {
             
             String item = s.ing == null ? s.name : s.ing.name;
             if (ncontext.isInBarrel(item)) {
-                double val = gui.findBarrelContent(windows, new NAlias(item));
+                double val = barrelAmount(gui, windows, item);
                 
                 // Handle case when barrel content not found (-1 means not found)
                 if (val < 0) {
@@ -599,17 +606,21 @@ public class Craft implements Action {
                 
                 if (ncontext.isInBarrel(itemName)) {
                     // Check barrel content
-                    double val = gui.findBarrelContent(barrelWindows, new NAlias(itemName));
+                    double val = barrelAmount(gui, barrelWindows, itemName);
                     if (val < 0 || val * 100 < required) {
                         return false;
                     }
                 } else {
                     // Check inventory
-                    ArrayList<WItem> items = gui.getInventory().getItems(new NAlias(itemName));
+                    ArrayList<WItem> items = gui.getInventory().getItems(new NAlias(ItemVariants.base(itemName)));
                     int available = 0;
                     for (WItem item : items) {
                         // Storage inputs are matched by exact name: "Flax" must not count "Flax Fibres"
                         if (fromStorage.contains(itemName) && !itemName.equals(((NGItem) item.item).name())) {
+                            continue;
+                        }
+                        // One kind of butter counts only that kind
+                        if (ItemVariants.isKey(itemName) && !ItemVariants.matches((NGItem) item.item, itemName)) {
                             continue;
                         }
                         available += getActualItemCount(item);
@@ -679,6 +690,72 @@ public class Craft implements Action {
             }
         }
         return ids;
+    }
+
+    /**
+     * Litres of an input in the open barrels. A kind of milk must be exactly that liquid: a plain
+     * name match would let "Milk" stand for every kind.
+     */
+    private static double barrelAmount(NGameUI gui, ArrayList<Window> windows, String item) {
+        String liquid = ItemVariants.liquidOf(item);
+        if (liquid == null) {
+            return gui.findBarrelContent(windows, new NAlias(item));
+        }
+        for (Window wnd : windows) {
+            LiquidContent content = LiquidContent.read(wnd);
+            if (content != null && liquid.equals(content.name)) {
+                return content.amount;
+            }
+        }
+        return -1;
+    }
+
+    /** Whether an output that comes in kinds has a PUT area for any of its kinds. */
+    private static boolean hasKindOutArea(NContext ncontext, String name) throws InterruptedException {
+        for (String key : ItemVariants.keys(name)) {
+            if (ncontext.addOutItem(key, null, 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The server picks which butter in the inventory a recipe uses, so before one kind is fetched
+     * every other kind is put away. Fails when one has no area to go to.
+     */
+    private Results clearOtherKinds(NContext ncontext, NGameUI gui, String key) throws InterruptedException {
+        String name = ItemVariants.base(key);
+        ArrayList<WItem> held = gui.getInventory().getItems(new NAlias(name));
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                return !ItemVariants.anyUnread(held);
+            }
+        });
+        HashSet<String> targets = new HashSet<>();
+        for (WItem witem : held) {
+            NGItem item = (NGItem) witem.item;
+            if (name.equals(item.name()) && !ItemVariants.matches(item, key)) {
+                double q = item.quality != null ? item.quality : 1;
+                String route = ncontext.outKey(item, q);
+                if (ncontext.addOutItem(route, null, q)) {
+                    targets.add(route);
+                }
+            }
+        }
+        if (!targets.isEmpty()) {
+            new TransferItems2(ncontext, targets).run(gui);
+        }
+        for (WItem witem : gui.getInventory().getItems(new NAlias(name))) {
+            NGItem item = (NGItem) witem.item;
+            if (name.equals(item.name()) && !ItemVariants.matches(item, key)) {
+                String kind = ItemVariants.keyOf(item);
+                return Results.ERROR("The inventory holds " + (kind != null ? ItemVariants.describe(kind) : name)
+                        + " with no area to put it in; it would go into the craft instead of " + ItemVariants.describe(key));
+            }
+        }
+        return Results.SUCCESS();
     }
 
     private void selectIngredientFromCategory(NMakewindow.Spec spec) {
@@ -936,7 +1013,7 @@ public class Craft implements Action {
             }
             
             int itemsNeeded = s.count * numCrafts;
-            int stackSize = StackSupporter.getFullStackSize(itemName);
+            int stackSize = StackSupporter.getFullStackSize(ItemVariants.base(itemName));
             
             // Calculate slots needed: ceil(itemsNeeded / stackSize)
             int slotsForItem = (itemsNeeded + stackSize - 1) / stackSize;
