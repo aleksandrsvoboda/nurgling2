@@ -1937,6 +1937,12 @@ public class NConfig
             // No password: log in with the token saved for this user. No scenario: walkSeconds may say to walk around instead.
             botmod = new NCore.BotmodSettings((String) jsonObject.get("user"), jsonObject.optString("password", null), (String) jsonObject.get("character"), jsonObject.has("scenarioId") ? jsonObject.getInt("scenarioId") : null);
             botmod.walkSeconds = jsonObject.optInt("walkSeconds", 0);
+            org.json.JSONArray route = jsonObject.optJSONArray("route");
+            if (route != null) {
+                botmod.walkRoute = new int[route.length()];
+                for (int i = 0; i < route.length(); i++)
+                    botmod.walkRoute[i] = route.getInt(i);
+            }
 
             // Set stack trace file if provided (for autorunner debugging)
             if (jsonObject.has("stackTraceFile")) {
