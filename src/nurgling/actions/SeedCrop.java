@@ -383,6 +383,13 @@ public class SeedCrop implements Action {
         int useX = useRotated ? patY : patX;
         int useY = useRotated ? patX : patY;
 
+        // Bail out before touching the container: seeds taken out now would be left in
+        // the inventory with the container still open.
+        if (patches.isEmpty()) {
+            gui.msg("No empty patch of " + useX + "x" + useY + " found for quality seeding!");
+            return;
+        }
+
         // 2. Find all containers in the seed area (chests, cupboards, etc)
         ArrayList<Container> containers = new ArrayList<>();
         for (Gob sm : Finder.findGobs(seed.getRCArea(), new NAlias(new ArrayList<>(nurgling.areas.NContext.contcaps.keySet())))) {
@@ -413,10 +420,6 @@ public class SeedCrop implements Action {
         new TakeAvailableItemsFromContainer(container, iseed, fetchCount, NInventory.QualityType.High).run(gui);
 
         ArrayList<Coord> toSeed = nearestPatch(patches, NUtils.getGameUI().map.player().rc);
-        if (toSeed == null) {
-            gui.msg("No empty patch of " + useX + "x" + useY + " found for quality seeding!");
-            return;
-        }
 
         List<WItem> plantingOrder = getPlantingOrder(NUtils.getGameUI().getInventory().getItems(iseed), toSeed.size());
 
