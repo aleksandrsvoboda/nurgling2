@@ -115,6 +115,7 @@ public class NConfig
         autoDrink,
         autoSaveTableware,
         chipperprop,
+        drinkerprop,
         animalrad,
         smokeprop,
         worldexplorerprop,
@@ -1286,6 +1287,9 @@ public class NConfig
                                 break;
                             case "NChipperProp":
                                 res.add(new NChipperProp(obj));
+                                break;
+                            case "NDrinkerProp":
+                                res.add(new NDrinkerProp(obj));
                                 break;
                             case "NPrepBProp":
                                 res.add(new NPrepBlocksProp(obj));

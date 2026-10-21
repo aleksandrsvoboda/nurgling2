@@ -6,6 +6,8 @@ import nurgling.areas.NArea;
 import nurgling.actions.bots.SetSpeedBot;
 import nurgling.actions.bots.WaitBot;
 import nurgling.actions.bots.areamover.AreaMoverBot;
+import nurgling.actions.bots.drinker.DrinkerBot;
+import nurgling.actions.bots.drinker.Vessels;
 import nurgling.actions.bots.blueprint.BlueprintBuilder;
 import nurgling.planning.PlanningFolder;
 import nurgling.planning.PlanningNode;
@@ -648,6 +650,50 @@ public class StepSettingsPanel extends Widget {
 
             add(targetEntry, new Coord(UI.scale(8), y));
             y += UI.scale(30);
+        }
+        if (desc.id.equals("drinker")) {
+            hasAnySetting = true;
+            add(new Label("Cup and sips per drink (0 = skip):"), new Coord(UI.scale(8), y));
+            y += UI.scale(24);
+            List<String> cupNames = new ArrayList<>();
+            for (Vessels.Cup c : Vessels.CUPS)
+                cupNames.add(c.name);
+            for (Vessels.Drink d : Vessels.DRINKS) {
+                String sipsKey = DrinkerBot.SETTING_PREFIX + d.name;
+                String cupKey = DrinkerBot.CUP_PREFIX + d.name;
+                Object current = step.getSetting(sipsKey);
+                int sips = current instanceof Number ? ((Number) current).intValue() : 0;
+                step.setSetting(sipsKey, sips);
+                Object currentCup = step.getSetting(cupKey);
+                String cup = currentCup instanceof String && Vessels.isCup((String) currentCup) ? (String) currentCup : d.cup;
+                step.setSetting(cupKey, cup);
+                add(new Label(d.name), new Coord(UI.scale(8), y + UI.scale(3)));
+                Dropbox<String> cupBox = add(new Dropbox<String>(UI.scale(150), cupNames.size(), UI.scale(16)) {
+                    @Override
+                    protected String listitem(int i) { return cupNames.get(i); }
+                    @Override
+                    protected int listitems() { return cupNames.size(); }
+                    @Override
+                    protected void drawitem(GOut g, String item, int i) { g.text(item, Coord.z); }
+                    @Override
+                    public void change(String item) {
+                        super.change(item);
+                        step.setSetting(cupKey, item);
+                    }
+                }, new Coord(UI.scale(90), y));
+                cupBox.sel = cup;
+                add(new TextEntry(UI.scale(50), String.valueOf(sips)) {
+                    @Override
+                    protected void changed() {
+                        try {
+                            step.setSetting(sipsKey, Math.max(0, Integer.parseInt(text().trim())));
+                        } catch (NumberFormatException e) {
+                            // Ignore invalid input
+                        }
+                    }
+                }, new Coord(UI.scale(250), y));
+                y += UI.scale(24);
+            }
         }
         if (desc.id.equals("area_mover")) {
             hasAnySetting = true;

@@ -1,5 +1,6 @@
 package nurgling.tools;
 
+import nurgling.actions.bots.drinker.Vessels;
 import nurgling.NStyle;
 import org.json.JSONObject;
 
@@ -1464,6 +1465,17 @@ public class VSpec {
         ArrayList<JSONObject> wine = new ArrayList<>();
         wine.add(new JSONObject("{\"static\":\"gfx/invobjs/wine\",\"name\":\"Wine\"}"));
         categories.put("Wine", wine);
+
+        // Everything the Drinker bot can drink, and every cup it can drink from.
+        ArrayList<JSONObject> drinks = new ArrayList<>();
+        for (Vessels.Drink d : Vessels.DRINKS)
+            drinks.add(new JSONObject().put("static", d.res).put("name", d.name));
+        categories.put("Drinks", drinks);
+
+        ArrayList<JSONObject> vessels = new ArrayList<>();
+        for (Vessels.Cup c : Vessels.CUPS)
+            vessels.add(new JSONObject().put("static", c.res).put("name", c.name));
+        categories.put("Drinking Vessels", vessels);
 
         ArrayList<JSONObject> batter = new ArrayList<>();
         batter.add(new JSONObject("{\"static\":\"gfx/invobjs/batter\",\"name\":\"Batter\"}"));

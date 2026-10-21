@@ -1,5 +1,6 @@
 package nurgling.widgets;
 
+import nurgling.actions.bots.drinker.Vessels;
 import haven.*;
 import haven.Button;
 import haven.Scrollbar;
@@ -182,8 +183,9 @@ public class IngredientContainer extends BaseIngredientContainer {
             }
             if(!find) {
                 res.put("name", name);
-                // A kind of milk only ever comes in a barrel
-                res.put("type", (ItemVariants.liquidOf(name) != null ? NArea.Ingredient.Type.BARREL : NArea.Ingredient.Type.CONTAINER).toString());
+                // A kind of milk, or a drink, only ever comes in a barrel
+                boolean liquid = ItemVariants.liquidOf(name) != null || Vessels.isDrink(name);
+                res.put("type", (liquid ? NArea.Ingredient.Type.BARREL : NArea.Ingredient.Type.CONTAINER).toString());
                 addIcon(res);
                 data.put(res);
                 
