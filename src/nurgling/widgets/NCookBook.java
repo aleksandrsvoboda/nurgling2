@@ -31,6 +31,7 @@ import nurgling.widgets.cookbook.PillButton;
 import nurgling.widgets.cookbook.Popover;
 import nurgling.widgets.cookbook.RecipeTable;
 import nurgling.widgets.cookbook.SpicePanel;
+import nurgling.widgets.cookbook.TryUntriedWnd;
 import nurgling.widgets.cookbook.VariationsPanel;
 import nurgling.widgets.storage.VillageStorage;
 
@@ -86,6 +87,7 @@ public class NCookBook extends Window implements RecipeTable.Actions {
     private String variationsOf = null;
     /* Set by a finished Try untried variations bot, from its thread: what it crafted is recorded now. */
     private volatile boolean reloadAfterBot = false;
+    private TryUntriedWnd tryWnd = null;
     private String loadError = null;
     private boolean loadedOnce = false;
     private boolean posRestored = false;
@@ -477,13 +479,40 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         return null;
     }
 
-    /* Crafts the shown food once per untried option of one ingredient choice, in a bot. */
+    /* Sets up crafting the shown food once per untried option of one ingredient choice. */
     private void tryUntried(String slot) {
         NGameUI gui = getparent(NGameUI.class);
         if((gui == null) || (variations == null) || (variationsOf == null))
             return;
-        BotExecutor.runAsync("Try untried variations", new TryUntriedVariations(variationsOf, slot,
-                variations.craftNames(variationsOf), VillageStorage.snapshot(gui), () -> reloadAfterBot = true));
+        if(tryWnd != null)
+            tryWnd.reqdestroy();
+        String dish = variationsOf;
+        Variations v = variations;
+        Set<String> have = stored;
+        tryWnd = gui.add(new TryUntriedWnd(v.of(dish), slot, o -> stocked(v, o, have), picks -> {
+            NGameUI g = getparent(NGameUI.class);
+            if(g != null)
+                BotExecutor.runAsync("Try untried variations", new TryUntriedVariations(dish, slot, picks,
+                        v.craftNames(dish), VillageStorage.snapshot(g), () -> reloadAfterBot = true));
+        }) {
+            @Override
+            public void destroy() {
+                tryWnd = null;
+                super.destroy();
+            }
+        });
+        tryWnd.c = gui.sz.sub(tryWnd.sz).div(2);
+    }
+
+    /* Whether the village's storage holds an option; a tried one goes by the names its ingredient is stored under. */
+    private static boolean stocked(Variations v, Variations.Option o, Set<String> have) {
+        if(o.stocked(have))
+            return true;
+        for(String n : v.itemNames(o.name)) {
+            if(have.contains(GenericTypes.stockKey(n)))
+                return true;
+        }
+        return false;
     }
 
     /* ---- selecting the clicked recipe's ingredients in its crafting window ---- */

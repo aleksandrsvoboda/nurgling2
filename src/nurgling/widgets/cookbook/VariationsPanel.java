@@ -17,8 +17,8 @@ import java.util.function.Consumer;
 /**
  * The untried variations of one food, docked at the right of the cookbook: for every ingredient
  * choice that changes its FEPs, a bar of how many options were tried, the untried options as icon
- * chips, and the tried ones in a dimmed line. The body scrolls with the wheel. Clicking a choice's
- * heading picks it to vary; the footer then offers to craft the food once per untried option.
+ * chips, and the tried ones in a dimmed line. The body scrolls with the wheel. Each choice with
+ * untried options in storage has a "Vary this" button, which sets up crafting the food once per option.
  */
 public class VariationsPanel extends Widget {
     public static final int WIDTH = UI.scale(360);
@@ -31,18 +31,15 @@ public class VariationsPanel extends Widget {
 
     private final CText title;
     private final IButton close;
-    private final CText hint;
-    private final PillButton craft;
-    private final Consumer<String> onCraft;
-    /* The title of the choice picked to vary, or null. */
-    private String varied = null;
+    private final Consumer<String> onVary;
     private Variations.Dish dish = null;
     private String why = "";
     private Set<String> stored = Collections.emptySet();
     private final List<Text> texts = new ArrayList<>();
     private final List<Chip> chips = new ArrayList<>();
     private final List<Bar> bars = new ArrayList<>();
-    private final List<Head> heads = new ArrayList<>();
+    private final List<VaryButton> varyButtons = new ArrayList<>();
+    private VaryButton hovered = null;
     private int laidOutW = -1, contentH = 0, scroll = 0;
 
     private static final class Text {
@@ -67,13 +64,15 @@ public class VariationsPanel extends Widget {
         }
     }
 
-    /* A choice's heading, clickable to vary it. */
-    private static final class Head {
+    /* A choice's "Vary this" button, drawn in the scrolled body. */
+    private static final class VaryButton {
         final Variations.Slot slot;
+        final Tex label;
         final Coord c, sz;
 
-        Head(Variations.Slot slot, Coord c, Coord sz) {
+        VaryButton(Variations.Slot slot, Tex label, Coord c, Coord sz) {
             this.slot = slot;
+            this.label = label;
             this.c = c;
             this.sz = sz;
         }
@@ -92,16 +91,13 @@ public class VariationsPanel extends Widget {
         }
     }
 
-    /** @param onCraft starts crafting the untried options of the choice with this title */
-    public VariationsPanel(Runnable onClose, Consumer<String> onCraft) {
+    /** @param onVary sets up crafting the untried options of the choice with this title */
+    public VariationsPanel(Runnable onClose, Consumer<String> onVary) {
         super(Coord.of(WIDTH, UI.scale(200)));
-        this.onCraft = onCraft;
+        this.onVary = onVary;
         title = add(new CText(CookbookTheme.bold, CookbookTheme.fg), Coord.of(PAD, PAD));
         /* The windows' own close button: Open Sans has no "✕", so a text one drew nothing to click. */
         close = add(new NCloseButton(NStyle.cbtni[0], NStyle.cbtni[1], NStyle.cbtni[2]), Coord.z).action(onClose);
-        hint = add(new CText(CookbookTheme.small, CookbookTheme.muted), Coord.z);
-        craft = add(new PillButton(L10n.get("cookbook.var.craft"), false, this::craftVaried), Coord.z);
-        craft.settip(L10n.get("cookbook.var.craft_tip"));
         hide();
     }
 
@@ -111,20 +107,8 @@ public class VariationsPanel extends Widget {
         this.dish = dish;
         this.why = why;
         title.set((dish == null) ? L10n.get("cookbook.var.menu") : dish.name + " · " + L10n.get("cookbook.var.title"));
-        if((dish == null) || (slot(varied) == null))
-            varied = null;
         scroll = 0;
         laidOutW = -1;
-    }
-
-    private Variations.Slot slot(String title) {
-        if((dish == null) || (title == null))
-            return null;
-        for(Variations.Slot s : dish.slots) {
-            if(title.equals(s.title))
-                return s;
-        }
-        return null;
     }
 
     /* How many crafts varying a choice would take: its untried options in storage, and going without it. */
@@ -135,41 +119,6 @@ public class VariationsPanel extends Widget {
                 n++;
         }
         return n;
-    }
-
-    private void craftVaried() {
-        Variations.Slot s = slot(varied);
-        if((s != null) && (crafts(s) > 0))
-            onCraft.accept(s.title);
-    }
-
-    /* The footer: what to do to vary a choice, or the button that does it. */
-    private void footer() {
-        Variations.Slot s = slot(varied);
-        boolean any = false;
-        if(dish != null) {
-            for(Variations.Slot o : dish.slots)
-                any |= !o.wood();
-        }
-        int n = (s != null) ? crafts(s) : 0;
-        craft.show(n > 0);
-        craft.suffix((n > 0) ? s.title + " ×" + n : "");
-        if(!any)
-            hint.set("");
-        else if(s == null)
-            hint.set(L10n.get("cookbook.var.pick"));
-        else if(n == 0)
-            hint.set(L10n.get("cookbook.var.craft_none", s.title));
-        else
-            hint.set("");
-        hint.show(!hint.text().isEmpty());
-        int fy = sz.y - PAD - craft.sz.y;
-        craft.move(Coord.of(PAD, fy));
-        hint.move(Coord.of(PAD, fy + (craft.sz.y - hint.sz.y) / 2));
-    }
-
-    private boolean hasFooter() {
-        return craft.visible || hint.visible;
     }
 
     @Override
@@ -188,11 +137,11 @@ public class VariationsPanel extends Widget {
             return;
         laidOutW = w;
         close.move(Coord.of(sz.x - PAD - close.sz.x, PAD));
-        footer();
         texts.clear();
         chips.clear();
         bars.clear();
-        heads.clear();
+        varyButtons.clear();
+        hovered = null;
         int y = 0;
         if(dish == null) {
             y = para(why, CookbookTheme.muted, y, w);
@@ -220,12 +169,8 @@ public class VariationsPanel extends Widget {
             head.append(" ×").append((int)s.count);
         Tex count = CookbookTheme.render(CookbookTheme.small, L10n.get("cookbook.var.tried", String.valueOf(s.tried()), String.valueOf(s.options.size())), CookbookTheme.muted);
         texts.add(new Text(count, Coord.of(w - count.sz().x, y + UI.scale(2))));
-        boolean picked = (s.title != null) && s.title.equals(varied);
-        Tex name = CookbookTheme.render(CookbookTheme.bold, CookbookTheme.ellipsize(CookbookTheme.bold, head.toString(), w - count.sz().x - UI.scale(8)),
-                picked ? CookbookTheme.accent : CookbookTheme.fg);
+        Tex name = CookbookTheme.render(CookbookTheme.bold, CookbookTheme.ellipsize(CookbookTheme.bold, head.toString(), w - count.sz().x - UI.scale(8)), CookbookTheme.fg);
         texts.add(new Text(name, Coord.of(0, y)));
-        if(!s.wood())
-            heads.add(new Head(s, Coord.of(0, y), Coord.of(w, name.sz().y)));
         y += name.sz().y;
         String note = s.optional ? L10n.get("cookbook.var.optional") : s.inferred ? L10n.get("cookbook.var.inferred") : null;
         if(note != null)
@@ -264,6 +209,18 @@ public class VariationsPanel extends Widget {
         }
         if(!tried.isEmpty())
             y = para(L10n.get("cookbook.var.tried_list", String.join(", ", tried)), CookbookTheme.muted, y + UI.scale(4), w);
+        if(!s.wood()) {
+            int n = crafts(s);
+            y += UI.scale(6);
+            if(n > 0) {
+                Tex label = CookbookTheme.render(CookbookTheme.bold, L10n.get("cookbook.var.vary", String.valueOf(n)), CookbookTheme.fg);
+                Coord bsz = Coord.of(label.sz().x + UI.scale(16), CHIP_H + UI.scale(2));
+                varyButtons.add(new VaryButton(s, label, Coord.of(0, y), bsz));
+                y += bsz.y;
+            } else if(untried.size() > (s.optional && !s.noneTried ? 1 : 0)) {
+                y = line(CookbookTheme.small, L10n.get("cookbook.var.vary_none"), CookbookTheme.muted, 0, y);
+            }
+        }
         return y + UI.scale(12);
     }
 
@@ -280,8 +237,7 @@ public class VariationsPanel extends Widget {
     }
 
     private int viewH() {
-        int foot = hasFooter() ? craft.sz.y + PAD + UI.scale(6) : UI.scale(2);
-        return Math.max(0, sz.y - bodyY() - foot);
+        return Math.max(0, sz.y - bodyY() - UI.scale(2));
     }
 
     private void clampScroll() {
@@ -295,13 +251,13 @@ public class VariationsPanel extends Widget {
         CookbookTheme.frame(g, Coord.z, sz, CookbookTheme.accent);
         int by = bodyY();
         CookbookTheme.fill(g, Coord.of(PAD, by - UI.scale(3)), Coord.of(sz.x - 2 * PAD, 1), CookbookTheme.line);
-        if(hasFooter())
-            CookbookTheme.fill(g, Coord.of(PAD, by + viewH() + UI.scale(3)), Coord.of(sz.x - 2 * PAD, 1), CookbookTheme.line);
         GOut body = g.reclip(Coord.of(PAD, by), Coord.of(sz.x - 2 * PAD, viewH()));
         Coord off = Coord.of(0, -scroll);
-        for(Head h : heads) {
-            if(h.slot.title.equals(varied))
-                CookbookTheme.fill(body, h.c.add(off).sub(UI.scale(2), 0), Coord.of(UI.scale(2), h.sz.y), CookbookTheme.accent);
+        for(VaryButton b : varyButtons) {
+            Coord ul = b.c.add(off);
+            CookbookTheme.fill(body, ul, b.sz, (b == hovered) ? CookbookTheme.hover : CookbookTheme.bg);
+            CookbookTheme.frame(body, ul, b.sz, CookbookTheme.accent);
+            body.image(b.label, ul.add((b.sz.x - b.label.sz().x) / 2, (b.sz.y - b.label.sz().y) / 2));
         }
         for(Text t : texts)
             body.image(t.tex, t.c.add(off));
@@ -328,7 +284,7 @@ public class VariationsPanel extends Widget {
         super.draw(g);
     }
 
-    private static Tex icon(Variations.Option o) {
+    static Tex icon(Variations.Option o) {
         if(o.resource != null) {
             Tex t = IconCache.get(o.resource);
             if(t != null)
@@ -373,13 +329,13 @@ public class VariationsPanel extends Widget {
         return null;
     }
 
-    private Head headAt(Coord c) {
+    private VaryButton varyAt(Coord c) {
         Coord p = bodyPoint(c);
         if(p == null)
             return null;
-        for(Head h : heads) {
-            if(p.isect(h.c, h.sz))
-                return h;
+        for(VaryButton b : varyButtons) {
+            if(p.isect(b.c, b.sz))
+                return b;
         }
         return null;
     }
@@ -389,8 +345,8 @@ public class VariationsPanel extends Widget {
         Chip ch = chipAt(c);
         if((ch != null) && (ch.option != null))
             return L10n.get(stocked(ch.option) ? "cookbook.var.tip.stocked" : "cookbook.var.tip.untried", ch.option.item);
-        if(headAt(c) != null)
-            return L10n.get("cookbook.var.tip.pick");
+        if(varyAt(c) != null)
+            return L10n.get("cookbook.var.tip.vary");
         return super.tooltip(c, prev);
     }
 
@@ -398,12 +354,16 @@ public class VariationsPanel extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
         if(ev.propagate(this))
             return true;
-        Head h = headAt(ev.c);
-        if((ev.b == 1) && (h != null)) {
-            varied = h.slot.title.equals(varied) ? null : h.slot.title;
-            laidOutW = -1;
-        }
+        VaryButton b = varyAt(ev.c);
+        if((ev.b == 1) && (b != null))
+            onVary.accept(b.slot.title);
         return true;
+    }
+
+    @Override
+    public void mousemove(MouseMoveEvent ev) {
+        hovered = varyAt(ev.c);
+        super.mousemove(ev);
     }
 
     @Override

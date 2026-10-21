@@ -28,14 +28,18 @@ import java.util.*;
 
 /**
  * Crafts a food once for every untried option of one of its ingredient choices (the cookbook's
- * untried variations), so the cookbook records them. The other choices stay at the option the
- * village uses most. Only the village's storage and input areas are drawn from, and each craft
+ * untried variations), so the cookbook records them. The other choices stay at what the player
+ * picked for them, or autocraft's own pick. Only the village's storage and input areas are drawn from, and each craft
  * fetches its own ingredients: one fetch, one craft. A food made in stages (Meatpie from Unbaked
  * Meatpie) is crafted to its first stage and recorded once the player finishes it.
  */
 public class TryUntriedVariations implements Action {
+    /** A pick for an optional choice: go without it. */
+    public static final String NONE = "\u0000none";
+
     private final String dish;
     private final String slotTitle;
+    private final Map<String, String> others;
     private final List<String> craftNames;
     private final VillageStorage village;
     private final Runnable done;
@@ -56,13 +60,16 @@ public class TryUntriedVariations implements Action {
     }
 
     /**
+     * @param others     per other choice's title, the option to keep it at or {@link #NONE}; a choice
+     *                   not in it is left to autocraft
      * @param craftNames the crafting actions that may make the food, from {@link Variations#craftNames}
      * @param village    read on the UI thread
      * @param done       run when the bot ends, whatever the outcome
      */
-    public TryUntriedVariations(String dish, String slotTitle, List<String> craftNames, VillageStorage village, Runnable done) {
+    public TryUntriedVariations(String dish, String slotTitle, Map<String, String> others, List<String> craftNames, VillageStorage village, Runnable done) {
         this.dish = dish;
         this.slotTitle = slotTitle;
+        this.others = others;
         this.craftNames = craftNames;
         this.village = village;
         this.done = done;
@@ -113,25 +120,34 @@ public class TryUntriedVariations implements Action {
             return Results.ERROR(slotTitle + " is not chosen in the " + window + " window");
         String targetName = mw.inputs.get(target).name;
 
-        /* The other choices: the option the village used most that it still has. */
+        /* The other choices, as picked; a null ingredient goes without the input. */
         Map<Integer, JSONObject> baseline = new HashMap<>();
-        Map<Integer, List<JSONObject>> candidates = new HashMap<>();
         Set<String> names = new HashSet<>();
         for(Variations.Slot s : d.slots) {
-            if(s.wood() || (s == slot))
+            String pick = others.get(s.title);
+            if(s.wood() || (s == slot) || (pick == null))
                 continue;
             int i = specFor(variations, mw, s);
-            if((i < 0) || (i == target) || baseline.containsKey(i) || candidates.containsKey(i))
+            if((i < 0) || (i == target)) {
+                gui.msg(dish + ": " + s.title + " is not chosen in the " + window + " window; autocraft picks it");
                 continue;
-            List<JSONObject> c = new ArrayList<>();
-            for(Variations.Option o : s.options) {
-                JSONObject ing = (o.tried()) ? ingredient(variations, mw.inputs.get(i).name, o) : null;
-                if(ing != null)
-                    c.add(ing);
             }
-            candidates.put(i, c);
-            for(JSONObject ing : c)
-                names.add(ing.getString("name"));
+            if(pick.equals(NONE)) {
+                if(!mw.inputs.get(i).opt())
+                    return Results.ERROR(s.title + " can't be left out of " + window);
+                baseline.put(i, null);
+                continue;
+            }
+            Variations.Option o = null;
+            for(Variations.Option c : s.options) {
+                if(c.name.equals(pick))
+                    o = c;
+            }
+            JSONObject ing = (o != null) ? ingredient(variations, mw.inputs.get(i).name, o) : null;
+            if(ing == null)
+                return Results.ERROR("Can't select " + pick + " for " + s.title + " in the " + window + " window");
+            baseline.put(i, ing);
+            names.add(ing.getString("name"));
         }
         List<Attempt> attempts = new ArrayList<>();
         List<String> missing = new ArrayList<>(), unselectable = new ArrayList<>();
@@ -159,13 +175,9 @@ public class TryUntriedVariations implements Action {
         }
         if(slot.optional && !slot.noneTried && mw.inputs.get(target).opt())
             attempts.add(new Attempt(null, null));
-        for(Map.Entry<Integer, List<JSONObject>> e : candidates.entrySet()) {
-            for(JSONObject ing : e.getValue()) {
-                if(available(ing.getString("name"), source)) {
-                    baseline.put(e.getKey(), ing);
-                    break;
-                }
-            }
+        for(JSONObject ing : baseline.values()) {
+            if((ing != null) && !available(ing.getString("name"), source))
+                return Results.ERROR(ing.getString("name") + " is not in the village's storage or an input area");
         }
 
         if(attempts.isEmpty()) {
@@ -178,7 +190,7 @@ public class TryUntriedVariations implements Action {
             labels.add(a.label());
         gui.msg(dish + ": trying " + attempts.size() + " " + slotTitle + " — " + String.join(", ", labels));
         System.out.println("[TryUntried] " + dish + " / " + slotTitle + ": " + labels
-                + ", baselines " + baseline.keySet() + ", not in storage " + missing);
+                + ", others " + others + ", not in storage " + missing);
 
         List<String> tried = new ArrayList<>(), notListed = new ArrayList<>();
         for(Attempt a : attempts) {
@@ -323,11 +335,9 @@ public class TryUntriedVariations implements Action {
 
     private Results craftOne(NGameUI gui, NMakewindow mw, int target, Attempt a, Map<Integer, JSONObject> baseline) throws InterruptedException {
         NMakewindow.Spec ts = mw.inputs.get(target);
-        ts.ing = (a.option == null)
-                ? mw.new Ingredient(Resource.loadsimg("nurgling/hud/autocraft/ignore"), L10n.get("craft.ignore_ingredient"), true)
-                : mw.new Ingredient(a.ingredient);
+        ts.ing = (a.option == null) ? ignore(mw) : mw.new Ingredient(a.ingredient);
         for(Map.Entry<Integer, JSONObject> e : baseline.entrySet())
-            mw.inputs.get(e.getKey()).ing = mw.new Ingredient(e.getValue());
+            mw.inputs.get(e.getKey()).ing = (e.getValue() == null) ? ignore(mw) : mw.new Ingredient(e.getValue());
 
         /* The game takes any fitting item it finds in the inventory, so nothing else may be there. */
         String stray = stray(gui, mw);
@@ -354,12 +364,16 @@ public class TryUntriedVariations implements Action {
         }
     }
 
-    /* An inventory item another option of a category input would take, or null. */
+    private static NMakewindow.Ingredient ignore(NMakewindow mw) {
+        return mw.new Ingredient(Resource.loadsimg("nurgling/hud/autocraft/ignore"), L10n.get("craft.ignore_ingredient"), true);
+    }
+
+    /* An inventory item a category input would take instead of its pick (any item, for one gone without), or null. */
     private static String stray(NGameUI gui, NMakewindow mw) throws InterruptedException {
         for(NMakewindow.Spec s : mw.inputs) {
-            if((s.ing == null) || s.ing.isIgnored || !CraftCategories.has(s.name))
+            if((s.ing == null) || !CraftCategories.has(s.name))
                 continue;
-            String chosen = GenericTypes.stockKey(s.ing.name);
+            String chosen = s.ing.isIgnored ? null : GenericTypes.stockKey(s.ing.name);
             Set<String> others = new HashSet<>();
             List<JSONObject> options = CraftCategories.options(s.name);
             if(options == null)
