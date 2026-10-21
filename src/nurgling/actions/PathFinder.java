@@ -796,6 +796,29 @@ public class PathFinder implements Action {
         return res != null || pf.dn;
     }
 
+    /**
+     * How far the player would walk to reach the target: 0 when already there, infinity when there
+     * is no path. Never less than the straight-line distance, so callers can stop searching once
+     * a candidate's straight line is longer than the best walk found so far.
+     */
+    public static double walkLength(Gob target) throws InterruptedException {
+        Gob player = NUtils.player();
+        if(player == null || target == null)
+            return Double.POSITIVE_INFINITY;
+        PathFinder pf = new PathFinder(target);
+        LinkedList<Graph.Vertex> path = pf.construct(true);
+        if(path == null)
+            return pf.dn ? 0 : Double.POSITIVE_INFINITY;
+        double len = 0;
+        Coord2d at = player.rc;
+        for(Graph.Vertex v : path) {
+            Coord2d next = Utils.pfGridToWorld(v.pos);
+            len += at.dist(next);
+            at = next;
+        }
+        return len;
+    }
+
     public static boolean isAvailable(Coord2d target) throws InterruptedException {
         if(NUtils.player() == null)
             return false;
