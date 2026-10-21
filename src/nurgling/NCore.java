@@ -224,6 +224,15 @@ public class NCore extends Widget
         return gob;
     }
 
+    /** As takeClickedGob, but with a caller-chosen age limit and without forgetting the click. */
+    public Gob recentClickedGob(long maxAgeMs)
+    {
+        long id = clickedGobId;
+        if (id < 0 || System.currentTimeMillis() - clickedGobAt > maxAgeMs || ui == null || ui.sess == null)
+            return null;
+        return ui.sess.glob.oc.getgob(id);
+    }
+
 
     public Mode mode = Mode.DRAG;
     private boolean botmod = false;
