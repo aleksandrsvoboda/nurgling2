@@ -8,6 +8,7 @@ import nurgling.actions.bots.silk.RefillSilkwormFeedingCupboards;
 import nurgling.actions.bots.silk.SilkProductionBot;
 import nurgling.actions.bots.cheeseconveyor.CheeseConveyorBot;
 import nurgling.actions.bots.areamover.AreaMoverBot;
+import nurgling.actions.bots.drinker.DrinkerBot;
 import nurgling.actions.bots.blueprint.BlueprintBuilder;
 import nurgling.actions.bots.CollectSwillInArea;
 import nurgling.actions.bots.swillpiles.SwillPilesToTroughsBot;
@@ -259,6 +260,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("unloading", BotDescriptor.BotType.UTILS, "Transfer From Vehicle", "Unloads vehicle.", false, true, TransferFromVeh.class, "unloading", false));
         bots.add(new BotDescriptor("swap", BotDescriptor.BotType.UTILS, "Swap Vehicles", "Swaps between vehicles.", false, true, TransferFromVehToVeh.class, "swap", false));
         bots.add(new BotDescriptor("eater", BotDescriptor.BotType.UTILS, "Eating bot", "Eat in the food area.", true, true, Eater.class, "eater", false));
+        bots.add(new BotDescriptor("drinker", BotDescriptor.BotType.UTILS, "bot.drinker.title", "bot.drinker.desc", true, true, DrinkerBot.class, "drinker", false));
         bots.add(new BotDescriptor("zoneminer", BotDescriptor.BotType.UTILS, "Mine in area", "Mine rocks in the area.", false, true, MineAction.class, "zoneminer", true));
         bots.add(new BotDescriptor("bed", BotDescriptor.BotType.UTILS, "Go to bed", "Go to any free bed in a bed area nearby.", true, false, Sleep.class, "bed", false));
         bots.add(new BotDescriptor("soil", BotDescriptor.BotType.UTILS, "Create piles with soil", "Create piles with soil in area.", false, true, CreateSoilPiles.class, "soil", false));
