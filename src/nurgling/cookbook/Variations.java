@@ -52,6 +52,11 @@ public final class Variations {
             return seen > 0;
         }
 
+        /** {@link GenericTypes#stockKey}s its item may be stored under; empty for a tried option. */
+        public Set<String> stockKeys() {
+            return Collections.unmodifiableSet(stock);
+        }
+
         /** Whether storage holds its item, given the stockKeys of the stored items' names. */
         public boolean stocked(Set<String> stored) {
             for(String k : stock) {
