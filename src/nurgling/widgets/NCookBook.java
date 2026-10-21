@@ -6,6 +6,7 @@ import nurgling.NFlowerMenu;
 import nurgling.NGameUI;
 import nurgling.NWindowDeco;
 import nurgling.actions.ReadJsonAction;
+import nurgling.actions.bots.TryUntriedVariations;
 import nurgling.cookbook.CookbookModel;
 import nurgling.cookbook.CookbookRow;
 import nurgling.cookbook.GenericTypes;
@@ -83,6 +84,8 @@ public class NCookBook extends Window implements RecipeTable.Actions {
     private boolean villageKnowable = true;
     private double villageCheckIn = 0;
     private String variationsOf = null;
+    /* Set by a finished Try untried variations bot, from its thread: what it crafted is recorded now. */
+    private volatile boolean reloadAfterBot = false;
     private String loadError = null;
     private boolean loadedOnce = false;
     private boolean posRestored = false;
@@ -115,7 +118,7 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         banner = add(new CText(CookbookTheme.body, CookbookTheme.fg), Coord.z);
         table = add(new RecipeTable(Coord.of(UI.scale(200), UI.scale(200)), model, this), Coord.z);
         footer = add(new CText(CookbookTheme.small, CookbookTheme.muted).set(L10n.get("cookbook.footer")), Coord.z);
-        varPanel = add(new VariationsPanel(this::closeVariations), Coord.z);
+        varPanel = add(new VariationsPanel(this::closeVariations, this::tryUntried), Coord.z);
 
         /* Last, so they draw over the table and get clicks first. */
         fepPanel = add(new FepFilterPanel(fepPill, model), Coord.z);
@@ -269,6 +272,10 @@ public class NCookBook extends Window implements RecipeTable.Actions {
             refreshChrome();
         }
         selectCraftIngredients(dt);
+        if(reloadAfterBot && (loader == null)) {
+            reloadAfterBot = false;
+            reload();
+        }
         /* Loaded right after login, before the areas or ChunkNav: load again once the village is known. */
         if(!villageKnowable && (loader == null) && ((villageCheckIn -= dt) <= 0)) {
             villageCheckIn = 2;
@@ -442,33 +449,41 @@ public class NCookBook extends Window implements RecipeTable.Actions {
         if((gui == null) || (gui.menu == null))
             return;
         List<String> names = (variations != null) ? variations.craftNames(row.name()) : List.of(row.name());
-        MenuGrid.Pagina target = null;
-        String targetName = null;
-        synchronized(gui.menu.paginae) {
-            for(String name : names) {
-                for(MenuGrid.Pagina pg : gui.menu.paginae) {
-                    try {
-                        if(GenericTypes.norm(pg.button().name()).equals(GenericTypes.norm(name))) {
-                            target = pg;
-                            targetName = pg.button().name();
-                            break;
-                        }
-                    } catch(Loading l) {
-                        /* Not loaded yet, so not the recipe the player is looking at. */
-                    }
-                }
-                if(target != null)
-                    break;
-            }
-        }
+        MenuGrid.Pagina target = recipePagina(gui, names);
         if(target != null) {
             craftRecipe = row.recipe;
-            craftWindow = targetName;
+            craftWindow = target.button().name();
             craftWait = CRAFT_WAIT;
             NGameUI ngui = getparent(NGameUI.class);
             craftOld = ((ngui != null) && (ngui.craftwnd != null)) ? ngui.craftwnd.makeWidget : null;
             target.button().use(new MenuGrid.Interaction(1, 0));
         }
+    }
+
+    /** The menu entry of the first of the crafting actions (see {@link Variations#craftNames}) the player knows, or null. */
+    public static MenuGrid.Pagina recipePagina(GameUI gui, List<String> names) {
+        synchronized(gui.menu.paginae) {
+            for(String name : names) {
+                for(MenuGrid.Pagina pg : gui.menu.paginae) {
+                    try {
+                        if(GenericTypes.norm(pg.button().name()).equals(GenericTypes.norm(name)))
+                            return pg;
+                    } catch(Loading l) {
+                        /* Not loaded yet, so not the recipe the player is looking at. */
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /* Crafts the shown food once per untried option of one ingredient choice, in a bot. */
+    private void tryUntried(String slot) {
+        NGameUI gui = getparent(NGameUI.class);
+        if((gui == null) || (variations == null) || (variationsOf == null))
+            return;
+        BotExecutor.runAsync("Try untried variations", new TryUntriedVariations(variationsOf, slot,
+                variations.craftNames(variationsOf), VillageStorage.snapshot(gui), () -> reloadAfterBot = true));
     }
 
     /* ---- selecting the clicked recipe's ingredients in its crafting window ---- */
