@@ -11,8 +11,10 @@ import nurgling.cheese.ConveyorOrder;
 import nurgling.cheese.ConveyorOrdersManager;
 import nurgling.i18n.L10n;
 import nurgling.tools.VSpec;
+import nurgling.widgets.cookbook.CookbookTheme;
 import org.json.JSONObject;
 
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.*;
@@ -53,7 +55,8 @@ public class CheeseConveyorPanel extends Panel {
         // -------- List -----------
         listPanel = add(new Widget(new Coord(contentWidth, contentHeight)), new Coord(margin, margin));
         listPanel.add(new Label(L10n.get("conveyor.title")), Coord.z);
-        listScroll = listPanel.add(new Scrollport(new Coord(contentWidth, UI.scale(430))), new Coord(0, UI.scale(28)));
+        listPanel.add(new Label(L10n.get("conveyor.priority_hint")), new Coord(0, UI.scale(14)));
+        listScroll = listPanel.add(new Scrollport(new Coord(contentWidth, UI.scale(416))), new Coord(0, UI.scale(32)));
         listContent = new Widget(new Coord(listScroll.cont.sz.x, UI.scale(50))) {
             @Override
             public void pack() {
@@ -210,8 +213,7 @@ public class CheeseConveyorPanel extends Panel {
         for (Widget child : new ArrayList<>(listContent.children()))
             child.destroy();
 
-        List<ConveyorOrder> orders = new ArrayList<>(manager.getOrders().values());
-        orders.sort(Comparator.comparingInt(ConveyorOrder::getId));
+        List<ConveyorOrder> orders = manager.sorted();
         int w = listScroll.cont.sz.x;
         int y = 0;
         for (boolean continuous : new boolean[]{true, false}) {
@@ -221,7 +223,7 @@ public class CheeseConveyorPanel extends Panel {
             for (ConveyorOrder order : orders) {
                 if (order.isContinuous() != continuous)
                     continue;
-                Widget row = orderRow(order, w);
+                Widget row = orderRow(order, w, orders.indexOf(order) + 1, orders.size());
                 listContent.add(row, new Coord(0, y));
                 y += row.sz.y + UI.scale(2);
                 any = true;
@@ -236,7 +238,7 @@ public class CheeseConveyorPanel extends Panel {
         listScroll.cont.update();
     }
 
-    private Widget orderRow(ConveyorOrder order, int w) {
+    private Widget orderRow(ConveyorOrder order, int w, int position, int count) {
         boolean open = expanded.contains(order.getId());
         List<CheeseOrder.StepStatus> steps = order.getStatus();
         int baseH = UI.scale(44);
@@ -253,11 +255,16 @@ public class CheeseConveyorPanel extends Panel {
             }
         }, Coord.z);
 
+        row.add(new Label(String.valueOf(position)), new Coord(UI.scale(8), UI.scale(16)));
+        int moveX = UI.scale(24);
+        row.add(new MoveArrow(false, position > 1, () -> move(order, -1)), new Coord(moveX, UI.scale(6)));
+        row.add(new MoveArrow(true, position < count, () -> move(order, 1)), new Coord(moveX, UI.scale(24)));
+
         row.add(new Button(UI.scale(26), open ? "▼" : "▶", () -> {
             if (!expanded.remove(order.getId()))
                 expanded.add(order.getId());
             rebuild();
-        }), new Coord(UI.scale(4), UI.scale(4)));
+        }), new Coord(UI.scale(44), UI.scale(4)));
 
         TexI icon = icon(order.getCheeseType());
         if (icon != null) {
@@ -266,14 +273,14 @@ public class CheeseConveyorPanel extends Panel {
                 public void draw(GOut g) {
                     g.image(icon, Coord.z, sz);
                 }
-            }, new Coord(UI.scale(36), UI.scale(6)));
+            }, new Coord(UI.scale(76), UI.scale(6)));
         }
-        row.add(new Label(order.getCheeseType()), new Coord(UI.scale(62), UI.scale(6)));
+        row.add(new Label(order.getCheeseType()), new Coord(UI.scale(102), UI.scale(6)));
 
         CheeseOrder.StepStatus start = order.startStep();
         String info;
         if (order.isContinuous()) {
-            row.add(new Label(L10n.get("conveyor.rate", fmt(order.getTrays()), fmt(order.getEveryHours()))), new Coord(UI.scale(230), UI.scale(6)));
+            row.add(new Label(L10n.get("conveyor.rate", fmt(order.getTrays()), fmt(order.getEveryHours()))), new Coord(UI.scale(270), UI.scale(6)));
             info = L10n.get("conveyor.status.continuous", String.valueOf(order.inProgress()), String.valueOf(order.plannedWip()),
                     String.valueOf(start.left));
             if (order.extraLeft() > 0)
@@ -290,10 +297,10 @@ public class CheeseConveyorPanel extends Panel {
                 reload();
             }), new Coord(w - UI.scale(150), UI.scale(4)));
         } else {
-            row.add(new Label("x" + order.getCount()), new Coord(UI.scale(230), UI.scale(6)));
+            row.add(new Label("x" + order.getCount()), new Coord(UI.scale(270), UI.scale(6)));
             info = L10n.get("conveyor.status.once", String.valueOf(order.inProgress()), String.valueOf(start.left));
         }
-        row.add(new Label(info), new Coord(UI.scale(62), UI.scale(24)));
+        row.add(new Label(info), new Coord(UI.scale(102), UI.scale(24)));
 
         row.add(new Button(UI.scale(70), L10n.get("common.delete"), () -> {
             manager.load();
@@ -306,11 +313,11 @@ public class CheeseConveyorPanel extends Panel {
         if (open) {
             int y = baseH + UI.scale(4);
             for (CheeseOrder.StepStatus step : steps) {
-                row.add(new Label(step.left == 0 ? "✓" : "○"), new Coord(UI.scale(40), y));
-                row.add(new Label(step.name), new Coord(UI.scale(62), y));
-                row.add(new Label(step.place), new Coord(UI.scale(230), y));
-                row.add(new Label(L10n.get("conveyor.step_left", String.valueOf(step.left))), new Coord(UI.scale(310), y));
-                row.add(new Label(stageTiming(order, step)), new Coord(UI.scale(380), y));
+                row.add(new Label(step.left == 0 ? "✓" : "○"), new Coord(UI.scale(80), y));
+                row.add(new Label(step.name), new Coord(UI.scale(102), y));
+                row.add(new Label(step.place), new Coord(UI.scale(270), y));
+                row.add(new Label(L10n.get("conveyor.step_left", String.valueOf(step.left))), new Coord(UI.scale(350), y));
+                row.add(new Label(stageTiming(order, step)), new Coord(UI.scale(410), y));
                 y += stepH;
             }
         }
@@ -349,6 +356,57 @@ public class CheeseConveyorPanel extends Panel {
         if (hours > 0)
             return hours + "h " + (minutes % 60) + "m";
         return minutes + "m";
+    }
+
+    /** A small triangle that moves an order up or down the list, greyed out at the ends. */
+    private static class MoveArrow extends Widget {
+        private static final int H = UI.scale(5);
+        private final boolean down;
+        private final boolean enabled;
+        private final Runnable action;
+        private boolean hover = false;
+
+        MoveArrow(boolean down, boolean enabled, Runnable action) {
+            super(UI.scale(new Coord(16, 14)));
+            this.down = down;
+            this.enabled = enabled;
+            this.action = action;
+        }
+
+        @Override
+        public void draw(GOut g) {
+            Color c = !enabled ? CookbookTheme.line : (hover ? CookbookTheme.accent : CookbookTheme.fg);
+            g.chcolor(c);
+            for (int i = 0; i < H; i++) {
+                int w = (H - i) * 2 - 1;
+                int y = down ? (sz.y / 2 - H / 2 + i) : (sz.y / 2 + H / 2 - i);
+                g.frect(new Coord(sz.x / 2 - w / 2, y), new Coord(w, 1));
+            }
+            g.chcolor();
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if (enabled && ev.b == 1) {
+                action.run();
+                return true;
+            }
+            return super.mousedown(ev);
+        }
+
+        @Override
+        public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
+            hover = hovering && enabled;
+            return hovering;
+        }
+    }
+
+    /** Move an order one place up or down in the serving order. */
+    private void move(ConveyorOrder order, int delta) {
+        manager.load();
+        manager.move(order.getId(), delta);
+        manager.save();
+        reload();
     }
 
     /** Cheese icon from the VSpec cheese category, loaded once per type. */

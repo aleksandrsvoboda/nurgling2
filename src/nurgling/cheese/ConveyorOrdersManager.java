@@ -6,8 +6,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -84,6 +87,33 @@ public class ConveyorOrdersManager {
 
     public void delete(int id) {
         orders.remove(id);
+    }
+
+    /** Orders in the order they are served: by priority, then by age. */
+    public List<ConveyorOrder> sorted() {
+        List<ConveyorOrder> list = new ArrayList<>(orders.values());
+        list.sort(Comparator.comparingInt(ConveyorOrder::getPriority).thenComparingInt(ConveyorOrder::getId));
+        return list;
+    }
+
+    /**
+     * Move an order one place up ({@code delta} -1) or down (+1) in the serving order. Priorities
+     * are renumbered 0..n-1 first, so orders that were all left at the default get a definite order.
+     */
+    public void move(int id, int delta) {
+        List<ConveyorOrder> list = sorted();
+        for (int i = 0; i < list.size(); i++)
+            list.get(i).setPriority(i);
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).getId() != id)
+                continue;
+            int j = i + delta;
+            if (j < 0 || j >= list.size())
+                return;
+            list.get(i).setPriority(j);
+            list.get(j).setPriority(i);
+            return;
+        }
     }
 
     /** See {@link #orderFor(Collection, String, CheeseBranch.Place)}. */
