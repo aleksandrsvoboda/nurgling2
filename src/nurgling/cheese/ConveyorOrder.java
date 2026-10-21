@@ -23,7 +23,7 @@ import java.util.Map;
 public class ConveyorOrder {
     public enum Mode { once, continuous }
 
-    /** A skipped day or two releases one day of trays, not a lump that would put batches in lockstep. */
+    /** A gap never releases more than this many hours of trays, however long the gap was. */
     public static final double MAX_CREDIT_HOURS = 24;
     /** Runs are started by hand once or twice a day, so a finished tray can wait this long. */
     public static final double WIP_WAIT_HOURS = 24;
@@ -39,6 +39,7 @@ public class ConveyorOrder {
     private double credit;
     private long lastRelease;
     private int extra;
+    private int priority;
     private boolean paused;
     private final List<CheeseOrder.StepStatus> status;
     private final Map<String, List<Batch>> batches = new LinkedHashMap<>();
@@ -71,6 +72,7 @@ public class ConveyorOrder {
         this.credit = json.optDouble("credit", 0);
         this.lastRelease = json.optLong("lastRelease", 0);
         this.extra = json.optInt("extra", 0);
+        this.priority = json.optInt("priority", 0);
         this.paused = json.optBoolean("paused", false);
         this.status = new ArrayList<>();
         JSONArray arr = json.optJSONArray("status");
@@ -104,6 +106,7 @@ public class ConveyorOrder {
         obj.put("credit", credit);
         obj.put("lastRelease", lastRelease);
         obj.put("extra", extra);
+        obj.put("priority", priority);
         obj.put("paused", paused);
         JSONArray arr = new JSONArray();
         for (CheeseOrder.StepStatus s : status)
@@ -133,6 +136,9 @@ public class ConveyorOrder {
     public double getTrays() { return trays; }
     public double getEveryHours() { return everyHours; }
     public boolean isPaused() { return paused; }
+    /** Lower goes first when curds or first-stage rack slots are short; equal priorities share. */
+    public int getPriority() { return priority; }
+    public void setPriority(int priority) { this.priority = priority; }
     public void setPaused(boolean paused) { this.paused = paused; }
     public List<CheeseOrder.StepStatus> getStatus() { return status; }
     public boolean isContinuous() { return mode == Mode.continuous; }
@@ -170,6 +176,15 @@ public class ConveyorOrder {
         this.everyHours = everyHours;
     }
 
+    /**
+     * How much production a run may release at once: one period, or a day when the period is
+     * longer. A fresh order starts with this much, and a gap never banks more. Without the period
+     * limit, "30 trays every 12 hours" would release 60 on its first run.
+     */
+    public double creditWindowHours() {
+        return Math.min(everyHours > 0 ? everyHours : MAX_CREDIT_HOURS, MAX_CREDIT_HOURS);
+    }
+
     public double traysPerHour() {
         return (mode == Mode.continuous && trays > 0 && everyHours > 0) ? trays / everyHours : 0;
     }
@@ -201,8 +216,9 @@ public class ConveyorOrder {
             lastRelease = nowMillis;
             return 0;
         }
-        double hours = lastRelease <= 0 ? MAX_CREDIT_HOURS : Math.max(0, (nowMillis - lastRelease) / 3_600_000.0);
-        double cap = perHour * MAX_CREDIT_HOURS;
+        double window = creditWindowHours();
+        double hours = lastRelease <= 0 ? window : Math.max(0, (nowMillis - lastRelease) / 3_600_000.0);
+        double cap = perHour * window;
         credit = Math.min(cap, credit + perHour * hours);
         lastRelease = nowMillis;
 
