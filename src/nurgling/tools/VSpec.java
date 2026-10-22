@@ -822,7 +822,7 @@ public class VSpec {
         object.put("gfx/terobjs/trees/elmlog", elmOp_log);
 
         ArrayList<String> figOp_log = new ArrayList<>();
-        figOp_log.add("Board of Fig"); // Р”РѕСЃРєР°
+        figOp_log.add("Board of Figwood"); // Р”РѕСЃРєР°
         figOp_log.add("Block of Figwood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/figtreelog", figOp_log);
 
@@ -957,7 +957,7 @@ public class VSpec {
         object.put("gfx/terobjs/trees/pinelog", pineOp_log);
 
         ArrayList<String> planeOp_log = new ArrayList<>();
-        planeOp_log.add("Board of Plane"); // Р”РѕСЃРєР°
+        planeOp_log.add("Board of Planewood"); // Р”РѕСЃРєР°
         planeOp_log.add("Block of Planewood"); // Р‘Р»РѕРє
         object.put("gfx/terobjs/trees/planetreelog", planeOp_log);
 
@@ -2599,7 +2599,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-dogwood\",\"name\":\"Board of Dogwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-dwarfpine\",\"name\":\"Board of Dwarf Pine\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-elm\",\"name\":\"Board of Elm\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-figtree\",\"name\":\"Board of Fig\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-figtree\",\"name\":\"Board of Figwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-fir\",\"name\":\"Board of Fir\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-gloomcap\",\"name\":\"Board of Gloomcap\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-gnomeshat\",\"name\":\"Board of Gnome's Cap\"}"));
@@ -2626,7 +2626,7 @@ public class VSpec {
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-peartree\",\"name\":\"Board of Pearwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-persimmontree\",\"name\":\"Board of Persimmonwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-pine\",\"name\":\"Board of Pine\"}"));
-        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-planetree\",\"name\":\"Board of Plane\"}"));
+        boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-planetree\",\"name\":\"Board of Planewood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-plumtree\",\"name\":\"Board of Plumwood\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-poplar\",\"name\":\"Board of Poplar\"}"));
         boards.add(new JSONObject("{\"static\":\"gfx/invobjs/board-quincetree\",\"name\":\"Board of Quincewood\"}"));
