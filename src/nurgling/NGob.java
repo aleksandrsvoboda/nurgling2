@@ -53,6 +53,8 @@ public class NGob
     public volatile GobHide.HideCategory hideCat = null;
     private volatile int hideVersion = 0;
     public NHitBox hitBox = null;
+    /** The separately solid pieces of hitBox, for a gob walked through between them; null for the rest. */
+    public NHitBox[] hitBoxParts = null;
     public String name = null;
     public boolean isQuested = true;
     public boolean customMask = false;
@@ -852,6 +854,9 @@ public class NGob
                             }
                         }
                     }
+                    hitBoxParts = NHitBox.passageParts(drawable.getres());
+                    if (hitBoxParts != null)
+                        hitBox = NHitBox.bounds(hitBoxParts);
                 }
                 if (name != null)
                 {
@@ -960,6 +965,11 @@ public class NGob
                             parent.addcustomol(new NModelBox(parent));
                             if (!isDynamic)
                                 ca = new CellsArray(parent);
+                        } else if (!isDynamic)
+                        {
+                            // A new drawable can bring a new hitbox (a finished construction site);
+                            // the cells must not stay those of the old one.
+                            ca = new CellsArray(parent);
                         }
                     }
                 }

@@ -12,7 +12,7 @@ public class CellsArray {
     public int y_len;
 
     public CellsArray(Gob gob) {
-        this(gob.ngob.hitBox, gob.a, gob.rc);
+        this(NHitBoxD.solid(gob));
     }
 
 
@@ -23,9 +23,19 @@ public class CellsArray {
     }
 
     public CellsArray(NHitBox hb, double angl, Coord2d rc) {
-        NHitBoxD objToApproach = new NHitBoxD(hb.begin, hb.end, rc, angl);
-        begin = Utils.toPfGrid(objToApproach.getCircumscribedUL());
-        end = Utils.toPfGrid(objToApproach.getCircumscribedBR());
+        this(new NHitBoxD[]{new NHitBoxD(hb.begin, hb.end, rc, angl)});
+    }
+
+    /** The cells any of the boxes touch; cells between them stay free. */
+    public CellsArray(NHitBoxD[] boxes) {
+        Coord2d ul = boxes[0].getCircumscribedUL(), br = boxes[0].getCircumscribedBR();
+        for (NHitBoxD box : boxes) {
+            Coord2d bul = box.getCircumscribedUL(), bbr = box.getCircumscribedBR();
+            ul = Coord2d.of(Math.min(ul.x, bul.x), Math.min(ul.y, bul.y));
+            br = Coord2d.of(Math.max(br.x, bbr.x), Math.max(br.y, bbr.y));
+        }
+        begin = Utils.toPfGrid(ul);
+        end = Utils.toPfGrid(br);
         NHitBoxD tile = new NHitBoxD(begin);
         x_len = end.x - begin.x + 1;
         y_len = end.y - begin.y + 1;
@@ -33,7 +43,12 @@ public class CellsArray {
         for (int i = 0; i < x_len; i++) {
             for (int j = 0; j < y_len; j++) {
                 tile.setUnitSquare(begin.add(i, j));
-                cells[i][j] = (tile.intersects(objToApproach,false)) ? (short) 1 : 0;
+                for (NHitBoxD box : boxes) {
+                    if (tile.intersects(box, false)) {
+                        cells[i][j] = 1;
+                        break;
+                    }
+                }
             }
         }
     }
