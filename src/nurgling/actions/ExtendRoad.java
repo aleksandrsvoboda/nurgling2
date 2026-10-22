@@ -123,6 +123,10 @@ public class ExtendRoad implements Action {
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
+        Results handEmpty = emptyHand(gui);
+        if (!handEmpty.IsSuccess()) {
+            return handEmpty;
+        }
         NUtils.getDefaultCur();
         // A leftover placement would pass for the one Extend gives
         cancelPlacement(gui);
@@ -254,6 +258,28 @@ public class ExtendRoad implements Action {
         });
         if (built == null) {
             return Results.ERROR("Road: the new milestone didn't appear");
+        }
+        return Results.SUCCESS();
+    }
+
+    /* An item on the cursor would be used on the milestone (or the half-built one) instead
+     * of opening it, so drop it on the ground first. */
+    public static Results emptyHand(NGameUI gui) throws InterruptedException {
+        if (gui.vhand == null) {
+            return Results.SUCCESS();
+        }
+        NUtils.drop(gui.vhand);
+        // Not WaitFreeHand: its timeout would end the whole bot without a word
+        NUtils.addTask(new NTask() {
+            final long deadline = System.currentTimeMillis() + 3_000;
+
+            @Override
+            public boolean check() {
+                return gui.vhand == null || System.currentTimeMillis() > deadline;
+            }
+        });
+        if (gui.vhand != null) {
+            return Results.ERROR("Road: couldn't drop the item in hand");
         }
         return Results.SUCCESS();
     }

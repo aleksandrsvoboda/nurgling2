@@ -39,10 +39,17 @@ public class MinesweeperMiner implements Action {
     private long noticeMark = 0;
     // Latched: the notice rolls out of the log, the stop condition must not
     private volatile boolean galleryOpened = false;
+    // "Stop at ore"; null when the option is off
+    private final OreWatch oreWatch;
 
     public MinesweeperMiner(Direction direction, int maxLateral) {
+        this(direction, maxLateral, null);
+    }
+
+    public MinesweeperMiner(Direction direction, int maxLateral, OreWatch oreWatch) {
         this.direction = direction;
         this.maxLateral = maxLateral;
+        this.oreWatch = oreWatch;
     }
 
     /**
@@ -95,10 +102,16 @@ public class MinesweeperMiner implements Action {
                 break;
             }
 
+            if (oreWatch != null) {
+                oreWatch.look(gui, target);
+            }
             Results result = mineTile(gui, solver, target);
             if (!result.IsSuccess()) {
                 gui.msg("Mining failed at " + target);
                 return result;
+            }
+            if (oreWatch != null && oreWatch.look(gui, target) != null) {
+                return Results.ERROR(oreWatch.found());
             }
             tilesMinedTotal++;
             handleBumlings(gui);

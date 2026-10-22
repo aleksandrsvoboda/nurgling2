@@ -37,6 +37,9 @@ public class TunnelingBot implements Action {
     // Tries at a road post: rock found in the way is dug between them
     private static final int ROAD_ATTEMPTS = 3;
 
+    // "Stop at ore", or null; set at the start of every run since the bot menu reuses this instance
+    private OreWatch oreWatch;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Show configuration dialog
@@ -56,6 +59,8 @@ public class TunnelingBot implements Action {
         boolean[] roadRef = new boolean[]{false};
         int[] roadSpacingRef = new int[]{TunnelRoad.MAX_SPACING_TILES};
         dialog.setRoadReferences(roadRef, roadSpacingRef);
+        boolean[] stopAtOreRef = new boolean[]{false};
+        dialog.setOreReference(stopAtOreRef);
         NUtils.addCentered(gui, dialog);
 
         // Wait for user input
@@ -76,9 +81,11 @@ public class TunnelingBot implements Action {
         Direction direction = TunnelingDialog.getDirection(directionRef[0]);
         SupportType supportType = TunnelingDialog.getSupportType(supportTypeRef[0]);
 
+        oreWatch = stopAtOreRef[0] ? new OreWatch() : null;
+
         // Dispatch to MinesweeperMiner if no support selected
         if (supportType == SupportType.NONE) {
-            return new MinesweeperMiner(direction, maxLateralRef[0]).run(gui);
+            return new MinesweeperMiner(direction, maxLateralRef[0], oreWatch).run(gui);
         }
 
         // Kept local: the bot menu reuses this Action instance between runs
@@ -88,7 +95,7 @@ public class TunnelingBot implements Action {
         // Tunnel frames are dug through rather than beside, so they get their own loop
         if (supportType.isFrame()) {
             return new FrameTunneler(direction, supportType,
-                    TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]), centreLineRef[0], road).run(gui);
+                    TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]), centreLineRef[0], road, oreWatch).run(gui);
         }
 
         TunnelSide tunnelSide = TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]);
@@ -172,6 +179,11 @@ public class TunnelingBot implements Action {
                         // Continue anyway, wings are optional
                     }
                 }
+            }
+
+            // Wing mining carries on past a failed tile, so a find there shows up here
+            if (oreWatch != null && oreWatch.found() != null) {
+                return Results.ERROR(oreWatch.found());
             }
 
             if (road != null) {
@@ -453,6 +465,10 @@ public class TunnelingBot implements Action {
             return Results.ERROR("Unsafe to mine - check support health or loose rocks");
         }
 
+        if (oreWatch != null) {
+            oreWatch.look(gui, tilePos);
+        }
+
         // Convert tile to world coordinates (center of tile)
         Coord2d worldPos = tileCenter(tilePos);
 
@@ -499,6 +515,9 @@ public class TunnelingBot implements Action {
         }
 
         NUtils.getDefaultCur();
+        if (oreWatch != null && oreWatch.look(gui, tilePos) != null) {
+            return Results.ERROR(oreWatch.found());
+        }
         return Results.SUCCESS();
     }
 
