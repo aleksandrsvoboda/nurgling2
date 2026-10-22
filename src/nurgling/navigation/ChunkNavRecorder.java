@@ -50,6 +50,7 @@ public class ChunkNavRecorder {
         final Coord2d rc;
         final double angle;
         final NHitBox hitBox;
+        final NHitBox[] hitBoxParts;
         final String name;
         final boolean isFollowing;
         final long modelAttribute;  // For gate open/closed detection
@@ -59,6 +60,7 @@ public class ChunkNavRecorder {
             this.rc = gob.rc;
             this.angle = gob.a;
             this.hitBox = (gob.ngob != null) ? gob.ngob.hitBox : null;
+            this.hitBoxParts = (gob.ngob != null) ? gob.ngob.hitBoxParts : null;
             this.name = (gob.ngob != null) ? gob.ngob.name : null;
             this.isFollowing = gob.getattr(Following.class) != null;
             this.modelAttribute = (gob.ngob != null) ? gob.ngob.getModelAttribute() : -1L;
@@ -426,6 +428,11 @@ public class ChunkNavRecorder {
                     continue;
                 }
 
+                if (snap.hitBoxParts != null) {
+                    addPartCells(snap, gridCellOrigin, blockedCells);
+                    continue;
+                }
+
                 // Compute hitbox in world space with rotation
                 nurgling.pf.NHitBoxD worldHitBox = new nurgling.pf.NHitBoxD(
                     snap.hitBox.begin, snap.hitBox.end, snap.rc, snap.angle
@@ -482,6 +489,35 @@ public class ChunkNavRecorder {
         }
 
         return blockedCells;
+    }
+
+    /**
+     * Cells blocked by a gob walked through between its parts (a tunnel's posts).
+     * Unlike the any-overlap rule above, a part only blocks cells whose centre it
+     * covers: the posts stand on the corridor's tile edges and reach a little into
+     * its cells, which would close a 1-tile corridor entirely. PathFinder still
+     * steers around the posts themselves.
+     */
+    private void addPartCells(GobSnapshot snap, Coord gridCellOrigin, Set<Long> blockedCells) {
+        double h = MCache.tilehsz.x;
+        for (nurgling.pf.NHitBoxD part : nurgling.pf.NHitBoxD.parts(snap.hitBoxParts, snap.rc, snap.angle)) {
+            Coord2d ul = part.getCircumscribedUL();
+            Coord2d br = part.getCircumscribedBR();
+            for (int px = (int) Math.floor(ul.x / h); px <= (int) Math.floor(br.x / h); px++) {
+                for (int py = (int) Math.floor(ul.y / h); py <= (int) Math.floor(br.y / h); py++) {
+                    double cx = (px + 0.5) * h, cy = (py + 0.5) * h;
+                    if (cx >= ul.x && cx <= br.x && cy >= ul.y && cy <= br.y)
+                        addBlockedCell(px, py, gridCellOrigin, blockedCells);
+                }
+            }
+        }
+    }
+
+    private void addBlockedCell(int px, int py, Coord gridCellOrigin, Set<Long> blockedCells) {
+        int localX = px - gridCellOrigin.x;
+        int localY = py - gridCellOrigin.y;
+        if (localX >= 0 && localX < CELLS_PER_EDGE && localY >= 0 && localY < CELLS_PER_EDGE)
+            blockedCells.add(((long) localX << 32) | (localY & 0xFFFFFFFFL));
     }
 
     /**

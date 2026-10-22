@@ -1,6 +1,7 @@
 package nurgling.pf;
 
 import haven.*;
+import nurgling.NHitBox;
 
 public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
 // ul  0
@@ -54,6 +55,34 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
 
     public NHitBoxD(Gob gob) {
         this(gob.ngob.hitBox.begin, gob.ngob.hitBox.end, gob.rc, gob.a);
+    }
+
+    /**
+     * What of the gob blocks, in world space: its hitbox, or each of its
+     * hitbox parts. A part is built around its own centre, as intersects()
+     * assumes rc lies inside the box, and turned the way the whole hitbox
+     * turns (asymmetric is decided on x, which an off-centre part fails).
+     */
+    public static NHitBoxD[] solid(Gob gob) {
+        if (gob.ngob.hitBoxParts == null)
+            return new NHitBoxD[]{new NHitBoxD(gob)};
+        return parts(gob.ngob.hitBoxParts, gob.rc, gob.a);
+    }
+
+    public static NHitBoxD[] parts(NHitBox[] parts, Coord2d rc, double a) {
+        double minx = parts[0].begin.x, maxx = parts[0].end.x;
+        for (NHitBox part : parts) {
+            minx = Math.min(minx, part.begin.x);
+            maxx = Math.max(maxx, part.end.x);
+        }
+        double angle = (minx != -maxx) ? a + Math.PI : a;
+        NHitBoxD[] res = new NHitBoxD[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            Coord2d half = parts[i].end.sub(parts[i].begin).div(2);
+            Coord2d centre = parts[i].begin.add(parts[i].end).div(2);
+            res[i] = new NHitBoxD(half.inv(), half, rc.add(centre.rot(angle)), angle);
+        }
+        return res;
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle) {
