@@ -22,7 +22,7 @@ import java.util.function.Predicate;
 
 /**
  * Takes a set number of sips of each chosen drink. Every cup the run needs is fetched from the
- * cups' TAKE areas in one trip, one cup per drink. Each drink is then filled from the first barrel
+ * cups' TAKE areas in one trip, one cup per drink. Each drink is then filled from the first barrel or demijohn
  * holding it in the drink's barrel TAKE area and sipped next to that barrel, and what is left is
  * poured back into it. At the end the cups go back to the containers they came from.
  */
@@ -118,7 +118,7 @@ public class DrinkerBot implements Action {
             int have = 0;
             for (WItem cup : cupsIn(gui.getInventory(), e.getKey())) {
                 String content = drinkIn(cup);
-                if (content == null || containsIgnoreCase(e.getValue(), content))
+                if (content == null || holdsAny(e.getValue(), content))
                     have++;
             }
             int need = Math.max(0, e.getValue().size() - have);
@@ -207,10 +207,8 @@ public class DrinkerBot implements Action {
     private static List<String> findProblems(List<Order> orders) {
         LinkedHashSet<String> problems = new LinkedHashSet<>();
         for (Order o : orders) {
-            NArea area = NContext.findInGlobal(o.drink);
-            NArea.Ingredient in = area == null ? null : area.getInput(o.drink);
-            if (in == null || in.type != NArea.Ingredient.Type.BARREL)
-                problems.add("No TAKE area with " + o.drink + " barrels");
+            if (drinkArea(o.drink) == null)
+                problems.add("No TAKE area with " + o.drink + " in barrels");
             if (NContext.findInGlobal(o.cup) == null)
                 problems.add("No TAKE area for " + o.cup);
         }
@@ -260,10 +258,11 @@ public class DrinkerBot implements Action {
     private String drink(NGameUI gui, String drink, String cup, int sips) throws InterruptedException {
         if (findCup(gui, cup, drink) == null)
             return drink + " 0/" + sips + " (no " + cup + ")";
-        NArea area = NContext.findInGlobal(drink);
+        NArea area = drinkArea(drink);
         if (area == null || !NUtils.navigateToArea(area, true))
             return drink + " 0/" + sips + " (can't reach the " + drink + " area)";
-        ArrayList<Gob> barrels = Finder.findGobs(area, new NAlias("barrel"));
+        // Beer, wine and the like are also kept in demijohns, which fill and pour like barrels.
+        ArrayList<Gob> barrels = Finder.findGobs(area, new NAlias("barrel", "demijohn"));
         barrels.sort(NUtils.d_comp);
 
         Gob barrel = null;
@@ -347,7 +346,7 @@ public class DrinkerBot implements Action {
         boolean ok = waitHand(g -> !g.content().isEmpty());
         if (ok) {
             String got = drinkIn(gui.vhand);
-            if (got == null || !got.equalsIgnoreCase(drink)) {
+            if (!Vessels.drink(drink).holds(got)) {
                 System.out.println("Drinker: barrel " + barrel.id + " holds " + got + ", not " + drink + "; pouring it back");
                 NUtils.activateItem(barrel, true);
                 waitHand(g -> g.content().isEmpty());
@@ -435,7 +434,7 @@ public class DrinkerBot implements Action {
             if (content == null) {
                 if (empty == null)
                     empty = item;
-            } else if (content.equalsIgnoreCase(drink)) {
+            } else if (Vessels.drink(drink).holds(content)) {
                 return item;
             }
         }
@@ -475,12 +474,26 @@ public class DrinkerBot implements Action {
         return of < 0 ? name.trim() : name.substring(of + 4).trim();
     }
 
-    private static boolean containsIgnoreCase(List<String> names, String name) {
-        for (String n : names) {
-            if (n.equalsIgnoreCase(name))
+    private static boolean holdsAny(List<String> drinks, String content) {
+        for (String d : drinks) {
+            if (Vessels.drink(d).holds(content))
                 return true;
         }
         return false;
+    }
+
+    /**
+     * The TAKE area the drink is kept in as a barrel ingredient, under any of its entry names
+     * (milk by kind), or null if there is none.
+     */
+    private static NArea drinkArea(String drink) {
+        for (String name : Vessels.drink(drink).areaNames) {
+            NArea area = NContext.findInGlobal(name);
+            NArea.Ingredient in = area == null ? null : area.getInput(name);
+            if (in != null && in.type == NArea.Ingredient.Type.BARREL)
+                return area;
+        }
+        return null;
     }
 
     /** Waits a few seconds for the item in hand to meet the condition; false if it never did. */

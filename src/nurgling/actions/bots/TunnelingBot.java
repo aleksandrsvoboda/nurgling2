@@ -14,6 +14,7 @@ import nurgling.widgets.TunnelingDialog.SupportType;
 import nurgling.widgets.TunnelingDialog.WingOption;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static haven.MCache.tilesz;
 import static haven.OCache.posres;
@@ -31,6 +32,11 @@ public class TunnelingBot implements Action {
     // Tile size in world units
     private static final double TILE_SIZE = 11.0;
 
+    // Gobs that don't stop a road post going on their tile
+    private static final NAlias ROAD_SPOT_IGNORED = new NAlias("bumlings", "terobjs/items");
+    // Tries at a road post: rock found in the way is dug between them
+    private static final int ROAD_ATTEMPTS = 3;
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Show configuration dialog
@@ -47,6 +53,9 @@ public class TunnelingBot implements Action {
         dialog.setReferences(directionRef, tunnelSideRef, supportTypeRef, wingOptionRef, wingSideRef, maxLateralRef, confirmRef, cancelRef);
         boolean[] centreLineRef = new boolean[]{false};
         dialog.setFrameReferences(centreLineRef);
+        boolean[] roadRef = new boolean[]{false};
+        int[] roadSpacingRef = new int[]{TunnelRoad.MAX_SPACING_TILES};
+        dialog.setRoadReferences(roadRef, roadSpacingRef);
         NUtils.addCentered(gui, dialog);
 
         // Wait for user input
@@ -72,10 +81,14 @@ public class TunnelingBot implements Action {
             return new MinesweeperMiner(direction, maxLateralRef[0]).run(gui);
         }
 
+        // Kept local: the bot menu reuses this Action instance between runs
+        TunnelRoad road = (roadRef[0] && supportType.supportsRoad())
+                ? new TunnelRoad(direction, roadSpacingRef[0]) : null;
+
         // Tunnel frames are dug through rather than beside, so they get their own loop
         if (supportType.isFrame()) {
             return new FrameTunneler(direction, supportType,
-                    TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]), centreLineRef[0]).run(gui);
+                    TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]), centreLineRef[0], road).run(gui);
         }
 
         TunnelSide tunnelSide = TunnelingDialog.getTunnelSide(directionRef[0], tunnelSideRef[0]);
@@ -92,6 +105,13 @@ public class TunnelingBot implements Action {
         }
 
         gui.msg("Starting from support at: " + startSupport.rc);
+
+        if (road != null) {
+            Results roadStart = road.start(gui);
+            if (!roadStart.IsSuccess()) {
+                return roadStart;
+            }
+        }
 
         // Main tunneling loop
         Coord2d currentSupportPos = startSupport.rc;
@@ -154,6 +174,13 @@ public class TunnelingBot implements Action {
                 }
             }
 
+            if (road != null) {
+                Results roadResult = layRoad(gui, road, nextSupportPos, direction, supportType, tunnelSide);
+                if (!roadResult.IsSuccess()) {
+                    return roadResult;
+                }
+            }
+
             // Update current support position for next iteration
             currentSupportPos = nextSupportPos;
 
@@ -164,7 +191,164 @@ public class TunnelingBot implements Action {
             }
         }
 
+        // Take the road to the end of the tunnel
+        if (road != null) {
+            Coord lastSpot = roadSpot(currentSupportPos.div(tilesz).floor(), direction, tunnelSide);
+            if (road.worthFinishing(lastSpot)) {
+                Results roadResult = buildRoadPost(gui, road, lastSpot, direction, tunnelSide);
+                if (!roadResult.IsSuccess()) {
+                    return roadResult;
+                }
+            }
+        }
+
         return Results.SUCCESS();
+    }
+
+    // --- Road ---
+
+    // Same step as the main loop: one support radius ahead, snapped to a tile centre
+    private Coord2d nextSupportPos(Coord2d current, Direction direction, SupportType supportType) {
+        Coord2d next = current.add(new Coord2d(direction.dx, direction.dy).mul(supportType.radius));
+        return tileCenter(next.div(tilesz).floor());
+    }
+
+    /* The tile the road reaches at a support: the corridor on the support's row (or the row
+     * either side if something is there). The game refuses a road whose line crosses rock,
+     * and the corridor is open all the way back; the milestone itself is turned to stand
+     * beside it, further out than the corridor. */
+    private Coord roadSpot(Coord supportTile, Direction direction, TunnelSide tunnelSide) {
+        Coord corridor = supportTile.add(tunnelSide.dx, tunnelSide.dy);
+        for (int step : new int[]{0, -1, 1}) {
+            Coord tile = corridor.add(direction.dx * step, direction.dy * step);
+            if (!isRoadSpotBlocked(tile)) {
+                return tile;
+            }
+        }
+        return corridor;
+    }
+
+    private boolean isRoadSpotBlocked(Coord tile) {
+        for (Gob gob : Finder.findGobs(tile)) {
+            if (gob.ngob != null && gob.ngob.name != null
+                    && !NParser.checkName(gob.ngob.name, ROAD_SPOT_IGNORED)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /* After the support at supportPos is up: put a post by it if the next support's spot
+     * would be out of the road's range. */
+    private Results layRoad(NGameUI gui, TunnelRoad road, Coord2d supportPos, Direction direction,
+                            SupportType supportType, TunnelSide tunnelSide) throws InterruptedException {
+        Coord spot = roadSpot(supportPos.div(tilesz).floor(), direction, tunnelSide);
+        Coord next = roadSpot(nextSupportPos(supportPos, direction, supportType).div(tilesz).floor(),
+                direction, tunnelSide);
+        if (!road.due(spot, next)) {
+            return Results.SUCCESS();
+        }
+        return buildRoadPost(gui, road, spot, direction, tunnelSide);
+    }
+
+    private Results buildRoadPost(NGameUI gui, TunnelRoad road, Coord spot, Direction direction,
+                                  TunnelSide tunnelSide) throws InterruptedException {
+        // The last post is out of range, e.g. it stands well back from where the run started:
+        // add posts on the way. Each one moves the last post closer.
+        while (!road.reaches(spot).IsSuccess()) {
+            gui.msg("Road: the last milestone is too far from the next spot, adding one on the way");
+            Results added = buildOneRoadPost(gui, road, road.stepToward(spot), direction, tunnelSide);
+            if (!added.IsSuccess()) {
+                return added;
+            }
+        }
+        return buildOneRoadPost(gui, road, spot, direction, tunnelSide);
+    }
+
+    private Results buildOneRoadPost(NGameUI gui, TunnelRoad road, Coord spot, Direction direction,
+                                     TunnelSide tunnelSide) throws InterruptedException {
+        // The milestone stands beside the corridor, on the tile next to spot
+        Results mined = mineRoadTile(gui, spot.add(tunnelSide.dx, tunnelSide.dy));
+        if (!mined.IsSuccess()) {
+            return mined;
+        }
+        mined = mineRoadTile(gui, spot);
+        if (!mined.IsSuccess()) {
+            return mined;
+        }
+        Coord outward = new Coord(tunnelSide.dx, tunnelSide.dy);
+        for (int attempt = 1; ; attempt++) {
+            handleBumlings(gui);
+            Results built = road.extendTo(gui, spot, outward);
+            if (built.IsSuccess() || road.rockInTheWay().isEmpty() || attempt == ROAD_ATTEMPTS) {
+                return built;
+            }
+            Results cleared = clearRock(gui, road.rockInTheWay());
+            if (!cleared.IsSuccess()) {
+                return cleared;
+            }
+        }
+    }
+
+    /* mineTileIfNeeded only checks for weak supports; a road post away from the corridor
+     * (catching up with a far last post) may be on rock nothing props. */
+    private Results mineRoadTile(NGameUI gui, Coord tile) throws InterruptedException {
+        if (needsMining(gui, tile) && !isPropped(tile)) {
+            return Results.ERROR("Road: the next milestone's spot is on rock no support props");
+        }
+        return mineTileIfNeeded(gui, tile);
+    }
+
+    /* Mines rock tiles in the road's way, each once it borders open ground. Along the
+     * corridor there is none; it is for a first milestone that stands off the corridor. */
+    private Results clearRock(NGameUI gui, List<Coord> tiles) throws InterruptedException {
+        List<Coord> rock = new ArrayList<>(tiles);
+        if (rock.size() > TunnelRoad.MAX_LINE_ROCK) {
+            return Results.ERROR("Road: the road from the last milestone crosses " + rock.size()
+                    + " rock tiles. Dig it out or build a milestone closer, then restart.");
+        }
+        while (!rock.isEmpty()) {
+            Coord next = null;
+            for (Coord tile : rock) {
+                if (bordersOpenGround(gui, tile)) {
+                    next = tile;
+                    break;
+                }
+            }
+            if (next == null) {
+                return Results.ERROR("Road: can't dig the road's way from the last milestone");
+            }
+            if (!isPropped(next)) {
+                return Results.ERROR("Road: the road from the last milestone crosses rock no support props");
+            }
+            Results mined = mineTileIfNeeded(gui, next);
+            if (!mined.IsSuccess()) {
+                return mined;
+            }
+            rock.remove(next);
+        }
+        return Results.SUCCESS();
+    }
+
+    private boolean bordersOpenGround(NGameUI gui, Coord tile) {
+        for (Coord d : Coord.uecw) {
+            Coord n = tile.add(d);
+            Resource res = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(n));
+            if (res != null && !NParser.checkName(res.name, MINEABLE_TILES)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPropped(Coord tile) {
+        Coord2d pos = tileCenter(tile);
+        for (Gob support : Finder.findGobs(ALL_SUPPORTS)) {
+            if (support.rc.dist(pos) <= getSupportRadius(support)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Coord2d tileCenter(Coord tile) {
