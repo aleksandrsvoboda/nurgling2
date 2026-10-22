@@ -630,6 +630,7 @@ public class NGameUI extends GameUI
                     FishingWindowExtension.addSaveFishButton(wnd, this);
                 }
                 nurgling.widgets.BulkStorageWindowExtension.attach(wnd);
+                nurgling.widgets.MilestoneWindowExtension.attach(wnd);
             }
 
             if (maininv != null && !((NInventory) maininv).mainInvInstalled)
