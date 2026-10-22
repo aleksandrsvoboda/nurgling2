@@ -193,7 +193,7 @@
    "icon": "Carrot",
    "autoFill": "garden",
    "pinned": true,
-   "preset": "garden@1",
+   "preset": "garden@2",
    "sections": [
     {
      "title": "@storage.sec.vegetables",
@@ -257,7 +257,46 @@
        "name": "Hemp Seeds"
       },
       {
-       "name": "Barley Seed"
+       "name": "Barley Seeds"
+      },
+      {
+       "name": "Wheat Seeds"
+      },
+      {
+       "name": "Millet Seeds"
+      },
+      {
+       "name": "Carrot Seeds"
+      },
+      {
+       "name": "Turnip Seeds"
+      },
+      {
+       "name": "Leek Seeds"
+      },
+      {
+       "name": "Lettuce Seeds"
+      },
+      {
+       "name": "Green Kale Seeds"
+      },
+      {
+       "name": "Cucumber Seeds"
+      },
+      {
+       "name": "Pumpkin Seeds"
+      },
+      {
+       "name": "Watermelon Seeds"
+      },
+      {
+       "name": "Radish Seeds"
+      },
+      {
+       "name": "Poppy Seeds"
+      },
+      {
+       "name": "Pipeweed Seeds"
       }
      ]
     }
