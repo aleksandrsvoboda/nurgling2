@@ -148,6 +148,7 @@ public class NConfig
         curioFinishedSound,
         milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map
         milestoneTracking,   // Whether MilestoneTracker passively records signpost/milestone travel
+        roadTags,            // RoadTags' private per-post road labels shown in milestone windows
         tunnelingBot,        // TunnelingDialog's last choices (direction, support, sides, wings, road, ore stop)
         waypointRetryOnStuck,
         holdToMove,
@@ -465,6 +466,7 @@ public class NConfig
         conf.put(Key.curioFinishedSound, true);
         conf.put(Key.milestones, "");
         conf.put(Key.milestoneTracking, true);
+        conf.put(Key.roadTags, "");
         conf.put(Key.tunnelingBot, "");
         conf.put(Key.waypointRetryOnStuck, true);
         conf.put(Key.holdToMove, false);
