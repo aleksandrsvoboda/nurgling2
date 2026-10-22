@@ -24,6 +24,11 @@ import java.util.*;
 public final class StashLayout {
     private static final String PRESETS = "/nurgling/widgets/storage/storage-tabs-default.json";
     private static final String EXPORT_PREFIX = "nstash1:";
+    /**
+     * Slot names presets once shipped that are not the item's in-game name, so the slot stayed
+     * empty forever. Saved layouts and old exports are read with the real name.
+     */
+    private static final Map<String, String> RENAMED = Map.of("barley seed", "Barley Seeds");
 
     public static final class Slot {
         public final String name;
@@ -42,7 +47,8 @@ public final class StashLayout {
         }
 
         static Slot of(JSONObject o) {
-            return new Slot(o.getString("name"), Math.max(0, o.optInt("target", 0)));
+            String name = o.getString("name");
+            return new Slot(RENAMED.getOrDefault(StorageClassifier.normalize(name), name), Math.max(0, o.optInt("target", 0)));
         }
     }
 

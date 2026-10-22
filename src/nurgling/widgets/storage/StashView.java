@@ -52,20 +52,34 @@ public class StashView extends Widget {
     private static final Text.Foundry titleFont = new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 12, NStyle.border).aa(true);
     private static final Text.Foundry infoFont = new Text.Foundry(Text.sans, 10, SECTION).aa(true);
 
-    /** Everything stored under one item name. */
+    /**
+     * Everything stored under one item name: countable items in containers and piles, and barrel or
+     * cistern contents (seeds go in both) whose amount is in their own unit.
+     */
     public static final class Stock {
         public final String name;
         public final List<StorageItemDao.StorageItemData> rows = new ArrayList<>();
-        public final String bulkUnit;
-        public double bulkAmount;
+        public final List<StorageItemDao.StorageItemData> bulk = new ArrayList<>();
+        public String bulkUnit; // of the first barrel row, null with none
 
-        Stock(String name, String bulkUnit) {
+        Stock(String name) {
             this.name = name;
-            this.bulkUnit = bulkUnit;
         }
 
-        /** Rows that pass the quality filter; unknown-quality rows only pass without a filter. */
+        /** Item rows that pass the quality filter; unknown-quality rows only pass without a filter. */
         List<StorageItemDao.StorageItemData> rows(double minQ) {
+            return passing(rows, minQ);
+        }
+
+        /** The barrel amount that passes the quality filter. */
+        double bulkAmount(double minQ) {
+            double sum = 0;
+            for (StorageItemDao.StorageItemData r : passing(bulk, minQ))
+                sum += r.getBulkAmount();
+            return sum;
+        }
+
+        private static List<StorageItemDao.StorageItemData> passing(List<StorageItemDao.StorageItemData> rows, double minQ) {
             if (minQ <= 0)
                 return rows;
             List<StorageItemDao.StorageItemData> out = new ArrayList<>();
@@ -82,6 +96,7 @@ public class StashView extends Widget {
         final StashLayout.Slot pin; // null for auto-filled
         final Stock stock;          // null when none stored
         final int count;
+        final double bulkAmount;
         final double maxQ;
         final int unknown;
         final Coord c;
@@ -101,18 +116,22 @@ public class StashView extends Widget {
                     else
                         u++;
                 }
+                for (StorageItemDao.StorageItemData r : Stock.passing(stock.bulk, minQ))
+                    q = Math.max(q, r.getQuality());
             }
             this.count = n;
+            this.bulkAmount = stock == null ? 0 : stock.bulkAmount(minQ);
             this.maxQ = q;
             this.unknown = u;
         }
 
+        /** Whether barrels hold some; the slot then shows their amount, the items go in the tooltip. */
         boolean bulk() {
-            return stock != null && stock.bulkUnit != null;
+            return bulkAmount > 0;
         }
 
         boolean empty() {
-            return bulk() ? stock.bulkAmount <= 0 : count == 0;
+            return !bulk() && count == 0;
         }
 
         boolean low() {
@@ -169,10 +188,14 @@ public class StashView extends Widget {
     public void setItems(List<StorageItemDao.StorageItemData> items) {
         Map<String, Stock> map = new HashMap<>();
         for (StorageItemDao.StorageItemData r : items) {
-            String key = StorageClassifier.normalize(r.getName()) + (r.isBulk() ? "#" + r.getBulkUnit() : "");
-            Stock s = map.computeIfAbsent(key, k -> new Stock(r.getName(), r.getBulkUnit()));
-            s.rows.add(r);
-            s.bulkAmount += r.getBulkAmount();
+            Stock s = map.computeIfAbsent(StorageClassifier.normalize(r.getName()), k -> new Stock(r.getName()));
+            if (r.isBulk()) {
+                s.bulk.add(r);
+                if (s.bulkUnit == null)
+                    s.bulkUnit = r.getBulkUnit();
+            } else {
+                s.rows.add(r);
+            }
         }
         for (Stock s : map.values())
             s.rows.sort((a, b) -> Double.compare(b.getQuality(), a.getQuality()));
@@ -223,15 +246,7 @@ public class StashView extends Widget {
     }
 
     private Stock stockFor(String name) {
-        Map<String, Stock> map = stock;
-        String key = StorageClassifier.normalize(name);
-        Stock s = map.get(key);
-        if (s != null)
-            return s;
-        for (Map.Entry<String, Stock> e : map.entrySet())
-            if (e.getKey().startsWith(key + "#"))
-                return e.getValue();
-        return null;
+        return stock.get(StorageClassifier.normalize(name));
     }
 
     private boolean matchesSearch(String name) {
@@ -247,10 +262,10 @@ public class StashView extends Widget {
         for (Stock s : stock.values()) {
             if (StorageClassifier.classify(s.name) != cat || (tab.pinned && tab.find(s.name) != null))
                 continue;
-            if (!s.rows(minQ).isEmpty() || (s.bulkUnit != null && s.bulkAmount > 0 && minQ <= 0))
+            if (!s.rows(minQ).isEmpty() || s.bulkAmount(minQ) > 0)
                 out.add(s);
         }
-        out.sort(Comparator.<Stock>comparingDouble(s -> s.bulkUnit != null ? s.bulkAmount : s.rows(minQ).size()).reversed()
+        out.sort(Comparator.<Stock>comparingDouble(s -> s.bulkAmount(minQ) > 0 ? s.bulkAmount(minQ) : s.rows(minQ).size()).reversed()
                 .thenComparing(s -> s.name));
         return out;
     }
@@ -431,7 +446,7 @@ public class StashView extends Widget {
         g.frect(strip, Coord.of(CELL.x - 2, STRIP));
         g.chcolor();
         if (!empty) {
-            String n = cell.bulk() ? Utils.odformat2(cell.stock.bulkAmount, 0) : String.valueOf(cell.count);
+            String n = cell.bulk() ? Utils.odformat2(cell.bulkAmount, 0) : String.valueOf(cell.count);
             Tex nt = text((cell.low() ? "l" : "c") + n, cell.low() ? lowFont : countFont, n);
             g.image(nt, strip.add(UI.scale(2), (STRIP - nt.sz().y) / 2));
             String q = cell.maxQ > 0 ? String.valueOf((int) cell.maxQ) : cell.bulk() ? "" : "?";
@@ -583,7 +598,11 @@ public class StashView extends Widget {
         List<java.awt.image.BufferedImage> lines = new ArrayList<>();
         lines.add(titleFont.render(cell.name).img);
         if (cell.bulk()) {
-            lines.add(tipFont.render(Utils.odformat2(cell.stock.bulkAmount, 2) + " " + cell.stock.bulkUnit).img);
+            lines.add(tipFont.render(Utils.odformat2(cell.bulkAmount, 2) + " " + cell.stock.bulkUnit).img);
+            if (cell.count > 0)
+                lines.add(tipFont.render(L10n.get("storage.stash.also_items", cell.count)).img);
+            if (cell.maxQ > 0)
+                lines.add(tipFont.render(L10n.get("storage.stash.best_q", Utils.odformat2(cell.maxQ, 1))).img);
         } else if (cell.empty()) {
             lines.add(tipFont.render(L10n.get(minQ > 0 ? "storage.stash.none_at_q" : "storage.stash.none", (int) minQ)).img);
         } else {
@@ -804,7 +823,10 @@ public class StashView extends Widget {
     private void take(Cell cell) {
         if (cell.stock == null)
             return;
+        // The fetch bot carries items; barrel rows only get the list's "needs a container" message.
         List<StorageItemDao.StorageItemData> rows = cell.stock.rows(minQ);
+        if (rows.isEmpty())
+            rows = Stock.passing(cell.stock.bulk, minQ);
         NStorageItemsWidget.GroupedItem item = new NStorageItemsWidget.GroupedItem(cell.stock.name, -1, rows.size(), rows);
         NStorageItemsWidget.requestTake(item, rows);
     }
