@@ -71,17 +71,19 @@ public class NMiningSupport extends Sprite implements RenderTree.Node
 
     /**
      * A tunnel's tiles. Forward is the gob's facing (a=0 is +X), snapped
-     * to the nearest cardinal; positive directions start on the gob's
-     * tile, negative ones a tile ahead. Even widths lean towards the
-     * negative side of the lateral axis, as the game anchors them.
-     * forwardShift moves the rectangle along the facing. The mask's end
-     * is exclusive.
+     * to the nearest cardinal. A placement preview stands on the tile
+     * edge that is the frame's line, which floors to the tile ahead when
+     * facing a positive direction and to the tile behind when facing a
+     * negative one. A built frame's gob sits a little behind that line,
+     * inside the tile behind its coverage, whatever its facing. Even
+     * widths lean towards the negative side of the lateral axis, as the
+     * game anchors them. The mask's end is exclusive.
      */
-    public static Mask computeRect(Coord2d rc, double angle, int widthTiles, int lengthTiles, int forwardShift) {
+    public static Mask computeRect(Coord2d rc, double angle, int widthTiles, int lengthTiles, boolean built) {
         Coord origin = rc.div(MCache.tilesz).floor();
         Coord fwd = snapCardinal(Coord2d.of(1, 0).rot(angle));
         Coord right = snapCardinal(Coord2d.of(0, 1).rot(angle));
-        int i0 = ((fwd.x < 0 || fwd.y < 0) ? 1 : 0) + forwardShift;
+        int i0 = (built || fwd.x < 0 || fwd.y < 0) ? 1 : 0;
         int i1 = i0 + lengthTiles - 1;
         int j0 = (right.x > 0 || right.y > 0) ? -Math.floorDiv(widthTiles, 2) : -Math.floorDiv(widthTiles - 1, 2);
         int j1 = j0 + widthTiles - 1;
@@ -124,9 +126,7 @@ public class NMiningSupport extends Sprite implements RenderTree.Node
     synchronized void calcData()
     {
         if (rect) {
-            /* A built tunnel's gob sits a tile behind the ground it
-             * holds up; a placement preview already starts on it. */
-            mask = computeRect(gob.rc, gob.a, widthTiles, lengthTiles, (gob.id == -1) ? 0 : 1);
+            mask = computeRect(gob.rc, gob.a, widthTiles, lengthTiles, gob.id != -1);
             return;
         }
         if(isTree)

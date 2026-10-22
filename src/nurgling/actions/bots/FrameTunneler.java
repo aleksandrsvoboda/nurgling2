@@ -233,7 +233,7 @@ public class FrameTunneler implements Action {
         for (int dr = -1; dr <= 1; dr++) {
             for (int dc = -1; dc <= 1; dc++) {
                 Coord origin = tileAt(frontier + dr, centreCol + dc);
-                NMiningSupport.Mask mask = NMiningSupport.computeRect(frameAnchor(origin), angle, width, length, 0);
+                NMiningSupport.Mask mask = NMiningSupport.computeRect(frameAnchor(origin), angle, width, length, false);
                 if (new HashSet<>(tilesOf(mask)).equals(wanted)) {
                     return origin;
                 }
@@ -294,7 +294,7 @@ public class FrameTunneler implements Action {
             return null;
         }
         if (spec.isRect()) {
-            return NMiningSupport.computeRect(support.rc, support.a, spec.widthTiles, spec.lengthTiles, 1);
+            return NMiningSupport.computeRect(support.rc, support.a, spec.widthTiles, spec.lengthTiles, true);
         }
         for (Gob.Overlay ol : support.ols) {
             if (ol.spr instanceof NMiningSupport) {
