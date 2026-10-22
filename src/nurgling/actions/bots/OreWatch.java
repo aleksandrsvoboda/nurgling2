@@ -6,11 +6,14 @@ import haven.MCache;
 import haven.Resource;
 import nurgling.NGameUI;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * The Tunneling Bot's "Stop at ore" option. Digging a tile reveals the rock type of the walls
+ * The Tunneling Bot's "Stop at ore" option, for the ores ticked in its picker. Digging a
+ * tile reveals the rock type of the walls
  * around it; until then they read as plain cave. So the tiles around each dug tile are
  * looked at before and after the dig, and a tile once seen as something else that now reads
  * as ore is a find. Ore that was already showing when a tile was first looked at never
@@ -45,16 +48,34 @@ public class OreWatch {
         ORES.put("sylvanite", "Schrifterz");
     }
 
-    // Whether each tile looked at so far was ore
+    // Ore keys (tile names) to stop at
+    private final Set<String> stopAt;
+    // Whether each tile looked at so far was ore, of any kind
     private final Map<Coord, Boolean> seen = new HashMap<>();
     private String found = null;
 
-    /* The ore a tile resource is, or null. */
-    static String oreName(String tileRes) {
+    public OreWatch(Set<String> stopAt) {
+        this.stopAt = stopAt;
+    }
+
+    /* Every ore, by key (its tile name, e.g. "magnetite") to its name ("Black Ore"). */
+    public static Map<String, String> ores() {
+        return Collections.unmodifiableMap(ORES);
+    }
+
+    /* The key of the ore a tile resource is, or null. */
+    static String oreKey(String tileRes) {
         if (tileRes == null || !tileRes.startsWith(ROCK_TILE)) {
             return null;
         }
-        return ORES.get(tileRes.substring(ROCK_TILE.length()));
+        String key = tileRes.substring(ROCK_TILE.length());
+        return ORES.containsKey(key) ? key : null;
+    }
+
+    /* The ore a tile resource is, or null. */
+    static String oreName(String tileRes) {
+        String key = oreKey(tileRes);
+        return (key == null) ? null : ORES.get(key);
     }
 
     /* Looks at the tiles around center; returns the find (also kept in found()), or null. */
@@ -72,10 +93,10 @@ public class OreWatch {
                 if (res == null) {
                     continue;
                 }
-                String ore = oreName(res.name);
+                String ore = oreKey(res.name);
                 Boolean wasOre = seen.put(tile, ore != null);
-                if (ore != null && Boolean.FALSE.equals(wasOre) && found == null) {
-                    found = "Found ore: " + ore + " at tile " + tile;
+                if (ore != null && Boolean.FALSE.equals(wasOre) && stopAt.contains(ore) && found == null) {
+                    found = "Found ore: " + ORES.get(ore) + " at tile " + tile;
                 }
             }
         }

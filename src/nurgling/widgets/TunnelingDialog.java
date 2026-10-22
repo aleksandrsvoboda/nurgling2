@@ -2,6 +2,7 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.NConfig;
+import nurgling.actions.bots.OreWatch;
 import nurgling.actions.bots.TunnelRoad;
 import nurgling.overlays.NMiningSupport;
 
@@ -9,8 +10,10 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class TunnelingDialog extends Window {
     public enum Direction {
@@ -137,6 +140,8 @@ public class TunnelingDialog extends Window {
     private boolean road = false;
     private int roadSpacing = TunnelRoad.MAX_SPACING_TILES;
     private boolean stopAtOre = false;
+    // Ore keys (see OreWatch.ores) that stop the bot; all of them until narrowed in the picker
+    private final Set<String> stopOres = new HashSet<>(OreWatch.ores().keySet());
 
     private int maxLateral = 5;
 
@@ -153,6 +158,7 @@ public class TunnelingDialog extends Window {
     private boolean[] roadRef = null;
     private int[] roadSpacingRef = null;
     private boolean[] stopAtOreRef = null;
+    private Set<String> stopOresOut = null;
 
     // UI Elements
     private IButton btnDirN, btnDirS, btnDirE, btnDirW;
@@ -185,7 +191,13 @@ public class TunnelingDialog extends Window {
     private final List<Widget> roadWidgets = new ArrayList<>();
     private Button confirmButton, cancelButton;
     private CheckBox stopAtOreBox;
+    private Button oresButton;
+    private OrePicker orePicker;
     private int tunnelerButtonY, minesweeperButtonY;
+    // Minesweeper mode: from the ore row down to the buttons
+    private static final int ORE_ROW_STEP = 38;
+    private int minesweeperOreY;
+    private Coord oreColumn;
 
     private static final Color COLOR_SELECTION = new Color(255, 200, 50);
 
@@ -623,6 +635,8 @@ public class TunnelingDialog extends Window {
 
         // Legend aligned to bottom of preview
         int legendX = leftMargin + previewGrid.sz.x + 25;
+        // The ore stop goes in the free space above the legend, level with the preview's top
+        oreColumn = new Coord(legendX, y);
         int previewBottom = y + previewGrid.sz.y;
         int legendItemHeight = 22;
         addColoredLegend(legendX, previewBottom - 4 * legendItemHeight, COLOR_ROAD, "Milestone", roadWidgets);
@@ -664,8 +678,10 @@ public class TunnelingDialog extends Window {
         // === 5. BUTTONS (left aligned) ===
         int btnWidth = 140;
         tunnelerButtonY = y;
-        // Minesweeper mode: buttons go right after the lateral deviation row
-        minesweeperButtonY = compassCenterY + windroseSize.y / 2 + btnDirS.sz.y + btnGap + 65;
+        // Minesweeper mode: a row for the ore stop after the lateral deviation row (there is no
+        // preview to sit beside), then the buttons
+        minesweeperOreY = compassCenterY + windroseSize.y / 2 + btnDirS.sz.y + btnGap + 65;
+        minesweeperButtonY = minesweeperOreY + ORE_ROW_STEP;
 
         confirmButton = new Button(btnWidth, "Start") {
             @Override
@@ -679,7 +695,6 @@ public class TunnelingDialog extends Window {
         };
         add(cancelButton, new Coord(leftMargin + btnWidth + 15, y));
 
-        // Every mode digs, so this sits with the buttons, which move between modes
         stopAtOreBox = new CheckBox("Stop at ore") {
             @Override
             public void changed(boolean val) {
@@ -687,8 +702,17 @@ public class TunnelingDialog extends Window {
             }
         };
         stopAtOreBox.a = stopAtOre;
-        stopAtOreBox.settip("Stop the bot as soon as digging reveals a new ore tile.");
-        add(stopAtOreBox, new Coord(leftMargin + 2 * (btnWidth + 15), y + 4));
+        stopAtOreBox.settip("Stop the bot as soon as digging reveals a new tile of one of the ores chosen with the button.");
+        add(stopAtOreBox);
+
+        oresButton = new Button(110, "") {
+            @Override
+            public void click() { toggleOrePicker(); }
+        };
+        oresButton.settip("Choose the ores to stop at.");
+        updateOresButton();
+        add(oresButton);
+        placeOreControls(false);
 
         // Initialize state from saved values
         restoreSavedState();
@@ -913,7 +937,7 @@ public class TunnelingDialog extends Window {
         int btnWidth = 140;
         confirmButton.move(new Coord(leftMargin, btnY));
         cancelButton.move(new Coord(leftMargin + btnWidth + 15, btnY));
-        stopAtOreBox.move(new Coord(leftMargin + 2 * (btnWidth + 15), btnY + 4));
+        placeOreControls(isMinesweeper);
         resize(new Coord(560, btnY + confirmButton.sz.y + 20));
         // Re-apply direction-dependent visibility for tunnel/wing side buttons
         if (!isMinesweeper) {
@@ -1323,8 +1347,105 @@ public class TunnelingDialog extends Window {
         this.roadSpacingRef = roadSpacingRef;
     }
 
-    public void setOreReference(boolean[] stopAtOreRef) {
+    /* stopOresOut is filled with the chosen ore keys on Start. */
+    public void setOreReference(boolean[] stopAtOreRef, Set<String> stopOresOut) {
         this.stopAtOreRef = stopAtOreRef;
+        this.stopOresOut = stopOresOut;
+    }
+
+    // --- Ore picker ---
+
+    /* Beside the preview: the checkbox, then the button under it. Without a preview (minesweeper):
+     * the two side by side on their own row, centred on each other. */
+    private void placeOreControls(boolean minesweeper) {
+        if (minesweeper) {
+            oresButton.move(new Coord(20 + stopAtOreBox.sz.x + 15, minesweeperOreY));
+            stopAtOreBox.move(new Coord(20, minesweeperOreY + (oresButton.sz.y - stopAtOreBox.sz.y) / 2));
+        } else {
+            stopAtOreBox.move(oreColumn);
+            oresButton.move(oreColumn.add(0, stopAtOreBox.sz.y + 8));
+        }
+    }
+
+    private void updateOresButton() {
+        oresButton.change("Ores (" + stopOres.size() + ")");
+    }
+
+    private void toggleOrePicker() {
+        if (orePicker != null) {
+            closeOrePicker();
+            return;
+        }
+        orePicker = new OrePicker();
+        parent.add(orePicker, c.add(sz.x + UI.scale(10), 0));
+    }
+
+    private void closeOrePicker() {
+        if (orePicker != null) {
+            orePicker.reqdestroy();
+            orePicker = null;
+        }
+    }
+
+    /* A checkbox for each ore, in two columns by name; ticks go straight into stopOres. */
+    private class OrePicker extends Window {
+        private final List<CheckBox> boxes = new ArrayList<>();
+        private final List<String> keys = new ArrayList<>();
+
+        OrePicker() {
+            super(new Coord(1, 1), "Stop at ores");
+            List<Map.Entry<String, String>> ores = new ArrayList<>(OreWatch.ores().entrySet());
+            ores.sort(Map.Entry.comparingByValue());
+            int rows = (ores.size() + 1) / 2;
+            int colWidth = UI.scale(130), rowHeight = UI.scale(22);
+            for (int i = 0; i < ores.size(); i++) {
+                String key = ores.get(i).getKey();
+                CheckBox box = new CheckBox(ores.get(i).getValue()) {
+                    @Override
+                    public void changed(boolean val) {
+                        if (val) stopOres.add(key); else stopOres.remove(key);
+                        updateOresButton();
+                    }
+                };
+                box.a = stopOres.contains(key);
+                add(box, new Coord((i / rows) * colWidth, i % rows * rowHeight));
+                boxes.add(box);
+                keys.add(key);
+            }
+            int y = rows * rowHeight + UI.scale(8);
+            add(new Button(UI.scale(70), "All") {
+                @Override
+                public void click() { setAll(true); }
+            }, new Coord(0, y));
+            add(new Button(UI.scale(70), "None") {
+                @Override
+                public void click() { setAll(false); }
+            }, new Coord(UI.scale(80), y));
+            pack();
+        }
+
+        private void setAll(boolean on) {
+            for (int i = 0; i < boxes.size(); i++) {
+                boxes.get(i).a = on;
+                if (on) stopOres.add(keys.get(i)); else stopOres.remove(keys.get(i));
+            }
+            updateOresButton();
+        }
+
+        @Override
+        public void wdgmsg(String msg, Object... args) {
+            if (msg.equals("close")) {
+                closeOrePicker();
+            } else {
+                super.wdgmsg(msg, args);
+            }
+        }
+    }
+
+    @Override
+    public void destroy() {
+        closeOrePicker();
+        super.destroy();
     }
 
     /* The choices last started with, kept in the config so they outlive the client. */
@@ -1343,6 +1464,15 @@ public class TunnelingDialog extends Window {
         road = savedBool(saved, "road", road);
         roadSpacing = TunnelRoad.clampSpacing(savedInt(saved, "roadSpacing", roadSpacing));
         stopAtOre = savedBool(saved, "stopAtOre", stopAtOre);
+        // Missing means never chosen (all ores); an empty list means none
+        if (saved.get("stopOres") instanceof List) {
+            stopOres.clear();
+            for (Object key : (List<?>) saved.get("stopOres")) {
+                if (key instanceof String && OreWatch.ores().containsKey(key)) {
+                    stopOres.add((String) key);
+                }
+            }
+        }
     }
 
     private void saveSettings() {
@@ -1360,6 +1490,7 @@ public class TunnelingDialog extends Window {
         saved.put("road", road);
         saved.put("roadSpacing", roadSpacing);
         saved.put("stopAtOre", stopAtOre);
+        saved.put("stopOres", new ArrayList<>(stopOres));
         NConfig.set(NConfig.Key.tunnelingBot, saved);
     }
 
@@ -1431,6 +1562,11 @@ public class TunnelingDialog extends Window {
         if (stopAtOreRef != null) {
             stopAtOreRef[0] = stopAtOre;
         }
+        if (stopOresOut != null) {
+            stopOresOut.clear();
+            stopOresOut.addAll(stopOres);
+        }
+        closeOrePicker();
         if (confirmRef != null) {
             confirmRef[0] = true;
         }
@@ -1452,6 +1588,7 @@ public class TunnelingDialog extends Window {
     }
 
     private void cancel() {
+        closeOrePicker();
         if (cancelRef != null) {
             cancelRef[0] = true;
         }

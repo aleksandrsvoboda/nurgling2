@@ -14,7 +14,9 @@ import nurgling.widgets.TunnelingDialog.SupportType;
 import nurgling.widgets.TunnelingDialog.WingOption;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static haven.MCache.tilesz;
 import static haven.OCache.posres;
@@ -60,7 +62,8 @@ public class TunnelingBot implements Action {
         int[] roadSpacingRef = new int[]{TunnelRoad.MAX_SPACING_TILES};
         dialog.setRoadReferences(roadRef, roadSpacingRef);
         boolean[] stopAtOreRef = new boolean[]{false};
-        dialog.setOreReference(stopAtOreRef);
+        Set<String> stopOres = new HashSet<>();
+        dialog.setOreReference(stopAtOreRef, stopOres);
         NUtils.addCentered(gui, dialog);
 
         // Wait for user input
@@ -81,7 +84,7 @@ public class TunnelingBot implements Action {
         Direction direction = TunnelingDialog.getDirection(directionRef[0]);
         SupportType supportType = TunnelingDialog.getSupportType(supportTypeRef[0]);
 
-        oreWatch = stopAtOreRef[0] ? new OreWatch() : null;
+        oreWatch = stopAtOreRef[0] ? new OreWatch(stopOres) : null;
 
         // Dispatch to MinesweeperMiner if no support selected
         if (supportType == SupportType.NONE) {
