@@ -54,6 +54,8 @@ public class NRockTileHighlightOverlay extends NOverlay {
      * Updates which rock tile resources should be highlighted based on Icon Settings.
      * Only called when we detect icon settings may have changed.
      */
+    private double nextIconCheck = 0;
+
     private void updateSelectedRocks() {
         if (NUtils.getGameUI() == null || NUtils.getGameUI().ui == null) {
             return;
@@ -104,13 +106,17 @@ public class NRockTileHighlightOverlay extends NOverlay {
             if (isEnabled != newEnabled) {
                 isEnabled = newEnabled;
                 needsRebuild = true;
+                nextIconCheck = 0;
             }
         } catch (Exception e) {
             // Ignore
         }
 
-        // Only check icon settings if enabled (avoids unnecessary work)
-        if (isEnabled) {
+        // Only check icon settings if enabled, and once a second: the scan walks
+        // every icon setting, and it ran every frame (~3.5% of the UI thread).
+        double now = Utils.rtime();
+        if (isEnabled && now >= nextIconCheck) {
+            nextIconCheck = now + 1;
             updateSelectedRocks();
         }
 

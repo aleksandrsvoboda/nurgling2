@@ -154,7 +154,7 @@ public interface Waitable {
 	protected abstract Waiting add();
 
 	public Checker addi() {
-	    add();
+	    cw = add();
 	    return(this);
 	}
 

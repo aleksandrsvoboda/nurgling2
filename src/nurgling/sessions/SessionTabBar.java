@@ -71,6 +71,9 @@ public class SessionTabBar extends Widget {
 
     /** Font for character names (static so shared across instances) */
     private static Text.Foundry nameFont;
+    /* Rendered (and truncated) names: rendering text is a Java2D pass plus a new
+     * texture, and every session button drew its name that way each frame. */
+    private final Map<String, Text> nameTexts = new HashMap<>();
 
     /** Currently hovered button index (-1 = none, -2 = plus button) */
     private int hoveredButton = -1;
@@ -490,19 +493,25 @@ public class SessionTabBar extends Widget {
 
         // Draw character name centered in button
         String name = ctx.getDisplayName();
-        Text nameText = nameFont.render(name);
+        Text nameText = nameTexts.get(name);
+        if (nameText == null) {
+            nameText = nameFont.render(name);
 
-        // Truncate name if too long (max 67px width)
-        if (nameText.sz().x > MAX_NAME_WIDTH) {
-            int maxLen = name.length();
-            while (maxLen > 0) {
-                String truncated = name.substring(0, maxLen) + "...";
-                nameText = nameFont.render(truncated);
-                if (nameText.sz().x <= MAX_NAME_WIDTH) {
-                    break;
+            // Truncate name if too long (max 67px width)
+            if (nameText.sz().x > MAX_NAME_WIDTH) {
+                int maxLen = name.length();
+                while (maxLen > 0) {
+                    String truncated = name.substring(0, maxLen) + "...";
+                    nameText = nameFont.render(truncated);
+                    if (nameText.sz().x <= MAX_NAME_WIDTH) {
+                        break;
+                    }
+                    maxLen--;
                 }
-                maxLen--;
             }
+            if (nameTexts.size() >= 32)
+                nameTexts.clear();
+            nameTexts.put(name, nameText);
         }
 
         g.chcolor(textColor);
