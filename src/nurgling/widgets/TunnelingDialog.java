@@ -194,6 +194,10 @@ public class TunnelingDialog extends Window {
     private Button oresButton;
     private OrePicker orePicker;
     private int tunnelerButtonY, minesweeperButtonY;
+    // Minesweeper mode: from the ore row down to the buttons
+    private static final int ORE_ROW_STEP = 38;
+    private int minesweeperOreY;
+    private Coord oreColumn;
 
     private static final Color COLOR_SELECTION = new Color(255, 200, 50);
 
@@ -631,6 +635,8 @@ public class TunnelingDialog extends Window {
 
         // Legend aligned to bottom of preview
         int legendX = leftMargin + previewGrid.sz.x + 25;
+        // The ore stop goes in the free space above the legend, level with the preview's top
+        oreColumn = new Coord(legendX, y);
         int previewBottom = y + previewGrid.sz.y;
         int legendItemHeight = 22;
         addColoredLegend(legendX, previewBottom - 4 * legendItemHeight, COLOR_ROAD, "Milestone", roadWidgets);
@@ -672,8 +678,10 @@ public class TunnelingDialog extends Window {
         // === 5. BUTTONS (left aligned) ===
         int btnWidth = 140;
         tunnelerButtonY = y;
-        // Minesweeper mode: buttons go right after the lateral deviation row
-        minesweeperButtonY = compassCenterY + windroseSize.y / 2 + btnDirS.sz.y + btnGap + 65;
+        // Minesweeper mode: a row for the ore stop after the lateral deviation row (there is no
+        // preview to sit beside), then the buttons
+        minesweeperOreY = compassCenterY + windroseSize.y / 2 + btnDirS.sz.y + btnGap + 65;
+        minesweeperButtonY = minesweeperOreY + ORE_ROW_STEP;
 
         confirmButton = new Button(btnWidth, "Start") {
             @Override
@@ -687,7 +695,6 @@ public class TunnelingDialog extends Window {
         };
         add(cancelButton, new Coord(leftMargin + btnWidth + 15, y));
 
-        // Every mode digs, so this sits with the buttons, which move between modes
         stopAtOreBox = new CheckBox("Stop at ore") {
             @Override
             public void changed(boolean val) {
@@ -696,15 +703,16 @@ public class TunnelingDialog extends Window {
         };
         stopAtOreBox.a = stopAtOre;
         stopAtOreBox.settip("Stop the bot as soon as digging reveals a new tile of one of the ores chosen with the button.");
-        add(stopAtOreBox, new Coord(leftMargin + 2 * (btnWidth + 15), y + 4));
+        add(stopAtOreBox);
 
-        oresButton = new Button(UI.scale(80), "") {
+        oresButton = new Button(110, "") {
             @Override
             public void click() { toggleOrePicker(); }
         };
         oresButton.settip("Choose the ores to stop at.");
         updateOresButton();
-        add(oresButton, oresButtonPos(y));
+        add(oresButton);
+        placeOreControls(false);
 
         // Initialize state from saved values
         restoreSavedState();
@@ -929,8 +937,7 @@ public class TunnelingDialog extends Window {
         int btnWidth = 140;
         confirmButton.move(new Coord(leftMargin, btnY));
         cancelButton.move(new Coord(leftMargin + btnWidth + 15, btnY));
-        stopAtOreBox.move(new Coord(leftMargin + 2 * (btnWidth + 15), btnY + 4));
-        oresButton.move(oresButtonPos(btnY));
+        placeOreControls(isMinesweeper);
         resize(new Coord(560, btnY + confirmButton.sz.y + 20));
         // Re-apply direction-dependent visibility for tunnel/wing side buttons
         if (!isMinesweeper) {
@@ -1348,8 +1355,16 @@ public class TunnelingDialog extends Window {
 
     // --- Ore picker ---
 
-    private Coord oresButtonPos(int btnY) {
-        return new Coord(stopAtOreBox.c.x + stopAtOreBox.sz.x + 10, btnY);
+    /* Beside the preview: the checkbox, then the button under it. Without a preview (minesweeper):
+     * the two side by side on their own row, centred on each other. */
+    private void placeOreControls(boolean minesweeper) {
+        if (minesweeper) {
+            oresButton.move(new Coord(20 + stopAtOreBox.sz.x + 15, minesweeperOreY));
+            stopAtOreBox.move(new Coord(20, minesweeperOreY + (oresButton.sz.y - stopAtOreBox.sz.y) / 2));
+        } else {
+            stopAtOreBox.move(oreColumn);
+            oresButton.move(oreColumn.add(0, stopAtOreBox.sz.y + 8));
+        }
     }
 
     private void updateOresButton() {
