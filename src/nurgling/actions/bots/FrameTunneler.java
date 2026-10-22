@@ -54,6 +54,8 @@ public class FrameTunneler implements Action {
     private final NAlias frameAlias;
     // Lays a milestone road behind the corridor; null when the option is off
     private final TunnelRoad road;
+    // "Stop at ore"; null when the option is off
+    private final OreWatch oreWatch;
 
     // Tile steps along the dig direction, and across it (East digging N/S, South digging E/W)
     private final Coord fwd, lat;
@@ -69,8 +71,14 @@ public class FrameTunneler implements Action {
 
     public FrameTunneler(Direction direction, SupportType frameType, TunnelSide extraSide, boolean centreLine,
                          TunnelRoad road) {
+        this(direction, frameType, extraSide, centreLine, road, null);
+    }
+
+    public FrameTunneler(Direction direction, SupportType frameType, TunnelSide extraSide, boolean centreLine,
+                         TunnelRoad road, OreWatch oreWatch) {
         this.direction = direction;
         this.road = road;
+        this.oreWatch = oreWatch;
         this.frameType = frameType;
         this.extraSide = extraSide;
         this.centreLine = centreLine;
@@ -403,6 +411,10 @@ public class FrameTunneler implements Action {
             return Results.ERROR("Unsafe to mine - check support health or loose rocks");
         }
 
+        if (oreWatch != null) {
+            oreWatch.look(gui, tilePos);
+        }
+
         Coord2d worldPos = tileCenter(tilePos);
 
         PathFinder pf = new PathFinder(NGob.getDummy(worldPos, 0,
@@ -440,6 +452,9 @@ public class FrameTunneler implements Action {
         }
 
         NUtils.getDefaultCur();
+        if (oreWatch != null && oreWatch.look(gui, tilePos) != null) {
+            return Results.ERROR(oreWatch.found());
+        }
         return Results.SUCCESS();
     }
 

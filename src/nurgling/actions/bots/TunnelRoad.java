@@ -103,6 +103,11 @@ public class TunnelRoad {
         }
         near.sort(Comparator.comparingDouble(g -> g.rc.dist(player.rc)));
 
+        Results handEmpty = ExtendRoad.emptyHand(gui);
+        if (!handEmpty.IsSuccess()) {
+            return handEmpty;
+        }
+
         for (int i = 0; i < Math.min(CANDIDATES, near.size()); i++) {
             Gob gob = near.get(i);
             Button extend = ExtendRoad.openExtend(gui, gob);
