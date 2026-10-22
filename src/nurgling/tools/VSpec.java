@@ -1468,8 +1468,11 @@ public class VSpec {
 
         // Everything the Drinker bot can drink, and every cup it can drink from.
         ArrayList<JSONObject> drinks = new ArrayList<>();
-        for (Vessels.Drink d : Vessels.DRINKS)
-            drinks.add(new JSONObject().put("static", d.res).put("name", d.name));
+        for (Vessels.Drink d : Vessels.DRINKS) {
+            // Milk is kept by kind; its kinds are picked from the milk entries instead.
+            if (d != Vessels.MILK)
+                drinks.add(new JSONObject().put("static", d.res).put("name", d.name));
+        }
         categories.put("Drinks", drinks);
 
         ArrayList<JSONObject> vessels = new ArrayList<>();

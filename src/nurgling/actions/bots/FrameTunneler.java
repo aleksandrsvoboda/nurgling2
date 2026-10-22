@@ -25,7 +25,7 @@ import static haven.OCache.posres;
  * props, repeat.
  *
  * mineTileIfNeeded, handleBumlings and the build wait are copied from TunnelingBot;
- * check fixes against both copies.
+ * check fixes against both copies (ExtendRoad has a third copy of the build wait).
  */
 public class FrameTunneler implements Action {
 
@@ -35,6 +35,11 @@ public class FrameTunneler implements Action {
     );
 
     private static final NAlias MINEABLE_TILES = new NAlias("rock", "tiles/cave");
+
+    // Gobs that don't stop a road post going on their tile
+    private static final NAlias ROAD_SPOT_IGNORED = new NAlias("bumlings", "terobjs/items");
+    // Tries at a road post: rock found in the way is dug between them
+    private static final int ROAD_ATTEMPTS = 3;
 
     // How far ahead to look for the end of the propped ground
     private static final int MAX_SCAN_ROWS = 64;
@@ -47,6 +52,8 @@ public class FrameTunneler implements Action {
     private final boolean centreLine;
     private final int width, length;
     private final NAlias frameAlias;
+    // Lays a milestone road behind the corridor; null when the option is off
+    private final TunnelRoad road;
 
     // Tile steps along the dig direction, and across it (East digging N/S, South digging E/W)
     private final Coord fwd, lat;
@@ -57,7 +64,13 @@ public class FrameTunneler implements Action {
     private int[] frameCols, digCols;
 
     public FrameTunneler(Direction direction, SupportType frameType, TunnelSide extraSide, boolean centreLine) {
+        this(direction, frameType, extraSide, centreLine, null);
+    }
+
+    public FrameTunneler(Direction direction, SupportType frameType, TunnelSide extraSide, boolean centreLine,
+                         TunnelRoad road) {
         this.direction = direction;
+        this.road = road;
         this.frameType = frameType;
         this.extraSide = extraSide;
         this.centreLine = centreLine;
@@ -98,6 +111,14 @@ public class FrameTunneler implements Action {
                 (centreLine && width > 1 ? ", centre line only" : ""));
 
         int row = rowOf(playerTile);
+        if (road != null) {
+            Results roadStart = startRoad(gui, row);
+            if (!roadStart.IsSuccess()) {
+                return roadStart;
+            }
+        }
+
+        Coord lastRoadSpot = null;
         while (true) {
             int frontier = findFrontier(row);
             if (frontier == NO_FRONTIER) {
@@ -116,9 +137,31 @@ public class FrameTunneler implements Action {
                 return mined;
             }
 
+            if (road != null) {
+                Coord spot = roadSpot(row, frontier);
+                // The next stretch is the frame's length from the frontier; its post goes mid-way
+                int nextPostRow = frontier + (length - 1) / 2;
+                if (spot != null) {
+                    lastRoadSpot = spot;
+                    if (road.due(spot, tileAt(nextPostRow, latOf(spot)))) {
+                        Results posted = buildRoadPost(gui, spot);
+                        if (!posted.IsSuccess()) {
+                            return posted;
+                        }
+                    }
+                } else if (!road.reaches(tileAt(nextPostRow, centreCol)).IsSuccess()) {
+                    return Results.ERROR("Road: no free tile for a milestone in this stretch, and the next "
+                            + "one is out of the road's range");
+                }
+            }
+
             String blocked = blockedAhead(gui, frontier);
             if (blocked != null) {
                 gui.msg("Tunneling stopped: " + blocked);
+                // Take the road to the end of the tunnel
+                if (road != null && lastRoadSpot != null && road.worthFinishing(lastRoadSpot)) {
+                    return buildRoadPost(gui, lastRoadSpot);
+                }
                 return Results.SUCCESS();
             }
 
@@ -480,6 +523,118 @@ public class FrameTunneler implements Action {
             }
         }
         return null;
+    }
+
+    // --- Road ---
+
+    private Results startRoad(NGameUI gui, int row) throws InterruptedException {
+        if (frameCols.length < 2) {
+            return Results.ERROR("Road: a " + frameType.menuName + " leaves no room beside the corridor for milestones");
+        }
+        return road.start(gui);
+    }
+
+    /* The tile the road reaches in the stretch fromRow..frontier-1: on the centre line,
+     * which runs open through every frame's doorway (the game refuses a road whose line
+     * crosses rock), in the middle so the milestone keeps clear of the frames at both ends.
+     * The milestone itself is turned to stand in a side column. Null if the stretch is too
+     * short or the tile is taken. */
+    private Coord roadSpot(int fromRow, int frontier) {
+        int postRow = Math.floorDiv(fromRow + frontier - 1, 2);
+        if (postRow - fromRow < 2 || (frontier - 1) - postRow < 2) {
+            return null;
+        }
+        Coord tile = tileAt(postRow, centreCol);
+        return isRoadSpotBlocked(tile) ? null : tile;
+    }
+
+    private boolean isRoadSpotBlocked(Coord tile) {
+        for (Gob gob : Finder.findGobs(tile)) {
+            if (gob.ngob != null && gob.ngob.name != null
+                    && !NParser.checkName(gob.ngob.name, ROAD_SPOT_IGNORED)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Results buildRoadPost(NGameUI gui, Coord spot) throws InterruptedException {
+        // The last post is out of range, e.g. it stands well back from where the run started:
+        // add posts on the way. Each one moves the last post closer.
+        while (!road.reaches(spot).IsSuccess()) {
+            gui.msg("Road: the last milestone is too far from the next spot, adding one on the way");
+            Results added = buildOneRoadPost(gui, road.stepToward(spot));
+            if (!added.IsSuccess()) {
+                return added;
+            }
+        }
+        return buildOneRoadPost(gui, spot);
+    }
+
+    private Results buildOneRoadPost(NGameUI gui, Coord spot) throws InterruptedException {
+        // The milestone stands on the side-column side, on the tile next to spot ("centre
+        // line only" hasn't dug it)
+        Coord outward = lat.mul(Integer.signum(frameCols[frameCols.length - 1] - centreCol));
+        Results mined = mineTileIfNeeded(gui, spot.add(outward));
+        if (!mined.IsSuccess()) {
+            return mined;
+        }
+        mined = mineTileIfNeeded(gui, spot);
+        if (!mined.IsSuccess()) {
+            return mined;
+        }
+        for (int attempt = 1; ; attempt++) {
+            handleBumlings(gui);
+            Results built = road.extendTo(gui, spot, outward);
+            if (built.IsSuccess() || road.rockInTheWay().isEmpty() || attempt == ROAD_ATTEMPTS) {
+                return built;
+            }
+            Results cleared = clearRock(gui, road.rockInTheWay());
+            if (!cleared.IsSuccess()) {
+                return cleared;
+            }
+        }
+    }
+
+    /* Mines rock tiles in the road's way, each once it borders open ground. Along the
+     * corridor there is none; it is for a first milestone that stands off the corridor.
+     * Copied from TunnelingBot, which checks props its own way. */
+    private Results clearRock(NGameUI gui, List<Coord> tiles) throws InterruptedException {
+        List<Coord> rock = new ArrayList<>(tiles);
+        if (rock.size() > TunnelRoad.MAX_LINE_ROCK) {
+            return Results.ERROR("Road: the road from the last milestone crosses " + rock.size()
+                    + " rock tiles. Dig it out or build a milestone closer, then restart.");
+        }
+        while (!rock.isEmpty()) {
+            Coord next = null;
+            for (Coord tile : rock) {
+                if (bordersOpenGround(gui, tile)) {
+                    next = tile;
+                    break;
+                }
+            }
+            if (next == null) {
+                return Results.ERROR("Road: can't dig the road's way from the last milestone");
+            }
+            // mineTileIfNeeded refuses rock no support props
+            Results mined = mineTileIfNeeded(gui, next);
+            if (!mined.IsSuccess()) {
+                return mined;
+            }
+            rock.remove(next);
+        }
+        return Results.SUCCESS();
+    }
+
+    private boolean bordersOpenGround(NGameUI gui, Coord tile) {
+        for (Coord d : Coord.uecw) {
+            Coord n = tile.add(d);
+            Resource res = gui.ui.sess.glob.map.tilesetr(gui.ui.sess.glob.map.gettile(n));
+            if (res != null && !NParser.checkName(res.name, MINEABLE_TILES)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // --- Building ---

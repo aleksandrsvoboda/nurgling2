@@ -1,6 +1,7 @@
 package nurgling.widgets;
 
 import haven.*;
+import nurgling.actions.bots.TunnelRoad;
 import nurgling.overlays.NMiningSupport;
 
 import java.awt.Color;
@@ -111,6 +112,13 @@ public class TunnelingDialog extends Window {
         public boolean isFrame() {
             return frameSpec() != null;
         }
+
+        /** Whether a milestone road fits beside this support's corridor: not without
+         *  supports, and not in a 1-wide frame, where a post would block the way. */
+        public boolean supportsRoad() {
+            NMiningSupport.Spec frame = frameSpec();
+            return this != NONE && (frame == null || frame.widthTiles >= 2);
+        }
     }
 
     // Session-persistent selections (static to survive dialog close/reopen)
@@ -124,6 +132,8 @@ public class TunnelingDialog extends Window {
     private static boolean savedWingEast = false;
     private static boolean savedWingWest = false;
     private static boolean savedCentreLine = false;
+    private static boolean savedRoad = false;
+    private static int savedRoadSpacing = TunnelRoad.MAX_SPACING_TILES;
 
     // Current selections (initialized from saved values)
     private Direction selectedDirection = savedDirection;
@@ -135,6 +145,8 @@ public class TunnelingDialog extends Window {
     private boolean wingEast = savedWingEast;
     private boolean wingWest = savedWingWest;
     private boolean centreLine = savedCentreLine;
+    private boolean road = savedRoad;
+    private int roadSpacing = savedRoadSpacing;
 
     private int maxLateral = savedMaxLateral;
 
@@ -148,6 +160,8 @@ public class TunnelingDialog extends Window {
     private boolean[] confirmRef = null;
     private boolean[] cancelRef = null;
     private boolean[] centreLineRef = null;
+    private boolean[] roadRef = null;
+    private int[] roadSpacingRef = null;
 
     // UI Elements
     private IButton btnDirN, btnDirS, btnDirE, btnDirW;
@@ -176,6 +190,8 @@ public class TunnelingDialog extends Window {
     private final List<Widget> minesweeperWidgets = new ArrayList<>();
     // Wing controls, hidden for tunnel frames (a frame props nothing beside its own width)
     private final List<Widget> wingWidgets = new ArrayList<>();
+    // Road controls, shown for the supports that have room for a road
+    private final List<Widget> roadWidgets = new ArrayList<>();
     private Button confirmButton, cancelButton;
     private int tunnelerButtonY, minesweeperButtonY;
 
@@ -205,6 +221,7 @@ public class TunnelingDialog extends Window {
     private static final Color COLOR_SUPPORT = new Color(205, 92, 92);
     private static final Color COLOR_TUNNEL = new Color(100, 180, 255);
     private static final Color COLOR_WING = new Color(100, 220, 150);
+    private static final Color COLOR_ROAD = new Color(47, 181, 168);
     private static final Color COLOR_ARROW = new Color(255, 215, 0);
     private static final Color COLOR_GRID = new Color(60, 60, 60);
     private static final Color COLOR_PREVIEW_BORDER = new Color(210, 160, 60);
@@ -565,6 +582,44 @@ public class TunnelingDialog extends Window {
 
         y += btnTunnelLeft.sz.y + 30;
 
+        // === 3b. ROAD ===
+        CheckBox roadBox = new CheckBox("Build road (milestones)") {
+            @Override
+            public void changed(boolean val) {
+                road = val;
+                updatePreview();
+            }
+        };
+        roadBox.a = road;
+        roadBox.settip("Lay a milestone road behind the tunnel as you dig. Milestones stand beside the corridor,\n"
+                + "turned so the road runs down the corridor (it must not cross rock).\n"
+                + "Start next to the end of a road (build its first milestone, 90 stones and 4 ropes, by hand).\n"
+                + "Each new milestone costs 5 stones from your inventory.");
+        add(roadBox, new Coord(leftMargin, y));
+        Label roadSpacingLabel = new Label("Max spacing:");
+        add(roadSpacingLabel, new Coord(leftMargin + 230, y + 2));
+        TextEntry roadSpacingEntry = new TextEntry(UI.scale(40), String.valueOf(roadSpacing)) {
+            @Override
+            protected void changed() {
+                super.changed();
+                try {
+                    roadSpacing = Integer.parseInt(text());
+                } catch (NumberFormatException ignored) {}
+            }
+        };
+        roadSpacingEntry.settip("Most tiles between milestones (" + TunnelRoad.MIN_SPACING_TILES + "-"
+                + TunnelRoad.MAX_SPACING_TILES + "); the game allows up to 31.");
+        add(roadSpacingEntry, new Coord(leftMargin + 320, y));
+        Label roadSpacingUnits = new Label("tiles");
+        add(roadSpacingUnits, new Coord(leftMargin + 375, y + 2));
+
+        roadWidgets.add(roadBox);
+        roadWidgets.add(roadSpacingLabel);
+        roadWidgets.add(roadSpacingEntry);
+        roadWidgets.add(roadSpacingUnits);
+
+        y += 30;
+
         // === 4. PREVIEW with border (left) and LEGEND (right) ===
         Label previewLabel = new Label("Preview:");
         add(previewLabel, new Coord(leftMargin, y));
@@ -577,6 +632,7 @@ public class TunnelingDialog extends Window {
         int legendX = leftMargin + previewGrid.sz.x + 25;
         int previewBottom = y + previewGrid.sz.y;
         int legendItemHeight = 22;
+        addColoredLegend(legendX, previewBottom - 4 * legendItemHeight, COLOR_ROAD, "Milestone", roadWidgets);
         addColoredLegend(legendX, previewBottom - 3 * legendItemHeight, COLOR_SUPPORT, "Support", tunnelerWidgets);
         addColoredLegend(legendX, previewBottom - 2 * legendItemHeight, COLOR_TUNNEL, "Tunnel", tunnelerWidgets);
         List<Widget> wingLegend = new ArrayList<>();
@@ -586,6 +642,7 @@ public class TunnelingDialog extends Window {
 
         tunnelerWidgets.add(previewLabel);
         tunnelerWidgets.add(previewGrid);
+        tunnelerWidgets.addAll(roadWidgets);
 
         y += previewGrid.sz.y + 25;
 
@@ -922,6 +979,7 @@ public class TunnelingDialog extends Window {
      * column goes, so it keeps the side arrows under another name. */
     private void applyFrameVisibility() {
         if (centreLineBox == null) return;
+        applyRoadVisibility();
         NMiningSupport.Spec frame = selectedSupportType.frameSpec();
         if (frame == null) {
             tunnelSideLabel.settext("Tunnel Side:");
@@ -946,6 +1004,17 @@ public class TunnelingDialog extends Window {
         } else {
             centreLineBox.hide();
         }
+    }
+
+    private void applyRoadVisibility() {
+        boolean show = selectedSupportType.supportsRoad();
+        for (Widget w : roadWidgets) {
+            if (show) w.show(); else w.hide();
+        }
+    }
+
+    private boolean roadShown() {
+        return road && selectedSupportType.supportsRoad();
     }
 
     private void updateDirectionSelection(Direction dir) {
@@ -1103,6 +1172,12 @@ public class TunnelingDialog extends Window {
                 }
             }
 
+            // A milestone stands in a tile dug beside the corridor, on a support's row
+            if (roadShown()) {
+                g.chcolor(COLOR_ROAD);
+                fillCell(g, offset, tunnelX + (tunnelX - center), (selectedDirection == Direction.NORTH) ? support2Y : support1Y);
+            }
+
             // Draw arrow
             g.chcolor(COLOR_ARROW);
             int arrowY = (selectedDirection == Direction.NORTH) ? support1Y - 2 : support2Y + 2;
@@ -1149,6 +1224,11 @@ public class TunnelingDialog extends Window {
                 }
             }
 
+            if (roadShown()) {
+                g.chcolor(COLOR_ROAD);
+                fillCell(g, offset, (selectedDirection == Direction.EAST) ? support1X : support2X, tunnelY + (tunnelY - center));
+            }
+
             // Draw arrow
             g.chcolor(COLOR_ARROW);
             int arrowX = (selectedDirection == Direction.EAST) ? support2X + 2 : support1X - 2;
@@ -1171,6 +1251,15 @@ public class TunnelingDialog extends Window {
                         fillCell(g, offset, cell.x, cell.y);
                     }
                 }
+            }
+
+            // A milestone stands in a side column halfway between two frames, turned so the
+            // road runs down the centre line
+            if (roadShown()) {
+                int postF = 1 + frame.lengthTiles / 2;
+                g.chcolor(COLOR_ROAD);
+                Coord post = frameCell(postF, cols[cols.length - 1], center);
+                fillCell(g, offset, post.x, post.y);
             }
 
             g.chcolor(COLOR_SUPPORT);
@@ -1281,6 +1370,11 @@ public class TunnelingDialog extends Window {
         this.centreLineRef = centreLineRef;
     }
 
+    public void setRoadReferences(boolean[] roadRef, int[] roadSpacingRef) {
+        this.roadRef = roadRef;
+        this.roadSpacingRef = roadSpacingRef;
+    }
+
     private void confirm() {
         // Save selections for session persistence
         savedDirection = selectedDirection;
@@ -1293,6 +1387,9 @@ public class TunnelingDialog extends Window {
         savedWingEast = wingEast;
         savedWingWest = wingWest;
         savedCentreLine = centreLine;
+        savedRoad = road;
+        roadSpacing = TunnelRoad.clampSpacing(roadSpacing);
+        savedRoadSpacing = roadSpacing;
 
         if (directionRef != null) {
             directionRef[0] = selectedDirection.ordinal();
@@ -1326,6 +1423,12 @@ public class TunnelingDialog extends Window {
         }
         if (centreLineRef != null) {
             centreLineRef[0] = centreLine;
+        }
+        if (roadRef != null) {
+            roadRef[0] = roadShown();
+        }
+        if (roadSpacingRef != null) {
+            roadSpacingRef[0] = roadSpacing;
         }
         if (confirmRef != null) {
             confirmRef[0] = true;
