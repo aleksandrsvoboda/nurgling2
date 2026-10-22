@@ -149,6 +149,8 @@ public class NHitBox
             put("gfx/terobjs/arch/belltower", new NHitBox(new Coord2d(-15,-19),new Coord2d(15,19)));
             put("gfx/terobjs/still", new NHitBox(new Coord2d(-12,-6),new Coord2d(5,6)));
             put("gfx/terobjs/grandstudydesk", new NHitBox(new Coord2d(-6.2,-11.75),new Coord2d(7.45,11.75)));
+            // Its last obst layer ("tusks": skull + both tusks) has three polygons, so it would get none.
+            put("gfx/kritter/mammoth/mammothskull", new NHitBox(new Coord2d(-22.6,-12.5),new Coord2d(6.5,12.5)));
         }
     };
     public static NHitBox fromObstacle(Coord2d[][] p)
