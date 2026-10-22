@@ -167,7 +167,8 @@ public class NHitBox
 
     /* Mine tunnel frames: their collision is a post on each side of the
      * corridor, and they also carry a "build" obstacle that spans the
-     * corridor, which is the one a single box would be taken from. */
+     * corridor, which is the one hitBox is taken from. Only the pathfinding
+     * uses the posts; everything else keeps seeing hitBox. */
     private final static Set<String> passages = Set.of(
             "gfx/terobjs/timbertunnel", "gfx/terobjs/reinforcedtunnel", "gfx/terobjs/stonearchtunnel");
 
@@ -200,18 +201,6 @@ public class NHitBox
             }
         }
         return null;
-    }
-
-    /** The box around all the parts. */
-    public static NHitBox bounds(NHitBox[] parts)
-    {
-        Coord2d ul = parts[0].begin, br = parts[0].end;
-        for(NHitBox part : parts)
-        {
-            ul = Coord2d.of(Math.min(ul.x, part.begin.x), Math.min(ul.y, part.begin.y));
-            br = Coord2d.of(Math.max(br.x, part.end.x), Math.max(br.y, part.end.y));
-        }
-        return new NHitBox(ul, br);
     }
 
     public static NHitBox findCustom(String name)

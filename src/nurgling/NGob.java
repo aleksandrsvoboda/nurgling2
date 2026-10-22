@@ -855,8 +855,6 @@ public class NGob
                         }
                     }
                     hitBoxParts = NHitBox.passageParts(drawable.getres());
-                    if (hitBoxParts != null)
-                        hitBox = NHitBox.bounds(hitBoxParts);
                 }
                 if (name != null)
                 {
@@ -965,10 +963,9 @@ public class NGob
                             parent.addcustomol(new NModelBox(parent));
                             if (!isDynamic)
                                 ca = new CellsArray(parent);
-                        } else if (!isDynamic)
+                        } else if (hitBoxParts != null)
                         {
-                            // A new drawable can bring a new hitbox (a finished construction site);
-                            // the cells must not stay those of the old one.
+                            // The cells may still be those of the construction site this frame was.
                             ca = new CellsArray(parent);
                         }
                     }

@@ -64,16 +64,23 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
      * turns (asymmetric is decided on x, which an off-centre part fails).
      */
     public static NHitBoxD[] solid(Gob gob) {
-        NHitBox[] parts = gob.ngob.hitBoxParts;
-        if (parts == null)
+        if (gob.ngob.hitBoxParts == null)
             return new NHitBoxD[]{new NHitBoxD(gob)};
-        NHitBox whole = gob.ngob.hitBox;
-        double angle = (whole.begin.x != -whole.end.x) ? gob.a + Math.PI : gob.a;
+        return parts(gob.ngob.hitBoxParts, gob.rc, gob.a);
+    }
+
+    public static NHitBoxD[] parts(NHitBox[] parts, Coord2d rc, double a) {
+        double minx = parts[0].begin.x, maxx = parts[0].end.x;
+        for (NHitBox part : parts) {
+            minx = Math.min(minx, part.begin.x);
+            maxx = Math.max(maxx, part.end.x);
+        }
+        double angle = (minx != -maxx) ? a + Math.PI : a;
         NHitBoxD[] res = new NHitBoxD[parts.length];
         for (int i = 0; i < parts.length; i++) {
             Coord2d half = parts[i].end.sub(parts[i].begin).div(2);
             Coord2d centre = parts[i].begin.add(parts[i].end).div(2);
-            res[i] = new NHitBoxD(half.inv(), half, gob.rc.add(centre.rot(angle)), angle);
+            res[i] = new NHitBoxD(half.inv(), half, rc.add(centre.rot(angle)), angle);
         }
         return res;
     }
