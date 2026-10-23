@@ -106,6 +106,8 @@ public class ActAudio extends State {
 	public final String name;
 	public final Audio.Mixer rootmixer;
 	public double volume;
+	/* nurgling: per-session mute; a gain of zero on top of volume, never saved to the pref. */
+	private boolean muted = false;
 	private Audio.VolAdjust volc = null;
 	private Audio.Mixer mixer = null;
 
@@ -121,7 +123,7 @@ public class ActAudio extends State {
 		synchronized(this) {
 		    if((ret = this.mixer) == null) {
 			this.volc = new Audio.VolAdjust(ret = this.mixer = new Audio.Mixer(true));
-			this.volc.vol = volume;
+			this.volc.vol = muted ? 0 : volume;
 			rootmixer.add(this.volc);
 		    }
 		}
@@ -130,10 +132,20 @@ public class ActAudio extends State {
 	}
 
 	public void setvolume(double volume) {
-	    if(volc != null)
-		volc.vol = volume;
-	    this.volume = volume;
+	    synchronized(this) {
+		if(volc != null)
+		    volc.vol = muted ? 0 : volume;
+		this.volume = volume;
+	    }
 	    Utils.setpref("sfxvol-" + name, Double.toString(volume));
+	}
+
+	public void setmuted(boolean muted) {
+	    synchronized(this) {
+		this.muted = muted;
+		if(volc != null)
+		    volc.vol = muted ? 0 : volume;
+	    }
 	}
 
 	public void clear() {
@@ -184,6 +196,20 @@ public class ActAudio extends State {
 	public void clear() {
 	    pos.clear();
 	    amb.clear();
+	}
+
+	/* nurgling: mute every channel of this UI; alarms bypass it through NAlarmManager.sfx. */
+	private volatile boolean muted = false;
+
+	public boolean muted() {
+	    return(muted);
+	}
+
+	public void setmuted(boolean muted) {
+	    this.muted = muted;
+	    aui.setmuted(muted);
+	    pos.setmuted(muted);
+	    amb.setmuted(muted);
 	}
 
 	public String stats() {

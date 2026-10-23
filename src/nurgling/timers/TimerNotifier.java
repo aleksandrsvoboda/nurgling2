@@ -1,5 +1,6 @@
 package nurgling.timers;
 
+import haven.UI;
 import haven.Utils;
 import haven.iosys.tk.AWTToolkit;
 import haven.iosys.tk.IndirectToolkit;
@@ -97,7 +98,7 @@ public class TimerNotifier {
             if(!tasks.isEmpty())
                 gui.timerBanners.postDeadlines(TimerBanners.Type.TASK_DUE, tasks, away);
         }
-        playSound(due);
+        playSound(gui.ui, due);
         if((Boolean) NConfig.get(NConfig.Key.timerFlashTaskbar))
             requestAttention();
     }
@@ -140,10 +141,10 @@ public class TimerNotifier {
     }
 
     /** One sound per banner, chosen by the kind of the first timer in it. */
-    private static void playSound(List<Timer> due) {
+    private static void playSound(UI ui, List<Timer> due) {
         String res = soundFor(due.get(0).kind);
         if(res != null)
-            NAlarmManager.play(res);
+            NAlarmManager.play(ui, res);
     }
 
     /** The configured alarm resource for a kind, or null for silence. */

@@ -374,7 +374,7 @@ public class NAlarmWdg extends Widget
         }
         
         synchronized (alarms) {
-            NAlarmManager.play("alarm/alarm");
+            NAlarmManager.play(ui, "alarm/alarm");
             alarms.add(id);
             // Trigger auto actions immediately when alarm is added
             checkAutoActions();

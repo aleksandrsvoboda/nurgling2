@@ -192,6 +192,16 @@ public class SessionContext {
         return gui != null && gui.timerNotifier != null && gui.timerNotifier.needsAttention();
     }
 
+    /** Whether this session's sounds are muted. Alarms still play (see NAlarmManager.sfx). */
+    public boolean isMuted() {
+        return ui != null && ui.audio.muted();
+    }
+
+    public void setMuted(boolean muted) {
+        if (ui != null)
+            ui.audio.setmuted(muted);
+    }
+
     /**
      * Clear a latched alarm. Called when the user switches to this session - looking at it is
      * the acknowledgement.

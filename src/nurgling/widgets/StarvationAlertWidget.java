@@ -102,7 +102,7 @@ public class StarvationAlertWidget extends Widget {
             if (currentEnergy <= soundThreshold) {
                 long now = System.currentTimeMillis();
                 if (now - lastSoundTime >= soundInterval) {
-                    NAlarmManager.play("alarm/alarm");
+                    NAlarmManager.play(ui, "alarm/alarm");
                     lastSoundTime = now;
                 }
             }
