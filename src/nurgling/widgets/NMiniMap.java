@@ -322,6 +322,7 @@ NMiniMap extends MiniMap {
         drawQueuedWaypoints(g);  // Draw waypoint visualization
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawBotDetourTrail(g);   // Draw Forager's live off-path gob-collection detour trail
+        drawLayers(g);           // Plugin layers (see addLayer)
         drawMarkerLine(g);       // Draw line to selected marker
         drawPings(g);            // Draw chat map pings on top of everything else
     }
@@ -734,6 +735,40 @@ NMiniMap extends MiniMap {
                     }
                 }
             } catch(Loading l) {}
+        }
+    }
+
+    /** Something a plugin draws on every minimap (the corner one and the Map window), above the built-in overlays. */
+    public interface Layer {
+        void draw(NMiniMap map, GOut g);
+    }
+
+    private static final java.util.List<Layer> layers = new java.util.concurrent.CopyOnWriteArrayList<>();
+    // Layers that threw once - skipped from then on, so one bad plugin draw can't kill the UI thread or spam the log every frame.
+    private static final java.util.Set<Layer> brokenLayers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public static void addLayer(Layer layer) {
+        if(!layers.contains(layer))
+            layers.add(layer);
+    }
+
+    public static void removeLayer(Layer layer) {
+        layers.remove(layer);
+        brokenLayers.remove(layer);
+    }
+
+    private void drawLayers(GOut g) {
+        for(Layer layer : layers) {
+            if(brokenLayers.contains(layer))
+                continue;
+            try {
+                layer.draw(this, g);
+            } catch(RuntimeException | LinkageError e) {
+                brokenLayers.add(layer);
+                System.out.println("[NMiniMap] layer " + layer.getClass().getName() + " failed and is disabled: " + e);
+            } finally {
+                g.chcolor();
+            }
         }
     }
 
