@@ -483,6 +483,14 @@ public class NMiniMapWnd extends Widget{
 
     }
 
+    /** Adds a button to the end of the toggle panel (for plugins); it wraps, and hides with the collapse control, like the built-in ones. */
+    public void addToggle(Widget btn) {
+        if(buttons.contains(btn))
+            return;
+        buttons.add(btn);
+        applyToggleVisibility();
+    }
+
     /* Show or hide everything but the collapse control itself. */
     private void applyToggleVisibility() {
         for(Widget btn : buttons) {

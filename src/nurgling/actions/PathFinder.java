@@ -70,6 +70,8 @@ public class PathFinder implements Action {
     // Opt-in (Forager): spots walks sharing this list stalled at - blocked like a small obstacle the grid can't see (a young
     // tree with no client hitbox), and appended to on every new stall (see noteStall).
     public List<Coord2d> learnedBlocks = null;
+    // Opt-in: >= 0 treats cliffs and this many tiles around them as walls; -1 (the default) leaves cliffs walkable.
+    public int blockCliffBuffer = -1;
     // With learnedBlocks: stalls allowed in one run() before giving up, instead of bumping the same obstacle until a guard fires.
     public int maxStalls = 3;
     private int stalls = 0;
@@ -505,6 +507,7 @@ public class PathFinder implements Action {
             }
             pfmap.waterMode = waterMode;
             pfmap.gatesAlwaysClosed = gatesAlwaysClosed;
+            pfmap.cliffBuffer = blockCliffBuffer;
             pfmap.build();
             blockAvoided();
             CellsArray dca = null;

@@ -13,6 +13,8 @@ public class NPFMap
 {
     public boolean waterMode = false;
     public boolean gatesAlwaysClosed = false;
+    // Opt-in (PathFinder.blockCliffBuffer): >= 0 blocks every cell within this many tiles of a cliff (Ridges.brokenp); -1 leaves cliffs walkable.
+    public int cliffBuffer = -1;
     public Cell[][] cells;
 
     // Upper bound (world units) on the constructor's fallback-grid growth - see its use below.
@@ -343,6 +345,51 @@ public class NPFMap
                     }
                 }
             }
+        }
+        if (cliffBuffer >= 0 && !waterMode)
+            blockCliffs();
+    }
+
+    /** Marks every free cell whose sampled tiles lie within cliffBuffer tiles of a cliff unpathable; an unloaded tile is unknown, not a cliff. */
+    private void blockCliffs()
+    {
+        MCache map = NUtils.getGameUI().ui.sess.glob.map;
+        int pad = cliffBuffer + 1;
+        Coord tul = Utils.pfGridToWorld(cells[0][0].pos).floor(MCache.tilesz).sub(pad, pad);
+        Coord tbr = Utils.pfGridToWorld(cells[size - 1][size - 1].pos).floor(MCache.tilesz).add(pad, pad);
+        int w = tbr.x - tul.x + 1, h = tbr.y - tul.y + 1;
+        boolean[][] near = new boolean[w][h];
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                if (!isCliff(map, tul.add(x, y)))
+                    continue;
+                for (int dx = Math.max(0, x - cliffBuffer); dx <= Math.min(w - 1, x + cliffBuffer); dx++)
+                    for (int dy = Math.max(0, y - cliffBuffer); dy <= Math.min(h - 1, y + cliffBuffer); dy++)
+                        near[dx][dy] = true;
+            }
+        }
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (cells[i][j].val != 0)
+                    continue;
+                Coord2d c = Utils.pfGridToWorld(cells[i][j].pos);
+                for (int k = 0; k < 4; k++) {
+                    Coord t = c.add((k & 1) == 0 ? -MCache.tileqsz.x : MCache.tileqsz.x, (k & 2) == 0 ? -MCache.tileqsz.y : MCache.tileqsz.y).floor(MCache.tilesz).sub(tul);
+                    if (t.x >= 0 && t.y >= 0 && t.x < w && t.y < h && near[t.x][t.y]) {
+                        cells[i][j].val = 2;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean isCliff(MCache map, Coord tc)
+    {
+        try {
+            return haven.resutil.Ridges.brokenp(map, tc);
+        } catch (Loading l) {
+            return false;
         }
     }
 
