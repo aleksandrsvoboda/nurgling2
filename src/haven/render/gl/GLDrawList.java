@@ -266,7 +266,7 @@ public class GLDrawList implements DrawList {
 	    if(prev == null) {
 		compiled = main;
 	    } else if(prev.prog == this.prog) {
-		BufferBGL gl = new BufferBGL();
+		BufferBGL gl = new BufferBGL(this.settings.length + 1);
 		for(int i = 0; i < this.settings.length; i++) {
 		    if(this.settings[i] != prev.settings[i])
 			gl.bglSubmit(this.settings[i].gl);
@@ -274,7 +274,7 @@ public class GLDrawList implements DrawList {
 		gl.bglCallList(main);
 		compiled = gl.trim();
 	    } else {
-		BufferBGL gl = new BufferBGL();
+		BufferBGL gl = new BufferBGL(this.settings.length + 4);
 		GLProgram.apply(gl, prev.prog, this.prog);
 		for(int i = 0; i < this.settings.length; i++)
 		    gl.bglSubmit(this.settings[i].gl);
@@ -482,7 +482,10 @@ public class GLDrawList implements DrawList {
 	abstract void compile(BGL gl);
 
 	void update() {
-	    BufferBGL buf = new BufferBGL();
+	    /* nurgling: settings hold a few commands, and every lit slot recompiles
+	     * its settings each frame the camera moves; the default 128-slot buffer
+	     * was ~12% of all allocation. It still grows if needed. */
+	    BufferBGL buf = new BufferBGL(8);
 	    compile(buf);
 	    this.gl.update(buf.trim());
 	}

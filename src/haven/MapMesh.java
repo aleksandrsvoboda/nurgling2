@@ -286,6 +286,15 @@ public class MapMesh implements RenderTree.Node, Disposable {
 	    this.mat = mat;
 	}
 
+	/* Terrain meshes are built all the time while moving and live as long as their grid. */
+	protected FloatBuffer databuf(int n) {
+	    return(Utils.mkfbuf(n));
+	}
+
+	protected ShortBuffer indbuf(int n) {
+	    return(Utils.mksbuf(n));
+	}
+
 	public void sfin() {}
 	public void calcnrm() {}
 	public boolean clean() {return(false);}
@@ -744,15 +753,15 @@ public class MapMesh implements RenderTree.Node, Disposable {
 		vn += d.v.length;
 	    }
 
+	    /* Kept off the heap like the terrain meshes, for as long as the grid. */
 	    FastMesh mesh() {
-		float[] pos = this.pos, col = this.col;
-		short[] ind = this.ind;
-		if(pos.length != this.vn * 3) pos = Utils.extend(pos, this.vn * 3);
-		if(col.length != this.vn * 2) col = Utils.extend(col, this.vn * 2);
-		if(ind.length != this.in) ind = Utils.extend(ind, this.in);
-		VertexBuf.VertexData posa = new VertexBuf.VertexData(FloatBuffer.wrap(pos));
-		ClickLocation.LocData loca = new ClickLocation.LocData(FloatBuffer.wrap(col));
-		ShortBuffer indb = ShortBuffer.wrap(ind);
+		FloatBuffer posb = Utils.mkfbuf(vn * 3), colb = Utils.mkfbuf(vn * 2);
+		ShortBuffer indb = Utils.mksbuf(in);
+		posb.put(pos, 0, vn * 3).rewind();
+		colb.put(col, 0, vn * 2).rewind();
+		indb.put(ind, 0, in).rewind();
+		VertexBuf.VertexData posa = new VertexBuf.VertexData(posb);
+		ClickLocation.LocData loca = new ClickLocation.LocData(colb);
 		return(new FastMesh(new VertexBuf(posa, loca), indb));
 	    }
 	}

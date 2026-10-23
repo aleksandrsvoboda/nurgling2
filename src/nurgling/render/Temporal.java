@@ -81,11 +81,10 @@ public class Temporal {
         }
         Matrix4f pm = new Matrix4f(projection.fin(Matrix4f.id));
         Matrix4f cm = new Matrix4f(transform.fin(Matrix4f.id));
-        Pipe.Op snapshot = Pipe.Op.compose(new Projection(pm), new Camera(cm));
         synchronized(jitters) {
             if(!enabled) {
                 jitters.remove(view);
-                return snapshot;
+                return(snapshot(view, pm, cm, false, 0, 0));
             }
             JitterState j = jitters.computeIfAbsent(view, v -> new JitterState());
             Matrix4f pose = pm.mul(cm);
@@ -97,8 +96,35 @@ public class Temporal {
             }
             j.pose = pose;
             j.size = new Coord(size);
-            return Pipe.Op.compose(snapshot, new Jitter(j.dx, j.dy));
+            return(snapshot(view, pm, cm, true, j.dx, j.dy));
         }
+    }
+
+    private static final class Snapshot {
+        final float[] pm, cm;
+        final boolean jittered;
+        final float dx, dy;
+        final Pipe.Op op;
+
+        Snapshot(float[] pm, float[] cm, boolean jittered, float dx, float dy, Pipe.Op op) {
+            this.pm = pm; this.cm = cm; this.jittered = jittered; this.dx = dx; this.dy = dy; this.op = op;
+        }
+    }
+    private static final Map<PView, Snapshot> snapshots = new WeakHashMap<>();
+
+    /* The same op object while nothing changed: a new one is a camera state
+     * change, re-propagated to every draw slot in the view, even with the
+     * camera standing still. Called with jitters locked. */
+    private static Pipe.Op snapshot(PView view, Matrix4f pm, Matrix4f cm, boolean jittered, float dx, float dy) {
+        Snapshot prev = snapshots.get(view);
+        if((prev != null) && (prev.jittered == jittered) && (prev.dx == dx) && (prev.dy == dy) &&
+           Arrays.equals(prev.pm, pm.m) && Arrays.equals(prev.cm, cm.m))
+            return(prev.op);
+        Pipe.Op op = Pipe.Op.compose(new Projection(pm), new Camera(cm));
+        if(jittered)
+            op = Pipe.Op.compose(op, new Jitter(dx, dy));
+        snapshots.put(view, new Snapshot(pm.m.clone(), cm.m.clone(), jittered, dx, dy, op));
+        return(op);
     }
 
     static class Jitter implements Pipe.Op {

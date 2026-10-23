@@ -31,6 +31,8 @@ import java.awt.color.ColorSpace;
 import java.awt.image.*;
 import java.nio.*;
 import java.util.function.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import haven.render.*;
 import haven.render.DataBuffer;
 import haven.render.sl.FragData;
@@ -209,11 +211,26 @@ public class GOut {
 	cur2d.copy(bk);
     }
 
+    /* nurgling: atext rendered, uploaded and deleted a texture per call, and
+     * widgets call it every frame. Keep the most recently drawn strings. */
+    private static final Map<String, Tex> atexts = new LinkedHashMap<String, Tex>(64, 0.75f, true) {
+	    protected boolean removeEldestEntry(Map.Entry<String, Tex> e) {
+		if(size() > 256) {
+		    e.getValue().dispose();
+		    return(true);
+		}
+		return(false);
+	    }
+	};
+
     public void atext(String text, Coord c, double ax, double ay) {
-	Text t = Text.render(text);
-	Tex T = t.tex();
+	Tex T;
+	synchronized(atexts) {
+	    T = atexts.get(text);
+	    if(T == null)
+		atexts.put(text, T = Text.render(text).tex());
+	}
 	aimage(T, c, ax, ay);
-	T.dispose();
     }
 
     public void text(String text, Coord c) {

@@ -1052,6 +1052,19 @@ public class NGameUI extends GameUI
             return super.tooltip(c, previous);
         }
 
+        /* belt() runs for every slot on every frame. Scenario and preset buttons
+         * render their icons with Java2D and upload them as new textures, so
+         * one is kept per slot path while its source, name and icon stay the same. */
+        private final Map<String, Object[]> buttons = new HashMap<>();
+
+        private Object cachedButton(String path, Object source, String name, Object icon, java.util.function.Supplier<Object> make) {
+            Object[] c = buttons.get(path);
+            if((c == null) || (c[0] != source) || !Objects.equals(c[1], name) || !Objects.equals(c[2], icon)) {
+                buttons.put(path, c = new Object[] {source, name, icon, make.get()});
+            }
+            return c[3];
+        }
+
         private Object belt(int slot) {
             if(slot < 0) {return null;}
             String path;
@@ -1069,7 +1082,8 @@ public class NGameUI extends GameUI
                     String scenarioName = path.substring("scenario:".length());
                     for(nurgling.scenarios.Scenario scenario : ui.core.scenarioManager.getScenarios().values()) {
                         if(scenario.getName().equals(scenarioName)) {
-                            return new NScenarioButton(scenario);
+                            return cachedButton(path, scenario, scenario.getName(), scenario.getCustomIconId(),
+                                                () -> new NScenarioButton(scenario));
                         }
                     }
                     return null;
@@ -1077,7 +1091,8 @@ public class NGameUI extends GameUI
                     String presetId = path.substring("equippreset:".length());
                     nurgling.equipment.EquipmentPreset preset = ui.core.equipmentPresetManager.getPreset(presetId);
                     if(preset != null) {
-                        return new nurgling.widgets.NEquipmentPresetButton(preset);
+                        return cachedButton(path, preset, preset.getName(), preset.getCustomIconId(),
+                                            () -> new nurgling.widgets.NEquipmentPresetButton(preset));
                     }
                     return null;
                 } else {

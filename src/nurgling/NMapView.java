@@ -312,6 +312,20 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         super.maindraw(out);
     }
 
+    /* TAA as last drawn, for the camera MapView.tick sets. */
+    private boolean taa = false;
+
+    /* MapView.tick sets the raw camera and draw() its frame snapshot; as two
+     * different ops, the camera state flipped twice a frame and each flip was
+     * re-propagated to every draw slot. Both now go through the same cached
+     * snapshot, so an unmoved camera changes nothing. */
+    @Override
+    public void basic(Object id, haven.render.Pipe.Op state) {
+        if((id == Camera.class) && (state != null) && (state == camera))
+            state = nurgling.render.Temporal.cameraFrame(this, rendersz(), camera, taa);
+        super.basic(id, state);
+    }
+
     @Override
     public void draw(GOut g) {
         // Initialize overlays only once on first draw (when GameUI is ready)
@@ -329,9 +343,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             });
         postfx.sync(g.out.env());
         // Use this view's effective settings and one immutable camera per draw.
-        // UI ticks do not advance the temporal sampling sequence.
-        super.basic(Camera.class, nurgling.render.Temporal.cameraFrame(this, rendersz(), camera,
-                nurgling.render.NGfx.effective(g.out.env()).taa));
+        taa = nurgling.render.NGfx.effective(g.out.env()).taa;
+        super.basic(Camera.class, nurgling.render.Temporal.cameraFrame(this, rendersz(), camera, taa));
         updpshadows();
         postfx.tick(this, (amblight == null) ? -1 : lights.index(amblight));
 
@@ -1383,6 +1396,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                 final NUI boundUI = NUtils.getUI();
                 final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
                 if (boundGui == null) return;
+                final int walkSeconds = NConfig.botmod.walkSeconds;
+                final int[] walkRoute = NConfig.botmod.walkRoute;
 
                 Thread t;
                 t = new Thread(() -> {
@@ -1413,6 +1428,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                             System.out.println("[NMapView] No system chat found");
                         }
 
+                        if (scenario == null && walkSeconds > 0) {
+                            new nurgling.diagnostics.WalkAround(walkSeconds, walkRoute).run(boundGui);
+                            boundGui.act("lo");
+                            System.exit(0);
+                        }
                         if (scenario == null) {
                             System.err.println("[NMapView] ERROR: Scenario is null! Cannot run bot.");
                             return;
@@ -1444,9 +1464,21 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     {
         super.oltick();
         java.util.Map<Long, MCache.Grid> grids = glob.map.gridsById();
+        Area win = null;
+        try {
+            Coord cc = new Coord2d(getcc()).floor(MCache.tilesz).div(MCache.cutsz);
+            win = new Area(cc.sub(view, view), cc.add(view, view).add(1, 1));
+        } catch(Loading l) {
+        }
+        int gsig = grids.keySet().hashCode();
+        double now = Utils.rtime();
         for(NOverlay ol : nols.values()) {
             ol.gridsById = grids;
-            ol.tick();
+            // Subclasses (rock highlight, mining) keep their own tick logic.
+            if((win != null) && (ol.getClass() == NOverlay.class))
+                ol.tick(win, gsig, now);
+            else
+                ol.tick();
         }
     }
 

@@ -131,20 +131,32 @@ public class IMeter extends LayerMeter {
 					case "Satiety":
 					case "Pony Power":
 					case "Seaworthiness":
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1)).tex();
+						settext(val.substring(val.indexOf(":")+1));
 						break;
 					case "Health":
 						parseHealth(val.substring(val.indexOf(":")+1));
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1).replace("/", " / ")).tex();
+						settext(val.substring(val.indexOf(":")+1).replace("/", " / "));
 						break;
 					case "Energy":
-						text = NStyle.meter.render(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1)).tex();
+						settext(val.substring(val.indexOf(":")+1, val.lastIndexOf("%")+1));
 						break;
 
 				}
 			}
 		}
 		super.uimsg(msg, args);
+	}
+
+	/* Meter tips arrive several times a second while running; render the
+	 * label only when it changes, and free the one it replaces. */
+	private String textval = null;
+	private void settext(String val) {
+		if(val.equals(textval))
+			return;
+		textval = val;
+		if(text != null)
+			text.dispose();
+		text = NStyle.meter.render(val).tex();
 	}
 
 	private void parseHealth(String value) {

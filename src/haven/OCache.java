@@ -111,7 +111,15 @@ public class OCache implements Iterable<Gob> {
 	}
     }
 
+    /* nurgling: overlays that may still attach to the scene this frame. Walking into
+     * a dense area brings in hundreds of objects at once, and attaching their overlays
+     * (hitboxes, health, crop and barrel markers) builds render slots under the
+     * render tree lock; spread over a few frames, they no longer stack into one. */
+    public static final int OL_ATTACH_PER_FRAME = 16;
+    public final java.util.concurrent.atomic.AtomicInteger olbudget = new java.util.concurrent.atomic.AtomicInteger();
+
     public void ctick(double dt) {
+	olbudget.set(OL_ATTACH_PER_FRAME);
 	ArrayList<Gob> copy = new ArrayList<Gob>();
 	synchronized(this) {
 	    for(Gob g : this)
@@ -142,22 +150,22 @@ public class OCache implements Iterable<Gob> {
 		    }
 		});
 	} else {
-	    Collection<Render> subs = new ArrayList<>();
-	    ThreadLocal<Render> subv = new ThreadLocal<>();
+	    /* nurgling: one sub-render per worker thread, kept in a map rather than a
+	     * ThreadLocal made anew each frame: every such ThreadLocal left a stale
+	     * entry in each worker's thread-local map, holding its Render (and all
+	     * its draw commands) alive past the frame, and a weak reference for
+	     * every GC to process. */
+	    Map<Thread, Render> subs = new java.util.concurrent.ConcurrentHashMap<>();
 	    copy.parallelStream().forEach(ob -> {
-		    Render sub = subv.get();
-		    if(sub == null) {
-			sub = g.env().render();
-			synchronized(subs) {
-			    subs.add(sub);
-			}
-			subv.set(sub);
-		    }
+		    Thread th = Thread.currentThread();
+		    Render sub = subs.get(th);
+		    if(sub == null)
+			subs.put(th, sub = g.env().render());
 		    synchronized(ob) {
 			ob.gtick(sub);
 		    }
 		});
-	    for(Render sub : subs)
+	    for(Render sub : subs.values())
 		g.submit(sub);
 	}
     }
