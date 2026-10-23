@@ -233,7 +233,8 @@ public class GobIcon extends GAttrib {
 			    return;
 			}
 			Audio.CS clip = Audio.fromres(res);
-			ui.sfx(clip);
+			/* nurgling: icon alerts are alarms, audible even from a muted session */
+			nurgling.NAlarmManager.sfx(ui, clip);
 		    }, null);
 	    });
     }
@@ -262,7 +263,8 @@ public class GobIcon extends GAttrib {
 				}
 			    }
 			}
-			ui.sfx(clip);
+			/* nurgling: icon alerts are alarms, audible even from a muted session */
+			nurgling.NAlarmManager.sfx(ui, clip);
 		    }, null);
 	    });
     }

@@ -35,6 +35,6 @@ public class CurioFinishedAlert {
             meter = (m == null) ? 0 : m;
         }
         if (meter >= FINISHED)
-            NAlarmManager.play("alarm/curio");
+            NAlarmManager.play(w.ui, "alarm/curio");
     }
 }
