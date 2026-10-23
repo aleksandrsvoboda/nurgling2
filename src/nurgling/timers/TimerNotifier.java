@@ -7,7 +7,6 @@ import haven.iosys.tk.Windeye;
 import nurgling.NAlarmManager;
 import nurgling.NConfig;
 import nurgling.NGameUI;
-import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
 import nurgling.todo.TodoItem;
 import nurgling.todo.TodoStore;
@@ -133,9 +132,11 @@ public class TimerNotifier {
         return attention;
     }
 
+    /** SessionContext.isInCombat's test, read off this notifier's own game UI. Going through SessionManager.findByUI here
+     *  deadlocked: a background session ticks holding its UI lock, while switching sessions holds the manager's lock and
+     *  waits for that UI lock. */
     private boolean inCombat() {
-        SessionContext ctx = SessionManager.getInstance().findByUI(gui.ui);
-        return ctx != null && ctx.isInCombat();
+        return gui.fv != null && gui.fv.tvisible() && gui.fv.lsrel != null && !gui.fv.lsrel.isEmpty();
     }
 
     /** One sound per banner, chosen by the kind of the first timer in it. */
