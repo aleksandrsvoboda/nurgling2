@@ -25,6 +25,13 @@ public class HarvestCrop implements Action {
     final NAlias crop;
     boolean isQualityGrid = false;
 
+    /**
+     * How many times the field is walked over. One pass covers every strip; the extra passes only
+     * exist to pick up what a failed harvest or a plant that regrew mid-pass left behind, and the
+     * cap keeps an unharvestable leftover from looping forever.
+     */
+    private static final int MAX_SWEEPS = 3;
+
     public HarvestCrop(NArea field, NArea seed, NArea trough, NAlias crop) {
         this.field = field;
         this.seed = seed;
@@ -82,13 +89,28 @@ public class HarvestCrop implements Action {
             }
         }
 
+        // Every sweep starts over from the player's current corner. Re-entering the sweep with
+        // the coordinates left over from the previous one would run the nested loops out of
+        // bounds immediately, so a leftover plant used to spin this loop without doing any work.
+        for (int pass = 0; pass < MAX_SWEEPS; pass++) {
+            sweepField(gui, barrelInfo, trough, cistern);
+            if (!hasAnyCropStage(field, crop) && Finder.findGobs(field, new NAlias("gfx/terobjs/plants/fallowplant"), 0).isEmpty())
+                break;
+        }
+
+        finalCleanup(gui, barrelInfo.keySet(), trough, cistern);
+
+        return Results.SUCCESS();
+    }
+
+    /** One full pass over the field, strip by strip. */
+    private void sweepField(NGameUI gui, HashMap<Gob, AtomicBoolean> barrelInfo, Gob trough, Gob cistern) throws InterruptedException {
         Coord start = gui.map.player().rc.dist(field.getArea().br.mul(MCache.tilesz)) < gui.map.player().rc.dist(field.getArea().ul.mul(MCache.tilesz)) ? field.getArea().br.sub(1, 1) : field.getArea().ul;
         Coord pos = new Coord(start);
         boolean rev = (pos.equals(field.getArea().ul));
 
         boolean revdir = rev;
 
-        while (hasAnyCropStage(field, crop) || !Finder.findGobs(field, new NAlias("gfx/terobjs/plants/fallowplant"), 0).isEmpty()) {
                 if (!rev) {
                     while (pos.x >= field.getArea().ul.x) {
                         AtomicBoolean setDir = new AtomicBoolean(true);
@@ -146,11 +168,6 @@ public class HarvestCrop implements Action {
                         pos.x += 3;
                     }
                 }
-        }
-
-        finalCleanup(gui, barrelInfo.keySet(), trough, cistern);
-
-        return Results.SUCCESS();
     }
 
 
@@ -169,6 +186,12 @@ public class HarvestCrop implements Action {
                     throw new InterruptedException();
                 }
         }
+        // Walk into the strip before looking at what is in it. Finder only sees gobs the server
+        // has streamed to the client, so a strip beyond the load radius reads as empty and used
+        // to be skipped without ever being visited - which lost most of a field larger than the
+        // load radius, and all of it past the first trip to a barrel at the field's edge.
+        approachStrip(gui, area, pathfinderEndpoint, rev, setDir);
+
         Gob plant;
         plant = null;
         for (CropRegistry.CropStage cropStage : CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList())) {
@@ -182,18 +205,8 @@ public class HarvestCrop implements Action {
             plant = Finder.findGob(plantGobEndpoint.div(MCache.tilesz).floor(),new NAlias("gfx/terobjs/plants/fallowplant"), 0);
         }
         if(plant!=null) {
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
-            if(PathFinder.isAvailable(pathfinderEndpoint)) {
-                new PathFinder(pathfinderEndpoint).run(NUtils.getGameUI());
-                if (setDir.get()) {
-                    if (rev)
-                        new SetDir(new Coord2d(0, 1)).run(gui);
-                    else
-                        new SetDir(new Coord2d(0, -1)).run(gui);
-                    setDir.set(false);
-                }
-            }
-            else
+            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern, area, pathfinderEndpoint, rev, setDir);
+            if(!PathFinder.isAvailable(pathfinderEndpoint))
             {
                 new PathFinder(plant).run(NUtils.getGameUI());
             }
@@ -204,7 +217,7 @@ public class HarvestCrop implements Action {
                 NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), new NAlias("Beetroot"), 1));
             }
 
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern, area, pathfinderEndpoint, rev, setDir);
         }
 
         ArrayList<Gob> plants;
@@ -212,7 +225,7 @@ public class HarvestCrop implements Action {
         for (CropRegistry.CropStage cropStage : cropStages) {
             ArrayList<Gob> plantsToHarvest;
             while (!(plantsToHarvest = Finder.findGobs(area, crop, cropStage.stage)).isEmpty()) {
-                dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+                dropOffSeed(gui, barrelInfo.keySet(), trough, cistern, area, pathfinderEndpoint, rev, setDir);
                 Gob plantToHarvest = plantsToHarvest.get(0);
                 new PathFinder(plantToHarvest).run(gui);
                 new SelectFlowerAction("Harvest", plantToHarvest).run(gui);
@@ -222,13 +235,13 @@ public class HarvestCrop implements Action {
                     NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), new NAlias("Beetroot"), 1));
                 }
 
-                dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+                dropOffSeed(gui, barrelInfo.keySet(), trough, cistern, area, pathfinderEndpoint, rev, setDir);
             }
         }
 
         while (!(plants = Finder.findGobs(area,new NAlias("gfx/terobjs/plants/fallowplant"), 0)).isEmpty())
         {
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern, area, pathfinderEndpoint, rev, setDir);
             plant = plants.get(0);
             new PathFinder(plant).run(gui);
             new SelectFlowerAction("Harvest", plant).run(gui);
@@ -238,7 +251,7 @@ public class HarvestCrop implements Action {
                 NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), new NAlias("Beetroot"), 1));
             }
 
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern, area, pathfinderEndpoint, rev, setDir);
         }
 
         dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
@@ -246,6 +259,47 @@ public class HarvestCrop implements Action {
 
     private void dropOffSeed(NGameUI gui, Set<Gob> barrels, Gob trough, Gob cistern) throws InterruptedException {
         processHarvestedItems(gui, barrels, trough, cistern, true);
+    }
+
+    /**
+     * Drop off what has been harvested and come back to the strip being worked on.
+     *
+     * A barrel or trough sitting at the edge of the field is a normal layout, and getting to it
+     * takes the player out of the strip - and, on a field wider than the client's load radius,
+     * out of range of the strip's plants entirely. Everything downstream looks for plants through
+     * the object cache, so without walking back the rest of the strip reads as already harvested.
+     */
+    private void dropOffSeed(NGameUI gui, Set<Gob> barrels, Gob trough, Gob cistern,
+                             Area area, Coord2d pathfinderEndpoint, boolean rev, AtomicBoolean setDir) throws InterruptedException {
+        Coord2d before = gui.map.player().rc;
+        processHarvestedItems(gui, barrels, trough, cistern, true);
+        if (gui.map.player().rc.dist(before) > MCache.tilesz.x)
+            approachStrip(gui, area, pathfinderEndpoint, rev, setDir);
+    }
+
+    /**
+     * Walk to the strip. Prefers the strip's endpoint, and falls back to any reachable tile of the
+     * strip when the endpoint itself is blocked, so that the strip is visited even when it holds
+     * no plant the client currently knows about.
+     */
+    private void approachStrip(NGameUI gui, Area area, Coord2d pathfinderEndpoint, boolean rev, AtomicBoolean setDir) throws InterruptedException {
+        if (PathFinder.isAvailable(pathfinderEndpoint)) {
+            new PathFinder(pathfinderEndpoint).run(gui);
+            if (setDir.get()) {
+                new SetDir(new Coord2d(0, rev ? 1 : -1)).run(gui);
+                setDir.set(false);
+            }
+            return;
+        }
+        for (int x = area.ul.x; x <= area.br.x; x++) {
+            for (int y = area.ul.y; y <= area.br.y; y++) {
+                Coord2d tile = new Coord(x, y).mul(MCache.tilesz).add(MCache.tilehsz);
+                if (PathFinder.isAvailable(tile)) {
+                    new PathFinder(tile).run(gui);
+                    return;
+                }
+            }
+        }
     }
 
     private void finalCleanup(NGameUI gui, Set<Gob> barrels, Gob trough, Gob cistern) throws InterruptedException {
