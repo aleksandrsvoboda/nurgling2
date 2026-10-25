@@ -79,7 +79,9 @@ public class Pig extends Entry {
 		return(new AnimalFacts(id, name, hog, piglet, dead, q, seedq)
 			.with("truffle", prc)
 			.with("meat", meat)
+			.with("milk", milk)
 			.with("meatq", meatq)
+			.with("milkq", milkq)
 			.with("hideq", hideq));
 	}
 

@@ -76,7 +76,9 @@ public class Teimdeer extends Entry {
 	public AnimalFacts facts() {
 		return(new AnimalFacts(id, name, buck, fawn, dead, q, seedq)
 			.with("meat", meat)
+			.with("milk", milk)
 			.with("meatq", meatq)
+			.with("milkq", milkq)
 			.with("hideq", hideq));
 	}
 

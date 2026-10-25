@@ -15,6 +15,10 @@ public class Horses extends Window {
     NSettinsSetD enduran;
     NSettinsSetD meatQuality;
     NSettinsSetD hideQuality;
+    NSettinsSetD milkQuality;
+    NSettinsSetD milk1;
+    NSettinsSetD milk2;
+    NSettinsSetD milkth;
     NSettinsSetD meatq1;
     NSettinsSetD meatq2;
     NSettinsSetD meatqth;
@@ -42,6 +46,10 @@ public class Horses extends Window {
                     coverbreed.setVal(gh.coverbreed);
                     meatQuality.setVal(gh.meatq);
                     hideQuality.setVal(gh.hideq);
+                    milkQuality.setVal(gh.milkq);
+                    milk1.setVal(gh.milkquan1);
+                    milkth.setVal(gh.milkquanth);
+                    milk2.setVal(gh.milkquan2);
                     enduran.setVal(gh.enduran);
                     meta.setVal(gh.meta);
                     meatq1.setVal(gh.meatquan1);
@@ -65,6 +73,10 @@ public class Horses extends Window {
                     gh.breedingGap = gap.get();
                     gh.meatq = meatQuality.get();
                     gh.hideq = hideQuality.get();
+                    gh.milkq = milkQuality.get();
+                    gh.milkquan1 = milk1.get();
+                    gh.milkquanth = milkth.get();
+                    gh.milkquan2 = milk2.get();
                     gh.coverbreed = coverbreed.get();
                     gh.meatquan1 = meatq1.get();
                     gh.meatquanth = meatqth.get();
@@ -93,6 +105,10 @@ public class Horses extends Window {
                 coverbreed.setVal(gh.coverbreed);
                 meatQuality.setVal(gh.meatq);
                 hideQuality.setVal(gh.hideq);
+                milkQuality.setVal(gh.milkq);
+                milk1.setVal(gh.milkquan1);
+                milkth.setVal(gh.milkquanth);
+                milk2.setVal(gh.milkquan2);
                 meatq1.setVal(gh.meatquan1);
                 meatqth.setVal(gh.meatquanth);
                 meatq2.setVal(gh.meatquan2);
@@ -159,6 +175,7 @@ public class Horses extends Window {
         prev = add(new Label("Rank settings:"), prev.pos("bl").add(0, 15));
         prev = add(new Label("All coefficients are arbitrary, only relations between them matters."), prev.pos("bl").add(0, 5));
         prev = meatQuality = add(new NSettinsSetD("Meat:"), prev.pos("bl").add(0, 5));
+        prev = milkQuality = add(new NSettinsSetD("Milk:"), prev.pos("bl").add(0, 5));
         prev = hideQuality = add(new NSettinsSetD("Hide:"), prev.pos("bl").add(0, 5));
         prev = enduran = add(new NSettinsSetD("Endurance:"), prev.pos("bl").add(0, 5));
         prev = meta = add(new NSettinsSetD("Metabolism:"), prev.pos("bl").add(0, 5));
@@ -167,6 +184,9 @@ public class Horses extends Window {
         prev = meatq1 = add(new NSettinsSetD("Meat quantity 1:"), prev.pos("bl").add(0, 5));
         prev = meatqth = add(new NSettinsSetD("Meat quantity threshold:"), prev.pos("bl").add(0, 5));
         prev = meatq2 = add(new NSettinsSetD("Meat quantity 2:"), prev.pos("bl").add(0, 5));
+        prev = milk1 = add(new NSettinsSetD("Milk quantity 1:"), prev.pos("bl").add(0, 5));
+        prev = milkth = add(new NSettinsSetD("Milk quantity threshold:"), prev.pos("bl").add(0, 5));
+        prev = milk2 = add(new NSettinsSetD("Milk quantity 2:"), prev.pos("bl").add(0, 5));
         prev = stam1 = add(new NSettinsSetD("Stamina 1:"), prev.pos("bl").add(0, 5));
         prev = stamth = add(new NSettinsSetD("Stamina threshold:"), prev.pos("bl").add(0, 5));
         prev = stam2 = add(new NSettinsSetD("Stamina snout 2:"), prev.pos("bl").add(0, 5));
@@ -182,6 +202,10 @@ public class Horses extends Window {
         gh.breedingGap = gap.get();
         gh.meatq = meatQuality.get();
         gh.hideq = hideQuality.get();
+        gh.milkq = milkQuality.get();
+        gh.milkquan1 = milk1.get();
+        gh.milkquanth = milkth.get();
+        gh.milkquan2 = milk2.get();
         gh.coverbreed = coverbreed.get();
         gh.meatquan1 = meatq1.get();
         gh.meatquanth = meatqth.get();

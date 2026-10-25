@@ -92,6 +92,8 @@ public final class HerdRulesFactory {
                 .term(RankTerm.threshold("truffle", "Truffle snout", h.trufquan1, h.trufquanth, h.trufquan2, TRUFFLE))
                 .term(RankTerm.percent("meatq", "Meat quality", h.meatq, MEAT_Q))
                 .term(RankTerm.threshold("meat", "Meat quantity", h.meatquan1, h.meatquanth, h.meatquan2, MEAT_N))
+                .term(RankTerm.percent("milkq", "Milk quality", h.milkq, MILK_Q))
+                .term(RankTerm.threshold("milk", "Milk quantity", h.milkquan1, h.milkquanth, h.milkquan2, MILK_N))
                 .term(RankTerm.percent("hideq", "Hide quality", h.hideq, HIDE_Q))
                 .build();
     }
@@ -105,6 +107,8 @@ public final class HerdRulesFactory {
                 .breeding(h.breedingGap, h.coverbreed)
                 .term(RankTerm.percent("meatq", "Meat quality", h.meatq, MEAT_Q))
                 .term(RankTerm.threshold("meat", "Meat quantity", h.meatquan1, h.meatquanth, h.meatquan2, MEAT_N))
+                .term(RankTerm.percent("milkq", "Milk quality", h.milkq, MILK_Q))
+                .term(RankTerm.threshold("milk", "Milk quantity", h.milkquan1, h.milkquanth, h.milkquan2, MILK_N))
                 .term(RankTerm.threshold("stam", "Stamina", h.stam1, h.stamth, h.stam2, STAMINA))
                 .term(RankTerm.linear("end", "Endurance", h.enduran, ENDURANCE))
                 .term(RankTerm.linear("mb", "Metabolism", h.meta, METABOLISM))
@@ -121,6 +125,8 @@ public final class HerdRulesFactory {
                 .breeding(h.breedingGap, h.coverbreed)
                 .term(RankTerm.percent("meatq", "Meat quality", h.meatq, MEAT_Q))
                 .term(RankTerm.threshold("meat", "Meat quantity", h.meatquan1, h.meatquanth, h.meatquan2, MEAT_N))
+                .term(RankTerm.percent("milkq", "Milk quality", h.milkq, MILK_Q))
+                .term(RankTerm.threshold("milk", "Milk quantity", h.milkquan1, h.milkquanth, h.milkquan2, MILK_N))
                 .term(RankTerm.percent("hideq", "Hide quality", h.hideq, HIDE_Q))
                 .build();
     }

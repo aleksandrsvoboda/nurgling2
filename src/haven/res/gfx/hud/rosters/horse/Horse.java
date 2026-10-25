@@ -80,7 +80,9 @@ public class Horse extends Entry {
 	public AnimalFacts facts() {
 		return(new AnimalFacts(id, name, stallion, foal, dead, q, seedq)
 			.with("meat", meat)
+			.with("milk", milk)
 			.with("meatq", meatq)
+			.with("milkq", milkq)
 			.with("hideq", hideq)
 			.with("stam", stam)
 			.with("end", end)

@@ -13,6 +13,10 @@ public class Deers extends Window {
     NSettinsSetI gap;
     NSettinsSetD meatQuality;
     NSettinsSetD hideQuality;
+    NSettinsSetD milkQuality;
+    NSettinsSetD milk1;
+    NSettinsSetD milk2;
+    NSettinsSetD milkth;
     NSettinsSetD meatq1;
     NSettinsSetD meatq2;
     NSettinsSetD meatqth;
@@ -37,6 +41,10 @@ public class Deers extends Window {
                     coverbreed.setVal(gh.coverbreed);
                     meatQuality.setVal(gh.meatq);
                     hideQuality.setVal(gh.hideq);
+                    milkQuality.setVal(gh.milkq);
+                    milk1.setVal(gh.milkquan1);
+                    milkth.setVal(gh.milkquanth);
+                    milk2.setVal(gh.milkquan2);
                     meatq1.setVal(gh.meatquan1);
                     meatqth.setVal(gh.meatquanth);
                     meatq2.setVal(gh.meatquan2);
@@ -56,6 +64,10 @@ public class Deers extends Window {
                     gh.coverbreed = coverbreed.get();
                     gh.meatq = meatQuality.get();
                     gh.hideq = hideQuality.get();
+                    gh.milkq = milkQuality.get();
+                    gh.milkquan1 = milk1.get();
+                    gh.milkquanth = milkth.get();
+                    gh.milkquan2 = milk2.get();
                     gh.meatquan1 = meatq1.get();
                     gh.meatquanth = meatqth.get();
                     gh.meatquan2 = meatq2.get();
@@ -75,6 +87,10 @@ public class Deers extends Window {
                 coverbreed.setVal(gh.coverbreed);
                 meatQuality.setVal(gh.meatq);
                 hideQuality.setVal(gh.hideq);
+                milkQuality.setVal(gh.milkq);
+                milk1.setVal(gh.milkquan1);
+                milkth.setVal(gh.milkquanth);
+                milk2.setVal(gh.milkquan2);
                 meatq1.setVal(gh.meatquan1);
                 meatqth.setVal(gh.meatquanth);
                 meatq2.setVal(gh.meatquan2);
@@ -136,12 +152,16 @@ public class Deers extends Window {
         prev = add(new Label("Rank settings:"), prev.pos("bl").add(0, 15));
         prev = add(new Label("All coefficients are arbitrary, only relations between them matters."), prev.pos("bl").add(0, 5));
         prev = meatQuality = add(new NSettinsSetD("Meat:"), prev.pos("bl").add(0, 5));
+        prev = milkQuality = add(new NSettinsSetD("Milk:"), prev.pos("bl").add(0, 5));
         prev = hideQuality = add(new NSettinsSetD("Hide:"), prev.pos("bl").add(0, 5));
         prev = add(new Label("Follow stats may be tracked with different coefficients below and above threshold. If you want to ignore threshold, set both coefficients equal."), prev.pos("bl").add(0, 5));
         prev = add(new Label("If you want to track stat up to threshold, but ignore stat gain over threshold simply set second coefficient to zero."), prev.pos("bl").add(0, 5));
         prev = meatq1 = add(new NSettinsSetD("Meat quantity 1:"), prev.pos("bl").add(0, 5));
         prev = meatqth = add(new NSettinsSetD("Meat quantity threshold:"), prev.pos("bl").add(0, 5));
         prev = meatq2 = add(new NSettinsSetD("Meat quantity 2:"), prev.pos("bl").add(0, 5));
+        prev = milk1 = add(new NSettinsSetD("Milk quantity 1:"), prev.pos("bl").add(0, 5));
+        prev = milkth = add(new NSettinsSetD("Milk quantity threshold:"), prev.pos("bl").add(0, 5));
+        prev = milk2 = add(new NSettinsSetD("Milk quantity 2:"), prev.pos("bl").add(0, 5));
         preview = add(new HerdPreviewPanel(roster, "deer", () -> els.get(), () -> HerdRulesFactory.of(draft()), () -> HerdRulesFactory.of(saved())),
                 new Coord(HerdPreviewPanel.rightEdge(this) + UI.scale(15), 0));
         pack();
@@ -155,6 +175,10 @@ public class Deers extends Window {
         gh.coverbreed = coverbreed.get();
         gh.meatq = meatQuality.get();
         gh.hideq = hideQuality.get();
+        gh.milkq = milkQuality.get();
+        gh.milkquan1 = milk1.get();
+        gh.milkquanth = milkth.get();
+        gh.milkquan2 = milk2.get();
         gh.meatquan1 = meatq1.get();
         gh.meatquanth = meatqth.get();
         gh.meatquan2 = meatq2.get();

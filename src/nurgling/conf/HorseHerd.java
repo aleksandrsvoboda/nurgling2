@@ -25,6 +25,10 @@ public class HorseHerd implements JConf {
     public double meta = 0.;
     public double meatquan1 = 0.;
     public double meatquan2 = 0.;
+    public double milkq = 0.;
+    public double milkquanth = 0.;
+    public double milkquan1 = 0.;
+    public double milkquan2 = 0.;
     public double meatquanth = 0.;
     public double coverbreed = 0.;
     public String name;
@@ -59,6 +63,14 @@ public class HorseHerd implements JConf {
             meatquan1 = ((Number) values.get("meatquan1")).doubleValue();
         if (values.get("meatquan2") != null)
             meatquan2 = ((Number) values.get("meatquan2")).doubleValue();
+        if (values.get("mq") != null)
+            milkq = ((Number) values.get("mq")).doubleValue();
+        if (values.get("milkquan1") != null)
+            milkquan1 = ((Number) values.get("milkquan1")).doubleValue();
+        if (values.get("milkquan2") != null)
+            milkquan2 = ((Number) values.get("milkquan2")).doubleValue();
+        if (values.get("milkquanth") != null)
+            milkquanth = ((Number) values.get("milkquanth")).doubleValue();
         if (values.get("meatquanth") != null)
             meatquanth = ((Number) values.get("meatquanth")).doubleValue();
         if (values.get("coverbreed") != null)
@@ -147,6 +159,10 @@ public class HorseHerd implements JConf {
         jHorseHerd.put("meta", meta);
         jHorseHerd.put("meatquan1", meatquan1);
         jHorseHerd.put("meatquan2", meatquan2);
+        jHorseHerd.put("mq", milkq);
+        jHorseHerd.put("milkquan1", milkquan1);
+        jHorseHerd.put("milkquan2", milkquan2);
+        jHorseHerd.put("milkquanth", milkquanth);
         jHorseHerd.put("meatquanth", meatquanth);
         jHorseHerd.put("coverbreed", coverbreed);
         jHorseHerd.put("ic", ignoreChildren);

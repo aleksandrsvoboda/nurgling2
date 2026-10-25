@@ -22,6 +22,10 @@ public class PigsHerd implements JConf {
     public double trufquanth =0.;
     public double meatquan1 = 0.;
     public double meatquan2 = 0.;
+    public double milkq = 0.;
+    public double milkquanth = 0.;
+    public double milkquan1 = 0.;
+    public double milkquan2 = 0.;
     public double trufquan1 = 0.;
     public double trufquan2 = 0.;
     public double coverbreed = 0.;
@@ -47,6 +51,14 @@ public class PigsHerd implements JConf {
             meatquan1 = ((Number) values.get("meatquan1")).doubleValue();
         if (values.get("meatquan2") != null)
             meatquan2 = ((Number) values.get("meatquan2")).doubleValue();
+        if (values.get("mq") != null)
+            milkq = ((Number) values.get("mq")).doubleValue();
+        if (values.get("milkquan1") != null)
+            milkquan1 = ((Number) values.get("milkquan1")).doubleValue();
+        if (values.get("milkquan2") != null)
+            milkquan2 = ((Number) values.get("milkquan2")).doubleValue();
+        if (values.get("milkquanth") != null)
+            milkquanth = ((Number) values.get("milkquanth")).doubleValue();
         if (values.get("meatquanth") != null)
             meatquanth = ((Number) values.get("meatquanth")).doubleValue();
         if (values.get("ic") != null)
@@ -136,6 +148,10 @@ public class PigsHerd implements JConf {
         jPigsHerd.put("hideq", hideq);
         jPigsHerd.put("meatquan1", meatquan1);
         jPigsHerd.put("meatquan2", meatquan2);
+        jPigsHerd.put("mq", milkq);
+        jPigsHerd.put("milkquan1", milkquan1);
+        jPigsHerd.put("milkquan2", milkquan2);
+        jPigsHerd.put("milkquanth", milkquanth);
         jPigsHerd.put("meatquanth", meatquanth);
         jPigsHerd.put("ic", ignoreChildren);
         jPigsHerd.put("bd", ignoreBD);
