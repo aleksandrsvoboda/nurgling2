@@ -7,6 +7,7 @@ import nurgling.conf.CropRegistry;
 import nurgling.tasks.GetCurs;
 import nurgling.tasks.WaitAnotherAmount;
 import nurgling.tasks.WaitGobsInField;
+import nurgling.tasks.WaitPlantingMaterialUsed;
 import nurgling.tools.*;
 
 import java.util.*;
@@ -429,9 +430,15 @@ public class SeedCrop implements Action {
             Coord tile = toSeed.get(i);
 
             new PathFinder(tile.mul(MCache.tilesz).add(MCache.tilehsz)).run(gui);
+            int material = 0;
+            for (WItem item : gui.getInventory().getItems(iseed))
+                material += WaitPlantingMaterialUsed.units(item);
             NUtils.getGameUI().getInventory().activateItem(itemToPlant);
             NUtils.getGameUI().map.wdgmsg("sel", tile, tile, 1);
             NUtils.getUI().core.addTask(new WaitGobsInField(new Area(tile, tile), 1));
+            // The crop can appear before the seed leaves the inventory. Next to the chest
+            // the return below starts at once and would try to take the planted seed.
+            NUtils.getUI().core.addTask(new WaitPlantingMaterialUsed(gui.getInventory(), iseed, material));
         }
 
         // Return seeds to the chest
