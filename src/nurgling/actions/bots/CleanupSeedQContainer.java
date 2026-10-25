@@ -62,11 +62,12 @@ public class CleanupSeedQContainer implements Action {
 
         while (seeds.size() > containerCapacity / 2) {
             // The trough is a best-effort target: RedOnionFarmerQ registers it as optional and
-            // ignores our result, and HarvestCrop treats a null trough gob as normal. If it is not
-            // in loaded range, stop cleanup gracefully instead of crashing the whole farmer run.
-            // Checked before fetching so we never orphan seeds in the inventory.
-            Gob trough = Finder.findGob(trougha, new NAlias("gfx/terobjs/trough"));
-            if (trough == null)
+            // ignores our result, and HarvestCrop treats an empty trough list as normal. If none
+            // is in loaded range, or every one is full, stop cleanup gracefully instead of
+            // crashing the whole farmer run. Checked before fetching so we never orphan seeds in
+            // the inventory.
+            ArrayList<Gob> troughs = TransferToTrough.findTroughs(trougha);
+            if (!TransferToTrough.hasRoom(troughs))
                 break;
 
             int fetchCount = Math.min(seeds.size() - (containerCapacity / 2), gui.getInventory().getFreeSpace());
@@ -84,7 +85,7 @@ public class CleanupSeedQContainer implements Action {
             if (gui.getInventory().getItems(iseed).isEmpty())
                 break;
 
-            new TransferToTrough(trough, iseed).run(gui);
+            new TransferToTrough(troughs, iseed).run(gui);
 
             new PathFinder(containerGob).run(gui);
 

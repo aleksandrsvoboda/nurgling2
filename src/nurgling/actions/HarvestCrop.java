@@ -47,15 +47,11 @@ public class HarvestCrop implements Action {
 
         ArrayList<Gob> barrels = Finder.findGobs(seed, new NAlias("barrel"));
 
-        Gob trough = null;
-
         // The trough area is optional (farmers register it via Validator's opt list), so trougha
         // is null whenever none is configured or one is out of findSpec()'s range. Everything
-        // downstream already handles a null trough gob - TransferToTrough returns early on it,
-        // and the quality-grid path leaves it null deliberately.
-        if(!isQualityGrid && trougha != null) {
-            trough = Finder.findGob(trougha, new NAlias("gfx/terobjs/trough"));
-        }
+        // downstream already handles an empty trough list - TransferToTrough returns early on it,
+        // and the quality-grid path leaves it empty deliberately.
+        List<Gob> troughs = isQualityGrid ? List.of() : TransferToTrough.findTroughs(trougha);
 
         Gob cistern = null;
         if(this.swill!=null)
@@ -77,7 +73,7 @@ public class HarvestCrop implements Action {
                 }
                 // After barrels, transfer leftovers to trough/cistern
                 if (!gui.getInventory().getItems(stage.result).isEmpty()) {
-                    new TransferToTrough(trough, stage.result, cistern).run(gui);
+                    new TransferToTrough(troughs, stage.result, cistern).run(gui);
                 }
             }
         }
@@ -100,7 +96,7 @@ public class HarvestCrop implements Action {
                                 Coord2d plantGobEndpoint = harea.ul.mul(MCache.tilesz).add( MCache.tilesz.x + MCache.tilehsz.x, MCache.tilehsz.y).sub(0,MCache.tileqsz.y);
                                 Coord2d pathfinderEndpoint = harea.ul.sub(0, 1).mul(MCache.tilesz).add( MCache.tilesz.x + MCache.tilehsz.x, MCache.tilehsz.y  + MCache.tileqsz.y);
 
-                                harvest(gui, barrelInfo, trough, cistern, harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir);
+                                harvest(gui, barrelInfo, troughs, cistern, harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir);
                                 pos.y += 2;
                             }
                             pos.y = field.getArea().br.y - 1;
@@ -110,7 +106,7 @@ public class HarvestCrop implements Action {
                                 Area harea = new Area(pos, endPos, true);
                                 Coord2d plantGobEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y).sub(MCache.tilesz.x, 0).add(0,MCache.tileqsz.y);
                                 Coord2d pathfinderEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y).sub(MCache.tilesz.x, 0).add(0,MCache.tileqsz.y);
-                                harvest(gui, barrelInfo, trough, cistern, harea, revdir, pathfinderEndpoint , plantGobEndpoint, setDir);
+                                harvest(gui, barrelInfo, troughs, cistern, harea, revdir, pathfinderEndpoint , plantGobEndpoint, setDir);
                                 pos.y -= 2;
                             }
                             pos.y = field.getArea().ul.y;
@@ -127,7 +123,7 @@ public class HarvestCrop implements Action {
                                 Area harea = new Area(pos, endPos, true);
                                 Coord2d plantGobEndpoint = harea.ul.mul(MCache.tilesz).add(MCache.tilehsz.x+MCache.tilesz.x, MCache.tilehqsz.y + MCache.tileqsz.y);
                                 Coord2d pathfinderEndpoint = harea.ul.sub(0, 1).mul(MCache.tilesz).add( MCache.tilesz.x + MCache.tilehsz.x, MCache.tilehsz.y + MCache.tileqsz.y);
-                                harvest(gui, barrelInfo, trough, cistern, harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir);
+                                harvest(gui, barrelInfo, troughs, cistern, harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir);
                                 pos.y += 2;
                             }
                             pos.y = field.getArea().br.y - 1;
@@ -137,7 +133,7 @@ public class HarvestCrop implements Action {
                                 Area harea = new Area(pos, endPos, true);
                                 Coord2d plantGobEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz).sub(MCache.tilesz.x, 0);
                                 Coord2d pathfinderEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz).sub(MCache.tilesz.x, 0).add(0,MCache.tileqsz.y);
-                                harvest(gui, barrelInfo, trough, cistern, harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir);
+                                harvest(gui, barrelInfo, troughs, cistern, harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir);
                                 pos.y -= 2;
                             }
                             pos.y = field.getArea().ul.y;
@@ -148,14 +144,14 @@ public class HarvestCrop implements Action {
                 }
         }
 
-        finalCleanup(gui, barrelInfo.keySet(), trough, cistern);
+        finalCleanup(gui, barrelInfo.keySet(), troughs, cistern);
 
         return Results.SUCCESS();
     }
 
 
-    void harvest(NGameUI gui, HashMap<Gob,AtomicBoolean> barrelInfo, Gob trough, Gob cistern, Area area, boolean rev, Coord2d pathfinderEndpoint, Coord2d plantGobEndpoint, AtomicBoolean setDir) throws InterruptedException {
-        dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+    void harvest(NGameUI gui, HashMap<Gob,AtomicBoolean> barrelInfo, List<Gob> troughs, Gob cistern, Area area, boolean rev, Coord2d pathfinderEndpoint, Coord2d plantGobEndpoint, AtomicBoolean setDir) throws InterruptedException {
+        dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
 
         if(NUtils.getStamina()<0.35) {
             if (!new Drink(0.9, false).run(gui).isSuccess)
@@ -182,7 +178,7 @@ public class HarvestCrop implements Action {
             plant = Finder.findGob(plantGobEndpoint.div(MCache.tilesz).floor(),new NAlias("gfx/terobjs/plants/fallowplant"), 0);
         }
         if(plant!=null) {
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
             if(PathFinder.isAvailable(pathfinderEndpoint)) {
                 new PathFinder(pathfinderEndpoint).run(NUtils.getGameUI());
                 if (setDir.get()) {
@@ -204,7 +200,7 @@ public class HarvestCrop implements Action {
                 NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), new NAlias("Beetroot"), 1));
             }
 
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
         }
 
         ArrayList<Gob> plants;
@@ -212,7 +208,7 @@ public class HarvestCrop implements Action {
         for (CropRegistry.CropStage cropStage : cropStages) {
             ArrayList<Gob> plantsToHarvest;
             while (!(plantsToHarvest = Finder.findGobs(area, crop, cropStage.stage)).isEmpty()) {
-                dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+                dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
                 Gob plantToHarvest = plantsToHarvest.get(0);
                 new PathFinder(plantToHarvest).run(gui);
                 new SelectFlowerAction("Harvest", plantToHarvest).run(gui);
@@ -222,13 +218,13 @@ public class HarvestCrop implements Action {
                     NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), new NAlias("Beetroot"), 1));
                 }
 
-                dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+                dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
             }
         }
 
         while (!(plants = Finder.findGobs(area,new NAlias("gfx/terobjs/plants/fallowplant"), 0)).isEmpty())
         {
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
             plant = plants.get(0);
             new PathFinder(plant).run(gui);
             new SelectFlowerAction("Harvest", plant).run(gui);
@@ -238,24 +234,24 @@ public class HarvestCrop implements Action {
                 NUtils.getUI().core.addTask(new WaitMoreItems(NUtils.getGameUI().getInventory(), new NAlias("Beetroot"), 1));
             }
 
-            dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+            dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
         }
 
-        dropOffSeed(gui, barrelInfo.keySet(), trough, cistern);
+        dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
     }
 
-    private void dropOffSeed(NGameUI gui, Set<Gob> barrels, Gob trough, Gob cistern) throws InterruptedException {
-        processHarvestedItems(gui, barrels, trough, cistern, true);
+    private void dropOffSeed(NGameUI gui, Set<Gob> barrels, List<Gob> troughs, Gob cistern) throws InterruptedException {
+        processHarvestedItems(gui, barrels, troughs, cistern, true);
     }
 
-    private void finalCleanup(NGameUI gui, Set<Gob> barrels, Gob trough, Gob cistern) throws InterruptedException {
-        processHarvestedItems(gui, barrels, trough, cistern, false);
+    private void finalCleanup(NGameUI gui, Set<Gob> barrels, List<Gob> troughs, Gob cistern) throws InterruptedException {
+        processHarvestedItems(gui, barrels, troughs, cistern, false);
     }
 
     private void processHarvestedItems(
             NGameUI gui,
             Set<Gob> barrels,
-            Gob trough,
+            List<Gob> troughs,
             Gob cistern,
             boolean barrelOnlyIfInventoryFull
     ) throws InterruptedException {
@@ -301,7 +297,7 @@ public class HarvestCrop implements Action {
                 }
                 // 3. Leftover to trough/cistern
                 if (!gui.getInventory().getItems(seedAlias).isEmpty()) {
-                    new TransferToTrough(trough, seedAlias, cistern).run(gui);
+                    new TransferToTrough(troughs, seedAlias, cistern).run(gui);
                 }
             }
         } else {

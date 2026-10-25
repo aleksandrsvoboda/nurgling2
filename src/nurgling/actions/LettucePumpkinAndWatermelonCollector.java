@@ -171,9 +171,9 @@ public class LettucePumpkinAndWatermelonCollector implements Action {
                 }
 
                 if (troughArea != null && !gui.getInventory().getItems(new NAlias("Seed")).isEmpty()) {
-                    Gob trough = Finder.findGob(troughArea, new NAlias("gfx/terobjs/trough"));
-                    if (trough != null) {
-                        new TransferToTrough(trough, new NAlias("Seed")).run(gui);
+                    ArrayList<Gob> troughs = TransferToTrough.findTroughs(troughArea);
+                    if (!troughs.isEmpty()) {
+                        new TransferToTrough(troughs, new NAlias("Seed")).run(gui);
                     }
                 }
             }
