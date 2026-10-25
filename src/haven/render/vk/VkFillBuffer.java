@@ -44,7 +44,13 @@ public class VkFillBuffer implements FillBuffer {
 
     public ByteBuffer push() {
 	if(data == null) {
-	    data = Utils.mkbbuf(sz);
+	    /* Heap, as on GL: every consumer only copies the data out (into a
+	     * render's arena or the upload ring, both of which take heap
+	     * buffers), and a direct buffer per fill -- every 2D draw, every
+	     * ephemeral upload -- cost an allocateDirect and a Cleaner
+	     * reference for the GC to process, and could force a full GC once
+	     * the direct-memory limit was reached. */
+	    data = ByteBuffer.allocate(sz).order(ByteOrder.nativeOrder());
 	    pushed = true;
 	} else if(!pushed) {
 	    throw(new IllegalStateException("already pulled"));

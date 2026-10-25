@@ -93,9 +93,13 @@ public class PoseMorph {
     private int lastseq;
     public Morphed state() {
 	if((last == null) || (lastseq != pose.seq)) {
-	    float[][] offs = new float[bperm.length][16];
-	    for(int i = 0; i < bperm.length; i++)
-		pose.boneoff(bperm[i], offs[i]);
+	    /* nurgling: one flat array, the form the uniform takes, instead of one
+	     * per bone that the uniform then copied into a flat one, every frame. */
+	    float[] offs = new float[bperm.length * 16], off = new float[16];
+	    for(int i = 0; i < bperm.length; i++) {
+		pose.boneoff(bperm[i], off);
+		System.arraycopy(off, 0, offs, i * 16, 16);
+	    }
 	    last = new Morphed(offs);
 	    lastseq = pose.seq;
 	}
@@ -169,19 +173,33 @@ public class PoseMorph {
 	}
 
 	private static final WeakHashedSet<Shader> interned = new WeakHashedSet<>(Hash.eq);
+	/* nurgling: every new pose (each frame of every animation) asked for its
+	 * shader, building two complete shader functions just to find the interned
+	 * one. nb is a power of two, so a slot per exponent holds them all. */
+	private static final Shader[] bylog = new Shader[32];
 	public static Shader get(int nb) {
-	    return(interned.intern(new Shader(nb)));
+	    int l = Integer.numberOfTrailingZeros(nb);
+	    boolean pow2 = (nb & (nb - 1)) == 0;
+	    Shader ret = pow2 ? bylog[l] : null;
+	    if(ret == null) {
+		ret = interned.intern(new Shader(nb));
+		if(pow2)
+		    bylog[l] = ret;
+	    }
+	    return(ret);
 	}
     }
 
     public static class Morphed extends State {
-	public final float[][] offs;
+	/* The bone offset matrices, 16 floats each, one after another. */
+	public final float[] offs;
 	private final ShaderMacro shader;
 
-	public Morphed(float[][] offs) {
+	public Morphed(float[] offs) {
 	    this.offs = offs;
-	    int nb = Integer.highestOneBit(offs.length);
-	    nb = Math.max(4, (nb == offs.length) ? nb : nb << 1);
+	    int nm = offs.length / 16;
+	    int nb = Integer.highestOneBit(nm);
+	    nb = Math.max(4, (nb == nm) ? nb : nb << 1);
 	    this.shader = Shader.get(nb);
 	}
 

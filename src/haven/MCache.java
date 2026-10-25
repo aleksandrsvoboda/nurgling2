@@ -58,6 +58,9 @@ public class MCache implements MapSource {
     public static final Coord cutn = cmaps.div(cutsz);
 
 	public final static int customolssize = 10;
+    /* No tile of a grid is ever marked in the custom overlays, so they all share one
+     * empty mask instead of a dozen fresh ones per grid. Never write into it. */
+    private static final boolean[] NOCUSTOMOL = new boolean[cmaps.x * cmaps.y];
     private final Object setmon = new Object();
     @SuppressWarnings("unchecked")
     public Indir<Resource>[] sets = new Indir[16];
@@ -197,6 +200,13 @@ public class MCache implements MapSource {
 	    super("Waiting for map data...");
 	    this.gc = gc;
 	    this.map = map;
+	}
+
+	/* Plain flow control, thrown constantly near the edge of the loaded map (every
+	 * frame, for each missing grid, by everything that looks at the terrain there):
+	 * filling in a stack trace each time cost far more than the throw itself. */
+	public Throwable fillInStackTrace() {
+	    return(this);
 	}
 
 	public void waitfor(Runnable callback, Consumer<Waitable.Waiting> reg) {
@@ -459,6 +469,25 @@ public class MCache implements MapSource {
 			return val!=null || (val == null && def!=null && def.done());
 		}
 
+	    /* get() without the exceptions: what there is to show now, or null, while still
+	     * starting the build. For callers that only want the work under way. */
+	    public T poll() {
+		T ret = this.val;
+		if((ret != null) && (this.def == null))
+		    return(ret);
+		synchronized(this) {
+		    if(!inited) {
+			rebuild();
+			inited = true;
+		    }
+		    if((this.def != null) && !this.def.done())
+			return(this.val);
+		    if((this.val == null) && (this.def == null))
+			return(null);
+		}
+		return(get());
+	    }
+
 	    public T get() {
 		T ret = this.val;
 		if((ret == null) || (this.def != null)) {
@@ -501,7 +530,7 @@ public class MCache implements MapSource {
 	    public void rebuild() {
 		synchronized(this) {
 		    Defer.Future<T> prev = this.def;
-		    this.def = Defer.later(new Defer.Callable<T>() {
+		    this.def = Defer.mapjob(new Defer.Callable<T>() {
 			    public T call() {return(build());}
 			    public String toString() {return(message());}
 			});
@@ -605,7 +634,7 @@ public class MCache implements MapSource {
 	    private RenderTree.Node[] build(Object key, Defer.Callable<RenderTree.Node[]> task) {
 		Defer.Future<RenderTree.Node[]> f = olbuild.get(key);
 		if(f == null)
-		    olbuild.put(key, f = Defer.later(task));
+		    olbuild.put(key, f = Defer.mapjob(task));
 		RenderTree.Node[] ret = f.get();
 		olbuild.remove(key);
 		return(ret);
@@ -731,6 +760,15 @@ public class MCache implements MapSource {
 
 	public int gettile(Coord tc) {
 	    return(tiles[tc.x + (tc.y * cmaps.x)]);
+	}
+
+	/* nurgling: coordinate-free variants for the per-gob height lookups. */
+	int gettile(int x, int y) {
+	    return(tiles[x + (y * cmaps.x)]);
+	}
+
+	MapMesh getcut(int cx, int cy) {
+	    return(cuts[cx + (cy * cutn.x)].mesh.get());
 	}
 
 	public double getz(Coord tc) {
@@ -1142,13 +1180,13 @@ public class MCache implements MapSource {
 		for (int i = customolssize; i > 0; i--)
 		{
 			ols[ols.length - i] = Resource.remote().load("map/overlay/areas-o"+String.valueOf(i-1));
-			ol[ol.length - i] = new boolean[cmaps.x * cmaps.y];
+			ol[ol.length - i] = NOCUSTOMOL;
 		}
 
 		ols[ols.length - customolssize - 2] = Resource.remote().load("map/overlay/minesup-o");
 		ols[ols.length - customolssize - 1] = Resource.remote().load("map/overlay/areash-o");
-		ol[ol.length - customolssize - 2] = new boolean[cmaps.x * cmaps.y];
-		ol[ol.length - customolssize - 1] = new boolean[cmaps.x * cmaps.y];
+		ol[ol.length - customolssize - 2] = NOCUSTOMOL;
+		ol[ol.length - customolssize - 1] = NOCUSTOMOL;
 	}
 
 	private void subfill(Message msg) {
@@ -1377,7 +1415,18 @@ public class MCache implements MapSource {
 	}
 
     public Grid getgridt(Coord tc) {
-	return(getgrid(tc.div(cmaps)));
+	return(getgridt(tc.x, tc.y));
+    }
+
+    /* nurgling: every placed or moving gob looks its ground height up here each frame;
+     * the common case (the thread's last grid) no longer allocates coordinates. */
+    public Grid getgridt(int tx, int ty) {
+	int gx = Utils.floordiv(tx, cmaps.x), gy = Utils.floordiv(ty, cmaps.y);
+	Reference<Grid> ref = cached.get();
+	Grid ret = (ref == null) ? null : ref.get();
+	if((ret != null) && (ret.gc.x == gx) && (ret.gc.y == gy) && !ret.removed)
+	    return(ret);
+	return(getgrid(Coord.of(gx, gy)));
     }
 
     public int gettile(Coord tc) {
@@ -1425,19 +1474,21 @@ public class MCache implements MapSource {
 	};
 
     public double getz(SurfaceID id, Coord tc) {
-	Grid g = getgridt(tc);
-	MapMesh cut = g.getcut(tc.sub(g.ul).div(cutsz));
-	Tiler t = tiler(g.gettile(tc.sub(g.ul)));
+	Grid g = getgridt(tc.x, tc.y);
+	int lx = tc.x - g.ul.x, ly = tc.y - g.ul.y;
+	MapMesh cut = g.getcut(lx / cutsz.x, ly / cutsz.y);
+	Tiler t = tiler(g.gettile(lx, ly));
 	return(cut.getsurf(id, t).getz(tc));
     }
 
     public double getz(SurfaceID id, Coord2d pc) {
 	if((Boolean) NConfig.get(NConfig.Key.flatsurface))
 		return 0;
-	Coord tc = pc.floor(tilesz);
-	Grid g = getgridt(tc);
-	MapMesh cut = g.getcut(tc.sub(g.ul).div(cutsz));
-	Tiler t = tiler(g.gettile(tc.sub(g.ul)));
+	int tx = (int)Math.floor(pc.x / tilesz.x), ty = (int)Math.floor(pc.y / tilesz.y);
+	Grid g = getgridt(tx, ty);
+	int lx = tx - g.ul.x, ly = ty - g.ul.y;
+	MapMesh cut = g.getcut(lx / cutsz.x, ly / cutsz.y);
+	Tiler t = tiler(g.gettile(lx, ly));
 	ZSurface surf = cut.getsurf(id, t);
 	return(surf.getz(pc));
     }
@@ -1452,10 +1503,11 @@ public class MCache implements MapSource {
     }
 
     public Coord3f getnorm(SurfaceID id, Coord2d pc) {
-	Coord tc = pc.floor(tilesz);
-	Grid g = getgridt(tc);
-	MapMesh cut = g.getcut(tc.sub(g.ul).div(cutsz));
-	Tiler t = tiler(g.gettile(tc.sub(g.ul)));
+	int tx = (int)Math.floor(pc.x / tilesz.x), ty = (int)Math.floor(pc.y / tilesz.y);
+	Grid g = getgridt(tx, ty);
+	int lx = tx - g.ul.x, ly = ty - g.ul.y;
+	MapMesh cut = g.getcut(lx / cutsz.x, ly / cutsz.y);
+	Tiler t = tiler(g.gettile(lx, ly));
 	return(cut.getsurf(id, t).getnorm(pc));
     }
 
@@ -1674,14 +1726,25 @@ public class MCache implements MapSource {
 	}
     }
 
+    /* Runs every frame over the whole view: a missing grid or an unbuilt cut is the
+     * normal case here, so ask for them without throwing and catching an exception
+     * per cut (that was hundreds a second while walking). */
     public void reqarea(Coord ul, Coord br) {
 	ul = ul.div(cutsz); br = br.div(cutsz);
 	Coord rc = new Coord();
 	for(rc.y = ul.y; rc.y <= br.y; rc.y++) {
 	    for(rc.x = ul.x; rc.x <= br.x; rc.x++) {
-		try {
-		    getcut(Coord.of(rc));
-		} catch(Loading e) {}
+		Coord gc = rc.div(cutn);
+		Grid g;
+		synchronized(grids) {
+		    g = grids.get(gc);
+		}
+		if(g == null) {
+		    request(gc);
+		    continue;
+		}
+		Coord cc = rc.mod(cutn);
+		g.cuts[cc.x + (cc.y * cutn.x)].mesh.poll();
 	    }
 	}
     }

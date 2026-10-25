@@ -210,6 +210,14 @@ public class NGfx {
 	return(env instanceof haven.render.vk.VkEnvironment);
     }
 
+    /* Whether night vision is done by auto-exposure rather than by the
+     * light boost OpenGL uses. Only while the effects actually run: with
+     * them off (Classic) the exposure pass never runs, so the button has
+     * to brighten the light, as on OpenGL. */
+    public static boolean exposureNightVision(haven.render.Environment env) {
+	return(supported(env) && get().enabled);
+    }
+
     /* The settings in effect for a renderer. */
     public static Settings effective(haven.render.Environment env) {
 	return(effective(get(), supported(env)));

@@ -5,7 +5,6 @@ import haven.render.*;
 import nurgling.*;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Batched rendering system for crop markers to reduce draw calls.
@@ -15,7 +14,11 @@ public class NCropMarkerBatch implements RenderTree.Node {
     private static NCropMarkerBatch instance;
     
     private final Map<TexI, List<MarkerInstance>> markersByTexture = new HashMap<>();
-    private final Map<Long, MarkerInstance> activeMarkers = new ConcurrentHashMap<>();
+    /* The markers drawn this frame. Markers draw and the batch renders on the UI thread
+     * within one PView.ScreenList.draw, so a plain list does: each marker owns its
+     * instance and adds it, instead of a map rebuilt (and every marker's entry, key and
+     * position reallocated) every frame. */
+    private final List<MarkerInstance> frame = new ArrayList<>();
     
     private static final int MAX_INSTANCES = 8192;
     private static boolean showCropStage = false;
@@ -27,15 +30,8 @@ public class NCropMarkerBatch implements RenderTree.Node {
      * Represents a single crop marker instance with position and texture
      */
     public static class MarkerInstance {
-        public final long gobId;
-        public Coord2d screenPos;
+        public float x, y;
         public TexI texture;
-        
-        public MarkerInstance(long gobId, Coord2d pos, TexI tex) {
-            this.gobId = gobId;
-            this.screenPos = pos;
-            this.texture = tex;
-        }
     }
     
     private NCropMarkerBatch() {}
@@ -52,29 +48,11 @@ public class NCropMarkerBatch implements RenderTree.Node {
     }
     
     /**
-     * Update or add a marker to the batch
+     * Draw a marker this frame
      */
-    public void updateMarker(long gobId, Coord2d screenPos, TexI texture) {
-        if (texture == null || screenPos == null) {
-            activeMarkers.remove(gobId);
-            return;
-        }
-        
-        MarkerInstance marker = activeMarkers.get(gobId);
-        if (marker == null) {
-            marker = new MarkerInstance(gobId, screenPos, texture);
-            activeMarkers.put(gobId, marker);
-        } else {
-            marker.screenPos = screenPos;
-            marker.texture = texture;
-        }
-    }
-    
-    /**
-     * Remove a marker from the batch
-     */
-    public void removeMarker(long gobId) {
-        activeMarkers.remove(gobId);
+    public void add(MarkerInstance marker) {
+        if (marker.texture != null)
+            frame.add(marker);
     }
     
     /**
@@ -83,9 +61,7 @@ public class NCropMarkerBatch implements RenderTree.Node {
     private void prepareBatches() {
         markersByTexture.clear();
         
-        for (MarkerInstance marker : activeMarkers.values()) {
-            if (marker.texture == null) continue;
-            
+        for (MarkerInstance marker : frame) {
             markersByTexture.computeIfAbsent(marker.texture, k -> new ArrayList<>())
                            .add(marker);
         }
@@ -95,7 +71,7 @@ public class NCropMarkerBatch implements RenderTree.Node {
      * Begin a new frame - clear the batch for fresh data
      */
     public void beginFrame() {
-        activeMarkers.clear();
+        frame.clear();
     }
     
     /**
@@ -108,7 +84,7 @@ public class NCropMarkerBatch implements RenderTree.Node {
             lastConfigCheck = currentTime;
         }
         
-        if (!showCropStage || activeMarkers.isEmpty()) {
+        if (!showCropStage || frame.isEmpty()) {
             return;
         }
         
@@ -149,8 +125,8 @@ public class NCropMarkerBatch implements RenderTree.Node {
             int idx = 0;
             for (int i = 0; i < count; i++) {
                 MarkerInstance marker = markers.get(offset + i);
-                float x = (float) marker.screenPos.x;
-                float y = (float) marker.screenPos.y;
+                float x = marker.x;
+                float y = marker.y;
                 
                 float l = x - halfW;
                 float r = x + halfW;
@@ -192,7 +168,7 @@ public class NCropMarkerBatch implements RenderTree.Node {
         TexI atlasTexture = atlas.getAtlasTexture();
         if (atlasTexture == null) return;
         
-        List<MarkerInstance> allMarkers = new ArrayList<>(activeMarkers.values());
+        List<MarkerInstance> allMarkers = frame;
         if (allMarkers.isEmpty()) return;
         
         int totalMarkers = allMarkers.size();
@@ -209,8 +185,8 @@ public class NCropMarkerBatch implements RenderTree.Node {
                 NCropTextureAtlas.AtlasRegion region = atlas.getRegion(marker.texture);
                 if (region == null) continue;
                 
-                float x = (float) marker.screenPos.x;
-                float y = (float) marker.screenPos.y;
+                float x = marker.x;
+                float y = marker.y;
                 
                 float halfW = region.width * 0.5f;
                 float halfH = region.height * 0.5f;
@@ -252,7 +228,7 @@ public class NCropMarkerBatch implements RenderTree.Node {
      * Clear all markers
      */
     public void clear() {
-        activeMarkers.clear();
+        frame.clear();
         markersByTexture.clear();
     }
     
@@ -260,6 +236,6 @@ public class NCropMarkerBatch implements RenderTree.Node {
      * Get the number of active markers
      */
     public int getMarkerCount() {
-        return activeMarkers.size();
+        return frame.size();
     }
 }

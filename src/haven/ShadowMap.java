@@ -279,12 +279,24 @@ public class ShadowMap extends State {
     }
 
     public static class Shader implements ShaderMacro {
+	/* Every program's setting asks for this with the same shadow map and camera, and the
+	 * camera changes every frame it moves: compute it once per pair, not once per program. */
+	private static class TxfCache {
+	    final ShadowMap sm; final Object cam; final Matrix4f txf;
+	    TxfCache(ShadowMap sm, Object cam, Matrix4f txf) {this.sm = sm; this.cam = cam; this.txf = txf;}
+	}
+	private static volatile TxfCache lasttxf = null;
 	public static final Uniform txf = new Uniform(MAT4, p -> {
 		ShadowMap sm = p.get(smap);
-		Matrix4f cm = Transform.rxinvert(p.get(Homo3D.cam).fin(Matrix4f.id));
+		Camera cam = p.get(Homo3D.cam);
+		TxfCache c = lasttxf;
+		if((c != null) && (c.sm == sm) && (c.cam == cam))
+		    return(c.txf);
+		Matrix4f cm = Transform.rxinvert(cam.fin(Matrix4f.id));
 		Matrix4f proj = sm.lproj.fin(Matrix4f.id);
 		Matrix4f lcam = sm.lcam.fin(Matrix4f.id);
 		Matrix4f txf = texbias.mul(proj).mul(lcam).mul(cm);
+		lasttxf = new TxfCache(sm, cam, txf);
 		return(txf);
 	    }, smap, Homo3D.cam);
 	public static final Uniform sl = new Uniform(INT, p -> {

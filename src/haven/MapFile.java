@@ -729,14 +729,17 @@ public class MapFile {
 		    break;
 		int resver = fp.uint16();
 		boolean[] ol = new boolean[cmaps.x * cmaps.y];
+		boolean set = false;
 		for(int i = 0, p = 0; i < ol.length; i += 8) {
 		    p = fp.uint8();
 		    for(int o = 0; o < Math.min(8, ol.length - i); o++) {
 			if((p & (1 << o)) != 0)
-			    ol[i + o] = true;
+			    ol[i + o] = set = true;
 		    }
 		}
-		buf.add(new Overlay(new Resource.Saved(Resource.remote(), resnm, resver), ol));
+		/* Files saved before Grid.from skipped empty overlays hold a dozen per grid. */
+		if(set)
+		    buf.add(new Overlay(new Resource.Saved(Resource.remote(), resnm, resver), ol));
 	    }
 	}
 
@@ -755,6 +758,14 @@ public class MapFile {
 	public Grid(long id, TileInfo[] tilesets, int[] tiles, float[] zmap, long mtime) {
 	    super(tilesets, tiles, zmap, mtime);
 	    this.id = id;
+	}
+
+	private static boolean any(boolean[] ol) {
+	    for(boolean b : ol) {
+		if(b)
+		    return(true);
+	    }
+	    return(false);
 	}
 
 	public static Grid from(MCache map, MCache.Grid cg) {
@@ -800,6 +811,10 @@ public class MapFile {
 	    for(int i = 0; i < cg.ols.length; i++) {
 		if(cg.ol[i].length != (cmaps.x * cmaps.y))
 		    throw(new AssertionError(String.valueOf(cg.ol[i].length)));
+		/* An overlay with no tile in this grid draws nothing; most are the client's own
+		 * always-empty custom overlays, and every saved copy would be kept and reloaded. */
+		if(!any(cg.ol[i]))
+		    continue;
 		Resource olres = Loading.waitfor(cg.ols[i]);
 		g.ols.add(new Overlay(new Resource.Saved(olres.pool, olres.name, olres.ver), Arrays.copyOf(cg.ol[i], cg.ol[i].length)));
 	    }

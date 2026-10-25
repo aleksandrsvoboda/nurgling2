@@ -89,7 +89,7 @@ public class MeshBuf {
 
     public class Tex extends Layer<Coord3f> {
 	public VertexBuf.TexelData build(Collection<Coord3f> in) {
-	    FloatBuffer data = Utils.wfbuf(in.size() * 2);
+	    FloatBuffer data = databuf(in.size() * 2);
 	    for(Coord3f c : in) {
 		data.put(c.x); data.put(c.y);
 	    }
@@ -110,7 +110,7 @@ public class MeshBuf {
 
     public class Col extends Layer<Color> {
 	public VertexBuf.ColorData build(Collection<Color> in) {
-	    FloatBuffer data = Utils.wfbuf(in.size() * 4);
+	    FloatBuffer data = databuf(in.size() * 4);
 	    for(Color c : in) {
 		data.put(c.getRed() / 255.0f);  data.put(c.getGreen() / 255.0f);
 		data.put(c.getBlue() / 255.0f); data.put(c.getAlpha() / 255.0f);
@@ -138,7 +138,7 @@ public class MeshBuf {
 	public Vec1Layer(Attribute attrib) {super(attrib);}
 
 	public AttribData build(Collection<Float> in) {
-	    FloatBuffer data = Utils.wfbuf(in.size());
+	    FloatBuffer data = databuf(in.size());
 	    for(Float d : in)
 		data.put(d);
 	    return(new AttribData(attrib, 1, data));
@@ -148,7 +148,7 @@ public class MeshBuf {
 	public Vec2Layer(Attribute attrib) {super(attrib);}
 
 	public AttribData build(Collection<Coord3f> in) {
-	    FloatBuffer data = Utils.wfbuf(in.size() * 2);
+	    FloatBuffer data = databuf(in.size() * 2);
 	    for(Coord3f d : in) {
 		data.put(d.x); data.put(d.y);
 	    }
@@ -159,7 +159,7 @@ public class MeshBuf {
 	public Vec3Layer(Attribute attrib) {super(attrib);}
 
 	public AttribData build(Collection<Coord3f> in) {
-	    FloatBuffer data = Utils.wfbuf(in.size() * 3);
+	    FloatBuffer data = databuf(in.size() * 3);
 	    for(Coord3f d : in) {
 		data.put(d.x); data.put(d.y); data.put(d.z);
 	    }
@@ -170,7 +170,7 @@ public class MeshBuf {
 	public Vec4Layer(Attribute attrib) {super(attrib);}
 
 	public AttribData build(Collection<float[]> in) {
-	    FloatBuffer data = Utils.wfbuf(in.size() * 4);
+	    FloatBuffer data = databuf(in.size() * 4);
 	    for(float[] d : in) {
 		data.put(d[0]); data.put(d[1]); data.put(d[2]); data.put(d[3]);
 	    }
@@ -319,8 +319,8 @@ public class MeshBuf {
 
 	FloatBuffer pos, nrm;
 	{
-	    pos = Utils.wfbuf(v.size() * 3);
-	    nrm = Utils.wfbuf(v.size() * 3);
+	    pos = databuf(v.size() * 3);
+	    nrm = databuf(v.size() * 3);
 	    int pi = 0, ni = 0;
 	    short i = 0;
 	    for(Vertex v : this.v) {
@@ -357,17 +357,28 @@ public class MeshBuf {
 	this.f.clear();
     }
 
+    /* Storage for the finished mesh's vertex and index data: heap arrays by default. A mesh
+     * that is built all the time and then kept for long (terrain) can keep it off the heap
+     * instead, where young collections don't copy it over and over until it is tenured. */
+    protected FloatBuffer databuf(int n) {
+	return(Utils.wfbuf(n));
+    }
+
+    protected ShortBuffer indbuf(int n) {
+	return(Utils.wsbuf(n));
+    }
+
     public FastMesh mkmesh() {
 	if(f.isEmpty())
 	    throw(new RuntimeException("Tried to build empty mesh"));
 	if(this.vbuf == null)
 	    mkvbuf();
-	short[] idx = new short[f.size() * 3];
+	ShortBuffer idx = indbuf(f.size() * 3);
 	int ii = 0;
 	for(Face f : this.f) {
-	    idx[ii + 0] = f.v1.idx;
-	    idx[ii + 1] = f.v2.idx;
-	    idx[ii + 2] = f.v3.idx;
+	    idx.put(ii + 0, f.v1.idx);
+	    idx.put(ii + 1, f.v2.idx);
+	    idx.put(ii + 2, f.v3.idx);
 	    ii += 3;
 	}
 	return(new FastMesh(this.vbuf, idx));

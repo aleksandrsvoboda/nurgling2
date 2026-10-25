@@ -207,6 +207,12 @@ public interface UniformApplier<T> {
 		    gl.glUniformMatrix4fv(var, n, false, buf);
 		});
 
+	    TypeMapping.register(new Array(Type.MAT4), float[].class, (gl, var, type, mats) -> {
+		    Array ary = (Array)type;
+		    int n = Math.min(mats.length / 16, ary.sz);
+		    gl.glUniformMatrix4fv(var, n, false, mats);
+		});
+
 	    TypeMapping.register(Type.SAMPLER2D, GLTexture.Tex2D.class, (gl, var, type, smp) -> {
 		    if(var.sampler < 0) throw(new RuntimeException());
 		    gl.glActiveTexture(GL.GL_TEXTURE0 + var.sampler);

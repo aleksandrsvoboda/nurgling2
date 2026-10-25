@@ -53,6 +53,31 @@ public class NOverlay extends MapView.MapRaster
         requpdate2 = false;
     }
 
+    /* Per-frame tick for a plain area overlay, with the view window computed
+     * once for all overlays. The area's cuts in that window are recomputed
+     * only when the window or the set of loaded grids changes, or every half
+     * second for in-place geometry edits; with hundreds of saved areas the
+     * per-area player lookup and space walk every frame added up. */
+    private Area cwin, ccuts;
+    private int cgrids;
+    private double cnext;
+
+    public void tick(Area win, int grids, double now) {
+        tick(win);
+        if(id >= 0) {
+            if(!win.equals(cwin) || (grids != cgrids) || (now >= cnext)) {
+                ccuts = areaCuts(win);
+                cwin = win;
+                cgrids = grids;
+                cnext = now + 0.5;
+            }
+            area = ccuts;
+        }
+        base.tick();
+        outl.tick();
+        requpdate2 = false;
+    }
+
     /* An area covers a few tiles, usually a single cut, yet the view window spans
      * 5x5 cuts. Ticking only the cuts the area overlaps keeps the per-frame cost from
      * scaling with the number of saved areas. Grid.tick removes every cut outside the
