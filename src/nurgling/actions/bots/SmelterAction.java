@@ -137,9 +137,12 @@ public class SmelterAction implements Action {
 
                     synchronized (NUtils.getGameUI()) {
                         new FreeContainers(containers).run(gui);
-                        NUtils.navigateToArea(smelters);
+                        /* Walk back onto the smelters: the plain call skips the walk whenever the area is
+                         * local-PF reachable, leaving the player at the output zone, where the smelter gobs
+                         * may have unloaded and the Finder.findGob calls below come back null. */
+                        NUtils.navigateToArea(smelters, true);
                         new CollectQuickSilver(containers).run(gui);
-                        NUtils.navigateToArea(smelters);
+                        NUtils.navigateToArea(smelters, true);
                         new DropTargets(containers, new NAlias("Slag")).run(gui);
 
                         // TakeItems2.takeAny already searches both piles and containers in the area (NContext.getSpecStorages).
