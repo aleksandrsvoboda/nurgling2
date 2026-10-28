@@ -91,9 +91,16 @@ public class VkRender implements Render, Disposable {
     int put(ByteBuffer data, int align, int pad) {
 	int n = data.remaining();
 	int off = alloc(n + pad, align);
-	ByteBuffer dst = arena.duplicate();
-	dst.position(off);
-	dst.put(data.duplicate());
+	// Absolute copy: no duplicate of either buffer per call.
+	arena.put(off, data, data.position(), n);
+	return(off);
+    }
+
+    int put(float[] data, int align, int pad) {
+	int off = alloc((data.length * 4) + pad, align);
+	ByteBuffer a = arena;
+	for(int i = 0, o = off; i < data.length; i++, o += 4)
+	    a.putFloat(o, data[i]);
 	return(off);
     }
 
@@ -295,6 +302,11 @@ public class VkRender implements Render, Disposable {
 	    if(buf.usage == DataBuffer.Usage.EPHEMERAL) {
 		if(buf.init == null)
 		    throw(new IllegalArgumentException("ephemeral vertex buffer without data"));
+		if(buf.init instanceof DataBuffer.Filler.FloatArray) {
+		    /* Most 2D draws: straight into the arena. */
+		    vsrc[i] = put(((DataBuffer.Filler.FloatArray)buf.init).data, 16, VkBuf.PAD);
+		    continue;
+		}
 		FillBuffer fill = buf.init.fill(buf, env);
 		vsrc[i] = put(VkFillBuffer.data(fill), 16, VkBuf.PAD);
 		fill.dispose();

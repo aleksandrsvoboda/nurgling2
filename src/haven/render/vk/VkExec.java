@@ -853,19 +853,21 @@ public class VkExec {
 	    }
 	    VkProgram.VertexKey vk = d.key.vk;
 	    if(vk.nbind > 0) {
-		LongBuffer bufs = st.mallocLong(vk.nbind), offs = st.mallocLong(vk.nbind);
+		/* Raw stack memory, not LongBuffers: two buffer wrappers per
+		 * draw were nearly all of this thread's garbage. */
+		long bufs = st.nmalloc(8, vk.nbind * 8), offs = st.nmalloc(8, vk.nbind * 8);
 		for(int b = 0; b < vk.nbind; b++) {
 		    int src = vk.bsrc[b];
 		    Object o = (src < 0) ? dummyvtx : d.geo.vsrc[src];
 		    if(o instanceof VkBuf) {
-			bufs.put(b, ((VkBuf)o).buf);
-			offs.put(b, 0);
+			memPutLong(bufs + (b * 8L), ((VkBuf)o).buf);
+			memPutLong(offs + (b * 8L), 0);
 		    } else {
-			bufs.put(b, abuf);
-			offs.put(b, aoff + (Integer)o);
+			memPutLong(bufs + (b * 8L), abuf);
+			memPutLong(offs + (b * 8L), aoff + (Integer)o);
 		    }
 		}
-		vkCmdBindVertexBuffers(cb, 0, bufs, offs);
+		nvkCmdBindVertexBuffers(cb, 0, vk.nbind, bufs, offs);
 	    }
 	    Geometry geo = d.geo;
 	    if(geo.isrc != null) {
