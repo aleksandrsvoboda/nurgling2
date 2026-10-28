@@ -490,6 +490,8 @@ public abstract class UILoop implements Console.Directory {
 	    /* nurgling: through the frame bridge, the frames shown are
 	     * the presenter's. */
 	    haven.iosys.tk.BridgeToolkit.BridgeWindow bw = (wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow) ? (haven.iosys.tk.BridgeToolkit.BridgeWindow)wnd : null;
+	    if(bw != null)
+		bw.framedur(framedur());
 	    if((f.prev == null) || (f.prev.ui != f.ui))
 		f.ui.frameHistory.reset(now);
 	    else if(bw != null)

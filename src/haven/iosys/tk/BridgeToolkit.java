@@ -390,6 +390,11 @@ public class BridgeToolkit extends AWTToolkit {
 	/* UI thread: records the frames the presenter has shown since
 	 * the last call, which are the frames the player actually saw. */
 	private long shownread = 0;
+	/* The frame limit in effect (UILoop.framedur), for the presenter. */
+	public void framedur(double fd) {
+	    shm.putl(BridgeShm.H_FRAMEDUR, (long)(fd * 1e9));
+	}
+
 	public void recordshown(nurgling.render.FrameHistory hist) {
 	    long n = shm.getl(BridgeShm.H_SHOWN);
 	    VarHandle.fullFence();

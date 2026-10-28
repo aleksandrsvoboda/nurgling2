@@ -43,6 +43,9 @@ public class BridgeShm {
     static final int C_SIZESEQ = 584, C_FIXW = 588, C_FIXH = 592, C_NORMW = 596, C_NORMH = 600, C_MINW = 604, C_MINH = 608, C_STATE = 612;
     static final int C_SHOWSEQ = 616, C_SHOW = 620;
     static final int C_CURSSEQ = 624, C_CURSKIND = 628, C_CURSVAL = 632;
+    /* The client's frame limit, as the shortest time between frames
+     * in nanoseconds (0 for none); the presenter shows no more often. */
+    static final int H_FRAMEDUR = 640;
     /* When the presenter showed its frames (System.nanoTime()), for
      * the client's frame statistics: a count, then a ring of times. */
     static final int H_SHOWN = 1024, H_SHOWNT = 1032, NSHOWN = 128;

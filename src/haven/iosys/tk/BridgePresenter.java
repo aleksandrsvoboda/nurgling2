@@ -522,7 +522,20 @@ public class BridgePresenter {
 	hopy = y;
     }
 
-    private void draw(Render out, Coord wsz) {
+    /* Under the client's frame limit, a new frame is shown only every
+     * so many refreshes, the fewest that keep it at or under the limit;
+     * the refreshes between repeat it, so it stays evenly paced. */
+    private long refresh = 0;
+    private boolean fresh() {
+	long fd = shm.getl(BridgeShm.H_FRAMEDUR);
+	int div = 1;
+	if((fd > 0) && (vper > 0))
+	    div = Math.max(1, (int)Math.ceil((fd / vper) - 0.05));
+	return((refresh++ % div) == 0);
+    }
+
+    private int dx, dy;
+    private void draw(Render out, Coord wsz, long now, boolean fresh) {
 	Area area = Area.sized(wsz);
 	Pipe base = new BufPipe();
 	base.prep(wnd.fbstate());
@@ -532,8 +545,9 @@ public class BridgePresenter {
 	    out.extsync();
 	out.clear(base, FragColor.fragcol, FColor.BLACK);
 	hop = 0;
-	if(hasscene && (dsc != null) && (hn > 0)) {
-	    long now = vclock(System.nanoTime());
+	if(hasscene && (dsc != null) && (hn > 0) && !fresh) {
+	    quad(out, base, dsc, scx + dx, scy + dy, scsz, null);
+	} else if(hasscene && (dsc != null) && (hn > 0)) {
 	    pace(now);
 	    /* Show the newest scene where the camera was a moment ago,
 	     * which lies between frames already here, rather than
@@ -551,8 +565,8 @@ public class BridgePresenter {
 	    int lim = BridgeToolkit.MARGIN - 1;
 	    /* From where the scene was before the client moved it onto
 	     * whole pixels, so that it is rounded only once. */
-	    int dx = (int)Math.round(Utils.clip((slx - hox[l]) - snapx, -lim, lim));
-	    int dy = (int)Math.round(Utils.clip((sly - hoy[l]) - snapy, -lim, lim));
+	    dx = (int)Math.round(Utils.clip((slx - hox[l]) - snapx, -lim, lim));
+	    dy = (int)Math.round(Utils.clip((sly - hoy[l]) - snapy, -lim, lim));
 	    quad(out, base, dsc, scx + dx, scy + dy, scsz, null);
 	    hop(hgen[l], hox[l] + snapx + dx, hoy[l] + snapy + dy);
 	}
@@ -587,9 +601,12 @@ public class BridgePresenter {
 	    Environment env = wnd.env();
 	    Render out = env.render();
 	    UILoop.Fence done = new UILoop.Fence();
+	    long vnow = vclock(System.nanoTime());
+	    boolean fresh = fresh();
 	    try {
-		take(out);
-		draw(out, wsz);
+		if(fresh)
+		    take(out);
+		draw(out, wsz, vnow, fresh);
 		wnd.swapbuffers(out, Boolean.TRUE);
 		out.fence(done);
 		env.submit(out);
@@ -603,6 +620,8 @@ public class BridgePresenter {
 	    if(prev != null)
 		prev.waitfor();
 	    prev = done;
+	    if(!fresh)
+		continue;
 	    long t2 = System.nanoTime();
 	    shm.putl(BridgeShm.H_SHOWNT + (int)((nshown % BridgeShm.NSHOWN) * 8), t2);
 	    shm.puti(BridgeShm.H_SHOWNH + (int)((nshown % BridgeShm.NSHOWN) * 4), hop);
