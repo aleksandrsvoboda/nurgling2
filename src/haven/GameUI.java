@@ -743,6 +743,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    child.resize(sz);
 	    map = add((MapView)child, Coord.z);
 	    map.lower();
+	    placemap();
 	    if(mmap != null)
 		ui.destroy(mmap);
 	    if(mapfile != null) {
@@ -1722,9 +1723,18 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 
 	if(map != null)
-	    map.resize(sz);
+	    placemap();
 	if((prog != null) && (prog.parent == this))
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
+    }
+
+    /* nurgling: through the frame bridge, the map reaches past the
+     * window by the scene's margin on every side, so the presenter can
+     * shift its picture without an edge showing. */
+    private void placemap() {
+	int m = (haven.iosys.tk.BridgeToolkit.of(ui) != null) ? haven.iosys.tk.BridgeToolkit.MARGIN : 0;
+	map.move(Coord.of(-m, -m));
+	map.resize(sz.add(m * 2, m * 2));
     }
 
     /** Where a new action progress widget goes, or null for the classic screen spot. */

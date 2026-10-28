@@ -43,6 +43,11 @@ public class GraphicsSettings extends Panel {
 	decoupled.set(on -> nurgling.NConfig.set(nurgling.NConfig.Key.decoupledRender, on));
 	prev = checkbox(cont, prev, decoupled);
 	prev = cont.add(new Label(L10n.get("gfx.decoupled.note")), prev.pos("bl").adds(15, 2));
+	CheckBox bridge = new CheckBox(L10n.get("gfx.bridge"));
+	bridge.state(haven.iosys.tk.RendererPref::bridge);
+	bridge.set(haven.iosys.tk.RendererPref::bridge);
+	prev = checkbox(cont, prev, bridge);
+	prev = cont.add(new Label(L10n.get("gfx.bridge.note")), prev.pos("bl").adds(15, 2));
 	prev = check(cont, prev, "gfx.enabled", s -> s.enabled, "enabled");
 	prev = cont.add(new Label("") {
 		private Boolean shown = null;

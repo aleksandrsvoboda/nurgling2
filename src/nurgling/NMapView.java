@@ -314,6 +314,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     public void draw(GOut g) {
+        g = bridgescene(g);
         // Initialize overlays only once on first draw (when GameUI is ready)
         if (!overlaysInitialized) {
             getRockTileOverlay(); // Initialize rock tile highlighting overlay

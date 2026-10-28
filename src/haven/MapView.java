@@ -418,6 +418,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	private Coord dragorig = null;
 	private float anglorig;
 	protected Coord3f cc, jc;
+	/* nurgling: how far, in screen pixels, exact mode moved the view
+	 * to land on whole pixels (the frame bridge carries the scene on
+	 * from where it would have been). */
+	public float snapx, snapy;
 
 	public void tick2(double dt) {
 	    this.cc = getcc().invy();
@@ -433,6 +437,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		float pfac = rsz.x / (field * 2);
 		Coord3f vjc = vm.mul4(jc).mul(pfac);
 		Coord3f corr = new Coord3f(Math.round(vjc.x) - vjc.x, Math.round(vjc.y) - vjc.y, 0).div(pfac);
+		snapx = Math.round(vjc.x) - vjc.x;
+		snapy = -(Math.round(vjc.y) - vjc.y);
 		if((Math.abs(vjc.x) > 500) || (Math.abs(vjc.y) > 500))
 		    jc = null;
 		vm = Location.makexlate(new Matrix4f(), corr).mul1(vm);
@@ -1936,9 +1942,79 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	super.maindraw(out);
     }
 
+    /* nurgling: through the frame bridge (see BridgeToolkit), the map
+     * draws into its own scene image instead of the interface layer,
+     * and reports how the scene slides on screen, so the presenter can
+     * place it between frames. Returns g itself without a bridge, or
+     * when g already is this frame's scene. */
+    private GOut scenegout = null;
+    private Coord3f manchor = null, manchors = null;
+    private double mtime;
+    private Coord3f mbasx = null, mbasy = null;
+    private double mox, moy;
+    private int mogen;
+    protected GOut bridgescene(GOut g) {
+	haven.iosys.tk.BridgeToolkit.BridgeWindow bw = haven.iosys.tk.BridgeToolkit.of(ui);
+	if((bw == null) || (g == scenegout))
+	    return(g);
+	scenemotion(bw);
+	return(scenegout = bw.scene(g.out, sz, rootpos()));
+    }
+
+    /* Adds up how far the last frame's camera center moved on screen
+     * under this frame's camera, unless the camera turned, zoomed or
+     * jumped, which starts a new run (mogen). */
+    private void scenemotion(haven.iosys.tk.BridgeToolkit.BridgeWindow bw) {
+	/* The scene shows the world as of its last tick. */
+	double now = glob.ctime();
+	float snx = 0, sny = 0;
+	try {
+	    double dt = now - mtime;
+	    if(camera instanceof OrthoCam) {
+		snx = ((OrthoCam)camera).snapx;
+		sny = ((OrthoCam)camera).snapy;
+	    }
+	    Coord3f a = getcc();
+	    Coord3f as = screenxf(a);
+	    /* How the camera maps the world's axes onto the screen: when
+	     * that changes, the camera turned or zoomed, and the scene
+	     * cannot be carried on by sliding it. */
+	    Coord3f ax = screenxf(a.add(11, 0, 0)).sub(as), ay = screenxf(a.add(0, 11, 0)).sub(as);
+	    /* Relative: the projection of world coordinates in the tens of
+	     * thousands is only so exact in floats, more so zoomed in. */
+	    boolean slid = (mbasx != null) &&
+		(Math.abs(ax.x - mbasx.x) + Math.abs(ax.y - mbasx.y) + Math.abs(ay.x - mbasy.x) + Math.abs(ay.y - mbasy.y) <
+		 0.002f * (Math.abs(ax.x) + Math.abs(ax.y) + Math.abs(ay.x) + Math.abs(ay.y)));
+	    boolean cont = false;
+	    if(slid && (manchor != null) && (manchors != null) && (dt >= 0) && (dt < 0.25)) {
+		Coord3f s = screenxf(manchor);
+		float mx = (s.x - snx) - manchors.x, my = (s.y - sny) - manchors.y;
+		/* Faster than any walk or ride: the camera jumped. */
+		cont = Math.hypot(mx, my) < 3000 * Math.max(dt, 0.005);
+		if(cont) {
+		    mox += mx;
+		    moy += my;
+		}
+	    }
+	    if(!cont)
+		mogen++;
+	    mbasx = ax;
+	    mbasy = ay;
+	    manchor = a;
+	    manchors = new Coord3f(as.x - snx, as.y - sny, as.z);
+	    mtime = now;
+	} catch(Loading l) {
+	    manchor = null;
+	    mogen++;
+	    mbasx = mbasy = null;
+	}
+	bw.scenemotion(mox, moy, mogen, snx, sny, System.nanoTime() - (long)((Utils.rtime() - now) * 1e9));
+    }
+
     private Loading camload = null;
 	public Loading lastload = null;
     public void draw(GOut g) {
+	g = bridgescene(g);
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done())
 	    placing.get().gtick(g.out);

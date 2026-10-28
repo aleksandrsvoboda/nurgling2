@@ -336,10 +336,14 @@ public abstract class UILoop implements Console.Directory {
 	Pipe base = layer;
 	if(base == null) {
 	    base = basestate();
-	    base.prep(FragColor.blend(new BlendMode()));
+	    /* nurgling: through the frame bridge, the interface is a layer the
+	     * presenter puts over the map's scene: transparent, and blended so
+	     * that its colors come out premultiplied. */
+	    boolean bridged = (this.wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow);
+	    base.prep(bridged ? Window.cblend : FragColor.blend(new BlendMode()));
 	    base.prep(new States.Viewport(wnd)).prep(new Ortho2D(wnd));
 	    base.prep(new FrameInfo());
-	    buf.clear(base, FragColor.fragcol, FColor.BLACK);
+	    buf.clear(base, FragColor.fragcol, bridged ? new FColor(0, 0, 0, 0) : FColor.BLACK);
 	}
 	GOut g = new GOut(buf, base, wnd.sz());
 	synchronized(ui) {
@@ -483,8 +487,13 @@ public abstract class UILoop implements Console.Directory {
 	/* With a present thread, the frames shown are its frames, and it
 	 * records them itself. */
 	if(f.present == null) {
+	    /* nurgling: through the frame bridge, the frames shown are
+	     * the presenter's. */
+	    haven.iosys.tk.BridgeToolkit.BridgeWindow bw = (wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow) ? (haven.iosys.tk.BridgeToolkit.BridgeWindow)wnd : null;
 	    if((f.prev == null) || (f.prev.ui != f.ui))
 		f.ui.frameHistory.reset(now);
+	    else if(bw != null)
+		bw.recordshown(f.ui.frameHistory);
 	    else
 		f.ui.frameHistory.record(now);
 	}

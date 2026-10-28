@@ -615,6 +615,16 @@ public class VkExec {
 	tex.layout = to;
     }
 
+    /* nurgling: makes what another process wrote to shared memory
+     * visible to what follows (see Render.extsync). */
+    void extsync() {
+	endpass();
+	unit.mused = true;
+	try(MemoryStack st = stackPush()) {
+	    fullbarrier(st, unit.mcb);
+	}
+    }
+
     private void fullbarrier(MemoryStack st, VkCommandBuffer cb) {
 	VkMemoryBarrier.Buffer mb = VkMemoryBarrier.calloc(1, st).sType$Default()
 	    .srcAccessMask(VK_ACCESS_MEMORY_WRITE_BIT)
@@ -916,6 +926,42 @@ public class VkExec {
 
     /* Readback */
 
+    /* nurgling: readback buffers by size, reused. Every-frame readbacks
+     * (the frame bridge) otherwise allocated and freed a frame-sized
+     * buffer each time. Each entry is {buffer, allocation, address}. */
+    private final Map<Integer, ArrayDeque<long[]>> rbpool = new HashMap<>();
+
+    private long[] rbtake(int bsz) {
+	synchronized(rbpool) {
+	    ArrayDeque<long[]> q = rbpool.get(bsz);
+	    if((q != null) && !q.isEmpty())
+		return(q.pop());
+	}
+	try(MemoryStack st = stackPush()) {
+	    VkBufferCreateInfo bci = VkBufferCreateInfo.calloc(st).sType$Default().size(bsz)
+		.usage(VK_BUFFER_USAGE_TRANSFER_DST_BIT).sharingMode(VK_SHARING_MODE_EXCLUSIVE);
+	    VmaAllocationCreateInfo aci = VmaAllocationCreateInfo.calloc(st).usage(VMA_MEMORY_USAGE_AUTO)
+		.flags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+	    LongBuffer bp = st.mallocLong(1);
+	    PointerBuffer ap = st.mallocPointer(1);
+	    VmaAllocationInfo info = VmaAllocationInfo.calloc(st);
+	    VkEnvironment.check(vmaCreateBuffer(env.vma, bci, aci, bp, ap, info), "vmaCreateBuffer (readback)");
+	    return(new long[] {bp.get(0), ap.get(0), info.pMappedData()});
+	}
+    }
+
+    /* Any thread: VMA synchronizes itself. */
+    private void rbgive(int bsz, long[] rb) {
+	synchronized(rbpool) {
+	    ArrayDeque<long[]> q = rbpool.computeIfAbsent(bsz, k -> new ArrayDeque<>());
+	    if(q.size() < 4) {
+		q.push(rb);
+		return;
+	    }
+	}
+	vmaDestroyBuffer(env.vma, rb[0], rb[1]);
+    }
+
     void pget(PGetCmd p) {
 	endpass();
 	Attach att = resolve(p.img);
@@ -936,19 +982,9 @@ public class VkExec {
 	unit.mused = true;
 	int tsz = tex.fmt.size();
 	int bsz = w * h * tsz;
-	long rbuf, ralloc, raddr;
+	long[] rb = rbtake(bsz);
+	long rbuf = rb[0], ralloc = rb[1], raddr = rb[2];
 	try(MemoryStack st = stackPush()) {
-	    VkBufferCreateInfo bci = VkBufferCreateInfo.calloc(st).sType$Default().size(bsz)
-		.usage(VK_BUFFER_USAGE_TRANSFER_DST_BIT).sharingMode(VK_SHARING_MODE_EXCLUSIVE);
-	    VmaAllocationCreateInfo aci = VmaAllocationCreateInfo.calloc(st).usage(VMA_MEMORY_USAGE_AUTO)
-		.flags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
-	    LongBuffer bp = st.mallocLong(1);
-	    PointerBuffer ap = st.mallocPointer(1);
-	    VmaAllocationInfo info = VmaAllocationInfo.calloc(st);
-	    VkEnvironment.check(vmaCreateBuffer(env.vma, bci, aci, bp, ap, info), "vmaCreateBuffer (readback)");
-	    rbuf = bp.get(0);
-	    ralloc = ap.get(0);
-	    raddr = info.pMappedData();
 
 	    int from = tex.layout;
 	    if(from != VK_IMAGE_LAYOUT_GENERAL) {
@@ -973,6 +1009,19 @@ public class VkExec {
 	    fullbarrier(st, unit.mcb);
 	}
 	VkFormats.TexFmt tfmt = tex.fmt;
+	/* nurgling: the whole image, already in the requested format: one
+	 * bulk copy, done on the callback thread so the render thread goes
+	 * straight on. The general path converts pixel by pixel here. */
+	boolean whole = (x0 == area.ul.x) && (y0 == area.ul.y) && (x1 == area.br.x) && (y1 == area.br.y);
+	if(whole && !tex.rgb && (tfmt.nc == p.fmt.nc) && (tfmt.cf == p.fmt.cf) && p.dst.isDirect()) {
+	    unit.completions.add(() -> env.callback(() -> {
+		    vmaInvalidateAllocation(env.vma, ralloc, 0, VK_WHOLE_SIZE);
+		    memCopy(raddr, memAddress(p.dst), bsz);
+		    rbgive(bsz, rb);
+		    p.cb.accept(p.dst);
+		}));
+	    return;
+	}
 	unit.completions.add(() -> {
 		vmaInvalidateAllocation(env.vma, ralloc, 0, VK_WHOLE_SIZE);
 		ByteBuffer src = memByteBuffer(raddr, bsz);
@@ -993,7 +1042,7 @@ public class VkExec {
 			VkFormats.opaquealpha(drow, p.fmt, w);
 		    }
 		}
-		vmaDestroyBuffer(env.vma, rbuf, ralloc);
+		rbgive(bsz, rb);
 		env.callback(() -> p.cb.accept(p.dst));
 	    });
     }

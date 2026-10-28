@@ -220,7 +220,7 @@ public class ShadowMap extends State {
 		try(Locked lk = lock()) {
 		    if(back != null)
 			back.dispose();
-		    back = new DeferredDrawList(out.env().drawlist(), this).desc("shadow-list: " + this);
+		    back = DeferredDrawList.of(out.env().drawlist(), this).desc("shadow-list: " + this);
 		    back.asyncadd(this, Rendered.class);
 		}
 	    }

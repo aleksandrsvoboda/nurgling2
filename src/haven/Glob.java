@@ -143,6 +143,11 @@ public class Glob {
     }
 
     private double lastctick = 0;
+    /* nurgling: when the world was last ticked, in Utils.rtime(). */
+    public double ctime() {
+	return(lastctick);
+    }
+
     public void ctick() {
 	double now = Utils.rtime();
 	double dt;

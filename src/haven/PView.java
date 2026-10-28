@@ -329,7 +329,7 @@ public abstract class PView extends Widget {
     }
 
     protected void envsetup() {
-	back = new DeferredDrawList(env.drawlist(), tree).desc("pview: " + this);
+	back = DeferredDrawList.of(env.drawlist(), tree).desc("pview: " + this);
 	instancer = new InstanceList(tree);
 	instancer.add(back, Rendered.class);
 	instancer.asyncadd(tree, Rendered.class);

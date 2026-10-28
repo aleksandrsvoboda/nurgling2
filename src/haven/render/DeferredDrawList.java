@@ -203,6 +203,16 @@ public class DeferredDrawList implements DrawList {
     }
 
     /* The list an environment made, for its compatibility checks. */
+    /* back, deferred where its list can take that: OpenGL's draws a
+     * slot with the tree's current state, and fails when that is
+     * newer than the update it last applied, which deferring makes
+     * routine. */
+    public static DrawList of(DrawList back, RenderList.Adapter tree) {
+	if(!(back instanceof haven.render.vk.VkDrawList))
+	    return(back);
+	return(new DeferredDrawList(back, tree));
+    }
+
     public static DrawList unwrap(DrawList list) {
 	return((list instanceof DeferredDrawList) ? ((DeferredDrawList)list).back : list);
     }

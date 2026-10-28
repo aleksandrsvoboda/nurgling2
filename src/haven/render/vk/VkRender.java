@@ -461,6 +461,10 @@ public class VkRender implements Render, Disposable {
 	}
     }
 
+    static class ExtSyncCmd extends Cmd {
+	void exec(VkExec ex, VkRender r) {ex.extsync();}
+    }
+
     static class TimestampCmd extends Cmd {
 	final Consumer<Long> cb;
 	TimestampCmd(Consumer<Long> cb) {this.cb = cb;}
@@ -748,6 +752,10 @@ public class VkRender implements Render, Disposable {
 	    return;
 	}
 	cmds.add(new SubCmd(vsub));
+    }
+
+    public void extsync() {
+	cmds.add(new ExtSyncCmd());
     }
 
     public void timestamp(Consumer<Long> callback) {

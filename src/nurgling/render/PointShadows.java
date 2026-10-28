@@ -292,7 +292,7 @@ public class PointShadows implements Disposable {
 		try(Locked lk = lock()) {
 		    if(back != null)
 			back.dispose();
-		    back = new DeferredDrawList(out.env().drawlist(), this).desc("point-shadow: " + f);
+		    back = DeferredDrawList.of(out.env().drawlist(), this).desc("point-shadow: " + f);
 		    back.asyncadd(this, Rendered.class);
 		}
 	    }

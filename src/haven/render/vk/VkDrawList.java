@@ -67,6 +67,14 @@ public class VkDrawList implements DrawList {
      * up the world tick's workers, so build in smaller steps. */
     private static final long PREPARE_NANOS = 500_000;
     private long rebuildnanos = REBUILD_NANOS;
+    /* nurgling: a frame that removed slots and added others usually
+     * replaced things (an overlay or object rebuilt): the new ones are
+     * finished before drawing, or what they replace leaves a hole for
+     * a frame or more (area overlays blinking in mines as the support
+     * overlay rebuilds). Bounded all the same. */
+    private static final long REPLACE_NANOS = 8_000_000;
+    private int addssince = 0;
+    private boolean removedsince = false;
 
     private class ShaderGroup {
 	final Set<DrawSlot> users = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -748,9 +756,12 @@ public class VkDrawList implements DrawList {
 		gorder = norder;
 		return;
 	    }
-	    order.remove(this);
+	    /* A replacement still waiting for its pipeline is not in the
+	     * order yet. */
+	    boolean in = order.remove(this);
 	    gorder = norder;
-	    order.add(this);
+	    if(in)
+		order.add(this);
 	}
 
 	private void release() {
@@ -831,14 +842,18 @@ public class VkDrawList implements DrawList {
     public void prepare(RenderList.Adapter tree) {
 	synchronized(this) {
 	    prepared = true;
-	    rebuildnanos = PREPARE_NANOS;
+	    rebuildnanos = replacing() ? REPLACE_NANOS : PREPARE_NANOS;
 	    if(!stale.isEmpty()) {
 		double started = Utils.rtime();
-		rebuild(async ? REBUILD_PER_FRAME : Integer.MAX_VALUE);
+		rebuild(async ? (replacing() ? Integer.MAX_VALUE : REBUILD_PER_FRAME) : Integer.MAX_VALUE);
 		nurgling.diagnostics.MovementTrace.renderStage(env, "drawlist-prepare", started,
 		    "pending=" + stale.size());
 	    }
 	}
+    }
+
+    private boolean replacing() {
+	return((addssince > 0) && removedsince);
     }
 
     public void draw(Render r) {
@@ -848,10 +863,15 @@ public class VkDrawList implements DrawList {
 	synchronized(this) {
 	    if(!prepared && !stale.isEmpty()) {
 		double started = Utils.rtime();
-		rebuild(async ? REBUILD_PER_FRAME : Integer.MAX_VALUE);
+		rebuildnanos = replacing() ? REPLACE_NANOS : REBUILD_NANOS;
+		rebuild(async ? (replacing() ? Integer.MAX_VALUE : REBUILD_PER_FRAME) : Integer.MAX_VALUE);
 		nurgling.diagnostics.MovementTrace.renderStage(env, "drawlist-prepare", started,
 		    "pending=" + stale.size());
 	    }
+	    addssince = 0;
+	    removedsince = false;
+	    if(!repl.isEmpty())
+		swaprepl();
 	    for(DrawSlot s : order) {
 		if(s.geo == null)
 		    continue;
@@ -913,6 +933,7 @@ public class VkDrawList implements DrawList {
 		// lists use async(false), so one-shot queries remain complete.
 		dslot = new DrawSlot(slot, true);
 		stale.add(slot);
+		addssince++;
 	    } else try {
 		dslot = new DrawSlot(slot);
 	    } catch(NotReady | Loading e) {
@@ -930,6 +951,10 @@ public class VkDrawList implements DrawList {
 	    DrawSlot dslot = slotmap.remove(slot);
 	    if(dslot == null)
 		throw(new IllegalStateException(String.format("removing non-present slot (%s)", slot.obj())));
+	    removedsince = true;
+	    DrawSlot pend = repl.remove(slot);
+	    if(pend != null)
+		pend.dispose();
 	    stale.remove(slot);
 	    order.remove(dslot);
 	    dslot.dispose();
@@ -963,6 +988,41 @@ public class VkDrawList implements DrawList {
 	} catch(NotReady e) {
 	    return(false);
 	}
+	DrawSlot prev = repl.remove(slot);
+	if(prev != null)
+	    prev.dispose();
+	/* nurgling: its pipeline may still have to be built, and the
+	 * draw skips slots whose pipeline is not ready; swapped in now,
+	 * an object on screen would vanish for those frames (carts,
+	 * piles and area overlays blinking as lights change). The old
+	 * drawing stays until then. */
+	if(async && (dslot.geo != null)) {
+	    dslot.refresh();
+	    if(!dslot.prog.pipeready(dslot.key)) {
+		repl.put(slot, dslot);
+		return(true);
+	    }
+	}
+	swap(slot, dslot);
+	return(true);
+    }
+
+    /* Replacements whose pipelines are still being built. */
+    private final Map<Slot<? extends Rendered>, DrawSlot> repl = new HashMap<>();
+
+    private void swaprepl() {
+	for(Iterator<Map.Entry<Slot<? extends Rendered>, DrawSlot>> i = repl.entrySet().iterator(); i.hasNext();) {
+	    Map.Entry<Slot<? extends Rendered>, DrawSlot> e = i.next();
+	    DrawSlot d = e.getValue();
+	    d.refresh();
+	    if(d.prog.pipeready(d.key)) {
+		i.remove();
+		swap(e.getKey(), d);
+	    }
+	}
+    }
+
+    private void swap(Slot<? extends Rendered> slot, DrawSlot dslot) {
 	DrawSlot old = slotmap.remove(slot);
 	if(old == null)
 	    throw(new IllegalStateException(String.format("updating non-present slot (%s)", slot.obj())));
@@ -970,7 +1030,6 @@ public class VkDrawList implements DrawList {
 	old.dispose();
 	order.add(dslot);
 	slotmap.put(slot, dslot);
-	return(true);
     }
 
     @SuppressWarnings("unchecked")
@@ -1013,6 +1072,9 @@ public class VkDrawList implements DrawList {
 	synchronized(this) {
 	    for(DrawSlot slot : new ArrayList<>(order))
 		slot.dispose();
+	    for(DrawSlot slot : repl.values())
+		slot.dispose();
+	    repl.clear();
 	    order.clear();
 	    slotmap.clear();
 	    stale.clear();

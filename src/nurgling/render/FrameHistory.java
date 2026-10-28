@@ -6,6 +6,9 @@ import java.util.Arrays;
 public class FrameHistory {
     public static final double SECONDS = 10;
     private final double[] times = new double[16384], durations = new double[times.length];
+    /* Per frame, how much the scene's step on screen changed (frame
+     * bridge only); -1 where not measured. */
+    private final int[] hops = new int[times.length];
     private int start, count;
     private double previous = Double.NaN;
 
@@ -14,7 +17,11 @@ public class FrameHistory {
         previous = now;
     }
 
-    public synchronized void record(double now) {
+    public void record(double now) {
+        record(now, -1);
+    }
+
+    public synchronized void record(double now, int hop) {
         if(!Double.isFinite(now)) return;
         if(Double.isNaN(previous)) { previous = now; return; }
         double dt = now - previous;
@@ -25,6 +32,7 @@ public class FrameHistory {
         int at = (start + count++) % times.length;
         times[at] = now;
         durations[at] = dt;
+        hops[at] = hop;
     }
 
     private void expire(double now) {
@@ -37,21 +45,36 @@ public class FrameHistory {
     public synchronized Snapshot snapshot(double now) {
         expire(now);
         double[] t = new double[count], d = new double[count];
+        int[] h = new int[count];
         for(int i = 0; i < count; i++) {
             int at = (start + i) % times.length;
-            t[i] = times[at]; d[i] = durations[at];
+            t[i] = times[at]; d[i] = durations[at]; h[i] = hops[at];
         }
-        return(new Snapshot(now, t, d));
+        return(new Snapshot(now, t, d, h));
     }
 
     public static class Snapshot {
         public final double now;
         public final double[] times, seconds;
+        public final int[] hops;
         public final double fps, average, minimum, low, frameMs, p99Ms, maxMs;
         public final int slow;
+        /* Scene hops over the window: whether measured, how many of 2
+         * and 4 pixels or more, and the biggest. */
+        public final boolean hopsMeasured;
+        public final int hops2, hops4, hopMax;
 
-        private Snapshot(double now, double[] times, double[] seconds) {
-            this.now = now; this.times = times; this.seconds = seconds;
+        private Snapshot(double now, double[] times, double[] seconds, int[] hops) {
+            this.now = now; this.times = times; this.seconds = seconds; this.hops = hops;
+            boolean hm = false; int h2 = 0, h4 = 0, hx = 0;
+            for(int h : hops) {
+                if(h < 0) continue;
+                hm = true;
+                if(h >= 2) h2++;
+                if(h >= 4) h4++;
+                hx = Math.max(hx, h);
+            }
+            hopsMeasured = hm; hops2 = h2; hops4 = h4; hopMax = hx;
             int n = seconds.length;
             if(n == 0) {
                 fps = average = minimum = low = frameMs = p99Ms = maxMs = 0;

@@ -48,6 +48,10 @@ public interface Render extends Disposable {
 
     public default void marker(String name) {}
 
+    /* nurgling: what follows sees what another process wrote to shared
+     * textures (SharedTexture2D) before this was submitted. */
+    public default void extsync() {}
+
     public default void draw1(Pipe pipe, Model data) {
 	draw(pipe, data);
 	data.dispose();
