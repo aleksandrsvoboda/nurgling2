@@ -182,6 +182,10 @@ public class ShadowMap extends State {
 	    return(master.lock());
 	}
 
+	public Locked trylock() {
+	    return(master.trylock());
+	}
+
 	public Iterable<? extends Slot<?>> slots() {
 	    return(slots.values());
 	}
@@ -211,10 +215,14 @@ public class ShadowMap extends State {
 
 	public void draw(Render out) {
 	    if((back == null) || !out.env().compatible(back)) {
-		if(back != null)
-		    back.dispose();
-		back = out.env().drawlist().desc("shadow-list: " + this);
-		back.asyncadd(this, Rendered.class);
+		/* Under the lock, so no slot is added both by the tree
+		 * and by the initial fill. */
+		try(Locked lk = lock()) {
+		    if(back != null)
+			back.dispose();
+		    back = DeferredDrawList.of(out.env().drawlist(), this).desc("shadow-list: " + this);
+		    back.asyncadd(this, Rendered.class);
+		}
 	    }
 	    back.draw(out);
 	}
@@ -263,6 +271,9 @@ public class ShadowMap extends State {
     }
 
     public void update(Render out, ShadowList data) {
+	/* Not placed yet: its basic state has no depth target. */
+	if(!haspos())
+	    return;
 	/* XXX: FrameInfo, and potentially others, should quite
 	 * arguably be inherited from some parent context instead. */
 	Pipe.Op basic = Pipe.Op.compose(curbasic, new FrameInfo());

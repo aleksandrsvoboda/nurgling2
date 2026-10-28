@@ -86,6 +86,9 @@ public class VkEnvironment implements Environment {
     final float linemin, linemax, maxaniso;
     final boolean wideLines, anisotropy, mirrorclamp;
     public final boolean presentwait;
+    /* nurgling: whether textures can share their memory with another
+     * process (the frame bridge, see SharedTexture2D). */
+    public final boolean extmem;
     final int ts_bits;
     final float ts_period;
     final AtomicInteger npipes = new AtomicInteger();
@@ -353,6 +356,12 @@ public class VkEnvironment implements Environment {
 		    for(int q = 0; q < qfs.capacity(); q++) {
 			if((qfs.get(q).queueFlags() & VK_QUEUE_GRAPHICS_BIT) == 0)
 			    continue;
+			/* nurgling: without a surface (offscreen rendering,
+			 * see VulkanOffscreen) any graphics queue will do. */
+			if(surface == 0) {
+			    fam = q;
+			    break;
+			}
 			vkGetPhysicalDeviceSurfaceSupportKHR(pd, q, surface, sup);
 			if(sup.get(0) != 0) {
 			    fam = q;
@@ -425,6 +434,7 @@ public class VkEnvironment implements Environment {
 		this.anisotropy = have.samplerAnisotropy();
 		this.mirrorclamp = a12.samplerMirrorClampToEdge();
 		this.presentwait = canwait && pid.presentId() && pwait.presentWait();
+		this.extmem = deviceexts.contains(org.lwjgl.vulkan.KHRExternalMemoryWin32.VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
 
 		VkPhysicalDeviceVulkan12Features e12 = VkPhysicalDeviceVulkan12Features.calloc(st).sType$Default()
 		    .samplerMirrorClampToEdge(mirrorclamp);
@@ -443,6 +453,8 @@ public class VkEnvironment implements Environment {
 		    enabledexts.add(VK_KHR_PRESENT_ID_EXTENSION_NAME);
 		    enabledexts.add(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 		}
+		if(extmem)
+		    enabledexts.add(org.lwjgl.vulkan.KHRExternalMemoryWin32.VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
 		PointerBuffer enames = st.mallocPointer(enabledexts.size());
 		for(String name : enabledexts)
 		    enames.put(st.UTF8(name));
@@ -915,6 +927,31 @@ public class VkEnvironment implements Environment {
 
     /* Textures */
 
+    /* nurgling: a memory type among bits with all of props. */
+    int memtype(int bits, int props) {
+	try(MemoryStack st = stackPush()) {
+	    VkPhysicalDeviceMemoryProperties mp = VkPhysicalDeviceMemoryProperties.malloc(st);
+	    vkGetPhysicalDeviceMemoryProperties(pdev, mp);
+	    for(int i = 0; i < mp.memoryTypeCount(); i++) {
+		if(((bits & (1 << i)) != 0) && ((mp.memoryTypes(i).propertyFlags() & props) == props))
+		    return(i);
+	    }
+	}
+	throw(new RuntimeException("no suitable memory type"));
+    }
+
+    /* nurgling: closes a Win32 handle (an exported memory handle). */
+    private static long fclosehandle = 0;
+    static void closehandle(long handle) {
+	if(handle == 0)
+	    return;
+	synchronized(VkEnvironment.class) {
+	    if(fclosehandle == 0)
+		fclosehandle = org.lwjgl.system.Library.loadNative(VkEnvironment.class, "org.lwjgl", "kernel32").getFunctionAddress("CloseHandle");
+	}
+	org.lwjgl.system.JNI.invokePI(handle, fclosehandle);
+    }
+
     VkTexture prepare(Texture tex) {
 	synchronized(tex) {
 	    VkTexture ret = VkReference.get(tex.ro, VkTexture.class);
@@ -1272,6 +1309,7 @@ public class VkEnvironment implements Environment {
     /* compatible() */
 
     public boolean compatible(DrawList ob) {
+	ob = DeferredDrawList.unwrap(ob);
 	return((ob instanceof VkDrawList) && (((VkDrawList)ob).env == this));
     }
 

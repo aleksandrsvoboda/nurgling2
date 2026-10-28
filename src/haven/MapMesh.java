@@ -577,7 +577,12 @@ public class MapMesh implements RenderTree.Node, Disposable {
 		map.tiler(map.gettile(gc)).lay(this, new Coord(x, y), gc, buf, false);
 	    }
 	}
-	return(new OLArray(vbuf.finv(), vl));
+	/* nurgling: every overlay on this cut draws from it, and each is
+	 * disposed on its own when rebuilt (a mine support coming into
+	 * view rebuilds the support overlay); unshared, the first one gone
+	 * took the vertices from under all the others, and area overlays
+	 * blinked. It goes with the mesh instead. */
+	return(new OLArray(vbuf.finv().shared(), vl));
     }
     public volatile OLArray olvert = null;
 
@@ -839,6 +844,9 @@ public class MapMesh implements RenderTree.Node, Disposable {
     public void dispose() {
 	for(Disposable p : dparts)
 	    p.dispose();
+	OLArray ol = olvert;
+	if(ol != null)
+	    ol.dat.dispose();
     }
 
     public void added(RenderTree.Slot slot) {

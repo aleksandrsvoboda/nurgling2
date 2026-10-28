@@ -91,6 +91,10 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 	return(new Locked(this.lock));
     }
 
+    public Locked trylock() {
+	return(Locked.tryof(this.lock));
+    }
+
     private static class Client<R> {
 	final Class<? extends R> type;
 	final RenderList<R> list;

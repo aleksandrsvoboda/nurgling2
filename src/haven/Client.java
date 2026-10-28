@@ -175,6 +175,15 @@ public class Client implements Console.Directory {
 	    cl.queue.dispatch(ui);
 	}
 
+	protected boolean canpresent() {
+	    /* nurgling: Vulkan only, as its draw lists alone take deferred
+	     * changes (see DeferredDrawList.of); and not through the frame
+	     * bridge, whose presenter already shows frames from another
+	     * process. */
+	    return((wnd.env() instanceof haven.render.vk.VkEnvironment) &&
+		   !(wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow));
+	}
+
 	protected boolean bgmode() {
 	    Windeye.Visibility v = wnd.visible();
 	    if(v == Windeye.Visibility.UNKNOWN)

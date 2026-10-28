@@ -464,7 +464,10 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     public void ctick(double dt) {
-	for(GAttrib a : new ArrayList<>(attr.values()))
+	GAttrib[] snap = attrsnap;
+	if(snap == null)
+	    attrsnap = snap = attr.values().toArray(new GAttrib[0]);
+	for(GAttrib a : snap)
 		a.ctick(dt);
 	if(renderMovement != null) {
 	    Moving m = getattr(Moving.class);
@@ -474,7 +477,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	    } else
 		renderMovement.reset();
 	}
-	List<Overlay> toRemove = new ArrayList<>();
+	List<Overlay> toRemove = null;
 	for(Overlay ol : ols) {
 	    if(ol.slots == null) {
 		try {
@@ -484,11 +487,14 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		boolean done = ol.tick(dt);
 		if((!ol.delign || (ol.spr instanceof Sprite.CDel)) && done) {
 		    ol.remove0();
+		    if(toRemove == null)
+			toRemove = new ArrayList<>();
 		    toRemove.add(ol);
 		}
 	    }
 	}
-	ols.removeAll(toRemove);
+	if(toRemove != null)
+	    ols.removeAll(toRemove);
 	updstate();
 	if(virtual && ols.isEmpty() && (getattr(Drawable.class) == null))
 	    glob.oc.remove(this);
@@ -508,6 +514,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 
     void removed() {
 	removed = true;
+	glob.oc.movers.remove(this);
 	for(GAttrib a : attr.values()) {
 		ngob.checkattr(null,id,a);
 	}
@@ -711,7 +718,20 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	return(c.cast(attr));
     }
 
+    /* nurgling: ctick's copy of the attributes, rebuilt only after they
+     * change (it was a new list per gob per tick). */
+    private GAttrib[] attrsnap = null;
+
     public void setattr(Class<? extends GAttrib> ac, GAttrib a) {
+	try {
+	    setattr0(ac, a);
+	} finally {
+	    attrsnap = null;
+	}
+    }
+
+    private void setattr0(Class<? extends GAttrib> ac, GAttrib a) {
+	attrsnap = null;
 	GAttrib prev = attr.remove(ac);
 	if(prev != null) {
 	    if((prev instanceof RenderTree.Node) && (prev.slots != null))
@@ -803,18 +823,23 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 
     private class GobState implements Pipe.Op {
 	final Pipe.Op mods;
+	/* nurgling: each setup mod's gob state, in order, nulls included. */
+	final Pipe.Op[] raw;
 
 	private GobState() {
 	    if(setupmods.isEmpty()) {
 		this.mods = null;
+		this.raw = null;
 	    } else {
-		Pipe.Op[] mods = new Pipe.Op[setupmods.size()];
-		int n = 0;
+		Pipe.Op[] raw = new Pipe.Op[setupmods.size()];
+		Pipe.Op[] mods = new Pipe.Op[raw.length];
+		int n = 0, i = 0;
 		for(SetupMod mod : setupmods) {
-		    if((mods[n] = mod.gobstate()) != null)
+		    if((mods[n] = raw[i++] = mod.gobstate()) != null)
 			n++;
 		}
 		this.mods = (n > 0) ? Pipe.Op.compose(mods) : null;
+		this.raw = raw;
 	    }
 	}
 
@@ -841,7 +866,28 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	return(curstate);
     }
 
+    /* nurgling: the setup mods' gob states the current state was last
+     * checked against (an equal new state keeps the old GobState). */
+    private Pipe.Op[] stmods = null;
+    private boolean stchecked = false;
+
+    private boolean samegobmods() {
+	Pipe.Op[] raw = stmods;
+	int n = 0;
+	for(SetupMod mod : setupmods) {
+	    if((raw == null) || (n >= raw.length) || !Utils.eq(mod.gobstate(), raw[n]))
+		return(false);
+	    n++;
+	}
+	return(n == ((raw == null) ? 0 : raw.length));
+    }
+
     public void updstate() {
+	/* nurgling: updstate runs for every gob on every tick, and almost
+	 * every gob carries setup mods (NGlobalSearch at least) whose states
+	 * rarely change. Compare them before building a new GobState. */
+	if((curstate != null) && stchecked && samegobmods())
+	    return;
 	GobState nst;
 	try {
 	    nst = new GobState();
@@ -854,8 +900,12 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		    slot.ostate(nst);
 		this.curstate = nst;
 	    } catch(Loading l) {
+		stchecked = false;
+		return;
 	    }
 	}
+	stmods = nst.raw;
+	stchecked = true;
     }
 
     public void added(RenderTree.Slot slot) {
@@ -1054,8 +1104,59 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	    return(new Placement());
 	}
 
+	/* nurgling: every placed gob rebuilt its Placement (height, slope,
+	 * tile state) every tick, which in a base with hundreds of objects
+	 * was a large share of the world tick's work and garbage. A gob that
+	 * is not moving or following keeps its placement while its position,
+	 * angle, placer, draw offset, setup mods' place states and the map's
+	 * change sequence stay the same. It still refreshes about once a
+	 * second (staggered per gob), since a rebuilt terrain mesh can land
+	 * after the map data that bumped the sequence. A gob skipped here was
+	 * still on its previous tick too, so it has no motion to sample. */
+	private Coord2d prc, ppos;
+	private Coord3f pdoff;
+	private double pa, pnext;
+	private int pseq = -1;
+	private Placer pplacer;
+	private Pipe.Op[] pmods = null;
+
+	private boolean samemods() {
+	    int n = 0;
+	    for(SetupMod mod : setupmods) {
+		if((pmods == null) || (n >= pmods.length) || !Utils.eq(mod.placestate(), pmods[n]))
+		    return(false);
+		n++;
+	    }
+	    return(n == ((pmods == null) ? 0 : pmods.length));
+	}
+
+	private Pipe.Op[] curmods() {
+	    Pipe.Op[] ret = new Pipe.Op[setupmods.size()];
+	    int n = 0;
+	    for(SetupMod mod : setupmods)
+		ret[n++] = mod.placestate();
+	    return(ret);
+	}
+
 	public void autotick(double dt) {
 	    synchronized(Gob.this) {
+		boolean still = (cur != null) &&
+		    (getattr(Following.class) == null) && (getattr(Moving.class) == null);
+		Coord2d pos = null;
+		Coord3f doff = null;
+		Placer pl = null;
+		int seq = glob.map.chseq;
+		double now = Utils.rtime();
+		if(still) {
+		    MovementSmoothing sm = renderMovement;
+		    pos = (sm == null) ? null : sm.position();
+		    DrawOffset df = getattr(DrawOffset.class);
+		    doff = (df == null) ? null : df.off;
+		    pl = placer();
+		    if((seq == pseq) && (now < pnext) && (a == pa) && (pl == pplacer) &&
+		       Utils.eq(rc, prc) && Utils.eq(pos, ppos) && Utils.eq(doff, pdoff) && samemods())
+			return;
+		}
 		Placement np;
 		try {
 		    np = new Placement();
@@ -1064,13 +1165,88 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		}
 		if(!Utils.eq(this.cur, np))
 		    update(np);
+		if(still) {
+		    prc = rc; ppos = pos; pa = a; pseq = seq; pplacer = pl;
+		    pdoff = (doff == null) ? null : Coord3f.of(doff.x, doff.y, doff.z);
+		    pmods = setupmods.isEmpty() ? null : curmods();
+		    pnext = now + 0.75 + ((id & 0xff) / 1024.0);
+		} else {
+		    pseq = -1;
+		}
+		sample(now);
 	    }
 	}
 
 	private void update(Placement np) {
-	    for(RenderTree.Slot slot : slots)
-		slot.ostate(np);
-	    this.cur = np;
+	    synchronized(this) {
+		for(RenderTree.Slot slot : slots)
+		    slot.ostate(np);
+		this.cur = np;
+		this.shown = np;
+	    }
+	}
+
+	/* nurgling: render-time motion for the decoupled renderer. The
+	 * world tick publishes where a mover is drawn, its render-space
+	 * velocity and how long that velocity holds; the present thread
+	 * (PresentLoop) moves it on to the moment it draws a frame, up to
+	 * PresentLoop.AHEAD past the sample. */
+	private Motion motion = null;
+	private Pipe.Op shown = null;
+
+	/* Writes to the slots go under this Placed's own lock, never the
+	 * gob's, so the present thread cannot stall on a loader that
+	 * holds the gob. */
+	private void sample(double now) {
+	    boolean active = PresentLoop.active();
+	    /* Off, and nothing extrapolated left to undo. */
+	    if(!active && (motion == null))
+		return;
+	    Motion m = (active && (cur != null)) ? Motion.of(Gob.this, cur, now) : null;
+	    boolean had;
+	    synchronized(this) {
+		had = (motion != null);
+		this.motion = m;
+		/* Stopped: show the resting placement again, here, so no
+		 * extrapolated offset outlives the movement. */
+		if((m == null) && (cur != null) && (shown != cur)) {
+		    for(RenderTree.Slot slot : slots)
+			slot.ostate(cur);
+		    shown = cur;
+		}
+	    }
+	    if(m != null)
+		glob.oc.movers.add(Gob.this);
+	    else if(had)
+		glob.oc.movers.remove(Gob.this);
+	}
+
+	/* The motion offset in render space at time now, or null when
+	 * this gob is not moving. */
+	public Coord3f ahead(double now) {
+	    Motion m;
+	    synchronized(this) {
+		m = motion;
+	    }
+	    return((m == null) ? null : m.offset(now));
+	}
+
+	/* Present thread: shows the gob where it is at time now. False
+	 * once it has stopped and shows its resting placement again. */
+	public boolean present(double now) {
+	    synchronized(this) {
+		Motion m = motion;
+		if(m == null)
+		    return(false);
+		Coord3f d = m.offset(now);
+		Pipe.Op op = (d == null) ? m.base : Pipe.Op.compose(new Location(Transform.makexlate(new Matrix4f(), d), "present"), m.base);
+		if(op != shown) {
+		    for(RenderTree.Slot slot : slots)
+			slot.ostate(op);
+		    shown = op;
+		}
+		return(true);
+	    }
 	}
 
 	public void added(RenderTree.Slot slot) {

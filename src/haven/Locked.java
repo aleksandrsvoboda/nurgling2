@@ -37,6 +37,16 @@ public class Locked implements AutoCloseable {
 	held = true;
     }
 
+    private Locked(Lock lk, boolean held) {
+	this.lk = lk;
+	this.held = held;
+    }
+
+    /* nurgling: null when someone else holds the lock. */
+    public static Locked tryof(Lock lk) {
+	return(lk.tryLock() ? new Locked(lk, true) : null);
+    }
+
     public void unlock() {
 	if(!held)
 	    throw(new IllegalStateException());

@@ -33,6 +33,17 @@ public class RendererPref {
 	Utils.setpref(PREF, VULKAN.equals(renderer) ? VULKAN : GL);
     }
 
+    /* nurgling: show Vulkan frames through the frame bridge (see
+     * BridgeToolkit), from a second process that keeps the window
+     * smooth while this one pauses. Takes effect on the next start. */
+    public static boolean bridge() {
+	return(Utils.getprefb("framebridge", false));
+    }
+
+    public static void bridge(boolean on) {
+	Utils.setprefb("framebridge", on);
+    }
+
     /* Why the renderer differs from the choice, if it does. */
     public static String notice() {
 	return(notice);
@@ -108,7 +119,7 @@ public class RendererPref {
 	    }
 	}
 	saved = Toolkit.toolkit.get();
-	Toolkit.toolkit.set(VULKAN);
+	Toolkit.toolkit.set(bridge() ? "bridge:" + VULKAN : VULKAN);
 	ours = true;
     }
 

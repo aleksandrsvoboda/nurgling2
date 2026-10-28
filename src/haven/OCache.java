@@ -61,6 +61,9 @@ public class OCache implements Iterable<Gob> {
     /* XXX: Use weak refs */
     private Collection<Collection<Gob>> local = new LinkedList<Collection<Gob>>();
     private MultiMap<Long, Gob> objs = new HashMultiMap<Long, Gob>();
+    /* nurgling: gobs moving under the decoupled renderer, which it
+     * extrapolates each frame (see Gob.Placed.present). */
+    public final Set<Gob> movers = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private Glob glob;
     private final Collection<ChangeCallback> cbs = new WeakList<ChangeCallback>();
 	public final NPathVisualizer paths = new NPathVisualizer();

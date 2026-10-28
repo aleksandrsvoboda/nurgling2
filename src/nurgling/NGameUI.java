@@ -1052,6 +1052,12 @@ public class NGameUI extends GameUI
             return super.tooltip(c, previous);
         }
 
+        /* Scenario and preset buttons per belt path. Building one makes
+         * its icon images and textures, so they must outlive a frame;
+         * a button is rebuilt only when its scenario or preset object
+         * is no longer the current one. */
+        private final Map<String, Object> slotbuttons = new HashMap<>();
+
         private Object belt(int slot) {
             if(slot < 0) {return null;}
             String path;
@@ -1069,7 +1075,12 @@ public class NGameUI extends GameUI
                     String scenarioName = path.substring("scenario:".length());
                     for(nurgling.scenarios.Scenario scenario : ui.core.scenarioManager.getScenarios().values()) {
                         if(scenario.getName().equals(scenarioName)) {
-                            return new NScenarioButton(scenario);
+                            Object cur = slotbuttons.get(path);
+                            if((cur instanceof NScenarioButton) && (((NScenarioButton)cur).getScenario() == scenario))
+                                return cur;
+                            NScenarioButton btn = new NScenarioButton(scenario);
+                            slotbuttons.put(path, btn);
+                            return btn;
                         }
                     }
                     return null;
@@ -1077,7 +1088,12 @@ public class NGameUI extends GameUI
                     String presetId = path.substring("equippreset:".length());
                     nurgling.equipment.EquipmentPreset preset = ui.core.equipmentPresetManager.getPreset(presetId);
                     if(preset != null) {
-                        return new nurgling.widgets.NEquipmentPresetButton(preset);
+                        Object cur = slotbuttons.get(path);
+                        if((cur instanceof nurgling.widgets.NEquipmentPresetButton) && (((nurgling.widgets.NEquipmentPresetButton)cur).getPreset() == preset))
+                            return cur;
+                        nurgling.widgets.NEquipmentPresetButton btn = new nurgling.widgets.NEquipmentPresetButton(preset);
+                        slotbuttons.put(path, btn);
+                        return btn;
                     }
                     return null;
                 } else {

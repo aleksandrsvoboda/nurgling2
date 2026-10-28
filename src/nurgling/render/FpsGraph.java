@@ -32,12 +32,16 @@ public class FpsGraph {
             g.drawString(String.format("FPS  %.1f", s.fps), 10, 22);
             g.setFont(new Font("SansSerif", Font.PLAIN, 12));
             g.setColor(new Color(180, 194, 207));
-            g.drawString(backend + "  |  " + L10n.get("fps.client"), 160, 21);
+            g.drawString(backend, 160, 21);
             g.setColor(new Color(225, 230, 235));
             g.drawString(String.format(L10n.get("fps.stats"), s.average, s.minimum, s.low), 10, 43);
             g.drawString(String.format(L10n.get("fps.times"), s.frameMs, s.p99Ms, s.maxMs), 10, 62);
             g.setColor(new Color(164, 175, 187));
             g.drawString(L10n.get("fps.history"), 10, 82);
+            if(s.hopsMeasured) {
+                g.setColor(s.hops4 > 0 ? WARN : new Color(164, 175, 187));
+                g.drawString(String.format(L10n.get("fps.hops"), s.hops2, s.hops4, s.hopMax), 150, 82);
+            }
             double fpsTop = 60;
             for(double dt : s.seconds) fpsTop = Math.max(fpsTop, Math.ceil((1 / dt) / 60 - 1e-6) * 60);
             graph(g, s, 101, 82, fpsTop, false);
@@ -45,12 +49,26 @@ public class FpsGraph {
             g.drawString(String.format(L10n.get("fps.spikes"), s.slow), 10, 205);
             double msTop = Math.max(50, Math.ceil(s.maxMs / 50) * 50);
             graph(g, s, 224, 68, msTop, true);
+            if(s.hopsMeasured)
+                hopmarks(g, s, 224);
             g.setColor(new Color(164, 175, 187));
             g.drawString("-10 s", 49, 311);
             g.drawString("-5 s", 222, 311);
             g.drawString(L10n.get("fps.now"), 370, 311);
         } finally {
             g.dispose();
+        }
+    }
+
+    /* Ticks above the frame-time graph where the scene hopped. */
+    private static void hopmarks(Graphics2D g, FrameHistory.Snapshot s, int top) {
+        final int left = 49, width = 359;
+        for(int i = 0; i < s.hops.length; i++) {
+            if(s.hops[i] < 4) continue;
+            int x = left + (int)Math.round((s.times[i] - (s.now - FrameHistory.SECONDS)) / FrameHistory.SECONDS * width);
+            x = Math.max(left, Math.min(left + width, x));
+            g.setColor(s.hops[i] >= 8 ? BAD : WARN);
+            g.drawLine(x, top - 6, x, top - 1);
         }
     }
 

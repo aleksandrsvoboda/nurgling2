@@ -746,7 +746,21 @@ public class VkProgram extends VkObject {
 	}
     }
 
+    /* nurgling: consecutive draws with a program mostly ask for the same
+     * pipeline; reuse it without building and hashing a key each time. */
+    private volatile PipeKey lastkey = null;
+
     public PipeKey pipekey(VertexKey vk, int topo, int[] cfmt, int dfmt, BlendMode[] blend, int[] cmask) {
+	PipeKey last = lastkey;
+	if((last != null) && (last.vk == vk) && (last.topo == topo) && (last.dfmt == dfmt) &&
+	   Arrays.equals(last.cfmt, cfmt) && Arrays.equals(last.cmask, cmask) && Arrays.equals(last.blend, blend))
+	    return(last);
+	PipeKey ret = pipekey0(vk, topo, cfmt, dfmt, blend, cmask);
+	lastkey = ret;
+	return(ret);
+    }
+
+    private PipeKey pipekey0(VertexKey vk, int topo, int[] cfmt, int dfmt, BlendMode[] blend, int[] cmask) {
 	PipeKey key = new PipeKey(this, vk, topo, cfmt, dfmt, blend, cmask);
 	synchronized(pipes) {
 	    PipeKey ret = pipes.get(key);

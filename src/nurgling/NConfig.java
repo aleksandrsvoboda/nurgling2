@@ -187,6 +187,7 @@ public class NConfig
         simpleInspect,
         showSpeedometer,
         showPathLine,
+        decoupledRender,
         pathLineWidth,
         pathLineColor,
         parasiteBotEnabled,
@@ -474,6 +475,7 @@ public class NConfig
         conf.put(Key.highlightRockTiles, true);
         conf.put(Key.showSpeedometer, false);
         conf.put(Key.showPathLine, false);
+        conf.put(Key.decoupledRender, false);
         conf.put(Key.pathLineWidth, 4);
         conf.put(Key.pathLineColor, new Color(255, 255, 0));  // Yellow
 

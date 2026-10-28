@@ -287,15 +287,20 @@ public class PointShadows implements Disposable {
 
 	void draw(Render out) {
 	    if((back == null) || !out.env().compatible(back)) {
-		if(back != null)
-		    back.dispose();
-		back = out.env().drawlist().desc("point-shadow: " + f);
-		back.asyncadd(this, Rendered.class);
+		/* Under the lock, so no slot is added both by the tree
+		 * and by the initial fill. */
+		try(Locked lk = lock()) {
+		    if(back != null)
+			back.dispose();
+		    back = DeferredDrawList.of(out.env().drawlist(), this).desc("point-shadow: " + f);
+		    back.asyncadd(this, Rendered.class);
+		}
 	    }
 	    back.draw(out);
 	}
 
 	public Locked lock() {return(casters.lock());}
+	public Locked trylock() {return(casters.trylock());}
 	public Iterable<? extends RenderList.Slot<?>> slots() {return(slots.values());}
 	public <R> void add(RenderList<R> list, Class<? extends R> type) {}
 	public void remove(RenderList<?> list) {}
@@ -405,6 +410,7 @@ public class PointShadows implements Disposable {
 	final Set<RenderList.Slot<? extends Rendered>> all = new HashSet<>();
 
 	Locked lock() {return(master.lock());}
+	Locked trylock() {return(master.trylock());}
 
 	boolean casts(RenderList.Slot<? extends Rendered> s) {
 	    GroupPipe st = s.state();
@@ -580,10 +586,14 @@ public class PointShadows implements Disposable {
     }
 
     public void draw(Render out) {
+	/* The faces' draw lists take the lock while they apply changes;
+	 * recording runs without it. */
+	List<Shadow> cur;
 	try(Locked lk = casters.lock()) {
-	    for(Shadow sh : shadows)
-		sh.draw(out);
+	    cur = new ArrayList<>(shadows);
 	}
+	for(Shadow sh : cur)
+	    sh.draw(out);
     }
 
     public void dispose() {

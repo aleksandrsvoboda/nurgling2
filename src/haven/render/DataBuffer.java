@@ -85,12 +85,25 @@ public interface DataBuffer {
 		});
 	};
 	public static Filler<DataBuffer> of(float[] data) {
-	    return((tgt, env) -> {
-		    FillBuffer buf = env.fillbuf(tgt);
-		    buf.push().asFloatBuffer().put(data);
-		    return(buf);
-		});
+	    return(new FloatArray(data));
 	};
+
+	/* nurgling: a named filler, so a renderer that copies vertex data
+	 * into its own memory anyway can take the floats directly instead
+	 * of through a fill buffer (VkRender's per-draw 2D path). */
+	public static class FloatArray implements Filler<DataBuffer> {
+	    public final float[] data;
+
+	    public FloatArray(float[] data) {
+		this.data = data;
+	    }
+
+	    public FillBuffer fill(DataBuffer tgt, Environment env) {
+		FillBuffer buf = env.fillbuf(tgt);
+		buf.push().asFloatBuffer().put(data);
+		return(buf);
+	    }
+	}
 
 	public static Filler<DataBuffer> zero() {
 	    return((tgt, env) -> {

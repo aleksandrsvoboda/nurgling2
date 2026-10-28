@@ -96,7 +96,8 @@ public class FpsPanel extends haven.Window {
 
     private void drawGraph(GOut g) {
         try(nurgling.diagnostics.MovementTrace.Stage stage=nurgling.diagnostics.MovementTrace.stage(ui,"fps-panel")) {
-            String backend = ui.getenv() instanceof haven.render.vk.VkEnvironment ? "Vulkan" : "OpenGL";
+            String backend = (ui.getenv() instanceof haven.render.vk.VkEnvironment ? "Vulkan" : "OpenGL") + "  |  " +
+                L10n.get((haven.iosys.tk.BridgeToolkit.of(ui) != null) ? "fps.shown" : "fps.client");
             graph.update(g.out,ui.frameHistory,Utils.rtime(),backend,UI.scale(new Coord(W,H)));
             graph.draw(g);
         }

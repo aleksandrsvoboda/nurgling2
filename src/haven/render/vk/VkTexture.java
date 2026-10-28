@@ -50,6 +50,9 @@ public class VkTexture extends VkObject {
     public final int viewtype;
     public final int w, h, d, layers, levels;
     public final long image, alloc, view;
+    /* nurgling: shared textures (SharedTexture2D) own their memory
+     * directly, and the exporter keeps the handle that names it. */
+    private final long mem, exthandle;
     final boolean rgb;
     private final long[] attviews;
     private final WeakReference<Texture> desc;
@@ -90,6 +93,74 @@ public class VkTexture extends VkObject {
 	    this.image = ip.get(0);
 	    this.alloc = ap.get(0);
 	    this.view = mkview(st, viewtype, 0, this.levels, true);
+	}
+	this.mem = 0;
+	this.exthandle = 0;
+    }
+
+    /* nurgling: a 2D RGBA8 render target in memory shared with another
+     * process by name: exported (allocated here) or imported (opened).
+     * Both sides keep it in GENERAL layout, so neither has to transition
+     * it for the other. */
+    VkTexture(VkEnvironment env, int w, int h, String name, boolean export, Texture desc) {
+	super(env);
+	this.fmt = VkFormats.texfmt(new VectorFormat(4, NumberFormat.UNORM8), false);
+	this.viewtype = VK_IMAGE_VIEW_TYPE_2D;
+	this.w = Math.max(w, 1);
+	this.h = Math.max(h, 1);
+	this.d = 1;
+	this.layers = 1;
+	this.levels = 1;
+	this.desc = (desc == null) ? null : new WeakReference<>(desc);
+	this.rgb = false;
+	this.steady = VK_IMAGE_LAYOUT_GENERAL;
+	this.attviews = new long[1];
+	int htype = org.lwjgl.vulkan.VK11.VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+	int usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+	    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	try(MemoryStack st = stackPush()) {
+	    VkExternalMemoryImageCreateInfo ext = VkExternalMemoryImageCreateInfo.calloc(st).sType$Default().handleTypes(htype);
+	    VkImageCreateInfo ici = VkImageCreateInfo.calloc(st).sType$Default().pNext(ext.address())
+		.imageType(VK_IMAGE_TYPE_2D).format(fmt.vk).mipLevels(1).arrayLayers(1)
+		.samples(VK_SAMPLE_COUNT_1_BIT).tiling(VK_IMAGE_TILING_OPTIMAL)
+		.usage(usage).sharingMode(VK_SHARING_MODE_EXCLUSIVE).initialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
+	    ici.extent().set(this.w, this.h, 1);
+	    LongBuffer lp = st.mallocLong(1);
+	    VkEnvironment.check(vkCreateImage(env.dev, ici, null, lp), "vkCreateImage (shared)");
+	    this.image = lp.get(0);
+	    VkMemoryRequirements req = VkMemoryRequirements.malloc(st);
+	    vkGetImageMemoryRequirements(env.dev, image, req);
+	    VkMemoryDedicatedAllocateInfo ded = VkMemoryDedicatedAllocateInfo.calloc(st).sType$Default().image(image);
+	    ByteBuffer wname = st.UTF16(name);
+	    if(export) {
+		VkExportMemoryWin32HandleInfoKHR wi = VkExportMemoryWin32HandleInfoKHR.calloc(st).sType$Default()
+		    .dwAccess(0x10000000 /* GENERIC_ALL */).name(wname);
+		VkExportMemoryAllocateInfo ea = VkExportMemoryAllocateInfo.calloc(st).sType$Default().handleTypes(htype).pNext(wi.address());
+		ded.pNext(ea.address());
+	    } else {
+		VkImportMemoryWin32HandleInfoKHR ii = VkImportMemoryWin32HandleInfoKHR.calloc(st).sType$Default()
+		    .handleType(htype).name(wname);
+		ded.pNext(ii.address());
+	    }
+	    VkMemoryAllocateInfo mai = VkMemoryAllocateInfo.calloc(st).sType$Default().pNext(ded.address())
+		.allocationSize(req.size()).memoryTypeIndex(env.memtype(req.memoryTypeBits(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	    int rv = vkAllocateMemory(env.dev, mai, null, lp);
+	    if(rv != VK_SUCCESS) {
+		vkDestroyImage(env.dev, image, null);
+		VkEnvironment.check(rv, export ? "vkAllocateMemory (export)" : "vkAllocateMemory (import " + name + ")");
+	    }
+	    this.mem = lp.get(0);
+	    VkEnvironment.check(vkBindImageMemory(env.dev, image, mem, 0), "vkBindImageMemory (shared)");
+	    if(export) {
+		VkMemoryGetWin32HandleInfoKHR gi = VkMemoryGetWin32HandleInfoKHR.calloc(st).sType$Default().memory(mem).handleType(htype);
+		PointerBuffer hp = st.mallocPointer(1);
+		VkEnvironment.check(org.lwjgl.vulkan.KHRExternalMemoryWin32.vkGetMemoryWin32HandleKHR(env.dev, gi, hp), "vkGetMemoryWin32HandleKHR");
+		this.exthandle = hp.get(0);
+	    } else {
+		this.exthandle = 0;
+	    }
+	    this.alloc = 0;
+	    this.view = mkview(st, VK_IMAGE_VIEW_TYPE_2D, 0, 1, true);
 	}
     }
 
@@ -144,7 +215,13 @@ public class VkTexture extends VkObject {
 		vkDestroyImageView(env.dev, attviews[i], null);
 	}
 	vkDestroyImageView(env.dev, view, null);
-	vmaDestroyImage(env.vma, image, alloc);
+	if(mem != 0) {
+	    vkDestroyImage(env.dev, image, null);
+	    vkFreeMemory(env.dev, mem, null);
+	    VkEnvironment.closehandle(exthandle);
+	} else {
+	    vmaDestroyImage(env.vma, image, alloc);
+	}
     }
 
     public Texture desc() {
@@ -188,6 +265,18 @@ public class VkTexture extends VkObject {
     }
 
     static VkTexture create(VkEnvironment env, Texture tex) {
+	if((tex instanceof SharedTexture2D) && env.extmem) {
+	    SharedTexture2D sh = (SharedTexture2D)tex;
+	    VkTexture ret = new VkTexture(env, sh.w, sh.h, sh.name, sh.export, tex);
+	    if(sh.export) {
+		env.prep(ex -> ex.inittex(ret));
+	    } else {
+		/* Already in GENERAL layout, holding the exporter's
+		 * pixels; a transition from UNDEFINED could discard them. */
+		ret.layout = VK_IMAGE_LAYOUT_GENERAL;
+	    }
+	    return(ret);
+	}
 	if(tex instanceof Texture2DMS)
 	    throw(new IllegalArgumentException("multisample textures are not supported by the Vulkan renderer"));
 	VkFormats.TexFmt fmt = VkFormats.texfmt(tex.ifmt, tex.srgb);
