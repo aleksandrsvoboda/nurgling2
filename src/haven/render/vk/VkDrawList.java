@@ -63,6 +63,10 @@ public class VkDrawList implements DrawList {
     private final Set<Slot<? extends Rendered>> stale = new LinkedHashSet<>();
     private static final int REBUILD_PER_FRAME = 300;
     private static final long REBUILD_NANOS = 2_000_000;
+    /* Under the tree lock (prepare), every microsecond here also holds
+     * up the world tick's workers, so build in smaller steps. */
+    private static final long PREPARE_NANOS = 500_000;
+    private long rebuildnanos = REBUILD_NANOS;
 
     private class ShaderGroup {
 	final Set<DrawSlot> users = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -820,12 +824,29 @@ public class VkDrawList implements DrawList {
 
     /* DrawList interface */
 
+    /* Set once a DeferredDrawList prepares this list under the tree
+     * lock; slots are then built there, never while recording. */
+    private boolean prepared = false;
+
+    public void prepare(RenderList.Adapter tree) {
+	synchronized(this) {
+	    prepared = true;
+	    rebuildnanos = PREPARE_NANOS;
+	    if(!stale.isEmpty()) {
+		double started = Utils.rtime();
+		rebuild(async ? REBUILD_PER_FRAME : Integer.MAX_VALUE);
+		nurgling.diagnostics.MovementTrace.renderStage(env, "drawlist-prepare", started,
+		    "pending=" + stale.size());
+	    }
+	}
+    }
+
     public void draw(Render r) {
 	if(!(r instanceof VkRender) || (((VkRender)r).env != env))
 	    throw(new IllegalArgumentException());
 	VkRender g = (VkRender)r;
 	synchronized(this) {
-	    if(!stale.isEmpty()) {
+	    if(!prepared && !stale.isEmpty()) {
 		double started = Utils.rtime();
 		rebuild(async ? REBUILD_PER_FRAME : Integer.MAX_VALUE);
 		nurgling.diagnostics.MovementTrace.renderStage(env, "drawlist-prepare", started,
@@ -860,7 +881,7 @@ public class VkDrawList implements DrawList {
 	for(int n = 0; it.hasNext() && (n < max); n++) {
 	    // A warm program can still need buffer allocation and uniform
 	    // preparation. Bound that work too, including a whole row of cuts.
-	    if(async && n > 0 && System.nanoTime() - start >= REBUILD_NANOS)
+	    if(async && n > 0 && System.nanoTime() - start >= rebuildnanos)
 		break;
 	    Slot<? extends Rendered> slot = it.next();
 	    it.remove();

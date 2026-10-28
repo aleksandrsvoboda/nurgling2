@@ -938,6 +938,15 @@ public class GLDrawList implements DrawList {
 	}
     }
 
+    /* nurgling: set when a DeferredDrawList draws this list, which it
+     * does without the tree lock. Reading a slot's tree state then
+     * takes the lock, just for that read. */
+    private RenderList.Adapter tree = null;
+
+    public void prepare(RenderList.Adapter tree) {
+	this.tree = tree;
+    }
+
     public void draw(Render r) {
 	if(!(r instanceof GLRender))
 	    throw(new IllegalArgumentException());
@@ -976,7 +985,13 @@ public class GLDrawList implements DrawList {
 		if(!got)
 		    throw(new RuntimeException("settingbuf wait timed out, dispatch thread stuck?", e));
 	    }
-	    g.state.apply(g.gl, first.bk.state());
+	    if(tree == null) {
+		g.state.apply(g.gl, first.bk.state());
+	    } else {
+		try(Locked lk = tree.lock()) {
+		    g.state.apply(g.gl, first.bk.state());
+		}
+	    }
 	    g.state.apply(g.gl, VaoState.slot, ((VaoSetting)first.settings[idx_vao]).st);
 	    if(g.state.prog() != first.prog)
 		throw(new ProgramMismatchException(g.state.prog(), first.prog));
@@ -994,7 +1009,13 @@ public class GLDrawList implements DrawList {
 		last = cur;
 	    }
 	    settingbuf.put(gl);
-	    g.state.assume(last.bk.state());
+	    if(tree == null) {
+		g.state.assume(last.bk.state());
+	    } else {
+		try(Locked lk = tree.lock()) {
+		    g.state.assume(last.bk.state());
+		}
+	    }
 	    g.state.apply(null, VaoState.slot, ((VaoSetting)last.settings[idx_vao]).st);
 	}
 	if(GLEnvironment.debuglog)

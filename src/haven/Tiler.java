@@ -229,6 +229,10 @@ public abstract class Tiler {
 	public double getz(Coord tc) {
 	    return(m.map.getfz(tc));
 	}
+
+	public double getz(int tx, int ty) {
+	    return(m.map.getfz(tx, ty));
+	}
     }
 
     public MCache.ZSurface getsurf(MapMesh m, MCache.SurfaceID id) {

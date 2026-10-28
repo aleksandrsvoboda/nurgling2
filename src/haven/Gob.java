@@ -508,6 +508,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 
     void removed() {
 	removed = true;
+	glob.oc.movers.remove(this);
 	for(GAttrib a : attr.values()) {
 		ngob.checkattr(null,id,a);
 	}
@@ -1064,13 +1065,80 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		}
 		if(!Utils.eq(this.cur, np))
 		    update(np);
+		sample(Utils.rtime());
 	    }
 	}
 
 	private void update(Placement np) {
-	    for(RenderTree.Slot slot : slots)
-		slot.ostate(np);
-	    this.cur = np;
+	    synchronized(this) {
+		for(RenderTree.Slot slot : slots)
+		    slot.ostate(np);
+		this.cur = np;
+		this.shown = np;
+	    }
+	}
+
+	/* nurgling: render-time motion for the decoupled renderer. The
+	 * world tick publishes where a mover is drawn, its render-space
+	 * velocity and how long that velocity holds; the present thread
+	 * (PresentLoop) moves it on to the moment it draws a frame, up to
+	 * PresentLoop.AHEAD past the sample. */
+	private Motion motion = null;
+	private Pipe.Op shown = null;
+
+	/* Writes to the slots go under this Placed's own lock, never the
+	 * gob's, so the present thread cannot stall on a loader that
+	 * holds the gob. */
+	private void sample(double now) {
+	    boolean active = PresentLoop.active();
+	    /* Off, and nothing extrapolated left to undo. */
+	    if(!active && (motion == null))
+		return;
+	    Motion m = (active && (cur != null)) ? Motion.of(Gob.this, cur, now) : null;
+	    boolean had;
+	    synchronized(this) {
+		had = (motion != null);
+		this.motion = m;
+		/* Stopped: show the resting placement again, here, so no
+		 * extrapolated offset outlives the movement. */
+		if((m == null) && (cur != null) && (shown != cur)) {
+		    for(RenderTree.Slot slot : slots)
+			slot.ostate(cur);
+		    shown = cur;
+		}
+	    }
+	    if(m != null)
+		glob.oc.movers.add(Gob.this);
+	    else if(had)
+		glob.oc.movers.remove(Gob.this);
+	}
+
+	/* The motion offset in render space at time now, or null when
+	 * this gob is not moving. */
+	public Coord3f ahead(double now) {
+	    Motion m;
+	    synchronized(this) {
+		m = motion;
+	    }
+	    return((m == null) ? null : m.offset(now));
+	}
+
+	/* Present thread: shows the gob where it is at time now. False
+	 * once it has stopped and shows its resting placement again. */
+	public boolean present(double now) {
+	    synchronized(this) {
+		Motion m = motion;
+		if(m == null)
+		    return(false);
+		Coord3f d = m.offset(now);
+		Pipe.Op op = (d == null) ? m.base : Pipe.Op.compose(new Location(Transform.makexlate(new Matrix4f(), d), "present"), m.base);
+		if(op != shown) {
+		    for(RenderTree.Slot slot : slots)
+			slot.ostate(op);
+		    shown = op;
+		}
+		return(true);
+	    }
 	}
 
 	public void added(RenderTree.Slot slot) {

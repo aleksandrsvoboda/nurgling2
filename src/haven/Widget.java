@@ -765,6 +765,10 @@ public class Widget {
     }
 	
     public void tick(double dt) {
+	/* nurgling: most widgets never animate; an iterator per widget per
+	 * frame was a steady share of the UI thread's garbage. */
+	if(anims.isEmpty() && nanims.isEmpty())
+	    return;
 	/* It would be very nice to do these things in harmless mix-in
 	 * classes, but alas, this is Java. */
 	anims.addAll(nanims);

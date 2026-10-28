@@ -175,6 +175,10 @@ public class Client implements Console.Directory {
 	    cl.queue.dispatch(ui);
 	}
 
+	protected boolean canpresent() {
+	    return(true);
+	}
+
 	protected boolean bgmode() {
 	    Windeye.Visibility v = wnd.visible();
 	    if(v == Windeye.Visibility.UNKNOWN)

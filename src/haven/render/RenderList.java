@@ -45,6 +45,9 @@ public interface RenderList<R> {
 
     public interface Adapter {
 	public Locked lock();
+	/* nurgling: null instead of waiting, for whoever can as well do
+	 * without it this time (see DeferredDrawList). */
+	public default Locked trylock() {return(lock());}
 	public Iterable<? extends Slot<?>> slots();
 	public <R> void add(RenderList<R> list, Class<? extends R> type);
 	public void remove(RenderList<?> list);

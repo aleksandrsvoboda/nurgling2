@@ -48,6 +48,9 @@ public abstract class UILoop implements Console.Directory {
     private final Object uilock = new Object();
     private UI lockedui;
     private long frameno = 0;
+    private PresentLoop present = null;
+    /* Set when the present thread died; cleared when the option is turned off. */
+    private boolean presentfailed = false;
 
     public UILoop(Windeye wnd) {
 	this.wnd = wnd;
@@ -316,19 +319,35 @@ public abstract class UILoop implements Console.Directory {
 	return(base);
     }
 
-    private void display(UI ui, Render buf) {
-	Pipe base = basestate();
-	base.prep(FragColor.blend(new BlendMode()));
+    /* nurgling: the window client draws with a PresentLoop when the
+     * decoupled renderer is on; headless and streaming loops never do. */
+    protected boolean canpresent() {
+	return(false);
+    }
+
+    PresentLoop present() {
+	return(present);
+    }
+
+    /* layer: the UI layer's state when drawing for the present thread,
+     * which then also draws the FPS counter. */
+    private void display(UI ui, Render buf, Pipe layer) {
 	Area wnd = Area.sized(ui.root.sz);
-	base.prep(new States.Viewport(wnd)).prep(new Ortho2D(wnd));
-	base.prep(new FrameInfo());
-	buf.clear(base, FragColor.fragcol, FColor.BLACK);
+	Pipe base = layer;
+	if(base == null) {
+	    base = basestate();
+	    base.prep(FragColor.blend(new BlendMode()));
+	    base.prep(new States.Viewport(wnd)).prep(new Ortho2D(wnd));
+	    base.prep(new FrameInfo());
+	    buf.clear(base, FragColor.fragcol, FColor.BLACK);
+	}
 	GOut g = new GOut(buf, base, wnd.sz());
 	synchronized(ui) {
 	    ui.draw(g);
 	}
 	/* nurgling: always-on FPS counter (was in GLPanel.display, bottom-left). */
-	FastText.aprintf(g, new Coord(10, g.sz().y - UI.scale(10)), 0, 1, "FPS: %d", fps);
+	if(layer == null)
+	    FastText.aprintf(g, new Coord(10, g.sz().y - UI.scale(10)), 0, 1, "FPS: %d", fps);
 	if(dbtext.get())
 	    drawstats(ui, g, buf);
 	drawtooltip(ui, g);
@@ -452,7 +471,8 @@ public abstract class UILoop implements Console.Directory {
 	if(f.ftime > frames[ckf]) {
 	    fps = (int)Math.round(i / (f.ftime - frames[ckf]));
 	    uidle = twait / (f.ftime - frames[ckf]);
-	    nurgling.NUtils.setFps(fps); // feed nurgling's DbStatsOverlay (was on GLPanel.Loop)
+	    if(f.present == null)
+		nurgling.NUtils.setFps(fps); // feed nurgling's DbStatsOverlay (was on GLPanel.Loop)
 	}
     }
 
@@ -460,10 +480,14 @@ public abstract class UILoop implements Console.Directory {
 	updstats(f);
 	// Use the actual clock after frame pacing, not the scheduled sleep deadline.
 	double now = Utils.rtime();
-	if((f.prev == null) || (f.prev.ui != f.ui))
-	    f.ui.frameHistory.reset(now);
-	else
-	    f.ui.frameHistory.record(now);
+	/* With a present thread, the frames shown are its frames, and it
+	 * records them itself. */
+	if(f.present == null) {
+	    if((f.prev == null) || (f.prev.ui != f.ui))
+		f.ui.frameHistory.reset(now);
+	    else
+		f.ui.frameHistory.record(now);
+	}
 	if(f.movementTrace != null) f.movementTrace.finish(f, now);
     }
 
@@ -472,6 +496,9 @@ public abstract class UILoop implements Console.Directory {
 	public final long frameno;
 	public final UI ui;
 	public final Render out;
+	/* Non-null when the present thread shows this frame's UI layer. */
+	public final PresentLoop present;
+	private Pipe layer = null;
 	public final Fence sync = new Fence();
 	public Frame prev;
 	public CPUProfile.Current prof = null;
@@ -489,6 +516,7 @@ public abstract class UILoop implements Console.Directory {
 	    this.ui = ui;
 	    this.out = out;
 	    this.prev = prev;
+	    this.present = loop.present;
 	}
 
 	protected void tick() {
@@ -538,7 +566,7 @@ public abstract class UILoop implements Console.Directory {
 	    CPUProfile.phase(prof, "draw");
 	    if(rprofc != null) rprofc.new Part("draw", out);
 	    if(gprof  != null) gprof.part(out, "draw");
-	    loop.display(ui, out);
+	    loop.display(ui, out, layer);
 	    drawMs = (Utils.rtime() - start) * 1000;
 	}
 
@@ -604,9 +632,12 @@ public abstract class UILoop implements Console.Directory {
 	    ttime = Utils.rtime();
 	    tick();
 	    if(tickwait) syncwait();
+	    if(present != null)
+		layer = present.layerstate(out, ui.root.sz);
 	    display();
 	    CPUProfile.phase(prof, "aux");
-	    swapbuffers();
+	    if(present == null)
+		swapbuffers();
 	    if(swapsync) out.fence(sync);
 	}
     }
@@ -649,6 +680,22 @@ public abstract class UILoop implements Console.Directory {
 		Environment env = wnd.env();
 		if(env != this.env)
 		    setenv(env);
+		boolean wantpresent = canpresent() && PresentLoop.wanted();
+		if(!wantpresent)
+		    presentfailed = false;
+		if((present != null) && present.failed()) {
+		    present.stop();
+		    present = null;
+		    presentfailed = true;
+		}
+		wantpresent &= !presentfailed;
+		if(wantpresent && (present == null)) {
+		    present = new PresentLoop(this);
+		    present.start();
+		} else if(!wantpresent && (present != null)) {
+		    present.stop();
+		    present = null;
+		}
 		buf = env.render();
 		try {
 		    UI ui;
@@ -660,8 +707,17 @@ public abstract class UILoop implements Console.Directory {
 
 		    Frame curframe = frame(ui, buf, prevframe);
 		    prevframe = null;
-		    curframe.run();
-		    env.submit(buf); buf = null;
+		    try {
+			curframe.run();
+			env.submit(buf); buf = null;
+		    } finally {
+			if(curframe.present != null) {
+			    if(buf == null)
+				curframe.present.publish(env, ui.gprefs.vsync.val, ui);
+			    else
+				curframe.present.abandon();
+			}
+		    }
 		    curframe.fin();
 
 		    framedone(curframe);
@@ -673,6 +729,10 @@ public abstract class UILoop implements Console.Directory {
 	    }
 	} catch(InterruptedException e) {
 	} finally {
+	    if(present != null) {
+		present.stop();
+		present = null;
+	    }
 	    synchronized(uilock) {
 		lockedui = null;
 		uilock.notifyAll();

@@ -36,6 +36,10 @@ public interface DrawList extends RenderList<Rendered>, Disposable {
      * that always compile synchronously need no special handling. */
     public default DrawList async(boolean enabled) {return(this);}
 
+    /* nurgling: work a draw needs done under its tree's lock, such as
+     * building slots that read tree state (see DeferredDrawList). */
+    public default void prepare(RenderList.Adapter tree) {}
+
     public default String stats() {return("");}
     public default DrawList desc(Object desc) {return(this);}
 }

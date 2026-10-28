@@ -116,6 +116,15 @@ public final class MovementTrace implements Disposable {
         }
     }
 
+    /** The decoupled renderer's present thread (PresentLoop): one row per
+     *  step of its frames, with the step in the detail column. */
+    public static void present(String name, double start, double end) {
+        MovementTrace t = active;
+        if(t == null || t.disposed) return;
+        double[] r = row(end); r[58] = start; r[59] = (end - start) * 1000;
+        t.ring.add("present", r, name);
+    }
+
     public MovementTrace(Glob glob) { this.glob = glob; }
 
     /** Kept separate so retention, wraparound and export can be tested without a game. */

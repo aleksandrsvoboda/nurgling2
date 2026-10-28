@@ -232,16 +232,22 @@ public class MCache implements MapSource {
 	    return(getz(tc.mul(tilesz)));
 	}
 
+	/* nurgling: tile height without a Coord, for surfaces that can
+	 * (see Tiler.MapZSurface); others take the Coord path. */
+	public default double getz(int tx, int ty) {
+	    return(getz(Coord.of(tx, ty)));
+	}
+
 	public default double getz(Coord2d pc) {
 	    double tw = tilesz.x, th = tilesz.y;
-	    Coord ul = Coord.of(Utils.floordiv(pc.x, tw), Utils.floordiv(pc.y, th));
-	    double sx = (pc.x - (ul.x * tw)) / tw, ix = 1.0 - sx;
-	    double sy = (pc.y - (ul.y * th)) / th, iy = 1.0 - sy;
+	    int ux = Utils.floordiv(pc.x, tw), uy = Utils.floordiv(pc.y, th);
+	    double sx = (pc.x - (ux * tw)) / tw, ix = 1.0 - sx;
+	    double sy = (pc.y - (uy * th)) / th, iy = 1.0 - sy;
 	    try {
-		return((iy * ((ix * getz(ul          )) + (sx * getz(ul.add(1, 0))))) +
-		       (sy * ((ix * getz(ul.add(0, 1))) + (sx * getz(ul.add(1, 1))))));
+		return((iy * ((ix * getz(ux, uy    )) + (sx * getz(ux + 1, uy    )))) +
+		       (sy * ((ix * getz(ux, uy + 1)) + (sx * getz(ux + 1, uy + 1)))));
 	    } catch(ArrayIndexOutOfBoundsException e) {
-		Debug.dump(pc, ul, sx, sy);
+		Debug.dump(pc, Coord.of(ux, uy), sx, sy);
 		throw(e);
 	    }
 	}
@@ -735,6 +741,16 @@ public class MCache implements MapSource {
 
 	public double getz(Coord tc) {
 	    return(z[tc.x + (tc.y * cmaps.x)]);
+	}
+
+	/* nurgling: grid-local tile coordinates, without a Coord per
+	 * lookup; height queries run per gob per tick. */
+	public int gettile(int x, int y) {
+	    return(tiles[x + (y * cmaps.x)]);
+	}
+
+	public double getz(int x, int y) {
+	    return(z[x + (y * cmaps.x)]);
 	}
 
 	public void getol(OverlayInfo id, Area a, boolean[] buf) {
@@ -1377,26 +1393,46 @@ public class MCache implements MapSource {
 	}
 
     public Grid getgridt(Coord tc) {
-	return(getgrid(tc.div(cmaps)));
+	return(getgridt(tc.x, tc.y));
+    }
+
+    /* nurgling: the tile-coordinate lookups below allocate nothing
+     * while the grid is this thread's cached one; they ran per gob per
+     * tick and were a tenth of all garbage. */
+    public Grid getgridt(int tx, int ty) {
+	int gx = Utils.floordiv(tx, cmaps.x), gy = Utils.floordiv(ty, cmaps.y);
+	Reference<Grid> ref = cached.get();
+	Grid ret = (ref == null) ? null : ref.get();
+	if((ret != null) && (ret.gc.x == gx) && (ret.gc.y == gy) && !ret.removed)
+	    return(ret);
+	return(getgrid(Coord.of(gx, gy)));
     }
 
     public int gettile(Coord tc) {
-	Grid g = getgridt(tc);
-	return(g.gettile(tc.sub(g.ul)));
+	return(gettile(tc.x, tc.y));
+    }
+
+    public int gettile(int tx, int ty) {
+	Grid g = getgridt(tx, ty);
+	return(g.gettile(tx - g.ul.x, ty - g.ul.y));
     }
 
     public double getfz(Coord tc) {
-	Grid g = getgridt(tc);
-	return(g.getz(tc.sub(g.ul)));
+	return(getfz(tc.x, tc.y));
+    }
+
+    public double getfz(int tx, int ty) {
+	Grid g = getgridt(tx, ty);
+	return(g.getz(tx - g.ul.x, ty - g.ul.y));
     }
 
     public double getcz(double px, double py) {
 	double tw = tilesz.x, th = tilesz.y;
-	Coord ul = Coord.of(Utils.floordiv(px, tw), Utils.floordiv(py, th));
-	double sx = (px - (ul.x * tw)) / tw;
-	double sy = (py - (ul.y * th)) / th;
-	return(((1.0f - sy) * (((1.0f - sx) * getfz(ul)) + (sx * getfz(ul.add(1, 0))))) +
-	       (sy * (((1.0f - sx) * getfz(ul.add(0, 1))) + (sx * getfz(ul.add(1, 1))))));
+	int ux = Utils.floordiv(px, tw), uy = Utils.floordiv(py, th);
+	double sx = (px - (ux * tw)) / tw;
+	double sy = (py - (uy * th)) / th;
+	return(((1.0f - sy) * (((1.0f - sx) * getfz(ux, uy)) + (sx * getfz(ux + 1, uy)))) +
+	       (sy * (((1.0f - sx) * getfz(ux, uy + 1)) + (sx * getfz(ux + 1, uy + 1)))));
     }
 
     public double getcz(Coord2d pc) {

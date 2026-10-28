@@ -143,15 +143,20 @@ public interface Lighting {
 	private final int lswb;
 	private GridLights last;
         private Topology topology;
-        // Immutable CPU light-list grid: colors may change every frame while
-        // light positions/ranges and the camera projection remain identical.
+        // Immutable light-list grid and its texture. Colors may change every
+        // frame; positions may too, as long as every positional light moved by
+        // the same offset (the camera slid, e.g. following a walking player):
+        // the grid is then reused, shifted by that offset, until the offset
+        // passes the margin it was compiled with. Lights live in eye space, so
+        // without this every camera move recompiled all 64^3 cells and
+        // uploaded a new list texture each frame.
         private class Topology {
             final float[] projection;
             final float[][] shapes;
             final int limit=maxlights;
             final Volume3f bbox;
-            final short[] grid, lists;
-            final int listlen;
+            final Coord3f margin;
+            final Texture2D.Sampler2D lstex;
             Topology(Object[][] lights, Projection proj, Compiler c) {
                 projection=proj.fin(Matrix4f.id).m.clone();
                 shapes=new float[lights.length][];
@@ -160,20 +165,35 @@ public interface Lighting {
                     shapes[i]=new float[]{pos[0],pos[1],pos[2],pos[3],
                         (Float)lights[i][4],(Float)lights[i][5],(Float)lights[i][6],(Float)lights[i][7]};
                 }
-                bbox=c.bbox;grid=c.grid;lists=c.listbuf;listlen=c.lboff;
+                bbox=c.bbox;margin=c.margin;
+                lstex=new Texture2D.Sampler2D(listtex(c.grid,c.listbuf,c.lboff));
             }
-            boolean matches(Object[][] lights, Projection proj) {
-                if(limit!=maxlights||shapes.length!=lights.length||!Arrays.equals(projection,proj.fin(Matrix4f.id).m))return false;
+            /* How far the lights moved together since compiling, or null if the grid doesn't fit them. */
+            Coord3f shift(Object[][] lights, Projection proj) {
+                if(limit!=maxlights||shapes.length!=lights.length||!Arrays.equals(projection,proj.fin(Matrix4f.id).m))return null;
+                float dx=0,dy=0,dz=0;
+                boolean moved=false;
                 for(int i=0;i<lights.length;i++) {
                     float[] pos=(float[])lights[i][3],shape=shapes[i];
                     // Directional lights occupy every cell, regardless of direction/color.
                     if(pos[3]==0&&shape[3]==0)continue;
-                    for(int j=0;j<4;j++)if(Float.compare(pos[j],shape[j])!=0)return false;
-                    for(int j=4;j<8;j++)if(Float.compare((Float)lights[i][j],shape[j])!=0)return false;
+                    if(Float.compare(pos[3],shape[3])!=0)return null;
+                    for(int j=4;j<8;j++)if(Float.compare((Float)lights[i][j],shape[j])!=0)return null;
+                    float lx=pos[0]-shape[0],ly=pos[1]-shape[1],lz=pos[2]-shape[2];
+                    if(!moved) {
+                        dx=lx;dy=ly;dz=lz;moved=true;
+                    } else if((Math.abs(lx-dx)>SHIFT_EPS)||(Math.abs(ly-dy)>SHIFT_EPS)||(Math.abs(lz-dz)>SHIFT_EPS)) {
+                        return null;
+                    }
                 }
-                return true;
+                if((Math.abs(dx)>margin.x)||(Math.abs(dy)>margin.y)||(Math.abs(dz)>margin.z))return null;
+                return Coord3f.of(dx,dy,dz);
             }
         }
+        /* Eye-space float error between lights that moved by the same camera offset. */
+        private static final float SHIFT_EPS=0.05f;
+        /* Grid bounds extend this share of the view volume past each side, so a shifted grid still covers the view. */
+        private static final float MARGIN=0.125f;
 
 	public LightGrid(int w, int h, int d) {
 	    if(w != Integer.highestOneBit(w)) throw(new IllegalArgumentException("not a power of two: " + w));
@@ -200,7 +220,7 @@ public interface Lighting {
 
 	private class Compiler {
 	    final Volume3f bbox;
-	    final Coord3f gsz, szf;
+	    final Coord3f margin, gsz, szf;
 	    final Collection<Short> global = new ArrayList<>();
 	    final short[] grid = new short[w * h * d];
 	    short[] listbuf = new short[256];
@@ -215,7 +235,8 @@ public interface Lighting {
 		Volume3f bbox = Volume3f.point(Coord3f.of(HomoCoord4f.fromindc(iproj, clipcorn[0])));
 		for(int i = 1; i < clipcorn.length; i++)
 		    bbox = bbox.include(Coord3f.of(HomoCoord4f.fromindc(iproj, clipcorn[i])));
-		this.bbox = bbox;
+		this.margin = bbox.sz().mul(MARGIN);
+		this.bbox = bbox = bbox.margin(margin);
 		gsz = bbox.sz().div(w, h, d);
 		szf = Coord3f.of(1, 1, 1).div(gsz);
 	    }
@@ -433,20 +454,41 @@ public interface Lighting {
 	    }
 	}
 
+	private Texture2D listtex(short[] grid, short[] lists, int listlen) {
+	    int tw = 1 << lswb;
+	    int th = (1 << (wb + hb + db - lswb)) + (Math.max(listlen - 1, 0) / tw) + 1;
+	    DataBuffer.Filler<Texture2D.Image> init = (img, env) -> {
+		if(img.level != 0)
+		    return(null);
+		FillBuffer ret = env.fillbuf(img);
+		ShortBuffer buf = ret.push().asShortBuffer();
+		buf.position(0);
+		buf.put(grid);
+		buf.put(lists, 0, listlen);
+		return(ret);
+	    };
+	    return(new Texture2D(tw, th, DataBuffer.Usage.STATIC, new VectorFormat(1, NumberFormat.UINT16), init));
+	}
+
 	public State compile(Object[][] lights, Projection proj) {
-            if(topology==null||!topology.matches(lights,proj)) {
-                Compiler c = new Compiler(proj);
-                int n = Math.min(lights.length, 65535);
-                for(int i = 0; i < n; i++)c.addlight(i, lights[i]);
-                c.compact();
-                topology=new Topology(lights,proj,c);
-                Debug.statprint(Utils.formatter("C-lights: %d lists, max %d, bounds %s, cell %s", c.nlists, c.maxlist, c.bbox, c.gsz), stats);
-            }
+	    Coord3f shift = (topology == null) ? null : topology.shift(lights, proj);
+	    if(shift == null) {
+		Compiler c = new Compiler(proj);
+		int n = Math.min(lights.length, 65535);
+		for(int i = 0; i < n; i++)
+		    c.addlight(i, lights[i]);
+		c.compact();
+		if(topology != null)
+		    topology.lstex.dispose();
+		topology = new Topology(lights, proj, c);
+		shift = Coord3f.of(0, 0, 0);
+		Debug.statprint(Utils.formatter("C-lights: %d lists, max %d, bounds %s, cell %s", c.nlists, c.maxlist, c.bbox, c.gsz), stats);
+	    }
 	    if(last != null) {
 		last.dispose();
 		last = null;
 	    }
-	    return(last = new GridLights(lights, topology.bbox, topology.grid, topology.lists, topology.listlen));
+	    return(last = new GridLights(lights, topology.bbox.xl(shift), topology.lstex));
 	}
 
 	private static final Uniform u_bboxm = new Uniform(VEC3, "lboxm", p -> ((GridLights)p.get(lights)).bboxm(), lights);
@@ -554,26 +596,11 @@ public interface Lighting {
 	    public final Texture2D.Sampler2D ldtex, lstex;
 	    public final Volume3f bbox;
 
-	    public GridLights(Object[][] lights, Volume3f bbox, short[] grid, short[] lists, int listlen) {
+	    /* lstex belongs to the Topology, which may hand it to several frames' GridLights. */
+	    public GridLights(Object[][] lights, Volume3f bbox, Texture2D.Sampler2D lstex) {
 		this.bbox = bbox;
 		this.ldtex = new Texture2D.Sampler2D(lighttex(lights));
-		this.lstex = new Texture2D.Sampler2D(listtex(grid, lists, listlen));
-	    }
-
-	    private Texture2D listtex(short[] grid, short[] lists, int listlen) {
-		int tw = 1 << lswb;
-		int th = (1 << (wb + hb + db - lswb)) + (Math.max(listlen - 1, 0) / tw) + 1;
-		DataBuffer.Filler<Texture2D.Image> init = (img, env) -> {
-		    if(img.level != 0)
-			return(null);
-		    FillBuffer ret = env.fillbuf(img);
-		    ShortBuffer buf = ret.push().asShortBuffer();
-		    buf.position(0);
-		    buf.put(grid);
-		    buf.put(lists, 0, listlen);
-		    return(ret);
-		};
-		return(new Texture2D(tw, th, DataBuffer.Usage.STATIC, new VectorFormat(1, NumberFormat.UINT16), init));
+		this.lstex = lstex;
 	    }
 
 	    private Texture2D lighttex(Object[][] lights) {
@@ -620,7 +647,6 @@ public interface Lighting {
 
 	    public void dispose() {
 		ldtex.dispose();
-		lstex.dispose();
 	    }
 	}
     }

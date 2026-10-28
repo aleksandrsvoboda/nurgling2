@@ -39,7 +39,7 @@ public abstract class PView extends Widget {
     public Texture fragcol = null, depth = null;
     protected final Light.LightList lights = new Light.LightList();
     protected Environment env = null;
-    protected InstanceList instancer;
+    protected volatile InstanceList instancer;
     protected DrawList back = null;
     protected Coord rsz;
     private final Map<Object, Pipe.Op> basicstates = new IdentityHashMap<>();
@@ -266,8 +266,7 @@ public abstract class PView extends Widget {
     }
 
     private Resampler pp_resamp = null;
-    protected void resolve(GOut g) {
-	List<PostProcessor> copy = new ArrayList<PostProcessor>(ctx.postproc());
+    protected void resolve(GOut g, Sampler fragsamp, List<PostProcessor> copy) {
 	if(!rsz.equals(this.sz)) {
 	    boolean fsr = nurgling.render.Temporal.upscale && (this.sz.x > rsz.x);
 	    if((pp_resamp == null) || !pp_resamp.isz.equals(rsz) || !pp_resamp.osz.equals(this.sz) || ((pp_resamp instanceof FsrResampler) != fsr)) {
@@ -330,7 +329,7 @@ public abstract class PView extends Widget {
     }
 
     protected void envsetup() {
-	back = env.drawlist().desc("pview: " + this);
+	back = new DeferredDrawList(env.drawlist(), tree).desc("pview: " + this);
 	instancer = new InstanceList(tree);
 	instancer.add(back, Rendered.class);
 	instancer.asyncadd(tree, Rendered.class);
@@ -353,9 +352,43 @@ public abstract class PView extends Widget {
 
     }
 
+    /* nurgling: views that the present thread draws when the renderer
+     * runs decoupled (see PresentLoop). Their 3D pass leaves the UI
+     * thread; the UI thread only draws their 2D overlays. */
+    protected boolean presentable() {
+	return(false);
+    }
+
+    /* Held by the present thread for a whole frame it draws this view
+     * in, so the view cannot be disposed under it. */
+    final Object presentlock = new Object();
+
     public void draw(GOut g) {
 	if(disposed)
 	    return;
+	PresentLoop present = presentable() ? PresentLoop.of(ui) : null;
+	try {
+	    lights();
+	} catch(RenderTree.SlotRemoved e) {
+	    disposed = true;
+	    return;
+	}
+	if((present == null) || !present.view(this, g)) {
+	    if(!render3d(g))
+		return;
+	}
+	/* The 2D overlays read their slots' states, which the present
+	 * thread may be changing (it moves movers and the camera). */
+	try(Locked lk = tree.lock()) {
+	    list2d.draw(g);
+	}
+    }
+
+    /* The 3D pass, from clearing the frame to resolving it into g. On
+     * the present thread it runs concurrently with the UI thread, so
+     * everything the UI thread may replace (frame textures, the post
+     * chain) is read under the tree lock. */
+    boolean render3d(GOut g) {
 	if((back == null) || !g.out.env().compatible(back)) {
 	    if(env != null) {
 		envdispose();
@@ -364,37 +397,88 @@ public abstract class PView extends Widget {
 	    env = g.out.env();
 	    envsetup();
 	}
-	try {
-	    lights();
+	Sampler fragsamp;
+	List<PostProcessor> post;
+	try(Locked lk = tree.lock()) {
 	    FColor cc = clearcolor();
 	    if(cc != null)
 		g.out.clear(basic.state(), FragColor.fragcol, cc);
 	    g.out.clear(basic.state(), 1.0);
+	    fragsamp = this.fragsamp;
+	    post = ctx.postsnapshot();
 	} catch(RenderTree.SlotRemoved e) {
 	    disposed = true;
-	    return;
+	    return(false);
 	}
 	ctx.prerender(g.out);
 	try(Locked lk = tree.lock()) {
 	    instancer.commit(g.out);
-	    maindraw(g.out);
 	}
+	/* The draw lists apply the tree's changes under its lock
+	 * themselves and record without it. */
+	maindraw(g.out);
 	ctx.postrender(g.out);
-	resolve(g);
-	list2d.draw(g);
+	resolve(g, fragsamp, post);
+	return(true);
     }
 
     public void dispose() {
-	disposed = true;
-	if(audio != null) {
-	    audio.clear();
+	synchronized(presentlock) {
+	    disposed = true;
+	    if(audio != null) {
+		audio.clear();
+	    }
+	    if(env != null) {
+		envdispose();
+		env = null;
+	    }
+	    tree.dispose();
+	    presenting(false);
 	}
-	if(env != null) {
-	    envdispose();
-	    env = null;
-	}
-	tree.dispose();
 	super.dispose();
+    }
+
+    boolean disposed() {
+	return(disposed);
+    }
+
+
+    /* While the present thread draws this view, GPU objects it may be
+     * recording with are disposed by that thread at its next frame
+     * rather than at once by whoever replaced them. */
+    private final List<Disposable> retired = new ArrayList<>();
+    private boolean presenting = false;
+
+    public void retire(Disposable ob) {
+	if(ob == null)
+	    return;
+	synchronized(retired) {
+	    if(presenting) {
+		retired.add(ob);
+		return;
+	    }
+	}
+	ob.dispose();
+    }
+
+    void presenting(boolean on) {
+	synchronized(retired) {
+	    presenting = on;
+	}
+	if(!on)
+	    drainretired();
+    }
+
+    void drainretired() {
+	List<Disposable> copy;
+	synchronized(retired) {
+	    if(retired.isEmpty())
+		return;
+	    copy = new ArrayList<>(retired);
+	    retired.clear();
+	}
+	for(Disposable ob : copy)
+	    ob.dispose();
     }
 
     private static final Object id_fb = new Object(), id_view = new Object(), id_misc = new Object();
@@ -405,8 +489,7 @@ public abstract class PView extends Widget {
 		if(tonemap != null)
 		    fmt.cfmt = new VectorFormat(4, NumberFormat.FLOAT16);
 		if(!fmt.matching(fragcol)) {
-		    if(fragcol != null)
-			fragcol.dispose();
+		    retire(fragcol);
 		    fragcol = fmt.maketex();
 		    fragsamp = fragcol.sampler();
 		    if(fragsamp instanceof Texture2D.Sampler2D) {
@@ -416,8 +499,7 @@ public abstract class PView extends Widget {
 		}
 		fmt.cfmt = Texture.DEPTH;
 		if(!fmt.matching(depth)) {
-		    if(depth != null)
-			depth.dispose();
+		    retire(depth);
 		    depth = fmt.maketex();
 		}
 		p.prep(new FragColor<>(Utils.el(fragcol.images()))).prep(new DepthBuffer<>(Utils.el(depth.images())));
@@ -444,7 +526,9 @@ public abstract class PView extends Widget {
     }
 
     protected void lights() {
-	basic(Light.class, Pipe.Op.compose(lights, lights.compile()));
+	try(Locked lk = tree.lock()) {
+	    basic(Light.class, Pipe.Op.compose(lights, lights.compile()));
+	}
     }
 
     public interface Render2D extends RenderTree.Node {

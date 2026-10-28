@@ -938,6 +938,7 @@ public abstract class GLEnvironment implements Environment {
     }
 
     public boolean compatible(DrawList ob) {
+	ob = DeferredDrawList.unwrap(ob);
 	return((ob instanceof GLDrawList) && (((GLDrawList)ob).env == this));
     }
 

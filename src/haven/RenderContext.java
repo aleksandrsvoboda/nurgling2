@@ -114,12 +114,24 @@ public abstract class RenderContext extends State implements OwnerContext {
 	public default void postrender(Render out) {}
     }
 
-    public Collection<PostProcessor> postproc() {return(post);}
-    public void add(PostProcessor post) {
-	this.post.add(post);
-	Collections.sort(this.post, Comparator.comparing(PostProcessor::order));
+    /* The present thread reads the chain while the UI thread toggles
+     * effects, so it is only ever handed out as a copy. */
+    public List<PostProcessor> postsnapshot() {
+	synchronized(post) {
+	    return(new ArrayList<>(post));
+	}
     }
-    public void remove(PostProcessor post) {this.post.remove(post);}
+    public void add(PostProcessor post) {
+	synchronized(this.post) {
+	    this.post.add(post);
+	    Collections.sort(this.post, Comparator.comparing(PostProcessor::order));
+	}
+    }
+    public void remove(PostProcessor post) {
+	synchronized(this.post) {
+	    this.post.remove(post);
+	}
+    }
 
     public abstract Pipe.Op basic(Object id);
     public abstract void basic(Object id, Pipe.Op state);

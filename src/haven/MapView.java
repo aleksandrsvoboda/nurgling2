@@ -1141,9 +1141,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private Coord3f smapcc = null;
-    private ShadowMap.ShadowList slist = null;
-    private ShadowMap smap = null;
-    private nurgling.render.DirectionalShadows directionalShadows;
+    private volatile ShadowMap.ShadowList slist = null;
+    private volatile ShadowMap smap = null;
+    private volatile nurgling.render.DirectionalShadows directionalShadows;
     private double lsmch = 0;
     private void updsmap(DirLight light) {
 	nurgling.render.NGfx.Settings graphics = nurgling.render.NGfx.effective(ui.getenv());
@@ -1152,12 +1152,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    Coord3f center;
 	    try { center = getcc().invy(); } catch(Loading loading) { return; }
 	    if(smap != null) {
+	        ShadowMap sm = smap;
+	        smap = null;
 	        basic(ShadowMap.class,null);
-	        instancer.remove(slist); slist.dispose(); slist=null;
-	        smap.dispose(); smap=null; smapcc=null;
+	        instancer.remove(slist); retire(slist); slist=null;
+	        retire(sm::dispose); smapcc=null;
 	    }
 	    if(directionalShadows == null || directionalShadows.master() != instancer) {
-	        if(directionalShadows != null) directionalShadows.dispose();
+	        retire(directionalShadows);
 	        directionalShadows = new nurgling.render.DirectionalShadows(instancer);
 	    }
 	    basic(nurgling.render.DirectionalShadows.class,directionalShadows.update(light,center));
@@ -1165,7 +1167,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	if(directionalShadows != null) {
 	    basic(nurgling.render.DirectionalShadows.class,null);
-	    directionalShadows.dispose(); directionalShadows=null;
+	    retire(directionalShadows); directionalShadows=null;
 	}
 	boolean usesdw = ui.gprefs.lshadow.val && light != null;
 	int filter = 0;
@@ -1179,18 +1181,23 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    } catch(Loading l) {
 		return;
 	    }
-	    if(smap == null) {
+	    /* Built in a local and published whole: the present thread
+	     * draws whatever smap holds, and a map without its position
+	     * yet has no depth target. */
+	    ShadowMap sm = smap;
+	    if(sm == null) {
 		if(instancer == null)
 		    return;
 		slist = new ShadowMap.ShadowList(instancer);
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
-	    } else if((smap.lbuf.w != sdwres) || (smap.soft != filter)) {
-		smap.dispose();
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
-		smapcc = null;
+		sm = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
+	    } else if((sm.lbuf.w != sdwres) || (sm.soft != filter)) {
+		smap = null;
 		basic(ShadowMap.class, null);
+		retire(sm::dispose);
+		sm = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1, filter);
+		smapcc = null;
 	    }
-	    smap = smap.light(light);
+	    sm = sm.light(light);
 	    boolean ch = false;
 	    double now = Utils.rtime();
 	    if((smapcc == null) || (smapcc.dist(cc) > 50)) {
@@ -1200,16 +1207,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(now - lsmch > 0.1)
 		    ch = true;
 	    }
-	    if(ch || !smap.haspos()) {
-		smap = smap.setpos(smapcc.add(dir.neg().mul(1000f)), dir);
+	    if(ch || !sm.haspos()) {
+		sm = sm.setpos(smapcc.add(dir.neg().mul(1000f)), dir);
 		lsmch = now;
 	    }
-	    basic(ShadowMap.class, smap);
+	    smap = sm;
+	    basic(ShadowMap.class, sm);
 	} else {
 	    if(smap != null) {
+		ShadowMap sm = smap;
+		smap = null;
 		instancer.remove(slist);
-		smap.dispose(); smap = null;
-		slist.dispose(); slist = null;
+		retire(sm::dispose);
+		retire(slist); slist = null;
 		basic(ShadowMap.class, null);
 	    }
 	    smapcc = null;
@@ -1217,9 +1227,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private void drawsmap(Render out) {
-	if(directionalShadows != null) directionalShadows.draw(out);
-	if(smap != null)
-	    smap.update(out, slist);
+	/* Each read once: the UI thread replaces these while the present
+	 * thread draws. */
+	nurgling.render.DirectionalShadows ds = directionalShadows;
+	if(ds != null) ds.draw(out);
+	ShadowMap sm = smap;
+	ShadowMap.ShadowList sl = slist;
+	if((sm != null) && (sl != null))
+	    sm.update(out, sl);
     }
 
     public DirLight amblight = null;
@@ -1316,13 +1331,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private LightCompiler lighting;
     protected void lights() {
-	GSettings gprefs = basic.state().get(GSettings.slot);
-	if((lighting == null) || !lighting.valid(gprefs)) {
-	    basic(Light.class, null);
-	    lighting = new LightCompiler(gprefs);
+	/* Compiling frees the previous light grid before the new one is
+	 * set; under the tree lock no draw list reads the state between. */
+	try(Locked lk = tree.lock()) {
+	    GSettings gprefs = basic.state().get(GSettings.slot);
+	    if((lighting == null) || !lighting.valid(gprefs)) {
+		basic(Light.class, null);
+		lighting = new LightCompiler(gprefs);
+	    }
+	    Projection proj = (camera == null) ? new Projection(Matrix4f.id) : camera.proj;
+	    basic(Light.class, Pipe.Op.compose(lights, lighting.compile(lights.params(), proj)));
 	}
-	Projection proj = (camera == null) ? new Projection(Matrix4f.id) : camera.proj;
-	basic(Light.class, Pipe.Op.compose(lights, lighting.compile(lights.params(), proj)));
     }
 
     public static final Uniform amblight_idx = new Uniform(Type.INT, p -> {
@@ -1374,8 +1393,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(basic.add(extra));
     }
 
+    /* nurgling: called many times per frame; the lookup boxes the id
+     * each time. The cached gob is reused while it is still the
+     * player's and still in the world. */
+    private Gob plcache = null;
     public Gob player() {
-	return((plgob < 0) ? null : glob.oc.getgob(plgob));
+	long id = plgob;
+	if(id < 0)
+	    return(null);
+	Gob c = plcache;
+	if((c != null) && (c.id == id) && !c.removed)
+	    return(c);
+	return(plcache = glob.oc.getgob(id));
     }
     
     public Coord3f getcc() {
@@ -1858,6 +1887,50 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	g.chcolor();
     }
 
+    protected boolean presentable() {
+	return(true);
+    }
+
+    /* nurgling: the camera state last set from the UI thread, which
+     * the present thread shifts along with the player (presentcam). */
+    private volatile Pipe.Op camstate = null;
+    protected void camstate(Pipe.Op cam) {
+	camstate = cam;
+	basic(Camera.class, cam);
+    }
+
+    private static class CamShift implements Pipe.Op {
+	final Coord3f d;
+
+	CamShift(Coord3f d) {
+	    this.d = d;
+	}
+
+	public void apply(Pipe p) {
+	    haven.render.Camera cam = p.get(Homo3D.cam);
+	    if(cam != null)
+		p.put(Homo3D.cam, new haven.render.Camera(cam.fin(Matrix4f.id).mul(Transform.makexlate(new Matrix4f(), d.inv()))));
+	}
+    }
+
+    /* Present thread: moves movers and the camera on to time now. */
+    void presentmotion(double now) {
+	for(Gob gob : glob.oc.movers) {
+	    try {
+		if(!gob.placed.present(now))
+		    glob.oc.movers.remove(gob);
+	    } catch(RenderTree.SlotRemoved e) {
+		glob.oc.movers.remove(gob);
+	    }
+	}
+	Pipe.Op cam = camstate;
+	if(cam == null)
+	    return;
+	Gob pl = player();
+	Coord3f d = (pl == null) ? null : pl.placed.ahead(now);
+	basic(Camera.class, (d == null) ? cam : Pipe.Op.compose(cam, new CamShift(d)));
+    }
+
     protected void maindraw(Render out) {
 	drawsmap(out);
 	super.maindraw(out);
@@ -1934,7 +2007,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    e.boostprio(5);
 		    camload = e;
 		}
-		basic(Camera.class, camera);
+		camstate(camera);
 	}
 
 	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "lighting-weather")) {

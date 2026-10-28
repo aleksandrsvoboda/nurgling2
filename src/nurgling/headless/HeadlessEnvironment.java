@@ -42,7 +42,7 @@ public class HeadlessEnvironment implements Environment {
 
     @Override
     public boolean compatible(DrawList ob) {
-        return ob instanceof HeadlessDrawList;
+        return haven.render.DeferredDrawList.unwrap(ob) instanceof HeadlessDrawList;
     }
 
     @Override

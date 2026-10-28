@@ -136,7 +136,7 @@ public class NPostFX {
 		view.add(cur);
 	    } else if(!want && (cur != null)) {
 		view.remove(cur);
-		cur.dispose();
+		view.retire(cur);
 		cur = null;
 	    }
 	    return(cur);
@@ -157,7 +157,7 @@ public class NPostFX {
 		rebasic.run();
 	    } else if(!wantg && (grade != null)) {
 		view.tonemap(null);
-		grade.dispose();
+		view.retire(grade);
 		grade = null;
 		rebasic.run();
 	    }
@@ -202,9 +202,9 @@ public class NPostFX {
 
 	public void dispose() {
 	    for(PostProcessor effect : new PostProcessor[]{grass,lightning,waterSurface,volumeFire,hist,heat,shafts,taa,autoexp,sharp,fxaa,dof}) {
-	        if(effect != null) {view.remove(effect);effect.dispose();}
+	        if(effect != null) {view.remove(effect);view.retire(effect);}
 	    }
-	    if(grade != null) {view.tonemap(null);grade.dispose();}
+	    if(grade != null) {view.tonemap(null);view.retire(grade);}
 	}
 
 	private Atmos.Env env = null;

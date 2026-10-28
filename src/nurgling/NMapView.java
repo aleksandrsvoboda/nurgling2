@@ -236,7 +236,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
 
     private nurgling.render.NPostFX.Manager postfx = null;
-    private nurgling.render.PointShadows pshadows = null;
+    private volatile nurgling.render.PointShadows pshadows = null;
 
     /* Photo mode: focus on the clicked point of the map. */
     private void photofocus(Coord2d mc) {
@@ -286,14 +286,13 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if ((n <= 0) || (instancer == null)) {
             if (pshadows != null) {
                 basic(nurgling.render.PointShadows.class, null);
-                pshadows.dispose();
+                retire(pshadows);
                 pshadows = null;
             }
             return;
         }
         if ((pshadows == null) || (pshadows.master() != instancer)) {
-            if (pshadows != null)
-                pshadows.dispose();
+            retire(pshadows);
             pshadows = new nurgling.render.PointShadows(instancer);
         }
         Coord3f cc;
@@ -307,8 +306,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     protected void maindraw(haven.render.Render out) {
-        if (pshadows != null)
-            pshadows.draw(out);
+        nurgling.render.PointShadows ps = pshadows;
+        if (ps != null)
+            ps.draw(out);
         super.maindraw(out);
     }
 
@@ -324,13 +324,14 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         // Graphics options: keep the post-processing chain in sync with the settings.
         if (postfx == null)
             postfx = new nurgling.render.NPostFX.Manager(this, this::basic, () -> {
-                if (back instanceof haven.render.vk.VkDrawList)
-                    ((haven.render.vk.VkDrawList) back).refresh();
+                haven.render.DrawList list = haven.render.DeferredDrawList.unwrap(back);
+                if (list instanceof haven.render.vk.VkDrawList)
+                    ((haven.render.vk.VkDrawList) list).refresh();
             });
         postfx.sync(g.out.env());
         // Use this view's effective settings and one immutable camera per draw.
         // UI ticks do not advance the temporal sampling sequence.
-        super.basic(Camera.class, nurgling.render.Temporal.cameraFrame(this, rendersz(), camera,
+        camstate(nurgling.render.Temporal.cameraFrame(this, rendersz(), camera,
                 nurgling.render.NGfx.effective(g.out.env()).taa));
         updpshadows();
         postfx.tick(this, (amblight == null) ? -1 : lights.index(amblight));

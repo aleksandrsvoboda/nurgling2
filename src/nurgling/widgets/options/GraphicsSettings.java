@@ -38,6 +38,11 @@ public class GraphicsSettings extends Panel {
 	fps.state(nurgling.widgets.FpsPanel::enabled);
 	fps.set(nurgling.widgets.FpsPanel::enabled);
 	prev = checkbox(cont, prev, fps);
+	CheckBox decoupled = new CheckBox(L10n.get("gfx.decoupled"));
+	decoupled.state(haven.PresentLoop::wanted);
+	decoupled.set(on -> nurgling.NConfig.set(nurgling.NConfig.Key.decoupledRender, on));
+	prev = checkbox(cont, prev, decoupled);
+	prev = cont.add(new Label(L10n.get("gfx.decoupled.note")), prev.pos("bl").adds(15, 2));
 	prev = check(cont, prev, "gfx.enabled", s -> s.enabled, "enabled");
 	prev = cont.add(new Label("") {
 		private Boolean shown = null;

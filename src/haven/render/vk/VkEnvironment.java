@@ -1272,6 +1272,7 @@ public class VkEnvironment implements Environment {
     /* compatible() */
 
     public boolean compatible(DrawList ob) {
+	ob = DeferredDrawList.unwrap(ob);
 	return((ob instanceof VkDrawList) && (((VkDrawList)ob).env == this));
     }
 
