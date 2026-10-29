@@ -273,7 +273,11 @@ public abstract class UILoop implements Console.Directory {
 
     private long prevfree = 0, framealloc = 0;
     protected void statlines(Collection<String> buf, UI ui) {
-	buf.add(String.format("FPS: %d (%d%% idle, latency %.2f ms)", fps, (int)(uidle * 100.0), framelag * 1000));
+	haven.iosys.tk.BridgeToolkit.BridgeWindow bw = (wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow) ? (haven.iosys.tk.BridgeToolkit.BridgeWindow)wnd : null;
+	if(bw != null)
+	    buf.add(String.format("FPS: %d shown, %d rendered (%d%% idle, latency %.2f ms)", bw.shownfps(), fps, (int)(uidle * 100.0), framelag * 1000));
+	else
+	    buf.add(String.format("FPS: %d (%d%% idle, latency %.2f ms)", fps, (int)(uidle * 100.0), framelag * 1000));
 	Runtime rt = Runtime.getRuntime();
 	long free = rt.freeMemory(), total = rt.totalMemory();
 	if(free < prevfree)
@@ -351,7 +355,8 @@ public abstract class UILoop implements Console.Directory {
 	}
 	/* nurgling: always-on FPS counter (was in GLPanel.display, bottom-left). */
 	if(layer == null)
-	    FastText.aprintf(g, new Coord(10, g.sz().y - UI.scale(10)), 0, 1, "FPS: %d", fps);
+	    FastText.aprintf(g, new Coord(10, g.sz().y - UI.scale(10)), 0, 1, "FPS: %d", (this.wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow) ?
+			     ((haven.iosys.tk.BridgeToolkit.BridgeWindow)this.wnd).shownfps() : fps);
 	if(dbtext.get())
 	    drawstats(ui, g, buf);
 	drawtooltip(ui, g);

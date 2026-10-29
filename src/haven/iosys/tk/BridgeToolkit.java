@@ -395,6 +395,25 @@ public class BridgeToolkit extends AWTToolkit {
 	    shm.putl(BridgeShm.H_FRAMEDUR, (long)(fd * 1e9));
 	}
 
+	/* The frames the presenter showed per second, over about the
+	 * last second: what is seen on screen. */
+	public int shownfps() {
+	    long n = shm.getl(BridgeShm.H_SHOWN);
+	    VarHandle.fullFence();
+	    long now = System.nanoTime(), first = 0;
+	    int c = 0;
+	    for(long i = n - 1; (i >= 0) && (i >= n - BridgeShm.NSHOWN); i--) {
+		long t = shm.getl(BridgeShm.H_SHOWNT + (int)((i % BridgeShm.NSHOWN) * 8));
+		if((now - t) > 1_000_000_000L)
+		    break;
+		first = t;
+		c++;
+	    }
+	    if(c < 2)
+		return(0);
+	    return((int)Math.round((c - 1) / ((now - first) / 1e9)));
+	}
+
 	public void recordshown(nurgling.render.FrameHistory hist) {
 	    long n = shm.getl(BridgeShm.H_SHOWN);
 	    VarHandle.fullFence();
