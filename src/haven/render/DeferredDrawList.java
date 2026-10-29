@@ -28,7 +28,7 @@ public class DeferredDrawList implements DrawList {
      * frame, before anything newer for them. */
     private Map<Slot<? extends Rendered>, Integer> retry = new LinkedHashMap<>();
     private static final int ADD = 1, UPDATE = 3;
-    /* Time per frame for applying changes; the rest waits a frame, so
+    /* Time per frame for applying slot changes; the rest waits a frame, so
      * an area streaming in spreads over frames instead of stalling
      * one. Changes are applied in arrival order, so none starves. */
     private static final double BUDGET = 0.0015;
@@ -117,6 +117,19 @@ public class DeferredDrawList implements DrawList {
 	    groups = new LinkedHashMap<>();
 	    retry = new LinkedHashMap<>();
 	}
+	/* State changes all apply, first, outside the budget: they only
+	 * recompute values for what is already drawn, and one left for
+	 * later draws a frame partly from the state before (the camera
+	 * among them, with the frame bridge shifting it as if it had
+	 * moved). */
+	Map<Pipe, int[]> gleft = new LinkedHashMap<>();
+	for(Map.Entry<Pipe, int[]> e : gbatch.entrySet()) {
+	    try {
+		back.update(e.getKey(), e.getValue());
+	    } catch(Loading l) {
+		gleft.put(e.getKey(), e.getValue());
+	    }
+	}
 	Map<Slot<? extends Rendered>, Integer> again = new LinkedHashMap<>();
 	Map<Slot<? extends Rendered>, Integer> left = new LinkedHashMap<>();
 	double end = Utils.rtime() + (replacing ? REPLACE_BUDGET : BUDGET);
@@ -129,18 +142,6 @@ public class DeferredDrawList implements DrawList {
 		    left.put(e.getKey(), e.getValue());
 		else
 		    run(e.getKey(), e.getValue(), again);
-	    }
-	}
-	Map<Pipe, int[]> gleft = new LinkedHashMap<>();
-	for(Map.Entry<Pipe, int[]> e : gbatch.entrySet()) {
-	    if(Utils.rtime() > end) {
-		gleft.put(e.getKey(), e.getValue());
-		continue;
-	    }
-	    try {
-		back.update(e.getKey(), e.getValue());
-	    } catch(Loading l) {
-		gleft.put(e.getKey(), e.getValue());
 	    }
 	}
 	synchronized(this) {
