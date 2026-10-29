@@ -14,9 +14,10 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2D{
     private boolean isSelected = false;
@@ -40,7 +41,7 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
         return t;
     });
     private boolean stale = true;
-    private Future<TexI[]> making = null;
+    private CompletableFuture<TexI[]> making = null;
 
     public NAreaLabel(Owner owner, NArea area) {
         super(owner, null);
@@ -57,13 +58,13 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
 
     private void make() {
         if((making != null) && making.isDone()) {
-            if(making.state() == Future.State.SUCCESS) {
-                TexI[] texs = making.resultNow();
+            try {
+                TexI[] texs = making.join();
                 label = texs[0];
                 sellabel = texs[1];
                 graylabel = texs[2];
-            } else {
-                new Warning(making.exceptionNow(), "could not render the label of area " + area.name).issue();
+            } catch(CompletionException e) {
+                new Warning(e.getCause(), "could not render the label of area " + area.name).issue();
             }
             making = null;
         }
@@ -73,7 +74,7 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
             List<String> specs = new ArrayList<>();
             for(NArea.Specialisation sp : area.spec)
                 specs.add(sp.name);
-            making = renderer.submit(() -> render(name, specs));
+            making = CompletableFuture.supplyAsync(() -> render(name, specs), renderer);
         }
     }
 
