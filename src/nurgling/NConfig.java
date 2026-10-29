@@ -113,6 +113,7 @@ public class NConfig
         showInventoryNums,
         hidecredo,
         autoDrink,
+        autoDrinkThreshold,
         autoSaveTableware,
         chipperprop,
         drinkerprop,
@@ -395,6 +396,7 @@ public class NConfig
         conf.put(Key.kamiCompatMapper, false);
         conf.put(Key.showInventoryNums, true);
         conf.put(Key.autoDrink, false);
+        conf.put(Key.autoDrinkThreshold, 50);  // Stamina % at or below which auto-drink triggers (10-95)
         conf.put(Key.autoSaveTableware, true);
         conf.put(Key.endpoint, "");
         conf.put(Key.questNotified, false);

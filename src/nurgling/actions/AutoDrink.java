@@ -26,6 +26,7 @@ public class AutoDrink implements Action
     {
         while(!stop.get())
         {
+            final double threshold = getThreshold();
             NUtils.addTask(new NTask() {
                 @Override
                 public boolean check() {
@@ -36,7 +37,7 @@ public class AutoDrink implements Action
                         return false;
                     NGameUI g = NUtils.getGameUI();
                     boolean botRunning = g != null && g.biw != null && g.biw.waitBot.get();
-                    return (!botRunning && stamina < 0.51) || stop.get();
+                    return (!botRunning && stamina < threshold) || stop.get();
                 }
             });
             if(stop.get()) {
@@ -77,6 +78,14 @@ public class AutoDrink implements Action
             }
         }
         return Results.SUCCESS();
+    }
+
+    /** Stamina fraction (0..1) at or below which auto-drink triggers, from the QoL slider (percent). */
+    static double getThreshold()
+    {
+        Object val = NConfig.get(NConfig.Key.autoDrinkThreshold);
+        int percent = (val instanceof Number) ? ((Number) val).intValue() : 50;
+        return percent / 100.0;
     }
 
     boolean checkWater() throws InterruptedException
