@@ -64,11 +64,14 @@ public class BackCache<K, V> {
 	}
     }
 
-    public boolean cached(K key) {
+    /* Synchronized because get() reorders the access-ordered map, and
+     * MapFile's callers hold only its read lock, which several threads
+     * (one UI thread per session) can hold at once. */
+    public synchronized boolean cached(K key) {
 	return(cache.containsKey(key));
     }
 
-    public V get(K key) {
+    public synchronized V get(K key) {
 	if(cache.containsKey(key))
 	    return(cache.get(key));
 	V ret = load.apply(key);
@@ -76,12 +79,12 @@ public class BackCache<K, V> {
 	return(ret);
     }
 
-    public void put(K key, V val) {
+    public synchronized void put(K key, V val) {
 	store.accept(key, val);
 	cache.put(key, val);
     }
 
-    public void remove(K key) {
+    public synchronized void remove(K key) {
 	store.accept(key, null);
 	cache.remove(key);
     }

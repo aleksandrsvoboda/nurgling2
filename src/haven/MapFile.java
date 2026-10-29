@@ -88,7 +88,23 @@ public class MapFile {
 	warn(null, fmt, args);
     }
 
+    /* Every session in this process that maps the same files gets the
+     * same MapFile. Each instance caches the segment index and writes
+     * it back whole, so two instances over the same files lose each
+     * other's grids and markers. */
+    private static final Map<Pair<ResCache, String>, MapFile> loaded = new HashMap<>();
+
     public static MapFile load(ResCache store, String filename) throws IOException {
+	synchronized(loaded) {
+	    Pair<ResCache, String> key = new Pair<>(store, filename);
+	    MapFile file = loaded.get(key);
+	    if(file == null)
+		loaded.put(key, file = load0(store, filename));
+	    return(file);
+	}
+    }
+
+    private static MapFile load0(ResCache store, String filename) throws IOException {
 	MapFile file = new MapFile(store, filename);
 	InputStream fp;
 	try {
