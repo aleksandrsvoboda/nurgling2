@@ -857,10 +857,18 @@ public class VkDrawList implements DrawList {
     }
 
     public void draw(Render r) {
+	draw(r, null);
+    }
+
+    /* nurgling: entered runs once the recording holds the list, after
+     * which no change can reach this frame (see DeferredDrawList). */
+    public void draw(Render r, Runnable entered) {
 	if(!(r instanceof VkRender) || (((VkRender)r).env != env))
 	    throw(new IllegalArgumentException());
 	VkRender g = (VkRender)r;
 	synchronized(this) {
+	    if(entered != null)
+		entered.run();
 	    if(!prepared && !stale.isEmpty()) {
 		double started = Utils.rtime();
 		rebuildnanos = replacing() ? REPLACE_NANOS : REBUILD_NANOS;

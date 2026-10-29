@@ -32,6 +32,11 @@ public class DeferredDrawList implements DrawList {
      * an area streaming in spreads over frames instead of stalling
      * one. Changes are applied in arrival order, so none starves. */
     private static final double BUDGET = 0.0015;
+    /* What replaces removed slots goes in whole, or what it replaces
+     * is missing from the frame (as VkDrawList.REPLACE_NANOS). */
+    private static final double REPLACE_BUDGET = 0.008;
+    /* A slot was removed from the back list since the last prepare. */
+    private boolean removed = false;
 
     public DeferredDrawList(DrawList back, RenderList.Adapter tree) {
 	this.back = back;
@@ -55,6 +60,8 @@ public class DeferredDrawList implements DrawList {
 	    Integer rprev = retry.remove(slot);
 	    /* A queued add never reached the back list. */
 	    listed = !(((prev != null) && (prev == ADD)) || ((rprev != null) && (rprev == ADD)));
+	    if(listed)
+		removed = true;
 	}
 	if(listed)
 	    back.remove(slot);
@@ -99,7 +106,10 @@ public class DeferredDrawList implements DrawList {
     public void prepare(RenderList.Adapter tree) {
 	Map<Slot<? extends Rendered>, Integer> sbatch, rbatch;
 	Map<Pipe, int[]> gbatch;
+	boolean replacing;
 	synchronized(this) {
+	    replacing = removed;
+	    removed = false;
 	    sbatch = slots;
 	    gbatch = groups;
 	    rbatch = retry;
@@ -109,7 +119,7 @@ public class DeferredDrawList implements DrawList {
 	}
 	Map<Slot<? extends Rendered>, Integer> again = new LinkedHashMap<>();
 	Map<Slot<? extends Rendered>, Integer> left = new LinkedHashMap<>();
-	double end = Utils.rtime() + BUDGET;
+	double end = Utils.rtime() + (replacing ? REPLACE_BUDGET : BUDGET);
 	/* A retried add reads the latest state anyway. */
 	for(Slot<? extends Rendered> slot : rbatch.keySet())
 	    sbatch.remove(slot);
@@ -169,16 +179,41 @@ public class DeferredDrawList implements DrawList {
     public void draw(Render out) {
 	/* While someone holds the tree, the changes wait a frame: the
 	 * back list is complete as of its last prepare, and drawing it
-	 * reads only its own state. */
-	Locked lk = tree.trylock();
-	if(lk != null) {
-	    try {
-		prepare(tree);
-	    } finally {
+	 * reads only its own state. Not after a removal, though, which
+	 * applied at once: what replaces it is among the queued adds
+	 * (map cuts and overlays add the new and remove the old, every
+	 * frame while an area selection is dragged), and the frame would
+	 * lack both. */
+	boolean replacing;
+	synchronized(this) {
+	    replacing = removed;
+	}
+	Locked lk = replacing ? tree.lock() : tree.trylock();
+	if(lk == null) {
+	    back.draw(out);
+	    return;
+	}
+	/* Held until the recording has begun, so that no removal falls
+	 * between the prepare and it; removals wait for the recording
+	 * after that. */
+	boolean[] held = {true};
+	Runnable release = () -> {
+	    if(held[0]) {
+		held[0] = false;
 		lk.close();
 	    }
+	};
+	try {
+	    prepare(tree);
+	    if(back instanceof haven.render.vk.VkDrawList) {
+		((haven.render.vk.VkDrawList)back).draw(out, release);
+	    } else {
+		release.run();
+		back.draw(out);
+	    }
+	} finally {
+	    release.run();
 	}
-	back.draw(out);
     }
 
     public DrawList async(boolean enabled) {
