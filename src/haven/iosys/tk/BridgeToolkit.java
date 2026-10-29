@@ -448,7 +448,7 @@ public class BridgeToolkit extends AWTToolkit {
 		double[] slide = this.slide;
 		Coord ul = scul;
 		int uigen = zuigen[slot], scgen = zscgen[slot];
-		out.fence(() -> publish(slot, us, ss, ul, time, slide, true, uigen, scgen));
+		out.gpufence(() -> publish(slot, us, ss, ul, time, slide, true, uigen, scgen));
 		return;
 	    }
 	    Coord us = uisz;

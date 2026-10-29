@@ -266,8 +266,9 @@ public class BridgePresenter {
 	shm.puti(BridgeShm.H_READING, slot);
 	VarHandle.fullFence();
 	/* Re-read under the reading mark; the client skips this slot
-	 * from now on. */
-	if(shm.getl(off + BridgeShm.S_SEQ) != seq)
+	 * from now on. Once it is no longer the latest, the client may
+	 * have started drawing into it again before seeing the mark. */
+	if((shm.getl(off + BridgeShm.S_SEQ) != seq) || (shm.geti(BridgeShm.H_LATEST) != slot))
 	    return;
 	boolean zc = shm.geti(off + BridgeShm.S_ZC) != 0;
 	Coord us = Coord.of(shm.geti(off + BridgeShm.S_UIW), shm.geti(off + BridgeShm.S_UIH));
@@ -295,7 +296,7 @@ public class BridgePresenter {
 		dsc = zscsmp[slot];
 	    }
 	    cur = slot;
-	    out.fence(() -> {
+	    out.gpufence(() -> {
 		    if(shm.geti(BridgeShm.H_READPREV) == prevcur)
 			shm.puti(BridgeShm.H_READPREV, -1);
 		});
@@ -319,7 +320,7 @@ public class BridgePresenter {
 		dsc = scsmp;
 	    }
 	    cur = -1;
-	    out.fence(() -> {
+	    out.gpufence(() -> {
 		    if(shm.geti(BridgeShm.H_READING) == slot)
 			shm.puti(BridgeShm.H_READING, -1);
 		    if(shm.geti(BridgeShm.H_READPREV) == prevcur)
@@ -608,7 +609,7 @@ public class BridgePresenter {
 		    take(out);
 		draw(out, wsz, vnow, fresh);
 		wnd.swapbuffers(out, Boolean.TRUE);
-		out.fence(done);
+		out.gpufence(done);
 		env.submit(out);
 		out = null;
 	    } finally {

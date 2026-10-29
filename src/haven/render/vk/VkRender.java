@@ -461,6 +461,16 @@ public class VkRender implements Render, Disposable {
 	}
     }
 
+    static class GpuFenceCmd extends Cmd {
+	final Runnable cb;
+	GpuFenceCmd(Runnable cb) {this.cb = cb;}
+	void exec(VkExec ex, VkRender r) {ex.gpufence(cb);}
+	void abort() {
+	    if(cb instanceof Abortable)
+		((Abortable)cb).abort();
+	}
+    }
+
     static class ExtSyncCmd extends Cmd {
 	void exec(VkExec ex, VkRender r) {ex.extsync();}
     }
@@ -764,6 +774,10 @@ public class VkRender implements Render, Disposable {
 
     public void fence(Runnable callback) {
 	cmds.add(new FenceCmd(callback));
+    }
+
+    public void gpufence(Runnable callback) {
+	cmds.add(new GpuFenceCmd(callback));
     }
 
     public void swapbuffers(boolean vsync) {

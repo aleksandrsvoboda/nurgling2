@@ -45,6 +45,11 @@ public interface Render extends Disposable {
     public void pget(Texture.Image img, VectorFormat fmt, ByteBuffer dstbuf, Consumer<ByteBuffer> callback);
     public void timestamp(Consumer<Long> callback);
     public void fence(Runnable callback);
+    /* nurgling: like fence, but called only once the GPU has finished
+     * everything before it, not merely once it was given the commands;
+     * for what another process reads of this one's drawing (the frame
+     * bridge). */
+    public default void gpufence(Runnable callback) {fence(callback);}
 
     public default void marker(String name) {}
 

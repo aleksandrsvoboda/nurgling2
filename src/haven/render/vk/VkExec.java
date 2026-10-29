@@ -441,6 +441,7 @@ public class VkExec {
 	}
 	if(unit != null)
 	    submit(false, 0);
+	flushgpufences();
 	List<VkObject> reap = env.reapable();
 	if(!reap.isEmpty()) {
 	    Slot last = inflight.peekLast();
@@ -450,6 +451,60 @@ public class VkExec {
 		for(VkObject obj : reap)
 		    obj.destroy0();
 	    }
+	}
+    }
+
+    /* nurgling: callbacks for when the GPU has finished all work
+     * submitted before them (Render.gpufence). After each batch, an
+     * empty submission signals a fence of their own, which a waiter
+     * thread waits on; the units' fences are reset as soon as their
+     * slot is reused, so nothing else can wait on those. */
+    private List<Runnable> gpupend = new ArrayList<>();
+    private final java.util.concurrent.LinkedBlockingQueue<Object[]> gpuwait = new java.util.concurrent.LinkedBlockingQueue<>();
+    private Thread gpuwaiter = null;
+
+    void gpufence(Runnable cb) {
+	gpupend.add(cb);
+    }
+
+    private void flushgpufences() {
+	if(gpupend.isEmpty())
+	    return;
+	try(MemoryStack st = stackPush()) {
+	    LongBuffer lp = st.mallocLong(1);
+	    VkEnvironment.check(vkCreateFence(dev, VkFenceCreateInfo.calloc(st).sType$Default(), null, lp), "vkCreateFence");
+	    long fence = lp.get(0);
+	    VkEnvironment.check(vkQueueSubmit(env.queue, (VkSubmitInfo.Buffer)null, fence), "vkQueueSubmit");
+	    gpuwait.add(new Object[] {fence, gpupend});
+	}
+	gpupend = new ArrayList<>();
+	if(gpuwaiter == null) {
+	    gpuwaiter = new HackThread(this::gpuwaitloop, "Vulkan GPU fence waiter");
+	    gpuwaiter.setDaemon(true);
+	    gpuwaiter.start();
+	}
+    }
+
+    @SuppressWarnings("unchecked")
+    private void gpuwaitloop() {
+	try {
+	    while(true) {
+		Object[] w = gpuwait.take();
+		if(w.length == 0)
+		    return;
+		long fence = (Long)w[0];
+		while(true) {
+		    int rv = vkWaitForFences(dev, fence, true, 1000000000L);
+		    if(rv == VK_SUCCESS)
+			break;
+		    if(rv != VK_TIMEOUT)
+			throw(new VkEnvironment.VkException("vkWaitForFences", rv));
+		}
+		vkDestroyFence(dev, fence, null);
+		for(Runnable cb : (List<Runnable>)w[1])
+		    env.callback(cb);
+	    }
+	} catch(InterruptedException e) {
 	}
     }
 
@@ -467,7 +522,7 @@ public class VkExec {
 		 * nested renders do not need a command buffer. Beginning a
 		 * unit here can wait on an old GPU fence just to deliver a
 		 * CPU callback, then submit an otherwise empty buffer. */
-		if((cmd instanceof FenceCmd) || (cmd instanceof SubCmd)) {
+		if((cmd instanceof FenceCmd) || (cmd instanceof GpuFenceCmd) || (cmd instanceof SubCmd)) {
 		    cmd.exec(this, r);
 		    continue;
 		}
@@ -1295,7 +1350,16 @@ public class VkExec {
     void dispose() {
 	if(unit != null)
 	    submit(false, 0);
+	flushgpufences();
 	idle();
+	if(gpuwaiter != null) {
+	    gpuwait.add(new Object[0]);
+	    try {
+		gpuwaiter.join();
+	    } catch(InterruptedException e) {
+		Thread.currentThread().interrupt();
+	    }
+	}
 	for(VkObject obj : env.reapable())
 	    obj.destroy0();
 	if(swap != null)
