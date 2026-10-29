@@ -44,7 +44,7 @@ public class NMiniMapWnd extends Widget{
         }
 
         private boolean usesAutoExposure() {
-            return ui != null && NGfx.supported(ui.getenv());
+            return ui != null && NGfx.effective(ui.getenv()).enabled;
         }
 
         @Override
