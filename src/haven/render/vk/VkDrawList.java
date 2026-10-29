@@ -451,6 +451,10 @@ public class VkDrawList implements DrawList {
 	    // with the same shader still update immediately.
 	    if(val != null) {
 		for(int i = 0; i < dependencies.length; i++) {
+		    // A dependency removed outright (shadows turned off) is no
+		    // longer defined at all, and reading it fails.
+		    if(!RenderTree.defines((key.depid_v == null) ? key.depid_1 : key.depid_v[i], dependencies[i]))
+			return;
 		    State state = current.get(dependencies[i]);
 		    ShaderMacro shader = (state == null) ? null : state.shader();
 		    if(shader != dependencyShaders[i])

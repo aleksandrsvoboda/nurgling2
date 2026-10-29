@@ -411,6 +411,12 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 	}
     }
 
+    /* nurgling: whether a slot's state is defined in a state group,
+     * without reading it; group pipes of other kinds never change. */
+    public static boolean defines(Pipe group, State.Slot<?> slot) {
+	return(!(group instanceof TreeSlot.SlotPipe) || ((TreeSlot.SlotPipe)group).defines(slot));
+    }
+
     static class TreeSlot implements Slot {
 	final TreeSlot parent;
 	final RenderTree tree;
@@ -732,6 +738,11 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 		if((bk.states.length <= idx) || !bk.def[idx])
 		    NUtils.getGameUI().error("Reading undefined slot " + slot + " from slot-pipe");
 		return((T)bk.states[idx]);
+	    }
+
+	    public boolean defines(State.Slot<?> slot) {
+		DepInfo bk = dstate();
+		return((slot.id < bk.states.length) && bk.def[slot.id]);
 	    }
 
 	    public Pipe copy() {
