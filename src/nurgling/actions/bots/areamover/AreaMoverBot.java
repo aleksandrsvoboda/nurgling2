@@ -127,14 +127,18 @@ public class AreaMoverBot implements Action {
                 moved.merge(e.getKey(), e.getValue() - left.getOrDefault(e.getKey(), 0), Integer::sum);
             if (!unloaded.IsSuccess()) {
                 report(gui, moved, unload.pilesBuilt);
-                gui.error(L10n.get("areamover.dest_full"));
                 return unloaded;
             }
-            if (load.exhausted)
+            // A full destination ends the run but is not a failure, so a scenario carries on.
+            if (unload.outOfRoom || load.exhausted)
                 break;
         }
 
         report(gui, moved, unload.pilesBuilt);
+        if (unload.outOfRoom) {
+            System.out.println("[AreaMover] destination " + to.name + " is full, stopping");
+            gui.msg(L10n.get("areamover.dest_full"));
+        }
         if (load.stuckCount() > 0)
             gui.msg(String.format(L10n.get("areamover.stuck"), load.stuckCount()));
         return Results.SUCCESS();

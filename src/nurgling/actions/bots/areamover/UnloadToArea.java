@@ -54,6 +54,8 @@ class UnloadToArea implements Action {
     private boolean noPileSpace = false;
 
     int pilesBuilt = 0;
+    /** Set when a trip ended with cargo left over because Y had no room for it. */
+    boolean outOfRoom = false;
 
     UnloadToArea(NArea area, Cargo cargo, Set<String> stockpileable, boolean createPiles) {
         this.area = area;
@@ -62,7 +64,7 @@ class UnloadToArea implements Action {
         this.createPiles = createPiles;
     }
 
-    /** @return SUCCESS when everything carried was put away, FAIL when Y ran out of room. */
+    /** @return ERROR when Y cannot be reached, else SUCCESS; {@link #outOfRoom} tells whether Y ran out of room. */
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         // Ensure presence: new pile spots are chosen from what is loaded, so all of Y must be.
@@ -92,7 +94,8 @@ class UnloadToArea implements Action {
             }
         }
 
-        return cargo.total(gui) == 0 ? Results.SUCCESS() : Results.FAIL();
+        outOfRoom = cargo.total(gui) > 0;
+        return Results.SUCCESS();
     }
 
     private void putIntoExistingPile(NGameUI gui, Gob cached) throws InterruptedException {
