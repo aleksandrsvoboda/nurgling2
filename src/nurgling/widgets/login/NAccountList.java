@@ -4,19 +4,26 @@ import haven.*;
 import nurgling.conf.NCharTags;
 import nurgling.conf.NSavedAccounts.Account;
 import nurgling.i18n.L10n;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
 import nurgling.widgets.NTagsWnd;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Saved accounts as rows on the scrim. A click selects the account (the form follows it), a
  * double-click or Enter logs in, dragging a row reorders the list, and removing one takes a second
  * click on the same row's "×" (or a second Delete), so a stray click never throws a login away.
  * Each account also carries tags and a note, drawn on its row and edited by right-clicking it or
- * clicking the note glyph the row shows while it is under the pointer.
+ * clicking the note glyph the row shows while it is under the pointer. An account already logged in
+ * in another session shows an "Online" badge in place of its last-used time.
  */
 public class NAccountList extends SListBox<Account, Widget> {
     public static final int ROWH = UI.scale(30);
@@ -56,6 +63,12 @@ public class NAccountList extends SListBox<Account, Widget> {
     private boolean dragged = false;
     private int dragy = 0;
     private UI.Grab dgrab = null;
+    /* Accounts logged in in other sessions: lower-case name -> character name ("" before one is
+     * chosen). Polled rather than fed by a SessionChangeListener, whose callbacks come from the
+     * headless sessions' threads and would change this widget off the UI thread. */
+    private Map<String, String> online = Collections.emptyMap();
+    private final Map<String, Text> onlinetexts = new HashMap<>();
+    private double onlinecheck = 0;
 
     public NAccountList(int w, Listener l) {
         super(Coord.of(w, ROWH), ROWH);
@@ -88,6 +101,32 @@ public class NAccountList extends SListBox<Account, Widget> {
     /** Number of real saved accounts (without the "another account" row). */
     public int saved() {
         return (items.size() - 1);
+    }
+
+    public void tick(double dt) {
+        super.tick(dt);
+        if ((onlinecheck -= dt) <= 0) {
+            onlinecheck = 0.5;
+            Map<String, String> now = new HashMap<>();
+            for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
+                if ((ctx.username == null) || !ctx.isConnected())
+                    continue;
+                String chr = ctx.getDisplayName();
+                now.put(ctx.username.toLowerCase(Locale.ROOT), chr.equals(ctx.username) ? "" : chr);
+            }
+            if (!now.equals(online))
+                online = now;
+        }
+    }
+
+    /* Saved names come back from the auth server as the account's own name, as do session names;
+     * only legacy password entries keep the name as typed, hence the case-insensitive match. */
+    private String online(Account a) {
+        return ((a == ANOTHER) ? null : online.get(a.name.toLowerCase(Locale.ROOT)));
+    }
+
+    private Text onlinetext(String chr) {
+        return (onlinetexts.computeIfAbsent(chr, c -> NLoginTheme.badge.render(c.isEmpty() ? L10n.get("login.online") : L10n.get("login.online_as", c))));
     }
 
     public Account find(String name) {
@@ -313,7 +352,14 @@ public class NAccountList extends SListBox<Account, Widget> {
             if (conf)
                 return;
             int right = editx - UI.scale(4);
-            if (meta != null) {
+            String chr = online(a);
+            if (chr != null) {
+                /* "Used 2 h ago" means nothing for an account that is playing right now. */
+                Text b = onlinetext(chr);
+                right -= b.sz().x + UI.scale(10);
+                NLoginTheme.drawBadge(g, Coord.of(right, cy - (NLoginTheme.badgeh() / 2)), b, NLoginTheme.ok);
+                right -= UI.scale(6);
+            } else if (meta != null) {
                 right -= meta.sz().x;
                 g.image(meta.tex(), Coord.of(right, cy - (meta.sz().y / 2)));
                 right -= UI.scale(6);
@@ -397,8 +443,13 @@ public class NAccountList extends SListBox<Account, Widget> {
             StringBuilder sb = new StringBuilder();
             List<String> tags = NCharTags.accTags(a.name);
             String note = NCharTags.accNote(a.name);
-            if (!tags.isEmpty())
+            if (online(a) != null)
+                sb.append(L10n.get("login.online_tip"));
+            if (!tags.isEmpty()) {
+                if (sb.length() > 0)
+                    sb.append("\n\n");
                 sb.append(String.join(", ", tags));
+            }
             if (!note.isEmpty()) {
                 if (sb.length() > 0)
                     sb.append("\n\n");
