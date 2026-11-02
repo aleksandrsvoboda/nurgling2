@@ -24,11 +24,14 @@ public class TransferToTrough implements Action {
     @Override
     public Results run ( NGameUI gui )
             throws InterruptedException {
+            addTroughs(troughs, area);
             if(troughs.isEmpty())
                 return Results.ERROR("NO THROUGH");
             ArrayList<WItem> witems;
 
             while(!(witems = gui.getInventory ().getItems( items )).isEmpty()) {
+                // Troughs out of view when the list was built show up as the walk gets closer.
+                addTroughs(troughs, area);
                 // A full trough hands over to the nearest one with room; the cistern is only
                 // used once every trough is full, since emptying one means carrying it there.
                 Gob trough = nearest(true);
@@ -91,6 +94,26 @@ public class TransferToTrough implements Action {
                 result.add(gob);
         }
         return result;
+    }
+
+    /**
+     * Adds the troughs of the area that are not in the list yet. A trough only shows up once
+     * it is loaded, so a list built far from the area misses some. No-op without an area.
+     */
+    public static void addTroughs(List<Gob> troughs, NArea area) throws InterruptedException {
+        if (area == null)
+            return;
+        for (Gob gob : findTroughs(area)) {
+            boolean known = false;
+            for (Gob trough : troughs) {
+                if (trough.id == gob.id) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known)
+                troughs.add(gob);
+        }
     }
 
     /** Whether any of the troughs can still take items (attribute 7 = full). */
@@ -193,7 +216,24 @@ public class TransferToTrough implements Action {
         this.cistern = cistern;
     }
 
+    /**
+     * Fills the troughs like the list constructor, and also picks up troughs of the area that
+     * come into view. They are added to the given list, so a caller that keeps it for later
+     * drop-offs keeps them too.
+     */
+    public TransferToTrough(
+            List<Gob> troughs,
+            NArea area,
+            NAlias items,
+            Gob cistern
+    )
+    {
+        this(troughs,items,cistern);
+        this.area = area;
+    }
+
     List<Gob> troughs;
+    NArea area = null;
     Gob cistern = null;
     NAlias items;
 }

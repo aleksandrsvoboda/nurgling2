@@ -50,8 +50,10 @@ public class HarvestCrop implements Action {
         // The trough area is optional (farmers register it via Validator's opt list), so trougha
         // is null whenever none is configured or one is out of findSpec()'s range. Everything
         // downstream already handles an empty trough list - TransferToTrough returns early on it,
-        // and the quality-grid path leaves it empty deliberately.
-        List<Gob> troughs = isQualityGrid ? List.of() : TransferToTrough.findTroughs(trougha);
+        // and the quality-grid path leaves it empty deliberately. Troughs not loaded yet are
+        // added to this list by each drop-off (TransferToTrough with the area).
+        List<Gob> troughs = isQualityGrid ? new ArrayList<>() : TransferToTrough.findTroughs(trougha);
+        NArea troughArea = isQualityGrid ? null : trougha;
 
         Gob cistern = null;
         if(this.swill!=null)
@@ -73,7 +75,7 @@ public class HarvestCrop implements Action {
                 }
                 // After barrels, transfer leftovers to trough/cistern
                 if (!gui.getInventory().getItems(stage.result).isEmpty()) {
-                    new TransferToTrough(troughs, stage.result, cistern).run(gui);
+                    new TransferToTrough(troughs, troughArea, stage.result, cistern).run(gui);
                 }
             }
         }
@@ -297,7 +299,7 @@ public class HarvestCrop implements Action {
                 }
                 // 3. Leftover to trough/cistern
                 if (!gui.getInventory().getItems(seedAlias).isEmpty()) {
-                    new TransferToTrough(troughs, seedAlias, cistern).run(gui);
+                    new TransferToTrough(troughs, trougha, seedAlias, cistern).run(gui);
                 }
             }
         } else {
