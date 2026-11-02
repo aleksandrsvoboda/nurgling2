@@ -30,7 +30,7 @@ import java.util.ArrayList;
  * </ul>
  *
  * <p>Priority order: embers → equipped lit torch → unlit torch + brazier → in-view lit candelabrum →
- * torchpost (lit) → torchpost (unlit) + brazier → branches → (bot path only, last resort) fetch a lit
+ * torchpost (lit) → torchpost (unlit) + brazier → box of matches → branches → (bot path only, last resort) fetch a lit
  * candelabrum from its designated spec area. The area fetch is last because it can be a long round-trip;
  * every nearby option is preferred over it.
  *
@@ -243,7 +243,11 @@ public class LightObject implements Action {
         tryUnlitTorchpostWithBrazier(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
-        // Priority 6: Branches — always per-gob, never batched (firebrand is single-use).
+        // Priority 6: Box of matches carried in inventory/belt.
+        tryMatches(gui, remaining);
+        if (remaining.isEmpty()) return Results.SUCCESS();
+
+        // Priority 7: Branches — always per-gob, never batched (firebrand is single-use).
         lightWithBranches(gui, remaining);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
@@ -674,7 +678,67 @@ public class LightObject implements Action {
         }
     }
 
-    // --- Priority 6: Branches (never batched — re-craft a firebrand per gob) ---
+    // --- Priority 6: Box of matches (batched: take to hand once, light everything, put back once) ---
+
+    private static final NAlias MATCHES_ALIAS = new NAlias("Box of Matches");
+
+    private void tryMatches(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
+        // A matchbox has no equip slot, so only the main inventory and the belt are searched.
+        int matchesSource = SOURCE_INVENTORY;
+        WItem matches = gui.getInventory().getItem(MATCHES_ALIAS);
+
+        if (matches == null) {
+            NInventory beltInv = getBeltInventory();
+            if (beltInv != null) {
+                matches = beltInv.getItem(MATCHES_ALIAS);
+                matchesSource = SOURCE_BELT;
+            }
+        }
+
+        if (matches == null)
+            return;
+
+        // Acquire (once)
+        NUtils.takeItemToHand(matches);
+        NUtils.getUI().core.addTask(new WaitItemInHand());
+
+        // Apply (per gob) — right-click the held matchbox on each target.
+        for (Gob t : orderByProximity(remaining)) {
+            if (gui.vhand == null)
+                break; // matchbox left our hand — stop and release
+            LightConfig config = getConfig(t.ngob.name);
+            if (config == null)
+                continue;
+            if (isLit(t, config)) {
+                remaining.remove(t);
+                continue;
+            }
+            new PathFinder(t).run(gui);
+            NUtils.activateItem(t);
+            NUtils.getUI().core.addTask(new NTask() {
+                { infinite = false; }
+                @Override
+                public boolean check() {
+                    return isLit(t, config);
+                }
+            });
+            if (!isLit(t, config))
+                break; // strike failed (box likely out of charges) — leave this and the rest to later tiers
+            remaining.remove(t);
+        }
+
+        // Release (once): put the matchbox back where it came from — an exhausted box is still held.
+        if (gui.vhand != null) {
+            if (matchesSource == SOURCE_BELT) {
+                NUtils.transferToBelt();
+            } else {
+                NUtils.dropToInv();
+            }
+            NUtils.getUI().core.addTask(new WaitFreeHand());
+        }
+    }
+
+    // --- Priority 7: Branches (never batched — re-craft a firebrand per gob) ---
 
     private void lightWithBranches(NGameUI gui, ArrayList<Gob> remaining) throws InterruptedException {
         for (Gob t : new ArrayList<>(remaining)) {
