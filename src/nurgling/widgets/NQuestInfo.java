@@ -115,6 +115,8 @@ public class NQuestInfo extends Widget
     /* New UI (decided at client start, like the fonts): flat icon toolbar. */
     private final boolean flat = nurgling.styles.UIResources.active();
     private KindChip[] chips;
+    /** Buttons added from outside (plugins), laid out right to left before the search button. */
+    private final List<Widget> extraButtons = new ArrayList<>();
     private TextEntry searchbox;
     private String search = "";
     private int headerH = 0;
@@ -189,6 +191,41 @@ public class NQuestInfo extends Widget
         searchbox.hide();
         body = add(new Scrollport(DEF_SZ));
         relayout();
+    }
+
+    /* ------------------------------------------------------------------ plugin seam */
+
+    /**
+     * Adds a button to the toolbar, to the left of the search button (later ones further left).
+     * It is laid out with the built-in buttons whenever the panel is resized; size it with
+     * {@link #toolbarButtonSize()} to line up with them.
+     */
+    public <T extends Widget> T addToolbarButton(T w)
+    {
+        add(w);
+        extraButtons.add(w);
+        relayout();
+        return w;
+    }
+
+    @Override
+    public void cdestroy(Widget w)
+    {
+        if(extraButtons.remove(w))
+            relayout();
+        super.cdestroy(w);
+    }
+
+    /** True when the toolbar uses the flat icon style (new UI), false for the classic image buttons. */
+    public boolean flatToolbar()
+    {
+        return flat;
+    }
+
+    /** The size of the built-in toolbar buttons. */
+    public Coord toolbarButtonSize()
+    {
+        return searchbtn.sz;
     }
 
     /* ------------------------------------------------------------------ settings */
@@ -271,6 +308,10 @@ public class NQuestInfo extends Widget
             gearbtn.c = new Coord(rx, top + (toolbarH - gearbtn.sz.y) / 2);
             rx -= searchbtn.sz.x + gap;
             searchbtn.c = new Coord(rx, top + (toolbarH - searchbtn.sz.y) / 2);
+            for(Widget w : extraButtons) {
+                rx -= w.sz.x + gap;
+                w.c = new Coord(rx, top + (toolbarH - w.sz.y) / 2);
+            }
         } else {
             modebtn.c = new Coord(x, top);
             x += modebtn.sz.x + PAD.x;
@@ -282,6 +323,10 @@ public class NQuestInfo extends Widget
             gearbtn.c = new Coord(rx, top);
             rx -= searchbtn.sz.x + PAD.x;
             searchbtn.c = new Coord(rx, top);
+            for(Widget w : extraButtons) {
+                rx -= w.sz.x + PAD.x;
+                w.c = new Coord(rx, top + (searchbtn.sz.y - w.sz.y) / 2);
+            }
         }
 
         int y = top + modebtn.sz.y + PAD.y;
