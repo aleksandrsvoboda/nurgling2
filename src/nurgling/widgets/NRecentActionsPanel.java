@@ -21,15 +21,25 @@ public class NRecentActionsPanel extends Widget {
     
     private final LinkedList<RecentAction> recentActions = new LinkedList<>();
     private final List<ActionButton> actionButtons = new ArrayList<>();
+    /** Turned with the drag-mode flip button: a row instead of the default column. */
+    private boolean horizontal = false;
     
     public NRecentActionsPanel() {
-        super(calculateSize());
+        super(calculateSize(false));
         updateLayout();
     }
     
-    private static Coord calculateSize() {
-        // Same width as NBotsMenu (UI.scale(34)) and height for MAX_RECENT_ACTIONS buttons
-        return new Coord(UI.scale(34), (BUTTON_SIZE.y + BUTTON_SPACING) * MAX_RECENT_ACTIONS + UI.scale(4));
+    private static Coord calculateSize(boolean horizontal) {
+        // One bot-menu tile (UI.scale(34)) across, MAX_RECENT_ACTIONS buttons along
+        int along = (BUTTON_SIZE.y + BUTTON_SPACING) * MAX_RECENT_ACTIONS + UI.scale(4);
+        return horizontal ? new Coord(along, UI.scale(34)) : new Coord(UI.scale(34), along);
+    }
+
+    @Override
+    public synchronized void flip(boolean val) {
+        horizontal = val;
+        resize(calculateSize(horizontal));
+        updateLayout();
     }
     
     /**
@@ -121,7 +131,8 @@ public class NRecentActionsPanel extends Widget {
         
         // Create buttons for all 10 slots (whether they have actions or not)
         for (int i = 0; i < MAX_RECENT_ACTIONS; i++) {
-            Coord buttonPos = new Coord(UI.scale(1), UI.scale(2) + i * (BUTTON_SIZE.y + BUTTON_SPACING));
+            int along = UI.scale(2) + i * (BUTTON_SIZE.y + BUTTON_SPACING);
+            Coord buttonPos = horizontal ? new Coord(along, UI.scale(1)) : new Coord(UI.scale(1), along);
             
             RecentAction action = (i < recentActions.size()) ? recentActions.get(i) : null;
             ActionButton button = new ActionButton(action);
