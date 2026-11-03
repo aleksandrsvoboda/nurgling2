@@ -34,8 +34,6 @@ public class LpGatherer implements Action {
     private static final NAlias SAWS = new NAlias("Bonesaw", "Bone Saw", "Metal Saw");
     private static final NAlias AXES = new NAlias("Woodsman's Axe", "Stone Axe", "Metal Axe", "Butcher's cleaver",
             "Tinker's Throwing Axe", "Battle Axe of the Twelfth Bay");
-    private static final NAlias CHIPPERS = new NAlias("Woodsman's Axe", "Stone Axe", "Metal Axe", "Butcher's cleaver",
-            "Tinker's Throwing Axe", "Battle Axe of the Twelfth Bay", "Pickaxe");
 
     /** A gob that never got its product credited is given up on, and a product after this many such gobs. */
     private static final int MAX_FAILS_PER_PRODUCT = 2;
@@ -52,11 +50,13 @@ public class LpGatherer implements Action {
     private enum Kind {
         LEAF("leaf", null, new Coord(1, 1)),
         SEED("seed or fruit", null, new Coord(1, 1)),
-        BOUGH("bough", null, new Coord(2, 1)),
+        // Taking a bough needs an axe in hand: without one the action just stops.
+        BOUGH("bough", AXES, new Coord(2, 1)),
         BARK("bark", null, new Coord(1, 1)),
         BOARD("board", SAWS, new Coord(4, 1)),
         BLOCK("block", AXES, new Coord(1, 2)),
-        STONE("stone", CHIPPERS, new Coord(1, 1));
+        // Chipping stone works bare-handed.
+        STONE("stone", null, new Coord(1, 1));
 
         final String label;
         final NAlias tool;
@@ -139,6 +139,11 @@ public class LpGatherer implements Action {
         }
     }
 
+    /** Whether to drink and eat (RestoreResources) before each item; off for a character with nothing to drink or eat. */
+    private final boolean restore;
+    /** Checked before each item: true ends the run early (e.g. the caller has the LP it needed). Null = gather everything. */
+    private final java.util.function.BooleanSupplier enough;
+
     private final Set<Long> unreachable = new HashSet<>();
     private final Set<String> failed = new HashSet<>();
     private final Map<String, Integer> failsPerProduct = new HashMap<>();
@@ -148,6 +153,25 @@ public class LpGatherer implements Action {
     private final Map<String, String> problems = new TreeMap<>();
     /** The petals the last NO_PETAL menu offered. */
     private List<String> offered = Collections.emptyList();
+
+    public LpGatherer() {
+        this(true);
+    }
+
+    /**
+     * restoreResources false skips drinking and eating before each item, so a character with no
+     * water or food (a fresh one) still gathers - RestoreResources otherwise fails and ends the run
+     * once stamina is below half.
+     */
+    public LpGatherer(boolean restoreResources) {
+        this(restoreResources, null);
+    }
+
+    /** As above, and stops as soon as enough says so (checked before each item), instead of when nothing is left in view. */
+    public LpGatherer(boolean restoreResources, java.util.function.BooleanSupplier enough) {
+        this.restore = restoreResources;
+        this.enough = enough;
+    }
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
@@ -160,11 +184,13 @@ public class LpGatherer implements Action {
 
         while (true) {
             skipped.clear();
+            if (enough != null && enough.getAsBoolean())
+                break;
             Target target = nextTarget(gui);
             if (target == null)
                 break;
 
-            if (!new RestoreResources().run(gui).IsSuccess())
+            if (restore && !new RestoreResources().run(gui).IsSuccess())
                 return Results.ERROR("Failed to restore resources");
             if (!new PathFinder(target.gob).run(gui).IsSuccess()) {
                 unreachable.add(target.gob.id);
