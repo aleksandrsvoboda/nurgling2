@@ -427,7 +427,10 @@ public class NCore extends Widget
         }
 
         NGameUI gui = NUtils.getGameUI();
-        if(gui != null && autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
+        /* ui.gui is never cleared, so after a logout to the character list it still points at the destroyed
+         * game UI; a destroyed widget has no parent. Start the helpers only for a live one. */
+        boolean liveGui = gui != null && gui.parent != null;
+        if(liveGui && autoDrink == null && (Boolean)NConfig.get(NConfig.Key.autoDrink))
         {
             synchronized (autoHelperLock) {
                 if (!autoHelpersDisposed && autoDrink == null) {
@@ -460,7 +463,7 @@ public class NCore extends Widget
             }
         }
 
-        if(gui != null && autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
+        if(liveGui && autoSaveTableware == null && (Boolean)NConfig.get(NConfig.Key.autoSaveTableware))
         {
             synchronized (autoHelperLock) {
                 if (!autoHelpersDisposed && autoSaveTableware == null) {
@@ -581,9 +584,21 @@ public class NCore extends Widget
         mappingClient.tick(dt);
     }
 
-    private void stopAutoHelpers() {
+    /**
+     * The game UI is going away but this UI (and this core) lives on: logging out or going to bed returns to
+     * the character list over the same session, and the next character gets a new game UI under the same
+     * core. Stop the helpers and the auto-mapper bound to the old character without latching them off, so
+     * tick() starts them again for the next game UI.
+     */
+    public void gameUIDisposed() {
+        stopAutoHelpers(false);
+        mappingClient.stop();
+    }
+
+    private void stopAutoHelpers(boolean disposing) {
         synchronized (autoHelperLock) {
-            autoHelpersDisposed = true;
+            if (disposing)
+                autoHelpersDisposed = true;
 
             AutoDrink drink = autoDrink;
             if (drink != null)
@@ -645,8 +660,8 @@ public class NCore extends Widget
 
     @Override
     public void dispose() {
-        stopAutoHelpers();
-        mappingClient.done.set(true);
+        stopAutoHelpers(true);
+        mappingClient.stop();
         // Don't shutdown databaseManager here - it's static and should persist across UI/session changes
         // It will be shutdown only when the application exits or database is disabled
         super.dispose();

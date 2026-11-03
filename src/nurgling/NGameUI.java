@@ -382,8 +382,12 @@ public class NGameUI extends GameUI
                 .withdraw((profile == null || profile.isEmpty()) ? "global" : profile, chrid);
             peerPositionService.clear();
         }
-        if(nurgling.NUtils.getUI().core!=null)
-            NUtils.getUI().core.dispose();
+        /* This UI's core, not NUtils.getUI()'s: a background session's game UI is torn down off the visual
+         * thread, where that resolves to the active session. Only the game UI goes here; the core survives
+         * into the character list, so it must not be disposed (that latched auto-drink off until restart). */
+        NCore core = (ui != null) ? ui.core : null;
+        if(core != null)
+            core.gameUIDisposed();
         // Shutdown ChunkNav to prevent thread accumulation on game restart
         if(map instanceof NMapView) {
             NMapView nmapView = (NMapView) map;

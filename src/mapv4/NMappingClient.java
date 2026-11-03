@@ -4,6 +4,7 @@ import haven.Coord;
 import haven.Gob;
 import haven.MapFile;
 import nurgling.NConfig;
+import nurgling.NGameUI;
 import nurgling.NUtils;
 
 import java.net.URI;
@@ -40,60 +41,29 @@ public class NMappingClient {
     }
     public void tick(double dt)
     {
-        if(NUtils.getGameUI()!=null && (autoMapper!=(Boolean)NConfig.get(NConfig.Key.autoMapper) || autoMapper && ((reqTread == null || !reqTread.isAlive()) && (conTread == null || !conTread.isAlive()))))
+        /* ui.gui is never cleared, so on the character list it still points at the destroyed game UI;
+         * a destroyed widget has no parent. Only map for a live one. */
+        NGameUI gui = NUtils.getGameUI();
+        boolean liveGui = gui != null && gui.parent != null;
+        if(liveGui)
         {
             Boolean newState = (Boolean)NConfig.get(NConfig.Key.autoMapper);
             if(newState != null && !newState.equals(autoMapper)) {
-                autoMapper = newState;
-                if(autoMapper)
+                if(newState)
                 {
-                    done.set(false);
-
-                    (reqTread = new Thread(new Runnable()
-                    {
-                        @Override
-                        public void run()
-                        {
-                            try
-                            {
-                                requestor.run(NUtils.getGameUI());
-                            }
-                            catch (InterruptedException e)
-                            {
-                                Thread.currentThread().interrupt();
-                            }
-                        }
-                    }, "automapper-requestor")).start();
-
-                    (conTread = new Thread(new Runnable()
-                    {
-                        @Override
-                        public void run()
-                        {
-                            try
-                            {
-                                connector.run(NUtils.getGameUI());
-                            }
-                            catch (InterruptedException e)
-                            {
-                                Thread.currentThread().interrupt();
-                            }
-                        }
-                    }, "automapper-connector")).start();
+                    /* After a stop the previous pair may still be finishing an upload; they read the
+                     * same done flag, so start the new pair only once they are gone. */
+                    if(!threadsAlive())
+                        start();
                 }
                 else
                 {
-                    done.set(true);
-                    if(reqTread != null) {
-                        reqTread.interrupt();
-                    }
-                    if(conTread != null) {
-                        conTread.interrupt();
-                    }
+                    autoMapper = false;
+                    stopThreads();
                 }
             }
         }
-        
+
         // Periodic cache cleanup
         long currentTimeMs = System.currentTimeMillis();
         if(currentTimeMs - lastCacheCleanup > CACHE_CLEANUP_INTERVAL_MS) {
@@ -101,7 +71,7 @@ public class NMappingClient {
             lastCacheCleanup = currentTimeMs;
         }
 
-        Gob player = NUtils.player();
+        Gob player = liveGui ? NUtils.player() : null;
         if(player!=null) {
 
             Coord current = NUtils.toGC(player.rc);
@@ -116,6 +86,67 @@ public class NMappingClient {
                 requestor.track();
             }
         }
+    }
+
+    private boolean threadsAlive() {
+        return (reqTread != null && reqTread.isAlive()) || (conTread != null && conTread.isAlive());
+    }
+
+    private void start() {
+        autoMapper = true;
+        done.set(false);
+
+        (reqTread = new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    requestor.run(NUtils.getGameUI());
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "automapper-requestor")).start();
+
+        (conTread = new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    connector.run(NUtils.getGameUI());
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "automapper-connector")).start();
+    }
+
+    private void stopThreads() {
+        done.set(true);
+        if(reqTread != null)
+            reqTread.interrupt();
+        if(conTread != null)
+            conTread.interrupt();
+    }
+
+    /**
+     * The game UI is gone (logout, bed, or the whole UI closing). Stop the mapper threads but forget the
+     * running state, so tick() starts them again for the next character's game UI, and forget the last
+     * grid and track time so that character's first grid is requested even if it logs in on the same one.
+     */
+    public void stop() {
+        stopThreads();
+        autoMapper = null;
+        lastGC = Coord.z;
+        lastTracking = -1;
     }
 
     public NMappingClient() {
