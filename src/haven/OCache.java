@@ -111,6 +111,7 @@ public class OCache implements Iterable<Gob> {
 		for(ChangeCallback cb : cbs)
 		    cb.removed(old);
 	    }
+	    nurgling.scripting.ops.GobOps.onGobRemoved(glob, old);
 	}
     }
 

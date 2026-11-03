@@ -1,0 +1,4799 @@
+{
+  "protocol": {
+    "request": "{\"id\": any, \"op\": str, \"args\": object, \"run\"?: str}",
+    "framing": "4-byte big-endian length followed by UTF-8 JSON",
+    "response": "{\"id\": any, \"ok\": value} or {\"id\": any, \"err\": {\"type\": str, \"msg\": str}}",
+    "event": "{\"ev\": str, \"sub\"?: int, \"data\": value, \"dropped\"?: int}"
+  },
+  "types": [
+    {
+      "name": "Gob",
+      "doc": "A game object in the world (tree, animal, container, player...). A snapshot; call gobs.get to refresh.",
+      "fields": [
+        {
+          "name": "gob",
+          "doc": "Handle: the object's id. Pass the whole snapshot or this id to ops taking a Gob.",
+          "type": "int"
+        },
+        {
+          "name": "name",
+          "doc": "Resource name, e.g. \"gfx/terobjs/trees/oak\". Null while loading.",
+          "type": "str|null"
+        },
+        {
+          "name": "hash",
+          "doc": "Stable identity that survives reloads (position + resource).",
+          "type": "str|null"
+        },
+        {
+          "name": "rc",
+          "doc": "World position.",
+          "type": "Coord"
+        },
+        {
+          "name": "a",
+          "doc": "Facing angle in radians.",
+          "type": "float"
+        },
+        {
+          "name": "pose",
+          "doc": "Current pose resource, e.g. \"gfx/borka/idle\" (the first of `poses`).",
+          "type": "str|null"
+        },
+        {
+          "name": "poses",
+          "doc": "All pose resources playing at once (composite objects can have several).",
+          "type": "list[str]"
+        },
+        {
+          "name": "attr",
+          "doc": "Model attribute: growth stage for crops and trees, fill flags for containers; -1 if none.",
+          "type": "int"
+        },
+        {
+          "name": "overlays",
+          "doc": "Resource names of overlays (fire, contents, markers...).",
+          "type": "list[str]"
+        },
+        {
+          "name": "dist",
+          "doc": "Distance from the player when the snapshot was taken.",
+          "type": "float|null"
+        }
+      ]
+    },
+    {
+      "name": "Item",
+      "doc": "An inventory item. A snapshot; its handle stays valid while the item widget exists.",
+      "fields": [
+        {
+          "name": "item",
+          "doc": "Handle: the item widget id.",
+          "type": "int"
+        },
+        {
+          "name": "name",
+          "doc": "Display name, e.g. \"Block of Birch\".",
+          "type": "str|null"
+        },
+        {
+          "name": "res",
+          "doc": "Resource name, e.g. \"gfx/invobjs/wblock-birch\".",
+          "type": "str|null"
+        },
+        {
+          "name": "q",
+          "doc": "Quality.",
+          "type": "float|null"
+        },
+        {
+          "name": "num",
+          "doc": "Number shown on the item (stack amount, uses), -1 if none.",
+          "type": "int"
+        },
+        {
+          "name": "contents",
+          "doc": "Contents of containers (bucket, waterskin): [{name, q}].",
+          "type": "list[dict]"
+        },
+        {
+          "name": "stack",
+          "doc": "Number of items in this item stack, 0 if it is not a stack.",
+          "type": "int"
+        },
+        {
+          "name": "slot",
+          "doc": "Inventory cell [x, y] of the item's top-left corner.",
+          "type": "Tile|null"
+        },
+        {
+          "name": "size",
+          "doc": "Size in inventory cells [w, h].",
+          "type": "Tile|null"
+        },
+        {
+          "name": "parent",
+          "doc": "Widget id of the inventory or stack holding it.",
+          "type": "int|null"
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "doc": "An open inventory (the player's, or a container's).",
+      "fields": [
+        {
+          "name": "wdg",
+          "doc": "Handle: the inventory widget id.",
+          "type": "int"
+        },
+        {
+          "name": "window",
+          "doc": "Caption of the window holding it.",
+          "type": "str|null"
+        },
+        {
+          "name": "size",
+          "doc": "Size in cells [w, h].",
+          "type": "Tile|null"
+        }
+      ]
+    },
+    {
+      "name": "Widget",
+      "doc": "Any UI element. Windows add a caption.",
+      "fields": [
+        {
+          "name": "wdg",
+          "doc": "Handle: the widget id (server-assigned; -1 for client-only widgets).",
+          "type": "int"
+        },
+        {
+          "name": "class",
+          "doc": "Java class name.",
+          "type": "str"
+        },
+        {
+          "name": "caption",
+          "doc": "Window caption (windows only).",
+          "type": "str"
+        },
+        {
+          "name": "parent",
+          "doc": "Parent widget id.",
+          "type": "int|null"
+        },
+        {
+          "name": "visible",
+          "doc": "Whether it is shown.",
+          "type": "bool"
+        },
+        {
+          "name": "c",
+          "doc": "Position inside the parent, in UI pixels.",
+          "type": "Tile"
+        },
+        {
+          "name": "sz",
+          "doc": "Size in UI pixels.",
+          "type": "Tile"
+        }
+      ]
+    },
+    {
+      "name": "Area",
+      "doc": "A saved area (zone) with its specialisations.",
+      "fields": [
+        {
+          "name": "area",
+          "doc": "Handle: the area id.",
+          "type": "int"
+        },
+        {
+          "name": "name",
+          "doc": "Area name.",
+          "type": "str"
+        },
+        {
+          "name": "specs",
+          "doc": "Specialisations: [{name, subtype?}].",
+          "type": "list[dict]"
+        },
+        {
+          "name": "rect",
+          "doc": "World rectangle; null if the area's part of the map is not loaded.",
+          "type": "Rect|null"
+        },
+        {
+          "name": "in",
+          "doc": "Items configured to be taken from here.",
+          "type": "list[dict]"
+        },
+        {
+          "name": "out",
+          "doc": "Items configured to be put here.",
+          "type": "list[dict]"
+        }
+      ]
+    },
+    {
+      "name": "Coord",
+      "doc": "A world position [x, y] in world units (11 units per tile).",
+      "fields": []
+    },
+    {
+      "name": "Tile",
+      "doc": "An integer pair [x, y]: a tile, an inventory cell, or a size.",
+      "fields": []
+    },
+    {
+      "name": "Rect",
+      "doc": "A world rectangle [[x1, y1], [x2, y2]].",
+      "fields": []
+    },
+    {
+      "name": "Alias",
+      "doc": "A name matcher: \"text\", [\"a\", \"b\"], or {\"include\": [...], \"exclude\": [...]}. Matches substrings of resource and display names, like the client's NAlias.",
+      "fields": []
+    }
+  ],
+  "ops": [
+    {
+      "unstable": false,
+      "kind": "control",
+      "name": "core.describe",
+      "doc": "The API schema: every op with its parameters, types and docs. With `op`, only that op.",
+      "returns": "dict",
+      "params": [{
+        "name": "op",
+        "doc": "Op name, e.g. \"gobs.find\".",
+        "optional": true,
+        "type": "str"
+      }],
+      "exec": "connection",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "print(nc.core.describe(op=\"gobs.find\")[\"doc\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "control",
+      "name": "core.ping",
+      "doc": "Round-trip check. Returns the client's time in milliseconds.",
+      "returns": "int",
+      "params": [],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.core.ping()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{api, client}",
+      "kind": "control",
+      "name": "core.version",
+      "doc": "API version and client build.",
+      "returns": "dict",
+      "params": [],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Subscription id, carried by each event as `sub`.",
+      "kind": "control",
+      "name": "events.subscribe",
+      "doc": "Starts delivering events of the given kinds from this run's session. `kind.*` subscribes to a whole family. Kinds: `ui.new`, `ui.add`, `ui.msg`, `ui.destroy`, `ui.out` (raw widget traffic), `combat.used`, `chat.msg`, `gob.new`, `gob.gone`, `form.*`. The filter keeps events whose data fields equal the given values; a string ending in `*` matches a prefix. Events are delivered asynchronously; use the SDK's `nc.events(...)` iterator or `nc.on(kind, fn)`.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "kinds",
+          "doc": "Event kinds, e.g. [\"ui.msg\"] or [\"ui.*\"].",
+          "optional": false,
+          "type": "list[str]"
+        },
+        {
+          "name": "filter",
+          "doc": "Field filter, e.g. {\"msg\": \"tt\"} or {\"caption\": \"Cupboard*\"}.",
+          "optional": true,
+          "type": "dict"
+        }
+      ],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0",
+      "example": "for ev in nc.events(\"ui.new\", caption=\"Cupboard*\"):\n    print(ev.data)"
+    },
+    {
+      "unstable": false,
+      "kind": "control",
+      "name": "events.unsubscribe",
+      "doc": "Stops a subscription.",
+      "returns": "bool",
+      "params": [{
+        "name": "sub",
+        "doc": "Subscription id from events.subscribe.",
+        "optional": false,
+        "type": "int"
+      }],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "control",
+      "name": "run.finish",
+      "doc": "Reports the script's outcome before it exits. A scenario step that runs this script continues only on success. Without this call, exit code 0 counts as success.",
+      "returns": "null",
+      "params": [{
+        "name": "success",
+        "doc": "True if the script did its job.",
+        "optional": false,
+        "type": "bool"
+      }],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.run.finish(success=False)"
+    },
+    {
+      "unstable": false,
+      "kind": "control",
+      "name": "run.params",
+      "doc": "Parameter values this run was started with: the answers to the script's header form, or a scenario step's settings.",
+      "returns": "dict",
+      "params": [],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0",
+      "example": "count = nc.run.params().get(\"count\", 10)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "False if no such run.",
+      "kind": "control",
+      "name": "runs.close",
+      "doc": "Ends a run opened with runs.open after its queued requests finish. Closing the primary run ends the script's connection.",
+      "returns": "bool",
+      "params": [{
+        "name": "run",
+        "doc": "Run id from runs.open.",
+        "optional": false,
+        "type": "str"
+      }],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{run, primary, session}]",
+      "kind": "control",
+      "name": "runs.list",
+      "doc": "This connection's runs: the primary one and any opened with runs.open.",
+      "returns": "list[dict]",
+      "params": [],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{run, session}",
+      "kind": "control",
+      "name": "runs.open",
+      "doc": "Starts a second bot thread bound to another session, for scripts that drive several characters. Requests carrying its run id execute on that session. The SDK wraps this as `nc.session(name)`, which returns a client for that character. The new run shows as its own row in that session's Bot Status strip and can be stopped on its own.",
+      "returns": "dict",
+      "params": [{
+        "name": "session",
+        "doc": "Character name, username or session id.",
+        "optional": false,
+        "type": "str"
+      }],
+      "exec": "connection",
+      "errors": [
+        "NotFound",
+        "NotSupported"
+      ],
+      "since": "1.0",
+      "example": "alt = nc.session(\"Karasique\")\nalt.actions.path_to(gob)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{id, character, username, headless, active}]",
+      "kind": "control",
+      "name": "sessions.list",
+      "doc": "All logged-in sessions (tabs), visible and background.",
+      "returns": "list[dict]",
+      "params": [],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0",
+      "example": "for s in nc.sessions.list(): print(s[\"character\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "bots.get",
+      "doc": "One bot's description.",
+      "returns": "dict",
+      "params": [{
+        "name": "id",
+        "doc": "Bot id, e.g. \"goto_area\".",
+        "optional": false,
+        "type": "str"
+      }],
+      "exec": "connection",
+      "errors": ["NotFound"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{id, title, description, type, group, menu, scenario_step, interactive, class, params}]",
+      "kind": "query",
+      "name": "bots.list",
+      "doc": "Every bot registered in the client, including scripts in the Scripts folder, with their parameters.",
+      "returns": "list[dict]",
+      "params": [],
+      "exec": "connection",
+      "errors": [],
+      "since": "1.0",
+      "example": "for b in nc.bots.list():\n    print(b[\"id\"], b[\"title\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True if the bot reported success.",
+      "kind": "action",
+      "name": "bots.run",
+      "doc": "Runs a registered bot on this script's bot thread and waits for it to finish. The bot behaves exactly as when started from the menu: it uses your areas and specialisations, shows its own dialogs, and stops with the script's stop button. A fresh instance is created for every run. Parameters are checked against the bot's declared settings.",
+      "returns": "bool",
+      "params": [
+        {
+          "name": "id",
+          "doc": "Bot id (see bots.list).",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "{}",
+          "name": "params",
+          "doc": "Bot settings, e.g. {\"areaId\": 12}.",
+          "optional": true,
+          "type": "dict"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "NotSupported"
+      ],
+      "since": "1.0",
+      "example": "ok = nc.bots.run(\"goto_area\", params={\"areaId\": 12})"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{id, name, steps: [{id, params}]}]",
+      "kind": "query",
+      "name": "scenarios.list",
+      "doc": "Saved scenarios (bot chains) with their steps.",
+      "returns": "list[dict]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True if every step succeeded.",
+      "kind": "action",
+      "name": "scenarios.run",
+      "doc": "Runs a saved scenario step by step on this script's bot thread; stops at the first step that fails.",
+      "returns": "bool",
+      "params": [{
+        "name": "scenario",
+        "doc": "Scenario id or name.",
+        "optional": false,
+        "type": "int|str"
+      }],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "nc.scenarios.run(\"Morning chores\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{base: {name: {base, comp}}, skills: {name: {base, comp}}}",
+      "kind": "query",
+      "name": "player.attributes",
+      "doc": "Base attributes and skills from the character sheet. `base` holds strength, agility, intelligence, constitution, perception, charisma, dexterity, will and psyche under their short names (str, agi, int, con, prc, csm, dex, wil, psy); `skills` holds unarmed, melee, ranged, explore, stealth, sewing, smithing, masonry, carpentry, cooking, farming, survive, lore. Each entry is {base, comp}: `base` the trained value, `comp` the value after equipment and buffs. The values arrive with the character sheet at login; before that the dicts are empty.",
+      "returns": "dict",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "print(nc.player.attributes()[\"base\"][\"str\"][\"comp\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{res, name, meter, wdg}]",
+      "kind": "query",
+      "name": "player.buffs",
+      "doc": "The buffs and debuffs shown in the buff bar: `res` (resource name), `name` (its tooltip name, null if none), and `meter` (the buff's progress meter in percent, -1 when it has none).",
+      "returns": "list[dict]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "if any(\"drunk\" in b[\"res\"] for b in nc.player.buffs()):\n    nc.chat.notify(\"sober up first\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "player.get",
+      "doc": "The character's current state in one call: the player's gob snapshot fields plus `character` (name), `stamina` and `energy` (fractions 0..1, null if the meter is not shown), `hp` {current, max, fraction, soft_fraction}, `speed` {cur, max} (0 crawl .. 3 sprint), `pose`, `moving`, `cursor` (cursor resource name, e.g. \"gfx/hud/curs/arw\") and `hand` (the item held on the cursor, or null). `hp.current`/`hp.max` come from the meter's tooltip and only update when it is hovered; use `hp.fraction` for safety checks.",
+      "returns": "dict",
+      "params": [],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "me = nc.player.get()\nif me[\"stamina\"] < 0.3:\n    nc.actions.drink()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{name: [fraction, ...]}",
+      "kind": "query",
+      "name": "player.meters",
+      "doc": "Every meter on the HUD by its resource base name (\"hp\", \"stam\", \"nrj\", and others the server shows, such as the happiness/insanity meters). Each value is the list of bar fractions (0..1) in the meter, e.g. hp is [hard, soft] while wounded. Meters whose resource has not loaded are left out.",
+      "returns": "dict",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "m = nc.player.meters()\nprint(m.get(\"stam\"), m.get(\"nrj\"))"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "player.set_speed",
+      "doc": "Sets the movement speed: 0 crawl, 1 walk, 2 run, 3 sprint. Values above the allowed maximum are clamped by the server.",
+      "returns": "null",
+      "params": [{
+        "name": "speed",
+        "doc": "Speed level 0..3.",
+        "optional": false,
+        "type": "int"
+      }],
+      "exec": "bot",
+      "errors": ["NotSupported"],
+      "since": "1.0",
+      "example": "nc.player.set_speed(2)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Gob snapshots, nearest first unless sort=\"none\".",
+      "kind": "query",
+      "name": "gobs.find",
+      "doc": "Finds game objects in the loaded part of the world. Filters combine (all must hold). Only objects whose resource has loaded are matched by `name`; the player's own object is never included (use `gobs.player`). To react to objects appearing or vanishing, subscribe to the `gob.new` event ({gob, name, rc}, sent once the object's resource is known; call `gobs.get` for the full snapshot) and `gob.gone` ({gob, name}). Without `radius` and `area` every loaded object is considered. `name` matches the resource name by substring (\"trees/\", \"gfx/terobjs/chest\"). Raises NotFound if `area` is given but is not loaded around the player (more than ~1000 units away or hidden): walk there first, an unloaded area would otherwise look empty.",
+      "returns": "list[Gob]",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Resource-name pattern(s), e.g. \"trees/\" or {\"include\": [\"trees/\"], \"exclude\": [\"stump\"]}.",
+          "optional": true,
+          "type": "Alias"
+        },
+        {
+          "name": "area",
+          "doc": "Only objects inside this area's rectangle.",
+          "optional": true,
+          "type": "Area"
+        },
+        {
+          "name": "radius",
+          "doc": "Only objects closer than this to `near` (world units; a tile is 11).",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "name": "near",
+          "doc": "Centre for `radius` and for sorting; defaults to the player position.",
+          "optional": true,
+          "type": "Coord|Gob"
+        },
+        {
+          "name": "pose",
+          "doc": "Pose resource pattern(s), e.g. \"knocked\" or \"dead\"; objects without a pose never match.",
+          "optional": true,
+          "type": "Alias"
+        },
+        {
+          "name": "attr",
+          "doc": "Model attribute (crop stage, container fill marker, ...) must equal this. Note markers >= 128 read negative.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "name": "exclude",
+          "doc": "Gob ids to skip (e.g. ones already processed).",
+          "optional": true,
+          "type": "list[int]"
+        },
+        {
+          "default": "0",
+          "name": "limit",
+          "doc": "At most this many results (after sorting); 0 = no limit.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "\"dist\"",
+          "values": [
+            "dist",
+            "none"
+          ],
+          "name": "sort",
+          "doc": "\"dist\": nearest to `near` first; \"none\": cache order.",
+          "optional": true,
+          "type": "str"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "NotFound",
+        "GobGone"
+      ],
+      "since": "1.0",
+      "example": "trees = nc.gobs.find(name=\"trees/\", radius=200, limit=5)\nfor t in trees:\n    print(t[\"name\"], round(t[\"dist\"]))"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Snapshot: gob, name, hash, rc, a, pose, attr, overlays, dist.",
+      "kind": "query",
+      "name": "gobs.get",
+      "doc": "A fresh snapshot of one game object, or null if it no longer exists in this session (out of view, destroyed, picked up). Never raises GobGone; use it to test whether a handle is still valid.",
+      "returns": "Gob|null",
+      "params": [{
+        "name": "gob",
+        "doc": "Gob handle (snapshot) or id.",
+        "optional": false,
+        "type": "Gob"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "tree = nc.gobs.get(tree)\nif tree is None:\n    print(\"it fell\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{begin: [x, y], end: [x, y], a, corners: [[x, y] x4], parts: [[[x, y] x4], ...]}",
+      "kind": "query",
+      "name": "gobs.hitbox",
+      "doc": "The object's collision box as the client's pathfinder sees it, or null if it has none (or its resource has not loaded). `begin`/`end` are the box corners in the object's own frame; `corners` are the four world-space corners after rotation; `parts` lists one corner set per part for objects with several solid parts (gates, passages).",
+      "returns": "dict|null",
+      "params": [{
+        "name": "gob",
+        "doc": "Gob handle or id.",
+        "optional": false,
+        "type": "Gob"
+      }],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "hb = nc.gobs.hitbox(chest)\nprint(hb[\"corners\"] if hb else \"no hitbox\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "gobs.lifted",
+      "doc": "The object the player is carrying overhead (a lifted log, barrel, chest...), or null.",
+      "returns": "Gob|null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "barrel = nc.gobs.lifted()\nif barrel is not None:\n    print(\"carrying\", barrel[\"name\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "gobs.nearest",
+      "doc": "The nearest game object matching the same filters as `gobs.find`, or null. Filters combine (all must hold). Only objects whose resource has loaded are matched by `name`; the player's own object is never included (use `gobs.player`). To react to objects appearing or vanishing, subscribe to the `gob.new` event ({gob, name, rc}, sent once the object's resource is known; call `gobs.get` for the full snapshot) and `gob.gone` ({gob, name}).",
+      "returns": "Gob|null",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Resource-name pattern(s).",
+          "optional": true,
+          "type": "Alias"
+        },
+        {
+          "name": "area",
+          "doc": "Only objects inside this area.",
+          "optional": true,
+          "type": "Area"
+        },
+        {
+          "name": "radius",
+          "doc": "Only objects closer than this to `near`.",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "name": "near",
+          "doc": "Point to measure from; defaults to the player position.",
+          "optional": true,
+          "type": "Coord|Gob"
+        },
+        {
+          "name": "pose",
+          "doc": "Pose resource pattern(s).",
+          "optional": true,
+          "type": "Alias"
+        },
+        {
+          "name": "attr",
+          "doc": "Model attribute must equal this.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "name": "exclude",
+          "doc": "Gob ids to skip.",
+          "optional": true,
+          "type": "list[int]"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "NotFound",
+        "GobGone"
+      ],
+      "since": "1.0",
+      "example": "chest = nc.gobs.nearest(name=\"gfx/terobjs/chest\", radius=100)"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "gobs.player",
+      "doc": "The player's own game object. For character state (stamina, hand, speed) use `player.get`.",
+      "returns": "Gob",
+      "params": [],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "me = nc.gobs.player()\nprint(me[\"rc\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.count",
+      "doc": "How many items match `name`, counting each stack member as one item. This counts items, not amounts: a pile of seeds that is one item counts 1; sum `num` from `inv.items` for amounts.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Display-name pattern(s).",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory: \"main\" (default), a window caption such as \"Cupboard\", or an Inventory handle.",
+          "optional": true,
+          "type": "Inventory|str"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "if nc.inv.count(\"Branch\") < 5:\n    print(\"need branches\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.find",
+      "doc": "The first item whose display name matches `name` (stack members included), or null.",
+      "returns": "Item|null",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Display-name pattern(s).",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory: \"main\" (default), a window caption such as \"Cupboard\", or an Inventory handle.",
+          "optional": true,
+          "type": "Inventory|str"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "knife = nc.inv.find(\"Stone Axe\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.free_slots",
+      "doc": "How many items of the given size still fit, placed without overlapping (the client's own space check, as Java bots use it). A 1x1 item is [1, 1]; a cheese tray is [1, 2]. Use the `size` field of an item snapshot.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "size",
+          "doc": "Item size in cells, [w, h].",
+          "optional": false,
+          "type": "Tile"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory: \"main\" (default), a window caption such as \"Cupboard\", or an Inventory handle.",
+          "optional": true,
+          "type": "Inventory|str"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "trays = nc.inv.free_slots([1, 2])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.free_space",
+      "doc": "Number of empty cells in an inventory.",
+      "returns": "int",
+      "params": [{
+        "default": "\"main\"",
+        "name": "inventory",
+        "doc": "Inventory: \"main\" (default), a window caption such as \"Cupboard\", or an Inventory handle.",
+        "optional": true,
+        "type": "Inventory|str"
+      }],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "if nc.inv.free_space() < 4:\n    nc.bots.run(\"free_inventory\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.hand",
+      "doc": "The item held on the cursor, or null.",
+      "returns": "Item|null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "held = nc.inv.hand()\nif held:\n    print(\"holding\", held[\"name\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.item",
+      "doc": "A fresh snapshot of one item, or null if its widget no longer exists (moved to another inventory, used up, container closed). Works for items in inventories, stacks, equipment and the hand. Never raises ItemGone.",
+      "returns": "Item|null",
+      "params": [{
+        "name": "item",
+        "doc": "Item handle (snapshot) or widget id.",
+        "optional": false,
+        "type": "Item"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "it = nc.inv.item(it)\nif it is None:\n    print(\"gone\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "inv.items",
+      "doc": "Items in an inventory, optionally filtered. `name` matches the item's display name (\"Oak Block\", \"Cheese Tray\"), case-insensitively by substring; resource paths such as \"items/x\" do not match. With `expand_stacks` (the default) the members of item stacks are listed one by one and the stack itself is not, which is what Java bots see; with `expand_stacks=False` you get the top-level grid items, stacks included as one item each (`stack` > 0). `quality_min` drops items below that quality (items without a quality are dropped too).",
+      "returns": "list[Item]",
+      "params": [
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory: \"main\" (default), a window caption such as \"Cupboard\", or an Inventory handle.",
+          "optional": true,
+          "type": "Inventory|str"
+        },
+        {
+          "name": "name",
+          "doc": "Display-name pattern(s).",
+          "optional": true,
+          "type": "Alias"
+        },
+        {
+          "name": "quality_min",
+          "doc": "Minimum quality (exact float, not the rounded display).",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "default": "true",
+          "name": "expand_stacks",
+          "doc": "List stack members instead of stacks.",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "logs = nc.inv.items(name=\"Block\", quality_min=30)\nprint(len(logs), \"good blocks\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Inventory snapshots {wdg, window, size, free}.",
+      "kind": "query",
+      "name": "inv.list",
+      "doc": "Every open inventory: the player's main inventory first, then those inside open windows (containers, belt, cupboards). Each snapshot carries `free`, the number of empty cells.",
+      "returns": "list[Inventory]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "for inv in nc.inv.list():\n    print(inv[\"window\"], inv[\"free\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{wdg, res, count, free, capacity}",
+      "kind": "query",
+      "name": "inv.stockpile",
+      "doc": "The open stockpile window's state, or null if none is open. `count` items are in the pile, `free` more fit, `capacity` = count + free; `res` is the piled item's resource name. Counts are null if the window has not shown them yet.",
+      "returns": "dict|null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "sp = nc.inv.stockpile()\nif sp and sp[\"free\"] == 0:\n    print(\"pile is full\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "equip.find",
+      "doc": "The first equipped item whose display name matches `name` (substring, case-insensitive), or null. Items still loading are skipped.",
+      "returns": "Item|null",
+      "params": [{
+        "name": "name",
+        "doc": "Display-name pattern(s), e.g. \"Axe\" or [\"Axe\", \"Saw\"].",
+        "optional": false,
+        "type": "Alias"
+      }],
+      "exec": "bot",
+      "errors": ["NotSupported"],
+      "since": "1.0",
+      "example": "if nc.equip.find(\"Axe\") is None:\n    nc.chat.notify(\"equip an axe\", error=True)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{slot name: Item|null}",
+      "kind": "query",
+      "name": "equip.slots",
+      "doc": "Every equipment slot with the item in it, or null when empty. Slot names: head, accessory, shirt, armor_body, gloves, belt, hand_left, hand_right, ring_left, ring_right, robe, back, pants, armor_leg, cape, boots, store_hat, eyes, mouth, lfoot, rfoot, shoulder, coat. A two-handed tool appears in both hand slots.",
+      "returns": "dict",
+      "params": [],
+      "exec": "bot",
+      "errors": ["NotSupported"],
+      "since": "1.0",
+      "example": "eq = nc.equip.slots()\nprint(eq[\"hand_right\"][\"name\"] if eq[\"hand_right\"] else \"empty hand\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "windows.buttons",
+      "doc": "The texts of the buttons in a window, in widget order. Click one with `ui.click_button(text, window=...)`. Icon-only buttons have no text and are left out.",
+      "returns": "list[str]",
+      "params": [{
+        "name": "window",
+        "doc": "Window handle or caption.",
+        "optional": false,
+        "type": "Window|str"
+      }],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "WidgetGone"
+      ],
+      "since": "1.0",
+      "example": "if \"Build\" in nc.windows.buttons(\"Palisade\"):\n    nc.ui.click_button(\"Build\", window=\"Palisade\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True once the window is gone or hidden; false if it is still open after 5 s.",
+      "kind": "action",
+      "name": "windows.close",
+      "doc": "Closes a window the way its close button does, and waits up to 5 seconds for it to go away. Client-side windows such as the character sheet are hidden rather than destroyed; that counts as closed.",
+      "returns": "bool",
+      "params": [{
+        "name": "window",
+        "doc": "Window handle or caption.",
+        "optional": false,
+        "type": "Window|str"
+      }],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "WidgetGone"
+      ],
+      "since": "1.0",
+      "example": "nc.windows.close(\"Stockpile\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "windows.get",
+      "doc": "The newest window whose caption equals `caption` exactly, or null.",
+      "returns": "Window|null",
+      "params": [{
+        "name": "caption",
+        "doc": "Window caption, e.g. \"Cupboard\" or \"Stockpile\".",
+        "optional": false,
+        "type": "str"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "if nc.windows.get(\"Cupboard\") is None:\n    nc.actions.open(cupboard)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Widget snapshots with `caption`.",
+      "kind": "query",
+      "name": "windows.list",
+      "doc": "The open top-level windows (containers, crafting, character sheet, ...), newest last. Windows the client keeps hidden (the character sheet, equipment when closed) are left out unless `hidden` is true.",
+      "returns": "list[Window]",
+      "params": [{
+        "default": "false",
+        "name": "hidden",
+        "doc": "Include hidden windows.",
+        "optional": true,
+        "type": "bool"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "print([w[\"caption\"] for w in nc.windows.list()])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "windows.text",
+      "doc": "The texts shown in a window: every label and text field, in widget order. Rich-text boxes and drawn text are not included.",
+      "returns": "list[str]",
+      "params": [{
+        "name": "window",
+        "doc": "Window handle or caption.",
+        "optional": false,
+        "type": "Window|str"
+      }],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "WidgetGone"
+      ],
+      "since": "1.0",
+      "example": "for line in nc.windows.text(\"Milestone\"):\n    print(line)"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "areas.at",
+      "doc": "The visible areas containing a world position (areas can overlap). Only areas loaded around the player are considered.",
+      "returns": "list[Area]",
+      "params": [{
+        "name": "pos",
+        "doc": "World position, or a gob for its position.",
+        "optional": false,
+        "type": "Coord|Gob"
+      }],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "here = nc.areas.at(nc.gobs.player())"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "areas.by_spec",
+      "doc": "Enabled areas carrying a specialisation, optionally with a subtype (e.g. spec \"crop\", subtype \"Carrot\"). The names are those of `areas.specs`.",
+      "returns": "list[Area]",
+      "params": [
+        {
+          "name": "spec",
+          "doc": "Specialisation name, e.g. \"smelter\" or \"water\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "subtype",
+          "doc": "Exact subtype.",
+          "optional": true,
+          "type": "str"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "for field in nc.areas.by_spec(\"crop\", subtype=\"Carrot\"):\n    print(field[\"name\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Gob snapshots plus `cap`.",
+      "kind": "query",
+      "name": "areas.containers",
+      "doc": "The storage containers inside an area that the client's bots know how to use (chests, crates, cupboards, sheds, baskets, tables, study desks, ...), nearest first. Each Gob snapshot has `cap`, the caption of the window it opens, which is what `inv.items(inventory=...)` accepts once it is open. Stockpiles and barrels are not included (use `gobs.find`). Raises NotFound if the area is not loaded around the player.",
+      "returns": "list[Gob]",
+      "params": [{
+        "name": "area",
+        "doc": "Area id, name or snapshot.",
+        "optional": false,
+        "type": "Area|int|str"
+      }],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "NotFound"
+      ],
+      "since": "1.0",
+      "example": "for box in nc.areas.containers(\"Cheese\"):\n    print(box[\"cap\"], box[\"rc\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Area snapshots (\"out\": plus `th`).",
+      "kind": "query",
+      "name": "areas.for_item",
+      "doc": "Enabled areas configured to take in (`direction=\"in\"`) or hand out (`\"out\"`) an item, by the item's exact display name, as set in the area's item lists. Loaded areas come first, nearest first; areas elsewhere in the world follow (their `rect` is null). For \"out\" areas each snapshot has `th`, the quality threshold of the matching entry (1 if none).",
+      "returns": "list[Area]",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Item display name, e.g. \"Oak Block\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "values": [
+            "in",
+            "out"
+          ],
+          "name": "direction",
+          "doc": "Which list to search.",
+          "optional": false,
+          "type": "str"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "dest = nc.areas.for_item(\"Oak Block\", direction=\"in\")\nif not dest:\n    print(\"no area takes oak blocks\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "areas.get",
+      "doc": "One area by id or name.",
+      "returns": "Area",
+      "params": [{
+        "name": "area",
+        "doc": "Area id, exact name, or snapshot.",
+        "optional": false,
+        "type": "Area|int|str"
+      }],
+      "exec": "bot",
+      "errors": ["NoSuchArea"],
+      "since": "1.0",
+      "example": "logs = nc.areas.get(\"Logs\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Area snapshots {area, name, specs, rect, in, out, disabled}, by id.",
+      "kind": "query",
+      "name": "areas.list",
+      "doc": "Every saved area of this world, enabled or not. `rect` is null for areas that are not loaded around the player; `disabled` areas are ignored by the client's bots.",
+      "returns": "list[Area]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "for a in nc.areas.list():\n    print(a[\"area\"], a[\"name\"], [s[\"name\"] for s in a[\"specs\"]])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "areas.specs",
+      "doc": "All specialisation names the client knows (the values `areas.by_spec` accepts).",
+      "returns": "list[str]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "print(nc.areas.specs())"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "map.from_global",
+      "doc": "Converts a global position (grid id + offset, from `map.to_global`) back into this session's world coordinates, or null if that grid is not loaded here.",
+      "returns": "Coord|null",
+      "params": [
+        {
+          "name": "grid",
+          "doc": "Map grid id.",
+          "optional": false,
+          "type": "int"
+        },
+        {
+          "name": "x",
+          "doc": "Offset inside the grid, world units.",
+          "optional": false,
+          "type": "float"
+        },
+        {
+          "name": "y",
+          "doc": "Offset inside the grid, world units.",
+          "optional": false,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "pos = nc.map.from_global(spot[\"grid\"], spot[\"x\"], spot[\"y\"])\nif pos:\n    nc.actions.path_to(pos)"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "map.path_length",
+      "doc": "How far the player would walk to reach a gob or position along the pathfinder's route, in world units (0 when already there), or null when there is no route. Never shorter than the straight-line distance.",
+      "returns": "float|null",
+      "params": [{
+        "name": "target",
+        "doc": "A gob (handle or id) or a world position [x, y].",
+        "optional": false,
+        "type": "Gob|Coord"
+      }],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "trees = nc.gobs.find(name=\"trees/\", radius=300)\nbest = min(trees, key=lambda t: nc.map.path_length(t) or 1e9)"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "map.reachable",
+      "doc": "Whether the client's pathfinder finds a walkable route from the player to a game object (to a spot next to it) or to a position. Runs the pathfinder once without moving; it only knows the loaded area around the player, so far targets read as unreachable.",
+      "returns": "bool",
+      "params": [{
+        "name": "target",
+        "doc": "A gob (handle or id) or a world position [x, y].",
+        "optional": false,
+        "type": "Gob|Coord"
+      }],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "if nc.map.reachable(chest):\n    nc.actions.path_to(chest)"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "map.tile",
+      "doc": "The terrain under a world position as its tile resource name, e.g. \"gfx/tiles/grass\", \"gfx/tiles/water\", \"gfx/tiles/rocks/...\". Null if that part of the map is not loaded.",
+      "returns": "str|null",
+      "params": [{
+        "name": "pos",
+        "doc": "World position, or a gob for its position.",
+        "optional": false,
+        "type": "Coord|Gob"
+      }],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "if \"water\" in (nc.map.tile(nc.gobs.player()) or \"\"):\n    print(\"swimming\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{tile: [x, y], rc: [x, y], name}]",
+      "kind": "query",
+      "name": "map.tiles",
+      "doc": "The tiles covering a world rectangle, optionally only those whose resource name matches `name`. At most 10000 tiles (100x100) per call; split larger rectangles. Tiles in unloaded grids are left out. `tile` is the tile coordinate (world position / 11, floored) and `rc` its centre in world units.",
+      "returns": "list[dict]",
+      "params": [
+        {
+          "name": "rect",
+          "doc": "World rectangle [[x1, y1], [x2, y2]].",
+          "optional": false,
+          "type": "Rect"
+        },
+        {
+          "name": "name",
+          "doc": "Tile resource pattern(s), e.g. \"water\" or [\"grass\", \"moor\"].",
+          "optional": true,
+          "type": "Alias"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["BadArgs"],
+      "since": "1.0",
+      "example": "me = nc.gobs.player()[\"rc\"]\nwater = nc.map.tiles([[me[0]-110, me[1]-110], [me[0]+110, me[1]+110]], name=\"water\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{grid, x, y}",
+      "kind": "query",
+      "name": "map.to_global",
+      "doc": "Converts a world position of this session into a session-independent one: the map grid's id and the offset inside it (world units, 0..1100). World coordinates (`rc`) are only valid within one session and change after a relog; global ones can be stored and shared between characters. Null if the position's grid is not loaded.",
+      "returns": "dict|null",
+      "params": [{
+        "name": "pos",
+        "doc": "World position, or a gob for its position.",
+        "optional": false,
+        "type": "Coord|Gob"
+      }],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "spot = nc.map.to_global(nc.gobs.player())\n# later, maybe in another session:\npos = nc.map.from_global(spot[\"grid\"], spot[\"x\"], spot[\"y\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "chat.channels",
+      "doc": "The names of the open chat channels: \"Area Chat\", \"Village\", \"Party\", private chats by the other player's name, and log channels such as \"System\".",
+      "returns": "list[str]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "print(nc.chat.channels())"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{text, from, time}]",
+      "kind": "query",
+      "name": "chat.history",
+      "doc": "The most recent lines of a channel that the client still holds (everything since the channel opened in this session), oldest first. `from` is the sender's name where the client knows it (kin list names; null for system lines and unknown senders), `time` is the client's clock in seconds when the line arrived. For new lines as they arrive, subscribe to the `chat.msg` event ({channel, from, sender, text}).",
+      "returns": "list[dict]",
+      "params": [
+        {
+          "name": "channel",
+          "doc": "Channel name (case-insensitive).",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "50",
+          "name": "limit",
+          "doc": "At most this many lines (the newest).",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "for line in nc.chat.history(\"Village\", limit=10):\n    print(line[\"from\"], line[\"text\"])\nfor ev in nc.events(\"chat.msg\", channel=\"Village\"):\n    print(ev.data[\"from\"], ev.data[\"text\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "chat.notify",
+      "doc": "Shows a message in the game's message area, the line above the hotbar where \"You found...\" messages appear. With `error=True` it is shown in red with the error sound. Only this player sees it; nothing is sent to the server.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "text",
+          "doc": "Message text.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "false",
+          "name": "error",
+          "doc": "Show as an error.",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.chat.notify(\"Done: 12 logs chopped\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "chat.send",
+      "doc": "Sends a line to a chat channel, as if typed there. Other players see it. Log channels cannot be written to.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "channel",
+          "doc": "Channel name (case-insensitive), from `chat.channels`.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "text",
+          "doc": "The line to send.",
+          "optional": false,
+          "type": "str"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "NotSupported"
+      ],
+      "since": "1.0",
+      "example": "nc.chat.send(\"Village\", \"Smelters are lit\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.close",
+      "doc": "Closes a window (a container, a crafting window, any window) and waits until it is gone. Closing a window that is already gone does nothing.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "window",
+          "doc": "Window handle, an inventory inside it, or its caption.",
+          "optional": false,
+          "type": "Window|Inventory|str"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait for it to close.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.actions.close(\"Cupboard\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.collect_to_pile",
+      "doc": "Picks up matching items lying on the ground in one area and stockpiles them in another, emptying the inventory into piles whenever it fills. Runs until the source area is clear, no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "source",
+          "doc": "Area to pick items up from.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "dest",
+          "doc": "Area for the piles.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "items",
+          "doc": "Which ground items to collect.",
+          "optional": false,
+          "type": "Alias"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "PathNotFound",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.collect_to_pile(\"Chop site\", \"Blocks\", \"Block\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.destroy",
+      "doc": "Destroys an object with the Destroy action (stumps, ruins, your own buildings) and waits until it is gone. Needs the right tool equipped (e.g. a shovel for stumps). Work stops when stamina runs out, so drink first for large objects. The cursor is reset afterwards, also on timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Object to destroy.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "300",
+          "name": "timeout",
+          "doc": "Seconds to wait for it to disappear.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.equip(\"Shovel\")\nnc.actions.destroy(stump)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True if digging started.",
+      "kind": "action",
+      "name": "actions.dig",
+      "doc": "Starts digging at the character's feet (soil, clay, sand). Needs a shovel equipped. Returns once the digging pose starts; wait for it to end with wait.pose_not(player, \"shoveldig\").",
+      "returns": "bool",
+      "params": [{
+        "default": "5",
+        "name": "timeout",
+        "doc": "Seconds to wait for the digging pose.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "if nc.actions.dig():\n    nc.wait.pose_not(nc.player(), \"shoveldig\", timeout=60)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.drink",
+      "doc": "Drinks from your waterskins or other vessels until stamina reaches `level` (0..1). Does nothing if stamina is already there.",
+      "returns": "null",
+      "params": [{
+        "default": "0.9",
+        "name": "level",
+        "doc": "Target stamina, 0..1.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "if nc.player.stamina() < 0.4:\n    nc.actions.drink()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Number of items dropped.",
+      "kind": "action",
+      "name": "actions.drop",
+      "doc": "Drops items on the ground at the character's feet and waits until they are gone from the inventory. Pass item handles, or an alias to drop every matching item of an inventory. Drops are paced to stay under the server's flood limit.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "items",
+          "doc": "Items, or an alias such as \"Stone\".",
+          "optional": false,
+          "type": "Item|list[Item]|Alias"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Where to look up an alias; your own if omitted.",
+          "optional": true,
+          "type": "Inventory|str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the items to disappear.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "ItemGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.drop(\"Stone\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.drop_hand",
+      "doc": "Drops the item in hand on the ground at the character's feet and waits until the hand is empty. Does nothing if the hand is empty.",
+      "returns": "null",
+      "params": [{
+        "default": "5",
+        "name": "timeout",
+        "doc": "Seconds to wait.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.actions.drop_hand()"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.drop_hand_to_inventory",
+      "doc": "Puts the item in hand into the first free cell of an inventory and waits until the hand is empty. Does nothing if the hand is empty.",
+      "returns": "null",
+      "params": [
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Target inventory; your own if omitted.",
+          "optional": true,
+          "type": "Inventory|str"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "ActionFailed",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.drop_hand_to_inventory()"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.eat",
+      "doc": "Eats the listed foods until energy reaches `energy` (0..1): first from your inventory, then from containers in the area with the \"eat\" specialisation, walking there if needed.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "items",
+          "doc": "Food names, in order of preference.",
+          "optional": false,
+          "type": "list[str]"
+        },
+        {
+          "default": "0.8",
+          "name": "energy",
+          "doc": "Target energy, 0..1 (1 = 10000 energy points).",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.eat([\"Bread\", \"Apple\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.equip",
+      "doc": "Equips a tool or weapon in the hands, taking it from the belt or the inventory and putting away what was held if needed. Does nothing if it is already in a hand.",
+      "returns": "null",
+      "params": [{
+        "name": "name",
+        "doc": "Item name, e.g. \"Axe\" or [\"Pickaxe\", \"Stone Axe\"].",
+        "optional": false,
+        "type": "Alias"
+      }],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.equip(\"Shovel\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.face",
+      "doc": "Turns the character to face a position or game object without walking there, and waits until it does.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "target",
+          "doc": "What to face.",
+          "optional": false,
+          "type": "Gob|Coord"
+        },
+        {
+          "default": "3",
+          "name": "timeout",
+          "doc": "Seconds to wait for the turn.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout",
+        "NotFound"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.face(nc.gobs.find(name=\"anvil\")[0])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.fill_troughs",
+      "doc": "Feeds matching items from your inventory into troughs, moving on to the next trough when one is full. Runs until done, no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "troughs",
+          "doc": "Trough(s), filled in order.",
+          "optional": false,
+          "type": "Gob|list[Gob]"
+        },
+        {
+          "name": "items",
+          "doc": "Food items to put in.",
+          "optional": false,
+          "type": "Alias"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.fill_troughs(nc.gobs.find(name=\"trough\"), [\"Carrot\", \"Beetroot\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.fill_waterskins",
+      "doc": "Refills your waterskins and other water containers at the nearest water area (the \"water\" specialisation). Runs until done, no timeout.",
+      "returns": "null",
+      "params": [{
+        "default": "false",
+        "name": "global",
+        "doc": "Use global navigation to reach a far water area.",
+        "optional": true,
+        "type": "bool"
+      }],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.fill_waterskins(global=True)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The option that was chosen.",
+      "kind": "action",
+      "name": "actions.flower",
+      "doc": "Right-clicks a game object and chooses an option from its flower menu, then waits for the menu to close. Pass a list to try several options in order (e.g. [\"Chop\", \"Chop into blocks\"]); the first one the menu offers is chosen. The server walks the character to the object by itself, so no path_to is needed for reachable objects. This op returns once the option is chosen, not when the work is finished: follow it with a wait such as wait.pose_not.",
+      "returns": "str",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Object to right-click.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "option",
+          "doc": "Option text, or candidates in order of preference. Exact match.",
+          "optional": false,
+          "type": "str|list[str]"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait for the menu to appear.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "NotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.flower(tree, \"Chop\")\nnc.wait.pose_not(nc.player(), \"chop\", timeout=120)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The option that was chosen.",
+      "kind": "action",
+      "name": "actions.flower_item",
+      "doc": "Right-clicks an inventory item and chooses an option from its flower menu (e.g. \"Eat\", \"Split\", \"Drink\"), then waits for the menu to close.",
+      "returns": "str",
+      "params": [
+        {
+          "name": "item",
+          "doc": "Item to right-click.",
+          "optional": false,
+          "type": "Item"
+        },
+        {
+          "name": "option",
+          "doc": "Option text, or candidates in order of preference. Exact match.",
+          "optional": false,
+          "type": "str|list[str]"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait for the menu to appear.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "ItemGone",
+        "NotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "apple = nc.inv.items(name=\"Apple\")[0]\nnc.actions.flower_item(apple, \"Eat\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.free_inventory",
+      "doc": "Puts everything in your inventory away into the areas set up for it (the item's \"out\" areas and specialisations), like the bots do at the end of a cycle. Items with no area stay in the inventory. Walks wherever needed; runs until done, no timeout.",
+      "returns": "null",
+      "params": [],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.free_inventory()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The area's snapshot after arriving.",
+      "kind": "action",
+      "name": "actions.go_to_area",
+      "doc": "Travels to an area using the client's navigation: the local pathfinder when the area is near, otherwise the global chunk navigation (roads, doors, stairs) the bots use. With `enter` (the default) it also walks onto the area so its objects are loaded; without it, an area that is already reachable is not walked to. Runs until the navigation finishes; there is no timeout.",
+      "returns": "Area",
+      "params": [
+        {
+          "name": "area",
+          "doc": "Area handle, id or name.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "default": "true",
+          "name": "enter",
+          "doc": "Walk onto the area even if it is already reachable.",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "PathNotFound"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.go_to_area(\"Logs\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.harvest",
+      "doc": "Harvests every ripe plant of a crop in a field area, like the farmer bots: products go to their out areas, seeds to the seed area's barrels or containers, leftovers to troughs. Runs until the field is done, no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "field",
+          "doc": "The field.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "seed",
+          "doc": "Area holding the seed barrels / containers.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "crop",
+          "doc": "The plant, e.g. \"plants/carrot\" or \"carrot\".",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "name": "trough",
+          "doc": "Area with troughs for leftovers.",
+          "optional": true,
+          "type": "Area"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.harvest(\"Carrot field\", \"Carrot seeds\", \"plants/carrot\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The carried object.",
+      "kind": "action",
+      "name": "actions.lift",
+      "doc": "Walks to an object and lifts it (carry), then waits until the character holds it.",
+      "returns": "Gob",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Liftable object (log, barrel, chest, cart...).",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the lift after arriving.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "PathNotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "barrel = nc.actions.lift(barrel)\nnc.actions.place([100, 200])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.light",
+      "doc": "Lights a fireplace, oven, kiln, smelter or other burnable workstation with whatever the client can use (a torch or candelabrum, or fire from branches), like the right-click \"Light\" menu. Runs until done, no timeout.",
+      "returns": "null",
+      "params": [{
+        "name": "gob",
+        "doc": "Object to light.",
+        "optional": false,
+        "type": "Gob"
+      }],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.light(kiln)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True if the tile changed (was mined out), false on timeout.",
+      "kind": "action",
+      "name": "actions.mine",
+      "doc": "Walks next to a rock tile (or a cave wall) and mines it, then waits until the tile changes. Needs a pickaxe equipped. Mining stops when stamina runs out; drink and call again. The cursor is reset afterwards.",
+      "returns": "bool",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "World position anywhere on the tile.",
+          "optional": false,
+          "type": "Coord"
+        },
+        {
+          "default": "60",
+          "name": "timeout",
+          "doc": "Seconds to wait for the tile to change.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["PathNotFound"],
+      "since": "1.0",
+      "example": "while not nc.actions.mine([x, y]):\n    nc.actions.drink()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The container's inventory, or its window if it has no item grid (stockpiles, barrels).",
+      "kind": "action",
+      "name": "actions.open",
+      "doc": "Walks to a container (chest, cupboard, cart, stockpile, barrel...) and opens it. If its window is already open it is reused. A container that answers with an \"Open\" flower menu (cauldrons, study desks) is opened through it. Close it again with actions.close when done.",
+      "returns": "Inventory|Window",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "The container.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the window after arriving.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "PathNotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "inv = nc.actions.open(chest)\nprint(nc.inv.items(inventory=inv))\nnc.actions.close(inv)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.path_to",
+      "doc": "Walks to a game object or a world position with the client's pathfinder, avoiding obstacles. For a game object it stops next to it, close enough to interact. `hard` mode walks right up to the object's edge (what container and pile bots use). Only works within the loaded area around the player; use actions.go_to_area for long distances. Runs until the pathfinder arrives or gives up; there is no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Game object, or a world position [x, y].",
+          "optional": false,
+          "type": "Gob|Coord"
+        },
+        {
+          "default": "false",
+          "name": "hard",
+          "doc": "Walk right up to the object's hitbox instead of the nearest free spot.",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "PathNotFound",
+        "GobGone"
+      ],
+      "since": "1.0",
+      "example": "tree = nc.gobs.find(name=\"trees/\")[0]\nnc.actions.path_to(tree)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The placed object.",
+      "kind": "action",
+      "name": "actions.place",
+      "doc": "Walks next to a spot and puts the carried object down there at the given angle, then waits until it is placed.",
+      "returns": "Gob",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "World position for the object's centre.",
+          "optional": false,
+          "type": "Coord"
+        },
+        {
+          "default": "0",
+          "name": "angle",
+          "doc": "Rotation in radians.",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "name": "gob",
+          "doc": "The carried object; found automatically if omitted.",
+          "optional": true,
+          "type": "Gob"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for placement after arriving.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "GobGone",
+        "PathNotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.place([1024.0, -88.0], angle=1.5708)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.restore_resources",
+      "doc": "Restores stamina and energy the way the bots do: drinks below 50% stamina (refilling waterskins at a water area if needed), eats from the eating area below 35% energy, then walks back. Runs until done, no timeout.",
+      "returns": "null",
+      "params": [],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.restore_resources()"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.seed",
+      "doc": "Plants a crop on every free tile of a field area, taking seeds from the seed area. Runs until the field is planted, no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "field",
+          "doc": "The field.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "seed",
+          "doc": "Area holding the seed barrels / containers.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "crop",
+          "doc": "The plant, e.g. \"plants/carrot\".",
+          "optional": false,
+          "type": "Alias"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.seed(\"Carrot field\", \"Carrot seeds\", \"plants/carrot\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.stop",
+      "doc": "Stops the character where it stands (a left click on its own position). Cancels walking and most ongoing work.",
+      "returns": "null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.actions.stop()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Number of items that arrived in your inventory.",
+      "kind": "action",
+      "name": "actions.take_from",
+      "doc": "Takes items from a container into your inventory. With a game object, walks to it, opens it, takes and closes it again; with an open inventory (or its window caption), takes directly. Takes as many as fit, up to `count`.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "container",
+          "doc": "Container object, or an open inventory / window caption.",
+          "optional": false,
+          "type": "Gob|Inventory|str"
+        },
+        {
+          "name": "items",
+          "doc": "Which items to take.",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "name": "count",
+          "doc": "Maximum number of items; all matching if omitted.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "name": "quality_min",
+          "doc": "Only items of at least this quality.",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the container window when opening a game object.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "PathNotFound",
+        "NotFound",
+        "Timeout",
+        "NotSupported"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.take_from(cupboard, \"Wheat Flour\", count=10, quality_min=20)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.take_from_barrel",
+      "doc": "Walks to a barrel and takes its contents into your inventory, `count` items or as many as fit. Runs until done, no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "barrel",
+          "doc": "The barrel.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "items",
+          "doc": "Expected contents, e.g. \"Wheat Seed\".",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "name": "count",
+          "doc": "How many; as many as fit if omitted.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.take_from_barrel(barrel, \"Flax Seed\", count=20)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Number of items taken.",
+      "kind": "action",
+      "name": "actions.take_from_pile",
+      "doc": "Walks to a stockpile, opens it and takes up to `count` items into your inventory, then closes it. A pile that is emptied disappears from the world.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "pile",
+          "doc": "The stockpile.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "count",
+          "doc": "Maximum number of items; as many as fit if omitted.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "PathNotFound"
+      ],
+      "since": "1.0",
+      "example": "n = nc.actions.take_from_pile(pile, count=10)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "How many matching items are in your inventory afterwards.",
+      "kind": "action",
+      "name": "actions.take_items",
+      "doc": "Fetches items from the areas where they are stored (the item's \"in\" areas) into your inventory, walking there as needed. Counts include what you already carry. Runs until done, no timeout.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Exact item name, e.g. \"Block of Pine\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "count",
+          "doc": "How many you want to have.",
+          "optional": false,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.take_items(\"Wheat Flour\", 12)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The item now in the hand.",
+      "kind": "action",
+      "name": "actions.take_to_hand",
+      "doc": "Picks an item up onto the cursor (the hand) and waits until it is there. If something is already in the hand the two are swapped, as in the game.",
+      "returns": "Item",
+      "params": [
+        {
+          "name": "item",
+          "doc": "Item to pick up.",
+          "optional": false,
+          "type": "Item"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "ItemGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "bucket = nc.actions.take_to_hand(nc.inv.items(name=\"Bucket\")[0])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.to_piles",
+      "doc": "Puts matching items from your inventory into stockpiles inside an area, filling existing piles first and starting new ones where there is room. Walks onto the area first. Runs until done, no timeout. Use an area that only holds piles of this item.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "area",
+          "doc": "Area for the piles.",
+          "optional": false,
+          "type": "Area"
+        },
+        {
+          "name": "items",
+          "doc": "Which items to pile.",
+          "optional": false,
+          "type": "Alias"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NoSuchArea",
+        "PathNotFound",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.to_piles(\"Stones\", \"Stone\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Number of items that left your inventory.",
+      "kind": "action",
+      "name": "actions.transfer",
+      "doc": "Moves items from your inventory into a container. With a game object, walks to it, opens it, transfers and closes it again; with an open inventory (or its window caption), transfers directly. Moves as many as fit, up to `count`. Different item kinds matching the alias are moved one kind after another.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "to",
+          "doc": "Container object, or an open inventory / window caption.",
+          "optional": false,
+          "type": "Gob|Inventory|str"
+        },
+        {
+          "name": "items",
+          "doc": "Which items to move (name match, as everywhere).",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "name": "count",
+          "doc": "Maximum number of items to move; all matching if omitted.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the container window when opening a game object.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "PathNotFound",
+        "NotFound",
+        "Timeout",
+        "NotSupported"
+      ],
+      "since": "1.0",
+      "example": "moved = nc.actions.transfer(chest, \"Block\", count=20)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.transfer_items",
+      "doc": "Delivers the named items from your inventory to their \"out\" areas, walking as needed. Unlike free_inventory, only the listed item names are moved. Runs until done, no timeout.",
+      "returns": "null",
+      "params": [{
+        "name": "names",
+        "doc": "Exact item names.",
+        "optional": false,
+        "type": "list[str]"
+      }],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.transfer_items([\"Block of Pine\", \"Branch\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.transfer_to_barrel",
+      "doc": "Walks to a barrel and pours matching items from your inventory into it (seeds, flour, water from buckets...). Runs until done, no timeout.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "barrel",
+          "doc": "The barrel.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "items",
+          "doc": "Which items to put in.",
+          "optional": false,
+          "type": "Alias"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.transfer_to_barrel(barrel, \"Wheat Seed\")"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.travel_to_hearth",
+      "doc": "Travels to your hearth fire (the \"Travel home\" action) and waits until you arrive.",
+      "returns": "null",
+      "params": [],
+      "exec": "bot",
+      "errors": ["ActionFailed"],
+      "since": "1.0",
+      "example": "nc.actions.travel_to_hearth()"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.use_on_gob",
+      "doc": "Uses the item in hand on a game object, like clicking the object while holding it (water into a trough, seeds into a pot, a log into a chipping block). If `item` is given it is first picked up into the hand. Does not wait for the result; follow it with a wait (wait.hand_free, wait.pose_not...).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Target object.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "item",
+          "doc": "Item to pick up first; otherwise the item already in hand is used.",
+          "optional": true,
+          "type": "Item"
+        },
+        {
+          "default": "false",
+          "name": "all",
+          "doc": "Shift-click: repeat with every matching item (e.g. fill all seeds).",
+          "optional": true,
+          "type": "bool"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait for the item to reach the hand.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "ItemGone",
+        "NotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.use_on_gob(trough, item=nc.inv.items(name=\"Carrot\")[0], all=True)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "actions.use_on_item",
+      "doc": "Uses the item in hand on another item (pour a bucket into a jar, put a whetstone on a tool, combine). If `source` is given that item is picked up first. Does not wait for the result.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Item to use the hand on.",
+          "optional": false,
+          "type": "Item"
+        },
+        {
+          "name": "source",
+          "doc": "Item to pick up first; otherwise the item already in hand is used.",
+          "optional": true,
+          "type": "Item"
+        },
+        {
+          "default": "false",
+          "name": "all",
+          "doc": "Shift: apply to all.",
+          "optional": true,
+          "type": "bool"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait for the source to reach the hand.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "ItemGone",
+        "NotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.use_on_item(jar, source=bucket)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "craft.close",
+      "doc": "Closes the crafting window if it is open.",
+      "returns": "null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.craft.close()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "[{name, res, act}] where `act` is the entry's action path, e.g. [\"craft\", \"cheesetray\"].",
+      "kind": "query",
+      "name": "craft.list",
+      "doc": "Crafting recipes your character knows (the menu grid's craft entries), with their display name and resource. `filter` keeps entries whose name or resource contains the text (case-insensitive). With `all`, every menu entry is listed (actions, buildings...), not only crafts. Entries whose resources are still loading are skipped.",
+      "returns": "list[dict]",
+      "params": [
+        {
+          "name": "filter",
+          "doc": "Substring of the name or resource.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "false",
+          "name": "all",
+          "doc": "List every menu entry, not only craft recipes.",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "for r in nc.craft.list(filter=\"tray\"):\n    print(r[\"name\"], r[\"res\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True if crafting started; false if nothing happened within 5 s (some recipes finish instantly without a progress bar).",
+      "kind": "action",
+      "name": "craft.make",
+      "doc": "Presses Craft (or Craft All) in the open crafting window. Waits up to 5 seconds for the work to start (the hourglass progress bar); a game error such as missing ingredients raises ActionFailed. With `wait` (the default) it then waits until the progress bar has been gone for 1.5 s, so a Craft All run is finished, not just its first item.",
+      "returns": "bool",
+      "params": [
+        {
+          "default": "false",
+          "name": "all",
+          "doc": "Craft All instead of one.",
+          "optional": true,
+          "type": "bool"
+        },
+        {
+          "default": "true",
+          "name": "wait",
+          "doc": "Wait for the crafting to finish.",
+          "optional": true,
+          "type": "bool"
+        },
+        {
+          "default": "120",
+          "name": "timeout",
+          "doc": "Seconds to wait for it to finish.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "ActionFailed",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.craft.open(\"Cheese Tray\")\nnc.craft.make(all=True)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The window as craft.window describes it.",
+      "kind": "action",
+      "name": "craft.open",
+      "doc": "Opens the crafting window for a recipe, by its display name or resource name (see craft.list), and waits until the window shows that recipe with its ingredient names loaded.",
+      "returns": "dict",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Recipe display name (\"Cheese Tray\") or resource (\"paginae/craft/cheesetray\").",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the window.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "w = nc.craft.open(\"Cheese Tray\")\nprint(w[\"inputs\"])"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "craft.wait_done",
+      "doc": "Waits until the hourglass progress bar has been gone for `quiet` seconds: the current craft (or any timed action) is over. Returns at once if nothing is in progress and has not been for `quiet` seconds.",
+      "returns": "null",
+      "params": [
+        {
+          "default": "1.5",
+          "name": "quiet",
+          "doc": "Seconds without a progress bar that count as done.",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "default": "120",
+          "name": "timeout",
+          "doc": "Seconds to wait.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.craft.make(all=True, wait=False)\nnc.craft.wait_done(timeout=600)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{wdg, recipe, res, inputs: [{name, res, count, chosen}], outputs: [...], tools: [res], loaded}",
+      "kind": "query",
+      "name": "craft.window",
+      "doc": "Describes the open crafting window: the recipe, its inputs and outputs with counts, and the tools it needs. `chosen` is the ingredient picked for a generic input (e.g. which \"Raw Meat\"), if any. Returns null if no crafting window is open.",
+      "returns": "dict|null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "w = nc.craft.window()\nif w: print(w[\"recipe\"], [i[\"name\"] for i in w[\"inputs\"]])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The cursor resource name.",
+      "kind": "wait",
+      "name": "wait.cursor",
+      "doc": "Waits until the mouse cursor's resource name contains `name`, e.g. \"mine\", \"dig\", \"arw\" (normal).",
+      "returns": "str",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Substring of the cursor resource.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.raw.menu_act([\"dig\"])\nnc.wait.cursor(\"dig\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Energy afterwards.",
+      "kind": "wait",
+      "name": "wait.energy",
+      "doc": "Waits until energy is at least `at_least` (0..1; 1 = 10000 energy points).",
+      "returns": "float",
+      "params": [
+        {
+          "name": "at_least",
+          "doc": "Energy fraction 0..1.",
+          "optional": false,
+          "type": "float"
+        },
+        {
+          "default": "60",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.energy(0.5)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The menu's options.",
+      "kind": "wait",
+      "name": "wait.flower_menu",
+      "doc": "Waits until a flower (right-click) menu is open and returns its options. Choose one with raw.flower_choose.",
+      "returns": "list[str]",
+      "params": [{
+        "default": "5",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.raw.click_gob(gob)\nopts = nc.wait.flower_menu()"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.flower_menu_closed",
+      "doc": "Waits until no flower menu is open. Returns at once if none is.",
+      "returns": "null",
+      "params": [{
+        "default": "5",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.raw.flower_choose(\"Pick\")\nnc.wait.flower_menu_closed()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The nearest matching object.",
+      "kind": "wait",
+      "name": "wait.gob_appears",
+      "doc": "Waits until a game object whose resource name matches `name` exists within `radius` of the player, and returns the nearest one. Returns at once if one is already there.",
+      "returns": "Gob",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Resource name match, e.g. \"gfx/terobjs/items/\" or \"stockpile\".",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "default": "100",
+          "name": "radius",
+          "doc": "Distance from the player in world units (a tile is 11).",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "log = nc.wait.gob_appears(\"gfx/terobjs/trees/oaklog\", radius=50)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The attribute afterwards.",
+      "kind": "wait",
+      "name": "wait.gob_attr",
+      "doc": "Waits until a game object's model attribute (the `attr` field of its snapshot: fill level, stage, lit state...) equals `value`, or, without `value`, until it changes from what it is now.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "The object.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "value",
+          "doc": "Wanted value; omit to wait for any change.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "30",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.wait.gob_attr(crucible, value=0, timeout=600)"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.gob_gone",
+      "doc": "Waits until a game object no longer exists (destroyed, picked up, felled, or out of view). Returns at once if it is already gone.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "The object.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "30",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.gob_gone(tree, timeout=120)"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.hand_free",
+      "doc": "Waits until nothing is on the cursor (the hand is empty). Returns at once if it already is.",
+      "returns": "null",
+      "params": [{
+        "default": "5",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.actions.use_on_gob(trough, item=carrot)\nnc.wait.hand_free()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Free cells afterwards.",
+      "kind": "wait",
+      "name": "wait.inventory_free",
+      "doc": "Waits until an inventory has at least `cells` free cells.",
+      "returns": "int",
+      "params": [
+        {
+          "default": "1",
+          "name": "cells",
+          "doc": "Free cells needed.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory; your own if omitted.",
+          "optional": true,
+          "type": "Inventory|str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "WidgetGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.wait.inventory_free(cells=4)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The item in hand.",
+      "kind": "wait",
+      "name": "wait.item_in_hand",
+      "doc": "Waits until an item is on the cursor (the hand), optionally one whose name matches.",
+      "returns": "Item",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Name match; any item if omitted.",
+          "optional": true,
+          "type": "Alias"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.raw.item_take(bucket)\nnc.wait.item_in_hand(\"Bucket\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The number of matching items.",
+      "kind": "wait",
+      "name": "wait.items",
+      "doc": "Waits until an inventory holds at least `count` items matching `name` (stacked items count one by one).",
+      "returns": "int",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Which items.",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "default": "1",
+          "name": "count",
+          "doc": "Minimum number.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory; your own if omitted.",
+          "optional": true,
+          "type": "Inventory|str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "WidgetGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.wait.items(\"Block\", count=5)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The number of matching items.",
+      "kind": "wait",
+      "name": "wait.items_at_most",
+      "doc": "Waits until an inventory holds at most `count` items matching `name` (e.g. until they are used up or moved away).",
+      "returns": "int",
+      "params": [
+        {
+          "name": "name",
+          "doc": "Which items.",
+          "optional": false,
+          "type": "Alias"
+        },
+        {
+          "default": "0",
+          "name": "count",
+          "doc": "Maximum number.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "\"main\"",
+          "name": "inventory",
+          "doc": "Inventory; your own if omitted.",
+          "optional": true,
+          "type": "Inventory|str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "WidgetGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.wait.items_at_most(\"Seed\", count=0, timeout=120)"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.near",
+      "doc": "Waits until the player is within `dist` of a position or game object (e.g. after a walk started with raw.click_ground).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "Position or object.",
+          "optional": false,
+          "type": "Coord|Gob"
+        },
+        {
+          "default": "2",
+          "name": "dist",
+          "doc": "Distance in world units.",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "default": "30",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.raw.click_ground([x, y])\nnc.wait.near([x, y])"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.not_moving",
+      "doc": "Waits until the player has stopped moving (no movement and no walking pose).",
+      "returns": "null",
+      "params": [{
+        "default": "30",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.not_moving()"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.player_idle",
+      "doc": "Waits until the player is idle: not moving, no hourglass progress bar, and the pose is one of the idle poses (standing, or standing while carrying something).",
+      "returns": "null",
+      "params": [{
+        "default": "60",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.actions.flower(bush, \"Pick\")\nnc.wait.player_idle()"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.plob_ready",
+      "doc": "Waits until a placement ghost (a building blueprint or a carried object being placed) is loaded and ready to place with raw.place.",
+      "returns": "null",
+      "params": [{
+        "default": "10",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.raw.pagina_use(\"Palisade\")\nnc.wait.plob_ready()\nnc.raw.place([x, y])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The pose that matched.",
+      "kind": "wait",
+      "name": "wait.pose",
+      "doc": "Waits until a game object's (usually the player's) animation pose contains one of the given texts, e.g. \"chop\", \"shoveldig\", \"gfx/borka/idle\".",
+      "returns": "str",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Whose pose; usually nc.player().",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "pose",
+          "doc": "Substring(s) of the pose resource.",
+          "optional": false,
+          "type": "str|list[str]"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.actions.flower(tree, \"Chop\")\nnc.wait.pose(nc.player(), \"chop\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The pose afterwards, or null if the object is gone.",
+      "kind": "wait",
+      "name": "wait.pose_not",
+      "doc": "Waits until a game object's pose no longer contains any of the given texts: the work it shows has ended (chopping stopped because the tree fell, or stamina ran out). Also ends if the object disappears.",
+      "returns": "str|null",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Whose pose; usually nc.player().",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "name": "pose",
+          "doc": "Substring(s) of the pose resource.",
+          "optional": false,
+          "type": "str|list[str]"
+        },
+        {
+          "default": "60",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.wait.pose_not(nc.player(), \"chop\", timeout=120)"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.progress",
+      "doc": "Waits until the hourglass progress bar appears: a timed action (crafting, building, butchering) has started.",
+      "returns": "null",
+      "params": [{
+        "default": "5",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.progress()"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.progress_done",
+      "doc": "Waits until no hourglass progress bar is shown: the timed action finished or was interrupted. Returns at once if none is shown. For Craft All, which shows a new bar per item, prefer craft.wait_done.",
+      "returns": "null",
+      "params": [{
+        "default": "120",
+        "name": "timeout",
+        "doc": "Seconds to wait; 0 waits forever.",
+        "optional": true,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.progress()\nnc.wait.progress_done()"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.seconds",
+      "doc": "Sleeps for a number of seconds of wall-clock time. Unlike Python's time.sleep it ends at once when the script is stopped.",
+      "returns": "null",
+      "params": [{
+        "name": "seconds",
+        "doc": "How long; 0 or less returns at once.",
+        "optional": false,
+        "type": "float"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.wait.seconds(2.5)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Stamina afterwards.",
+      "kind": "wait",
+      "name": "wait.stamina",
+      "doc": "Waits until stamina is at least `at_least` (0..1), e.g. while resting.",
+      "returns": "float",
+      "params": [
+        {
+          "name": "at_least",
+          "doc": "Stamina fraction 0..1.",
+          "optional": false,
+          "type": "float"
+        },
+        {
+          "default": "60",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.stamina(0.9, timeout=300)"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.ticks",
+      "doc": "Waits for a number of client ticks (frames of the game logic, roughly the frame rate).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "count",
+          "doc": "Number of ticks.",
+          "optional": false,
+          "type": "int"
+        },
+        {
+          "default": "30",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.ticks(5)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The window.",
+      "kind": "wait",
+      "name": "wait.window",
+      "doc": "Waits until a window with the given caption is open. A caption ending in `*` matches a prefix (\"Cupboard*\").",
+      "returns": "Window",
+      "params": [
+        {
+          "name": "caption",
+          "doc": "Window caption, exact or with a trailing `*`.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "wnd = nc.wait.window(\"Barter Stand\")"
+    },
+    {
+      "unstable": false,
+      "kind": "wait",
+      "name": "wait.window_closed",
+      "doc": "Waits until a window is gone. Pass a handle for one particular window, or a caption to wait until no window with it is open.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "window",
+          "doc": "Window handle, an inventory in it, or a caption.",
+          "optional": false,
+          "type": "Window|Inventory|str"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits forever.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["Timeout"],
+      "since": "1.0",
+      "example": "nc.wait.window_closed(\"Crafting\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The combat state after the attack (see combat.state).",
+      "kind": "action",
+      "name": "combat.attack",
+      "doc": "Attacks an object with the Aggro action (as clicking it with the attack cursor does), waits until it appears in the fight list, and puts the normal cursor back.",
+      "returns": "dict",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Animal or player to attack.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "5",
+          "name": "timeout",
+          "doc": "Seconds to wait for the fight to start.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "GobGone",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "boar = nc.gobs.find(name=\"kritter/boar\")[0]\nnc.combat.attack(boar)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "How many opponents were offered peace.",
+      "kind": "action",
+      "name": "combat.peace",
+      "doc": "Offers peace (the white flag on the portrait) to one opponent, or to every opponent that has not been offered it yet, and waits until the client shows the flag raised. Animals being tamed and players who accept leave the fight.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "The opponent; omit for all of them.",
+          "optional": true,
+          "type": "Gob"
+        },
+        {
+          "default": "3",
+          "name": "timeout",
+          "doc": "Seconds to wait for the flags.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.combat.attack(horse)\nnc.combat.peace()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{target, opponents: [{gob, name, pose, dist, current, ip, oip, give, last_action, last_action_age, openings, stance, buffs}], me: {openings, stance, buffs, last_action}, cooldown, cooldown_total, moves: [{slot, name, cooldown, ready}]}",
+      "kind": "query",
+      "name": "combat.state",
+      "doc": "The current fight as the client sees it, or null when not fighting. Openings are 0-100 per colour (`offbalance` green, `reeling` yellow, `cornered` red, `dizzy` blue). `opponents[].openings` are the openings you have made on that opponent; `me.openings` are theirs on you. `ip`/`oip` are your and their initiative points against that opponent; `give` is the peace-flag state (1 = you offered peace). `cooldown` is the seconds left before you can act again; `moves` is the action bar (slot 0 = key 1, slot 5 = Shift+1). Resource names may be null for a moment while they load.",
+      "returns": "dict|null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "st = nc.combat.state()\nif st and st[\"cooldown\"] == 0:\n    tgt = next(o for o in st[\"opponents\"] if o[\"current\"])\n    print(tgt[\"name\"], tgt[\"openings\"][\"cornered\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True once it is the current target, false if the server did not switch in time.",
+      "kind": "action",
+      "name": "combat.target",
+      "doc": "Makes another opponent in the fight list the current target (what Ctrl+Tab or clicking its portrait does) and waits until the server confirms.",
+      "returns": "bool",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "An opponent in the fight list (an id works after it left view).",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "3",
+          "name": "timeout",
+          "doc": "Seconds to wait for the switch.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0",
+      "example": "weakest = min(st[\"opponents\"], key=lambda o: o[\"dist\"] or 99)\nnc.combat.target(weakest[\"gob\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "{slot, name} of the move used.",
+      "kind": "action",
+      "name": "combat.use",
+      "doc": "Uses a move from the combat action bar against the current target, like pressing its key. `move` is a slot number (0-9, see combat.state `moves`) or a move's resource name; a name matches exactly, by its last part (\"barrage\" for \"paginae/atk/barrage\"), or as a substring. With `wait` (the default) it first waits for your cooldown and the move's own cooldown to run out.",
+      "returns": "dict",
+      "params": [
+        {
+          "name": "move",
+          "doc": "Slot or move name.",
+          "optional": false,
+          "type": "int|str"
+        },
+        {
+          "default": "true",
+          "name": "wait",
+          "doc": "Wait until the move is ready before using it.",
+          "optional": true,
+          "type": "bool"
+        },
+        {
+          "default": "10",
+          "name": "timeout",
+          "doc": "Seconds to wait for the move to be ready.",
+          "optional": true,
+          "type": "float"
+        },
+        {
+          "name": "pos",
+          "doc": "World position for moves aimed at the ground (what the mouse would point at).",
+          "optional": true,
+          "type": "Coord"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "ActionFailed",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "nc.combat.use(\"barrage\")\nnc.combat.use(0, wait=False)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Values by field name (label fields are left out).",
+      "kind": "wait",
+      "name": "form.ask",
+      "doc": "Shows a settings form in the client's own style and waits until the player presses OK. Each field is a dict `{name, type, label, default, values, required}`. Types: `int` and `float` (a number entry), `bool` (a check box), `str` (a text entry), `choice` (a dropdown of `values`), `area` (the saved areas, plus \"Select on map...\" which lets the player drag a rectangle after OK; set `\"map\": false` to allow saved areas only), `gob` (a button that lets the player click an object), and `label` (static text, no value; give the text as `label`). `label` defaults to `name`; `required` fields marked with * must be filled before OK is accepted. An `area` field returns the area id, or a Rect `[[x1, y1], [x2, y2]]` when the player chose \"Select on map...\"; a `gob` field returns the object id (null if none was picked and the field is optional). Empty optional number fields are null. Needs a visible session.",
+      "returns": "dict",
+      "params": [
+        {
+          "name": "title",
+          "doc": "Window caption.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "fields",
+          "doc": "Field specs, shown top to bottom.",
+          "optional": false,
+          "type": "list[dict]"
+        },
+        {
+          "default": "0",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits until the player answers.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "Cancelled",
+        "NotSupported",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "cfg = nc.form.ask(\"Chopper\", [\n    {\"name\": \"area\", \"type\": \"area\", \"label\": \"Trees\", \"required\": True},\n    {\"name\": \"count\", \"type\": \"int\", \"label\": \"How many\", \"default\": 10},\n    {\"name\": \"axe\", \"type\": \"choice\", \"values\": [\"Stone Axe\", \"Metal Axe\"]},\n    {\"name\": \"stack\", \"type\": \"bool\", \"label\": \"Stack logs\", \"default\": True},\n])\nprint(cfg[\"count\"], cfg[\"area\"])"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "True for Yes.",
+      "kind": "wait",
+      "name": "form.confirm",
+      "doc": "Asks a yes/no question in a small window and waits for the answer. Closing the window counts as No. Needs a visible session.",
+      "returns": "bool",
+      "params": [
+        {
+          "name": "text",
+          "doc": "The question.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "title",
+          "doc": "Window caption; defaults to the script's name.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "0",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits until the player answers.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotSupported",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "if nc.form.confirm(\"Chop all 40 trees?\"):\n    chop_all()"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "form.message",
+      "doc": "Shows an information window with an OK button and returns at once. The window closes when the player presses OK, or when the run ends unless `keep` is true. Needs a visible session.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "text",
+          "doc": "The message; long text wraps.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "title",
+          "doc": "Window caption; defaults to the script's name.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "false",
+          "name": "keep",
+          "doc": "Leave the window open after the run ends (for a final report).",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotSupported"],
+      "since": "1.0",
+      "example": "nc.form.message(f\"Done: {n} logs stacked.\", keep=True)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "`[[x1, y1], [x2, y2]]`, top-left and bottom-right corners.",
+      "kind": "wait",
+      "name": "form.pick_area",
+      "doc": "Asks the player to drag a rectangle on the map, exactly like a bot's \"select area\" step, and returns it in world coordinates. The rectangle snaps to whole tiles. A small window shows the prompt with a Cancel button. Needs a visible session.",
+      "returns": "Rect",
+      "params": [
+        {
+          "default": "\"Drag a rectangle on the map\"",
+          "name": "prompt",
+          "doc": "What to select.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "0",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits until the player selects or cancels.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "Cancelled",
+        "NotSupported",
+        "Timeout",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "(x1, y1), (x2, y2) = nc.form.pick_area(\"Select the field to plough\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The clicked object.",
+      "kind": "wait",
+      "name": "form.pick_gob",
+      "doc": "Asks the player to click an object on the map and returns it, the same way built-in bots ask for a container or a vehicle. A small window shows the prompt with a Cancel button. Needs a visible session.",
+      "returns": "Gob",
+      "params": [
+        {
+          "default": "\"Click an object\"",
+          "name": "prompt",
+          "doc": "What to click.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "0",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits until the player picks or cancels.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "Cancelled",
+        "NotSupported",
+        "Timeout",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "barrel = nc.form.pick_gob(\"Click the water barrel\")\nprint(barrel.name)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "The text as typed (may be empty).",
+      "kind": "wait",
+      "name": "form.text",
+      "doc": "Asks the player to type a line of text and waits for OK. Needs a visible session.",
+      "returns": "str",
+      "params": [
+        {
+          "name": "prompt",
+          "doc": "What to ask, shown above the entry.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "\"\"",
+          "name": "default",
+          "doc": "Initial text.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "name": "title",
+          "doc": "Window caption; defaults to the script's name.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "0",
+          "name": "timeout",
+          "doc": "Seconds to wait; 0 waits until the player answers.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "Cancelled",
+        "NotSupported",
+        "Timeout"
+      ],
+      "since": "1.0",
+      "example": "name = nc.form.text(\"Name for the new area:\", default=\"Logs\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "How many overlays were removed.",
+      "kind": "action",
+      "name": "overlay.clear",
+      "doc": "Removes every overlay this run created. The client does this by itself when the run ends.",
+      "returns": "int",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.overlay.clear()"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.ghost",
+      "doc": "Shows a translucent placement ghost of a resource's model at a position, like the build bots' previews. The resource is loaded and checked first; a name that does not exist or has nothing to draw is rejected.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "res",
+          "doc": "Resource name, e.g. \"gfx/terobjs/cupboard\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "pos",
+          "doc": "World position [x, y], or a gob's position.",
+          "optional": false,
+          "type": "Coord|Gob"
+        },
+        {
+          "default": "0",
+          "name": "angle",
+          "doc": "Rotation in radians.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "NotFound",
+        "ActionFailed"
+      ],
+      "since": "1.0",
+      "example": "nc.overlay.ghost(\"gfx/terobjs/cupboard\", [x, y], angle=math.pi / 2)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.highlight",
+      "doc": "Tints a game object, like the client's item-search highlight. Colour as \"#rrggbb\", \"#rrggbbaa\" or [r, g, b] / [r, g, b, a] (0-255). The colour's alpha is the strength of the tint (255 paints a flat silhouette). The highlight lasts while the object stays loaded; it is removed with overlay.remove, overlay.clear or when the run ends.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "The object.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "\"#e99c54a0\"",
+          "name": "color",
+          "doc": "Tint colour.",
+          "optional": true,
+          "type": "str|list[int]"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "oid = nc.overlay.highlight(tree, color=\"#40ff40\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.label",
+      "doc": "Shows outlined text above a game object or at a world position. Colour as \"#rrggbb\", \"#rrggbbaa\" or [r, g, b] / [r, g, b, a] (0-255).",
+      "returns": "int",
+      "params": [
+        {
+          "name": "at",
+          "doc": "An object (the label follows it) or a world position [x, y].",
+          "optional": false,
+          "type": "Gob|Coord"
+        },
+        {
+          "name": "text",
+          "doc": "The text.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "\"#ffffff\"",
+          "name": "color",
+          "doc": "Text colour.",
+          "optional": true,
+          "type": "str|list[int]"
+        },
+        {
+          "default": "15",
+          "name": "height",
+          "doc": "Height above the ground, in world units.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0",
+      "example": "nc.overlay.label(barrel, \"water: 87 l\", color=\"#80c0ff\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.line",
+      "doc": "Draws a line through world points on the ground (a route, a fence plan). It is drawn on top of everything and follows the terrain. Colour as \"#rrggbb\", \"#rrggbbaa\" or [r, g, b] / [r, g, b, a] (0-255).",
+      "returns": "int",
+      "params": [
+        {
+          "name": "points",
+          "doc": "World positions [[x, y], ...] (gob snapshots work too); at least two.",
+          "optional": false,
+          "type": "list[Coord]"
+        },
+        {
+          "default": "\"#e99c54\"",
+          "name": "color",
+          "doc": "Line colour.",
+          "optional": true,
+          "type": "str|list[int]"
+        },
+        {
+          "default": "false",
+          "name": "closed",
+          "doc": "Join the last point back to the first.",
+          "optional": true,
+          "type": "bool"
+        },
+        {
+          "default": "2",
+          "name": "width",
+          "doc": "Line width in pixels.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.overlay.line([me.rc, tree.rc, barrel.rc], color=\"#ffff00\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.marker",
+      "doc": "Puts a temporary marker with a label on the minimap and the map window (it is not saved as a map marker). Colour as \"#rrggbb\", \"#rrggbbaa\" or [r, g, b] / [r, g, b, a] (0-255).",
+      "returns": "int",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "World position [x, y], or a gob's position.",
+          "optional": false,
+          "type": "Coord|Gob"
+        },
+        {
+          "default": "\"\"",
+          "name": "text",
+          "doc": "Label under the marker.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "\"#e99c54\"",
+          "name": "color",
+          "doc": "Marker colour.",
+          "optional": true,
+          "type": "str|list[int]"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.overlay.marker(boar, \"boar\", color=\"#ff4040\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.rect",
+      "doc": "Draws a rectangle on the ground like a saved area: a translucent fill over the tiles it covers and a border at its exact edges, with an optional label in the middle. Colour as \"#rrggbb\", \"#rrggbbaa\" or [r, g, b] / [r, g, b, a] (0-255). The fill uses the colour at about a third of its alpha.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "rect",
+          "doc": "World rectangle [[x1, y1], [x2, y2]], e.g. from form.pick_area or an area snapshot.",
+          "optional": false,
+          "type": "Rect"
+        },
+        {
+          "default": "\"#e99c54\"",
+          "name": "color",
+          "doc": "Border colour.",
+          "optional": true,
+          "type": "str|list[int]"
+        },
+        {
+          "name": "label",
+          "doc": "Text shown in the middle.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "default": "true",
+          "name": "fill",
+          "doc": "Fill the covered tiles.",
+          "optional": true,
+          "type": "bool"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "r = nc.form.pick_area()\nnc.overlay.rect(r, color=\"#40c0ff\", label=\"stockpiles\")"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "False if there was no such overlay (already removed).",
+      "kind": "action",
+      "name": "overlay.remove",
+      "doc": "Removes one overlay this run created.",
+      "returns": "bool",
+      "params": [{
+        "name": "id",
+        "doc": "Overlay id returned by an overlay.* call.",
+        "optional": false,
+        "type": "int"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.overlay.remove(oid)"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "Overlay id.",
+      "kind": "action",
+      "name": "overlay.tiles",
+      "doc": "Fills a set of map tiles with a translucent colour, e.g. to show planned plots or the tiles a bot will dig. Colour as \"#rrggbb\", \"#rrggbbaa\" or [r, g, b] / [r, g, b, a] (0-255). At most 20000 tiles per overlay.",
+      "returns": "int",
+      "params": [
+        {
+          "name": "tiles",
+          "doc": "Tile coordinates [[tx, ty], ...] (world position / 11, floored).",
+          "optional": false,
+          "type": "list[Tile]"
+        },
+        {
+          "default": "\"#e99c5460\"",
+          "name": "color",
+          "doc": "Fill colour; its alpha is the opacity.",
+          "optional": true,
+          "type": "str|list[int]"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "tc = [[x, y] for x in range(10, 20) for y in range(5, 8)]\nnc.overlay.tiles(tc, color=[64, 192, 255, 80])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.click_gob",
+      "doc": "Clicks a game object like the mouse would. Button 1 is left, 3 is right (opens the flower menu). `mods`: 1 shift, 2 ctrl, 4 alt (add them). Does not walk there first and does not wait.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Target.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "3",
+          "name": "button",
+          "doc": "Mouse button.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "0",
+          "name": "mods",
+          "doc": "Modifier flags.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "-1",
+          "name": "meshid",
+          "doc": "Model part to click (doors, sub-meshes); -1 for the whole object.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "name": "offset",
+          "doc": "Click point relative to the object's centre, in its own rotation.",
+          "optional": true,
+          "type": "Coord"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.click_ground",
+      "doc": "Clicks the ground at a world position. A left click walks there (without pathfinding); with a menu action armed (raw.menu_act) it applies the action there.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "World position.",
+          "optional": false,
+          "type": "Coord"
+        },
+        {
+          "default": "1",
+          "name": "button",
+          "doc": "Mouse button.",
+          "optional": true,
+          "type": "int"
+        },
+        {
+          "default": "0",
+          "name": "mods",
+          "doc": "Modifier flags.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "raw.cursor",
+      "doc": "Name of the current mouse cursor resource, e.g. \"arw\" (normal), \"dig\", \"mine\", \"chi\" (carry).",
+      "returns": "str|null",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "returnsDoc": "False if the menu has no such option (the menu is then closed).",
+      "kind": "action",
+      "name": "raw.flower_choose",
+      "doc": "Chooses an option of the open flower menu by its exact text. Pass null to close the menu without choosing.",
+      "returns": "bool",
+      "params": [{
+        "name": "option",
+        "doc": "Option text, e.g. \"Chop\".",
+        "optional": false,
+        "type": "str|null"
+      }],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "raw.flower_options",
+      "doc": "Options of the open flower (right-click) menu, or an empty list if none is open.",
+      "returns": "list[str]",
+      "params": [],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.inv_drop",
+      "doc": "Drops the item in hand into an inventory cell.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "inventory",
+          "doc": "Target inventory (\"main\", a window caption, or a handle).",
+          "optional": false,
+          "type": "Inventory|str"
+        },
+        {
+          "name": "slot",
+          "doc": "Cell [x, y].",
+          "optional": false,
+          "type": "Tile"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.invxf",
+      "doc": "Moves items from one open inventory to another the way shift+mouse-wheel does: `count` items, taken by the server in its own order. Use actions.transfer for name-based moves.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "from",
+          "doc": "Source inventory.",
+          "optional": false,
+          "type": "Inventory|str"
+        },
+        {
+          "name": "to",
+          "doc": "Target inventory.",
+          "optional": false,
+          "type": "Inventory|str"
+        },
+        {
+          "default": "1",
+          "name": "count",
+          "doc": "Number of items.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.item_drop",
+      "doc": "Drops an item on the ground at the player's feet (ctrl-click).",
+      "returns": "null",
+      "params": [{
+        "name": "item",
+        "doc": "Item.",
+        "optional": false,
+        "type": "Item"
+      }],
+      "exec": "bot",
+      "errors": ["ItemGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.item_interact",
+      "doc": "Right-clicks an item: opens its flower menu (Eat, Split, Drink...). Choose with raw.flower_choose or actions.flower_item.",
+      "returns": "null",
+      "params": [{
+        "name": "item",
+        "doc": "Item.",
+        "optional": false,
+        "type": "Item"
+      }],
+      "exec": "bot",
+      "errors": ["ItemGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.item_take",
+      "doc": "Picks an item up onto the cursor (the hand). Does not wait; see wait.item_in_hand.",
+      "returns": "null",
+      "params": [{
+        "name": "item",
+        "doc": "Item.",
+        "optional": false,
+        "type": "Item"
+      }],
+      "exec": "bot",
+      "errors": ["ItemGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.item_transfer",
+      "doc": "Shift-clicks an item: moves it to the other open inventory (or out of a container into yours).",
+      "returns": "null",
+      "params": [{
+        "name": "item",
+        "doc": "Item.",
+        "optional": false,
+        "type": "Item"
+      }],
+      "exec": "bot",
+      "errors": ["ItemGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.itemact_gob",
+      "doc": "Uses the item in hand on a game object (like clicking it while holding the item).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "gob",
+          "doc": "Target.",
+          "optional": false,
+          "type": "Gob"
+        },
+        {
+          "default": "0",
+          "name": "mods",
+          "doc": "1 = shift (use all / repeat), 3 = shift+ctrl.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["GobGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.itemact_ground",
+      "doc": "Uses the item in hand on the ground at a position.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "World position.",
+          "optional": false,
+          "type": "Coord"
+        },
+        {
+          "default": "0",
+          "name": "mods",
+          "doc": "Modifier flags.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.itemact_item",
+      "doc": "Uses the item in hand on another item (e.g. pour water into a bucket, combine).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "item",
+          "doc": "Target item.",
+          "optional": false,
+          "type": "Item"
+        },
+        {
+          "default": "0",
+          "name": "mods",
+          "doc": "Modifier flags; 1 = shift (all).",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["ItemGone"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.menu_act",
+      "doc": "Triggers a menu-grid action by its internal name, as if its button or hotkey were used: e.g. [\"carry\"], [\"destroy\"], [\"mine\"], [\"dig\"], [\"aggro\"], [\"croster\"], [\"bp\", \"palisade\"]. Most arm the cursor; follow with raw.click_gob or raw.click_ground.",
+      "returns": "null",
+      "params": [{
+        "name": "act",
+        "doc": "Action path.",
+        "optional": false,
+        "type": "list[str]"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "nc.raw.menu_act([\"destroy\"])\nnc.raw.click_gob(stump, button=1)"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.pagina_use",
+      "doc": "Uses a menu-grid entry (pagina) by its display name or resource name, e.g. \"Drink\" or \"paginae/act/drink\". Crafting recipes open their craft window this way.",
+      "returns": "null",
+      "params": [{
+        "name": "name",
+        "doc": "Display name or resource name.",
+        "optional": false,
+        "type": "str"
+      }],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "raw.place",
+      "doc": "Places the object being placed (a carried object or a build ghost) at a position and angle. Arm it first (e.g. raw.click_gob with shift on a carried object, or a build recipe).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "pos",
+          "doc": "World position.",
+          "optional": false,
+          "type": "Coord"
+        },
+        {
+          "default": "0",
+          "name": "angle",
+          "doc": "Rotation in radians.",
+          "optional": true,
+          "type": "float"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "ui.click_button",
+      "doc": "Clicks the first button whose text equals `text` (inside `window` if given).",
+      "returns": "null",
+      "params": [
+        {
+          "name": "text",
+          "doc": "Button text, e.g. \"Build\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "window",
+          "doc": "Window handle or caption.",
+          "optional": true,
+          "type": "Window|str"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["NotFound"],
+      "since": "1.0"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "ui.find",
+      "doc": "Searches the widget tree for widgets whose Java class name ends with `cls` and/or whose caption or text contains `text`.",
+      "returns": "list[Widget]",
+      "params": [
+        {
+          "name": "cls",
+          "doc": "Class name suffix, e.g. \"Button\" or \"NFlowerMenu\".",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "name": "text",
+          "doc": "Substring of a window caption, button or label text.",
+          "optional": true,
+          "type": "str"
+        },
+        {
+          "name": "root",
+          "doc": "Search below this widget only.",
+          "optional": true,
+          "type": "Widget"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0",
+      "example": "ok = nc.ui.find(cls=\"Button\", text=\"Build\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "ui.tree",
+      "doc": "The widget tree below a widget (default: the game UI). Each node is a Widget snapshot plus `children`, and `text` for buttons and labels. Use `depth` to keep it small; the full tree has thousands of nodes.",
+      "returns": "dict",
+      "params": [
+        {
+          "name": "root",
+          "doc": "Widget to start from.",
+          "optional": true,
+          "type": "Widget"
+        },
+        {
+          "default": "2",
+          "name": "depth",
+          "doc": "Levels below the root; -1 for all.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["WidgetGone"],
+      "since": "1.0",
+      "example": "tree = nc.ui.tree(depth=1)\nprint([c[\"class\"] for c in tree[\"children\"]])"
+    },
+    {
+      "unstable": false,
+      "kind": "action",
+      "name": "ui.wdgmsg",
+      "doc": "Sends a raw widget message to the server, exactly as the widget would. Coordinates in `args` are passed as [x, y] lists and converted to Coord; use `raw.*` ops for world positions, which need server units.",
+      "returns": "null",
+      "params": [
+        {
+          "name": "wdg",
+          "doc": "Sending widget (handle or id).",
+          "optional": false,
+          "type": "Widget"
+        },
+        {
+          "name": "msg",
+          "doc": "Message name, e.g. \"close\", \"click\", \"transfer\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "[]",
+          "name": "args",
+          "doc": "Message arguments.",
+          "optional": true,
+          "type": "list[any]"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["WidgetGone"],
+      "since": "1.0",
+      "example": "nc.ui.wdgmsg(wnd, \"close\")"
+    },
+    {
+      "unstable": false,
+      "kind": "query",
+      "name": "ui.widget",
+      "doc": "One widget's snapshot, or null if it no longer exists.",
+      "returns": "Widget|null",
+      "params": [{
+        "name": "wdg",
+        "doc": "Widget handle or id.",
+        "optional": false,
+        "type": "Widget"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": true,
+      "kind": "action",
+      "name": "java.call",
+      "doc": "Calls a method on an object, or reads a field when there is no such method and no arguments. The target is a reference, a snapshot (Gob, Item, Widget, Area), or one of \"gui\", \"ui\", \"map\", \"player\", \"glob\", \"inventory\", \"run\".",
+      "returns": "any",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Object to call on.",
+          "optional": false,
+          "type": "any"
+        },
+        {
+          "name": "member",
+          "doc": "Method or field name.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "[]",
+          "name": "args",
+          "doc": "Arguments.",
+          "optional": true,
+          "type": "list[any]"
+        }
+      ],
+      "exec": "bot",
+      "errors": [
+        "JavaError",
+        "GobGone",
+        "WidgetGone"
+      ],
+      "since": "1.0",
+      "example": "nc.java.call(\"gui\", \"msg\", [\"hello from Python\"])"
+    },
+    {
+      "unstable": true,
+      "kind": "query",
+      "name": "java.get",
+      "doc": "Reads a field (any visibility) of an object, or a static field when `target` is a class name prefixed with \"class:\".",
+      "returns": "any",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Object, or \"class:fully.qualified.Name\".",
+          "optional": false,
+          "type": "any"
+        },
+        {
+          "name": "field",
+          "doc": "Field name.",
+          "optional": false,
+          "type": "str"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["JavaError"],
+      "since": "1.0",
+      "example": "hp = nc.java.get(\"gui\", \"chrid\")"
+    },
+    {
+      "unstable": true,
+      "kind": "query",
+      "name": "java.items",
+      "doc": "Converts a referenced Collection, Map (its entries as [key, value]), Iterable or array to a list, element by element.",
+      "returns": "list[any]",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Reference to a collection.",
+          "optional": false,
+          "type": "any"
+        },
+        {
+          "default": "1000",
+          "name": "limit",
+          "doc": "Maximum number of elements.",
+          "optional": true,
+          "type": "int"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["JavaError"],
+      "since": "1.0"
+    },
+    {
+      "unstable": true,
+      "returnsDoc": "{class, methods: [str], fields: [str]}",
+      "kind": "query",
+      "name": "java.members",
+      "doc": "Lists the methods and fields of a class or of a referenced object's class, for exploring the client from a REPL.",
+      "returns": "dict",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Reference, snapshot, special name, or \"class:Name\".",
+          "optional": false,
+          "type": "any"
+        },
+        {
+          "name": "filter",
+          "doc": "Only members whose name contains this.",
+          "optional": true,
+          "type": "str"
+        }
+      ],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": true,
+      "kind": "action",
+      "name": "java.new",
+      "doc": "Constructs an object and returns a reference to it.",
+      "returns": "any",
+      "params": [
+        {
+          "name": "cls",
+          "doc": "Fully qualified class name.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "[]",
+          "name": "args",
+          "doc": "Constructor arguments.",
+          "optional": true,
+          "type": "list[any]"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["JavaError"],
+      "since": "1.0",
+      "example": "alias = nc.java.new(\"nurgling.tools.NAlias\", [[\"log\"]])"
+    },
+    {
+      "unstable": true,
+      "kind": "query",
+      "name": "java.ref",
+      "doc": "Turns a snapshot or special name into a reference, e.g. to call several methods on the same object.",
+      "returns": "dict",
+      "params": [{
+        "name": "target",
+        "doc": "Snapshot or special name.",
+        "optional": false,
+        "type": "any"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": true,
+      "returnsDoc": "How many were released.",
+      "kind": "query",
+      "name": "java.release",
+      "doc": "Releases references so the objects can be garbage collected. All references are released when the script disconnects.",
+      "returns": "int",
+      "params": [{
+        "name": "refs",
+        "doc": "Reference numbers.",
+        "optional": false,
+        "type": "list[int]"
+      }],
+      "exec": "bot",
+      "errors": [],
+      "since": "1.0"
+    },
+    {
+      "unstable": true,
+      "returnsDoc": "True if the action returned SUCCESS.",
+      "kind": "action",
+      "name": "java.run_action",
+      "doc": "Constructs any nurgling.actions.Action by class name and runs it on this script's bot thread, as Java bots do: `new X(args...).run(gui)`. Gives scripts every reusable action in the client, including ones the curated API does not wrap.",
+      "returns": "bool",
+      "params": [
+        {
+          "name": "cls",
+          "doc": "Action class, e.g. \"nurgling.actions.FreeInventory2\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "[]",
+          "name": "args",
+          "doc": "Constructor arguments.",
+          "optional": true,
+          "type": "list[any]"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["JavaError"],
+      "since": "1.0",
+      "example": "ctx = nc.java.new(\"nurgling.areas.NContext\", [nc.java.ref(\"gui\")])\nnc.java.run_action(\"nurgling.actions.FreeInventory2\", [ctx])"
+    },
+    {
+      "unstable": true,
+      "kind": "action",
+      "name": "java.set",
+      "doc": "Writes a field (any visibility, not final) of an object, or a static field with \"class:Name\".",
+      "returns": "null",
+      "params": [
+        {
+          "name": "target",
+          "doc": "Object, or \"class:fully.qualified.Name\".",
+          "optional": false,
+          "type": "any"
+        },
+        {
+          "name": "field",
+          "doc": "Field name.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "value",
+          "doc": "New value.",
+          "optional": false,
+          "type": "any"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["JavaError"],
+      "since": "1.0"
+    },
+    {
+      "unstable": true,
+      "kind": "action",
+      "name": "java.static",
+      "doc": "Calls a static method, or reads a static field when there is no method of that name and no arguments.",
+      "returns": "any",
+      "params": [
+        {
+          "name": "cls",
+          "doc": "Fully qualified class name, e.g. \"nurgling.NUtils\".",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "name": "member",
+          "doc": "Method or field name.",
+          "optional": false,
+          "type": "str"
+        },
+        {
+          "default": "[]",
+          "name": "args",
+          "doc": "Arguments.",
+          "optional": true,
+          "type": "list[any]"
+        }
+      ],
+      "exec": "bot",
+      "errors": ["JavaError"],
+      "since": "1.0",
+      "example": "stamina = nc.java.static(\"nurgling.NUtils\", \"getStamina\")"
+    }
+  ],
+  "api": "1.0",
+  "errors": {
+    "BadArgs": "Missing, unknown or wrongly typed arguments.",
+    "ActionFailed": "A game action ran but reported failure (the Java action returned FAIL or ERROR).",
+    "Stopped": "The run was stopped (stop button, script exit, or session closed). Not catchable as a normal failure: the run is over.",
+    "Timeout": "A wait or blocking call did not finish within its timeout.",
+    "JavaError": "A Java exception thrown inside a java.* call (layer 4). The message carries the Java class and message.",
+    "Internal": "An unexpected error inside the client. Please report it with the message.",
+    "Cancelled": "The user dismissed a form or picker.",
+    "NotSupported": "The op cannot run in this context (e.g. an interactive prompt on a headless session).",
+    "GobGone": "The game object no longer exists (out of view, destroyed, or picked up).",
+    "ItemGone": "The item widget no longer exists (moved, used up, or its container closed).",
+    "UnknownOp": "No op with that name exists in this client version.",
+    "NoSuchArea": "No area with that id, name or specialisation exists.",
+    "PathNotFound": "The pathfinder found no route to the target.",
+    "AuthFailed": "The handshake token was wrong or missing.",
+    "WidgetGone": "The window or widget no longer exists.",
+    "NotFound": "Something the op needed (a window, a menu option, an item) was not found."
+  }
+}

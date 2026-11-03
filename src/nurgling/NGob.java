@@ -578,7 +578,10 @@ public class NGob
 
         if (a instanceof Drawable)
         {
+            boolean unnamed = (name == null);
             processDrawable((Drawable) a);
+            if (unnamed && name != null)
+                nurgling.scripting.ops.GobOps.onGobNamed(parent, name);
         }
     }
 

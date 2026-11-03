@@ -41,7 +41,8 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             BotDescriptor.BotType.ANIMALS,
             BotDescriptor.BotType.UTILS,
             BotDescriptor.BotType.BUILD,
-            BotDescriptor.BotType.TOOLS
+            BotDescriptor.BotType.TOOLS,
+            BotDescriptor.BotType.SCRIPTS
     );
     private static final Map<BotDescriptor.BotType, String> FOLDER_ICON = Map.of(
             BotDescriptor.BotType.RESOURCES, "resources",
@@ -52,7 +53,8 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             BotDescriptor.BotType.ANIMALS, "animals",
             BotDescriptor.BotType.UTILS, "utils",
             BotDescriptor.BotType.BUILD, "build",
-            BotDescriptor.BotType.TOOLS, "tools"
+            BotDescriptor.BotType.TOOLS, "tools",
+            BotDescriptor.BotType.SCRIPTS, "scripts"
     );
 
     private static final Color GOLD = new Color(242, 201, 76);
@@ -109,6 +111,10 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
     private UI.Grab renameKeys = null, renameMouse = null;
 
     public NBotsMenu() {
+        // Every game UI builds a bot menu, whatever started the client (MainFrame, headless, the simulator):
+        // make sure user scripts are registered and the scripting server runs if it is enabled.
+        nurgling.scripting.ScriptRuntime.startIfEnabled();
+        nurgling.scripting.ScriptCatalog.refresh();
         for (BotDescriptor bot : BotRegistry.allowedInBotMenu()) {
             NButton b = (bot.clazz == CatchBugsAround.class)
                     ? new NToggleNButton(bot, bot.instantiate(Map.of()))
@@ -123,6 +129,20 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
         buildRail();
         sz = stripSz();
         favs.sync();
+    }
+
+    /** Re-reads the Scripts folder from the registry, after ScriptCatalog.refresh() found new or removed scripts. */
+    public void syncScripts() {
+        buttons.removeIf(b -> b.bot.type == BotDescriptor.BotType.SCRIPTS);
+        byId.values().removeIf(b -> b.bot.type == BotDescriptor.BotType.SCRIPTS);
+        for (BotDescriptor bot : BotRegistry.allowedInBotMenu()) {
+            if (bot.type != BotDescriptor.BotType.SCRIPTS)
+                continue;
+            NButton b = new NButton(bot, bot.instantiate(Map.of()));
+            buttons.add(b);
+            byId.put(bot.id, b);
+        }
+        dirty = true;
     }
 
     private static boolean isDebug() {
@@ -381,9 +401,14 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
     private void buildRail() {
         rail.clear();
         rail.add(FAV);
-        for (int i = 0; i < folders.size(); i++)
-            if (debug || folders.get(i).type != BotDescriptor.BotType.TOOLS)
-                rail.add(i);
+        for (int i = 0; i < folders.size(); i++) {
+            BotDescriptor.BotType t = folders.get(i).type;
+            if (t == BotDescriptor.BotType.TOOLS && !debug)
+                continue;
+            if (t == BotDescriptor.BotType.SCRIPTS && !nurgling.scripting.ScriptRuntime.enabled())
+                continue;
+            rail.add(i);
+        }
         stripLen = rail.size() * ROW + 2 * PAD;
     }
 
@@ -1024,7 +1049,9 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
                 }
             };
 
-            BotExecutor.runWithSupports(path, action, disStacks, onComplete);
+            // Scripts share one icon, so their thread is named by id for the Bot Status strip to find their title.
+            String name = (bot.type == BotDescriptor.BotType.SCRIPTS) ? bot.id : path;
+            BotExecutor.runWithSupports(name, action, disStacks, onComplete);
         }
     }
 

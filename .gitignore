@@ -16,3 +16,6 @@ __pycache__/
 *.pyc
 /plugins/
 /tools/web/
+
+/docs/scripting/site/
+__pycache__/

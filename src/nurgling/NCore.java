@@ -361,7 +361,23 @@ public class NCore extends Widget
         }
     }
 
+    /** Jobs other threads hand to the UI thread; drained at the start of every tick of this session. */
+    private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> uiJobs = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** Runs {@code job} on this session's UI (or headless) tick thread, holding the UI lock, on the next tick. */
+    public void post(Runnable job) {
+        uiJobs.add(job);
+    }
+
     private void tickMeasured(double dt) {
+        for (Runnable job; (job = uiJobs.poll()) != null; ) {
+            try {
+                job.run();
+            } catch (RuntimeException e) {
+                // A broken job must not take the UI thread (and the whole session) down with it.
+                e.printStackTrace();
+            }
+        }
         if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager == null)
         {
             synchronized (dbLock) {

@@ -9,6 +9,7 @@ import nurgling.actions.bots.silk.SilkProductionBot;
 import nurgling.actions.bots.cheeseconveyor.CheeseConveyorBot;
 import nurgling.actions.bots.areamover.AreaMoverBot;
 import nurgling.actions.bots.drinker.DrinkerBot;
+import nurgling.actions.bots.drinker.Vessels;
 import nurgling.actions.bots.blueprint.BlueprintBuilder;
 import nurgling.actions.bots.CollectSwillInArea;
 import nurgling.actions.bots.swillpiles.SwillPilesToTroughsBot;
@@ -29,8 +30,11 @@ import nurgling.bots.ChunkNavNavigatorBot;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static nurgling.actions.bots.registry.ParamSpec.Type.*;
+
 public class BotRegistry {
-    private static final List<BotDescriptor> bots = new ArrayList<>();
+    // Copy-on-write: user scripts are re-registered at runtime while other threads read the list.
+    private static final List<BotDescriptor> bots = new java.util.concurrent.CopyOnWriteArrayList<>();
     // Declared before the static block below, which fills it.
     private static final Map<BotDescriptor.BotType, List<String>> groupOrder = new EnumMap<>(BotDescriptor.BotType.class);
 
@@ -46,7 +50,7 @@ public class BotRegistry {
                 GotoArea.class,
                 "goto",
                 false
-        ));
+        ).withParams(ParamSpec.of("areaId", AREA, "Area to walk to (global navigation).", null)));
         bots.add(new BotDescriptor(
                 "hearthfire",
                 BotDescriptor.BotType.UTILS,
@@ -68,7 +72,7 @@ public class BotRegistry {
                 WaitBot.class,
                 "pause",
                 false
-        ));
+        ).withParams(ParamSpec.of("waitDurationMs", INT, "How long to wait, in milliseconds.", null)));
         bots.add(new BotDescriptor(
                 "set_speed",
                 BotDescriptor.BotType.UTILS,
@@ -79,7 +83,7 @@ public class BotRegistry {
                 SetSpeedBot.class,
                 "speed",
                 false
-        ));
+        ).withParams(ParamSpec.of("speed", INT, "Movement speed: 0 crawl, 1 walk, 2 run, 3 sprint. Capped at the fastest speed allowed right now.", SetSpeedBot.DEFAULT_SPEED)));
         bots.add(new BotDescriptor(
                 "autocraft_bot",
                 BotDescriptor.BotType.UTILS,
@@ -90,7 +94,9 @@ public class BotRegistry {
                 AutocraftBot.class,
                 "autocraft",
                 false
-        ));
+        ).withParams(
+                ParamSpec.of("presetId", STRING, "Id of the saved craft preset.", null),
+                ParamSpec.of("quantity", INT, "How many times to craft.", 1)));
         bots.add(new BotDescriptor(
                 "maintain_stock_bot",
                 BotDescriptor.BotType.UTILS,
@@ -101,27 +107,31 @@ public class BotRegistry {
                 MaintainStockBot.class,
                 "maintainstock",
                 false
-        ));
+        ).withParams(
+                ParamSpec.of("presetId", STRING, "Id of the saved craft preset.", null),
+                ParamSpec.of("areaId", AREA, "Stock area: holds the preset's output as a Put item.", null),
+                ParamSpec.of("targetQuantity", INT, "How many of the output to keep in stock (above 0).", null)));
 
         // RESOURCES (using localization keys: bot.<id>.title and bot.<id>.desc)
-        bots.add(new BotDescriptor("choper", BotDescriptor.BotType.RESOURCES, "bot.chopper.title", "bot.chopper.desc", false, true, Chopper.class, "choper", false));
-        bots.add(new BotDescriptor("chipper", BotDescriptor.BotType.RESOURCES, "bot.chipper.title", "bot.chipper.desc", false, true, Chipper.class, "chipper", false));
-        bots.add(new BotDescriptor("pblocks", BotDescriptor.BotType.RESOURCES, "bot.pblocks.title", "bot.pblocks.desc", false, true, PrepareBlocks.class, "pblocks", false));
-        bots.add(new BotDescriptor("pboards", BotDescriptor.BotType.RESOURCES, "bot.pboards.title", "bot.pboards.desc", false, true, PrepareBoards.class, "pboards", false));
-        bots.add(new BotDescriptor("clay", BotDescriptor.BotType.RESOURCES, "bot.clay.title", "bot.clay.desc", false, true, ClayDigger.class, "clay", true));
+        bots.add(new BotDescriptor("choper", BotDescriptor.BotType.RESOURCES, "bot.chopper.title", "bot.chopper.desc", false, true, Chopper.class, "choper", false).interactive());
+        bots.add(new BotDescriptor("chipper", BotDescriptor.BotType.RESOURCES, "bot.chipper.title", "bot.chipper.desc", false, true, Chipper.class, "chipper", false).interactive());
+        bots.add(new BotDescriptor("pblocks", BotDescriptor.BotType.RESOURCES, "bot.pblocks.title", "bot.pblocks.desc", false, true, PrepareBlocks.class, "pblocks", false).interactive());
+        bots.add(new BotDescriptor("pboards", BotDescriptor.BotType.RESOURCES, "bot.pboards.title", "bot.pboards.desc", false, true, PrepareBoards.class, "pboards", false).interactive());
+        bots.add(new BotDescriptor("clay", BotDescriptor.BotType.RESOURCES, "bot.clay.title", "bot.clay.desc", false, true, ClayDigger.class, "clay", true).interactive());
         bots.add(new BotDescriptor("bark", BotDescriptor.BotType.RESOURCES, "bot.bark.title", "bot.bark.desc", false, true, CollectBark.class, "bark", false));
         bots.add(new BotDescriptor("bough", BotDescriptor.BotType.RESOURCES, "bot.bough.title", "bot.bough.desc", false, true, CollectBough.class, "bough", false));
         bots.add(new BotDescriptor("leaf", BotDescriptor.BotType.RESOURCES, "bot.leaf.title", "bot.leaf.desc", false, true, CollectLeaf.class, "leaf", false));
         bots.add(new BotDescriptor("leaf_zone", BotDescriptor.BotType.RESOURCES, "bot.leaf_zone.title", "bot.leaf_zone.desc", true, true, CollectLeafZone.class, "leaf_zone", false));
         bots.add(new BotDescriptor("lp_gatherer", BotDescriptor.BotType.RESOURCES, "bot.lp_gatherer.title", "bot.lp_gatherer.desc", true, true, LpGatherer.class, "lp_gatherer", false));
-        bots.add(new BotDescriptor("fisher", BotDescriptor.BotType.RESOURCES, "bot.fisher.title", "bot.fisher.desc", false, true, Fishing.class, "fisher", true));
-        bots.add(new BotDescriptor("plower", BotDescriptor.BotType.RESOURCES, "bot.plower.title", "bot.plower.desc", false, true, Plower.class, "plower", true));
-        bots.add(new BotDescriptor("plant_trees", BotDescriptor.BotType.RESOURCES, "bot.plant_trees.title", "bot.plant_trees.desc", false, true, PlantTrees.class, "treePlanter", false));
-        bots.add(new BotDescriptor("blueprint_tree_planter", BotDescriptor.BotType.RESOURCES, "bot.blueprint_tree_planter.title", "bot.blueprint_tree_planter.desc", false, true, BlueprintTreePlanter.class, "treegardener", false));
-        bots.add(new BotDescriptor("boughbee", BotDescriptor.BotType.RESOURCES, "bot.boughbee.title", "bot.boughbee.desc", false, true, BoughBee.class, "boughpyre", false));
-        bots.add(new BotDescriptor("forager", BotDescriptor.BotType.RESOURCES, "bot.forager.title", "bot.forager.desc", true, true, Forager.class, "forager", false));
-        bots.add(new BotDescriptor("masterminer", BotDescriptor.BotType.RESOURCES, "bot.masterminer.title", "bot.masterminer.desc", false, true, MasterMiner.class, "masterminer", false));
-        bots.add(new BotDescriptor("tunneling", BotDescriptor.BotType.RESOURCES, "Tunneling Bot", "Digs tunnels with support placement, or use 'No Support' mode for minesweeper-guided mining without supports.", false, true, TunnelingBot.class, "tunelling", false));
+        bots.add(new BotDescriptor("fisher", BotDescriptor.BotType.RESOURCES, "bot.fisher.title", "bot.fisher.desc", false, true, Fishing.class, "fisher", true).interactive());
+        bots.add(new BotDescriptor("plower", BotDescriptor.BotType.RESOURCES, "bot.plower.title", "bot.plower.desc", false, true, Plower.class, "plower", true).interactive());
+        bots.add(new BotDescriptor("plant_trees", BotDescriptor.BotType.RESOURCES, "bot.plant_trees.title", "bot.plant_trees.desc", false, true, PlantTrees.class, "treePlanter", false).interactive());
+        bots.add(new BotDescriptor("blueprint_tree_planter", BotDescriptor.BotType.RESOURCES, "bot.blueprint_tree_planter.title", "bot.blueprint_tree_planter.desc", false, true, BlueprintTreePlanter.class, "treegardener", false).interactive());
+        bots.add(new BotDescriptor("boughbee", BotDescriptor.BotType.RESOURCES, "bot.boughbee.title", "bot.boughbee.desc", false, true, BoughBee.class, "boughpyre", false).interactive());
+        bots.add(new BotDescriptor("forager", BotDescriptor.BotType.RESOURCES, "bot.forager.title", "bot.forager.desc", true, true, Forager.class, "forager", false)
+                .withParams(ParamSpec.of("presetName", STRING, "Forager preset to run. Leave it out to pick the route in the Forager window.", "")));
+        bots.add(new BotDescriptor("masterminer", BotDescriptor.BotType.RESOURCES, "bot.masterminer.title", "bot.masterminer.desc", false, true, MasterMiner.class, "masterminer", false).interactive());
+        bots.add(new BotDescriptor("tunneling", BotDescriptor.BotType.RESOURCES, "Tunneling Bot", "Digs tunnels with support placement, or use 'No Support' mode for minesweeper-guided mining without supports.", false, true, TunnelingBot.class, "tunelling", false).interactive());
         bots.add(new BotDescriptor("tickbot", BotDescriptor.BotType.RESOURCES, "bot.tick.title", "bot.tick.desc", true, true, TickBot.class, "tick", false));
 
         // PRODUCTIONS
@@ -131,14 +141,14 @@ public class BotRegistry {
         bots.add(new BotDescriptor("butcher", BotDescriptor.BotType.PRODUCTIONS, "Butcher", "Butchers animals.", true, true, Butcher.class, "butcher", false));
         bots.add(new BotDescriptor("hides", BotDescriptor.BotType.PRODUCTIONS, "Handle hides.", "Handles hides.", true, true, DFrameHidesAction.class, "hides", false));
         bots.add(new BotDescriptor("dryedfish", BotDescriptor.BotType.PRODUCTIONS, "Dry Fish", "Dries fish on drying frames.", true, true, DFrameFishAction.class, "dryedfish", false));
-        bots.add(new BotDescriptor("fishroast", BotDescriptor.BotType.PRODUCTIONS, "Spit Roast", "Roasts fish.", false, true, FriedFish.class, "fishroast", true));
+        bots.add(new BotDescriptor("fishroast", BotDescriptor.BotType.PRODUCTIONS, "Spit Roast", "Roasts fish.", false, true, FriedFish.class, "fishroast", true).interactive());
         bots.add(new BotDescriptor("leather", BotDescriptor.BotType.PRODUCTIONS, "Leather Action", "Makes leather.", true, true, LeatherAction.class, "leather", false));
         bots.add(new BotDescriptor("gelatin", BotDescriptor.BotType.PRODUCTIONS, "Gelatin", "Crafts gelatin from hides. Fills inventory with hides from readyHides zone and crafts.", true, true, GelatinAction.class, "gelatin", false));
-        bots.add(new BotDescriptor("smoking", BotDescriptor.BotType.PRODUCTIONS, "Smoking", "Smokes stuff.", false, true, Smoking.class, "smoking", true));
+        bots.add(new BotDescriptor("smoking", BotDescriptor.BotType.PRODUCTIONS, "Smoking", "Smokes stuff.", false, true, Smoking.class, "smoking", true).interactive());
         bots.add(new BotDescriptor("tarkiln", BotDescriptor.BotType.PRODUCTIONS, "Tarkiln Action", "Burns stuff in tarkiln.", true, true, TarkilnAction.class, "tarkiln", false));
         bots.add(new BotDescriptor("tabaco", BotDescriptor.BotType.PRODUCTIONS, "Tabaco Action", "Processes tabaco.", true, true, TabacoAction.class, "tabaco", false));
         bots.add(new BotDescriptor("brick", BotDescriptor.BotType.PRODUCTIONS, "Bricks Action", "Makes bricks.", true, true, BricksAction.class, "brick", true));
-        bots.add(new BotDescriptor("branch", BotDescriptor.BotType.PRODUCTIONS, "Branch Action", "Processes branches.", true, true, BranchAction.class, "branch", false));
+        bots.add(new BotDescriptor("branch", BotDescriptor.BotType.PRODUCTIONS, "Branch Action", "Processes branches.", true, true, BranchAction.class, "branch", false).interactive());
         bots.add(new BotDescriptor("wrap", BotDescriptor.BotType.PRODUCTIONS, "Wrap Action", "Wraps items.", true, true, WrapAction.class, "wrap", true));
         bots.add(new BotDescriptor("bonestoash", BotDescriptor.BotType.PRODUCTIONS, "Bone Ash", "Burns bones to ash.", true, true, BoneAshAction.class, "bonestoash", true));
         bots.add(new BotDescriptor("ash", BotDescriptor.BotType.PRODUCTIONS, "Block Ash", "Blocks ash.", true, true, BlockAshAction.class, "ash", false));
@@ -215,8 +225,9 @@ public class BotRegistry {
         bots.add(new BotDescriptor("chicken", BotDescriptor.BotType.ANIMALS, "Chicken Manager", "Manages chicken coops.", true, true, KFC.class, "chicken", false));
         bots.add(new BotDescriptor("duck", BotDescriptor.BotType.ANIMALS, "bot.duck.title", "bot.duck.desc", true, true, DuckMaster.class, "duck", false));
         bots.add(new BotDescriptor("rabbit", BotDescriptor.BotType.ANIMALS, "Rabbit Manager", "Manages rabbit hutches.", true, true, RabbitMaster.class, "rabbit", false));
-        bots.add(new BotDescriptor("bee", BotDescriptor.BotType.ANIMALS, "Beehive Manager", "Collects honey and wax from beehives.", true, true, HoneyAndWaxCollector.class, "bee", false));
-        bots.add(new BotDescriptor("trufflepig", BotDescriptor.BotType.ANIMALS, "Truffle Pig Hunter", "Hunt truffles with a leashed pig along a defined path.", true, true, TrufflePigHunter.class, "trufflepig", false));
+        bots.add(new BotDescriptor("bee", BotDescriptor.BotType.ANIMALS, "Beehive Manager", "Collects honey and wax from beehives.", true, true, HoneyAndWaxCollector.class, "bee", false).interactive());
+        bots.add(new BotDescriptor("trufflepig", BotDescriptor.BotType.ANIMALS, "Truffle Pig Hunter", "Hunt truffles with a leashed pig along a defined path.", true, true, TrufflePigHunter.class, "trufflepig", false)
+                .withParams(ParamSpec.of("presetName", STRING, "Truffle Pig Hunter preset to run. Leave it out to pick it in the bot window.", "")));
 
         // FARMING QUALITY
         bots.add(new BotDescriptor("turnipq", BotDescriptor.BotType.FARMING_QUALITY, "Turnip Farmer Quality", "Automatically harvests and replants turnips in X*Y cell patches.", true, true, TurnipsFarmerQ.class, "turnipq", false));
@@ -245,30 +256,34 @@ public class BotRegistry {
         bots.add(new BotDescriptor("calculators", BotDescriptor.BotType.UTILS, "bot.calculators.title", "bot.calculators.desc", false, true, CalculatorsTool.class, "calculators", false));
         bots.add(new BotDescriptor("equipment_bot", BotDescriptor.BotType.UTILS, "Equipment Bot", "Equip items from a saved preset.", true, false, EquipmentBot.class, "shieldsword", false));
         bots.add(new BotDescriptor("shieldsword", BotDescriptor.BotType.UTILS, "Equip Shield/Sword", "Equips shield and sword.", true, true, EquipShieldSword.class, "shieldsword", false));
-        bots.add(new BotDescriptor("filwater", BotDescriptor.BotType.UTILS, "Fill Waterskins (Select Zone)", "Fills waterskins - always prompts to select water zone.", false, true, FillWaterskins.class, "filwater", false));
+        bots.add(new BotDescriptor("filwater", BotDescriptor.BotType.UTILS, "Fill Waterskins (Select Zone)", "Fills waterskins - always prompts to select water zone.", false, true, FillWaterskins.class, "filwater", false).interactive());
         bots.add(new BotDescriptor("filwaterzone", BotDescriptor.BotType.UTILS, "Fill Waterskins (Global Zone)", "Fills waterskins using global water zone with chunk navigation.", true, true, FillWaterskinsGlobal.class, "filwaterzone", false));
-        bots.add(new BotDescriptor("unbox", BotDescriptor.BotType.UTILS, "Free Containers", "Frees containers in area.", false, true, FreeContainersInArea.class, "unbox", false));
+        bots.add(new BotDescriptor("unbox", BotDescriptor.BotType.UTILS, "Free Containers", "Frees containers in area.", false, true, FreeContainersInArea.class, "unbox", false).interactive());
         bots.add(new BotDescriptor("unbox_zone", BotDescriptor.BotType.UTILS, "Free Containers in Unbox Zone", "Automatically navigates to unbox zone and frees containers.", true, true, FreeContainersInUnboxZone.class, "unbox_zone", false));
-        bots.add(new BotDescriptor("sort_containers", BotDescriptor.BotType.UTILS, "Sort Containers in Area", "Sorts all items across containers in a selected area.", false, true, SortContainersInArea.class, "sort_containers", false));
-        bots.add(new BotDescriptor("area_mover", BotDescriptor.BotType.UTILS, "bot.area_mover.title", "bot.area_mover.desc", true, true, AreaMoverBot.class, "area_mover", false));
+        bots.add(new BotDescriptor("sort_containers", BotDescriptor.BotType.UTILS, "Sort Containers in Area", "Sorts all items across containers in a selected area.", false, true, SortContainersInArea.class, "sort_containers", false).interactive());
+        bots.add(new BotDescriptor("area_mover", BotDescriptor.BotType.UTILS, "bot.area_mover.title", "bot.area_mover.desc", true, true, AreaMoverBot.class, "area_mover", false)
+                .withParams(ParamSpec.of(AreaMoverBot.FROM_AREA, AREA, "Area to empty. Leave out both areas to choose them in the Area Mover window.", 0),
+                ParamSpec.of(AreaMoverBot.TO_AREA, AREA, "Area to move the items into.", 0),
+                ParamSpec.of(AreaMoverBot.CREATE_PILES, BOOL, "Make new stockpiles in the destination when its piles and containers are full.", true)));
         bots.add(new BotDescriptor("water_cheker", BotDescriptor.BotType.UTILS, "Check Water", "Checks water.", false, true, CheckWater.class, "water_cheker", false));
         bots.add(new BotDescriptor("pave_areas", BotDescriptor.BotType.UTILS, "Pave Areas", "Paves every area with the Paving specialisation, fetching its configured stone from that stone's Take area.", false, true, PaveAreas.class, "paver", false));
         bots.add(new BotDescriptor("clay_cheker", BotDescriptor.BotType.UTILS, "Check Clay", "Checks clay.", false, true, CheckClay.class, "clay_cheker", true));
         bots.add(new BotDescriptor("clover", BotDescriptor.BotType.UTILS, "Feed Clover", "Feeds clover.", false, true, FeedClover.class, "clover", false));
-        bots.add(new BotDescriptor("collectalltopile", BotDescriptor.BotType.UTILS, "Collect To Pile", "Collects same items from earth.", false, true, CollectSameItemsFromEarth.class, "collectalltopile", false));
-        bots.add(new BotDescriptor("worldexplorer", BotDescriptor.BotType.UTILS, "World Explorer", "Explores the world.", false, true, WorldExplorer.class, "worldexplorer", true));
-        bots.add(new BotDescriptor("lift", BotDescriptor.BotType.UTILS, "Transfer Liftable (Select Zone)", "Lifts items - always prompts for input zone selection.", false, true, TransferLiftable.class, "lift", false));
-        bots.add(new BotDescriptor("lift_global", BotDescriptor.BotType.UTILS, "Transfer Liftable (Global Zone)", "Lifts items using global zones with chunk navigation.", true, true, TransferLiftableGlobal.class, "liftzone", false));
-        bots.add(new BotDescriptor("loading", BotDescriptor.BotType.UTILS, "Transfer To Vehicle", "Loads vehicle.", false, true, TransferToVeh.class, "loading", false));
-        bots.add(new BotDescriptor("unloading", BotDescriptor.BotType.UTILS, "Transfer From Vehicle", "Unloads vehicle.", false, true, TransferFromVeh.class, "unloading", false));
-        bots.add(new BotDescriptor("swap", BotDescriptor.BotType.UTILS, "Swap Vehicles", "Swaps between vehicles.", false, true, TransferFromVehToVeh.class, "swap", false));
+        bots.add(new BotDescriptor("collectalltopile", BotDescriptor.BotType.UTILS, "Collect To Pile", "Collects same items from earth.", false, true, CollectSameItemsFromEarth.class, "collectalltopile", false).interactive());
+        bots.add(new BotDescriptor("worldexplorer", BotDescriptor.BotType.UTILS, "World Explorer", "Explores the world.", false, true, WorldExplorer.class, "worldexplorer", true).interactive());
+        bots.add(new BotDescriptor("lift", BotDescriptor.BotType.UTILS, "Transfer Liftable (Select Zone)", "Lifts items - always prompts for input zone selection.", false, true, TransferLiftable.class, "lift", false).interactive());
+        bots.add(new BotDescriptor("lift_global", BotDescriptor.BotType.UTILS, "Transfer Liftable (Global Zone)", "Lifts items using global zones with chunk navigation.", true, true, TransferLiftableGlobal.class, "liftzone", false).interactive());
+        bots.add(new BotDescriptor("loading", BotDescriptor.BotType.UTILS, "Transfer To Vehicle", "Loads vehicle.", false, true, TransferToVeh.class, "loading", false).interactive());
+        bots.add(new BotDescriptor("unloading", BotDescriptor.BotType.UTILS, "Transfer From Vehicle", "Unloads vehicle.", false, true, TransferFromVeh.class, "unloading", false).interactive());
+        bots.add(new BotDescriptor("swap", BotDescriptor.BotType.UTILS, "Swap Vehicles", "Swaps between vehicles.", false, true, TransferFromVehToVeh.class, "swap", false).interactive());
         bots.add(new BotDescriptor("eater", BotDescriptor.BotType.UTILS, "Eating bot", "Eat in the food area.", true, true, Eater.class, "eater", false));
-        bots.add(new BotDescriptor("drinker", BotDescriptor.BotType.UTILS, "bot.drinker.title", "bot.drinker.desc", true, true, DrinkerBot.class, "drinker", false));
-        bots.add(new BotDescriptor("zoneminer", BotDescriptor.BotType.UTILS, "Mine in area", "Mine rocks in the area.", false, true, MineAction.class, "zoneminer", true));
+        bots.add(new BotDescriptor("drinker", BotDescriptor.BotType.UTILS, "bot.drinker.title", "bot.drinker.desc", true, true, DrinkerBot.class, "drinker", false)
+                .withParams(drinkerParams()));
+        bots.add(new BotDescriptor("zoneminer", BotDescriptor.BotType.UTILS, "Mine in area", "Mine rocks in the area.", false, true, MineAction.class, "zoneminer", true).interactive());
         bots.add(new BotDescriptor("bed", BotDescriptor.BotType.UTILS, "Go to bed", "Go to any free bed in a bed area nearby.", true, false, Sleep.class, "bed", false));
-        bots.add(new BotDescriptor("soil", BotDescriptor.BotType.UTILS, "Create piles with soil", "Create piles with soil in area.", false, true, CreateSoilPiles.class, "soil", false));
-        bots.add(new BotDescriptor("destroy", BotDescriptor.BotType.UTILS, "Destroyer", "Destroy objects in area.", false, true, Destroyer.class, "destroy", false));
-        bots.add(new BotDescriptor("destroytrellisplants", BotDescriptor.BotType.UTILS, "Destroy Trellis Plants", "Destroys all trellis plants in selected area.", false, true, DestroyTrellisPlants.class, "trellis_cleaner", false));
+        bots.add(new BotDescriptor("soil", BotDescriptor.BotType.UTILS, "Create piles with soil", "Create piles with soil in area.", false, true, CreateSoilPiles.class, "soil", false).interactive());
+        bots.add(new BotDescriptor("destroy", BotDescriptor.BotType.UTILS, "Destroyer", "Destroy objects in area.", false, true, Destroyer.class, "destroy", false).interactive());
+        bots.add(new BotDescriptor("destroytrellisplants", BotDescriptor.BotType.UTILS, "Destroy Trellis Plants", "Destroys all trellis plants in selected area.", false, true, DestroyTrellisPlants.class, "trellis_cleaner", false).interactive());
         bots.add(new BotDescriptor("flag", BotDescriptor.BotType.UTILS, "Survey Supporter", "Survey Supporter.", false, true, SurveySupport.class, "flag", false));
         bots.add(new BotDescriptor("leveler", BotDescriptor.BotType.UTILS, "bot.leveler.title", "bot.leveler.desc", true, true, Leveler.class, "leveler", false));
 
@@ -276,48 +291,53 @@ public class BotRegistry {
         bots.add(new BotDescriptor("bugs", BotDescriptor.BotType.UTILS, "Catch bugs", "Catch bugs around player.", false, true, CatchBugsAround.class, "bugs", false));
         bots.add(new BotDescriptor("freeinv", BotDescriptor.BotType.UTILS, "Free inventory", "Free inventory with Area system.", true, true, FreeInvBot.class, "freeinv", false));
         bots.add(new BotDescriptor("travellerssack", BotDescriptor.BotType.UTILS, "Equip travellers sacks", "Equip travellers sacks.", false, true, EquipTravellersSacksFromBelt.class, "travellerssack", false));
-        bots.add(new BotDescriptor("studytable", BotDescriptor.BotType.UTILS, "bot.studytable.title", "bot.studytable.desc", true, true, StudyDeskFiller.class, "studytable", false));
+        bots.add(new BotDescriptor("studytable", BotDescriptor.BotType.UTILS, "bot.studytable.title", "bot.studytable.desc", true, true, StudyDeskFiller.class, "studytable", false)
+                .withParams(ParamSpec.of("fillAll", BOOL, "Fill every configured study desk (true) or only the one this character owns (false).", true)));
         // Same class as "studytable" (fillAll=false) - allowedAsStepInScenario=false since
         // schedules pick this via that step's own All/Just Owned setting instead (StepSettingsPanel).
-        bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "studytable_nearest", false, Map.of("fillAll", false)));
-        bots.add(new BotDescriptor("swill_collector", BotDescriptor.BotType.UTILS, "Swill Collector", "Collects swill items from area and feeds to troughs/cisterns.", false, true, CollectSwillToTrough.class, "swillcollector", false));
-        bots.add(new BotDescriptor("swill_to_trough", BotDescriptor.BotType.UTILS, "Swill To Trough", "Collects swill from area to selected trough (click to select).", false, true, CollectSwillInArea.class, "swillzone", false));
+        bots.add(new BotDescriptor("studytable_nearest", BotDescriptor.BotType.UTILS, "bot.studytable_nearest.title", "bot.studytable_nearest.desc", false, true, StudyDeskFiller.class, "studytable_nearest", false, Map.of("fillAll", false))
+                .withParams(ParamSpec.of("fillAll", BOOL, "Fill every configured study desk (true) or only the one this character owns (false).", false)));
+        bots.add(new BotDescriptor("swill_collector", BotDescriptor.BotType.UTILS, "Swill Collector", "Collects swill items from area and feeds to troughs/cisterns.", false, true, CollectSwillToTrough.class, "swillcollector", false).interactive());
+        bots.add(new BotDescriptor("swill_to_trough", BotDescriptor.BotType.UTILS, "Swill To Trough", "Collects swill from area to selected trough (click to select).", false, true, CollectSwillInArea.class, "swillzone", false).interactive());
         bots.add(new BotDescriptor("swill_piles_to_troughs", BotDescriptor.BotType.UTILS, "bot.swill_piles.title", "bot.swill_piles.desc", true, true, SwillPilesToTroughsBot.class, "swill_piles", false));
-        bots.add(new BotDescriptor("qzone", BotDescriptor.BotType.UTILS, "Quality in Zone", "Scan the quality of all typical objects in the area.", false, true, InspectQualityBot.class, "qzone", false));
-        bots.add(new BotDescriptor("autoflaction", BotDescriptor.BotType.UTILS, "Auto Flower Action", "Perform the specified flower pop-up menu action for all objects in the area.", false, true, AutoFlowerActionBot.class, "autoflaction", false));
+        bots.add(new BotDescriptor("qzone", BotDescriptor.BotType.UTILS, "Quality in Zone", "Scan the quality of all typical objects in the area.", false, true, InspectQualityBot.class, "qzone", false).interactive());
+        bots.add(new BotDescriptor("autoflaction", BotDescriptor.BotType.UTILS, "Auto Flower Action", "Perform the specified flower pop-up menu action for all objects in the area.", false, true, AutoFlowerActionBot.class, "autoflaction", false).interactive());
         bots.add(new BotDescriptor("dropsoil", BotDescriptor.BotType.UTILS, "Drop Soil", "Drops soil from stockpile until there is 10 soil left in the stockpile..", false, true, SoilStockpileDropper.class, "dropsoil", false));
         bots.add(new BotDescriptor("measure_length", BotDescriptor.BotType.UTILS, "Zone Measure Tool", "Measure and mark zones on the ground. Select areas, view dimensions, and manage multiple selections.", false, true, ZoneMeasureTool.class, "measuring_length", false));
-        bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true));
+        bots.add(new BotDescriptor("fire", BotDescriptor.BotType.UTILS, "Fire Starter", "Ignites objects (Ovens, Smelters, Kilns, etc.) and refuels them if needed.", false, true, FireStarterAction.class, "fire", true).interactive());
         // Not a Scenario step - blindly toggles mount/dismount, unsafe for an unattended/rerun schedule entry.
         bots.add(new BotDescriptor("coracle", BotDescriptor.BotType.UTILS, "Coracle", "Mount or dismount a coracle.", false, true, CoracleBot.class, "coracle", false, Map.of(), true));
         bots.add(new BotDescriptor("skis", BotDescriptor.BotType.UTILS, "Wilderness Skis", "Mount or dismount wilderness skis.", true, true, SkisBot.class, "skis", false));
         // Forager-only - a gate along a route is a per-waypoint concern, not a general Scenario step.
-        bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens or closes the nearest gate, per this step's Action setting; does nothing if it's already in that state.", false, false, GateBot.class, "goto", false, Map.of("mode", "open"), true));
+        bots.add(new BotDescriptor("gate", BotDescriptor.BotType.UTILS, "Open/Close Gate", "Opens or closes the nearest gate, per this step's Action setting; does nothing if it's already in that state.", false, false, GateBot.class, "goto", false, Map.of("mode", "open"), true)
+                .withParams(ParamSpec.choice("mode", "Open or close the nearest gate; nothing happens when it already is.", "open", "open", "close")));
         // Hidden from the main bot menu - a pre-flight prep action (swamp fever prevention),
         // meant to be set up via the Scheduler/general Scenario step list before a Forager run
         // starts, not as an in-route Forager waypoint step (which can walk off the route's
         // segment, e.g. indoors, breaking the route mid-run - out of scope for a "post-flight,
         // along the route" step).
-        bots.add(new BotDescriptor("apply_tansy", BotDescriptor.BotType.UTILS, "bot.apply_tansy.title", "bot.apply_tansy.desc", true, false, ApplyTansyIfMissing.class, "leaf", false, Map.of("targetStacks", 10), false));
+        bots.add(new BotDescriptor("apply_tansy", BotDescriptor.BotType.UTILS, "bot.apply_tansy.title", "bot.apply_tansy.desc", true, false, ApplyTansyIfMissing.class, "leaf", false, Map.of("targetStacks", 10), false)
+                .withParams(ParamSpec.of("targetStacks", INT, "Scent of Tansy stacks to reach.", 10)));
 
         // BUILD
-        bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true));
+        bots.add(new BotDescriptor("dframe", BotDescriptor.BotType.BUILD, "Build Drying Frame", "Builds drying frame.", false, true, BuildDryingFrame.class, "dframe", true).interactive());
         bots.add(new BotDescriptor("cellar", BotDescriptor.BotType.BUILD, "Build Cellar", "Builds cellar.", false, true, BuildCellar.class, "cellar", false));
-        bots.add(new BotDescriptor("ttub", BotDescriptor.BotType.BUILD, "Build Tub", "Builds tub.", false, true, BuildTtub.class, "ttub", false));
-        bots.add(new BotDescriptor("cupboard", BotDescriptor.BotType.BUILD, "Build Cupboard", "Builds cupboard.", false, true, BuildCupboard.class, "cupboard", false));
-        bots.add(new BotDescriptor("cheese_rack", BotDescriptor.BotType.BUILD, "Build Cheese Rack", "Builds cheese rack.", false, true, BuildCheeseRack.class, "cheese_rack", false));
-        bots.add(new BotDescriptor("kiln", BotDescriptor.BotType.BUILD, "Build Kiln", "Builds kiln.", false, true, BuildKiln.class, "kiln", false));
-        bots.add(new BotDescriptor("barrel", BotDescriptor.BotType.BUILD, "Build Barrel", "Builds barrel.", false, true, BuildBarrel.class, "barrel", false));
-        bots.add(new BotDescriptor("chest", BotDescriptor.BotType.BUILD, "Build Chest", "Builds chest.", false, true, BuildChest.class, "chest", false));
-        bots.add(new BotDescriptor("stone_casket", BotDescriptor.BotType.BUILD, "Build Stone Casket", "Builds stone casket.", false, true, BuildStoneCasket.class, "stonecasket", false));
-        bots.add(new BotDescriptor("lchest", BotDescriptor.BotType.BUILD, "Build Large Chest", "Builds large chest.", false, true, BuildLargeChest.class, "lchest", true));
-        bots.add(new BotDescriptor("tarkilnb", BotDescriptor.BotType.BUILD, "Build Tar Kiln", "Builds tar kiln.", false, true, BuildTarKiln.class, "tarkilnb", false));
-        bots.add(new BotDescriptor("smoke_shed", BotDescriptor.BotType.BUILD, "Build Smoke Shed", "Builds smoke shed.", false, true, BuildSmokeShed.class, "smoke_shed", false));
-        bots.add(new BotDescriptor("trellis", BotDescriptor.BotType.BUILD, "Build Trellis", "Builds trellis.", false, true, BuildTrellis.class, "trellis", false));
-        bots.add(new BotDescriptor("htable", BotDescriptor.BotType.BUILD, "Build Herbalist Tables", "Builds herbalist tables.", false, true, BuildHerbalistTable.class, "htable", true));
-        bots.add(new BotDescriptor("moundbed", BotDescriptor.BotType.BUILD, "Build Mound Bed", "Builds mound bed.", false, true, BuildMoundBed.class, "moundbed", true));
-        bots.add(new BotDescriptor("crate", BotDescriptor.BotType.BUILD, "Build Crate", "Builds crates.", false, true, BuildCrate.class, "crate", true));
-        bots.add(new BotDescriptor("blueprint_builder", BotDescriptor.BotType.BUILD, "bot.blueprint_builder.title", "bot.blueprint_builder.desc", true, true, BlueprintBuilder.class, "blueprint", false));
+        bots.add(new BotDescriptor("ttub", BotDescriptor.BotType.BUILD, "Build Tub", "Builds tub.", false, true, BuildTtub.class, "ttub", false).interactive());
+        bots.add(new BotDescriptor("cupboard", BotDescriptor.BotType.BUILD, "Build Cupboard", "Builds cupboard.", false, true, BuildCupboard.class, "cupboard", false).interactive());
+        bots.add(new BotDescriptor("cheese_rack", BotDescriptor.BotType.BUILD, "Build Cheese Rack", "Builds cheese rack.", false, true, BuildCheeseRack.class, "cheese_rack", false).interactive());
+        bots.add(new BotDescriptor("kiln", BotDescriptor.BotType.BUILD, "Build Kiln", "Builds kiln.", false, true, BuildKiln.class, "kiln", false).interactive());
+        bots.add(new BotDescriptor("barrel", BotDescriptor.BotType.BUILD, "Build Barrel", "Builds barrel.", false, true, BuildBarrel.class, "barrel", false).interactive());
+        bots.add(new BotDescriptor("chest", BotDescriptor.BotType.BUILD, "Build Chest", "Builds chest.", false, true, BuildChest.class, "chest", false).interactive());
+        bots.add(new BotDescriptor("stone_casket", BotDescriptor.BotType.BUILD, "Build Stone Casket", "Builds stone casket.", false, true, BuildStoneCasket.class, "stonecasket", false).interactive());
+        bots.add(new BotDescriptor("lchest", BotDescriptor.BotType.BUILD, "Build Large Chest", "Builds large chest.", false, true, BuildLargeChest.class, "lchest", true).interactive());
+        bots.add(new BotDescriptor("tarkilnb", BotDescriptor.BotType.BUILD, "Build Tar Kiln", "Builds tar kiln.", false, true, BuildTarKiln.class, "tarkilnb", false).interactive());
+        bots.add(new BotDescriptor("smoke_shed", BotDescriptor.BotType.BUILD, "Build Smoke Shed", "Builds smoke shed.", false, true, BuildSmokeShed.class, "smoke_shed", false).interactive());
+        bots.add(new BotDescriptor("trellis", BotDescriptor.BotType.BUILD, "Build Trellis", "Builds trellis.", false, true, BuildTrellis.class, "trellis", false).interactive());
+        bots.add(new BotDescriptor("htable", BotDescriptor.BotType.BUILD, "Build Herbalist Tables", "Builds herbalist tables.", false, true, BuildHerbalistTable.class, "htable", true).interactive());
+        bots.add(new BotDescriptor("moundbed", BotDescriptor.BotType.BUILD, "Build Mound Bed", "Builds mound bed.", false, true, BuildMoundBed.class, "moundbed", true).interactive());
+        bots.add(new BotDescriptor("crate", BotDescriptor.BotType.BUILD, "Build Crate", "Builds crates.", false, true, BuildCrate.class, "crate", true).interactive());
+        bots.add(new BotDescriptor("blueprint_builder", BotDescriptor.BotType.BUILD, "bot.blueprint_builder.title", "bot.blueprint_builder.desc", true, true, BlueprintBuilder.class, "blueprint", false)
+                .withParams(ParamSpec.of(BlueprintBuilder.SETTING_NODE, STRING, "Id of the Base planner folder or layer to build. Leave it out to pick the plan in the window.", "")));
 
         // TOOLS (for debug)
         bots.add(new BotDescriptor("test1", BotDescriptor.BotType.TOOLS, "Test 1", "Debug test 1.", false, true, TESTMapv4.class, "test1", false));
@@ -331,7 +351,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("chunknav_navigator", BotDescriptor.BotType.TOOLS, "ChunkNav Navigator", "Opens UI to navigate to areas using chunk-based navigation.", false, true, ChunkNavNavigatorBot.class, "test14", false));
         bots.add(new BotDescriptor("navstresstest", BotDescriptor.BotType.TOOLS, "Navigation Stress Test", "Continuously tests chunk navigation between random areas. Results saved to JSON file.", false, true, NavigationStressTest.class, "test15", true));
         //bots.add(new BotDescriptor("testzonepatroller", BotDescriptor.BotType.UTILS, "Test Zone Patroller", "Patrols 15 test zones (test1-test15) every 30 minutes, returning to test16 between cycles.", true, true, TestZonePatroller.class, "worldexplorer", false));
-        bots.add(new BotDescriptor("collect_silkworm_eggs_by_quality", BotDescriptor.BotType.TOOLS, "Collect Best Silkworm Eggs", "Collects highest quality silkworm eggs from containers in selected area. Considers individual egg quality within stacks.", false, true, CollectHighestQualitySilkwormEggs.class, "test35", false));
+        bots.add(new BotDescriptor("collect_silkworm_eggs_by_quality", BotDescriptor.BotType.TOOLS, "Collect Best Silkworm Eggs", "Collects highest quality silkworm eggs from containers in selected area. Considers individual egg quality within stacks.", false, true, CollectHighestQualitySilkwormEggs.class, "test35", false).interactive());
 
         // BOT MENU GROUPS: sub-headings inside each folder. Groups appear in the order they are
         // first named here; bots inside a group are sorted by name. A bot left out lands in its
@@ -374,6 +394,20 @@ public class BotRegistry {
         group("developer", "test1", "test4", "test5", "test7", "test8", "test9", "test12", "navstresstest");
     }
 
+    /** Drinker settings: a sip count and a cup per drink (see DrinkerBot.SETTING_PREFIX / CUP_PREFIX). */
+    private static ParamSpec[] drinkerParams() {
+        String[] cups = new String[Vessels.CUPS.size()];
+        for (int i = 0; i < cups.length; i++)
+            cups[i] = Vessels.CUPS.get(i).name;
+        List<ParamSpec> ps = new ArrayList<>();
+        for (Vessels.Drink d : Vessels.DRINKS) {
+            ps.add(ParamSpec.of(DrinkerBot.SETTING_PREFIX + d.name, INT,
+                    "Sips of " + d.name + " to take; 0 skips it. With no sips setting at all the Drinker window asks.", 0));
+            ps.add(ParamSpec.choice(DrinkerBot.CUP_PREFIX + d.name, "Cup to drink " + d.name + " from.", d.cup, cups));
+        }
+        return ps.toArray(new ParamSpec[0]);
+    }
+
     private static void group(String key, String... ids) {
         for (String id : ids) {
             BotDescriptor bot = byId(id);
@@ -389,6 +423,18 @@ public class BotRegistry {
     }
 
     /** Group keys of a bot menu folder, in display order (without the trailing "Other" group). */
+    /**
+     * Replaces every bot of {@code type} with {@code fresh}. Used for user scripts, which are
+     * discovered from the scripts folder instead of being listed here.
+     */
+    public static synchronized void replaceDynamic(BotDescriptor.BotType type, List<BotDescriptor> fresh, List<String> groups) {
+        List<BotDescriptor> old = new ArrayList<>();
+        for (BotDescriptor d : bots) if (d.type == type) old.add(d);
+        bots.removeAll(old);
+        bots.addAll(fresh);
+        groupOrder.put(type, new ArrayList<>(groups));
+    }
+
     public static List<String> groupsOf(BotDescriptor.BotType type) {
         return Collections.unmodifiableList(groupOrder.getOrDefault(type, Collections.emptyList()));
     }

@@ -122,6 +122,7 @@ public class NSettingsWindow extends Widget {
         general.addChild(new SettingsItem(L10n.get("nsettings.item.quick_actions"), qa = new QuickActions(), container));
         general.addChild(new SettingsItem(L10n.get("nsettings.item.discord"), new DiscordSettings(), container));
         general.addChild(new SettingsItem(L10n.get("nsettings.item.timers"), new TimerSettings(), container));
+        general.addChild(new SettingsItem(L10n.get("nsettings.item.scripting"), new ScriptingSettings(), container));
 
         SettingsCategory gameenvironment = new SettingsCategory(L10n.get("nsettings.cat.game_environment"), new Panel(L10n.get("nsettings.cat.game_environment")), container);
         gameenvironment.addChild(new SettingsItem(L10n.get("nsettings.item.world"), world = new World(), container));

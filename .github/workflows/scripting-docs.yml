@@ -1,0 +1,110 @@
+name: Scripting docs
+
+# Checks that the generated scripting API files are up to date, runs the Python SDK's unit tests,
+# and publishes the scripting docs to GitHub Pages (https://aleksandrsvoboda.github.io/nurgling2/),
+# one version per API minor version (mike), with "latest" pointing at the newest.
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+    paths:
+      - 'docs/scripting/**'
+      - 'sdk/python/**'
+      - 'src/nurgling/scripting/**'
+      - 'tools/apigen/**'
+      - '.github/workflows/scripting-docs.yml'
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  PYTHON_VERSION: '3.11'
+  DOCS_REQUIREMENTS: 'mkdocs==1.6.1 mkdocs-material==9.8.0 pymdown-extensions==12.3 mike==2.2.0'
+
+jobs:
+  check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Cache external libraries
+        uses: actions/cache@v4
+        with:
+          path: lib/ext
+          key: extlibs-${{ runner.os }}-${{ hashFiles('build.xml') }}
+          restore-keys: |
+            extlibs-${{ runner.os }}-
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Export the API schema from the Java annotations
+        run: ant api-schema
+
+      - name: Generated files are up to date
+        run: python tools/apigen/apigen.py --check
+
+      - name: SDK unit tests
+        working-directory: sdk/python
+        run: python -m unittest discover -s tests -v
+
+      - name: Install MkDocs
+        run: python -m pip install ${{ env.DOCS_REQUIREMENTS }}
+
+      - name: Docs build without warnings
+        working-directory: docs/scripting
+        run: python -m mkdocs build --strict
+
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: scripting-docs-gh-pages
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # mike commits to the gh-pages branch
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install MkDocs and mike
+        run: python -m pip install ${{ env.DOCS_REQUIREMENTS }}
+
+      - name: API version
+        id: api
+        run: |
+          VERSION=$(python -c "import json; print(json.load(open('docs/scripting/schema/api-schema.json', encoding='utf-8'))['api'])")
+          echo "Docs version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish ${{ steps.api.outputs.version }} as latest
+        working-directory: docs/scripting
+        run: |
+          mike deploy --push --update-aliases \
+            --title "API ${{ steps.api.outputs.version }}" \
+            "${{ steps.api.outputs.version }}" latest
+          mike set-default --push latest
