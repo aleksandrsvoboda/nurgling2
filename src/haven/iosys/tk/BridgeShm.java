@@ -172,6 +172,8 @@ public class BridgeShm {
 	ret.hdr.putInt(H_READING, -1);
 	ret.hdr.putInt(H_READPREV, -1);
 	ret.hdr.putInt(H_LATEST, -1);
+	/* Zeroed memory would read as MINIMIZED, the first State. */
+	ret.hdr.putInt(C_STATE, Windeye.State.NORMAL.ordinal());
 	for(int i = 0; i < NSLOT; i++)
 	    ret.hdr.putLong(SLOTS + (i * SLOTREC) + S_SEQ, -1);
 	VarHandle.fullFence();
