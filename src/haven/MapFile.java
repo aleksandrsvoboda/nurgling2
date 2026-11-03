@@ -1529,8 +1529,23 @@ public class MapFile {
 	}
     }
 
+    /* Every Segment still referenced by someone (a minimap's curloc,
+     * a Locator, a running bot), whether or not the 5-slot cache below
+     * still holds it. All sessions share this MapFile, so with six or
+     * more sessions in different segments the cache keeps evicting;
+     * a reload used to make a second Segment object for the same id.
+     * NMiniMap compares segments by identity and wipes its whole tile
+     * cache when they differ (the "blinking" map), and two copies of
+     * one segment would overwrite each other's grids on save. */
+    private final Map<Long, Segment> live = new CacheMap<>(CacheMap.RefType.WEAK);
+
     public final BackCache<Long, Segment> segments = new BackCache<>(5, id -> {
 	    checklock();
+	    synchronized(live) {
+		Segment cur = live.get(id);
+		if(cur != null)
+		    return(cur);
+	    }
 	    InputStream fp;
 	    try {
 		fp = sfetch("seg-%x", id);
@@ -1549,6 +1564,9 @@ public class MapFile {
 			throw(new Message.FormatError(String.format("Segment ID mismatch: expected %x, got %x", id, storedid)));
 		    for(int i = 0, no = z.int32(); i < no; i++)
 			seg.map.put(z.coord(), z.int64());
+		    synchronized(live) {
+			live.put(id, seg);
+		    }
 		    return(seg);
 		} else {
 		    throw(new Message.FormatError("Unknown segment data version: " + ver));
@@ -1559,6 +1577,12 @@ public class MapFile {
 	    }
 	}, (id, seg) -> {
 	    checklock();
+	    synchronized(live) {
+		if(seg == null)
+		    live.remove(id);
+		else
+		    live.put(id, seg);
+	    }
 	    if(seg == null) {
 		try(OutputStream fp = sstore("seg-%x", id)) {
 		} catch(IOException e) {
