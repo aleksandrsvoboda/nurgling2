@@ -20,6 +20,8 @@ public class BotDescriptor {
     public final Map<String, Object> defaultSettings;
     // Independent of allowedAsStepInScenario - isolates route-waypoint-only utility bots (e.g. GateBot) from the general Scenario step picker.
     public final boolean allowedAsForagerStep;
+    // Bot menu placement inside its folder; set once by BotRegistry while it registers bots.
+    String group = null;
 
     public enum BotType {
         RESOURCES,
@@ -106,6 +108,11 @@ public class BotDescriptor {
         java.util.HashMap<String, Object> merged = new java.util.HashMap<>(defaultSettings);
         merged.putAll(callerSettings);
         return merged;
+    }
+
+    /** Localization key suffix of this bot's group in the bot menu, or null for the folder's "Other" group. */
+    public String group() {
+        return group;
     }
 
     public String getUpIconPath() {

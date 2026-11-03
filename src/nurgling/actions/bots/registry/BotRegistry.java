@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 
 public class BotRegistry {
     private static final List<BotDescriptor> bots = new ArrayList<>();
+    // Declared before the static block below, which fills it.
+    private static final Map<BotDescriptor.BotType, List<String>> groupOrder = new EnumMap<>(BotDescriptor.BotType.class);
 
     static {
         // NAVIGATION
@@ -330,6 +332,65 @@ public class BotRegistry {
         bots.add(new BotDescriptor("navstresstest", BotDescriptor.BotType.TOOLS, "Navigation Stress Test", "Continuously tests chunk navigation between random areas. Results saved to JSON file.", false, true, NavigationStressTest.class, "test15", true));
         //bots.add(new BotDescriptor("testzonepatroller", BotDescriptor.BotType.UTILS, "Test Zone Patroller", "Patrols 15 test zones (test1-test15) every 30 minutes, returning to test16 between cycles.", true, true, TestZonePatroller.class, "worldexplorer", false));
         bots.add(new BotDescriptor("collect_silkworm_eggs_by_quality", BotDescriptor.BotType.TOOLS, "Collect Best Silkworm Eggs", "Collects highest quality silkworm eggs from containers in selected area. Considers individual egg quality within stacks.", false, true, CollectHighestQualitySilkwormEggs.class, "test35", false));
+
+        // BOT MENU GROUPS: sub-headings inside each folder. Groups appear in the order they are
+        // first named here; bots inside a group are sorted by name. A bot left out lands in its
+        // folder's trailing "Other" group, so a new bot is never lost.
+        group("trees", "choper", "pblocks", "pboards", "bark", "bough", "leaf", "leaf_zone", "plant_trees", "blueprint_tree_planter", "boughbee");
+        group("stone", "chipper", "clay", "masterminer", "tunneling", "plower");
+        group("gathering", "forager", "lp_gatherer", "fisher", "tickbot");
+
+        group("metal", "smelter", "steel", "fineryforge");
+        group("food", "backer", "dryedfish", "fishroast", "pickling", "grapejuicer", "smoking", "gelatin");
+        group("animal_products", "butcher", "hides", "leather", "bonestoash");
+        group("materials", "brick", "tarkiln", "branch", "ash", "lye", "wrap", "tabaco");
+        group("silk", "mulberry_leaf_refiller", "silk_production");
+        group("special_farms", "irrlight", "smokering", "ugardenpot");
+
+        group("aggro", "reagro", "attacknearcurs", "attacknear", "attacknearborka", "attackall", "quickbarrage");
+
+        group("crops", "turnip", "carrot", "beetroot", "red_onion", "yellow_onion", "white_onion", "leek", "radish", "garlic",
+                "barley", "millet", "wheat", "hemp", "flax", "lettuce", "green_kale", "pumpkin", "watermelon", "poppy", "pipeweed", "stringgrass");
+        group("trellis", "grape", "hops", "peppercorn", "pea", "cucumber");
+        group("wild", "wildkale", "wildonion", "wildtuber", "wildgourd", "wildflower");
+        group("cheese", "curdingtub", "cheese", "cheese_conveyor");
+        group("crops", "turnipq", "carrotq", "beetrootq", "red_onionq", "yellow_onionq", "white_onionq", "leekq", "radishq", "garlicq",
+                "barleyq", "milletq", "wheatq", "hempq", "flaxq", "lettuceq", "green_kaleq", "pumpkinq", "watermelonq", "poppyq", "pipeweedq");
+
+        group("herds", "cows", "goats", "sheeps", "pigs", "horses", "reindeers");
+        group("small_animals", "chicken", "duck", "rabbit");
+
+        group("containers", "unbox", "unbox_zone", "sort_containers", "area_mover", "collectalltopile", "freeinv");
+        group("hauling", "lift", "lift_global", "loading", "unloading", "swap", "coracle", "skis");
+        group("land", "pave_areas", "leveler", "flag", "zoneminer", "soil", "dropsoil", "destroy", "destroytrellisplants");
+        group("character", "eater", "drinker", "filwater", "filwaterzone", "shieldsword", "travellerssack", "dream_catcher", "bugs", "studytable", "studytable_nearest", "fire");
+        group("feeding", "clover", "swill_collector", "swill_to_trough", "swill_piles_to_troughs");
+        group("checks", "water_cheker", "clay_cheker", "qzone", "measure_length", "calculators", "worldexplorer", "autoflaction");
+
+        group("storage", "chest", "lchest", "cupboard", "crate", "barrel", "stone_casket", "cellar");
+        group("workstations", "kiln", "tarkilnb", "smoke_shed", "ttub", "dframe", "htable", "cheese_rack");
+
+        group("tools", "chunknav_navigator", "test2", "collect_silkworm_eggs_by_quality");
+        group("developer", "test1", "test4", "test5", "test7", "test8", "test9", "test12", "navstresstest");
+    }
+
+    private static void group(String key, String... ids) {
+        for (String id : ids) {
+            BotDescriptor bot = byId(id);
+            if (bot == null) {
+                System.err.println("[BotRegistry] group '" + key + "' names unknown bot '" + id + "'");
+                continue;
+            }
+            bot.group = key;
+            List<String> order = groupOrder.computeIfAbsent(bot.type, t -> new ArrayList<>());
+            if (!order.contains(key))
+                order.add(key);
+        }
+    }
+
+    /** Group keys of a bot menu folder, in display order (without the trailing "Other" group). */
+    public static List<String> groupsOf(BotDescriptor.BotType type) {
+        return Collections.unmodifiableList(groupOrder.getOrDefault(type, Collections.emptyList()));
     }
 
     public static BotDescriptor byId(String id) {

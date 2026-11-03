@@ -89,6 +89,7 @@ public class NConfig
         tracking,
         swimming,
         debug,
+        botFavourites,
         claydiggerprop,
         miningol,
         minesweeperol,
@@ -382,6 +383,7 @@ public class NConfig
         conf.put(Key.tracking, false);
         conf.put(Key.swimming, false);
         conf.put(Key.debug, false);
+        conf.put(Key.botFavourites, new ArrayList<HashMap<String, Object>>());
         conf.put(Key.hidecredo, true);
         conf.put(Key.q_visitor, false);
         conf.put(Key.q_door, true);
