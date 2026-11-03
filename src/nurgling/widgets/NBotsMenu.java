@@ -20,14 +20,15 @@ import java.util.*;
 import java.util.List;
 
 /**
- * The bot menu: a column of folder icons (Favourites first). Opening a folder shows its bots to the
- * right, split into labelled groups; clicking the open folder again closes the panel.
+ * The bot menu: a strip of folder icons (Favourites first). Opening a folder shows its bots beside
+ * the strip, split into labelled groups; clicking the open folder again closes the panel. The
+ * drag-mode turn button picks the side the panel opens on: right, up, left or down.
  * <p>
  * Tiles are drawn by this widget rather than being child buttons, because a favourite shows the
  * same {@link NButton} twice (its folder and Favourites). Belt bindings, recent actions and the
  * action search keep finding buttons through {@link #find(String)}.
  */
-public class NBotsMenu extends Widget
+public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
 {
     final static String dir_path = "nurgling/bots/icons/";
 
@@ -66,6 +67,8 @@ public class NBotsMenu extends Widget
     private static final int FAV = -1;
     private static final int NONE = -3;   // no folder open: only the icon column shows
     private static final int MIN_COLS = 7, MAX_COLS = 14;
+    /** Side the panel opens on, in turn-button order (counter-clockwise, like its arrow). */
+    private static final int RIGHT = 0, UP = 1, LEFT = 2, DOWN = 3;
     private final int TILE = UI.scale(34);
     private final int PAD = UI.scale(4);
     private final int ROW = UI.scale(34);
@@ -79,11 +82,13 @@ public class NBotsMenu extends Widget
     private final Tex starBig = new TexI(star(UI.scale(26)));
     private final Tex starSmall = new TexI(star(UI.scale(11)));
 
-    private final int railW, paneX;
-    private int menuH;
-    /** Icon column rows: FAV, then the indexes of the folders shown. */
+    private final int railW;      // strip thickness
+    private int stripLen;         // strip length
+    /** Strip entries: FAV, then the indexes of the folders shown. */
     private final List<Integer> rail = new ArrayList<>();
     private int cols = MIN_COLS;
+    private int dir = RIGHT;
+    private Coord railOff = Coord.z, paneOff = Coord.z, paneSz = Coord.z, shift = Coord.z;
 
     private int sel = NONE;
     private boolean debug;
@@ -114,10 +119,9 @@ public class NBotsMenu extends Widget
         for (BotDescriptor.BotType type : ORDER)
             folders.add(new Folder(type));
         railW = TILE + 2 * PAD;
-        paneX = railW + UI.scale(1);
         debug = isDebug();
         buildRail();
-        sz = new Coord(railW, menuH);
+        sz = stripSz();
         favs.sync();
     }
 
@@ -196,11 +200,20 @@ public class NBotsMenu extends Widget
 
     /* ---------------------------------------------------------------- layout */
 
+    private boolean horizontal() {
+        return dir == UP || dir == DOWN;
+    }
+
+    private Coord stripSz() {
+        return horizontal() ? new Coord(stripLen, railW) : new Coord(railW, stripLen);
+    }
+
     /**
-     * Lays the open folder out without scrolling. Every folder uses the same column count - the
-     * fewest that lets the biggest folder fit the height of the icon column (up to MAX_COLS) - so
+     * Lays the open folder out without scrolling. Every folder uses the same column count, so
      * look-alike folders such as Farming and Quality line up and icons don't shift between folders.
-     * Favourites may go wider when it holds more than that.
+     * Beside a column of icons that is the fewest columns letting the biggest folder fit the column's
+     * height (up to MAX_COLS); under or over a row of icons the panel is as wide as the row and grows
+     * downward/upward instead. Favourites may go wider when it holds more.
      */
     private void relayout() {
         dirty = false;
@@ -209,32 +222,66 @@ public class NBotsMenu extends Widget
         buildRail();
         if (sel >= 0 && !rail.contains(sel))
             sel = NONE;
-        int h = 0;
-        if (sel != NONE) {
-            int c = MIN_COLS;
-            for (int i : rail)
-                if (i != FAV)
-                    c = Math.max(c, fitCols(i));
+        Coord nsz;
+        if (sel == NONE) {
+            items.clear();
+            secSpan.clear();
+            railOff = paneOff = paneSz = shift = Coord.z;
+            nsz = stripSz();
+        } else {
+            boolean hor = horizontal();
+            int c = hor ? Math.max(MIN_COLS, (stripLen - 2 * PAD) / TILE) : MIN_COLS;
+            if (!hor) {
+                for (int i : rail)
+                    if (i != FAV)
+                        c = Math.max(c, fitCols(i));
+            }
             if (sel == FAV)
                 c = Math.max(c, fitCols(FAV));
             cols = c;
-            h = layoutItems(sel);
-        } else {
-            items.clear();
-            secSpan.clear();
+            int h = layoutItems(sel);
+            int pw = PAD + cols * TILE + PAD;
+            int sep = UI.scale(1);
+            if (hor) {
+                pw = Math.max(pw, stripLen);
+                paneSz = new Coord(pw, h + PAD);
+                railOff = (dir == DOWN) ? Coord.z : new Coord(0, paneSz.y + sep);
+                paneOff = (dir == DOWN) ? new Coord(0, railW + sep) : Coord.z;
+                nsz = new Coord(pw, railW + sep + paneSz.y);
+                shift = (dir == UP) ? new Coord(0, paneSz.y + sep) : Coord.z;
+            } else {
+                paneSz = new Coord(pw, Math.max(stripLen, h));
+                railOff = (dir == RIGHT) ? Coord.z : new Coord(pw + sep, 0);
+                paneOff = (dir == RIGHT) ? new Coord(railW + sep, 0) : Coord.z;
+                nsz = new Coord(railW + sep + pw, paneSz.y);
+                shift = (dir == LEFT) ? new Coord(pw + sep, 0) : Coord.z;
+            }
         }
-        Coord nsz = (sel == NONE) ? new Coord(railW, menuH) : new Coord(paneX + PAD + cols * TILE + PAD, Math.max(menuH, h));
         if (!nsz.equals(sz)) {
             resize(nsz);
             if (parent instanceof NDraggableWidget)
                 parent.resize(nsz.add(NDraggableWidget.delta));
         }
+        if (parent instanceof NDraggableWidget)
+            ((NDraggableWidget) parent).place();
     }
 
-    /** Fewest columns (up to MAX_COLS) that fit a folder in the icon column's height. */
+    @Override
+    public void rotate(int rot) {
+        commitRename();
+        dir = Math.floorMod(rot, 4);
+        relayout();
+    }
+
+    @Override
+    public Coord anchorShift() {
+        return shift;
+    }
+
+    /** Fewest columns (up to MAX_COLS) that fit a folder in the icon strip's length. */
     private int fitCols(int folder) {
         for (cols = MIN_COLS; cols < MAX_COLS; cols++)
-            if (layoutItems(folder) <= menuH)
+            if (layoutItems(folder) <= stripLen)
                 return cols;
         return MAX_COLS;
     }
@@ -321,21 +368,13 @@ public class NBotsMenu extends Widget
 
     /* ---------------------------------------------------------------- geometry helpers */
 
-    private Coord paneUl() {
-        return new Coord(paneX, 0);
-    }
-
-    private Coord paneSz() {
-        return new Coord(sz.x - paneX, sz.y);
-    }
-
     private boolean inPane(Coord c) {
-        return sel != NONE && c.isect(paneUl(), paneSz());
+        return sel != NONE && c.isect(paneOff, paneSz);
     }
 
-    /** Pane-local widget coords to content coords. */
+    /** Widget coords to pane content coords. */
     private Coord content(Coord c) {
-        return c.sub(paneX, 0);
+        return c.sub(paneOff);
     }
 
     /** The Tools folder holds developer tools: it only shows while the Debug option is on. */
@@ -345,14 +384,25 @@ public class NBotsMenu extends Widget
         for (int i = 0; i < folders.size(); i++)
             if (debug || folders.get(i).type != BotDescriptor.BotType.TOOLS)
                 rail.add(i);
-        menuH = rail.size() * ROW + 2 * PAD;
+        stripLen = rail.size() * ROW + 2 * PAD;
     }
 
-    /** Rail row under c: -2 none, FAV favourites, else folder index. */
+    /** Top-left of strip entry r, widget coords. */
+    private Coord cellUl(int r) {
+        return railOff.add(horizontal() ? new Coord(PAD + r * ROW, 0) : new Coord(0, PAD + r * ROW));
+    }
+
+    private Coord cellSz() {
+        return horizontal() ? new Coord(ROW, railW) : new Coord(railW, ROW);
+    }
+
+    /** Strip entry under c: -2 none, FAV favourites, else folder index. */
     private int railAt(Coord c) {
-        if (c.x < 0 || c.x >= railW || c.y < PAD)
+        Coord rc = c.sub(railOff);
+        int across = horizontal() ? rc.y : rc.x, along = horizontal() ? rc.x : rc.y;
+        if (across < 0 || across >= railW || along < PAD)
             return -2;
-        int r = (c.y - PAD) / ROW;
+        int r = (along - PAD) / ROW;
         return (r < rail.size()) ? rail.get(r) : -2;
     }
 
@@ -406,18 +456,22 @@ public class NBotsMenu extends Widget
     public void draw(GOut g) {
         if (dirty)
             relayout();
+        boolean hor = horizontal();
         g.chcolor(RAIL_BG);
-        g.frect(Coord.z, new Coord(railW, sz.y));
+        g.frect(railOff, hor ? new Coord(sz.x, railW) : new Coord(railW, sz.y));
         if (sel != NONE) {
             g.chcolor(BG);
-            g.frect(new Coord(railW, 0), new Coord(sz.x - railW, sz.y));
+            g.frect(paneOff, paneSz);
             g.chcolor(NStyle.separator);
-            g.frect(new Coord(railW, 0), new Coord(UI.scale(1), sz.y));
+            if (hor)
+                g.frect(new Coord(0, (dir == DOWN) ? railW : paneSz.y), new Coord(sz.x, UI.scale(1)));
+            else
+                g.frect(new Coord((dir == RIGHT) ? railW : paneSz.x, 0), new Coord(UI.scale(1), sz.y));
         }
         g.chcolor();
         drawRail(g);
         if (sel != NONE)
-            drawPane(g.reclip(paneUl(), paneSz()));
+            drawPane(g.reclip(paneOff, paneSz));
         super.draw(g);
         if (dragging != null)
             drawGhost();
@@ -427,28 +481,36 @@ public class NBotsMenu extends Widget
         int railHover = (hover != null && dragging == null) ? railAt(hover) : -2;
         boolean dropTab = dropAt != null && dropAt.tab;
         double now = Utils.rtime();
+        Coord csz = cellSz();
+        int bar = UI.scale(3);
         for (int r = 0; r < rail.size(); r++) {
             int key = rail.get(r);
-            Coord ul = new Coord(0, PAD + r * ROW);
+            Coord ul = cellUl(r);
             boolean on = key == sel;
             if (key == FAV && (dropTab || now < pulseUntil)) {
                 int a = dropTab ? 90 : (int) (90 * (pulseUntil - now) / 0.6);
                 g.chcolor(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), Math.max(0, a));
-                g.frect(ul, new Coord(railW, ROW));
+                g.frect(ul, csz);
             } else if (on) {
                 g.chcolor(NStyle.rowOdd);
-                g.frect(ul, new Coord(railW, ROW));
+                g.frect(ul, csz);
             } else if (key == railHover) {
                 g.chcolor(HOVER);
-                g.frect(ul, new Coord(railW, ROW));
+                g.frect(ul, csz);
             }
             if (on) {
+                // Marker on the strip's outer edge, away from the panel.
                 g.chcolor(key == FAV ? GOLD : NStyle.border);
-                g.frect(ul, new Coord(UI.scale(3), ROW));
+                switch (dir) {
+                    case RIGHT: g.frect(ul, new Coord(bar, csz.y)); break;
+                    case LEFT:  g.frect(ul.add(csz.x - bar, 0), new Coord(bar, csz.y)); break;
+                    case DOWN:  g.frect(ul, new Coord(csz.x, bar)); break;
+                    default:    g.frect(ul.add(0, csz.y - bar), new Coord(csz.x, bar)); break;
+                }
             }
             g.chcolor();
             Tex icon = (key == FAV) ? starBig : folders.get(key).icon;
-            g.image(icon, ul.add((railW - icon.sz().x) / 2, (ROW - icon.sz().y) / 2));
+            g.image(icon, ul.add(csz.sub(icon.sz()).div(2)));
         }
     }
 
@@ -844,7 +906,7 @@ public class NBotsMenu extends Widget
                 }
                 return super.keydown(ev);
             }
-        }, new Coord(paneX + h.ul.x, h.ul.y - UI.scale(2)));
+        }, paneOff.add(h.ul.x, h.ul.y - UI.scale(2)));
         renameBox.settext(name);
         renameKeys = ui.grabkeys(renameBox);
         // Own grab, so a click anywhere else saves the name (the press grab ends on mouse-up).

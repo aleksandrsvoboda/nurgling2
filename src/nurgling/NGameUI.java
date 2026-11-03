@@ -163,7 +163,7 @@ public class NGameUI extends GameUI
         // Initialize world-specific profile
         nurgling.profiles.ConfigFactory.initializeProfile(genus);
 
-        add(new NDraggableWidget(botsMenu = new NBotsMenu(), "botsmenu", botsMenu.sz.add(NDraggableWidget.delta)));
+        add(new NDraggableWidget(botsMenu = new NBotsMenu(), "botsmenu", botsMenu.sz.add(NDraggableWidget.delta))).setRotations(4);
 
         // Initialize world speed
         initWorldSpeedMap();
@@ -225,7 +225,7 @@ public class NGameUI extends GameUI
             questinfo = new NQuestInfo(), "quests", questinfo.sz.add(NDraggableWidget.delta));
         questwdg.minSize = new Coord(200, 110);
         add(questwdg);
-        add(new NDraggableWidget(recentActionsPanel = new NRecentActionsPanel(), "recentactions", recentActionsPanel.sz.add(NDraggableWidget.delta)));
+        add(new NDraggableWidget(recentActionsPanel = new NRecentActionsPanel(), "recentactions", recentActionsPanel.sz.add(NDraggableWidget.delta))).setFlipped(true);
         // Add drink meter widget to show water/tea capacity (uses IMeter.fsz to match other meters)
         drinkMeter = new DrinkMeter();
         add(new NDraggableWidget(drinkMeter, "drinkmeter", IMeter.fsz));

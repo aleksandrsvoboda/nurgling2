@@ -14,6 +14,8 @@ public class NDragProp implements JConf
     public String name;
     public boolean vis = true;
     public boolean flip = false;
+    /** Orientation of widgets with more than two (see NDraggableWidget.setRotations). */
+    public int rot = 0;
 
     public NDragProp(Coord c, boolean locked, String name)
     {
@@ -39,6 +41,8 @@ public class NDragProp implements JConf
             vis = (Boolean) values.get("vis");
         if (values.get("flip") != null)
             flip = (Boolean) values.get("flip");
+        if (values.get("rot") instanceof Number)
+            rot = ((Number) values.get("rot")).intValue();
         if (values.get("coord") != null)
             c = NParser.str2coord((String) values.get("coord"));
     }
@@ -52,6 +56,7 @@ public class NDragProp implements JConf
         jobj.put("locked", locked);
         jobj.put("vis", vis);
         jobj.put("flip", flip);
+        jobj.put("rot", rot);
         jobj.put("coord", c.toString());
         return jobj;
     }
