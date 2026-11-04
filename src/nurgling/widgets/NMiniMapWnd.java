@@ -547,7 +547,7 @@ public class NMiniMapWnd extends Widget{
     @Override
     public void resize(Coord sz) {
         super.resize(sz);
-        miniMap.resize(sz.x - UI.scale(15), sz.y );
+        miniMap.resize(sz.x, sz.y);
 
         // Re-layout buttons when resizing
         if(toggle_panel != null)

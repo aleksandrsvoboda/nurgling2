@@ -9,7 +9,10 @@ import java.awt.Color;
 public final class DragGrid {
     private DragGrid() {}
 
-    public static final int STEP = Math.max(1, UI.scale(8));
+    /** Snapping step. Finer than the drawn lines, so elements can be placed almost freely and still land on them. */
+    public static final int STEP = Math.max(1, UI.scale(2));
+    /** Spacing of the drawn guide lines. */
+    private static final int LINE_STEP = Math.max(1, UI.scale(8));
     public static final int OFFSET = UI.scale(4);
     private static final Color LINE = new Color(210, 215, 218, 55);
 
@@ -19,12 +22,12 @@ public final class DragGrid {
 
     public static void draw(GOut g, Coord size) {
         if(size.x <= 0 || size.y <= 0) return;
-        int phase = Math.floorMod(-OFFSET, STEP);
+        int phase = Math.floorMod(-OFFSET, LINE_STEP);
         int width = Math.max(1, UI.scale(1));
         g.chcolor(LINE);
-        for(int x = phase; x < size.x; x += STEP)
+        for(int x = phase; x < size.x; x += LINE_STEP)
             g.frect(new Coord(x, 0), new Coord(Math.min(width, size.x - x), size.y));
-        for(int y = phase; y < size.y; y += STEP)
+        for(int y = phase; y < size.y; y += LINE_STEP)
             g.frect(new Coord(0, y), new Coord(size.x, Math.min(width, size.y - y)));
         g.chcolor(UITheme.ACCENT);
         g.frect(new Coord(size.x / 2, 0), new Coord(width, size.y));

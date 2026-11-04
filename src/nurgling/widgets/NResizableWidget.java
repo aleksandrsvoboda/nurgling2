@@ -28,11 +28,24 @@ public class NResizableWidget extends NDraggableWidget
 
     boolean isHighlighted = false;
 
+    /** The drag-mode resize handle, in the box's bottom-right corner so it stays on screen. */
+    private Area sizer() {
+        Area b = box();
+        int pad = UI.scale(2);
+        return Area.sized(b.br.sub(sizeru.sz()).sub(pad, pad), sizeru.sz());
+    }
+
+    /** Outside drag mode the frame's own bottom-right corner (beyond the content) still resizes. */
+    private boolean onSizer(Coord c) {
+        if (ui.core.mode == NCore.Mode.DRAG)
+            return sizer().contains(c);
+        return (c.x - (sz.x - sizeru.sz().x/2 - UI.scale(15))) * ( - sizeru.sz().x/2) - (c.y - (sz.y - sizeru.sz().y/2)) * ( sizeru.sz().y/2) <= 0;
+    }
+
     @Override
     public boolean mousedown(MouseDownEvent ev) {
         if (!btnLock.a) {
-            int d = (ev.c.x - (sz.x - sizeru.sz().x/2 - UI.scale(15))) * ( - sizeru.sz().x/2) - (ev.c.y - (sz.y - sizeru.sz().y/2)) * ( sizeru.sz().y/2);
-            if ((ev.b == 1) && d <= 0) {
+            if ((ev.b == 1) && onSizer(ev.c)) {
                 if (drag == null) {
                     drag = ui.grabmouse(this);
                     dragc = sz.sub(ev.c);
@@ -54,8 +67,7 @@ public class NResizableWidget extends NDraggableWidget
         }
         else
         {
-            Coord cc = xlate(ev.c, true);
-            isHighlighted = ((ev.c.x - (sz.x - sizeru.sz().x/2 - UI.scale(15))) * ( - sizeru.sz().x/2) - (ev.c.y - (sz.y - sizeru.sz().y/2)) * ( sizeru.sz().y/2))<0 && ev.c.isect(Coord.z, sz);
+            isHighlighted = onSizer(ev.c) && ev.c.isect(Coord.z, sz);
 
         }
         super.mousemove(ev);
@@ -98,17 +110,18 @@ public class NResizableWidget extends NDraggableWidget
         super.draw(g);
         if (ui.core.mode == NCore.Mode.DRAG)
         {
+            Coord at = sizer().ul;
             if (drag != null)
             {
                 if (!btnLock.a)
-                    g.image(sizerd, sz.sub(sizerd.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8)));
+                    g.image(sizerd, at);
             }
             else if (isHighlighted)
             {
-                g.image(sizerh, sz.sub(sizerd.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8)));
+                g.image(sizerh, at);
             }
             else
-                g.image(sizeru, sz.sub(sizerd.sz()).sub(NStyle.locki[0].sz().x / 2, UI.scale(8)));
+                g.image(sizeru, at);
         }
     }
 
