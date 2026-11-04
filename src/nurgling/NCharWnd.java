@@ -12,6 +12,16 @@ public class NCharWnd extends CharWnd {
     }
 
     @Override
+    public void uimsg(String nm, Object... args) {
+        super.uimsg(nm, args);
+        if(nm == "exp") {
+            nurgling.discovery.DiscoveryTracker discoveries = nurgling.discovery.DiscoveryTracker.of(this);
+            if(discoveries != null)
+                discoveries.lp(exp);
+        }
+    }
+
+    @Override
     protected Deco makedeco() {
         return new NWindowDeco(this.large, new Coord(UI.scale(11), Window.dsmrgn.y));
     }

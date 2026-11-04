@@ -3,7 +3,6 @@ package nurgling.tools;
 import haven.Drawable;
 import haven.Gob;
 import haven.Loading;
-import haven.MapView;
 import haven.ResDrawable;
 import haven.Resource;
 import haven.Sprite;
@@ -24,11 +23,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-// Tracks which LP-discoverable products (VSpec.object) the player has found for each gob type.
-// Both the normal and "Yesteryear's " variant of seasonal fruit are literal, independently-tracked
-// entries in VSpec.object (see HarvestState's season-aware icon resolution for the counterpart that
-// decides which of the two is currently displayed) - so recording a discovery is a direct name
-// match, no normalization needed.
+// Which LP-discoverable products (VSpec.object) each gob type still has for the player. Whether a
+// product is discovered comes from the character's DiscoveryLedger, which records an item when it
+// arrives together with an LP rise (see DiscoveryTracker). Both the normal and "Yesteryear's "
+// variant of seasonal fruit are separate VSpec.object entries, matched by name like any other.
 public class LpExplorer {
     public static boolean isEnabled() {
         return Boolean.TRUE.equals(NConfig.get(NConfig.Key.lpassistent));
@@ -49,11 +47,9 @@ public class LpExplorer {
         return isYesteryearVariant == HarvestState.isYesteryearSeason();
     }
 
-    // Bark is checked globally (several species share the same bark item name), everything else per-resource.
-    private static boolean isProductDiscovered(NCharacterInfo info, String gobResName, String product) {
-        return HarvestState.isBarkProductName(product)
-            ? info.IsLpExplorerContainsAnywhere(product)
-            : info.IsLpExplorerContains(gobResName, product);
+    // Discovery is recorded per item name, so bark (several species share one bark name) needs no special case.
+    private static boolean isProductDiscovered(NCharacterInfo info, String product) {
+        return info.ledger().isDone(product);
     }
 
     // Resources confirmed to have every product (including bark, for trees) already discovered -
@@ -122,7 +118,7 @@ public class LpExplorer {
         List<String> products = VSpec.object.get(gobResName);
         if (products != null) {
             for (String product : products) {
-                if (isCurrentSeasonProduct(gobResName, product) && !isProductDiscovered(info, gobResName, product))
+                if (isCurrentSeasonProduct(gobResName, product) && !isProductDiscovered(info, product))
                     return false;
             }
         }
@@ -204,7 +200,7 @@ public class LpExplorer {
 
         boolean seed = false, leaf = false, bough = false, bark = false;
         for (String product : VSpec.object.get(gobResName)) {
-            if (!isCurrentSeasonProduct(gobResName, product) || isProductDiscovered(info, gobResName, product))
+            if (!isCurrentSeasonProduct(gobResName, product) || isProductDiscovered(info, product))
                 continue;
             if (isLeafProduct(product)) leaf = true;
             else if (isBoughProduct(product)) bough = true;
@@ -233,7 +229,7 @@ public class LpExplorer {
         for (String product : VSpec.object.get(gobResName)) {
             if (!category.test(product) || !isCurrentSeasonProduct(gobResName, product))
                 continue;
-            if (!isProductDiscovered(info, gobResName, product))
+            if (!isProductDiscovered(info, product))
                 result.add(product);
         }
         return result;
@@ -315,7 +311,7 @@ public class LpExplorer {
         NCharacterInfo info = charInfo();
         if (info == null || gobResName == null || product == null)
             return false;
-        return isCurrentSeasonProduct(gobResName, product) && !isProductDiscovered(info, gobResName, product);
+        return isCurrentSeasonProduct(gobResName, product) && !isProductDiscovered(info, product);
     }
 
     // Resolves one product's own icon: the matching harvest-category icon (seed/leaf/bough) for
@@ -344,122 +340,11 @@ public class LpExplorer {
         return HarvestState.loadIcon(VSpec.getIconPath(product), blocking);
     }
 
-    // Reverse index: product name -> the one resource that tracks it in VSpec.object. Built
-    // lazily (VSpec's own static data is populated by class-init order this class shouldn't
-    // assume has already run) and cached, mirroring VSpec.getIconPath's existing reverse-index
-    // pattern. Confirmed exactly one resource per product name across the whole of VSpec.object
-    // (no two species share a seed/leaf/bough/board/block/ore name) except bark, excluded below since it's shared by design.
-    private static Map<String, String> productToResource;
-
-    private static synchronized Map<String, String> productToResource() {
-        if (productToResource == null) {
-            Map<String, String> index = new HashMap<>();
-            for (Map.Entry<String, ArrayList<String>> e : VSpec.object.entrySet()) {
-                for (String product : e.getValue()) {
-                    if (HarvestState.isBarkProductName(product))
-                        continue;
-                    String prev = index.putIfAbsent(product, e.getKey());
-                    // The one-resource-per-product-name assumption this index rests on isn't
-                    // enforced anywhere in VSpec, so say so loudly rather than silently filing
-                    // that product's discoveries under whichever resource happened to be first.
-                    if (prev != null) {
-                        System.out.println("LpExplorer: VSpec.object lists product \"" + product
-                            + "\" under both " + prev + " and " + e.getKey()
-                            + "; discoveries for it will be tracked against " + prev + " only.");
-                    }
-                }
-            }
-            productToResource = index;
-        }
-        return productToResource;
-    }
-
-    // Called for every newly-resolved item name. Discovery is tracked per RESOURCE (any gob of a
-    // species satisfies the same discovery, not just the specific instance that produced it), so
-    // this looks up which resource the name belongs to directly from VSpec.object rather than
-    // needing to know exactly which gob produced it. All the "should we even consider this
-    // pickup" decisions (a tool rather than a product, an unrecognized name, not actually a
-    // harvest) live here too.
-    public static void checkLpExplorer(String name) {
-        // Exclude tools from LP tracking - the player's own axe/saw resolving its name isn't a
-        // harvested product (VSpec.object wouldn't have an entry for it anyway, but this avoids
-        // relying on that alone).
-        if (name.contains(" Axe") || name.contains(" Saw"))
-            return;
-        NGameUI gui = NUtils.getGameUI();
-        if (gui == null || gui.getCharInfo() == null)
-            return;
-        NCharacterInfo info = gui.getCharInfo();
-
-        String gobName = productToResource().get(name);
-        if (gobName == null && HarvestState.isBarkProductName(name))
-            // Bark isn't a VSpec.object entry and several species share the exact same bark item
-            // name - the resource key here is just a stable, synthetic storage key; discovery for
-            // bark is always checked globally (IsLpExplorerContainsAnywhere), never against a
-            // specific resource, so which key it's filed under doesn't matter.
-            gobName = "bark:" + name;
-
-        if (gobName == null)
-            return;
-
-        if (!recentHarvestClick(gui.map) && !recentBotHarvestClick())
-            return;
-
-        if (!info.IsLpExplorerContains(gobName, name)) {
-            info.LpExplorerAdd(gobName, name);
-            info.newLpExplorer = true;
-        }
-    }
-
-    // How long after clicking a harvestable gob a resolving item name is still attributed to that
-    // harvest. Only needs to cover a server round-trip plus the item's own resource load.
-    private static final long HARVEST_CLICK_WINDOW = 10_000;
-
-    // MapView hands out a new ClickedGob instance per click, so identity is what tells us a click
-    // is a *new* one rather than the same one we already timed.
-    private static MapView.ClickedGob timedClick = null;
-    private static long timedClickAt = 0;
-
-    /**
-     * Whether the player right-clicked a harvestable gob recently enough for a product name
-     * resolving now to plausibly have come from it.
-     *
-     * Without any such gate, merely opening a cupboard full of undiscovered items would mark them
-     * all discovered the moment their names resolve. The gob is matched by resource TYPE rather
-     * than exact identity, because name resolution needs a server round-trip and the player may
-     * click a second harvestable gob before a delayed product (a sawn board, say) comes back -
-     * productToResource() already tells us which resource the product belongs to, so the click
-     * only has to confirm that *a* harvest just happened.
-     *
-     * The time bound is what keeps that looseness honest. MapView only reassigns clickedGob on the
-     * next map click, so a type check alone would leave the gate open indefinitely: one click on a
-     * tree would credit every item name that resolved afterwards, however much later.
-     */
-    private static synchronized boolean recentHarvestClick(MapView map) {
-        MapView.ClickedGob clicked = (map == null) ? null : map.clickedGob;
-        if (clicked == null || clicked.gob.ngob == null)
-            return false;
-        if (HarvestSpecs.forResource(clicked.gob.ngob.name) == null)
-            return false;
-        long now = System.currentTimeMillis();
-        if (clicked != timedClick) {
-            timedClick = clicked;
-            timedClickAt = now;
-        }
-        return (now - timedClickAt) < HARVEST_CLICK_WINDOW;
-    }
-
-    /**
-     * The same check for clicks sent by bots. They right-click through map.wdgmsg, which never
-     * sets MapView.clickedGob, so without this a bot's harvests are never credited and a bot
-     * hunting undiscovered products would keep returning to the same gob. NCore sees every
-     * right-click and stamps it with its own time.
-     */
-    private static boolean recentBotHarvestClick() {
-        if (NUtils.getUI() == null || NUtils.getUI().core == null)
-            return false;
-        Gob gob = NUtils.getUI().core.recentClickedGob(HARVEST_CLICK_WINDOW);
-        return gob != null && gob.ngob != null && HarvestSpecs.forResource(gob.ngob.name) != null;
+    /** Drops every cached "nothing left to find" decision, after the Atlas marks something undiscovered again. */
+    public static void invalidateCaches() {
+        fullyDiscoveredByChr.clear();
+        NObjHarvestOl.clearLabelCache();
+        MARKER_ICON_CACHE.clear();
     }
 
     private static NCharacterInfo charInfo() {

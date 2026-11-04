@@ -130,6 +130,9 @@ public class NStudyInventory extends NInventory {
                 // Left before its resource loaded; nothing to show for it.
             }
             CurioFinishedAlert.removed((WItem) w);
+            nurgling.discovery.DiscoveryTracker discoveries = nurgling.discovery.DiscoveryTracker.of(this);
+            if (discoveries != null)
+                discoveries.curioLeft(((WItem) w).item);
         }
     }
 

@@ -35,6 +35,7 @@ public class NGameUI extends GameUI
     public NCompass compass;
     public nurgling.craft.CraftAtlas atlas;
     public NCraftAtlas atlasWindow;
+    public nurgling.widgets.NDiscoveryAtlas discoveryAtlas;
     public NEditAreaName nean;
     public NEditFolderName nefn;
     public NImportStrategyDialog importDialog;
@@ -1299,10 +1300,21 @@ public class NGameUI extends GameUI
     public static final KeyBinding kb_photo = KeyBinding.get("photo-mode", KeyMatch.forchar('P', KeyMatch.C | KeyMatch.S));
     public static final KeyBinding kb_atlas = KeyBinding.get("craft-atlas", KeyMatch.forchar('K', KeyMatch.C | KeyMatch.S));
     public static final KeyBinding kb_compass = KeyBinding.get("navigation-compass", KeyMatch.nil);
+    public static final KeyBinding kb_discoveries = KeyBinding.get("discovery-atlas", KeyMatch.nil);
 
     @Override
     protected Widget progslot() {
         return((progressSlot != null) && nurgling.styles.UITheme.on()) ? progressSlot : null;
+    }
+
+    public void toggleDiscoveryAtlas() {
+        nurgling.widgets.NCharacterInfo info = getCharInfo();
+        if(info == null) return;
+        if(discoveryAtlas == null) {
+            discoveryAtlas = new nurgling.widgets.NDiscoveryAtlas(info.ledger());
+            add(discoveryAtlas, discoveryAtlas.restorepos(UI.scale(140, 110)));
+            fitwdg(discoveryAtlas);
+        } else togglewnd(discoveryAtlas);
     }
 
     public void toggleCraftAtlas() {
@@ -1346,6 +1358,7 @@ public class NGameUI extends GameUI
     @Override
     public boolean globtype(GlobKeyEvent ev) {
         if(kb_atlas.key().match(ev)) { toggleCraftAtlas(); return true; }
+        if(kb_discoveries.key().match(ev)) { toggleDiscoveryAtlas(); return true; }
         if(kb_compass.key().match(ev) && compass != null) { compass.toggle(); return true; }
         if (nurgling.diagnostics.MovementTrace.capture.key().match(ev.awt)) {
             nurgling.diagnostics.MovementTrace.trigger(ui);

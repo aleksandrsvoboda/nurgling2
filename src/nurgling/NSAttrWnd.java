@@ -214,7 +214,11 @@ public class NSAttrWnd extends SAttrWnd {
 	adda(costVal, new Coord(rx, prev.pos("ul").y), 1.0, 0.0);
 	prev = adda(new Button(UI.scale(75), L10n.get("char.sattr.buy")).action(this::buy),
 		    new Coord(rx, rcBottom), 1.0, 1.0);
-	adda(new Button(UI.scale(75), L10n.get("char.sattr.reset")).action(this::reset), prev.pos("bl").subs(5, 0), 1.0, 1.0);
+	prev = adda(new Button(UI.scale(75), L10n.get("char.sattr.reset")).action(this::reset), prev.pos("bl").subs(5, 0), 1.0, 1.0);
+	adda(new Button(UI.scale(75), L10n.get("char.sattr.discoveries")).action(() -> {
+		    if(ui.gui instanceof nurgling.NGameUI)
+			((nurgling.NGameUI)ui.gui).toggleDiscoveryAtlas();
+		}), prev.pos("bl").subs(5, 0), 1.0, 1.0);
 	pack();
 	resize(sz.add(0, UI.scale(20)));
     }

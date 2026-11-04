@@ -7,6 +7,8 @@ import nurgling.NGameUI;
 import nurgling.NInventory;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.discovery.DiscoveryCorrelator;
+import nurgling.discovery.DiscoveryTracker;
 import nurgling.tasks.GetItems;
 import nurgling.tasks.NFlowerMenuIsClosed;
 import nurgling.tasks.NTask;
@@ -25,8 +27,9 @@ import static haven.OCache.posres;
 /**
  * Collects one of every product the LP helper (LpExplorer) still marks undiscovered on the gobs
  * in view: walks to the nearest reachable one, does a single pick / saw / chop / chip, stops the
- * action as soon as the helper has recorded the discovery, and looks around again until nothing
- * in view has anything left to find. Each gathered item is dropped on the ground straight away.
+ * action as soon as the discovery tracker gives its verdict on the item (discovered when LP rose
+ * with it, already known when it did not), and looks around again until nothing in view has
+ * anything left to find. Each gathered item is dropped on the ground straight away.
  */
 public class LpGatherer implements Action {
     private static final NAlias SOURCES = new NAlias("gfx/terobjs/trees", "gfx/terobjs/bushes", "gfx/terobjs/bumlings");
@@ -39,8 +42,11 @@ public class LpGatherer implements Action {
     private static final int MAX_FAILS_PER_PRODUCT = 2;
     /** The player standing idle this long after the petal was chosen means the action ended (or never began). */
     private static final long IDLE_MS = 2500;
-    /** An item that arrived but was not credited within this long was not the product we were after. */
-    private static final long CREDIT_GRACE_MS = 3000;
+    /**
+     * An item that arrived but got no verdict for the product within this long was not the product
+     * we were after. A verdict takes one LP window after the item, two when LP comes late.
+     */
+    private static final long CREDIT_GRACE_MS = 2 * DiscoveryCorrelator.WINDOW_MS + 3000;
     private static final long ACTION_CAP_MS = 60_000;
     private static final long MENU_WAIT_MS = 5000;
     private static final int MENU_ATTEMPTS = 2;
@@ -125,7 +131,7 @@ public class LpGatherer implements Action {
         }
     }
 
-    private enum Outcome { DISCOVERED, GONE, NO_MENU, NO_PETAL, IDLE, NOT_CREDITED, TIMEOUT }
+    private enum Outcome { DISCOVERED, ALREADY_KNOWN, WRONG_ITEM, GONE, NO_MENU, NO_PETAL, IDLE, NOT_CREDITED, TIMEOUT }
 
     private static class Target {
         final Gob gob;
@@ -149,6 +155,8 @@ public class LpGatherer implements Action {
     private final Map<String, Integer> failsPerProduct = new HashMap<>();
     private final Set<String> skipped = new TreeSet<>();
     private final List<String> found = new ArrayList<>();
+    private final List<String> alreadyKnown = new ArrayList<>();
+    private int lpGained = 0;
     /** Why each product that was tried and not credited failed, for the closing summary. */
     private final Map<String, String> problems = new TreeMap<>();
     /** The petals the last NO_PETAL menu offered. */
@@ -180,6 +188,8 @@ public class LpGatherer implements Action {
         failed.clear();
         failsPerProduct.clear();
         found.clear();
+        alreadyKnown.clear();
+        lpGained = 0;
         problems.clear();
 
         while (true) {
@@ -204,19 +214,31 @@ public class LpGatherer implements Action {
                 }
             }
 
-            Outcome outcome = harvest(gui, target);
+            WaitCredit wait = harvest(gui, target);
+            Outcome outcome = wait == null ? Outcome.NO_MENU : wait.outcome;
+            if (wait != null) {
+                // Every discovery the action brought counts, the product's or not.
+                for (DiscoveryCorrelator.Verdict v : wait.discoveries) {
+                    found.add(v.name + " (+" + v.lp + " LP)");
+                    lpGained += v.lp;
+                }
+            }
             switch (outcome) {
-                case DISCOVERED: found.add(target.product); problems.remove(target.product); break;
+                case DISCOVERED: problems.remove(target.product); break;
+                case ALREADY_KNOWN: alreadyKnown.add(target.product); problems.remove(target.product); break;
+                case WRONG_ITEM: fail(target, "got " + wait.other + " instead"); break;
                 case GONE: break;
                 case NO_MENU: fail(target, "no menu opened on " + target.gob.ngob.name); break;
                 case NO_PETAL: fail(target, "no matching menu option on " + target.gob.ngob.name + ", it offered " + offered); break;
                 case IDLE: fail(target, "the action stopped without giving it"); break;
-                case NOT_CREDITED: fail(target, "an item came but the LP helper did not count it"); break;
+                case NOT_CREDITED: fail(target, "an item came but was not taken for your own harvest"); break;
                 case TIMEOUT: fail(target, "timed out"); break;
             }
         }
 
-        String summary = found.isEmpty() ? "nothing new found" : "found " + String.join(", ", found);
+        String summary = found.isEmpty() ? "nothing new found" : "found " + String.join(", ", found) + ", " + lpGained + " LP in all";
+        if (!alreadyKnown.isEmpty())
+            summary += ". Already known: " + String.join(", ", alreadyKnown);
         if (!skipped.isEmpty())
             summary += ". Skipped: " + String.join("; ", skipped);
         if (!problems.isEmpty()) {
@@ -315,15 +337,17 @@ public class LpGatherer implements Action {
     }
 
     /**
-     * Right-clicks the gob, chooses the petal for its product, waits for the product to be
-     * credited, then drops whatever the action put in the inventory.
+     * Right-clicks the gob, chooses the petal for its product, waits for the tracker's verdict on
+     * the product, then drops whatever the action put in the inventory. Null when no menu opened;
+     * otherwise the finished wait, whose outcome says what happened.
      */
-    private Outcome harvest(NGameUI gui, Target target) throws InterruptedException {
+    private WaitCredit harvest(NGameUI gui, Target target) throws InterruptedException {
         Gob gob = target.gob;
         Set<WItem> before = new HashSet<>(gui.getInventory().getItems());
         NFlowerMenu fm = openMenu(gui, gob);
         if (fm == null)
-            return Outcome.NO_MENU;
+            return null;
+        WaitCredit wait = new WaitCredit(gui, gob, target.product);
         String petal = target.kind.petal(fm.nopts, target.product);
         if (petal == null) {
             offered = new ArrayList<>();
@@ -331,16 +355,24 @@ public class LpGatherer implements Action {
                 offered.add(p.name);
             fm.wdgmsg("cl", -1);
             NUtils.addTask(new NFlowerMenuIsClosed());
-            return Outcome.NO_PETAL;
+            wait.outcome = Outcome.NO_PETAL;
+            return wait;
         }
-        fm.chooseOpt(petal);
-        NUtils.addTask(new NFlowerMenuIsClosed());
-
-        WaitCredit wait = new WaitCredit(gui, gob, target.product);
-        NUtils.addTask(wait);
+        DiscoveryTracker tracker = DiscoveryTracker.of(gui);
+        java.util.function.Consumer<DiscoveryCorrelator.Verdict> listener = wait.verdicts::add;
+        if (tracker != null)
+            tracker.addListener(listener);
+        try {
+            fm.chooseOpt(petal);
+            NUtils.addTask(new NFlowerMenuIsClosed());
+            NUtils.addTask(wait);
+        } finally {
+            if (tracker != null)
+                tracker.removeListener(listener);
+        }
         stopAction(gui);
         dropNew(gui, before);
-        return wait.outcome;
+        return wait;
     }
 
     /**
@@ -425,6 +457,12 @@ public class LpGatherer implements Action {
         private final Gob player = NUtils.player();
         private final String product;
         private final long start = System.currentTimeMillis();
+        /** Filled by the tracker on the UI thread, drained by check(). */
+        final java.util.concurrent.ConcurrentLinkedQueue<DiscoveryCorrelator.Verdict> verdicts = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        /** Every discovery made while waiting, the product's or another item's. */
+        final List<DiscoveryCorrelator.Verdict> discoveries = new ArrayList<>();
+        /** An item that got a verdict and was not the product. */
+        String other = null;
         private int freeAtStart = -1;
         private long idleSince = -1;
         private long itemAt = -1;
@@ -439,8 +477,20 @@ public class LpGatherer implements Action {
         @Override
         public boolean check() {
             long now = System.currentTimeMillis();
-            if (!LpExplorer.isProductUndiscovered(gob.ngob.name, product))
-                return done(Outcome.DISCOVERED);
+            for (DiscoveryCorrelator.Verdict v; (v = verdicts.poll()) != null; ) {
+                if (v.kind == DiscoveryCorrelator.Kind.DISCOVERED)
+                    discoveries.add(v);
+                if (v.name == null)
+                    continue;
+                if (v.name.equals(product)) {
+                    switch (v.kind) {
+                        case DISCOVERED: return done(Outcome.DISCOVERED);
+                        case KNOWN: return done(Outcome.ALREADY_KNOWN);
+                        default: return done(Outcome.NOT_CREDITED);
+                    }
+                }
+                other = v.name;
+            }
             if (Finder.findGob(gob.id) == null)
                 return done(Outcome.GONE);
 
@@ -451,12 +501,13 @@ public class LpGatherer implements Action {
             else if (free < freeAtStart && itemAt < 0)
                 itemAt = now;
             if (itemAt >= 0 && now - itemAt > CREDIT_GRACE_MS)
-                return done(Outcome.NOT_CREDITED);
+                return done(other != null ? Outcome.WRONG_ITEM : Outcome.NOT_CREDITED);
 
             if (player != null && isIdle(player)) {
                 if (idleSince < 0)
                     idleSince = now;
-                else if (now - idleSince > IDLE_MS)
+                // Stopped after an item came: its verdict may still be on the way.
+                else if (now - idleSince > IDLE_MS && itemAt < 0)
                     return done(Outcome.IDLE);
             } else {
                 idleSince = -1;
