@@ -678,7 +678,21 @@ public class WaterTile extends Tiler {
 	MapMesh.MapSurface ms = m.data(MapMesh.gnd);
 	MPart d = MPart.splitquad(lc, gc, ms.fortilea(lc), ms.split[ms.bs.o(lc)]);
 
-	watermesh(m, lc, gc);
+	/* Classic water is vanilla: the foam is drawn additively on the surface's
+	 * own vertices and depth-tested against it, so any other tessellation of
+	 * the surface rounds differently and shreds the foam into flickering
+	 * shards. Only better water, which hides that foam, needs the subdivided
+	 * mesh for its vertex waves; toggling it rebuilds the terrain (Atmos.set). */
+	if(!nurgling.render.Atmos.water) {
+	    MeshBuf mesh = MapMesh.Model.get(m, surfmat);
+	    MeshVertex[] mv = new MeshVertex[d.v.length];
+	    for(int i = 0; i < d.v.length; i++)
+		mv[i] = new MeshVertex(mesh, d.v[i]);
+	    for(int i = 0; i < d.f.length; i += 3)
+		mesh.new Face(mv[d.f[i]], mv[d.f[i + 1]], mv[d.f[i + 2]]);
+	} else {
+	    watermesh(m, lc, gc);
+	}
 
 	foam: {
 	    FlowData sd = m.data(FlowData.id);
@@ -712,11 +726,15 @@ public class WaterTile extends Tiler {
     }
 
     /** Continuous vertex data across tile and mesh-cut boundaries. Four samples
-     * per tile edge resolve the ocean geometry without hardware tessellation. */
+     * per tile edge resolve the ocean geometry without hardware tessellation.
+     * Positions stay on the terrain's own two split triangles, as the bed and
+     * banks do: a bilinear patch bulges off twisted (level-change) quads. */
     private void watermesh(MapMesh m, Coord lc, Coord gc) {
         MeshBuf mesh=MapMesh.Model.get(m,surfmat);
+        MapMesh.MapSurface ms=m.data(MapMesh.gnd);
+        boolean ldiag=ms.split[ms.bs.o(lc)];
         MeshBuf.Vec4Layer values=mesh.layer(nurgling.render.WaterSurface.layer);
-        Vertex[] corners=m.data(MapMesh.gnd).fortilea(lc);
+        Vertex[] corners=ms.fortilea(lc);
         Bottom bottom=m.data(Bottom.id);
         FlowData flows=m.data(FlowData.id);
         float[][] attr=new float[4][4];
@@ -736,19 +754,38 @@ public class WaterTile extends Tiler {
         for(int y=0;y<=steps;y++) for(int x=0;x<=steps;x++) {
             float u=x/(float)steps,v=y/(float)steps;
             float[] weights={(1-u)*(1-v),(1-u)*v,u*v,u*(1-v)};
+            float[] planar=splitweights(u,v,ldiag);
             Coord3f pos=Coord3f.o;
             float[] data=new float[4];
             for(int i=0;i<4;i++) {
-                pos=pos.add(corners[i].mul(weights[i]));
+                pos=pos.add(corners[i].mul(planar[i]));
                 for(int j=0;j<4;j++) data[j]+=attr[i][j]*weights[i];
             }
             MeshBuf.Vertex vertex=mesh.new Vertex(pos,Coord3f.zu);
             values.set(vertex,data);vertices[y][x]=vertex;
         }
         for(int y=0;y<steps;y++) for(int x=0;x<steps;x++) {
-            mesh.new Face(vertices[y][x],vertices[y+1][x],vertices[y+1][x+1]);
-            mesh.new Face(vertices[y][x],vertices[y+1][x+1],vertices[y][x+1]);
+            // Cells share the tile's diagonal so none straddles the crease.
+            if(ldiag) {
+                mesh.new Face(vertices[y][x],vertices[y+1][x],vertices[y][x+1]);
+                mesh.new Face(vertices[y+1][x],vertices[y+1][x+1],vertices[y][x+1]);
+            } else {
+                mesh.new Face(vertices[y][x],vertices[y+1][x],vertices[y+1][x+1]);
+                mesh.new Face(vertices[y][x],vertices[y+1][x+1],vertices[y][x+1]);
+            }
         }
+    }
+
+    /** Corner weights (order of {@link MapMesh.MapSurface#fortilea}) for the point
+     * (u, v) on the triangle pair of {@link MPart#splitquad}: ldiag splits along
+     * corners 1-3, rdiag along 0-2. */
+    static float[] splitweights(float u, float v, boolean ldiag) {
+        if(ldiag) {
+            if(u+v<=1) return new float[]{1-u-v,v,0,u};
+            return new float[]{0,1-u,u+v-1,1-v};
+        }
+        if(v>=u) return new float[]{1-v,v-u,u,0};
+        return new float[]{1-u,0,v,u-v};
     }
 
     public void trans(MapMesh m, Random rnd, Tiler gt, Coord lc, Coord gc, int z, int bmask, int cmask) {

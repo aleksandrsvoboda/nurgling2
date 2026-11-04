@@ -30,9 +30,13 @@ public class Atmos {
 
     public static boolean set(boolean wet, boolean glow, boolean water) {
 	boolean ch = (wet != Atmos.wet) || (glow != Atmos.glow) || (water != Atmos.water);
+	boolean remesh = (water != Atmos.water);
 	Atmos.wet = wet;
 	Atmos.glow = glow;
 	Atmos.water = water;
+	/* WaterTile lays a different surface mesh for better water. */
+	if(remesh)
+	    nurgling.tools.FlatWorld.apply();
 	return(ch);
     }
 
