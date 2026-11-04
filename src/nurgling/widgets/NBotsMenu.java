@@ -741,8 +741,10 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             if (d != null) {
                 drop(d, at, ev.c);
             } else if (p != null) {
-                if (p.kind == Kind.TILE && itemAt(ev.c) == p)
+                if (p.kind == Kind.TILE && itemAt(ev.c) == p) {
                     p.b.btn.click();
+                    open(NONE);   // fold back to the icon strip once a bot is started
+                }
                 else if (p.kind == Kind.FAV_HEADER && itemAt(ev.c) == p)
                     beginRename(p.sec);
             }

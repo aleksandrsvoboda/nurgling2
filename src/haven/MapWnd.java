@@ -317,7 +317,7 @@ public class MapWnd extends Window implements Console.Directory {
 		    Tex img = disp.olimg(tag);
 		    if(img != null) {
 			g.chcolor(255, 255, 255, olalpha);
-			g.image(img, ul, img.sz().mul(dmag));
+			g.image(img, ul, size);
 		    }
 		} catch(Loading l) {
 		}

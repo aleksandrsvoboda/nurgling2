@@ -90,6 +90,13 @@ public class NISBox extends ISBox
 
 
 
+    @Override
+    public void uimsg(String msg, Object... args) {
+        if ("chnum".equals(msg))
+            rem = Utils.iv(args[0]);
+        super.uimsg(msg, args);
+    }
+
     private class TakeButton extends Button{
         public TakeButton(int w, String text) {
             super(w, text);
@@ -117,7 +124,14 @@ public class NISBox extends ISBox
             boolean isStockpile = "Stockpile".equals(((Window) parent).cap);
             if(isStockpile) {
                 take = new TakeButton(UI.scale(60), "Take");
-                value = new TextEntry.NumberValue(UI.scale(40), "");
+                value = new TextEntry.NumberValue(UI.scale(40), "") {
+                    /* Enter in the field takes, then selects the number so the next one replaces it. */
+                    @Override
+                    public void activate(String text) {
+                        take.click();
+                        buf.select(0, text().length());
+                    }
+                };
                 parent.add(value, UI.scale(45, 50));
                 value.canactivate = true;
 
