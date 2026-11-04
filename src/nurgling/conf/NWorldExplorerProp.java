@@ -16,6 +16,8 @@ public class NWorldExplorerProp implements JConf
     final private String chrid;
     public boolean clockwise = false;
     public boolean deeper = true;
+    public boolean avoidDanger = true;
+    public boolean stopAfterLap = false;
 
     public NWorldExplorerProp(String username, String chrid) {
         this.username = username;
@@ -30,6 +32,10 @@ public class NWorldExplorerProp implements JConf
             clockwise = (Boolean) values.get("clockwise");
         if (values.get("deeper") != null)
             deeper = (Boolean) values.get("deeper");
+        if (values.get("avoidDanger") != null)
+            avoidDanger = (Boolean) values.get("avoidDanger");
+        if (values.get("stopAfterLap") != null)
+            stopAfterLap = (Boolean) values.get("stopAfterLap");
 
     }
 
@@ -72,6 +78,8 @@ public class NWorldExplorerProp implements JConf
         jexplorer.put("chrid", chrid);
         jexplorer.put("clockwise", clockwise);
         jexplorer.put("deeper", deeper);
+        jexplorer.put("avoidDanger", avoidDanger);
+        jexplorer.put("stopAfterLap", stopAfterLap);
         return jexplorer;
     }
 
