@@ -10,6 +10,8 @@ import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.conf.FontSettings;
 import nurgling.conf.NDragProp;
+import nurgling.styles.DragGrid;
+import nurgling.widgets.DragLayout;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -40,6 +42,8 @@ public class SessionTabBar extends Widget {
     public static final int STATUS_ICON_MARGIN = UI.scale(3);
     /** Where the bar sits before the user ever moves it - a small inset from the top-left corner. */
     public static final Coord DEFAULT_POS = UI.scale(new Coord(10, 10));
+    /** Where the buttons sit inside the drag-mode frame. The frame grows around them, the buttons don't move. */
+    private static final Coord FRAME_INSET = UI.scale(new Coord(15, 35));
 
     /** Colors for different states */
     private static final Color BUTTON_BG = new Color(0x25, 0x2B, 0x29, 0xE5);  // #252B29E5
@@ -82,6 +86,9 @@ public class SessionTabBar extends Widget {
     private int hoveredCloseButton = -1;
     /** Currently hovered mute toggle index (-1 = none) */
     private int hoveredSpeaker = -1;
+
+    /** Where the player put the buttons (saved); the bar shows there in both modes, pulled on screen if needed. */
+    private Coord pos = DEFAULT_POS;
 
     /** Drag state */
     private UI.Grab dm = null;
@@ -215,10 +222,10 @@ public class SessionTabBar extends Widget {
             if (parts.length == 2) {
                 int x = Integer.parseInt(parts[0].trim());
                 int y = Integer.parseInt(parts[1].trim());
-                this.c = new Coord(x, y);
+                pos = new Coord(x, y);
             }
         } catch (Exception e) {
-            this.c = DEFAULT_POS;
+            pos = DEFAULT_POS;
         }
     }
 
@@ -226,42 +233,47 @@ public class SessionTabBar extends Widget {
      * Save widget position to preferences.
      */
     private void savePosition() {
-        Utils.setpref("sessionbar-pos", c.x + "," + c.y);
+        Utils.setpref("sessionbar-pos", pos.x + "," + pos.y);
     }
 
     /**
-     * Clamp the widget into the current window.
+     * Shows the buttons at the saved position, kept inside the window.
      * The saved position is absolute and outlives the resolution it was saved at, so a bar parked
-     * near the right edge of a wide monitor lands completely off screen on a narrower one - and
-     * there is no way to drag back something you cannot see.
-     *
-     * Clamps against the full widget size rather than a token sliver, so a bar pushed in from the
-     * edge ends up wholly visible instead of hugging the border. If the bar is larger than the
-     * window it pins to the top-left, which is the only position that keeps it reachable.
+     * near the right edge of a wide monitor would land off screen on a narrower one. The clamp is
+     * for display only and never saved: a window that is small for a moment must not move the bar
+     * for good. Only the buttons are clamped - the drag-mode frame may hang off screen - so the
+     * buttons sit on the same pixels in and out of drag mode.
      */
-    private void clampToScreen() {
+    private void place() {
         if (parent == null || dm != null) // don't fight a drag in progress
             return;
-        int maxX = Math.max(0, parent.sz.x - sz.x);
-        int maxY = Math.max(0, parent.sz.y - sz.y);
-        int x = Math.min(Math.max(c.x, 0), maxX);
-        int y = Math.min(Math.max(c.y, 0), maxY);
-        if (x != c.x || y != c.y) {
-            this.c = new Coord(x, y);
-            savePosition();
-        }
+        Coord at = DragLayout.clamp(pos, Area.sized(contentSize()), parent.sz);
+        Coord nc = isDragMode() ? at.sub(FRAME_INSET) : at;
+        if (!nc.equals(c))
+            this.c = nc;
+    }
+
+    private boolean isDragMode() {
+        return ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+    }
+
+    /** Size of the buttons column: one row per session plus the add button. */
+    private Coord contentSize() {
+        int width = BUTTON_WIDTH + STATUS_ICON_MARGIN + STATUS_ICON_SIZE;
+        int sessionCount = SessionManager.getInstance().getSessionCount();
+        return new Coord(width, sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) + BUTTON_HEIGHT);
     }
 
     @Override
     protected void added() {
         super.added();
-        clampToScreen();
+        place();
     }
 
     @Override
     public void presize() {
         super.presize();
-        clampToScreen();
+        place();
     }
 
     /**
@@ -269,37 +281,25 @@ public class SessionTabBar extends Widget {
      * In drag mode, use fixed size. Otherwise, size to fit content.
      */
     private void updateSize() {
-        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
-
-        if (dragMode) {
-            // Fixed size in drag mode - wider than buttons, tall as 10 buttons + plus button
-            // Width includes: session button + status icon
-            int dragWidth = BUTTON_WIDTH + STATUS_ICON_MARGIN + STATUS_ICON_SIZE + UI.scale(40);
-            int dragHeight = 10 * (BUTTON_HEIGHT + BUTTON_PADDING) + BUTTON_HEIGHT; // +1 for plus button
+        if (isDragMode()) {
+            // Room for 10 sessions plus the add button, so the player sees how far the bar can grow
+            int dragWidth = FRAME_INSET.x + BUTTON_WIDTH + STATUS_ICON_MARGIN + STATUS_ICON_SIZE + UI.scale(25);
+            int dragHeight = FRAME_INSET.y + 10 * (BUTTON_HEIGHT + BUTTON_PADDING) + BUTTON_HEIGHT + UI.scale(10);
             this.sz = new Coord(dragWidth, dragHeight);
         } else {
-            // Size to fit content in normal mode
-            SessionManager sm = SessionManager.getInstance();
-            int sessionCount = sm.getSessionCount();
-
-            // Width includes: session button + status icon space
-            int width = BUTTON_WIDTH + STATUS_ICON_MARGIN + STATUS_ICON_SIZE;
-
-            if (sessionCount == 0) {
-                // Just plus button height
-                this.sz = new Coord(width, BUTTON_HEIGHT);
-            } else {
-                // Sessions + plus button below
-                int height = sessionCount * (BUTTON_HEIGHT + BUTTON_PADDING) + BUTTON_HEIGHT;
-                this.sz = new Coord(width, height);
-            }
+            this.sz = contentSize();
         }
 
-        // Update button positions (top-right corner)
+        // Lock and eye at the top-right of the part of the frame that is on screen
         if (btnLock != null && btnVis != null) {
             int iconSize = NStyle.locki[0].sz().x;
-            btnLock.move(new Coord(sz.x - iconSize - iconSize / 2, iconSize / 2));
-            btnVis.move(new Coord(sz.x - iconSize - iconSize / 2, iconSize + controlOffset.y));
+            int right = sz.x, top = 0;
+            if (parent != null) {
+                right = Math.min(sz.x, parent.sz.x - c.x);
+                top = Math.max(0, -c.y);
+            }
+            btnLock.move(new Coord(right - iconSize - iconSize / 2, top + iconSize / 2));
+            btnVis.move(new Coord(right - iconSize - iconSize / 2, top + iconSize + controlOffset.y));
         }
     }
 
@@ -321,10 +321,9 @@ public class SessionTabBar extends Widget {
 
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
 
+        // Placed every frame: the clamp depends on the session count, the origin on drag mode.
+        place();
         updateSize();
-        // Only authoritative once updateSize() has run - sz changes with session count and with
-        // drag mode, so a clamp done at added()/presize() time can be based on a stale size.
-        clampToScreen();
 
         // Draw overall background and border in drag mode
         if (dragMode) {
@@ -343,7 +342,7 @@ public class SessionTabBar extends Widget {
         }
 
         // Calculate offset for buttons (inside the drag mode frame)
-        Coord buttonOffset = dragMode ? new Coord(UI.scale(15), UI.scale(35)) : Coord.z;
+        Coord buttonOffset = dragMode ? FRAME_INSET : Coord.z;
 
         if (sessions.isEmpty()) {
             // Just draw plus button
@@ -583,8 +582,7 @@ public class SessionTabBar extends Widget {
     }
 
     private void drawPlusButton(GOut g, int y, boolean hovered) {
-        boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
-        int xOffset = dragMode ? UI.scale(15) : 0;
+        int xOffset = isDragMode() ? FRAME_INSET.x : 0;
         // Plus button is left-aligned below all sessions
         int x = xOffset;
         int btnY = y + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
@@ -722,9 +720,15 @@ public class SessionTabBar extends Widget {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
 
         if (dragMode) {
-            // Handle active dragging in drag mode
+            // Handle active dragging in drag mode: the buttons catch the grid and stop at the screen edge
             if (dm != null) {
-                this.c = this.c.add(ev.c.sub(doff));
+                Area buttons = Area.sized(FRAME_INSET, contentSize());
+                Coord frame = this.c.add(ev.c.sub(doff));
+                frame = DragGrid.snap(frame.add(buttons.ul)).sub(buttons.ul);
+                if (parent != null)
+                    frame = DragLayout.clamp(frame, buttons, parent.sz);
+                this.c = frame;
+                pos = frame.add(FRAME_INSET);
             } else {
                 // Not dragging, handle button hover
                 if (ev.c.isect(Coord.z, sz)) {
@@ -737,6 +741,7 @@ public class SessionTabBar extends Widget {
             if (dm != null) {
                 // Handle dragging
                 this.c = this.c.add(ev.c.sub(doff));
+                pos = this.c;
                 return;
             }
 
@@ -832,7 +837,7 @@ public class SessionTabBar extends Widget {
      */
     private int getButtonAt(Coord c) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
-        int xOffset = dragMode ? UI.scale(15) : 0;
+        int xOffset = dragMode ? FRAME_INSET.x : 0;
 
         // Session button starts at left edge
         int sessionButtonX = xOffset;
@@ -860,7 +865,7 @@ public class SessionTabBar extends Widget {
      */
     private boolean isCloseButtonHit(Coord c, int buttonIndex) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
-        int xOffset = dragMode ? UI.scale(15) : 0;
+        int xOffset = dragMode ? FRAME_INSET.x : 0;
 
         int y = buttonIndex * (BUTTON_HEIGHT + BUTTON_PADDING);
         int sessionButtonX = xOffset;
@@ -877,7 +882,7 @@ public class SessionTabBar extends Widget {
      */
     private boolean isSpeakerHit(Coord c, int buttonIndex) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
-        int xOffset = dragMode ? UI.scale(15) : 0;
+        int xOffset = dragMode ? FRAME_INSET.x : 0;
 
         int y = buttonIndex * (BUTTON_HEIGHT + BUTTON_PADDING);
         int speakerX = xOffset + SPEAKER_MARGIN;
@@ -893,7 +898,7 @@ public class SessionTabBar extends Widget {
      */
     private boolean isPlusButtonHit(Coord c) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
-        int xOffset = dragMode ? UI.scale(15) : 0;
+        int xOffset = dragMode ? FRAME_INSET.x : 0;
 
         SessionManager sm = SessionManager.getInstance();
         int sessionCount = sm.getSessionCount();
