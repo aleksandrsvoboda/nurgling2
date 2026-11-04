@@ -11,6 +11,8 @@ import nurgling.conf.NQuestTrackerProp;
 import nurgling.styles.UITheme;
 import nurgling.widgets.nsettings.Fonts;
 import nurgling.widgets.quest.QCond;
+import nurgling.widgets.quest.QuestFoldButton;
+import nurgling.widgets.quest.QuestFoldChip;
 import nurgling.widgets.quest.QuestObjectiveAction;
 import nurgling.widgets.quest.QuestObjectiveActionButton;
 import nurgling.widgets.quest.QuestObjectiveActionResolver;
@@ -121,6 +123,13 @@ public class NQuestInfo extends Widget
     private String search = "";
     private int headerH = 0;
 
+    /* minimize: the tracker keeps its size and draws only the chip, so clicks elsewhere reach the map */
+    private QuestFoldButton foldbtn;
+    private QuestFoldChip foldchip;
+    private boolean folded = false;
+    /** Children hidden by folding, shown again on expand. */
+    private final List<Widget> foldHidden = new ArrayList<>();
+
     private FontSettings fontsrc = null;
     private Text.Foundry groupFnd, condFnd;
     private int rowH = UI.scale(14);
@@ -189,7 +198,10 @@ public class NQuestInfo extends Widget
             }
         });
         searchbox.hide();
+        foldbtn = add(new QuestFoldButton(flat, flat ? searchbtn.sz : QuestFoldButton.classicSize(), () -> setFolded(true)));
         body = add(new Scrollport(DEF_SZ));
+        foldchip = add(new QuestFoldChip(flat, () -> setFolded(false)));
+        foldchip.hide();
         relayout();
     }
 
@@ -304,7 +316,9 @@ public class NQuestInfo extends Widget
                 c.c = new Coord(x, top + (toolbarH - c.sz.y) / 2);
                 x += c.sz.x + gap;
             }
-            int rx = sz.x - PAD.x - gearbtn.sz.x;
+            int rx = sz.x - PAD.x - foldbtn.sz.x;
+            foldbtn.c = new Coord(rx, top + (toolbarH - foldbtn.sz.y) / 2);
+            rx -= gearbtn.sz.x + gap;
             gearbtn.c = new Coord(rx, top + (toolbarH - gearbtn.sz.y) / 2);
             rx -= searchbtn.sz.x + gap;
             searchbtn.c = new Coord(rx, top + (toolbarH - searchbtn.sz.y) / 2);
@@ -319,7 +333,9 @@ public class NQuestInfo extends Widget
                 c.c = new Coord(x, top + (modebtn.sz.y - c.sz.y) / 2);
                 x += c.sz.x + UI.scale(2);
             }
-            int rx = sz.x - PAD.x - gearbtn.sz.x;
+            int rx = sz.x - PAD.x - foldbtn.sz.x;
+            foldbtn.c = new Coord(rx, top + (gearbtn.sz.y - foldbtn.sz.y) / 2);
+            rx -= gearbtn.sz.x + PAD.x;
             gearbtn.c = new Coord(rx, top);
             rx -= searchbtn.sz.x + PAD.x;
             searchbtn.c = new Coord(rx, top);
@@ -341,6 +357,82 @@ public class NQuestInfo extends Widget
         headerH = y;
         body.c = new Coord(0, headerH);
         body.resize(new Coord(sz.x, Math.max(rowH, sz.y - headerH)));
+        // Layout shows the tabs and the search box when their state asks for it; keep them folded away.
+        if(folded)
+            hideForFold();
+    }
+
+    /* ------------------------------------------------------------------ minimize */
+
+    private void setFolded(boolean fold)
+    {
+        NQuestTrackerProp p = prop();
+        p.minimized = fold;
+        p.save();
+        applyFold(fold);
+    }
+
+    private void applyFold(boolean fold)
+    {
+        if(fold == folded)
+            return;
+        folded = fold;
+        if(fold) {
+            hideForFold();
+            updateChip();
+            foldchip.show();
+        } else {
+            foldchip.hide();
+            for(Widget w : foldHidden)
+                w.show();
+            foldHidden.clear();
+            relayout();
+            needRebuild = true;
+        }
+    }
+
+    private void hideForFold()
+    {
+        for(Widget w = child; w != null; w = w.next) {
+            if(w != foldchip && w.visible) {
+                w.hide();
+                foldHidden.add(w);
+            }
+        }
+    }
+
+    private void updateChip()
+    {
+        NQuestTrackerProp p = prop();
+        int count = 0, ready = 0;
+        for(QuestModel.TQuest q : model.quests()) {
+            if(!visible(q, p))
+                continue;
+            count++;
+            if(q.readyToTurnIn())
+                ready++;
+        }
+        foldchip.set(count, ready, groupFnd);
+    }
+
+    /**
+     * The tracker folds into its corner nearest the screen edges, so a tracker parked at an edge
+     * keeps its chip there. Both chevrons follow: minimize points into that corner, expand out of it.
+     */
+    private void placeFold()
+    {
+        if(ui == null)
+            return;
+        Coord mid = rootpos().add(sz.div(2));
+        Coord scr = ui.root.sz;
+        boolean right = mid.x > scr.x / 2, bottom = mid.y > scr.y / 2;
+        foldbtn.pointDown(bottom);
+        foldchip.pointDown(!bottom);
+        if(folded) {
+            Coord at = new Coord(right ? sz.x - foldchip.sz.x : 0, bottom ? sz.y - foldchip.sz.y : 0);
+            if(!at.equals(foldchip.c))
+                foldchip.c = at;
+        }
     }
 
     /* ------------------------------------------------------------------ tick */
@@ -354,6 +446,12 @@ public class NQuestInfo extends Widget
         if(model.tick(dt, (gui != null) ? gui.chrwdg : null))
             needRebuild = true;
         tickVillage(gui);
+        // Settings can arrive after login, so follow the saved state rather than set it once.
+        if(prop().minimized != folded)
+            applyFold(prop().minimized);
+        if(folded)
+            updateChip();
+        placeFold();
         if(needRebuild) {
             needRebuild = false;
             rebuild();
@@ -1679,18 +1777,34 @@ public class NQuestInfo extends Widget
     @Override
     public void draw(GOut g)
     {
-        boolean nui = UITheme.on();
-        if(nui)
-            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
-        else
-            NDraggableWidget.drawBg(g, sz, ui);
+        if(folded) {
+            // Only the chip; the rest of the tracker's area stays clear.
+            super.draw(g);
+            return;
+        }
+        drawPanelBg(g, sz, ui);
         g.chcolor(NStyle.titleBg);
         g.frect(Coord.z, new Coord(sz.x, headerH));
         g.chcolor(NStyle.separator);
         g.frect(new Coord(0, headerH - UI.scale(1)), new Coord(sz.x, UI.scale(1)));
         g.chcolor();
         super.draw(g);
-        if(nui) {
+        drawPanelBorder(g, sz);
+    }
+
+    /** The tracker's background, in either UI look. */
+    public static void drawPanelBg(GOut g, Coord sz, UI ui)
+    {
+        if(UITheme.on())
+            UITheme.panel(g, Coord.z, sz, UITheme.PANEL, null);
+        else
+            NDraggableWidget.drawBg(g, sz, ui);
+    }
+
+    /** The tracker's border, in either UI look. */
+    public static void drawPanelBorder(GOut g, Coord sz)
+    {
+        if(UITheme.on()) {
             UITheme.panel(g, Coord.z, sz, null, NStyle.border);
             return;
         }

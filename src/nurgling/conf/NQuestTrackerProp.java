@@ -47,6 +47,8 @@ public class NQuestTrackerProp implements JConf
     public boolean villageTab = false;
     /** Villagers whose shared quests the player hid, by character name. */
     public final Set<String> hiddenVillagers = new LinkedHashSet<>();
+    /** The tracker is folded into its small chip. */
+    public boolean minimized = false;
 
     public NQuestTrackerProp(String username, String chrid)
     {
@@ -89,6 +91,8 @@ public class NQuestTrackerProp implements JConf
         if(values.get("villageTab") instanceof Boolean)
             villageTab = (Boolean)values.get("villageTab");
         readStrings(values.get("hiddenVillagers"), hiddenVillagers);
+        if(values.get("minimized") instanceof Boolean)
+            minimized = (Boolean)values.get("minimized");
     }
 
     private static String str(Object o)
@@ -128,6 +132,7 @@ public class NQuestTrackerProp implements JConf
         j.put("shareQuests", shareQuests);
         j.put("villageTab", villageTab);
         j.put("hiddenVillagers", new JSONArray(hiddenVillagers));
+        j.put("minimized", minimized);
         return j;
     }
 
