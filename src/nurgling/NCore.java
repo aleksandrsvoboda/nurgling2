@@ -148,6 +148,10 @@ public class NCore extends Widget
     private static final long CLICKED_GOB_TTL_MS = 60_000;
     private volatile long clickedGobId = -1;
     private volatile long clickedGobAt = 0;
+    /* The latest gob right-click, never consumed or cleared by other clicks: discovery tracking
+     * uses it to tell items the player's own action produced from ones handed over. */
+    private volatile long lastRclickGobId = -1;
+    private volatile long lastRclickGobAt = 0;
 
     /* Where the latest placement ("place", e.g. a new stockpile) went down. The new gob does not
      * exist yet when the placement is sent - and a new pile's window may arrive before it - so
@@ -162,6 +166,8 @@ public class NCore extends Widget
         if (args.length >= 6 && args[2] instanceof Integer && (Integer) args[2] == 3 && args[5] instanceof Integer) {
             clickedGobId = Integer.toUnsignedLong((Integer) args[5]);
             clickedGobAt = System.currentTimeMillis();
+            lastRclickGobId = clickedGobId;
+            lastRclickGobAt = clickedGobAt;
         } else {
             clickedGobId = -1;
         }
@@ -224,15 +230,14 @@ public class NCore extends Widget
         return gob;
     }
 
-    /** As takeClickedGob, but with a caller-chosen age limit and without forgetting the click. */
-    public Gob recentClickedGob(long maxAgeMs)
+    /** The gob of the latest right-click within maxAgeMs, even if a window took it or the player clicked the ground since. */
+    public Gob lastGobRightClick(long maxAgeMs)
     {
-        long id = clickedGobId;
-        if (id < 0 || System.currentTimeMillis() - clickedGobAt > maxAgeMs || ui == null || ui.sess == null)
+        long id = lastRclickGobId;
+        if (id < 0 || System.currentTimeMillis() - lastRclickGobAt > maxAgeMs || ui == null || ui.sess == null)
             return null;
         return ui.sess.glob.oc.getgob(id);
     }
-
 
     public Mode mode = Mode.DRAG;
     private boolean botmod = false;

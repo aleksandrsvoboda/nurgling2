@@ -12,7 +12,7 @@ import nurgling.iteminfo.NCuriosity;
 import nurgling.iteminfo.NFoodInfo;
 import nurgling.iteminfo.NKilnInfo;
 import nurgling.iteminfo.NSmelterInfo;
-import nurgling.tools.LpExplorer;
+import nurgling.discovery.DiscoveryTracker;
 import nurgling.widgets.NQuestInfo;
 
 import java.util.ArrayList;
@@ -51,6 +51,21 @@ public class NGItem extends GItem
     public NGItem(Indir<Resource> res)
     {
         super(res);
+    }
+
+    /** A widget the server moves to a new parent is added again; only its first arrival counts. */
+    private boolean arrivalNoted = false;
+
+    @Override
+    protected void added()
+    {
+        super.added();
+        if (arrivalNoted)
+            return;
+        arrivalNoted = true;
+        DiscoveryTracker discoveries = DiscoveryTracker.of(this);
+        if (discoveries != null)
+            discoveries.arrived(this);
     }
 
     public String name()
@@ -177,11 +192,9 @@ public class NGItem extends GItem
             }
             if(name!=null)
             {
-                // Looks up which resource tracks this name directly from VSpec.object - no gob
-                // reference needed at all, since discovery is tracked per resource, not per the
-                // specific gob instance that happened to produce it. See its own diagnostic
-                // logging for unrecognized names/tool exclusions.
-                LpExplorer.checkLpExplorer(name);
+                DiscoveryTracker discoveries = DiscoveryTracker.of(this);
+                if (discoveries != null)
+                    discoveries.named(this);
             }
 
         }
@@ -541,6 +554,9 @@ public class NGItem extends GItem
 
     @Override
     public void destroy() {
+        DiscoveryTracker discoveries = DiscoveryTracker.of(this);
+        if (discoveries != null)
+            discoveries.departed(this);
         if (name != null && (Boolean) NConfig.get(NConfig.Key.ndbenable)) {
             // Try to add to cache if not already added (handles fast open/close when tick() didn't run)
             if (!addedToInventoryCache) {

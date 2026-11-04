@@ -54,6 +54,8 @@ public final class ItemResources {
     public static boolean contains(String name) { return Holder.archive.files.containsKey(name); }
     public static int count() { return Holder.archive.files.size(); }
     static JSONObject names() { return Holder.archive.names; }
+    /** Every name in the offline icon catalogue, lower case. Includes wiki aliases that are not real game names. */
+    public static java.util.Set<String> catalogueNames() { return Holder.archive.names.keySet(); }
     /** Called only from the shared icon loader's worker thread. Composite layers retain their offsets. */
     public static BufferedImage image(JSONObject descriptor) {
         if(descriptor.has("choice")) {

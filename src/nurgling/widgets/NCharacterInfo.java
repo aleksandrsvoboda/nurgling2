@@ -2,6 +2,8 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.*;
+import nurgling.discovery.DiscoveryLedger;
+import nurgling.discovery.DiscoveryTracker;
 import nurgling.tools.NFileUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -26,66 +28,23 @@ public class NCharacterInfo extends Widget {
     boolean needFEPreset = false;
 
     boolean isStarted = false;
-    public boolean newLpExplorer = false;
     String varCand = null;
+    // The old harvest-click discovery record (resource -> products). Only read, to import it into
+    // the discovery ledger once, and written back unchanged so an older client still finds it.
     private final HashMap<String,ArrayList<String>> lpExplorer = new HashMap<>();
-    // Every value ever added to lpExplorer, across all resources - kept in lockstep with it so
-    // IsLpExplorerContainsAnywhere() (checked every tick per bark-tracked tree) is an O(1) lookup
-    // instead of scanning every resource's discovered-product list, which otherwise gets slower
-    // the longer a character has been playing.
-    private final Set<String> lpExplorerAllValues = new HashSet<>();
+    private final DiscoveryLedger ledger;
+    private final DiscoveryTracker discoveries;
 
-    public boolean IsLpExplorerContains(String name)
+    /** This character's discovery tracking. */
+    public DiscoveryTracker discoveries()
     {
-        synchronized(lpExplorer) {
-            return lpExplorer.containsKey(name);
-        }
+        return discoveries;
     }
 
-    // Some products (e.g. "Treebark"/"Tough Bark") are the exact same curiosity regardless of
-    // which resource produced them, unlike most products which are uniquely named per resource -
-    // for those, discovery needs checking across every resource's list, not just one.
-    public boolean IsLpExplorerContainsAnywhere(String var)
+    /** This character's discovery record. */
+    public DiscoveryLedger ledger()
     {
-        synchronized(lpExplorer) {
-            return lpExplorerAllValues.contains(var);
-        }
-    }
-
-    public boolean IsLpExplorerContains(String name, String var)
-    {
-        synchronized(lpExplorer) {
-            if(lpExplorer.containsKey(name))
-            {
-                return lpExplorer.get(name).contains(var);
-            }
-            return false;
-        }
-    }
-
-    public void LpExplorerAdd(String name, String var)
-    {
-        synchronized(lpExplorer) {
-            if(lpExplorer.containsKey(name))
-            {
-                lpExplorer.get(name).add(var);
-            }
-            else
-            {
-                lpExplorer.put(name,new ArrayList<>());
-                lpExplorer.get(name).add(var);
-            }
-            lpExplorerAllValues.add(var);
-        }
-    }
-
-    public int LpExplorerGetSize(String name)
-    {
-        synchronized(lpExplorer) {
-            if(lpExplorer.containsKey(name))
-                return lpExplorer.get(name).size();
-        }
-        return 0;
+        return ledger;
     }
 
     public NCharacterInfo(String chrid, NUI nui) {
@@ -115,6 +74,11 @@ public class NCharacterInfo extends Widget {
             path = NUtils.getDataFile(filename);
         }
         read();
+        ledger = new DiscoveryLedger(DiscoveryLedger.pathFor(path));
+        synchronized (lpExplorer) {
+            ledger.importLegacy(lpExplorer);
+        }
+        discoveries = new DiscoveryTracker(this, ledger);
     }
 
     void read() {
@@ -151,7 +115,6 @@ public class NCharacterInfo extends Widget {
                                 lpExplorer.put(jlp.getString("name"), new ArrayList<>());
                                 lpExplorer.get(jlp.getString("name")).add(jlp.getString("key"));
                             }
-                            lpExplorerAllValues.add(jlp.getString("key"));
                         }
                     }
                 }
@@ -249,11 +212,13 @@ public class NCharacterInfo extends Widget {
                 oldFEPSsize = fepssize;
             }
         }
-        if(newLpExplorer)
-        {
-            write();
-            newLpExplorer = false;
-        }
+        discoveries.tick();
+    }
+
+    @Override
+    public void destroy() {
+        ledger.saveNow();
+        super.destroy();
     }
 
     public void setCandidate(String defn) {

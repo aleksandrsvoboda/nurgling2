@@ -833,6 +833,7 @@ public class OptWnd extends Window {
 	    y = cont.adda(new Label(L10n.get("opt.keybind.main_menu")), cont.sz.x / 2, y, 0.5, 0.0).pos("bl").adds(0, 5).y;
 	    y = addbtn(cont, L10n.get("opt.keybind.inventory"), GameUI.kb_inv, y);
             y = addbtn(cont, L10n.get("atlas.title"), nurgling.NGameUI.kb_atlas, y);
+            y = addbtn(cont, L10n.get("discovery.title"), nurgling.NGameUI.kb_discoveries, y);
             y = addbtn(cont, L10n.get("compass.setting"), nurgling.NGameUI.kb_compass, y);
 	    y = addbtn(cont, L10n.get("opt.keybind.equipment"), GameUI.kb_equ, y);
 	    y = addbtn(cont, L10n.get("opt.keybind.character"), GameUI.kb_chr, y);
