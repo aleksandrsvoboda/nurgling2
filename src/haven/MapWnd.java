@@ -56,8 +56,8 @@ public class MapWnd extends Window implements Console.Directory {
     public final Collection<String> overlays = new java.util.concurrent.CopyOnWriteArraySet<>();
     public MarkerConfig markcfg = MarkerConfig.showall, cmarkers = null;
     private final Locator player;
-    private final Widget toolbar;
-    private final Frame viewf;
+    protected final Widget toolbar;
+    protected final Frame viewf;
     private final MarkerObjs mvmarks = new MarkerObjs(this);
     private GroupSelector colsel;
     private CheckBox onmapbtn;
@@ -67,7 +67,7 @@ public class MapWnd extends Window implements Console.Directory {
     private List<ListMarker> markers = Collections.emptyList();
     private int markerseq = -1;
     private Marker mrefocus = null;
-    private int olalpha = 64;
+    protected int olalpha = 64;
     private final Collection<Runnable> deferred = new LinkedList<>();
 
     private final static Predicate<Marker> pmarkers = (m -> m instanceof PMarker);
@@ -123,13 +123,13 @@ public class MapWnd extends Window implements Console.Directory {
 	    .settip("Compact mode").setgkey(kb_compact);
 	toolbar.add(new ICheckBox("gfx/hud/mmap/prov", "", "-d", "-h", "-dh") {
 		public boolean mousewheel(MouseWheelEvent ev) {
-		    if(!checkhit(ev.c) || !ui.modshift || !a)
+		    if(!checkhit(ev.c) || !ui.modshift || !state())
 			return(super.mousewheel(ev));
 		    olalpha = Utils.clip(olalpha + (ev.a * -32), 32, 256);
 		    return(true);
 		}
 	    })
-	    .changed(a -> toggleol("realm", a))
+	    .state(() -> overlays.contains("realm")).set(a -> toggleol("realm", a))
 	    .settip("Display provinces").setgkey(kb_prov);
 	toolbar.pack();
 	tool = add(new Toolbox());
@@ -450,6 +450,11 @@ public class MapWnd extends Window implements Console.Directory {
 
 	private MarkButton() {
 	    super("gfx/hud/mmap/mark", "", "-d", "-h", "-dh");
+	}
+
+	/* Nurgling: the map window's toolbar draws the same button with its own art. */
+	public MarkButton(Tex up, Tex down, Tex hoverup, Tex hoverdown) {
+	    super(up, down, hoverup, hoverdown);
 	}
 
 	public boolean state() {
@@ -902,7 +907,7 @@ public class MapWnd extends Window implements Console.Directory {
 	toolbar.c = viewf.c.add(0, viewf.sz.y - toolbar.sz.y).add(UI.scale(2), UI.scale(-2));
     }
 
-    private boolean compact() {
+    protected boolean compact() {
 	return(deco == null);
     }
 
@@ -924,7 +929,7 @@ public class MapWnd extends Window implements Console.Directory {
 	mrefocus = m;
     }
 
-    private void uploadpmarker(Marker mark) {
+    protected void uploadpmarker(Marker mark) {
 	if(!(mark instanceof PMarker))
 	    return;
 	if((ui == null) || (ui.core == null) || (ui.core.mappingClient == null))

@@ -2228,25 +2228,31 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousewheel(MouseWheelEvent ev) {
-        if(ev.a > 0) {
-            // Zoom out - multiply by 0.95 (5% decrease per step)
-            targetScale *= 0.95f;
-            // Limit minimum scale
-            if(targetScale < 0.03125f) // 1/32 zoom out
-                targetScale = 0.03125f;
-        } else {
-            // Zoom in - multiply by 1.0526 (inverse of 0.95, ~5.3% increase)
-            targetScale *= 1.0526f;
-            // Limit maximum scale to 4x
-            if(targetScale > MAX_SCALE)
-                targetScale = MAX_SCALE;
-        }
-        
+        zoomBy((ev.a > 0) ? 0.95f : 1.0526f);
+        return(true);
+    }
+
+    /** One step of the map window's zoom buttons: the same as about five wheel notches. */
+    public void zoomStep(boolean in) {
+        zoomBy(in ? 1.3f : (1 / 1.3f));
+    }
+
+    /** True while the view keeps recentring on whatever it was told to follow. */
+    public boolean following() {
+        return(follow && (setloc != null));
+    }
+
+    /** Current display scale; 1.0 is one map pixel per tile at the base data level. */
+    public float zoom() {
+        return(currentScale);
+    }
+
+    private void zoomBy(float f) {
+        // Between 1/32 zoomed out and MAX_SCALE zoomed in.
+        targetScale = Utils.clip(targetScale * f, 0.03125f, MAX_SCALE);
         // Update zoomlevel for compatibility with base class
         // Must be small (0-5) since base class uses it in bit shifts: 1 << zoomlevel
         zoomlevel = Utils.clip((int)(Math.log(1.0 / targetScale) / Math.log(2)), 0, 5);
-        
-        return(true);
     }
 
     protected boolean allowzoomout() {
@@ -2624,6 +2630,11 @@ NMiniMap extends MiniMap {
         }
     }
     
+    /** Terrain name under a point of this view, or null off the loaded map. */
+    public String terrainAt(Coord c) {
+        return(getTerrainNameAtCoord(c));
+    }
+
     private String getTerrainNameAtCoord(Coord c) {
         if(dloc == null || display == null || dgext == null) {
             return null;

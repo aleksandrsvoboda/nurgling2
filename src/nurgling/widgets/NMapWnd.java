@@ -1,21 +1,68 @@
 package nurgling.widgets;
 
 import haven.*;
+import haven.MapFile.Marker;
+import haven.MapFile.PMarker;
+import haven.MapFile.SMarker;
 import nurgling.NGameUI;
+import nurgling.NStyle;
 import nurgling.NUtils;
 import nurgling.tools.MapDbTransfer;
 import nurgling.conf.ProspectKind;
 import nurgling.i18n.L10n;
+import nurgling.widgets.cookbook.HintTextEntry;
 
 import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static haven.MCache.tilesz;
 
+/**
+ * The big map window. The map itself is the stock {@link MapWnd} view; around it this class puts
+ * one row of icon buttons across the top, the marker list down the right (which can be hidden),
+ * and a status strip under the map. Players and Share open as flyouts from the top row, so
+ * nothing sits on the map itself except the zoom buttons.
+ *
+ * <p>The stock toolbar plate and marker panel still exist, hidden: the stock toolbar keeps owning
+ * the map hotkeys, and every control here works on the same state its buttons do. The stock
+ * compact mode is switched off - this layout has no way back out of it.
+ */
 public class NMapWnd extends MapWnd {
     public String searchPattern = "";  // For terrain/tile search
-    public String markerSearchPattern = "";  // For marker/icon search
+    public String markerSearchPattern = "";  // Marker name filter, shared by the list and the map
     public Resource.Image searchRes = null;
+
+    private static final int PAD = UI.scale(4);
+    private static final int SIDE_W = UI.scale(240);
+    private static final Coord MINSZ = UI.scale(new Coord(640, 400));
+    private static final String PREF_SIDE = "mapwnd-markerlist";
+    private static final String PREF_SHOW = "mapwnd-markershow";
+    private static final String PREF_SORT = "mapwnd-markersort";
+    private static final Color LINE = new Color(77, 93, 95);
+    private static final Color MUTED = new Color(143, 163, 164);
+    private static final Color ONLINE = new Color(122, 209, 122);
+
+    private final Text.Foundry fnd = new Text.Foundry(Text.dfont, UI.scale(11)).aa(true);
+    private final Text.Foundry smallf = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
+
+    /* All set after MapWnd's constructor, which already calls resize() and compact(). Every
+     * override checks for null rather than initialising here, so nothing is overwritten later. */
+    private TopBar bar;
+    private MarkerPanel side;
+    private StatusStrip status;
+    private Flyout playersFly, shareFly, openFly;
+    private BarButton playersBtn, shareBtn;
+    private PeerRoster roster;
+    private Widget shareDb;
+    private boolean sideShown;
+    private Coord hoverc;
+
     MapToggleButton treeBtn;
     MapToggleButton fishBtn;
     MapToggleButton oreBtn;
@@ -24,22 +71,16 @@ public class NMapWnd extends MapWnd {
     MapToggleButton forageBtn;
     MapToggleButton mapToolsBtn;
     MapToggleButton vectorClearBtn;
-    TextEntry markerSearchField;
-    Button dbExportBtn;
-    Button dbImportBtn;
-    PeerRoster peerRoster;
-    private static final int btnw = UI.scale(95);
-    private static final int dbbtnw = UI.scale(110);
 
     public class MapToggleButton extends ICheckBox {
         private final Runnable rightClickAction;
-        
+
         public MapToggleButton(String base, String tooltip, Runnable rightClickAction) {
             super("nurgling/hud/buttons/" + base + "/", "u", "d", "h", "dh");
             this.rightClickAction = rightClickAction;
             settip(tooltip);
         }
-        
+
         @Override
         public boolean mousedown(MouseDownEvent ev) {
             if(ev.b == 3 && checkhit(ev.c)) {
@@ -51,115 +92,434 @@ public class NMapWnd extends MapWnd {
         }
     }
 
+    /** An icon button of the top row: square hit area, and an optional count badge. */
+    private class BarButton extends ICheckBox {
+        Supplier<Integer> badge = null;
+        private Text badget = null;
+        private int badgen = -1;
+
+        BarButton(Tex[] art) {
+            super(art[0], art[1], art[2], art[3]);
+        }
+
+        BarButton(String base) {
+            super("nurgling/hud/buttons/" + base + "/", "u", "d", "h", "dh");
+        }
+
+        public boolean checkhit(Coord c) {
+            return(c.isect(Coord.z, sz));
+        }
+
+        public void draw(GOut g) {
+            super.draw(g);
+            Integer n = (badge == null) ? null : badge.get();
+            if((n != null) && (n > 0)) {
+                if((badget == null) || (badgen != n)) {
+                    badgen = n;
+                    badget = smallf.render(Integer.toString(n), Color.BLACK);
+                }
+                Text t = badget;
+                Coord bsz = t.sz().add(UI.scale(4), 0);
+                Coord bc = Coord.of(sz.x - bsz.x, 0);
+                g.chcolor(ONLINE);
+                g.frect(bc, bsz);
+                g.chcolor();
+                g.image(t.tex(), bc.add(UI.scale(2), 0));
+            }
+        }
+    }
+
     public NMapWnd(MapFile file, MapView mv, Coord sz, String title) {
         super(file, mv, sz, title);
         searchRes = Resource.local().loadwait("alttex/selectedtex").layer(Resource.imgc);
-        
-        /* Built right-to-left from the top-right of the view; layoutMapButtons() does the
-         * actual placing, both here and on every resize. */
-        mapToolsBtn = add(new MapToggleButton("maptools", L10n.get("maptools.button_tip"), MapToolsWindow::toggle));
-        mapToolsBtn.a = false; // Always show as unpressed (no toggle state)
-        mapToolsBtn.click(MapToolsWindow::toggle); // Left click opens the panel
 
-        // Shares its state with the Map Tools panel through NConfig.
-        fishBtn = add(new MapToggleButton("fish", "Toggle fish icons (Right-click: Fish Search)", MapToolsWindow::openFishSearch));
+        bar = add(new TopBar());
+        buildBar();
+
+        add(side = new MarkerPanel());
+        add(status = new StatusStrip());
+        viewf.add(new ZoomButtons(), UI.scale(6, 6));
+
+        roster = new PeerRoster(SIDE_W);
+        playersFly = add(new Flyout(playersBtn));
+        playersFly.add(roster, PAD, PAD);
+        shareFly = add(new Flyout(shareBtn));
+        buildShare();
+
+        /* Compact mode is gone: drop a saved "on" and free its hotkey (Alt+A by default), which
+         * the hidden stock toolbar would otherwise keep swallowing. */
+        Utils.setprefb("compact-map", false);
+        for(Widget w = toolbar.child; w != null; w = w.next) {
+            if(w.kb_gkey == kb_compact)
+                w.kb_gkey = null;
+        }
+
+        sideShown = Utils.getprefb(PREF_SIDE, true);
+        applyMode();
+    }
+
+    /* ---------------------------------------------------------------- top row */
+
+    private void buildBar() {
+        bar.left(new BarButton(stockArt("gfx/hud/mmap/home", "", "-d", "-h", "-d")))
+            .state(() -> timerView().following())
+            .click(this::recenter)
+            .settip(L10n.get("mapwnd.follow_tip"));
+        Tex[] markArt = stockArt("gfx/hud/mmap/mark", "", "-d", "-h", "-dh");
+        bar.left(new MarkButton(markArt[0], markArt[1], markArt[2], markArt[3]) {
+                public boolean checkhit(Coord c) {return(c.isect(Coord.z, sz));}
+            }).settip(L10n.get("mapwnd.mark_tip"));
+        bar.left(new BarButton(stockArt("gfx/hud/mmap/hmark", "", "-d", "-h", "-dh")) {
+                public Object tooltip(Coord c, Widget prev) {
+                    if(Utils.eq(markcfg, MarkerConfig.hideall))
+                        return(L10n.get("mapwnd.markers_hidden_tip"));
+                    if(cmarkers != null && Utils.eq(markcfg, cmarkers))
+                        return(L10n.get("mapwnd.markers_some_tip"));
+                    return(L10n.get("mapwnd.markers_all_tip"));
+                }
+            })
+            .state(() -> Utils.eq(markcfg, MarkerConfig.hideall))
+            .click(() -> {
+                /* The same three-way cycle as the stock button: all, then the kinds picked in
+                 * the list (if any), then none. */
+                if(Utils.eq(markcfg, MarkerConfig.hideall))
+                    markcfg = MarkerConfig.showall;
+                else if(Utils.eq(markcfg, MarkerConfig.showall) && (cmarkers != null))
+                    markcfg = cmarkers;
+                else
+                    markcfg = MarkerConfig.hideall;
+            });
+        bar.left(new BarButton(stockArt("gfx/hud/mmap/prov", "", "-d", "-h", "-dh")) {
+                public boolean mousewheel(MouseWheelEvent ev) {
+                    if(!ui.modshift || !state())
+                        return(super.mousewheel(ev));
+                    olalpha = Utils.clip(olalpha + (ev.a * -32), 32, 256);
+                    return(true);
+                }
+            })
+            .state(() -> overlays.contains("realm"))
+            .set(a -> toggleol("realm", a))
+            .settip(L10n.get("mapwnd.provinces_tip"));
+        bar.separator();
+
+        /* Finds. These drive the same settings as the Map Tools rows, so the button and the
+         * panel are two views of one thing. */
+        fishBtn = bar.left(new MapToggleButton("fish", L10n.get("mapwnd.fish_tip"), MapToolsWindow::openFishSearch));
         fishBtn.state(() -> NMiniMap.showFishIcons());
         fishBtn.set(val -> NMiniMap.showFishIcons(val));
 
-        treeBtn = add(new MapToggleButton("tree", "Toggle tree icons (Right-click: Tree Search)", MapToolsWindow::openTreeSearch));
+        treeBtn = bar.left(new MapToggleButton("tree", L10n.get("mapwnd.tree_tip"), MapToolsWindow::openTreeSearch));
         treeBtn.state(() -> NMiniMap.showTreeIcons());
         treeBtn.set(val -> NMiniMap.showTreeIcons(val));
 
-        /* Master Miner's finds. These drive the same per-kind setting as the Map Tools sample
-         * rows, so the button and the panel are two views of one thing, as fish and tree are. */
-        oreBtn = add(new MapToggleButton("ores", L10n.get("maptools.ore_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.ORE)));
-        oreBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.ORE));
-        oreBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.ORE, val));
-
-        gemBtn = add(new MapToggleButton("gems", L10n.get("maptools.gem_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.GEM)));
-        gemBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.GEM));
-        gemBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.GEM, val));
-
-        stoneBtn = add(new MapToggleButton("stone", L10n.get("maptools.stone_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.STONE)));
-        stoneBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.STONE));
-        stoneBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.STONE, val));
-
-        forageBtn = add(new MapToggleButton("forage", L10n.get("maptools.forage_icons_tip"), MapToolsWindow::openForageSearch));
+        forageBtn = bar.left(new MapToggleButton("forage", L10n.get("maptools.forage_icons_tip"), MapToolsWindow::openForageSearch));
         forageBtn.state(() -> NMiniMap.showForageFinds());
         forageBtn.set(val -> NMiniMap.showForageFinds(val));
 
-        vectorClearBtn = add(new MapToggleButton("vector", "Clear tracking vectors", null));
-        vectorClearBtn.a = false; // Always show as unpressed
+        oreBtn = bar.left(new MapToggleButton("ores", L10n.get("maptools.ore_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.ORE)));
+        oreBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.ORE));
+        oreBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.ORE, val));
+
+        gemBtn = bar.left(new MapToggleButton("gems", L10n.get("maptools.gem_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.GEM)));
+        gemBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.GEM));
+        gemBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.GEM, val));
+
+        stoneBtn = bar.left(new MapToggleButton("stone", L10n.get("maptools.stone_icons_tip"), () -> MapToolsWindow.openMineralSearch(ProspectKind.STONE)));
+        stoneBtn.state(() -> NMiniMap.showProspectKind(ProspectKind.STONE));
+        stoneBtn.set(val -> NMiniMap.showProspectKind(ProspectKind.STONE, val));
+        bar.separator();
+
+        mapToolsBtn = bar.left(new MapToggleButton("maptools", L10n.get("maptools.button_tip"), MapToolsWindow::toggle));
+        mapToolsBtn.state(() -> false); // Opens a window; never shows as pressed
+        mapToolsBtn.click(MapToolsWindow::toggle);
+
+        vectorClearBtn = bar.left(new MapToggleButton("vector", L10n.get("mapwnd.vectors_tip"), null));
+        vectorClearBtn.state(() -> false); // An action, not a toggle
         vectorClearBtn.click(this::clearVectors);
 
-        layoutMapButtons();
+        /* Right-hand group, built right to left. */
+        BarButton listBtn = bar.right(new BarButton("maplist"));
+        listBtn.state(() -> sideShown).set(this::showSide).settip(L10n.get("mapwnd.list_tip"));
+        bar.rseparator();
+        shareBtn = bar.right(new BarButton("mapshare"));
+        shareBtn.state(() -> openFly == shareFly).click(() -> toggleFly(shareFly));
+        shareBtn.settip(L10n.get("mapwnd.share_tip"));
+        playersBtn = bar.right(new BarButton("mapplayers"));
+        playersBtn.state(() -> openFly == playersFly).click(() -> toggleFly(playersFly));
+        playersBtn.badge = () -> (roster == null) ? 0 : roster.count();
+        playersBtn.settip(L10n.get("mapwnd.players_tip"));
+        playersBtn.hide(); // Shown once anybody is online
+    }
 
-        // Add marker search field at bottom-right (no label, no button)
-        add(markerSearchField = new TextEntry(UI.scale(200), "") {
-            @Override
-            public void changed() {
-                super.changed();
-                applyMarkerSearch();
-            }
-            
-            @Override
-            public boolean keydown(KeyDownEvent ev) {
-                if(ev.code == java.awt.event.KeyEvent.VK_ENTER) {
-                    applyMarkerSearch();
-                    return true;
-                }
-                return super.keydown(ev);
-            }
-        }, view.pos("br").sub(UI.scale(205), UI.scale(5)));
+    /** The nurgling button whose orange ring and size the stock icons are fitted into. */
+    private static final String RING = "nurgling/hud/buttons/maplist/";
+    private static final String[] RING_STATES = {"u", "d", "h", "dh"};
+    /** Radius of the stock face, as a fraction of the button's width: just under the ring. */
+    private static final double FACE_R = 20.6 / 45.0;
+    /** Where the ring's own face is cut away, as a fraction of the button's width. */
+    private static final double RING_INNER = 20.0 / 45.0;
 
-        /* The stock Export.../Import... buttons in the marker panel move a .hmap file; these move
-         * the same data through the village database. Hidden unless a shared PostgreSQL is
-         * configured, because there is nothing to share with otherwise. */
-        add(dbExportBtn = new Button(dbbtnw, L10n.get("mapdb.btn_export"), false) {
-            @Override
-            public void click() {
-                /* The window's own session, not whichever one happens to be in front: a second
-                 * client in the same process must not upload this map under its name. */
-                MapDbTransfer.export(getparent(GameUI.class), file);
-            }
-        });
-        dbExportBtn.settip(L10n.get("mapdb.btn_export_tip"));
-        add(dbImportBtn = new Button(dbbtnw, L10n.get("mapdb.btn_import"), false) {
-            @Override
-            public void click() {
-                MapDbTransfer.importFrom(getparent(GameUI.class), file);
-            }
-        });
-        dbImportBtn.settip(L10n.get("mapdb.btn_import_tip"));
-        /* Same width as the two database buttons side by side, so the right-hand edge of the map
-         * reads as one column rather than three things that happen to be near each other. */
-        add(peerRoster = new PeerRoster((dbbtnw * 2) + UI.scale(5)));
-        placeDbButtons();
+    /**
+     * Loftar's map buttons in the look of the nurgling ones. Each stock image is the size of the
+     * whole toolbar plate with its disc drawn somewhere inside, and the discs are not even the same
+     * size (Follow's is a quarter wider than the rest). So find the disc in the "up" image, scale
+     * each state's disc to fill the inside of the nurgling ring, and lay the ring around it. The
+     * stock resources themselves are untouched.
+     *
+     * @param sfx the stock suffixes for up, down, hover-up and hover-down
+     */
+    private static Tex[] stockArt(String base, String... sfx) {
+        Tex[] ret = new Tex[sfx.length];
+        if(nurgling.headless.Headless.isHeadless()) {
+            for(int i = 0; i < sfx.length; i++)
+                ret[i] = Resource.loadtex(base + sfx[i]);
+            return(ret);
+        }
+        java.awt.Rectangle disc = alphaBox(Resource.loadimg(base + sfx[0]));
+        for(int i = 0; i < sfx.length; i++) {
+            BufferedImage ring = Resource.loadsimg(RING + RING_STATES[i]);
+            BufferedImage stock = Resource.loadimg(base + sfx[i]);
+            ret[i] = new TexI((disc == null) ? ring : inring(ring, stock, disc));
+        }
+        return(ret);
     }
 
     /**
-     * Live roster of everyone publishing to the shared database, sitting in the map window above the
-     * database buttons. Left-clicking a name pans the map to that character.
-     *
-     * <p>Deliberately part of the map rather than a window of its own: the answer to "where is
-     * Bjorn" is a place on this map, and a separate window would mean reading a name in one place
-     * and hunting for the marker in another. It is also only here - the corner minimap has neither
-     * the room for it nor a way to pan.
-     *
-     * <p>Collapses to its header, and disappears entirely when nobody is online, so an empty village
-     * costs no map area at all.
+     * The box around an image's solid pixels, squared up around its centre; null if empty. Faint
+     * pixels are left out: the stock discs have a soft fringe down one side that would otherwise
+     * pull the centre off the disc.
+     */
+    private static java.awt.Rectangle alphaBox(BufferedImage img) {
+        int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, x1 = -1, y1 = -1;
+        for(int y = 0; y < img.getHeight(); y++) {
+            for(int x = 0; x < img.getWidth(); x++) {
+                if((img.getRGB(x, y) >>> 24) >= 128) {
+                    x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+                    x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+                }
+            }
+        }
+        if(x1 < 0)
+            return(null);
+        int side = Math.max(x1 - x0, y1 - y0) + 1;
+        int cx = (x0 + x1 + 1) / 2, cy = (y0 + y1 + 1) / 2;
+        return(new java.awt.Rectangle(cx - side / 2, cy - side / 2, side, side));
+    }
+
+    private static BufferedImage inring(BufferedImage ring, BufferedImage stock, java.awt.Rectangle disc) {
+        int w = ring.getWidth(), h = ring.getHeight();
+        double r = FACE_R * w, cx = w / 2.0, cy = h / 2.0;
+        /* Cut the disc out (padding with transparency where it touches the plate's edge), then
+         * one high-quality downscale straight to its final size, a little over the ring's inside
+         * so its own dark rim tucks under the ring. */
+        BufferedImage cut = TexI.mkbuf(Coord.of(disc.width, disc.height));
+        java.awt.Graphics2D g = cut.createGraphics();
+        g.drawImage(stock, -disc.x, -disc.y, null);
+        g.dispose();
+        int d = (int)Math.ceil(2 * r + UI.scale(1.0));
+        /* Same parity as the button, so the face sits on whole pixels exactly in the middle; at
+         * this size half a pixel either way shows as a lopsided ring. */
+        if(((w - d) & 1) != 0)
+            d++;
+        int off = (w - d) / 2;
+        BufferedImage face = PUtils.uiscale(cut, Coord.of(d, d));
+
+        /* Round the face off inside the ring with an antialiased mask. */
+        BufferedImage layer = TexI.mkbuf(Coord.of(w, h));
+        g = layer.createGraphics();
+        g.drawImage(face, off, off, null);
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setComposite(java.awt.AlphaComposite.DstIn);
+        g.setColor(Color.WHITE);
+        g.fill(new java.awt.geom.Ellipse2D.Double(cx - r, cy - r, 2 * r, 2 * r));
+        g.dispose();
+
+        /* The ring goes on top, with only its own face cut away. At button size the orange is
+         * about one pixel wide, so the face must never be drawn over it - that is what made the
+         * ring look thin on some sides and thick on others. */
+        double ri = RING_INNER * w;
+        BufferedImage out = TexI.mkbuf(Coord.of(w, h));
+        g = out.createGraphics();
+        g.drawImage(ring, 0, 0, null);
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setComposite(java.awt.AlphaComposite.DstOut);
+        g.setColor(Color.WHITE);
+        g.fill(new java.awt.geom.Ellipse2D.Double(cx - ri, cy - ri, 2 * ri, 2 * ri));
+        g.setComposite(java.awt.AlphaComposite.DstOver);
+        g.drawImage(layer, 0, 0, null);
+        g.dispose();
+        return(out);
+    }
+
+    /** One row of buttons: a left group and a right group, each split by thin rules. */
+    private class TopBar extends Widget {
+        private final List<Widget> lefts = new ArrayList<>(), rights = new ArrayList<>();
+        private final List<Integer> rules = new ArrayList<>();
+        private final int sp = UI.scale(3), rulew = UI.scale(11);
+
+        TopBar() {
+            super(Coord.z);
+        }
+
+        <T extends Widget> T left(T w) {
+            lefts.add(add(w));
+            return(w);
+        }
+
+        <T extends Widget> T right(T w) {
+            rights.add(add(w));
+            return(w);
+        }
+
+        void separator() {lefts.add(null);}
+        void rseparator() {rights.add(null);}
+
+        void layout(int w) {
+            int h = 0;
+            for(Widget ch = child; ch != null; ch = ch.next)
+                h = Math.max(h, ch.sz.y);
+            h += PAD * 2;
+            rules.clear();
+            int x = PAD;
+            for(Widget ch : lefts) {
+                if(ch == null) {
+                    rules.add(x + (rulew - sp) / 2);
+                    x += rulew;
+                } else if(ch.visible) {
+                    ch.c = Coord.of(x, (h - ch.sz.y) / 2);
+                    x += ch.sz.x + sp;
+                }
+            }
+            x = w - PAD;
+            for(Widget ch : rights) {
+                if(ch == null) {
+                    x -= rulew;
+                    rules.add(x + (rulew + sp) / 2);
+                } else if(ch.visible) {
+                    x -= ch.sz.x;
+                    ch.c = Coord.of(x, (h - ch.sz.y) / 2);
+                    x -= sp;
+                }
+            }
+            resize(Coord.of(w, h));
+        }
+
+        public void draw(GOut g) {
+            g.chcolor(NStyle.rowEven);
+            g.frect(Coord.z, sz);
+            g.chcolor(LINE);
+            g.frect(Coord.of(0, sz.y - 1), Coord.of(sz.x, 1));
+            int rh = sz.y - (PAD * 3);
+            for(int x : rules)
+                g.frect(Coord.of(x, (sz.y - rh) / 2), Coord.of(1, rh));
+            g.chcolor();
+            super.draw(g);
+        }
+    }
+
+    /* ---------------------------------------------------------------- flyouts */
+
+    /** A panel that drops down under its top-row button and keeps clicks off the map below. */
+    private class Flyout extends Widget {
+        final Widget owner;
+
+        Flyout(Widget owner) {
+            super(Coord.z);
+            this.owner = owner;
+            hide();
+        }
+
+        void fit() {
+            Coord max = Coord.z;
+            for(Widget ch = child; ch != null; ch = ch.next) {
+                if(ch.visible)
+                    max = max.max(ch.c.add(ch.sz));
+            }
+            resize(max.add(PAD, PAD));
+        }
+
+        public void draw(GOut g) {
+            g.chcolor(28, 37, 38, 250);
+            g.frect(Coord.z, sz);
+            g.chcolor(NStyle.border);
+            g.frect(Coord.z, Coord.of(sz.x, 1));
+            g.frect(Coord.of(0, sz.y - 1), Coord.of(sz.x, 1));
+            g.frect(Coord.z, Coord.of(1, sz.y));
+            g.frect(Coord.of(sz.x - 1, 0), Coord.of(1, sz.y));
+            g.chcolor();
+            super.draw(g);
+        }
+
+        public boolean mousedown(MouseDownEvent ev) {
+            ev.propagate(this);
+            return(true);
+        }
+
+        public boolean mousewheel(MouseWheelEvent ev) {
+            ev.propagate(this);
+            return(true);
+        }
+    }
+
+    private void toggleFly(Flyout f) {
+        boolean open = (openFly != f);
+        closeFly();
+        if(!open)
+            return;
+        if(f == shareFly)
+            shareDb.show(MapDbTransfer.configured());
+        f.fit();
+        placeFly(f);
+        f.show();
+        f.raise();
+        openFly = f;
+    }
+
+    private void closeFly() {
+        if(openFly != null)
+            openFly.hide();
+        openFly = null;
+    }
+
+    private void placeFly(Flyout f) {
+        int x = bar.c.x + f.owner.c.x + f.owner.sz.x - f.sz.x;
+        f.c = Coord.of(Math.max(0, x), bar.c.y + bar.sz.y + UI.scale(2));
+    }
+
+    private void buildShare() {
+        int w = UI.scale(110), y = PAD;
+        Label l = shareFly.add(new Label(L10n.get("mapwnd.share_file"), smallf), PAD, y);
+        y += l.sz.y + UI.scale(3);
+        Button ex = shareFly.add(new Button(w, L10n.get("mapwnd.share_export"), false, () -> {closeFly(); exportmap();}), PAD, y);
+        shareFly.add(new Button(w, L10n.get("mapwnd.share_import"), false, () -> {closeFly(); importmap();}), PAD + w + PAD, y);
+        y += ex.sz.y + UI.scale(8);
+        /* Only when a shared database is configured - there is nothing to share with otherwise. */
+        shareDb = shareFly.add(new Widget(Coord.z), PAD, y);
+        Label dl = shareDb.add(new Label(L10n.get("mapwnd.share_db"), smallf), 0, 0);
+        Button dbex = shareDb.add(new Button(w, L10n.get("mapdb.btn_export"), false, () -> {
+            closeFly();
+            /* The window's own session, not whichever one happens to be in front: a second
+             * client in the same process must not upload this map under its name. */
+            MapDbTransfer.export(getparent(GameUI.class), file);
+        }), 0, dl.sz.y + UI.scale(3));
+        dbex.settip(L10n.get("mapdb.btn_export_tip"));
+        shareDb.add(new Button(w, L10n.get("mapdb.btn_import"), false, () -> {
+            closeFly();
+            MapDbTransfer.importFrom(getparent(GameUI.class), file);
+        }), w + PAD, dbex.c.y).settip(L10n.get("mapdb.btn_import_tip"));
+        shareDb.pack();
+    }
+
+    /**
+     * Everyone publishing to the shared database. Left-clicking a name pans the map to that
+     * character; people in land this map has never seen say so instead.
      */
     public class PeerRoster extends Widget {
-        private static final int MAXROWS = 8;
-        private final int rowh = UI.scale(15);
-        private final int headh = UI.scale(16);
-        private final Text.Foundry fnd = new Text.Foundry(Text.dfont, UI.scale(10)).aa(true);
-        private final java.util.List<Row> rows = new java.util.ArrayList<>();
+        private static final int MAXROWS = 10;
+        private final int rowh = UI.scale(16);
+        private final List<Row> rows = new ArrayList<>();
         private final RosterBox box;
-        private boolean collapsed = false;
         private double refresh = 0;
-        private Text head = null;
-        private int headn = -1;
 
         /** One rendered row. Text is built on the refresh tick, never per frame. */
         private final class Row {
@@ -184,9 +544,6 @@ public class NMapWnd extends MapWnd {
             protected int listitems() {return(rows.size());}
 
             protected void drawbg(GOut g) {
-                g.chcolor(0, 0, 0, 148);
-                g.frect(Coord.z, sz);
-                g.chcolor();
             }
 
             protected void drawsel(GOut g) {
@@ -196,12 +553,6 @@ public class NMapWnd extends MapWnd {
             }
 
             protected void drawitem(GOut g, Row row, int idx) {
-                // Banded rows: at this size a flat panel of names is genuinely hard to track across.
-                if((idx % 2) == 1) {
-                    g.chcolor(255, 255, 255, 12);
-                    g.frect(Coord.z, g.sz());
-                    g.chcolor();
-                }
                 int mid = g.sz().y / 2;
                 g.chcolor(row.col.getRed(), row.col.getGreen(), row.col.getBlue(),
                           row.placed ? 255 : 120);
@@ -231,15 +582,18 @@ public class NMapWnd extends MapWnd {
         }
 
         PeerRoster(int w) {
-            super(new Coord(w, UI.scale(16)));
-            box = add(new RosterBox(w, MAXROWS), new Coord(0, headh));
-            relayout();
+            super(Coord.of(w, UI.scale(16)));
+            box = add(new RosterBox(w, 1), Coord.z);
+        }
+
+        int count() {
+            return(rows.size());
         }
 
         public void tick(double dt) {
             super.tick(dt);
             /* Twice a second. The sync worker only refreshes the underlying data every three, and
-             * re-rendering eight rows of text per frame to show the same numbers would be waste. */
+             * re-rendering the rows of text per frame to show the same numbers would be waste. */
             refresh -= dt;
             if(refresh <= 0) {
                 refresh = 0.5;
@@ -252,9 +606,8 @@ public class NMapWnd extends MapWnd {
             rows.clear();
             if(gui != null && gui.peerPositionService != null
                && (Boolean)nurgling.NConfig.get(nurgling.NConfig.Key.showPeerPositions)) {
-                java.util.List<nurgling.PeerPosition> live = gui.peerPositionService.snapshot();
+                List<nurgling.PeerPosition> live = gui.peerPositionService.snapshot();
                 live.sort((a, b) -> a.charName.compareToIgnoreCase(b.charName));
-                Coord ptc = playerTile();
                 for(nurgling.PeerPosition kp : live) {
                     if(!kp.online())
                         continue;
@@ -262,132 +615,703 @@ public class NMapWnd extends MapWnd {
                     Color col = NMiniMap.peercol(gui, kp.charName);
                     rows.add(new Row(kp,
                                      fnd.render(kp.charName, placed ? Color.WHITE : new Color(158, 158, 158)),
-                                     fnd.render(status(kp, ptc, placed), new Color(168, 168, 168)),
+                                     smallf.render(status(kp, placed), MUTED),
                                      col, placed));
                 }
             }
-            if(rows.size() != headn) {
-                headn = rows.size();
-                head = fnd.render(L10n.get("mapdb.roster_title") + " (" + headn + ")", Color.WHITE);
+            int n = Math.max(1, Math.min(rows.size(), MAXROWS));
+            if(box.h != n) {
+                box.resize(new Coord(box.sz.x, n * rowh));
+                /* The scrollbar was sized at construction and does not follow a resize on its own. */
+                box.sb.resize(new Coord(box.sb.sz.x, n * rowh));
+                resize(box.sz);
+                if(playersFly != null)
+                    playersFly.fit();
             }
-            relayout();
         }
 
         /** Right-hand column: how far, or why there is no distance to give. */
-        private String status(nurgling.PeerPosition kp, Coord ptc, boolean placed) {
+        private String status(nurgling.PeerPosition kp, boolean placed) {
             if(!placed)
                 return(L10n.get("mapdb.roster_unmapped"));
-            MiniMap.Location loc = kp.ref.loc();
+            String d = distance(kp.ref.loc());
+            return((d == null) ? L10n.get("mapdb.roster_elsewhere") : d);
+        }
+    }
+
+    /* ---------------------------------------------------------------- distances */
+
+    /** The player's tile in the current segment's coordinates, or null while that is unknown. */
+    private Coord playerTile() {
+        try {
             MiniMap.Location sessloc = view.sessloc;
-            if((ptc == null) || (sessloc == null) || (loc.seg.id != sessloc.seg.id))
-                return(L10n.get("mapdb.roster_elsewhere"));
-            long d = Math.round(ptc.dist(loc.tc));
-            return((d >= 1000) ? String.format("%.1fk", d / 1000.0) : Long.toString(d));
+            GameUI gui = getparent(GameUI.class);
+            if((sessloc != null) && (gui != null) && (gui.map != null))
+                return(new Coord2d(gui.map.getcc()).floor(tilesz).add(sessloc.tc));
+        } catch(Loading l) {
         }
+        return(null);
+    }
 
-        private Coord playerTile() {
-            try {
-                MiniMap.Location sessloc = view.sessloc;
-                GameUI gui = getparent(GameUI.class);
-                if((sessloc != null) && (gui != null) && (gui.map != null))
-                    return(new Coord2d(gui.map.getcc()).floor(tilesz).add(sessloc.tc));
-            } catch(Loading l) {
-            }
+    private static final String[] COMPASS = {"E", "NE", "N", "NW", "W", "SW", "S", "SE"};
+
+    /**
+     * Straight-line distance in tiles and a compass direction, e.g. "1.2k NE"; null when the
+     * place is in another map segment, where there is no common coordinate to measure across.
+     */
+    private String distance(MiniMap.Location loc) {
+        MiniMap.Location sessloc = view.sessloc;
+        Coord ptc = playerTile();
+        if((loc == null) || (ptc == null) || (sessloc == null) || (loc.seg.id != sessloc.seg.id))
             return(null);
+        return(distance(ptc, loc.tc));
+    }
+
+    private static String distance(Coord from, Coord to) {
+        double d = from.dist(to);
+        if(d < 3)
+            return(L10n.get("mapwnd.here"));
+        String n = (d >= 1000) ? String.format("%.1fk", d / 1000.0) : Long.toString(Math.round(d));
+        /* Tile y grows southwards, so flip it for an ordinary compass angle. */
+        double a = Math.atan2(from.y - to.y, to.x - from.x);
+        int sector = (int)Math.floor((a / (Math.PI / 4)) + 0.5);
+        return(n + " " + COMPASS[Math.floorMod(sector, 8)]);
+    }
+
+    /* ---------------------------------------------------------------- marker list */
+
+    private static final class Row {
+        final Marker m;
+        MarkerType type;
+        double d = Double.MAX_VALUE;
+        String dist = "";
+        Text name, dtext;
+        String rname, rdist;
+
+        Row(Marker m) {
+            this.m = m;
+            this.type = MarkerType.of(m);
+        }
+    }
+
+    /** A row of mutually exclusive choices, the chosen one in the accent colour. */
+    private class Seg extends Widget {
+        final String[] labels;
+        final Consumer<Integer> changed;
+        int sel;
+        private Text[] texts;
+
+        Seg(int w, int sel, Consumer<Integer> changed, String... labels) {
+            super(Coord.of(w, UI.scale(18)));
+            this.labels = labels;
+            this.sel = sel;
+            this.changed = changed;
         }
 
-        private void relayout() {
-            int n = Math.min(rows.size(), MAXROWS);
-            /* Nobody online, no panel - not even a header saying zero. Visibility follows the row
-             * count alone rather than also being driven from tick(): with no shared database the
-             * sync worker never delivers anyone, so the list is empty and this hides itself. One
-             * rule, rather than two that can disagree about who is in charge. */
-            show(n > 0);
-            boolean showbox = !collapsed && (n > 0);
-            box.show(showbox);
-            if(showbox) {
-                box.h = n;
-                box.resize(new Coord(box.sz.x, n * rowh));
-                /* The scrollbar was sized at construction and does not follow a resize on its own,
-                 * so a shrunk list would otherwise keep a full-height bar hanging past its rows. */
-                box.sb.resize(new Coord(box.sb.sz.x, n * rowh));
-            }
-            resize(new Coord(sz.x, headh + (showbox ? (n * rowh) : 0)));
-            placeDbButtons();
-        }
+        private int cellx(int i) {return((sz.x * i) / labels.length);}
 
         public void draw(GOut g) {
-            g.chcolor(0, 0, 0, 178);
-            g.frect(Coord.z, new Coord(sz.x, headh));
-            g.chcolor(255, 255, 255, 28);
-            g.frect(Coord.z, new Coord(sz.x, UI.scale(1)));
-            g.chcolor();
-            if(head != null)
-                g.aimage(head.tex(), new Coord(UI.scale(6), headh / 2), 0, 0.5);
-            // Collapse chevron, pointing the way the panel will go.
-            int cx = sz.x - UI.scale(9), cy = headh / 2, a = UI.scale(3);
-            g.chcolor(210, 210, 210, 220);
-            if(collapsed) {
-                g.line(new Coord(cx - a, cy - a), new Coord(cx, cy + a), 1);
-                g.line(new Coord(cx + a, cy - a), new Coord(cx, cy + a), 1);
-            } else {
-                g.line(new Coord(cx - a, cy + a), new Coord(cx, cy - a), 1);
-                g.line(new Coord(cx + a, cy + a), new Coord(cx, cy - a), 1);
+            if(texts == null) {
+                texts = new Text[labels.length * 2];
+                for(int i = 0; i < labels.length; i++) {
+                    texts[i * 2] = smallf.render(labels[i], new Color(230, 230, 230));
+                    texts[i * 2 + 1] = smallf.render(labels[i], new Color(17, 17, 17));
+                }
             }
+            for(int i = 0; i < labels.length; i++) {
+                int x0 = cellx(i), x1 = cellx(i + 1);
+                g.chcolor((i == sel) ? NStyle.border : NStyle.rowEven);
+                g.frect(Coord.of(x0, 0), Coord.of(x1 - x0, sz.y));
+                g.chcolor(LINE);
+                if(i > 0)
+                    g.frect(Coord.of(x0, 0), Coord.of(1, sz.y));
+                g.chcolor();
+                g.aimage(texts[i * 2 + ((i == sel) ? 1 : 0)].tex(), Coord.of((x0 + x1) / 2, sz.y / 2), 0.5, 0.5);
+            }
+            g.chcolor(LINE);
+            g.frect(Coord.z, Coord.of(sz.x, 1));
+            g.frect(Coord.of(0, sz.y - 1), Coord.of(sz.x, 1));
+            g.frect(Coord.z, Coord.of(1, sz.y));
+            g.frect(Coord.of(sz.x - 1, 0), Coord.of(1, sz.y));
             g.chcolor();
-            super.draw(g);
         }
 
         public boolean mousedown(MouseDownEvent ev) {
-            if((ev.b == 1) && (ev.c.y < headh)) {
-                collapsed = !collapsed;
-                relayout();
+            if(ev.b != 1)
+                return(false);
+            for(int i = 0; i < labels.length; i++) {
+                if((ev.c.x >= cellx(i)) && (ev.c.x < cellx(i + 1))) {
+                    if(i != sel) {
+                        sel = i;
+                        changed.accept(i);
+                    }
+                    return(true);
+                }
+            }
+            return(true);
+        }
+    }
+
+    /** The right-hand panel: search, filters, the list, and the selected marker's details. */
+    private class MarkerPanel extends Widget {
+        static final int SHOW_ALL = 0, SHOW_PLACED = 1, SHOW_NATURAL = 2;
+        static final int SORT_NAME = 0, SORT_TYPE = 1, SORT_DIST = 2;
+        final HintTextEntry search;
+        final Seg show, sort;
+        final MarkerList list;
+        Widget card = null;
+        List<Row> rows = new ArrayList<>();
+        int seenseq = -1;
+        boolean dirty = true;
+        double distRefresh = 0;
+        Marker pending = null;
+        private Text countText = null;
+        private int countN = -1;
+
+        MarkerPanel() {
+            super(Coord.of(SIDE_W, UI.scale(200)));
+            int w = SIDE_W;
+            int y = 0;
+            search = add(new HintTextEntry(w, L10n.get("mapwnd.search_hint"), () -> {
+                markerSearchPattern = MarkerPanel.this.search.text().trim();
+                dirty = true;
+            }), 0, y);
+            y += search.sz.y + PAD;
+            show = add(new Seg(w, Utils.clip(Utils.getprefi(PREF_SHOW, SHOW_ALL), 0, 2), v -> {
+                Utils.setprefi(PREF_SHOW, v);
+                dirty = true;
+            }, L10n.get("mapwnd.show_all"), L10n.get("mapwnd.show_placed"), L10n.get("mapwnd.show_natural")), 0, y);
+            y += show.sz.y + PAD;
+            int sortw = UI.scale(150);
+            sort = add(new Seg(sortw, Utils.clip(Utils.getprefi(PREF_SORT, SORT_NAME), 0, 2), v -> {
+                Utils.setprefi(PREF_SORT, v);
+                dirty = true;
+            }, L10n.get("mapwnd.sort_name"), L10n.get("mapwnd.sort_type"), L10n.get("mapwnd.sort_dist")), w - sortw, y);
+            y += sort.sz.y + PAD;
+            list = add(new MarkerList(w, UI.scale(100)), 0, y);
+        }
+
+        void layout(int h) {
+            resize(Coord.of(sz.x, h));
+            int bottom = h;
+            if(card != null) {
+                card.c = Coord.of(0, h - card.sz.y);
+                bottom = card.c.y - PAD;
+            }
+            list.resize(Coord.of(sz.x, Math.max(MarkerType.iconsz, bottom - list.c.y)));
+        }
+
+        public void draw(GOut g) {
+            /* "Sort" label and the marker count, left of the sort control. */
+            int n = rows.size();
+            if((countText == null) || (countN != n)) {
+                countN = n;
+                countText = smallf.render(L10n.get("mapwnd.sort_label", n), MUTED);
+            }
+            g.aimage(countText.tex(), Coord.of(0, sort.c.y + sort.sz.y / 2), 0, 0.5);
+            super.draw(g);
+        }
+
+        public void tick(double dt) {
+            super.tick(dt);
+            if(dirty || (seenseq != view.file.markerseq))
+                rebuild();
+            distRefresh -= dt;
+            if(distRefresh <= 0) {
+                distRefresh = 0.5;
+                distances();
+            }
+            if(pending != null)
+                resolvePending();
+        }
+
+        private boolean wanted(Marker m) {
+            switch(show.sel) {
+                case SHOW_PLACED: if(!(m instanceof PMarker)) return(false); break;
+                case SHOW_NATURAL: if(!(m instanceof SMarker)) return(false); break;
+            }
+            String q = markerSearchPattern;
+            if((q != null) && !q.isEmpty())
+                return((m.nm != null) && m.nm.toLowerCase().contains(q.toLowerCase()));
+            return(true);
+        }
+
+        private void rebuild() {
+            int seq = view.file.markerseq;
+            if(!view.file.lock.readLock().tryLock())
+                return;
+            List<Row> next = new ArrayList<>();
+            try {
+                Map<Marker, Row> prev = new HashMap<>();
+                for(Row r : rows)
+                    prev.put(r.m, r);
+                for(Marker m : view.file.markers) {
+                    if(!wanted(m))
+                        continue;
+                    Row r = prev.get(m);
+                    if(r == null)
+                        r = new Row(m);
+                    else
+                        r.type = MarkerType.of(m);
+                    next.add(r);
+                }
+            } finally {
+                view.file.lock.readLock().unlock();
+            }
+            rows = next;
+            seenseq = seq;
+            dirty = false;
+            distances();
+            if((list.sel != null) && !rows.contains(list.sel))
+                select(null, false);
+        }
+
+        /** Recomputes every row's distance and re-sorts; cheap enough for twice a second. */
+        private void distances() {
+            MiniMap.Location sessloc = view.sessloc;
+            Coord ptc = playerTile();
+            for(Row r : rows) {
+                if((ptc != null) && (sessloc != null) && (r.m.seg == sessloc.seg.id)) {
+                    r.d = ptc.dist(r.m.tc);
+                    r.dist = distance(ptc, r.m.tc);
+                } else {
+                    r.d = Double.MAX_VALUE;
+                    r.dist = L10n.get("mapwnd.elsewhere");
+                }
+            }
+            java.util.Comparator<Row> byname = (a, b) -> String.CASE_INSENSITIVE_ORDER.compare(String.valueOf(a.m.nm), String.valueOf(b.m.nm));
+            switch(sort.sel) {
+                case SORT_TYPE:
+                    rows.sort(((java.util.Comparator<Row>)(a, b) -> a.type.compareTo(b.type)).thenComparing(byname));
+                    break;
+                case SORT_DIST:
+                    rows.sort(java.util.Comparator.<Row>comparingDouble(r -> r.d).thenComparing(byname));
+                    break;
+                default:
+                    rows.sort(byname);
+            }
+        }
+
+        /** A marker clicked on the map, or just placed: make sure it is listed, then select it. */
+        private void resolvePending() {
+            Marker m = pending;
+            if((show.sel == SHOW_PLACED && !(m instanceof PMarker)) || (show.sel == SHOW_NATURAL && !(m instanceof SMarker))) {
+                show.sel = SHOW_ALL;
+                Utils.setprefi(PREF_SHOW, SHOW_ALL);
+                dirty = true;
+            }
+            if(!wanted(m)) {
+                search.settext("");
+                markerSearchPattern = "";
+                dirty = true;
+            }
+            if(dirty)
+                rebuild();
+            for(Row r : rows) {
+                if(r.m == m) {
+                    select(r, false);
+                    list.display(r);
+                    pending = null;
+                    return;
+                }
+            }
+            if(!dirty && (seenseq == view.file.markerseq))
+                pending = null; // Not in the map file at all - nothing to show
+        }
+
+        void select(Row r, boolean center) {
+            list.sel = r;
+            if(card != null) {
+                card.destroy();
+                card = null;
+            }
+            if(r != null) {
+                card = add(new MarkerCard(r.m));
+                if(center)
+                    view.center(new MiniMap.SpecLocator(r.m.seg, r.m.tc));
+            }
+            layout(sz.y);
+        }
+    }
+
+    private class MarkerList extends Listbox<Row> {
+        MarkerList(int w, int h) {
+            super(w, Math.max(1, h / MarkerType.iconsz), MarkerType.iconsz);
+        }
+
+        protected Row listitem(int i) {return(side.rows.get(i));}
+
+        protected int listitems() {return(side.rows.size());}
+
+        protected void drawbg(GOut g) {
+            g.chcolor(15, 22, 23, 255);
+            g.frect(Coord.z, sz);
+            g.chcolor();
+        }
+
+        protected void drawsel(GOut g) {
+            g.chcolor(233, 156, 84, 70);
+            g.frect(Coord.z, g.sz());
+            g.chcolor();
+        }
+
+        protected void drawitem(GOut g, Row r, int idx) {
+            int h = g.sz().y, mid = h / 2;
+            try {
+                Tex icon = r.type.icon();
+                if(markcfg.filter(r.type))
+                    g.chcolor(255, 255, 255, 90);
+                g.aimage(icon, Coord.of(h / 2, mid), 0.5, 0.5);
+                g.chcolor();
+            } catch(Loading l) {
+            }
+            if((r.name == null) || !Utils.eq(r.rname, r.m.nm)) {
+                r.rname = r.m.nm;
+                r.name = fnd.render(String.valueOf(r.m.nm), Color.WHITE);
+            }
+            if((r.dtext == null) || !Utils.eq(r.rdist, r.dist)) {
+                r.rdist = r.dist;
+                r.dtext = smallf.render(r.dist, MUTED);
+            }
+            int dx = g.sz().x - UI.scale(4);
+            g.aimage(r.dtext.tex(), Coord.of(dx, mid), 1, 0.5);
+            int nw = dx - r.dtext.sz().x - UI.scale(6) - (h + UI.scale(2));
+            g.reclip(Coord.of(h + UI.scale(2), 0), Coord.of(Math.max(0, nw), h)).aimage(r.name.tex(), Coord.of(0, mid), 0, 0.5);
+        }
+
+        protected void itemclick(Row r, Coord c, int button) {
+            if(button != 1)
+                return;
+            if(c.x < itemh) {
+                /* The icon hides or shows every marker of its kind, as in the stock list. */
+                MarkerConfig nc = markcfg.toggle(r.type);
+                markcfg = nc;
+                cmarkers = nc.sel.isEmpty() ? null : nc;
+                return;
+            }
+            side.select(r, true);
+        }
+
+        public Object tooltip(Coord c, Widget prev) {
+            if((c.x < itemh) && (itemat(c) != null))
+                return(L10n.get("mapwnd.kind_tip"));
+            return(super.tooltip(c, prev));
+        }
+    }
+
+    /** Name, colour, in-world flag and actions for the selected marker. */
+    private class MarkerCard extends Widget {
+        MarkerCard(Marker mark) {
+            super(Coord.of(SIDE_W, 0));
+            int w = SIDE_W - PAD * 2;
+            int y = PAD;
+            TextEntry name = add(new TextEntry(w, mark.nm) {
+                    {dshow = true;}
+                    public void activate(String text) {
+                        mark.nm = text;
+                        view.file.update(mark);
+                        uploadpmarker(mark);
+                        commit();
+                    }
+                }, PAD, y);
+            name.settip(L10n.get("mapwnd.rename_tip"));
+            y += name.sz.y + PAD;
+            if(mark instanceof PMarker) {
+                PMarker pm = (PMarker)mark;
+                Widget cols = add(new BuddyWnd.GroupSelector(Math.max(0, Utils.index(BuddyWnd.gc, pm.color))) {
+                        protected void changed(int group) {
+                            super.changed(group);
+                            pm.color = BuddyWnd.gc[group];
+                            view.file.update(mark);
+                            uploadpmarker(mark);
+                        }
+                    }, PAD, y);
+                y += cols.sz.y + PAD;
+                CheckBox onmap = add(new CheckBox(L10n.get("mapwnd.in_world")), PAD, y);
+                onmap.state(() -> pm.onmap);
+                onmap.set(v -> {
+                    pm.onmap = v;
+                    view.file.update(mark);
+                    uploadpmarker(mark);
+                });
+                y += onmap.sz.y + PAD;
+            }
+            int bw = (w - PAD * 2) / 3;
+            Button walk = add(new Button(bw, L10n.get("mapwnd.walk"), false, () -> walkTo(mark)), PAD, y);
+            walk.settip(L10n.get("mapwnd.walk_tip"));
+            add(new Button(bw, L10n.get("mapwnd.timer"), false, () -> timerFor(mark)), PAD + bw + PAD, y)
+                .settip(L10n.get("mapwnd.timer_tip"));
+            add(new Button(bw, L10n.get("mapwnd.remove"), false, () -> {
+                view.file.remove(mark);
+                side.select(null, false);
+            }), PAD + (bw + PAD) * 2, y);
+            y += walk.sz.y + PAD;
+            resize(Coord.of(SIDE_W, y));
+        }
+
+        public void draw(GOut g) {
+            g.chcolor(NStyle.rowEven);
+            g.frect(Coord.z, sz);
+            g.chcolor(NStyle.border);
+            g.frect(Coord.z, Coord.of(sz.x, 1));
+            g.frect(Coord.of(0, sz.y - 1), Coord.of(sz.x, 1));
+            g.frect(Coord.z, Coord.of(1, sz.y));
+            g.frect(Coord.of(sz.x - 1, 0), Coord.of(1, sz.y));
+            g.chcolor();
+            super.draw(g);
+        }
+    }
+
+    /** Walk straight towards a marker in the current segment, as alt-clicking the map does. */
+    private void walkTo(Marker mark) {
+        NGameUI gui = (NGameUI)getparent(GameUI.class);
+        MiniMap.Location sessloc = view.sessloc;
+        if((gui == null) || (gui.waypointMovementService == null))
+            return;
+        if((sessloc == null) || (sessloc.seg.id != mark.seg)) {
+            gui.msg(L10n.get("mapwnd.walk_elsewhere"));
+            return;
+        }
+        gui.waypointMovementService.clearQueue();
+        gui.waypointMovementService.addWaypoint(new MiniMap.Location(sessloc.seg, mark.tc), sessloc);
+    }
+
+    /** The marker's timer: a resource gets its own timer, anything else a pin at its spot. */
+    private void timerFor(Marker mark) {
+        NGameUI gui = (NGameUI)getparent(GameUI.class);
+        if((gui == null) || (gui.timerStore == null))
+            return;
+        if((mark instanceof SMarker) && NMiniMap.isTimerResource(mark)) {
+            SMarker sm = (SMarker)mark;
+            gui.showTimerPopover(nurgling.widgets.timers.TimerPopover.forResource(gui, sm, (sm.nm != null) ? sm.nm : sm.res.name));
+            return;
+        }
+        nurgling.timers.TimerPlacement.Spot spot = nurgling.timers.TimerPlacement.fromSegment(view.file, mark.seg, mark.tc);
+        gui.showTimerPopover((spot == null) ? null : nurgling.widgets.timers.TimerPopover.newPin(gui, spot, mark.nm));
+    }
+
+    /** Marker clicked on the map, or just placed: open the list on it. */
+    @Override
+    public void focus(Marker m) {
+        if(side == null)
+            return;
+        showSide(true);
+        side.pending = m;
+    }
+
+    private void showSide(boolean on) {
+        if(sideShown != on) {
+            sideShown = on;
+            Utils.setprefb(PREF_SIDE, on);
+        }
+        relayout();
+    }
+
+    /* ---------------------------------------------------------------- map surface */
+
+    private class ZoomButtons extends Widget {
+        private final Text plus = fnd.render("+", Color.WHITE), minus = fnd.render("−", Color.WHITE);
+        private final int b = UI.scale(20);
+
+        ZoomButtons() {
+            super(Coord.of(UI.scale(20), UI.scale(42)));
+        }
+
+        public void draw(GOut g) {
+            for(int i = 0; i < 2; i++) {
+                Coord ul = Coord.of(0, i * (b + UI.scale(2)));
+                g.chcolor(28, 37, 38, 230);
+                g.frect(ul, Coord.of(b, b));
+                g.chcolor(LINE);
+                g.frect(ul, Coord.of(b, 1));
+                g.frect(ul.add(0, b - 1), Coord.of(b, 1));
+                g.frect(ul, Coord.of(1, b));
+                g.frect(ul.add(b - 1, 0), Coord.of(1, b));
+                g.chcolor();
+                g.aimage(((i == 0) ? plus : minus).tex(), ul.add(b / 2, b / 2), 0.5, 0.5);
+            }
+        }
+
+        public boolean mousedown(MouseDownEvent ev) {
+            if(ev.b == 1)
+                timerView().zoomStep(ev.c.y < b);
+            return(true);
+        }
+
+        public Object tooltip(Coord c, Widget prev) {
+            return(L10n.get((c.y < b) ? "mapwnd.zoom_in" : "mapwnd.zoom_out"));
+        }
+    }
+
+    /** Under the map: what is under the cursor, the zoom, who is online, and any active filter. */
+    private class StatusStrip extends Widget {
+        private Text where, zoomt, online, filter;
+        private String swhere, szoom, sonline, sfilter;
+        private int onlinex = -1, filterx = -1;
+
+        StatusStrip() {
+            super(Coord.of(UI.scale(100), UI.scale(20)));
+        }
+
+        private Text upd(Text t, String s, String prev, Color col) {
+            if((t != null) && Utils.eq(s, prev))
+                return(t);
+            return((s == null) ? null : smallf.render(s, col));
+        }
+
+        public void tick(double dt) {
+            super.tick(dt);
+            /* No mousemove arrives once the pointer has left the window. */
+            if((hoverc != null) && !ui.mc.sub(view.rootpos()).isect(Coord.z, view.sz))
+                hoverc = null;
+            String w = null;
+            if(hoverc != null) {
+                String terr = timerView().terrainAt(hoverc);
+                String d = distance(view.xlate(hoverc));
+                if((terr != null) && (d != null))
+                    w = terr + "  ·  " + d;
+                else
+                    w = (terr != null) ? terr : d;
+            }
+            where = upd(where, w, swhere, new Color(220, 220, 220)); swhere = w;
+            String z = L10n.get("mapwnd.zoom", Math.round(timerView().zoom() * 100));
+            zoomt = upd(zoomt, z, szoom, MUTED); szoom = z;
+            int n = (roster == null) ? 0 : roster.count();
+            String o = (n > 0) ? "● " + L10n.get("mapwnd.online", n) : null;
+            online = upd(online, o, sonline, ONLINE); sonline = o;
+            String f = (!sideShown && !markerSearchPattern.isEmpty()) ? L10n.get("mapwnd.filtered", markerSearchPattern) + "  ✕" : null;
+            filter = upd(filter, f, sfilter, NStyle.border); sfilter = f;
+        }
+
+        public void draw(GOut g) {
+            g.chcolor(NStyle.rowEven);
+            g.frect(Coord.z, sz);
+            g.chcolor(LINE);
+            g.frect(Coord.z, Coord.of(sz.x, 1));
+            g.chcolor();
+            int mid = sz.y / 2, x = UI.scale(6);
+            if(zoomt == null)
+                return;
+            if(where != null)
+                g.aimage(where.tex(), Coord.of(x, mid), 0, 0.5);
+            int rx = sz.x - UI.scale(6);
+            g.aimage(zoomt.tex(), Coord.of(rx, mid), 1, 0.5);
+            rx -= zoomt.sz().x + UI.scale(14);
+            onlinex = -1;
+            if(online != null) {
+                rx -= online.sz().x;
+                onlinex = rx;
+                g.aimage(online.tex(), Coord.of(rx, mid), 0, 0.5);
+                rx -= UI.scale(14);
+            }
+            filterx = -1;
+            if(filter != null) {
+                rx -= filter.sz().x;
+                filterx = rx;
+                g.aimage(filter.tex(), Coord.of(rx, mid), 0, 0.5);
+            }
+        }
+
+        public boolean mousedown(MouseDownEvent ev) {
+            if(ev.b != 1)
+                return(false);
+            if((online != null) && (onlinex >= 0) && (ev.c.x >= onlinex) && (ev.c.x < onlinex + online.sz().x)) {
+                if(justClosed != playersFly)
+                    toggleFly(playersFly);
                 return(true);
             }
-            return(super.mousedown(ev));
-        }
-
-        /** Height this panel wants right now, used to stack it above the database buttons. */
-        int wanted() {
-            return(sz.y);
+            if((filter != null) && (filterx >= 0) && (ev.c.x >= filterx) && (ev.c.x < filterx + filter.sz().x)) {
+                side.search.settext("");
+                markerSearchPattern = "";
+                side.dirty = true;
+                return(true);
+            }
+            return(false);
         }
     }
 
-    /** Bottom-right of the map view, stacked above the marker search field. */
-    private void placeDbButtons() {
-        if((dbExportBtn == null) || (dbImportBtn == null))
+    /* ---------------------------------------------------------------- layout */
+
+    /** Hides the stock controls this layout replaces, then lays everything out. */
+    private void applyMode() {
+        if(bar == null)
             return;
-        int spacing = UI.scale(5);
-        int y = view.c.y + view.sz.y - UI.scale(25) - dbExportBtn.sz.y - spacing;
-        int x = view.c.x + view.sz.x - UI.scale(5) - (dbbtnw * 2) - spacing;
-        /* A window narrow enough to leave no room would otherwise push them off the left edge. */
-        int lx = Math.max(view.c.x, x);
-        dbExportBtn.c = new Coord(lx, y);
-        dbImportBtn.c = new Coord(lx + dbbtnw + spacing, y);
-        /* Stacked directly on top of the buttons and growing upward, so the list expanding never
-         * moves the buttons under the player's cursor. */
-        if(peerRoster != null)
-            peerRoster.c = new Coord(lx, y - spacing - peerRoster.wanted());
+        tool.hide();
+        toolbar.hide();
+        /* Through resize, so the minimum size applies too. */
+        resize(csz());
     }
 
-    private double dbBtnCheck = 0;
+    /** Always the full window: compact mode is not offered. */
+    @Override
+    public void compact(boolean a) {
+        super.compact(false);
+        applyMode();
+    }
+
+    @Override
+    public void resize(Coord sz) {
+        if(bar != null)
+            sz = sz.max(MINSZ);
+        super.resize(sz);
+        relayout();
+    }
+
+    private void relayout() {
+        if(bar == null)
+            return;
+        Coord cs = csz();
+        bar.c = Coord.z;
+        bar.layout(cs.x);
+        int top = bar.sz.y + PAD;
+        int sidew = sideShown ? (SIDE_W + PAD) : 0;
+        int stath = status.sz.y;
+        viewf.c = Coord.of(0, top);
+        viewf.resize(Coord.of(cs.x - sidew, cs.y - top - stath));
+        view.resize(viewf.inner());
+        status.c = Coord.of(0, viewf.c.y + viewf.sz.y);
+        status.resize(Coord.of(viewf.sz.x, stath));
+        side.show(sideShown);
+        side.c = Coord.of(cs.x - SIDE_W, top);
+        side.layout(cs.y - top);
+        if(openFly != null)
+            placeFly(openFly);
+    }
+
+    private double dbCheck = 0;
 
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        /* Database settings can be switched at runtime, so visibility is re-checked rather than
-         * fixed at construction - but twice a second is plenty for a settings change. */
-        if(dbExportBtn != null) {
-            dbBtnCheck -= dt;
-            if(dbBtnCheck <= 0) {
-                dbBtnCheck = 0.5;
-                boolean on = MapDbTransfer.configured();
-                if(dbExportBtn.visible() != on) {
-                    dbExportBtn.show(on);
-                    dbImportBtn.show(on);
-                }
+        if(bar == null)
+            return;
+        dbCheck -= dt;
+        if(dbCheck <= 0) {
+            dbCheck = 0.5;
+            /* Players only shows while somebody is online, so the row reflows when that changes. */
+            boolean anyone = roster.count() > 0;
+            if(playersBtn.visible() != anyone) {
+                playersBtn.show(anyone);
+                if(!anyone && (openFly == playersFly))
+                    closeFly();
+                relayout();
+            }
+            /* Database settings can be switched at runtime. */
+            if((openFly == shareFly) && (shareDb.visible() != MapDbTransfer.configured())) {
+                shareDb.show(MapDbTransfer.configured());
+                shareFly.fit();
+                placeFly(shareFly);
             }
         }
+    }
+
+    @Override
+    public boolean keydown(KeyDownEvent ev) {
+        if((openFly != null) && key_esc.match(ev)) {
+            closeFly();
+            return(true);
+        }
+        return(super.keydown(ev));
     }
 
     private void clearVectors() {
@@ -422,50 +1346,7 @@ public class NMapWnd extends MapWnd {
         }
         return null;
     }
-    
-    private void applyMarkerSearch() {
-        String pattern = markerSearchField.text().trim();
-        markerSearchPattern = pattern;
-    }
 
-    /**
-     * Lay the overlay toggles out along the top-right of the map view, wrapping onto another
-     * row rather than running off the left edge when the window is small.
-     */
-    private void layoutMapButtons() {
-        MapToggleButton[] btns = {mapToolsBtn, fishBtn, treeBtn, oreBtn, gemBtn, stoneBtn, forageBtn, vectorClearBtn};
-        for(MapToggleButton btn : btns) {
-            if(btn == null)
-                return;
-        }
-        int spacing = UI.scale(5);
-        int right = view.c.x + view.sz.x - UI.scale(35);
-        int left = view.c.x + UI.scale(5);
-        int x = right;
-        int y = view.c.y + UI.scale(15);
-        for(MapToggleButton btn : btns) {
-            if(x < left) {
-                x = right;
-                y += btn.sz.y + spacing;
-            }
-            btn.c = new Coord(x, y);
-            x -= btn.sz.x + spacing;
-        }
-    }
-
-    @Override
-    public void resize(Coord sz) {
-        super.resize(sz);
-        
-        layoutMapButtons();
-        
-        // Keep marker search field at bottom-right
-        if(markerSearchField != null)
-            markerSearchField.c = view.c.add(view.sz.x - UI.scale(205), view.sz.y - UI.scale(25));
-
-        placeDbButtons();
-    }
-    
     /** The map view is always an NMiniMap; MapWnd only declares it as a MiniMap. */
     private NMiniMap timerView() {
         return (NMiniMap) view;
@@ -476,8 +1357,34 @@ public class NMapWnd extends MapWnd {
     private Coord pressedAt = null;
     private UI.Grab pinGrab = null;
 
+    /** The flyout the current click has just closed, so the same click cannot reopen it. */
+    private Flyout justClosed = null;
+
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        /* An open flyout takes its own clicks, and its button toggles it. A click anywhere else
+         * closes it; on the map that is all the click does, so closing one does not also walk the
+         * character there, while elsewhere (another button, the list) the click still counts. */
+        if(openFly != null) {
+            if(ev.c.isect(openFly.parentpos(this), openFly.sz))
+                return(super.mousedown(ev));
+            if(!ev.c.isect(openFly.owner.parentpos(this), openFly.owner.sz)) {
+                justClosed = openFly;
+                closeFly();
+                if(ev.c.isect(view.parentpos(this), view.sz)) {
+                    justClosed = null;
+                    return(true);
+                }
+            }
+        }
+        try {
+            return(mapmousedown(ev));
+        } finally {
+            justClosed = null;
+        }
+    }
+
+    private boolean mapmousedown(MouseDownEvent ev) {
         // Handle alt+left-click for waypoint queueing (on button release handled below)
         // Handle shift+right-click for timers
         if(view.c != null) {
@@ -521,6 +1428,8 @@ public class NMapWnd extends MapWnd {
             timerView().dragTimer = pressedPin;
             timerView().dragPos = ev.c.sub(view.parentpos(this));
         }
+        Coord vc = ev.c.sub(view.parentpos(this));
+        hoverc = (view.visible() && vc.isect(Coord.z, view.sz)) ? vc : null;
         super.mousemove(ev);
     }
 
