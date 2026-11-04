@@ -31,7 +31,7 @@ Shows a translucent placement ghost of a resource's model at a position, like th
 | Parameter | Type | Description |
 |---|---|---|
 | `res` | `str` | Resource name, e.g. "gfx/terobjs/cupboard". |
-| `pos` | `Coord\|Gob` | World position [x, y], or a gob's position. |
+| `pos` | `Coord` or `Gob` | World position [x, y], or a gob's position. |
 | `angle` | `float` | Rotation in radians. *Optional, default 0.* |
 
 **Returns** `int`: Overlay id.
@@ -55,7 +55,7 @@ Tints a game object, like the client's item-search highlight. Colour as "#rrggbb
 | Parameter | Type | Description |
 |---|---|---|
 | `gob` | `Gob` | The object. |
-| `color` | `str\|list[int]` | Tint colour. *Optional, default "#e99c54a0".* |
+| `color` | `str` or `list[int]` | Tint colour. *Optional, default "#e99c54a0".* |
 
 **Returns** `int`: Overlay id.
 
@@ -77,9 +77,9 @@ Shows outlined text above a game object or at a world position. Colour as "#rrgg
 
 | Parameter | Type | Description |
 |---|---|---|
-| `at` | `Gob\|Coord` | An object (the label follows it) or a world position [x, y]. |
+| `at` | `Gob` or `Coord` | An object (the label follows it) or a world position [x, y]. |
 | `text` | `str` | The text. |
-| `color` | `str\|list[int]` | Text colour. *Optional, default "#ffffff".* |
+| `color` | `str` or `list[int]` | Text colour. *Optional, default "#ffffff".* |
 | `height` | `float` | Height above the ground, in world units. *Optional, default 15.* |
 
 **Returns** `int`: Overlay id.
@@ -103,7 +103,7 @@ Draws a line through world points on the ground (a route, a fence plan). It is d
 | Parameter | Type | Description |
 |---|---|---|
 | `points` | `list[Coord]` | World positions [[x, y], ...] (gob snapshots work too); at least two. |
-| `color` | `str\|list[int]` | Line colour. *Optional, default "#e99c54".* |
+| `color` | `str` or `list[int]` | Line colour. *Optional, default "#e99c54".* |
 | `closed` | `bool` | Join the last point back to the first. *Optional, default false.* |
 | `width` | `float` | Line width in pixels. *Optional, default 2.* |
 
@@ -125,9 +125,9 @@ Puts a temporary marker with a label on the minimap and the map window (it is no
 
 | Parameter | Type | Description |
 |---|---|---|
-| `pos` | `Coord\|Gob` | World position [x, y], or a gob's position. |
+| `pos` | `Coord` or `Gob` | World position [x, y], or a gob's position. |
 | `text` | `str` | Label under the marker. *Optional, default "".* |
-| `color` | `str\|list[int]` | Marker colour. *Optional, default "#e99c54".* |
+| `color` | `str` or `list[int]` | Marker colour. *Optional, default "#e99c54".* |
 
 **Returns** `int`: Overlay id.
 
@@ -148,7 +148,7 @@ Draws a rectangle on the ground like a saved area: a translucent fill over the t
 | Parameter | Type | Description |
 |---|---|---|
 | `rect` | `Rect` | World rectangle [[x1, y1], [x2, y2]], e.g. from form.pick_area or an area snapshot. |
-| `color` | `str\|list[int]` | Border colour. *Optional, default "#e99c54".* |
+| `color` | `str` or `list[int]` | Border colour. *Optional, default "#e99c54".* |
 | `label` | `str` | Text shown in the middle. *Optional.* |
 | `fill` | `bool` | Fill the covered tiles. *Optional, default true.* |
 
@@ -192,7 +192,7 @@ Fills a set of map tiles with a translucent colour, e.g. to show planned plots o
 | Parameter | Type | Description |
 |---|---|---|
 | `tiles` | `list[Tile]` | Tile coordinates [[tx, ty], ...] (world position / 11, floored). |
-| `color` | `str\|list[int]` | Fill colour; its alpha is the opacity. *Optional, default "#e99c5460".* |
+| `color` | `str` or `list[int]` | Fill colour; its alpha is the opacity. *Optional, default "#e99c5460".* |
 
 **Returns** `int`: Overlay id.
 

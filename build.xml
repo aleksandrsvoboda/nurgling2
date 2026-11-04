@@ -287,7 +287,7 @@
     </copy>
     <!-- Example scripts shown in the bot menu's Scripts folder (Examples group); the docs include the same files. -->
     <copy todir="bin/scripting/examples">
-      <fileset dir="docs/scripting/examples" includes="*.py" />
+      <fileset dir="docs/scripting/examples" includes="*.py,*.png" />
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="bin/haven-config.properties" />
     <chmod file="bin/hafen.jar" perm="a+x" />
@@ -847,7 +847,7 @@
     </copy>
     <!-- Example scripts shown in the bot menu's Scripts folder (Examples group); the docs include the same files. -->
     <copy todir="release/scripting/examples">
-      <fileset dir="docs/scripting/examples" includes="*.py" />
+      <fileset dir="docs/scripting/examples" includes="*.py,*.png" />
     </copy>
   </target>
 

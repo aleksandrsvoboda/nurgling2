@@ -1,4 +1,4 @@
-# nurgling: name="Take from nearest container", description="Opens the nearest chest, crate or cupboard and takes items by name"
+# nurgling: name="Take from nearest container", description="Opens the nearest chest, crate or cupboard and takes items by name", icon=unbox
 # nurgling-param: item str Branch "Item to take (name as in its tooltip)"
 # nurgling-param: count int 5 "How many"
 """Take a few items out of the nearest container: walk, open once, take, close."""

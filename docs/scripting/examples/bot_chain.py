@@ -1,4 +1,4 @@
-# nurgling: name="Morning round", description="Goes to an area, fills waterskins and empties the inventory, stopping at the first failure"
+# nurgling: name="Morning round", description="Goes to an area, fills waterskins and empties the inventory, stopping at the first failure", icon=tohome
 # nurgling-param: target area - "Area to go to first"
 """Built-in bots as building blocks (layer 1)."""
 from nurgling import script

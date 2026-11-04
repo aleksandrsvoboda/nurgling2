@@ -201,6 +201,11 @@ def md_escape(s: str) -> str:
     return s.replace("|", "\\|").replace("\n", " ")
 
 
+def type_cell(t: str) -> str:
+    """A type for a table cell: union members as separate code spans (a pipe inside one shows its escape)."""
+    return " or ".join(f"`{part}`" for part in t.replace(" ", "").split("|"))
+
+
 def signature(op: dict) -> str:
     ns, verb = op["name"].split(".", 1)
     parts = []
@@ -259,7 +264,7 @@ def gen_ref(schema: dict, bots: list) -> dict:
                         desc += f" *Optional{', default ' + md_escape(p['default']) if 'default' in p else ''}.*"
                     if p.get("values"):
                         desc += " One of: " + ", ".join(f"`{v}`" for v in p["values"]) + "."
-                    lines.append(f"| `{p['name']}` | `{md_escape(p['type'])}` | {desc} |")
+                    lines.append(f"| `{p['name']}` | {type_cell(p['type'])} | {desc} |")
                 lines.append("")
             ret = f"**Returns** `{op['returns']}`"
             if op.get("returnsDoc"):
@@ -281,7 +286,7 @@ def gen_ref(schema: dict, bots: list) -> dict:
         if ty["fields"]:
             t += ["| Field | Type | Description |", "|---|---|---|"]
             for f in ty["fields"]:
-                t.append(f"| `{f['name']}` | `{md_escape(f['type'])}` | {md_escape(f['doc'])} |")
+                t.append(f"| `{f['name']}` | {type_cell(f['type'])} | {md_escape(f['doc'])} |")
             t.append("")
     files["types.md"] = "\n".join(t)
 

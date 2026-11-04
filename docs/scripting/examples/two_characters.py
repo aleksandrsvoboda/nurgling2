@@ -1,4 +1,4 @@
-# nurgling: name="Both fill waterskins", description="This character and a second logged-in one fill waterskins at the same time"
+# nurgling: name="Both fill waterskins", description="This character and a second logged-in one fill waterskins at the same time", icon=filwater
 # nurgling-param: alt str "" "Second character (empty: any other logged-in one)"
 """Drive a second logged-in character from the same script (nc.session)."""
 import threading

@@ -33,6 +33,25 @@ public class BotDescriptor {
         return this;
     }
 
+    // Button images (up, down, hover) of a user script's own icon; null = the resource at iconPath.
+    private java.awt.image.BufferedImage[] customIcon = null;
+
+    /** Gives a dynamically registered bot (a user script) its own button images: up, down, hover. */
+    public BotDescriptor withIcon(java.awt.image.BufferedImage[] upDownHover) {
+        this.customIcon = upDownHover;
+        return this;
+    }
+
+    /**
+     * The bot's button image for a state ("u" up, "d" down, "h" hover): a script's own icon if it
+     * has one, else the icon resource. Use this instead of loading getIconPath() yourself.
+     */
+    public java.awt.image.BufferedImage icon(String state) {
+        if (customIcon != null)
+            return customIcon[state.equals("d") ? 1 : state.equals("h") ? 2 : 0];
+        return haven.Resource.loadsimg(getIconPath(state));
+    }
+
     /** Puts a dynamically registered bot (a user script) into a bot menu group; see BotRegistry.replaceDynamic. */
     public BotDescriptor inGroup(String key) {
         this.group = key;

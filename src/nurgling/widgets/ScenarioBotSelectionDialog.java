@@ -56,9 +56,9 @@ public class ScenarioBotSelectionDialog extends Window {
                 int col = i % COLS;
                 int row = i / COLS;
 
-                BufferedImage up    = padIcon(Resource.loadsimg(bot.getUpIconPath()), ICON_SIZE);
-                BufferedImage down  = padIcon(Resource.loadsimg(bot.getDownIconPath()), ICON_SIZE);
-                BufferedImage hover = padIcon(Resource.loadsimg(bot.getHoverIconPath()), ICON_SIZE);
+                BufferedImage up    = padIcon(bot.icon("u"), ICON_SIZE);
+                BufferedImage down  = padIcon(bot.icon("d"), ICON_SIZE);
+                BufferedImage hover = padIcon(bot.icon("h"), ICON_SIZE);
 
                 IButton btn = new IButton(up, down, hover) {
                     public void click() { onSelect.accept(bot); }

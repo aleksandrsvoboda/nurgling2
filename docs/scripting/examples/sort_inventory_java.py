@@ -1,4 +1,4 @@
-# nurgling: name="Sort inventory (Java)", description="Runs the client's own SortInventory action through the Java layer", java=true
+# nurgling: name="Sort inventory (Java)", description="Runs the client's own SortInventory action through the Java layer", java=true, icon=sort_containers
 """Layer 4 example: run a Java action the stable API does not wrap.
 
 WARNING: no stability guarantees. Class names and constructors are the client's internals and

@@ -14,7 +14,7 @@ The visible areas containing a world position (areas can overlap). Only areas lo
 
 | Parameter | Type | Description |
 |---|---|---|
-| `pos` | `Coord\|Gob` | World position, or a gob for its position. |
+| `pos` | `Coord` or `Gob` | World position, or a gob for its position. |
 
 **Returns** `list[Area]`
 
@@ -58,7 +58,7 @@ The storage containers inside an area that the client's bots know how to use (ch
 
 | Parameter | Type | Description |
 |---|---|---|
-| `area` | `Area\|int\|str` | Area id, name or snapshot. |
+| `area` | `Area` or `int` or `str` | Area id, name or snapshot. |
 
 **Returns** `list[Gob]`: Gob snapshots plus `cap`.
 
@@ -104,7 +104,7 @@ One area by id or name.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `area` | `Area\|int\|str` | Area id, exact name, or snapshot. |
+| `area` | `Area` or `int` or `str` | Area id, exact name, or snapshot. |
 
 **Returns** `Area`
 

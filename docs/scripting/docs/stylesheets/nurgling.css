@@ -1,0 +1,132 @@
+/* Nurgling client palette (src/nurgling/styles/UITheme.java, NStyle.java): dark teal panels,
+   orange accent and frames, square corners. */
+[data-md-color-scheme="nurgling"] {
+  --nurg-panel: #1c2526;      /* UITheme.PANEL / NStyle.titleBg */
+  --nurg-window: #283436;     /* UITheme.WINDOW */
+  --nurg-row: #283031;        /* NStyle.rowOdd */
+  --nurg-input: #11181a;      /* UITheme.INPUT */
+  --nurg-hover: #343e3e;      /* UITheme.HOVER */
+  --nurg-selected: #3e392c;   /* UITheme.SELECTED */
+  --nurg-line: #4d5b5d;       /* UITheme.LINE */
+  --nurg-accent: #e99c54;     /* UITheme.ACCENT / NStyle.border */
+  --nurg-text: #e7eded;       /* UITheme.TEXT */
+  --nurg-muted: #a4afbb;      /* UITheme.MUTED */
+  --nurg-teal: #7ec6c2;       /* NStyle.questCredo */
+  --nurg-gold: #f2c94c;       /* bot menu favourites */
+
+  color-scheme: dark;
+  --md-hue: 185;
+  --md-default-bg-color: var(--nurg-panel);
+  --md-default-fg-color: var(--nurg-text);
+  --md-default-fg-color--light: var(--nurg-muted);
+  --md-default-fg-color--lighter: #6d7a7c;
+  --md-default-fg-color--lightest: var(--nurg-line);
+  --md-primary-fg-color: var(--nurg-window);
+  --md-primary-fg-color--light: var(--nurg-hover);
+  --md-primary-fg-color--dark: var(--nurg-panel);
+  --md-primary-bg-color: var(--nurg-text);
+  --md-primary-bg-color--light: var(--nurg-muted);
+  --md-accent-fg-color: var(--nurg-accent);
+  --md-accent-fg-color--transparent: rgba(233, 156, 84, 0.12);
+  --md-typeset-color: var(--nurg-text);
+  --md-typeset-a-color: var(--nurg-accent);
+  --md-typeset-mark-color: rgba(233, 156, 84, 0.3);
+  --md-typeset-table-color: var(--nurg-line);
+  --md-typeset-table-color--light: var(--nurg-row);
+  --md-code-bg-color: var(--nurg-input);
+  --md-code-fg-color: var(--nurg-text);
+  --md-code-hl-keyword-color: var(--nurg-accent);
+  --md-code-hl-string-color: #9fd7a0;
+  --md-code-hl-number-color: var(--nurg-gold);
+  --md-code-hl-function-color: var(--nurg-teal);
+  --md-code-hl-constant-color: #b38cff;
+  --md-code-hl-comment-color: #7c8b8d;
+  --md-code-hl-name-color: var(--nurg-text);
+  --md-code-hl-operator-color: var(--nurg-muted);
+  --md-code-hl-punctuation-color: var(--nurg-muted);
+  --md-code-hl-variable-color: var(--nurg-text);
+  --md-code-hl-special-color: var(--nurg-gold);
+  --md-code-hl-generic-color: var(--nurg-muted);
+  --md-footer-bg-color: var(--nurg-panel);
+  --md-footer-bg-color--dark: #151c1d;
+  --md-footer-fg-color: var(--nurg-text);
+  --md-footer-fg-color--light: var(--nurg-muted);
+  --md-admonition-bg-color: var(--nurg-window);
+  --md-admonition-fg-color: var(--nurg-text);
+  --md-shadow-z1: none;
+  --md-shadow-z2: none;
+  --md-shadow-z3: none;
+}
+
+/* Header and tabs: a window title bar with the orange frame line under it. */
+[data-md-color-scheme="nurgling"] .md-header,
+[data-md-color-scheme="nurgling"] .md-tabs {
+  background-color: var(--nurg-window);
+}
+[data-md-color-scheme="nurgling"] .md-tabs { border-bottom: 1px solid var(--nurg-accent); }
+[data-md-color-scheme="nurgling"] .md-header__title,
+[data-md-color-scheme="nurgling"] .md-tabs__link--active { color: var(--nurg-accent); }
+
+/* Square corners everywhere, like the client's frames. */
+[data-md-color-scheme="nurgling"] * { border-radius: 0 !important; }
+
+/* Headings: orange titles, teal subsections. */
+[data-md-color-scheme="nurgling"] .md-typeset h1 { color: var(--nurg-accent); font-weight: 600; }
+[data-md-color-scheme="nurgling"] .md-typeset h2 {
+  color: var(--nurg-accent);
+  border-bottom: 1px solid var(--nurg-line);
+  padding-bottom: .2em;
+}
+[data-md-color-scheme="nurgling"] .md-typeset h3,
+[data-md-color-scheme="nurgling"] .md-typeset h4 { color: var(--nurg-teal); }
+
+/* Reference op headings (## `gobs.find`) read like window captions. */
+[data-md-color-scheme="nurgling"] .md-typeset h2 code {
+  background: var(--nurg-window);
+  border: 1px solid var(--nurg-accent);
+  color: var(--nurg-accent);
+  padding: .05em .4em;
+}
+
+/* Code blocks and inline code: input-field look with a thin frame. */
+[data-md-color-scheme="nurgling"] .md-typeset pre > code {
+  border: 1px solid var(--nurg-line);
+  border-left: 3px solid var(--nurg-accent);
+}
+[data-md-color-scheme="nurgling"] .md-typeset :not(pre) > code {
+  background: var(--nurg-window);
+  color: var(--nurg-gold);
+}
+
+/* Tables: alternating rows like the client's lists. */
+[data-md-color-scheme="nurgling"] .md-typeset table:not([class]) {
+  border: 1px solid var(--nurg-accent);
+  background: var(--nurg-row);
+}
+[data-md-color-scheme="nurgling"] .md-typeset table:not([class]) th {
+  background: var(--nurg-panel);
+  color: var(--nurg-accent);
+}
+[data-md-color-scheme="nurgling"] .md-typeset table:not([class]) tr:nth-child(even) td { background: var(--nurg-panel); }
+[data-md-color-scheme="nurgling"] .md-typeset table:not([class]) tr:hover td { background: var(--nurg-hover); }
+
+/* Admonitions: window panels with the orange frame. */
+[data-md-color-scheme="nurgling"] .md-typeset .admonition,
+[data-md-color-scheme="nurgling"] .md-typeset details {
+  border: 1px solid var(--nurg-accent);
+  background: var(--nurg-window);
+}
+
+/* Navigation: muted links, orange for the current page, selected-row tint on hover. */
+[data-md-color-scheme="nurgling"] .md-nav__link--active,
+[data-md-color-scheme="nurgling"] .md-nav__item .md-nav__link--active { color: var(--nurg-accent); }
+[data-md-color-scheme="nurgling"] .md-nav__link:hover { color: var(--nurg-gold); }
+[data-md-color-scheme="nurgling"] .md-search__input { background: var(--nurg-input); }
+[data-md-color-scheme="nurgling"] .md-search__form { background: var(--nurg-input); border: 1px solid var(--nurg-line); }
+
+/* The small badges line under each op (since / kind / unstable). */
+[data-md-color-scheme="nurgling"] .md-typeset small { color: var(--nurg-muted); }
+[data-md-color-scheme="nurgling"] .md-typeset small strong { color: #e04040; }
+
+/* The client's icon as the logo: a little larger than Material's default 1.2rem glyph. */
+.md-header__button.md-logo img { height: 2.4rem; width: 2.4rem; }

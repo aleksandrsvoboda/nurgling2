@@ -26,6 +26,10 @@ import java.util.regex.Pattern;
  * # nurgling-param: mode choice[fast,careful] fast "Mode"
  * </pre>
  * A default of "-" makes the parameter required.
+ *
+ * Icon: {@code icon=chop.png} (a PNG next to the script), or {@code icon=choper} (a built-in bot's
+ * icon). Without one, {@code <script>.png} beside the script (or {@code icon.png} in a script folder)
+ * is used if it exists. The name and description are the button's tooltip.
  */
 public final class ScriptCatalog {
     public static final String ID_PREFIX = "script:";
@@ -36,17 +40,20 @@ public final class ScriptCatalog {
         public final String name;
         public final String description;
         public final String icon;
+        /** The script's own PNG icon, if it has one. */
+        public final File iconFile;
         public final boolean java;
         public final List<ParamSpec> params;
         /** Parameter labels for the start form, by name. */
         public final Map<String, String> labels;
 
-        Entry(String rel, File file, String name, String description, String icon, boolean java, List<ParamSpec> params, Map<String, String> labels) {
+        Entry(String rel, File file, String name, String description, String icon, File iconFile, boolean java, List<ParamSpec> params, Map<String, String> labels) {
             this.rel = rel;
             this.file = file;
             this.name = name;
             this.description = description;
             this.icon = icon;
+            this.iconFile = iconFile;
             this.java = java;
             this.params = params;
             this.labels = labels;
@@ -79,6 +86,10 @@ public final class ScriptCatalog {
                     true, true, ScriptLaunchAction.class, icon, false, defaults)
                     .withParams(e.params.toArray(new ParamSpec[0]))
                     .inGroup(e.rel.startsWith(EXAMPLES) ? "examples" : "my_scripts");
+            if (e.iconFile != null) {
+                java.awt.image.BufferedImage[] imgs = ScriptIcons.load(e.iconFile);
+                if (imgs != null) d.withIcon(imgs);
+            }
             descs.add(d);
         }
         BotRegistry.replaceDynamic(BotDescriptor.BotType.SCRIPTS, descs, Arrays.asList("my_scripts", "examples"));
@@ -162,7 +173,27 @@ public final class ScriptCatalog {
             System.out.println("[Scripting] cannot read " + file + ": " + e);
             return null;
         }
-        return new Entry(rel, file, name, description, icon, java, params, labels);
+        return new Entry(rel, file, name, description, icon, iconFile(file, icon), java, params, labels);
+    }
+
+    /** The script's own PNG: the header's icon=x.png, else script.png beside it, else icon.png in its folder. */
+    private static File iconFile(File script, String icon) {
+        File dir = script.getAbsoluteFile().getParentFile();
+        if (icon != null && icon.toLowerCase().endsWith(".png")) {
+            File f = new File(dir, icon);
+            if (f.isFile()) return f;
+            System.out.println("[Scripting] " + script.getName() + ": icon " + f + " not found");
+            return null;
+        }
+        if (icon != null) return null;   // a built-in icon name
+        String base = script.getName().replaceAll("\\.py$", "");
+        File own = new File(dir, base + ".png");
+        if (own.isFile()) return own;
+        if (script.getName().equals("main.py")) {
+            File folder = new File(dir, "icon.png");
+            if (folder.isFile()) return folder;
+        }
+        return null;
     }
 
     private static String unquote(String s) {

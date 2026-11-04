@@ -9,15 +9,15 @@ A game object in the world (tree, animal, container, player...). A snapshot; cal
 | Field | Type | Description |
 |---|---|---|
 | `gob` | `int` | Handle: the object's id. Pass the whole snapshot or this id to ops taking a Gob. |
-| `name` | `str\|null` | Resource name, e.g. "gfx/terobjs/trees/oak". Null while loading. |
-| `hash` | `str\|null` | Stable identity that survives reloads (position + resource). |
+| `name` | `str` or `null` | Resource name, e.g. "gfx/terobjs/trees/oak". Null while loading. |
+| `hash` | `str` or `null` | Stable identity that survives reloads (position + resource). |
 | `rc` | `Coord` | World position. |
 | `a` | `float` | Facing angle in radians. |
-| `pose` | `str\|null` | Current pose resource, e.g. "gfx/borka/idle" (the first of `poses`). |
+| `pose` | `str` or `null` | Current pose resource, e.g. "gfx/borka/idle" (the first of `poses`). |
 | `poses` | `list[str]` | All pose resources playing at once (composite objects can have several). |
 | `attr` | `int` | Model attribute: growth stage for crops and trees, fill flags for containers; -1 if none. |
 | `overlays` | `list[str]` | Resource names of overlays (fire, contents, markers...). |
-| `dist` | `float\|null` | Distance from the player when the snapshot was taken. |
+| `dist` | `float` or `null` | Distance from the player when the snapshot was taken. |
 
 ## Item
 
@@ -26,15 +26,15 @@ An inventory item. A snapshot; its handle stays valid while the item widget exis
 | Field | Type | Description |
 |---|---|---|
 | `item` | `int` | Handle: the item widget id. |
-| `name` | `str\|null` | Display name, e.g. "Block of Birch". |
-| `res` | `str\|null` | Resource name, e.g. "gfx/invobjs/wblock-birch". |
-| `q` | `float\|null` | Quality. |
+| `name` | `str` or `null` | Display name, e.g. "Block of Birch". |
+| `res` | `str` or `null` | Resource name, e.g. "gfx/invobjs/wblock-birch". |
+| `q` | `float` or `null` | Quality. |
 | `num` | `int` | Number shown on the item (stack amount, uses), -1 if none. |
 | `contents` | `list[dict]` | Contents of containers (bucket, waterskin): [{name, q}]. |
 | `stack` | `int` | Number of items in this item stack, 0 if it is not a stack. |
-| `slot` | `Tile\|null` | Inventory cell [x, y] of the item's top-left corner. |
-| `size` | `Tile\|null` | Size in inventory cells [w, h]. |
-| `parent` | `int\|null` | Widget id of the inventory or stack holding it. |
+| `slot` | `Tile` or `null` | Inventory cell [x, y] of the item's top-left corner. |
+| `size` | `Tile` or `null` | Size in inventory cells [w, h]. |
+| `parent` | `int` or `null` | Widget id of the inventory or stack holding it. |
 
 ## Inventory
 
@@ -43,8 +43,8 @@ An open inventory (the player's, or a container's).
 | Field | Type | Description |
 |---|---|---|
 | `wdg` | `int` | Handle: the inventory widget id. |
-| `window` | `str\|null` | Caption of the window holding it. |
-| `size` | `Tile\|null` | Size in cells [w, h]. |
+| `window` | `str` or `null` | Caption of the window holding it. |
+| `size` | `Tile` or `null` | Size in cells [w, h]. |
 
 ## Widget
 
@@ -55,7 +55,7 @@ Any UI element. Windows add a caption.
 | `wdg` | `int` | Handle: the widget id (server-assigned; -1 for client-only widgets). |
 | `class` | `str` | Java class name. |
 | `caption` | `str` | Window caption (windows only). |
-| `parent` | `int\|null` | Parent widget id. |
+| `parent` | `int` or `null` | Parent widget id. |
 | `visible` | `bool` | Whether it is shown. |
 | `c` | `Tile` | Position inside the parent, in UI pixels. |
 | `sz` | `Tile` | Size in UI pixels. |
@@ -69,7 +69,7 @@ A saved area (zone) with its specialisations.
 | `area` | `int` | Handle: the area id. |
 | `name` | `str` | Area name. |
 | `specs` | `list[dict]` | Specialisations: [{name, subtype?}]. |
-| `rect` | `Rect\|null` | World rectangle; null if the area's part of the map is not loaded. |
+| `rect` | `Rect` or `null` | World rectangle; null if the area's part of the map is not loaded. |
 | `in` | `list[dict]` | Items configured to be taken from here. |
 | `out` | `list[dict]` | Items configured to be put here. |
 

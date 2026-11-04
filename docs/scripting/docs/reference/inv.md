@@ -15,7 +15,7 @@ How many items match `name`, counting each stack member as one item. This counts
 | Parameter | Type | Description |
 |---|---|---|
 | `name` | `Alias` | Display-name pattern(s). |
-| `inventory` | `Inventory\|str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
 
 **Returns** `int`
 
@@ -39,7 +39,7 @@ The first item whose display name matches `name` (stack members included), or nu
 | Parameter | Type | Description |
 |---|---|---|
 | `name` | `Alias` | Display-name pattern(s). |
-| `inventory` | `Inventory\|str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
 
 **Returns** `Item|null`
 
@@ -62,7 +62,7 @@ How many items of the given size still fit, placed without overlapping (the clie
 | Parameter | Type | Description |
 |---|---|---|
 | `size` | `Tile` | Item size in cells, [w, h]. |
-| `inventory` | `Inventory\|str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
 
 **Returns** `int`
 
@@ -84,7 +84,7 @@ Number of empty cells in an inventory.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `inventory` | `Inventory\|str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
 
 **Returns** `int`
 
@@ -147,7 +147,7 @@ Items in an inventory, optionally filtered. `name` matches the item's display na
 
 | Parameter | Type | Description |
 |---|---|---|
-| `inventory` | `Inventory\|str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory: "main" (default), a window caption such as "Cupboard", or an Inventory handle. *Optional, default "main".* |
 | `name` | `Alias` | Display-name pattern(s). *Optional.* |
 | `quality_min` | `float` | Minimum quality (exact float, not the rounded display). *Optional.* |
 | `expand_stacks` | `bool` | List stack members instead of stacks. *Optional, default true.* |

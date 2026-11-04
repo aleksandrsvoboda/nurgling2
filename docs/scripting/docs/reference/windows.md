@@ -14,7 +14,7 @@ The texts of the buttons in a window, in widget order. Click one with `ui.click_
 
 | Parameter | Type | Description |
 |---|---|---|
-| `window` | `Window\|str` | Window handle or caption. |
+| `window` | `Window` or `str` | Window handle or caption. |
 
 **Returns** `list[str]`
 
@@ -37,7 +37,7 @@ Closes a window the way its close button does, and waits up to 5 seconds for it 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `window` | `Window\|str` | Window handle or caption. |
+| `window` | `Window` or `str` | Window handle or caption. |
 
 **Returns** `bool`: True once the window is gone or hidden; false if it is still open after 5 s.
 
@@ -100,7 +100,7 @@ The texts shown in a window: every label and text field, in widget order. Rich-t
 
 | Parameter | Type | Description |
 |---|---|---|
-| `window` | `Window\|str` | Window handle or caption. |
+| `window` | `Window` or `str` | Window handle or caption. |
 
 **Returns** `list[str]`
 

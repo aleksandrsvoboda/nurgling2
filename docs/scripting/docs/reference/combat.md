@@ -105,7 +105,7 @@ Uses a move from the combat action bar against the current target, like pressing
 
 | Parameter | Type | Description |
 |---|---|---|
-| `move` | `int\|str` | Slot or move name. |
+| `move` | `int` or `str` | Slot or move name. |
 | `wait` | `bool` | Wait until the move is ready before using it. *Optional, default true.* |
 | `timeout` | `float` | Seconds to wait for the move to be ready. *Optional, default 10.* |
 | `pos` | `Coord` | World position for moves aimed at the ground (what the mouse would point at). *Optional.* |

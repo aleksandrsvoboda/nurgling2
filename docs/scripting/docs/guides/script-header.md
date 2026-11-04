@@ -30,9 +30,9 @@ A list of `key=value` pairs. Separate them with commas, spaces, or both.
 
 | Key | Value | Default |
 |---|---|---|
-| `name` | Title in the bot menu, the start form and the Gear. | The file name without `.py` (the folder name for a folder script). |
-| `description` | Tooltip text. | `Python script <file>` |
-| `icon` | The icon of one of the client's built-in bots, by its icon name (for example `goto`, `choper`, `butcher`, `barrel`). Only icons that a built-in bot uses count; the names are the `iconPath` values in the client's `BotRegistry.java`. | The generic script icon. Also used when the name is not a built-in bot's icon. |
+| `name` | Title in the bot menu (first line of the tooltip), the start form and the Gear. | The file name without `.py` (the folder name for a folder script). |
+| `description` | Second line of the button's tooltip in the bot menu. | `Python script <file>` |
+| `icon` | Your own picture: a PNG file next to the script (`icon=chop.png`). Or the icon of one of the client's built-in bots by its icon name (`icon=choper`, `goto`, `butcher`, `barrel`...; the names are the `iconPath` values in the client's `BotRegistry.java`). | `<script>.png` next to the script if there is one (`icon.png` for a folder script), else the generic script icon. |
 | `java` | `true` enables the [Java layer](java-layer.md) for this script. | `false` |
 
 Value syntax:
@@ -43,6 +43,31 @@ Value syntax:
 - `java` is true only for the word `true` (any case). Anything else, including `yes` or `1`, is false.
 - Unknown keys are ignored without a warning, so check your spelling.
 - You can spread the keys over several `# nurgling:` lines. If a key appears twice, the last one wins.
+
+## Icon and tooltip
+
+Every script gets a button in the bot menu's Scripts folder. Hovering it shows a tooltip with the
+script's `name` on the first line and its `description` below.
+
+To give the button your own picture, put a PNG next to the script:
+
+```text
+scripts/
+  chop_birches.py
+  chop_birches.png      <- picked up automatically (same name as the script)
+  my_farm/
+    main.py
+    icon.png            <- the icon of a folder script
+```
+
+or name it in the header: `# nurgling: name="Chop birches", icon=art/axe.png` (a path relative to
+the script). Any size works; the client scales the picture into the standard square button frame and
+makes the hover and pressed versions itself, so a square image of 32 to 64 pixels with a transparent
+background looks best. The same icon shows in the Bot Status strip, the recent actions bar and the
+scenario editor.
+
+New or changed icons, names and descriptions show after **Rescan scripts** (Options > Python
+Scripting) or the next login; the script's code itself is re-read on every run.
 
 ## `# nurgling-param:` — parameters
 

@@ -26,7 +26,7 @@ Runs a saved scenario step by step on this script's bot thread; stops at the fir
 
 | Parameter | Type | Description |
 |---|---|---|
-| `scenario` | `int\|str` | Scenario id or name. |
+| `scenario` | `int` or `str` | Scenario id or name. |
 
 **Returns** `bool`: True if every step succeeded.
 

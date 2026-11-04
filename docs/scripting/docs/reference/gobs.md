@@ -17,7 +17,7 @@ Finds game objects in the loaded part of the world. Filters combine (all must ho
 | `name` | `Alias` | Resource-name pattern(s), e.g. "trees/" or {"include": ["trees/"], "exclude": ["stump"]}. *Optional.* |
 | `area` | `Area` | Only objects inside this area's rectangle. *Optional.* |
 | `radius` | `float` | Only objects closer than this to `near` (world units; a tile is 11). *Optional.* |
-| `near` | `Coord\|Gob` | Centre for `radius` and for sorting; defaults to the player position. *Optional.* |
+| `near` | `Coord` or `Gob` | Centre for `radius` and for sorting; defaults to the player position. *Optional.* |
 | `pose` | `Alias` | Pose resource pattern(s), e.g. "knocked" or "dead"; objects without a pose never match. *Optional.* |
 | `attr` | `int` | Model attribute (crop stage, container fill marker, ...) must equal this. Note markers >= 128 read negative. *Optional.* |
 | `exclude` | `list[int]` | Gob ids to skip (e.g. ones already processed). *Optional.* |
@@ -112,7 +112,7 @@ The nearest game object matching the same filters as `gobs.find`, or null. Filte
 | `name` | `Alias` | Resource-name pattern(s). *Optional.* |
 | `area` | `Area` | Only objects inside this area. *Optional.* |
 | `radius` | `float` | Only objects closer than this to `near`. *Optional.* |
-| `near` | `Coord\|Gob` | Point to measure from; defaults to the player position. *Optional.* |
+| `near` | `Coord` or `Gob` | Point to measure from; defaults to the player position. *Optional.* |
 | `pose` | `Alias` | Pose resource pattern(s). *Optional.* |
 | `attr` | `int` | Model attribute must equal this. *Optional.* |
 | `exclude` | `list[int]` | Gob ids to skip. *Optional.* |

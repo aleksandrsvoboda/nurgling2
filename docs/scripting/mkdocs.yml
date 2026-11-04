@@ -8,26 +8,19 @@ docs_dir: docs
 site_dir: site
 copyright: Nurgling2 is a community client for Haven & Hearth. Not affiliated with Seatribe.
 
+extra_css:
+  - stylesheets/nurgling.css
+
 theme:
   name: material
   language: en
+  logo: assets/logo.png
+  favicon: assets/favicon.png
   icon:
     repo: fontawesome/brands/github
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: teal
-      accent: deep orange
-      toggle:
-        icon: material/weather-night
-        name: Dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: teal
-      accent: deep orange
-      toggle:
-        icon: material/weather-sunny
-        name: Light mode
+    # Dark only, in the client's own colours (docs/stylesheets/nurgling.css).
+    scheme: nurgling
   features:
     - navigation.tabs
     - navigation.sections
@@ -78,7 +71,8 @@ nav:
   - Getting started: getting-started.md
   - Concepts: concepts.md
   - Guides:
-      - Script header: guides/script-header.md
+      - "Developing: edit, run, repeat": guides/developing.md
+      - Script header, icon and tooltip: guides/script-header.md
       - Running the client's bots: guides/running-bots.md
       - Raw UI (layer 3): guides/raw-ui.md
       - Java layer (layer 4): guides/java-layer.md

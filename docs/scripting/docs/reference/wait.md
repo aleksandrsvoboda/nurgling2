@@ -202,7 +202,7 @@ Waits until an inventory has at least `cells` free cells.
 | Parameter | Type | Description |
 |---|---|---|
 | `cells` | `int` | Free cells needed. *Optional, default 1.* |
-| `inventory` | `Inventory\|str` | Inventory; your own if omitted. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory; your own if omitted. *Optional, default "main".* |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 10.* |
 
 **Returns** `int`: Free cells afterwards.
@@ -251,7 +251,7 @@ Waits until an inventory holds at least `count` items matching `name` (stacked i
 |---|---|---|
 | `name` | `Alias` | Which items. |
 | `count` | `int` | Minimum number. *Optional, default 1.* |
-| `inventory` | `Inventory\|str` | Inventory; your own if omitted. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory; your own if omitted. *Optional, default "main".* |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 10.* |
 
 **Returns** `int`: The number of matching items.
@@ -276,7 +276,7 @@ Waits until an inventory holds at most `count` items matching `name` (e.g. until
 |---|---|---|
 | `name` | `Alias` | Which items. |
 | `count` | `int` | Maximum number. *Optional, default 0.* |
-| `inventory` | `Inventory\|str` | Inventory; your own if omitted. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Inventory; your own if omitted. *Optional, default "main".* |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 10.* |
 
 **Returns** `int`: The number of matching items.
@@ -299,7 +299,7 @@ Waits until the player is within `dist` of a position or game object (e.g. after
 
 | Parameter | Type | Description |
 |---|---|---|
-| `pos` | `Coord\|Gob` | Position or object. |
+| `pos` | `Coord` or `Gob` | Position or object. |
 | `dist` | `float` | Distance in world units. *Optional, default 2.* |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 30.* |
 
@@ -394,7 +394,7 @@ Waits until a game object's (usually the player's) animation pose contains one o
 | Parameter | Type | Description |
 |---|---|---|
 | `gob` | `Gob` | Whose pose; usually nc.player(). |
-| `pose` | `str\|list[str]` | Substring(s) of the pose resource. |
+| `pose` | `str` or `list[str]` | Substring(s) of the pose resource. |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 10.* |
 
 **Returns** `str`: The pose that matched.
@@ -419,7 +419,7 @@ Waits until a game object's pose no longer contains any of the given texts: the 
 | Parameter | Type | Description |
 |---|---|---|
 | `gob` | `Gob` | Whose pose; usually nc.player(). |
-| `pose` | `str\|list[str]` | Substring(s) of the pose resource. |
+| `pose` | `str` or `list[str]` | Substring(s) of the pose resource. |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 60.* |
 
 **Returns** `str|null`: The pose afterwards, or null if the object is gone.
@@ -576,7 +576,7 @@ Waits until a window is gone. Pass a handle for one particular window, or a capt
 
 | Parameter | Type | Description |
 |---|---|---|
-| `window` | `Window\|Inventory\|str` | Window handle, an inventory in it, or a caption. |
+| `window` | `Window` or `Inventory` or `str` | Window handle, an inventory in it, or a caption. |
 | `timeout` | `float` | Seconds to wait; 0 waits forever. *Optional, default 10.* |
 
 **Returns** `null`

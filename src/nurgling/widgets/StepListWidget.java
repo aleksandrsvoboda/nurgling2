@@ -60,7 +60,7 @@ public class StepListWidget extends Widget {
                     if (desc != null) {
                         botId = desc.getDisplayName();
                         try {
-                            BufferedImage iconImg = Resource.loadsimg(desc.getUpIconPath());
+                            BufferedImage iconImg = desc.icon("u");
                             if (iconImg != null)
                                 iconTex = new TexI(iconImg);
                         } catch (Exception e) {

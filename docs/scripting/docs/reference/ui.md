@@ -15,7 +15,7 @@ Clicks the first button whose text equals `text` (inside `window` if given).
 | Parameter | Type | Description |
 |---|---|---|
 | `text` | `str` | Button text, e.g. "Build". |
-| `window` | `Window\|str` | Window handle or caption. *Optional.* |
+| `window` | `Window` or `str` | Window handle or caption. *Optional.* |
 
 **Returns** `null`
 

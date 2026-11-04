@@ -66,7 +66,7 @@ Chooses an option of the open flower menu by its exact text. Pass null to close 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `option` | `str\|null` | Option text, e.g. "Chop". |
+| `option` | `str` or `null` | Option text, e.g. "Chop". |
 
 **Returns** `bool`: False if the menu has no such option (the menu is then closed).
 
@@ -96,7 +96,7 @@ Drops the item in hand into an inventory cell.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `inventory` | `Inventory\|str` | Target inventory ("main", a window caption, or a handle). |
+| `inventory` | `Inventory` or `str` | Target inventory ("main", a window caption, or a handle). |
 | `slot` | `Tile` | Cell [x, y]. |
 
 **Returns** `null`
@@ -115,8 +115,8 @@ Moves items from one open inventory to another the way shift+mouse-wheel does: `
 
 | Parameter | Type | Description |
 |---|---|---|
-| `from` | `Inventory\|str` | Source inventory. |
-| `to` | `Inventory\|str` | Target inventory. |
+| `from` | `Inventory` or `str` | Source inventory. |
+| `to` | `Inventory` or `str` | Target inventory. |
 | `count` | `int` | Number of items. *Optional, default 1.* |
 
 **Returns** `null`

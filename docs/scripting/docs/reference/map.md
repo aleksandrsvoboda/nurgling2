@@ -38,7 +38,7 @@ How far the player would walk to reach a gob or position along the pathfinder's 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `target` | `Gob\|Coord` | A gob (handle or id) or a world position [x, y]. |
+| `target` | `Gob` or `Coord` | A gob (handle or id) or a world position [x, y]. |
 
 **Returns** `float|null`
 
@@ -61,7 +61,7 @@ Whether the client's pathfinder finds a walkable route from the player to a game
 
 | Parameter | Type | Description |
 |---|---|---|
-| `target` | `Gob\|Coord` | A gob (handle or id) or a world position [x, y]. |
+| `target` | `Gob` or `Coord` | A gob (handle or id) or a world position [x, y]. |
 
 **Returns** `bool`
 
@@ -84,7 +84,7 @@ The terrain under a world position as its tile resource name, e.g. "gfx/tiles/gr
 
 | Parameter | Type | Description |
 |---|---|---|
-| `pos` | `Coord\|Gob` | World position, or a gob for its position. |
+| `pos` | `Coord` or `Gob` | World position, or a gob for its position. |
 
 **Returns** `str|null`
 
@@ -131,7 +131,7 @@ Converts a world position of this session into a session-independent one: the ma
 
 | Parameter | Type | Description |
 |---|---|---|
-| `pos` | `Coord\|Gob` | World position, or a gob for its position. |
+| `pos` | `Coord` or `Gob` | World position, or a gob for its position. |
 
 **Returns** `dict|null`: {grid, x, y}
 

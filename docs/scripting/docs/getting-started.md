@@ -165,6 +165,12 @@ Keep the installed SDK's major version the same as the client's API version (bot
 A newer minor version of the SDK works with an older client: ops the client does not have raise
 `UnknownOp`.
 
+## Changing your script
+
+You never restart the game: edit the file, save, and click the script again (or run it from a
+terminal). See [Developing: edit, run, repeat](guides/developing.md) for the fastest workflows,
+including a live Python prompt and IDE debugging.
+
 ## Next
 
 - [Concepts](concepts.md) explains what `nc` is, snapshots, waits, errors and events.

@@ -14,7 +14,7 @@ Closes a window (a container, a crafting window, any window) and waits until it 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `window` | `Window\|Inventory\|str` | Window handle, an inventory inside it, or its caption. |
+| `window` | `Window` or `Inventory` or `str` | Window handle, an inventory inside it, or its caption. |
 | `timeout` | `float` | Seconds to wait for it to close. *Optional, default 5.* |
 
 **Returns** `null`
@@ -129,8 +129,8 @@ Drops items on the ground at the character's feet and waits until they are gone 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `items` | `Item\|list[Item]\|Alias` | Items, or an alias such as "Stone". |
-| `inventory` | `Inventory\|str` | Where to look up an alias; your own if omitted. *Optional, default "main".* |
+| `items` | `Item` or `list[Item]` or `Alias` | Items, or an alias such as "Stone". |
+| `inventory` | `Inventory` or `str` | Where to look up an alias; your own if omitted. *Optional, default "main".* |
 | `timeout` | `float` | Seconds to wait for the items to disappear. *Optional, default 10.* |
 
 **Returns** `int`: Number of items dropped.
@@ -175,7 +175,7 @@ Puts the item in hand into the first free cell of an inventory and waits until t
 
 | Parameter | Type | Description |
 |---|---|---|
-| `inventory` | `Inventory\|str` | Target inventory; your own if omitted. *Optional, default "main".* |
+| `inventory` | `Inventory` or `str` | Target inventory; your own if omitted. *Optional, default "main".* |
 | `timeout` | `float` | Seconds to wait. *Optional, default 5.* |
 
 **Returns** `null`
@@ -243,7 +243,7 @@ Turns the character to face a position or game object without walking there, and
 
 | Parameter | Type | Description |
 |---|---|---|
-| `target` | `Gob\|Coord` | What to face. |
+| `target` | `Gob` or `Coord` | What to face. |
 | `timeout` | `float` | Seconds to wait for the turn. *Optional, default 3.* |
 
 **Returns** `null`
@@ -266,7 +266,7 @@ Feeds matching items from your inventory into troughs, moving on to the next tro
 
 | Parameter | Type | Description |
 |---|---|---|
-| `troughs` | `Gob\|list[Gob]` | Trough(s), filled in order. |
+| `troughs` | `Gob` or `list[Gob]` | Trough(s), filled in order. |
 | `items` | `Alias` | Food items to put in. |
 
 **Returns** `null`
@@ -312,7 +312,7 @@ Right-clicks a game object and chooses an option from its flower menu, then wait
 | Parameter | Type | Description |
 |---|---|---|
 | `gob` | `Gob` | Object to right-click. |
-| `option` | `str\|list[str]` | Option text, or candidates in order of preference. Exact match. |
+| `option` | `str` or `list[str]` | Option text, or candidates in order of preference. Exact match. |
 | `timeout` | `float` | Seconds to wait for the menu to appear. *Optional, default 5.* |
 
 **Returns** `str`: The option that was chosen.
@@ -337,7 +337,7 @@ Right-clicks an inventory item and chooses an option from its flower menu (e.g. 
 | Parameter | Type | Description |
 |---|---|---|
 | `item` | `Item` | Item to right-click. |
-| `option` | `str\|list[str]` | Option text, or candidates in order of preference. Exact match. |
+| `option` | `str` or `list[str]` | Option text, or candidates in order of preference. Exact match. |
 | `timeout` | `float` | Seconds to wait for the menu to appear. *Optional, default 5.* |
 
 **Returns** `str`: The option that was chosen.
@@ -522,7 +522,7 @@ Walks to a game object or a world position with the client's pathfinder, avoidin
 
 | Parameter | Type | Description |
 |---|---|---|
-| `target` | `Gob\|Coord` | Game object, or a world position [x, y]. |
+| `target` | `Gob` or `Coord` | Game object, or a world position [x, y]. |
 | `hard` | `bool` | Walk right up to the object's hitbox instead of the nearest free spot. *Optional, default false.* |
 
 **Returns** `null`
@@ -629,7 +629,7 @@ Takes items from a container into your inventory. With a game object, walks to i
 
 | Parameter | Type | Description |
 |---|---|---|
-| `container` | `Gob\|Inventory\|str` | Container object, or an open inventory / window caption. |
+| `container` | `Gob` or `Inventory` or `str` | Container object, or an open inventory / window caption. |
 | `items` | `Alias` | Which items to take. |
 | `count` | `int` | Maximum number of items; all matching if omitted. *Optional.* |
 | `quality_min` | `float` | Only items of at least this quality. *Optional.* |
@@ -771,7 +771,7 @@ Moves items from your inventory into a container. With a game object, walks to i
 
 | Parameter | Type | Description |
 |---|---|---|
-| `to` | `Gob\|Inventory\|str` | Container object, or an open inventory / window caption. |
+| `to` | `Gob` or `Inventory` or `str` | Container object, or an open inventory / window caption. |
 | `items` | `Alias` | Which items to move (name match, as everywhere). |
 | `count` | `int` | Maximum number of items to move; all matching if omitted. *Optional.* |
 | `timeout` | `float` | Seconds to wait for the container window when opening a game object. *Optional, default 10.* |
