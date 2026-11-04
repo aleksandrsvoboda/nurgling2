@@ -1,4 +1,4 @@
-# nurgling: name="Lookout", description="Tells you when someone says your name or an animal shows up; can record UI messages", icon=discord
+# nurgling: name="Lookout", description="Tells you when someone says your name or an animal shows up; can record UI messages"
 # nurgling-param: record bool false "Also print every UI message I send (to discover messages)"
 """React to events instead of polling. Runs until you press stop."""
 import time

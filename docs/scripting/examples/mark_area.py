@@ -1,4 +1,4 @@
-# nurgling: name="Mark objects in an area", description="Asks for an area and a name, then highlights and counts the matching objects", icon=measuring_length
+# nurgling: name="Mark objects in an area", description="Asks for an area and a name, then highlights and counts the matching objects"
 """A settings form plus overlays. Overlays vanish by themselves when the script ends or is stopped."""
 from nurgling import Cancelled, NotFound, script
 

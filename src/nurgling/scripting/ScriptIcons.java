@@ -1,5 +1,6 @@
 package nurgling.scripting;
 
+import haven.PUtils;
 import haven.Resource;
 
 import javax.imageio.ImageIO;
@@ -54,7 +55,9 @@ public final class ScriptIcons {
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.drawImage(shaded(pic, shade), INSET + (iw - pw) / 2, INSET + (ih - ph) / 2, pw, ph, null);
         g.dispose();
-        return out;
+        // The client's image code (PUtils.convolvedown for the Bot Status strip, TexI) expects the
+        // byte-interleaved RGBA images resources have; an INT_ARGB image throws on the UI thread.
+        return PUtils.coercergba(out, true);
     }
 
     private static BufferedImage shaded(BufferedImage pic, float f) {

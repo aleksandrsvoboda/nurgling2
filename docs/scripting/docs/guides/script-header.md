@@ -5,7 +5,7 @@ script, to put it in the bot menu and to build its start form. A script without 
 it is listed under its file name.
 
 ```python
-# nurgling: name="Chop trees", description="Chops the nearest trees", icon=choper, java=false
+# nurgling: name="Chop trees", description="Chops the nearest trees", icon=axe.png, java=false
 # nurgling-param: count int 10 "How many trees"
 # nurgling-param: zone area - "Where to chop"
 # nurgling-param: mode choice[fast,careful] fast "Mode"
@@ -32,14 +32,14 @@ A list of `key=value` pairs. Separate them with commas, spaces, or both.
 |---|---|---|
 | `name` | Title in the bot menu (first line of the tooltip), the start form and the Gear. | The file name without `.py` (the folder name for a folder script). |
 | `description` | Second line of the button's tooltip in the bot menu. | `Python script <file>` |
-| `icon` | Your own picture: a PNG file next to the script (`icon=chop.png`). Or the icon of one of the client's built-in bots by its icon name (`icon=choper`, `goto`, `butcher`, `barrel`...; the names are the `iconPath` values in the client's `BotRegistry.java`). | `<script>.png` next to the script if there is one (`icon.png` for a folder script), else the generic script icon. |
+| `icon` | Your own picture: a PNG file, relative to the script (`icon=art/axe.png`). Scripts cannot use the icons of the client's built-in bots, so a script is never mistaken for one. | `<script>.png` next to the script if there is one (`icon.png` for a folder script), else the generic script icon. |
 | `java` | `true` enables the [Java layer](java-layer.md) for this script. | `false` |
 
 Value syntax:
 
 - A value in double quotes may contain spaces and commas: `name="Chop, then stack"`. It cannot
   contain a double quote; there are no escapes.
-- A value without quotes ends at the first comma or space: `icon=choper`.
+- A value without quotes ends at the first comma or space: `icon=axe.png`.
 - `java` is true only for the word `true` (any case). Anything else, including `yes` or `1`, is false.
 - Unknown keys are ignored without a warning, so check your spelling.
 - You can spread the keys over several `# nurgling:` lines. If a key appears twice, the last one wins.

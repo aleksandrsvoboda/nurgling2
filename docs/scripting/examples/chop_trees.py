@@ -1,4 +1,4 @@
-# nurgling: name="Chop nearby trees", description="Chops the nearest grown trees, drinking when stamina runs low", icon=choper
+# nurgling: name="Chop nearby trees", description="Chops the nearest grown trees, drinking when stamina runs low"
 # nurgling-param: count int 5 "How many trees"
 # nurgling-param: radius int 15 "Search radius in tiles"
 """Chop trees one after another. Needs an axe (in hand, on the belt or in the inventory) and water in a waterskin."""

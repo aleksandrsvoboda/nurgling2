@@ -1,4 +1,4 @@
-# nurgling: name="Store my inventory", description="Puts everything away into its areas, then fetches one item", icon=freeinv
+# nurgling: name="Store my inventory", description="Puts everything away into its areas, then fetches one item"
 # nurgling-param: fetch str "" "Item to fetch afterwards (empty: nothing)"
 # nurgling-param: fetch_count int 0 "How many to fetch"
 """Store and fetch with your areas and specialisations, the way the built-in bots do.

@@ -27,9 +27,10 @@ import java.util.regex.Pattern;
  * </pre>
  * A default of "-" makes the parameter required.
  *
- * Icon: {@code icon=chop.png} (a PNG next to the script), or {@code icon=choper} (a built-in bot's
- * icon). Without one, {@code <script>.png} beside the script (or {@code icon.png} in a script folder)
- * is used if it exists. The name and description are the button's tooltip.
+ * Icon: {@code icon=chop.png} (a PNG relative to the script). Without one, {@code <script>.png}
+ * beside the script (or {@code icon.png} in a script folder) is used if it exists, else the generic
+ * script icon. Scripts never borrow a built-in bot's icon, so they cannot be mistaken for one.
+ * The name and description are the button's tooltip.
  */
 public final class ScriptCatalog {
     public static final String ID_PREFIX = "script:";
@@ -75,15 +76,12 @@ public final class ScriptCatalog {
         List<Entry> entries = new ArrayList<>(scan(ScriptRuntime.scriptsDir(), ""));
         File ex = ScriptRuntime.examplesDir();
         if (ex != null) entries.addAll(scan(ex, EXAMPLES));
-        Set<String> icons = new HashSet<>();
-        for (BotDescriptor d : BotRegistry.all()) if (d.type != BotDescriptor.BotType.SCRIPTS) icons.add(d.iconPath);
         List<BotDescriptor> descs = new ArrayList<>();
         for (Entry e : entries) {
-            String icon = (e.icon != null && icons.contains(e.icon)) ? e.icon : "script";
             Map<String, Object> defaults = new HashMap<>();
             defaults.put(ScriptLaunchAction.SCRIPT_KEY, e.rel);
             BotDescriptor d = new BotDescriptor(e.id(), BotDescriptor.BotType.SCRIPTS, e.name, e.description,
-                    true, true, ScriptLaunchAction.class, icon, false, defaults)
+                    true, true, ScriptLaunchAction.class, "script", false, defaults)
                     .withParams(e.params.toArray(new ParamSpec[0]))
                     .inGroup(e.rel.startsWith(EXAMPLES) ? "examples" : "my_scripts");
             if (e.iconFile != null) {
@@ -179,13 +177,12 @@ public final class ScriptCatalog {
     /** The script's own PNG: the header's icon=x.png, else script.png beside it, else icon.png in its folder. */
     private static File iconFile(File script, String icon) {
         File dir = script.getAbsoluteFile().getParentFile();
-        if (icon != null && icon.toLowerCase().endsWith(".png")) {
+        if (icon != null) {
             File f = new File(dir, icon);
-            if (f.isFile()) return f;
-            System.out.println("[Scripting] " + script.getName() + ": icon " + f + " not found");
+            if (icon.toLowerCase().endsWith(".png") && f.isFile()) return f;
+            System.out.println("[Scripting] " + script.getName() + ": icon " + f + " is not a PNG file next to the script; using the default");
             return null;
         }
-        if (icon != null) return null;   // a built-in icon name
         String base = script.getName().replaceAll("\\.py$", "");
         File own = new File(dir, base + ".png");
         if (own.isFile()) return own;
