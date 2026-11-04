@@ -29,6 +29,7 @@ public class NConfig
     {
         vilol, claimol, realmol,
         minimapVilol, minimapClaimol, minimapRealmol,
+        mapClaimsShown,
         selectedWorld,
         charlistSort,
         showVarity,
@@ -328,6 +329,7 @@ public class NConfig
         conf.put(Key.minimapVilol, false);
         conf.put(Key.minimapClaimol, false);
         conf.put(Key.minimapRealmol, false);
+        conf.put(Key.mapClaimsShown, true);
         conf.put(Key.selectedWorld, null);
         conf.put(Key.charlistSort, "played");
         conf.put(Key.showVarity, false);

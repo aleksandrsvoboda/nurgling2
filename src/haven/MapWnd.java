@@ -326,7 +326,7 @@ public class MapWnd extends Window implements Console.Directory {
 	}
 
 	public boolean filter(DisplayMarker mark) {
-	    return(markcfg.filter(mark.m));
+	    return(markerhidden(mark.m));
 	}
 
 	public boolean clickmarker(DisplayMarker mark, Location loc, int button, boolean press) {
@@ -370,6 +370,11 @@ public class MapWnd extends Window implements Console.Directory {
 	    g.chcolor();
 	    super.draw(g);
 	}
+    }
+
+    /* Nurgling: whether the marker settings hide this marker on the map. */
+    protected boolean markerhidden(Marker m) {
+	return(markcfg.filter(m));
     }
 
     public void mark(Location loc, boolean onmap) {

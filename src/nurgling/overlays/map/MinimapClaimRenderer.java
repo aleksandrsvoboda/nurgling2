@@ -40,6 +40,12 @@ public class MinimapClaimRenderer {
         if (!(map instanceof NMiniMap)) {
             return;
         }
+
+        /* The map window's claims button hides every kind at once without touching which kinds
+         * are picked in QoL. A missing key (a config saved before it existed) means shown. */
+        if (Boolean.FALSE.equals(NConfig.get(NConfig.Key.mapClaimsShown))) {
+            return;
+        }
         NMiniMap nmap = (NMiniMap) map;
 
         // Get the display grid array and extent
@@ -50,6 +56,9 @@ public class MinimapClaimRenderer {
             return;
         }
 
+        /* Outlines are drawn after every grid's fill, all halos before all bright lines; drawn grid
+         * by grid, one grid's halo would cut a notch into its neighbour's line where they meet. */
+        java.util.Map<Color, Segs> outlines = new java.util.LinkedHashMap<>();
         try {
             Coord hsz = map.sz.div(2);
 
@@ -96,6 +105,9 @@ public class MinimapClaimRenderer {
 
                             if (fillColor != null) {
                                 renderOverlay(map, g, overlay, disp, hsz, fillColor);
+                                if (bordered(tag))
+                                    outline(nmap, overlay, gc, display, dgext, hsz,
+                                            outlines.computeIfAbsent(bright(fillColor), k -> new Segs()));
                                 break; // Only render once per overlay, even if it has multiple tags
                             }
                         }
@@ -109,6 +121,7 @@ public class MinimapClaimRenderer {
         } catch (Exception e) {
             // Silently handle errors
         }
+        drawOutlines(g, outlines);
     }
 
     /* A grid's claim mask never changes once loaded, so its merged
@@ -228,6 +241,182 @@ public class MinimapClaimRenderer {
         } catch (Exception e) {
             // Silently handle errors
         }
+    }
+
+    /* ------------------------------------------------------------------ claim borders */
+
+    /** Personal and village claims get an outline; realms are big enough to see already. */
+    private static boolean bordered(String tag) {
+        return "cplot".equals(tag) || "vlg".equals(tag);
+    }
+
+    /** A neighbouring grid whose data is not to hand yet: leave that edge alone rather than flicker. */
+    private static final boolean[] UNKNOWN = new boolean[0];
+
+    /** Growable list of edge segments, four ints each: x1, y1, x2, y2 (grid tiles, or screen pixels). */
+    private static final class Segs {
+        int[] a = new int[64];
+        int n = 0;
+
+        void add(int x1, int y1, int x2, int y2) {
+            if (n + 4 > a.length)
+                a = java.util.Arrays.copyOf(a, a.length * 2);
+            a[n++] = x1; a[n++] = y1; a[n++] = x2; a[n++] = y2;
+        }
+    }
+
+    /* Edges inside one grid depend on its mask alone, so they are found once per mask, like the
+     * fill rectangles. Draw-thread only. */
+    private static final java.util.Map<boolean[], int[]> EDGES = new java.util.WeakHashMap<>();
+
+    /** Every boundary between a claimed and an unclaimed tile inside the grid, merged into runs. */
+    private static int[] innerEdges(boolean[] m, int w, int h) {
+        int[] cached = EDGES.get(m);
+        if (cached != null)
+            return cached;
+        Segs out = new Segs();
+        for (int y = 1; y < h; y++) {
+            for (int x = 0; x < w; ) {
+                if (m[(y - 1) * w + x] == m[y * w + x]) { x++; continue; }
+                int x0 = x;
+                while (x < w && m[(y - 1) * w + x] != m[y * w + x]) x++;
+                out.add(x0, y, x, y);
+            }
+        }
+        for (int x = 1; x < w; x++) {
+            for (int y = 0; y < h; ) {
+                if (m[y * w + x - 1] == m[y * w + x]) { y++; continue; }
+                int y0 = y;
+                while (y < h && m[y * w + x - 1] != m[y * w + x]) y++;
+                out.add(x, y0, x, y);
+            }
+        }
+        int[] ret = java.util.Arrays.copyOf(out.a, out.n);
+        EDGES.put(m, ret);
+        return ret;
+    }
+
+    /**
+     * The same overlay's mask in a neighbouring grid: null when nothing of it is there (so the
+     * claim ends at this edge), UNKNOWN when that cannot be told yet.
+     */
+    private static boolean[] neighbour(MiniMap.DisplayGrid[] display, Area dgext, Coord gc, String olname) {
+        if (!dgext.contains(gc))
+            return UNKNOWN; // Beyond what is displayed, so off screen anyway
+        MiniMap.DisplayGrid d = display[dgext.ri(gc)];
+        if (d == null)
+            return null;    // Never mapped: the claim visibly ends here
+        MapFile.DataGrid grid;
+        try {
+            grid = d.gref.get();
+        } catch (Loading e) {
+            return UNKNOWN;
+        }
+        if (grid == null)
+            return null;
+        for (MapFile.Overlay o : grid.ols) {
+            if (o.olid.name.equals(olname))
+                return o.ol;
+        }
+        return null;
+    }
+
+    private static boolean on(boolean[] nb, int idx) {
+        return (nb != null) && (nb.length > idx) && nb[idx];
+    }
+
+    /**
+     * Outlines a claim: a line wherever a claimed tile meets an unclaimed one, added to {@code out}
+     * as screen coordinates. A claim that spans several grids is one shape - along a grid's edge
+     * the line goes in only where the neighbouring grid's same overlay does not carry on, so no
+     * seams show between grids.
+     */
+    private static void outline(NMiniMap nmap, MapFile.Overlay overlay, Coord gc,
+                                MiniMap.DisplayGrid[] display, Area dgext, Coord hsz, Segs out) {
+        int w = MCache.cmaps.x, h = MCache.cmaps.y;
+        boolean[] m = overlay.ol;
+        if (m.length != w * h)
+            return;
+        MiniMap.DisplayGrid disp = display[dgext.ri(gc)];
+        String name = overlay.olid.name;
+        Segs segs = new Segs();
+
+        /* The four sides: a tile on the edge is outlined unless the neighbour's tile across it is
+         * claimed by the same overlay. */
+        boolean[] up = neighbour(display, dgext, gc.add(0, -1), name);
+        boolean[] dn = neighbour(display, dgext, gc.add(0, 1), name);
+        boolean[] lf = neighbour(display, dgext, gc.add(-1, 0), name);
+        boolean[] rt = neighbour(display, dgext, gc.add(1, 0), name);
+        for (int x = 0; x < w; x++) {
+            if (up != UNKNOWN && m[x] && !on(up, (h - 1) * w + x))
+                segs.add(x, 0, x + 1, 0);
+            if (dn != UNKNOWN && m[(h - 1) * w + x] && !on(dn, x))
+                segs.add(x, h, x + 1, h);
+        }
+        for (int y = 0; y < h; y++) {
+            if (lf != UNKNOWN && m[y * w] && !on(lf, y * w + (w - 1)))
+                segs.add(0, y, 0, y + 1);
+            if (rt != UNKNOWN && m[y * w + (w - 1)] && !on(rt, y * w))
+                segs.add(w, y, w, y + 1);
+        }
+
+        int lvl = nmap.getDataLevelPublic();
+        float scale = nmap.getCurrentScale();
+        int[] inner = innerEdges(m, w, h);
+        for (int[] src : new int[][] {inner, java.util.Arrays.copyOf(segs.a, segs.n)}) {
+            for (int i = 0; i < src.length; i += 4) {
+                Coord a = screen(nmap, disp, src[i], src[i + 1], hsz, lvl, scale);
+                Coord b = screen(nmap, disp, src[i + 2], src[i + 3], hsz, lvl, scale);
+                out.add(a.x, a.y, b.x, b.y);
+            }
+        }
+    }
+
+    /** A dark halo under a bright line, so the outline reads on grass, water and snow alike. */
+    private static void drawOutlines(GOut g, java.util.Map<Color, Segs> outlines) {
+        if (outlines.isEmpty())
+            return;
+        int t = Math.max(1, UI.scale(1));
+        g.chcolor(0, 0, 0, 170);
+        for (Segs s : outlines.values())
+            drawSegs(g, s, t * 2);
+        for (java.util.Map.Entry<Color, Segs> e : outlines.entrySet()) {
+            g.chcolor(e.getKey());
+            drawSegs(g, e.getValue(), t);
+        }
+        g.chcolor();
+    }
+
+    /** Axis-aligned screen segments as filled bars, t either side of the line. */
+    private static void drawSegs(GOut g, Segs s, int t) {
+        for (int i = 0; i < s.n; i += 4) {
+            /* Running each bar t past its ends closes the corners where two edges meet. */
+            g.frect2(Coord.of(Math.min(s.a[i], s.a[i + 2]) - t, Math.min(s.a[i + 1], s.a[i + 3]) - t),
+                     Coord.of(Math.max(s.a[i], s.a[i + 2]) + t, Math.max(s.a[i + 1], s.a[i + 3]) + t));
+        }
+    }
+
+    /** A grid-local tile corner on screen, by the same sum renderOverlay uses for the fill. */
+    private static Coord screen(NMiniMap nmap, MiniMap.DisplayGrid disp, int x, int y, Coord hsz, int lvl, float scale) {
+        int step = 1 << lvl;
+        Coord tile = new Coord(disp.sc.x * MCache.cmaps.x * step + x * step,
+                               disp.sc.y * MCache.cmaps.y * step + y * step);
+        Coord2d sc = new Coord2d(UI.scale(tile)).mul(scale)
+            .sub(new Coord2d(nmap.dloc.tc.div(nmap.scalef()))).add(new Coord2d(hsz));
+        return new Coord((int)Math.round(sc.x), (int)Math.round(sc.y));
+    }
+
+    private static final java.util.Map<Color, Color> BRIGHT = new java.util.HashMap<>();
+
+    /** The claim's own hue, fully saturated and lit, at full opacity. */
+    private static Color bright(Color fill) {
+        Color c = BRIGHT.get(fill);
+        if (c == null) {
+            float[] hsb = Color.RGBtoHSB(fill.getRed(), fill.getGreen(), fill.getBlue(), null);
+            c = Color.getHSBColor(hsb[0], Math.max(hsb[1], 0.75f), 1f);
+            BRIGHT.put(fill, c);
+        }
+        return c;
     }
 
     /**

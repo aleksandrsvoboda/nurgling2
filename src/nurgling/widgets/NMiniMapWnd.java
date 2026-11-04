@@ -248,8 +248,9 @@ public class NMiniMapWnd extends Widget{
         buttons.add(eye);
 
         ACheckBox grid = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/grid", kb_grid, L10n.get("minimap.grid"));
-        grid.changed(a -> switchStatus("grid", a));
-        grid.a = (Boolean) NConfig.get(NConfig.Key.showGrid);
+        /* Read from the setting rather than kept in the button: the map window has a grid button too. */
+        grid.state(() -> (Boolean) NConfig.get(NConfig.Key.showGrid));
+        grid.set(a -> switchStatus("grid", a));
         buttons.add(grid);
 
         minesup = new NMenuCheckBox("nurgling/hud/buttons/toggle_panel/minesup", kb_minesup, L10n.get("minimap.mining_overlay"));

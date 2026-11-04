@@ -4,6 +4,7 @@ import haven.*;
 import haven.MapFile.Marker;
 import haven.MapFile.PMarker;
 import haven.MapFile.SMarker;
+import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.NUtils;
@@ -200,6 +201,16 @@ public class NMapWnd extends MapWnd {
             .state(() -> overlays.contains("realm"))
             .set(a -> toggleol("realm", a))
             .settip(L10n.get("mapwnd.provinces_tip"));
+        /* Show or hide all claims; which kinds show is still up to the QoL settings. */
+        bar.left(new BarButton("mapclaims"))
+            .state(() -> !Boolean.FALSE.equals(NConfig.get(NConfig.Key.mapClaimsShown)))
+            .set(a -> NConfig.set(NConfig.Key.mapClaimsShown, a))
+            .settip(L10n.get("mapwnd.claims_tip"));
+        /* The same setting as the minimap's grid button, so the two always agree. */
+        bar.left(new BarButton("mapgrid"))
+            .state(() -> (Boolean)NConfig.get(NConfig.Key.showGrid))
+            .set(a -> NConfig.set(NConfig.Key.showGrid, a))
+            .settip(L10n.get("mapwnd.grid_tip"));
         bar.separator();
 
         /* Finds. These drive the same settings as the Map Tools rows, so the button and the
@@ -959,7 +970,7 @@ public class NMapWnd extends MapWnd {
             int h = g.sz().y, mid = h / 2;
             try {
                 Tex icon = r.type.icon();
-                if(markcfg.filter(r.type))
+                if(markerhidden(r.m))
                     g.chcolor(255, 255, 255, 90);
                 g.aimage(icon, Coord.of(h / 2, mid), 0.5, 0.5);
                 g.chcolor();
@@ -1088,6 +1099,22 @@ public class NMapWnd extends MapWnd {
         }
         nurgling.timers.TimerPlacement.Spot spot = nurgling.timers.TimerPlacement.fromSegment(view.file, mark.seg, mark.tc);
         gui.showTimerPopover((spot == null) ? null : nurgling.widgets.timers.TimerPopover.newPin(gui, spot, mark.nm));
+    }
+
+    /**
+     * "Hide all" leaves thingwalls up: they are how you find your way to other provinces, and a
+     * map with every marker gone is otherwise useless for that. The per-kind picks in the list
+     * still hide them like anything else.
+     */
+    @Override
+    protected boolean markerhidden(Marker m) {
+        if(Utils.eq(markcfg, MarkerConfig.hideall) && isThingwall(m))
+            return(false);
+        return(super.markerhidden(m));
+    }
+
+    private static boolean isThingwall(Marker m) {
+        return((m instanceof SMarker) && nurgling.tools.NParser.checkName(((SMarker)m).res.name, "thingwall"));
     }
 
     /** Marker clicked on the map, or just placed: open the list on it. */
