@@ -2237,6 +2237,50 @@ NMiniMap extends MiniMap {
         zoomBy(in ? 1.3f : (1 / 1.3f));
     }
 
+    /* ------------------------------------------------------------ thingwall links */
+
+    /* Loftar's thingwall map icon (resource code, gfx/terobjs/mm/thingwall) draws a line to each
+     * neighbouring province's thingwall while it is hovered, and only in the map window. To show
+     * every link at once, each thingwall is held "hovered" through GobIcon.Icon.hover after the
+     * normal hover pass, which otherwise only marks the one under the cursor. */
+    private java.util.List<MarkerIcon> thingwalls = java.util.Collections.emptyList();
+    private int twMarkerSeq = -1, twFileSeq = -1;
+    private boolean twForced = false;
+
+    @Override
+    public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
+        boolean ret = super.mousehover(ev, hovering);
+        boolean all = Boolean.TRUE.equals(NConfig.get(NConfig.Key.showThingwallLinks))
+            && (getparent(MapWnd.class) != null);
+        /* Once more after turning it off, to let go of the ones held. */
+        if(all || twForced) {
+            holdThingwalls(all);
+            twForced = all;
+        }
+        return(ret);
+    }
+
+    private void holdThingwalls(boolean on) {
+        synchronized(markers) {
+            if((twMarkerSeq != markers.seq) || (twFileSeq != file.markerseq)) {
+                java.util.List<MarkerIcon> found = new java.util.ArrayList<>();
+                for(MarkerIcon mi : markers.known()) {
+                    if((mi.m instanceof MapFile.SMarker) && NParser.checkName(((MapFile.SMarker)mi.m).res.name, "thingwall"))
+                        found.add(mi);
+                }
+                thingwalls = found;
+                twMarkerSeq = markers.seq;
+                twFileSeq = file.markerseq;
+            }
+            for(MarkerIcon mi : thingwalls) {
+                try {
+                    mi.icon().hover(Coord.z, on);
+                } catch(Loading l) {
+                }
+            }
+        }
+    }
+
     /** True while the view keeps recentring on whatever it was told to follow. */
     public boolean following() {
         return(follow && (setloc != null));

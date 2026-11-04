@@ -211,6 +211,11 @@ public class NMapWnd extends MapWnd {
             .state(() -> (Boolean)NConfig.get(NConfig.Key.showGrid))
             .set(a -> NConfig.set(NConfig.Key.showGrid, a))
             .settip(L10n.get("mapwnd.grid_tip"));
+        /* Every thingwall's lines to its neighbouring provinces, not just the hovered one's. */
+        bar.left(new BarButton("mapthingwalls"))
+            .state(() -> Boolean.TRUE.equals(NConfig.get(NConfig.Key.showThingwallLinks)))
+            .set(a -> NConfig.set(NConfig.Key.showThingwallLinks, a))
+            .settip(L10n.get("mapwnd.thingwall_links_tip"));
         bar.separator();
 
         /* Finds. These drive the same settings as the Map Tools rows, so the button and the
