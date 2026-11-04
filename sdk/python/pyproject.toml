@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nurgling"
+version = "1.0.0"
+description = "Write Haven & Hearth bots in Python for the Nurgling2 client"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "LGPL-3.0" }
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Documentation = "https://aleksandrsvoboda.github.io/nurgling2/latest/"
+Source = "https://github.com/aleksandrsvoboda/nurgling2"
+
+[tool.setuptools.packages.find]
+include = ["nurgling*"]
+
+[tool.setuptools.package-data]
+nurgling = ["py.typed"]

@@ -74,7 +74,16 @@ public class BotExecutor {
      */
     public static Thread runWithSupports(String name, Action action,
                                          boolean disableStacks, Runnable onComplete) {
-        NUI boundUI = NUtils.getUI();
+        return runWithSupportsOn(NUtils.getUI(), name, action, disableStacks, onComplete);
+    }
+
+    /**
+     * {@link #runWithSupports} on an explicit session instead of the caller's. For callers that are
+     * not themselves bound to the target session, e.g. the scripting server. Must be called on that
+     * session's UI thread, since it adds the bot's row to the Bot Status strip.
+     */
+    public static Thread runWithSupportsOn(NUI boundUI, String name, Action action,
+                                           boolean disableStacks, Runnable onComplete) {
         NGameUI gui = (boundUI != null) ? boundUI.gui : null;
         if (gui == null) return null;
 
@@ -111,6 +120,24 @@ public class BotExecutor {
         }
         t.start();
         return t;
+    }
+
+    /**
+     * Starts an action's support threads bound to the calling thread's session, for code that runs
+     * an action inline on an existing bot thread (scripts, scenario-like runners). The caller must
+     * interrupt the returned threads when the action finishes.
+     */
+    public static List<Thread> startSupports(String name, Action action) {
+        NUI boundUI = NUtils.getUI();
+        NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+        List<Thread> res = new ArrayList<>();
+        if (gui == null) return res;
+        for (Action sup : action.getSupp()) {
+            Thread st = createSupportThread(name, sup, boundUI, gui);
+            res.add(st);
+            st.start();
+        }
+        return res;
     }
 
     /**

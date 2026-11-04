@@ -281,6 +281,14 @@
 	<include name="hafen-panama.jar" />
       </fileset>
     </copy>
+    <!-- The Python scripting SDK; the client puts it on PYTHONPATH for scripts it launches. -->
+    <copy todir="bin/scripting/sdk/nurgling">
+      <fileset dir="sdk/python/nurgling" includes="**/*.py,py.typed" excludes="**/__pycache__/**" />
+    </copy>
+    <!-- Example scripts shown in the bot menu's Scripts folder (Examples group); the docs include the same files. -->
+    <copy todir="bin/scripting/examples">
+      <fileset dir="docs/scripting/examples" includes="*.py,*.png" />
+    </copy>
     <copy file="etc/ansgar-config.properties" tofile="bin/haven-config.properties" />
     <chmod file="bin/hafen.jar" perm="a+x" />
   </target>
@@ -833,6 +841,14 @@
     <copy todir="release/" file="build/hafen.jar" />
     <copy todir="release/" file="etc/run.bat" />
     <copy todir="release/" file="etc/run8.bat" />
+    <!-- The Python scripting SDK; the client puts it on PYTHONPATH for scripts it launches. -->
+    <copy todir="release/scripting/sdk/nurgling">
+      <fileset dir="sdk/python/nurgling" includes="**/*.py,py.typed" excludes="**/__pycache__/**" />
+    </copy>
+    <!-- Example scripts shown in the bot menu's Scripts folder (Examples group); the docs include the same files. -->
+    <copy todir="release/scripting/examples">
+      <fileset dir="docs/scripting/examples" includes="*.py,*.png" />
+    </copy>
   </target>
 
   <target name="steam-release" depends="build-env, jar, extlib/jogl, extlib/lwjgl-vk">
@@ -862,5 +878,23 @@
 
   <!-- major.minor; CI appends the build number and the updater's publish step writes ver and manifest.json -->
   <property name="version.num" value="2.103"/>
+  <!-- Scripting API: export the op schema and the bot catalogue from the annotations, then
+       generate the Python SDK bindings and the reference docs from them (needs Python 3.9+). -->
+  <target name="api-schema" depends="jar">
+    <java classname="nurgling.scripting.SchemaExporter" fork="true" failonerror="true">
+      <classpath>
+        <pathelement location="build/hafen.jar" />
+        <path refid="client.classpath" />
+      </classpath>
+      <arg value="docs/scripting/schema" />
+    </java>
+  </target>
+
+  <target name="apigen" depends="api-schema">
+    <exec executable="python" failonerror="true">
+      <arg value="tools/apigen/apigen.py" />
+    </exec>
+  </target>
+
   <target name="release" depends="pre-release" />
 </project>

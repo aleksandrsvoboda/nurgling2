@@ -180,6 +180,9 @@ public class NRecentActionsPanel extends Widget {
                 } catch (Exception e) {
                     // Fall through to fallback
                 }
+            } else if (botPath != null && nurgling.actions.bots.registry.BotRegistry.byId(botPath) != null) {
+                // A user script: recorded by id, possibly with its own icon.
+                originalIcon = nurgling.actions.bots.registry.BotRegistry.byId(botPath).icon("u");
             } else if (botPath != null) {
                 try {
                     // Try to get the icon from bot resources

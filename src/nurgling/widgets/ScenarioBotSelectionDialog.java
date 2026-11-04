@@ -23,7 +23,7 @@ public class ScenarioBotSelectionDialog extends Window {
     public ScenarioBotSelectionDialog(java.util.function.Predicate<BotDescriptor> filter, java.util.function.Consumer<BotDescriptor> onSelect) {
         super(new Coord(ICON_SIZE * COLS + GRID_PADDING * 2, UI.scale(350)), L10n.get("botselect.title"));
 
-        List<BotDescriptor.BotType> groupOrder = List.of(RESOURCES, UTILS, PRODUCTIONS, FARMING, FARMING_QUALITY, ANIMALS);
+        List<BotDescriptor.BotType> groupOrder = List.of(RESOURCES, UTILS, PRODUCTIONS, FARMING, FARMING_QUALITY, ANIMALS, SCRIPTS);
         int contentWidth = ICON_SIZE * COLS + GRID_PADDING * 2;
         Widget contentPanel = new Widget(new Coord(contentWidth, 10000)); // Height will be fixed below
 
@@ -42,6 +42,7 @@ public class ScenarioBotSelectionDialog extends Window {
                 case ANIMALS: title = L10n.get("botselect.animals"); break;
                 case UTILS:    title = L10n.get("botselect.utils");     break;
                 case RESOURCES:    title = L10n.get("botselect.resources");     break;
+                case SCRIPTS:  title = L10n.get("botselect.scripts");   break;
                 default:       title = L10n.get("botselect.other");
             }
 
@@ -55,9 +56,9 @@ public class ScenarioBotSelectionDialog extends Window {
                 int col = i % COLS;
                 int row = i / COLS;
 
-                BufferedImage up    = padIcon(Resource.loadsimg(bot.getUpIconPath()), ICON_SIZE);
-                BufferedImage down  = padIcon(Resource.loadsimg(bot.getDownIconPath()), ICON_SIZE);
-                BufferedImage hover = padIcon(Resource.loadsimg(bot.getHoverIconPath()), ICON_SIZE);
+                BufferedImage up    = padIcon(bot.icon("u"), ICON_SIZE);
+                BufferedImage down  = padIcon(bot.icon("d"), ICON_SIZE);
+                BufferedImage hover = padIcon(bot.icon("h"), ICON_SIZE);
 
                 IButton btn = new IButton(up, down, hover) {
                     public void click() { onSelect.accept(bot); }

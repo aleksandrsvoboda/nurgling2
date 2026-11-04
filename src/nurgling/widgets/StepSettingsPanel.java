@@ -13,6 +13,7 @@ import nurgling.planning.PlanningFolder;
 import nurgling.planning.PlanningNode;
 import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.actions.bots.registry.BotRegistry;
+import nurgling.actions.bots.registry.ParamSpec;
 import nurgling.conf.NForagerProp;
 import nurgling.equipment.EquipmentPreset;
 import nurgling.i18n.L10n;
@@ -725,8 +726,151 @@ public class StepSettingsPanel extends Widget {
                 add(pilesBox, new Coord(UI.scale(8), y));
             }
         }
+        // Bots without an editor of their own (user scripts above all) get one built from their declared settings.
+        if (!hasAnySetting && !desc.params().isEmpty()) {
+            hasAnySetting = true;
+            addParamEditors(desc, y);
+        }
         if (!hasAnySetting) {
             add(new Label("No settings for this step."), new Coord(UI.scale(8), y));
+        }
+    }
+
+    /**
+     * One editor per declared setting: text entries for numbers and text, a checkbox for flags, a
+     * dropdown for choices and the saved-area picker for areas. Values go into the step's settings
+     * with the Java type the bot reads (Integer, Double, Boolean, String).
+     */
+    private void addParamEditors(BotDescriptor desc, int y) {
+        // A script's doc is the label its header gave; for a bot it is a sentence, so the name labels it.
+        boolean script = desc.type == BotDescriptor.BotType.SCRIPTS;
+        int x = UI.scale(8);
+        int w = UI.scale(160);
+        for (ParamSpec p : desc.params()) {
+            Object cur = step.getSetting(p.name);
+            if (cur == null) cur = desc.defaultSettings.get(p.name);
+            if (cur == null) cur = p.def;
+            String label = script ? p.doc : p.name;
+            if (p.type == ParamSpec.Type.BOOL) {
+                boolean on = (cur instanceof Boolean) && (Boolean) cur;
+                step.setSetting(p.name, on);
+                CheckBox box = new CheckBox(label) {
+                    @Override
+                    public void set(boolean a) {
+                        super.set(a);
+                        step.setSetting(p.name, a);
+                    }
+                };
+                box.a = on;
+                add(box, new Coord(x, y)).settip(p.doc);
+                y += UI.scale(26);
+                continue;
+            }
+            add(new Label(label), new Coord(x, y)).settip(p.doc);
+            y += UI.scale(20);
+            Widget editor;
+            switch (p.type) {
+                case ENUM:
+                    editor = choiceEditor(p, cur, w);
+                    break;
+                case AREA:
+                    editor = areaEditor(p, cur, w);
+                    break;
+                default:
+                    editor = textEditor(p, cur, w, script);
+            }
+            add(editor, new Coord(x, y));
+            y += editor.sz.y + UI.scale(10);
+        }
+    }
+
+    private Widget choiceEditor(ParamSpec p, Object cur, int w) {
+        List<String> values = p.values;
+        String selected = (cur != null && values.contains(String.valueOf(cur))) ? String.valueOf(cur) : (values.isEmpty() ? null : values.get(0));
+        NDropbox<String> box = new NDropbox<String>(w, Math.max(1, Math.min(values.size(), 10)), UI.scale(22)) {
+            @Override
+            protected String listitem(int i) { return values.get(i); }
+            @Override
+            protected int listitems() { return values.size(); }
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(item, Coord.z);
+            }
+            @Override
+            public void change(String item) {
+                super.change(item);
+                if (item != null) {
+                    step.setSetting(p.name, item);
+                }
+            }
+        };
+        if (selected != null) {
+            box.change(selected);
+        }
+        return box;
+    }
+
+    private Widget areaEditor(ParamSpec p, Object cur, int w) {
+        List<AreaPicker.Entry> areas = (NUtils.getGameUI() != null && NUtils.getGameUI().map != null)
+                ? AreaPicker.savedAreas() : Collections.<AreaPicker.Entry>emptyList();
+        if (areas.isEmpty()) {
+            return new Label(L10n.get("areamover.no_areas"));
+        }
+        int selected = (cur instanceof Number) ? ((Number) cur).intValue() : areas.get(0).id;
+        return new AreaPicker(w, areas, selected, id -> step.setSetting(p.name, id));
+    }
+
+    /** INT, FLOAT and STRING. Text that does not parse leaves the last good value in place. */
+    private Widget textEditor(ParamSpec p, Object cur, int w, boolean script) {
+        Object initial = typed(p, cur == null ? null : String.valueOf(cur));
+        // A bot's empty text default means "leave it out" (e.g. no preset = ask in the bot's window).
+        if (initial != null && !("".equals(initial) && !script)) {
+            step.setSetting(p.name, initial);
+        }
+        String text = (initial == null) ? "" : String.valueOf(initial);
+        return new TextEntry(w, text) {
+            @Override
+            protected void changed() {
+                String t = text().trim();
+                // Empty text means "not set": the bot uses its own default (a script asks for required values).
+                // A script's optional text setting keeps its empty value so the run does not stop to ask.
+                if (t.isEmpty() && !(script && p.type == ParamSpec.Type.STRING && !p.required())) {
+                    step.getSettings().remove(p.name);
+                    return;
+                }
+                Object v = typed(p, t);
+                if (v != null) {
+                    step.setSetting(p.name, v);
+                }
+            }
+        };
+    }
+
+    /** Parses text into the setting's Java type; null when it does not parse. */
+    private static Object typed(ParamSpec p, String text) {
+        if (text == null) return null;
+        String t = text.trim();
+        switch (p.type) {
+            case INT:
+                try {
+                    return Integer.valueOf(t);
+                } catch (NumberFormatException e) {
+                    try {
+                        // Saved steps may hold "12.0" for an int; keep it if it is whole.
+                        double d = Double.parseDouble(t);
+                        return (d == Math.rint(d) && Math.abs(d) <= Integer.MAX_VALUE) ? Integer.valueOf((int) d) : null;
+                    } catch (NumberFormatException e2) {
+                        return null;
+                    }
+                }
+            case FLOAT:
+                try {
+                    return Double.valueOf(t);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            default:
+                return text;
         }
     }
 

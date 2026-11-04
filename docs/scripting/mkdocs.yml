@@ -1,0 +1,123 @@
+site_name: Nurgling2 scripting
+site_description: Write Haven & Hearth bots in Python for the Nurgling2 client.
+site_url: https://aleksandrsvoboda.github.io/nurgling2/
+repo_url: https://github.com/aleksandrsvoboda/nurgling2
+repo_name: aleksandrsvoboda/nurgling2
+edit_uri: edit/master/docs/scripting/docs/
+docs_dir: docs
+site_dir: site
+copyright: Nurgling2 is a community client for Haven & Hearth. Not affiliated with Seatribe.
+
+extra_css:
+  - stylesheets/nurgling.css
+
+theme:
+  name: material
+  language: en
+  logo: assets/logo.png
+  favicon: assets/favicon.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Dark only, in the client's own colours (docs/stylesheets/nurgling.css).
+    scheme: nurgling
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+
+extra:
+  version:
+    provider: mike          # version selector: one entry per API minor version (1.0, 1.1, ...)
+    default: latest
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      base_path: [docs, examples]
+      check_paths: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Concepts: concepts.md
+  - Guides:
+      - "Developing: edit, run, repeat": guides/developing.md
+      - Script header, icon and tooltip: guides/script-header.md
+      - Running the client's bots: guides/running-bots.md
+      - Raw UI (layer 3): guides/raw-ui.md
+      - Java layer (layer 4): guides/java-layer.md
+      - Several characters: guides/multi-session.md
+      - Forms and overlays: guides/script-ui.md
+      - Security: guides/security.md
+  - Cookbook:
+      - cookbook/index.md
+      - Take from a container: cookbook/take-from-container.md
+      - Chop trees: cookbook/chop-trees.md
+      - Store your inventory: cookbook/store-inventory.md
+      - Bots in sequence: cookbook/bot-chain.md
+      - Form and overlays: cookbook/form-and-overlays.md
+      - React to events: cookbook/events.md
+      - Two characters: cookbook/two-characters.md
+      - Java action: cookbook/java-action.md
+  - Reference:
+      - reference/index.md
+      - Core: reference/core.md
+      - Sessions: reference/sessions.md
+      - Runs: reference/runs.md
+      - This run: reference/run.md
+      - Events: reference/events.md
+
+      - Bots: reference/bots.md
+      - Scenarios: reference/scenarios.md
+      - Player: reference/player.md
+      - Game objects: reference/gobs.md
+      - Inventories: reference/inv.md
+      - Equipment: reference/equip.md
+      - Windows: reference/windows.md
+      - Areas: reference/areas.md
+      - Map: reference/map.md
+      - Chat: reference/chat.md
+      - Actions: reference/actions.md
+      - Crafting: reference/craft.md
+      - Waits: reference/wait.md
+      - Combat: reference/combat.md
+      - Forms: reference/form.md
+      - Overlays: reference/overlay.md
+      - Widgets: reference/ui.md
+      - Raw input: reference/raw.md
+      - Java (unstable): reference/java.md
+      - Snapshot types: reference/types.md
+      - Errors: reference/errors.md
+      - Bot catalogue: reference/bot-catalogue.md
+  - Protocol: protocol.md
+  - Stability & changelog: stability.md

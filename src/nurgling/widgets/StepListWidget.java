@@ -60,7 +60,7 @@ public class StepListWidget extends Widget {
                     if (desc != null) {
                         botId = desc.getDisplayName();
                         try {
-                            BufferedImage iconImg = Resource.loadsimg(desc.getUpIconPath());
+                            BufferedImage iconImg = desc.icon("u");
                             if (iconImg != null)
                                 iconTex = new TexI(iconImg);
                         } catch (Exception e) {
@@ -69,7 +69,7 @@ public class StepListWidget extends Widget {
                     }
 
                     // Mark ✪ for bots that have settings
-                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id) || "gate".equals(desc.id) || "set_speed".equals(desc.id) || "area_mover".equals(desc.id));
+                    boolean hasSettings = desc != null && ("goto_area".equals(desc.id) || "forager".equals(desc.id) || "gate".equals(desc.id) || "set_speed".equals(desc.id) || "area_mover".equals(desc.id) || !desc.params().isEmpty());
                     String marker = hasSettings ? " ✪" : "";
                     Label label = new Label(botId + marker);
 

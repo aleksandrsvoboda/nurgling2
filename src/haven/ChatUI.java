@@ -152,6 +152,8 @@ public class ChatUI extends Widget
 	 * Returns false when the line was a ping and must not be printed.
 	 */
 	public boolean process(String msg, Color col, String sender) {
+			if((ui != null) && nurgling.scripting.ScriptEvents.wanted(ui, "chat.msg"))
+				nurgling.scripting.ops.ChatOps.publishLine(this, msg, sender);
 			// @<gobid> - highlight one object
 			Matcher matcher = gobpat.matcher(msg);
 			if (matcher.matches()) {

@@ -41,7 +41,8 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             BotDescriptor.BotType.ANIMALS,
             BotDescriptor.BotType.UTILS,
             BotDescriptor.BotType.BUILD,
-            BotDescriptor.BotType.TOOLS
+            BotDescriptor.BotType.TOOLS,
+            BotDescriptor.BotType.SCRIPTS
     );
     private static final Map<BotDescriptor.BotType, String> FOLDER_ICON = Map.of(
             BotDescriptor.BotType.RESOURCES, "resources",
@@ -52,7 +53,8 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             BotDescriptor.BotType.ANIMALS, "animals",
             BotDescriptor.BotType.UTILS, "utils",
             BotDescriptor.BotType.BUILD, "build",
-            BotDescriptor.BotType.TOOLS, "tools"
+            BotDescriptor.BotType.TOOLS, "tools",
+            BotDescriptor.BotType.SCRIPTS, "scripts"
     );
 
     private static final Color GOLD = new Color(242, 201, 76);
@@ -109,6 +111,10 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
     private UI.Grab renameKeys = null, renameMouse = null;
 
     public NBotsMenu() {
+        // Every game UI builds a bot menu, whatever started the client (MainFrame, headless, the simulator):
+        // make sure user scripts are registered and the scripting server runs if it is enabled.
+        nurgling.scripting.ScriptRuntime.startIfEnabled();
+        nurgling.scripting.ScriptCatalog.refresh();
         for (BotDescriptor bot : BotRegistry.allowedInBotMenu()) {
             NButton b = (bot.clazz == CatchBugsAround.class)
                     ? new NToggleNButton(bot, bot.instantiate(Map.of()))
@@ -123,6 +129,20 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
         buildRail();
         sz = stripSz();
         favs.sync();
+    }
+
+    /** Re-reads the Scripts folder from the registry, after ScriptCatalog.refresh() found new or removed scripts. */
+    public void syncScripts() {
+        buttons.removeIf(b -> b.bot.type == BotDescriptor.BotType.SCRIPTS);
+        byId.values().removeIf(b -> b.bot.type == BotDescriptor.BotType.SCRIPTS);
+        for (BotDescriptor bot : BotRegistry.allowedInBotMenu()) {
+            if (bot.type != BotDescriptor.BotType.SCRIPTS)
+                continue;
+            NButton b = new NButton(bot, bot.instantiate(Map.of()));
+            buttons.add(b);
+            byId.put(bot.id, b);
+        }
+        dirty = true;
     }
 
     private static boolean isDebug() {
@@ -381,9 +401,14 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
     private void buildRail() {
         rail.clear();
         rail.add(FAV);
-        for (int i = 0; i < folders.size(); i++)
-            if (debug || folders.get(i).type != BotDescriptor.BotType.TOOLS)
-                rail.add(i);
+        for (int i = 0; i < folders.size(); i++) {
+            BotDescriptor.BotType t = folders.get(i).type;
+            if (t == BotDescriptor.BotType.TOOLS && !debug)
+                continue;
+            if (t == BotDescriptor.BotType.SCRIPTS && !nurgling.scripting.ScriptRuntime.enabled())
+                continue;
+            rail.add(i);
+        }
         stripLen = rail.size() * ROW + 2 * PAD;
     }
 
@@ -969,11 +994,28 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             this.path = bot.iconPath;
             this.disStacks = bot.disStacks;
             Resource res = Resource.remote().loadwait(dir_path + path + "/u");
-            btn = new IButton(Resource.loadsimg(dir_path + path + "/u"), Resource.loadsimg(dir_path + path + "/d"), Resource.loadsimg(dir_path + path + "/h")) {
+            btn = new IButton(bot.icon("u"), bot.icon("d"), bot.icon("h")) {
                 TexI rtip;
 
                 @Override
                 public Object tooltip(Coord c, Widget prev) {
+                    if (rtip == null && (res.layers(Resource.Tooltip.class) == null || res.layers(Resource.Tooltip.class).isEmpty())) {
+                        // No tooltip in the icon resource (user scripts share one): name and description from the bot.
+                        List<ItemInfo> info = new ArrayList<>();
+                        String title = bot.getDisplayName();
+                        info.add(new ItemInfo.Tip(null) {
+                            @Override
+                            public BufferedImage tipimg() {
+                                return Text.render(title).img;
+                            }
+                        });
+                        String desc = bot.getDescription();
+                        if (desc != null && !desc.isEmpty() && !desc.equals(title))
+                            info.add(new ItemInfo.Pagina(null, desc));
+                        BufferedImage img = ItemInfo.longtip(info);
+                        if (img != null)
+                            rtip = new TexI(img);
+                    }
                     if (rtip == null && res.layers(Resource.Tooltip.class) != null) {
                         List<ItemInfo> info = new ArrayList<>();
                         int count = 0;
@@ -1013,8 +1055,10 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
             NUI boundUI = NUtils.getUI();
             NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
+            // Scripts share one icon path, so they are told apart by id in the recent actions too.
+            String recentKey = (bot.type == BotDescriptor.BotType.SCRIPTS) ? bot.id : path;
             if (gui != null && gui.recentActionsPanel != null) {
-                gui.recentActionsPanel.addBotAction(path, action);
+                gui.recentActionsPanel.addBotAction(recentKey, action);
             }
 
             Runnable onComplete = () -> {
@@ -1024,7 +1068,9 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
                 }
             };
 
-            BotExecutor.runWithSupports(path, action, disStacks, onComplete);
+            // Scripts share one icon, so their thread is named by id for the Bot Status strip to find their title.
+            String name = (bot.type == BotDescriptor.BotType.SCRIPTS) ? bot.id : path;
+            BotExecutor.runWithSupports(name, action, disStacks, onComplete);
         }
     }
 

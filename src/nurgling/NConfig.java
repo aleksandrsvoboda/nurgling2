@@ -157,6 +157,11 @@ public class NConfig
         verboseCal,
         pluginsAllowUnsigned,  // Dev only: load external plugin jars without signature verification
         pluginsDir,            // Optional override for the plugin drop-folder (default: "plugins")
+        scriptingEnabled,      // Starts the localhost scripting server (Python bots); off by default
+        scriptingPort,         // Scripting server port; 0 = pick a free one at each launch
+        scriptingPython,       // Python interpreter for client-launched scripts; "" = auto-detect
+        scriptingDir,          // Optional override for the scripts folder (default: "scripts")
+        scriptingWarned,       // The "scripts run with your permissions" warning was acknowledged
         highlightRockTiles,
         preferredMovementSpeed,
         preferredHorseSpeed,
@@ -357,6 +362,11 @@ public class NConfig
         conf.put(Key.hideBoxLineWidth, 4);
         conf.put(Key.hideBoxDisplayMode, "FILLED");
         conf.put(Key.pluginsAllowUnsigned, false);  // default: only load signed plugins
+        conf.put(Key.scriptingEnabled, false);
+        conf.put(Key.scriptingPort, 0);
+        conf.put(Key.scriptingPython, "");
+        conf.put(Key.scriptingDir, "");
+        conf.put(Key.scriptingWarned, false);
         conf.put(Key.invert_hor, false);
         conf.put(Key.invert_ver, false);
         conf.put(Key.show_drag_menu, true);
