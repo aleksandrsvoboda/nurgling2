@@ -834,6 +834,9 @@
     <copy todir="release/" file="build/hafen.jar" />
     <copy todir="release/" file="etc/run.bat" />
     <copy todir="release/" file="etc/run8.bat" />
+    <copy todir="release/" file="etc/webhost.bat" />
+    <copy todir="release/" file="etc/webhost.sh" />
+    <copy todir="release/" file="etc/webhost.command" />
   </target>
 
   <target name="steam-release" depends="build-env, jar, extlib/jogl, extlib/lwjgl-vk">

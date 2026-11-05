@@ -1,0 +1,3 @@
+etc/webhost.bat text eol=crlf
+etc/webhost.sh text eol=lf
+etc/webhost.command text eol=lf
