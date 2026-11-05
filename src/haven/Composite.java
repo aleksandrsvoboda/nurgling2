@@ -49,16 +49,18 @@ public class Composite extends Drawable implements EquipTarget {
     private WrapMode tpmode;
 
 	public String current_pose;
+    private final CompCard card;
 
     public Composite(Gob gob, Indir<Resource> base) {
 	super(gob);
 	this.base = base;
 	this.baseres = base.get();
 	comp = new Composited(baseres.layer(Skeleton.Res.class).s, gob);
+	card = CompCard.of(this);
     }
     
     public void added(RenderTree.Slot slot) {
-	slot.add(comp);
+	slot.add((card != null) ? card : comp);
 	super.added(slot);
     }
 
@@ -132,6 +134,8 @@ public class Composite extends Drawable implements EquipTarget {
 	    updequ();
 	}
 	comp.tick(dt);
+	if(card != null)
+	    card.tick(dt);
     }
 
     public void gtick(Render g) {

@@ -49,6 +49,7 @@ public class QoL extends Panel {
     private CheckBox showVillageClaims;
     private CheckBox showRealmOverlays;
     private CheckBox disableDrugEffects;
+    private CheckBox disableEasterEggs;
     private CheckBox simpleInspect;
     private CheckBox alwaysObfuscate;
     private CheckBox randomAreaColor;
@@ -371,6 +372,10 @@ public class QoL extends Panel {
         rightPrev = rightColumn.add(new Label(L10n.get("qol.storage_duration")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = temsmarktimeEntry = rightColumn.add(new TextEntry.NumberValue(50, ""), rightPrev.pos("bl").adds(0, 5));
 
+        // Last in the column so that, while hidden, it leaves no gap. Only shown once one has been seen.
+        rightPrev = disableEasterEggs = rightColumn.add(new CheckBox(L10n.get("qol.disable_easter_eggs")), rightPrev.pos("bl").adds(0, 15));
+        disableEasterEggs.hide();
+
         // Pack columns and update content
         leftColumn.pack();
         rightColumn.pack();
@@ -384,6 +389,12 @@ public class QoL extends Panel {
 
     @Override
     public void load() {
+        disableEasterEggs.a = getBool(NConfig.Key.disableEasterEggs);
+        if(disableEasterEggs.show(getBool(NConfig.Key.easterEggSeen))) {
+            rightColumn.pack();
+            content.pack();
+            scrollport.cont.update();
+        }
         showCropStage.a = getBool(NConfig.Key.showCropStage);
         simpleCrops.a = getBool(NConfig.Key.simplecrops);
         nightVision.a = getBool(NConfig.Key.nightVision);
@@ -526,6 +537,8 @@ public class QoL extends Panel {
 
     @Override
     public void save() {
+        if(disableEasterEggs.visible)
+            NConfig.set(NConfig.Key.disableEasterEggs, disableEasterEggs.a);
         NConfig.set(NConfig.Key.showCropStage, showCropStage.a);
         NConfig.set(NConfig.Key.simplecrops, simpleCrops.a);
         NConfig.set(NConfig.Key.nightVision, nightVision.a);

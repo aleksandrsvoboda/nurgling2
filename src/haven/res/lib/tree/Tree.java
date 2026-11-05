@@ -18,6 +18,7 @@ public class Tree extends Sprite {
     public final RenderTree.Node[][] parts;
     public int stage, sel;
     public LeafSpec leaves = null;
+    private final TreeCard card;
     private final Collection<RenderTree.Slot> slots = new ArrayList<>();
 
     public static Location mkscale(float x, float y, float z) {
@@ -107,6 +108,7 @@ public class Tree extends Sprite {
 	}
 	parts = mkparts(res, s, fl);
 	sel = s;
+	card = TreeCard.of(this, res);
     }
 
     private static final haven.res.lib.tree.Factory deffac = new haven.res.lib.tree.Factory();
@@ -116,8 +118,11 @@ public class Tree extends Sprite {
     }
 
     public void added(RenderTree.Slot slot) {
-	for(RenderTree.Node p : parts[stage])
-	    slot.add(p);
+	if(card != null)
+	    slot.add(card);
+	else
+	    for(RenderTree.Node p : parts[stage])
+		slot.add(p);
 	slots.add(slot);
     }
 
@@ -128,6 +133,8 @@ public class Tree extends Sprite {
     private Random lrand;
     private double lrate;
     public boolean tick(double dt) {
+	if((card != null) && card.tick())
+	    return(false);
 	leaves: if(leaves != null) {
 	    if(lrand == null) {
 		lrand = new Random();
