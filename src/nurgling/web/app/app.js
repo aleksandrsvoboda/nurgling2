@@ -174,12 +174,12 @@ function resize() {
   cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
   cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  document.body.classList.toggle('phone', innerWidth <= 700);
+  document.body.classList.toggle('is-phone', innerWidth <= 700);
 }
 addEventListener('resize', resize);
 if (window.visualViewport) visualViewport.addEventListener('resize', resize);
 resize();
-const isphone = () => document.body.classList.contains('phone');
+const isphone = () => document.body.classList.contains('is-phone');
 /* Things phones hide until switched on under More; remembered per device. */
 for (const f of ['belts', 'beltinv']) if (localStorage.getItem('nurgling.show.' + f) === 'on') document.body.classList.add('show-' + f);
 

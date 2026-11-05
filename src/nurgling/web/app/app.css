@@ -164,32 +164,32 @@ input { font: inherit; color: var(--ink); background: rgba(0,0,0,.45); border: 1
 #chars button { padding: 10px; font-size: 14px; }
 
 /* Phones: windows become full-width sheets stacked at the bottom. */
-/* Phones (body.phone, set from the width): fewer things on screen, bigger targets. */
-body.phone .desk { display: none !important; }
-body.phone .phone { display: flex !important; }
-body.phone #bar button.phone { display: inline-block !important; }
-body.phone #bar { bottom: calc(4px + env(safe-area-inset-bottom)); gap: 4px; padding: 4px; }
-body.phone #bar button { min-width: 48px; height: 42px; font-size: 18px; padding: 0 6px; }
-body.phone #cal, body.phone #speed, body.phone #sessions { display: none !important; }
-body.phone:not(.show-belts) #belts, body.phone:not(.show-beltinv) #beltinv { display: none !important; }
-body.phone #belts { bottom: calc(56px + env(safe-area-inset-bottom)); }
-body.phone .bslot { width: 34px; height: 34px; }
-body.phone #beltinv { bottom: calc(100px + env(safe-area-inset-bottom)); left: 54px; }
-body.phone #topright { right: 4px; top: calc(4px + env(safe-area-inset-top)); }
-body.phone #minimap { width: 130px; height: 130px; }
-body.phone #hud { left: 4px; top: calc(4px + env(safe-area-inset-top)); }
-body.phone .meter .bar { width: 80px; height: 9px; }
-body.phone .meter img { width: 16px; height: 16px; }
-body.phone .buff { width: 22px; height: 22px; }
+/* Phones (body.is-phone, set from the width): fewer things on screen, bigger targets. */
+body.is-phone .desk { display: none !important; }
+body.is-phone .phone { display: flex !important; }
+body.is-phone #bar button.phone { display: inline-block !important; }
+body.is-phone #bar { bottom: calc(4px + env(safe-area-inset-bottom)); gap: 4px; padding: 4px; }
+body.is-phone #bar button { min-width: 48px; height: 42px; font-size: 18px; padding: 0 6px; }
+body.is-phone #cal, body.is-phone #speed, body.is-phone #sessions { display: none !important; }
+body.is-phone:not(.show-belts) #belts, body.is-phone:not(.show-beltinv) #beltinv { display: none !important; }
+body.is-phone #belts { bottom: calc(56px + env(safe-area-inset-bottom)); }
+body.is-phone .bslot { width: 34px; height: 34px; }
+body.is-phone #beltinv { bottom: calc(100px + env(safe-area-inset-bottom)); left: 54px; }
+body.is-phone #topright { right: 4px; top: calc(4px + env(safe-area-inset-top)); }
+body.is-phone #minimap { width: 130px; height: 130px; }
+body.is-phone #hud { left: 4px; top: calc(4px + env(safe-area-inset-top)); }
+body.is-phone .meter .bar { width: 80px; height: 9px; }
+body.is-phone .meter img { width: 16px; height: 16px; }
+body.is-phone .buff { width: 22px; height: 22px; }
 /* Windows: a sheet above the bar, only as wide as its content (scaled down to fit), one at a time. */
-body.phone .win { left: 50% !important; top: auto !important; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); max-width: calc(100vw - 8px); max-height: 55vh; overflow-y: auto; overflow-x: hidden; }
-body.phone .win:not(.front) { display: none; }
-body.phone .win > .cap { cursor: default; padding: 6px 4px 6px 10px; }
-body.phone .win > .cap button { min-width: 40px; height: 32px; font-size: 18px; }
-body.phone #wintabs { display: flex; position: fixed; left: 4px; right: 4px; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 14; gap: 4px; overflow-x: auto; }
-body.phone #wintabs button { flex: none; padding: 6px 10px; font-size: 12px; }
-body.phone .panel > .cap button { min-width: 40px; height: 32px; font-size: 18px; }
-body.phone #chat { left: 4px; right: 4px; width: auto; bottom: calc(56px + env(safe-area-inset-bottom)); height: 45vh; }
-body.phone #bots, body.phone #actions, body.phone #chr { left: 4px; right: 4px; width: auto; top: calc(4px + env(safe-area-inset-top)); max-height: calc(100vh - 70px); }
-body.phone #fight { bottom: calc(56px + env(safe-area-inset-bottom)); }
-body.phone #flower button { padding: 10px 16px; font-size: 15px; }
+body.is-phone .win { left: 50% !important; top: auto !important; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); max-width: calc(100vw - 8px); max-height: 55vh; overflow-y: auto; overflow-x: hidden; }
+body.is-phone .win:not(.front) { display: none; }
+body.is-phone .win > .cap { cursor: default; padding: 6px 4px 6px 10px; }
+body.is-phone .win > .cap button { min-width: 40px; height: 32px; font-size: 18px; }
+body.is-phone #wintabs { display: flex; position: fixed; left: 4px; right: 4px; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 14; gap: 4px; overflow-x: auto; }
+body.is-phone #wintabs button { flex: none; padding: 6px 10px; font-size: 12px; }
+body.is-phone .panel > .cap button { min-width: 40px; height: 32px; font-size: 18px; }
+body.is-phone #chat { left: 4px; right: 4px; width: auto; bottom: calc(56px + env(safe-area-inset-bottom)); height: 45vh; }
+body.is-phone #bots, body.is-phone #actions, body.is-phone #chr { left: 4px; right: 4px; width: auto; top: calc(4px + env(safe-area-inset-top)); max-height: calc(100vh - 70px); }
+body.is-phone #fight { bottom: calc(56px + env(safe-area-inset-bottom)); }
+body.is-phone #flower button { padding: 10px 16px; font-size: 15px; }
