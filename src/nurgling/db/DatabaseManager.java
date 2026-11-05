@@ -278,10 +278,19 @@ public class DatabaseManager {
     /**
      * Initialize database manager with connection pool and services
      */
+    /** The last start could not reach the database at all (as opposed to being refused by it). */
+    private volatile boolean connectFailed = false;
+
+    /** True when the database could not be reached at the last start, so trying again may help. */
+    public boolean failedToConnect() {
+        return connectFailed;
+    }
+
     private synchronized void initialize() {
         if (initialized) {
             return;
         }
+        connectFailed = false;
 
         if (!(Boolean) NConfig.get(NConfig.Key.ndbenable)) {
             return;
@@ -355,6 +364,7 @@ public class DatabaseManager {
                 }
             } else {
                 System.err.println("Failed to initialize DatabaseManager: cannot get database connection");
+                connectFailed = true;
             }
         } catch (Exception e) {
             /* The remaining way a first-time setup dies: the account can reach the database but may
@@ -367,6 +377,9 @@ public class DatabaseManager {
                     java.awt.Color.ORANGE);
             }
             System.err.println("Failed to initialize DatabaseManager: " + e.getMessage());
+            /* SQL state class 08 = connection exception: the server was not reachable. */
+            if (e instanceof SQLException && (((SQLException) e).getSQLState() != null) && ((SQLException) e).getSQLState().startsWith("08"))
+                connectFailed = true;
             e.printStackTrace();
         }
     }

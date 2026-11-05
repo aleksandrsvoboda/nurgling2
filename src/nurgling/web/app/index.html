@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f2a2a">
+<title>Nurgling</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app/app.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+<div id="hud">
+  <div id="meters"></div>
+  <div id="buffs"></div>
+  <div id="prog" class="hidden"><div></div></div>
+  <div id="banner" class="hidden"></div>
+</div>
+<div id="sessions" class="hidden"></div>
+<div id="topright">
+  <div id="cal" class="hidden"></div>
+  <div id="speed" class="hidden"></div>
+  <div id="mmwrap"><canvas id="minimap" width="180" height="180"></canvas><button id="mmtoggle" title="Minimap">🗺</button></div>
+</div>
+<div id="beltinv" class="hidden"></div>
+<div id="belts" class="hidden"><button id="beltprev">‹</button><div id="beltslots"></div><button id="beltnext">›</button><span id="beltpage"></span></div>
+<div id="windows"></div>
+<div id="wintabs"></div>
+<div id="flower" class="hidden"></div>
+<div id="hand" class="hidden"></div>
+<div id="toasts"></div>
+
+<div id="bar">
+  <button data-act="inv" title="Inventory">🎒</button>
+  <button data-act="equ" title="Equipment">🛡</button>
+  <button data-act="chr" title="Character">👤</button>
+  <button data-act="menu" title="Actions (build, craft, adventure…)">📜</button>
+  <button data-act="bots" title="Bots">🤖</button>
+  <button data-act="chat" title="Chat">💬</button>
+  <button data-act="game" title="Game menu">☰</button>
+  <span class="sep"></span>
+  <button data-mod="1" title="Shift for the next click">⇧</button>
+  <button data-mod="2" title="Ctrl for the next click">Ctrl</button>
+  <button data-mod="4" title="Alt for the next click">Alt</button>
+  <span class="sep"></span>
+  <button data-act="pf" title="Walk with nurgling's pathfinder">PF</button>
+  <button data-act="follow" title="Follow my character" class="on">◎</button>
+</div>
+
+<div id="chat" class="panel hidden">
+  <div class="cap"><span>Chat</span><button data-close="chat">×</button></div>
+  <div id="chattabs"></div>
+  <div id="chatlog"></div>
+  <form id="chatform"><input id="chatin" autocomplete="off" placeholder="Say something"><button>Send</button></form>
+</div>
+
+<div id="actions" class="panel hidden">
+  <div class="cap"><span>Actions</span><button data-close="actions">×</button></div>
+  <div id="actpath"></div>
+  <div id="actgrid"></div>
+</div>
+
+<div id="chr" class="panel hidden">
+  <div class="cap"><span>Character</span><button data-close="chr">×</button></div>
+  <div id="chrbody"></div>
+</div>
+
+<div id="fight" class="hidden">
+  <div id="fightcd"><div></div></div>
+  <div id="fightacts"></div>
+  <div id="fightrels"></div>
+</div>
+
+<div id="placebar" class="hidden">
+  <span id="placename"></span>
+  <button data-place="rl" title="Turn left">⟲</button>
+  <button data-place="rr" title="Turn right">⟳</button>
+  <button data-place="ok">Place</button>
+  <button data-place="no">Cancel</button>
+</div>
+
+<div id="bots" class="panel hidden">
+  <div class="cap"><span>Bots</span><button data-close="bots">×</button></div>
+  <div id="botruns"></div>
+  <input id="botfilter" placeholder="Find a bot" autocomplete="off">
+  <div id="botlist"></div>
+</div>
+
+<div id="game" class="panel hidden">
+  <div class="cap"><span>Game</span><button data-close="game">×</button></div>
+  <div class="gamebtns">
+    <button data-game="chars">Switch character</button>
+    <button data-game="logout">Log out / switch account</button>
+  </div>
+</div>
+
+<div id="charlist" class="modal hidden"><div class="box"><h2>Choose a character</h2><div id="chars"></div><div class="row2"><button data-game="logout">Log out / switch account</button></div></div></div>
+<div id="conn" class="modal"><div class="box"><h2>Connecting…</h2><p id="connmsg"></p></div></div>
+<script src="app/app.js"></script>
+</body>
+</html>

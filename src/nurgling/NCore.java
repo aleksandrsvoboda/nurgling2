@@ -385,6 +385,34 @@ public class NCore extends Widget
             }
         }
 
+        /* A database that could not be reached at start (VPN down, server briefly away) was never
+         * retried: no areas or plans for the whole session. Try again every 30 s, off the UI
+         * thread; a database that refused us for another reason is left alone. */
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !databaseManager.isReady()
+           && databaseManager.failedToConnect() && !dbRetrying && (System.currentTimeMillis() - lastDbRetry > 30000))
+        {
+            lastDbRetry = System.currentTimeMillis();
+            dbRetrying = true;
+            nurgling.db.DatabaseManager dbm = databaseManager;
+            Thread rt = new Thread(() -> {
+                try {
+                    dbm.reconnect();
+                } finally {
+                    dbRetrying = false;
+                }
+            }, "DB reconnect");
+            rt.setDaemon(true);
+            rt.start();
+        }
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !areaSyncStarted)
+        {
+            startAreaSync();
+        }
+        if((Boolean) NConfig.get(NConfig.Key.ndbenable) && databaseManager != null && !planningSyncStarted)
+        {
+            startPlanningSync();
+        }
+
         /* The database may not have been ready at the moment it was constructed (a slow or briefly
          * unreachable server), in which case the start above was a no-op. Retry until it takes; the
          * started flag makes this free once sync is running. */
@@ -1012,6 +1040,8 @@ public class NCore extends Widget
 
     private static volatile boolean areaSyncStarted = false;
     private static volatile boolean planningSyncStarted = false;
+    private static volatile boolean dbRetrying = false;
+    private static volatile long lastDbRetry = 0;
     private static volatile boolean todoSyncStarted = false;
     private static volatile boolean fishSyncStarted = false;
     private static volatile boolean routeSyncStarted = false;

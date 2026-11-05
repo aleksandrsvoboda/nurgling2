@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nurgling Web</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app/app.css">
+<style>
+  body { overflow: auto; display: flex; align-items: flex-start; justify-content: center; min-height: 100%; background: #0d1d1e; padding: 24px 0; }
+  .card { background: var(--bg); border: 1px solid var(--teal); padding: 20px 22px; width: min(400px, 92vw); }
+  h1 { margin: 0 0 4px; color: var(--orange); font-size: 20px; }
+  h2 { margin: 18px 0 8px; color: var(--orange); font-size: 13px; text-transform: uppercase; }
+  p { margin: 0 0 12px; opacity: .8; }
+  label { display: block; margin: 10px 0 3px; }
+  input { width: 100%; padding: 8px; font-size: 15px; }
+  .row { display: flex; gap: 8px; margin-top: 12px; }
+  .row button { flex: 1; padding: 9px; font-size: 14px; }
+  #msg { margin-top: 12px; min-height: 1.3em; }
+  #msg.err { color: #f99; }
+  .acc { display: flex; gap: 6px; margin-bottom: 6px; }
+  .acc .play { flex: 1; text-align: left; padding: 11px 12px; font-size: 15px; }
+  .acc .play small { float: right; color: var(--orange); font-size: 11px; margin-top: 2px; }
+  .acc .stop { padding: 0 10px; }
+  details summary { cursor: pointer; color: var(--orange); margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Nurgling Web</h1>
+  <p>Play from this network in a browser. Your character runs on the PC and keeps running, with its bots, when you close the page.</p>
+
+  <form id="pinform">
+    <label for="pin">Host PIN <span style="opacity:.6">(shown in the web host window on the PC)</span></label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off" required>
+    <div class="row"><button>Unlock</button></div>
+  </form>
+
+  <div id="main" class="hidden">
+    <h2>Saved accounts</h2>
+    <div id="accounts"></div>
+    <details id="other">
+      <summary>Another account</summary>
+      <form id="f">
+        <label for="acct">Account</label><input id="acct" autocomplete="username" required>
+        <label for="pass">Password <span style="opacity:.6">(remembered afterwards, like "Remember me")</span></label><input id="pass" type="password" autocomplete="current-password" required>
+        <div class="row"><button>Play</button></div>
+      </form>
+    </details>
+    <div class="row"><button type="button" id="lock">Forget the PIN on this device</button></div>
+  </div>
+  <div id="msg"></div>
+</div>
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+const msg = (t, err) => { const m = $('#msg'); m.textContent = t || ''; m.className = err ? 'err' : ''; };
+let PIN = localStorage.getItem('nurgling.hostpin') || '';
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ pin: PIN }, body)) });
+  return r.json();
+}
+async function play(acct, pass) {
+  msg('Starting ' + acct + '… (logging in can take up to a minute)');
+  document.querySelectorAll('button').forEach((b) => b.disabled = true);
+  try {
+    const r = await post('api/login', { acct, pass: pass || '' });
+    if (!r.ok) { msg(r.err, true); return; }
+    location.href = r.url;
+  } catch (e) { msg('The host did not answer.', true); }
+  finally { document.querySelectorAll('button').forEach((b) => b.disabled = false); }
+}
+async function load() {
+  const r = await post('api/accounts', {});
+  if (!r.ok) { localStorage.removeItem('nurgling.hostpin'); $('#pinform').classList.remove('hidden'); $('#main').classList.add('hidden'); msg(r.err, true); return; }
+  localStorage.setItem('nurgling.hostpin', PIN);
+  $('#pinform').classList.add('hidden'); $('#main').classList.remove('hidden');
+  if (!r.accounts.length) { $('#accounts').textContent = 'No saved accounts in the client yet.'; $('#other').open = true; }
+  else $('#accounts').replaceChildren(...r.accounts.map((a) => {
+    const row = document.createElement('div'); row.className = 'acc';
+    const b = document.createElement('button'); b.className = 'play'; b.textContent = a.name;
+    if (a.running) { const s = document.createElement('small'); s.textContent = 'running'; b.appendChild(s); }
+    b.onclick = () => play(a.name);
+    row.appendChild(b);
+    if (a.running) {
+      const st = document.createElement('button'); st.className = 'stop'; st.textContent = 'Stop'; st.title = 'Log this character out';
+      st.onclick = async () => { if (!confirm('Stop ' + a.name + '? It logs out and its bots stop.')) return; const x = await post('api/stop', { acct: a.name }); msg(x.ok ? a.name + ' stopped.' : x.err, !x.ok); load(); };
+      row.appendChild(st);
+    }
+    return row;
+  }));
+}
+$('#pinform').addEventListener('submit', (e) => { e.preventDefault(); PIN = $('#pin').value.trim(); msg(''); load(); });
+$('#f').addEventListener('submit', (e) => { e.preventDefault(); play($('#acct').value.trim(), $('#pass').value); });
+$('#lock').onclick = () => { localStorage.removeItem('nurgling.hostpin'); PIN = ''; location.reload(); };
+if (PIN) { $('#pinform').classList.add('hidden'); load(); }
+setInterval(() => { if (PIN && !$('#main').classList.contains('hidden')) load(); }, 10000);
+</script>
+</body>
+</html>
