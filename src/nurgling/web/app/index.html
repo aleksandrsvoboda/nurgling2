@@ -34,19 +34,45 @@
 
 <div id="bar">
   <button data-act="inv" title="Inventory">🎒</button>
-  <button data-act="equ" title="Equipment">🛡</button>
-  <button data-act="chr" title="Character">👤</button>
+  <button data-act="equ" title="Equipment" class="desk">🛡</button>
+  <button data-act="chr" title="Character" class="desk">👤</button>
   <button data-act="menu" title="Actions (build, craft, adventure…)">📜</button>
   <button data-act="bots" title="Bots">🤖</button>
   <button data-act="chat" title="Chat">💬</button>
-  <button data-act="game" title="Game menu">☰</button>
-  <span class="sep"></span>
-  <button data-mod="1" title="Shift for the next click">⇧</button>
-  <button data-mod="2" title="Ctrl for the next click">Ctrl</button>
-  <button data-mod="4" title="Alt for the next click">Alt</button>
-  <span class="sep"></span>
-  <button data-act="pf" title="Walk with nurgling's pathfinder">PF</button>
-  <button data-act="follow" title="Follow my character" class="on">◎</button>
+  <button data-act="game" title="Game menu" class="desk">☰</button>
+  <button data-act="more" title="More" class="phone">⋯</button>
+  <span class="sep desk"></span>
+  <button data-mod="1" title="Shift for the next click" class="desk">⇧</button>
+  <button data-mod="2" title="Ctrl for the next click" class="desk">Ctrl</button>
+  <button data-mod="4" title="Alt for the next click" class="desk">Alt</button>
+  <span class="sep desk"></span>
+  <button data-act="pf" title="Walk with nurgling's pathfinder" class="desk">PF</button>
+  <button data-act="follow" title="Follow my character" class="on desk">◎</button>
+</div>
+
+<!-- Phones: the modifiers as a strip on the left edge, everything else under ⋯ More. -->
+<div id="mods" class="phone">
+  <button data-mod="1" title="Shift for the next tap">⇧</button>
+  <button data-mod="2" title="Ctrl for the next tap">Ctrl</button>
+  <button data-mod="4" title="Alt for the next tap">Alt</button>
+</div>
+<div id="more" class="panel hidden">
+  <div class="cap"><span>More</span><button data-close="more">×</button></div>
+  <div class="morebody">
+    <div id="morecal"></div>
+    <div class="moregrid">
+      <button data-act="equ">🛡 Equipment</button>
+      <button data-act="chr">👤 Character</button>
+      <button data-act="game">☰ Game</button>
+      <button data-act="follow" class="on">◎ Follow</button>
+      <button data-act="pf">PF walking</button>
+      <button data-show="mm">🗺 Minimap</button>
+      <button data-show="belts">Action bar</button>
+      <button data-show="beltinv">Belt</button>
+    </div>
+    <h4>Speed</h4><div id="morespeed" class="speedrow"></div>
+    <h4>Characters</h4><div id="moresessions" class="speedrow"></div>
+  </div>
 </div>
 
 <div id="chat" class="panel hidden">

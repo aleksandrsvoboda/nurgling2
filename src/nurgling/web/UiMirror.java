@@ -209,6 +209,8 @@ public class UiMirror {
     private JSONObject window(UI ui, Window wnd, String k) {
 	JSONObject o = new JSONObject().put("t", "wnd").put("k", k);
 	o.put("cap", (wnd.cap == null) ? "" : wnd.cap);
+	IButton cb = closebtn(wnd);
+	o.put("close", (cb != null) && cb.visible);
 	o.put("x", wnd.c.x).put("y", wnd.c.y);
 	Area ca = wnd.ca();
 	JSONArray els = new JSONArray();
@@ -219,6 +221,15 @@ public class UiMirror {
 	o.put("w", ca.sz().x).put("h", ca.sz().y);
 	o.put("els", els);
 	return(o);
+    }
+
+    /** The window frame's own close button, if it has one; only those windows can be closed. */
+    static IButton closebtn(Window wnd) {
+	if(wnd.deco instanceof Window.DefaultDeco)
+	    return(((Window.DefaultDeco)wnd.deco).cbtn);
+	if(wnd.deco instanceof nurgling.NWindowDeco)
+	    return(((nurgling.NWindowDeco)wnd.deco).cbtn);
+	return(null);
     }
 
     private void element(UI ui, Window wnd, Widget w, JSONArray els) {
