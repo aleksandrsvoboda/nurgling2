@@ -3,9 +3,22 @@
   --orange: #f0b25a; --line: #2c5555; --cell: 33px;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: var(--ink);
+html, body { margin: 0; height: 100%; height: 100dvh; overflow: hidden; overscroll-behavior: none; background: #111; color: var(--ink);
   font: 12px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
-canvas#map { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; display: block; }
+canvas#map { position: fixed; left: 0; top: 0; touch-action: none; display: block; }
+/* Desktop shows everything; phones swap the .desk controls for the .phone ones. */
+.phone { display: none !important; }
+#more { left: 50%; transform: translateX(-50%); bottom: calc(52px + env(safe-area-inset-bottom)); width: min(360px, calc(100vw - 12px)); max-height: 70vh; z-index: 30; }
+.morebody { overflow-y: auto; padding: 6px 8px 10px; }
+.morebody h4 { margin: 10px 0 4px; color: var(--orange); font-size: 11px; text-transform: uppercase; }
+.moregrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.moregrid button { padding: 9px 6px; font-size: 13px; text-align: left; }
+#morecal { font-size: 12px; opacity: .9; }
+.speedrow { display: flex; flex-wrap: wrap; gap: 4px; }
+.speedrow button { padding: 7px 10px; font-size: 13px; }
+#mods { position: fixed; left: 4px; top: 45%; z-index: 15; flex-direction: column; gap: 4px; }
+#mods button { width: 44px; height: 38px; padding: 0; font-size: 12px; }
+.win > .body > .inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .hidden { display: none !important; }
 button { font: inherit; color: var(--ink); background: var(--teal-d); border: 1px solid var(--teal); padding: 3px 8px; cursor: pointer; }
 button:active, button.on { background: var(--orange); color: #111; border-color: var(--orange); }
@@ -151,18 +164,32 @@ input { font: inherit; color: var(--ink); background: rgba(0,0,0,.45); border: 1
 #chars button { padding: 10px; font-size: 14px; }
 
 /* Phones: windows become full-width sheets stacked at the bottom. */
-@media (max-width: 700px) {
-  .win { left: 0 !important; right: 0; top: auto !important; bottom: 88px; max-height: 52vh; overflow: auto; background: rgb(12, 28, 30); }
-  .win:not(.front) { display: none; }
-  #wintabs { display: flex; position: fixed; left: 4px; right: 4px; bottom: 56px; z-index: 14; gap: 3px; overflow-x: auto; }
-  #wintabs button { flex: none; padding: 3px 8px; font-size: 11px; }
-  #bar { bottom: calc(4px + env(safe-area-inset-bottom)); gap: 2px; padding: 3px; }
-  #bar button { min-width: 30px; height: 32px; font-size: 13px; padding: 0 5px; }
-  .win > .cap { cursor: default; }
-  .meter .bar { width: 100px; }
-  #minimap { width: 120px; height: 120px; }
-  #belts { bottom: calc(44px + env(safe-area-inset-bottom)); }
-  .bslot { width: 30px; height: 30px; }
-  #beltinv { bottom: calc(88px + env(safe-area-inset-bottom)); }
-  #sessions { max-width: calc(100vw - 150px); left: 4px; transform: none; top: auto; bottom: calc(132px + env(safe-area-inset-bottom)); }
-}
+/* Phones (body.is-phone, set from the width): fewer things on screen, bigger targets. */
+body.is-phone .desk { display: none !important; }
+body.is-phone .phone { display: flex !important; }
+body.is-phone #bar button.phone { display: inline-block !important; }
+body.is-phone #bar { bottom: calc(4px + env(safe-area-inset-bottom)); gap: 4px; padding: 4px; }
+body.is-phone #bar button { min-width: 48px; height: 42px; font-size: 18px; padding: 0 6px; }
+body.is-phone #cal, body.is-phone #speed, body.is-phone #sessions { display: none !important; }
+body.is-phone:not(.show-belts) #belts, body.is-phone:not(.show-beltinv) #beltinv { display: none !important; }
+body.is-phone #belts { bottom: calc(56px + env(safe-area-inset-bottom)); }
+body.is-phone .bslot { width: 34px; height: 34px; }
+body.is-phone #beltinv { bottom: calc(100px + env(safe-area-inset-bottom)); left: 54px; }
+body.is-phone #topright { right: 4px; top: calc(4px + env(safe-area-inset-top)); }
+body.is-phone #minimap { width: 130px; height: 130px; }
+body.is-phone #hud { left: 4px; top: calc(4px + env(safe-area-inset-top)); }
+body.is-phone .meter .bar { width: 80px; height: 9px; }
+body.is-phone .meter img { width: 16px; height: 16px; }
+body.is-phone .buff { width: 22px; height: 22px; }
+/* Windows: a sheet above the bar, only as wide as its content (scaled down to fit), one at a time. */
+body.is-phone .win { left: 50% !important; top: auto !important; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); max-width: calc(100vw - 8px); max-height: 55vh; overflow-y: auto; overflow-x: hidden; }
+body.is-phone .win:not(.front) { display: none; }
+body.is-phone .win > .cap { cursor: default; padding: 6px 4px 6px 10px; }
+body.is-phone .win > .cap button { min-width: 40px; height: 32px; font-size: 18px; }
+body.is-phone #wintabs { display: flex; position: fixed; left: 4px; right: 4px; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 14; gap: 4px; overflow-x: auto; }
+body.is-phone #wintabs button { flex: none; padding: 6px 10px; font-size: 12px; }
+body.is-phone .panel > .cap button { min-width: 40px; height: 32px; font-size: 18px; }
+body.is-phone #chat { left: 4px; right: 4px; width: auto; bottom: calc(56px + env(safe-area-inset-bottom)); height: 45vh; }
+body.is-phone #bots, body.is-phone #actions, body.is-phone #chr { left: 4px; right: 4px; width: auto; top: calc(4px + env(safe-area-inset-top)); max-height: calc(100vh - 70px); }
+body.is-phone #fight { bottom: calc(56px + env(safe-area-inset-bottom)); }
+body.is-phone #flower button { padding: 10px 16px; font-size: 15px; }

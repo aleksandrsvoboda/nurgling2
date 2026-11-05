@@ -79,8 +79,10 @@ public class CommandGate {
 	}
 	case "wclose": {
 	    Window w = target(cmd, Window.class);
-	    if(w != null)
-		w.reqclose();
+	    /* Press the frame's own close button, exactly as a click on it does. */
+	    IButton cb = (w == null) ? null : UiMirror.closebtn(w);
+	    if((cb != null) && cb.visible)
+		cb.click();
 	    break;
 	}
 	case "flower": {

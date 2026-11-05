@@ -167,12 +167,21 @@ function gobstyle(r, me) {
 }
 
 const cv = $('#map'), cx = cv.getContext('2d');
+/* The canvas matches the visible viewport exactly: CSS 100vh on phones includes the area under the
+ * browser's address bar, which stretched the map vertically. */
 function resize() {
   const dpr = Math.min(devicePixelRatio || 1, 2);
-  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
+  cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  document.body.classList.toggle('is-phone', innerWidth <= 700);
 }
-addEventListener('resize', resize); resize();
+addEventListener('resize', resize);
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
+resize();
+const isphone = () => document.body.classList.contains('is-phone');
+/* Things phones hide until switched on under More; remembered per device. */
+for (const f of ['belts', 'beltinv']) if (localStorage.getItem('nurgling.show.' + f) === 'on') document.body.classList.add('show-' + f);
 
 const w2s = (x, y) => [(x - S.cam.x) * S.scale + innerWidth / 2, (y - S.cam.y) * S.scale + innerHeight / 2];
 const s2w = (x, y) => [(x - innerWidth / 2) / S.scale + S.cam.x, (y - innerHeight / 2) / S.scale + S.cam.y];
@@ -323,8 +332,8 @@ function drawexplored(c, scale, W, H, tos) {
 /* ---- minimap: every loaded grid, small, around the view's centre ---- */
 const mm = $('#minimap'), mmx = mm.getContext('2d');
 const MMS = 0.09; /* minimap pixels per world unit */
-let mmon = localStorage.getItem('nurgling.mm') !== 'off';
-function mmtoggle() { mmon = !mmon; localStorage.setItem('nurgling.mm', mmon ? 'on' : 'off'); $('#mmwrap').classList.toggle('off', !mmon); }
+let mmon = localStorage.getItem('nurgling.mm') ? localStorage.getItem('nurgling.mm') !== 'off' : !isphone();
+function mmtoggle() { mmon = !mmon; localStorage.setItem('nurgling.mm', mmon ? 'on' : 'off'); $('#mmwrap').classList.toggle('off', !mmon); updshows(); }
 $('#mmwrap').classList.toggle('off', !mmon);
 $('#mmtoggle').onclick = mmtoggle;
 function mm2w(px, py) { const r = mm.getBoundingClientRect(), k = mm.width / r.width; return [(px * k - mm.width / 2) / MMS + S.cam.x, (py * k - mm.height / 2) / MMS + S.cam.y]; }
@@ -641,13 +650,13 @@ addEventListener('resize', () => { for (const w of wins.values()) fitwin(w); });
 function drawwin(e) {
   let w = wins.get(e.k);
   if (!w) {
-    const root = el('div', 'win'), cap = el('div', 'cap'), title = el('span'), close = el('button', null, '×'), body = el('div', 'body');
-    cap.append(title, close); root.append(cap, body);
+    const root = el('div', 'win'), cap = el('div', 'cap'), title = el('span'), close = el('button', null, '×'), body = el('div', 'body'), inner = el('div', 'inner');
+    cap.append(title, close); body.appendChild(inner); root.append(cap, body);
     close.onclick = () => send({ t: 'wclose', k: e.k });
     root.addEventListener('pointerdown', () => { const w = wins.get(e.k); if (w) raise(w); });
     dragger(cap, root, e.k);
     $('#windows').appendChild(root);
-    w = { root, title, body, els: new Map() };
+    w = { root, title, body, inner, close, els: new Map() };
     wins.set(e.k, w);
     const p = winpos[e.k] || { x: e.x, y: e.y };
     root.style.left = p.x + 'px';
@@ -656,13 +665,14 @@ function drawwin(e) {
     raise(w);
   }
   w.title.textContent = e.cap || '';
+  w.close.style.visibility = e.close ? '' : 'hidden';
   /* The body is sized from the content itself (see fitbody); an empty window keeps the game's size. */
   let bw = e.els.length ? 0 : e.w, bh = e.els.length ? 0 : e.h;
   const seen = new Set();
   for (const it of e.els) {
     seen.add(it.k);
     let n = w.els.get(it.k);
-    if (!n || n.dataset.e !== it.e) { if (n) n.remove(); n = mkel(it); w.els.set(it.k, n); w.body.appendChild(n); }
+    if (!n || n.dataset.e !== it.e) { if (n) n.remove(); n = mkel(it); w.els.set(it.k, n); w.inner.appendChild(n); }
     n.style.left = (it.x - e.ox + PAD) + 'px'; n.style.top = (it.y - e.oy + PAD) + 'px';
     n.style.width = it.w + 'px'; n.style.height = it.h + 'px';
     upel(n, it);
@@ -688,7 +698,12 @@ function fitbody(w, bw, bh) {
     bw = Math.max(bw, n.offsetLeft + n.offsetWidth + PAD);
     bh = Math.max(bh, n.offsetTop + n.offsetHeight + PAD);
   }
-  w.body.style.width = Math.max(bw, 120) + 'px'; w.body.style.height = bh + 'px';
+  bw = Math.max(bw, 120);
+  w.inner.style.width = bw + 'px'; w.inner.style.height = bh + 'px';
+  /* Phones: a window wider than the screen is scaled down to fit instead of scrolling sideways. */
+  const s = isphone() ? Math.min(1, (innerWidth - 12) / bw) : 1;
+  w.inner.style.transform = (s < 1) ? 'scale(' + s + ')' : '';
+  w.body.style.width = Math.ceil(bw * s) + 'px'; w.body.style.height = Math.ceil(bh * s) + 'px';
 }
 
 function dragger(handle, root, k) {
@@ -746,7 +761,7 @@ function upel(n, it) {
     case 'box': n.textContent = it.type; break;
     case 'inv': {
       const cell = (it.w - 1) / it.cw;
-      n.dataset.cell = cell; n.style.setProperty('--cell', cell + 'px');
+      n.dataset.cell = cell; n.dataset.cw = it.cw; n.dataset.chh = it.ch; n.style.setProperty('--cell', cell + 'px');
       n.replaceChildren(...it.items.map((x) => itemnode(x, x.cx * cell + 1, x.cy * cell + 1, x.cw * cell - 1, x.chh * cell - 1)));
       break;
     }
@@ -805,8 +820,8 @@ function itemnode(x, l, t, w, h) {
 
 function invclick(ev, n) {
   if (!holding()) return;
-  const r = n.getBoundingClientRect(), cell = +n.dataset.cell;
-  send({ t: 'invdrop', k: n.dataset.k, x: Math.floor((ev.clientX - r.left) / cell), y: Math.floor((ev.clientY - r.top) / cell) });
+  const r = n.getBoundingClientRect(), cw = +n.dataset.cw, chh = +n.dataset.chh;
+  send({ t: 'invdrop', k: n.dataset.k, x: Math.min(cw - 1, Math.floor((ev.clientX - r.left) / (r.width / cw))), y: Math.min(chh - 1, Math.floor((ev.clientY - r.top) / (r.height / chh))) });
 }
 
 /* Tap and long-press (or right-click) on one element. */
@@ -881,9 +896,10 @@ function renderhud() {
   hd.classList.toggle('hidden', !hand);
   if (hand && hand.item.r && hd.dataset.r !== hand.item.r) { const i = el('img'); i.src = resurl(hand.item.r); hd.replaceChildren(i); hd.dataset.r = hand.item.r; }
   movehand();
-  if (toggles) for (const w of ['inv', 'equ']) document.querySelector('#bar [data-act="' + w + '"]').classList.toggle('on', !!toggles[w]);
-  document.querySelector('#bar [data-act="chr"]').classList.toggle('on', !$('#chr').classList.contains('hidden'));
-  document.querySelector('#bar [data-act="menu"]').classList.toggle('on', !$('#actions').classList.contains('hidden'));
+  if (toggles) for (const w of ['inv', 'equ']) seton(w, !!toggles[w]);
+  seton('chr', !$('#chr').classList.contains('hidden'));
+  seton('menu', !$('#actions').classList.contains('hidden'));
+  seton('more', !$('#more').classList.contains('hidden'));
   drawchat(chats);
   drawruns(bots);
 }
@@ -941,6 +957,7 @@ function drawcal(c) {
   box.innerHTML = '';
   box.append(el('b', null, c.season + ' ' + c.sday + '/' + c.slen), document.createTextNode('  ' + (c.night ? '☾ ' : '☀ ') + hh + ':' + mm));
   box.title = c.moon + ' · ' + c.left + ' days left in ' + c.season;
+  $('#morecal').textContent = c.season + ' ' + c.sday + '/' + c.slen + ' · ' + (c.night ? '☾ ' : '☀ ') + hh + ':' + mm + ' · ' + c.moon + ' · ' + c.left + ' days left';
 }
 
 const SPEEDS = ['Crawl', 'Walk', 'Run', 'Sprint'];
@@ -951,11 +968,15 @@ function drawspeed(sp) {
   const key = sp.cur + '/' + sp.max;
   if (box.dataset.k === key) return;
   box.dataset.k = key;
-  const kids = [];
-  for (let i = 0; i <= Math.min(sp.max, SPEEDS.length - 1); i++) {
-    const b = el('button', i === sp.cur ? 'on' : '', SPEEDS[i]); b.onclick = () => send({ t: 'speed', v: i }); kids.push(b);
-  }
-  box.replaceChildren(...kids);
+  const mk = () => {
+    const kids = [];
+    for (let i = 0; i <= Math.min(sp.max, SPEEDS.length - 1); i++) {
+      const b = el('button', i === sp.cur ? 'on' : '', SPEEDS[i]); b.onclick = () => send({ t: 'speed', v: i }); kids.push(b);
+    }
+    return kids;
+  };
+  box.replaceChildren(...mk());
+  $('#morespeed').replaceChildren(...mk());
 }
 
 function drawbelt(b) {
@@ -986,7 +1007,7 @@ function drawbeltinv(b) {
   if (!b) return;
   const cell = 30;
   const inv = el('div', 'inv');
-  inv.dataset.k = b.inv; inv.dataset.cell = cell;
+  inv.dataset.k = b.inv; inv.dataset.cell = cell; inv.dataset.cw = b.cw; inv.dataset.chh = b.ch;
   inv.style.setProperty('--cell', cell + 'px');
   inv.style.width = (b.cw * cell + 1) + 'px'; inv.style.height = (b.ch * cell + 1) + 'px';
   inv.append(...b.items.map((x) => itemnode(x, x.cx * cell + 1, x.cy * cell + 1, x.cw * cell - 1, x.chh * cell - 1)));
@@ -1081,7 +1102,7 @@ function drawruns(bots) {
     stop.onclick = () => op('bots.stop', { id: r.id });
     row.append(el('span', null, '▶ ' + r.name), stop); return row;
   }));
-  document.querySelector('#bar [data-act="bots"]').classList.toggle('on', runs.length > 0 || !$('#bots').classList.contains('hidden'));
+  seton('bots', runs.length > 0 || !$('#bots').classList.contains('hidden'));
 }
 async function openbots() {
   if (!S.botcache) {
@@ -1114,19 +1135,36 @@ $('#botfilter').addEventListener('input', drawbots);
 
 /* ------------------------------------------------------------------ bar */
 
-function updmods() { document.querySelectorAll('#bar [data-mod]').forEach((b) => b.classList.toggle('on', !!(S.mods & +b.dataset.mod))); }
-function updfollow() { document.querySelector('#bar [data-act="follow"]').classList.toggle('on', S.follow); }
-document.querySelectorAll('#bar [data-mod]').forEach((b) => { b.onclick = () => { S.mods ^= +b.dataset.mod; updmods(); }; });
-document.querySelectorAll('#bar [data-act]').forEach((b) => {
+function seton(act, on) { document.querySelectorAll('[data-act="' + act + '"]').forEach((b) => b.classList.toggle('on', on)); }
+function updmods() { document.querySelectorAll('[data-mod]').forEach((b) => b.classList.toggle('on', !!(S.mods & +b.dataset.mod))); }
+function updfollow() { seton('follow', S.follow); }
+function updshows() {
+  document.querySelectorAll('[data-show]').forEach((b) => b.classList.toggle('on', b.dataset.show === 'mm' ? mmon : document.body.classList.contains('show-' + b.dataset.show)));
+}
+document.querySelectorAll('[data-mod]').forEach((b) => { b.onclick = () => { S.mods ^= +b.dataset.mod; updmods(); }; });
+document.querySelectorAll('[data-show]').forEach((b) => {
+  b.onclick = () => {
+    const f = b.dataset.show;
+    if (f === 'mm') { mmtoggle(); return; }
+    const on = document.body.classList.toggle('show-' + f);
+    localStorage.setItem('nurgling.show.' + f, on ? 'on' : 'off');
+    updshows();
+  };
+});
+updshows();
+document.querySelectorAll('[data-act]').forEach((b) => {
   b.onclick = () => {
     const a = b.dataset.act;
-    if (a === 'inv' || a === 'equ') send({ t: 'toggle', w: a });
+    /* From the More sheet, anything that opens something closes the sheet first. */
+    if (b.closest('#more') && !['pf', 'follow'].includes(a)) $('#more').classList.add('hidden');
+    if (a === 'more') { $('#more').classList.toggle('hidden'); renderhud(); }
+    else if (a === 'inv' || a === 'equ') send({ t: 'toggle', w: a });
     else if (a === 'game') { $('#game').classList.toggle('hidden'); }
     else if (a === 'chr') { $('#chr').classList.toggle('hidden'); renderhud(); }
     else if (a === 'menu') { $('#actions').classList.toggle('hidden'); if (!$('#actions').classList.contains('hidden')) loadmenu(S.actdir); renderhud(); }
     else if (a === 'chat') $('#chat').classList.toggle('hidden');
     else if (a === 'bots') { $('#bots').classList.toggle('hidden'); if (!$('#bots').classList.contains('hidden')) openbots(); renderhud(); }
-    else if (a === 'pf') { S.pf = !S.pf; b.classList.toggle('on', S.pf); }
+    else if (a === 'pf') { S.pf = !S.pf; seton('pf', S.pf); }
     else if (a === 'follow') { S.follow = !S.follow; updfollow(); }
   };
 });
@@ -1171,6 +1209,7 @@ async function drawsessions() {
   kids.push(add);
   $('#sessions').replaceChildren(...kids);
   $('#sessions').classList.remove('hidden');
+  $('#moresessions').replaceChildren(...kids.map((b) => { const c = b.cloneNode(true); c.onclick = b.onclick; return c; }));
 }
 drawsessions(); setInterval(drawsessions, 10000);
 
