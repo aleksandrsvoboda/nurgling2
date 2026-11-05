@@ -188,6 +188,8 @@ public class NConfig
         disableCloudShadows,
         darkenDeepOcean,
         disableDrugEffects,
+        disableEasterEggs,
+        easterEggSeen,
         simpleInspect,
         showSpeedometer,
         showPathLine,
@@ -616,6 +618,8 @@ public class NConfig
         conf.put(Key.disableCloudShadows, false);
         conf.put(Key.darkenDeepOcean, false);
         conf.put(Key.disableDrugEffects, true);  // Default to disabled for better performance
+        conf.put(Key.disableEasterEggs, false);
+        conf.put(Key.easterEggSeen, false);
         
         // Parasite bot settings
         conf.put(Key.parasiteBotEnabled, false);
