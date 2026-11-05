@@ -289,6 +289,7 @@ public class NGameUI extends GameUI
 
     @Override
     protected void attached() {
+        nurgling.web.WebAttach.maybeStart();
         // Initialize profile-aware components BEFORE calling super.attached()
         // This ensures RouteGraphManager is available when RoutesWidget is created
         if (map instanceof NMapView) {

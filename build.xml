@@ -282,6 +282,7 @@
       </fileset>
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="bin/haven-config.properties" />
+    <copy file="etc/webhost.bat" tofile="bin/webhost.bat" />
     <chmod file="bin/hafen.jar" perm="a+x" />
   </target>
 
