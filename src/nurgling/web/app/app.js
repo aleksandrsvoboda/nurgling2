@@ -726,10 +726,13 @@ function mkel(it) {
     case 'inv': n.classList.add('inv'); n.addEventListener('click', (ev) => invclick(ev, n)); break;
     case 'list': n.addEventListener('click', (ev) => { const i = ev.target.dataset.i; if (i != null) send({ t: 'list', k: it.k, i: +i }); }); break;
     case 'isbox': {
-      const ic = el('img'), lb = el('span'), take = el('button', null, 'Take'), put = el('button', null, 'Put');
-      take.onclick = () => send({ t: 'isbox', k: it.k, a: 'take', mods: takemods() });
-      put.onclick = () => send({ t: 'isbox', k: it.k, a: 'put', mods: takemods() });
-      n.classList.add('isbox'); n.append(ic, lb, take, put); break;
+      /* Icon, count, an amount (kept while the window is open), Take and Put that many. */
+      const ic = el('img'), lb = el('span'), amt = el('input'), take = el('button', null, 'Take'), put = el('button', null, 'Put');
+      amt.type = 'number'; amt.min = '1'; amt.value = '1'; amt.className = 'amt'; amt.title = 'How many';
+      const nval = () => Math.max(1, parseInt(amt.value, 10) || 1);
+      take.onclick = () => send({ t: 'isbox', k: it.k, a: 'taken', n: nval() });
+      put.onclick = () => send({ t: 'isbox', k: it.k, a: 'putn', n: nval() });
+      n.classList.add('isbox'); n.append(ic, lb, amt, take, put); break;
     }
   }
   return n;

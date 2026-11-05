@@ -140,6 +140,27 @@ public class CommandGate {
 	    switch(cmd.optString("a")) {
 	    case "take": b.wdgmsg("xfer2", -1, mods(cmd)); break;
 	    case "put": b.wdgmsg("xfer2", 1, mods(cmd)); break;
+	    case "taken":
+	    case "putn": {
+		/* As nurgling's Take button: one transfer per item, never more than the pile has. */
+		int n = Math.max(1, Math.min(cmd.optInt("n", 1), 1000));
+		boolean take = cmd.optString("a").equals("taken");
+		if(b instanceof nurgling.NISBox) {
+		    nurgling.NISBox nb = (nurgling.NISBox)b;
+		    int have = nb.calcCount();
+		    if(take) {
+			if(have >= 0)
+			    n = Math.min(n, have);
+			nb.transfer(n);
+		    } else {
+			nb.put(n);
+		    }
+		} else {
+		    for(int i = 0; i < n; i++)
+			b.wdgmsg("xfer2", take ? -1 : 1, 1);
+		}
+		break;
+	    }
 	    case "drop": b.wdgmsg("drop"); break;
 	    case "iact": b.wdgmsg("iact"); break;
 	    }

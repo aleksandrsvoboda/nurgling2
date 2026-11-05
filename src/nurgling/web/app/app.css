@@ -47,7 +47,9 @@ input { font: inherit; color: var(--ink); background: rgba(0,0,0,.45); border: 1
 .item .m { position: absolute; left: 1px; bottom: 1px; height: 3px; background: var(--orange); }
 .item .nm { font-size: 9px; text-align: center; padding: 1px; }
 .isbox { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border: 1px solid var(--line); white-space: nowrap; }
-.isbox span { flex: 1; font-weight: 700; }
+.isbox span { flex: 1; font-weight: 700; padding-right: 4px; }
+.isbox .amt { width: 46px; padding: 2px 4px; text-align: right; -moz-appearance: textfield; }
+.isbox .amt::-webkit-inner-spin-button { -webkit-appearance: none; }
 .isbox button { padding: 1px 5px; font-size: 11px; }
 .isbox img { width: 26px; height: 26px; flex: none; }
 

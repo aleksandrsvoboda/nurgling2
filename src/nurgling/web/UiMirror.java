@@ -277,7 +277,9 @@ public class UiMirror {
 	    e = el("equ", ui, w, p).put("slots", slots).put("cell", Inventory.sqsz.x).put("items", items);
 	    descend = false;
 	} else if(w instanceof ISBox) {
+	    /* One clean row in the browser; nurgling's own amount field and Take button are not drawn. */
 	    e = el("isbox", ui, w, p);
+	    descend = false;
 	    if(w instanceof NISBox) {
 		NISBox b = (NISBox)w;
 		int n = b.calcCount(), free = b.calcFreeSpace();
