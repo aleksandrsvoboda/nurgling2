@@ -656,16 +656,14 @@ function drawwin(e) {
     raise(w);
   }
   w.title.textContent = e.cap || '';
-  /* Some widgets place children past their own size; grow the body to hold them all. */
-  let bw = e.w, bh = e.h;
-  for (const it of e.els) { bw = Math.max(bw, it.x - e.ox + it.w); bh = Math.max(bh, it.y - e.oy + it.h); }
-  w.body.style.width = bw + 'px'; w.body.style.height = bh + 'px';
+  /* The body is sized from the content itself (see fitbody); an empty window keeps the game's size. */
+  let bw = e.els.length ? 0 : e.w, bh = e.els.length ? 0 : e.h;
   const seen = new Set();
   for (const it of e.els) {
     seen.add(it.k);
     let n = w.els.get(it.k);
     if (!n || n.dataset.e !== it.e) { if (n) n.remove(); n = mkel(it); w.els.set(it.k, n); w.body.appendChild(n); }
-    n.style.left = (it.x - e.ox) + 'px'; n.style.top = (it.y - e.oy) + 'px';
+    n.style.left = (it.x - e.ox + PAD) + 'px'; n.style.top = (it.y - e.oy + PAD) + 'px';
     n.style.width = it.w + 'px'; n.style.height = it.h + 'px';
     upel(n, it);
   }
@@ -678,6 +676,7 @@ function drawwin(e) {
 /* The window fits its contents: an element whose content is wider or taller than the game's size
  * for it (browser fonts and buttons differ a little) grows to its content, and the body grows to
  * hold every element, so no window ever needs scrollbars. Lists and inventories keep their size. */
+const PAD = 6; /* a window's inner margin */
 function fitbody(w, bw, bh) {
   for (const n of w.els.values()) {
     const e = n.dataset.e;
@@ -686,10 +685,10 @@ function fitbody(w, bw, bh) {
     if (n.scrollHeight > n.clientHeight + 1) n.style.height = n.scrollHeight + 'px';
   }
   for (const n of w.els.values()) {
-    bw = Math.max(bw, n.offsetLeft + n.offsetWidth);
-    bh = Math.max(bh, n.offsetTop + n.offsetHeight);
+    bw = Math.max(bw, n.offsetLeft + n.offsetWidth + PAD);
+    bh = Math.max(bh, n.offsetTop + n.offsetHeight + PAD);
   }
-  w.body.style.width = bw + 'px'; w.body.style.height = bh + 'px';
+  w.body.style.width = Math.max(bw, 120) + 'px'; w.body.style.height = bh + 'px';
 }
 
 function dragger(handle, root, k) {
