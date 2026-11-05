@@ -94,9 +94,13 @@ public class WebSeat {
 		while(task != null) {
 		    UI ui = loop.newui(task);
 		    cur[0] = ui;
+		    register(sess, ui);
 		    task = task.run(ui);
 		}
 	    } finally {
+		nurgling.sessions.SessionContext ctx = nurgling.sessions.SessionManager.getInstance().findBySession(sess);
+		if(ctx != null)
+		    nurgling.sessions.SessionManager.getInstance().removeSessionSilently(ctx.sessionId);
 		cur[0] = null;
 		loop.newui(null);
 		loop.dispose();
@@ -111,6 +115,19 @@ public class WebSeat {
 	}
 	bridge.stop();
 	System.exit(code);
+    }
+
+    /** The seat's session is a nurgling session like a desktop one: area, planning and the other
+     *  database syncs walk SessionManager's sessions, so an unregistered session gets no areas. */
+    private static void register(Session sess, UI ui) {
+	if(!(ui instanceof nurgling.NUI))
+	    return;
+	nurgling.sessions.SessionManager sm = nurgling.sessions.SessionManager.getInstance();
+	nurgling.sessions.SessionContext ctx = sm.findBySession(sess);
+	if(ctx == null)
+	    sm.addSessionAsActive(sess, (nurgling.NUI)ui);
+	else
+	    ctx.ui = (nurgling.NUI)ui;
     }
 
     static class Login {
