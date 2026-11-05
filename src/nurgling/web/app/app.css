@@ -26,10 +26,10 @@ input { font: inherit; color: var(--ink); background: rgba(0,0,0,.45); border: 1
 #banner { position: fixed; left: 50%; top: calc(36px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--orange); color: #111; padding: 6px 12px; font-weight: 600; z-index: 20; }
 
 #windows { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
-.win { position: absolute; pointer-events: auto; background: var(--bg); border: 1px solid var(--teal); box-shadow: 0 4px 16px rgba(0,0,0,.5); max-width: 100vw; }
+.win { position: absolute; pointer-events: auto; background: var(--bg); border: 1px solid var(--teal); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
 .win > .cap, .panel > .cap { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--teal-d); color: var(--orange); font-weight: 700; padding: 3px 4px 3px 8px; cursor: move; touch-action: none; }
 .win > .cap button, .panel > .cap button { padding: 0 7px; }
-.win > .body { position: relative; overflow: auto; }
+.win > .body { position: relative; overflow: visible; }
 .el { position: absolute; }
 .el.lbl { white-space: pre; overflow: hidden; }
 .el.btn button { width: 100%; height: 100%; padding: 0 4px; white-space: nowrap; overflow: hidden; }
@@ -46,7 +46,7 @@ input { font: inherit; color: var(--ink); background: rgba(0,0,0,.45); border: 1
 .item .n { right: 1px; bottom: 0; color: #fff; }
 .item .m { position: absolute; left: 1px; bottom: 1px; height: 3px; background: var(--orange); }
 .item .nm { font-size: 9px; text-align: center; padding: 1px; }
-.isbox { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+.isbox { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border: 1px solid var(--line); white-space: nowrap; }
 .isbox span { flex: 1; font-weight: 700; }
 .isbox button { padding: 1px 5px; font-size: 11px; }
 .isbox img { width: 26px; height: 26px; flex: none; }

@@ -670,8 +670,26 @@ function drawwin(e) {
     upel(n, it);
   }
   for (const [k, n] of w.els) if (!seen.has(k)) { n.remove(); w.els.delete(k); }
+  fitbody(w, bw, bh);
   if (w.fresh) { w.fresh = false; fitwin(w); }
   if (w.title.textContent !== w.lasttitle) { w.lasttitle = w.title.textContent; fronts(); }
+}
+
+/* The window fits its contents: an element whose content is wider or taller than the game's size
+ * for it (browser fonts and buttons differ a little) grows to its content, and the body grows to
+ * hold every element, so no window ever needs scrollbars. Lists and inventories keep their size. */
+function fitbody(w, bw, bh) {
+  for (const n of w.els.values()) {
+    const e = n.dataset.e;
+    if (e === 'list' || e === 'inv' || e === 'equ') continue;
+    if (n.scrollWidth > n.clientWidth + 1) n.style.width = n.scrollWidth + 'px';
+    if (n.scrollHeight > n.clientHeight + 1) n.style.height = n.scrollHeight + 'px';
+  }
+  for (const n of w.els.values()) {
+    bw = Math.max(bw, n.offsetLeft + n.offsetWidth);
+    bh = Math.max(bh, n.offsetTop + n.offsetHeight);
+  }
+  w.body.style.width = bw + 'px'; w.body.style.height = bh + 'px';
 }
 
 function dragger(handle, root, k) {
