@@ -257,6 +257,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("clover", BotDescriptor.BotType.UTILS, "Feed Clover", "Feeds clover.", false, true, FeedClover.class, "clover", false));
         bots.add(new BotDescriptor("collectalltopile", BotDescriptor.BotType.UTILS, "Collect To Pile", "Collects same items from earth.", false, true, CollectSameItemsFromEarth.class, "collectalltopile", false));
         bots.add(new BotDescriptor("worldexplorer", BotDescriptor.BotType.UTILS, "bot.worldexplorer.title", "bot.worldexplorer.desc", false, true, WorldExplorer.class, "worldexplorer", true));
+        bots.add(new BotDescriptor("riverexplorer", BotDescriptor.BotType.UTILS, "bot.riverexplorer.title", "bot.riverexplorer.desc", false, true, RiverExplorer.class, "riverexplorer", true));
         bots.add(new BotDescriptor("lift", BotDescriptor.BotType.UTILS, "Transfer Liftable (Select Zone)", "Lifts items - always prompts for input zone selection.", false, true, TransferLiftable.class, "lift", false));
         bots.add(new BotDescriptor("lift_global", BotDescriptor.BotType.UTILS, "Transfer Liftable (Global Zone)", "Lifts items using global zones with chunk navigation.", true, true, TransferLiftableGlobal.class, "liftzone", false));
         bots.add(new BotDescriptor("loading", BotDescriptor.BotType.UTILS, "Transfer To Vehicle", "Loads vehicle.", false, true, TransferToVeh.class, "loading", false));
@@ -365,7 +366,7 @@ public class BotRegistry {
         group("land", "pave_areas", "leveler", "flag", "zoneminer", "soil", "dropsoil", "destroy", "destroytrellisplants");
         group("character", "eater", "drinker", "filwater", "filwaterzone", "shieldsword", "travellerssack", "dream_catcher", "bugs", "studytable", "studytable_nearest", "fire");
         group("feeding", "clover", "swill_collector", "swill_to_trough", "swill_piles_to_troughs");
-        group("checks", "water_cheker", "clay_cheker", "qzone", "measure_length", "calculators", "worldexplorer", "autoflaction");
+        group("checks", "water_cheker", "clay_cheker", "qzone", "measure_length", "calculators", "worldexplorer", "riverexplorer", "autoflaction");
 
         group("storage", "chest", "lchest", "cupboard", "crate", "barrel", "stone_casket", "cellar");
         group("workstations", "kiln", "tarkilnb", "smoke_shed", "ttub", "dframe", "htable", "cheese_rack");
