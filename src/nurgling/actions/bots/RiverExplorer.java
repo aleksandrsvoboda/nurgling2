@@ -131,6 +131,9 @@ public class RiverExplorer implements Action {
         // coast count as done with it too (the helm going round in circles).
         static final double LAND_LAP_MIN = 300 * TILE;
         static final int SHORT_LOOP_LIMIT = 3;
+        // This many snags within the window while following a coast, wherever they are: the coast is given up.
+        static final int COAST_SNAG_LIMIT = 6;
+        static final long COAST_SNAG_WINDOW_MS = 2 * 60_000;
         // How long to wait for the minimap to place the boat in a recorded grid.
         static final long NO_MAP_MS = 30_000;
         // Clicks (WorldExplorer.sailTo's rules).
@@ -201,6 +204,7 @@ public class RiverExplorer implements Action {
         int prevRouteSize = 0;
         final Map<String, Integer> deadEnds = new HashMap<>();
         int shortLoops = 0;
+        final List<Long> coastSnagTimes = new ArrayList<>();
         Long startGridId = null;
         Coord leashCenter = null;
         int noWater = 0, ownGridDanger = 0;
@@ -285,6 +289,15 @@ public class RiverExplorer implements Action {
                 } else if (lastTarget != null && now - progressT > SNAG_MS) {
                     if (snagged(rc, now))
                         return Coast.STUCK;
+                    // Snags spread out along the way (grinding along something the helm doesn't see, such as a long wall
+                    // or pier) never make three in one place: count them over time as well.
+                    coastSnagTimes.add(now);
+                    coastSnagTimes.removeIf(t -> now - t > COAST_SNAG_WINDOW_MS);
+                    if (coastSnagTimes.size() >= COAST_SNAG_LIMIT) {
+                        coastSnagTimes.clear();
+                        System.out.println("[RiverExplorer] " + COAST_SNAG_LIMIT + " snags along the coast in a short while - giving this coast up");
+                        return Coast.STUCK;
+                    }
                     continue;
                 }
                 if (coastLap(rc))
