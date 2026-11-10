@@ -78,10 +78,8 @@ class RiverExplorerPlanningTest {
     void gridPartsAndOpenings() {
         GridWater g = GridWater.build(riverAndCreek(), FRESH, SEA_P, ROWBOAT);
         assertEquals(2, g.parts);
-        int river = -1, creek = -1;
-        for (int p = 0; p < g.parts; p++) {
-            if (g.hasInner(p)) river = p; else creek = p;
-        }
+        // The river is the part with openings; the creek touches no edge.
+        int river = g.openings.get(0).part, creek = 1 - river;
         assertTrue(river >= 0 && creek >= 0);
         assertTrue(g.fresh(river));
         assertFalse(g.sea(river));
@@ -96,7 +94,6 @@ class RiverExplorerPlanningTest {
         assertEquals(2, g.openings.size());
         double across = g.dist(0, 1);
         assertTrue(across > 95 && across < 105, "about a grid across: " + across);
-        assertTrue(Double.isFinite(g.toInner(0)));
     }
 
     @Test
@@ -122,8 +119,8 @@ class RiverExplorerPlanningTest {
         // On the bank right next to the river: moved onto the river.
         GridWater.FromCell f = g.from(Coord.of(2 * 50, 2 * 47));
         assertNotNull(f);
-        assertTrue(g.hasInner(f.part));
-        assertTrue(Double.isFinite(f.toInner));
+        assertEquals(g.openings.get(0).part, f.part);
+        assertTrue(Double.isFinite(f.toOpening[0]));
         // Far inland: nothing.
         assertNull(g.from(Coord.of(2 * 80, 2 * 80)));
     }
@@ -228,10 +225,21 @@ class RiverExplorerPlanningTest {
         Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(1, 0)));
         RiverFrontier.Ask a = ask(w, Coord.of(1, 0), Coord.of(2 * 50, 2 * 50), visited);
         RiverFrontier.Choice c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a);
-        // (0, 0) borders seven unknown grids: the three west of it only land leads to; north, south, north-east and
-        // south-east the water runs into (from (0, 0) and from the all-water (1, 0)). Only those four count.
+        // (0, 0) borders seven unknown grids: the three west of it only land leads to; north-east and south-east only the
+        // all-water (1, 0)'s water runs into (going there from (1, 0) reveals them); north and south (0, 0)'s own lake runs
+        // into. Only those two count for (0, 0).
         assertEquals(Coord.of(0, 0), c.grid);
-        assertEquals(4, RiverFrontier.waterGain(new RiverFrontier.World(w.keySet(), w), Coord.of(0, 0), a, false));
+        assertEquals(2, c.gain);
+    }
+
+    @Test
+    void waterTheBoatCantReachIsWorthNothing() {
+        // The boat's lake (0, 0) and another lake (1, 0) beside it, land between: the unknown grids north of (1, 0) have water
+        // running into them, but not water the boat can get to - nor do any others. Nothing to go for.
+        Map<Coord, GridWater> w = world(Coord.of(0, 0), fn((x, y) -> (x >= 20 && x < 80 && y >= 20 && y < 80) ? '.' : '#'),
+                Coord.of(1, 0), fn((x, y) -> (x >= 30 && x < 70) ? '.' : '#'));
+        Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0)));
+        assertNull(RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), ask(w, Coord.of(0, 0), Coord.of(2 * 50, 2 * 50), visited)));
     }
 
     @Test

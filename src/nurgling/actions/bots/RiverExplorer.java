@@ -108,14 +108,21 @@ public class RiverExplorer implements Action {
         // The course is planned again this often (new gobs, animals moving), or when the boat is this far off it.
         static final long REPLAN_MS = 3000;
         static final double OFF_COURSE = 3 * TILE;
-        // Planning window: the leg's start and goal, padded by this many tiles, within the 3x3 grids around the boat.
+        // Planning window: the leg's start and goal, padded by this many tiles, within the 3x3 grids around the boat. When
+        // nothing is found in it, the whole 3x3 is tried: the water out can run well away from the line between them (a lake
+        // whose one outlet is at its far end).
         static final int PAD_TILES = 40;
         // How near the hop's entry the leg aims (tiles): first close in, where the water is surely the part the route goes on in
         // (a wider box can take in a bit of river cut off within the grid, which only leads back), then wider, then the whole
         // next grid.
         static final int ENTRY_NEAR_TILES = 2, ENTRY_TILES = 6;
-        // A crossing after which the route turned straight back this many times is a dead end: not used again.
+        // A crossing after which the route turned straight back this many times, without anything new being revealed in
+        // between, is a dead end (the boat going back and forth): skipped for FAILED_COOLDOWN_MS. Turning back after
+        // entering a grid that revealed something is normal - a branch explored - and doesn't count.
         static final int DEAD_END_LIMIT = 2;
+        // A crossing the boat failed to make (or a dead end) is skipped this long, not for the rest of the run: what blocked
+        // it (a boat, gobs, an animal out of view) may be gone, and a crossing skipped for good can cut off everything past it.
+        static final long FAILED_COOLDOWN_MS = 10 * 60_000;
         // Reeds: from this close to them the boat runs into them, aiming this many course points past the first reed point; a
         // reed is chopped once the hull is this close to it (units) - from a boat, as for a tree, you chop what you're up against.
         static final double PUSH_FROM = 1.5 * TILE;
@@ -140,6 +147,8 @@ public class RiverExplorer implements Action {
         // doesn't exist: the world ends there.
         static final int VOID_REACH = 50;
         static final int OPEN_SEA_LIMIT = 6;
+        // After entering a grid, how long to wait for the client to record the grids round it before choosing on.
+        static final long RECORD_WAIT_MS = 3000;
         static final long VOID_MS = 10_000;
         // How long to wait for the minimap to place the boat in a recorded grid.
         static final long NO_MAP_MS = 30_000;
@@ -159,8 +168,6 @@ public class RiverExplorer implements Action {
         static final long SNAG_DISC_MS = 2 * 60_000;
         // Times in a row the boat may find no water it fits under it (wedged after a back-off) before the run stops.
         static final int NO_WATER_LIMIT = 10;
-        // Times in a row an animal may keep the boat from the middle of its own grid before that grid is given up.
-        static final int OWN_GRID_DANGER_LIMIT = 3;
         // Danger: how long a crossing an animal blocked is skipped, and how often all of them are retried early when nothing else is left.
         static final long DANGER_COOLDOWN_MS = 5 * 60_000;
         static final int MAX_EARLY_RETRIES = 10;
@@ -182,7 +189,7 @@ public class RiverExplorer implements Action {
 
         // Run memory, by grid id (a segment merge mid-run keeps it).
         final Set<Long> visited = new HashSet<>();
-        final Set<String> failedLinks = new HashSet<>();
+        final Map<String, Long> failedLinks = new HashMap<>();
         final Map<String, Long> coolingLinks = new HashMap<>();
         // Reeds that wouldn't chop, as segment tiles; chops tried per reed gob.
         final Set<Coord> unchoppable = new HashSet<>();
@@ -199,11 +206,11 @@ public class RiverExplorer implements Action {
         // The last leg's crossing, the grid it started in and how many crossings its route had (see DEAD_END_LIMIT).
         String prevLink = null;
         Long prevPid = null;
-        int prevRouteSize = 0;
+        int prevRouteSize = 0, prevKnown = -1;
         final Map<String, Integer> deadEnds = new HashMap<>();
         Long startGridId = null;
         Coord leashCenter = null;
-        int noWater = 0, ownGridDanger = 0;
+        int noWater = 0;
         int startKnown = -1;
         int earlyRetries = 0;
         String abort = null;
@@ -225,6 +232,7 @@ public class RiverExplorer implements Action {
         // Set once a coast or river is in reach: from then on open sea is only a short look round (OPEN_SEA_LIMIT targets in a
         // row) when nothing else is left - land just out of view - never a voyage across the ocean.
         boolean coastFound = false;
+        Long recordedPid = null;
         int openSeaRun = 0;
         // What show() last published, and the way on after the current leg.
         Pilot.Course shownCourse = null;
@@ -385,9 +393,18 @@ public class RiverExplorer implements Action {
                     pause(500);
                     continue;
                 }
-                Coord local = sessTile.sub(sessGrid.mul(MCache.cmaps));
-                if (local.x >= GridWater.INNER_LO / 2 && local.x < GridWater.INNER_HI / 2
-                        && local.y >= GridWater.INNER_LO / 2 && local.y < GridWater.INNER_HI / 2)
+                // In this grid: the client records the 3x3 block round it as soon as all nine are loaded. Give it a moment the
+                // first time, so the choice below sees what entering revealed.
+                if (!pid.equals(recordedPid)) {
+                    recordedPid = pid;
+                    if (!neighboursKnown(snap)) {
+                        waitRecorded(pid);
+                        continue;
+                    }
+                }
+                // Done with this grid only once the grids round it really are recorded: a grid left before they loaded stays
+                // a target.
+                if (neighboursKnown(snap))
                     visited.add(pid);
                 Coord cell = Coord.of((int) Math.round(player.rc.x / WaterCells.CELL), (int) Math.round(player.rc.y / WaterCells.CELL)).sub(sessGrid.mul(GridWater.CELLS));
                 GridWater.FromCell from = here.from(cell);
@@ -410,11 +427,12 @@ public class RiverExplorer implements Action {
 
                 long now = System.currentTimeMillis();
                 coolingLinks.values().removeIf(until -> until <= now);
+                failedLinks.values().removeIf(until -> until <= now);
                 RiverFrontier.Ask ask = new RiverFrontier.Ask();
                 ask.player = pg;
                 ask.start = from;
                 ask.visited = snap.coordsOf(visited);
-                ask.excludedLinks = links(snap, failedLinks, coolingLinks.keySet());
+                ask.excludedLinks = links(snap, failedLinks.keySet(), coolingLinks.keySet());
                 ask.heading = heading;
                 // Kept from the last time the start grid was in this segment, so a segment change doesn't drop the leash.
                 Coord lc = snap.coords.get(startGridId);
@@ -441,13 +459,20 @@ public class RiverExplorer implements Action {
                         pause(500);
                         continue;
                     }
-                    if (!coolingLinks.isEmpty() && earlyRetries < MAX_EARLY_RETRIES) {
-                        // Give the animal time to move off before trying its way again.
+                    if ((!coolingLinks.isEmpty() || !failedLinks.isEmpty()) && earlyRetries < MAX_EARLY_RETRIES) {
+                        // Only skipped crossings left: try them again before calling it done - for an animal, after giving it
+                        // time to move off.
                         earlyRetries++;
-                        gui.msg(L10n.get("river.msg_danger_retry"));
-                        halt(gui);
-                        pause(DANGER_RETRY_WAIT_MS);
+                        System.out.println("[RiverExplorer] nothing else left - retrying " + coolingLinks.size() + " animal-blocked and "
+                                + failedLinks.size() + " failed crossing(s)");
+                        if (!coolingLinks.isEmpty()) {
+                            gui.msg(L10n.get("river.msg_danger_retry"));
+                            halt(gui);
+                            pause(DANGER_RETRY_WAIT_MS);
+                        }
                         coolingLinks.clear();
+                        failedLinks.clear();
+                        deadEnds.clear();
                         continue;
                     }
                     gui.msg(L10n.get("river.msg_done", known, known - startKnown));
@@ -468,13 +493,15 @@ public class RiverExplorer implements Action {
                         pg, known, known - startKnown, target, choice.cost, choice.seaCost, choice.gain, choice.tier == 1 ? "fresh" : choice.tier == 0 ? "coast" : "open sea", choice.depth,
                         choice.route.size(), complete ? "complete" : "loading"));
 
-                // The leg: into the inner square of this grid, or into the next grid of the route near where the route enters it.
-                List<Coord[]> goals = new ArrayList<>();
-                String link = null;
+                // The leg: into the next grid of the route, near where the route enters it. (The boat's own grid is never a
+                // target: being in it is what reveals the grids round it.)
                 if (choice.route.isEmpty()) {
-                    Coord ul = sessGrid.mul(MCache.cmaps);
-                    goals.add(new Coord[]{ul.add(GridWater.INNER_LO / 2, GridWater.INNER_LO / 2), ul.add(GridWater.INNER_HI / 2, GridWater.INNER_HI / 2)});
-                } else {
+                    visited.add(pid);
+                    continue;
+                }
+                List<Coord[]> goals = new ArrayList<>();
+                String link;
+                {
                     RiverFrontier.Hop hop = choice.route.get(0);
                     Coord nextSess = hop.grid.sub(snap.gridOffset());
                     Coord gul = nextSess.mul(MCache.cmaps), gbr = gul.add(MCache.cmaps);
@@ -486,10 +513,10 @@ public class RiverExplorer implements Action {
                     link = pid + ">" + nid;
                     // Turned straight back to where the last crossing came from, with no fewer crossings to go: that crossing
                     // led into a dead end (water cut off within the grid). Twice, and it is not used again.
-                    if (prevLink != null && prevPid != null && prevPid.equals(nid) && choice.route.size() >= prevRouteSize) {
+                    if (prevLink != null && prevPid != null && prevPid.equals(nid) && choice.route.size() >= prevRouteSize && known == prevKnown) {
                         if (deadEnds.merge(prevLink, 1, Integer::sum) >= DEAD_END_LIMIT) {
-                            failedLinks.add(prevLink);
-                            System.out.println("[RiverExplorer] crossing " + prevLink + " leads into a dead end - not using it again");
+                            failedLinks.put(prevLink, System.currentTimeMillis() + FAILED_COOLDOWN_MS);
+                            System.out.println("[RiverExplorer] crossing " + prevLink + " leads into a dead end - skipping it for a while");
                             prevLink = null;
                             continue;
                         }
@@ -498,38 +525,21 @@ public class RiverExplorer implements Action {
                 prevLink = link;
                 prevPid = pid;
                 prevRouteSize = choice.route.size();
+                prevKnown = known;
                 farRoute = farRoute(choice, snap.gridOffset());
                 Leg leg = sailLeg(goals, sessGrid);
-                if (leg != Leg.DANGER || link != null)
-                    ownGridDanger = 0;
                 switch (leg) {
                     case ABORT:
                         return Results.ERROR(abort);
                     case NO_AXE:
                         return Results.ERROR(L10n.get("river.err_no_axe"));
                     case FAILED:
-                        if (link == null) {
-                            // The inner square can't be reached as things are: don't aim for it again.
-                            visited.add(pid);
-                            System.out.println("[RiverExplorer] can't reach the middle of grid " + pg + " - skipping it");
-                        } else {
-                            failedLinks.add(link);
-                            System.out.println("[RiverExplorer] can't get into " + choice.route.get(0).grid + " here - trying another way");
-                        }
+                        failedLinks.put(link, System.currentTimeMillis() + FAILED_COOLDOWN_MS);
+                        System.out.println("[RiverExplorer] can't get into " + choice.route.get(0).grid + " here - trying another way");
                         break;
                     case DANGER:
-                        if (link == null) {
-                            if (++ownGridDanger >= OWN_GRID_DANGER_LIMIT) {
-                                ownGridDanger = 0;
-                                visited.add(pid);
-                                System.out.println("[RiverExplorer] an animal keeps the boat from the middle of grid " + pg + " - skipping it");
-                            } else {
-                                pause(5000);
-                            }
-                        } else {
-                            coolingLinks.put(link, System.currentTimeMillis() + DANGER_COOLDOWN_MS);
-                            gui.msg(L10n.get("river.msg_danger"));
-                        }
+                        coolingLinks.put(link, System.currentTimeMillis() + DANGER_COOLDOWN_MS);
+                        gui.msg(L10n.get("river.msg_danger"));
                         break;
                     default:
                         break;
@@ -602,8 +612,11 @@ public class RiverExplorer implements Action {
 
                 if (course == null || now - planT > REPLAN_MS) {
                     course = null;
+                    // Goals in order, each in the small window and then the whole 3x3: a wider goal found in the small window
+                    // can be a bit of the next grid cut off from the way on (a lake's tip over the grid line).
                     for (Coord[] g : goals) {
-                        course = Pilot.plan(input(rc, g, legGrid, true));
+                        for (int pass = 0; pass < 2 && course == null; pass++)
+                            course = Pilot.plan(input(rc, g, legGrid, true, pass == 1));
                         if (course != null) {
                             goal = g;
                             break;
@@ -613,7 +626,7 @@ public class RiverExplorer implements Action {
                     idx = 0;
                     if (course == null) {
                         halt(gui);
-                        if (prop.avoidDanger && Pilot.plan(input(rc, goals.get(goals.size() - 1), legGrid, false)) != null)
+                        if (prop.avoidDanger && Pilot.plan(input(rc, goals.get(goals.size() - 1), legGrid, false, true)) != null)
                             return Leg.DANGER;
                         return Leg.FAILED;
                     }
@@ -728,6 +741,29 @@ public class RiverExplorer implements Action {
             return p.dist(a.add(ab.mul(t)));
         }
 
+        /** Whether the grids round the player's grid are all recorded (or known not to exist). */
+        boolean neighboursKnown(KnownGrids snap) {
+            for (Coord d : RiverFrontier.NEIGHBOURS) {
+                Coord g = snap.playerGrid.add(d);
+                if (!snap.ids.containsKey(g) && (voids == null || !voids.contains(g)))
+                    return false;
+            }
+            return true;
+        }
+
+        /** Waits (the boat sails on meanwhile) until the client has recorded the grids round grid pid, at most RECORD_WAIT_MS,
+         *  or the boat has left it. */
+        void waitRecorded(long pid) throws InterruptedException {
+            long until = System.currentTimeMillis() + RECORD_WAIT_MS;
+            while (System.currentTimeMillis() < until) {
+                pause(250);
+                KnownGrids snap = KnownGrids.read(gui);
+                if (snap == null) return;
+                Long now = snap.ids.get(snap.playerGrid);
+                if (now == null || now != pid || neighboursKnown(snap)) return;
+            }
+        }
+
         /** Unknown grids round the boat that stay unloaded in loading range are past the world's edge: recorded as voids. */
         void checkVoids(Coord2d rc) {
             KnownGrids snap = lastSnap;
@@ -776,7 +812,7 @@ public class RiverExplorer implements Action {
                 Coord tile = h.grid.sub(gridOffset).mul(MCache.cmaps).add(h.cell.div(2));
                 res.add(Coord2d.of(tile).add(0.5, 0.5).mul(MCache.tilesz));
             }
-            // The ring: where the boat reaches the target's inner square (the map records the grids round it from there).
+            // The ring: where the boat arrives in the target grid (entering it is what reveals the grids round it).
             Coord ul = choice.grid.sub(gridOffset).mul(MCache.cmaps);
             if (choice.arrival != null)
                 res.add(Coord2d.of(ul).mul(MCache.tilesz).add(Coord2d.of(choice.arrival).mul(WaterCells.CELL)));
@@ -799,7 +835,8 @@ public class RiverExplorer implements Action {
 
         /** The planner's view of the loaded map around the leg. withDanger false leaves the animals out (to tell "an animal
          *  blocks the way" from "there is no way"). */
-        Pilot.Input input(Coord2d rc, Coord[] goal, Coord legGrid, boolean withDanger) {
+        /** Pilot input for a leg into goal: the window is the start and goal padded by PAD_TILES, or the whole 3x3 round legGrid. */
+        Pilot.Input input(Coord2d rc, Coord[] goal, Coord legGrid, boolean withDanger, boolean whole) {
             Pilot.Input in = new Pilot.Input();
             in.tiles = live;
             in.fresh = atlas.fresh();
@@ -810,8 +847,8 @@ public class RiverExplorer implements Action {
             in.goalBR = goal[1];
             Coord t = rc.floor(MCache.tilesz);
             Coord lo = legGrid.sub(1, 1).mul(MCache.cmaps), hi = legGrid.add(2, 2).mul(MCache.cmaps);
-            Coord ul = clamp(Coord.of(Math.min(t.x, goal[0].x) - PAD_TILES, Math.min(t.y, goal[0].y) - PAD_TILES), lo, hi);
-            Coord br = clamp(Coord.of(Math.max(t.x + 1, goal[1].x) + PAD_TILES, Math.max(t.y + 1, goal[1].y) + PAD_TILES), lo, hi);
+            Coord ul = whole ? lo : clamp(Coord.of(Math.min(t.x, goal[0].x) - PAD_TILES, Math.min(t.y, goal[0].y) - PAD_TILES), lo, hi);
+            Coord br = whole ? hi : clamp(Coord.of(Math.max(t.x + 1, goal[1].x) + PAD_TILES, Math.max(t.y + 1, goal[1].y) + PAD_TILES), lo, hi);
             in.ul = ul;
             in.wt = br.x - ul.x;
             in.ht = br.y - ul.y;

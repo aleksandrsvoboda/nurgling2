@@ -9,18 +9,18 @@ import java.util.function.Predicate;
 
 /** One map grid's water as the hull sees it, from the grid's own 100 x 100 tiles (a recorded MapFile grid or the live map):
  *  <ul>
- *  <li><b>parts</b>: connected regions of cells the hull fits; each knows whether it has fresh water, sea water, and cells in the
- *  grid's inner square (being there is what makes the map record the grid's 3x3 block);</li>
+ *  <li><b>parts</b>: connected regions of cells the hull fits; each knows whether it has fresh water, sea water, and whether it
+ *  runs along a coast;</li>
  *  <li><b>openings</b>: runs of fit cells along the grid's edges, per part - where the water goes on into the next grid;</li>
- *  <li>travel costs (tiles, sea counted SEA_MUL times) from each opening to the others of its part and to its part's inner
- *  square.</li>
+ *  <li>travel costs (tiles, sea counted SEA_MUL times) from each opening to the others of its part.</li>
+ *  </ul>
+ *  The client records a grid's 3x3 block as soon as the player is anywhere in the grid (GameUI.mapfiletick asks for all nine
+ *  and records them once loaded), so entering a grid is what reveals its neighbours.
+ *  <ul>
  *  </ul>
  *  Cell coordinates are grid-local, 0..CELLS-1. Pure: tested on hand-made grids. */
 public final class GridWater {
     public static final int TILES = 100, CELLS = 2 * TILES;
-    /** The inner square, in cells: the map records a grid's 3x3 block only once all nine are loaded, and the client loads map
-     *  within 75 tiles of the player - so from tiles 25..74. Two tiles of slack each way (the Map Explorer walker's INSET 27). */
-    public static final int INNER_LO = 2 * 27, INNER_HI = 2 * 73;
     /** Sea travel counts this many times fresh-water travel: rivers first. */
     public static final double SEA_MUL = 3;
     /** Shallow sea (owater) counts this many times: at sea the boat keeps to the deep side of the shallows' edge, and goes
@@ -62,7 +62,7 @@ public final class GridWater {
     }
 
     public final int parts;
-    final boolean[] fresh, sea, inner, coast;
+    final boolean[] fresh, sea, coast;
     /** Per neighbour (index as RiverFrontier.NEIGHBOURS): whether land, shallows or fresh water reach the side toward it -
      *  the coast (or a river) goes on that way. Deep sea all along that side means only more sea is there. */
     final boolean[] shoreToward;
@@ -73,18 +73,14 @@ public final class GridWater {
     public final List<Opening> openings;
     /** [a][b]: cost from opening a's middle to opening b's, POSITIVE_INFINITY across parts. */
     final double[][] dist;
-    /** Per opening: cost from its middle to the nearest inner cell of its part. */
-    final double[] toInner;
-    /** Per opening: the inner cell (index y * CELLS + x) nearest it - where the boat coming in there reaches the inner square. */
-    final int[] innerAt;
 
     // Kept only until compact(): the cells and their parts, for searches from a cell (the boat).
     private WaterCells cells;
     private int[] part;
     private final double fit;
 
-    private GridWater(int parts, boolean[] fresh, boolean[] sea, boolean[] inner, boolean[] coast, boolean[] shoreToward,
-                      boolean[] landToward, boolean hasLand, List<Opening> openings, double[][] dist, double[] toInner, int[] innerAt,
+    private GridWater(int parts, boolean[] fresh, boolean[] sea, boolean[] coast, boolean[] shoreToward,
+                      boolean[] landToward, boolean hasLand, List<Opening> openings, double[][] dist,
                       WaterCells cells, int[] part, double fit) {
         this.shoreToward = shoreToward;
         this.landToward = landToward;
@@ -92,12 +88,9 @@ public final class GridWater {
         this.parts = parts;
         this.fresh = fresh;
         this.sea = sea;
-        this.inner = inner;
         this.coast = coast;
         this.openings = openings;
         this.dist = dist;
-        this.toInner = toInner;
-        this.innerAt = innerAt;
         this.cells = cells;
         this.part = part;
         this.fit = fit;
@@ -140,16 +133,8 @@ public final class GridWater {
         return -1;
     }
 
-    public boolean hasInner(int p) {
-        return inner[p];
-    }
-
     public double dist(int a, int b) {
         return dist[a][b];
-    }
-
-    public double toInner(int o) {
-        return toInner[o];
     }
 
     /** Drops the cells; what's left is a few hundred bytes, fine to keep for every grid of a run. */
@@ -184,7 +169,7 @@ public final class GridWater {
         boolean[] nearShallow = near(shoreTile, COAST_TILES);
         for (int s = 0; s < n; s++) {
             if (part[s] >= 0 || !fits(c, s, fit)) continue;
-            boolean f = false, sa = false, in = false, co = false;
+            boolean f = false, sa = false, co = false;
             int sp = 0;
             stack[sp++] = s;
             part[s] = parts;
@@ -193,7 +178,6 @@ public final class GridWater {
                 int x = cur % CELLS, y = cur / CELLS;
                 if (c.sea(x, y)) sa = true; else f = true;
                 if (nearShallow[(y >> 1) * TILES + (x >> 1)]) co = true;
-                if (x >= INNER_LO && x < INNER_HI && y >= INNER_LO && y < INNER_HI) in = true;
                 for (int k = 0; k < 8; k++) {
                     int nx = x + CellSearch.DX[k], ny = y + CellSearch.DY[k];
                     if (nx < 0 || ny < 0 || nx >= CELLS || ny >= CELLS) continue;
@@ -204,15 +188,14 @@ public final class GridWater {
                     stack[sp++] = ni;
                 }
             }
-            flags.add(new boolean[]{f, sa, in, co});
+            flags.add(new boolean[]{f, sa, co});
             parts++;
         }
-        boolean[] fresh = new boolean[parts], sea = new boolean[parts], inner = new boolean[parts], coast = new boolean[parts];
+        boolean[] fresh = new boolean[parts], sea = new boolean[parts], coast = new boolean[parts];
         for (int p = 0; p < parts; p++) {
             fresh[p] = flags.get(p)[0];
             sea[p] = flags.get(p)[1];
-            inner[p] = flags.get(p)[2];
-            coast[p] = flags.get(p)[3];
+            coast[p] = flags.get(p)[2];
         }
 
         List<Opening> openings = new ArrayList<>();
@@ -237,11 +220,9 @@ public final class GridWater {
         boolean[] shore = toward(shoreTile), land = toward(landTile);
         boolean hasLand = false;
         for (boolean b : landTile) hasLand |= b;
-        GridWater g = new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, null, null, null, c, part, fit);
+        GridWater g = new GridWater(parts, fresh, sea, coast, shore, land, hasLand, openings, null, c, part, fit);
         int no = openings.size();
         double[][] dist = new double[no][no];
-        double[] toInner = new double[no];
-        int[] innerAt = new int[no];
         for (int a = 0; a < no; a++) {
             Opening oa = openings.get(a);
             Coord m = oa.cell(oa.mid());
@@ -251,10 +232,8 @@ public final class GridWater {
                 Coord mb = ob.cell(ob.mid());
                 dist[a][b] = (ob.part == oa.part) ? cost[mb.y * CELLS + mb.x] : Double.POSITIVE_INFINITY;
             }
-            innerAt[a] = nearestInnerCell(cost);
-            toInner[a] = (innerAt[a] < 0) ? Double.POSITIVE_INFINITY : cost[innerAt[a]];
         }
-        return new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, dist, toInner, innerAt, c, part, fit);
+        return new GridWater(parts, fresh, sea, coast, shore, land, hasLand, openings, dist, c, part, fit);
     }
 
     private static boolean[] toward(boolean[] shoreTile) {
@@ -360,26 +339,8 @@ public final class GridWater {
         return CellSearch.run(CELLS, CELLS, graph, new int[]{from}, null, null).cost;
     }
 
-    /** The cheapest inner cell to reach, -1 when none is. */
-    private static int nearestInnerCell(double[] cost) {
-        int best = -1;
-        for (int y = INNER_LO; y < INNER_HI; y++)
-            for (int x = INNER_LO; x < INNER_HI; x++) {
-                int i = y * CELLS + x;
-                if (!Double.isInfinite(cost[i]) && (best < 0 || cost[i] < cost[best]))
-                    best = i;
-            }
-        return best;
-    }
-
-    /** Where the boat reaches the inner square coming in at opening o: a grid-local cell, or null. */
-    public Coord innerAt(int o) {
-        int i = innerAt[o];
-        return (i < 0) ? null : Coord.of(i % CELLS, i / CELLS);
-    }
-
     /** From a grid-local cell (the boat; a cell the hull doesn't fit is moved to the nearest one that does): the cost to each
-     *  opening's middle and to the inner square. Null when no fit cell is within 8 tiles. Needs the cells: not after compact(). */
+     *  opening's middle. Null when no fit cell is within 8 tiles. Needs the cells: not after compact(). */
     public FromCell from(Coord cell) {
         int start = nearestFit(cell, 2 * 8);
         if (start < 0) return null;
@@ -390,24 +351,16 @@ public final class GridWater {
             Coord m = o.cell(o.mid());
             toOpening[k] = cost[m.y * CELLS + m.x];
         }
-        int in = nearestInnerCell(cost);
-        return new FromCell(part[start], toOpening, (in < 0) ? Double.POSITIVE_INFINITY : cost[in],
-                (in < 0) ? null : Coord.of(in % CELLS, in / CELLS));
+        return new FromCell(part[start], toOpening);
     }
 
     public static final class FromCell {
         public final int part;
         public final double[] toOpening;
-        public final double toInner;
 
-        /** The inner cell nearest the boat (grid-local), or null. */
-        public final Coord inner;
-
-        FromCell(int part, double[] toOpening, double toInner, Coord inner) {
+        FromCell(int part, double[] toOpening) {
             this.part = part;
             this.toOpening = toOpening;
-            this.toInner = toInner;
-            this.inner = inner;
         }
     }
 
