@@ -44,10 +44,10 @@ public class NEquipProxy extends Widget implements DTarget {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
-        Equipory e = NUtils.getEquipment();
+        NEquipory e = NUtils.getEquipment();
         NEquipory.Slots s = slot(ev.c);
         if(e != null && s != null) {
-            WItem w = NUtils.getEquipment().quickslots[s.idx];
+            WItem w = e.quickslots[s.idx];
             if(w != null) {
                 // Calculate the slot index in our display
                 int slotIndex = 0;
@@ -71,7 +71,7 @@ public class NEquipProxy extends Widget implements DTarget {
 
     @Override
     public void draw(GOut g) {
-        Equipory equipory = NUtils.getEquipment();
+        NEquipory equipory = NUtils.getEquipment();
         if(equipory != null && slots != null && slots.length > 0) {
             int k = 0;
             Coord c0 = new Coord(0, 0);
@@ -79,7 +79,7 @@ public class NEquipProxy extends Widget implements DTarget {
                 c0.x = k;
                 Coord c1 = sqoff(c0);
                 g.image(Inventory.slotsq, c1);
-                WItem w = NUtils.getEquipment().quickslots[slot.idx];
+                WItem w = equipory.quickslots[slot.idx];
                 if(w != null) {
                     w.draw(g.reclipl(c1, invsq.sz()));
                 } else {
@@ -92,10 +92,10 @@ public class NEquipProxy extends Widget implements DTarget {
 
     @Override
     public Object tooltip(Coord c, Widget prev) {
-        Equipory e = NUtils.getEquipment();
+        NEquipory e = NUtils.getEquipment();
         NEquipory.Slots s = slot(c);
         if(e != null && s != null) {
-            WItem w = NUtils.getEquipment().quickslots[s.idx];
+            WItem w = e.quickslots[s.idx];
             if(w != null) {
                 return w.tooltip(c, (prev == this) ? w : prev);
             } else {
@@ -109,8 +109,9 @@ public class NEquipProxy extends Widget implements DTarget {
     public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
         boolean ret =  super.mousehover(ev, hovering);
         NEquipory.Slots s = slot(ev.c);
-        if(NUtils.getEquipment()!=null && s != null) {
-            WItem w = NUtils.getEquipment().quickslots[s.idx];
+        NEquipory e = NUtils.getEquipment();
+        if(e != null && s != null) {
+            WItem w = e.quickslots[s.idx];
             if (w!=null && hovering && (w.item.contents != null)) {
                 w.item.hovering(this);
                 return (true);
@@ -121,7 +122,7 @@ public class NEquipProxy extends Widget implements DTarget {
 
     @Override
     public boolean drop(Coord cc, Coord ul){
-        Equipory e = NUtils.getEquipment();
+        NEquipory e = NUtils.getEquipment();
         NEquipory.Slots s = slot(cc);
         if(e != null && s != null) {
             e.wdgmsg("drop", s.idx);
@@ -133,10 +134,10 @@ public class NEquipProxy extends Widget implements DTarget {
 
     @Override
     public boolean iteminteract(Coord cc, Coord ul){
-        Equipory e = NUtils.getEquipment();
+        NEquipory e = NUtils.getEquipment();
         NEquipory.Slots s = slot(cc);
         if(e != null && s != null) {
-            WItem w = NUtils.getEquipment().quickslots[s.idx];
+            WItem w = e.quickslots[s.idx];
             if(w != null) {
                 return w.iteminteract( cc, ul);
             }
