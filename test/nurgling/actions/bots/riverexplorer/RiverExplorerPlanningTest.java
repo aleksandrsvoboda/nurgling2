@@ -173,8 +173,11 @@ class RiverExplorerPlanningTest {
         Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0)));
         RiverFrontier.Choice c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), ask(w, Coord.of(0, 0), Coord.of(100, 99), visited));
         assertNotNull(c);
-        assertEquals(Coord.of(1, 0), c.grid);
-        assertEquals(1, c.route.size());
+        // Only land lies north and south of the river, so the grid next door reveals nothing a boat can use: the river's end,
+        // where it runs on east into the unknown, is the target.
+        assertEquals(Coord.of(2, 0), c.grid);
+        assertEquals(1, c.gain);
+        assertEquals(2, c.route.size());
         assertEquals(Coord.of(1, 0), c.route.get(0).grid);
         // Entered on its west edge, in the river.
         assertEquals(0, c.route.get(0).cell.x);
@@ -216,6 +219,19 @@ class RiverExplorerPlanningTest {
         c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), ask(w, Coord.of(0, 0), Coord.of(2 * 30, 2 * 50), visited));
         assertEquals(Coord.of(-1, 0), c.grid);
         assertEquals(-1, c.tier);
+    }
+
+    @Test
+    void unknownGridsOnlyLandLeadsToAreWorthNothing() {
+        // A lake in the grid's east half: the unknown grids west of it can only be reached over land.
+        Map<Coord, GridWater> w = world(Coord.of(0, 0), fn((x, y) -> (x >= 50) ? '.' : '#'), Coord.of(1, 0), fn((x, y) -> '.'));
+        Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(1, 0)));
+        RiverFrontier.Ask a = ask(w, Coord.of(1, 0), Coord.of(2 * 50, 2 * 50), visited);
+        RiverFrontier.Choice c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a);
+        // (0, 0) borders seven unknown grids: the three west of it only land leads to; north, south, north-east and
+        // south-east the water runs into (from (0, 0) and from the all-water (1, 0)). Only those four count.
+        assertEquals(Coord.of(0, 0), c.grid);
+        assertEquals(4, RiverFrontier.waterGain(new RiverFrontier.World(w.keySet(), w), Coord.of(0, 0), a, false));
     }
 
     @Test

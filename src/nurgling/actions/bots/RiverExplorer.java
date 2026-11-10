@@ -139,6 +139,7 @@ public class RiverExplorer implements Action {
         // An unknown grid within VOID_REACH tiles of the boat that stays unloaded VOID_MS (while the boat's own grid is loaded)
         // doesn't exist: the world ends there.
         static final int VOID_REACH = 50;
+        static final int OPEN_SEA_LIMIT = 6;
         static final long VOID_MS = 10_000;
         // How long to wait for the minimap to place the boat in a recorded grid.
         static final long NO_MAP_MS = 30_000;
@@ -221,8 +222,10 @@ public class RiverExplorer implements Action {
         long voidsSeg = 0;
         final Map<Coord, Long> unloadedSince = new HashMap<>();
         KnownGrids lastSnap = null;
-        // Set once a coast or river is in reach: from then on open sea is never a target (out there it is worth nothing).
+        // Set once a coast or river is in reach: from then on open sea is only a short look round (OPEN_SEA_LIMIT targets in a
+        // row) when nothing else is left - land just out of view - never a voyage across the ocean.
         boolean coastFound = false;
+        int openSeaRun = 0;
         // What show() last published, and the way on after the current leg.
         Pilot.Course shownCourse = null;
         int shownIdx = -1;
@@ -421,7 +424,7 @@ public class RiverExplorer implements Action {
                 ask.leashGrids = prop.leashGrids;
                 ask.hold = target;
                 ask.bias = bias;
-                ask.openSea = !coastFound;
+                ask.openSea = !coastFound || openSeaRun < OPEN_SEA_LIMIT;
                 Long targetId = (target == null) ? null : snap.ids.get(target);
                 ask.claimed = snap.coordsOf(claims.exchange(targetId, now));
                 Coord off = snap.gridOffset();
@@ -452,7 +455,10 @@ public class RiverExplorer implements Action {
                 }
                 if (choice.tier >= 0)
                     coastFound = true;
+                if (!choice.grid.equals(target))
+                    openSeaRun = (choice.tier < 0) ? openSeaRun + 1 : 0;
                 if (!choice.grid.equals(target)) {
+                    System.out.println("[RiverExplorer] best targets: " + choice.candidates);
                     target = choice.grid;
                     heading = target.sub(pg);
                     gui.msg(L10n.get("river.msg_target", known, known - startKnown,
@@ -770,8 +776,12 @@ public class RiverExplorer implements Action {
                 Coord tile = h.grid.sub(gridOffset).mul(MCache.cmaps).add(h.cell.div(2));
                 res.add(Coord2d.of(tile).add(0.5, 0.5).mul(MCache.tilesz));
             }
-            Coord mid = choice.grid.sub(gridOffset).mul(MCache.cmaps).add(MCache.cmaps.div(2));
-            res.add(Coord2d.of(mid).mul(MCache.tilesz));
+            // The ring: where the boat reaches the target's inner square (the map records the grids round it from there).
+            Coord ul = choice.grid.sub(gridOffset).mul(MCache.cmaps);
+            if (choice.arrival != null)
+                res.add(Coord2d.of(ul).mul(MCache.tilesz).add(Coord2d.of(choice.arrival).mul(WaterCells.CELL)));
+            else
+                res.add(Coord2d.of(ul.add(MCache.cmaps.div(2))).mul(MCache.tilesz));
             return res;
         }
 

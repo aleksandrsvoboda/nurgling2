@@ -75,6 +75,8 @@ public final class GridWater {
     final double[][] dist;
     /** Per opening: cost from its middle to the nearest inner cell of its part. */
     final double[] toInner;
+    /** Per opening: the inner cell (index y * CELLS + x) nearest it - where the boat coming in there reaches the inner square. */
+    final int[] innerAt;
 
     // Kept only until compact(): the cells and their parts, for searches from a cell (the boat).
     private WaterCells cells;
@@ -82,7 +84,7 @@ public final class GridWater {
     private final double fit;
 
     private GridWater(int parts, boolean[] fresh, boolean[] sea, boolean[] inner, boolean[] coast, boolean[] shoreToward,
-                      boolean[] landToward, boolean hasLand, List<Opening> openings, double[][] dist, double[] toInner,
+                      boolean[] landToward, boolean hasLand, List<Opening> openings, double[][] dist, double[] toInner, int[] innerAt,
                       WaterCells cells, int[] part, double fit) {
         this.shoreToward = shoreToward;
         this.landToward = landToward;
@@ -95,6 +97,7 @@ public final class GridWater {
         this.openings = openings;
         this.dist = dist;
         this.toInner = toInner;
+        this.innerAt = innerAt;
         this.cells = cells;
         this.part = part;
         this.fit = fit;
@@ -234,10 +237,11 @@ public final class GridWater {
         boolean[] shore = toward(shoreTile), land = toward(landTile);
         boolean hasLand = false;
         for (boolean b : landTile) hasLand |= b;
-        GridWater g = new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, null, null, c, part, fit);
+        GridWater g = new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, null, null, null, c, part, fit);
         int no = openings.size();
         double[][] dist = new double[no][no];
         double[] toInner = new double[no];
+        int[] innerAt = new int[no];
         for (int a = 0; a < no; a++) {
             Opening oa = openings.get(a);
             Coord m = oa.cell(oa.mid());
@@ -247,9 +251,10 @@ public final class GridWater {
                 Coord mb = ob.cell(ob.mid());
                 dist[a][b] = (ob.part == oa.part) ? cost[mb.y * CELLS + mb.x] : Double.POSITIVE_INFINITY;
             }
-            toInner[a] = nearestInner(cost);
+            innerAt[a] = nearestInnerCell(cost);
+            toInner[a] = (innerAt[a] < 0) ? Double.POSITIVE_INFINITY : cost[innerAt[a]];
         }
-        return new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, dist, toInner, c, part, fit);
+        return new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, dist, toInner, innerAt, c, part, fit);
     }
 
     private static boolean[] toward(boolean[] shoreTile) {
@@ -355,12 +360,22 @@ public final class GridWater {
         return CellSearch.run(CELLS, CELLS, graph, new int[]{from}, null, null).cost;
     }
 
-    private static double nearestInner(double[] cost) {
-        double best = Double.POSITIVE_INFINITY;
+    /** The cheapest inner cell to reach, -1 when none is. */
+    private static int nearestInnerCell(double[] cost) {
+        int best = -1;
         for (int y = INNER_LO; y < INNER_HI; y++)
-            for (int x = INNER_LO; x < INNER_HI; x++)
-                best = Math.min(best, cost[y * CELLS + x]);
+            for (int x = INNER_LO; x < INNER_HI; x++) {
+                int i = y * CELLS + x;
+                if (!Double.isInfinite(cost[i]) && (best < 0 || cost[i] < cost[best]))
+                    best = i;
+            }
         return best;
+    }
+
+    /** Where the boat reaches the inner square coming in at opening o: a grid-local cell, or null. */
+    public Coord innerAt(int o) {
+        int i = innerAt[o];
+        return (i < 0) ? null : Coord.of(i % CELLS, i / CELLS);
     }
 
     /** From a grid-local cell (the boat; a cell the hull doesn't fit is moved to the nearest one that does): the cost to each
@@ -375,7 +390,9 @@ public final class GridWater {
             Coord m = o.cell(o.mid());
             toOpening[k] = cost[m.y * CELLS + m.x];
         }
-        return new FromCell(part[start], toOpening, nearestInner(cost));
+        int in = nearestInnerCell(cost);
+        return new FromCell(part[start], toOpening, (in < 0) ? Double.POSITIVE_INFINITY : cost[in],
+                (in < 0) ? null : Coord.of(in % CELLS, in / CELLS));
     }
 
     public static final class FromCell {
@@ -383,10 +400,14 @@ public final class GridWater {
         public final double[] toOpening;
         public final double toInner;
 
-        FromCell(int part, double[] toOpening, double toInner) {
+        /** The inner cell nearest the boat (grid-local), or null. */
+        public final Coord inner;
+
+        FromCell(int part, double[] toOpening, double toInner, Coord inner) {
             this.part = part;
             this.toOpening = toOpening;
             this.toInner = toInner;
+            this.inner = inner;
         }
     }
 

@@ -20,12 +20,13 @@ import java.util.Set;
  *  <li>a coast target is worth only the unknown neighbours the coast goes on into (land, shallows or a river at the side
  *  toward them, GridWater.shoreToward): unknown open sea next to a coast is worth nothing, so the boat follows the landmass
  *  round instead of hopping between coasts that only border unknown ocean;</li>
- *  <li>tier 1 is targets whose inner square is reached through fresh water; the coast (tier 0: sea with shallows in it) is
- *  only used when no tier-1 target is reachable - so a river system is finished before the boat sails on along the coast to
- *  the next river mouth. Open sea (no shallows; tier -1) is a target only when neither is reachable - started out at sea, or
- *  every coast in reach done - so the boat heads out (straight on, the heading nudge) until a coast comes into view;</li>
- *  <li>among tier-1 targets, the farther upstream (fresh-water grid steps from any sea), the better;</li>
- *  <li>a chosen direction (Ask.bias) and other bots' claims (Ask.claimed) only weigh targets of the same tier.</li>
+ *  <li>tier 1 is targets whose inner square is reached through fresh water, worth RIVER_WEIGHT times a coast target (tier 0:
+ *  sea with shallows by land), the farther upstream the more; distance weighs squared, so the boat finishes the rivers and
+ *  coast at hand before sailing far, even for a river. Open sea (tier -1) is a target only when neither is reachable
+ *  (Ask.openSea: before any coast is found), so the boat heads out, straight on (the heading nudge), until one comes into
+ *  view;</li>
+ *  <li>the held target stays unless another scores HOLD_MARGIN times more; a chosen direction (Ask.bias) and other bots'
+ *  claims (Ask.claimed) weigh the score.</li>
  *  </ul>
  *  Pure, for tests. */
 public final class RiverFrontier {
@@ -37,6 +38,10 @@ public final class RiverFrontier {
             Coord.of(-1, 1), Coord.of(0, 1), Coord.of(1, 1),
     };
     static final double HEADING_WEIGHT = 0.3;
+    /** A river or lake grid is worth this many times a coast grid (before the upstream bonus). */
+    static final double RIVER_WEIGHT = 3;
+    /** The held target stays unless another scores this many times more. */
+    static final double HOLD_MARGIN = 1.5;
     /** How much the chosen direction weighs: +-50% for a target straight that way or straight the other way. */
     static final double BIAS_WEIGHT = 0.5;
     /** A target within CLAIM_REACH grids of another bot's target is worth this much: they spread out. */
@@ -44,7 +49,10 @@ public final class RiverFrontier {
     static final int CLAIM_REACH = 2;
     static final double DEPTH_WEIGHT = 0.25;
     static final int MAX_DEPTH = 8;
-    /** Cost is counted in grids of travel: gain / (1 + cost / COST_SCALE). */
+    /** Cost is counted in grids of travel, and weighs squared: gain / (1 + cost / COST_SCALE)^2. Squared, the nearest
+     *  unexplored water wins unless a farther one reveals far more - replayed on a real map, that sailed 17-25% less for the
+     *  same grids than gain / (1 + cost / COST_SCALE), which left nearby water behind for a bigger gain farther off and came
+     *  back for it later. */
     static final double COST_SCALE = GridWater.TILES;
 
     /** One grid crossing of a route: the grid entered and the cell (grid-local) it is entered at. */
@@ -71,6 +79,10 @@ public final class RiverFrontier {
         public final int depth;
         /** Crossings from the player's grid into the target's; empty when the target is the player's own grid. */
         public final List<Hop> route;
+        /** Where in the target grid the boat reaches its inner square (grid-local cell), or null. */
+        public Coord arrival;
+        /** The best few candidates as "grid score gain cost tier", for the console: why this one. */
+        public String candidates = "";
 
         Choice(Coord grid, int gain, double cost, double seaCost, int tier, int depth, List<Hop> route) {
             this.grid = grid;
@@ -116,8 +128,7 @@ public final class RiverFrontier {
         public Coord bias;
         /** Other bots' targets. */
         public Set<Coord> claimed = Collections.emptySet();
-        /** Whether open sea may be a target at all (when nothing else is in reach): only until a coast has been found - out
-         *  there it is never worth anything once the landmass is known. */
+        /** Whether open sea may be a target at all (when nothing else is in reach). */
         public boolean openSea = true;
         /** Grids past the world's edge: never known, so neither a gain nor a target. */
         public java.util.function.Predicate<Coord> beyond = c -> false;
@@ -145,15 +156,33 @@ public final class RiverFrontier {
         return n;
     }
 
-    /** Unknown neighbours the coast goes on into. */
-    static int coastGain(World world, Coord c, Ask ask) {
+    /** What reaching c reveals: its unknown neighbours that water the boat fits in runs into (waterInto) - and for a coast
+     *  target, that the coast runs into (coastInto). An unknown grid only land leads to is worth nothing to a boat: the lake
+     *  in a grid that doesn't reach its west side gains nothing from the unknown grids west of it. */
+    static int waterGain(World world, Coord c, Ask ask, boolean coast) {
         int n = 0;
         for (Coord d : NEIGHBOURS) {
             Coord nb = c.add(d);
-            if (!world.known.contains(nb) && inLeash(nb, ask.leashCenter, ask.leashGrids) && !ask.beyond.test(nb) && coastInto(world, nb))
+            if (!world.known.contains(nb) && inLeash(nb, ask.leashCenter, ask.leashGrids) && !ask.beyond.test(nb)
+                    && waterInto(world, nb) && (!coast || coastInto(world, nb)))
                 n++;
         }
         return n;
+    }
+
+    /** Whether water the boat fits in runs into unknown grid u: a known grid beside it (not diagonally - water crosses into a
+     *  grid through a side) has an opening on the side toward u. */
+    static boolean waterInto(World world, Coord u) {
+        for (int edge = 0; edge < 4; edge++) {
+            // The known grid across this side of u, and its side facing u.
+            Coord k = u.add(GridWater.step(edge));
+            GridWater g = world.water.get(k);
+            if (g == null) continue;
+            int facing = GridWater.opposite(edge);
+            for (GridWater.Opening o : g.openings)
+                if (o.edge == facing) return true;
+        }
+        return false;
     }
 
     /** Whether the coast runs into unknown grid u: some known grid next to it has land, shallows or a river on its side toward
@@ -217,9 +246,12 @@ public final class RiverFrontier {
         // Best arrival in each grid's inner square: cost, the node it was reached from (null = the player's own grid), fresh.
         Map<Coord, double[]> arrive = new HashMap<>();
         Map<Coord, Node> arriveNode = new HashMap<>();
+        Map<Coord, Coord> arriveCell = new HashMap<>();
         if (!ask.visited.contains(ask.player) && !Double.isInfinite(ask.start.toInner))
             arrive.put(ask.player, new double[]{ask.start.toInner, tier(world, ask.player, home, ask.start.part), depthOf(depth, ask.player, ask.start.part),
                     seaOnly(home, ask.start.part) ? ask.start.toInner : 0});
+        if (ask.start.inner != null)
+            arriveCell.put(ask.player, ask.start.inner);
 
         while (!open.isEmpty()) {
             Node cur = open.poll();
@@ -236,6 +268,7 @@ public final class RiverFrontier {
                     arrive.put(cur.grid, new double[]{c, tier(world, cur.grid, g, part), depthOf(depth, cur.grid, part),
                             cur.sea + (seaOnly(g, part) ? g.toInner(cur.opening) : 0)});
                     arriveNode.put(cur.grid, cur);
+                    arriveCell.put(cur.grid, g.innerAt(cur.opening));
                 }
             }
             // Along the part to its other openings.
@@ -261,41 +294,57 @@ public final class RiverFrontier {
             }
         }
 
-        // Score the arrivals; tier 1 (fresh) beats tier 2 outright.
+        // Score the arrivals. Rivers and lakes weigh RIVER_WEIGHT times a coast, distance still counting: a river far off
+        // doesn't pull the boat away from the coast and rivers at hand. Open sea only when neither is in reach at all.
         Coord best = null, held = null;
-        double bestScore = 0;
-        int bestTier = -2, heldTier = -2;
+        double bestScore = 0, heldScore = 0;
+        List<Object[]> scored = new ArrayList<>();
+        int bestTier = -2;
         for (Map.Entry<Coord, double[]> e : arrive.entrySet()) {
             Coord c = e.getKey();
             if (ask.visited.contains(c) || ask.excluded.contains(c) || !inLeash(c, ask.leashCenter, ask.leashGrids) || ask.beyond.test(c)) continue;
             int tier = (int) e.getValue()[1];
             if (tier < 0 && !ask.openSea) continue;
-            int gain = (tier == 0) ? coastGain(world, c, ask) : gain(world.known, c, ask.leashCenter, ask.leashGrids, ask.beyond);
+            int gain = waterGain(world, c, ask, tier == 0);
             if (gain == 0) continue;
             double cost = e.getValue()[0];
             int dep = (int) e.getValue()[2];
-            double score = gain / (1 + cost / COST_SCALE)
-                    * (tier == 1 ? 1 + DEPTH_WEIGHT * Math.min(dep, MAX_DEPTH) : 1)
+            double near = 1 + cost / COST_SCALE;
+            double score = gain / (near * near)
+                    * (tier == 1 ? RIVER_WEIGHT * (1 + DEPTH_WEIGHT * Math.min(dep, MAX_DEPTH)) : 1)
                     * (1 + HEADING_WEIGHT * alignment(ask.heading, c.sub(ask.player)))
                     * (1 + BIAS_WEIGHT * alignment(ask.bias, c.sub(ask.player)))
                     * (nearClaim(ask.claimed, c) ? CLAIM_FACTOR : 1);
-            if (tier > bestTier || (tier == bestTier && score > bestScore + 1e-9)) {
+            scored.add(new Object[]{c, (tier < 0) ? score / 1000 : score, gain, cost, tier});
+            int rank = (tier < 0) ? -1 : 0;
+            int bestRank = (bestTier < 0) ? -1 : 0;
+            if (best == null || rank > bestRank || (rank == bestRank && score > bestScore + 1e-12)) {
                 best = c;
                 bestScore = score;
                 bestTier = tier;
             }
             if (c.equals(ask.hold) && !nearClaim(ask.claimed, c)) {
                 held = c;
-                heldTier = tier;
+                heldScore = (tier < 0) ? -1 : score;
             }
         }
-        if (held != null && heldTier == bestTier)
+        // The target being sailed for is kept unless another is clearly better: no flipping between two of about equal worth.
+        if (held != null && (bestTier < 0 || heldScore * HOLD_MARGIN >= bestScore))
             best = held;
         if (best == null) return null;
         double[] a = arrive.get(best);
-        int bestGain = ((int) a[1] == 0) ? coastGain(world, best, ask) : gain(world.known, best, ask.leashCenter, ask.leashGrids, ask.beyond);
-        return new Choice(best, bestGain, a[0], a[3], (int) a[1], (int) a[2],
-                route(arriveNode.get(best)));
+        int bestGain = waterGain(world, best, ask, (int) a[1] == 0);
+        Choice res = new Choice(best, bestGain, a[0], a[3], (int) a[1], (int) a[2], route(arriveNode.get(best)));
+        res.arrival = arriveCell.get(best);
+        scored.sort((x, y) -> Double.compare((Double) y[1], (Double) x[1]));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(3, scored.size()); i++) {
+            Object[] o = scored.get(i);
+            sb.append(String.format("%s%s score %.3f gain %d cost %.0f %s", (i > 0) ? " | " : "", o[0], (Double) o[1], (Integer) o[2],
+                    (Double) o[3], ((Integer) o[4] == 1) ? "river" : ((Integer) o[4] == 0) ? "coast" : "open sea"));
+        }
+        res.candidates = sb.toString();
+        return res;
     }
 
     private static Node node(Map<String, Node> nodes, Coord grid, int opening) {
