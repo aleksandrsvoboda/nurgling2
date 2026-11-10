@@ -23,6 +23,15 @@ public final class GridWater {
     public static final int INNER_LO = 2 * 27, INNER_HI = 2 * 73;
     /** Sea travel counts this many times fresh-water travel: rivers first. */
     public static final double SEA_MUL = 3;
+    /** Shallow sea (owater) counts this many times: at sea the boat keeps to the deep side of the shallows' edge, and goes
+     *  into the shallows only the short way to a river mouth. */
+    public static final double SHALLOW_MUL = 8;
+    /** Water within this many tiles of the shore (land, or shallows joined to it) counts as coast, even where the hull doesn't
+     *  fit over the shallows themselves (a narrow band along the land). */
+    static final int COAST_TILES = 4;
+    /** Shore toward a neighbour: looked for this many tiles in from the shared edge, and in a CORNER_TILES square toward a
+     *  diagonal one. */
+    static final int SHORE_BAND = 2, CORNER_TILES = 6;
 
     public static final int N = 0, E = 1, S = 2, W = 3;
 
@@ -53,7 +62,14 @@ public final class GridWater {
     }
 
     public final int parts;
-    final boolean[] fresh, sea, inner;
+    final boolean[] fresh, sea, inner, coast;
+    /** Per neighbour (index as RiverFrontier.NEIGHBOURS): whether land, shallows or fresh water reach the side toward it -
+     *  the coast (or a river) goes on that way. Deep sea all along that side means only more sea is there. */
+    final boolean[] shoreToward;
+    /** As shoreToward, but only land, fresh water or shallows joined to them within this grid: sure to be a coast. */
+    final boolean[] landToward;
+    /** Any land or fresh water in the grid. */
+    final boolean hasLand;
     public final List<Opening> openings;
     /** [a][b]: cost from opening a's middle to opening b's, POSITIVE_INFINITY across parts. */
     final double[][] dist;
@@ -65,12 +81,17 @@ public final class GridWater {
     private int[] part;
     private final double fit;
 
-    private GridWater(int parts, boolean[] fresh, boolean[] sea, boolean[] inner, List<Opening> openings, double[][] dist,
-                      double[] toInner, WaterCells cells, int[] part, double fit) {
+    private GridWater(int parts, boolean[] fresh, boolean[] sea, boolean[] inner, boolean[] coast, boolean[] shoreToward,
+                      boolean[] landToward, boolean hasLand, List<Opening> openings, double[][] dist, double[] toInner,
+                      WaterCells cells, int[] part, double fit) {
+        this.shoreToward = shoreToward;
+        this.landToward = landToward;
+        this.hasLand = hasLand;
         this.parts = parts;
         this.fresh = fresh;
         this.sea = sea;
         this.inner = inner;
+        this.coast = coast;
         this.openings = openings;
         this.dist = dist;
         this.toInner = toInner;
@@ -85,6 +106,35 @@ public final class GridWater {
 
     public boolean sea(int p) {
         return sea[p];
+    }
+
+    /** The part is within COAST_TILES of land or shallows - a coast, or a shallow bank out at sea: RiverFrontier tells them
+     *  apart by land in the grids round. */
+    public boolean coast(int p) {
+        return coast[p];
+    }
+
+    /** Whether land, shallows or a river reach this grid's side toward neighbour offset d (-1..1 each way). Shallows alone may
+     *  be a bank out at sea: see landToward. */
+    public boolean shoreToward(Coord d) {
+        int k = neighbour(d);
+        return k >= 0 && shoreToward[k];
+    }
+
+    /** Whether land, a river, or shallows joined to them in this grid reach the side toward d: the coast surely goes on. */
+    public boolean landToward(Coord d) {
+        int k = neighbour(d);
+        return k >= 0 && landToward[k];
+    }
+
+    public boolean hasLand() {
+        return hasLand;
+    }
+
+    private static int neighbour(Coord d) {
+        for (int k = 0; k < RiverFrontier.NEIGHBOURS.length; k++)
+            if (RiverFrontier.NEIGHBOURS[k].equals(d)) return k;
+        return -1;
     }
 
     public boolean hasInner(int p) {
@@ -127,9 +177,11 @@ public final class GridWater {
         List<boolean[]> flags = new ArrayList<>();
         int parts = 0;
         int[] stack = new int[n];
+        boolean[] landTile = shoreTiles(local, freshP, seaP, false), shoreTile = shoreTiles(local, freshP, seaP, true);
+        boolean[] nearShallow = near(shoreTile, COAST_TILES);
         for (int s = 0; s < n; s++) {
             if (part[s] >= 0 || !fits(c, s, fit)) continue;
-            boolean f = false, sa = false, in = false;
+            boolean f = false, sa = false, in = false, co = false;
             int sp = 0;
             stack[sp++] = s;
             part[s] = parts;
@@ -137,6 +189,7 @@ public final class GridWater {
                 int cur = stack[--sp];
                 int x = cur % CELLS, y = cur / CELLS;
                 if (c.sea(x, y)) sa = true; else f = true;
+                if (nearShallow[(y >> 1) * TILES + (x >> 1)]) co = true;
                 if (x >= INNER_LO && x < INNER_HI && y >= INNER_LO && y < INNER_HI) in = true;
                 for (int k = 0; k < 8; k++) {
                     int nx = x + CellSearch.DX[k], ny = y + CellSearch.DY[k];
@@ -148,14 +201,15 @@ public final class GridWater {
                     stack[sp++] = ni;
                 }
             }
-            flags.add(new boolean[]{f, sa, in});
+            flags.add(new boolean[]{f, sa, in, co});
             parts++;
         }
-        boolean[] fresh = new boolean[parts], sea = new boolean[parts], inner = new boolean[parts];
+        boolean[] fresh = new boolean[parts], sea = new boolean[parts], inner = new boolean[parts], coast = new boolean[parts];
         for (int p = 0; p < parts; p++) {
             fresh[p] = flags.get(p)[0];
             sea[p] = flags.get(p)[1];
             inner[p] = flags.get(p)[2];
+            coast[p] = flags.get(p)[3];
         }
 
         List<Opening> openings = new ArrayList<>();
@@ -177,7 +231,10 @@ public final class GridWater {
         }
 
         // A first instance only to search with; the finished one gets the costs.
-        GridWater g = new GridWater(parts, fresh, sea, inner, openings, null, null, c, part, fit);
+        boolean[] shore = toward(shoreTile), land = toward(landTile);
+        boolean hasLand = false;
+        for (boolean b : landTile) hasLand |= b;
+        GridWater g = new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, null, null, c, part, fit);
         int no = openings.size();
         double[][] dist = new double[no][no];
         double[] toInner = new double[no];
@@ -192,7 +249,91 @@ public final class GridWater {
             }
             toInner[a] = nearestInner(cost);
         }
-        return new GridWater(parts, fresh, sea, inner, openings, dist, toInner, c, part, fit);
+        return new GridWater(parts, fresh, sea, inner, coast, shore, land, hasLand, openings, dist, toInner, c, part, fit);
+    }
+
+    private static boolean[] toward(boolean[] shoreTile) {
+        boolean[] res = new boolean[RiverFrontier.NEIGHBOURS.length];
+        for (int k = 0; k < res.length; k++) {
+            Coord d = RiverFrontier.NEIGHBOURS[k];
+            int x0, x1, y0, y1;
+            if (d.x != 0 && d.y != 0) {
+                x0 = (d.x < 0) ? 0 : TILES - CORNER_TILES; x1 = x0 + CORNER_TILES;
+                y0 = (d.y < 0) ? 0 : TILES - CORNER_TILES; y1 = y0 + CORNER_TILES;
+            } else if (d.x != 0) {
+                x0 = (d.x < 0) ? 0 : TILES - SHORE_BAND; x1 = x0 + SHORE_BAND; y0 = 0; y1 = TILES;
+            } else {
+                y0 = (d.y < 0) ? 0 : TILES - SHORE_BAND; y1 = y0 + SHORE_BAND; x0 = 0; x1 = TILES;
+            }
+            search:
+            for (int y = y0; y < y1; y++)
+                for (int x = x0; x < x1; x++)
+                    if (shoreTile[y * TILES + x]) {
+                        res[k] = true;
+                        break search;
+                    }
+        }
+        return res;
+    }
+
+    /** Per tile: land, fresh water, and shallow sea - all of it (anyShallow), or only that joined within this grid to land or
+     *  fresh water (the shallows along a coast, not a bank out at sea). */
+    static boolean[] shoreTiles(SeaGrid.Tiles local, Predicate<String> freshP, Predicate<String> seaP, boolean anyShallow) {
+        boolean[] res = new boolean[TILES * TILES];
+        boolean[] shallow = new boolean[TILES * TILES];
+        int[] stack = new int[TILES * TILES];
+        int sp = 0;
+        for (int y = 0; y < TILES; y++) {
+            for (int x = 0; x < TILES; x++) {
+                String n = local.name(Coord.of(x, y));
+                int i = y * TILES + x;
+                if (n == null || n.equals("gfx/tiles/odeeper") || n.startsWith("gfx/tiles/nurgling/")) continue;
+                if (WaterCells.SHALLOW_SEA.test(n)) shallow[i] = true;
+                else if (freshP.test(n) || !seaP.test(n)) res[i] = true;
+            }
+        }
+        // Shallows next to land or fresh water, then all shallows joined to those.
+        for (int i = 0; i < res.length; i++) {
+            if (!shallow[i]) continue;
+            int x = i % TILES, y = i / TILES;
+            if ((x > 0 && res[i - 1]) || (x < TILES - 1 && res[i + 1]) || (y > 0 && res[i - TILES]) || (y < TILES - 1 && res[i + TILES]))
+                stack[sp++] = i;
+        }
+        boolean[] coastal = new boolean[res.length];
+        for (int k = 0; k < sp; k++) coastal[stack[k]] = true;
+        while (sp > 0) {
+            int i = stack[--sp];
+            int x = i % TILES, y = i / TILES;
+            int[] nb = {(x > 0) ? i - 1 : -1, (x < TILES - 1) ? i + 1 : -1, (y > 0) ? i - TILES : -1, (y < TILES - 1) ? i + TILES : -1};
+            for (int n : nb) {
+                if (n >= 0 && shallow[n] && !coastal[n]) {
+                    coastal[n] = true;
+                    stack[sp++] = n;
+                }
+            }
+        }
+        for (int i = 0; i < res.length; i++)
+            if (coastal[i] || (anyShallow && shallow[i])) res[i] = true;
+        return res;
+    }
+
+    /** Per tile: a set tile within r tiles. */
+    private static boolean[] near(boolean[] set, int r) {
+        boolean[] res = new boolean[TILES * TILES];
+        for (int y = 0; y < TILES; y++) {
+            for (int x = 0; x < TILES; x++) {
+                if (!set[y * TILES + x]) continue;
+                for (int dy = -r; dy <= r; dy++) {
+                    int ny = y + dy;
+                    if (ny < 0 || ny >= TILES) continue;
+                    for (int dx = -r; dx <= r; dx++) {
+                        int nx = x + dx;
+                        if (nx >= 0 && nx < TILES) res[ny * TILES + nx] = true;
+                    }
+                }
+            }
+        }
+        return res;
     }
 
     private static boolean fits(WaterCells c, int i, double fit) {
@@ -208,7 +349,7 @@ public final class GridWater {
             }
 
             public double step(int to, double len) {
-                return c.sea(to % CELLS, to / CELLS) ? len * SEA_MUL : len;
+                return c.cost(to % CELLS, to / CELLS, len);
             }
         };
         return CellSearch.run(CELLS, CELLS, graph, new int[]{from}, null, null).cost;

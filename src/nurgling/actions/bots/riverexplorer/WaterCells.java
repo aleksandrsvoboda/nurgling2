@@ -15,7 +15,9 @@ import java.util.function.Predicate;
  *  Pure, built from a tile lookup, so it is tested on hand-made maps. */
 public final class WaterCells {
     public static final double TILE = 11, CELL = TILE / 2;
-    static final byte WALL = 0, FRESH = 1, SEA = 2;
+    static final byte WALL = 0, FRESH = 1, SEA = 2, SHALLOW = 3;
+    /** Shallow sea (the band along the land): sailed, but only as much as it has to be - costs GridWater.SHALLOW_MUL. */
+    public static final Predicate<String> SHALLOW_SEA = n -> n.startsWith("gfx/tiles/owater");
 
     /** Window: tiles [ul, ul + (wt, ht)). */
     public final Coord ul;
@@ -106,7 +108,7 @@ public final class WaterCells {
     static byte kindOf(String name, Predicate<String> fresh, Predicate<String> sea) {
         if (name == null) return WALL;
         if (fresh.test(name)) return FRESH;
-        if (sea != null && sea.test(name)) return SEA;
+        if (sea != null && sea.test(name)) return SHALLOW_SEA.test(name) ? SHALLOW : SEA;
         return WALL;
     }
 
@@ -136,8 +138,22 @@ public final class WaterCells {
         return inside(cx, cy) && kind[(cy >> 1) * wt + (cx >> 1)] != WALL;
     }
 
+    /** Sea of any depth. */
     public boolean sea(int cx, int cy) {
-        return inside(cx, cy) && kind[(cy >> 1) * wt + (cx >> 1)] == SEA;
+        if (!inside(cx, cy)) return false;
+        byte k = kind[(cy >> 1) * wt + (cx >> 1)];
+        return k == SEA || k == SHALLOW;
+    }
+
+    public boolean shallow(int cx, int cy) {
+        return inside(cx, cy) && kind[(cy >> 1) * wt + (cx >> 1)] == SHALLOW;
+    }
+
+    /** Cost of a step `len` tiles long onto the cell: deep sea SEA_MUL, shallow sea SHALLOW_MUL times fresh water. */
+    public double cost(int cx, int cy, double len) {
+        if (!inside(cx, cy)) return len;
+        byte k = kind[(cy >> 1) * wt + (cx >> 1)];
+        return (k == SHALLOW) ? len * GridWater.SHALLOW_MUL : (k == SEA) ? len * GridWater.SEA_MUL : len;
     }
 
     public boolean fresh(int cx, int cy) {

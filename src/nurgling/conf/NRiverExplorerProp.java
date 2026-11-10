@@ -14,8 +14,9 @@ public class NRiverExplorerProp implements JConf {
     final private String username;
     final private String chrid;
     public boolean useSea = true;
-    /** At sea, the coast is followed clockwise round the land (else counter-clockwise) until a river shows up. */
-    public boolean clockwise = false;
+    /** Which way to head among targets of about equal worth: "any", "N", "E", "S" or "W" - so bots started at one place
+     *  (yours and your friends') spread out. */
+    public String head = "any";
     public boolean chopReeds = true;
     public String axe = null;
     public boolean avoidDanger = true;
@@ -32,8 +33,8 @@ public class NRiverExplorerProp implements JConf {
         username = (String) values.get("username");
         if (values.get("useSea") != null)
             useSea = (Boolean) values.get("useSea");
-        if (values.get("clockwise") != null)
-            clockwise = (Boolean) values.get("clockwise");
+        if (values.get("head") != null)
+            head = (String) values.get("head");
         if (values.get("chopReeds") != null)
             chopReeds = (Boolean) values.get("chopReeds");
         if (values.get("axe") != null)
@@ -76,7 +77,7 @@ public class NRiverExplorerProp implements JConf {
         j.put("username", username);
         j.put("chrid", chrid);
         j.put("useSea", useSea);
-        j.put("clockwise", clockwise);
+        j.put("head", head);
         j.put("chopReeds", chopReeds);
         if (axe != null)
             j.put("axe", axe);

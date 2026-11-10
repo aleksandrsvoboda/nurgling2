@@ -17,11 +17,13 @@ import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** River Explorer's planning on hand-made maps: '.' deep fresh water, '~' shallow fresh water, 'o' sea, '#' land. */
+/** River Explorer's planning on hand-made maps: '.' deep fresh water, '~' shallow fresh water, 'o' sea, 's' shallow sea (owater),
+ *  '#' land. */
 class RiverExplorerPlanningTest {
-    static final String DEEP = "gfx/tiles/deep", SHALLOW = "gfx/tiles/water", SEA = "gfx/tiles/odeep", LAND = "gfx/tiles/grass";
+    static final String DEEP = "gfx/tiles/deep", SHALLOW = "gfx/tiles/water", SEA = "gfx/tiles/odeep", OWATER = "gfx/tiles/owater",
+            LAND = "gfx/tiles/grass";
     static final Predicate<String> FRESH = n -> n.equals(DEEP) || n.startsWith(SHALLOW);
-    static final Predicate<String> SEA_P = n -> n.equals(SEA);
+    static final Predicate<String> SEA_P = n -> n.equals(SEA) || n.equals(OWATER);
     static final double TILE = 11;
 
     // Fit radii (half-beam + 1) from each vessel's obst layer.
@@ -32,6 +34,7 @@ class RiverExplorerPlanningTest {
             case '.': return DEEP;
             case '~': return SHALLOW;
             case 'o': return SEA;
+            case 's': return OWATER;
             default: return LAND;
         }
     }
@@ -141,6 +144,16 @@ class RiverExplorerPlanningTest {
         return fn((x, y) -> 'o');
     }
 
+    /** A straight river west to east, through the whole grid. */
+    static SeaGrid.Tiles riverThrough() {
+        return fn((x, y) -> (y >= 46 && y <= 54) ? '.' : '#');
+    }
+
+    /** Sea along a coast: land in its north-west corner, shallows round it. */
+    static SeaGrid.Tiles coastSea() {
+        return fn((x, y) -> (x < 8 && y < 8) ? '#' : (x < 20 && y < 20) ? 's' : 'o');
+    }
+
     /** A lake in the grid's middle, the river leaving east, the lake open to the sea southward. */
     static SeaGrid.Tiles lakeToSeaAndRiver() {
         return fn((x, y) -> (y >= 48 && y <= 51 && x >= 50) ? '.' : (x >= 40 && x <= 60 && y >= 40) ? (y >= 70 ? 'o' : '.') : '#');
@@ -172,7 +185,7 @@ class RiverExplorerPlanningTest {
     @Test
     void riversBeforeTheSea() {
         Map<Coord, GridWater> w = world(Coord.of(0, 0), lakeToSeaAndRiver(), Coord.of(1, 0), river(), Coord.of(2, 0), river(),
-                Coord.of(0, 1), allSea());
+                Coord.of(0, 1), coastSea());
         Coord boat = Coord.of(2 * 50, 2 * 55);
         Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0), Coord.of(1, 0)));
         // The sea grid is right next door and reveals about as much, but the river's end comes first.
@@ -182,12 +195,70 @@ class RiverExplorerPlanningTest {
         assertTrue(c.fresh);
         assertEquals(2, c.depth);
         assertEquals(2, c.route.size());
-        // River done: now the sea.
+        // River done: now the coast.
         visited.add(Coord.of(2, 0));
         c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), ask(w, Coord.of(0, 0), boat, visited));
         assertNotNull(c);
         assertEquals(Coord.of(0, 1), c.grid);
         assertFalse(c.fresh);
+    }
+
+    @Test
+    void openSeaOnlyWhenNothingElse() {
+        // A coast grid and an open-sea grid both next to the boat's sea: the coast first.
+        Map<Coord, GridWater> w = world(Coord.of(0, 0), allSea(), Coord.of(1, 0), coastSea(), Coord.of(-1, 0), allSea());
+        Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0)));
+        RiverFrontier.Choice c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), ask(w, Coord.of(0, 0), Coord.of(2 * 30, 2 * 50), visited));
+        assertEquals(Coord.of(1, 0), c.grid);
+        assertEquals(0, c.tier);
+        // Coast done: out to the open sea, rather than stopping.
+        visited.add(Coord.of(1, 0));
+        c = RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), ask(w, Coord.of(0, 0), Coord.of(2 * 30, 2 * 50), visited));
+        assertEquals(Coord.of(-1, 0), c.grid);
+        assertEquals(-1, c.tier);
+    }
+
+    @Test
+    void aShallowBankAtSeaIsNoCoast() {
+        // Shallows with no land anywhere near: a bank out in the open sea, not a coast to follow.
+        Map<Coord, GridWater> w = world(Coord.of(0, 0), allSea(), Coord.of(1, 0), fn((x, y) -> (x > 40 && x < 60 && y > 40 && y < 60) ? 's' : 'o'));
+        Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0)));
+        RiverFrontier.Ask a = ask(w, Coord.of(0, 0), Coord.of(2 * 50, 2 * 50), visited);
+        a.openSea = false;
+        assertNull(RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a));
+    }
+
+    @Test
+    void anotherBotsClaimSendsThisOneElsewhere() {
+        // Two river ends, east and west of the lake; the nearer one (east) is claimed.
+        Map<Coord, GridWater> w = world(Coord.of(0, 0), riverThrough(), Coord.of(1, 0), riverThrough(), Coord.of(-1, 0), riverThrough());
+        Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0)));
+        RiverFrontier.Ask a = ask(w, Coord.of(0, 0), Coord.of(2 * 60, 2 * 50), visited);
+        assertEquals(Coord.of(1, 0), RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a).grid);
+        a.claimed = new HashSet<>(Arrays.asList(Coord.of(3, 0)));
+        assertEquals(Coord.of(-1, 0), RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a).grid);
+    }
+
+    @Test
+    void headBreaksATie() {
+        Map<Coord, GridWater> w = world(Coord.of(0, 0), riverThrough(), Coord.of(1, 0), riverThrough(), Coord.of(-1, 0), riverThrough());
+        Set<Coord> visited = new HashSet<>(Arrays.asList(Coord.of(0, 0)));
+        RiverFrontier.Ask a = ask(w, Coord.of(0, 0), Coord.of(2 * 50, 2 * 50), visited);
+        a.bias = Coord.of(-1, 0);
+        assertEquals(Coord.of(-1, 0), RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a).grid);
+        a.bias = Coord.of(1, 0);
+        assertEquals(Coord.of(1, 0), RiverFrontier.choose(new RiverFrontier.World(w.keySet(), w), a).grid);
+    }
+
+    @Test
+    void shallowSeaCostsMoreThanDeep() {
+        // Deep sea north, shallows south: the way across keeps to the deep half.
+        GridWater g = GridWater.build(fn((x, y) -> y < 50 ? 'o' : y < 95 ? 's' : '#'), FRESH, SEA_P, ROWBOAT);
+        assertTrue(g.coast(0));
+        assertTrue(g.hasLand());
+        WaterCells c = WaterCells.build(fn((x, y) -> y < 50 ? 'o' : 's'), Coord.z, 100, 100, FRESH, SEA_P, null, ROWBOAT);
+        assertEquals(GridWater.SEA_MUL, c.cost(20, 20, 1), 1e-9);
+        assertEquals(GridWater.SHALLOW_MUL, c.cost(20, 180, 1), 1e-9);
     }
 
     @Test

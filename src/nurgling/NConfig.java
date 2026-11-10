@@ -1955,6 +1955,7 @@ public class NConfig
         res.add(NPathVisualizer.PathCategory.GPF);
         res.add(NPathVisualizer.PathCategory.QUEUED);
         res.add(NPathVisualizer.PathCategory.PF);
+        res.add(NPathVisualizer.PathCategory.BOT_COURSE);
         return res;
     }
 

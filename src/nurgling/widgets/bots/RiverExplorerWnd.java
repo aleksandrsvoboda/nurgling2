@@ -7,7 +7,9 @@ import nurgling.i18n.L10n;
 
 /** River Explorer's start window: whether the sea may be used, reeds and the axe, limits and safety. */
 public class RiverExplorerWnd extends Window implements Checkable {
-    CheckBox useSea, clockwise, unclockwise, chopReeds, avoidDanger;
+    static final String[] HEADS = {"any", "N", "E", "S", "W"};
+    CheckBox useSea, chopReeds, avoidDanger;
+    Dropbox<String> head;
     UsingTools axes;
     TextEntry timeLimit, leash;
     public NRiverExplorerProp prop = null;
@@ -24,23 +26,28 @@ public class RiverExplorerWnd extends Window implements Checkable {
             { a = start.useSea; }
         }, prev.pos("bl").add(UI.scale(0, 5)));
 
-        prev = add(new Label(L10n.get("river.coast_direction")), prev.pos("bl").add(UI.scale(0, 10)));
-        prev = add(clockwise = new CheckBox(L10n.get("explorer.clockwise")) {
-            { a = start.clockwise; }
-
-            @Override
-            public void set(boolean a) {
-                super.set(a);
-                unclockwise.a = !a;
+        prev = add(new Label(L10n.get("river.head")), prev.pos("bl").add(UI.scale(0, 10)));
+        prev = add(head = new Dropbox<String>(UI.scale(120), HEADS.length, UI.scale(16)) {
+            {
+                sel = HEADS[0];
+                for (String h : HEADS)
+                    if (h.equals(start.head))
+                        sel = h;
             }
-        }, prev.pos("bl").add(UI.scale(0, 5)));
-        prev = add(unclockwise = new CheckBox(L10n.get("explorer.counterclockwise")) {
-            { a = !start.clockwise; }
 
             @Override
-            public void set(boolean a) {
-                super.set(a);
-                clockwise.a = !a;
+            protected String listitem(int i) {
+                return HEADS[i];
+            }
+
+            @Override
+            protected int listitems() {
+                return HEADS.length;
+            }
+
+            @Override
+            protected void drawitem(GOut g, String item, int i) {
+                g.text(L10n.get("river.head_" + item.toLowerCase()), Coord.z);
             }
         }, prev.pos("bl").add(UI.scale(0, 5)));
 
@@ -75,7 +82,7 @@ public class RiverExplorerWnd extends Window implements Checkable {
                 prop = NRiverExplorerProp.get(NUtils.getUI().sessInfo);
                 if (prop != null) {
                     prop.useSea = useSea.a;
-                    prop.clockwise = clockwise.a;
+                    prop.head = (head.sel != null) ? head.sel : "any";
                     prop.chopReeds = chopReeds.a;
                     if (axes.s != null)
                         prop.axe = axes.s.name;

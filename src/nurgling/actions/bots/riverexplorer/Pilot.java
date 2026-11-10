@@ -159,7 +159,7 @@ public final class Pilot {
 
             public double step(int to, double len) {
                 int x = to % w, y = to / w;
-                double c = open.sea(x, y) ? len * GridWater.SEA_MUL : len;
+                double c = open.cost(x, y, len);
                 double clear = open.clear(to);
                 c += len * BANK_K * Math.max(0, (fit + BANK_RANGE - clear) / BANK_RANGE);
                 if (clear < fit)

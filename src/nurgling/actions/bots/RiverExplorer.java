@@ -7,6 +7,7 @@ import nurgling.actions.Drink;
 import nurgling.actions.Equip;
 import nurgling.actions.Results;
 import nurgling.actions.SelectFlowerAction;
+import nurgling.actions.bots.riverexplorer.Claims;
 import nurgling.actions.bots.riverexplorer.GridWater;
 import nurgling.actions.bots.riverexplorer.Hull;
 import nurgling.actions.bots.riverexplorer.Pilot;
@@ -14,10 +15,9 @@ import nurgling.actions.bots.riverexplorer.KnownGrids;
 import nurgling.actions.bots.riverexplorer.WaterAtlas;
 import nurgling.actions.bots.riverexplorer.WaterCells;
 import nurgling.actions.bots.riverexplorer.RiverFrontier;
-import nurgling.actions.bots.worldexplorer.Helm;
+import nurgling.actions.bots.riverexplorer.Voids;
 import nurgling.actions.bots.worldexplorer.SeaDanger;
 import nurgling.actions.bots.worldexplorer.SeaGrid;
-import nurgling.actions.bots.worldexplorer.SeaSearch;
 import nurgling.conf.NRiverExplorerProp;
 import nurgling.i18n.L10n;
 import nurgling.pf.NHitBoxD;
@@ -36,7 +36,9 @@ import static haven.OCache.posres;
 
 /** River Explorer (bot id "riverexplorer"): reveals the map by boat, going up rivers. It picks targets the way Map Explorer does
  *  (the known grid that reveals the most unknown ones for the least travel) but by water - fresh water first, upstream preferred,
- *  the sea only to reach the next river mouth (RiverFrontier over WaterAtlas). Each leg into the next grid is planned down the
+ *  then the coast (sea with shallows in it) to find the next river mouth; open sea is crossed, never explored, and very deep
+ *  ocean (odeeper) is never entered (RiverFrontier over WaterAtlas). At sea the course keeps to the deep side of the
+ *  shallows' edge. Bots running at once spread out (Claims, and the head setting). Each leg into the next grid is planned down the
  *  middle of the river on the live map (Pilot) and sailed without stopping, the way Ocean Explorer steers; reeds in the way
  *  are chopped from the boat. Ocean Explorer (WorldExplorer) is left as it is: only its vessel helpers are used. */
 public class RiverExplorer implements Action {
@@ -69,6 +71,8 @@ public class RiverExplorer implements Action {
             return voyage.explore();
         } finally {
             halt(gui);
+            gui.activeBotCourse = null;
+            voyage.claims.release();
         }
     }
 
@@ -77,8 +81,17 @@ public class RiverExplorer implements Action {
         return n.startsWith("gfx/tiles/water") || n.equals("gfx/tiles/deep");
     }
 
+    /** Sea the boat may sail: shallow and deep ocean. Very deep ocean (odeeper) drowns characters - never entered, it is land
+     *  to every part of this bot. */
     static boolean seaWater(String n) {
-        return n.startsWith("gfx/tiles/owater") || n.equals("gfx/tiles/odeep") || n.equals("gfx/tiles/odeeper");
+        return n.startsWith("gfx/tiles/owater") || n.equals("gfx/tiles/odeep");
+    }
+
+    static final String VERY_DEEP = "gfx/tiles/odeeper";
+
+    /** Any water this bot sails (no swamp, no very deep ocean). */
+    static boolean sailable(String n) {
+        return freshWater(n) || seaWater(n);
     }
 
     static final String REEDS = "gfx/terobjs/bushes/reeds";
@@ -113,27 +126,20 @@ public class RiverExplorer implements Action {
         // fail the leg (the course and the gobs disagree) instead of looping.
         static final long STALL_MS = 2000;
         static final int IDLE_STANDOFFS = 3;
-        // Following the coast: how long one go lasts before the targets are looked at again; how far and how often to look for a
-        // coast to head for; boxed in this many ticks in a row = done with this coast. A lap: back within LOOP_CLOSE of the
-        // trail (sampled every TRAIL_STEP) on about the same heading, at least LOOP_MIN later; an island is at most
-        // ISLAND_MAX_TILES of land in view.
-        static final long COAST_SLICE_MS = 3000;
-        // While at sea, a river is only gone for when the sea part of the way to it costs at most this (tiles, sea counted 3x:
-        // about 2 grids of sea) - however far up the river its target is; one farther out at sea waits until the coast is done.
-        static final double FAR_RIVER = 600;
-        static final int COAST_SEEK_RADIUS = 60;
-        static final long COAST_SEEK_MS = 2000;
-        static final int COAST_BOXED_LIMIT = 20;
-        static final double TRAIL_STEP = 2 * TILE, LOOP_MIN = 40 * TILE, LOOP_CLOSE = 4 * TILE;
-        static final double HEADING_MATCH = Math.PI / 3;
-        static final int ISLAND_MAX_TILES = 20000;
-        // Round land bigger than what is in view: only a loop at least this long counts; this many short loops in one go at the
-        // coast count as done with it too (the helm going round in circles).
-        static final double LAND_LAP_MIN = 300 * TILE;
-        static final int SHORT_LOOP_LIMIT = 3;
-        // This many snags within the window while following a coast, wherever they are: the coast is given up.
-        static final int COAST_SNAG_LIMIT = 6;
-        static final long COAST_SNAG_WINDOW_MS = 2 * 60_000;
+        /** World edge: snags this close across the line (units), at least this far apart along it, rowing this much into it. */
+        static final double EDGE_LINE = 2;
+        static final double EDGE_APART = 2 * TILE;
+        static final double EDGE_INTO = 0.1;
+        /** How far past the hull's side the wall is taken to be (units). */
+        static final double EDGE_PAST = 1;
+        /** Getting out of very deep water: how many tries, and how far to look for water that isn't (tiles). */
+        static final int VERY_DEEP_TRIES = 3;
+        static final int VERY_DEEP_REACH = 60;
+        static final String WORLD_EDGE = "gfx/tiles/nurgling/worldedge";
+        // An unknown grid within VOID_REACH tiles of the boat that stays unloaded VOID_MS (while the boat's own grid is loaded)
+        // doesn't exist: the world ends there.
+        static final int VOID_REACH = 50;
+        static final long VOID_MS = 10_000;
         // How long to wait for the minimap to place the boat in a recorded grid.
         static final long NO_MAP_MS = 30_000;
         // Clicks (WorldExplorer.sailTo's rules).
@@ -170,6 +176,8 @@ public class RiverExplorer implements Action {
         final double lookahead;
         final MCache map;
         final SeaGrid.Tiles live;
+        final Claims claims = new Claims(NUtils.getDataFilePath("river_claims.nurgling.json"));
+        final Coord bias;
 
         // Run memory, by grid id (a segment merge mid-run keeps it).
         final Set<Long> visited = new HashSet<>();
@@ -182,29 +190,16 @@ public class RiverExplorer implements Action {
         final List<Long> snagDiscTimes = new ArrayList<>();
         final List<Coord2d> snagSpots = new ArrayList<>();
         final List<Long> snagTimes = new ArrayList<>();
+        final List<Double> snagAngles = new ArrayList<>();
+        /** The world's invisible walls found so far (the map ends at its four sides): beyond them the live map reads as land. */
+        final List<WorldEdge> edges = new ArrayList<>();
 
         Coord target = null, heading = null;
-        // Following the coast (see coastSlice): the helm while at it (null when not), where it heads for an edge, islands sailed
-        // round, the trail (in coast-following distance) that tells a lap, the grids followed since the last lap, and the grids
-        // of coasts already sailed round.
-        Helm helm = null;
-        Coord seek = null;
-        long seekT = 0;
-        int boxed = 0;
-        final Set<Coord> coastIgnored = new HashSet<>();
-        final List<CoastPt> coastTrail = new ArrayList<>();
-        double coastTraveled = 0, coastMark = 0;
-        Coord2d coastPrev = null;
-        final Set<Long> coastGrids = new HashSet<>(), lapped = new HashSet<>();
-        // Set when a coast is done: sailing to the frontier target without following any coast until it is reached.
-        boolean crossing = false;
         // The last leg's crossing, the grid it started in and how many crossings its route had (see DEAD_END_LIMIT).
         String prevLink = null;
         Long prevPid = null;
         int prevRouteSize = 0;
         final Map<String, Integer> deadEnds = new HashMap<>();
-        int shortLoops = 0;
-        final List<Long> coastSnagTimes = new ArrayList<>();
         Long startGridId = null;
         Coord leashCenter = null;
         int noWater = 0, ownGridDanger = 0;
@@ -220,6 +215,19 @@ public class RiverExplorer implements Action {
         Coord2d progressRc;
         long progressT;
 
+        // Grids past the world's edge (Voids), for the current segment, and how long each unknown grid near the boat has stayed
+        // unloaded while in loading range; the last snapshot, for checks during a leg.
+        Voids voids = null;
+        long voidsSeg = 0;
+        final Map<Coord, Long> unloadedSince = new HashMap<>();
+        KnownGrids lastSnap = null;
+        // Set once a coast or river is in reach: from then on open sea is never a target (out there it is worth nothing).
+        boolean coastFound = false;
+        // What show() last published, and the way on after the current leg.
+        Pilot.Course shownCourse = null;
+        int shownIdx = -1;
+        List<Coord2d> farRoute = Collections.emptyList();
+
         // Filled by input(): reed gob per tile it covers, for the cutter.
         final Map<Coord, Gob> reedAt = new HashMap<>();
         // Beaver dams seen this run: grid id -> grid-local tiles under them.
@@ -229,12 +237,16 @@ public class RiverExplorer implements Action {
             this.gui = gui;
             this.prop = prop;
             this.hull = hull;
+            this.bias = headOf(prop.head);
             java.util.function.Predicate<String> sea = prop.useSea ? RiverExplorer::seaWater : null;
             this.atlas = new WaterAtlas(RiverExplorer::freshWater, sea, hull.fit(), prop.useSea ? "s" : "f");
             this.danger = new SeaDanger();
             this.lookahead = hull.ship ? LOOKAHEAD_SHIP : LOOKAHEAD;
             this.map = gui.map.glob.map;
             this.live = tc -> {
+                for (WorldEdge e : edges)
+                    if (e.beyond(tc))
+                        return WORLD_EDGE;
                 try {
                     return map.tilesetname(map.gettile(tc));
                 } catch (Loading l) {
@@ -243,174 +255,72 @@ public class RiverExplorer implements Action {
             };
         }
 
+        /** The direction the head setting asks for, in grid steps (north is -y), or null for any. */
+        static Coord headOf(String head) {
+            if (head == null) return null;
+            switch (head) {
+                case "N": return Coord.of(0, -1);
+                case "E": return Coord.of(1, 0);
+                case "S": return Coord.of(0, 1);
+                case "W": return Coord.of(-1, 0);
+                default: return null;
+            }
+        }
+
         enum Leg { ENTERED, MOVED, FAILED, DANGER, ABORT, NO_AXE }
 
-        enum Coast { SAILING, LAP, STUCK, ABORT }
+        /** An invisible wall where the world ends: a line across x (vertical) or y, blocked on side's side. */
+        static final class WorldEdge {
+            final boolean vertical;
+            final double at;
+            final int side;
 
-        void leaveCoast() {
-            helm = null;
-            shortLoops = 0;
-            seek = null;
-            coastPrev = null;
-            boxed = 0;
+            WorldEdge(boolean vertical, double at, int side) {
+                this.vertical = vertical;
+                this.at = at;
+                this.side = side;
+            }
+
+            /** Whether the tile's middle lies past the wall. */
+            boolean beyond(Coord tc) {
+                double c = vertical ? (tc.x + 0.5) * TILE : (tc.y + 0.5) * TILE;
+                return (c - at) * side > 0;
+            }
+
+            /** Whether the whole grid (session grid coords) lies past the wall. */
+            boolean beyondGrid(Coord sessGrid) {
+                Coord ul = sessGrid.mul(MCache.cmaps), br = ul.add(MCache.cmaps.x - 1, MCache.cmaps.y - 1);
+                return beyond(ul) && beyond(br) && beyond(Coord.of(ul.x, br.y)) && beyond(Coord.of(br.x, ul.y));
+            }
+
+            boolean same(WorldEdge o) {
+                return vertical == o.vertical && side == o.side && Math.abs(at - o.at) < 2 * TILE;
+            }
+
+            @Override
+            public String toString() {
+                return (vertical ? "x" : "y") + (side > 0 ? " > " : " < ") + Math.round(at);
+            }
         }
 
-        /** Follows the coast for a few seconds (or until the boat crosses into another grid), with the land on the side
-         *  prop.clockwise asks for - Ocean Explorer's helm on the shoreline band. LAP: back where it followed before on the same
-         *  heading (a big landmass sailed round; a small island is set aside and the next coast followed instead). */
-        Coast coastSlice(long pid) throws InterruptedException {
-            Gob player = NUtils.player();
-            Coord2d rc = player.rc;
-            Gob vessel = WorldExplorer.vessel(player);
-            int clearance = WorldExplorer.clearance(vessel);
-            int radius = (int) Math.ceil(lookahead / TILE) + clearance + 2;
-            if (helm == null) {
-                helm = new Helm(Helm.edgeOnRight(prop.clockwise, false), lastAngle);
-                coastPrev = rc;
-                lastTarget = null;
-                progressRc = rc;
-                progressT = System.currentTimeMillis();
-            }
-            coastGrids.add(pid);
-            Coord grid = rc.floor(MCache.tilesz).div(MCache.cmaps);
-            long end = System.currentTimeMillis() + COAST_SLICE_MS;
-            while (System.currentTimeMillis() < end) {
-                abort = aboard();
-                if (abort != null)
-                    return Coast.ABORT;
-                player = NUtils.player();
-                rc = player.rc;
-                if (!rc.floor(MCache.tilesz).div(MCache.cmaps).equals(grid))
-                    return Coast.SAILING;
-                long now = System.currentTimeMillis();
-                if (rc.dist(progressRc) >= TILE) {
-                    progressRc = rc;
-                    progressT = now;
-                } else if (lastTarget != null && now - progressT > SNAG_MS) {
-                    if (snagged(rc, now))
-                        return Coast.STUCK;
-                    // Snags spread out along the way (grinding along something the helm doesn't see, such as a long wall
-                    // or pier) never make three in one place: count them over time as well.
-                    coastSnagTimes.add(now);
-                    coastSnagTimes.removeIf(t -> now - t > COAST_SNAG_WINDOW_MS);
-                    if (coastSnagTimes.size() >= COAST_SNAG_LIMIT) {
-                        coastSnagTimes.clear();
-                        System.out.println("[RiverExplorer] " + COAST_SNAG_LIMIT + " snags along the coast in a short while - giving this coast up");
-                        return Coast.STUCK;
-                    }
-                    continue;
-                }
-                if (coastLap(rc))
-                    return Coast.LAP;
-                List<SeaGrid.Disc> discs = new ArrayList<>(snags);
-                List<SeaGrid.Disc> dangerDiscs = prop.avoidDanger ? danger.discs(gui, live, WorldExplorer::sailable) : new ArrayList<>();
-                discs.addAll(dangerDiscs);
-                SeaGrid g = SeaGrid.build(live, WorldExplorer::shoreBand, WorldExplorer::sailable, SeaGrid.tileOf(rc), radius,
-                        solidNear(rc, radius), coastIgnored, discs, clearance);
-                Coord2d to = coastSteer(g, rc, now, clearance, dangerDiscs);
-                if (to == null) {
-                    if (++boxed > COAST_BOXED_LIMIT)
-                        return Coast.STUCK;
-                    if (lastTarget != null) {
-                        halt(gui);
-                        lastTarget = null;
-                    }
-                } else {
-                    boxed = 0;
-                    sailTo(rc, to, now);
-                }
-                NUtils.getUI().core.addTask(new WaitDuration(TICK_MS));
-            }
-            return Coast.SAILING;
-        }
-
-        /** Where to click next while following the coast (WorldExplorer.steer's rules), or null when boxed in. */
-        Coord2d coastSteer(SeaGrid g, Coord2d rc, long now, int clearance, List<SeaGrid.Disc> dangerDiscs) {
-            double[] lens = {lookahead, lookahead / 2, lookahead / 4};
-            for (double len : lens) {
-                double from = g.rayStart(rc, clearance * TILE, len);
-                Double a = helm.steer(g, rc, from, len, len == lookahead, () -> seekEdge(rc, now));
-                if (a == null) continue;
-                if (helm.following)
-                    seek = null;
-                return rc.add(Coord2d.sc(a, len));
-            }
-            for (SeaGrid.Disc d : dangerDiscs) {
-                if (d.contains(rc)) {
-                    Coord2d away = rc.sub(d.c);
-                    if (away.abs() < 1) away = Coord2d.sc(helm.course + Math.PI, 1);
-                    return rc.add(away.norm(4 * TILE));
+        /** Two snags a few tiles apart with the boat's middle on one exact line (x or y the same to an edge's width), both
+         *  while rowing toward the same side of it: the hull rubbing along the world's invisible wall. Null otherwise. */
+        WorldEdge edgeOf(Coord2d rc, double angle) {
+            for (int i = 0; i < snagSpots.size(); i++) {
+                Coord2d o = snagSpots.get(i);
+                double a = snagAngles.get(i);
+                for (boolean vertical : new boolean[] {false, true}) {
+                    double across = vertical ? rc.x - o.x : rc.y - o.y;
+                    double along = vertical ? rc.y - o.y : rc.x - o.x;
+                    double into = vertical ? Math.cos(angle) + Math.cos(a) : Math.sin(angle) + Math.sin(a);
+                    if (Math.abs(across) > EDGE_LINE || Math.abs(along) < EDGE_APART || Math.abs(into) < EDGE_INTO)
+                        continue;
+                    int side = (into > 0) ? 1 : -1;
+                    double line = (vertical ? (rc.x + o.x) : (rc.y + o.y)) / 2;
+                    return new WorldEdge(vertical, line + side * (hull.halfBeam + EDGE_PAST), side);
                 }
             }
-            List<Coord> path = SeaSearch.escape(g, SeaGrid.tileOf(rc));
-            if (path == null || path.isEmpty())
-                return null;
-            return SeaSearch.farthestInSight(g, rc, path);
-        }
-
-        /** The nearest coast tile to head for, looked up again every COAST_SEEK_MS; null when none is loaded. */
-        Coord2d seekEdge(Coord2d rc, long now) {
-            if (seek == null || now - seekT > COAST_SEEK_MS) {
-                seek = SeaSearch.nearestEdge(live, WorldExplorer::shoreBand, coastIgnored, SeaGrid.tileOf(rc), COAST_SEEK_RADIUS);
-                seekT = now;
-            }
-            return (seek == null) ? null : SeaGrid.centreOf(seek);
-        }
-
-        /** Keeps the coast trail; true when the boat is back on its own track, same heading, a long way round later: a landmass
-         *  sailed round. A small one (an island, all of it in view) is set aside instead, and false. */
-        boolean coastLap(Coord2d rc) {
-            coastTraveled += rc.dist(coastPrev);
-            coastPrev = rc;
-            if (!helm.following)
-                return false;
-            for (CoastPt t : coastTrail) {
-                if (coastTraveled - t.traveled >= LOOP_MIN && rc.dist(t.rc) < LOOP_CLOSE && Helm.diff(helm.course, t.heading) < HEADING_MATCH) {
-                    coastTrail.clear();
-                    Coord seed = SeaSearch.nearestEdge(live, WorldExplorer::shoreBand, coastIgnored, SeaGrid.tileOf(rc), COAST_SEEK_RADIUS);
-                    Set<Coord> island = (seed == null) ? null : SeaSearch.island(live, WorldExplorer::shoreBand, seed, ISLAND_MAX_TILES);
-                    if (island != null) {
-                        coastIgnored.addAll(island);
-                        seek = null;
-                        System.out.println("[RiverExplorer] sailed round an island of " + island.size() + " tiles, leaving it");
-                        return false;
-                    }
-                    // Land that runs out of view: round all of it only after a long way; a short loop is a bay or a headland
-                    // the helm came round (Ocean Explorer just goes on then) - unless it keeps happening.
-                    double loop = coastTraveled - t.traveled;
-                    if (loop >= LAND_LAP_MIN)
-                        return true;
-                    System.out.println("[RiverExplorer] short loop of " + Math.round(loop / TILE) + " tiles on the coast, going on");
-                    return ++shortLoops >= SHORT_LOOP_LIMIT;
-                }
-            }
-            if (coastTraveled - coastMark >= TRAIL_STEP) {
-                coastTrail.add(new CoastPt(rc, coastTraveled, helm.course));
-                coastMark = coastTraveled;
-            }
-            return false;
-        }
-
-        /** Tiles under solid gobs within radius tiles of rc - not the player, the boat or anyone aboard. */
-        List<Coord> solidNear(Coord2d rc, int radius) {
-            List<Coord> res = new ArrayList<>();
-            Gob player = NUtils.player();
-            Gob vessel = WorldExplorer.vessel(player);
-            long vid = (vessel == null) ? -1 : vessel.id;
-            double reach = (radius + 2) * TILE;
-            List<Gob> near = new ArrayList<>();
-            synchronized (gui.ui.sess.glob.oc) {
-                for (Gob gob : gui.ui.sess.glob.oc) {
-                    if (gob.id == player.id || gob.id == vid) continue;
-                    if (gob.ngob == null || gob.ngob.hitBox == null || gob.rc.dist(rc) > reach) continue;
-                    Following f = gob.getattr(Following.class);
-                    if (f != null && f.tgt == vid) continue;
-                    near.add(gob);
-                }
-            }
-            for (Gob gob : near)
-                res.addAll(covered(gob));
-            return res;
+            return null;
         }
 
         Results explore() throws InterruptedException {
@@ -434,6 +344,11 @@ public class RiverExplorer implements Action {
                 player = NUtils.player();
                 Coord sessTile = player.rc.floor(MCache.tilesz);
                 Coord sessGrid = sessTile.div(MCache.cmaps);
+                if (overVeryDeep(player.rc)) {
+                    if (!outOfVeryDeep())
+                        return Results.ERROR(L10n.get("river.err_very_deep"));
+                    continue;
+                }
                 Long pid = (snap == null) ? null : snap.ids.get(snap.playerGrid);
                 if (pid == null) {
                     // The minimap hasn't placed us, or this grid isn't recorded yet.
@@ -445,6 +360,13 @@ public class RiverExplorer implements Action {
                 }
                 noMapSince = 0;
                 Coord pg = snap.playerGrid;
+                lastSnap = snap;
+                if (voids == null || snap.loc.seg.id != voidsSeg) {
+                    voids = new Voids(NUtils.getDataFilePath("river_voids.nurgling.json"), snap.loc.seg.id);
+                    voidsSeg = snap.loc.seg.id;
+                    unloadedSince.clear();
+                }
+                checkVoids(player.rc);
                 boolean complete = atlas.load(gui.mmap.file, snap, LOAD_MS);
                 // Dams close a river for good: the grids they stand in are worked out again with them as land, so the route
                 // goes round them instead of finding out at the dam each time.
@@ -498,14 +420,19 @@ public class RiverExplorer implements Action {
                 ask.leashCenter = leashCenter;
                 ask.leashGrids = prop.leashGrids;
                 ask.hold = target;
+                ask.bias = bias;
+                ask.openSea = !coastFound;
+                Long targetId = (target == null) ? null : snap.ids.get(target);
+                ask.claimed = snap.coordsOf(claims.exchange(targetId, now));
+                Coord off = snap.gridOffset();
+                ask.beyond = c -> {
+                    if (voids.contains(c)) return true;
+                    for (WorldEdge e : edges)
+                        if (e.beyondGrid(c.sub(off))) return true;
+                    return false;
+                };
                 RiverFrontier.Choice choice = RiverFrontier.choose(new RiverFrontier.World(snap.ids.keySet(), atlas.world(snap)), ask);
-                String underBoat = live.name(sessTile);
-                // Crossing to the next coast is over once the boat is in a river or lake.
-                if (underBoat != null && RiverExplorer.freshWater(underBoat))
-                    crossing = false;
-                boolean riverNear = choice != null && choice.fresh && choice.seaCost <= FAR_RIVER;
-                boolean coastNext = !riverNear && (!crossing || choice == null) && prop.useSea && underBoat != null && seaWater(underBoat) && !lapped.contains(pid);
-                if (choice == null && !coastNext) {
+                if (choice == null) {
                     if (!complete) {
                         // Grids still to read: they may hold the way on.
                         pause(500);
@@ -523,36 +450,8 @@ public class RiverExplorer implements Action {
                     gui.msg(L10n.get("river.msg_done", known, known - startKnown));
                     break;
                 }
-                // At sea with no river mouth close by: follow the coast until one shows up (a river mouth comes into view, and
-                // the next pass of this loop picks it) - rivers start at the coast, open water never leads to one. "Close" is the
-                // sea part of the way only: a mouth next to the boat counts as close however far upstream the unexplored part
-                // is. A mouth far off waits until the coast is done: going for it would turn the boat round and sail past all
-                // the coast between.
-                // A coast already sailed all the way round is left by the plain frontier choice: crossing to the next coast,
-                // and only following again once there.
-                // With nothing reachable at all, following the coast still finds more.
-                if (coastNext) {
-                    if (helm == null) {
-                        gui.msg(L10n.get("river.msg_coast", known));
-                        System.out.println("[RiverExplorer] following the coast " + (prop.clockwise ? "clockwise" : "counter-clockwise"));
-                    }
-                    target = null;
-                    Coast c = coastSlice(pid);
-                    if (c == Coast.ABORT)
-                        return Results.ERROR(abort);
-                    if (c == Coast.LAP || c == Coast.STUCK) {
-                        lapped.addAll(coastGrids);
-                        lapped.add(pid);
-                        crossing = true;
-                        leaveCoast();
-                        coastTrail.clear();
-                        gui.msg(L10n.get("river.msg_coast_done"));
-                        System.out.println("[RiverExplorer] coast done (" + c + "), " + lapped.size() + " grid(s) of it left behind");
-                    }
-                    continue;
-                }
-                if (helm != null)
-                    leaveCoast();
+                if (choice.tier >= 0)
+                    coastFound = true;
                 if (!choice.grid.equals(target)) {
                     target = choice.grid;
                     heading = target.sub(pg);
@@ -560,7 +459,7 @@ public class RiverExplorer implements Action {
                             Math.round(choice.cost), choice.gain, choice.fresh ? L10n.get("river.by_river") : L10n.get("river.by_sea")));
                 }
                 System.out.println(String.format("[RiverExplorer] grid %s, %d known (+%d), target %s cost %.0f (sea %.0f) gain %d %s depth %d, %d crossing(s), atlas %s",
-                        pg, known, known - startKnown, target, choice.cost, choice.seaCost, choice.gain, choice.fresh ? "fresh" : "sea", choice.depth,
+                        pg, known, known - startKnown, target, choice.cost, choice.seaCost, choice.gain, choice.tier == 1 ? "fresh" : choice.tier == 0 ? "coast" : "open sea", choice.depth,
                         choice.route.size(), complete ? "complete" : "loading"));
 
                 // The leg: into the inner square of this grid, or into the next grid of the route near where the route enters it.
@@ -593,9 +492,8 @@ public class RiverExplorer implements Action {
                 prevLink = link;
                 prevPid = pid;
                 prevRouteSize = choice.route.size();
+                farRoute = farRoute(choice, snap.gridOffset());
                 Leg leg = sailLeg(goals, sessGrid);
-                if (leg == Leg.ENTERED && choice.route.isEmpty())
-                    crossing = false;
                 if (leg != Leg.DANGER || link != null)
                     ownGridDanger = 0;
                 switch (leg) {
@@ -719,6 +617,8 @@ public class RiverExplorer implements Action {
                     course = null;
                     continue;
                 }
+                show(course, idx);
+                checkVoids(rc);
                 int r = course.firstReed(idx);
                 int last = course.pts.size() - 1;
                 // Reeds are chopped as trees are: right up against them. A reed the hull touches while the way on needs reeds
@@ -820,6 +720,59 @@ public class RiverExplorer implements Action {
             double l2 = ab.x * ab.x + ab.y * ab.y;
             double t = (l2 <= 0) ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / l2));
             return p.dist(a.add(ab.mul(t)));
+        }
+
+        /** Unknown grids round the boat that stay unloaded in loading range are past the world's edge: recorded as voids. */
+        void checkVoids(Coord2d rc) {
+            KnownGrids snap = lastSnap;
+            if (snap == null || voids == null) return;
+            Coord tile = rc.floor(MCache.tilesz);
+            Coord sg = tile.div(MCache.cmaps), off = snap.gridOffset();
+            long now = System.currentTimeMillis();
+            synchronized (map.grids) {
+                if (!map.grids.containsKey(sg))
+                    return;
+                for (int dy = -2; dy <= 2; dy++) {
+                    for (int dx = -2; dx <= 2; dx++) {
+                        Coord g = sg.add(dx, dy), seg = g.add(off);
+                        if (snap.ids.containsKey(seg) || voids.contains(seg)) continue;
+                        Coord ul = g.mul(MCache.cmaps), br = ul.add(MCache.cmaps.x - 1, MCache.cmaps.y - 1);
+                        int ex = Math.max(0, Math.max(ul.x - tile.x, tile.x - br.x)), ey = Math.max(0, Math.max(ul.y - tile.y, tile.y - br.y));
+                        if (Math.max(ex, ey) > VOID_REACH || map.grids.containsKey(g)) {
+                            unloadedSince.remove(seg);
+                            continue;
+                        }
+                        long since = unloadedSince.computeIfAbsent(seg, k -> now);
+                        if (now - since >= VOID_MS) {
+                            voids.add(seg);
+                            unloadedSince.remove(seg);
+                            System.out.println("[RiverExplorer] grid " + seg + " never loads - past the world's edge, not going for it again");
+                        }
+                    }
+                }
+            }
+        }
+
+        /** Shows the course from point idx on, and the way on after it (farRoute), in the world and on the minimap. */
+        void show(Pilot.Course course, int idx) {
+            if (course == shownCourse && idx == shownIdx)
+                return;
+            shownCourse = course;
+            shownIdx = idx;
+            gui.activeBotCourse = new NGameUI.BotCourse(course.pts.subList(Math.min(idx + 1, course.pts.size()), course.pts.size()), farRoute);
+        }
+
+        /** The way on after this leg, for show(): the later crossings of the route and the target's middle, session coords. */
+        static List<Coord2d> farRoute(RiverFrontier.Choice choice, Coord gridOffset) {
+            List<Coord2d> res = new ArrayList<>();
+            for (int i = 1; i < choice.route.size(); i++) {
+                RiverFrontier.Hop h = choice.route.get(i);
+                Coord tile = h.grid.sub(gridOffset).mul(MCache.cmaps).add(h.cell.div(2));
+                res.add(Coord2d.of(tile).add(0.5, 0.5).mul(MCache.tilesz));
+            }
+            Coord mid = choice.grid.sub(gridOffset).mul(MCache.cmaps).add(MCache.cmaps.div(2));
+            res.add(Coord2d.of(mid).mul(MCache.tilesz));
+            return res;
         }
 
         /** The farthest course point up to `limit` within the lookahead that the hull reaches in a straight line. */
@@ -952,7 +905,8 @@ public class RiverExplorer implements Action {
             gui.map.wdgmsg("click", Coord.z, reed.rc.floor(posres), 1, 0);
             waitStill();
             System.out.println("[RiverExplorer] chopping reeds at " + reed.rc + " (try " + tries + ")");
-            if (!new SelectFlowerAction("Chop", reed).run(gui).IsSuccess())
+            // On reeds the menu option is "Clear" (not "Chop", as on trees).
+            if (!new SelectFlowerAction("Clear", reed).run(gui).IsSuccess())
                 return null;
             NUtils.getUI().core.addTask(new ChopWait(gui, reed.id));
             return null;
@@ -979,6 +933,14 @@ public class RiverExplorer implements Action {
         }
 
         void sailTo(Coord2d rc, Coord2d to, long now) {
+            if (intoVeryDeep(rc, to)) {
+                System.out.println("[RiverExplorer] the way to " + to + " runs into very deep water - not going");
+                if (lastTarget != null) {
+                    halt(gui);
+                    lastTarget = null;
+                }
+                return;
+            }
             double angle = rc.angle(to);
             boolean click = lastTarget == null
                     || angleDiff(angle, lastAngle) >= TURN_STEP
@@ -994,6 +956,91 @@ public class RiverExplorer implements Action {
             lastClickT = now;
         }
 
+        /** Whether any of the hull round rc (its middle and 8 points at its half-beam) is over very deep ocean. */
+        boolean overVeryDeep(Coord2d rc) {
+            for (int k = -1; k < 8; k++) {
+                Coord2d q = (k < 0) ? rc : rc.add(Coord2d.sc(k * Math.PI / 4, hull.halfBeam + 1));
+                if (VERY_DEEP.equals(live.name(q.floor(MCache.tilesz))))
+                    return true;
+            }
+            return false;
+        }
+
+        /** The boat got over very deep ocean: rows straight for the nearest water that isn't, a little past its edge, and
+         *  waits until the hull is clear. False when there is none in reach or the boat doesn't get out. */
+        boolean outOfVeryDeep() throws InterruptedException {
+            for (int attempt = 0; attempt < VERY_DEEP_TRIES; attempt++) {
+                Coord2d rc = NUtils.player().rc;
+                Coord start = rc.floor(MCache.tilesz);
+                Coord out = null;
+                Map<Coord, Boolean> seen = new HashMap<>();
+                ArrayDeque<Coord> queue = new ArrayDeque<>();
+                queue.add(start);
+                seen.put(start, true);
+                while (!queue.isEmpty() && out == null) {
+                    Coord c = queue.poll();
+                    for (Coord o : Coord.uecw) {
+                        Coord n = c.add(o);
+                        if (seen.containsKey(n) || Math.abs(n.x - start.x) > VERY_DEEP_REACH || Math.abs(n.y - start.y) > VERY_DEEP_REACH)
+                            continue;
+                        seen.put(n, true);
+                        String name = live.name(n);
+                        if (name == null)
+                            continue;
+                        if (sailable(name)) {
+                            out = n;
+                            break;
+                        }
+                        if (VERY_DEEP.equals(name))
+                            queue.add(n);
+                    }
+                }
+                if (out == null) {
+                    System.out.println("[RiverExplorer] over very deep water with no way out in reach");
+                    return false;
+                }
+                Coord2d mid = SeaGrid.centreOf(out);
+                Coord2d to = mid.add(mid.sub(rc).norm(hull.halfLength + 2 * TILE));
+                System.out.println("[RiverExplorer] over very deep water at " + rc + " - getting out toward " + to);
+                gui.msg(L10n.get("river.msg_very_deep"));
+                gui.map.wdgmsg("click", Coord.z, to.floor(posres), 1, 0);
+                lastTarget = null;
+                for (int k = 0; k < 40; k++) {
+                    NUtils.getUI().core.addTask(new WaitDuration(250));
+                    if (!overVeryDeep(NUtils.player().rc)) {
+                        halt(gui);
+                        return true;
+                    }
+                }
+            }
+            return !overVeryDeep(NUtils.player().rc);
+        }
+
+        /** Whether the boat's hull, rowing from rc straight to to, would get over very deep ocean. Very deep water the boat is
+         *  already over (it drifted in) doesn't count until it is out: the way out is always allowed. */
+        boolean intoVeryDeep(Coord2d rc, Coord2d to) {
+            double len = rc.dist(to);
+            Coord2d side = (len < 0.01) ? Coord2d.z : to.sub(rc).norm(hull.halfBeam + 1).rot(Math.PI / 2);
+            boolean leaving = true;
+            for (double d = 0; ; d += TILE / 2) {
+                boolean end = d >= len;
+                Coord2d c = end ? to : rc.add(to.sub(rc).mul(d / len));
+                boolean deep = false;
+                for (Coord2d q : new Coord2d[] {c, c.add(side), c.sub(side)}) {
+                    if (VERY_DEEP.equals(live.name(q.floor(MCache.tilesz)))) {
+                        deep = true;
+                        break;
+                    }
+                }
+                if (!deep)
+                    leaving = false;
+                else if (!leaving)
+                    return true;
+                if (end)
+                    return deep;
+            }
+        }
+
         /** Marks the spot ahead as a snag and backs off; true when the boat keeps snagging in one place. */
         boolean snagged(Coord2d rc, long now) throws InterruptedException {
             int near = 0;
@@ -1001,12 +1048,19 @@ public class RiverExplorer implements Action {
                 if (now - snagTimes.get(i) > SNAG_WINDOW_MS) {
                     snagTimes.remove(i);
                     snagSpots.remove(i);
+                    snagAngles.remove(i);
                 } else if (snagSpots.get(i).dist(rc) < SNAG_SPREAD) {
                     near++;
                 }
             }
+            WorldEdge edge = edgeOf(rc, lastAngle);
+            if (edge != null && edges.stream().noneMatch(edge::same)) {
+                edges.add(edge);
+                System.out.println("[RiverExplorer] the world ends here (" + edge + ") - nothing past it is explored");
+            }
             snagTimes.add(now);
             snagSpots.add(rc);
+            snagAngles.add(lastAngle);
             System.out.println("[RiverExplorer] snagged at " + rc + ", backing off");
             snags.add(new SeaGrid.Disc(rc.add(Coord2d.sc(lastAngle, hull.halfLength + TILE / 2)), SNAG_DISC));
             snagDiscTimes.add(now);
@@ -1046,17 +1100,6 @@ public class RiverExplorer implements Action {
             if (d < -Math.PI) d += 2 * Math.PI;
             if (d > Math.PI) d -= 2 * Math.PI;
             return Math.abs(d);
-        }
-    }
-
-    private static final class CoastPt {
-        final Coord2d rc;
-        final double traveled, heading;
-
-        CoastPt(Coord2d rc, double traveled, double heading) {
-            this.rc = rc;
-            this.traveled = traveled;
-            this.heading = heading;
         }
     }
 
