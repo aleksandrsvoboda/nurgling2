@@ -116,6 +116,13 @@ public class NPathVisualizer implements RenderTree.Node
             }
         }
 
+        NGameUI gui = NUtils.getGameUI();
+        NGameUI.BotCourse course = (gui == null) ? null : gui.activeBotCourse;
+        if (course != null && course.near.size() >= 1)
+        {
+            categorized.get(PathCategory.BOT_COURSE).addAll(courseLines(gui, course.near));
+        }
+
         if (path != null)
         {
             List<Pair<Coord3f, Coord3f>> queued = path.lines();
@@ -221,6 +228,38 @@ public class NPathVisualizer implements RenderTree.Node
         {
             return PathCategory.OTHER;
         }
+    }
+
+    /**
+     * Segments from the player along a bot's course, at the water's height where the map is loaded.
+     */
+    private static List<Pair<Coord3f, Coord3f>> courseLines(NGameUI gui, List<Coord2d> pts)
+    {
+        List<Pair<Coord3f, Coord3f>> res = new ArrayList<>();
+        Gob player = NUtils.player();
+        if (player == null || gui.map == null) return res;
+        float z;
+        try
+        {
+            z = player.getrc().z;
+        } catch (Loading l)
+        {
+            return res;
+        }
+        Coord3f prev = new Coord3f((float) player.rc.x, (float) player.rc.y, z);
+        for (Coord2d p : pts)
+        {
+            Coord3f next = new Coord3f((float) p.x, (float) p.y, z);
+            try
+            {
+                next = gui.map.glob.map.getzp(p);
+            } catch (Loading ignored)
+            {
+            }
+            res.add(new Pair<>(prev, next));
+            prev = next;
+        }
+        return res;
     }
 
     /**
@@ -506,6 +545,11 @@ public class NPathVisualizer implements RenderTree.Node
          * Graph PathFinder path
          */
         GPF(new Color(255, 137, 43, 255), true),
+
+        /**
+         * A bot's planned course (NGameUI.activeBotCourse)
+         */
+        BOT_COURSE(new Color(255, 196, 40, 255), true),
 
         /**
          * Area connections path

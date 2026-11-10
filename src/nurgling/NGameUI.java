@@ -97,6 +97,19 @@ public class NGameUI extends GameUI
     public java.util.List<haven.Coord2d> activeBotDetourTrail = null;
     // Current detour target position, rendered as the trail's active node; set/cleared alongside activeBotDetourTrail.
     public haven.Coord2d activeBotDetourTarget = null;
+    // Where a bot is sailing/walking now (River Explorer): drawn in the world and on the minimap; null when idle. Replaced whole, never mutated.
+    public volatile BotCourse activeBotCourse = null;
+
+    /** A bot's way ahead, in session world coords: near = the planned course from here (followed closely), far = rough
+     *  waypoints after it up to the target (drawn dashed, minimap only). */
+    public static final class BotCourse {
+        public final java.util.List<haven.Coord2d> near, far;
+
+        public BotCourse(java.util.List<haven.Coord2d> near, java.util.List<haven.Coord2d> far) {
+            this.near = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(near));
+            this.far = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(far));
+        }
+    }
 
     /** Prospecting results waiting to be paired up with their window; see NProspecting. */
     public final NProspecting.Pending prospecting = new NProspecting.Pending();

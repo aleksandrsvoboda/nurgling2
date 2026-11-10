@@ -248,8 +248,11 @@ public class NUtils
     }
 
     public static NEquipory getEquipment(){
-        if ( getGameUI()!=null && getGameUI().equwnd != null ) {
-            for ( Widget w = getGameUI().equwnd.lchild ; w != null ; w = w.prev ) {
+        // Read once: the active session can change between calls (session switch, logout), and getGameUI() go null.
+        NGameUI gui = getGameUI();
+        Window equwnd = (gui == null) ? null : gui.equwnd;
+        if ( equwnd != null ) {
+            for ( Widget w = equwnd.lchild ; w != null ; w = w.prev ) {
                 if ( w instanceof Equipory ) {
                     return ( NEquipory ) w;
                 }

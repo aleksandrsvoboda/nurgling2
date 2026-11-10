@@ -123,6 +123,7 @@ public class NConfig
         animalrad,
         smokeprop,
         worldexplorerprop,
+        riverexplorerprop,
         questNotified, lpassistent, fishingsettings,
         serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, todoNotify, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, minimapTogglesShown, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, gridDiagonals, gridDiagonalColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
@@ -1330,6 +1331,9 @@ public class NConfig
                             case "NWorldExplorer":
                                 res.add(new NWorldExplorerProp(obj));
                                 break;
+                            case "NRiverExplorer":
+                                res.add(new nurgling.conf.NRiverExplorerProp(obj));
+                                break;
                             case "NMiningOverlayMemory":
                                 res.add(new NMiningOverlayMemory(obj));
                                 break;
@@ -1951,6 +1955,7 @@ public class NConfig
         res.add(NPathVisualizer.PathCategory.GPF);
         res.add(NPathVisualizer.PathCategory.QUEUED);
         res.add(NPathVisualizer.PathCategory.PF);
+        res.add(NPathVisualizer.PathCategory.BOT_COURSE);
         return res;
     }
 

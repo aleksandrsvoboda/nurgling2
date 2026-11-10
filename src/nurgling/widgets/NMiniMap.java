@@ -322,6 +322,7 @@ NMiniMap extends MiniMap {
         drawQueuedWaypoints(g);  // Draw waypoint visualization
         drawForagerRecordingPath(g);  // Draw forager path being recorded
         drawBotDetourTrail(g);   // Draw Forager's live off-path gob-collection detour trail
+        drawBotCourse(g);        // Draw River Explorer's course and the way on to its target
         drawLayers(g);           // Plugin layers (see addLayer)
         drawMarkerLine(g);       // Draw line to selected marker
         drawPings(g);            // Draw chat map pings on top of everything else
@@ -770,6 +771,42 @@ NMiniMap extends MiniMap {
                 g.chcolor();
             }
         }
+    }
+
+    /** Draws a bot's way ahead (NGameUI.activeBotCourse): the planned course solid from the player, then the rough way on to
+     *  the target dashed, ending in a ring on the target. */
+    protected void drawBotCourse(GOut g) {
+        NGameUI gui = NUtils.getGameUI();
+        NGameUI.BotCourse course = (gui == null) ? null : gui.activeBotCourse;
+        Gob player = NUtils.player();
+        if(course == null || player == null || sessloc == null || dloc == null) return;
+        Coord hsz = sz.div(2);
+        java.util.function.Function<Coord2d, Coord> scr = p -> sessloc.tc.add(p.floor(MCache.tilesz)).sub(dloc.tc).div(scalef()).add(hsz);
+        Coord prev = scr.apply(player.rc);
+        g.chcolor(10, 14, 16, 160);
+        Coord sh = prev;
+        for(Coord2d p : course.near) {
+            Coord c = scr.apply(p);
+            Coord2d[] cl = clipLineToRect(new Coord2d(sh), new Coord2d(c), new Coord2d(sz));
+            if(cl != null) g.line(cl[0].round(), cl[1].round(), 4);
+            sh = c;
+        }
+        g.chcolor(255, 196, 40, 255);
+        for(Coord2d p : course.near) {
+            Coord c = scr.apply(p);
+            Coord2d[] cl = clipLineToRect(new Coord2d(prev), new Coord2d(c), new Coord2d(sz));
+            if(cl != null) g.line(cl[0].round(), cl[1].round(), 2);
+            prev = c;
+        }
+        double phase = (System.currentTimeMillis() % 1200) / 1200.0 * UI.scale(12);
+        for(Coord2d p : course.far) {
+            Coord c = scr.apply(p);
+            dashLine(g, prev, c, -phase, 2);
+            prev = c;
+        }
+        if(!course.far.isEmpty() && prev.x >= 0 && prev.y >= 0 && prev.x < sz.x && prev.y < sz.y)
+            ringOutline(g, prev, UI.scale(6), 2);
+        g.chcolor();
     }
 
     /** Draws Forager's live off-path detour trail in yellow (the recorded path itself draws in green, see {@link #drawForagerRecordingPath}). */
