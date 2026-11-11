@@ -1134,8 +1134,30 @@ public final class Boat {
         if (!new SelectFlowerAction("Clear", reed).run(gui).IsSuccess())
             return null;
         NUtils.getUI().core.addTask(new ChopWait(gui, reed.id));
+        dropReeds();
         return null;
     }
+
+    /** Drops every Reeds item in the inventory: clearing puts them there, and over a long river they fill it. */
+    void dropReeds() throws InterruptedException {
+        for (int pass = 0; pass < DROP_PASSES; pass++) {
+            // The last reeds can arrive a moment after the clearing ends.
+            NUtils.getUI().core.addTask(new WaitDuration(DROP_SETTLE_MS));
+            ArrayList<WItem> items = gui.getInventory().getItems(REED_ITEM);
+            if (items.isEmpty())
+                return;
+            for (WItem item : items) {
+                // The server ignores drops sent faster than the shared drop budget allows.
+                while (!NUtils.dropSlotReady())
+                    NUtils.getUI().core.addTask(new WaitDuration(50));
+                NUtils.drop(item);
+            }
+        }
+    }
+
+    static final NAlias REED_ITEM = new NAlias("Reeds");
+    static final int DROP_PASSES = 3;
+    static final long DROP_SETTLE_MS = 300;
 
     NAlias axes() {
         if (prop.axe != null)
