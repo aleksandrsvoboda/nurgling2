@@ -2,6 +2,7 @@ package nurgling;
 
 import haven.*;
 import haven.res.ui.tt.slot.Slotted;
+import haven.res.ui.tt.slots.ISlots;
 import nurgling.styles.TooltipStyle;
 
 import java.awt.*;
@@ -75,6 +76,7 @@ public class NRecipeTooltip {
             Object skillsInfo = null;
             Object costInfo = null;
             Slotted slotted = null;
+            ISlots islots = null;  // Gilding slot count on the crafted (gildable) item
             String paginaStr = null;
             Object durabilityInfo = null;
             Object armorInfo = null;
@@ -100,6 +102,8 @@ public class NRecipeTooltip {
                     costInfo = ii;
                 } else if (ii instanceof Slotted) {
                     slotted = (Slotted) ii;
+                } else if (ii instanceof ISlots) {
+                    islots = (ISlots) ii;
                 } else if (ii instanceof ItemInfo.Pagina) {
                     paginaStr = ((ItemInfo.Pagina) ii).doc.text;
                 } else if (className.equals("Durability")) {
@@ -184,6 +188,12 @@ public class NRecipeTooltip {
             BufferedImage otherEquipmentStats = null;
             if (!otherEquipmentImages.isEmpty()) {
                 otherEquipmentStats = TooltipStyle.cropTopOnly(combineEquipmentImages(otherEquipmentImages));
+            }
+
+            // Render gilding slot count ("Gildable xN") for gildable equipment recipes
+            BufferedImage gildableLine = null;
+            if (islots != null) {
+                gildableLine = TooltipStyle.cropTopOnly(renderGildableLine(islots.left));
             }
 
             // Render Gilding chance line and stats
@@ -320,6 +330,13 @@ public class NRecipeTooltip {
                 int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
                 ret = ItemInfo.catimgs(spacing, ret, otherEquipmentStats);
                 prevTextBottomOffset = 0;  // Equipment stats may have icons, reset offset
+                hasBodyContent = true;
+            }
+            if (gildableLine != null) {
+                // 10px from equipment stats (or ingredients) to the gilding slot count
+                int spacing = hasBodyContent ? (UI.scale(10) - bodyDescent) : (UI.scale(7) - nameDescent);
+                ret = ItemInfo.catimgs(spacing, ret, gildableLine);
+                prevTextBottomOffset = 0;  // Text line, reset offset
                 hasBodyContent = true;
             }
             if (durabilityLine != null) {
@@ -984,6 +1001,21 @@ public class NRecipeTooltip {
         // Combine paragraphs with 10px spacing between them
         int paragraphSpacing = UI.scale(10);
         return ItemInfo.catimgs(paragraphSpacing, paragraphImages.toArray(new BufferedImage[0]));
+    }
+
+    /**
+     * Render the gilding slot count line ("Gildable xN") for a gildable item
+     * recipe. Mirrors the in-game haven.res.ui.tt.slots.ISlots.layout output:
+     * the count comes straight from the server-sent ItemInfo (ISlots.left),
+     * never a hardcoded table. For a fresh recipe output, left == total slots.
+     */
+    private static BufferedImage renderGildableLine(int left) {
+        if (left <= 0) return null;
+        // Gilding blue, matching ISlots.progf color (0, 169, 224)
+        Color gildColor = new Color(0, 169, 224);
+        BufferedImage labelImg = NTooltip.getBodyRegularFoundry().render("Gildable", Color.WHITE).img;
+        BufferedImage numImg = NTooltip.getContentFoundry().render(" ×" + left, gildColor).img;
+        return TooltipStyle.composePair(labelImg, numImg);
     }
 
     /**
