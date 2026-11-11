@@ -134,6 +134,16 @@ public final class RiverFrontier {
         public boolean openSea = true;
         /** Grids past the world's edge: never known, so neither a gain nor a target. */
         public java.util.function.Predicate<Coord> beyond = c -> false;
+        /** What a target is worth, in place of the unknown grids its water runs into (waterGain); null for that. */
+        public Value value = null;
+    }
+
+    /** A caller's own worth of a target (Ask.value): another bot sailing with River Explorer's planner, going for something
+     *  other than unknown grids. */
+    public interface Value {
+        /** grid: a segment grid the boat can get into; reached: its openings the boat can get to (the water it can sail in it).
+         *  0 = not a target. */
+        int of(Coord grid, List<GridWater.Opening> reached);
     }
 
     public static String link(Coord from, Coord to) {
@@ -180,6 +190,18 @@ public final class RiverFrontier {
             }
         }
         return n;
+    }
+
+    /** A target's worth: Ask.value when it is set, else waterGain. */
+    static int worth(World world, Coord c, Ask ask, boolean coast, java.util.function.BiPredicate<Coord, Integer> reached) {
+        if (ask.value == null)
+            return waterGain(world, c, ask, coast, reached);
+        GridWater g = world.water.get(c);
+        if (g == null) return 0;
+        List<GridWater.Opening> open = new ArrayList<>();
+        for (int i = 0; i < g.openings.size(); i++)
+            if (reached.test(c, i)) open.add(g.openings.get(i));
+        return ask.value.of(c, open);
     }
 
     /** Whether the coast runs into unknown grid u: some known grid next to it has land, shallows or a river on its side toward
@@ -304,7 +326,7 @@ public final class RiverFrontier {
             if (ask.visited.contains(c) || ask.excluded.contains(c) || !inLeash(c, ask.leashCenter, ask.leashGrids) || ask.beyond.test(c)) continue;
             int tier = (int) e.getValue()[1];
             if (tier < 0 && !ask.openSea) continue;
-            int gain = waterGain(world, c, ask, tier == 0, reached);
+            int gain = worth(world, c, ask, tier == 0, reached);
             if (gain == 0) continue;
             double cost = e.getValue()[0];
             int dep = (int) e.getValue()[2];
@@ -332,7 +354,7 @@ public final class RiverFrontier {
             best = held;
         if (best == null) return null;
         double[] a = arrive.get(best);
-        int bestGain = waterGain(world, best, ask, (int) a[1] == 0, reached);
+        int bestGain = worth(world, best, ask, (int) a[1] == 0, reached);
         Choice res = new Choice(best, bestGain, a[0], a[3], (int) a[1], (int) a[2], route(arriveNode.get(best)));
         res.arrival = arriveCell.get(best);
         scored.sort((x, y) -> Double.compare((Double) y[1], (Double) x[1]));

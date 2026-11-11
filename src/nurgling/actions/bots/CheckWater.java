@@ -12,6 +12,7 @@ import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.actions.SelectFlowerAction;
+import nurgling.i18n.L10n;
 import nurgling.overlays.NCheckResult;
 import nurgling.tasks.WaitItemContent;
 import nurgling.tools.NAlias;
@@ -27,6 +28,10 @@ public class CheckWater implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         WItem item = gui.getInventory().getItem(cups);
+        if (item == null) {
+            gui.error(L10n.get("checkwater.no_cup"));
+            return Results.FAIL();
+        }
         Coord pos = item.c.div(Inventory.sqsz);
         NUtils.takeItemToHand(item);
         gui.map.wdgmsg("itemact", Coord.z, NUtils.player().rc.floor(posres), 3, 0);

@@ -137,6 +137,18 @@ public final class GridWater {
         return dist[a][b];
     }
 
+    /** The part grid-local tile (x, y) belongs to: that of the first of its four lattice points (its corner, edge middles and
+     *  centre - cells 2x..2x+1, 2y..2y+1) the hull fits, or -1 when it fits none. Needs the cells: not after compact(). */
+    public int tilePart(int x, int y) {
+        for (int dy = 0; dy < 2; dy++) {
+            for (int dx = 0; dx < 2; dx++) {
+                int p = part[(2 * y + dy) * CELLS + 2 * x + dx];
+                if (p >= 0) return p;
+            }
+        }
+        return -1;
+    }
+
     /** Drops the cells; what's left is a few hundred bytes, fine to keep for every grid of a run. */
     public GridWater compact() {
         cells = null;

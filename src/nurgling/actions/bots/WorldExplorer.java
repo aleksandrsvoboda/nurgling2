@@ -371,7 +371,7 @@ public class WorldExplorer implements Action {
     }
 
     /** The boat the player steers, or null when not aboard one or not in the steering seat. */
-    static Gob vessel(Gob player) {
+    public static Gob vessel(Gob player) {
         Following f = player.getattr(Following.class);
         if (f == null) return null;
         Gob v = player.glob.oc.getgob(f.tgt);
@@ -386,7 +386,7 @@ public class WorldExplorer implements Action {
         return null;
     }
 
-    static boolean isShip(Gob vessel) {
+    public static boolean isShip(Gob vessel) {
         String n = vessel.ngob.name;
         return n.endsWith("/vehicle/snekkja") || n.endsWith("/vehicle/knarr");
     }

@@ -115,6 +115,18 @@ public final class WaterAtlas {
         return GridWater.build(tc -> null, fresh, sea, fit).compact();
     }
 
+    /** A recorded grid's tile names, grid-local (index y * TILES + x; null where unknown), or null when it can't be read. */
+    public static String[] recordedNames(MapFile file, long id) {
+        MapFile.Grid grid = loadGrid(file, id);
+        if (grid == null) return null;
+        SeaGrid.Tiles t = recorded(grid);
+        String[] names = new String[GridWater.TILES * GridWater.TILES];
+        for (int y = 0; y < GridWater.TILES; y++)
+            for (int x = 0; x < GridWater.TILES; x++)
+                names[y * GridWater.TILES + x] = t.name(Coord.of(x, y));
+        return names;
+    }
+
     private static SeaGrid.Tiles recorded(MapFile.Grid g) {
         return t -> {
             int id = g.gettile(t);
