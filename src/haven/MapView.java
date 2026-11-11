@@ -816,6 +816,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    public void tick() {
 		if(slot == null)
 		    return;
+		/* nurgling: a background session keeps no meshes (MCache.meshes);
+		 * let go of every cut so they can be freed. */
+		if(!map.meshes()) {
+		    clear();
+		    this.lastload = null;
+		    return;
+		}
 		Loading curload = null;
 		for(Coord cc : area) {
 		    try {
@@ -854,6 +861,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	    public void removed(RenderTree.Slot slot) {
 		super.removed(slot);
+		cuts.clear();
+	    }
+
+	    void clear() {
+		for(Pair<T, RenderTree.Slot> cut : cuts.values())
+		    cut.b.remove();
 		cuts.clear();
 	    }
 	}
@@ -2113,6 +2126,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    try(nurgling.diagnostics.MovementTrace.Stage part = nurgling.diagnostics.MovementTrace.stage(ui, "terrain-picking")) {
 			clickmap.tick();
 		    }
+		    /* nurgling: in a background session the grids above have just
+		     * let go of their cuts; free the meshes they held. */
+		    if(!glob.map.meshes())
+			glob.map.dropmeshes();
 		}
 	}
 

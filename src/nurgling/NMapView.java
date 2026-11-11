@@ -118,7 +118,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             if (chunkNavManager == null) {
                 chunkNavManager = new ChunkNavManager();
             }
-            chunkNavManager.initialize(genus);
+            chunkNavManager.initialize(genus, (NUI) ui);
         } catch(Exception e) {
             System.err.println("NMapView: Error initializing ChunkNavManager: " + e.getMessage());
         }

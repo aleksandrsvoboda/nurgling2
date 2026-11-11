@@ -109,6 +109,14 @@ public class ChunkNavRecorder {
     private void recordGridInternal(MCache.Grid grid) {
         if (grid == null || grid.ul == null) return;
 
+        // The graph is shared by every session in the world: two sessions recording the same grid at once would race on
+        // creating the chunk and on its observed-cell counts.
+        synchronized (graph.recordLock) {
+            recordGridLocked(grid);
+        }
+    }
+
+    private void recordGridLocked(MCache.Grid grid) {
         try {
             Coord gridCoord = gridToCoord(grid);
             if (gridCoord == null) return;
