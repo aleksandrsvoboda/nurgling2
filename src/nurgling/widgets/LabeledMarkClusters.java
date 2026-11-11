@@ -10,10 +10,11 @@ import java.util.*;
  * Groups the labeled marks of one map segment into badges, so a patch of finds reads as one
  * icon per resource type instead of a pile of overlapping icons and labels.
  *
- * <p>Only mined finds (ore, gems and stone, which includes quarryartz) are grouped; ground
- * samples from the Checker bots are sparse and always drawn one per mark.
+ * <p>Mined finds (ore, gems and stone, which includes quarryartz) and ground samples (water,
+ * clay, soil, sand from Check Water / Check Clay and Map Explorer's checks by boat, which lay
+ * them down every few tiles along a river) are grouped.
  *
- * <p>Mined marks of a type that sit within {@code mergePx} of each other on screen become one
+ * <p>Marks of a type that sit within {@code mergePx} of each other on screen become one
  * cluster, anchored on its best mark: that is the tile worth walking to. Clusters of different
  * types stay on their own marks and may overlap; the best is drawn on top and the hover card
  * lists everything under the cursor. Laying them out side by side instead grew into ever
@@ -86,7 +87,7 @@ final class LabeledMarkClusters {
         for(LabeledMinimapMark mark : marks) {
             if(settings != null && !settings.shows(mark.kind, mark.quality))
                 continue;
-            if(cluster && isMined(mark.kind))
+            if(cluster)
                 grouped.add(mark);
             else
                 built.add(new Cluster(mark));
@@ -101,10 +102,6 @@ final class LabeledMarkClusters {
     boolean matches(List<LabeledMinimapMark> marks, ProspectMarkSettings settings, double scale, boolean cluster) {
         return (marks == source) && (this.scale == scale) && (this.cluster == cluster)
             && (filterState == filterState(settings));
-    }
-
-    private static boolean isMined(ProspectKind kind) {
-        return kind == ProspectKind.ORE || kind == ProspectKind.GEM || kind == ProspectKind.STONE;
     }
 
     /**
