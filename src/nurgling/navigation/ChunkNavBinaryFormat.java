@@ -163,10 +163,10 @@ public class ChunkNavBinaryFormat {
         readEdges(in, chunk);
 
         // Read portals
-        chunk.portals = readPortals(in);
+        chunk.portals.addAll(readPortals(in));
 
         // Read connected chunks
-        chunk.connectedChunks = readConnectedChunks(in);
+        chunk.connectedChunks.addAll(readConnectedChunks(in));
 
         // Read reachable areas
         chunk.reachableAreaIds = readReachableAreas(in);

@@ -82,13 +82,15 @@ public class ChunkNavData {
     public EdgePoint[] westEdge = new EdgePoint[CELLS_PER_EDGE];
 
     // Portals (doors, stairs, cellars) within this chunk
-    public List<ChunkPortal> portals = new ArrayList<>();
+    // Read by every session's planner while any session's recorder or portal tracker may add to it: the graph is shared
+    // per world (ChunkNavStore), so these two must be safe to iterate during a write.
+    public List<ChunkPortal> portals = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     // Which areas are reachable from this chunk (cached)
     public Set<Integer> reachableAreaIds = new HashSet<>();
 
     // Connected chunks (grid IDs we can reach from edges)
-    public Set<Long> connectedChunks = new HashSet<>();
+    public Set<Long> connectedChunks = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public ChunkNavData() {
         this.confidence = INITIAL_CONFIDENCE;

@@ -72,6 +72,13 @@ public class MCache implements MapSource {
     Session sess;
     Set<LocalOverlay> ols = new HashSet<>();
     public volatile int olseq = 0, chseq = 0;
+    /* nurgling: whether this session keeps terrain meshes. A session in
+     * the background is never drawn, so it keeps none: its MapView's
+     * grids let go of their cuts, it frees what was built (dropmeshes),
+     * and heights come from the grids' height maps instead of the mesh
+     * surfaces. The mesh surfaces only refine how things are drawn;
+     * bots read tiles, the height map and 2D positions. */
+    private volatile boolean meshes = true;
     Map<Integer, Defrag> fragbufs = new TreeMap<Integer, Defrag>();
 
     /**
@@ -504,6 +511,29 @@ public class MCache implements MapSource {
 		return(this.val);
 	    }
 
+	    /* nurgling: whether anything is built or being built. */
+	    synchronized boolean held() {
+		return((this.val != null) || (this.def != null));
+	    }
+
+	    /* nurgling: forgets the built value, which goes the way a
+	     * rebuild's replaced value would (retire); the next get()
+	     * builds it again. */
+	    public void drop() {
+		T prev;
+		synchronized(this) {
+		    if(this.def != null) {
+			this.def.cancel();
+			this.def = null;
+		    }
+		    prev = this.val;
+		    this.val = null;
+		    this.inited = false;
+		}
+		if(prev != null)
+		    retire(prev);
+	    }
+
 	    public void rebuild() {
 		synchronized(this) {
 		    Defer.Future<T> prev = this.def;
@@ -681,6 +711,40 @@ public class MCache implements MapSource {
 
 	    public void dispose() {
 		synchronized(this) {
+		    freenodes();
+		}
+		/* Outside the Cut's monitor: a mesh swap takes the Deferred's
+		 * monitor and then this Cut's (retiremesh), so taking them in
+		 * the other order here could deadlock. */
+		mesh.dispose();
+		fo.dispose();
+	    }
+
+	    /* nurgling: whether this cut holds anything built for drawing. */
+	    boolean holds() {
+		synchronized(this) {
+		    if(!olbuild.isEmpty() || !retired.isEmpty() || !oldmeshes.isEmpty() || !ols.isEmpty() ||
+		       !olols.isEmpty() || !nols.isEmpty() || !nedgs.isEmpty())
+			return(true);
+		}
+		return(mesh.held() || fo.held());
+	    }
+
+	    /* nurgling: frees everything built for drawing this cut - the
+	     * terrain mesh, its flavor objects and overlay nodes - and
+	     * leaves the cut able to build them again when next asked. */
+	    void drop() {
+		synchronized(this) {
+		    freenodes();
+		    olmv = olgseq = nolmv = nolgseq = -1;
+		}
+		/* Outside the Cut's monitor, as in dispose(). */
+		mesh.drop();
+		fo.drop();
+	    }
+
+	    /* Guarded by the Cut's monitor. */
+	    private void freenodes() {
 		    for(Defer.Future<RenderTree.Node[]> f : olbuild.values())
 			f.cancel();
 		    olbuild.clear();
@@ -717,12 +781,6 @@ public class MCache implements MapSource {
 			}
 			nedgs.clear();
 	    }
-	    /* Outside the Cut's monitor: a mesh swap takes the Deferred's
-	     * monitor and then this Cut's (retiremesh), so taking them in
-	     * the other order here could deadlock. */
-	    mesh.dispose();
-	    fo.dispose();
-		}
 	}
 
 	public Grid(Coord gc) {
@@ -1461,6 +1519,8 @@ public class MCache implements MapSource {
 	};
 
     public double getz(SurfaceID id, Coord tc) {
+	if(!meshes)
+	    return(getfz(tc));
 	Grid g = getgridt(tc);
 	MapMesh cut = g.getcut(tc.sub(g.ul).div(cutsz));
 	Tiler t = tiler(g.gettile(tc.sub(g.ul)));
@@ -1470,6 +1530,8 @@ public class MCache implements MapSource {
     public double getz(SurfaceID id, Coord2d pc) {
 	if((Boolean) NConfig.get(NConfig.Key.flatsurface))
 		return 0;
+	if(!meshes)
+	    return(getcz(pc));
 	Coord tc = pc.floor(tilesz);
 	Grid g = getgridt(tc);
 	MapMesh cut = g.getcut(tc.sub(g.ul).div(cutsz));
@@ -1488,6 +1550,8 @@ public class MCache implements MapSource {
     }
 
     public Coord3f getnorm(SurfaceID id, Coord2d pc) {
+	if(!meshes)
+	    return(Coord3f.zu);
 	Coord tc = pc.floor(tilesz);
 	Grid g = getgridt(tc);
 	MapMesh cut = g.getcut(tc.sub(g.ul).div(cutsz));
@@ -1667,6 +1731,48 @@ public class MCache implements MapSource {
 	    tiles[i] = new SoftReference<>(tile = set.tfac().create(i, set));
 	}
 	return(tile);
+    }
+
+    public boolean meshes() {
+	return(meshes);
+    }
+
+    public void meshes(boolean on) {
+	if(on) {
+	    /* MapView ticks its grids and drops meshes holding this
+	     * monitor; turning meshes back on waits for that, so a session
+	     * that is about to be drawn never has them dropped. */
+	    synchronized(this) {
+		setmeshes(true);
+	    }
+	} else {
+	    setmeshes(false);
+	}
+    }
+
+    private void setmeshes(boolean on) {
+	if(meshes == on)
+	    return;
+	meshes = on;
+	/* Placements made from the height maps are redone against the
+	 * surfaces once they're built again. */
+	olseq++;
+	chseq++;
+    }
+
+    /* Frees every built mesh; called by the session's MapView once its
+     * grids have let go of their cuts. */
+    public void dropmeshes() {
+	Collection<Grid> copy;
+	synchronized(grids) {
+	    copy = new ArrayList<>(grids.values());
+	}
+	for(Grid g : copy) {
+	    for(Grid.Cut cut : g.cuts) {
+		if(cut.holds())
+		    cut.drop();
+	    }
+	}
     }
 
     public void trimall() {

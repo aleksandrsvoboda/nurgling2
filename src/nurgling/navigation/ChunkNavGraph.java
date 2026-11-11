@@ -18,6 +18,8 @@ import static nurgling.navigation.ChunkNavData.Direction;
 public class ChunkNavGraph {
     // All known chunks indexed by grid ID
     private final Map<Long, ChunkNavData> chunks = new ConcurrentHashMap<>();
+    /** Held while a grid is recorded into the graph; sessions sharing it record one grid at a time. */
+    final Object recordLock = new Object();
 
     // Portal index (gobHash -> ChunkPortal)
     private final Map<String, ChunkPortal> portalIndex = new ConcurrentHashMap<>();
@@ -509,23 +511,6 @@ public class ChunkNavGraph {
         chunks.remove(gridId);
 
         return modifiedChunks;
-    }
-
-    /**
-     * Get chunks that were updated within the specified time window.
-     * Used to determine which chunks need to be saved.
-     */
-    public List<ChunkNavData> getRecentlyUpdatedChunks(long windowMs) {
-        List<ChunkNavData> recent = new ArrayList<>();
-        long cutoff = System.currentTimeMillis() - windowMs;
-
-        for (ChunkNavData chunk : chunks.values()) {
-            if (chunk.lastUpdated >= cutoff) {
-                recent.add(chunk);
-            }
-        }
-
-        return recent;
     }
 
     /**

@@ -239,6 +239,7 @@ public class SessionContext {
         }
 
         headless = true;
+        keepMeshes(false);
 
         // Clear path line visualization - prevents frozen lines when switching back
         NGameUI gui = getGameUI();
@@ -298,6 +299,8 @@ public class SessionContext {
         }
 
         headless = false;
+        // After the headless thread has stopped, so its last tick can't drop meshes the visible session now needs
+        keepMeshes(true);
 
         // Signal background message loop to exit
         if (session != null) {
@@ -324,6 +327,15 @@ public class SessionContext {
                 }
             }
         }
+    }
+
+    /**
+     * A session in the background is never drawn, so its map keeps no terrain meshes (MCache.meshes): they were about
+     * 250 MB a session, and bots don't read them. The map is the session's, not a game UI's, so this holds across characters.
+     */
+    private void keepMeshes(boolean on) {
+        if (session != null && session.glob != null)
+            session.glob.map.meshes(on);
     }
 
     /**
