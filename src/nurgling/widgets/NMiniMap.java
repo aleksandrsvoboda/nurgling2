@@ -852,14 +852,7 @@ NMiniMap extends MiniMap {
         NGameUI gui = NUtils.getGameUI();
         if(gui == null || sessloc == null || dloc == null) return;
 
-        // Find a PathRecordable window (Forager or TrufflePigHunter)
-        nurgling.widgets.bots.PathRecordable pathWnd = null;
-        for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
-            if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
-                pathWnd = (nurgling.widgets.bots.PathRecordable) wdg;
-                break;
-            }
-        }
+        nurgling.widgets.bots.PathRecordable pathWnd = nurgling.widgets.bots.PathRecordable.find(gui);
 
         // Get current path: from bot settings window, or from active bot execution
         nurgling.routes.ForagerPath recordingPath = null;
@@ -3157,14 +3150,7 @@ NMiniMap extends MiniMap {
         if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && dloc != null && sessloc != null) {
             NGameUI gui = NUtils.getGameUI();
             if(gui != null) {
-                // Find a PathRecordable window (Forager or TrufflePigHunter)
-                nurgling.widgets.bots.PathRecordable pathWnd = null;
-                for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
-                    if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
-                        pathWnd = (nurgling.widgets.bots.PathRecordable) wdg;
-                        break;
-                    }
-                }
+                nurgling.widgets.bots.PathRecordable pathWnd = nurgling.widgets.bots.PathRecordable.find(gui);
 
                 // If recording, consume the event to prevent player movement
                 if(pathWnd != null && pathWnd.isRecording()) {
@@ -3225,14 +3211,7 @@ NMiniMap extends MiniMap {
         if(ev.b == 1 && !ui.modmeta && !ui.modshift && !ui.modctrl && dloc != null && sessloc != null) {
             NGameUI gui = NUtils.getGameUI();
             if(gui != null) {
-                // Find a PathRecordable window (Forager or TrufflePigHunter)
-                nurgling.widgets.bots.PathRecordable pathWnd = null;
-                for(Widget wdg = gui.lchild; wdg != null; wdg = wdg.prev) {
-                    if(wdg instanceof nurgling.widgets.bots.PathRecordable) {
-                        pathWnd = (nurgling.widgets.bots.PathRecordable) wdg;
-                        break;
-                    }
-                }
+                nurgling.widgets.bots.PathRecordable pathWnd = nurgling.widgets.bots.PathRecordable.find(gui);
 
                 if(pathWnd != null && pathWnd.isRecording()) {
                     try {

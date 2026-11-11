@@ -164,6 +164,12 @@ public class RouteWalkerWindow extends Window implements PathRecordable {
         updateButtons();
     }
 
+    /** Drops the selection, which also takes the route off the maps. */
+    private void clearSelection() {
+        list.sel = null;
+        select(null);
+    }
+
     /** "17 waypoints, 2 milestone legs", plus a warning when none of it resolves here. */
     private String describe(ForagerPath path) {
         if (path == null || path.waypoints.isEmpty()) {
@@ -251,7 +257,7 @@ public class RouteWalkerWindow extends Window implements PathRecordable {
         // A paused walk is parked in a task wait; the interrupt above wakes it, clearing the flag keeps it clean.
         control.setPaused(false);
         control = null;
-        updateButtons();
+        clearSelection();
     }
 
     private boolean walking() {
@@ -270,9 +276,10 @@ public class RouteWalkerWindow extends Window implements PathRecordable {
     public void tick(double dt) {
         super.tick(dt);
         if (control != null && !control.running()) {
-            // Finished on its own, or was stopped from the Bot Status strip / panic key.
+            // Finished on its own, or was stopped from the Bot Status strip / panic key. Either way the
+            // route comes off the maps; hidden windows still tick, so this also covers a closed window.
             control = null;
-            updateButtons();
+            clearSelection();
             status.settext(L10n.get("routewalker.idle"));
             return;
         }
@@ -318,11 +325,7 @@ public class RouteWalkerWindow extends Window implements PathRecordable {
         // Routes may have been added or deleted in Forager Settings since this window was last open.
         refreshRoutes();
         if (loaded != null && !routes.contains(loaded.name)) {
-            loaded = null;
-            list.sel = null;
-            detail.settext(L10n.get("routewalker.no_selection"));
-            note.settext("");
-            updateButtons();
+            clearSelection();
         }
         super.show();
     }
@@ -330,6 +333,7 @@ public class RouteWalkerWindow extends Window implements PathRecordable {
     @Override
     public void wdgmsg(Widget sender, String msg, Object... args) {
         // Closing the window doesn't stop a running walk - the Bot Status strip owns it from there.
+        // Hidden, it no longer draws its route: PathRecordable.find skips hidden windows.
         if (msg.equals("close")) {
             hide();
         } else {
