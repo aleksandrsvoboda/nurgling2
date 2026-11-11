@@ -377,6 +377,7 @@ public class NGameUI extends GameUI
 
     @Override
     public void dispose() {
+        nurgling.plugins.NPluginManager.onGameUIDisposed(this);
         if(atlas != null) atlas.flush();
         if(todoStore != null)
             todoStore.flushFile();
@@ -654,7 +655,7 @@ public class NGameUI extends GameUI
 
             if (maininv != null && !((NInventory) maininv).mainInvInstalled)
             {
-                ((NInventory) maininv).installMainInv();
+                ((NInventory) maininv).installMainInv(this);
             }
 
             // Check if this is the inventory being added

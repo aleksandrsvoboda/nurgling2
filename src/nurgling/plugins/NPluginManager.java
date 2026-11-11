@@ -89,6 +89,18 @@ public class NPluginManager {
         }
     }
 
+    /** Called when a session's NGameUI is torn down; lets every loaded plugin drop what it keeps for it.
+     *  Never called before, so plugins keeping a per-UI entry (Hunt Party's fighters) held every dead UI. */
+    public static synchronized void onGameUIDisposed(NGameUI gui) {
+        for (NPlugin p : plugins) {
+            try {
+                p.onUnload(gui);
+            } catch (RuntimeException | LinkageError e) {
+                System.out.println("[Plugins] onUnload error in " + p.name() + ": " + e);
+            }
+        }
+    }
+
     private static NPlugin loadPlugin(File jar, boolean allowUnsigned) throws Exception {
         if (!allowUnsigned) {
             if (trusted == null) {

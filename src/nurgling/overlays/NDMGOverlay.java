@@ -38,8 +38,10 @@ public class NDMGOverlay extends Sprite implements PView.Render2D {
      * scores together and both land inside that window, so without a registry of
      * in-flight overlays each score would build its own sprite and the two would draw
      * on top of each other at the same point above the gob. Weak keys so a gob leaving
-     * view takes its entry with it. */
-    private static final Map<Gob, NDMGOverlay> live = new WeakHashMap<>();
+     * view takes its entry with it - and weak values, because the overlay's owner is
+     * that same gob: a strong value kept every gob ever hit, and through its render
+     * tree the whole MapView and game UI, even after the session ended. */
+    private static final Map<Gob, java.lang.ref.WeakReference<NDMGOverlay>> live = new WeakHashMap<>();
     public static final Text.Foundry fnd = new Text.Foundry(Text.sans, 12);
     Color[] colt = new Color[]{Color.RED, Color.YELLOW, Color.GREEN};
     TexI[] dmgt = new TexI[3];
@@ -73,10 +75,15 @@ public class NDMGOverlay extends Sprite implements PView.Render2D {
         NDMGOverlay ol;
         synchronized (live) {
             Gob.Overlay gol = owner.findol(NDMGOverlay.class);
-            ol = (gol != null) ? (NDMGOverlay) gol.spr : live.get(owner);
+            if (gol != null) {
+                ol = (NDMGOverlay) gol.spr;
+            } else {
+                java.lang.ref.WeakReference<NDMGOverlay> ref = live.get(owner);
+                ol = (ref != null) ? ref.get() : null;
+            }
             if (ol == null) {
                 ol = new NDMGOverlay(owner);
-                live.put(owner, ol);
+                live.put(owner, new java.lang.ref.WeakReference<>(ol));
                 owner.addcustomol(ol);
             }
         }

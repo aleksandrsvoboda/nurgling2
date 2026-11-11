@@ -104,7 +104,11 @@ public class NOverlay extends MapView.MapRaster
     public void remove() {
 
         slot.remove();
-        for(MCache.Grid.Cut cut : cuts)
+        java.util.List<MCache.Grid.Cut> built;
+        synchronized(cuts) {
+            built = new ArrayList<>(cuts);
+        }
+        for(MCache.Grid.Cut cut : built)
         {
             cut.nols.remove(id);
             cut.nedgs.remove(id);
@@ -223,5 +227,8 @@ public class NOverlay extends MapView.MapRaster
         return(new MapMesh.ShallowWrap(mod, Pipe.Op.compose(new MapMesh.NOLOrder(id), new States.LineWidth(2))));
     }
 
-    public ArrayList<MCache.Grid.Cut> cuts = new ArrayList<>();
+    /* Cuts holding this overlay's nodes, for remove(). Weak: a cut is rebuilt many
+     * times and outlives nothing, so a strong list kept every grid this session ever
+     * drew (an always-on overlay pinned hundreds of unloaded grids). */
+    public final Set<MCache.Grid.Cut> cuts = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 }

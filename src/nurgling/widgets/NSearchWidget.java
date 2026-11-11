@@ -51,6 +51,13 @@ public class NSearchWidget extends Widget {
     }
 
     public NSearchWidget(Coord sz) {
+        this(sz, NUtils.getGameUI());
+    }
+
+    /* gui: the game UI this search bar's inventory belongs to. The help window goes into
+     * it. NUtils.getGameUI() is the active session's, so with several sessions a new
+     * character's help window landed in another session and kept the dead game UI alive. */
+    public NSearchWidget(Coord sz, NGameUI gui) {
         super(sz);
         searchF = new TextEntry(sz.x, "") {
             @Override
@@ -146,7 +153,6 @@ public class NSearchWidget extends Widget {
             }
 
         };
-        NGameUI gui = NUtils.getGameUI();
         if (gui != null) {
             gui.add(helpwnd);
             initHelp();
