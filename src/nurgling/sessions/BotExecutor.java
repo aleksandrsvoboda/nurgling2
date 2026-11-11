@@ -46,9 +46,9 @@ public class BotExecutor {
         Thread t = new Thread(() -> {
             ThreadLocalUI.set(boundUI);
             try {
-                action.run(gui);
+                action.run(boundUI.gui);
             } catch (InterruptedException e) {
-                gui.msg(name + ": STOPPED");
+                stopped(boundUI, name);
             } finally {
                 ThreadLocalUI.clear();
             }
@@ -84,14 +84,14 @@ public class BotExecutor {
             try {
                 // Start support threads
                 for (Action sup : action.getSupp()) {
-                    Thread st = createSupportThread(name, sup, boundUI, gui);
+                    Thread st = createSupportThread(name, sup, boundUI);
                     supports.add(st);
                     st.start();
                 }
                 // Run main action
-                action.run(gui);
+                action.run(boundUI.gui);
             } catch (InterruptedException e) {
-                gui.msg(name + ": STOPPED");
+                stopped(boundUI, name);
             } finally {
                 // Stop all support threads
                 for (Thread st : supports) {
@@ -113,15 +113,24 @@ public class BotExecutor {
         return t;
     }
 
+    /* The thread bodies read boundUI.gui instead of capturing the starting game UI:
+     * a long bot outlives its character, and a captured UI pinned the dead session
+     * (its map, gobs and widgets) for the rest of the thread's life. */
+    private static void stopped(NUI boundUI, String name) {
+        NGameUI gui = boundUI.gui;
+        if (gui != null)
+            gui.msg(name + ": STOPPED");
+    }
+
     /**
      * Create a support thread for an action.
      */
     private static Thread createSupportThread(String baseName, Action action,
-                                               NUI boundUI, NGameUI gui) {
+                                               NUI boundUI) {
         return new Thread(() -> {
             ThreadLocalUI.set(boundUI);
             try {
-                action.run(gui);
+                action.run(boundUI.gui);
             } catch (InterruptedException e) {
                 // Support stopped - normal
             } finally {
@@ -168,7 +177,7 @@ public class BotExecutor {
         Thread t = new Thread(() -> {
             ThreadLocalUI.set(boundUI);
             try {
-                task.accept(gui);
+                task.accept(boundUI.gui);
             } finally {
                 ThreadLocalUI.clear();
             }
