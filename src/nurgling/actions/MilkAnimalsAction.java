@@ -16,7 +16,9 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class MilkAnimalsAction implements Action {
@@ -26,6 +28,13 @@ public class MilkAnimalsAction implements Action {
     private String milkAreaName;
     private Predicate<Gob> lactatingPredicate;
     private final NAlias milkContent = new NAlias("Milk");
+
+    /** Frames to wait for a pour to empty the barrel; past this the cistern counts as full. */
+    private static final int POUR_TICKS = 300;
+
+    private final ArrayList<Long> cisternIds = new ArrayList<>();
+    private final Set<Long> fullCisterns = new HashSet<>();
+    private long currentCistern = -1;
 
     public MilkAnimalsAction(NAlias animalAlias) {
         this.animalAlias = animalAlias;
@@ -52,8 +61,10 @@ public class MilkAnimalsAction implements Action {
             return Results.ERROR("Barrel not found in milk area");
         }
         
-        Gob cistern = Finder.findGob(milkArea, new NAlias("cistern"));
-        if (cistern == null) {
+        for (Gob cistern : Finder.findGobs(milkArea, new NAlias("cistern"))) {
+            cisternIds.add(cistern.id);
+        }
+        if (cisternIds.isEmpty()) {
             return Results.ERROR("Cistern not found in milk area");
         }
         
@@ -63,28 +74,14 @@ public class MilkAnimalsAction implements Action {
             return Results.SUCCESS(); // No animals to milk, but not an error
         }
         
-        // Lift barrel and ensure it has space/is empty
+        // Lift barrel; if it already holds milk, empty it before milking
         Coord2d barrelOriginalPos = barrel.rc;
         new LiftObject(barrel).run(gui);
-        
-        // Check if barrel contains milk - if so, empty it into cistern first
-        if (NUtils.isOverlay(barrel, milkContent)) {
-            // Barrel has milk - empty it into cistern
-            new DynamicPf(cistern).run(gui);
-            NUtils.activateGob(cistern);
-            
-            // Wait for barrel to become empty (no longer has milk overlay)
-            NUtils.getUI().core.addTask(new NTask() {
-                @Override
-                public boolean check() {
-                    return !NUtils.isOverlay(barrel, milkContent);
-                }
-            });
-        }
+        boolean cisternsFull = !unloadBarrel(gui, barrel);
         
         // Milk animals in batches
         int milkCount = 0;
-        while (!lactatingAnimals.isEmpty()) {
+        while (!cisternsFull && !lactatingAnimals.isEmpty()) {
             Gob targetAnimal = findClosestAnimal(lactatingAnimals);
             lactatingAnimals.remove(targetAnimal);
             
@@ -99,40 +96,78 @@ public class MilkAnimalsAction implements Action {
             // Empty barrel every 4 milking
             int BATCH_SIZE = 4;
             if (milkCount >= BATCH_SIZE) {
-                // Navigate to cistern and empty barrel
-                new DynamicPf(cistern).run(gui);
-                NUtils.activateGob(cistern);
-                
-                // Wait for barrel to empty
-                NUtils.getUI().core.addTask(new NTask() {
-                    @Override
-                    public boolean check() {
-                        return !NUtils.isOverlay(barrel, milkContent);
-                    }
-                });
-                
+                cisternsFull = !unloadBarrel(gui, barrel);
                 milkCount = 0;
             }
         }
         
-        // Final check - if barrel has milk, empty it into cistern before placing back
-        if (NUtils.isOverlay(barrel, milkContent)) {
+        // Final check - if barrel has milk, empty it into a cistern before placing back
+        if (!cisternsFull) {
+            cisternsFull = !unloadBarrel(gui, barrel);
+        }
+        
+        // Place barrel back (still holding the leftover milk if every cistern is full)
+        new PlaceObject(barrel, barrelOriginalPos, 0).run(gui);
+        
+        if (cisternsFull) {
+            gui.error("All cisterns in '" + milkAreaName + "' are full");
+            return Results.FAIL();
+        }
+        return Results.SUCCESS();
+    }
+    
+    /**
+     * Pours the carried barrel into the milk area's cisterns until it is empty. A pour that leaves
+     * milk in the barrel means that cistern is full (it took part of the barrel or none), so it is
+     * remembered as full and the rest goes to the next one.
+     * @return false when every cistern is full and the barrel still holds milk
+     */
+    private boolean unloadBarrel(NGameUI gui, Gob barrel) throws InterruptedException {
+        while (NUtils.isOverlay(barrel, milkContent)) {
+            Gob cistern = pickCistern();
+            if (cistern == null) {
+                return false;
+            }
             new DynamicPf(cistern).run(gui);
             NUtils.activateGob(cistern);
             
-            // Wait for barrel to empty
-            NUtils.getUI().core.addTask(new NTask() {
-                @Override
-                public boolean check() {
-                    return !NUtils.isOverlay(barrel, milkContent);
-                }
-            });
+            WaitBarrelEmpty wait = new WaitBarrelEmpty(barrel, milkContent);
+            NUtils.getUI().core.addTask(wait);
+            if (!wait.emptied) {
+                fullCisterns.add(cistern.id);
+                currentCistern = -1;
+            }
         }
-        
-        // Place barrel back
-        new PlaceObject(barrel, barrelOriginalPos, 0).run(gui);
-        
-        return Results.SUCCESS();
+        return true;
+    }
+    
+    /**
+     * Keeps pouring into the same cistern until it fills, so cisterns fill one at a time;
+     * after that, the nearest cistern not known to be full.
+     */
+    private Gob pickCistern() {
+        if (currentCistern != -1) {
+            Gob current = Finder.findGob(currentCistern);
+            if (current != null) {
+                return current;
+            }
+        }
+        Gob player = NUtils.player();
+        Gob best = null;
+        for (long id : cisternIds) {
+            if (fullCisterns.contains(id)) {
+                continue;
+            }
+            Gob cistern = Finder.findGob(id);
+            if (cistern == null) {
+                continue;
+            }
+            if (best == null || (player != null && player.rc.dist(cistern.rc) < player.rc.dist(best.rc))) {
+                best = cistern;
+            }
+        }
+        currentCistern = best == null ? -1 : best.id;
+        return best;
     }
     
     private ArrayList<Gob> findLactatingAnimals(NArea animalArea) throws InterruptedException {
@@ -213,4 +248,25 @@ public class MilkAnimalsAction implements Action {
         };
     }
 
+    /** Waits for the barrel's content overlay to go, giving up after POUR_TICKS frames. */
+    private static class WaitBarrelEmpty extends NTask {
+        private final Gob barrel;
+        private final NAlias content;
+        boolean emptied = false;
+        private int ticks = 0;
+
+        WaitBarrelEmpty(Gob barrel, NAlias content) {
+            this.barrel = barrel;
+            this.content = content;
+        }
+
+        @Override
+        public boolean check() {
+            if (!NUtils.isOverlay(barrel, content)) {
+                emptied = true;
+                return true;
+            }
+            return ++ticks >= POUR_TICKS;
+        }
+    }
 }
