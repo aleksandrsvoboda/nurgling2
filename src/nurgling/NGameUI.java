@@ -1370,6 +1370,14 @@ public class NGameUI extends GameUI
         }
     }
 
+    /** Adds {@code :squad probe}; see nurgling.sessions.squad.SquadProbe. */
+    @Override
+    public Map<String, Console.Command> findcmds() {
+        Map<String, Console.Command> cmds = new TreeMap<>(super.findcmds());
+        cmds.put("squad", (cons, args) -> nurgling.sessions.squad.SquadProbe.run(this, args));
+        return cmds;
+    }
+
     @Override
     public boolean globtype(GlobKeyEvent ev) {
         if(kb_atlas.key().match(ev)) { toggleCraftAtlas(); return true; }
@@ -1392,6 +1400,11 @@ public class NGameUI extends GameUI
             return true;
         }
         nurgling.sessions.SessionManager sm = nurgling.sessions.SessionManager.getInstance();
+
+        if (nurgling.sessions.squad.SquadView.kb_mode.key().match(ev.awt)) {
+            sm.squad().setCommander(!sm.squad().commander());
+            return true;
+        }
 
         // Check session switching keybindings
         if (nurgling.sessions.SessionTabBar.kb_session_prev.key().match(ev.awt)) {

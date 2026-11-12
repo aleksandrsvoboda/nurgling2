@@ -364,6 +364,8 @@ public class NCore extends Widget
         try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "nurgling-core")) {
             tickMeasured(dt);
         }
+        /* Squad orders run on this session's own thread: the render loop when visible, the headless loop otherwise. */
+        nurgling.sessions.squad.SquadExecutor.tick((NUI) ui);
     }
 
     private void tickMeasured(double dt) {

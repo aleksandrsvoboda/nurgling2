@@ -896,6 +896,12 @@ public class OptWnd extends Window {
 		y = addbtn(cont, "Switch to Session 8", nurgling.sessions.SessionTabBar.kb_session8, y);
 		y = addbtn(cont, "Switch to Session 9", nurgling.sessions.SessionTabBar.kb_session9, y);
 		y = addbtn(cont, "Switch to Session 10", nurgling.sessions.SessionTabBar.kb_session10, y);
+		y = cont.adda(new Label(L10n.get("opt.keybind.squad")), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
+		y = addbtn(cont, L10n.get("opt.keybind.squad_mode"), nurgling.sessions.squad.SquadView.kb_mode, y);
+		y = addbtn(cont, L10n.get("opt.keybind.squad_stop"), nurgling.sessions.squad.SquadView.kb_stop, y);
+		y = addbtn(cont, L10n.get("opt.keybind.squad_rally"), nurgling.sessions.squad.SquadView.kb_rally, y);
+		y = addbtn(cont, L10n.get("opt.keybind.squad_follow"), nurgling.sessions.squad.SquadView.kb_follow, y);
+		y = addbtn(cont, L10n.get("opt.keybind.squad_all"), nurgling.sessions.squad.SquadView.kb_all, y);
 //		y = addbtn(cont, "Player grid box", NMapView.kb_displaypbox, y);
 //		y = addbtn(cont, "Player FOV box", NMapView.kb_displayfov, y);
 		y = addbtn(cont, L10n.get("opt.keybind.grid_walls"), NMapView.kb_displaygrid, y);

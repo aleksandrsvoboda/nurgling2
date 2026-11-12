@@ -183,7 +183,12 @@ public class NUI extends UI
         NUI previousUI = ThreadLocalUI.get();
         ThreadLocalUI.set(this);
         try {
-            super.keydown(ev);
+            /* UI.keydown, with the squad's Commander-mode keys between the focused widget and the global keys:
+             * they must win over fight and belt keys, but never over a text field. */
+            if (!dispatch(root, new haven.Widget.KeyDownEvent(ev))) {
+                if (!nurgling.sessions.squad.SquadView.key(this, ev))
+                    dispatch(root, new haven.Widget.GlobKeyEvent(ev));
+            }
         } finally {
             if (previousUI != null)
                 ThreadLocalUI.set(previousUI);

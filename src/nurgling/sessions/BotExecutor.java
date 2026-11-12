@@ -113,6 +113,33 @@ public class BotExecutor {
         return t;
     }
 
+    /**
+     * Run an action bound to a given session rather than the caller's: the squad starts orders this way from the
+     * member's own tick. The thread shows up in that session's bot strip, so its stop gear works. Being interrupted is
+     * how a newer order replaces this one, so it ends quietly.
+     *
+     * @return The created thread, or null if that session has no game UI
+     */
+    public static Thread runOn(SessionContext ctx, String name, Action action) {
+        NUI boundUI = (ctx != null) ? ctx.ui : null;
+        NGameUI gui = (boundUI != null) ? boundUI.gui : null;
+        if (gui == null || gui.biw == null) return null;
+
+        Thread t = new Thread(() -> {
+            ThreadLocalUI.set(boundUI);
+            try {
+                action.run(boundUI.gui);
+            } catch (InterruptedException e) {
+                // Replaced by a newer order, or stopped with the gear
+            } finally {
+                ThreadLocalUI.clear();
+            }
+        }, name + "-" + ctx.sessionId);
+        gui.biw.addObserve(t);
+        t.start();
+        return t;
+    }
+
     /* The thread bodies read boundUI.gui instead of capturing the starting game UI:
      * a long bot outlives its character, and a captured UI pinned the dead session
      * (its map, gobs and widgets) for the rest of the thread's life. */

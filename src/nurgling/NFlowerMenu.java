@@ -106,6 +106,8 @@ public class NFlowerMenu extends FlowerMenu
 
     public void nchoose(NPetal option)
     {
+        /* A menu that is the viewpoint's share of a squad Interact passes the petal on to the rest of the squad. */
+        nurgling.sessions.SessionManager.getInstance().squad().onPetal(ui, (option == null) ? null : option.name);
         if (option == null)
         {
             wdgmsg("cl", -1);

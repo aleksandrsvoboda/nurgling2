@@ -67,6 +67,14 @@ public class SessionManager {
     private final ConcurrentHashMap<String, nurgling.timers.TimerStore> timerStores = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, nurgling.forage.ForageStore> forageStores = new ConcurrentHashMap<>();
 
+    /** Characters selected for squad orders; declared after {@code listeners}, which it registers in. */
+    private final nurgling.sessions.squad.Squad squad = new nurgling.sessions.squad.Squad(this);
+
+    /** The squad: which sessions are selected and what they were last told to do. */
+    public nurgling.sessions.squad.Squad squad() {
+        return squad;
+    }
+
     /**
      * Get the singleton SessionManager instance.
      */
