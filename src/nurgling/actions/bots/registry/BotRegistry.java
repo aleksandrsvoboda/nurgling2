@@ -228,6 +228,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("white_onionq", BotDescriptor.BotType.FARMING_QUALITY, "bot.white_onionq.title", "bot.white_onionq.desc", true, true, WhiteOnionFarmerQ.class, "white_onionq", false));
         bots.add(new BotDescriptor("leekq", BotDescriptor.BotType.FARMING_QUALITY, "Leek Farmer Quality", "Automatically harvests and replants leek in X*Y cell patches.", true, true, LeekFarmerQ.class, "leekq", false));
         bots.add(new BotDescriptor("radishq", BotDescriptor.BotType.FARMING_QUALITY, "bot.radishq.title", "bot.radishq.desc", true, true, RadishFarmerQ.class, "radishq", false));
+        bots.add(new BotDescriptor("champignonq", BotDescriptor.BotType.FARMING_QUALITY, "bot.champignonq.title", "bot.champignonq.desc", true, true, ChampignonFarmerQ.class, "champignonq", false));
         bots.add(new BotDescriptor("garlicq", BotDescriptor.BotType.FARMING_QUALITY, "Garlic Farmer Quality", "Automatically harvests and replants garlic in X*Y cell patches.", true, true, GarlicFarmerQ.class, "garlicq", false));
         bots.add(new BotDescriptor("hempq", BotDescriptor.BotType.FARMING_QUALITY, "Hemp Farmer Quality", "Automatically harvests and replants hemp in X*Y cell patches.", true, true, HempFarmerQ.class, "hempq", false));
         bots.add(new BotDescriptor("flaxq", BotDescriptor.BotType.FARMING_QUALITY, "Flax Farmer Quality", "Automatically harvests and replants flax in X*Y cell patches.", true, true, FlaxFarmerQ.class, "flaxq", false));
@@ -352,12 +353,12 @@ public class BotRegistry {
         group("aggro", "reagro", "attacknearcurs", "attacknear", "attacknearborka", "attackall", "quickbarrage");
 
         group("crops", "turnip", "carrot", "beetroot", "red_onion", "yellow_onion", "white_onion", "leek", "radish", "garlic",
-                "barley", "millet", "wheat", "hemp", "flax", "lettuce", "green_kale", "pumpkin", "watermelon", "poppy", "pipeweed", "stringgrass");
+                "barley", "millet", "wheat", "hemp", "flax", "lettuce", "green_kale", "pumpkin", "watermelon", "poppy", "pipeweed", "stringgrass", "champignon");
         group("trellis", "grape", "hops", "peppercorn", "pea", "cucumber");
         group("wild", "wildkale", "wildonion", "wildtuber", "wildgourd", "wildflower");
         group("cheese", "curdingtub", "cheese", "cheese_conveyor");
         group("crops", "turnipq", "carrotq", "beetrootq", "red_onionq", "yellow_onionq", "white_onionq", "leekq", "radishq", "garlicq",
-                "barleyq", "milletq", "wheatq", "hempq", "flaxq", "lettuceq", "green_kaleq", "pumpkinq", "watermelonq", "poppyq", "pipeweedq");
+                "barleyq", "milletq", "wheatq", "hempq", "flaxq", "lettuceq", "green_kaleq", "pumpkinq", "watermelonq", "poppyq", "pipeweedq", "champignonq");
 
         group("herds", "cows", "goats", "sheeps", "pigs", "horses", "reindeers");
         group("small_animals", "chicken", "duck", "rabbit");

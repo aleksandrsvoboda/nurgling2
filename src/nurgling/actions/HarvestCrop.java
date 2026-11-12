@@ -358,7 +358,7 @@ public class HarvestCrop implements Action {
             // Nothing harvested this pass (partial harvest can leave a field with only
             // immature plants): skip the container trip entirely rather than walking over
             // to open and close it for no items.
-            if (barrelItems.isEmpty() && stockpileItems.isEmpty() && unplantableItems.isEmpty())
+            if (barrelItems.isEmpty() && stockpileItems.isEmpty() && unplantableItems.isEmpty() && containerItems.isEmpty())
                 return;
             // The seed container holds planting material only: a product that can't be
             // planted (radishes) is dropped as on a regular field, and the bot sweeps it
@@ -383,6 +383,7 @@ public class HarvestCrop implements Action {
                 List<WItem> allItems = new ArrayList<>();
                 allItems.addAll(barrelItems);
                 allItems.addAll(stockpileItems);
+                allItems.addAll(containerItems);
 
                 Set<String> processed = new HashSet<>();
 
