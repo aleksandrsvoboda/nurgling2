@@ -389,7 +389,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	@Override
 	public nurgling.sessions.CameraState captureState() {
-	    return new nurgling.sessions.CameraState("FreeCam", tdist, tangl, cc);
+	    return new nurgling.sessions.CameraState("FreeCam", tdist, tangl, cc, telev);
 	}
 
 	@Override
@@ -402,6 +402,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if ("FreeCam".equals(state.cameraType)) {
 		this.tdist = state.zoom;
 		this.dist = state.zoom;
+		if (!Float.isNaN(state.elevation)) {
+		    this.telev = state.elevation;
+		    this.elev = state.elevation;
+		}
 		// Skip position sync - let camera reset to current player position
 	    }
 	}
@@ -2927,6 +2931,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 				d = 5;
 			dist = d;
 			return(true);
+		}
+
+		@Override
+		public nurgling.sessions.CameraState captureState() {
+			return new nurgling.sessions.CameraState("RSTCam", dist, angl, null, elev);
+		}
+
+		@Override
+		public void applyState(nurgling.sessions.CameraState state) {
+			if (state == null) return;
+			this.angl = state.rotation;
+			if ("RSTCam".equals(state.cameraType)) {
+				this.dist = state.zoom;
+				if (!Float.isNaN(state.elevation))
+					this.elev = state.elevation;
+			}
 		}
 	}
 	static {camtypes.put("RTS", RSTCam.class);}

@@ -198,6 +198,7 @@ public class NConfig
         squadStopBots,
         squadFormation,
         squadGroups,
+        squadAutoView,
         decoupledRender,
         pathLineWidth,
         pathLineColor,
@@ -494,6 +495,7 @@ public class NConfig
         conf.put(Key.squadStopBots, false);
         conf.put(Key.squadFormation, "GRID");
         conf.put(Key.squadGroups, "");
+        conf.put(Key.squadAutoView, true);
         conf.put(Key.decoupledRender, false);
         conf.put(Key.pathLineWidth, 4);
         conf.put(Key.pathLineColor, new Color(255, 255, 0));  // Yellow

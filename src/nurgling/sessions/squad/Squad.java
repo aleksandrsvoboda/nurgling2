@@ -69,6 +69,21 @@ public class Squad implements SessionManager.SessionChangeListener {
         NConfig.set(NConfig.Key.squadStopBots, on);
     }
 
+    /** Whether selecting switches the view to a selected character (else double-click one to view it). */
+    public static boolean autoView() {
+        return !Boolean.FALSE.equals(NConfig.getGlobal(NConfig.Key.squadAutoView));
+    }
+
+    public static void setAutoView(boolean on) {
+        NConfig.set(NConfig.Key.squadAutoView, on);
+    }
+
+    /** Show this character: switch to its session, keeping the camera. */
+    public void view(SessionContext ctx) {
+        if (ctx != null && ctx != viewpoint())
+            sm.switchToSession(ctx.sessionId, true);
+    }
+
     public static Formation.Kind formation() {
         Object v = NConfig.getGlobal(NConfig.Key.squadFormation);
         if (v instanceof String) {
@@ -159,10 +174,12 @@ public class Squad implements SessionManager.SessionChangeListener {
             if (selected.remove(ctx.sessionId))
                 return;
         }
-        if (selectable(ctx))
+        if (selectable(ctx)) {
             synchronized (this) {
                 selected.add(ctx.sessionId);
             }
+            followSelection(Collections.singletonList(ctx));
+        }
     }
 
     public void select(Collection<SessionContext> ctxs, boolean add) {
@@ -175,6 +192,30 @@ public class Squad implements SessionManager.SessionChangeListener {
                 selected.clear();
             selected.addAll(ids);
         }
+        followSelection(ctxs);
+    }
+
+    /**
+     * After selecting, with auto view on: when the character on screen is not in the squad, switch to one that is - the
+     * one just picked if possible - so selecting a character is also how you look at it (and its inventory).
+     * Deselecting never switches, so the viewpoint can leave the squad and stay where it is. With auto view off the
+     * player switches by double-clicking a character instead, which avoids the blink of a switch on every selection.
+     */
+    private void followSelection(Collection<SessionContext> picked) {
+        if (!autoView())
+            return;
+        List<SessionContext> m = members();
+        SessionContext vp = viewpoint();
+        if (m.isEmpty() || m.contains(vp))
+            return;
+        SessionContext to = m.get(0);
+        for (SessionContext p : picked) {
+            if (m.contains(p)) {
+                to = p;
+                break;
+            }
+        }
+        sm.switchToSession(to.sessionId, true);
     }
 
     public synchronized void clear() {

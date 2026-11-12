@@ -19,14 +19,22 @@ public class CameraState {
     /** Camera center position (only used for FreeCam) */
     public final Coord3f position;
 
+    /** Tilt for cameras that have one of their own (FreeCam), or NaN. */
+    public final float elevation;
+
     /**
      * Create camera state with all fields.
      */
     public CameraState(String cameraType, float zoom, float rotation, Coord3f position) {
+        this(cameraType, zoom, rotation, position, Float.NaN);
+    }
+
+    public CameraState(String cameraType, float zoom, float rotation, Coord3f position, float elevation) {
         this.cameraType = cameraType;
         this.zoom = zoom;
         this.rotation = rotation;
         this.position = position;
+        this.elevation = elevation;
     }
 
     /**

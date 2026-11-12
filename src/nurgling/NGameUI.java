@@ -196,6 +196,13 @@ public class NGameUI extends GameUI
         // The wrapper shows its content by default; keep a disabled compass hidden
         if(!compass.enabled())
             compass.hide();
+        // Squad panel: hides itself without a squad; first placement is on the right, below the minimap area
+        nurgling.sessions.squad.SquadPanel squadPanel = new nurgling.sessions.squad.SquadPanel();
+        boolean squadPlaced = NDragProp.get(nurgling.sessions.squad.SquadPanel.DRAG_NAME).c != Coord.z;
+        NDraggableWidget squadWdg = add(new NDraggableWidget(squadPanel, nurgling.sessions.squad.SquadPanel.DRAG_NAME,
+                                                             squadPanel.sz.add(NDraggableWidget.delta)));
+        if(!squadPlaced)
+            squadWdg.target_c = new Coord(sz.x - squadWdg.sz.x - UI.scale(20), UI.scale(220));
         itemsForSearch = new NSearchItem();
         // Replace Cal with NCal to keep calendar customizations in nurgling package
         Widget oldCalendarWidget = null;

@@ -18,6 +18,8 @@ public final class MemberReport {
     public final WorldRef pos;
     /** Hard HP as a fraction, or -1 when unknown. */
     public final double hp;
+    /** Movement speed (0 crawl .. 3 sprint), or -1 when unknown. */
+    public final int speed;
     public final Status status;
     /** Running bot name for {@link Status#BOT} and {@link Status#SKIPPED}; reason for {@link Status#UNREACHABLE}. */
     public final String detail;
@@ -27,13 +29,14 @@ public final class MemberReport {
     public final long flowerSeq;
     public final long time;
 
-    public MemberReport(String genus, String name, long plgob, WorldRef pos, double hp, Status status, String detail,
-                        List<String> flowerOptions, long flowerSeq, long time) {
+    public MemberReport(String genus, String name, long plgob, WorldRef pos, double hp, int speed, Status status,
+                        String detail, List<String> flowerOptions, long flowerSeq, long time) {
         this.genus = genus;
         this.name = name;
         this.plgob = plgob;
         this.pos = pos;
         this.hp = hp;
+        this.speed = speed;
         this.status = status;
         this.detail = detail;
         this.flowerOptions = flowerOptions;

@@ -113,7 +113,8 @@ public final class SquadExecutor {
             s = MemberReport.Status.IDLE;
         }
         String name = (gui.chrid == null || gui.chrid.isEmpty()) ? ctx.getDisplayName() : gui.chrid;
-        return new MemberReport(gui.getGenus(), name, gui.map.plgob, pos, hp, s, detail,
+        int speed = (gui.speedget == null) ? -1 : gui.speedget.cur;
+        return new MemberReport(gui.getGenus(), name, gui.map.plgob, pos, hp, speed, s, detail,
                                 st.flowerOptions, st.flowerSeq, now);
     }
 

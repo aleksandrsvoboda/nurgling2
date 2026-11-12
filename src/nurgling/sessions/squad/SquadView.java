@@ -44,8 +44,6 @@ public class SquadView {
     private Coord boxFrom, boxTo;
     private String lastClickId;
     private long lastClickTime;
-    private int lastDigit;
-    private long lastDigitTime;
 
     private static Text.Furnace tagFont, bannerFont;
     private final Map<String, Tex> tags = new HashMap<>();
@@ -208,16 +206,27 @@ public class SquadView {
                 grab = map.ui.grabmouse(map);
             return true;
         }
-        if (ev.b == 3) {
+        if (ev.b == 3 && map.ui.modmeta) {
+            /* Alt+right-click uses the object under the cursor; on bare ground (or a character) it is a move. */
             map.new Hittest(ev.c) {
                 @Override
                 protected void hit(Coord pc, Coord2d mc, ClickData inf) {
                     Gob g = clickedGob(inf);
-                    /* Characters (yours or not) are walked to; anything else is used. */
                     if (g != null && !isPlayer(g))
                         squad().interact(g);
                     else
                         squad().moveTo(mc);
+                }
+            }.run();
+            return true;
+        }
+        if (ev.b == 3) {
+            /* Plain right-click always walks, to the ground under the cursor - even over an object - so moving
+             * the squad never opens flower menus by accident. */
+            map.new Maptest(ev.c) {
+                @Override
+                protected void hit(Coord pc, Coord2d mc) {
+                    squad().moveTo(mc);
                 }
             }.run();
             return true;
@@ -258,7 +267,8 @@ public class SquadView {
                 if (!add)
                     sq.clear();
             } else if (hit.sessionId.equals(lastClickId) && now - lastClickTime < DOUBLE_MS) {
-                sq.select(onScreen(), add);
+                /* Double-click: look at this character (the way to switch when auto view is off). */
+                sq.view(hit);
             } else if (add) {
                 sq.toggle(hit);
             } else {
@@ -339,19 +349,6 @@ public class SquadView {
         return best;
     }
 
-    private List<SessionContext> onScreen() {
-        List<SessionContext> out = new ArrayList<>();
-        for (Map.Entry<String, Coord> e : screenPositions().entrySet()) {
-            Coord p = e.getValue();
-            if (p.x >= 0 && p.y >= 0 && p.x < map.sz.x && p.y < map.sz.y) {
-                SessionContext ctx = SessionManager.getInstance().getSession(e.getKey());
-                if (ctx != null)
-                    out.add(ctx);
-            }
-        }
-        return out;
-    }
-
     /* ---- Keys ---- */
 
     /** Squad keys for the active UI, checked after focused widgets had their chance and before global keys. */
@@ -396,20 +393,9 @@ public class SquadView {
                     gui.msg(L10n.get("squad.msg.group_set", n, sq.members().size()));
                 return true;
             }
-            long now = System.currentTimeMillis();
-            boolean twice = (n == lastDigit) && (now - lastDigitTime < DOUBLE_MS);
-            lastDigit = n;
-            lastDigitTime = now;
-            if (!sq.recallGroup(n)) {
-                if (gui != null)
-                    gui.msg(L10n.get("squad.msg.group_empty", n));
-                return true;
-            }
-            if (twice) {
-                List<SessionContext> m = sq.members();
-                if (!m.isEmpty() && !m.contains(sq.viewpoint()))
-                    SessionManager.getInstance().switchToSession(m.get(0).sessionId);
-            }
+            /* Recalling also switches to the group when the character on screen is not in it (Squad.select). */
+            if (!sq.recallGroup(n) && gui != null)
+                gui.msg(L10n.get("squad.msg.group_empty", n));
             return true;
         }
         return false;

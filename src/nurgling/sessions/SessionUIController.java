@@ -17,7 +17,6 @@ public class SessionUIController implements SessionManager.SessionChangeListener
     private static SessionUIController instance;
 
     private SessionTabBar tabBar;
-    private nurgling.sessions.squad.SquadPanel squadPanel;
     private NUI currentUI;
     private UILoop loop;
 
@@ -59,14 +58,6 @@ public class SessionUIController implements SessionManager.SessionChangeListener
             // Add to new UI at saved position (widget manages its own position)
             tabBar.z(10000);
             ui.root.add(tabBar);
-
-            // The squad panel follows the viewpoint the same way; it hides itself when there is no squad
-            if (squadPanel != null && squadPanel.parent != null) {
-                squadPanel.unlink();
-            }
-            squadPanel = new nurgling.sessions.squad.SquadPanel();
-            squadPanel.z(9999);
-            ui.root.add(squadPanel);
         }
     }
 
@@ -78,10 +69,6 @@ public class SessionUIController implements SessionManager.SessionChangeListener
             tabBar.unlink();
         }
         tabBar = null;
-        if (squadPanel != null && squadPanel.parent != null) {
-            squadPanel.unlink();
-        }
-        squadPanel = null;
         currentUI = null;
     }
 

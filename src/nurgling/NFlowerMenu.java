@@ -212,11 +212,37 @@ public class NFlowerMenu extends FlowerMenu
 
     protected void added()
     {
-        if (c.equals(-1, -1))
-            c = parent.ui.lcc;
+        if (atClick(c))
+            c = menuSpot().sub(parent.parentpos(ui.root));
         c = fitonscreen(c);
         mg = ui.grabmouse(this);
         kg = ui.grabkeys(this);
+    }
+
+    /**
+     * Whether the menu was sent without a place of its own, meaning "where the player clicked". The server marks that
+     * with (-1, -1), but the client scales positions first: at a UI scale of 1.5 or more it arrives as (-2, -2) and
+     * the old exact check missed it, leaving the menu in the top-left corner. A menu added with no position at all is
+     * still at the shared (0, 0) and means the same.
+     */
+    private static boolean atClick(Coord c)
+    {
+        return (c.x < 0 && c.y < 0) || c.equals(Coord.z);
+    }
+
+    /**
+     * Where the player last clicked, in root coordinates of the window on screen. That is also the spot for a menu a
+     * background character opened for a squad order: the player right-clicked the object there. Before any click, the
+     * screen centre.
+     */
+    private Coord menuSpot()
+    {
+        UI shown = nurgling.sessions.SessionManager.getInstance().getActiveUI();
+        if (shown == null)
+            shown = ui;
+        if (!shown.lcc.equals(Coord.z))
+            return shown.lcc;
+        return ui.root.sz.div(2);
     }
 
     private Coord fitonscreen(Coord c)

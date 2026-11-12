@@ -74,13 +74,14 @@ public class SessionTabBar extends Widget {
     private static Tex warningIcon;
     private static Tex closeNormal, closeHover, closePush;
     private static Tex addNormal, addHover, addPush;
+    private static Tex flagNormal, flagHover, flagPush;
     private static Tex speakerOn, speakerMuted;
     private static boolean resourcesLoaded = false;
 
     /** Font for character names (static so shared across instances) */
     private static Text.Foundry nameFont;
 
-    /** Currently hovered button index (-1 = none, -2 = plus button) */
+    /** Currently hovered button index (-1 = none, -2 = plus button, -3 = squad flag) */
     private int hoveredButton = -1;
     /** Currently hovered close button index (-1 = none) */
     private int hoveredCloseButton = -1;
@@ -189,6 +190,9 @@ public class SessionTabBar extends Widget {
             addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
             addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
             addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
+            flagNormal = Resource.loadtex("nurgling/hud/buttons/squad_flag/18x18");
+            flagHover = Resource.loadtex("nurgling/hud/buttons/squad_flag/18x18_hover");
+            flagPush = Resource.loadtex("nurgling/hud/buttons/squad_flag/18x18_push");
             ctl = Resource.loadtex("nurgling/hud/box/tl");
             speakerOn = new TexI(speakerImage(SPEAKER_SIZE, false));
             speakerMuted = new TexI(speakerImage(SPEAKER_SIZE, true));
@@ -373,7 +377,7 @@ public class SessionTabBar extends Widget {
 
         // Draw plus button below all sessions, and the squad flag beside it
         drawPlusButton(g, y, hoveredButton == -2);
-        drawFlagButton(g, y);
+        drawFlagButton(g, y, hoveredButton == -3);
 
         g.chcolor();
     }
@@ -785,6 +789,10 @@ public class SessionTabBar extends Widget {
                 hoveredButton = -2;
                 hoveredCloseButton = -1;
                 hoveredSpeaker = -1;
+            } else if (isFlagButtonHit(ev.c)) {
+                hoveredButton = -3;
+                hoveredCloseButton = -1;
+                hoveredSpeaker = -1;
             } else {
                 int buttonIndex = getButtonAt(ev.c);
                 hoveredButton = buttonIndex;
@@ -927,7 +935,7 @@ public class SessionTabBar extends Widget {
         int y = (isDragMode() ? FRAME_INSET.y : 0)
                 + SessionManager.getInstance().getSessionCount() * (BUTTON_HEIGHT + BUTTON_PADDING)
                 + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
-        return new Coord(xOffset + PLUS_BTN_SIZE + PLUS_BTN_MARGIN, y);
+        return new Coord(xOffset + PLUS_BTN_SIZE + BUTTON_PADDING, y);
     }
 
     private boolean isFlagButtonHit(Coord c) {
@@ -935,21 +943,23 @@ public class SessionTabBar extends Widget {
         return c.x >= p.x && c.x < p.x + PLUS_BTN_SIZE && c.y >= p.y && c.y < p.y + PLUS_BTN_SIZE;
     }
 
-    /** The squad flag: square frame, orange when Commander mode is on. */
-    private void drawFlagButton(GOut g, int rowY) {
+    /**
+     * The squad flag, drawn exactly like the plus button beside it (same art set, size and row), pressed while
+     * Commander mode is on.
+     */
+    private void drawFlagButton(GOut g, int rowY, boolean hovered) {
         Coord p = new Coord(flagButtonPos().x, rowY + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2);
-        Coord s = new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE);
         boolean on = SessionManager.getInstance().squad().commander();
-        g.chcolor(on ? BOT_BORDER : PLUS_BTN_BG);
-        g.frect(p, s);
-        g.chcolor(on ? BOT_BORDER : PLUS_BTN_BORDER);
-        g.rect(p, s);
-        Color ink = on ? new Color(0x25, 0x2B, 0x29) : BOT_BORDER;
-        g.chcolor(ink);
-        int px = p.x + UI.scale(6);
-        g.line(new Coord(px, p.y + UI.scale(4)), new Coord(px, p.y + s.y - UI.scale(3)), UI.scale(1.5));
-        g.frect(new Coord(px, p.y + UI.scale(4)), new Coord(UI.scale(7), UI.scale(5)));
-        g.chcolor();
+        if (nurgling.styles.UITheme.on()) {
+            Coord size = new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE);
+            nurgling.styles.UITheme.panel(g, p, size, nurgling.styles.UITheme.PANEL, null);
+            nurgling.styles.UITheme.iconHighlight(g.reclip(p, size), size, hovered, on ? 2 : 0);
+            nurgling.styles.GeneratedButtons.icon(g, "flag", p, PLUS_BTN_SIZE);
+            return;
+        }
+        Tex icon = on ? flagPush : hovered ? flagHover : flagNormal;
+        if (icon != null)
+            g.image(icon, p);
     }
 
     private boolean isPlusButtonHit(Coord c) {
