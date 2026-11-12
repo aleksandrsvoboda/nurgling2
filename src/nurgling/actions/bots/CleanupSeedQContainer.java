@@ -15,28 +15,16 @@ import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
 
 import java.util.ArrayList;
-import java.util.List;
 
 public class CleanupSeedQContainer implements Action {
     NArea seed;
     NAlias iseed;
     NArea trougha;
 
-    // Crops that can't go to a trough (champignons: containers only) move their low-quality
-    // overflow to a container store instead. Null for every trough-cleaned crop.
-    AreaContainerStore overflow = null;
-    List<NAlias> overflowKinds = null;
-
     public CleanupSeedQContainer(NArea seed, NAlias iseed, NArea trougha) {
         this.seed = seed;
         this.iseed = iseed;
         this.trougha = trougha;
-    }
-
-    public CleanupSeedQContainer(NArea seed, NAlias iseed, AreaContainerStore overflow, List<NAlias> overflowKinds) {
-        this(seed, iseed, null);
-        this.overflow = overflow;
-        this.overflowKinds = overflowKinds;
     }
 
     @Override
@@ -78,8 +66,8 @@ public class CleanupSeedQContainer implements Action {
             // is in loaded range, or every one is full, stop cleanup gracefully instead of
             // crashing the whole farmer run. Checked before fetching so we never orphan seeds in
             // the inventory.
-            ArrayList<Gob> troughs = overflow != null ? new ArrayList<>() : TransferToTrough.findTroughs(trougha);
-            if (overflow == null && !TransferToTrough.hasRoom(troughs))
+            ArrayList<Gob> troughs = TransferToTrough.findTroughs(trougha);
+            if (!TransferToTrough.hasRoom(troughs))
                 break;
 
             int fetchCount = Math.min(seeds.size() - (containerCapacity / 2), gui.getInventory().getFreeSpace());
@@ -97,14 +85,7 @@ public class CleanupSeedQContainer implements Action {
             if (gui.getInventory().getItems(iseed).isEmpty())
                 break;
 
-            if (overflow != null) {
-                // Store containers are found by window caption, so the quality container
-                // (often the same kind of chest) must not stay open during the trip.
-                new CloseTargetContainer(container).run(gui);
-                overflow.deposit(gui, overflowKinds, 0);
-            }
-            else
-                new TransferToTrough(troughs, iseed).run(gui);
+            new TransferToTrough(troughs, iseed).run(gui);
 
             new PathFinder(containerGob).run(gui);
 

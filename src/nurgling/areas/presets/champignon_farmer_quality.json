@@ -2,7 +2,7 @@
   "format": 1,
   "name": "Champignon Farmer Quality",
   "category": "farming_quality",
-  "description": "A 3x3 woodchip patch for breeding high-quality champignons: each run harvests it, keeps the best mushrooms in the quality container and replants the best of any kind from it.\n\nBots:\n• Champignon Farmer Quality\n\nIn each area:\n• Crop Quality(Champignon): lay woodchips (nothing to build). Set a harvest stage on it to pick only Cremini or Portobello\n• Seeds of crop quality(Champignon): exactly one chest or crate; the best mushrooms are kept in it (the bot stops without one)\n\nAlso needed:\n• The Quality grid size option set to \"3x3\" (Options > Farming).\n• Optional: the Champignon Farmer preset's container area (seed(Champignon)), used when \"Keep quality grind containers at most half full\" is on: champignons can't go to a trough, so the low-quality overflow goes to those containers.",
+  "description": "A 3x3 woodchip patch for breeding high-quality champignons: each run harvests it, keeps the best mushrooms in the quality container and replants the best of any kind from it.\n\nBots:\n• Champignon Farmer Quality\n\nIn each area:\n• Crop Quality(Champignon): lay woodchips (nothing to build). Set a harvest stage on it to pick only Cremini or Portobello\n• Seeds of crop quality(Champignon): exactly one chest or crate; the best mushrooms are kept in it (the bot stops without one)\n\nAlso needed:\n• The Quality grid size option set to \"3x3\" (Options > Farming).\n• Optional: the Seed Trough preset, used when \"Keep quality grind containers at most half full\" is on.",
   "size": {
     "w": 4,
     "h": 4

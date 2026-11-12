@@ -12,13 +12,10 @@ import nurgling.tools.NAlias;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Quality champignon farming in X*Y patches on woodchips. Any of the three mushrooms can be
- * replanted, so the highest-quality ones are planted whatever their kind. Champignons can't go
- * to a trough, so the low-quality overflow of the quality container goes to the containers of
- * the optional seed(Champignon) store instead, reached by global navigation.
+ * replanted, so the highest-quality ones are planted whatever their kind.
  */
 public class ChampignonFarmerQ implements Action {
     private static final String CROP = "Champignon";
@@ -30,39 +27,37 @@ public class ChampignonFarmerQ implements Action {
 
         NArea.Specialisation cropQ = new NArea.Specialisation(Specialisation.SpecName.cropQ.toString(), CROP);
         NArea.Specialisation seedQ = new NArea.Specialisation(Specialisation.SpecName.seedQ.toString(), CROP);
-        NArea.Specialisation storeSpec = new NArea.Specialisation(Specialisation.SpecName.seed.toString(), CROP);
+        NArea.Specialisation trough = new NArea.Specialisation(Specialisation.SpecName.trough.toString());
+
+        Boolean cleanupQContainers = (Boolean) NConfig.get(NConfig.Key.cleanupQContainers);
 
         ArrayList<NArea.Specialisation> req = new ArrayList<>();
         req.add(cropQ);
         req.add(seedQ);
         ArrayList<NArea.Specialisation> opt = new ArrayList<>();
-        opt.add(storeSpec);
+        opt.add(trough);
 
-        if (!new Validator(req, opt).run(gui).IsSuccess()) {
-            return Results.FAIL();
-        }
+        if (new Validator(req, opt).run(gui).IsSuccess()) {
+            ArrayList<String> names = new ArrayList<>();
+            for (NAlias kind : CropRegistry.getPlantingMaterials(PLANT, CropRegistry.StorageBehavior.CONTAINER))
+                names.addAll(kind.keys);
+            NAlias anyMushroom = new NAlias(names);
 
-        List<NAlias> kinds = CropRegistry.getPlantingMaterials(PLANT, CropRegistry.StorageBehavior.CONTAINER);
-        ArrayList<String> names = new ArrayList<>();
-        for (NAlias kind : kinds)
-            names.addAll(kind.keys);
-        NAlias anyMushroom = new NAlias(names);
+            NUtils.stackSwitch(true);
 
-        NArea field = NContext.findSpec(cropQ);
-        NArea qContainer = NContext.findSpec(seedQ);
+            new HarvestCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), null, PLANT, true, cropQ).run(gui);
 
-        NUtils.stackSwitch(true);
+            new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), PLANT, anyMushroom, true).run(gui);
 
-        new HarvestCrop(field, qContainer, null, PLANT, true, cropQ).run(gui);
+            if (cleanupQContainers && NContext.findSpec(trough) != null) {
+                new CleanupSeedQContainer(NContext.findSpec(seedQ), anyMushroom, NContext.findSpec(trough)).run(gui);
+            }
 
-        new SeedCrop(field, qContainer, PLANT, anyMushroom, true).run(gui);
-
-        NArea storeArea = new NContext(gui).findArea(Specialisation.SpecName.seed, CROP);
-        if ((Boolean) NConfig.get(NConfig.Key.cleanupQContainers) && storeArea != null) {
-            new CleanupSeedQContainer(qContainer, anyMushroom, new AreaContainerStore(storeArea, field), kinds).run(gui);
+            NUtils.stackSwitch(oldStackingValue);
+            return Results.SUCCESS();
         }
 
         NUtils.stackSwitch(oldStackingValue);
-        return Results.SUCCESS();
+        return Results.FAIL();
     }
 }
