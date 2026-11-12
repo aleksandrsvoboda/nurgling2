@@ -31,6 +31,13 @@ public class SeedCrop implements Action {
 
     boolean isQualityGrid = false;
 
+    // Substring of the tiles this crop is planted on: "field", or "woodchip" for champignons.
+    final String soil;
+
+    // Container-stored crops (champignons): planting stock comes from the inventory first,
+    // then from this store, reached by global navigation. Null for every other farmer.
+    AreaContainerStore store = null;
+
     // Regular planting sources, in priority order (barrel seeds first, then
     // stockpile vegetables), derived from CropRegistry in run().
     private final ArrayList<PlantingSource> sources = new ArrayList<>();
@@ -69,6 +76,14 @@ public class SeedCrop implements Action {
         this.crop = crop;
         this.vegArea = vegArea;
         this.iseed = null;
+        this.soil = CropRegistry.getSoilTile(crop);
+    }
+
+    // Regular planting of a container-stored crop (champignons) from the given store,
+    // cheapest product first (registry order).
+    public SeedCrop(NArea field, AreaContainerStore store, NAlias crop) {
+        this(field, null, crop, (NArea) null);
+        this.store = store;
     }
 
     // Quality-grid planting (plants individual high-quality items from a container).
@@ -79,6 +94,7 @@ public class SeedCrop implements Action {
         this.iseed = iseed;
         this.isQualityGrid = isQualityGrid;
         this.vegArea = seed;
+        this.soil = CropRegistry.getSoilTile(crop);
     }
 
 
@@ -91,33 +107,35 @@ public class SeedCrop implements Action {
             return Results.SUCCESS();
         }
 
-        barrels = Finder.findGobs(seed, new NAlias("barrel"));
-        // Vegetables for seeding live in the crop's put area (vegArea), which is where
-        // the harvest is dropped off.
-        stockPiles = (vegArea != null) ? Finder.findGobs(vegArea, new NAlias("stockpile")) : new ArrayList<>();
-
-        // Build planting sources from the crop registry, in priority order:
-        // barrel seeds first, then stockpile vegetables (only where the vegetable itself
-        // is plantable). Each product is matched by an exact alias so seeds and vegetables
-        // can never be conflated even when both are present in the inventory at once.
         sources.clear();
         sourceIdx = 0;
-        CropRegistry.CropStage barrelStage = CropRegistry.getPlantingMaterial(crop, CropRegistry.StorageBehavior.BARREL);
-        CropRegistry.CropStage stockStage = CropRegistry.getPlantingMaterial(crop, CropRegistry.StorageBehavior.STOCKPILE);
-        if (barrelStage != null && !barrels.isEmpty())
-            sources.add(new PlantingSource(SourceType.BARREL, seedItemAlias(barrelStage.result), 5));
-        if (stockStage != null && vegArea != null && !stockPiles.isEmpty())
-            sources.add(new PlantingSource(SourceType.STOCKPILE, vegItemAlias(stockStage.result), 1));
+        if (store == null) {
+            barrels = Finder.findGobs(seed, new NAlias("barrel"));
+            // Vegetables for seeding live in the crop's put area (vegArea), which is where
+            // the harvest is dropped off.
+            stockPiles = (vegArea != null) ? Finder.findGobs(vegArea, new NAlias("stockpile")) : new ArrayList<>();
 
-        if (sources.isEmpty())
-            return Results.ERROR("No planting source (barrel/stockpile) available for crop");
+            // Build planting sources from the crop registry, in priority order:
+            // barrel seeds first, then stockpile vegetables (only where the vegetable itself
+            // is plantable). Each product is matched by an exact alias so seeds and vegetables
+            // can never be conflated even when both are present in the inventory at once.
+            CropRegistry.CropStage barrelStage = CropRegistry.getPlantingMaterial(crop, CropRegistry.StorageBehavior.BARREL);
+            CropRegistry.CropStage stockStage = CropRegistry.getPlantingMaterial(crop, CropRegistry.StorageBehavior.STOCKPILE);
+            if (barrelStage != null && !barrels.isEmpty())
+                sources.add(new PlantingSource(SourceType.BARREL, seedItemAlias(barrelStage.result), 5));
+            if (stockStage != null && vegArea != null && !stockPiles.isEmpty())
+                sources.add(new PlantingSource(SourceType.STOCKPILE, vegItemAlias(stockStage.result), 1));
+
+            if (sources.isEmpty())
+                return Results.ERROR("No planting source (barrel/stockpile) available for crop");
+        }
 
         Area fieldArea = field.getArea();
         if (fieldArea == null) {
             return Results.ERROR("Field area is not available - GUI not ready");
         }
 
-        ArrayList<Coord2d> tiles = field.getTiles(new NAlias("field"));
+        ArrayList<Coord2d> tiles = field.getTiles(new NAlias(soil));
 
         Coord start = gui.map.player().rc.dist(fieldArea.br.mul(MCache.tilesz)) < gui.map.player().rc.dist(fieldArea.ul.mul(MCache.tilesz)) ? fieldArea.br.sub(1, 1) : fieldArea.ul;
         Coord pos = new Coord(start);
@@ -192,17 +210,25 @@ public class SeedCrop implements Action {
     private void dropOffSeeds(NGameUI gui) throws InterruptedException {
         if (!gui.hand.isEmpty())
             NUtils.dropToInv();
+        if (store != null) {
+            store.deposit(gui, storeKinds(), 0);
+            return;
+        }
         for (PlantingSource src : sources)
             returnLeftovers(gui, src);
     }
 
     void seedCrop(NGameUI gui, ArrayList<Gob> barrels, ArrayList<Gob> stockpiles, Area area, boolean rev, Coord2d target_coord, AtomicBoolean setDir, boolean ignoreStraw) throws InterruptedException {
+        if (store != null) {
+            seedBlockFromStore(gui, area, rev, target_coord, setDir, ignoreStraw);
+            return;
+        }
         Area.Tile[][] tiles = area.getTiles(area, new NAlias("gfx/terobjs/moundbed"));
         int count = 0;
         int total = 0;
         for (int i = 0; i <= area.br.x - area.ul.x; i++) {
             for (int j = 0; j <= area.br.y - area.ul.y; j++) {
-                if (NParser.checkName(tiles[i][j].name, "field")) {
+                if (NParser.checkName(tiles[i][j].name, soil)) {
                     total++;
                     if (isTileFreeForSeeding(tiles[i][j], ignoreStraw))
                         count++;
@@ -232,7 +258,7 @@ public class SeedCrop implements Action {
         } else {
             for (int i = 0; i <= area.br.x - area.ul.x; i++) {
                 for (int j = 0; j <= area.br.y - area.ul.y; j++) {
-                    if (NParser.checkName(tiles[i][j].name, "field")) {
+                    if (NParser.checkName(tiles[i][j].name, soil)) {
                         new PathFinder(new Coord(area.ul.x + i, area.ul.y + j).mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y)).run(gui);
                     }
                 }
@@ -258,13 +284,113 @@ public class SeedCrop implements Action {
         } else {
             NUtils.getGameUI().map.wdgmsg("sel", area.br, area.ul, 1);
         }
-        NUtils.getUI().core.addTask(new WaitGobsInField(area, total));
+        NUtils.getUI().core.addTask(new WaitGobsInField(area, total, soil));
 
         if (source.isStacked()) {
             NUtils.getUI().core.addTask(new WaitAnotherAmount(NUtils.getGameUI().getInventory(), source.item, stacks_size));
         } else {
             // Individual (vegetable) planting: opportunistically top up from the stockpile.
             fetchFromSource(gui, source);
+        }
+    }
+
+    // ----- container-store planting (champignons) -----
+
+    private List<NAlias> storeKinds() {
+        return CropRegistry.getPlantingMaterials(crop, CropRegistry.StorageBehavior.CONTAINER);
+    }
+
+    // Plants one block from the inventory, topping up from the store first when the block
+    // can't be covered. A top-up takes enough for the rest of the field in one trip. The
+    // block is planted in one selection with the cheapest kind that covers it; when no single
+    // kind does, it is planted tile by tile, cheapest kind first.
+    private void seedBlockFromStore(NGameUI gui, Area area, boolean rev, Coord2d target_coord, AtomicBoolean setDir, boolean ignoreStraw) throws InterruptedException {
+        Area.Tile[][] tiles = area.getTiles(area, new NAlias("gfx/terobjs/moundbed"));
+        ArrayList<Coord> free = new ArrayList<>();
+        int total = 0;
+        for (int i = 0; i <= area.br.x - area.ul.x; i++) {
+            for (int j = 0; j <= area.br.y - area.ul.y; j++) {
+                if (NParser.checkName(tiles[i][j].name, soil)) {
+                    total++;
+                    if (isTileFreeForSeeding(tiles[i][j], ignoreStraw))
+                        free.add(new Coord(area.ul.x + i, area.ul.y + j));
+                }
+            }
+        }
+        if (free.isEmpty())
+            return;
+
+        if (!gui.hand.isEmpty())
+            NUtils.dropToInv();
+        List<NAlias> kinds = storeKinds();
+        int stock = AreaContainerStore.count(gui, kinds);
+        if (stock < free.size()) {
+            int fieldNeeds = field.getTiles(new NAlias(soil)).size() - Finder.findGobs(field, crop).size();
+            store.take(gui, kinds, Math.max(free.size(), fieldNeeds) - stock);
+            if (AreaContainerStore.count(gui, kinds) == 0) {
+                gui.error("No " + crop.getDefault() + " planting stock left: ABORT");
+                throw new InterruptedException();
+            }
+        }
+
+        NAlias blockKind = null;
+        for (NAlias kind : kinds) {
+            if (gui.getInventory().getItems(kind).size() >= free.size()) {
+                blockKind = kind;
+                break;
+            }
+        }
+
+        if (blockKind != null) {
+            walkToBlock(gui, area, tiles, rev, target_coord, setDir);
+            gui.getInventory().activateItem(gui.getInventory().getItems(blockKind).get(0));
+            NUtils.getUI().core.addTask(new GetCurs("harvest"));
+            if (rev)
+                gui.map.wdgmsg("sel", area.ul, area.br, 1);
+            else
+                gui.map.wdgmsg("sel", area.br, area.ul, 1);
+            NUtils.getUI().core.addTask(new WaitGobsInField(area, total, soil));
+            if (!gui.hand.isEmpty())
+                NUtils.dropToInv();
+            return;
+        }
+
+        for (Coord tile : free) {
+            NAlias kind = null;
+            for (NAlias k : kinds) {
+                if (!gui.getInventory().getItems(k).isEmpty()) {
+                    kind = k;
+                    break;
+                }
+            }
+            if (kind == null)
+                return;
+            new PathFinder(tile.mul(MCache.tilesz).add(MCache.tilehsz)).run(gui);
+            int material = gui.getInventory().getItems(kind).size();
+            gui.getInventory().activateItem(gui.getInventory().getItems(kind).get(0));
+            gui.map.wdgmsg("sel", tile, tile, 1);
+            NUtils.getUI().core.addTask(new WaitGobsInField(new Area(tile, tile), 1, soil));
+            NUtils.getUI().core.addTask(new WaitPlantingMaterialUsed(gui.getInventory(), kind, material));
+        }
+        if (!gui.hand.isEmpty())
+            NUtils.dropToInv();
+    }
+
+    private void walkToBlock(NGameUI gui, Area area, Area.Tile[][] tiles, boolean rev, Coord2d target_coord, AtomicBoolean setDir) throws InterruptedException {
+        if (PathFinder.isAvailable(target_coord)) {
+            new PathFinder(target_coord).run(gui);
+            if (setDir.get()) {
+                new SetDir(new Coord2d(0, rev ? 1 : -1)).run(gui);
+                setDir.set(false);
+            }
+        } else {
+            for (int i = 0; i <= area.br.x - area.ul.x; i++) {
+                for (int j = 0; j <= area.br.y - area.ul.y; j++) {
+                    if (NParser.checkName(tiles[i][j].name, soil)) {
+                        new PathFinder(new Coord(area.ul.x + i, area.ul.y + j).mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y)).run(gui);
+                    }
+                }
+            }
         }
     }
 
@@ -435,7 +561,7 @@ public class SeedCrop implements Action {
                 material += WaitPlantingMaterialUsed.units(item);
             NUtils.getGameUI().getInventory().activateItem(itemToPlant);
             NUtils.getGameUI().map.wdgmsg("sel", tile, tile, 1);
-            NUtils.getUI().core.addTask(new WaitGobsInField(new Area(tile, tile), 1));
+            NUtils.getUI().core.addTask(new WaitGobsInField(new Area(tile, tile), 1, soil));
             // The crop can appear before the seed leaves the inventory. Next to the chest
             // the return below starts at once and would try to take the planted seed.
             NUtils.getUI().core.addTask(new WaitPlantingMaterialUsed(gui.getInventory(), iseed, material));
@@ -517,7 +643,7 @@ public class SeedCrop implements Action {
                     for (int dy = 0; dy < patY; dy++) {
                         if (used[i + dx][j + dy]) ok = false;
                         Area.Tile tile = tiles[i + dx][j + dy];
-                        if (!nurgling.tools.NParser.checkName(tile.name, "field") || !tile.isFree)
+                        if (!nurgling.tools.NParser.checkName(tile.name, soil) || !tile.isFree)
                             ok = false;
                         patch.add(new Coord(area.ul.x + i + dx, area.ul.y + j + dy));
                     }

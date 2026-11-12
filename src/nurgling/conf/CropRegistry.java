@@ -85,6 +85,30 @@ public class CropRegistry {
         return null;
     }
 
+    /**
+     * Crop -> substring of the tile it grows on, for the crops that don't grow on a tilled
+     * field. Champignons are planted on woodchips (gfx/tiles/paving/woodchip-pine).
+     */
+    private static final Map<NAlias, String> SOIL_TILES = new HashMap<>();
+
+    /** The tile-name substring a crop is planted on: "field" unless registered otherwise. */
+    public static String getSoilTile(NAlias crop) {
+        return crop == null ? "field" : SOIL_TILES.getOrDefault(crop, "field");
+    }
+
+    /**
+     * Every distinct plantable product with the given storage behavior, in registry order
+     * (for champignons: Button, Cremini, Portobello - cheapest first).
+     */
+    public static List<NAlias> getPlantingMaterials(NAlias crop, StorageBehavior behavior) {
+        LinkedHashSet<NAlias> result = new LinkedHashSet<>();
+        for (CropStage stage : getStages(crop)) {
+            if (stage.storageBehavior == behavior && stage.plantable)
+                result.add(stage.result);
+        }
+        return new ArrayList<>(result);
+    }
+
     static {
         FIELD_CROPS.put("Flax", new NAlias("plants/flax"));
         FIELD_CROPS.put("Turnip", new NAlias("plants/turnip"));
@@ -111,6 +135,20 @@ public class CropRegistry {
         FIELD_CROPS.put("Wild Onion", new NAlias("plants/wildonion"));
         FIELD_CROPS.put("Wild Tuber", new NAlias("plants/tuber"));
         FIELD_CROPS.put("Wild Flower", new NAlias("plants/wildflower"));
+        FIELD_CROPS.put("Champignon", new NAlias("plants/champignon"));
+
+        // Champignon - no seeds: the mushrooms themselves are replanted, on woodchip tiles.
+        // Each stage yields a different mushroom (wiki stages 3/4/5 = code 2/3/4); none of them
+        // has a stockpile or a barrel, so they are kept in containers only.
+        SOIL_TILES.put(new NAlias("plants/champignon"), "woodchip");
+        HARVESTABLE.put(
+                new NAlias("plants/champignon"),
+                Arrays.asList(
+                        new CropStage(2, new NAlias("Button Mushroom"), StorageBehavior.CONTAINER),
+                        new CropStage(3, new NAlias("Cremini Mushroom"), StorageBehavior.CONTAINER),
+                        new CropStage(4, new NAlias("Portobello Mushroom"), StorageBehavior.CONTAINER)
+                )
+        );
 
         // Turnip
         HARVESTABLE.put(
