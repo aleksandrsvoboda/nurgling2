@@ -66,6 +66,9 @@ public final class QualityModel {
         if(base != null) {
             m.expression = cap == null ? base.toString() : "softcap(" + base + "," + cap + ")";
             m.estimated = cap == null && !recipe.quality.isEmpty();
+        } else if(m.station()) {
+            // Stat caps on these pages belong to the unfired/unbaked step, not to firing.
+            m.ports.removeIf(p -> p.kind == Kind.ATTRIBUTE || p.kind == Kind.SKILL);
         } else {
             for(String name : recipe.quality) if(STATS.containsKey(name)) m.statPort(name);
             String inputs = join(m.ports, Kind.MATERIAL), tools = join(m.ports, Kind.TOOL);
@@ -78,6 +81,60 @@ public final class QualityModel {
         }
         return m;
     }
+    /**
+     * Fired, baked, smelted and smoked products: the station's wiki page gives the product formula,
+     * including the average quality of the fuel burnt. Item pages rarely repeat it, so without this the
+     * general model mixes in the station like a hand tool and leaves fuel out. Applies when the first listed
+     * station is the fuel-burning one (a crucible or fireplace first means a different process).
+     */
+    private boolean station() {
+        Port station = ports.stream().filter(p -> p.kind == Kind.TOOL).findFirst().orElse(null);
+        if(station == null) return false;
+        List<Port> materials = new ArrayList<>();
+        for(Port p : ports) if(p.kind == Kind.MATERIAL && !p.name.equals(FUEL)) materials.add(p);
+        if(materials.isEmpty()) return false;
+        String product = materials.size() == 1 ? materials.get(0).id : "mean(" + join(materials, Kind.MATERIAL) + ")";
+        // The station formula names one product; several listed inputs are alternatives, averaged as a guess.
+        boolean guess = materials.size() > 1;
+        String source, formula, s = station.id;
+        switch(WikiRecipes.normalize(station.name)) {
+        case "kiln":
+            source = "2*_qUnburntProduct + _qFuel + _qKiln\\over 4";
+            formula = "((((2*" + product + ")+" + s + ")+" + fuel().id + ")/4)"; break;
+        case "oven":
+            source = "\\frac{_{q}Dough * 2 + _{q}Oven + _{q}AvgFuel}{4}";
+            formula = "((((2*" + product + ")+" + s + ")+" + fuel().id + ")/4)"; break;
+        case "ore smelter":
+            source = "\\frac{(_{q}Ore*2) + _{q}Smelter + _{q}AvgFuel}{4}";
+            formula = "((((2*" + product + ")+" + s + ")+" + fuel().id + ")/4)"; break;
+        case "smoke shed":
+            // The shed burns blocks of wood; the wiki calls that fuel _qWood.
+            source = "_qUncookedMeat*2 + _qWood + _qSmokeShed\\over 4";
+            formula = "((((2*" + product + ")+" + s + ")+" + fuel().id + ")/4)"; break;
+        case "finery forge":
+            // Bloom keeps the cast iron's quality, softcapped by forge and charcoal.
+            source = "\\frac{(_{q}Forge+ _{q}Coal)}{2}";
+            formula = "softcap(" + product + ",((" + s + "+" + fuel().id + ")/2))"; break;
+        case "steel crucible": {
+            // Hardcapped by the wrought iron, softcapped by the crucible, the carbon coal and the fuel.
+            Port iron = materials.stream().filter(p -> WikiRecipes.normalize(p.name).equals("bar of wrought iron")).findFirst().orElse(null);
+            Port carbon = materials.stream().filter(p -> WikiRecipes.normalize(p.name).contains("coal")).findFirst().orElse(null);
+            if(iron == null || carbon == null) return false;
+            source = "\\frac{_{q}Crucible + _{q}Charcoal + _{q}AvgFuel}{3}";
+            formula = "softcap(" + iron.id + ",(((" + s + "+" + carbon.id + ")+" + fuel().id + ")/3))";
+            guess = false; break;
+        }
+        case "tar kiln":
+            // Coal is made from the wood it burns; no separate fuel.
+            source = "\\frac{3*_{q}Wood + _{q}TarKiln}{4}";
+            formula = "(((3*" + product + ")+" + s + ")/4)"; break;
+        default: return false;
+        }
+        sourceFormula = source; expression = formula; estimated = guess;
+        return true;
+    }
+    private static final String FUEL = "Fuel";
+    private Port fuel() { return add(FUEL, "wiki-item:fuel", Kind.MATERIAL); }
     private static String join(List<Port> ports, Kind kind) { return String.join(",", ports.stream().filter(p -> p.kind == kind).map(p -> p.id).toArray(String[]::new)); }
     public static boolean toolMatches(String tool, String item) {
         if(item == null) return false;
