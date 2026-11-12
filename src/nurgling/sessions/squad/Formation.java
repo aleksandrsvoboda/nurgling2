@@ -123,4 +123,29 @@ public final class Formation {
         }
         return new ArrayList<>(Arrays.asList(res));
     }
+
+    /* ---- Around an object several characters use ---- */
+
+    /** Direction (radians) from {@code from} to {@code to}; 0 when they coincide. */
+    private static double angle(Coord2d from, Coord2d to) {
+        double dx = to.x - from.x, dy = to.y - from.y;
+        return (dx == 0 && dy == 0) ? 0 : Math.atan2(dy, dx);
+    }
+
+    /**
+     * Places on an arc around an object, centred on the squad's side of it and one {@code spacing} apart, so several
+     * characters reach it at once without queueing for the same spot. Each member gets the place nearest to it.
+     */
+    public static List<Coord2d> aroundObject(List<Coord2d> members, Coord2d center, double radius, double spacing) {
+        int n = members.size();
+        Coord2d c = centroid(members);
+        double front = (c == null) ? 0 : angle(center, c);
+        double step = Math.min(spacing / Math.max(radius, 1), 2 * Math.PI / Math.max(n, 1));
+        List<Coord2d> places = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            double a = front + (i - (n - 1) / 2.0) * step;
+            places.add(Coord2d.of(center.x + radius * Math.cos(a), center.y + radius * Math.sin(a)));
+        }
+        return assign(members, places);
+    }
 }

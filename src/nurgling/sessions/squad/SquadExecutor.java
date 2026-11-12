@@ -160,6 +160,8 @@ public final class SquadExecutor {
             return;
         }
         if (c instanceof SquadCommand.Stop) {
+            /* Plugins hear a stop too (to drop their own jobs), but can't keep core from stopping. */
+            offer(ctx, gui, c);
             cancel(st);
             Gob pl = gui.map.player();
             if (pl != null)
@@ -177,6 +179,15 @@ public final class SquadExecutor {
                 gui.biw.interruptAll();
             }
         }
+        if (offer(ctx, gui, c)) {
+            if (c.takesCharacter()) {
+                cancel(st);
+                st.set(MemberReport.Status.IDLE);
+            }
+            return;
+        }
+        if (c instanceof SquadCommand.Custom)
+            return;
         cancel(st);
         if (c instanceof SquadCommand.Move) {
             SquadCommand.Move m = (SquadCommand.Move) c;
@@ -194,6 +205,20 @@ public final class SquadExecutor {
         } else if (c instanceof SquadCommand.Follow) {
             start(ctx, st, MemberReport.Status.FOLLOWING, new FollowAction((SquadCommand.Follow) c, st));
         }
+    }
+
+    /** Let the plugins' handlers have the order first; true when one carried it out. */
+    private static boolean offer(SessionContext ctx, NGameUI gui, SquadCommand c) {
+        for (SquadOrderHandler h : SessionManager.getInstance().squad().orderHandlers()) {
+            try {
+                if (h.take(ctx, gui, c))
+                    return true;
+            } catch (RuntimeException e) {
+                /* A broken plugin must not stop this session's tick; core carries on with the order. */
+                e.printStackTrace();
+            }
+        }
+        return false;
     }
 
     private static void start(SessionContext ctx, State st, MemberReport.Status s, Action a) {
@@ -302,8 +327,15 @@ public final class SquadExecutor {
                 st.set(MemberReport.Status.UNREACHABLE, L10n.get("squad.why.noobject"));
                 return Results.FAIL();
             }
-            if (cmd.pathfind)
-                new PathFinder(gob).run(gui);
+            if (cmd.pathfind) {
+                /* Its own side of the object first, when it was given one, so the squad doesn't queue for the same
+                 * spot; the right-click then walks the last step. */
+                Coord2d side = (cmd.approach == null) ? null : cmd.approach.localIn(gui.map.glob.map, sessloc(gui));
+                if (side != null && PathFinder.isAvailable(side))
+                    new PathFinder(side).run(gui);
+                else
+                    new PathFinder(gob).run(gui);
+            }
             st.flowerSeq = cmd.seq;
             st.pickSet = false;
             st.pick = null;

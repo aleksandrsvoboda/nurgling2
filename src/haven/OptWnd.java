@@ -902,6 +902,7 @@ public class OptWnd extends Window {
 		y = addbtn(cont, L10n.get("opt.keybind.squad_rally"), nurgling.sessions.squad.SquadView.kb_rally, y);
 		y = addbtn(cont, L10n.get("opt.keybind.squad_follow"), nurgling.sessions.squad.SquadView.kb_follow, y);
 		y = addbtn(cont, L10n.get("opt.keybind.squad_all"), nurgling.sessions.squad.SquadView.kb_all, y);
+		y = addbtn(cont, L10n.get("opt.keybind.squad_leader"), nurgling.sessions.squad.SquadView.kb_leader, y);
 //		y = addbtn(cont, "Player grid box", NMapView.kb_displaypbox, y);
 //		y = addbtn(cont, "Player FOV box", NMapView.kb_displayfov, y);
 		y = addbtn(cont, L10n.get("opt.keybind.grid_walls"), NMapView.kb_displaygrid, y);

@@ -10,6 +10,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Which characters are selected and what the squad was last told to do. Held by {@link SessionManager}, so there is
@@ -27,6 +28,13 @@ public class Squad implements SessionManager.SessionChangeListener {
     private final LinkedHashSet<String> selected = new LinkedHashSet<>();
     private volatile boolean commander;
     private volatile Order order;
+    /** Session id of the leader while a squad is selected; see {@link #leader()}. */
+    private volatile String leaderId;
+    private final List<SquadOrderHandler> handlers = new CopyOnWriteArrayList<>();
+    private final List<SquadToggle> toggles = new CopyOnWriteArrayList<>();
+    private final List<String> helpSections = new CopyOnWriteArrayList<>();
+    private final List<SquadKeyHandler> keyHandlers = new CopyOnWriteArrayList<>();
+    private volatile TargetPick pick;
 
     private long interactSeq;
     private volatile long interactUntil;
@@ -108,12 +116,47 @@ public class Squad implements SessionManager.SessionChangeListener {
 
     public void setCommander(boolean on) {
         commander = on;
+        if (!on)
+            pick = null;
     }
 
     /* ---- Who can be selected ---- */
 
     public SessionContext viewpoint() {
         return sm.getActiveSession();
+    }
+
+    /**
+     * Who the squad forms up on: rally gathers on it, follow follows it, and plugins take it as the one the others
+     * copy. It is the character on screen when the first character is selected and then stays put when the view
+     * switches, so looking at another character's inventory doesn't hand over the lead. With nothing selected (or
+     * the leader logged out) it is the character on screen.
+     */
+    public SessionContext leader() {
+        String id = leaderId;
+        if (id != null && !isEmpty()) {
+            SessionContext c = sm.getSession(id);
+            if (c != null && c.isConnected())
+                return c;
+        }
+        return viewpoint();
+    }
+
+    public void setLeader(SessionContext ctx) {
+        if (ctx != null)
+            leaderId = ctx.sessionId;
+    }
+
+    public boolean isLeader(SessionContext ctx) {
+        return ctx != null && ctx == leader();
+    }
+
+    /** A selection starting from nothing takes the character on screen as its leader. */
+    private void startedSelection(boolean wasEmpty) {
+        if (wasEmpty && !isEmpty()) {
+            SessionContext vp = viewpoint();
+            leaderId = (vp == null) ? null : vp.sessionId;
+        }
     }
 
     private String viewpointGenus() {
@@ -175,9 +218,12 @@ public class Squad implements SessionManager.SessionChangeListener {
                 return;
         }
         if (selectable(ctx)) {
+            boolean wasEmpty;
             synchronized (this) {
+                wasEmpty = selected.isEmpty();
                 selected.add(ctx.sessionId);
             }
+            startedSelection(wasEmpty);
             followSelection(Collections.singletonList(ctx));
         }
     }
@@ -187,11 +233,14 @@ public class Squad implements SessionManager.SessionChangeListener {
         for (SessionContext c : ctxs)
             if (selectable(c))
                 ids.add(c.sessionId);
+        boolean wasEmpty;
         synchronized (this) {
+            wasEmpty = selected.isEmpty();
             if (!add)
                 selected.clear();
             selected.addAll(ids);
         }
+        startedSelection(wasEmpty);
         followSelection(ctxs);
     }
 
@@ -350,37 +399,151 @@ public class Squad implements SessionManager.SessionChangeListener {
         order = new Order(WorldRef.of(map, sl, target), sent);
     }
 
-    /** Gather everyone else on the viewpoint character. */
+    /** Gather everyone else on the leader. */
     public void rally() {
         NGameUI vp = gui(viewpoint());
-        Gob pl = (vp == null || vp.map == null) ? null : vp.map.player();
-        if (pl == null)
+        SessionContext ld = leader();
+        Coord2d at = (ld == viewpoint()) ? playerAt(vp) : (ld == null) ? null : localOf(ld, vp);
+        if (at == null) {
+            if (vp != null)
+                vp.msg(L10n.get("squad.msg.noleader"));
             return;
-        moveTo(pl.rc, othersThanViewpoint());
+        }
+        moveTo(at, othersThanLeader());
     }
 
+    private static Coord2d playerAt(NGameUI gui) {
+        Gob pl = (gui == null || gui.map == null) ? null : gui.map.player();
+        return (pl == null) ? null : pl.rc;
+    }
+
+    /** Everyone else follows the leader. */
     public void follow() {
+        follow(othersThanLeader());
+    }
+
+    /** These characters follow the leader. */
+    public void follow(Collection<SessionContext> who) {
         NGameUI vp = gui(viewpoint());
-        Gob pl = (vp == null || vp.map == null) ? null : vp.map.player();
-        List<SessionContext> m = othersThanViewpoint();
-        if (pl == null || announceEmpty(vp, m))
+        MemberReport lr = leaderReport();
+        List<SessionContext> m = new ArrayList<>(who);
+        m.remove(leader());
+        if (announceEmpty(vp, m))
             return;
-        WorldRef at = WorldRef.of(vp.map.glob.map, SquadExecutor.sessloc(vp), pl.rc);
+        if (lr == null || lr.pos == null) {
+            if (vp != null)
+                vp.msg(L10n.get("squad.msg.noleader"));
+            return;
+        }
         boolean pf = pathfind(), sb = stopBots();
         for (SessionContext c : m)
-            c.squadInbox.add(new SquadCommand.Follow(pl.id, at, pf, sb));
+            c.squadInbox.add(new SquadCommand.Follow(lr.plgob, lr.pos, pf, sb));
     }
 
-    private List<SessionContext> othersThanViewpoint() {
+    private MemberReport leaderReport() {
+        SessionContext ld = leader();
+        return (ld == null) ? null : ld.squadReport;
+    }
+
+    /** The selected characters other than the leader. */
+    public List<SessionContext> othersThanLeader() {
         List<SessionContext> m = members();
-        m.remove(viewpoint());
+        m.remove(leader());
         return m;
     }
 
     public void stop() {
-        for (SessionContext c : members())
-            c.squadInbox.add(new SquadCommand.Stop());
+        send(members(), new SquadCommand.Stop());
         order = null;
+    }
+
+    /** Post one order to each of these characters. Orders are immutable, so they can share it. */
+    public void send(Collection<SessionContext> who, SquadCommand c) {
+        for (SessionContext m : who)
+            m.squadInbox.add(c);
+    }
+
+    /* ---- Plugin orders ---- */
+
+    public void addOrderHandler(SquadOrderHandler h) {
+        if (h != null && !handlers.contains(h))
+            handlers.add(h);
+    }
+
+    public void removeOrderHandler(SquadOrderHandler h) {
+        handlers.remove(h);
+    }
+
+    List<SquadOrderHandler> orderHandlers() {
+        return handlers;
+    }
+
+    /** Add a plugin's button to the squad panel (one row, after the built-in ones). */
+    public void addToggle(SquadToggle t) {
+        if (t != null && !toggles.contains(t))
+            toggles.add(t);
+    }
+
+    public void removeToggle(SquadToggle t) {
+        toggles.remove(t);
+    }
+
+    public List<SquadToggle> toggles() {
+        return toggles;
+    }
+
+    /** Add a section (Markdown, starting with a "# " heading) to the Squad Command help window. */
+    public void addHelpSection(String markdown) {
+        if (markdown != null && !helpSections.contains(markdown))
+            helpSections.add(markdown);
+    }
+
+    public List<String> helpSections() {
+        return helpSections;
+    }
+
+    /** Add a plugin's Commander-mode keys; they get the keys core doesn't use itself. */
+    public void addKeyHandler(SquadKeyHandler h) {
+        if (h != null && !keyHandlers.contains(h))
+            keyHandlers.add(h);
+    }
+
+    public void removeKeyHandler(SquadKeyHandler h) {
+        keyHandlers.remove(h);
+    }
+
+    List<SquadKeyHandler> keyHandlers() {
+        return keyHandlers;
+    }
+
+    /**
+     * A plugin asks the player to click something on the map: until the next click the map shows {@code cursor}
+     * (null: the normal one) and the Commander banner shows {@code banner}. A left click on an object hands it to
+     * {@code picked} on the viewpoint's UI thread; Esc, or any other click, cancels.
+     */
+    public void pickTarget(String banner, Resource cursor, java.util.function.Consumer<Gob> picked) {
+        pick = (picked == null) ? null : new TargetPick(banner, cursor, picked);
+    }
+
+    public TargetPick pendingPick() {
+        return pick;
+    }
+
+    public void cancelPick() {
+        pick = null;
+    }
+
+    /** An outstanding {@link #pickTarget} request. */
+    public static final class TargetPick {
+        public final String banner;
+        public final Resource cursor;
+        public final java.util.function.Consumer<Gob> picked;
+
+        TargetPick(String banner, Resource cursor, java.util.function.Consumer<Gob> picked) {
+            this.banner = banner;
+            this.cursor = cursor;
+            this.picked = picked;
+        }
     }
 
     public void setSpeed(int speed) {
@@ -401,12 +564,46 @@ public class Squad implements SessionManager.SessionChangeListener {
         }
         Set<String> ids = new HashSet<>();
         boolean pf = pathfind(), sb = stopBots();
-        for (SessionContext c : m) {
-            c.squadInbox.add(new SquadCommand.Interact(gob.id, at, gob.ngob.name, seq, pf, sb));
+        List<Coord2d> sides = spreadAround(gob, m, vp);
+        MCache map = vp.map.glob.map;
+        MiniMap.Location sl = SquadExecutor.sessloc(vp);
+        for (int i = 0; i < m.size(); i++) {
+            SessionContext c = m.get(i);
+            WorldRef side = (sides == null) ? null : WorldRef.of(map, sl, sides.get(i));
+            c.squadInbox.add(new SquadCommand.Interact(gob.id, at, gob.ngob.name, seq, side, pf, sb));
             ids.add(c.sessionId);
         }
         interactMembers = Collections.unmodifiableSet(ids);
         interactUntil = System.currentTimeMillis() + INTERACT_MS;
+    }
+
+    /**
+     * Each member's own side of an object, so several don't queue for the same spot by it: places on an arc just
+     * outside its hitbox, on the squad's side, a tile and a half apart. Null for a single member, or when the
+     * members can't be placed.
+     */
+    private static List<Coord2d> spreadAround(Gob gob, List<SessionContext> m, NGameUI vp) {
+        if (m.size() < 2)
+            return null;
+        List<Coord2d> pos = new ArrayList<>();
+        for (SessionContext c : m)
+            pos.add(localOf(c, vp));
+        if (Formation.centroid(pos) == null)
+            return null;
+        return Formation.aroundObject(pos, gob.rc, reach(gob), 1.5 * MCache.tilesz.x);
+    }
+
+    /** How far from its centre a character stands to touch this gob: its hitbox plus a little. */
+    public static double reach(Gob gob) {
+        return extent(gob) + 0.6 * MCache.tilesz.x;
+    }
+
+    /** Half the size of a gob's hitbox (its widest side), or 0 without one. */
+    public static double extent(Gob gob) {
+        if (gob.ngob == null || gob.ngob.hitBox == null)
+            return 0;
+        Coord2d b = gob.ngob.hitBox.begin, e = gob.ngob.hitBox.end;
+        return Math.max(Math.max(Math.abs(b.x), Math.abs(e.x)), Math.max(Math.abs(b.y), Math.abs(e.y)));
     }
 
     private synchronized long currentInteract() {

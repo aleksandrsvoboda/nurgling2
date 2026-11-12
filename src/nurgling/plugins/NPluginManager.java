@@ -90,7 +90,7 @@ public class NPluginManager {
     }
 
     /** Called when a session's NGameUI is torn down; lets every loaded plugin drop what it keeps for it.
-     *  Never called before, so plugins keeping a per-UI entry (Hunt Party's fighters) held every dead UI. */
+     *  Never called before, so plugins keeping a per-UI entry held every dead UI. */
     public static synchronized void onGameUIDisposed(NGameUI gui) {
         for (NPlugin p : plugins) {
             try {

@@ -25,6 +25,9 @@ public class SquadView {
     public static final KeyBinding kb_rally = KeyBinding.get("squad-rally", KeyMatch.forcode(KeyEvent.VK_R, 0));
     public static final KeyBinding kb_follow = KeyBinding.get("squad-follow", KeyMatch.forcode(KeyEvent.VK_F, 0));
     public static final KeyBinding kb_all = KeyBinding.get("squad-all", KeyMatch.forcode(KeyEvent.VK_A, KeyMatch.C));
+    public static final KeyBinding kb_leader = KeyBinding.get("squad-leader", KeyMatch.forcode(KeyEvent.VK_L, 0));
+    /** Marks the leader in name tags and the squad panel. */
+    static final String CROWN = Text.sans.canDisplay('\u265B') ? "\u265B" : "*";
 
     static final Color ORANGE = new Color(0xE9, 0x9C, 0x54);
     static final Color TEAL = new Color(0x5F, 0xD3, 0xC6);
@@ -200,6 +203,22 @@ public class SquadView {
     public boolean mousedown(Widget.MouseDownEvent ev) {
         if (!squad().commander() || !viewpoint())
             return false;
+        Squad.TargetPick pick = squad().pendingPick();
+        if (pick != null) {
+            /* A plugin asked for a click on something; any other button cancels. */
+            squad().cancelPick();
+            if (ev.b == 1) {
+                map.new Hittest(ev.c) {
+                    @Override
+                    protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+                        Gob g = clickedGob(inf);
+                        if (g != null && !isPlayer(g))
+                            pick.picked.accept(g);
+                    }
+                }.run();
+            }
+            return true;
+        }
         if (ev.b == 1) {
             boxFrom = boxTo = ev.c;
             if (grab == null)
@@ -349,6 +368,14 @@ public class SquadView {
         return best;
     }
 
+    /** A plugin's cursor over the map while it waits for a click on something ({@link Squad#pickTarget}). */
+    public boolean getcurs(Widget.CursorQuery ev) {
+        Squad.TargetPick pick = squad().pendingPick();
+        if (pick == null || pick.cursor == null || !viewpoint())
+            return false;
+        return ev.set(pick.cursor);
+    }
+
     /* ---- Keys ---- */
 
     /** Squad keys for the active UI, checked after focused widgets had their chance and before global keys. */
@@ -364,7 +391,22 @@ public class SquadView {
     private boolean commanderKey(KeyEvent ev) {
         Squad sq = squad();
         if (ev.getKeyCode() == KeyEvent.VK_ESCAPE) {
-            sq.setCommander(false);
+            if (sq.pendingPick() != null)
+                sq.cancelPick();
+            else
+                sq.setCommander(false);
+            return true;
+        }
+        if (kb_leader.key().match(ev)) {
+            List<SessionContext> m = sq.members();
+            NGameUI gui = gui();
+            if (m.size() == 1) {
+                sq.setLeader(m.get(0));
+                if (gui != null)
+                    gui.msg(L10n.get("squad.msg.leader", m.get(0).squadReport.name));
+            } else if (gui != null) {
+                gui.msg(L10n.get("squad.msg.leader_one"));
+            }
             return true;
         }
         if (kb_stop.key().match(ev)) {
@@ -398,6 +440,9 @@ public class SquadView {
                 gui.msg(L10n.get("squad.msg.group_empty", n));
             return true;
         }
+        for (SquadKeyHandler h : sq.keyHandlers())
+            if (h.key(ev))
+                return true;
         return false;
     }
 
@@ -463,7 +508,8 @@ public class SquadView {
             if (p != null && p.x >= 0 && p.y >= 0 && p.x < map.sz.x && p.y < map.sz.y) {
                 if (sq.commander() && r != null) {
                     int grp = Squad.groupOf(r);
-                    g.aimage(tag((grp > 0) ? (grp + " " + r.name) : r.name), p, 0.5, 1);
+                    String name = sq.isLeader(ctx) ? (CROWN + " " + r.name) : r.name;
+                    g.aimage(tag((grp > 0) ? (grp + " " + name) : name), p, 0.5, 1);
                 }
             } else {
                 drawArrow(g, ctx, vp);
@@ -473,7 +519,8 @@ public class SquadView {
             g.chcolor(ORANGE);
             g.rect(Coord.z, map.sz);
             g.rect(new Coord(1, 1), map.sz.sub(2, 2));
-            String txt = L10n.get("squad.banner", sq.members().size());
+            Squad.TargetPick pick = sq.pendingPick();
+            String txt = (pick != null && pick.banner != null) ? pick.banner : L10n.get("squad.banner", sq.members().size());
             if (!txt.equals(bannerText)) {
                 bannerText = txt;
                 banner = bannerFont().render(txt).tex();
