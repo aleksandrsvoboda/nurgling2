@@ -29,6 +29,10 @@ public class HarvestCrop implements Action {
     // above this stage are harvested; younger plants are left standing to keep growing.
     Integer minStage = null;
 
+    // Container-stored crops (champignons): the store the harvest goes to, reached by global
+    // navigation. Null for every other farmer, whose paths are unchanged.
+    AreaContainerStore store = null;
+
     public HarvestCrop(NArea field, NArea seed, NArea trough, NAlias crop) {
         this.field = field;
         this.seed = seed;
@@ -57,6 +61,19 @@ public class HarvestCrop implements Action {
         }
     }
 
+    // Regular harvest of a container-stored crop (champignons), honouring the field's harvest
+    // stage. There are no barrels or troughs: everything goes to the store, and the stock
+    // needed to replant the harvested tiles is kept in the inventory at the end.
+    public HarvestCrop(NArea field, AreaContainerStore store, NAlias crop, NArea.Specialisation spec) {
+        this(field, null, null, crop);
+        this.store = store;
+        if (field != null && spec != null) {
+            NArea.Specialisation fs = field.getSpecialisation(spec);
+            if (fs != null)
+                this.minStage = fs.minHarvestStage;
+        }
+    }
+
     private boolean stageAllowed(int stage) {
         return minStage == null || stage >= minStage;
     }
@@ -64,7 +81,7 @@ public class HarvestCrop implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        ArrayList<Gob> barrels = Finder.findGobs(seed, new NAlias("barrel"));
+        ArrayList<Gob> barrels = seed == null ? new ArrayList<>() : Finder.findGobs(seed, new NAlias("barrel"));
 
         // The trough area is optional (farmers register it via Validator's opt list), so trougha
         // is null whenever none is configured or one is out of findSpec()'s range. Everything
@@ -286,6 +303,7 @@ public class HarvestCrop implements Action {
         List<WItem> barrelItems = new ArrayList<>();
         List<WItem> stockpileItems = new ArrayList<>();
         List<WItem> unplantableItems = new ArrayList<>();
+        List<WItem> containerItems = new ArrayList<>();
 
         String name = "";
         for (WItem item : gui.getInventory().getItems()) {
@@ -294,13 +312,26 @@ public class HarvestCrop implements Action {
             if (stage == null) continue;
             if (stage.storageBehavior == CropRegistry.StorageBehavior.BARREL) barrelItems.add(item);
             else if (stage.storageBehavior == CropRegistry.StorageBehavior.STOCKPILE) stockpileItems.add(item);
+            else if (stage.storageBehavior == CropRegistry.StorageBehavior.CONTAINER) containerItems.add(item);
             if (!stage.plantable) unplantableItems.add(item);
         }
 
         if(!isQualityGrid) {
-            // In case item ends up in hand - drop it.
+            // In case item ends up in hand - drop it. A container-stored harvest can't be
+            // picked back up into a pile, so it goes back to the inventory instead.
             if(NUtils.getGameUI().vhand!=null) {
-                NUtils.drop(NUtils.getGameUI().vhand);
+                if (store != null)
+                    NUtils.dropToInv();
+                else
+                    NUtils.drop(NUtils.getGameUI().vhand);
+            }
+
+            if (store != null && !containerItems.isEmpty()) {
+                List<NAlias> kinds = CropRegistry.getPlantingMaterials(crop, CropRegistry.StorageBehavior.CONTAINER);
+                if (!barrelOnlyIfInventoryFull)
+                    store.deposit(gui, kinds, freeSoilTiles());
+                else if (gui.getInventory().getFreeSpace() < 3)
+                    store.deposit(gui, kinds, 0);
             }
 
             // 1. Always drop stockpile items
@@ -366,6 +397,12 @@ public class HarvestCrop implements Action {
             }
         }
 
+    }
+
+    // Tiles of the field's soil with nothing growing on them: what the replant will need.
+    private int freeSoilTiles() throws InterruptedException {
+        int soil = field.getTiles(new NAlias(CropRegistry.getSoilTile(crop))).size();
+        return Math.max(0, soil - Finder.findGobs(field, crop).size());
     }
 
     private boolean hasAnyCropStage(NArea field, NAlias crop) throws InterruptedException {

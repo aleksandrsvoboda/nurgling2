@@ -174,6 +174,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("white_onion", BotDescriptor.BotType.FARMING, "bot.white_onion.title", "bot.white_onion.desc", true, true, WhiteOnionFarmer.class, "white_onion", false));
         bots.add(new BotDescriptor("leek", BotDescriptor.BotType.FARMING, "Leek Farmer", "Automatically harvests and replants leek.", true, true, nurgling.actions.bots.farmers.LeekFarmer.class, "leek", false));
         bots.add(new BotDescriptor("radish", BotDescriptor.BotType.FARMING, "bot.radish.title", "bot.radish.desc", true, true, RadishFarmer.class, "radish", false));
+        bots.add(new BotDescriptor("champignon", BotDescriptor.BotType.FARMING, "bot.champignon.title", "bot.champignon.desc", true, true, nurgling.actions.bots.farmers.ChampignonFarmer.class, "champignon", false));
         bots.add(new BotDescriptor("garlic", BotDescriptor.BotType.FARMING, "Garlic Farmer", "Automatically harvests and replants garlic.", true, true, nurgling.actions.bots.farmers.GarlicFarmer.class, "garlic", false));
         bots.add(new BotDescriptor("hemp", BotDescriptor.BotType.FARMING, "Hemp Farmer", "Automatically harvests and replants hemp.", true, true, nurgling.actions.bots.farmers.HempFarmer.class, "hemp", false));
         bots.add(new BotDescriptor("flax", BotDescriptor.BotType.FARMING, "Flax Farmer", "Automatically harvests and replants flax.", true, true, nurgling.actions.bots.farmers.FlaxFarmer.class, "flax", false));

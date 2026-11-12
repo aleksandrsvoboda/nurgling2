@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "Champignon Farmer",
+  "category": "farming",
+  "description": "A woodchip bed of champignons, replanted from the mushrooms themselves. Champignons have no seeds and can only be kept in containers.\n\nBots:\n• Champignon Farmer\n\nIn each area:\n• Crop(Champignon): lay woodchips (nothing to build). Set a harvest stage on it to pick only Cremini or Portobello\n• Champignon: place containers (chests, cupboards…): the harvest is stored here and replanted from here, Button Mushrooms first. It can also be moved far from the bed",
+  "size": {
+    "w": 20,
+    "h": 10
+  },
+  "areas": [
+    {
+      "name": "Crop(Champignon)",
+      "path": "",
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 166,
+        "g": 124,
+        "b": 82,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Champignon",
+          "name": "crop"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    },
+    {
+      "name": "Champignon",
+      "path": "",
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "color": {
+        "r": 166,
+        "g": 124,
+        "b": 82,
+        "a": 56
+      },
+      "hide": false,
+      "spec": [
+        {
+          "subtype": "Champignon",
+          "name": "seed"
+        }
+      ],
+      "in": [],
+      "out": [],
+      "pile_fill_direction": "DEFAULT"
+    }
+  ]
+}
