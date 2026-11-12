@@ -309,6 +309,32 @@ public class CraftFlowTest {
         CraftFlow.Node c = s.flow.add(recipe(s,"Silk Filament").resource,0,0);
         c.values.put(port(silk,"Silkworm Cocoon").id,"80"); c.values.put(port(silk,"Water").id,"40");
         near(result(s,c).value,61.25); s.live.remove("Cauldron"); check(result(s,c).value == null,"Missing tool defaulted to quality");
+        // Fuel-burning stations use their wiki product formula, with the fuel's quality as an input.
+        QualityModel brick = QualityModel.of(recipe(s,"Brick"));
+        check(!brick.estimated && port(brick,"Fuel").kind == QualityModel.Kind.MATERIAL, "Kiln product ignores fuel");
+        Map<String,Double> fired = Map.of(port(brick,"Clay").id,80.0, port(brick,"Kiln").id,100.0, port(brick,"Fuel").id,60.0);
+        near(QualityExpression.parse(brick.expression).evaluate(fired::get),80);
+        QualityModel jar = QualityModel.of(recipe(s,"Clay Jar"));
+        check(jar.ports.stream().noneMatch(p -> p.kind == QualityModel.Kind.ATTRIBUTE || p.kind == QualityModel.Kind.SKILL),
+            "Potter's wheel stat cap applied to kiln firing");
+        QualityModel bread = QualityModel.of(recipe(s,"Bread"));
+        Map<String,Double> baked = Map.of(port(bread,"Bread Dough").id,40.0, port(bread,"Oven").id,20.0, port(bread,"Fuel").id,100.0);
+        near(QualityExpression.parse(bread.expression).evaluate(baked::get),50);
+        QualityModel tin = QualityModel.of(recipe(s,"Bar of Tin"));
+        Map<String,Double> smelted = Map.of(port(tin,"Cassiterite‎").id,50.0, port(tin,"Ore Smelter").id,30.0, port(tin,"Fuel").id,70.0);
+        near(QualityExpression.parse(tin.expression).evaluate(smelted::get),50);
+        check(QualityModel.of(recipe(s,"Bar of Copper")).estimated, "Alternative ores averaged without an estimate mark");
+        QualityModel bloom = QualityModel.of(recipe(s,"Bloom"));
+        Map<String,Double> forged = Map.of(port(bloom,"Bar of Cast Iron").id,100.0, port(bloom,"Finery Forge").id,40.0, port(bloom,"Fuel").id,60.0);
+        near(QualityExpression.parse(bloom.expression).evaluate(forged::get),75);
+        QualityModel steel = QualityModel.of(recipe(s,"Bar of Steel"));
+        check(steel.ports.stream().filter(p -> p.name.equals("Fuel")).count() == 1, "Steel fuel input duplicated");
+        Map<String,Double> crucible = Map.of(port(steel,"Bar of Wrought Iron").id,90.0, port(steel,"Steel Crucible").id,30.0,
+            port(steel,"Coal").id,60.0, port(steel,"Fuel").id,30.0);
+        near(QualityExpression.parse(steel.expression).evaluate(crucible::get),65);
+        check(!QualityModel.of(recipe(s,"Coal")).estimated, "Tar kiln formula not applied");
+        check(QualityModel.of(recipe(s,"Fishwrap")).ports.stream().noneMatch(p -> p.name.equals("Fuel")), "Pitbaked goods given kiln fuel");
+        check(!QualityModel.of(recipe(s,"Gingerbread Heart")).expression.contains("i3"), "Item page formula overridden by station");
         for(AtlasCatalog.Recipe r : s.data.recipes()) QualityModel.of(r); // Every wiki formula is safely classified or rejected.
         System.out.println("PASS: quality expressions, wiki bindings, live/override reset, missing tools, DAG propagation, cycles and atomic persistence");
     }

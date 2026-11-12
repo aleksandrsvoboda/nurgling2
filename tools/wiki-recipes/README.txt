@@ -182,7 +182,16 @@ softcap(quality, cap), floor. No executable expression engine is used. Eligible
 wiki TeX fractions/roots are parsed and bound to the recipe's own material/tool
 names. Formulas for a tool's products are excluded by their left-hand side; only
 an explicit skill-only formula supplies its softcap. Ambiguous or unsupported
-formulas are not guessed. If a complete binding is unavailable, the node uses a
+formulas are not guessed. Products of fuel-burning stations whose own page has
+no bindable formula use the station page's formula, keyed by the first listed
+station, with an added Fuel material input (average quality of the fuel burnt):
+Kiln, Oven, Ore Smelter and Smoke Shed (2*product + station + fuel)/4; Finery
+Forge softcap(cast iron, (forge + fuel)/2); Steel Crucible softcap(wrought iron,
+(crucible + coal + fuel)/3); Tar Kiln (3*wood + kiln)/4. Their stat caps belong
+to the unfired/unbaked step and are dropped. Several listed inputs (alternative
+ores, Ashes) are averaged and marked approximate. A crucible or fireplace listed
+first (nuggets, pitbaked goods) keeps the general model: the wiki gives no fuel
+effect there. If a complete binding is unavailable, the node uses a
 clearly marked approximate general model: equal material-type means, optional
 3:1 material/tool weighting, and geometric skill softcap. A bound base without
 a confirmed cap is also approximate when the wiki mentions quality skills.
