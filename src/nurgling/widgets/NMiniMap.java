@@ -3130,6 +3130,9 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        // Commander mode: a right-click is a squad move, ahead of every other right-click meaning here.
+        if(ev.b == 3 && nurgling.sessions.squad.SquadView.minimapClick(this, xlate(ev.c), ev.b))
+            return true;
         // Alt+Shift+LMB pings the clicked spot to the selected chat channel. Plain
         // alt+LMB is left for waypoint queueing - it means "walk here next" here, on the
         // map window and in the world alike (NMapWnd.mouseup, NMiniMapWnd.clickloc,

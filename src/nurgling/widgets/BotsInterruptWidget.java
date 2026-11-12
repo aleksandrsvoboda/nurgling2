@@ -609,6 +609,17 @@ public class BotsInterruptWidget extends Widget {
         return !obs.isEmpty();
     }
 
+    /** Name of the first running bot thread other than {@code except}, or null if there is none. */
+    public String firstBotExcept(Thread except) {
+        synchronized (obs) {
+            for (Gear g : obs) {
+                if (g.t != except && g.t.isAlive())
+                    return g.t.getName();
+            }
+        }
+        return null;
+    }
+
     /**
      * Interrupt and remove all running bots.
      */

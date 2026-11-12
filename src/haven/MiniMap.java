@@ -910,6 +910,8 @@ public class MiniMap extends Widget
 	if(dlvl == 0)
 	    drawicons(g);
 	drawparty(g);
+	if((sessloc != null) && (dloc != null) && (dloc.seg.id == sessloc.seg.id))
+	    nurgling.sessions.squad.SquadView.drawMinimap(this, g);
     }
 
     public void draw(GOut g) {
@@ -1089,6 +1091,15 @@ public class MiniMap extends Widget
     private DisplayIcon dsicon;
     private DisplayMarker dsmark;
     public boolean mousedown(MouseDownEvent ev) {
+	if(ev.b == 3) {
+	    /* nurgling: Commander mode turns a right-click on the map into a squad move */
+	    if(nurgling.sessions.squad.SquadView.minimapClick(this, xlate(ev.c), ev.b)) {
+		dsloc = null;
+		dsicon = null;
+		dsmark = null;
+		return(true);
+	    }
+	}
 	dsloc = xlate(ev.c);
 	if(dsloc != null) {
 	    dsicon = iconat(ev.c);

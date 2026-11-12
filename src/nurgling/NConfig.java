@@ -194,6 +194,11 @@ public class NConfig
         simpleInspect,
         showSpeedometer,
         showPathLine,
+        squadPathfind,
+        squadStopBots,
+        squadFormation,
+        squadGroups,
+        squadAutoView,
         decoupledRender,
         pathLineWidth,
         pathLineColor,
@@ -486,6 +491,11 @@ public class NConfig
         conf.put(Key.highlightRockTiles, true);
         conf.put(Key.showSpeedometer, false);
         conf.put(Key.showPathLine, false);
+        conf.put(Key.squadPathfind, true);
+        conf.put(Key.squadStopBots, false);
+        conf.put(Key.squadFormation, "GRID");
+        conf.put(Key.squadGroups, "");
+        conf.put(Key.squadAutoView, true);
         conf.put(Key.decoupledRender, false);
         conf.put(Key.pathLineWidth, 4);
         conf.put(Key.pathLineColor, new Color(255, 255, 0));  // Yellow

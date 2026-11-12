@@ -100,6 +100,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private static final Color GRID_WALL_DEFAULT_COLOR = new Color(255, 140, 0, 217);
     private static final Color GRID_DIAGONAL_DEFAULT_COLOR = new Color(0, 190, 255, 217);
 
+    /** Squad selection, rings and Commander-mode input for this view; acts only while this is the viewpoint. */
+    public final nurgling.sessions.squad.SquadView squadView = new nurgling.sessions.squad.SquadView(this);
+
     public NMapView(Coord sz, Glob glob, Coord2d cc, long plgob)
     {
         super(sz, glob, cc, plgob);
@@ -395,6 +398,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }
 
         // Route waypoints and Forager's detour trail are now drawn by NWaypointOverlay instead.
+
+        squadView.draw(g);
     }
 
 
@@ -1304,6 +1309,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     @Override
     public void tick(double dt)
     {
+        squadView.tick();
         try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "area-overlays")) {
             checkTempMarks();
             synchronized (glob.map.areas)
@@ -1572,6 +1578,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
         }
+
+        /* Commander mode owns the left and right buttons: select and command the squad. */
+        if(squadView.mousedown(ev))
+            return true;
 
         /* Placing a preset: left places, right cancels; the camera button still works. */
         if(presetPlacer != null && ev.b != 2) {
@@ -1866,6 +1876,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     @Override
     public void mousemove(MouseMoveEvent ev) {
         lastCoord = ev.c;
+        if(squadView.mousemove(ev.c))
+            return;
         if(wpGrab != null) {
             // Dragging a ground waypoint - don't let the camera/placement follow.
             dragWorldWaypoint(ev.c, false);
@@ -1881,6 +1893,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if(squadView.mouseup(ev))
+            return true;
         if((holdGrab != null) && (ev.b == 1))
             endHoldSteer();
         if(wpGrab != null) {

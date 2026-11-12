@@ -53,6 +53,16 @@ public class SessionContext {
     /** Current bot name if running (for status display) */
     private volatile String currentBotName = null;
 
+    /** Squad orders waiting for this session's own tick; see nurgling.sessions.squad.SquadExecutor. */
+    public final java.util.concurrent.ConcurrentLinkedQueue<nurgling.sessions.squad.SquadCommand> squadInbox =
+        new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** What this session last published about its character; the viewpoint only reads it. */
+    public volatile nurgling.sessions.squad.MemberReport squadReport;
+
+    /** Squad executor state, touched only by this session's tick and squad thread. */
+    public final nurgling.sessions.squad.SquadExecutor.State squadState = new nurgling.sessions.squad.SquadExecutor.State();
+
     /** Dedicated ForkJoinPool for headless tick processing.
      *  Prevents parallel streams in OCache.ctick() from using the common pool,
      *  which would cause cross-session task interference with the UI thread.

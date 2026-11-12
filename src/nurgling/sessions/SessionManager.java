@@ -67,6 +67,14 @@ public class SessionManager {
     private final ConcurrentHashMap<String, nurgling.timers.TimerStore> timerStores = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, nurgling.forage.ForageStore> forageStores = new ConcurrentHashMap<>();
 
+    /** Characters selected for squad orders; declared after {@code listeners}, which it registers in. */
+    private final nurgling.sessions.squad.Squad squad = new nurgling.sessions.squad.Squad(this);
+
+    /** The squad: which sessions are selected and what they were last told to do. */
+    public nurgling.sessions.squad.Squad squad() {
+        return squad;
+    }
+
     /**
      * Get the singleton SessionManager instance.
      */
@@ -260,12 +268,20 @@ public class SessionManager {
      * @param sessionId The session ID to switch to
      */
     public void switchToSession(String sessionId) {
+        switchToSession(sessionId, false);
+    }
+
+    /**
+     * Switch to a session, optionally keeping the camera's rotation, zoom and tilt even when camera sync is off in the
+     * options. The squad does this: in Commander mode the camera belongs to the player, not to a character.
+     */
+    public void switchToSession(String sessionId, boolean keepCamera) {
         synchronized (sessionsLock) {
             SessionContext ctx = sessions.get(sessionId);
             if (ctx == null || ctx == activeSession) {
                 return;
             }
-            switchToSessionInternal(ctx);
+            switchToSessionInternal(ctx, keepCamera);
         }
     }
 
@@ -322,6 +338,10 @@ public class SessionManager {
      * Must be called with sessionsLock held.
      */
     private void switchToSessionInternal(SessionContext newActive) {
+        switchToSessionInternal(newActive, false);
+    }
+
+    private void switchToSessionInternal(SessionContext newActive, boolean keepCamera) {
         SessionContext oldActive = activeSession;
 
         // Capture camera state from old session if sync is enabled
@@ -329,7 +349,7 @@ public class SessionManager {
         if (oldActive != null && oldActive != newActive) {
             try {
                 Object syncCamera = NConfig.get(NConfig.Key.sync_camera);
-                if (syncCamera != null && (Boolean) syncCamera) {
+                if ((syncCamera != null && (Boolean) syncCamera) || keepCamera || squad.commander()) {
                     NGameUI gui = oldActive.getGameUI();
                     if (gui != null && gui.map != null && gui.map.camera != null) {
                         pendingCameraState = gui.map.camera.captureState();

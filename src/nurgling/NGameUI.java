@@ -196,6 +196,13 @@ public class NGameUI extends GameUI
         // The wrapper shows its content by default; keep a disabled compass hidden
         if(!compass.enabled())
             compass.hide();
+        // Squad panel: hides itself without a squad; first placement is on the right, below the minimap area
+        nurgling.sessions.squad.SquadPanel squadPanel = new nurgling.sessions.squad.SquadPanel();
+        boolean squadPlaced = NDragProp.get(nurgling.sessions.squad.SquadPanel.DRAG_NAME).c != Coord.z;
+        NDraggableWidget squadWdg = add(new NDraggableWidget(squadPanel, nurgling.sessions.squad.SquadPanel.DRAG_NAME,
+                                                             squadPanel.sz.add(NDraggableWidget.delta)));
+        if(!squadPlaced)
+            squadWdg.target_c = new Coord(sz.x - squadWdg.sz.x - UI.scale(20), UI.scale(220));
         itemsForSearch = new NSearchItem();
         // Replace Cal with NCal to keep calendar customizations in nurgling package
         Widget oldCalendarWidget = null;
@@ -1370,6 +1377,14 @@ public class NGameUI extends GameUI
         }
     }
 
+    /** Adds {@code :squad probe}; see nurgling.sessions.squad.SquadProbe. */
+    @Override
+    public Map<String, Console.Command> findcmds() {
+        Map<String, Console.Command> cmds = new TreeMap<>(super.findcmds());
+        cmds.put("squad", (cons, args) -> nurgling.sessions.squad.SquadProbe.run(this, args));
+        return cmds;
+    }
+
     @Override
     public boolean globtype(GlobKeyEvent ev) {
         if(kb_atlas.key().match(ev)) { toggleCraftAtlas(); return true; }
@@ -1392,6 +1407,11 @@ public class NGameUI extends GameUI
             return true;
         }
         nurgling.sessions.SessionManager sm = nurgling.sessions.SessionManager.getInstance();
+
+        if (nurgling.sessions.squad.SquadView.kb_mode.key().match(ev.awt)) {
+            sm.squad().setCommander(!sm.squad().commander());
+            return true;
+        }
 
         // Check session switching keybindings
         if (nurgling.sessions.SessionTabBar.kb_session_prev.key().match(ev.awt)) {

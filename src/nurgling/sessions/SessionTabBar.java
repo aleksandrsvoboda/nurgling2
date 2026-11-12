@@ -74,13 +74,14 @@ public class SessionTabBar extends Widget {
     private static Tex warningIcon;
     private static Tex closeNormal, closeHover, closePush;
     private static Tex addNormal, addHover, addPush;
+    private static Tex flagNormal, flagHover, flagPush;
     private static Tex speakerOn, speakerMuted;
     private static boolean resourcesLoaded = false;
 
     /** Font for character names (static so shared across instances) */
     private static Text.Foundry nameFont;
 
-    /** Currently hovered button index (-1 = none, -2 = plus button) */
+    /** Currently hovered button index (-1 = none, -2 = plus button, -3 = squad flag) */
     private int hoveredButton = -1;
     /** Currently hovered close button index (-1 = none) */
     private int hoveredCloseButton = -1;
@@ -189,6 +190,9 @@ public class SessionTabBar extends Widget {
             addNormal = Resource.loadtex("nurgling/hud/buttons/add_session/18x18");
             addHover = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_hover");
             addPush = Resource.loadtex("nurgling/hud/buttons/add_session/18x18_push");
+            flagNormal = Resource.loadtex("nurgling/hud/buttons/squad_flag/18x18");
+            flagHover = Resource.loadtex("nurgling/hud/buttons/squad_flag/18x18_hover");
+            flagPush = Resource.loadtex("nurgling/hud/buttons/squad_flag/18x18_push");
             ctl = Resource.loadtex("nurgling/hud/box/tl");
             speakerOn = new TexI(speakerImage(SPEAKER_SIZE, false));
             speakerMuted = new TexI(speakerImage(SPEAKER_SIZE, true));
@@ -371,8 +375,9 @@ public class SessionTabBar extends Widget {
             buttonIndex++;
         }
 
-        // Draw plus button below all sessions
+        // Draw plus button below all sessions, and the squad flag beside it
         drawPlusButton(g, y, hoveredButton == -2);
+        drawFlagButton(g, y, hoveredButton == -3);
 
         g.chcolor();
     }
@@ -525,6 +530,18 @@ public class SessionTabBar extends Widget {
             g.rect(new Coord(x + 1, y + 1), new Coord(BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2));
         }
 
+        // Squad: an orange strip on the left edge marks a selected character; in Commander mode a character that
+        // can't join (another world, still loading) is dimmed
+        nurgling.sessions.squad.Squad squad = SessionManager.getInstance().squad();
+        if (squad.isSelected(ctx)) {
+            g.chcolor(BOT_BORDER);
+            g.frect(new Coord(x, y), new Coord(UI.scale(4), BUTTON_HEIGHT));
+        } else if (squad.commander() && !squad.selectable(ctx)) {
+            g.chcolor(0, 0, 0, 120);
+            g.frect(new Coord(x, y), new Coord(BUTTON_WIDTH, BUTTON_HEIGHT));
+        }
+        g.chcolor();
+
         // Draw close button inside on right
         int closeX = x + BUTTON_WIDTH - CLOSE_BTN_SIZE - CLOSE_BTN_MARGIN;
         int closeY = y + (BUTTON_HEIGHT - CLOSE_BTN_SIZE) / 2;
@@ -643,6 +660,12 @@ public class SessionTabBar extends Widget {
             return true;
         }
 
+        // The flag next to it toggles squad Commander mode
+        if (isFlagButtonHit(ev.c)) {
+            sm.squad().setCommander(!sm.squad().commander());
+            return true;
+        }
+
         // Mute toggles sit inside the session buttons, so they are checked before the buttons
         for (int i = 0; i < sessions.size(); i++) {
             if (isSpeakerHit(ev.c, i)) {
@@ -703,7 +726,10 @@ public class SessionTabBar extends Widget {
             if (dragStartButton < sessions.size()) {
                 SessionContext ctx = sessions.get(dragStartButton);
                 SessionContext active = sm.getActiveSession();
-                if (ctx != active) {
+                if (ui.modctrl) {
+                    // Ctrl+click puts the character in or out of the squad instead of switching to it
+                    sm.squad().toggle(ctx);
+                } else if (ctx != active) {
                     sm.switchToSession(ctx.sessionId);
                 }
             }
@@ -763,6 +789,10 @@ public class SessionTabBar extends Widget {
                 hoveredButton = -2;
                 hoveredCloseButton = -1;
                 hoveredSpeaker = -1;
+            } else if (isFlagButtonHit(ev.c)) {
+                hoveredButton = -3;
+                hoveredCloseButton = -1;
+                hoveredSpeaker = -1;
             } else {
                 int buttonIndex = getButtonAt(ev.c);
                 hoveredButton = buttonIndex;
@@ -811,6 +841,9 @@ public class SessionTabBar extends Widget {
     @Override
     public Object tooltip(Coord c, Widget prev) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
+        if (!dragMode && isFlagButtonHit(c)) {
+            return nurgling.i18n.L10n.get("squad.flag.tip");
+        }
         if (!dragMode) {
             List<SessionContext> sessions = new ArrayList<>(SessionManager.getInstance().getAllSessions());
             for (int i = 0; i < sessions.size(); i++) {
@@ -896,6 +929,39 @@ public class SessionTabBar extends Widget {
      * Check if coordinate is over plus button.
      * Plus button is left-aligned below all sessions.
      */
+    /** Top-left of the squad flag button: right of the plus button, on the same row. */
+    private Coord flagButtonPos() {
+        int xOffset = isDragMode() ? FRAME_INSET.x : 0;
+        int y = (isDragMode() ? FRAME_INSET.y : 0)
+                + SessionManager.getInstance().getSessionCount() * (BUTTON_HEIGHT + BUTTON_PADDING)
+                + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2;
+        return new Coord(xOffset + PLUS_BTN_SIZE + BUTTON_PADDING, y);
+    }
+
+    private boolean isFlagButtonHit(Coord c) {
+        Coord p = flagButtonPos();
+        return c.x >= p.x && c.x < p.x + PLUS_BTN_SIZE && c.y >= p.y && c.y < p.y + PLUS_BTN_SIZE;
+    }
+
+    /**
+     * The squad flag, drawn exactly like the plus button beside it (same art set, size and row), pressed while
+     * Commander mode is on.
+     */
+    private void drawFlagButton(GOut g, int rowY, boolean hovered) {
+        Coord p = new Coord(flagButtonPos().x, rowY + (BUTTON_HEIGHT - PLUS_BTN_SIZE) / 2);
+        boolean on = SessionManager.getInstance().squad().commander();
+        if (nurgling.styles.UITheme.on()) {
+            Coord size = new Coord(PLUS_BTN_SIZE, PLUS_BTN_SIZE);
+            nurgling.styles.UITheme.panel(g, p, size, nurgling.styles.UITheme.PANEL, null);
+            nurgling.styles.UITheme.iconHighlight(g.reclip(p, size), size, hovered, on ? 2 : 0);
+            nurgling.styles.GeneratedButtons.icon(g, "flag", p, PLUS_BTN_SIZE);
+            return;
+        }
+        Tex icon = on ? flagPush : hovered ? flagHover : flagNormal;
+        if (icon != null)
+            g.image(icon, p);
+    }
+
     private boolean isPlusButtonHit(Coord c) {
         boolean dragMode = ui != null && ui.core != null && ui.core.mode == NCore.Mode.DRAG;
         int xOffset = dragMode ? FRAME_INSET.x : 0;
