@@ -38,17 +38,13 @@ public class BeetrootFarmerQ implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
-            if (!new ValidateAllCropsReady(NContext.findSpec(cropQ), cropQ, new NAlias("plants/beet"), false).run(gui).isSuccess) {
-                NUtils.stackSwitch(oldStackingValue);
-                return Results.SUCCESS();
-            }
-
             new HarvestCrop(
                     NContext.findSpec(cropQ),
                     NContext.findSpec(seedQ),
                     null,
                     new NAlias("plants/beet"),
-                    true
+                    true,
+                    cropQ
             ).run(gui);
             if (beetrootLeavesArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), beetrootLeavesArea.getRCArea(), new NAlias("beetleaves", "Beetroot Leaves")).run(gui);

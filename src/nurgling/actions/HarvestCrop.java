@@ -25,6 +25,10 @@ public class HarvestCrop implements Action {
     final NAlias crop;
     boolean isQualityGrid = false;
 
+    // When set (quality farmers with a per-field minimum harvest stage), only plants at or
+    // above this stage are harvested; younger plants are left standing to keep growing.
+    Integer minStage = null;
+
     public HarvestCrop(NArea field, NArea seed, NArea trough, NAlias crop) {
         this.field = field;
         this.seed = seed;
@@ -40,6 +44,21 @@ public class HarvestCrop implements Action {
     public HarvestCrop(NArea field, NArea seed, NArea trough, NAlias crop, boolean isQualityGrid) {
         this(field,seed,trough,crop);
         this.isQualityGrid = isQualityGrid;
+    }
+
+    // Quality-grid harvest that respects the field's minimum harvest stage: plants below it
+    // are left growing (partial harvest), so the grid refills them on the next cycle.
+    public HarvestCrop(NArea field, NArea seed, NArea trough, NAlias crop, boolean isQualityGrid, NArea.Specialisation spec) {
+        this(field,seed,trough,crop,isQualityGrid);
+        if (field != null && spec != null) {
+            NArea.Specialisation fs = field.getSpecialisation(spec);
+            if (fs != null)
+                this.minStage = fs.minHarvestStage;
+        }
+    }
+
+    private boolean stageAllowed(int stage) {
+        return minStage == null || stage >= minStage;
     }
 
     @Override
@@ -168,6 +187,8 @@ public class HarvestCrop implements Action {
         Gob plant;
         plant = null;
         for (CropRegistry.CropStage cropStage : CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList())) {
+            if (!stageAllowed(cropStage.stage))
+                continue;
             plant = Finder.findGob(plantGobEndpoint.div(MCache.tilesz).floor(), crop, cropStage.stage);
             if(plant != null) {
                 break;
@@ -206,6 +227,8 @@ public class HarvestCrop implements Action {
         ArrayList<Gob> plants;
         List<CropRegistry.CropStage> cropStages = CropRegistry.HARVESTABLE.getOrDefault(crop, Collections.emptyList());
         for (CropRegistry.CropStage cropStage : cropStages) {
+            if (!stageAllowed(cropStage.stage))
+                continue;
             ArrayList<Gob> plantsToHarvest;
             while (!(plantsToHarvest = Finder.findGobs(area, crop, cropStage.stage)).isEmpty()) {
                 dropOffSeed(gui, barrelInfo.keySet(), troughs, cistern);
@@ -301,6 +324,11 @@ public class HarvestCrop implements Action {
                 }
             }
         } else {
+            // Nothing harvested this pass (partial harvest can leave a field with only
+            // immature plants): skip the container trip entirely rather than walking over
+            // to open and close it for no items.
+            if (barrelItems.isEmpty() && stockpileItems.isEmpty() && unplantableItems.isEmpty())
+                return;
             // The seed container holds planting material only: a product that can't be
             // planted (radishes) is dropped as on a regular field, and the bot sweeps it
             // into its pile afterwards.
@@ -347,6 +375,8 @@ public class HarvestCrop implements Action {
             return false;
 
         for (CropRegistry.CropStage cs : cropStages) {
+            if (!stageAllowed(cs.stage))
+                continue;
             if (!Finder.findGobs(field, crop, cs.stage).isEmpty())
                 return true;
         }

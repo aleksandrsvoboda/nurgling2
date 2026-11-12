@@ -32,17 +32,13 @@ public class GarlicFarmerQ implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
-            if (!new ValidateAllCropsReady(NContext.findSpec(cropQ), cropQ, new NAlias("plants/garlic"), false).run(gui).isSuccess) {
-                NUtils.stackSwitch(oldStackingValue);
-                return Results.SUCCESS();
-            }
-
             new HarvestCrop(
                     NContext.findSpec(cropQ),
                     NContext.findSpec(seedQ),
                     null,
                     new NAlias("plants/garlic"),
-                    true
+                    true,
+                    cropQ
             ).run(gui);
 
             new SeedCrop(NContext.findSpec(cropQ), NContext.findSpec(seedQ), new NAlias("plants/garlic"), new NAlias("Garlic"), true).run(gui);

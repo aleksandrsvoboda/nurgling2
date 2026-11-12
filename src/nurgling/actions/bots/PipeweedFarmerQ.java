@@ -38,17 +38,13 @@ public class PipeweedFarmerQ implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
-            if (!new ValidateAllCropsReady(NContext.findSpec(cropQ), cropQ, new NAlias("plants/pipeweed"), false).run(gui).isSuccess) {
-                NUtils.stackSwitch(oldStackingValue);
-                return Results.SUCCESS();
-            }
-
             new HarvestCrop(
                     NContext.findSpec(cropQ),
                     NContext.findSpec(seedQ),
                     null,
                     new NAlias("plants/pipeweed"),
-                    true
+                    true,
+                    cropQ
             ).run(gui);
             if (pipeweedLeafArea != null)
                 new CollectItemsToPile(NContext.findSpec(cropQ).getRCArea(), pipeweedLeafArea.getRCArea(), new NAlias("tobacco-fresh", "Fresh Leaf of Pipeweed")).run(gui);

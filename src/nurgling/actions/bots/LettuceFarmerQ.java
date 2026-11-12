@@ -38,17 +38,13 @@ public class LettuceFarmerQ implements Action {
         if (new Validator(req, opt).run(gui).IsSuccess()) {
             NUtils.stackSwitch(true);
 
-            if (!new ValidateAllCropsReady(NContext.findSpec(cropQ), cropQ, new NAlias("plants/lettuce"), false).run(gui).isSuccess) {
-                NUtils.stackSwitch(oldStackingValue);
-                return Results.SUCCESS();
-            }
-
             new HarvestCrop(
                     NContext.findSpec(cropQ),
                     NContext.findSpec(seedQ),
                     null,
                     new NAlias("plants/lettuce"),
-                    true
+                    true,
+                    cropQ
             ).run(gui);
             if (lettuceLeafArea != null)
                 new LettucePumpkinAndWatermelonCollector(NContext.findSpec(cropQ), NContext.findSpec(seedQ), lettuceLeafArea, new NAlias("items/lettucehead", "Head of Lettuce"), LettucePumpkinAndWatermelonCollector.Product.LETTUCE, null, true).run(gui);
