@@ -115,6 +115,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("leaf_zone", BotDescriptor.BotType.RESOURCES, "bot.leaf_zone.title", "bot.leaf_zone.desc", true, true, CollectLeafZone.class, "leaf_zone", false));
         bots.add(new BotDescriptor("lp_gatherer", BotDescriptor.BotType.RESOURCES, "bot.lp_gatherer.title", "bot.lp_gatherer.desc", true, true, LpGatherer.class, "lp_gatherer", false));
         bots.add(new BotDescriptor("fisher", BotDescriptor.BotType.RESOURCES, "bot.fisher.title", "bot.fisher.desc", false, true, Fishing.class, "fisher", true));
+        bots.add(new BotDescriptor("boatfisher", BotDescriptor.BotType.RESOURCES, "bot.boatfisher.title", "bot.boatfisher.desc", false, true, nurgling.actions.bots.boatfishing.BoatFisher.class, "boatfisher", false));
         bots.add(new BotDescriptor("plower", BotDescriptor.BotType.RESOURCES, "bot.plower.title", "bot.plower.desc", false, true, Plower.class, "plower", true));
         bots.add(new BotDescriptor("plant_trees", BotDescriptor.BotType.RESOURCES, "bot.plant_trees.title", "bot.plant_trees.desc", false, true, PlantTrees.class, "treePlanter", false));
         bots.add(new BotDescriptor("blueprint_tree_planter", BotDescriptor.BotType.RESOURCES, "bot.blueprint_tree_planter.title", "bot.blueprint_tree_planter.desc", false, true, BlueprintTreePlanter.class, "treegardener", false));
@@ -341,7 +342,7 @@ public class BotRegistry {
         // folder's trailing "Other" group, so a new bot is never lost.
         group("trees", "choper", "pblocks", "pboards", "bark", "bough", "leaf", "leaf_zone", "plant_trees", "blueprint_tree_planter", "boughbee");
         group("stone", "chipper", "clay", "masterminer", "tunneling", "plower");
-        group("gathering", "forager", "lp_gatherer", "fisher", "tickbot");
+        group("gathering", "forager", "lp_gatherer", "fisher", "boatfisher", "tickbot");
 
         group("metal", "smelter", "steel", "fineryforge");
         group("food", "backer", "dryedfish", "fishroast", "pickling", "grapejuicer", "smoking", "gelatin");

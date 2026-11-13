@@ -1006,6 +1006,11 @@ public class NContext {
         return createArea(msg, bauble,null);
     }
 
+    /** An area made by createArea, without walking to it (unlike goToAreaById). */
+    public NArea getCreatedArea(String id) {
+        return areas.get(id);
+    }
+
     public String createArea(String msg, BufferedImage bauble, BufferedImage custom) throws InterruptedException {
         SelectArea insa;
         NUtils.getGameUI().msg(msg);
