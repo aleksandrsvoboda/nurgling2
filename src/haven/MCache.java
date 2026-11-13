@@ -1278,9 +1278,13 @@ public class MCache implements MapSource {
 	public Tiler tiler(int i) {return(MCache.this.tiler(i));}
     }
 
+    /** Fish nodes worked out from the jumping-fish splashes, for this session only. */
+    public final nurgling.overlays.FishNodes fishNodes;
+
     public MCache(Session sess) {
 	this.sess = sess;
 	init();
+	fishNodes = new nurgling.overlays.FishNodes(this);
     }
 
     public void ctick(double dt) {

@@ -1328,6 +1328,12 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             markerLineOverlay.tick();
         }
 
+        // Fish nodes from the jumping-fish splashes
+        try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "fish-nodes")) {
+            Gob pl = player();
+            glob.map.fishNodes.tick(pl == null ? null : pl.rc);
+        }
+
         // Refresh the movement-waypoint geometry
         try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "waypoint-overlays")) {
             tickWorldOverlays();

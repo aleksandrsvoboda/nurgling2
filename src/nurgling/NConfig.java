@@ -189,6 +189,8 @@ public class NConfig
         disableCloudShadows,
         darkenDeepOcean,
         disableDrugEffects,
+        showFishNodes,
+        fishNodeLink,
         disableEasterEggs,
         easterEggSeen,
         simpleInspect,
@@ -629,6 +631,8 @@ public class NConfig
         conf.put(Key.disableCloudShadows, false);
         conf.put(Key.darkenDeepOcean, false);
         conf.put(Key.disableDrugEffects, true);  // Default to disabled for better performance
+        conf.put(Key.showFishNodes, false);
+        conf.put(Key.fishNodeLink, 14);  // Splash points this close (tiles) belong to one fish node
         conf.put(Key.disableEasterEggs, false);
         conf.put(Key.easterEggSeen, false);
         
