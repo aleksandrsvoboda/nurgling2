@@ -124,7 +124,7 @@ public class NConfig
         smokeprop,
         worldexplorerprop,
         riverexplorerprop,
-        questNotified, lpassistent, fishingsettings,
+        questNotified, lpassistent, fishingsettings, boatfishingsettings,
         serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, todoNotify, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
         temsmarktime, exploredAreaEnable, chunkNavOverlay, minimapTogglesShown, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, gridDiagonals, gridDiagonalColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
@@ -1355,6 +1355,9 @@ public class NConfig
                                 break;
                             case "NFishingSettings":
                                 res.add(new NFishingSettings(obj));
+                                break;
+                            case "NBoatFishingSettings":
+                                res.add(new nurgling.conf.NBoatFishingSettings(obj));
                                 break;
                             case "NCarrierProp":
                                 res.add(new NCarrierProp(obj));
