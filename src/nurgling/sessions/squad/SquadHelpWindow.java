@@ -2,6 +2,7 @@ package nurgling.sessions.squad;
 
 import haven.*;
 import nurgling.i18n.L10n;
+import nurgling.sessions.SessionManager;
 import nurgling.tools.MarkdownToImageRenderer;
 
 /**
@@ -18,10 +19,12 @@ public class SquadHelpWindow extends Window {
         {"select_title", "-select_click", "-select_shift", "-select_box", "-select_double", "-select_ground",
          "-select_all", "-select_tab", "-select_panel", "select_view", "select_limits"},
         {"cmd_title", "-cmd_move", "-cmd_use", "-cmd_map", "-cmd_stop", "-cmd_rally", "-cmd_follow"},
+        {"leader_title", "leader_text", "-leader_set", "-leader_change"},
         {"groups_title", "-groups_set", "-groups_recall", "groups_text"},
         {"panel_title", "panel_text", "-panel_formation", "-panel_buttons", "-panel_pathfind", "-panel_bots",
          "-panel_view", "-panel_speed"},
-        {"keys_title", "-key_mode", "-key_lmb", "-key_rmb", "-key_s", "-key_r", "-key_f", "-key_all", "-key_groups",
+        {"keys_title", "-key_mode", "-key_lmb", "-key_rmb", "-key_s", "-key_r", "-key_f", "-key_all", "-key_l",
+         "-key_groups",
          "-key_esc", "-key_tab", "keys_rebind"},
         {"notes_title", "-note_camera", "-note_stop", "-note_far", "-note_bots"},
     };
@@ -57,6 +60,9 @@ public class SquadHelpWindow extends Window {
             }
             md.append("\n");
         }
+        /* Sections added by plugins, for what they add to the squad. */
+        for (String extra : SessionManager.getInstance().squad().helpSections())
+            md.append(extra).append("\n\n");
         return md.toString();
     }
 

@@ -21,8 +21,9 @@ public class SquadRing extends Sprite implements RenderTree.Node {
     private static final float RADIUS = (float) (0.8 * MCache.tilesz.x);
     private static final Map<Kind, ColorTex> textures = new EnumMap<>(Kind.class);
 
-    public final Kind kind;
+    private volatile Kind kind;
     private final Model emod;
+    private final java.util.Collection<RenderTree.Slot> slots = new java.util.ArrayList<>(1);
 
     public SquadRing(Owner owner, Kind kind) {
         super(owner, null);
@@ -73,14 +74,45 @@ public class SquadRing extends Sprite implements RenderTree.Node {
         return img;
     }
 
-    @Override
-    public void added(RenderTree.Slot slot) {
-        Pipe.Op rmat = Pipe.Op.compose(new Rendered.Order.Default(-100), new States.Depthtest(States.Depthtest.Test.LE),
+    public Kind kind() {
+        return kind;
+    }
+
+    /**
+     * Change the look in place. Removing the overlay and adding a new one on every change of a member's status
+     * churned the Vulkan draw list (a status can flip several times a second), which the renderer handles badly.
+     */
+    public void kind(Kind k) {
+        if (k == kind)
+            return;
+        kind = k;
+        synchronized (slots) {
+            for (RenderTree.Slot s : slots)
+                s.cstate(state(k));
+        }
+    }
+
+    private static Pipe.Op state(Kind k) {
+        return Pipe.Op.compose(new Rendered.Order.Default(-100), new States.Depthtest(States.Depthtest.Test.LE),
                 States.maskdepth,
                 FragColor.blend(new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
                                               BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)),
-                texture(kind), Clickable.No, Rendered.postpfx);
-        slot.add(emod, rmat);
+                texture(k), Clickable.No, Rendered.postpfx);
+    }
+
+    @Override
+    public void added(RenderTree.Slot slot) {
+        RenderTree.Slot s = slot.add(emod, state(kind));
+        synchronized (slots) {
+            slots.add(s);
+        }
+    }
+
+    @Override
+    public void removed(RenderTree.Slot slot) {
+        synchronized (slots) {
+            slots.removeIf(s -> s.parent() == slot);
+        }
     }
 
     @Override

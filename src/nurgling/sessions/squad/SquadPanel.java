@@ -36,7 +36,7 @@ public class SquadPanel extends Widget {
     private static final Color ON_TEXT = new Color(0x25, 0x2B, 0x29);
 
     /** Button states: off, used by some selected characters (outline), on (filled). */
-    private static final int OFF = 0, SOME = 1, ON = 2;
+    private static final int OFF = SquadToggle.OFF, SOME = SquadToggle.SOME, ON = SquadToggle.ON;
 
     /** The same help button as the inventory search bar. */
     private static final BufferedImage[] HELP = {
@@ -114,7 +114,8 @@ public class SquadPanel extends Widget {
     /** Height for this many member rows (at least room for the two-line hint). */
     private int height(int members) {
         int rows = (members == 0) ? 2 : members;
-        return PAD + header() + rows * ROW + PAD + 4 * (BTN + UI.scale(3)) + PAD;
+        int buttonRows = 4 + (squad().toggles().isEmpty() ? 0 : 1);
+        return PAD + header() + rows * ROW + PAD + buttonRows * (BTN + UI.scale(3)) + PAD;
     }
 
     /** Follow the content's height; the draggable wrapper is sized around it. */
@@ -146,7 +147,12 @@ public class SquadPanel extends Widget {
 
         int hh = header();
         int y = PAD;
-        g.aimage(text(L10n.get("squad.panel.title", m.size()), SquadView.TEAL), new Coord(PAD, y + hh / 2), 0, 0.5);
+        SessionContext ld = sq.leader();
+        String title = L10n.get("squad.panel.title", m.size());
+        /* The leader can be outside the selection (the character you selected from); name it in the title then. */
+        if (!m.isEmpty() && ld != null && !m.contains(ld) && ld.squadReport != null)
+            title += " · " + SquadView.CROWN + " " + clip(ld.squadReport.name, 12);
+        g.aimage(text(title, SquadView.TEAL), new Coord(PAD, y + hh / 2), 0, 0.5);
         Tex x = text("×", DIM);
         Coord xc = new Coord(W - PAD - x.sz().x, y + (hh - x.sz().y) / 2);
         g.image(x, xc);
@@ -172,7 +178,8 @@ public class SquadPanel extends Widget {
             int grp = Squad.groupOf(r);
             if (grp > 0)
                 g.image(text(Integer.toString(grp), SquadView.ORANGE), new Coord(PAD, y));
-            g.image(text(clip(r.name, 14) + (ctx == vp ? " ◆" : ""), TEXT), new Coord(PAD + UI.scale(12), y));
+            String nm = (ctx == ld ? SquadView.CROWN + " " : "") + clip(r.name, 12) + (ctx == vp ? " ◆" : "");
+            g.image(text(nm, TEXT), new Coord(PAD + UI.scale(12), y));
             int bx = PAD + UI.scale(108), bw = UI.scale(40);
             g.chcolor(0, 0, 0, 160);
             g.frect(new Coord(bx, y + UI.scale(5)), new Coord(bw, UI.scale(5)));
@@ -190,16 +197,16 @@ public class SquadPanel extends Widget {
         y += PAD;
 
         Formation.Kind fk = Squad.formation();
-        y = buttons(g, y, new String[]{"squad.f.grid", "squad.f.line", "squad.f.keep", "squad.f.stack"},
+        y = buttons(g, y, tr("squad.f.grid", "squad.f.line", "squad.f.keep", "squad.f.stack"),
                     new int[]{st(fk == Formation.Kind.GRID), st(fk == Formation.Kind.LINE), st(fk == Formation.Kind.KEEP),
                               st(fk == Formation.Kind.STACK)},
                     new Runnable[]{() -> Squad.setFormation(Formation.Kind.GRID), () -> Squad.setFormation(Formation.Kind.LINE),
                                    () -> Squad.setFormation(Formation.Kind.KEEP), () -> Squad.setFormation(Formation.Kind.STACK)});
-        y = buttons(g, y, new String[]{"squad.b.stop", "squad.b.rally", "squad.b.follow"}, new int[3],
+        y = buttons(g, y, tr("squad.b.stop", "squad.b.rally", "squad.b.follow"), new int[3],
                     new Runnable[]{sq::stop, sq::rally, sq::follow});
         boolean pf = Squad.pathfind(), sb = Squad.stopBots(), av = Squad.autoView();
-        y = buttons(g, y, new String[]{pf ? "squad.b.pf_on" : "squad.b.pf_off", sb ? "squad.b.bots_stop" : "squad.b.bots_skip",
-                                       av ? "squad.b.view_auto" : "squad.b.view_manual"},
+        y = buttons(g, y, tr(pf ? "squad.b.pf_on" : "squad.b.pf_off", sb ? "squad.b.bots_stop" : "squad.b.bots_skip",
+                             av ? "squad.b.view_auto" : "squad.b.view_manual"),
                     new int[]{st(pf), st(sb), st(av)},
                     new Runnable[]{() -> Squad.setPathfind(!Squad.pathfind()), () -> Squad.setStopBots(!Squad.stopBots()),
                                    () -> Squad.setAutoView(!Squad.autoView())});
@@ -208,8 +215,22 @@ public class SquadPanel extends Widget {
         int known = speeds[0] + speeds[1] + speeds[2] + speeds[3];
         for (int i = 0; i < 4; i++)
             sst[i] = (speeds[i] == 0) ? OFF : (speeds[i] == known) ? ON : SOME;
-        buttons(g, y, new String[]{"squad.s.crawl", "squad.s.walk", "squad.s.run", "squad.s.sprint"}, sst,
-                new Runnable[]{() -> sq.setSpeed(0), () -> sq.setSpeed(1), () -> sq.setSpeed(2), () -> sq.setSpeed(3)});
+        y = buttons(g, y, tr("squad.s.crawl", "squad.s.walk", "squad.s.run", "squad.s.sprint"), sst,
+                    new Runnable[]{() -> sq.setSpeed(0), () -> sq.setSpeed(1), () -> sq.setSpeed(2), () -> sq.setSpeed(3)});
+        /* Plugins' buttons, acting on the selection. */
+        List<SquadToggle> ext = sq.toggles();
+        if (!ext.isEmpty()) {
+            String[] lbl = new String[ext.size()];
+            int[] est = new int[ext.size()];
+            Runnable[] act = new Runnable[ext.size()];
+            for (int i = 0; i < ext.size(); i++) {
+                SquadToggle t = ext.get(i);
+                lbl[i] = t.label(m);
+                est[i] = t.state(m);
+                act[i] = () -> t.click(sq.members());
+            }
+            buttons(g, y, lbl, est, act);
+        }
 
         super.draw(g);
     }
@@ -218,8 +239,16 @@ public class SquadPanel extends Widget {
         return on ? ON : OFF;
     }
 
-    private int buttons(GOut g, int y, String[] keys, int[] state, Runnable[] act) {
-        int n = keys.length, gap = UI.scale(3);
+    private static String[] tr(String... keys) {
+        String[] out = new String[keys.length];
+        for (int i = 0; i < keys.length; i++)
+            out[i] = L10n.get(keys[i]);
+        return out;
+    }
+
+    /** A row of buttons; {@code labels} are already translated. */
+    private int buttons(GOut g, int y, String[] labels, int[] state, Runnable[] act) {
+        int n = labels.length, gap = UI.scale(3);
         int bw = (W - 2 * PAD - (n - 1) * gap) / n;
         for (int i = 0; i < n; i++) {
             Coord ul = new Coord(PAD + i * (bw + gap), y);
@@ -232,7 +261,7 @@ public class SquadPanel extends Widget {
             if (state[i] == SOME)
                 g.rect(ul.add(1, 1), bsz.sub(2, 2));
             g.chcolor();
-            g.aimage(text(L10n.get(keys[i]), on ? ON_TEXT : TEXT), ul.add(bsz.div(2)), 0.5, 0.5);
+            g.aimage(text(labels[i], on ? ON_TEXT : TEXT), ul.add(bsz.div(2)), 0.5, 0.5);
             cells.add(new Cell(Area.sized(ul, bsz), act[i], null));
         }
         return y + BTN + gap;
@@ -258,6 +287,13 @@ public class SquadPanel extends Widget {
          * child widgets (the help button) first, as Window.DragDeco does. */
         if (ev.propagate(this))
             return true;
+        if (ev.b == 3) {
+            /* Right-click a row: that character leads. */
+            for (Cell cl : cells)
+                if (cl.row != null && cl.a.contains(ev.c))
+                    squad().setLeader(cl.row);
+            return true;
+        }
         if (ev.b != 1)
             return true;
         for (Cell cl : cells) {

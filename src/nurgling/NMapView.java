@@ -671,6 +671,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /** Hand cursor over a draggable waypoint node, and while one is being dragged. */
     public boolean getcurs(Widget.CursorQuery ev) {
+        if(squadView.getcurs(ev))
+            return(true);
         if((wpGrab != null) || (worldWaypointAt(ev.c) >= 0))
             return(ev.set(wpcurs));
         return(false);

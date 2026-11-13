@@ -46,13 +46,17 @@ public abstract class SquadCommand {
         public final WorldRef gobPos;
         public final String resName;
         public final long seq;
+        /** This member's own side of the object to walk to first, or null to go to the nearest spot. */
+        public final WorldRef approach;
 
-        public Interact(long gobId, WorldRef gobPos, String resName, long seq, boolean pathfind, boolean stopBots) {
+        public Interact(long gobId, WorldRef gobPos, String resName, long seq, WorldRef approach, boolean pathfind,
+                        boolean stopBots) {
             super(pathfind, stopBots);
             this.gobId = gobId;
             this.gobPos = gobPos;
             this.resName = resName;
             this.seq = seq;
+            this.approach = approach;
         }
     }
 
@@ -96,6 +100,25 @@ public abstract class SquadCommand {
         @Override
         public boolean takesCharacter() {
             return false;
+        }
+    }
+
+    /** A plugin's own order, run only by an {@link SquadOrderHandler}; core ignores it. */
+    public static final class Custom extends SquadCommand {
+        public final String kind;
+        public final Object data;
+        private final boolean takes;
+
+        public Custom(String kind, Object data, boolean takesCharacter, boolean stopBots) {
+            super(false, stopBots);
+            this.kind = kind;
+            this.data = data;
+            this.takes = takesCharacter;
+        }
+
+        @Override
+        public boolean takesCharacter() {
+            return takes;
         }
     }
 }
