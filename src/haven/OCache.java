@@ -310,6 +310,8 @@ public class OCache implements Iterable<Gob> {
 	    }
 	    Gob.Overlay ol = g.findol(olid);
 	    if(res != null) {
+		if(nurgling.overlays.FishNodes.isJump(res))
+		    g.glob.map.fishNodes.splashed(g);
 		Gob.Overlay nol = null;
 		if(ol == null) {
 		    if(prs || (g.lastolid == 0) || (Gob.olidcmp(olid, g.lastolid) > 0)) {
