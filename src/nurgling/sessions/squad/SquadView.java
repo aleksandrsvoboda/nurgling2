@@ -56,12 +56,12 @@ public class SquadView {
     private static final class Ring {
         final Gob gob;
         final Gob.Overlay ol;
-        final SquadRing.Kind kind;
+        final SquadRing spr;
 
-        Ring(Gob gob, Gob.Overlay ol, SquadRing.Kind kind) {
+        Ring(Gob gob, Gob.Overlay ol, SquadRing spr) {
             this.gob = gob;
             this.ol = ol;
-            this.kind = kind;
+            this.spr = spr;
         }
     }
 
@@ -73,8 +73,19 @@ public class SquadView {
         return SessionManager.getInstance().squad();
     }
 
+    /**
+     * This view is the one on screen. Being the active session isn't enough: on a switch the session becomes active
+     * before the render loop has taken it over from its background thread, and changing its render tree (rings) from
+     * that thread while the hand-over runs is what the Vulkan draw list can't take.
+     */
     private boolean viewpoint() {
-        return map.ui != null && SessionManager.getInstance().getActiveUI() == map.ui;
+        if (map.ui == null)
+            return false;
+        SessionManager sm = SessionManager.getInstance();
+        if (sm.getActiveUI() != map.ui)
+            return false;
+        SessionContext ctx = (map.ui.sess == null) ? null : sm.findBySession(map.ui.sess);
+        return ctx == null || !ctx.isHeadless();
     }
 
     private NGameUI gui() {
@@ -176,18 +187,23 @@ public class SquadView {
         for (Iterator<Map.Entry<Long, Ring>> it = rings.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<Long, Ring> e = it.next();
             Ring r = e.getValue();
-            if (want.get(e.getKey()) != r.kind || gobs.get(e.getKey()) != r.gob) {
+            SquadRing.Kind k = want.get(e.getKey());
+            if (k == null || gobs.get(e.getKey()) != r.gob) {
                 r.ol.remove();
                 it.remove();
+            } else {
+                /* Same character, new look: recolour, don't replace. */
+                r.spr.kind(k);
             }
         }
         for (Map.Entry<Long, SquadRing.Kind> e : want.entrySet()) {
             if (rings.containsKey(e.getKey()))
                 continue;
             Gob g = gobs.get(e.getKey());
-            Gob.Overlay ol = new Gob.Overlay(g, new SquadRing(g, e.getValue()));
+            SquadRing spr = new SquadRing(g, e.getValue());
+            Gob.Overlay ol = new Gob.Overlay(g, spr);
             g.addol(ol);
-            rings.put(e.getKey(), new Ring(g, ol, e.getValue()));
+            rings.put(e.getKey(), new Ring(g, ol, spr));
         }
     }
 
