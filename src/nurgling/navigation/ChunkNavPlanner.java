@@ -36,78 +36,85 @@ public class ChunkNavPlanner {
     }
 
     /**
-     * Check if a tile (in tile coordinates 0-99) is walkable.
-     * With half-tile resolution, a tile is walkable if any of its 4 cells is walkable.
+     * The area's per-grid pieces (local tile bounds, br exclusive), as stored in {@link NArea#space}.
      */
-    private boolean isTileWalkable(ChunkNavData chunk, int tileX, int tileY) {
-        // Convert tile to cell coordinates
-        int cellX = tileX * CELLS_PER_TILE;
-        int cellY = tileY * CELLS_PER_TILE;
-
-        // Check all cells in the 2x2 block - tile is walkable if any cell is walkable
-        for (int dx = 0; dx < CELLS_PER_TILE; dx++) {
-            for (int dy = 0; dy < CELLS_PER_TILE; dy++) {
-                int cx = cellX + dx;
-                int cy = cellY + dy;
-                if (cx >= 0 && cx < CELLS_PER_EDGE && cy >= 0 && cy < CELLS_PER_EDGE) {
-                    if (chunk.walkability[cx][cy] == 0) {
-                        return true;
-                    }
-                }
-            }
+    public static Map<Long, haven.Area> pieces(NArea area) {
+        Map<Long, haven.Area> res = new HashMap<>();
+        if (area == null || area.space == null || area.space.space == null) return res;
+        for (Map.Entry<Long, NArea.VArea> e : area.space.space.entrySet()) {
+            if (e.getValue() != null && e.getValue().area != null)
+                res.put(e.getKey(), e.getValue().area);
         }
-        return false;
+        return res;
     }
 
     /**
-     * Plan a path from player's current position to a target area.
-     * Uses the unified tile pathfinder to build a complete path through all chunks.
+     * Plan a path from the player to the nearest way into an area: the first walkable tile inside it or in the
+     * one-tile ring around it, from whichever side is cheapest. Null if the area cannot be reached.
      */
     public ChunkPath planToArea(NArea area) {
         if (area == null) return null;
-
-        // Get player's current chunk and local position using direct MCache lookup
-        // This is more reliable than ngob.grid_id which can be stale
         PlayerLocation playerLoc = getPlayerLocation();
-        if (playerLoc == null) {
-            return null;
+        if (playerLoc == null) return null;
+        return planToArea(pieces(area), playerLoc.gridId, playerLoc.localCoord);
+    }
+
+    /** {@link #planToArea(NArea)} from an explicit start tile. Needs no game UI. */
+    public ChunkPath planToArea(Map<Long, haven.Area> pieces, long startChunkId, Coord startLocal) {
+        AreaGoalSet goal = AreaGoalSet.ofArea(graph, pieces);
+        UnifiedTilePathfinder.UnifiedPath up = unifiedPathfinder.findPathToAny(startChunkId, startLocal, goal);
+        return toChunkPath(up);
+    }
+
+    /** Result of {@link #nearestOf}: which candidate was nearest, and the path to it. */
+    public static final class Nearest {
+        public final int index;
+        public final ChunkPath path;
+
+        Nearest(int index, ChunkPath path) {
+            this.index = index;
+            this.path = path;
         }
+    }
 
-        long startChunkId = playerLoc.gridId;
-        Coord playerLocal = playerLoc.localCoord;
+    /**
+     * The candidate area the player can reach most cheaply, found with one search over all of them. Null if none
+     * is reachable.
+     */
+    public Nearest nearestOf(List<NArea> areas) {
+        if (areas == null || areas.isEmpty()) return null;
+        PlayerLocation playerLoc = getPlayerLocation();
+        if (playerLoc == null) return null;
+        List<Map<Long, haven.Area>> all = new ArrayList<>(areas.size());
+        for (NArea a : areas) all.add(pieces(a));
+        return nearestOf(all, playerLoc.gridId, playerLoc.localCoord);
+    }
 
-        // Find target chunk and local coord using STORED data (not live visibility)
-        TargetLocation target = findTargetLocation(area);
-        if (target == null) {
-            return null;
-        }
+    /** {@link #nearestOf(List)} from an explicit start tile. Needs no game UI. */
+    public Nearest nearestOf(List<Map<Long, haven.Area>> areas, long startChunkId, Coord startLocal) {
+        List<AreaGoalSet> goals = new ArrayList<>(areas.size());
+        for (Map<Long, haven.Area> p : areas) goals.add(AreaGoalSet.ofArea(graph, p));
+        UnifiedTilePathfinder.UnifiedPath up = unifiedPathfinder.findNearest(startChunkId, startLocal, goals);
+        ChunkPath path = toChunkPath(up);
+        return path == null ? null : new Nearest(up.goalIndex, path);
+    }
 
-        // Use unified pathfinder to get complete tile-level path
-        UnifiedTilePathfinder.UnifiedPath unifiedPath = unifiedPathfinder.findPath(
-            startChunkId, playerLocal,
-            target.chunkId, target.localCoord
-        );
-
-        if (unifiedPath == null || !unifiedPath.reachable) {
-            return null;
-        }
-
-        // Convert to ChunkPath with segments
+    private ChunkPath toChunkPath(UnifiedTilePathfinder.UnifiedPath up) {
+        if (up == null || !up.reachable) return null;
         ChunkPath path = new ChunkPath();
-        unifiedPath.populateChunkPath(path, graph);
-
-        // Truncate path at first tile that enters the target area
-        // This prevents walking through the entire area to reach the far corner
-        truncatePathAtAreaEntry(path, area);
-
+        up.populateChunkPath(path, graph);
         return path;
     }
-    
+
+    /** The tile search behind this planner (its lastPops / lastNanos describe the last plan). */
+    public UnifiedTilePathfinder getTilePathfinder() {
+        return unifiedPathfinder;
+    }
+
     /**
      * Plan a path from player's current position to a specific world coordinate.
      * Used for planning paths to specific corners of an area.
      * NOTE: This only works reliably within the same layer/area!
-     * For cross-layer navigation, use planToAreaCorner instead.
      */
     public ChunkPath planToCoord(Coord2d worldCoord) {
         if (worldCoord == null) return null;
@@ -145,104 +152,6 @@ public class ChunkNavPlanner {
         unifiedPath.populateChunkPath(path, graph);
 
         return path;
-    }
-    
-    /**
-     * Plan a path to a specific corner of an area using gridId + local coordinates.
-     * This works correctly across different layers/areas because it uses gridId directly.
-     * Returns the shortest path among all grids in the area.
-     * @param area The target area
-     * @param cornerIndex 0=top-left, 1=bottom-right, 2=bottom-left, 3=top-right
-     */
-    public ChunkPath planToAreaCorner(nurgling.areas.NArea area, int cornerIndex) {
-        if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) {
-            return null;
-        }
-
-        // Get player's current chunk and local position
-        PlayerLocation playerLoc = getPlayerLocation();
-        if (playerLoc == null) {
-            return null;
-        }
-
-        long startChunkId = playerLoc.gridId;
-        Coord playerLocal = playerLoc.localCoord;
-
-        // Find the shortest path among all grids in the area
-        ChunkPath bestPath = null;
-        float bestCost = Float.MAX_VALUE;
-
-        // Find target gridId and local corner coordinate from area's stored data
-        for (java.util.Map.Entry<Long, nurgling.areas.NArea.VArea> entry : area.space.space.entrySet()) {
-            long gridId = entry.getKey();
-            nurgling.areas.NArea.VArea varea = entry.getValue();
-
-            if (varea == null || varea.area == null) continue;
-
-            // Check if this grid is in our graph
-            ChunkNavData chunk = graph.getChunk(gridId);
-            if (chunk == null) continue;
-
-            // Get corner local coordinates based on cornerIndex
-            // We want to find a walkable tile OUTSIDE the area, adjacent to the corner
-            Coord cornerLocal;
-            int searchDirX, searchDirY; // Direction to search for walkable tile (away from area)
-            switch (cornerIndex) {
-                case 0: // top-left - search up-left from area
-                    cornerLocal = varea.area.ul;
-                    searchDirX = -1;
-                    searchDirY = -1;
-                    break;
-                case 1: // bottom-right - search down-right from area
-                    cornerLocal = varea.area.br.sub(1, 1); // br is exclusive
-                    searchDirX = 1;
-                    searchDirY = 1;
-                    break;
-                case 2: // bottom-left - search down-left from area
-                    cornerLocal = new Coord(varea.area.ul.x, varea.area.br.y - 1);
-                    searchDirX = -1;
-                    searchDirY = 1;
-                    break;
-                case 3: // top-right - search up-right from area
-                    cornerLocal = new Coord(varea.area.br.x - 1, varea.area.ul.y);
-                    searchDirX = 1;
-                    searchDirY = -1;
-                    break;
-                default:
-                    cornerLocal = varea.area.ul;
-                    searchDirX = -1;
-                    searchDirY = -1;
-            }
-
-            // Find walkable tile OUTSIDE the area, adjacent to this corner
-            Coord walkable = findWalkableTileOutsideArea(chunk, cornerLocal, searchDirX, searchDirY, varea.area);
-            if (walkable == null) {
-                // Fallback to any walkable near corner
-                walkable = findWalkableTileNear(chunk, cornerLocal);
-            }
-            if (walkable == null) {
-                walkable = cornerLocal; // last resort fallback
-            }
-
-            // Use unified pathfinder
-            UnifiedTilePathfinder.UnifiedPath unifiedPath = unifiedPathfinder.findPath(
-                startChunkId, playerLocal,
-                gridId, walkable
-            );
-
-            if (unifiedPath != null && unifiedPath.reachable) {
-                ChunkPath path = new ChunkPath();
-                unifiedPath.populateChunkPath(path, graph);
-
-                // Keep the shortest path
-                if (path.totalCost < bestCost) {
-                    bestPath = path;
-                    bestCost = path.totalCost;
-                }
-            }
-        }
-
-        return bestPath;
     }
     
     /**
@@ -341,109 +250,6 @@ public class ChunkNavPlanner {
     }
 
     /**
-     * Find the target chunk and local coordinate for an area using stored data.
-     * Does NOT rely on live visibility - uses stored area data and chunk worldTileOrigins.
-     * IMPORTANT: We find a WALKABLE tile near the area edge, not the center.
-     * The area center might be blocked by objects inside the area.
-     */
-    private TargetLocation findTargetLocation(NArea area) {
-        // Strategy 1: Use area's stored grid references
-        if (area.space != null && area.space.space != null) {
-            for (Long gridId : area.space.space.keySet()) {
-                ChunkNavData chunk = graph.getChunk(gridId);
-                if (chunk != null) {
-                    // Get area bounds in this chunk and find walkable tile near edge
-                    Coord walkableNearArea = findWalkableNearAreaEdge(area, chunk);
-                    if (walkableNearArea != null) {
-                        return new TargetLocation(gridId, walkableNearArea);
-                    }
-                }
-            }
-        }
-
-        // Strategy 2: Search all recorded chunks for one that contains the area
-        Coord2d areaCenter = getAreaCenterFromStored(area);
-        if (areaCenter != null) {
-            Coord areaTile = areaCenter.floor(MCache.tilesz);
-
-            for (ChunkNavData chunk : graph.getAllChunks()) {
-                if (chunk.worldTileOrigin == null) continue;
-
-                Coord localCoord = areaTile.sub(chunk.worldTileOrigin);
-                if (localCoord.x >= 0 && localCoord.x < CHUNK_SIZE &&
-                    localCoord.y >= 0 && localCoord.y < CHUNK_SIZE) {
-                    // Find walkable tile near this point
-                    Coord walkable = findWalkableTileNear(chunk, localCoord);
-                    if (walkable != null) {
-                        return new TargetLocation(chunk.gridId, walkable);
-                    }
-                }
-            }
-        }
-
-        // Strategy 3: Fallback - try live visibility (may not work if area not visible)
-        Set<Long> targetChunks = graph.getChunksForArea(area.id);
-        if (targetChunks.isEmpty()) {
-            targetChunks = findChunksNearArea(area);
-        }
-
-        for (Long chunkId : targetChunks) {
-            Coord areaLocal = getAreaLocalCoord(area, chunkId);
-            if (areaLocal != null) {
-                ChunkNavData chunk = graph.getChunk(chunkId);
-                if (chunk != null) {
-                    Coord walkable = findWalkableTileNear(chunk, areaLocal);
-                    if (walkable != null) {
-                        return new TargetLocation(chunkId, walkable);
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Find a walkable tile near the edge of an area.
-     * Searches outward from the area bounds to find accessible tiles.
-     */
-    private Coord findWalkableNearAreaEdge(NArea area, ChunkNavData chunk) {
-        if (area.space == null || area.space.space == null) return null;
-
-        NArea.VArea varea = area.space.space.get(chunk.gridId);
-        if (varea == null || varea.area == null) return null;
-
-        // Get area bounds in local chunk coordinates
-        int minX = Math.max(0, varea.area.ul.x);
-        int minY = Math.max(0, varea.area.ul.y);
-        int maxX = Math.min(CHUNK_SIZE - 1, varea.area.br.x);
-        int maxY = Math.min(CHUNK_SIZE - 1, varea.area.br.y);
-
-        // Search around the edges of the area for walkable tiles
-        // Prefer outside (dist=2,1) then fallback to inside (dist=0)
-        int[] distances = {2, 1, 0};
-        for (int dist : distances) {
-            // Check around the perimeter at this distance
-            for (int x = minX - dist; x <= maxX + dist; x++) {
-                for (int y = minY - dist; y <= maxY + dist; y++) {
-                    // Only check tiles at exactly 'dist' distance from area edge
-                    boolean onPerimeter = (x == minX - dist || x == maxX + dist ||
-                                          y == minY - dist || y == maxY + dist);
-                    if (!onPerimeter && dist > 0) continue;
-
-                    if (x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_SIZE) {
-                        if (isTileWalkable(chunk, x, y)) {
-                            return new Coord(x, y);
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Check if a specific cell is walkable.
      */
     private boolean isCellWalkable(ChunkNavData chunk, int cellX, int cellY) {
@@ -453,77 +259,6 @@ public class ChunkNavPlanner {
         return false;
     }
     
-    /**
-     * Find a walkable tile OUTSIDE the area bounds, searching in the given direction.
-     * Used for finding approach points to area corners from outside.
-     * @param chunk The chunk data
-     * @param corner The corner coordinate (inside area)
-     * @param dirX Search direction X (-1 for left, +1 for right)
-     * @param dirY Search direction Y (-1 for up, +1 for down)
-     * @param areaBounds The area bounds to stay outside of
-     * @return Walkable tile outside area, or null if not found
-     */
-    private Coord findWalkableTileOutsideArea(ChunkNavData chunk, Coord corner, int dirX, int dirY, haven.Area areaBounds) {
-        // Search in expanding distance from corner, prioritizing the diagonal direction
-        // Try distances 1, 2, 3 tiles away from corner
-        for (int dist = 1; dist <= 3; dist++) {
-            // Try diagonal first (preferred approach direction)
-            int tx = corner.x + dirX * dist;
-            int ty = corner.y + dirY * dist;
-            if (isOutsideArea(tx, ty, areaBounds) && isValidTile(tx, ty) && isTileWalkable(chunk, tx, ty)) {
-                return new Coord(tx, ty);
-            }
-
-            // Try along X axis
-            tx = corner.x + dirX * dist;
-            ty = corner.y;
-            if (isOutsideArea(tx, ty, areaBounds) && isValidTile(tx, ty) && isTileWalkable(chunk, tx, ty)) {
-                return new Coord(tx, ty);
-            }
-
-            // Try along Y axis
-            tx = corner.x;
-            ty = corner.y + dirY * dist;
-            if (isOutsideArea(tx, ty, areaBounds) && isValidTile(tx, ty) && isTileWalkable(chunk, tx, ty)) {
-                return new Coord(tx, ty);
-            }
-
-            // Try other diagonal combinations at this distance
-            for (int dx = -dist; dx <= dist; dx++) {
-                for (int dy = -dist; dy <= dist; dy++) {
-                    if (dx == 0 && dy == 0) continue;
-                    // Prefer tiles in the search direction
-                    if ((dirX > 0 && dx < 0) || (dirX < 0 && dx > 0)) continue;
-                    if ((dirY > 0 && dy < 0) || (dirY < 0 && dy > 0)) continue;
-
-                    tx = corner.x + dx;
-                    ty = corner.y + dy;
-                    if (isOutsideArea(tx, ty, areaBounds) && isValidTile(tx, ty) && isTileWalkable(chunk, tx, ty)) {
-                        return new Coord(tx, ty);
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Check if tile coordinates are outside the area bounds.
-     */
-    private boolean isOutsideArea(int tileX, int tileY, haven.Area areaBounds) {
-        if (areaBounds == null) return true;
-        // Area bounds: ul is inclusive, br is exclusive
-        return tileX < areaBounds.ul.x || tileX >= areaBounds.br.x ||
-               tileY < areaBounds.ul.y || tileY >= areaBounds.br.y;
-    }
-
-    /**
-     * Check if tile coordinates are valid within chunk bounds.
-     */
-    private boolean isValidTile(int tileX, int tileY) {
-        return tileX >= 0 && tileX < CHUNK_SIZE && tileY >= 0 && tileY < CHUNK_SIZE;
-    }
-
     /**
      * Find a walkable tile near the given coordinate.
      * Searches in cell grid (half-tile resolution, ~5.5 world units per step)
@@ -564,43 +299,6 @@ public class ChunkNavPlanner {
         }
 
         return null;
-    }
-
-    /**
-     * Get area center from stored data (not live visibility).
-     */
-    private Coord2d getAreaCenterFromStored(NArea area) {
-        // Try to get from stored space data
-        if (area.space != null && area.space.space != null && !area.space.space.isEmpty()) {
-            // Calculate center from stored VArea regions
-            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
-            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-
-            for (Map.Entry<Long, NArea.VArea> entry : area.space.space.entrySet()) {
-                ChunkNavData chunk = graph.getChunk(entry.getKey());
-                if (chunk == null || chunk.worldTileOrigin == null) continue;
-
-                NArea.VArea varea = entry.getValue();
-                if (varea.area != null) {
-                    // VArea.area defines local tile bounds within the chunk
-                    Coord ul = chunk.worldTileOrigin.add(varea.area.ul);
-                    Coord br = chunk.worldTileOrigin.add(varea.area.br);
-                    minX = Math.min(minX, ul.x);
-                    minY = Math.min(minY, ul.y);
-                    maxX = Math.max(maxX, br.x);
-                    maxY = Math.max(maxY, br.y);
-                }
-            }
-
-            if (minX != Integer.MAX_VALUE) {
-                int centerX = (minX + maxX) / 2;
-                int centerY = (minY + maxY) / 2;
-                return new Coord(centerX, centerY).mul(MCache.tilesz).add(MCache.tilehsz);
-            }
-        }
-
-        // Fallback to getCenter2d (requires visibility)
-        return area.getCenter2d();
     }
 
     /**
@@ -661,179 +359,5 @@ public class ChunkNavPlanner {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    // ============= Path truncation for efficient area navigation =============
-
-    /**
-     * Check if a local coordinate is inside the area bounds for a chunk.
-     */
-    private boolean isInsideVArea(Coord localCoord, NArea.VArea varea) {
-        if (varea == null || varea.area == null) return false;
-
-        int minX = varea.area.ul.x;
-        int minY = varea.area.ul.y;
-        int maxX = varea.area.br.x;
-        int maxY = varea.area.br.y;
-
-        return localCoord.x >= minX && localCoord.x <= maxX &&
-               localCoord.y >= minY && localCoord.y <= maxY;
-    }
-
-    /**
-     * Truncate the path at the first tile that enters the target area.
-     * This prevents walking through an entire area to reach the far corner.
-     * Instead, navigation stops as soon as we enter the area bounds.
-     */
-    private void truncatePathAtAreaEntry(ChunkPath path, NArea area) {
-        if (path == null || area == null) return;
-        if (area.space == null || area.space.space == null) return;
-        if (path.segments == null || path.segments.isEmpty()) return;
-
-        for (int segIdx = 0; segIdx < path.segments.size(); segIdx++) {
-            ChunkPath.PathSegment segment = path.segments.get(segIdx);
-
-            // Check if the area exists in this chunk
-            NArea.VArea varea = area.space.space.get(segment.gridId);
-            if (varea == null || varea.area == null) {
-                continue; // Area not in this chunk, keep going
-            }
-
-            // Area exists in this chunk - check each step
-            for (int stepIdx = 0; stepIdx < segment.steps.size(); stepIdx++) {
-                ChunkPath.TileStep step = segment.steps.get(stepIdx);
-
-                if (isInsideVArea(step.localCoord, varea)) {
-                    // Found entry point! Truncate here.
-
-                    // Keep steps up to and including this one
-                    if (stepIdx + 1 < segment.steps.size()) {
-                        segment.steps = new ArrayList<>(segment.steps.subList(0, stepIdx + 1));
-                    }
-
-                    // Remove all subsequent segments
-                    if (segIdx + 1 < path.segments.size()) {
-                        path.segments = new ArrayList<>(path.segments.subList(0, segIdx + 1));
-                    }
-
-                    // Mark this segment as destination
-                    segment.type = ChunkPath.SegmentType.WALK;
-
-                    return; // Done truncating
-                }
-            }
-        }
-        // If we get here, path never entered the area (shouldn't happen for valid paths)
-    }
-
-    // ============= Legacy chunk-level A* methods (kept for compatibility) =============
-
-    /**
-     * Find chunks that contain or are near an area.
-     * Uses multiple strategies:
-     * 1. Direct grid ID match from area's stored grid references
-     * 2. World coordinate matching if area is visible
-     * 3. WorldTileOrigin matching for unloaded chunks
-     */
-    private Set<Long> findChunksNearArea(NArea area) {
-        Set<Long> result = new HashSet<>();
-
-        try {
-            // Strategy 1: Direct grid ID match from area's stored grid references
-            // Areas store which grid IDs they occupy - check if we have those chunks recorded
-            if (area.space != null && area.space.space != null) {
-                for (Long gridId : area.space.space.keySet()) {
-                    if (graph.hasChunk(gridId)) {
-                        result.add(gridId);
-                    }
-                }
-            }
-
-            if (!result.isEmpty()) {
-                return result;
-            }
-
-            // Strategy 2: If area is visible, use world coordinates
-            Coord2d areaCenter = area.getCenter2d();
-            if (areaCenter != null) {
-                Coord areaTile = areaCenter.floor(MCache.tilesz);
-
-                // Try loaded grid first
-                try {
-                    MCache mcache = NUtils.getGameUI().map.glob.map;
-                    MCache.Grid grid = mcache.getgridt(areaTile);
-                    if (grid != null && graph.hasChunk(grid.id)) {
-                        result.add(grid.id);
-                        return result;
-                    }
-                } catch (Exception e) {
-                    // Grid not loaded
-                }
-
-                // Search recorded chunks by worldTileOrigin
-                for (ChunkNavData chunk : graph.getAllChunks()) {
-                    if (chunk.worldTileOrigin == null) continue;
-
-                    if (areaTile.x >= chunk.worldTileOrigin.x && areaTile.x < chunk.worldTileOrigin.x + CHUNK_SIZE &&
-                        areaTile.y >= chunk.worldTileOrigin.y && areaTile.y < chunk.worldTileOrigin.y + CHUNK_SIZE) {
-                        result.add(chunk.gridId);
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            // Ignore search errors
-        }
-
-        return result;
-    }
-
-    /**
-     * Get the local coordinate of an area's center within the specified chunk.
-     * Returns null if the area is not in that chunk or coordinates cannot be determined.
-     */
-    private Coord getAreaLocalCoord(NArea area, long chunkGridId) {
-        if (area == null) return null;
-
-        try {
-            // Get area center - getCenter2d returns the center in world coordinates
-            Coord2d areaCenter = area.getCenter2d();
-            if (areaCenter == null) return null;
-
-            Coord areaTile = areaCenter.floor(MCache.tilesz);
-
-            // Try to find the grid in MCache
-            NGameUI gui = NUtils.getGameUI();
-            if (gui != null && gui.map != null && gui.map.glob != null) {
-                MCache mcache = gui.map.glob.map;
-                synchronized (mcache.grids) {
-                    for (MCache.Grid grid : mcache.grids.values()) {
-                        if (grid.id == chunkGridId) {
-                            Coord localCoord = areaTile.sub(grid.ul);
-                            // Check if the area is actually in this chunk
-                            if (localCoord.x >= 0 && localCoord.x < CHUNK_SIZE &&
-                                localCoord.y >= 0 && localCoord.y < CHUNK_SIZE) {
-                                return localCoord;
-                            }
-                            return null; // Area not in this chunk
-                        }
-                    }
-                }
-            }
-
-            // Fallback: use stored worldTileOrigin
-            ChunkNavData chunk = graph.getChunk(chunkGridId);
-            if (chunk != null && chunk.worldTileOrigin != null) {
-                Coord localCoord = areaTile.sub(chunk.worldTileOrigin);
-                // Check if the area is actually in this chunk
-                if (localCoord.x >= 0 && localCoord.x < CHUNK_SIZE &&
-                    localCoord.y >= 0 && localCoord.y < CHUNK_SIZE) {
-                    return localCoord;
-                }
-            }
-
-        } catch (Exception e) {
-        }
-        return null;
     }
 }

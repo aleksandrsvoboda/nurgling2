@@ -270,37 +270,146 @@ public class ChunkNavManager {
             for (MCache.Grid grid : gridsToRecord) {
                 recorder.recordGrid(grid);
             }
+            lastPlanRecordGrid = graph.getPlayerChunkId();
+            lastPlanRecordAt = System.currentTimeMillis();
         } catch (Exception e) {
             // Ignore - best effort
         }
     }
 
     /**
-     * Plan a path to an area.
-     * Returns the chunk-level path. PathFinder handles actual navigation within grids.
+     * Plan a path to the nearest way into an area (see {@link ChunkNavPlanner#planToArea(NArea)}).
+     * A plan made for the same area from the same tile in the last few seconds is reused, so choosing an area
+     * and then walking to it plans once.
      */
     public ChunkPath planToArea(NArea area) {
-        if (!enabled || !initialized) return null;
+        if (!enabled || !initialized || area == null) return null;
 
-        // Record all visible grids to ensure fresh data before planning
-        forceRecordVisibleGrids();
-
-        ChunkPath path = planner.planToArea(area);
-        if (path == null) {
-            return null;
+        Coord here = playerTile();
+        CachedPlan cached = lastAreaPlan;
+        if (cached != null && here != null && cached.areaId == area.id && cached.tile.equals(here)
+                && System.currentTimeMillis() - cached.at < PLAN_REUSE_MS) {
+            return cached.path;
         }
 
-        // Store for visualization
+        recordVisibleGridsForPlanning();
+        ChunkPath path = planner.planToArea(area);
+        if (path == null) return null;
+        remember(area, here, path);
         this.lastPlannedPath = path;
-
-        // Export path visualization
         exportPathVisualization(path, area);
-
-        // Note: path.isEmpty() is valid when already in the target chunk
-        // The executor handles this case by navigating directly to the area
         return path;
     }
-    
+
+    /**
+     * The cheapest-to-reach of the candidate areas, with one search over all of them. Null if none is reachable.
+     * The winner's path is kept, so a following {@link #planToArea} for it costs nothing.
+     */
+    public NArea nearestArea(List<NArea> candidates) {
+        if (!enabled || !initialized || candidates == null || candidates.isEmpty()) return null;
+        Coord here = playerTile();
+        recordVisibleGridsForPlanning();
+        Map<Long, Integer> hops = chunkHopsFromPlayer();
+        List<NArea> reachable = new ArrayList<>(candidates.size());
+        for (NArea a : candidates) {
+            if (chunkReachable(a, hops)) reachable.add(a);
+        }
+        if (reachable.isEmpty()) return null;
+        ChunkNavPlanner.Nearest n = planner.nearestOf(reachable);
+        if (n == null || n.index < 0) return null;
+        NArea best = reachable.get(n.index);
+        remember(best, here, n.path);
+        return best;
+    }
+
+    /**
+     * Walking cost to each candidate area (same order), Double.MAX_VALUE where unreachable. Visible grids are
+     * recorded once for the whole batch.
+     */
+    public double[] costsToAreas(List<NArea> candidates) {
+        double[] res = new double[candidates == null ? 0 : candidates.size()];
+        Arrays.fill(res, Double.MAX_VALUE);
+        if (!enabled || !initialized || res.length == 0) return res;
+        Coord here = playerTile();
+        recordVisibleGridsForPlanning();
+        Map<Long, Integer> hops = chunkHopsFromPlayer();
+        for (int i = 0; i < res.length; i++) {
+            if (Thread.currentThread().isInterrupted()) break;
+            NArea a = candidates.get(i);
+            if (!chunkReachable(a, hops)) continue;
+            ChunkPath p = planner.planToArea(a);
+            if (p != null) {
+                res[i] = p.totalCost;
+                remember(a, here, p);
+            }
+        }
+        return res;
+    }
+
+    /** Walking cost to one area, Double.MAX_VALUE if unreachable. */
+    public double costToArea(NArea area) {
+        return costsToAreas(Collections.singletonList(area))[0];
+    }
+
+    /** Keeps a fresh plan so that walking to the area right after choosing it does not plan again. */
+    private void remember(NArea area, Coord here, ChunkPath path) {
+        if (here != null)
+            lastAreaPlan = new CachedPlan(area.id, here, path, System.currentTimeMillis());
+    }
+
+    /**
+     * Whether any of the area's grids is reachable at chunk level, from one hop map for all candidates. Lenient
+     * (true) when the player's own chunk is not recorded yet, as {@link #isAreaReachableByChunks} is.
+     */
+    private boolean chunkReachable(NArea area, Map<Long, Integer> hops) {
+        if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) return false;
+        for (Long gid : area.space.space.keySet()) {
+            if (graph.getChunk(gid) == null) continue;
+            if (hops == null || hops.containsKey(gid)) return true;
+        }
+        return false;
+    }
+
+    /** The player's world tile, or null. */
+    private static Coord playerTile() {
+        Gob player = NUtils.player();
+        return player == null ? null : player.rc.floor(MCache.tilesz);
+    }
+
+    private static final long PLAN_REUSE_MS = 5000;
+    private volatile CachedPlan lastAreaPlan;
+
+    private static final class CachedPlan {
+        final int areaId;
+        final Coord tile;
+        final ChunkPath path;
+        final long at;
+
+        CachedPlan(int areaId, Coord tile, ChunkPath path, long at) {
+            this.areaId = areaId;
+            this.tile = tile;
+            this.path = path;
+            this.at = at;
+        }
+    }
+
+    /**
+     * {@link #forceRecordVisibleGrids()} for planning calls: skipped when the player is on the same grid as at the
+     * last such recording, less than {@link #PLAN_RECORD_DEBOUNCE_MS} ago. Several plans in a row (choosing among
+     * areas, then walking) then record once instead of once each.
+     */
+    private void recordVisibleGridsForPlanning() {
+        long now = System.currentTimeMillis();
+        long grid = graph.getPlayerChunkId();
+        if (grid != -1 && grid == lastPlanRecordGrid && now - lastPlanRecordAt < PLAN_RECORD_DEBOUNCE_MS)
+            return;
+        forceRecordVisibleGrids();
+    }
+
+    private static final long PLAN_RECORD_DEBOUNCE_MS = 1500;
+    private volatile long lastPlanRecordGrid = -1;
+    private volatile long lastPlanRecordAt = 0;
+
     /**
      * Plan a path to a specific world coordinate.
      * Used for planning paths to specific corners of an area.
@@ -316,22 +425,6 @@ public class ChunkNavManager {
         return path;
     }
     
-    /**
-     * Plan a path to a specific corner of an area using gridId + local coordinates.
-     * This works correctly across different layers/areas.
-     * @param area The target area
-     * @param cornerIndex 0=top-left, 1=bottom-right, 2=bottom-left, 3=top-right
-     */
-    public ChunkPath planToAreaCorner(nurgling.areas.NArea area, int cornerIndex) {
-        if (!enabled || !initialized) return null;
-
-        // Record all visible grids to ensure fresh data before planning
-        forceRecordVisibleGrids();
-
-        ChunkPath path = planner.planToAreaCorner(area, cornerIndex);
-        return path;
-    }
-
     /**
      * Plan a path to a specific grid + local coordinate.
      * Works correctly across different layers because it uses gridId directly.
