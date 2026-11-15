@@ -2946,8 +2946,12 @@ NMiniMap extends MiniMap {
         java.util.List<nurgling.FishLocation> fishLocations = gui.fishLocationService.getFishLocationsForSegment(sessloc.seg.id);
 
         Coord hsz = sz.div(2);
+        // A fish survey saves the same fish at a tile once per gear combination: draw each fish once per tile.
+        java.util.Set<String> drawn = new java.util.HashSet<>();
 
         for(nurgling.FishLocation fishLoc : fishLocations) {
+            if(!drawn.add(fishLoc.getTileCoords() + "|" + fishLoc.getFishResource()))
+                continue;
             // Apply marker search pattern filter to fish names
             if(markerSearchPattern != null && !markerSearchPattern.trim().isEmpty()) {
                 String fishName = fishLoc.getFishName();

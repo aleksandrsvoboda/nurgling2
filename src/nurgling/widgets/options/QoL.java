@@ -50,6 +50,7 @@ public class QoL extends Panel {
     private CheckBox showRealmOverlays;
     private CheckBox disableDrugEffects;
     private CheckBox showFishNodes;
+    private CheckBox showFishWorldIcons;
     private HSlider fishNodeLinkSlider;
     private Label fishNodeLinkLabel;
     private CheckBox disableEasterEggs;
@@ -353,6 +354,8 @@ public class QoL extends Panel {
         rightPrev = disableDrugEffects = rightColumn.add(new CheckBox(L10n.get("qol.disable_drugs")), rightPrev.pos("bl").adds(0, 5));
         rightPrev = showFishNodes = rightColumn.add(new CheckBox(L10n.get("qol.show_fish_nodes")), rightPrev.pos("bl").adds(0, 5));
         showFishNodes.settip(L10n.get("qol.show_fish_nodes_tip"));
+        rightPrev = showFishWorldIcons = rightColumn.add(new CheckBox(L10n.get("qol.show_fish_world_icons")), rightPrev.pos("bl").adds(0, 5));
+        showFishWorldIcons.settip(L10n.get("qol.show_fish_world_icons_tip"));
         rightPrev = rightColumn.add(new Label(L10n.get("qol.fish_node_link")), rightPrev.pos("bl").adds(10, 5));
         {
             fishNodeLinkLabel = new Label("14");
@@ -467,6 +470,7 @@ public class QoL extends Panel {
         showRealmOverlays.a = getBool(NConfig.Key.minimapRealmol);
         disableDrugEffects.a = getBool(NConfig.Key.disableDrugEffects);
         showFishNodes.a = getBool(NConfig.Key.showFishNodes);
+        showFishWorldIcons.a = getBool(NConfig.Key.showFishWorldIcons);
         Object fishNodeLinkPref = NConfig.get(NConfig.Key.fishNodeLink);
         int fishNodeLinkValue = (fishNodeLinkPref instanceof Number) ? ((Number) fishNodeLinkPref).intValue() : 14;
         fishNodeLinkSlider.val = fishNodeLinkValue;
@@ -685,6 +689,7 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.verboseCal, verboseCal.a);
         NConfig.set(NConfig.Key.disableDrugEffects, disableDrugEffects.a);
         NConfig.set(NConfig.Key.showFishNodes, showFishNodes.a);
+        NConfig.set(NConfig.Key.showFishWorldIcons, showFishWorldIcons.a);
         NConfig.set(NConfig.Key.fishNodeLink, fishNodeLinkSlider.val);
         NConfig.set(NConfig.Key.alwaysObfuscate, alwaysObfuscate.a);
         NConfig.set(NConfig.Key.randomAreaColor, randomAreaColor.a);

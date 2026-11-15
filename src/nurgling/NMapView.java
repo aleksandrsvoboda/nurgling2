@@ -519,6 +519,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     private nurgling.overlays.NPointPingOverlay pingOverlay = null;
     private RenderTree.Slot pingOverlaySlot = null;
 
+    /** Saved fish locations' icons over their tiles (the "Show fish icons in the world" option). */
+    private nurgling.overlays.NFishWorldIcons fishIcons = null;
+
     /* ---- Trail to searched-for storage -----------------------------------
      * The item search knows which containers hold what, and the containers table stores
      * the grid and in-grid offset of each one, so a match can be routed to even when its
@@ -571,6 +574,10 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             pingOverlay = new nurgling.overlays.NPointPingOverlay(this);
             pingOverlaySlot = basic.add(pingOverlay);
         }
+        if(fishIcons == null) {
+            fishIcons = new nurgling.overlays.NFishWorldIcons(this);
+            basic.add(fishIcons);
+        }
         if(storageTrailOverlay == null) {
             storageTrail = new nurgling.navigation.StorageTrailService(this);
             storageTrailOverlay = new nurgling.overlays.NStorageTrailOverlay(this, storageTrail);
@@ -578,6 +585,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         }
         wpOverlay.update();
         pingOverlay.update();
+        fishIcons.update();
         storageTrail.tick();
         storageTrailOverlay.update();
     }

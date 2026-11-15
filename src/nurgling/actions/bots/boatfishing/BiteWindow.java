@@ -24,11 +24,14 @@ final class BiteWindow {
         final String fish;
         final double overall;
         final Button aim;
+        /** Every percentage on the row in window order (bite, land, overall). */
+        final List<Double> percents;
 
-        Row(String fish, double overall, Button aim) {
+        Row(String fish, double overall, Button aim, List<Double> percents) {
             this.fish = fish;
             this.overall = overall;
             this.aim = aim;
+            this.percents = percents;
         }
 
         @Override
@@ -62,6 +65,7 @@ final class BiteWindow {
                 continue;
             double overall = -1;
             Button aim = null;
+            List<Double> percents = new ArrayList<>();
             for (int j = i + 1; j < ws.size(); j++) {
                 Widget n = ws.get(j);
                 if (n instanceof Button) {
@@ -72,11 +76,13 @@ final class BiteWindow {
                     if (fishName(((Label) n).text()) != null)
                         break;
                     double p = percent(((Label) n).text());
-                    if (p >= 0)
+                    if (p >= 0) {
                         overall = p; // the last one is the overall chance
+                        percents.add(p);
+                    }
                 }
             }
-            rows.add(new Row(fish, overall, aim != null ? aim : nearestButton(l, buttons)));
+            rows.add(new Row(fish, overall, aim != null ? aim : nearestButton(l, buttons), percents));
         }
         return rows;
     }

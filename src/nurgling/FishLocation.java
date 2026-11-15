@@ -152,6 +152,15 @@ public class FishLocation {
      * client. That is what makes seeding idempotent and stops two players who saved the same spot from
      * creating two rows.
      */
+    /** A fish survey's record id: like {@link #deterministicId} but with the gear, so each line/hook/lure combination
+     *  tried at a tile is its own record instead of overwriting the last. */
+    public static String surveyId(String profile, long gridId, Coord offset, String fishName,
+                                  String line, String hook, String lure) {
+        String key = "survey|" + (profile == null ? "global" : profile) + "|" + gridId + "|"
+                   + offset.x + "|" + offset.y + "|" + fishName + "|" + line + "|" + hook + "|" + lure;
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
     public static String deterministicId(String profile, long gridId, Coord offset, String fishName) {
         String key = "fish|" + (profile == null ? "global" : profile) + "|" + gridId + "|"
                    + offset.x + "|" + offset.y + "|" + fishName;
