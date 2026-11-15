@@ -31,6 +31,9 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	return(Boolean.TRUE.equals(NConfig.get(NConfig.Key.reliefMap)));
     }
 
+    /** World units between contour lines at full detail. */
+    static final double CONTOURS = 10;
+
     public static double strength() {
 	Object v = NConfig.get(NConfig.Key.reliefStrength);
 	return((v instanceof Number) ? ((Number)v).doubleValue() / 100.0 : 1.0);
@@ -73,7 +76,7 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 			view.addgrid(sc.add(x, y));
 		}
 		view.fin();
-		return(new TexI(image(fromview(view, sc.mul(cmaps), uniform), k, 0, str)));
+		return(new TexI(image(fromview(view, sc.mul(cmaps), uniform), k, 0, str, CONTOURS)));
 	    }
 	});
     }
@@ -83,12 +86,12 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	double str = strength();
 	boolean uniform = Boolean.TRUE.equals(NConfig.get(NConfig.Key.uniformBiomeColors));
 	int lvl = ((MapFile.ZoomGrid)grid).lvl;
-	return(() -> new TexI(image(fromgrid(grid, sc.mul(cmaps), uniform), k, lvl, str)));
+	return(() -> new TexI(image(fromgrid(grid, sc.mul(cmaps), uniform), k, lvl, str, CONTOURS)));
     }
 
-    static BufferedImage image(ReliefRenderer.Cells c, int k, int lvl, double str) {
+    static BufferedImage image(ReliefRenderer.Cells c, int k, int lvl, double str, double cont) {
 	BufferedImage img = TexI.mkbuf(Coord.of(c.n * k, c.n * k));
-	ReliefRenderer.render(c, k, lvl, str, ((DataBufferByte)img.getRaster().getDataBuffer()).getData());
+	ReliefRenderer.render(c, k, lvl, str, cont, ((DataBufferByte)img.getRaster().getDataBuffer()).getData());
 	return(img);
     }
 

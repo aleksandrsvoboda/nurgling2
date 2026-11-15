@@ -2,7 +2,7 @@ package nurgling.widgets;
 
 /**
  * Shaded relief for one map grid: tile colours lit by the ground's slope, thin lines where the
- * tile type changes, dark cliffs.
+ * tile type changes, dark cliffs, and optional contour lines.
  *
  * Pure: the input is a {@link Cells} block (one grid plus a one-tile border of its neighbours)
  * and the output is RGBA bytes, so it runs off the UI thread and in tests. {@link ReliefGrid}
@@ -20,6 +20,9 @@ public final class ReliefRenderer {
     static final double WATERSHADE = 0.5;
     static final double EDGE = 0.72, SOFTEDGE = 0.8, NEARCLIFF = 0.8;
     static final int CLIFF = 0x1c1612;
+    /** Contour lines; every fifth one (an index contour) darker. */
+    static final double CONTOUR = 0.84, INDEXCONTOUR = 0.70;
+    static final int INDEXEVERY = 5;
     /* Light from the north-west, about 35 degrees up: x east, y south, z up. */
     private static final double LX, LY, LZ;
     static {
@@ -95,6 +98,44 @@ public final class ReliefRenderer {
 	return(c.cliff[c.at(x - 1, y)] || c.cliff[c.at(x + 1, y)] || c.cliff[c.at(x, y - 1)] || c.cliff[c.at(x, y + 1)]);
     }
 
+    /**
+     * The contour interval at a zoom level. Zoomed out the ground is squeezed together, so the
+     * interval widens with it and the lines stay apart.
+     */
+    static double contourinterval(double base, int lvl) {
+	return(base * (1 << Math.max(0, lvl - 1)));
+    }
+
+    private static int band(Cells c, int i, double iv) {
+	return((int)Math.floor(c.z[i] / iv));
+    }
+
+    /** Whether a contour runs between two cells, ignoring water, cliffs and unexplored ground. */
+    private static boolean contourable(Cells c, int i) {
+	return(c.has(i) && !c.water[i] && !c.cliff[i]);
+    }
+
+    /** Darkening for a contour between two cells, or 1 if none: the line is the level between their bands. */
+    private static double contour(Cells c, int i, int j, double iv) {
+	if(!contourable(c, i) || !contourable(c, j))
+	    return(1);
+	int a = band(c, i, iv), b = band(c, j, iv);
+	if(a == b)
+	    return(1);
+	return((Math.floorMod(Math.max(a, b), INDEXEVERY) == 0) ? INDEXCONTOUR : CONTOUR);
+    }
+
+    /** At 1 pixel per tile a contour darkens the tiles on its high side. */
+    private static double contourhigh(Cells c, int x, int y, double iv) {
+	int i = c.at(x, y);
+	double f = 1;
+	for(int j : new int[] {c.at(x - 1, y), c.at(x + 1, y), c.at(x, y - 1), c.at(x, y + 1)}) {
+	    if(contourable(c, j) && (band(c, j, iv) < band(c, i, iv)))
+		f = Math.min(f, contour(c, i, j, iv));
+	}
+	return(f);
+    }
+
     private static boolean belowneighbour(Cells c, int x, int y) {
 	int i = c.at(x, y);
 	for(int j : new int[] {c.at(x - 1, y), c.at(x + 1, y), c.at(x, y - 1), c.at(x, y + 1)}) {
@@ -110,14 +151,16 @@ public final class ReliefRenderer {
      *
      * @param lvl the map file's zoom level: one cell spans 2^lvl tiles
      * @param strength 1 = normal relief, 0 = none
+     * @param contours height between contour lines in world units at full detail; 0 = no contours
      */
-    public static void render(Cells c, int k, int lvl, double strength, byte[] out) {
+    public static void render(Cells c, int k, int lvl, double strength, double contours, byte[] out) {
 	int n = c.n, ow = n * k;
 	if(out.length < ow * ow * 4)
 	    throw(new IllegalArgumentException("output too small"));
 	double span = TILE * (1 << lvl);
 	/* Hills shrink when zoomed out; exaggerate a little so they stay readable. */
 	double ex = strength * EXAGGERATION * Math.sqrt(1 << lvl);
+	double iv = (contours > 0) ? contourinterval(contours, lvl) : 0;
 	for(int y = 0; y < n; y++) {
 	    for(int x = 0; x < n; x++) {
 		int i = c.at(x, y);
@@ -133,13 +176,20 @@ public final class ReliefRenderer {
 			f *= NEARCLIFF;
 		}
 		boolean lline = false, tline = false;
+		double lcont = 1, tcont = 1;
 		if(k == 1) {
 		    if(belowneighbour(c, x, y))
 			f *= SOFTEDGE;
+		    if(iv > 0)
+			f *= contourhigh(c, x, y, iv);
 		} else {
 		    int l = c.at(x - 1, y), t = c.at(x, y - 1);
 		    lline = c.has(l) && (c.tile[l] != c.tile[i]);
 		    tline = c.has(t) && (c.tile[t] != c.tile[i]);
+		    if(iv > 0) {
+			lcont = contour(c, i, l, iv);
+			tcont = contour(c, i, t, iv);
+		    }
 		}
 		int r = (col >> 16) & 0xff, g = (col >> 8) & 0xff, b = col & 0xff;
 		for(int py = 0; py < k; py++) {
@@ -148,6 +198,10 @@ public final class ReliefRenderer {
 			double pf = f;
 			if((lline && (px == 0)) || (tline && (py == 0)))
 			    pf *= EDGE;
+			if(px == 0)
+			    pf *= lcont;
+			if(py == 0)
+			    pf *= tcont;
 			out[o]     = (byte)clip(r * pf);
 			out[o + 1] = (byte)clip(g * pf);
 			out[o + 2] = (byte)clip(b * pf);

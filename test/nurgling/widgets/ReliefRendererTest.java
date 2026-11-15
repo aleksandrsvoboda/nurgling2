@@ -26,7 +26,7 @@ class ReliefRendererTest {
 
     private static byte[] render(ReliefRenderer.Cells c, int k) {
 	byte[] out = new byte[N * k * N * k * 4];
-	ReliefRenderer.render(c, k, 0, 1.0, out);
+	ReliefRenderer.render(c, k, 0, 1.0, 0, out);
 	return(out);
     }
 
@@ -78,7 +78,7 @@ class ReliefRendererTest {
 	    for(int x = -1; x <= N; x++)
 		c.z[c.at(x, y)] = x * 10;
 	byte[] out = new byte[N * N * 4];
-	ReliefRenderer.render(c, 1, 0, 0.0, out);
+	ReliefRenderer.render(c, 1, 0, 0.0, 0, out);
 	assertEquals(0x80, red(out, 1, 3, 3));
     }
 
@@ -103,5 +103,48 @@ class ReliefRendererTest {
 	assertEquals((ReliefRenderer.CLIFF >> 16) & 0xff, red(px, 1, 4, 4));
 	assertTrue(red(px, 1, 5, 4) < 0x80);
 	assertEquals(0x80, red(px, 1, 6, 4));
+    }
+
+    /** Ground stepping up by one contour interval at tile x = 4; no relief so only the lines show. */
+    private static byte[] step(int k, double interval, boolean water) {
+	ReliefRenderer.Cells c = flat();
+	for(int y = -1; y <= N; y++) {
+	    for(int x = -1; x <= N; x++) {
+		c.z[c.at(x, y)] = (x >= 4) ? 12 : 8;
+		c.water[c.at(x, y)] = water;
+	    }
+	}
+	byte[] out = new byte[N * k * N * k * 4];
+	ReliefRenderer.render(c, k, 0, 0.0, interval, out);
+	return(out);
+    }
+
+    @Test
+    void contourIsAThinLineUpClose() {
+	byte[] px = step(4, 10, false);
+	assertTrue(red(px, 4, 16, 8) < 0x80);
+	assertEquals(0x80, red(px, 4, 17, 8));
+	assertEquals(0x80, red(px, 4, 15, 8));
+    }
+
+    @Test
+    void contourDarkensTheHighSideAtOnePixelPerTile() {
+	byte[] px = step(1, 10, false);
+	assertTrue(red(px, 1, 4, 3) < 0x80);
+	assertEquals(0x80, red(px, 1, 3, 3));
+	assertEquals(0x80, red(px, 1, 5, 3));
+    }
+
+    @Test
+    void noContoursWhenOffOrOnWater() {
+	assertEquals(0x80, red(step(4, 0, false), 4, 16, 8));
+	assertEquals(0x80, red(step(4, 10, true), 4, 16, 8));
+    }
+
+    @Test
+    void contoursWidenWhenZoomedOut() {
+	assertEquals(10, ReliefRenderer.contourinterval(10, 0));
+	assertEquals(10, ReliefRenderer.contourinterval(10, 1));
+	assertEquals(40, ReliefRenderer.contourinterval(10, 3));
     }
 }
