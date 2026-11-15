@@ -111,6 +111,12 @@ craft action. This is a snapshot of wiki knowledge, not a claim of server
 completeness. It stores factual fields, source formulas and per-page revision
 links, without article prose or images. Attribution: Ring of Brodgar contributors.
 
+recipe-overrides.json corrects pages the compiler cannot read correctly (Molten
+Glass lists the separate Smelt Raw Glass route as an ingredient; Tree's seed is
+plain text and its formula sits outside the Quality section). Each override
+applies only while the page's compiled ingredient text still matches; a changed
+page drops it into review.json instead.
+
 Amounts use the wiki's omitted-quantity convention of one; output yield is
 unknown when the infobox does not state it. Liter and kilogram quantities are
 preserved as decimals. Alternatives, staged construction, dynamic queries and
@@ -191,7 +197,11 @@ Forge softcap(cast iron, (forge + fuel)/2); Steel Crucible softcap(wrought iron,
 to the unfired/unbaked step and are dropped. Several listed inputs (alternative
 ores, Ashes) are averaged and marked approximate. A crucible or fireplace listed
 first (nuggets, pitbaked goods) keeps the general model: the wiki gives no fuel
-effect there. If a complete binding is unavailable, the node uses a
+effect there. A station a wiki or station formula leaves out (Coade Clay's quern,
+alternative smelters) is not shown as an input. Formulas wrapped in outer braces
+({_qX = ...}) are accepted. Cauldron pages list the Clay Cauldron variant (water
+counts half) before the Metal Cauldron one; the Cauldron input is the metal
+cauldron, so its formula is preferred. If a complete binding is unavailable, the node uses a
 clearly marked approximate general model: equal material-type means, optional
 3:1 material/tool weighting, and geometric skill softcap. A bound base without
 a confirmed cap is also approximate when the wiki mentions quality skills.
@@ -205,7 +215,8 @@ edges and viewport. Save uses the existing atomic writer and .bak recovery;
 bounded transactional loading rejects unsupported versions and cyclic files.
 Each node stores its ordered input signature and a port-to-kind/name map. Reordered
 inputs preserve manual values, edges and custom formula bindings by identity.
-If an actively used input disappears or an old file lacks enough identity data,
+An input the recipe no longer has loses its saved value and connection. If a
+custom formula still names it, or an old file lacks enough identity data,
 calculation stops with an explanatory error; re-add that recipe to review inputs.
 The exact legacy Kiln/Will bug is migrated automatically, retaining its clay input.
 Formula-only updates use the new recipe formula; custom formulas remain explicit.

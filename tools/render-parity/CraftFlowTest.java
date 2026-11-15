@@ -335,6 +335,29 @@ public class CraftFlowTest {
         check(!QualityModel.of(recipe(s,"Coal")).estimated, "Tar kiln formula not applied");
         check(QualityModel.of(recipe(s,"Fishwrap")).ports.stream().noneMatch(p -> p.name.equals("Fuel")), "Pitbaked goods given kiln fuel");
         check(!QualityModel.of(recipe(s,"Gingerbread Heart")).expression.contains("i3"), "Item page formula overridden by station");
+        // Brace-wrapped wiki formulas bind; a station the formula leaves out is not asked for.
+        QualityModel coade = QualityModel.of(recipe(s,"Coade Clay"));
+        check(!coade.estimated && coade.ports.stream().noneMatch(p -> p.name.equals("Quern")), "Coade Clay asks for the quern");
+        QualityModel molten = QualityModel.of(recipe(s,"Molten Glass"));
+        check(!molten.estimated && molten.ports.stream().noneMatch(p -> p.name.equals("Raw Glass")), "Molten Glass needs its own cooled product");
+        QualityModel tree = QualityModel.of(recipe(s,"Tree"));
+        Map<String,Double> grown = Map.of(port(tree,"Soil").id,20.0, port(tree,"Water").id,20.0, port(tree,"Treeplanter's Pot").id,50.0,
+            port(tree,"Herbalist Table").id,50.0, port(tree,"Seed of Tree or Bush").id,100.0, port(tree,"Farming").id,500.0);
+        near(QualityExpression.parse(tree.expression).evaluate(grown::get),75.2);
+        check(!QualityModel.of(recipe(s,"Felt")).sourceFormula.startsWith("{"), "Clay cauldron water formula used for the metal cauldron");
+        // A saved node keeps its values when an unused station disappears; only a custom formula naming it stops.
+        s.live.put("Masonry",100.0);
+        String oldCoade = "i1:MATERIAL:Ball Clay\ni2:MATERIAL:Brick\ni3:MATERIAL:Flint\ni4:MATERIAL:Quartz\ni5:MATERIAL:Raw Glass\nt1:TOOL:Quern\na1:ATTRIBUTE:Dexterity\ns1:SKILL:Masonry\n";
+        CraftFlow.Node kept = s.flow.add(recipe(s,"Coade Clay").resource,0,0), custom = s.flow.add(recipe(s,"Coade Clay").resource,0,0);
+        for(CraftFlow.Node n : List.of(kept, custom)) {
+            n.inputSignature = UUID.nameUUIDFromBytes(oldCoade.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+            for(String line : oldCoade.split("\n")) { String[] f = line.split(":",3); n.inputNames.put(f[0], f[1]+":"+WikiRecipes.normalize(f[2])); }
+            for(String id : List.of("i1","i2","i3","i4","i5")) n.values.put(id,"50");
+            n.values.put("t1","90");
+        }
+        custom.formula = "mean(i1,t1)";
+        near(result(s,kept).value,50); check(!kept.values.containsKey("t1"), "Vanished quern value kept");
+        check(result(s,custom).value == null && custom.values.containsKey("t1"), "Custom formula input silently dropped");
         for(AtlasCatalog.Recipe r : s.data.recipes()) QualityModel.of(r); // Every wiki formula is safely classified or rejected.
         System.out.println("PASS: quality expressions, wiki bindings, live/override reset, missing tools, DAG propagation, cycles and atomic persistence");
     }

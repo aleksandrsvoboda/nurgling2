@@ -31,17 +31,18 @@ public final class QualityModel {
             if(!name.isEmpty() && !name.equalsIgnoreCase("Hand") && !name.equalsIgnoreCase("Hands"))
                 m.add(name, name.equals("Cauldron") ? "wiki-item:metal cauldron" : "", Kind.TOOL);
         }
-        QualityExpression base = null, cap = null;
+        QualityExpression base = null, cap = null, clayCauldron = null;
+        String claySource = "";
         if(recipe.wiki != null) for(String formula : recipe.wiki.formulas) {
             int before = m.ports.size();
             try {
-                String rhs = formula;
-                int equal = formula.indexOf('=');
+                String rhs = unwrap(formula);
+                int equal = rhs.indexOf('=');
                 if(equal >= 0) {
                     // Do not confuse the quality of a tool with a formula describing its products.
-                    String lhs = QualityExpression.key(formula.substring(0, equal)).replaceFirst("^q", "");
+                    String lhs = QualityExpression.key(rhs.substring(0, equal)).replaceFirst("^q", "");
                     if(!lhs.equals(QualityExpression.key(recipe.name))) continue;
-                    rhs = formula.substring(equal + 1);
+                    rhs = rhs.substring(equal + 1);
                 }
                 QualityExpression parsed = QualityExpression.tex(rhs);
                 Set<String> vars = parsed.variables();
@@ -56,19 +57,30 @@ public final class QualityModel {
                         return p == null ? null : p.id;
                     });
                     if(bound.variables().stream().anyMatch(v -> m.port(v).kind == Kind.MATERIAL)) {
-                        base = bound; m.sourceFormula = formula;
+                        // Cauldron pages list the Clay Cauldron variant (water counts half) before the Metal
+                        // Cauldron one; the Cauldron input is the metal cauldron, so prefer its formula.
+                        if(CLAY_CAULDRON_WATER.matcher(rhs).find()) {
+                            if(clayCauldron == null) { clayCauldron = bound; claySource = formula; }
+                        } else { base = bound; m.sourceFormula = formula; }
                     } else while(m.ports.size() > before) m.ports.remove(m.ports.size() - 1);
                 }
             } catch(IllegalArgumentException ignored) {
                 while(m.ports.size() > before) m.ports.remove(m.ports.size() - 1);
             }
         }
+        if(base == null && clayCauldron != null) { base = clayCauldron; m.sourceFormula = claySource; }
         if(base != null) {
             m.expression = cap == null ? base.toString() : "softcap(" + base + "," + cap + ")";
             m.estimated = cap == null && !recipe.quality.isEmpty();
         } else if(m.station()) {
             // Stat caps on these pages belong to the unfired/unbaked step, not to firing.
             m.ports.removeIf(p -> p.kind == Kind.ATTRIBUTE || p.kind == Kind.SKILL);
+        }
+        if(base != null || !m.sourceFormula.isEmpty()) {
+            // A wiki formula that leaves out a listed station (Coade Clay's quern, the alternative smelters)
+            // says its quality does not matter; do not ask for it.
+            Set<String> used = QualityExpression.parse(m.expression).variables();
+            m.ports.removeIf(p -> p.kind == Kind.TOOL && !used.contains(p.id));
         } else {
             for(String name : recipe.quality) if(STATS.containsKey(name)) m.statPort(name);
             String inputs = join(m.ports, Kind.MATERIAL), tools = join(m.ports, Kind.TOOL);
@@ -133,6 +145,22 @@ public final class QualityModel {
         sourceFormula = source; expression = formula; estimated = guess;
         return true;
     }
+    /** Some wiki formulas wrap the whole equation in braces: {_{q}Coade Clay = \frac{...}{5}}. */
+    private static String unwrap(String formula) {
+        String f = formula.trim();
+        while(f.startsWith("{")) {
+            int depth = 0, close = -1;
+            for(int i = 0; i < f.length() && close < 0; i++) {
+                if(f.charAt(i) == '{') depth++;
+                else if(f.charAt(i) == '}' && --depth == 0) close = i;
+            }
+            if(close != f.length() - 1) break;
+            f = f.substring(1, close).trim();
+        }
+        return f;
+    }
+    private static final java.util.regex.Pattern CLAY_CAULDRON_WATER =
+        java.util.regex.Pattern.compile("\\\\frac\\s*\\{\\s*_\\{q\\}\\s*Water\\s*\\}\\s*\\{\\s*2\\s*\\}");
     private static final String FUEL = "Fuel";
     private Port fuel() { return add(FUEL, "wiki-item:fuel", Kind.MATERIAL); }
     private static String join(List<Port> ports, Kind kind) { return String.join(",", ports.stream().filter(p -> p.kind == kind).map(p -> p.id).toArray(String[]::new)); }
