@@ -1540,6 +1540,16 @@ NMiniMap extends MiniMap {
         return getDataLevel();
     }
     
+    /**
+     * Pixels per tile for relief grids at the finest level: up close a tile spans several
+     * screen pixels, so tile boundaries can be thin lines. Never more than a tile's screen
+     * size, so texture memory follows the screen area, not the number of grids.
+     */
+    public int reliefScale() {
+        float px = UI.scale(1f) * currentScale;
+        return (px >= 4) ? 4 : (px >= 2) ? 2 : 1;
+    }
+
     private float getScaleFactor() {
         // Calculate how much to scale the current data level
         int dataLevel = getDataLevel();
@@ -1697,7 +1707,7 @@ NMiniMap extends MiniMap {
                 if(currentLevelCache != null && currentLevelCache.display != null) {
                     for(Coord c : dgext) {
                         if(currentLevelCache.display[dgext.ri(c)] == null) {
-                            currentLevelCache.display[dgext.ri(c)] = new DisplayGrid(this, dloc.seg, c, dataLevel, dloc.seg.grid(dataLevel, c.mul(1 << dataLevel)));
+                            currentLevelCache.display[dgext.ri(c)] = new ReliefGrid(this, dloc.seg, c, dataLevel, dloc.seg.grid(dataLevel, c.mul(1 << dataLevel)));
                         }
                     }
                     display = currentLevelCache.display;
@@ -1721,7 +1731,7 @@ NMiniMap extends MiniMap {
                     int loaded = 0;
                     for(Coord c : nextArea) {
                         if(loaded++ > 4) break; // Don't load too many at once to avoid lag
-                        nextDisplay[nextArea.ri(c)] = new DisplayGrid(this, dloc.seg, c, nextLevel, dloc.seg.grid(nextLevel, c.mul(1 << nextLevel)));
+                        nextDisplay[nextArea.ri(c)] = new ReliefGrid(this, dloc.seg, c, nextLevel, dloc.seg.grid(nextLevel, c.mul(1 << nextLevel)));
                     }
                     nextLevelCache = new LevelCache(nextDisplay, nextArea, nextLevel);
                 }
@@ -1744,7 +1754,7 @@ NMiniMap extends MiniMap {
                     int loaded = 0;
                     for(Coord c : prevArea) {
                         if(loaded++ > 4) break; // Don't load too many at once
-                        prevDisplay[prevArea.ri(c)] = new DisplayGrid(this, dloc.seg, c, prevLevel, dloc.seg.grid(prevLevel, c.mul(1 << prevLevel)));
+                        prevDisplay[prevArea.ri(c)] = new ReliefGrid(this, dloc.seg, c, prevLevel, dloc.seg.grid(prevLevel, c.mul(1 << prevLevel)));
                     }
                     previousLevelCache = new LevelCache(prevDisplay, prevArea, prevLevel);
                 }
@@ -2481,8 +2491,9 @@ NMiniMap extends MiniMap {
         try {
             Tex img = disp.img();
             if(img != null) {
-                // Use double precision and round to avoid gaps between tiles
-                Coord2d imgsizDouble = new Coord2d(UI.scale(img.sz())).mul(scaleFactor);
+                // Use double precision and round to avoid gaps between tiles. Sized by the
+                // grid, not the image: relief grids draw at several pixels per tile.
+                Coord2d imgsizDouble = new Coord2d(UI.scale(cmaps)).mul(scaleFactor);
                 imgsz = new Coord((int)Math.round(imgsizDouble.x), (int)Math.round(imgsizDouble.y));
                 g.image(img, ul, imgsz);
             }
