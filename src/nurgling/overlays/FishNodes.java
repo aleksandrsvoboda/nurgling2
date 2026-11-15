@@ -71,6 +71,16 @@ public final class FishNodes {
             incoming.add(new Splash(rc, System.currentTimeMillis()));
     }
 
+    /** Whether a (session-local) tile belongs to a fish node seen so far, drawn or not. Any thread. */
+    public boolean inNode(Coord tile) {
+        for (Layer l : layers) {
+            Snap s = l.snap;
+            if (s != null && s.tiles.contains(tile))
+                return true;
+        }
+        return false;
+    }
+
     /** Called from the map view's tick with the player position (null when there is no player). */
     public void tick(Coord2d player) {
         long now = System.currentTimeMillis();
@@ -265,6 +275,11 @@ public final class FishNodes {
         } catch (Loading e) {
             return false;
         }
+        return isWater(n);
+    }
+
+    /** Water fish can live in: fresh and sea, shallow to very deep (no swamp, fen, bog or marsh water). */
+    public static boolean isWater(String n) {
         return n != null && (n.startsWith("gfx/tiles/water") || n.startsWith("gfx/tiles/owater")
                 || n.equals("gfx/tiles/deep") || n.equals("gfx/tiles/odeep") || n.equals("gfx/tiles/odeeper")
                 || n.equals("gfx/tiles/deeptangle") || n.equals("gfx/tiles/warmdepth"));

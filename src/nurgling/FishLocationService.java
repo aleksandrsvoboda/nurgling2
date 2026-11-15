@@ -227,6 +227,101 @@ public class FishLocationService implements ProfileAwareService {
     }
 
     /**
+     * Saves one fish survey cast: a record per bite-window row, at the tile the cast landed on (not the player's), with
+     * the gear that was on the rod. Records are keyed by tile, fish and gear, so every combination stays. One file write
+     * (or one DB flush) for the whole cast. Returns how many rows were saved.
+     */
+    public int saveSurveyResults(java.util.List<nurgling.actions.bots.boatfishing.FishingKit.BiteRow> rows, Coord2d castAt,
+                                 nurgling.actions.bots.boatfishing.FishingKit.Gear gear) {
+        if (gui.map == null || rows.isEmpty())
+            return 0;
+        Coord tc = castAt.floor(MCache.tilesz);
+        MCache.Grid grid;
+        try {
+            grid = gui.map.glob.map.getgrid(tc.div(MCache.cmaps));
+        } catch (Loading e) {
+            return 0;
+        }
+        Coord offset = tc.sub(grid.ul);
+        String[] timeMoon = timeAndMoon();
+        java.util.List<FishLocation> made = new ArrayList<>();
+        for (nurgling.actions.bots.boatfishing.FishingKit.BiteRow row : rows) {
+            String res = getFishResourcePath(row.fish);
+            if (res == null)
+                continue;
+            String pct = String.format(java.util.Locale.ROOT, "%.1f%%", row.overall);
+            made.add(new FishLocation(FishLocation.surveyId(profile(), grid.id, offset, row.fish, gear.line, gear.hook, gear.lure),
+                    grid.id, offset, row.fish, res, pct, System.currentTimeMillis(), timeMoon[0], timeMoon[1],
+                    gear.rod, gear.hook, gear.line, gear.lure));
+        }
+        if (made.isEmpty())
+            return 0;
+        lock.writeLock().lock();
+        try {
+            for (FishLocation loc : made) {
+                fishLocations.put(loc.getLocationId(), loc);
+                if (dbMode()) {
+                    pendingTombstone.remove(loc.getLocationId());
+                    pendingPush.put(loc.getLocationId(), loc);
+                }
+            }
+            if (!dbMode())
+                saveFishLocations();
+        } finally {
+            lock.writeLock().unlock();
+        }
+        if (dbMode()) flushPending();
+        return made.size();
+    }
+
+    /** Whether a survey record with exactly this gear exists at the tile {@code castAt} is on (any fish). */
+    public boolean hasSurveyResult(Coord2d castAt, nurgling.actions.bots.boatfishing.FishingKit.Gear gear) {
+        if (gui.map == null)
+            return false;
+        Coord tc = castAt.floor(MCache.tilesz);
+        MCache.Grid grid;
+        try {
+            grid = gui.map.glob.map.getgrid(tc.div(MCache.cmaps));
+        } catch (Loading e) {
+            return false;
+        }
+        Coord offset = tc.sub(grid.ul);
+        ensureStoreCurrent();
+        lock.readLock().lock();
+        try {
+            for (FishLocation loc : fishLocations.values()) {
+                if (loc.getGridId() == grid.id && offset.equals(loc.getOffset())
+                        && java.util.Objects.equals(gear.line, loc.getLine()) && java.util.Objects.equals(gear.hook, loc.getHook())
+                        && java.util.Objects.equals(gear.lure, loc.getBait())
+                        && loc.getLocationId().equals(FishLocation.surveyId(profile(), grid.id, offset, loc.getFishName(), gear.line, gear.hook, gear.lure)))
+                    return true;
+            }
+            return false;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /** In-game time ("hh:mm") and moon phase, or "Unknown" for either. */
+    private String[] timeAndMoon() {
+        String gameTime = "Unknown";
+        String moonPhase = "Unknown";
+        try {
+            if (gui.map != null && gui.map.glob != null && gui.map.glob.ast != null) {
+                haven.Astronomy ast = gui.map.glob.ast;
+                gameTime = String.format("%02d:%02d", ast.hh, ast.mm);
+                haven.Resource moon = haven.Resource.local().loadwait("gfx/hud/calendar/moon");
+                haven.Resource.Anim moonAnim = moon.layer(haven.Resource.animc);
+                int moonPhaseIndex = (int)Math.round(ast.mp * (double)moonAnim.f.length) % moonAnim.f.length;
+                moonPhase = haven.Astronomy.phase[moonPhaseIndex];
+            }
+        } catch (RuntimeException e) {
+            System.err.println("Error getting time/moon phase: " + e);
+        }
+        return new String[]{gameTime, moonPhase};
+    }
+
+    /**
      * Get fish resource path from VSpec
      */
     private String getFishResourcePath(String fishName) {
@@ -239,6 +334,9 @@ public class FishLocationService implements ProfileAwareService {
                     return fish.getString("static");
                 }
             }
+            // Bites that aren't in the Fish category (a curio rather than a food fish).
+            if (fishName.equals("Seahorse"))
+                return "gfx/invobjs/seahorse";
         } catch (RuntimeException e) {
             System.err.println("Error getting fish resource path: " + e);
         }

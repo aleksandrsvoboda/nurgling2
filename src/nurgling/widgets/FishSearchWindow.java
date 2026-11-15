@@ -21,6 +21,7 @@ public class FishSearchWindow extends Window {
     private NDropbox<String> moonPhaseDropdown;
     private TextEntry percentageEntry;
     private FishResultsList resultsList;
+    private BestCombosWindow bestWindow;
 
     private static final int WINDOW_WIDTH = UI.scale(560);
     private static final int WINDOW_HEIGHT = UI.scale(600);
@@ -93,14 +94,39 @@ public class FishSearchWindow extends Window {
         percentageEntry = add(new TextEntry(UI.scale(100), "0"), controlX, y);
         y += lineHeight + UI.scale(5);
 
-        // Search button
-        add(new Button(UI.scale(150), L10n.get("common.search")) {
+        // Search button, and the best combination per fish
+        Button search = add(new Button(UI.scale(150), L10n.get("common.search")) {
             @Override
             public void click() {
                 performSearch();
             }
         }, controlX, y);
-        y += lineHeight + UI.scale(15);
+        add(new Button(UI.scale(190), L10n.get("fish.best_button")) {
+            @Override
+            public void click() {
+                toggleBest();
+            }
+        }, search.pos("ur").adds(UI.scale(10), 0));
+        y += lineHeight + UI.scale(5);
+
+        // Where saved fish are drawn: the map and the world each have their own switch
+        CheckBox onMap = add(new CheckBox(L10n.get("fish.show_map_icons")) {
+            @Override
+            public void changed(boolean val) {
+                NMiniMap.showFishIcons(val);
+            }
+        }, controlX, y);
+        onMap.a = NMiniMap.showFishIcons();
+        onMap.settip(L10n.get("fish.show_map_icons_tip"));
+        CheckBox inWorld = add(new CheckBox(L10n.get("fish.show_world_icons")) {
+            @Override
+            public void changed(boolean val) {
+                nurgling.NConfig.set(nurgling.NConfig.Key.showFishWorldIcons, val);
+            }
+        }, onMap.pos("ur").adds(UI.scale(20), 0));
+        inWorld.a = nurgling.overlays.NFishWorldIcons.enabled();
+        inWorld.settip(L10n.get("fish.show_world_icons_tip"));
+        y += lineHeight + UI.scale(5);
 
         // Results list
         add(new Label(L10n.get("common.results")), labelX, y);
@@ -170,19 +196,9 @@ public class FishSearchWindow extends Window {
                     return false;
                 }
 
-                // Filter by percentage
-                String percentStr = loc.getPercentage().replace("%", "").trim();
-                try {
-                    int percent = Integer.parseInt(percentStr);
-                    if (percent < minPercentage) {
-                        return false;
-                    }
-                } catch (NumberFormatException e) {
-                    // If we can't parse percentage, exclude it
-                    return false;
-                }
-
-                return true;
+                // Filter by percentage ("23%" from a catch, "23.0%" from a survey); unreadable ones are left out
+                double percent = nurgling.overlays.NFishWorldIcons.percent(loc.getPercentage());
+                return percent >= 0 && percent >= minPercentage;
             })
             .collect(Collectors.toList());
 
@@ -336,6 +352,154 @@ public class FishSearchWindow extends Window {
                 nurgling.tools.ItemIcons.draw(g, nurgling.tools.ItemIcons.get(null, name, false),
                     Coord.of(pad, pad), sz.x - 2 * pad);
             }
+        }
+    }
+
+    private void toggleBest() {
+        if (bestWindow != null && bestWindow.parent != null) {
+            bestWindow.reqdestroy();
+            bestWindow = null;
+            return;
+        }
+        bestWindow = gui.add(new BestCombosWindow(), this.c.add(sz.x + UI.scale(10), 0));
+    }
+
+    /** One fish's best saved record, and how many records of that fish there are. */
+    static final class Best {
+        final FishLocation loc;
+        final double pct;
+        final int saved;
+
+        Best(FishLocation loc, double pct, int saved) {
+            this.loc = loc;
+            this.pct = pct;
+            this.saved = saved;
+        }
+    }
+
+    /** Per fish (by name, A to Z): the record with the highest chance, the newest on a tie. */
+    static List<Best> bestPerFish(Collection<FishLocation> all) {
+        Map<String, FishLocation> best = new TreeMap<>();
+        Map<String, Integer> count = new HashMap<>();
+        for (FishLocation loc : all) {
+            if (loc.getFishName() == null)
+                continue;
+            double p = nurgling.overlays.NFishWorldIcons.percent(loc.getPercentage());
+            count.merge(loc.getFishName(), 1, Integer::sum);
+            FishLocation cur = best.get(loc.getFishName());
+            double cp = cur == null ? -2 : nurgling.overlays.NFishWorldIcons.percent(cur.getPercentage());
+            if (cur == null || p > cp || (p == cp && loc.getTimestamp() > cur.getTimestamp()))
+                best.put(loc.getFishName(), loc);
+        }
+        List<Best> res = new ArrayList<>();
+        for (Map.Entry<String, FishLocation> e : best.entrySet())
+            res.add(new Best(e.getValue(), nurgling.overlays.NFishWorldIcons.percent(e.getValue().getPercentage()),
+                    count.get(e.getKey())));
+        return res;
+    }
+
+    /** Every saved fish with the line, hook and bait of its best saved chance; click a row to see the spot on the map.
+     *  Refreshed every 2 s, so it follows a running fish survey. */
+    private class BestCombosWindow extends Window {
+        private List<Best> rows = new ArrayList<>();
+        private String sig = null;
+        private double refresh = 0;
+        private final Label empty;
+
+        BestCombosWindow() {
+            super(new Coord(UI.scale(460), UI.scale(420)), L10n.get("fish.best_title"), true);
+            add(new SListBox<Best, Widget>(new Coord(UI.scale(460), UI.scale(420)), ROW_H, UI.scale(2)) {
+                @Override
+                protected List<Best> items() {
+                    return rows;
+                }
+
+                @Override
+                protected Widget makeitem(Best b, int idx, Coord sz) {
+                    return new BestRow(this, sz, b);
+                }
+            }, Coord.z);
+            empty = add(new Label(L10n.get("fish.best_empty")), UI.scale(10, 10));
+            update();
+            pack();
+        }
+
+        private void update() {
+            List<Best> b = fishService == null ? new ArrayList<>() : bestPerFish(fishService.getAllFishLocations());
+            StringBuilder k = new StringBuilder();
+            for (Best x : b)
+                k.append(x.loc.getLocationId()).append(x.saved).append(';');
+            if (!k.toString().equals(sig)) {
+                sig = k.toString();
+                rows = b;
+            }
+            empty.show(rows.isEmpty());
+        }
+
+        @Override
+        public void tick(double dt) {
+            super.tick(dt);
+            if ((refresh += dt) >= 2) {
+                refresh = 0;
+                update();
+            }
+        }
+
+        @Override
+        public void wdgmsg(Widget sender, String msg, Object... args) {
+            if (msg.equals("close")) {
+                reqdestroy();
+                bestWindow = null;
+            } else {
+                super.wdgmsg(sender, msg, args);
+            }
+        }
+    }
+
+    private class BestRow extends SListWidget.ItemWidget<Best> {
+        private final Tex name, detail;
+
+        BestRow(SListBox<Best, Widget> list, Coord sz, Best b) {
+            super(list, sz, b);
+            int x = sz.x - UI.scale(8);
+            String[][] gear = {
+                {L10n.get("fish.bait"), b.loc.getBait()},
+                {L10n.get("fish.line"), b.loc.getLine()},
+                {L10n.get("fish.hook"), b.loc.getHook()},
+            };
+            for (String[] g : gear) {
+                x -= GEAR;
+                add(new GearSlot(g[0], g[1]), new Coord(x, (sz.y - GEAR) / 2));
+                x -= GAP;
+            }
+            name = Text.render(b.loc.getFishName() + "  " + (b.pct >= 0 ? b.loc.getPercentage() : "?")).tex();
+            detail = Text.render(L10n.get("fish.best_saved", b.saved), new java.awt.Color(159, 176, 177)).tex();
+            settip(L10n.get("fish.show_on_map"));
+        }
+
+        @Override
+        public void draw(GOut g) {
+            int side = sz.y - UI.scale(4);
+            nurgling.tools.ItemIcons.draw(g, nurgling.tools.ItemIcons.getResource(item.loc.getFishResource()),
+                Coord.of((GUTTER - side) / 2, (sz.y - side) / 2), side);
+            int tx = GUTTER + UI.scale(4);
+            g.image(name, Coord.of(tx, sz.y / 2 - name.sz().y));
+            g.image(detail, Coord.of(tx, sz.y / 2));
+            super.draw(g);
+        }
+
+        @Override
+        protected boolean clicked(MouseDownEvent ev) {
+            super.clicked(ev);
+            panMapToLocation(item.loc);
+            return true;
+        }
+
+        @Override
+        public void dispose() {
+            name.dispose();
+            detail.dispose();
+            super.dispose();
         }
     }
 

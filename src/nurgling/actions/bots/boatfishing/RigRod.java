@@ -91,7 +91,7 @@ final class RigRod implements Action {
         return Results.SUCCESS();
     }
 
-    private static WItem rodInHand(String tool) throws InterruptedException {
+    static WItem rodInHand(String tool) throws InterruptedException {
         NEquipory eq = NUtils.getEquipment();
         for (NEquipory.Slots s : new NEquipory.Slots[]{NEquipory.Slots.HAND_LEFT, NEquipory.Slots.HAND_RIGHT}) {
             WItem w = eq.findItem(s.idx);
@@ -101,7 +101,7 @@ final class RigRod implements Action {
         return null;
     }
 
-    private static WItem rodInHandNow(String tool) {
+    static WItem rodInHandNow(String tool) {
         NEquipory eq = NUtils.getEquipment();
         if (eq == null)
             return null;
