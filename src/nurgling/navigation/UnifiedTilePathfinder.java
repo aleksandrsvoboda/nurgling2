@@ -8,18 +8,33 @@ import java.util.*;
 import static nurgling.navigation.ChunkNavConfig.*;
 
 /**
- * Unified A* pathfinder that operates on an implicit tile graph spanning all recorded chunks.
- * The graph is implicit - nodes and edges are computed on-demand during A* expansion:
- * - Nodes: Any walkable tile in any recorded chunk
- * - Edges: Adjacent walkable tiles (same chunk), edge crossings (between chunks), portal connections
- * This allows pathfinding through chunks that aren't currently visible, using only stored data.
+ * A* over an implicit tile graph spanning all recorded chunks: walkable tiles, edge crossings between neighbour
+ * chunks, and portals. Works from stored data only, so it plans through chunks that are not loaded.
+ *
+ * One search can aim at a whole set of goal tiles ({@link AreaGoalSet}) and stops at the cheapest one it reaches,
+ * so "go to this area" is one search instead of one per corner, and "which of these areas is nearest" is one search
+ * too ({@link #findNearest}).
+ *
+ * The distance estimate comes from {@link ChunkLayout}: inside the goal's walkable component it is the straight
+ * line to the goal tiles' bounding box; elsewhere it is the cheapest chain of portal costs into that component, and
+ * components with no portal chain at all are never expanded. It is built once per search, not per step.
  */
 public class UnifiedTilePathfinder {
+    private static final int TILES = CHUNK_SIZE * CHUNK_SIZE;
+    private static final int MAX_POPS = 500_000;
+    private static final float SQRT2 = (float) Math.sqrt(2);
+    private static final float EDGE_COST = 1.5f;
+    private static final float INF = Float.POSITIVE_INFINITY;
+    private static final int[][] DIRS = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
 
     private final ChunkNavGraph graph;
 
     // Chunks where portal traversal has failed - avoid using portals on these chunks
     private Set<Long> excludedPortalChunks = Collections.emptySet();
+
+    /** Nodes popped and time taken by the last search on this instance (diagnostics and the A/B harness). */
+    public int lastPops;
+    public long lastNanos;
 
     public UnifiedTilePathfinder(ChunkNavGraph graph) {
         this.graph = graph;
@@ -29,33 +44,344 @@ public class UnifiedTilePathfinder {
         this.excludedPortalChunks = excluded != null ? excluded : Collections.emptySet();
     }
 
-    /**
-     * Check if a tile coordinate is within 'margin' tiles of any chunk edge.
-     * Used to detect "phantom" building portals recorded from adjacent chunks.
-     */
-    private boolean isAtChunkEdge(Coord coord, int margin) {
-        return coord.x < margin || coord.x >= CHUNK_SIZE - margin ||
-               coord.y < margin || coord.y >= CHUNK_SIZE - margin;
+    /** Path from a start tile to one target tile, or null if there is none. */
+    public UnifiedPath findPath(long startChunkId, Coord startLocal, long targetChunkId, Coord targetLocal) {
+        if (graph.getChunk(startChunkId) == null || graph.getChunk(targetChunkId) == null) {
+            lastPops = 0;
+            return null;
+        }
+        return findPathToAny(startChunkId, startLocal, AreaGoalSet.ofTile(targetChunkId, targetLocal));
+    }
+
+    /** Path from a start tile to the cheapest tile of the goal set, or null if none is reachable. */
+    public UnifiedPath findPathToAny(long startChunkId, Coord startLocal, AreaGoalSet goal) {
+        return findNearest(startChunkId, startLocal, Collections.singletonList(goal));
     }
 
     /**
-     * Check if a tile (in 0-99 space) is walkable by checking if ANY of its 2x2 cells is walkable.
+     * Path to the cheapest tile of any of the goal sets. {@link UnifiedPath#goalIndex} says which set it reached.
+     * Null if none is reachable.
      */
-    private boolean isTileWalkable(ChunkNavData chunk, int tileX, int tileY) {
-        int cellX = tileX * CELLS_PER_TILE;
-        int cellY = tileY * CELLS_PER_TILE;
-        for (int dx = 0; dx < CELLS_PER_TILE; dx++) {
-            for (int dy = 0; dy < CELLS_PER_TILE; dy++) {
-                int cx = cellX + dx;
-                int cy = cellY + dy;
-                if (cx >= 0 && cx < CELLS_PER_EDGE && cy >= 0 && cy < CELLS_PER_EDGE) {
-                    if (chunk.walkability[cx][cy] == 0) {
-                        return true;  // At least one sub-cell is walkable
+    public UnifiedPath findNearest(long startChunkId, Coord startLocal, List<AreaGoalSet> goals) {
+        long t0 = System.nanoTime();
+        try {
+            lastPops = 0;
+            if (startLocal == null || goals == null || goals.isEmpty()) return null;
+            boolean any = false;
+            for (AreaGoalSet g : goals) any |= g != null && !g.isEmpty();
+            if (!any) return null;
+            if (graph.getChunk(startChunkId) == null) return null;
+            Search s = new Search(goals);
+            UnifiedPath p = s.run(startChunkId, startLocal);
+            lastPops = s.pops;
+            return p;
+        } finally {
+            lastNanos = System.nanoTime() - t0;
+        }
+    }
+
+    /** One search: layout, heuristic data and per-chunk node arrays, all thrown away afterwards. */
+    private final class Search {
+        final ChunkLayout layout = new ChunkLayout(graph);
+        final List<AreaGoalSet> goals;
+        final float[][] g = new float[layout.size()][];
+        final int[][] parent = new int[layout.size()][];
+        final byte[][] flags = new byte[layout.size()][];   // bit 0 closed, bit 1 reached via portal
+        final PortalEdge[][] portals = new PortalEdge[layout.size()][];
+        final float[] compLB;                  // lower bound of portal costs from a component into a goal component
+        final float[][][] boxes;               // per component: goal bounding boxes {x0, y0, x1, y1} in layout tiles
+        final LongHeap heap = new LongHeap();
+        int pops = 0;
+
+        Search(List<AreaGoalSet> goals) {
+            this.goals = goals;
+            int nc = layout.componentCount;
+            List<List<float[]>> perComp = new ArrayList<>(nc);
+            for (int i = 0; i < nc; i++) perComp.add(null);
+            for (AreaGoalSet set : goals) {
+                if (set == null) continue;
+                Map<Integer, float[]> box = new HashMap<>();
+                for (Map.Entry<Long, BitSet> e : set.tiles.entrySet()) {
+                    int ci = layout.indexOf(e.getKey());
+                    if (ci < 0) continue;
+                    int c = layout.comp[ci];
+                    BitSet bits = e.getValue();
+                    for (int b = bits.nextSetBit(0); b >= 0; b = bits.nextSetBit(b + 1)) {
+                        float px = layout.gx[ci] * CHUNK_SIZE + (b % CHUNK_SIZE);
+                        float py = layout.gy[ci] * CHUNK_SIZE + (b / CHUNK_SIZE);
+                        float[] bx = box.get(c);
+                        if (bx == null) box.put(c, new float[] {px, py, px, py});
+                        else {
+                            bx[0] = Math.min(bx[0], px); bx[1] = Math.min(bx[1], py);
+                            bx[2] = Math.max(bx[2], px); bx[3] = Math.max(bx[3], py);
+                        }
+                    }
+                }
+                for (Map.Entry<Integer, float[]> e : box.entrySet()) {
+                    List<float[]> l = perComp.get(e.getKey());
+                    if (l == null) perComp.set(e.getKey(), l = new ArrayList<>(2));
+                    l.add(e.getValue());
+                }
+            }
+            boxes = new float[nc][][];
+            for (int i = 0; i < nc; i++) {
+                List<float[]> l = perComp.get(i);
+                boxes[i] = (l == null) ? null : l.toArray(new float[0][]);
+            }
+            compLB = portalLowerBounds();
+        }
+
+        /** Dijkstra over components, backwards from the goal components, along portal links. */
+        private float[] portalLowerBounds() {
+            int nc = layout.componentCount;
+            float[] lb = new float[nc];
+            Arrays.fill(lb, INF);
+            List<List<float[]>> back = new ArrayList<>(nc);   // into comp: {fromComp, cost}
+            for (int i = 0; i < nc; i++) back.add(new ArrayList<>());
+            for (int ci = 0; ci < layout.size(); ci++) {
+                ChunkNavData c = layout.chunks[ci];
+                for (ChunkPortal p : c.portals) {
+                    if (p.connectsToGridId == -1) continue;
+                    int di = layout.indexOf(p.connectsToGridId);
+                    if (di < 0) continue;
+                    int from = layout.comp[ci], to = layout.comp[di];
+                    if (from == to) continue;
+                    float w = Objects.equals(c.layer, layout.chunks[di].layer) ? EDGE_COST : PORTAL_TRAVERSAL_COST;
+                    back.get(to).add(new float[] {from, w});
+                }
+            }
+            PriorityQueue<float[]> q = new PriorityQueue<>(Comparator.comparingDouble(a -> a[1]));
+            for (int i = 0; i < nc; i++) {
+                if (boxes[i] != null) {
+                    lb[i] = 0;
+                    q.add(new float[] {i, 0});
+                }
+            }
+            while (!q.isEmpty()) {
+                float[] cur = q.poll();
+                int c = (int) cur[0];
+                if (cur[1] > lb[c]) continue;
+                for (float[] e : back.get(c)) {
+                    int from = (int) e[0];
+                    float nd = cur[1] + e[1];
+                    if (nd < lb[from]) {
+                        lb[from] = nd;
+                        q.add(new float[] {from, nd});
                     }
                 }
             }
+            return lb;
         }
-        return false;
+
+        private float heuristic(int ci, int x, int y) {
+            int c = layout.comp[ci];
+            float[][] bs = boxes[c];
+            if (bs == null) return compLB[c];
+            if (!layout.geometric[c]) return 0;
+            float px = layout.gx[ci] * CHUNK_SIZE + x, py = layout.gy[ci] * CHUNK_SIZE + y;
+            float best = INF;
+            for (float[] b : bs) {
+                float dx = Math.max(0, Math.max(b[0] - px, px - b[2]));
+                float dy = Math.max(0, Math.max(b[1] - py, py - b[3]));
+                best = Math.min(best, (float) Math.sqrt(dx * dx + dy * dy));
+            }
+            return best;
+        }
+
+        private void ensure(int ci) {
+            if (g[ci] == null) {
+                float[] gi = new float[TILES];
+                Arrays.fill(gi, INF);
+                g[ci] = gi;
+                parent[ci] = new int[TILES];
+                flags[ci] = new byte[TILES];
+            }
+        }
+
+        private void relax(int ci, int x, int y, float ng, int from, boolean viaPortal) {
+            ensure(ci);
+            int t = y * CHUNK_SIZE + x;
+            if (ng >= g[ci][t]) return;
+            float h = heuristic(ci, x, y);
+            if (h == INF) return;
+            g[ci][t] = ng;
+            parent[ci][t] = from;
+            flags[ci][t] = (byte) (viaPortal ? 2 : 0);   // also re-opens a closed node that got cheaper
+            heap.push(ng + h, ci * TILES + t);
+        }
+
+        UnifiedPath run(long startChunkId, Coord startLocal) {
+            int si = layout.indexOf(startChunkId);
+            if (si < 0) return null;
+            if (startLocal.x < 0 || startLocal.x >= CHUNK_SIZE || startLocal.y < 0 || startLocal.y >= CHUNK_SIZE) return null;
+            relax(si, startLocal.x, startLocal.y, 0, -1, false);
+
+            while (!heap.isEmpty() && pops < MAX_POPS) {
+                int node = heap.popNode();
+                int ci = node / TILES, t = node % TILES;
+                if ((flags[ci][t] & 1) != 0) continue;   // stale entry
+                flags[ci][t] |= 1;
+                if ((++pops & 1023) == 0 && Thread.currentThread().isInterrupted()) return null;
+
+                ChunkNavData chunk = layout.chunks[ci];
+                int x = t % CHUNK_SIZE, y = t / CHUNK_SIZE;
+                for (int k = 0; k < goals.size(); k++) {
+                    AreaGoalSet set = goals.get(k);
+                    if (set != null && set.contains(chunk.gridId, x, y)) return reconstruct(node, k);
+                }
+
+                float gc = g[ci][t];
+
+                for (int[] d : DIRS) {
+                    int nx = x + d[0], ny = y + d[1];
+                    float step = (d[0] != 0 && d[1] != 0) ? SQRT2 : 1f;
+                    if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE) {
+                        if (AreaGoalSet.isTileWalkable(chunk, nx, ny)) relax(ci, nx, ny, gc + step, node, false);
+                    } else {
+                        crossChunk(chunk, nx, ny, gc, node);
+                    }
+                }
+                for (PortalEdge pe : portalsOf(ci)) {
+                    float dx = x - pe.px, dy = y - pe.py;
+                    if (dx * dx + dy * dy > pe.prox * pe.prox) continue;
+                    float cost;
+                    if (pe.destIdx == ci) {
+                        float ex = x - pe.ex, ey = y - pe.ey;
+                        cost = (float) Math.sqrt(ex * ex + ey * ey);
+                    } else {
+                        cost = Objects.equals(chunk.layer, layout.chunks[pe.destIdx].layer) ? EDGE_COST : PORTAL_TRAVERSAL_COST;
+                    }
+                    relax(pe.destIdx, pe.ex, pe.ey, gc + cost, node, true);
+                }
+            }
+            return null;
+        }
+
+        /** A step off the chunk's edge: into the neighbour on that side, or through a corner into the diagonal one. */
+        private void crossChunk(ChunkNavData from, int nx, int ny, float gc, int node) {
+            long[] t = crossTile(graph, from, nx, ny);
+            if (t == null) return;
+            int ni = layout.indexOf(t[0]);
+            if (ni < 0) return;
+            ChunkNavData to = layout.chunks[ni];
+            if (!ChunkLayout.walkable(from, to)) return;
+            if (AreaGoalSet.isTileWalkable(to, (int) t[1], (int) t[2])) relax(ni, (int) t[1], (int) t[2], gc + EDGE_COST, node, false);
+        }
+
+        private PortalEdge[] portalsOf(int ci) {
+            PortalEdge[] res = portals[ci];
+            if (res != null) return res;
+            ChunkNavData chunk = layout.chunks[ci];
+            List<PortalEdge> list = new ArrayList<>();
+            if (excludedPortalChunks.isEmpty() || !excludedPortalChunks.contains(chunk.gridId)) {
+                for (ChunkPortal portal : chunk.portals) {
+                    if (portal.localCoord == null || portal.connectsToGridId == -1) continue;
+                    int di = layout.indexOf(portal.connectsToGridId);
+                    if (di < 0) continue;
+                    ChunkNavData dest = layout.chunks[di];
+                    if (!isPortalTargetLayerValid(portal.type, dest.layer)) continue;
+                    Coord exit = findPortalExitCoord(dest, portal, chunk.gridId);
+                    if (exit == null || exit.x < 0 || exit.x >= CHUNK_SIZE || exit.y < 0 || exit.y >= CHUNK_SIZE) continue;
+                    int prox = ChunkPortal.isBuildingExterior(portal.gobName) ? 6 : 2;
+                    list.add(new PortalEdge(portal.localCoord.x, portal.localCoord.y, prox, di, exit.x, exit.y));
+                }
+            }
+            return portals[ci] = list.toArray(new PortalEdge[0]);
+        }
+
+        private UnifiedPath reconstruct(int goalNode, int goalIndex) {
+            UnifiedPath path = new UnifiedPath();
+            path.reachable = true;
+            path.goalIndex = goalIndex;
+            List<TileNode> rev = new ArrayList<>();
+            int node = goalNode;
+            while (node != -1) {
+                int ci = node / TILES, t = node % TILES;
+                rev.add(new TileNode(layout.chunks[ci].gridId, new Coord(t % CHUNK_SIZE, t / CHUNK_SIZE), (flags[ci][t] & 2) != 0));
+                node = parent[ci][t];
+            }
+            Collections.reverse(rev);
+            path.steps.addAll(rev);
+            path.cost = g[goalNode / TILES][goalNode % TILES];
+            path.pops = pops;
+            return path;
+        }
+    }
+
+    /**
+     * (gridId, x, y) of tile (nx, ny) just outside a chunk, through its neighbour links; null if that neighbour is
+     * not known. A corner step reaches the diagonal chunk through either side neighbour. (Before 2026-11 a corner
+     * step with no horizontal neighbour fell back to the vertical one at the wrong x: a 99-tile jump for 1.5.)
+     */
+    static long[] crossTile(ChunkNavGraph graph, ChunkNavData from, int nx, int ny) {
+        int sx = nx < 0 ? -1 : nx >= CHUNK_SIZE ? 1 : 0;
+        int sy = ny < 0 ? -1 : ny >= CHUNK_SIZE ? 1 : 0;
+        if (sx == 0 && sy == 0) return null;
+        int x = sx == 0 ? nx : (sx < 0 ? nx + CHUNK_SIZE : nx - CHUNK_SIZE);
+        int y = sy == 0 ? ny : (sy < 0 ? ny + CHUNK_SIZE : ny - CHUNK_SIZE);
+        long id;
+        if (sx != 0 && sy != 0) {
+            id = vertical(graph.getChunk(horizontal(from, sx)), sy);
+            if (id == -1) id = horizontal(graph.getChunk(vertical(from, sy)), sx);
+        } else if (sx != 0) {
+            id = horizontal(from, sx);
+        } else {
+            id = vertical(from, sy);
+        }
+        return id == -1 ? null : new long[] {id, x, y};
+    }
+
+    private static long horizontal(ChunkNavData c, int sx) {
+        return c == null ? -1 : (sx < 0 ? c.neighborWest : c.neighborEast);
+    }
+
+    private static long vertical(ChunkNavData c, int sy) {
+        return c == null ? -1 : (sy < 0 ? c.neighborNorth : c.neighborSouth);
+    }
+
+    private static final class PortalEdge {
+        final int px, py, prox, destIdx, ex, ey;
+        PortalEdge(int px, int py, int prox, int destIdx, int ex, int ey) {
+            this.px = px; this.py = py; this.prox = prox; this.destIdx = destIdx; this.ex = ex; this.ey = ey;
+        }
+    }
+
+    /** Binary min-heap of (f, node) packed into longs; f >= 0, so its float bits sort like the float. */
+    private static final class LongHeap {
+        private long[] a = new long[1024];
+        private int n = 0;
+
+        boolean isEmpty() { return n == 0; }
+
+        void push(float f, int node) {
+            long key = ((long) Float.floatToRawIntBits(f) << 32) | (node & 0xffffffffL);
+            if (n == a.length) a = Arrays.copyOf(a, n * 2);
+            int i = n++;
+            while (i > 0) {
+                int p = (i - 1) >>> 1;
+                if (a[p] <= key) break;
+                a[i] = a[p];
+                i = p;
+            }
+            a[i] = key;
+        }
+
+        int popNode() {
+            long top = a[0];
+            long last = a[--n];
+            int i = 0;
+            while (true) {
+                int l = 2 * i + 1;
+                if (l >= n) break;
+                int r = l + 1;
+                int c = (r < n && a[r] < a[l]) ? r : l;
+                if (a[c] >= last) break;
+                a[i] = a[c];
+                i = c;
+            }
+            if (n > 0) a[i] = last;
+            return (int) top;
+        }
     }
 
     /**
@@ -129,270 +455,7 @@ public class UnifiedTilePathfinder {
         return worldTile.mul(haven.MCache.tilesz).add(haven.MCache.tilehsz);
     }
 
-    /**
-     * Find a path from a starting tile to a target tile.
-     * Both tiles are specified as (chunkGridId, localCoord).
-     *
-     * @return UnifiedPath containing the complete tile-level path, or null if no path exists
-     */
-    public UnifiedPath findPath(long startChunkId, Coord startLocal, long targetChunkId, Coord targetLocal) {
-        // System.out.println("[UnifiedTilePathfinder] findPath called:");
-        // System.out.println("  - Start: chunk " + startChunkId + " local " + startLocal);
-        // System.out.println("  - Target: chunk " + targetChunkId + " local " + targetLocal);
 
-        if (startChunkId == targetChunkId && startLocal.equals(targetLocal)) {
-            // Already at target
-            // System.out.println("[UnifiedTilePathfinder] Already at target!");
-            UnifiedPath path = new UnifiedPath();
-            path.reachable = true;
-            path.steps.add(new TileNode(startChunkId, startLocal));
-            return path;
-        }
-
-        ChunkNavData startChunk = graph.getChunk(startChunkId);
-        ChunkNavData targetChunk = graph.getChunk(targetChunkId);
-
-        if (startChunk == null) {
-            // System.out.println("[UnifiedTilePathfinder] ERROR: Start chunk " + startChunkId + " not in graph!");
-            return null;
-        }
-        if (targetChunk == null) {
-            // System.out.println("[UnifiedTilePathfinder] ERROR: Target chunk " + targetChunkId + " not in graph!");
-            return null;
-        }
-
-        // System.out.println("[UnifiedTilePathfinder] Start chunk info:");
-        // System.out.println("  - Layer: " + startChunk.layer);
-        // System.out.println("  - Neighbors: N=" + startChunk.neighborNorth + " S=" + startChunk.neighborSouth +
-        //                   " E=" + startChunk.neighborEast + " W=" + startChunk.neighborWest);
-        // System.out.println("  - Portals: " + startChunk.portals.size());
-
-        // System.out.println("[UnifiedTilePathfinder] Target chunk info:");
-        // System.out.println("  - Layer: " + targetChunk.layer);
-        // System.out.println("  - Neighbors: N=" + targetChunk.neighborNorth + " S=" + targetChunk.neighborSouth +
-        //                   " E=" + targetChunk.neighborEast + " W=" + targetChunk.neighborWest);
-        // System.out.println("  - Portals: " + targetChunk.portals.size());
-
-        // Check if same layer
-        // if (!startChunk.layer.equals(targetChunk.layer)) {
-        //     System.out.println("[UnifiedTilePathfinder] DIFFERENT LAYERS: " + startChunk.layer + " -> " + targetChunk.layer);
-        // }
-
-        // A* data structures
-        PriorityQueue<AStarNode> openSet = new PriorityQueue<>(Comparator.comparingDouble(n -> n.f));
-        Map<TileNode, AStarNode> allNodes = new HashMap<>();
-        Set<TileNode> closedSet = new HashSet<>();
-
-        // Initialize start node
-        TileNode startTile = new TileNode(startChunkId, startLocal);
-        TileNode targetTile = new TileNode(targetChunkId, targetLocal);
-
-        AStarNode startNode = new AStarNode(startTile);
-        startNode.g = 0;
-        startNode.h = heuristic(startTile, targetTile);
-        startNode.f = startNode.g + startNode.h;
-
-        openSet.add(startNode);
-        allNodes.put(startTile, startNode);
-
-        int iterations = 0;
-        int maxIterations = 500000; // Safety limit - increased for large maps
-
-        // Track unique chunks explored for diagnostics
-        Set<Long> chunksExplored = new HashSet<>();
-
-        // System.out.println("[UnifiedTilePathfinder] Starting A* search...");
-        // long searchStartTime = System.currentTimeMillis();
-
-        while (!openSet.isEmpty() && iterations < maxIterations) {
-            if (Thread.currentThread().isInterrupted()) {
-                return null;
-            }
-            iterations++;
-
-            AStarNode current = openSet.poll();
-            chunksExplored.add(current.tile.chunkId);
-
-            if (current.tile.equals(targetTile)) {
-                return reconstructPath(current);
-            }
-
-            closedSet.add(current.tile);
-
-            // Expand neighbors
-            List<TileNode> neighbors = getNeighbors(current.tile);
-
-            for (TileNode neighborTile : neighbors) {
-                if (closedSet.contains(neighborTile)) {
-                    continue;
-                }
-
-                // Calculate cost to neighbor
-                double tentativeG = current.g + moveCost(current.tile, neighborTile);
-
-                AStarNode neighborNode = allNodes.get(neighborTile);
-                if (neighborNode == null) {
-                    neighborNode = new AStarNode(neighborTile);
-                    neighborNode.g = Double.MAX_VALUE;
-                    allNodes.put(neighborTile, neighborNode);
-                }
-
-                if (tentativeG < neighborNode.g) {
-                    neighborNode.parent = current;
-                    neighborNode.viaPortalFromParent = neighborTile.viaPortal;  // Store how we got here
-                    neighborNode.g = tentativeG;
-                    neighborNode.h = heuristic(neighborTile, targetTile);
-                    neighborNode.f = neighborNode.g + neighborNode.h;
-
-                    if (!openSet.contains(neighborNode)) {
-                        openSet.add(neighborNode);
-                    }
-                }
-            }
-        }
-
-        // Path not found
-        // Path not found
-
-        return null;
-    }
-
-    /**
-     * Get all walkable neighbors of a tile.
-     * This includes:
-     * 1. Adjacent tiles in the same chunk
-     * 2. Tiles in adjacent chunks (edge crossings)
-     * 3. Portal destinations
-     */
-    private List<TileNode> getNeighbors(TileNode tile) {
-        List<TileNode> neighbors = new ArrayList<>();
-
-        ChunkNavData chunk = graph.getChunk(tile.chunkId);
-        if (chunk == null) return neighbors;
-
-        int x = tile.localCoord.x;
-        int y = tile.localCoord.y;
-
-        // 8-directional movement within chunk
-        int[][] dirs = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
-
-        for (int[] dir : dirs) {
-            int nx = x + dir[0];
-            int ny = y + dir[1];
-
-            if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE) {
-                // Same chunk - check tile walkability (any of 2x2 cells walkable)
-                if (isTileWalkable(chunk, nx, ny)) {
-                    neighbors.add(new TileNode(tile.chunkId, new Coord(nx, ny)));
-                }
-            } else {
-                // Edge crossing - find adjacent chunk
-                TileNode crossedTile = getCrossChunkTile(chunk, nx, ny);
-                if (crossedTile != null) {
-                    neighbors.add(crossedTile);
-                }
-            }
-        }
-
-        // Portal connections
-        boolean chunkExcluded = !excludedPortalChunks.isEmpty() && excludedPortalChunks.contains(tile.chunkId);
-        for (ChunkPortal portal : chunk.portals) {
-            if (portal.localCoord != null && portal.connectsToGridId != -1) {
-                double dist = tile.localCoord.dist(portal.localCoord);
-                // Building exteriors use larger proximity (6 tiles vs 2)
-                int portalProximity = ChunkPortal.isBuildingExterior(portal.gobName) ? 6 : 2;
-                if (dist <= portalProximity) {
-                    if (chunkExcluded) continue;
-
-                    ChunkNavData destChunk = graph.getChunk(portal.connectsToGridId);
-                    if (destChunk != null) {
-                        // Validate portal type vs target layer
-                        if (!isPortalTargetLayerValid(portal.type, destChunk.layer)) {
-                            continue; // Stale connection - skip
-                        }
-                        Coord exitCoord = findPortalExitCoord(destChunk, portal, tile.chunkId);
-                        if (exitCoord != null) {
-                            neighbors.add(new TileNode(portal.connectsToGridId, exitCoord, true));
-                        }
-                    }
-                }
-            }
-        }
-
-        return neighbors;
-    }
-
-    /**
-     * Get a tile in an adjacent chunk when crossing an edge.
-     * Uses neighbor relationships (persistent) instead of gridCoord (session-based).
-     * All coordinates are in tile space (0-99).
-     */
-    private TileNode getCrossChunkTile(ChunkNavData fromChunk, int nx, int ny) {
-        // Determine which direction we're crossing and find neighbor
-        int newX = nx, newY = ny;
-        long neighborId = -1;
-
-        if (nx < 0) {
-            neighborId = fromChunk.neighborWest;
-            newX = CHUNK_SIZE - 1;
-        } else if (nx >= CHUNK_SIZE) {
-            neighborId = fromChunk.neighborEast;
-            newX = 0;
-        }
-
-        if (ny < 0) {
-            // If also crossing horizontally, this is diagonal - need to handle specially
-            if (neighborId != -1) {
-                // Diagonal crossing - get the diagonal neighbor through corner
-                // For simplicity, prefer horizontal then vertical
-                ChunkNavData horzNeighbor = graph.getChunk(neighborId);
-                if (horzNeighbor != null) {
-                    neighborId = horzNeighbor.neighborNorth;
-                }
-            } else {
-                neighborId = fromChunk.neighborNorth;
-            }
-            newY = CHUNK_SIZE - 1;
-        } else if (ny >= CHUNK_SIZE) {
-            if (neighborId != -1) {
-                ChunkNavData horzNeighbor = graph.getChunk(neighborId);
-                if (horzNeighbor != null) {
-                    neighborId = horzNeighbor.neighborSouth;
-                }
-            } else {
-                neighborId = fromChunk.neighborSouth;
-            }
-            newY = 0;
-        }
-
-        if (neighborId == -1) return null;
-
-        ChunkNavData neighborChunk = graph.getChunk(neighborId);
-        if (neighborChunk == null) return null;
-
-        // Must be same layer
-        if (!fromChunk.layer.equals(neighborChunk.layer)) return null;
-
-        // Must be same known instance (prevents cross-instance walking)
-        if (fromChunk.instanceId == 0 || neighborChunk.instanceId == 0) return null;
-        if (fromChunk.instanceId != neighborChunk.instanceId) return null;
-
-        // Check if target tile is walkable (any of 2x2 cells)
-        if (isTileWalkable(neighborChunk, newX, newY)) {
-            return new TileNode(neighborChunk.gridId, new Coord(newX, newY));
-        }
-
-        return null;
-    }
-
-    /**
-     * Find the exit coordinate when arriving through a portal.
-     * Returns a walkable tile near the matching exit portal.
-     *
-     * @param destChunk The destination chunk we're entering
-     * @param entryPortal The portal we're using to enter
-     * @param sourceChunkId The chunk we're coming FROM (to verify reverse connection)
-     */
     private Coord findPortalExitCoord(ChunkNavData destChunk, ChunkPortal entryPortal, long sourceChunkId) {
         // BEST: Use stored exit coordinate if available (recorded during traversal)
         // This handles all cases including multiple identical portals (e.g., 2 mineholes to same mine)
@@ -462,7 +525,7 @@ public class UnifiedTilePathfinder {
         // Check the target itself first
         if (target.x >= 0 && target.x < CHUNK_SIZE &&
             target.y >= 0 && target.y < CHUNK_SIZE &&
-            isTileWalkable(chunk, target.x, target.y)) {
+            AreaGoalSet.isTileWalkable(chunk, target.x, target.y)) {
             return target;
         }
 
@@ -473,7 +536,7 @@ public class UnifiedTilePathfinder {
                 int nx = target.x + dir[0] * radius;
                 int ny = target.y + dir[1] * radius;
                 if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE) {
-                    if (isTileWalkable(chunk, nx, ny)) {
+                    if (AreaGoalSet.isTileWalkable(chunk, nx, ny)) {
                         return new Coord(nx, ny);
                     }
                 }
@@ -481,204 +544,6 @@ public class UnifiedTilePathfinder {
         }
 
         return null;
-    }
-
-    /**
-     * Heuristic function for A* - estimates distance between two tiles.
-     * Uses chunk-aware distance calculation.
-     * IMPORTANT: gridCoord and worldTileOrigin are session-based and may be null
-     * for chunks loaded from save files. Use neighbor-based estimation as fallback.
-     */
-    private double heuristic(TileNode from, TileNode to) {
-        if (from.chunkId == to.chunkId) {
-            // Same chunk - simple Euclidean distance
-            return from.localCoord.dist(to.localCoord);
-        }
-
-        // Different chunks
-        ChunkNavData fromChunk = graph.getChunk(from.chunkId);
-        ChunkNavData toChunk = graph.getChunk(to.chunkId);
-
-        if (fromChunk == null || toChunk == null) {
-            return 1000.0; // Unknown chunk
-        }
-
-        // Check if same layer - if not, add portal traversal cost estimate
-        if (!fromChunk.layer.equals(toChunk.layer)) {
-            int depth = getPortalPathDepth(fromChunk, toChunk, new HashSet<>());
-            if (depth == -1) {
-                return 999999.0; // Dead end - this building doesn't connect to target
-            }
-            return 100.0 + (depth - 1) * 400.0;
-        }
-
-        // Check if different instances on same layer
-        if (fromChunk.instanceId != 0 && toChunk.instanceId != 0
-                && fromChunk.instanceId != toChunk.instanceId) {
-            int depth = getPortalPathDepth(fromChunk, toChunk, new HashSet<>());
-            if (depth == -1) return 999999.0;
-            return 100.0 + (depth - 1) * 400.0;
-        }
-
-        // Try world coordinates if both chunks have been seen this session
-        // ONLY valid when chunks are in the same instance
-        if (fromChunk.worldTileOrigin != null && toChunk.worldTileOrigin != null) {
-            Coord fromWorld = fromChunk.worldTileOrigin.add(from.localCoord);
-            Coord toWorld = toChunk.worldTileOrigin.add(to.localCoord);
-            return fromWorld.dist(toWorld);
-        }
-
-        // Fallback: estimate based on neighbor-based distance
-        // BFS to find shortest path through neighbor relationships
-        int neighborDist = getNeighborDistance(from.chunkId, to.chunkId);
-        if (neighborDist >= 0) {
-            // Each chunk is CHUNK_SIZE tiles, estimate walking across half of each
-            Coord chunkCenter = new Coord(CHUNK_SIZE / 2, CHUNK_SIZE / 2);
-            return neighborDist * CHUNK_SIZE + from.localCoord.dist(chunkCenter) + to.localCoord.dist(chunkCenter);
-        }
-
-        // No path through neighbors - might need portal
-        // Return large but not infinite estimate
-        return 5000.0;
-    }
-
-    /**
-     * Get shortest path distance between chunks using neighbor relationships.
-     * Returns number of chunks to traverse, or -1 if not connected through neighbors.
-     */
-    private int getNeighborDistance(long fromChunkId, long toChunkId) {
-        if (fromChunkId == toChunkId) return 0;
-
-        // BFS through neighbor relationships
-        Map<Long, Integer> visited = new HashMap<>();
-        Queue<Long> queue = new LinkedList<>();
-        queue.add(fromChunkId);
-        visited.put(fromChunkId, 0);
-
-        while (!queue.isEmpty()) {
-            long current = queue.poll();
-            int dist = visited.get(current);
-
-            // Limit search depth to avoid expensive searches
-            if (dist > 20) continue;
-
-            ChunkNavData chunk = graph.getChunk(current);
-            if (chunk == null) continue;
-
-            long[] neighbors = {chunk.neighborNorth, chunk.neighborSouth, chunk.neighborEast, chunk.neighborWest};
-            for (long neighbor : neighbors) {
-                if (neighbor == -1) continue;
-                if (neighbor == toChunkId) return dist + 1;
-                if (!visited.containsKey(neighbor)) {
-                    visited.put(neighbor, dist + 1);
-                    queue.add(neighbor);
-                }
-            }
-        }
-
-        return -1; // Not connected through neighbors
-    }
-
-    /**
-     * Get the minimum number of portal hops needed to reach toChunk from fromChunk.
-     * Returns -1 if unreachable, 1 for direct connection, 2+ for paths through other chunks.
-     * Used to heavily penalize paths that go through unnecessary buildings.
-     */
-    private int getPortalPathDepth(ChunkNavData fromChunk, ChunkNavData toChunk, Set<Long> visited) {
-        if (fromChunk.gridId == toChunk.gridId) {
-            return 0;
-        }
-
-        if (visited.contains(fromChunk.gridId)) {
-            return -1; // Already visited, avoid cycles
-        }
-        visited.add(fromChunk.gridId);
-
-        int minDepth = -1;
-
-        // Check all portals from this chunk
-        for (ChunkPortal portal : fromChunk.portals) {
-            if (portal.connectsToGridId == -1) continue;
-
-            // Validate portal type vs target layer (skip stale connections)
-            ChunkNavData targetChunk = graph.getChunk(portal.connectsToGridId);
-            if (targetChunk != null && !isPortalTargetLayerValid(portal.type, targetChunk.layer)) {
-                continue;
-            }
-
-            if (portal.connectsToGridId == toChunk.gridId) {
-                return 1; // Direct connection - best case
-            }
-
-            // Recursively check connected chunks (limit depth to avoid long searches)
-            if (visited.size() < 10) {
-                ChunkNavData nextChunk = targetChunk;
-                if (nextChunk != null) {
-                    int subDepth = getPortalPathDepth(nextChunk, toChunk, new HashSet<>(visited));
-                    if (subDepth != -1) {
-                        int totalDepth = 1 + subDepth;
-                        if (minDepth == -1 || totalDepth < minDepth) {
-                            minDepth = totalDepth;
-                        }
-                    }
-                }
-            }
-        }
-
-        return minDepth;
-    }
-
-    /**
-     * Calculate movement cost between two tiles.
-     */
-    private double moveCost(TileNode from, TileNode to) {
-        if (from.chunkId == to.chunkId) {
-            // Same chunk - distance-based cost
-            return from.localCoord.dist(to.localCoord);
-        }
-
-        // Cross-chunk movement
-        ChunkNavData fromChunk = graph.getChunk(from.chunkId);
-        ChunkNavData toChunk = graph.getChunk(to.chunkId);
-
-        if (fromChunk != null && toChunk != null) {
-            if (!fromChunk.layer.equals(toChunk.layer)) {
-                // Portal traversal - use config cost
-                return ChunkNavConfig.PORTAL_TRAVERSAL_COST;
-            }
-        }
-
-        // Edge crossing - small cost
-        return 1.5;
-    }
-
-    /**
-     * Reconstruct the path from the goal node back to the start.
-     */
-    private UnifiedPath reconstructPath(AStarNode goalNode) {
-        UnifiedPath path = new UnifiedPath();
-        path.reachable = true;
-
-        List<TileNode> reversePath = new ArrayList<>();
-        AStarNode current = goalNode;
-
-        while (current != null) {
-            // Create TileNode with correct viaPortal based on how we got to this node
-            TileNode tileWithPortalInfo = new TileNode(
-                current.tile.chunkId,
-                current.tile.localCoord,
-                current.viaPortalFromParent
-            );
-            reversePath.add(tileWithPortalInfo);
-            current = current.parent;
-        }
-
-        // Reverse to get start-to-goal order
-        Collections.reverse(reversePath);
-        path.steps.addAll(reversePath);
-        path.cost = goalNode.g;
-
-        return path;
     }
 
     /**
@@ -719,32 +584,16 @@ public class UnifiedTilePathfinder {
     }
 
     /**
-     * A* node wrapper.
-     */
-    private static class AStarNode {
-        TileNode tile;
-        AStarNode parent;
-        boolean viaPortalFromParent;  // True if this node was reached via portal from parent
-        double g; // Cost from start
-        double h; // Heuristic to goal
-        double f; // Total (g + h)
-
-        AStarNode(TileNode tile) {
-            this.tile = tile;
-            this.g = Double.MAX_VALUE;
-            this.h = 0;
-            this.f = Double.MAX_VALUE;
-            this.viaPortalFromParent = false;
-        }
-    }
-
-    /**
      * Result of unified pathfinding.
      */
     public static class UnifiedPath {
         public boolean reachable = false;
         public List<TileNode> steps = new ArrayList<>();
         public double cost = 0;
+        /** Which goal set the path reached ({@link UnifiedTilePathfinder#findNearest}); 0 for a single goal. */
+        public int goalIndex = -1;
+        /** Nodes the search popped to find it. */
+        public int pops = 0;
 
         public boolean isEmpty() {
             return steps.isEmpty();

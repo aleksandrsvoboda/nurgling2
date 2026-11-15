@@ -8,7 +8,6 @@ import nurgling.actions.OpenTargetContainer;
 import nurgling.actions.PathFinder;
 import nurgling.navigation.AreaNavigationHelper;
 import nurgling.navigation.ChunkNavManager;
-import nurgling.navigation.ChunkPath;
 import nurgling.tasks.NTask;
 import nurgling.tools.*;
 import nurgling.tools.Container;
@@ -1160,10 +1159,9 @@ public class NContext {
             return;
         HashMap<Double,NArea> best = new HashMap<>();
         HashMap<Double,Double> bestDist = new HashMap<>();
+        List<NArea> cands = new ArrayList<>();
         for(Integer id : gui.map.nols.keySet())
         {
-            if(Thread.currentThread().isInterrupted())
-                break;
             if(id <= 0)
                 continue;
             NArea cand = gui.map.glob.map.areas.get(id);
@@ -1171,7 +1169,13 @@ public class NContext {
                 continue;
             if(excludedOutAreaId != null && cand.id == excludedOutAreaId)
                 continue;
-            double dist = getDistanceToArea(cand, gui);
+            cands.add(cand);
+        }
+        double[] dists = costsToAreas(cands, gui);
+        for(int i = 0; i < cands.size(); i++)
+        {
+            NArea cand = cands.get(i);
+            double dist = dists[i];
             if(dist == Double.MAX_VALUE)
                 continue;
             Double key = Math.abs((double)cand.getOutput(name).th);
@@ -1400,37 +1404,33 @@ public class NContext {
     }
 
     /**
-     * Calculate distance to an area using ChunkNav if available, falling back to RouteGraph.
-     * Returns Double.MAX_VALUE if area is unreachable.
+     * Walking distance to an area by chunk navigation. Returns Double.MAX_VALUE if area is unreachable.
      */
     private static double getDistanceToArea(NArea area, NGameUI gui) {
-        if (gui == null || gui.map == null) {
-            return Double.MAX_VALUE;
-        }
+        return AreaNavigationHelper.costTo(area, gui);
+    }
 
-        // Try ChunkNav first - plan paths to all 4 corners and pick shortest
-        if (gui.map instanceof NMapView) {
-            ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
-            if (chunkNav != null && chunkNav.isInitialized()) {
-                // Quick check: skip areas with no chunk-level path from player
-                if (!chunkNav.isAreaReachableByChunks(area)) {
-                    return Double.MAX_VALUE;
-                }
-                try {
-                    // Use AreaNavigationHelper to find shortest path to any of the 4 corners
-                    ChunkPath path = AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
-                    if (path != null) {
-                        // ChunkNav has a path - use its cost
-                        return path.totalCost;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return Double.MAX_VALUE;
-                }
-            }
+    /** Walking distance to each candidate (same order), Double.MAX_VALUE where unreachable; one batch. */
+    private static double[] costsToAreas(List<NArea> cands, NGameUI gui) {
+        ChunkNavManager chunkNav = chunkNav(gui);
+        if (chunkNav == null) {
+            double[] none = new double[cands.size()];
+            java.util.Arrays.fill(none, Double.MAX_VALUE);
+            return none;
         }
+        return chunkNav.costsToAreas(cands);
+    }
 
-        return Double.MAX_VALUE;
+    /** The reachable candidate that is cheapest to walk to (one search over all of them), or null. */
+    private static NArea nearestArea(List<NArea> cands, NGameUI gui) {
+        ChunkNavManager chunkNav = chunkNav(gui);
+        return chunkNav == null ? null : chunkNav.nearestArea(cands);
+    }
+
+    private static ChunkNavManager chunkNav(NGameUI gui) {
+        if (gui == null || !(gui.map instanceof NMapView)) return null;
+        ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
+        return (chunkNav != null && chunkNav.isInitialized()) ? chunkNav : null;
     }
 
     /**
@@ -1448,51 +1448,36 @@ public class NContext {
     }
 
     public static NArea findInGlobal(NAlias name) {
-        double dist = Double.MAX_VALUE;
-        NArea res = null;
         NGameUI gui = NUtils.getGameUI();
-        if (gui != null && gui.map != null) {
-            Set<Integer> nids = gui.map.nols.keySet();
-            for (Integer id : nids) {
-                if (id > 0) {
-                    NArea cand = gui.map.glob.map.areas.get(id);
-                    if (cand != null && !cand.isDisabled() && cand.containIn(name)) {
-                        double candDist = getDistanceToArea(cand, gui);
-                        if (candDist < dist) {
-                            res = cand;
-                            dist = candDist;
-                        }
-                    }
-                }
+        if (gui == null || gui.map == null) return null;
+        List<NArea> cands = new ArrayList<>();
+        for (Integer id : gui.map.nols.keySet()) {
+            if (id > 0) {
+                NArea cand = gui.map.glob.map.areas.get(id);
+                if (cand != null && !cand.isDisabled() && cand.containIn(name))
+                    cands.add(cand);
             }
         }
-        return res;
+        return nearestArea(cands, gui);
     }
 
     public static NArea findSpecGlobal(String name, String sub) {
-        double dist = Double.MAX_VALUE;
-        NArea target = null;
         NGameUI gui = NUtils.getGameUI();
-        if (gui != null && gui.map != null) {
-            Set<Integer> nids = gui.map.nols.keySet();
-            for (Integer id : nids) {
-                if (id > 0) {
-                    NArea area = gui.map.glob.map.areas.get(id);
-                    if (area == null || area.isDisabled()) continue;
-                    for (NArea.Specialisation s : area.spec) {
-                        if (s.name.equals(name) && ((sub == null || sub.isEmpty()) || (s.subtype != null && s.subtype.equalsIgnoreCase(sub)))) {
-                            double candDist = getDistanceToArea(area, gui);
-                            if (candDist < dist) {
-                                target = area;
-                                dist = candDist;
-                            }
-                            break; // Found matching spec, no need to check other specs for same area
-                        }
+        if (gui == null || gui.map == null) return null;
+        List<NArea> cands = new ArrayList<>();
+        for (Integer id : gui.map.nols.keySet()) {
+            if (id > 0) {
+                NArea area = gui.map.glob.map.areas.get(id);
+                if (area == null || area.isDisabled()) continue;
+                for (NArea.Specialisation s : area.spec) {
+                    if (s.name.equals(name) && ((sub == null || sub.isEmpty()) || (s.subtype != null && s.subtype.equalsIgnoreCase(sub)))) {
+                        cands.add(area);
+                        break; // Found matching spec, no need to check other specs for same area
                     }
                 }
             }
         }
-        return target;
+        return nearestArea(cands, gui);
     }
 
     public static NArea findSpecGlobal(NArea.Specialisation spec) {
@@ -1506,19 +1491,22 @@ public class NContext {
     public static NArea findOutGlobal(String name, double th, NGameUI gui) {
         NArea res = null;
         ArrayList<TestedArea> areas = new ArrayList<>();
+        Map<NArea, Double> distOf = new HashMap<>();
         if (gui != null && gui.map != null) {
-            Set<Integer> nids = gui.map.nols.keySet();
-            for (Integer id : nids) {
-                if (Thread.currentThread().isInterrupted()) break;
+            List<NArea> cands = new ArrayList<>();
+            for (Integer id : gui.map.nols.keySet()) {
                 if (id > 0) {
                     NArea cand = gui.map.glob.map.areas.get(id);
-                    if (cand != null && !cand.isDisabled() && cand.containOut(name)) {
-                        // Check reachability using ChunkNav or RouteGraph
-                        double dist = getDistanceToArea(cand, gui);
-                        if (dist < Double.MAX_VALUE) {
-                            areas.add(new TestedArea(cand, cand.getOutput(name).th));
-                        }
-                    }
+                    if (cand != null && !cand.isDisabled() && cand.containOut(name))
+                        cands.add(cand);
+                }
+            }
+            double[] dists = costsToAreas(cands, gui);
+            for (int i = 0; i < cands.size(); i++) {
+                if (dists[i] < Double.MAX_VALUE) {
+                    NArea cand = cands.get(i);
+                    distOf.put(cand, dists[i]);
+                    areas.add(new TestedArea(cand, cand.getOutput(name).th));
                 }
             }
         }
@@ -1544,8 +1532,7 @@ public class NContext {
         if (targets.size() > 1) {
             double bestDist = Double.MAX_VALUE;
             for (NArea test : targets) {
-                if (Thread.currentThread().isInterrupted()) break;
-                double dist = getDistanceToArea(test, gui);
+                double dist = distOf.getOrDefault(test, Double.MAX_VALUE);
                 if (dist < bestDist) {
                     res = test;
                     bestDist = dist;
@@ -1686,7 +1673,7 @@ public class NContext {
 
     /**
      * Find all areas with a specific specialization and optional subtype.
-     * Uses ChunkNav distance when available, falling back to route graph.
+     * Uses ChunkNav walking distance; unreachable areas are left out.
      * Returns list of areas sorted by distance from player.
      */
     public static ArrayList<NArea> findAllSpec(String name, String subtype) {
@@ -1695,8 +1682,8 @@ public class NContext {
         NGameUI gui = NUtils.getGameUI();
 
         if (gui != null && gui.map != null) {
-            Set<Integer> nids = gui.map.nols.keySet();
-            for (Integer id : nids) {
+            List<NArea> cands = new ArrayList<>();
+            for (Integer id : gui.map.nols.keySet()) {
                 if (id > 0) {
                     NArea area = gui.map.glob.map.areas.get(id);
                     if (area != null && !area.isDisabled()) {
@@ -1705,16 +1692,17 @@ public class NContext {
                             boolean subtypeMatch = (subtype == null || subtype.isEmpty()) ||
                                 (s.subtype != null && s.subtype.equalsIgnoreCase(subtype));
                             if (nameMatch && subtypeMatch) {
-                                // Check if area is reachable using ChunkNav or RouteGraph
-                                double dist = getDistanceToArea(area, gui);
-                                if (dist < Double.MAX_VALUE) {
-                                    areaDistances.put(area, dist);
-                                }
+                                cands.add(area);
                                 break; // Don't check other specs for same area
                             }
                         }
                     }
                 }
+            }
+            double[] dists = costsToAreas(cands, gui);
+            for (int i = 0; i < cands.size(); i++) {
+                if (dists[i] < Double.MAX_VALUE)
+                    areaDistances.put(cands.get(i), dists[i]);
             }
         }
 

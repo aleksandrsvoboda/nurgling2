@@ -1,340 +1,120 @@
 package nurgling.navigation;
 
 import haven.Coord2d;
+import haven.Gob;
+import haven.MCache;
 import haven.Pair;
+import nurgling.NGameUI;
 import nurgling.NMapView;
-import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
-import nurgling.sessions.ThreadLocalUI;
 
 /**
- * Helper utilities for area navigation.
- * Provides methods for checking area reachability and finding optimal paths to area corners.
+ * Getting to an area: the nearest way in, from whichever side is cheapest.
+ *
+ * One chunk-navigation search to the area's edge ({@link ChunkNavPlanner#planToArea}) decides where to go. When
+ * that route stays on loaded grids without portals, one local {@link PathFinder} walks there; otherwise the chunk
+ * navigation executor walks it. When the area is loaded but the recorded map finds no local route (a closed gate
+ * the local pathfinder can open, a fresher obstacle), one local pathfinder attempt to the nearest point of the area
+ * is the backstop.
  */
 public class AreaNavigationHelper {
-    
+
     /**
-     * Get the 4 corners of an area as Coord2d array.
-     * First tries live getRCArea(), then falls back to stored ChunkNav data.
-     * @return array of 4 corners [top-left, bottom-right, bottom-left, top-right], or null if area bounds unavailable
+     * Navigate to an area.
+     *
+     * @param ensurePresence false: if the area is already within local reach, return true without walking (its
+     *                       storages are in range). true: always end up at the area, e.g. so all of its grids are
+     *                       streamed in before choosing a drop cell.
+     * @return true when at (or, without ensurePresence, within local reach of) the area
      */
-    public static Coord2d[] getAreaCorners(NArea area) {
-        if (area == null) {
-            return null;
-        }
-        
-        // Try live getRCArea() first (works when area is visible)
-        Pair<Coord2d, Coord2d> rcArea = area.getRCArea();
-        
-        if (rcArea == null) {
-            // Fallback: try to get from stored ChunkNav data
-            rcArea = getAreaCornersFromStoredData(area);
-        }
-        
-        if (rcArea == null) {
-            return null;
-        }
-        
-        return new Coord2d[] {
-            rcArea.a,                                        // top-left
-            rcArea.b,                                        // bottom-right
-            Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
-            Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
-        };
-    }
-    
-    /**
-     * Get area bounds from stored ChunkNav data when area is not visible.
-     * Uses worldTileOrigin from recorded chunks to calculate world coordinates.
-     */
-    private static Pair<Coord2d, Coord2d> getAreaCornersFromStoredData(NArea area) {
-        if (area == null) {
-            return null;
-        }
-        if (area.space == null || area.space.space == null || area.space.space.isEmpty()) {
-            return null;
-        }
-        
-        try {
-            // Get ChunkNavManager
-            if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null) {
-                return null;
-            }
-            
-            NMapView mapView = (NMapView) NUtils.getGameUI().map;
-            ChunkNavManager chunkNav = mapView.getChunkNavManager();
-            if (chunkNav == null || !chunkNav.isInitialized()) {
-                return null;
-            }
-            
-            ChunkNavGraph graph = chunkNav.getGraph();
-            if (graph == null) {
-                return null;
-            }
-            
-            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
-            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-            int foundChunks = 0;
-            
-            for (java.util.Map.Entry<Long, NArea.VArea> entry : area.space.space.entrySet()) {
-                long gridId = entry.getKey();
-                NArea.VArea varea = entry.getValue();
-                
-                if (varea == null || varea.area == null) {
-                    continue;
-                }
-                
-                // Try to get worldTileOrigin from stored chunk data
-                ChunkNavData chunk = graph.getChunk(gridId);
-                if (chunk == null || chunk.worldTileOrigin == null) {
-                    continue;
-                }
-                
-                // Calculate world tile coordinates
-                haven.Coord ul = chunk.worldTileOrigin.add(varea.area.ul);
-                haven.Coord br = chunk.worldTileOrigin.add(varea.area.br);
-                
-                minX = Math.min(minX, ul.x);
-                minY = Math.min(minY, ul.y);
-                maxX = Math.max(maxX, br.x);
-                maxY = Math.max(maxY, br.y);
-                foundChunks++;
-            }
-            
-            if (foundChunks == 0) {
-                return null;
-            }
-            
-            // Convert tile coords to world coords
-            Coord2d begin = new haven.Coord(minX, minY).mul(haven.MCache.tilesz);
-            Coord2d end = new haven.Coord(maxX - 1, maxY - 1).mul(haven.MCache.tilesz).add(haven.MCache.tilesz);
-            
-            return new Pair<>(begin, end);
-            
-        } catch (Exception e) {
-            return null;
-        }
-    }
-    
-    /**
-     * Find the shortest path to any of the 4 corners of an area.
-     * Plans paths to all corners in parallel and returns the shortest one.
-     * Uses planToAreaCorner which works correctly across different layers/areas.
-     */
-    public static ChunkPath findShortestPathToAreaCorners(NArea area, ChunkNavManager chunkNav) throws InterruptedException {
-        if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) {
-            return chunkNav.planToArea(area);
+    public static boolean navigate(NArea area, boolean ensurePresence) throws InterruptedException {
+        if (area == null) return false;
+        NGameUI gui = NUtils.getGameUI();
+        Gob player = NUtils.player();
+        if (gui == null || !(gui.map instanceof NMapView) || player == null) return false;
+
+        Pair<Coord2d, Coord2d> rc = area.getRCArea();   // non-null only while the area is loaded and near
+        if (rc != null && area.checkHit(player.rc)) return true;
+
+        ChunkNavManager nav = ((NMapView) gui.map).getChunkNavManager();
+        boolean navOk = nav != null && nav.isInitialized();
+        ChunkPath path = navOk ? nav.planToArea(area) : null;
+
+        if (path != null && isLocal(path, gui)) {
+            if (!ensurePresence) return true;
+            Coord2d goal = goalWorld(path, gui);
+            if (goal == null || goal.dist(player.rc) < MCache.tilesz.x) return true;
+            if (new PathFinder(goal).run(gui).IsSuccess()) return true;
+            return nav.navigateWithPath(path, area, gui).IsSuccess();
         }
 
-        // Capture current UI for thread-local binding in spawned threads
-        final NUI boundUI = NUtils.getUI();
-
-        // Plan paths to all 4 corners in parallel using planToAreaCorner (gridId + local coords)
-        final ChunkPath[] paths = new ChunkPath[4];
-        Thread[] threads = new Thread[4];
-
-        for (int i = 0; i < 4; i++) {
-            final int idx = i;
-            threads[i] = new Thread(() -> {
-                // Bind thread-local UI so planner uses correct session
-                ThreadLocalUI.set(boundUI);
-                try {
-                    paths[idx] = chunkNav.planToAreaCorner(area, idx);
-                } finally {
-                    ThreadLocalUI.clear();
-                }
-            });
-            threads[i].start();
-        }
-
-        // Wait for all threads — interrupt them if we get interrupted
-        try {
-            for (Thread t : threads) {
-                t.join();
-            }
-        } catch (InterruptedException e) {
-            for (Thread t : threads) {
-                t.interrupt();
-            }
-            throw e;
-        }
-
-        // Find the shortest path
-        ChunkPath bestPath = null;
-        float bestCost = Float.MAX_VALUE;
-
-        for (int i = 0; i < 4; i++) {
-            ChunkPath path = paths[i];
-            if (path != null && path.totalCost < bestCost) {
-                bestPath = path;
-                bestCost = path.totalCost;
+        if (rc != null) {
+            Coord2d target = nearestPoint(rc, player.rc);
+            if (PathFinder.isAvailable(target)) {
+                if (!ensurePresence) return true;
+                if (new PathFinder(target).run(gui).IsSuccess()) return true;
             }
         }
 
-        if (bestPath == null) {
-            return chunkNav.planToArea(area);
-        }
-
-        return bestPath;
+        if (path == null) return false;
+        return nav.navigateWithPath(path, area, gui).IsSuccess();
     }
 
     /**
-     * Check if any corner of the area is reachable via local pathfinding.
-     * 
-     * Two-stage check:
-     * 1. If grid is NOT in MCache (not loaded) → return false immediately, use ChunkNav
-     * 2. If grid IS in MCache → check with PathFinder, return true only if actually reachable
+     * Whether the area can be reached without leaving the loaded grids or using a portal (the old "reachable by
+     * local pathfinding"). One chunk plan, no local map builds; falls back to one local check when the recorded
+     * map has no route.
      */
     public static boolean isAreaReachableByLocalPF(NArea area) throws InterruptedException {
         if (area == null || NUtils.player() == null) return false;
-        
-        // STAGE 1: Check if grid is loaded in MCache
-        // If not loaded → local PF is impossible, must use ChunkNav
-        if (!area.isVisible()) {
-            return false;
+        if (area.getRCArea() == null) return false;
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null || !(gui.map instanceof NMapView)) return false;
+        ChunkNavManager nav = ((NMapView) gui.map).getChunkNavManager();
+        if (nav != null && nav.isInitialized()) {
+            ChunkPath path = nav.planToArea(area);
+            if (path != null && isLocal(path, gui)) return true;
         }
-        
-        // STAGE 2: Grid is in cache, get real coordinates and check with PathFinder
-        Pair<Coord2d, Coord2d> rcArea = area.getRCArea();
-        if (rcArea == null) {
-            return false;
-        }
-        
-        // Get 4 corners from live data
-        Coord2d[] corners = new Coord2d[] {
-            rcArea.a,                                        // top-left
-            rcArea.b,                                        // bottom-right
-            Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
-            Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
-        };
-
-        // Capture current UI for thread-local binding in spawned threads
-        final NUI boundUI = NUtils.getUI();
-
-        // Test all corners in parallel with PathFinder
-        final boolean[] reachable = new boolean[4];
-        Thread[] threads = new Thread[4];
-
-        for (int i = 0; i < 4; i++) {
-            final int idx = i;
-            final Coord2d corner = corners[i];
-            threads[i] = new Thread(() -> {
-                // Bind thread-local UI so PathFinder uses correct session
-                ThreadLocalUI.set(boundUI);
-                try {
-                    reachable[idx] = PathFinder.isAvailable(corner);
-                } catch (InterruptedException e) {
-                    reachable[idx] = false;
-                } finally {
-                    ThreadLocalUI.clear();
-                }
-            });
-            threads[i].start();
-        }
-        
-        // Wait for all threads — interrupt them if we get interrupted
-        try {
-            for (Thread t : threads) {
-                t.join();
-            }
-        } catch (InterruptedException e) {
-            for (Thread t : threads) {
-                t.interrupt();
-            }
-            throw e;
-        }
-
-        // Check if any corner is reachable
-        for (boolean r : reachable) {
-            if (r) return true;
-        }
-
-        return false;
+        return PathFinder.isAvailable(nearestPoint(area.getRCArea(), NUtils.player().rc));
     }
 
-    /**
-     * Find the nearest reachable corner of an area using local pathfinding.
-     * Returns the corner coordinate that has the shortest actual path (not straight-line distance).
-     * @param area The area to find corner for
-     * @return The nearest reachable corner coordinate, or null if none found
-     */
-    public static Coord2d findNearestReachableCorner(NArea area) throws InterruptedException {
-        if (area == null || NUtils.player() == null) return null;
+    /** Walking cost to an area by chunk navigation, Double.MAX_VALUE when unreachable or unavailable. */
+    public static double costTo(NArea area, NGameUI gui) {
+        if (area == null || gui == null || !(gui.map instanceof NMapView)) return Double.MAX_VALUE;
+        ChunkNavManager nav = ((NMapView) gui.map).getChunkNavManager();
+        if (nav == null || !nav.isInitialized()) return Double.MAX_VALUE;
+        return nav.costToArea(area);
+    }
 
-        if (!area.isVisible()) {
-            return null;
+    /** True when every segment is on a currently loaded grid and none is a portal. */
+    static boolean isLocal(ChunkPath path, NGameUI gui) {
+        if (path.segments.isEmpty()) return false;
+        MCache map = gui.map.glob.map;
+        for (ChunkPath.PathSegment seg : path.segments) {
+            if (seg.type == ChunkPath.SegmentType.PORTAL) return false;
+            if (map.findGrid(seg.gridId) == null) return false;
         }
+        return true;
+    }
 
-        Pair<Coord2d, Coord2d> rcArea = area.getRCArea();
-        if (rcArea == null) {
-            return null;
-        }
+    /** World position of the path's last tile, from the live grid. */
+    static Coord2d goalWorld(ChunkPath path, NGameUI gui) {
+        ChunkPath.PathSegment last = path.segments.get(path.segments.size() - 1);
+        if (last.steps.isEmpty()) return null;
+        ChunkPath.TileStep step = last.steps.get(last.steps.size() - 1);
+        MCache.Grid grid = gui.map.glob.map.findGrid(last.gridId);
+        if (grid == null) return step.worldCoord;
+        ChunkNavManager nav = ((NMapView) gui.map).getChunkNavManager();
+        ChunkNavData chunk = nav.getGraph().getChunk(last.gridId);
+        return UnifiedTilePathfinder.findWalkableCellWorldCoord(chunk, step.localCoord.x, step.localCoord.y, grid.ul);
+    }
 
-        // Get 4 corners from live data
-        Coord2d[] corners = new Coord2d[] {
-            rcArea.a,                                        // top-left
-            rcArea.b,                                        // bottom-right
-            Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
-            Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
-        };
-
-        // Capture current UI for thread-local binding in spawned threads
-        final NUI boundUI = NUtils.getUI();
-
-        // Test all corners in parallel and get path costs
-        final double[] pathCosts = new double[4];
-        final boolean[] reachable = new boolean[4];
-        Thread[] threads = new Thread[4];
-
-        for (int i = 0; i < 4; i++) {
-            final int idx = i;
-            final Coord2d corner = corners[i];
-            pathCosts[idx] = Double.MAX_VALUE;
-            reachable[idx] = false;
-
-            threads[i] = new Thread(() -> {
-                // Bind thread-local UI so PathFinder uses correct session
-                ThreadLocalUI.set(boundUI);
-                try {
-                    int cost = PathFinder.getPathCost(corner);
-                    if (cost >= 0) {
-                        pathCosts[idx] = cost;
-                        reachable[idx] = true;
-                    }
-                } catch (InterruptedException e) {
-                    // Leave as unreachable
-                } finally {
-                    ThreadLocalUI.clear();
-                }
-            });
-            threads[i].start();
-        }
-
-        // Wait for all threads — interrupt them if we get interrupted
-        try {
-            for (Thread t : threads) {
-                t.join();
-            }
-        } catch (InterruptedException e) {
-            for (Thread t : threads) {
-                t.interrupt();
-            }
-            throw e;
-        }
-
-        // Find the corner with shortest actual path
-        Coord2d nearestCorner = null;
-        double bestCost = Double.MAX_VALUE;
-
-        for (int i = 0; i < 4; i++) {
-            if (reachable[i] && pathCosts[i] < bestCost) {
-                bestCost = pathCosts[i];
-                nearestCorner = corners[i];
-            }
-        }
-
-        return nearestCorner;
+    /** The point of the rectangle closest to p. */
+    static Coord2d nearestPoint(Pair<Coord2d, Coord2d> rc, Coord2d p) {
+        double x0 = Math.min(rc.a.x, rc.b.x), x1 = Math.max(rc.a.x, rc.b.x);
+        double y0 = Math.min(rc.a.y, rc.b.y), y1 = Math.max(rc.a.y, rc.b.y);
+        return Coord2d.of(Math.max(x0, Math.min(x1, p.x)), Math.max(y0, Math.min(y1, p.y)));
     }
 }

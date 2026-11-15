@@ -877,44 +877,12 @@ public class NUtils
      * in before acting — notably before {@link nurgling.tools.Finder#getFreePlace}
      * chooses a drop cell for a liftable, or when navigating specifically to
      * reload the area's gobs. A half-loaded area yields stale occupancy and the
-     * object would be dropped onto an as-yet-invisible one; walking onto a corner
-     * forces the grids to load. The walk is skipped when already inside the area.
+     * object would be dropped onto an as-yet-invisible one; walking to the area's
+     * nearest edge forces the grids to load. The walk is skipped when already inside the area.
      */
     public static boolean navigateToArea(NArea area, boolean ensurePresence) throws InterruptedException
     {
-        if (area == null) return false;
-
-        if (nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area)) {
-            if (ensurePresence) {
-                Gob player = player();
-                // isAreaReachableByLocalPF has already verified getRCArea() != null,
-                // so checkHit is reliable here — skip the walk when already inside.
-                if (player != null && !area.checkHit(player.rc)) {
-                    Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
-                    if (corner != null) {
-                        new nurgling.actions.PathFinder(corner).run(getGameUI());
-                    }
-                }
-            }
-            return true;
-        }
-
-        // Area is not reachable by local PF, use chunk navigation
-        // Plan to all 4 corners in parallel and choose the shortest path
-        // IMPORTANT: Capture GUI once and reuse to avoid multi-session issues
-        NGameUI currentGui = NUtils.getGameUI();
-        if (currentGui == null || currentGui.map == null) return false;
-
-        ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
-        if (chunkNav != null && chunkNav.isInitialized())
-        {
-            ChunkPath bestPath = nurgling.navigation.AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
-            if (bestPath != null)
-            {
-                return chunkNav.navigateWithPath(bestPath, area, currentGui).IsSuccess();
-            }
-        }
-        return false;
+        return nurgling.navigation.AreaNavigationHelper.navigate(area, ensurePresence);
     }
 
     /**
@@ -971,40 +939,7 @@ public class NUtils
     public static boolean navigateToArea(Specialisation string) throws InterruptedException
     {
         NArea area = NContext.findSpecGlobal(string.toString());
-        if (area == null) return false;
-
-        // Check if any corner of the area is reachable via local pathfinding.
-        // If yes, walk onto a corner so callers can rely on the player actually
-        // being at the area afterwards. isAreaReachableByLocalPF has already
-        // verified getRCArea() != null, so checkHit is reliable here — skip the
-        // walk when the player is already inside the area.
-        if (nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area)) {
-            Gob player = player();
-            if (player != null && !area.checkHit(player.rc)) {
-                Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
-                if (corner != null) {
-                    new nurgling.actions.PathFinder(corner).run(getGameUI());
-                }
-            }
-            return true;
-        }
-
-        // Area is not reachable by local PF, use chunk navigation
-        // Plan to all 4 corners in parallel and choose the shortest path
-        // IMPORTANT: Capture GUI once and reuse to avoid multi-session issues
-        NGameUI currentGui = NUtils.getGameUI();
-        if (currentGui == null || currentGui.map == null) return false;
-
-        ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
-        if (chunkNav != null && chunkNav.isInitialized())
-        {
-            ChunkPath bestPath = nurgling.navigation.AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
-            if (bestPath != null)
-            {
-                return chunkNav.navigateWithPath(bestPath, area, currentGui).IsSuccess();
-            }
-        }
-        return false;
+        return nurgling.navigation.AreaNavigationHelper.navigate(area, true);
     }
 
     public static String getDataFile(String... pathElements){

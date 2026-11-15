@@ -7,9 +7,7 @@ import nurgling.NUtils;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
-import nurgling.navigation.AreaNavigationHelper;
 import nurgling.navigation.ChunkNavManager;
-import nurgling.navigation.ChunkPath;
 import nurgling.tasks.*;
 import nurgling.tools.Finder;
 import nurgling.tools.NAlias;
@@ -489,10 +487,7 @@ public class HoneyAndWaxCollector implements Action {
     }
 
     private double chunkCost(NArea area, ChunkNavManager chunkNav) throws InterruptedException {
-        if (!chunkNav.isAreaReachableByChunks(area))
-            return Double.MAX_VALUE;
-        ChunkPath path = AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
-        return path != null ? path.totalCost : Double.MAX_VALUE;
+        return chunkNav.costToArea(area);
     }
 
     private double straightLineCost(NArea area) {
