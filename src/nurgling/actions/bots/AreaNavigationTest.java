@@ -11,7 +11,6 @@ import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.areas.NArea;
 import nurgling.navigation.ChunkNavManager;
-import nurgling.navigation.legacy.LegacyAreaNav;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -25,36 +24,31 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Area-to-area navigation test, with an A/B mode comparing the old four-corner navigation (A) with the current
- * edge navigation (B) on the same legs.
+ * Area-to-area navigation test.
  *
  * From where the character stands it picks reachable areas (recorded and with a real chunk-navigation route,
  * spread from near to far up to maxCostTiles) and unavailable ones (no portal link to them, walled off, or never
- * visited). It tours the reachable ones in several orders, with the unavailable ones mixed in; in "ab" mode every
- * order runs twice, A,B,A,B... then B,A,B,A..., so each leg is walked by both. Unavailable legs must fail, quickly
- * and without wandering off.
+ * visited). It tours the reachable ones in three orders (forward, reverse, shuffled), with the unavailable ones
+ * mixed in. Unavailable legs must fail, quickly and without wandering off.
  *
  * Per leg it logs: time until the character starts moving, total time, result, distance from the area's edge at the
- * end, and how far the character moved. CSV goes to the client data dir under nav_ab/.
+ * end, and how far the character moved. CSV goes to the client data dir under nav_test/.
  */
-public class NavigationABTest implements Action {
+public class AreaNavigationTest implements Action {
     private final int reachableCount;
     private final int unavailableCount;
     private final double maxCostTiles;
     private final long seed;
-    private final String mode;   // "ab", "a" or "b"
 
-    public NavigationABTest() {
+    public AreaNavigationTest() {
         this(Collections.emptyMap());
     }
 
-    public NavigationABTest(Map<String, Object> settings) {
+    public AreaNavigationTest(Map<String, Object> settings) {
         reachableCount = intOf(settings, "reachable", 5);
         unavailableCount = intOf(settings, "unavailable", 3);
         maxCostTiles = intOf(settings, "maxCostTiles", 600);
         seed = intOf(settings, "seed", 20261114);
-        Object m = settings == null ? null : settings.get("mode");
-        mode = m == null ? "ab" : m.toString().toLowerCase(Locale.ROOT);
     }
 
     private static int intOf(Map<String, Object> s, String k, int def) {
@@ -71,8 +65,6 @@ public class NavigationABTest implements Action {
 
     private static final class Leg {
         String order;
-        int pass;
-        String sys;
         NArea target;
         boolean expectReach;
         String kind;
@@ -93,9 +85,9 @@ public class NavigationABTest implements Action {
         List<String> unavailableKinds = new ArrayList<>();
         pickAreas(gui, nav, reachable, unavailable, unavailableKinds, rnd);
         if (reachable.size() < 2) return Results.ERROR("Found fewer than 2 reachable areas within " + (int) maxCostTiles + " tiles");
-        gui.msg("Nav A/B: " + reachable.size() + " reachable, " + unavailable.size() + " unavailable areas, mode " + mode);
-        System.out.println("[NavAB] reachable: " + describe(reachable));
-        System.out.println("[NavAB] unavailable: " + describe(unavailable) + " " + unavailableKinds);
+        gui.msg("Nav test: " + reachable.size() + " reachable, " + unavailable.size() + " unavailable areas");
+        System.out.println("[NavTest] reachable: " + describe(reachable));
+        System.out.println("[NavTest] unavailable: " + describe(unavailable) + " " + unavailableKinds);
 
         List<List<NArea>> orders = new ArrayList<>();
         List<String> orderNames = new ArrayList<>();
@@ -107,63 +99,56 @@ public class NavigationABTest implements Action {
         Collections.shuffle(shuf, rnd);
         orders.add(shuf); orderNames.add("shuffled");
 
-        String[][] passes = mode.equals("a") ? new String[][] {{"A"}} : mode.equals("b") ? new String[][] {{"B"}}
-                : new String[][] {{"A", "B"}, {"B", "A"}};
-
         Path file = outFile();
         List<Leg> legs = new ArrayList<>();
         try (PrintWriter csv = new PrintWriter(Files.newBufferedWriter(file, StandardCharsets.UTF_8))) {
-            csv.println("order,pass,sys,targetId,targetName,expect,kind,ok,ms,moveMs,endTiles,movedTiles");
+            csv.println("order,targetId,targetName,expect,kind,ok,ms,moveMs,endTiles,movedTiles");
             for (int o = 0; o < orders.size(); o++) {
                 List<NArea> route = withUnavailable(orders.get(o), unavailable);
-                for (int p = 0; p < passes.length; p++) {
-                    // Every pass of an order starts from its first area, reached untimed with the current navigation.
-                    if (!NUtils.navigateToArea(route.get(0), true)) {
-                        System.out.println("[NavAB] could not reach the start of order " + orderNames.get(o) + ", skipping it");
-                        break;
-                    }
-                    for (int i = 1; i < route.size(); i++) {
-                        NArea target = route.get(i);
-                        Leg leg = new Leg();
-                        leg.order = orderNames.get(o);
-                        leg.pass = p;
-                        leg.sys = passes[p][(i - 1) % passes[p].length];
-                        leg.target = target;
-                        int ui = unavailable.indexOf(target);
-                        leg.expectReach = ui < 0;
-                        leg.kind = ui < 0 ? "reachable" : unavailableKinds.get(ui);
-                        runLeg(gui, leg);
-                        legs.add(leg);
-                        csv.printf(Locale.ROOT, "%s,%d,%s,%d,%s,%s,%s,%b,%d,%d,%.1f,%.1f%n", leg.order, leg.pass, leg.sys, target.id,
-                                target.name.replace(',', ' '), leg.expectReach ? "reach" : "fail", leg.kind, leg.ok, leg.ms, leg.moveMs,
-                                leg.endTiles, leg.movedTiles);
-                        csv.flush();
-                        System.out.printf(Locale.ROOT, "[NavAB] %s/%d %s -> %s (%s): %s in %d ms, moved after %d ms, end %.1f tiles from area, moved %.0f tiles%n",
-                                leg.order, leg.pass, leg.sys, target.name, leg.kind, leg.ok ? "OK" : "FAIL", leg.ms, leg.moveMs, leg.endTiles, leg.movedTiles);
-                        // A reachable leg that failed leaves us somewhere else: carry on from wherever we are.
-                    }
+                // Every order starts from its first area, reached untimed.
+                if (!NUtils.navigateToArea(route.get(0), true)) {
+                    System.out.println("[NavTest] could not reach the start of order " + orderNames.get(o) + ", skipping it");
+                    continue;
+                }
+                for (int i = 1; i < route.size(); i++) {
+                    NArea target = route.get(i);
+                    Leg leg = new Leg();
+                    leg.order = orderNames.get(o);
+                    leg.target = target;
+                    int ui = unavailable.indexOf(target);
+                    leg.expectReach = ui < 0;
+                    leg.kind = ui < 0 ? "reachable" : unavailableKinds.get(ui);
+                    runLeg(leg);
+                    legs.add(leg);
+                    csv.printf(Locale.ROOT, "%s,%d,%s,%s,%s,%b,%d,%d,%.1f,%.1f%n", leg.order, target.id,
+                            target.name.replace(',', ' '), leg.expectReach ? "reach" : "fail", leg.kind, leg.ok, leg.ms, leg.moveMs,
+                            leg.endTiles, leg.movedTiles);
+                    csv.flush();
+                    System.out.printf(Locale.ROOT, "[NavTest] %s -> %s (%s): %s in %d ms, moved after %d ms, end %.1f tiles from area, moved %.0f tiles%n",
+                            leg.order, target.name, leg.kind, leg.ok ? "OK" : "FAIL", leg.ms, leg.moveMs, leg.endTiles, leg.movedTiles);
+                    // A reachable leg that failed leaves us somewhere else: carry on from wherever we are.
                 }
             }
             String summary = summary(legs);
             csv.println();
             for (String line : summary.split("\n")) csv.println("# " + line);
-            System.out.println("[NavAB] summary\n" + summary);
+            System.out.println("[NavTest] summary\n" + summary);
             for (String line : summary.split("\n")) gui.msg(line);
         } catch (IOException e) {
             return Results.ERROR("Could not write " + file + ": " + e.getMessage());
         }
-        gui.msg("Nav A/B log: " + file);
+        gui.msg("Nav test log: " + file);
         return Results.SUCCESS();
     }
 
-    private void runLeg(NGameUI gui, Leg leg) throws InterruptedException {
+    private void runLeg(Leg leg) throws InterruptedException {
         Gob player = NUtils.player();
         Coord2d from = player.rc;
         MoveWatch watch = new MoveWatch(player);
         watch.start();
         long t0 = System.currentTimeMillis();
         try {
-            leg.ok = leg.sys.equals("A") ? LegacyAreaNav.navigateToArea(leg.target, true) : NUtils.navigateToArea(leg.target, true);
+            leg.ok = NUtils.navigateToArea(leg.target, true);
         } finally {
             watch.stopWatch();
         }
@@ -191,7 +176,7 @@ public class NavigationABTest implements Action {
         private final Gob player;
         private final Coord2d start;
         private final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "NavAB-MoveWatch");
+            Thread t = new Thread(r, "NavTest-MoveWatch");
             t.setDaemon(true);
             return t;
         });
@@ -277,35 +262,29 @@ public class NavigationABTest implements Action {
     }
 
     private static String summary(List<Leg> legs) {
-        StringBuilder sb = new StringBuilder();
-        for (String sys : new String[] {"A", "B"}) {
-            List<Long> ms = new ArrayList<>(), move = new ArrayList<>(), failMs = new ArrayList<>();
-            List<Double> end = new ArrayList<>();
-            int reach = 0, reachOk = 0, fail = 0, failOk = 0;
-            double maxFailMove = 0;
-            for (Leg l : legs) {
-                if (!l.sys.equals(sys)) continue;
-                if (l.expectReach) {
-                    reach++;
-                    if (l.ok) {
-                        reachOk++;
-                        ms.add(l.ms);
-                        if (l.moveMs >= 0) move.add(l.moveMs);
-                        if (!Double.isNaN(l.endTiles)) end.add(l.endTiles);
-                    }
-                } else {
-                    fail++;
-                    if (!l.ok) failOk++;
-                    failMs.add(l.ms);
-                    maxFailMove = Math.max(maxFailMove, l.movedTiles);
+        List<Long> ms = new ArrayList<>(), move = new ArrayList<>(), failMs = new ArrayList<>();
+        List<Double> end = new ArrayList<>();
+        int reach = 0, reachOk = 0, fail = 0, failOk = 0;
+        double maxFailMove = 0;
+        for (Leg l : legs) {
+            if (l.expectReach) {
+                reach++;
+                if (l.ok) {
+                    reachOk++;
+                    ms.add(l.ms);
+                    if (l.moveMs >= 0) move.add(l.moveMs);
+                    if (!Double.isNaN(l.endTiles)) end.add(l.endTiles);
                 }
+            } else {
+                fail++;
+                if (!l.ok) failOk++;
+                failMs.add(l.ms);
+                maxFailMove = Math.max(maxFailMove, l.movedTiles);
             }
-            if (reach + fail == 0) continue;
-            sb.append(String.format(Locale.ROOT,
-                    "%s: reached %d/%d, median %s ms (start moving after %s ms), end %s tiles from edge | must-fail legs failed %d/%d, median %s ms, max moved %.0f tiles%n",
-                    sys, reachOk, reach, med(ms), med(move), medD(end), failOk, fail, med(failMs), maxFailMove));
         }
-        return sb.toString().trim();
+        return String.format(Locale.ROOT,
+                "reached %d/%d, median %s ms (start moving after %s ms), end %s tiles from edge | must-fail legs failed %d/%d, median %s ms, max moved %.0f tiles",
+                reachOk, reach, med(ms), med(move), medD(end), failOk, fail, med(failMs), maxFailMove);
     }
 
     private static String med(List<Long> l) {
@@ -329,12 +308,12 @@ public class NavigationABTest implements Action {
     }
 
     private static Path outFile() {
-        Path dir = NUtils.getDataFilePath("nav_ab");
+        Path dir = NUtils.getDataFilePath("nav_test");
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {
             // fall through, the writer reports it
         }
-        return dir.resolve("nav_ab_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".csv");
+        return dir.resolve("nav_test_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".csv");
     }
 }
