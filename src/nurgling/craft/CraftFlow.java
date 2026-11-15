@@ -134,6 +134,9 @@ public final class CraftFlow {
             }
             if(n.inputNames.isEmpty()) throw new IllegalArgumentException("Recipe inputs changed; add this recipe again to review its new inputs");
             Map<String,String> remap = new HashMap<>();
+            // An input the recipe no longer has (e.g. a station its wiki formula leaves out) does not affect
+            // quality: its value and connection are dropped. A custom formula naming it still stops below.
+            Set<String> vanished = new HashSet<>();
             for(Map.Entry<String,String> old : n.inputNames.entrySet()) {
                 List<String> matches = new ArrayList<>();
                 current.forEach((id,name) -> { if(name.equals(old.getValue())) matches.add(id); });
@@ -142,10 +145,11 @@ public final class CraftFlow {
                         for(QualityModel.Port p : model.ports) if(p.kind == QualityModel.Kind.MATERIAL && p.name.equals(group.name)) matches.add(p.id);
                 }
                 if(matches.size() == 1) remap.put(old.getKey(), matches.get(0));
+                else if(matches.isEmpty()) vanished.add(old.getKey());
             }
             Set<String> used = new HashSet<>();
-            n.values.forEach((id,value) -> { if(!value.isBlank()) used.add(id); });
-            for(Edge edge : edges) if(edge.to.equals(n.id)) used.add(edge.port);
+            n.values.forEach((id,value) -> { if(!value.isBlank() && !vanished.contains(id)) used.add(id); });
+            for(Edge edge : edges) if(edge.to.equals(n.id) && !vanished.contains(edge.port)) used.add(edge.port);
             QualityExpression formula = n.formula.isBlank() ? null : QualityExpression.parse(n.formula);
             if(formula != null) used.addAll(formula.variables());
             if(!remap.keySet().containsAll(used)) throw new IllegalArgumentException("Recipe inputs changed; add this recipe again to review its new inputs");
@@ -156,6 +160,7 @@ public final class CraftFlow {
                 if(!value.isBlank()) values.put(remap.get(id), value); else values.putIfAbsent(remap.get(id), value);
             } });
             String expression = formula == null ? "" : formula.bind(remap::get).toString();
+            edges.removeIf(edge -> edge.to.equals(n.id) && vanished.contains(edge.port));
             for(int i = 0; i < edges.size(); i++) {
                 Edge edge = edges.get(i);
                 if(edge.to.equals(n.id)) edges.set(i, new Edge(edge.from, edge.to, remap.get(edge.port)));

@@ -4,7 +4,7 @@ import unittest
 import hashlib
 import struct
 import zlib
-from compile_recipes import parse_inputs, split_top, properties, templates, extract, encode, MAGIC, quality_modifiers
+from compile_recipes import parse_inputs, split_top, properties, templates, extract, encode, MAGIC, quality_modifiers, apply_overrides
 
 
 class ParserTests(unittest.TestCase):
@@ -61,6 +61,23 @@ class ParserTests(unittest.TestCase):
         items, _, reason = parse_inputs('[[Seed of Tree or Bush]] x2, [[Entrails]]', 'Offering', {'seed of tree or bush'})
         self.assertFalse(reason)
         self.assertEqual(items[0]['amount'], 2)
+
+    def test_overrides_apply_only_to_the_verified_page_text(self):
+        def record(name, text):
+            return dict(name=name, inputText=text, inputs=[], quantitiesKnown=False, quality=['Intelligence'], formulas=[])
+        glass, tree = record('Molten Glass', 'Sand x1, Lye 0.02 kg or Raw Glass'), record('Tree', 'Soil x4, Tree Seed, Water')
+        review = []
+        apply_overrides([glass, tree], review)
+        self.assertEqual([(i['name'], i['amount'], i['unit']) for i in glass['inputs']], [('Sand', 1, ''), ('Lye', .02, 'kg')])
+        self.assertTrue(glass['quantitiesKnown'])
+        self.assertIn('\\sqrt{Intelligence*Masonry}', glass['formulas'])
+        self.assertEqual(tree['inputs'], [])
+        self.assertEqual([r['title'] for r in review], ['Tree'])
+        tree = record('Tree', 'Soil x4, Tree Seed*, Water (1.0 L)')
+        apply_overrides([tree], [])
+        self.assertEqual(tree['inputs'][1]['resource'], 'wiki-item:seed of tree or bush')
+        self.assertTrue(tree['inputs'][1]['category'])
+        self.assertEqual(tree['quality'], ['Farming', 'Intelligence'])
 
     def test_invisible_semantic_links_not_materials(self):
         items, _, reason = parse_inputs('[[Board]] x5 <span style="display:none">[[Great Hall]][[Pickaxe]]</span>', 'Furniture', set())

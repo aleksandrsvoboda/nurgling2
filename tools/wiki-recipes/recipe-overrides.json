@@ -1,0 +1,27 @@
+{
+  "comment": "Verified corrections for wiki pages whose infobox cannot be compiled correctly. Each applies only while the page's compiled ingredient text still equals inputText; a changed page drops the override into review.json instead of guessing.",
+  "recipes": [
+    {
+      "title": "Molten Glass",
+      "inputText": "Sand x1, Lye 0.02 kg or Raw Glass",
+      "why": "Two crafts share the page: Sand + Lye, or the separate 'Smelt Raw Glass'. Raw Glass is cooled Molten Glass, so as an ingredient it loops back on itself.",
+      "inputs": [
+        {"target": "Sand", "amount": 1},
+        {"target": "Lye", "amount": 0.02, "unit": "kg"}
+      ],
+      "formulas": ["\\frac{_{q}Sand + _{q}Lye}{2}", "\\sqrt{Intelligence*Masonry}"]
+    },
+    {
+      "title": "Tree",
+      "inputText": "Soil x4, Tree Seed*, Water (1.0 L)",
+      "why": "The seed is plain text, not a link, so it was dropped. The quality formula sits under 'Ways to Improve the Quality of Farmed Trees', softcapped by Farming.",
+      "inputs": [
+        {"target": "Soil", "amount": 4},
+        {"target": "Seed of Tree or Bush", "amount": 1, "category": true},
+        {"target": "Water", "amount": 1.0, "unit": "l"}
+      ],
+      "quality": ["Farming"],
+      "formulas": ["\\frac{_{q}Soil*2 + _{q}Water*2 + _{q}Pot*3 + _{q}Table*3 + _{q}Seed*15}{25}", "Farming"]
+    }
+  ]
+}

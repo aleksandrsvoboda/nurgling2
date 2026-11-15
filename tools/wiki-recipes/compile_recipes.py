@@ -235,8 +235,31 @@ def extract(snapshot):
             revision=revision["revid"], date=revision["timestamp"], kind=kind,
             actionName=direct[-1] if direct and kind == "craft" else "", inputText=expression,
             quantitiesKnown=not bool(reason)))
+    apply_overrides(records, review)
     records.sort(key=lambda r: (normalize(r["name"]), r["resource"]))
     return records, skipped, review
+
+
+OVERRIDES = pathlib.Path(__file__).with_name("recipe-overrides.json")
+
+
+def apply_overrides(records, review, overrides=None):
+    """Replace inputs/formulas of listed pages, but only while the page still reads exactly as when verified."""
+    if overrides is None:
+        overrides = json.loads(OVERRIDES.read_text(encoding="utf-8"))["recipes"]
+    by_name = {normalize(r["name"]): r for r in records}
+    for override in overrides:
+        recipe = by_name.get(normalize(override["title"]))
+        if recipe is None or recipe["inputText"] != override["inputText"]:
+            review.append(dict(title=override["title"], reason="stale override: page changed, review recipe-overrides.json",
+                               expression=recipe["inputText"] if recipe else ""))
+            continue
+        recipe["inputs"] = [dict(resource=item_key(i["target"]), name=i.get("name", i["target"]), amount=float(i["amount"]),
+                                 unit=i.get("unit", ""), optional=False, category=bool(i.get("category")))
+                            for i in override["inputs"]]
+        recipe["quantitiesKnown"] = True
+        recipe["quality"] = sorted(set(recipe["quality"]) | set(override.get("quality", [])))
+        recipe["formulas"] = recipe["formulas"] + [f for f in override.get("formulas", []) if f not in recipe["formulas"]]
 
 
 class Writer:
