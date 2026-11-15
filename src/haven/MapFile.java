@@ -550,12 +550,9 @@ public class MapFile {
 		    int rgb = 0;
 		    if(tex != null) {
 			if((Boolean) NConfig.get(NConfig.Key.uniformBiomeColors)) {
-			    // Get cached color or load it from position (0,0)
-			    if(biomeColors[t] == -1) {
-				int color = tex.getRGB(0, 0);
-				// Force alpha channel to maximum (opaque)
-				biomeColors[t] = (color & 0x00FFFFFF) | 0xFF000000;
-			    }
+			    // The texture's average colour, opaque
+			    if(biomeColors[t] == -1)
+				biomeColors[t] = nurgling.tools.TileColors.average(tex);
 			    rgb = biomeColors[t];
 			} else {
 			    // Normal behavior - get color from current texture coordinates

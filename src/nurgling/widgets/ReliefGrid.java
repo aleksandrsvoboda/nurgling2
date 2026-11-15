@@ -103,7 +103,7 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	if(tex == null)
 	    return(0);
 	if(uniform)
-	    return(tex.getRGB(0, 0) & 0xffffff);
+	    return(nurgling.tools.TileColors.average(tex) & 0xffffff);
 	return(tex.getRGB(Utils.floormod(tc.x, tex.getWidth()), Utils.floormod(tc.y, tex.getHeight())) & 0xffffff);
     }
 
