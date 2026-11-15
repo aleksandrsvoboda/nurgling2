@@ -2,6 +2,7 @@ package nurgling.widgets.options;
 
 import haven.*;
 import nurgling.NConfig;
+import nurgling.NGameUI;
 import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.i18n.L10n;
@@ -43,6 +44,9 @@ public class QoL extends Panel {
     private CheckBox thinOutlines;
     private CheckBox printpfmap;
     private CheckBox uniformBiomeColors;
+    private CheckBox reliefMap;
+    private HSlider reliefStrengthSlider;
+    private Label reliefStrengthLabel;
     private CheckBox showTerrainName;
     private CheckBox verboseCal;
     private CheckBox showPersonalClaims;
@@ -158,7 +162,20 @@ public class QoL extends Panel {
         leftPrev = showCritterCircles = leftColumn.add(new CheckBox(L10n.get("qol.critter_circles")), leftPrev.pos("bl").adds(-10, 5));
         leftPrev = showCSprite = leftColumn.add(new CheckBox(L10n.get("qol.show_decorative")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = uniformBiomeColors = leftColumn.add(new CheckBox(L10n.get("qol.uniform_biome")), leftPrev.pos("bl").adds(0, 5));
-        leftPrev = showTerrainName = leftColumn.add(new CheckBox(L10n.get("qol.show_terrain_name")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = reliefMap = leftColumn.add(new CheckBox(L10n.get("qol.relief_map")), leftPrev.pos("bl").adds(0, 5));
+        reliefMap.settip(L10n.get("qol.relief_map_tip"));
+        leftPrev = leftColumn.add(new Label(L10n.get("qol.relief_strength")), leftPrev.pos("bl").adds(10, 3));
+        {
+            reliefStrengthLabel = new Label("100%");
+            reliefStrengthSlider = new HSlider(UI.scale(150), 0, 200, 100) {
+                public void changed() {
+                    reliefStrengthLabel.settext(String.format("%d%%", this.val));
+                }
+            };
+            leftColumn.addhlp(leftPrev.pos("bl").adds(0, 2), UI.scale(5), reliefStrengthSlider, reliefStrengthLabel);
+            leftPrev = reliefStrengthSlider;
+        }
+        leftPrev = showTerrainName = leftColumn.add(new CheckBox(L10n.get("qol.show_terrain_name")), leftPrev.pos("bl").adds(-10, 5));
         leftPrev = simpleInspect = leftColumn.add(new CheckBox(L10n.get("qol.simple_inspect")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = shortCupboards = leftColumn.add(new CheckBox(L10n.get("qol.short_cupboards")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = shortPalisades = leftColumn.add(new CheckBox(L10n.get("qol.short_palisades")), leftPrev.pos("bl").adds(0, 5));
@@ -462,6 +479,9 @@ public class QoL extends Panel {
         lockDecals.a = getBool(NConfig.Key.lockDecals);
         thinOutlines.a = getBool(NConfig.Key.thinOutlines);
         uniformBiomeColors.a = getBool(NConfig.Key.uniformBiomeColors);
+        reliefMap.a = getBool(NConfig.Key.reliefMap);
+        reliefStrengthSlider.val = reliefStrengthPercent();
+        reliefStrengthLabel.settext(String.format("%d%%", reliefStrengthSlider.val));
         showTerrainName.a = getBool(NConfig.Key.showTerrainName);
         simpleInspect.a = getBool(NConfig.Key.simpleInspect);
         verboseCal.a = getBool(NConfig.Key.verboseCal);
@@ -759,25 +779,15 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.minimapVilol, showVillageClaims.a);
         NConfig.set(NConfig.Key.minimapRealmol, showRealmOverlays.a);
 
-        // Save uniform biome colors and update minimap if changed
-        boolean oldUniformColors = getBool(NConfig.Key.uniformBiomeColors);
+        // Map colours and relief: both maps redraw their grids when any of these change
+        boolean mapLookChanged = (getBool(NConfig.Key.uniformBiomeColors) != uniformBiomeColors.a)
+            || (getBool(NConfig.Key.reliefMap) != reliefMap.a)
+            || (reliefStrengthPercent() != reliefStrengthSlider.val);
         NConfig.set(NConfig.Key.uniformBiomeColors, uniformBiomeColors.a);
-        if(oldUniformColors != uniformBiomeColors.a) {
-            // Force minimap update when uniform biome colors setting changes
-            if(NUtils.getGameUI() != null && NUtils.getGameUI().mmapw != null && NUtils.getGameUI().mmapw.miniMap != null) {
-                if(NUtils.getGameUI().mmapw.miniMap instanceof nurgling.widgets.NMiniMap) {
-                    ((nurgling.widgets.NMiniMap)NUtils.getGameUI().mmapw.miniMap).invalidateDisplayCache();
-                }
-                NUtils.getGameUI().mmapw.miniMap.needUpdate = true;
-            }
-            // Also update main map if it exists
-            if(NUtils.getGameUI() != null && NUtils.getGameUI().mapfile != null && NUtils.getGameUI().mapfile.view != null) {
-                if(NUtils.getGameUI().mapfile.view instanceof nurgling.widgets.NMiniMap) {
-                    ((nurgling.widgets.NMiniMap)NUtils.getGameUI().mapfile.view).invalidateDisplayCache();
-                }
-                NUtils.getGameUI().mapfile.view.needUpdate = true;
-            }
-        }
+        NConfig.set(NConfig.Key.reliefMap, reliefMap.a);
+        NConfig.set(NConfig.Key.reliefStrength, reliefStrengthSlider.val);
+        if(mapLookChanged)
+            redrawMaps();
 
         int dist = parseIntOrDefault(temsmarkdistEntry.text(), 0);
         int time = parseIntOrDefault(temsmarktimeEntry.text(), 0);
@@ -813,6 +823,28 @@ public class QoL extends Panel {
         Object val = NConfig.get(key);
         return val instanceof Boolean ? (Boolean) val : false;
     }
+    private static int reliefStrengthPercent() {
+        Object v = NConfig.get(NConfig.Key.reliefStrength);
+        return (v instanceof Number) ? ((Number) v).intValue() : 100;
+    }
+
+    /** Re-renders the grids of the corner minimap and the map window. */
+    private static void redrawMaps() {
+        NGameUI gui = NUtils.getGameUI();
+        if(gui == null)
+            return;
+        if(gui.mmapw != null && gui.mmapw.miniMap != null) {
+            if(gui.mmapw.miniMap instanceof nurgling.widgets.NMiniMap)
+                ((nurgling.widgets.NMiniMap) gui.mmapw.miniMap).invalidateDisplayCache();
+            gui.mmapw.miniMap.needUpdate = true;
+        }
+        if(gui.mapfile != null && gui.mapfile.view != null) {
+            if(gui.mapfile.view instanceof nurgling.widgets.NMiniMap)
+                ((nurgling.widgets.NMiniMap) gui.mapfile.view).invalidateDisplayCache();
+            gui.mapfile.view.needUpdate = true;
+        }
+    }
+
     private int parseIntOrDefault(String s, int def) {
         try { return Integer.parseInt(s.trim()); } catch(Exception e) { return def; }
     }

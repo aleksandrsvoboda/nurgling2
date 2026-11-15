@@ -76,10 +76,8 @@ public interface MapSource {
 		        uniformColors = (Boolean) NConfig.get(NConfig.Key.uniformBiomeColors);
 		    }
 		    if(uniformColors) {
-		        // Always use color from pixel (0,0) for uniform biome colors
-		        int color = tex.getRGB(0, 0);
-		        // Force full opacity
-		        rgb = (color & 0x00FFFFFF) | 0xFF000000;
+		        // Uniform biome colors: the texture's average colour, opaque
+		        rgb = nurgling.tools.TileColors.average(tex);
 		    } else {
 		        // Use normal texture coordinates
 		        rgb = tex.getRGB(Utils.floormod(c.x + a.ul.x, tex.getWidth()),
