@@ -118,14 +118,23 @@ final class FieldWork {
     // ===================================================================================
 
     /**
-     * Walks into the block and waits until it is loaded. Tries the centre first (closest to every
-     * tile of the block), then spots just inside each corner in case the centre is blocked.
+     * Walks into the block and waits until it is loaded. The harvest and planting walks start
+     * from the top-left or bottom-right corner, whichever is nearer (as in HarvestCrop/SeedCrop),
+     * so the bot goes straight to the nearer of those two; the other corners and the centre are
+     * fallbacks when it can't be reached. A 24-tile block is fully loaded from its edge: objects
+     * load about 31-40 tiles out.
      */
     boolean enter(Area block) throws InterruptedException {
         this.block = block;
         this.skipped.clear();
-        Coord[] spots = {FieldGeometry.centre(block), block.ul.add(1, 1), new Coord(block.br.x - 2, block.ul.y + 1),
-                new Coord(block.ul.x + 1, block.br.y - 2), block.br.sub(2, 2)};
+        Coord ul = block.ul, br = block.br.sub(1, 1);
+        Coord ur = new Coord(br.x, ul.y), ll = new Coord(ul.x, br.y);
+        Coord me = (gui.map.player() == null) ? null
+                : map.toField(gui.map.player().rc.floor(MCache.tilesz), gui.map.glob.map);
+        boolean brFirst = me != null && me.dist(br) < me.dist(ul);
+        Coord[] spots = brFirst
+                ? new Coord[]{br, ul, ur, ll, FieldGeometry.centre(block)}
+                : new Coord[]{ul, br, ur, ll, FieldGeometry.centre(block)};
         for (Coord spot : spots) {
             if (!spot.isect(block.ul, block.br.sub(block.ul)))
                 continue;
