@@ -268,6 +268,11 @@ public class ChunkNavData {
      */
     public ChunkPortal findPortalByPositionAndName(Coord localCoord, String gobName, int tolerance) {
         if (localCoord == null || gobName == null) return null;
+        // Small buildings are often placed side by side, closer than the tolerance;
+        // each one is a separate portal, matched by its hash only.
+        String lower = gobName.toLowerCase();
+        if (lower.contains("greenhouse") || lower.contains("primitivetent") || lower.contains("thatchedhut"))
+            return null;
         for (ChunkPortal portal : portals) {
             if (portal.localCoord != null && gobName.equals(portal.gobName)) {
                 int dx = Math.abs(portal.localCoord.x - localCoord.x);
