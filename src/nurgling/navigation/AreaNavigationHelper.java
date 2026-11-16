@@ -46,7 +46,7 @@ public class AreaNavigationHelper {
             if (!ensurePresence) return true;
             Coord2d goal = goalWorld(path, gui);
             if (goal == null || goal.dist(player.rc) < MCache.tilesz.x) return true;
-            if (new PathFinder(goal).run(gui).IsSuccess()) return true;
+            if (walk(goal, gui)) return true;
             return nav.navigateWithPath(path, area, gui).IsSuccess();
         }
 
@@ -54,7 +54,7 @@ public class AreaNavigationHelper {
             Coord2d target = nearestPoint(rc, player.rc);
             if (PathFinder.isAvailable(target)) {
                 if (!ensurePresence) return true;
-                if (new PathFinder(target).run(gui).IsSuccess()) return true;
+                if (walk(target, gui)) return true;
             }
         }
 
@@ -100,6 +100,13 @@ public class AreaNavigationHelper {
     }
 
     /** World position of the path's last tile, from the live grid. */
+    /** One local walk, through the path's corners without stopping on each; it still stops on the goal. */
+    private static boolean walk(Coord2d goal, NGameUI gui) throws InterruptedException {
+        PathFinder pf = new PathFinder(goal);
+        pf.continuous = true;
+        return pf.run(gui).IsSuccess();
+    }
+
     static Coord2d goalWorld(ChunkPath path, NGameUI gui) {
         ChunkPath.PathSegment last = path.segments.get(path.segments.size() - 1);
         if (last.steps.isEmpty()) return null;

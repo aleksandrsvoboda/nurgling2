@@ -17,6 +17,11 @@ public class GoTo implements Action
     // Optional: polled while waiting to arrive; true abandons the step (run() returns FAIL, aborted() true) - see PathFinder.avoidZones.
     final BooleanSupplier abort;
     private volatile boolean aborted = false;
+    // Opt-in (navigation walks, see PathFinder.continuous): > 0 lets the walk carry on past this point instead of stopping
+    // on it. Once the player is this close, run() returns SUCCESS while still walking if `canPass` (checked on the bot
+    // thread; null = always) says the next click can follow; otherwise it waits for the stop as usual.
+    private double passAhead = 0;
+    private BooleanSupplier canPass = null;
 
     public GoTo(Coord2d targetCoord)
     {
@@ -34,10 +39,17 @@ public class GoTo implements Action
         return aborted;
     }
 
+    /** Lets the walk go on past the target - see passAhead. */
+    public GoTo passing(double ahead, BooleanSupplier canPass)
+    {
+        this.passAhead = ahead;
+        this.canPass = canPass;
+        return this;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
-
         if(!NParser.checkName(NUtils.getCursorName(), "arw")) {
             NUtils.getGameUI().map.wdgmsg("click", Coord.z, NUtils.player().rc.floor(posres),3, 0);
             NUtils.getUI().core.addTask(new GetCurs("arw"));
@@ -75,6 +87,15 @@ public class GoTo implements Action
                 }
             }
         }
+        else if (passAhead > 0) {
+            NUtils.getUI().core.addTask(abortable(new IsMoving(targetCoord)));
+            NUtils.getUI().core.addTask(abortable(new NearOrStopped(targetCoord, passAhead)));
+            if (!aborted && walking(gui) && gui.map.player().rc.dist(targetCoord) <= passAhead
+                    && (canPass == null || canPass.getAsBoolean())) {
+                return Results.SUCCESS();
+            }
+            NUtils.getUI().core.addTask(abortable(new MovingCompleted(targetCoord)));
+        }
         else {
             NUtils.getUI().core.addTask(abortable(new IsMoving(targetCoord)));
             NUtils.getUI().core.addTask(abortable(new MovingCompleted(targetCoord)));
@@ -84,6 +105,15 @@ public class GoTo implements Action
         if(NUtils.getGameUI().map.player().rc.dist(targetCoord) > 2*pfmdelta)
             return Results.FAIL();
         return Results.SUCCESS();
+    }
+
+    private static boolean walking(NGameUI gui)
+    {
+        Gob player = gui.map.player();
+        Drawable drawable = (player != null) ? player.getattr(Drawable.class) : null;
+        String pose;
+        return drawable instanceof Composite && (pose = ((Composite) drawable).current_pose) != null
+                && NParser.checkName(pose, "borka/walking", "borka/running", "borka/wading");
     }
 
     /** task as-is, or - with an abort check set - also finishing (and marking this step aborted) once the check fires; sticky, so the paired wait after it ends at once too. */

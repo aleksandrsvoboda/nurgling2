@@ -67,6 +67,17 @@ public class PathFinder implements Action {
     // A step is only abandoned once a zone reaches this far into the rest of the path - planned paths skim zone edges at cell precision.
     private static final double ZONE_ABORT_SLACK = MCache.tilesz.x;
 
+    // Opt-in (navigation walks): keep walking through the path's corners instead of stopping on each. Near a corner the
+    // next one is clicked while still walking, if the straight line there is as clear as getPath() demands of the lines
+    // it keeps; otherwise the character stops on the corner as before. The path's end is always stopped on, unless
+    // passEnd is set too. Off for walks that follow a horse/boat or use a dummy gob.
+    public boolean continuous = false;
+    // With continuous: > 0 returns SUCCESS this far before the end, still walking, so the caller can click on without a
+    // stop (the character stops on the end by itself if nothing follows). 0 = stop on the end.
+    public double passEnd = 0;
+    // How close to a corner the next click goes out: the server round trip has to land before the character gets there.
+    public static final double CORNER_AHEAD = MCache.tilesz.x * 1.5;
+
     // Opt-in (Forager): spots walks sharing this list stalled at - blocked like a small obstacle the grid can't see (a young
     // tree with no client hitbox), and appended to on every new stall (see noteStall).
     public List<Coord2d> learnedBlocks = null;
@@ -210,10 +221,19 @@ public class PathFinder implements Action {
                     corners.add(Utils.pfGridToWorld(v.pos));
                 logPlan(corners);
                 int step = 0;
+                boolean cont = continuous && dummy == null && gui.map.player().getattr(Following.class) == null;
 //                NUtils.getGameUI().msg(Utils.pfGridToWorld(path.getLast().pos).toString());
                 //TODO syntetic points
                 for (Graph.Vertex vert : path) {
                     Coord2d targetCoord = Utils.pfGridToWorld(vert.pos);
+                    boolean last = (vert == path.getLast());
+                    Coord2d nextCoord = last ? null : corners.get(step + 1);
+                    // A clear line from here past this corner (the corner next to the start, or one the previous step
+                    // carried the character close to): don't click this one, it could be behind the player now.
+                    if (cont && !last && canCutTo(gui, nextCoord)) {
+                        step++;
+                        continue;
+                    }
 
                     if(vert == path.getLast() && isHardMode || dummy!=null) {
                         Coord2d tcord = dummy != null ? dummy.rc : Finder.findGob(target_id).rc;
@@ -230,6 +250,10 @@ public class PathFinder implements Action {
                     BooleanSupplier stepAbort = both(abort,
                             (avoidZones != null) ? zoneAbort(gui, corners.subList(step, corners.size())) : null);
                     GoTo go = (stepAbort != null) ? new GoTo(targetCoord, stepAbort) : new GoTo(targetCoord);
+                    if (cont && !last)
+                        go.passing(CORNER_AHEAD, () -> canCutTo(gui, nextCoord));
+                    else if (cont && passEnd > 0)
+                        go.passing(passEnd, null);
                     step++;
                     if (!go.run(gui).IsSuccess()) {
                         // Asked to stop (paused/cancelled): halt here instead of re-planning and walking on.
@@ -463,6 +487,14 @@ public class PathFinder implements Action {
             }
         }
         return sb.length() > 0 ? sb.toString() : "nothing";
+    }
+
+    /** Continuous walking: whether the player can walk straight from where it is now to `next` (the same check getPath() uses to drop corners). */
+    private boolean canCutTo(NGameUI gui, Coord2d next) {
+        Gob player = gui.map.player();
+        if (player == null || pfmap == null)
+            return false;
+        return Graph.clearLine(pfmap, player.rc, next);
     }
 
     /** Stops the character where it stands - it may still be heading for an abandoned step. */

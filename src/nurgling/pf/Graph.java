@@ -265,63 +265,14 @@ public class Graph implements Runnable
                     while (i + shift < path.size()) {
                         Coord2d first = (i != -1) ? Utils.pfGridToWorld(path.get(i).pos) : NUtils.player().rc;
                         Coord2d second = Utils.pfGridToWorld(path.get(i + shift).pos);
-                        Coord2d fsdir = second.sub(first);
-                        Coord2d center = fsdir.div(2).add(first);
-                        int hlen = (int) Math.ceil(fsdir.len() / 2);
-                        //TODO remake with beam box
-                        NHitBox hb = new NHitBox(new Coord(-hlen,-2 ), new Coord(hlen, 2));
-                        ArrayList<Coord> data;
-                        if ((data = map.checkCA(new CellsArray(hb, fsdir.curAngle(), center))).isEmpty()) {
+                        if (clearLine(map, first, second)) {
                             for_remove.add(path.get(i + shift - 1));
                             shift++;
                             di++;
                         } else {
-                            NHitBoxD hbd = new NHitBoxD(hb.begin, hb.end, center, fsdir.curAngle());
-                            boolean isFree = true;
-                            ArrayList<Coord> corners = new ArrayList<>();
-                            for(Coord2d c2d : hbd.c)
-                            {
-                                corners.add(Utils.toPfGrid(c2d).sub(map.begin));
-                            }
-                            for(Coord datac : data)
-                            {
-                                if(corners.contains(datac))
-                                {
-                                    for (long id : map.cells[datac.x][datac.y].content)
-                                    {
-                                        Gob g = Finder.findGob(id);
-                                        if(g!=null) {
-                                            for (NHitBoxD solid : NHitBoxD.solid(g)) {
-                                                if (hbd.intersects(solid, true)) {
-                                                    isFree = false;
-                                                    break;
-                                                }
-                                            }
-                                            if (!isFree)
-                                                break;
-                                        }
-                                    }
-                                    if(!isFree)
-                                        break;
-                                }
-                                else
-                                {
-                                    isFree = false;
-                                    break;
-                                }
-                            }
-
-                            if(isFree)
-                            {
-                                for_remove.add(path.get(i + shift - 1));
-                                shift++;
-                                di++;
-                            }
-                            else {
-                                shift = 2;
-                                i += di;
-                                break;
-                            }
+                            shift = 2;
+                            i += di;
+                            break;
                         }
                     }
                 }
@@ -330,6 +281,38 @@ public class Graph implements Runnable
 //                    path.remove(0);
             }
         return path;
+    }
+
+    /** Whether the character can walk straight from first to second on this map: a beam 4 units wide along the line
+     *  touches no blocked cell, or only touches cells at the beam's own corners whose gobs' solid hitboxes it misses. */
+    public static boolean clearLine(NPFMap map, Coord2d first, Coord2d second)
+    {
+        Coord2d fsdir = second.sub(first);
+        Coord2d center = fsdir.div(2).add(first);
+        int hlen = (int) Math.ceil(fsdir.len() / 2);
+        //TODO remake with beam box
+        NHitBox hb = new NHitBox(new Coord(-hlen, -2), new Coord(hlen, 2));
+        ArrayList<Coord> data = map.checkCA(new CellsArray(hb, fsdir.curAngle(), center));
+        if (data.isEmpty())
+            return true;
+        NHitBoxD hbd = new NHitBoxD(hb.begin, hb.end, center, fsdir.curAngle());
+        ArrayList<Coord> corners = new ArrayList<>();
+        for (Coord2d c2d : hbd.c)
+            corners.add(Utils.toPfGrid(c2d).sub(map.begin));
+        for (Coord datac : data) {
+            if (!corners.contains(datac))
+                return false;
+            for (long id : map.cells[datac.x][datac.y].content) {
+                Gob g = Finder.findGob(id);
+                if (g != null) {
+                    for (NHitBoxD solid : NHitBoxD.solid(g)) {
+                        if (hbd.intersects(solid, true))
+                            return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     public class Vertex extends NPFMap.Cell

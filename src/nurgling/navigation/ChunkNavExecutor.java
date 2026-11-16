@@ -55,6 +55,10 @@ public class ChunkNavExecutor implements Action {
         static final WalkConfig STEP_BY_STEP = new WalkConfig(20, 10, 2, true);
     }
 
+    // How far before a hop's end the next hop is planned, still walking: covers planning it (a local PathFinder build)
+    // plus the server round trip. Too short and the character stops at the hop end anyway.
+    private static final double HOP_HANDOVER = MCache.tilesz.x * 3;
+
     /**
      * Scored portal candidate for priority-based selection.
      */
@@ -781,8 +785,12 @@ public class ChunkNavExecutor implements Action {
                 }
             }
 
-            // Try PathFinder to waypoint (verified walkable)
+            // Try PathFinder to waypoint (verified walkable). Walk through corners; between hops of the same segment, hand
+            // over while still walking so the next hop is planned on the move instead of after a stop.
             PathFinder pf = new PathFinder(waypoint);
+            pf.continuous = true;
+            if (targetIndex < segment.steps.size() - 1)
+                pf.passEnd = HOP_HANDOVER;
             Results pfResult = pf.run(gui);
 
             if (pfResult.IsSuccess()) {
@@ -810,6 +818,7 @@ public class ChunkNavExecutor implements Action {
                 if (midDist < tileSize * 1.5) continue;
 
                 PathFinder midPf = new PathFinder(midWaypoint);
+                midPf.continuous = true;
                 if (midPf.run(gui).IsSuccess()) {
                     currentStepIndex = midIndex + 1;
                     madeProgress = true;
