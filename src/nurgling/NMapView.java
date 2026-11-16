@@ -72,6 +72,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
     public static final KeyBinding kb_cleardmg = KeyBinding.get("cleardmg", KeyMatch.forcode(KeyEvent.VK_D, KeyMatch.C | KeyMatch.S));
     public static final KeyBinding kb_flatworld = KeyBinding.get("flatworld", KeyMatch.forcode(KeyEvent.VK_F, KeyMatch.C | KeyMatch.S));
+    public static final KeyBinding kb_beehiveradius = KeyBinding.get("beehiveradius", KeyMatch.nil);
+    public static final KeyBinding kb_troughradius = KeyBinding.get("troughradius", KeyMatch.nil);
+    public static final KeyBinding kb_moundbedradius = KeyBinding.get("moundbedradius", KeyMatch.nil);
     public static final int MINING_OVERLAY = - 1;
     public NGlobalCoord lastGC = null;
 
@@ -2088,6 +2091,12 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             NUtils.getGameUI().msg("Damage overlays cleared");
             return true;
         }
+        if(kb_beehiveradius.key().match(ev))
+            return toggleRadius(NConfig.Key.showBeehiveRadius, "opt.keybind.beehive_radius");
+        if(kb_troughradius.key().match(ev))
+            return toggleRadius(NConfig.Key.showTroughRadius, "opt.keybind.trough_radius");
+        if(kb_moundbedradius.key().match(ev))
+            return toggleRadius(NConfig.Key.showMoundBedRadius, "opt.keybind.moundbed_radius");
         if(kb_flatworld.key().match(ev)) {
             nurgling.tools.FlatWorld.toggle();
             NUtils.getGameUI().msg("Flat world: " + (nurgling.tools.FlatWorld.isEnabled() ? "enabled" : "disabled"));
@@ -2113,6 +2122,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     }
 
     /** The World settings panel, if the user happens to have it open, otherwise null. */
+    /** Flips one of the object radius overlays; the overlays watch the flag and redraw themselves. */
+    private static boolean toggleRadius(NConfig.Key key, String labelKey) {
+        boolean val = !(Boolean) NConfig.get(key);
+        NConfig.set(key, val);
+        NUtils.getGameUI().msg(nurgling.i18n.L10n.get(labelKey) + ": " + nurgling.i18n.L10n.get(val ? "world.radius_on" : "world.radius_off"));
+        // An open World panel holds a staged copy of these flags and would write it back on Save.
+        nurgling.widgets.nsettings.World world = openWorldPanel();
+        if (world != null)
+            world.syncObjectRadii();
+        return true;
+    }
+
     private static nurgling.widgets.nsettings.World openWorldPanel() {
         NGameUI gui = NUtils.getGameUI();
         if (gui == null || gui.opts == null || !(gui.opts.nqolwnd instanceof OptWnd.NSettingsPanel))

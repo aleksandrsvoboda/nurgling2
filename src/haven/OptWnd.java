@@ -879,6 +879,9 @@ public class OptWnd extends Window {
 		y = addbtn(cont, L10n.get("opt.keybind.quick_action_alt"), NMapView.kb_quickignaction, y);
 		y = addbtn(cont, L10n.get("opt.keybind.nature"), NMapView.kb_togglenature, y);
 		y = addbtn(cont, L10n.get("opt.keybind.night"), NMiniMapWnd.kb_night, y);
+		y = addbtn(cont, L10n.get("opt.keybind.beehive_radius"), NMapView.kb_beehiveradius, y);
+		y = addbtn(cont, L10n.get("opt.keybind.trough_radius"), NMapView.kb_troughradius, y);
+		y = addbtn(cont, L10n.get("opt.keybind.moundbed_radius"), NMapView.kb_moundbedradius, y);
 		y = addbtn(cont, L10n.get("opt.keybind.timers"), NMiniMapWnd.kb_resourcetimers, y);
 		y = addbtn(cont, L10n.get("opt.keybind.timers_quickadd"), nurgling.widgets.timers.TimersPanel.kb_quickadd, y);
 		y = addbtn(cont, L10n.get("opt.keybind.sort_inventory"), GameUI.kb_sort, y);
