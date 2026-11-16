@@ -1224,6 +1224,13 @@ public class NConfig
     }
 
     /**
+     * Gets the dynamic path for the leveling plans file
+     */
+    public String getLevelPlansPath() {
+        return getProfileAwarePath("level_plans.nurgling.json");
+    }
+
+    /**
      * Gets the dynamic path for scenarios configuration file
      * Note: scenarios are always stored globally, not per-profile
      */

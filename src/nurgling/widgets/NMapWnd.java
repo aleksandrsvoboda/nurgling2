@@ -140,6 +140,7 @@ public class NMapWnd extends MapWnd {
         add(side = new MarkerPanel());
         add(status = new StatusStrip());
         viewf.add(new ZoomButtons(), UI.scale(6, 6));
+        timerView().levelToolHost = true;
 
         roster = new PeerRoster(SIDE_W);
         playersFly = add(new Flyout(playersBtn));
@@ -252,6 +253,11 @@ public class NMapWnd extends MapWnd {
         vectorClearBtn = bar.left(new MapToggleButton("vector", L10n.get("mapwnd.vectors_tip"), null));
         vectorClearBtn.state(() -> false); // An action, not a toggle
         vectorClearBtn.click(this::clearVectors);
+
+        bar.left(new BarButton("level"))
+            .state(() -> LevelPlanWindow.isOpen(gui()))
+            .click(() -> LevelPlanWindow.toggle(gui()))
+            .settip(L10n.get("mapwnd.level_tip"));
 
         /* Right-hand group, built right to left. */
         BarButton listBtn = bar.right(new BarButton("maplist"));
@@ -1389,6 +1395,21 @@ public class NMapWnd extends MapWnd {
     private Coord pressedAt = null;
     private UI.Grab pinGrab = null;
 
+    /** A leveling-plan drag in progress, and the button that started it. */
+    private UI.Grab levelGrab = null;
+    private int levelButton = 0;
+
+    private NGameUI gui() {
+        return((NGameUI)getparent(GameUI.class));
+    }
+
+    /** The leveling planner while it is open: then the map draws plans instead of panning. */
+    private LevelPlanWindow levelTool() {
+        NGameUI gui = gui();
+        LevelPlanWindow lw = (gui == null) ? null : gui.levelPlanWindow;
+        return(((lw != null) && lw.armed()) ? lw : null);
+    }
+
     /** The flyout the current click has just closed, so the same click cannot reopen it. */
     private Flyout justClosed = null;
 
@@ -1427,6 +1448,19 @@ public class NMapWnd extends MapWnd {
             if(viewCoord.x >= 0 && viewCoord.x < view.sz.x &&
                viewCoord.y >= 0 && viewCoord.y < view.sz.y) {
 
+                /* While the leveling planner is open, plain left (add) and right (remove) drags draw
+                 * the plan; the press is taken so the map does not pan and the character does not walk. */
+                LevelPlanWindow lw = levelTool();
+                if((lw != null) && (levelGrab == null) && !ui.modshift && !ui.modctrl && !ui.modmeta
+                   && lw.press(timerView(), viewCoord, ev.b)) {
+                    levelGrab = ui.grabmouse(this);
+                    levelButton = ev.b;
+                    /* Window.handle ignores what mousedown returns and passes the press on to the
+                     * map view unless it is stopped here - the view would start panning. */
+                    ev.stop();
+                    return true;
+                }
+
                 // Shift+right-click for tree locations and timers
                 if(ev.b == 3 && ui.modshift) {
                     // First check for tree icons
@@ -1462,6 +1496,13 @@ public class NMapWnd extends MapWnd {
         }
         Coord vc = ev.c.sub(view.parentpos(this));
         hoverc = (view.visible() && vc.isect(Coord.z, view.sz)) ? vc : null;
+        NGameUI gui = gui();
+        if((gui != null) && (gui.levelPlanWindow != null)) {
+            if(levelGrab != null)
+                gui.levelPlanWindow.drag(timerView(), vc);
+            else
+                gui.levelPlanWindow.hover((hoverc == null) ? null : view.xlate(hoverc));
+        }
         super.mousemove(ev);
     }
 
@@ -1469,6 +1510,15 @@ public class NMapWnd extends MapWnd {
     public boolean mouseup(MouseUpEvent ev) {
         if(ev.b == 1 && pressedPin != null) {
             dropPin(ev.c);
+            return true;
+        }
+        if((levelGrab != null) && (ev.b == levelButton)) {
+            levelGrab.remove();
+            levelGrab = null;
+            NGameUI gui = gui();
+            if((gui != null) && (gui.levelPlanWindow != null))
+                gui.levelPlanWindow.release(timerView(), ev.c.sub(view.parentpos(this)));
+            ev.stop();
             return true;
         }
         if(view.c != null) {

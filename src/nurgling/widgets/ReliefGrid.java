@@ -2,9 +2,15 @@ package nurgling.widgets;
 
 import haven.*;
 import nurgling.NConfig;
+import nurgling.leveling.LevelPlan;
+import nurgling.leveling.LevelPlans;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static haven.MCache.cmaps;
 
@@ -13,7 +19,10 @@ import static haven.MCache.cmaps;
  * close a grid is drawn at 2 or 4 pixels per tile so tile boundaries are thin lines. While a
  * new image renders the previous one stays on screen.
  *
- * With the relief option off it draws exactly as the stock minimap does.
+ * Grids under a leveling plan also show where to dig and where to fill, and the plan's outline.
+ *
+ * With the relief option off it draws exactly as the stock minimap does, except up close on
+ * grids a plan covers: those draw flat, without shading, contours or tile edges, but with the plan.
  */
 public class ReliefGrid extends MiniMap.DisplayGrid {
     private final NMiniMap map;
@@ -39,19 +48,33 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	return((v instanceof Number) ? ((Number)v).doubleValue() / 100.0 : 1.0);
     }
 
+    /** Grid ids of this grid and its eight neighbours, row by row; 0 = not in the segment. Level 0 only. */
+    private long[] gids;
+    private MapFile.DataGrid gidgrid;
+    private long pk = Long.MIN_VALUE;
+    private boolean cr;
+
     @Override
     public Tex img() {
-	if(!enabled())
-	    return(super.img());
 	MapFile.DataGrid grid = gref.get();
 	boolean zoom = grid instanceof MapFile.ZoomGrid;
+	boolean relief = enabled();
+	LevelPlans plans = map.levelPlans();
+	/* With shading off a grid still draws through here when a plan covers it, so the plan shows. */
+	boolean planned = (plans != null) && (grid != null) && !zoom && touched(plans, grid);
+	if(!relief && !planned)
+	    return(super.img());
 	int k = zoom ? 1 : map.reliefScale();
-	if((grid != cgrid) || (k != ck)) {
+	long pkey = (plans == null) ? 0 : zoom ? plans.revision() : planrev(plans);
+	if((grid != cgrid) || (k != ck) || (pkey != pk) || (relief != cr)) {
 	    if(next != null)
 		next.cancel();
-	    next = (grid == null) ? null : Defer.later(zoom ? zoomjob(grid, k) : viewjob(k));
+	    List<LevelPlan> snap = (plans == null) ? Collections.emptyList() : plans.plans();
+	    next = (grid == null) ? null : Defer.later(zoom ? zoomjob(grid, k, snap) : viewjob(k, relief, snap));
 	    cgrid = grid;
 	    ck = k;
+	    pk = pkey;
+	    cr = relief;
 	}
 	if(next != null) {
 	    try {
@@ -64,10 +87,63 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	return(img);
     }
 
+    /**
+     * Looked up once per grid image. Called on the UI thread, and the map file holds its write
+     * lock while it saves grids to disk, so this never waits for the lock: it tries again next frame.
+     */
+    private long[] gids(MapFile.DataGrid grid) {
+	if((gids == null) || (gidgrid != grid)) {
+	    java.util.concurrent.locks.Lock lk = file.lock.readLock();
+	    if(!lk.tryLock())
+		return((gidgrid == grid) ? gids : null);
+	    long[] ret = new long[9];
+	    try {
+		for(int y = -1; y <= 1; y++) {
+		    for(int x = -1; x <= 1; x++) {
+			Long id = seg.map.get(sc.add(x, y));
+			ret[((y + 1) * 3) + x + 1] = (id == null) ? 0 : id;
+		    }
+		}
+	    } finally {
+		lk.unlock();
+	    }
+	    gids = ret;
+	    gidgrid = grid;
+	}
+	return(gids);
+    }
+
+    private boolean touched(LevelPlans plans, MapFile.DataGrid grid) {
+	if(plans.plans().isEmpty())
+	    return(false);
+	long[] ids = gids(grid);
+	if(ids == null)
+	    return(false);
+	for(long id : ids) {
+	    if((id != 0) && plans.touches(id))
+		return(true);
+	}
+	return(false);
+    }
+
+    /** Changes whenever a plan changes on this grid or a neighbour (the outline reads the border ring). */
+    private long planrev(LevelPlans plans) {
+	if(gids == null)
+	    return(0);
+	long r = 0;
+	for(long id : gids) {
+	    if(id != 0)
+		r = (r * 31) + plans.gridRevision(id);
+	}
+	return(r);
+    }
+
     /** Level 0: read through a view of this grid and its neighbours, so slopes, lines and cliffs cross grid edges. */
-    private Defer.Callable<Tex> viewjob(int k) {
-	double str = strength();
+    private Defer.Callable<Tex> viewjob(int k, boolean relief, List<LevelPlan> plans) {
+	double str = relief ? strength() : 0;
+	double cont = relief ? CONTOURS : 0;
 	boolean uniform = Boolean.TRUE.equals(NConfig.get(NConfig.Key.uniformBiomeColors));
+	long[] ids = (gids == null) ? new long[9] : gids.clone();
 	return(() -> {
 	    MapFile.View view = new MapFile.View(seg);
 	    try(Locked lk = new Locked(file.lock.readLock())) {
@@ -76,17 +152,74 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 			view.addgrid(sc.add(x, y));
 		}
 		view.fin();
-		return(new TexI(image(fromview(view, sc.mul(cmaps), uniform), k, 0, str, CONTOURS)));
+		ReliefRenderer.Cells c = fromview(view, sc.mul(cmaps), uniform);
+		c.edges = relief;
+		planview(c, plans, ids);
+		return(new TexI(image(c, k, 0, str, cont)));
 	    }
 	});
     }
 
     /** Zoomed out: the zoom grid alone; its border tiles use one-sided slopes. */
-    private Defer.Callable<Tex> zoomjob(MapFile.DataGrid grid, int k) {
+    private Defer.Callable<Tex> zoomjob(MapFile.DataGrid grid, int k, List<LevelPlan> plans) {
 	double str = strength();
 	boolean uniform = Boolean.TRUE.equals(NConfig.get(NConfig.Key.uniformBiomeColors));
 	int lvl = ((MapFile.ZoomGrid)grid).lvl;
-	return(() -> new TexI(image(fromgrid(grid, sc.mul(cmaps), uniform), k, lvl, str, CONTOURS)));
+	return(() -> {
+	    ReliefRenderer.Cells c = fromgrid(grid, sc.mul(cmaps), uniform);
+	    if(!plans.isEmpty())
+		planzoom(c, plans, lvl);
+	    return(new TexI(image(c, k, lvl, str, CONTOURS)));
+	});
+    }
+
+    /** The plan of every cell, border ring included, from the 3x3 grid ids; level 0. */
+    static void planview(ReliefRenderer.Cells c, List<LevelPlan> plans, long[] ids) {
+	if(plans.isEmpty())
+	    return;
+	int n = c.n;
+	for(int y = -1; y <= n; y++) {
+	    for(int x = -1; x <= n; x++) {
+		int gx = Math.floorDiv(x, n), gy = Math.floorDiv(y, n);
+		long id = ids[((gy + 1) * 3) + gx + 1];
+		if(id != 0)
+		    setplan(c, c.at(x, y), plans, id, x - (gx * n), y - (gy * n));
+	    }
+	}
+    }
+
+    /**
+     * Zoomed out a cell stands for a block of tiles; it takes the plan of the block's first tile.
+     * The border ring is filled too, so no outline is drawn along the grid's own edge.
+     */
+    private void planzoom(ReliefRenderer.Cells c, List<LevelPlan> plans, int lvl) {
+	int n = c.n;
+	Map<Coord, Long> ids = new HashMap<>();
+	try(Locked lk = new Locked(file.lock.readLock())) {
+	    for(int y = -1; y <= n; y++) {
+		for(int x = -1; x <= n; x++) {
+		    Coord tc = sc.mul(cmaps).add(x, y).mul(1 << lvl);
+		    Coord gc = tc.div(cmaps);
+		    Long id = ids.computeIfAbsent(gc, g -> {
+			    Long v = seg.map.get(g);
+			    return((v == null) ? 0L : v);
+			});
+		    if(id != 0)
+			setplan(c, c.at(x, y), plans, id, tc.x - (gc.x * cmaps.x), tc.y - (gc.y * cmaps.y));
+		}
+	    }
+	}
+    }
+
+    private static void setplan(ReliefRenderer.Cells c, int i, List<LevelPlan> plans, long id, int lx, int ly) {
+	for(int p = 0; p < plans.size(); p++) {
+	    LevelPlan plan = plans.get(p);
+	    if(plan.contains(id, lx, ly)) {
+		c.plan[i] = p;
+		c.target[i] = (float)plan.target;
+		return;
+	    }
+	}
     }
 
     static BufferedImage image(ReliefRenderer.Cells c, int k, int lvl, double str, double cont) {
@@ -95,7 +228,7 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	return(img);
     }
 
-    static boolean waterp(String resnm) {
+    public static boolean waterp(String resnm) {
 	return(resnm.contains("water") || resnm.endsWith("/deep") || resnm.endsWith("/odeep"));
     }
 
@@ -141,7 +274,7 @@ public class ReliefGrid extends MiniMap.DisplayGrid {
 	return(c);
     }
 
-    private static boolean cliffp(MapSource m, Coord tc, int t) {
+    public static boolean cliffp(MapSource m, Coord tc, int t) {
 	try {
 	    return((m.tiler(t) instanceof haven.resutil.Ridges.RidgeTile) && haven.resutil.Ridges.brokenp(m, tc));
 	} catch(Loading l) {

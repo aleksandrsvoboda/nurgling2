@@ -27,6 +27,10 @@ public class LandSurvey extends Window {
     private RenderTree.Slot s_dsp;
 
 	private ICheckBox btnLock;
+	private Button planBtn;
+	private nurgling.leveling.LevelPlan plan;
+	private String plantext = null;
+	private double plancheck = 0;
 
     public LandSurvey(Area area, Data data) {
 	super(Coord.z, "Land survey", true);
@@ -54,6 +58,9 @@ public class LandSurvey extends Window {
 		   prev.pos("bl").adds(0, 10));
 	add(new Button(UI.scale(125), "Remove", false).action(()-> wdgmsg("rm")),
 	    prev.pos("ur").adds(10, 0));
+	/* Shown only while the survey lies in a leveling plan; nothing happens until it is clicked. */
+	planBtn = add(new Button(UI.scale(260), "", false).action(this::applyplan), prev.pos("bl").adds(0, 10));
+	planBtn.hide();
 
 
 	pack();
@@ -73,7 +80,15 @@ public class LandSurvey extends Window {
 
     protected void attached() {
 	super.attached();
-	this.mv = getparent(GameUI.class).map;
+	GameUI gui = getparent(GameUI.class);
+	this.mv = gui.map;
+	/* The leveling planner turns heights into soil units with the server's survey granularity. */
+	if((gui instanceof nurgling.NGameUI) && (((nurgling.NGameUI)gui).levelPlans != null)) {
+	    nurgling.leveling.LevelPlans plans = ((nurgling.NGameUI)gui).levelPlans;
+	    if(plans.gran() != data.gran)
+		System.out.println("[Leveling] land survey: " + data.gran + " survey units per height unit, area " + area.area() + " m2");
+	    plans.recordGran(data.gran);
+	}
 	this.dsp = new Display(data, mv);
 	s_dsp = mv.drawadd(dsp);
 	select(area);
@@ -310,6 +325,70 @@ public class LandSurvey extends Window {
 	}
     }
 
+    private nurgling.leveling.LevelPlans plans() {
+	nurgling.NGameUI gui = getparent(nurgling.NGameUI.class);
+	return((gui == null) ? null : gui.levelPlans);
+    }
+
+    /** A loaded tile's grid id and offset; throws Loading while its grid is not here yet. */
+    private nurgling.leveling.SurveyPlan.Locator locator() {
+	MCache map = mv.ui.sess.glob.map;
+	return(tc -> {
+		MCache.Grid g = map.getgrid(tc.div(MCache.cmaps));
+		return(new long[] {g.id, tc.x - g.ul.x, tc.y - g.ul.y});
+	    });
+    }
+
+    private int[] plantargets(nurgling.leveling.LevelPlan p) {
+	MCache map = mv.ui.sess.glob.map;
+	return(nurgling.leveling.SurveyPlan.targets(p, data.varea, data.gran, locator(), map::getfz));
+    }
+
+    /** Which plan this survey lies in, and whether its targets are already the plan's; the button follows. */
+    private void checkplan() {
+	nurgling.leveling.LevelPlans ps = plans();
+	nurgling.leveling.LevelPlan p = (ps == null) ? null : nurgling.leveling.SurveyPlan.pick(ps.plans(), area, locator());
+	String text = null;
+	if(p != null) {
+	    boolean applied = java.util.Arrays.equals(plantargets(p), data.dz);
+	    text = String.format("%s: %s (%d)%s", nurgling.i18n.L10n.get("level.survey_btn"), p.name,
+				 Math.round(p.target * data.gran), applied ? "  \u2713" : "");
+	}
+	plan = p;
+	if(!java.util.Objects.equals(text, plantext)) {
+	    plantext = text;
+	    if(text != null)
+		planBtn.change(text);
+	    if(planBtn.visible() != (text != null)) {
+		planBtn.show(text != null);
+		pack();
+	    }
+	}
+    }
+
+    /** Set every corner of the plan's tiles to the plan's height, the rest to the ground, and send it. */
+    private void applyplan() {
+	nurgling.leveling.LevelPlan p = plan;
+	if((p == null) || !inited)
+	    return;
+	int[] t;
+	try {
+	    t = plantargets(p);
+	} catch(Loading l) {
+	    return;
+	}
+	if(!nurgling.leveling.SurveyPlan.fits(t)) {
+	    getparent(GameUI.class).error(nurgling.i18n.L10n.get("level.survey_too_steep"));
+	    return;
+	}
+	for(int i = 0; i < t.length; i++)
+	    data.wz[i] = data.dz[i] = t[i];
+	data.seq++;
+	upd = true;
+	send();
+	plantext = null;
+    }
+
     private boolean upd = true;
     private int mapseq = -1;
     public void tick(double dt) {
@@ -326,6 +405,14 @@ public class LandSurvey extends Window {
 		    updmap();
 		    mapseq = mv.ui.sess.glob.map.chseq;
 		    upd = false;
+		} catch(Loading l) {
+		}
+	    }
+	    plancheck -= dt;
+	    if(plancheck <= 0) {
+		plancheck = 0.5;
+		try {
+		    checkplan();
 		} catch(Loading l) {
 		}
 	    }

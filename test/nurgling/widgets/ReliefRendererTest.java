@@ -147,4 +147,93 @@ class ReliefRendererTest {
 	assertEquals(10, ReliefRenderer.contourinterval(10, 1));
 	assertEquals(40, ReliefRenderer.contourinterval(10, 3));
     }
+
+    private static int px(byte[] px, int k, int x, int y) {
+	int o = ((y * N * k) + x) * 4;
+	return(((px[o] & 0xff) << 16) | ((px[o + 1] & 0xff) << 8) | (px[o + 2] & 0xff));
+    }
+
+    /** Flat ground at height 10, tiles 2..5 of every row in plan 0 with the given target; no shading. */
+    private static byte[] planned(int k, float target, int lvl) {
+	ReliefRenderer.Cells c = flat();
+	for(int y = -1; y <= N; y++) {
+	    for(int x = -1; x <= N; x++) {
+		int i = c.at(x, y);
+		c.z[i] = 10;
+		if((x >= 2) && (x <= 5)) {
+		    c.plan[i] = 0;
+		    c.target[i] = target;
+		}
+	    }
+	}
+	byte[] out = new byte[N * k * N * k * 4];
+	ReliefRenderer.render(c, k, lvl, 0.0, 0, out);
+	return(out);
+    }
+
+    @Test
+    void noPlanChangesNothing() {
+	ReliefRenderer.Cells c = flat();
+	byte[] a = render(c, 4);
+	ReliefRenderer.Cells d = flat();
+	d.target[d.at(3, 3)] = 5; /* A target without a plan is ignored. */
+	assertArrayEquals(a, render(d, 4));
+    }
+
+    @Test
+    void groundAboveTheTargetIsTintedToDig() {
+	int c = px(planned(1, 4, 0), 1, 3, 4);
+	assertTrue(((c >> 16) & 0xff) > ((c >> 8) & 0xff), "reddish");
+	assertTrue(((c >> 16) & 0xff) > (c & 0xff), "reddish");
+	/* Outside the plan the ground keeps its colour. */
+	assertEquals(GREY, px(planned(1, 4, 0), 1, 7, 4));
+    }
+
+    @Test
+    void groundBelowTheTargetIsTintedToFill() {
+	int c = px(planned(1, 16, 0), 1, 3, 4);
+	assertTrue((c & 0xff) > ((c >> 16) & 0xff), "bluish");
+    }
+
+    @Test
+    void groundAtTheTargetIsLevel() {
+	int c = px(planned(1, 10.2f, 0), 1, 3, 4);
+	assertTrue(((c >> 8) & 0xff) > ((c >> 16) & 0xff), "greenish");
+	assertTrue(((c >> 8) & 0xff) > (c & 0xff), "greenish");
+    }
+
+    @Test
+    void furtherOffIsStronger() {
+	int near = px(planned(1, 8, 0), 1, 3, 4), far = px(planned(1, -10, 0), 1, 3, 4);
+	assertTrue((((far >> 16) & 0xff) - (far & 0xff)) > (((near >> 16) & 0xff) - (near & 0xff)));
+    }
+
+    @Test
+    void outlineIsAThinOrangeLineUpClose() {
+	byte[] px = planned(4, 10, 0);
+	/* The plan starts at tile 2 (pixel 8) and the first tile out of it is 6 (pixel 24). */
+	assertEquals(ReliefRenderer.PLANLINE, px(px, 4, 8, 9));
+	assertEquals(ReliefRenderer.PLANLINE, px(px, 4, 24, 9));
+	assertNotEquals(ReliefRenderer.PLANLINE, px(px, 4, 9, 9));
+	assertNotEquals(ReliefRenderer.PLANLINE, px(px, 4, 12, 9));
+	/* The plan runs on through the top and bottom of the grid: no line across it there. */
+	assertNotEquals(ReliefRenderer.PLANLINE, px(px, 4, 13, 0));
+    }
+
+    @Test
+    void zoomedOutIsAWashNotDigOrFill() {
+	int lo = px(planned(1, -50, 2), 1, 3, 4), hi = px(planned(1, 50, 2), 1, 3, 4);
+	assertEquals(lo, hi);
+	assertNotEquals(GREY, lo);
+    }
+
+    @Test
+    void noTileEdgesWhenOff() {
+	ReliefRenderer.Cells c = flat();
+	c.edges = false;
+	for(int y = -1; y <= N; y++)
+	    for(int x = 4; x <= N; x++)
+		c.tile[c.at(x, y)] = 1;
+	assertEquals(0x80, red(render(c, 4), 4, 16, 8));
+    }
 }
