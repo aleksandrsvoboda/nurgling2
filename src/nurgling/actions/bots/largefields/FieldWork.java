@@ -152,7 +152,7 @@ final class FieldWork {
         FieldTasks.BlockLoaded t = new FieldTasks.BlockLoaded(map, block);
         NUtils.getUI().core.addTask(t);
         if (t.timedOut)
-            System.out.println("[LargeField] block " + block.ul + " did not settle in time; working with what is loaded");
+            System.out.println("[LargeField] block " + block.ul + " did not load in time; working with what is loaded");
     }
 
     private boolean returnTo(NGlobalCoord back) throws InterruptedException {
@@ -454,9 +454,15 @@ final class FieldWork {
         if (fa == null)
             return true;
         Pair<Coord2d, Coord2d> rc = new Pair<>(fa.ul.sub(1, 1).mul(MCache.tilesz), fa.br.add(1, 1).mul(MCache.tilesz));
+        List<NAlias> kinds = stores.groundKinds(gui);
+        // Take what the harvest left in the inventory (the seeds) to storage first, so the pickup
+        // starts with an empty inventory - but only when there is something to pick up; otherwise
+        // it goes with the store trip below.
+        if (somethingOnGround(rc, kinds) && stores.carriesHarvest(gui) && !unloadTrip())
+            return false;
         if (crop.whole != null && !collectWhole(rc))
             return false;
-        for (NAlias kind : stores.groundKinds(gui)) {
+        for (NAlias kind : kinds) {
             NAlias alias = new NAlias(new ArrayList<>(kind.keys), withContainers(kind.exceptions));
             while (true) {
                 Gob item = nearest(rc, alias);
@@ -470,6 +476,16 @@ final class FieldWork {
             }
         }
         return store();
+    }
+
+    private boolean somethingOnGround(Pair<Coord2d, Coord2d> rc, List<NAlias> kinds) throws InterruptedException {
+        List<NAlias> all = new ArrayList<>(kinds);
+        if (crop.whole != null)
+            all.add(crop.whole.alias);
+        for (NAlias kind : all)
+            if (nearest(rc, new NAlias(new ArrayList<>(kind.keys), withContainers(kind.exceptions))) != null)
+                return true;
+        return false;
     }
 
     private Gob nearest(Pair<Coord2d, Coord2d> rc, NAlias alias) throws InterruptedException {
