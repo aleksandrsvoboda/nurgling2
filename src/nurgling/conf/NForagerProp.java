@@ -2,7 +2,6 @@ package nurgling.conf;
 
 import nurgling.NConfig;
 import nurgling.NUI;
-import nurgling.NUtils;
 import nurgling.guarding.GuardEntry;
 import nurgling.guarding.GuardingProfile;
 import nurgling.routes.ForagerAction;
@@ -261,39 +260,14 @@ public class NForagerProp implements JConf {
         
         JSONObject presetsJson = new JSONObject();
         for (Map.Entry<String, PresetData> entry : presets.entrySet()) {
-            JSONObject presetJson = new JSONObject();
-            presetJson.put("pathFile", entry.getValue().pathFile);
-            
-            JSONArray actionsJson = new JSONArray();
-            for (ForagerAction action : entry.getValue().actions) {
-                actionsJson.put(action.toJson());
-            }
-            presetJson.put("actions", actionsJson);
-
-            presetJson.put("onPlayerAction", entry.getValue().onPlayerAction);
-            presetJson.put("onAnimalAction", entry.getValue().onAnimalAction);
-            presetJson.put("afterFinishAction", entry.getValue().afterFinishAction);
-            presetJson.put("onFullInventoryAction", entry.getValue().onFullInventoryAction);
-            presetJson.put("ignoreBats", entry.getValue().ignoreBats);
-            presetJson.put("waterMode", entry.getValue().waterMode);
-            if (entry.getValue().actionsProfileName != null)
-                presetJson.put("actionsProfileName", entry.getValue().actionsProfileName);
-            if (entry.getValue().guardingProfileName != null)
-                presetJson.put("guardingProfileName", entry.getValue().guardingProfileName);
-            presetJson.put("ignoreMaintainLimits", entry.getValue().ignoreMaintainLimits);
-
-            presetsJson.put(entry.getKey(), presetJson);
+            presetsJson.put(entry.getKey(), presetJson(entry.getValue()));
         }
         jforager.put("presets", presetsJson);
 
         jforager.put("currentActionsProfile", currentActionsProfile);
         JSONObject actionsProfilesJson = new JSONObject();
         for (Map.Entry<String, ArrayList<ForagerAction>> entry : actionsProfiles.entrySet()) {
-            JSONArray actionsJson = new JSONArray();
-            for (ForagerAction action : entry.getValue()) {
-                actionsJson.put(action.toJson());
-            }
-            actionsProfilesJson.put(entry.getKey(), actionsJson);
+            actionsProfilesJson.put(entry.getKey(), actionsJson(entry.getValue()));
         }
         jforager.put("actionsProfiles", actionsProfilesJson);
 
@@ -307,22 +281,159 @@ public class NForagerProp implements JConf {
         return jforager;
     }
 
+    private static JSONObject presetJson(PresetData pd) {
+        JSONObject presetJson = new JSONObject();
+        presetJson.put("pathFile", pd.pathFile);
+        presetJson.put("actions", actionsJson(pd.actions));
+        presetJson.put("onPlayerAction", pd.onPlayerAction);
+        presetJson.put("onAnimalAction", pd.onAnimalAction);
+        presetJson.put("afterFinishAction", pd.afterFinishAction);
+        presetJson.put("onFullInventoryAction", pd.onFullInventoryAction);
+        presetJson.put("ignoreBats", pd.ignoreBats);
+        presetJson.put("waterMode", pd.waterMode);
+        if (pd.actionsProfileName != null)
+            presetJson.put("actionsProfileName", pd.actionsProfileName);
+        if (pd.guardingProfileName != null)
+            presetJson.put("guardingProfileName", pd.guardingProfileName);
+        presetJson.put("ignoreMaintainLimits", pd.ignoreMaintainLimits);
+        return presetJson;
+    }
+
+    /** Kept for existing callers: the settings are shared by every character now, so the session doesn't pick them. */
     public static NForagerProp get(NUI.NSessInfo sessInfo) {
-        if (sessInfo == null || NUtils.getGameUI() == null || NUtils.getGameUI().getCharInfo() == null)
-            return null;
-        String chrid = NUtils.getGameUI().getCharInfo().chrid;
-        @SuppressWarnings("unchecked")
-        ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
-        if (foragerProps == null)
-            foragerProps = new ArrayList<>();
-        // Last match wins: set() appends, so that's the most recently saved variant.
-        NForagerProp found = null;
-        for (NForagerProp prop : foragerProps) {
-            if (prop.isFor(sessInfo.username, chrid)) {
-                found = prop;
+        return get();
+    }
+
+    /**
+     * The one set of Forager settings shared by every character on this PC. The first call after the
+     * switch from per-character settings merges every character's entry into it (see {@link #merge}).
+     * The per-character entries stay in the list untouched, so an older client still finds its own.
+     */
+    public static NForagerProp get() {
+        synchronized (NForagerProp.class) {
+            @SuppressWarnings("unchecked")
+            ArrayList<NForagerProp> foragerProps = ((ArrayList<NForagerProp>) NConfig.get(NConfig.Key.foragerprop));
+            if (foragerProps == null)
+                foragerProps = new ArrayList<>();
+            for (NForagerProp prop : foragerProps) {
+                if (prop.isShared()) {
+                    return prop;
+                }
+            }
+            NForagerProp shared = merge(foragerProps);
+            set(shared);
+            return shared;
+        }
+    }
+
+    /** Marks the shared entry in the saved list. No account or character is named "*", so an older client never takes it for its own. */
+    static final String SHARED = "*";
+
+    private boolean isShared() {
+        return SHARED.equals(username) && SHARED.equals(chrid);
+    }
+
+    /**
+     * Builds the shared entry from the per-character ones. The most recently saved character (last in
+     * the list, since set() appends) goes first, so its names and selections stay as they are. A later
+     * character's profile or preset with the same name and the same contents is kept once; with the same
+     * name and different contents it is added as "name (character)", so nothing is lost.
+     */
+    static NForagerProp merge(List<NForagerProp> perCharacter) {
+        NForagerProp shared = new NForagerProp(SHARED, SHARED);
+        if (perCharacter.isEmpty()) {
+            return shared;
+        }
+        shared.presets.clear();
+        shared.actionsProfiles.clear();
+        shared.guardingProfiles.clear();
+        boolean first = true;
+        for (int i = perCharacter.size() - 1; i >= 0; i--) {
+            if (perCharacter.get(i).isShared()) continue;
+            // A copy: the shared entry must not hold the per-character entries' objects, or editing it would rewrite those too.
+            NForagerProp from = copy(perCharacter.get(i));
+            String owner = from.chrid != null && !from.chrid.isEmpty() ? from.chrid : from.username;
+
+            Map<String, String> actionsNames = new HashMap<>();
+            for (Map.Entry<String, ArrayList<ForagerAction>> e : from.actionsProfiles.entrySet()) {
+                actionsNames.put(e.getKey(), place(shared.actionsProfiles, e.getKey(), e.getValue(), owner,
+                        (a, b) -> actionsJson(a).similar(actionsJson(b))));
+            }
+            Map<String, String> guardingNames = new HashMap<>();
+            for (Map.Entry<String, GuardingProfile> e : from.guardingProfiles.entrySet()) {
+                guardingNames.put(e.getKey(), place(shared.guardingProfiles, e.getKey(), e.getValue(), owner,
+                        (a, b) -> a.toJson().similar(b.toJson())));
+            }
+            Map<String, String> presetNames = new HashMap<>();
+            for (Map.Entry<String, PresetData> e : from.presets.entrySet()) {
+                PresetData pd = e.getValue();
+                pd.actionsProfileName = actionsNames.getOrDefault(pd.actionsProfileName, pd.actionsProfileName);
+                pd.guardingProfileName = guardingNames.getOrDefault(pd.guardingProfileName, pd.guardingProfileName);
+                presetNames.put(e.getKey(), place(shared.presets, e.getKey(), pd, owner,
+                        (a, b) -> presetJson(a).similar(presetJson(b))));
+            }
+
+            if (first) {
+                first = false;
+                shared.currentPreset = presetNames.getOrDefault(from.currentPreset, from.currentPreset);
+                shared.currentActionsProfile = actionsNames.getOrDefault(from.currentActionsProfile, from.currentActionsProfile);
+                shared.currentGuardingProfile = guardingNames.getOrDefault(from.currentGuardingProfile, from.currentGuardingProfile);
             }
         }
-        return found != null ? found : new NForagerProp(sessInfo.username, chrid);
+        if (shared.presets.isEmpty()) {
+            shared.presets.put("Default", new PresetData());
+        }
+        if (shared.actionsProfiles.isEmpty()) {
+            shared.actionsProfiles.put("Default", new ArrayList<>());
+        }
+        if (shared.guardingProfiles.isEmpty()) {
+            shared.guardingProfiles.put("Default", GuardingProfile.withDefaults());
+        }
+        if (!shared.presets.containsKey(shared.currentPreset)) {
+            shared.currentPreset = shared.presets.keySet().iterator().next();
+        }
+        if (!shared.actionsProfiles.containsKey(shared.currentActionsProfile)) {
+            shared.currentActionsProfile = shared.actionsProfiles.keySet().iterator().next();
+        }
+        if (!shared.guardingProfiles.containsKey(shared.currentGuardingProfile)) {
+            shared.currentGuardingProfile = shared.guardingProfiles.keySet().iterator().next();
+        }
+        return shared;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static NForagerProp copy(NForagerProp prop) {
+        return new NForagerProp((HashMap<String, Object>) prop.toJson().toMap());
+    }
+
+    /** Puts value into into under name, or keeps the existing one if it's the same; returns the name it ended up under. */
+    private static <T> String place(Map<String, T> into, String name, T value, String owner, java.util.function.BiPredicate<T, T> same) {
+        T existing = into.get(name);
+        if (existing == null) {
+            into.put(name, value);
+            return name;
+        }
+        if (same.test(existing, value)) {
+            return name;
+        }
+        String base = name + " (" + owner + ")";
+        String renamed = base;
+        for (int n = 2; into.containsKey(renamed); n++) {
+            if (same.test(into.get(renamed), value)) {
+                return renamed;
+            }
+            renamed = base + " " + n;
+        }
+        into.put(renamed, value);
+        return renamed;
+    }
+
+    private static JSONArray actionsJson(List<ForagerAction> actions) {
+        JSONArray arr = new JSONArray();
+        for (ForagerAction action : actions) {
+            arr.put(action.toJson());
+        }
+        return arr;
     }
 
     /** The server echoes the character name as the client sent it (a launcher's typed "bob" vs the charlist's "Bob"), so match ignoring case. */
